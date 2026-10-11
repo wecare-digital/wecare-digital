@@ -824,7 +824,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const nextHealth = screen.getByRole( 'button', { name: 'Next health recommendation' } );
     expect( prevHealth ).toBeTruthy();
     expect( nextHealth ).toBeTruthy();
-    expect( container.querySelector( '.vl-live-air-health-page-count' )?.textContent ).toMatch( /\d+ \/ 7/ );
+    expect( container.querySelector( '.vl-live-air-health-page-count' ) ).toBeNull();
 
     const selected = Array.from( personaTabs ).filter( t => t.getAttribute( 'aria-selected' ) === 'true' );
     expect( selected ).toHaveLength( 1 );
@@ -1244,15 +1244,15 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( searchWrapRule ).toContain( 'box-shadow:0 8px 28px rgba(0,0,0,.10)' );
     expect( searchWrapRule ).toContain( 'z-index:30' );
 
-    // Pollutant info control follows the final icon language: black glyph on solid lime,
-    // then inverts to dark green + lime on hover.
+    // Pollutant info control follows the SupportWidget WhatsApp skin exactly:
+    // lime surface, deep-green icon, lighter-lime hover, circular shape.
     const infoRule = css.match( /\.vl-live-air-pollutant-info\{[^}]*\}/ )?.[ 0 ] || '';
     expect( infoRule ).toContain( 'background:var(--lime)' );
-    expect( infoRule ).toContain( 'color:#111' );
-    expect( infoRule ).toContain( 'border-radius:8px' );
+    expect( infoRule ).toContain( 'color:var(--green)' );
+    expect( infoRule ).toContain( 'border-radius:50%' );
     const infoHoverRule = css.match( /\.vl-live-air-pollutant-info:hover\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( infoHoverRule ).toContain( 'background:var(--green)' );
-    expect( infoHoverRule ).toContain( 'color:var(--lime)' );
+    expect( infoHoverRule ).toContain( 'background:var(--lime-hover)' );
+    expect( infoHoverRule ).toContain( 'color:var(--green)' );
 
     // The duplicate top Air Quality Details heading is gone; the inner section is Pollutants.
     expect( container.textContent ).not.toContain( 'Air Quality Details' );

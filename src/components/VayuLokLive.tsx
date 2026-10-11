@@ -2409,9 +2409,6 @@ const VayuLokLive: React.FC = () => {
                               >
                                 <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronLeft } /></svg>
                               </button>
-                              <span className="vl-live-air-health-page-count" aria-live="polite">
-                                { healthPersona + 1 } / { liveHealthPersonas.length }
-                              </span>
                               <button
                                 type="button"
                                 className="vl-live-air-health-page-btn"
@@ -2743,7 +2740,7 @@ const VayuLokLive: React.FC = () => {
       ) }
       <style jsx>{`
         .vl-live{
-          --page:#fff;--alt:#fafafa;--lime:#d1f470;--lime-tint:rgba(209,244,112,.22);
+          --page:#fff;--alt:#fafafa;--lime:#d1f470;--lime-hover:#c5e866;--lime-tint:rgba(209,244,112,.22);
           --green:#1a3a2a;--hair:#e5e7eb;--heading:rgba(0,0,0,.95);--body:rgba(0,0,0,.898);
           --muted:rgba(0,0,0,.54);--status:rgba(0,0,0,.70);--panel-r:14px;--pill-r:999px;
           /* Home semantic hues mirrored from src/styles/tokens.css so the card reads as
@@ -2777,7 +2774,7 @@ const VayuLokLive: React.FC = () => {
 
         .vl-live-air-context{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-2px 0 16px;padding:0 0 12px;border-bottom:1px solid var(--hair)}
         .vl-live-air-context-item{display:inline-flex;min-width:0;align-items:center;gap:6px;color:var(--status);font-size:12px;line-height:1.2}
-        .vl-live-air-context-item svg{flex:0 0 auto;width:22px;height:22px;padding:3px;border-radius:6px;background:var(--lime);fill:#111}
+        .vl-live-air-context-item svg{flex:0 0 auto;width:22px;height:22px;padding:3px;border-radius:50%;background:var(--lime);fill:var(--green)}
         .vl-live-air-context-item strong{min-width:0;overflow:hidden;color:var(--heading);font-weight:700;text-overflow:ellipsis;white-space:nowrap}
         .vl-live-air-context-item.is-time{justify-content:flex-end;white-space:nowrap}
         .vl-live-air-context-item time{color:var(--heading);font-weight:700}
@@ -2813,7 +2810,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-index-name{display:block;margin-top:3px;color:var(--muted);font-size:11px;font-weight:600}
         .vl-live-air-facts{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:9px}
         .vl-live-air-fact{display:inline-flex;align-items:center;gap:6px;color:var(--status);font-size:11px;line-height:1.25}
-        .vl-live-air-fact svg{width:20px;height:20px;padding:3px;border-radius:6px;background:var(--lime);fill:#111}
+        .vl-live-air-fact svg{width:20px;height:20px;padding:3px;border-radius:50%;background:var(--lime);fill:var(--green)}
         .vl-live-air-fact strong{color:var(--heading);font-weight:700}
         .vl-live-air-fact.is-dominant{padding:0;border:0;border-radius:0;background:transparent}
 
@@ -2841,11 +2838,11 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-value{color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.2px}
         .vl-live-air-pollutant-value small{margin-left:3px;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:0}
         .vl-live-air-pollutant-label{color:var(--status);font-size:13px;font-weight:600}
-        /* Shared Air-card action language: black Material glyph on solid lime.
-           Hover inverts to dark green + lime so every icon behaves the same way. */
-        .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:8px;background:var(--lime);color:#111;cursor:help;box-shadow:none;transition:transform .16s ease,background .16s ease,color .16s ease,box-shadow .16s ease}
+        /* Exact SupportWidget WhatsApp icon language: lime surface, #1a3a2a glyph,
+           #c5e866 hover, dark-green focus ring. No inversion and no extra icon palette. */
+        .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);cursor:help;box-shadow:none;transition:background-color .2s}
         .vl-live-air-pollutant-info svg{width:21px;height:21px;fill:currentColor}
-        .vl-live-air-pollutant-info:hover{transform:translateY(-1px);background:var(--green);color:var(--lime);box-shadow:0 5px 12px rgba(26,58,42,.18)}
+        .vl-live-air-pollutant-info:hover{background:var(--lime-hover);color:var(--green)}
         .vl-live-air-pollutant-info:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 
         /* Fixed sibling OUTSIDE the scrollable Air card: white home-page surface, compact copy,
@@ -2861,8 +2858,8 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-pop-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
         .vl-live-air-pollutant-pop-title{display:inline-flex;min-height:28px;align-items:center;padding:0 10px;border:1px solid var(--hair);border-radius:999px;background:#f7f7f5;color:var(--green);font-size:13px;font-weight:700;letter-spacing:-.1px}
         .vl-live-air-pollutant-pop-fullname{display:block;margin-top:5px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.3}
-        .vl-live-air-pollutant-pop-close{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:32px;height:32px;padding:0;border:0;border-radius:8px;background:var(--lime);color:#111}
-        .vl-live-air-pollutant-pop-close:hover{background:var(--green);color:var(--lime)}
+        .vl-live-air-pollutant-pop-close{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);transition:background-color .2s}
+        .vl-live-air-pollutant-pop-close:hover{background:var(--lime-hover);color:var(--green)}
         .vl-live-air-pollutant-pop-close:focus-visible{outline:3px solid var(--green);outline-offset:2px}
         .vl-live-air-pollutant-pop-close svg{width:20px;height:20px;fill:currentColor}
         .vl-live-air-pollutant-pop-line{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:start}
@@ -2878,10 +2875,10 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-heatmap{margin-top:20px;padding-top:18px;border-top:1px solid var(--hair)}
         .vl-live-air-heatmap-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
         .vl-live-air-heatmap-label{color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.18px}
-        .vl-live-air-heatmap-switch{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:36px;height:36px;padding:0;border:0;border-radius:8px;background:var(--lime);color:#111;box-shadow:none;transition:background .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease}
+        .vl-live-air-heatmap-switch{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:36px;height:36px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);box-shadow:none;transition:background-color .2s}
         .vl-live-air-heatmap-switch svg{width:23px;height:23px;fill:currentColor}
-        .vl-live-air-heatmap-switch.is-on{background:var(--lime);color:#111}
-        .vl-live-air-heatmap-switch:hover:not(:disabled){transform:translateY(-1px);background:var(--green);color:var(--lime);box-shadow:0 5px 12px rgba(26,58,42,.18)}
+        .vl-live-air-heatmap-switch.is-on{background:var(--lime);color:var(--green)}
+        .vl-live-air-heatmap-switch:hover:not(:disabled){background:var(--lime-hover);color:var(--green)}
         .vl-live-air-heatmap-switch:focus-visible{outline:3px solid var(--green);outline-offset:2px}
         .vl-live-air-heatmap-switch:disabled{opacity:.46;cursor:not-allowed}
         .vl-live-air-heatmap-legend{margin-top:12px}
@@ -2890,24 +2887,24 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-heatmap-end{color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.02em}
 
         /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
-           One horizontal Material-icon row. Black glyphs sit on lime tiles; the active
-           profile gets a strong black ring. Pager arrows cycle the Google API profiles. */
+           One horizontal Material-icon row. Every icon uses the exact public WhatsApp
+           widget palette: lime #d1f470, deep green #1a3a2a, hover #c5e866.
+           The selected profile is a dark-green ring; arrows page without numeric copy. */
         .vl-live-air-health{margin-top:22px;padding-top:18px;border-top:1px solid var(--hair)}
         .vl-live-air-health-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
         .vl-live-air-health-title{margin:0;color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.18px}
-        .vl-live-air-health-pager{display:flex;align-items:center;gap:5px}
-        .vl-live-air-health-page-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:var(--lime);color:#111;transition:transform .16s ease,background .16s ease,color .16s ease}
+        .vl-live-air-health-pager{display:flex;align-items:center;gap:6px}
+        .vl-live-air-health-page-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);transition:background-color .2s}
         .vl-live-air-health-page-btn svg{width:18px;height:18px;fill:currentColor}
-        .vl-live-air-health-page-btn:hover:not(:disabled){transform:translateY(-1px);background:var(--green);color:var(--lime)}
+        .vl-live-air-health-page-btn:hover:not(:disabled){background:var(--lime-hover);color:var(--green)}
         .vl-live-air-health-page-btn:focus-visible{outline:3px solid var(--green);outline-offset:2px}
         .vl-live-air-health-page-btn:disabled{opacity:.4;cursor:not-allowed}
-        .vl-live-air-health-page-count{min-width:34px;color:var(--muted);font-size:10.5px;font-weight:700;text-align:center}
         .vl-live-air-health-tabs{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:1px 0 4px;scrollbar-width:none;white-space:nowrap}
         .vl-live-air-health-tabs::-webkit-scrollbar{display:none}
-        .vl-live-air-health-tab{display:inline-flex;flex:0 0 38px;width:38px;height:38px;align-items:center;justify-content:center;padding:0;border:0;border-radius:9px;background:var(--lime);color:#111;transition:transform .16s ease,background .16s ease,color .16s ease,box-shadow .16s ease}
-        .vl-live-air-health-tab:hover{transform:translateY(-1px);background:var(--green);color:var(--lime)}
+        .vl-live-air-health-tab{display:inline-flex;flex:0 0 38px;width:38px;height:38px;align-items:center;justify-content:center;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);transition:background-color .2s,box-shadow .16s ease}
+        .vl-live-air-health-tab:hover{background:var(--lime-hover);color:var(--green)}
         .vl-live-air-health-tab:focus-visible{outline:3px solid var(--green);outline-offset:2px}
-        .vl-live-air-health-tab.is-active{background:var(--lime);color:#111;box-shadow:0 0 0 2px #111 inset,0 5px 12px rgba(26,58,42,.12)}
+        .vl-live-air-health-tab.is-active{background:var(--lime);color:var(--green);box-shadow:0 0 0 2px var(--green) inset}
         .vl-live-air-health-icon-wrap{display:flex;align-items:center;justify-content:center;width:100%;height:100%;border:0;border-radius:inherit;background:transparent;color:inherit}
         .vl-live-air-health-icon{width:24px;height:24px;fill:currentColor}
         .vl-live-air-health-panel{margin-top:12px;padding-top:12px;border-top:1px solid var(--hair)}
@@ -2943,7 +2940,9 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-sev-worst .vl-live-air-history-area{color:#c98a2e}
         .vl-live-air-history-bubble{position:absolute;top:0;transform:translateX(-50%);min-width:28px;padding:2px 7px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);font-size:11px;font-weight:700;text-align:center}
         .vl-live-air-history-nav{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
-        .vl-live-air-history-nav button{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:1px solid var(--hair);border-radius:50%;background:#fff;color:var(--green)}
+        .vl-live-air-history-nav button{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);transition:background-color .2s}
+        .vl-live-air-history-nav button:hover:not(:disabled){background:var(--lime-hover)}
+        .vl-live-air-history-nav button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
         .vl-live-air-history-nav button:disabled{opacity:.4;cursor:not-allowed}
         .vl-live-air-history-nav svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
