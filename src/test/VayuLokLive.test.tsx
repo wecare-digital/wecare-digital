@@ -817,6 +817,15 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( screen.getByRole( 'tab', { name: 'Pregnant women' } ) ).toBeTruthy();
     expect( screen.getByRole( 'tab', { name: 'Children' } ) ).toBeTruthy();
 
+    // Health icons stay in one horizontal row; text labels are tooltip/ARIA only, not stacked
+    // under each icon. Pager arrows cycle the active profile.
+    expect( healthTablist.querySelectorAll( '.vl-live-air-health-tab-label' ) ).toHaveLength( 0 );
+    const prevHealth = screen.getByRole( 'button', { name: 'Previous health recommendation' } );
+    const nextHealth = screen.getByRole( 'button', { name: 'Next health recommendation' } );
+    expect( prevHealth ).toBeTruthy();
+    expect( nextHealth ).toBeTruthy();
+    expect( container.querySelector( '.vl-live-air-health-page-count' )?.textContent ).toMatch( /\d+ \/ 7/ );
+
     const selected = Array.from( personaTabs ).filter( t => t.getAttribute( 'aria-selected' ) === 'true' );
     expect( selected ).toHaveLength( 1 );
     expect( selected[ 0 ].querySelector( '.vl-live-air-health-icon' )?.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
@@ -824,6 +833,13 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const healthPanel = container.querySelector( '.vl-live-air-health-panel' );
     const firstLiveText = healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ?? '';
     expect( firstLiveText ).toMatch( /Google .* guidance/ );
+
+    const selectedBeforePager = Array.from( personaTabs ).findIndex( t => t.getAttribute( 'aria-selected' ) === 'true' );
+    fireEvent.click( nextHealth );
+    await waitFor( () => {
+      const selectedAfterPager = Array.from( personaTabs ).findIndex( t => t.getAttribute( 'aria-selected' ) === 'true' );
+      expect( selectedAfterPager ).toBe( ( selectedBeforePager + 1 ) % 7 );
+    } );
 
     const athleteTab = screen.getByRole( 'tab', { name: 'Athletes' } );
     fireEvent.click( athleteTab );
@@ -1224,15 +1240,15 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( searchWrapRule ).toContain( 'box-shadow:none' );
     expect( searchWrapRule ).toContain( 'z-index:30' );
 
-    // Pollutant info control is the shared lime Material action: transparent at rest,
-    // light-lime hover, never a dark-green or white filled circle.
+    // Pollutant info control follows the final icon language: black glyph on solid lime,
+    // then inverts to dark green + lime on hover.
     const infoRule = css.match( /\.vl-live-air-pollutant-info\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( infoRule ).toContain( 'background:transparent' );
-    expect( infoRule ).toContain( 'color:var(--lime)' );
+    expect( infoRule ).toContain( 'background:var(--lime)' );
+    expect( infoRule ).toContain( 'color:#111' );
     expect( infoRule ).toContain( 'border-radius:8px' );
-    expect( infoRule ).not.toContain( 'background:var(--green)' );
     const infoHoverRule = css.match( /\.vl-live-air-pollutant-info:hover\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( infoHoverRule ).toContain( 'background:var(--lime-tint)' );
+    expect( infoHoverRule ).toContain( 'background:var(--green)' );
+    expect( infoHoverRule ).toContain( 'color:var(--lime)' );
 
     // The duplicate top Air Quality Details heading is gone; the inner section is Pollutants.
     expect( container.textContent ).not.toContain( 'Air Quality Details' );
