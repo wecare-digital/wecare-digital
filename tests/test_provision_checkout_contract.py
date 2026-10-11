@@ -426,6 +426,56 @@ def test_the_environment_holds_secret_names_not_values(provisioner):
     assert env["ORDERS_TABLE"] == "stack-wecare-digital-OrderTable"
 
 
+# ── the Wix order write-back switch ───────────────────────────────────────────
+#
+# `finalization.accept_paid` runs on this function's verify-callback leg and is the single place a
+# paid order is pushed to the Wix Orders list. Whether it writes is decided by
+# `lambda_utils/ecommerce/wix_writeback.is_enabled()`, which is AND of four env conditions. The
+# provisioner's job is to make the switch DEPLOYED-AND-INERT: the keys exist, but turning writes on
+# is a deliberate two-value edit, not something a routine provisioner run can do. These assertions
+# pin that posture so a later edit that flips it has to be intentional.
+
+def test_the_writeback_switches_are_present_but_empty(provisioner):
+    """Empty, not absent, and not truthy. Present so enabling is an edit of a known key; empty so
+    `is_enabled()` returns False and no paid order reaches Wix until an owner flips them."""
+    env = provisioner.expected_environment()
+    for key in ("WIX_WRITEBACK_ENABLED", "WIX_ECOM_WRITE_CONFIRMED"):
+        assert key in env, f"{key} must be declared so enabling it is a value edit"
+        assert env[key] == "", f"{key} must seed empty — a non-empty seed turns Wix writes on"
+    assert provisioner.WIX_WRITEBACK_SWITCH_KEYS == (
+        "WIX_WRITEBACK_ENABLED", "WIX_ECOM_WRITE_CONFIRMED")
+
+
+def test_the_writeback_switches_are_presence_only_for_verify(provisioner):
+    """The two switches join the readiness inputs as presence-only keys, so an owner who flips one
+    to a truthy value is legitimate drift that `--verify` tolerates and `reconcile_environment`
+    never clobbers."""
+    assert provisioner.PRESENCE_ONLY_KEYS == (
+        provisioner.READINESS_KEYS + provisioner.WIX_WRITEBACK_SWITCH_KEYS)
+    for key in provisioner.WIX_WRITEBACK_SWITCH_KEYS:
+        assert key in provisioner.PRESENCE_ONLY_KEYS
+
+
+def test_the_write_contract_is_the_fixed_required_constant(provisioner):
+    """The contract string is a constant, not a switch: on its own it enables nothing, so it is
+    set to the exact value `wix_writeback.is_enabled()` requires and value-checked by `--verify`.
+    Pinned equal to the module's own `WRITE_CONTRACT` so the two cannot drift apart."""
+    env = provisioner.expected_environment()
+    assert env["WIX_CART_V2_WRITE_CONTRACT"] == "cart-v2-external-v1"
+    assert provisioner.WIX_CART_V2_WRITE_CONTRACT == "cart-v2-external-v1"
+    assert env["WIX_SITE_ID"] == "c993128b-26be-41cd-9fcd-904abe23462f"
+
+
+def test_reconcile_seeds_the_switches_only_when_absent(provisioner):
+    """`reconcile_environment` adds a presence-only switch when it is MISSING, but never overwrites
+    an owner-set value. Asserted over the source so no account is touched."""
+    body = SCRIPT.read_text(encoding="utf-8").split(
+        "def reconcile_environment")[1].split("\ndef ")[0]
+    assert "k not in PRESENCE_ONLY_KEYS and current.get(k) != v" in body
+    assert "for k in PRESENCE_ONLY_KEYS:" in body
+    assert "if k not in current:" in body
+
+
 def test_readiness_set_message_is_only_for_gate_off(provisioner):
     """Do not report the gate as OFF when CHECKOUT_INITIATION_ENABLED is actually truthy."""
     body = SCRIPT.read_text(encoding="utf-8").split("def verify(")[1].split("\ndef ")[0]
@@ -1238,7 +1288,10 @@ def test_every_non_readiness_key_is_actually_checked(provisioner, verify_run):
     """Stated over the whole key set rather than over one example, so a future key added to
     `expected_environment` is covered the day it is added."""
     for key, want in provisioner.expected_environment().items():
-        if key in provisioner.READINESS_KEYS:
+        # Presence-only keys (readiness inputs + the two Wix write-back switches) are tolerated at
+        # any value by design, so a wrong value does not — and must not — fail verify. Every OTHER
+        # key is value-checked, which is what this test guards.
+        if key in provisioner.PRESENCE_ONLY_KEYS:
             continue
         assert verify_run({key: f"wrong-{want}-x"}) == 1, f"{key} is not verified on live"
 

@@ -529,6 +529,40 @@ def ensure_log_group(dry_run: bool) -> str:
 #: checked for an exact value.
 READINESS_KEYS = ("EXPECTED_CONFIGURATION_NAME", "EXPECTED_PROVIDER_MID")
 
+#: The two deliberate switches that turn the Wix order write-back on. Both default to EMPTY here,
+#: for the same reason `READINESS_KEYS` do: a key that exists is a key an owner flips with one
+#: `update-function-configuration`, and seeding it empty means enabling Wix writes is a deliberate
+#: two-value edit rather than something a routine provisioner run can do by accident.
+#:
+#: `lambda_utils/ecommerce/wix_writeback.is_enabled()` is the gate they feed, and it is AND of
+#: four conditions:
+#:   WIX_WRITEBACK_ENABLED (truthy)   — this script seeds it empty
+#:   WIX_ECOM_WRITE_CONFIRMED (truthy)— this script seeds it empty
+#:   WIX_SITE_ID == the confirmed id  — already set below and reconciled
+#:   WIX_CART_V2_WRITE_CONTRACT == "cart-v2-external-v1" — a fixed contract string, set below
+#:
+#: So `--verify` checks these two for PRESENCE only (an owner may legitimately set either to a
+#: truthy value), exactly like the readiness inputs. The contract string, by contrast, is a fixed
+#: constant checked for its EXACT value — it alone cannot enable anything, so pinning it is safe.
+#:
+#: WHY THE SWITCHES STAY EMPTY FOR NOW. The live Wix headless API key answers the eCommerce Orders
+#: API with 403 READ_ORDER_FORBIDDEN (verified by `scripts/probe_wix_capabilities.py`). The write
+#: scope is not provisioned, so a POST /ecom/v1/orders would be rejected and every paid order would
+#: stall at the WIX_READBACK_REQUIRED reconciliation stage instead of landing cleanly in DynamoDB.
+#: Deploying the keys declared-but-empty makes the switch READY on the function; turning it on is
+#: the follow-up `WIX_WRITEBACK_ENABLED=true WIX_ECOM_WRITE_CONFIRMED=true` edit, to be made only
+#: after the Wix key is granted the eCommerce write scope and one real order is validated.
+WIX_WRITEBACK_SWITCH_KEYS = ("WIX_WRITEBACK_ENABLED", "WIX_ECOM_WRITE_CONFIRMED")
+
+#: Presence-only keys = readiness inputs + the two write-back switches. Every OTHER key in
+#: `expected_environment()` is checked for an exact value by `--verify` and repaired by
+#: `reconcile_environment`.
+PRESENCE_ONLY_KEYS = READINESS_KEYS + WIX_WRITEBACK_SWITCH_KEYS
+
+#: The fixed Cart V2 external-order write contract string `wix_writeback.is_enabled()` requires.
+#: A constant, not a switch: on its own it enables nothing, so it is set and value-checked.
+WIX_CART_V2_WRITE_CONTRACT = "cart-v2-external-v1"
+
 
 def expected_environment() -> dict:
     return {
@@ -546,6 +580,16 @@ def expected_environment() -> dict:
         "EXPECTED_CONFIGURATION_NAME": "",
         "EXPECTED_PROVIDER_MID": "",
         # CHECKOUT_INITIATION_ENABLED intentionally omitted -> initiation OFF.
+        # ── Wix order write-back (headless Wix -> real Wix Orders list) ──────────────────
+        # `finalization.accept_paid` runs on the verify-callback leg of THIS function and is the
+        # single place a paid order is pushed to Wix. The payload is already built on the attempt
+        # (`website_checkout`/`handler` call `wix_writeback.build_wix_order_payload`); the only
+        # thing standing between a paid order and the Wix Orders list is `wix_writeback.is_enabled`,
+        # which these four keys feed. The contract string is set to its one required value; the two
+        # switches stay empty so turning writes on is a deliberate edit — see WIX_WRITEBACK_* notes.
+        "WIX_CART_V2_WRITE_CONTRACT": WIX_CART_V2_WRITE_CONTRACT,
+        "WIX_WRITEBACK_ENABLED": "",
+        "WIX_ECOM_WRITE_CONFIRMED": "",
     }
 
 
@@ -587,10 +631,13 @@ def reconcile_environment(dry_run: bool) -> str:
     current = dict((config.get("Environment") or {}).get("Variables") or {})
     wanted = expected_environment()
     # Only ADD/repair the keys this script owns; never clobber an operator-set
-    # CHECKOUT_INITIATION_ENABLED or a live-read EXPECTED_* value.
+    # CHECKOUT_INITIATION_ENABLED, a live-read EXPECTED_* value, or a deliberately-flipped
+    # WIX_WRITEBACK_ENABLED / WIX_ECOM_WRITE_CONFIRMED switch. Those are seeded here only when
+    # ABSENT, so a reconcile run makes the switch available without ever turning Wix writes on or
+    # off against an owner's decision.
     drifted = {k: v for k, v in wanted.items()
-               if k not in READINESS_KEYS and current.get(k) != v}
-    for k in READINESS_KEYS:
+               if k not in PRESENCE_ONLY_KEYS and current.get(k) != v}
+    for k in PRESENCE_ONLY_KEYS:
         if k not in current:
             drifted[k] = wanted[k]
     if not drifted:
@@ -1101,13 +1148,14 @@ def verify(members: dict | None = None, source_note: str = "") -> int:
     # site id on live passed verification. Any key added to `expected_environment` is now checked
     # by construction, which is the only version of this check that cannot drift out of date.
     for key, want in sorted(expected_environment().items()):
-        if key in READINESS_KEYS:
-            # Deliberately presence-only: these are the two values an owner fills in from a live
-            # Meta/Razorpay read, so a non-empty value is legitimate drift from what this script
-            # writes. Absence is not — `payment_readiness` would raise rather than refuse.
+        if key in PRESENCE_ONLY_KEYS:
+            # Deliberately presence-only. For READINESS_KEYS these are values an owner fills in
+            # from a live Meta/Razorpay read; for WIX_WRITEBACK_SWITCH_KEYS they are the two
+            # switches an owner flips to truthy once the Wix write scope is confirmed. In both
+            # cases a non-empty value is legitimate owner drift from the empty seed this script
+            # writes, so only ABSENCE is a fault.
             if key not in live_env:
-                problems.append(f"env {key} absent on live (v{alias['FunctionVersion']}) — "
-                                f"readiness cannot evaluate")
+                problems.append(f"env {key} absent on live (v{alias['FunctionVersion']})")
             continue
         if live_env.get(key) != want:
             problems.append(f"env {key} mismatch on live (v{alias['FunctionVersion']})")
@@ -1121,8 +1169,18 @@ def verify(members: dict | None = None, source_note: str = "") -> int:
     readiness_empty = not (live_env.get("EXPECTED_CONFIGURATION_NAME")
                            or live_env.get("EXPECTED_PROVIDER_MID"))
 
+    # Wix order write-back readout. `is_enabled()` is AND of all four, so report ON only when both
+    # switches are truthy AND the contract/site id are the required constants — i.e. exactly the
+    # condition under which a paid order would be pushed to the Wix Orders list.
+    def _truthy(name: str) -> bool:
+        return str(live_env.get(name, "")).strip().lower() in ("1", "true", "yes", "on")
+    writeback_on = (_truthy("WIX_WRITEBACK_ENABLED") and _truthy("WIX_ECOM_WRITE_CONFIRMED")
+                    and live_env.get("WIX_SITE_ID") == WIX_SITE_ID
+                    and live_env.get("WIX_CART_V2_WRITE_CONTRACT") == WIX_CART_V2_WRITE_CONTRACT)
+
     print(f"function: present (live v{alias['FunctionVersion']})")
     print(f"initiation: {'ON' if initiation in ('1','true','yes','on') else 'OFF (expected)'}")
+    print(f"wix order write-back: {'ON — paid orders are pushed to the Wix Orders list' if writeback_on else 'OFF (keys present, switches empty)'}")
     print(f"readiness inputs: {'empty — blocks regardless of the gate' if readiness_empty else 'SET by an operator'}")
     print(f"sender: {SENDER_FUNCTION}:{LIVE_ALIAS}; WABA {PAYMENT_WABA_ID}")
 
