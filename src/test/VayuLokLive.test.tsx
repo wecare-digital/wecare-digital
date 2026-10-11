@@ -1222,8 +1222,8 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( cardTailRule ).toContain( 'transform:translateX(-50%) rotate(45deg)' );
     expect( cardTailRule ).toContain( 'background:#fff' );
 
-    // HEADER SEARCH IDIOM: no search icon, transparent field, 16px/400, exact Header hairline,
-    // same #1a3a2a + lime focus treatment, and the map wrapper itself carries no shadow.
+    // GLOBAL SEARCH SURFACE: the map search is no longer a detached mini-box. It reuses
+    // Header.tsx's open-menu surface plus the exact Header .nav-search input treatment.
     expect( container.querySelector( '.vl-live-search-field svg' ) ).toBeNull();
     const inputRule = css.match( /\.vl-live-search-field input\{[^}]*\}/ )?.[ 0 ] || '';
     expect( inputRule ).toContain( 'border-bottom:1px solid #e5e7eb' );
@@ -1237,7 +1237,11 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
     expect( fieldRule ).toContain( 'border-radius:0' );
     const searchWrapRule = css.match( /\.vl-live-map-search\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( searchWrapRule ).toContain( 'box-shadow:none' );
+    expect( searchWrapRule ).toContain( 'width:min(760px,calc(100% - 32px))' );
+    expect( searchWrapRule ).toContain( 'border:1px solid #e5e7eb' );
+    expect( searchWrapRule ).toContain( 'border-top:3px solid #d1f470' );
+    expect( searchWrapRule ).toContain( 'border-radius:14px' );
+    expect( searchWrapRule ).toContain( 'box-shadow:0 8px 28px rgba(0,0,0,.10)' );
     expect( searchWrapRule ).toContain( 'z-index:30' );
 
     // Pollutant info control follows the final icon language: black glyph on solid lime,
