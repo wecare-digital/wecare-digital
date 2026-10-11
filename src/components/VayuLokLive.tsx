@@ -2505,76 +2505,14 @@ const VayuLokLive: React.FC = () => {
            A white, rounded, home-system card floating over the full-bleed map's top-left corner,
            inset so it clears Google's bottom-left logo and bottom-right legal notices.
            Scrollable so a long pollutant list never spills past the map. NO red. */
-        .vl-live-air-card{position:absolute;z-index:12;top:16px;left:16px;width:min(336px,calc(100% - 32px));max-height:calc(100% - 150px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:18px 18px 16px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.08);color:var(--body)}
+        .vl-live-air-card{position:absolute;z-index:12;top:16px;left:16px;width:min(360px,calc(100% - 32px));max-height:calc(100% - 112px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:22px 22px 20px;border:1px solid rgba(26,58,42,.14);border-radius:14px;background:#fff;box-shadow:0 10px 30px rgba(26,58,42,.12);color:var(--body)}
         .vl-live-air-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
-        .vl-live-air-card-title{margin:0;color:var(--heading);font-size:16px;font-weight:700;letter-spacing:-.2px}
-        .vl-live-air-card-rule{margin:12px 0 14px;border:0;border-top:1px solid var(--hair)}
-
-        /* EMBEDDED PAGE FURNITURE (Subscribe / Contribute / Share), MATCHED TO THE LIVE BLOG
-           POST. The blog post (src/pages/post/[slug].tsx) carries a compact lime Subscribe pill
-           (.blog-wa-subscribe) + microcopy, the twin of BlogContribution's Contribute pill
-           (.bc-cta), then the ShareLinks row - NOT the old in-page BlogSubscribe form. This card
-           renders the same furniture. BlogContribution self-styles; this wrapper owns the rhythm
-           between the blocks inside the narrow (~336px) scrollable card and SIZES THE PILLS TO
-           THE CARD so they do not overflow / look oversized, which is the owner's complaint.
-           The card already scrolls (overflow-y:auto + scrollbar-width:thin, no colour), so added
-           height just scrolls - we add NO scrollbar hider and NO thumb colour here. The embedded
-           block's top gap is normalised so the blocks stack evenly under the hairline above. We
-           do NOT edit the shared .bc-cta / .blog-wa-subscribe base rules (the blog page keeps its
-           own geometry); the sizing is reached only via :global() nested under .vl-live-air-extras
-           so the blog page is unaffected and its guard tests stay green. */
-        .vl-live-air-extras{margin-top:16px;display:flex;flex-direction:column;gap:20px}
-        .vl-live-air-extras :global(.bc){margin-top:0}
-
-        /* THE SUBSCRIBE PILL, THE BLOG POST'S .blog-wa-subscribe OBJECT RENDERED INLINE HERE so
-           styled-jsx scopes it. The values are the blog pill's: 2px #1a3a2a edge (clears
-           WCAG 1.4.11 for a control boundary; the lime alone is 1.24:1), 50px pill radius,
-           #1a3a2a type on #d1f470 lime (10.04:1), 17px/600 label and the house transition.
-           SIZED TO THE CARD, which is the owner's ask: it is a full-width block pill (display:flex
-           + width:100%) with reduced 20px inline padding and a slightly smaller 48px min-height
-           instead of the blog's 52px / 0 28px that overflow the narrow column - still well above
-           the 44px tap target. No margin-top: the hairline above and the flex gap own the rhythm,
-           unlike the blog where it opens a band with margin-top:44px. */
-        .vl-live-air-extras .vl-live-air-subscribe{
-          display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:100%;
-          min-height:48px;padding:0 20px;border:2px solid #1a3a2a;border-radius:50px;
-          background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;line-height:1.2;
-          text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s;
-        }
-        /* THE HOUSE HOVER the owner mentions: lime -> white inversion with the one allowed lift
-           and shadow. White gives #1a3a2a type 12.48:1. Mirrors .blog-wa-subscribe:hover and
-           .bc-cta:hover exactly. */
-        .vl-live-air-extras .vl-live-air-subscribe:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-        .vl-live-air-extras .vl-live-air-subscribe:active{transform:translateY(0)}
-        .vl-live-air-extras .vl-live-air-subscribe:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-        /* REDUCED MOTION: drop the hover lift + shadow so this pill matches its Contribute twin,
-           which carries the same @media(prefers-reduced-motion:reduce){ .bc-cta:hover{transform:none;
-           box-shadow:none} } guard. The component's global .vl-live *{transition:none!important}
-           already kills the animated transition, but not the static hover transform/shadow - this
-           closes that asymmetry so the two matched pills behave identically. */
-        @media(prefers-reduced-motion:reduce){
-          .vl-live-air-extras .vl-live-air-subscribe:hover{transform:none;box-shadow:none}
-        }
-
-        /* SIZE THE EMBEDDED CONTRIBUTE PILL TO THE CARD. The shared .bc-cta ships inline-flex at
-           padding:0 28px, which overflows this narrow column - the owner's "too big / not sized
-           to the card". We reach it via :global() nested under .vl-live-air-extras ONLY, so the
-           blog page's own .bc-cta is untouched (BlogContribution.test.tsx / BlogDesign.test.tsx
-           pin the base rule and stay green). We match the Subscribe pill above: full-width block,
-           20px inline padding, 48px min-height. We DO NOT re-declare colours, border, radius or
-           the hover here - the shared rule already carries the lime->white inversion with
-           translateY(-2px) + box-shadow:0 4px 12px rgba(26,58,42,.12), and this override only
-           changes width/padding/height so that hover is preserved intact. */
-        .vl-live-air-extras :global(.bc-cta){
-          display:flex;width:100%;box-sizing:border-box;min-height:48px;padding:0 20px;
-        }
-        /* MICROCOPY line under each pill (the shared global .wc-sweep-note). Pull it up tight to
-           its pill so the pill + its caption read as one object within the 20px flex gap. */
-        .vl-live-air-extras :global(.wc-sweep-note){margin-top:8px}
+        .vl-live-air-card-title{margin:0;color:var(--heading);font-size:22px;font-weight:700;line-height:1.12;letter-spacing:-.35px}
+        .vl-live-air-card-rule{height:3px;margin:14px 0 16px;border:0;border-radius:999px;background:linear-gradient(90deg,#3da35a 0%,#2563eb 50%,#9849e8 100%)}
 
         /* Air/Weather toggle - same pale tint + saturated same-hue dot as the hero pill. */
         .vl-live-air-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
-        .vl-live-air-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:12.5px;font-weight:700}
+        .vl-live-air-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:13.5px;font-weight:700}
         .vl-live-air-toggle-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:rgba(26,58,42,.3)}
         .vl-live-air-toggle-btn.is-air.is-active{background:#e0f7c8}
         .vl-live-air-toggle-btn.is-air.is-active .vl-live-air-toggle-dot{background:#3da35a}
@@ -2598,7 +2536,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-sev-worst .vl-live-air-gauge-arc{stroke:#c98a2e}
         .vl-live-air-gauge-value{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--heading);font-size:28px;font-weight:700;letter-spacing:-.5px}
         .vl-live-air-gauge-meta{min-width:0}
-        .vl-live-air-gauge-word{display:block;color:var(--heading);font-size:14.5px;font-weight:700;line-height:1.25}
+        .vl-live-air-gauge-word{display:block;color:var(--heading);font-size:15.5px;font-weight:700;line-height:1.25}
         .vl-live-air-dominant{display:inline-flex;align-items:center;margin-top:8px;min-height:26px;padding:0 10px;border:1px solid var(--green);border-radius:var(--pill-r);background:var(--lime-tint);color:var(--green);font-size:10.5px;font-weight:700}
 
         .vl-live-air-pollutants{margin-top:18px}
@@ -2611,7 +2549,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-heatmap-label::before{background:var(--info)}
         .vl-live-air-health-title::before{background:var(--status-green)}
         .vl-live-air-history-title::before{background:var(--warning)}
-        .vl-live-air-pollutants-title{margin:0 0 10px;color:var(--heading);font-size:12.5px;font-weight:700;letter-spacing:-.1px}
+        .vl-live-air-pollutants-title{margin:0 0 10px;color:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.12px}
         /* overflow:visible (was hidden) so the side popover below can escape the list box
            and float beside its row without being clipped. The list keeps its rounded 12px
            frame; the first/last rows round their own outer corners so the row fills still
@@ -2625,83 +2563,67 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-value{color:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.2px}
         .vl-live-air-pollutant-value small{margin-left:3px;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:0}
         .vl-live-air-pollutant-label{color:var(--status);font-size:12px;font-weight:600}
-        /* Custom pollutant tooltip: shows the label+value+unit (or Sources/Effects) on
-           hover AND keyboard focus (the native title= was unreliable and is gone). The tip
-           is rendered inline so styled-jsx can scope it, carries a literal z-index:1700
-           (matching the home --z-tooltip:1700 scale in tokens.css), and is wired to the
-           trigger via aria-describedby. NO red.
+        /* Exact Google Material Symbols "info" glyph. Lime sits on the site's dark green
+           disk, so the requested lime icon stays crisp against the white card. */
+        .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:var(--green);color:var(--lime);cursor:help;transition:transform .16s ease,box-shadow .16s ease}
+        .vl-live-air-pollutant-info svg{width:19px;height:19px;fill:currentColor}
+        .vl-live-air-pollutant-info:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(26,58,42,.18)}
+        .vl-live-air-pollutant-info:focus-visible{outline:3px solid var(--lime);outline-offset:3px}
 
-           POSITIONING (Google Maps Platform reference): the tip opens BESIDE its row,
-           floated to the SIDE of the ⓘ trigger and vertically centred on it, instead of the
-           old bottom:calc(100% + 8px);right:0 that opened UPWARD over the rows above and got
-           its first Sources line clipped when the row sat near the bottom of the scrolling
-           card. It now anchors horizontally off the trigger (right:calc(100% + 12px)) so it
-           never stacks over the rows above/below, and because the .vl-live-air-pollutant-list
-           above no longer clips (overflow:visible) the panel floats clear of the list frame.
-           It stays attached to its own ⓘ via the vertical centre + the entry slide that moves
-           in horizontally from the trigger. Hover + focus-visible + focus-within all show it,
-           so it is reachable by pointer AND keyboard. */
-        .vl-live-air-pollutant-info{position:relative;display:inline-flex;align-items:center;justify-content:center;cursor:help;border-radius:50%}
-        .vl-live-air-pollutant-info svg{width:15px;height:15px;stroke:var(--info);fill:none;stroke-width:1.6;stroke-linecap:round;transition:stroke .15s ease}
-        .vl-live-air-pollutant-info:hover svg,.vl-live-air-pollutant-info:focus-visible svg{stroke:var(--lime)}
-        .vl-live-air-pollutant-info:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(209,244,112,.45)}
-        .vl-live-air-pollutant-tip{position:absolute;top:50%;right:calc(100% + 12px);bottom:auto;left:auto;z-index:1700;width:max-content;max-width:230px;padding:11px 13px;border-radius:12px;border:1px solid var(--hair);background:#fff;color:var(--status);font-size:11px;font-weight:500;line-height:1.4;text-align:left;box-shadow:0 10px 28px rgba(0,0,0,.16);opacity:0;visibility:hidden;transform:translate(6px,-50%);transition:opacity .15s ease,transform .15s ease,visibility .15s ease;pointer-events:none}
-        .vl-live-air-pollutant-info:hover .vl-live-air-pollutant-tip,.vl-live-air-pollutant-info:focus-visible .vl-live-air-pollutant-tip,.vl-live-air-pollutant-info:focus-within .vl-live-air-pollutant-tip{opacity:1;visibility:visible;transform:translate(0,-50%)}
-        .vl-live-air-pollutant-pop{display:flex;flex-direction:column;gap:3px}
-        .vl-live-air-pollutant-pop-title{display:inline-block;align-self:flex-start;margin-bottom:4px;padding:2px 8px;border-radius:6px;background:var(--lime);color:var(--heading);font-size:12px;font-weight:700;letter-spacing:.1px}
-        .vl-live-air-pollutant-pop-head{margin-top:5px;color:var(--heading);font-size:11px;font-weight:700}
-        .vl-live-air-pollutant-pop-head:first-of-type{margin-top:0}
-        .vl-live-air-pollutant-pop-text{color:var(--muted);font-size:11px;font-weight:500;line-height:1.45}
+        /* Rendered as a fixed sibling OUTSIDE the scrollable Air card, so the card can never
+           clip the popup. The 14px panel radius and lime edge mirror the home-page cards. */
+        .vl-live-air-pollutant-tip{position:fixed;z-index:2200;width:min(292px,calc(100vw - 24px));max-height:220px;overflow:auto;padding:14px 15px;border:2px solid var(--lime);border-radius:14px;background:#fff;color:var(--body);box-shadow:0 12px 32px rgba(26,58,42,.18);font-size:13px;line-height:1.42;text-align:left}
+        .vl-live-air-pollutant-pop{display:flex;flex-direction:column;gap:10px}
+        .vl-live-air-pollutant-pop-title{display:inline-flex;align-self:flex-start;min-height:28px;align-items:center;padding:0 10px;border-radius:999px;background:rgba(209,244,112,.28);color:var(--green);font-size:13px;font-weight:700;letter-spacing:-.1px}
+        .vl-live-air-pollutant-pop-line{display:grid;grid-template-columns:62px 1fr;gap:9px;align-items:start}
+        .vl-live-air-pollutant-pop-line strong{font-size:12px;font-weight:700;letter-spacing:.01em}
+        .vl-live-air-pollutant-pop-line span{color:var(--muted);font-size:12.5px;font-weight:400;line-height:1.42}
+        .vl-live-air-pollutant-pop-line.is-source strong{color:#2563eb}
+        .vl-live-air-pollutant-pop-line.is-effect strong{color:#9849e8}
+        .vl-live-air-pollutant-pop-text{color:var(--muted);font-size:12.5px;line-height:1.42}
         .vl-live-air-pollutant-row:focus-within,.vl-live-air-pollutant-row:hover{background:rgba(209,244,112,.18);border-left-color:var(--lime)}
 
-        /* ── HEATMAP (toggle + Poor->Excellent legend) ──────────────────────────────
-           The switch drives the existing deck.gl AQI overlay via the layer state. On/off is
-           carried by aria-checked AND the is-on knob position. The legend gradient and the
-           Poor/Excellent words sit on the approved no-red ramp - never any red hex. */
-        .vl-live-air-heatmap{margin-top:18px}
+        /* ── HEATMAP ──────────────────────────────────────────────────────────────
+           One compact Material Symbols control; the separate Storm switch is intentionally gone. */
+        .vl-live-air-heatmap{margin-top:20px;padding-top:18px;border-top:1px solid var(--hair)}
         .vl-live-air-heatmap-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-        .vl-live-air-heatmap-row+.vl-live-air-heatmap-row{margin-top:10px}
-        .vl-live-air-heatmap-label{color:var(--heading);font-size:12.5px;font-weight:700;letter-spacing:-.1px}
-        /* Switch restyled to the HOME control idiom: 2px border, lime ON track with a dark
-           --green knob (the brand toggle look), and the home lime --focus-ring on
-           :focus-visible. role=switch / aria-checked / aria-label / disabled wiring is
-           unchanged in the markup; styling only. NO red. */
-        .vl-live-air-heatmap-switch{position:relative;flex:0 0 auto;width:44px;height:24px;padding:0;border:2px solid var(--hair);border-radius:999px;background:#eef1ed;transition:background .18s ease,border-color .18s ease,box-shadow .18s ease}
-        .vl-live-air-heatmap-switch.is-on{background:var(--lime);border-color:var(--green)}
-        .vl-live-air-heatmap-switch:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(209,244,112,.45)}
-        .vl-live-air-heatmap-switch:disabled{opacity:.5;cursor:not-allowed}
-        .vl-live-air-heatmap-knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .18s ease,background .18s ease}
-        .vl-live-air-heatmap-switch.is-on .vl-live-air-heatmap-knob{transform:translateX(20px);background:var(--green)}
-        .vl-live-air-heatmap-legend{margin-top:10px}
+        .vl-live-air-heatmap-label{color:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.12px}
+        .vl-live-air-heatmap-switch{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:42px;height:42px;padding:0;border:2px solid var(--green);border-radius:50%;background:#fff;color:var(--green);transition:background .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease}
+        .vl-live-air-heatmap-switch svg{width:23px;height:23px;fill:currentColor}
+        .vl-live-air-heatmap-switch.is-on{background:var(--green);color:var(--lime)}
+        .vl-live-air-heatmap-switch:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 10px rgba(26,58,42,.16)}
+        .vl-live-air-heatmap-switch:focus-visible{outline:3px solid var(--lime);outline-offset:3px}
+        .vl-live-air-heatmap-switch:disabled{opacity:.46;cursor:not-allowed}
+        .vl-live-air-heatmap-legend{margin-top:12px}
         .vl-live-air-heatmap-ramp{display:block;height:8px;border-radius:999px;background:linear-gradient(90deg,#c98a2e 0%,#e8c547 42%,#d1f470 74%,#3da35a 100%)}
-        .vl-live-air-heatmap-ends{display:flex;align-items:center;justify-content:space-between;margin-top:5px}
-        .vl-live-air-heatmap-end{color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:.02em}
+        .vl-live-air-heatmap-ends{display:flex;align-items:center;justify-content:space-between;margin-top:6px}
+        .vl-live-air-heatmap-end{color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.02em}
 
-        /* ── HEALTH RECOMMENDATIONS (persona tablist + advisory) ─────────────────────
-           Selected persona highlight is brand green/lime UI chrome (NOT a severity colour,
-           NOT red). Icons are aria-hidden; each tab has an accessible name. */
-        .vl-live-air-health{margin-top:20px}
-        .vl-live-air-health-title{margin:0 0 10px;color:var(--heading);font-size:12.5px;font-weight:700;letter-spacing:-.1px}
-        .vl-live-air-health-tabs{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-        .vl-live-air-health-tab{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border:1px solid var(--hair);border-radius:50%;background:#fff;color:var(--green)}
-        .vl-live-air-health-tab:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(209,244,112,.45)}
-        .vl-live-air-health-tab.is-active{background:var(--green);border-color:var(--green);color:var(--lime);box-shadow:0 0 0 2px var(--lime-tint)}
-        .vl-live-air-health-tab.is-active:focus-visible{box-shadow:0 0 0 3px rgba(209,244,112,.45)}
-        /* Material-Symbols-style glyphs are filled paths; the active chip tints them --lime
-           via currentColor (set by .is-active above), inactive stays brand --green. */
-        .vl-live-air-health-icon{width:21px;height:21px;fill:currentColor;stroke:none}
-        .vl-live-air-health-next{display:inline-flex;align-items:center;justify-content:center;width:32px;height:40px;padding:0;border:0;background:transparent;color:var(--muted)}
-        .vl-live-air-health-next svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+        /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
+           Exact Google Material Symbols with the home page's multi-hue accent family. */
+        .vl-live-air-health{margin-top:22px;padding-top:18px;border-top:1px solid var(--hair)}
+        .vl-live-air-health-title{margin:0 0 12px;color:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.12px}
+        .vl-live-air-health-tabs{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+        .vl-live-air-health-tab{--health-accent:#3da35a;--health-tint:#e0f7c8;display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;padding:0;border:1px solid #b7d9bd;border-radius:50%;background:var(--health-tint);color:var(--health-accent);transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
+        .vl-live-air-health-tab:nth-child(2){--health-accent:#2563eb;--health-tint:#dbeafe;border-color:#b8cff8}
+        .vl-live-air-health-tab:nth-child(3){--health-accent:#9849e8;--health-tint:#ede9fe;border-color:#d5c8f5}
+        .vl-live-air-health-tab:nth-child(4){--health-accent:#c98a2e;--health-tint:#fef3c7;border-color:#edd7a2}
+        .vl-live-air-health-tab:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(26,58,42,.10)}
+        .vl-live-air-health-tab:focus-visible{outline:3px solid var(--lime);outline-offset:3px}
+        .vl-live-air-health-tab.is-active{border:2px solid var(--green);box-shadow:0 0 0 3px rgba(209,244,112,.28)}
+        .vl-live-air-health-icon{width:22px;height:22px;fill:currentColor}
+        .vl-live-air-health-next{display:inline-flex;align-items:center;justify-content:center;width:34px;height:42px;padding:0;border:0;background:transparent;color:var(--green)}
+        .vl-live-air-health-next svg{width:22px;height:22px;fill:currentColor}
         .vl-live-air-health-rule{margin:14px 0 12px;border:0;border-top:1px solid var(--hair)}
-        .vl-live-air-health-persona{display:block;color:var(--heading);font-size:13px;font-weight:700}
-        .vl-live-air-health-text{margin:6px 0 0;color:var(--body);font-size:12px;line-height:1.55}
+        .vl-live-air-health-persona{display:block;color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.15px}
+        .vl-live-air-health-text{margin:7px 0 0;color:var(--body);font-size:13.5px;font-weight:400;line-height:1.5}
 
         /* ── HOURLY HISTORY (inline-SVG AQI chart) ──────────────────────────────────
            Line + area stroked from the no-red ramp via the sev-mapped class; the pinned
            bubble shows the current AQI number so meaning never rests on colour alone. */
         .vl-live-air-history{margin-top:20px}
         .vl-live-air-history-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-        .vl-live-air-history-title{margin:0;color:var(--heading);font-size:12.5px;font-weight:700;letter-spacing:-.1px}
+        .vl-live-air-history-title{margin:0;color:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.12px}
         .vl-live-air-history-stamp{color:var(--muted);font-size:10.5px;font-weight:600;letter-spacing:.01em}
         .vl-live-air-history-empty{margin:12px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
         .vl-live-air-history-chart{position:relative;margin-top:12px}
@@ -2798,7 +2720,7 @@ const VayuLokLive: React.FC = () => {
           .vl-live-shell{padding:10px max(10px,env(safe-area-inset-right)) max(44px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
           .vl-live-map-shell{height:62vh;height:62dvh;min-height:min(460px,62svh);max-height:640px}
           .vl-live-map-search{top:max(10px,env(safe-area-inset-top));width:calc(100% - 20px)}
-          .vl-live-air-card{top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));width:min(300px,calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));max-height:calc(100% - 170px);padding:14px 14px 12px}
+          .vl-live-air-card{top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));width:min(320px,calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));max-height:calc(100% - 132px);padding:17px 17px 15px}
           .vl-live-air-gauge,.vl-live-air-gauge-svg{width:84px;height:84px}
           .vl-live-wind-path.p6,.vl-live-wind-path.p7{display:none}
         }
