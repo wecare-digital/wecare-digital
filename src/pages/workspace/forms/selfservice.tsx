@@ -1,4 +1,5 @@
 import { REVIEW_FLOW_ID, REVIEW_ENTRY_URL, REVIEW_ENTRY_KEYWORDS } from '../../../lib/reviewEntry';
+import { canonicalFlowId } from '../../../lib/canonicalFlows';
 /**
  * Customer-Service Hub — All WhatsApp Flow forms accessible from the admin dashboard.
  * Shows all flow submissions, allows resending flows, and manages flow configurations.
@@ -16,12 +17,14 @@ interface PageProps { signOut?: () => void; user?: any; }
 type FlowSubmission = api.FlowLog;
 
 const FLOW_TYPES = [
-  { key: 'orders', label: 'Orders', icon: '📦', flowId: '2167802357142172', paid: false, price: 'Free', status: 'draft', confirmation: 'Order history' },
-  { key: 'submit_request', label: 'Submit Request', icon: '📋', flowId: '1107164111921876', paid: true, price: '₹99', status: 'published', confirmation: 'Request details' },
-  { key: 'shipments', label: 'Shipments', icon: '🚚', flowId: '849713848195607', paid: false, price: 'Free', status: 'draft', confirmation: 'Shipment tracking' },
+  { key: 'orders', label: 'Orders', icon: '📦', flowId: canonicalFlowId('orders')!, paid: false, price: 'Free', status: 'draft', confirmation: 'Order history' },
+  { key: 'submit_request', label: 'Submit Request', icon: '📋', flowId: canonicalFlowId('submit_request')!, paid: true, price: '₹99', status: 'published', confirmation: 'Request details' },
+  { key: 'shipments', label: 'Shipments', icon: '🚚', flowId: canonicalFlowId('shipments')!, paid: false, price: 'Free', status: 'draft', confirmation: 'Shipment tracking' },
+  // Vault has no canonical Flow (website CTA + ₹49 catalog); 1735480734227899 is a design
+  // DRAFT kept for reference only. Shown here for the directory, not routed.
   { key: 'vault', label: 'Vault', icon: '🔐', flowId: '1735480734227899', paid: true, price: '₹49', status: 'draft', confirmation: 'Vault access' },
-  { key: 'drop_docs', label: 'Drop Docs', icon: '📄', flowId: '1605008471323578', paid: true, price: '₹350', status: 'draft', confirmation: 'Document registered' },
-  { key: 'amend_request', label: 'Request Amendment', icon: '✏️', flowId: '959792226650003', paid: true, price: '₹350', status: 'draft', confirmation: 'Amendment confirmation' },
+  { key: 'drop_docs', label: 'Drop Docs', icon: '📄', flowId: canonicalFlowId('drop_docs')!, paid: true, price: '₹350', status: 'draft', confirmation: 'Document registered' },
+  { key: 'amend_request', label: 'Request Amendment', icon: '✏️', flowId: canonicalFlowId('amend_request')!, paid: true, price: '₹350', status: 'draft', confirmation: 'Amendment confirmation' },
   { key: 'leave_review', label: 'Leave Review', icon: '⭐', flowId: REVIEW_FLOW_ID, paid: false, price: 'Free', status: 'draft', confirmation: 'Review saved' },
 ];
 

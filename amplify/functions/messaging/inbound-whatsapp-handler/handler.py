@@ -40,6 +40,7 @@ from lambda_utils import wa_status  # monotonic status ordering (no backward tra
 from lambda_utils import wa_internal_event  # typed ingress -> worker contract
 from lambda_utils import contact_key  # `id` is the physical key; `contactId` is its alias
 from lambda_utils import customer_ideas
+from lambda_utils.canonical_flows import canonical_flow_id  # one source of truth for WABA 1 flow ids
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 from lambda_utils.ecommerce import order_keys  # reference_id contract; never truncate a join key
 # The catalogue-order hand-off: lines and quantities, no money. Pure, so every rule it holds is
@@ -7345,7 +7346,8 @@ def _generate_and_send_invoice(contact_id: str, phone_number_id: str, amount: fl
 DEFAULT_FLOW_TRIGGERS = {
     'customer_idea': {
         'keywords': sorted(CUSTOMER_IDEA_KEYWORDS),
-        'flowId': '1578178897413815',
+        # Shares the published review flow with 'leave_review' (one Meta room, two doors).
+        'flowId': canonical_flow_id('leave_review'),
         'message': {
             'body': '\u2b50 We’d value your feedback!',
             'footer': 'WECARE.DIGITAL',
@@ -7361,9 +7363,11 @@ DEFAULT_FLOW_TRIGGERS = {
             # Row title in the one menu
             '\U0001f4cb new request',
         ],
-        # Flow ID: 1469093721293830 = v3 (PUBLISHED on WABA 1)
-        # Phone 2 (WABA 2) cannot send WABA 1 flows — it uses CTA URL fallback automatically
-        'flowId': '1469093721293830',
+        # Canonical: WD_Submit_Request_Paid_v1, PUBLISHED on WABA 1 per the 2026-10-09 readback.
+        # The previous literal pointed at an unused DRAFT (01.WD_SR_v3) whose "PUBLISHED" comment
+        # was wrong, so this door opened the wrong flow. Now resolved from canonical_flows.
+        # Phone 2 (WABA 2) cannot send WABA 1 flows — it uses CTA URL fallback automatically.
+        'flowId': canonical_flow_id('submit_request'),
         'message': {
             'body': '\U0001f4cb Start a new support request. Share the details and our team will follow up with you.',
             'footer': 'WECARE.DIGITAL',
@@ -7381,8 +7385,11 @@ DEFAULT_FLOW_TRIGGERS = {
             # no decoration stripping (deliberately — see strip_decorative_edges).
             'track a request', '\U0001f50d track a request',
         ],
-        # DRAFT on WABA 1 — publish before enabling
-        'flowId': '1486454129852338',
+        # No canonical Track Flow (not in keepIds); the former literal was an unused DRAFT
+        # (02.WD_TR). Tracking is served by GET /wa-business/service/track/{orderId} + the
+        # /orders/ page; canonical_flow_id('track_request') is None, so the keyword falls through
+        # to the website CTA rather than opening a non-existent flow.
+        'flowId': canonical_flow_id('track_request'),
         'message': {
             'body': '\U0001f50d Check the status of your request anytime. Enter your reference ID below.',
             'footer': 'WECARE.DIGITAL',
@@ -7399,7 +7406,8 @@ DEFAULT_FLOW_TRIGGERS = {
             # Row title in the one menu
             'change a request', '\u270f\ufe0f change a request',
         ],
-        'flowId': '3678132465672138',
+        # Canonical: 03.WD_Amend_Request (3678132465672138), DRAFT (retained) on WABA 1.
+        'flowId': canonical_flow_id('amend_request'),
         'message': {
             'body': '\u270f\ufe0f Need to make a change? Edit or correct your submitted request.',
             'footer': 'WECARE.DIGITAL',
@@ -7452,7 +7460,9 @@ DEFAULT_FLOW_TRIGGERS = {
             # Row title in the one menu
             'send documents', '\U0001f4c4 send documents',
         ],
-        'flowId': '1211063631104445',
+        # Canonical: WD_Drop_Documents, DRAFT (retained) on WABA 1. The staff menu previously
+        # showed WD_Drop_Docs_Design_v1 (an unused design-duplicate draft) — not canonical.
+        'flowId': canonical_flow_id('drop_docs'),
         'message': {
             'body': '\U0001f4c4 Send supporting documents for your request.',
             'footer': 'WECARE.DIGITAL',
@@ -7498,7 +7508,7 @@ DEFAULT_FLOW_TRIGGERS = {
         # see STATIC_ENTRY_SCREENS in _send_generic_flow. Opening it with
         # data_exchange fails at open. The id this replaced pointed at the
         # never-published WD_Feedback_v1 draft, which is why the keyword did nothing.
-        'flowId': '1578178897413815',
+        'flowId': canonical_flow_id('leave_review'),
         'message': {
             'body': '\u2b50 Share your experience with our service.',
             'footer': 'WECARE.DIGITAL',
@@ -7514,8 +7524,12 @@ DEFAULT_FLOW_TRIGGERS = {
             # Row title in the one menu
             'get updates', '\U0001f514 get updates',
         ],
-        'flowId': '1262971692700761',
-        'flowId2': '951987930811295',
+        # No canonical Subscribe Flow. The former 02.WD_Profile ids are DEPRECATED on both WABAs
+        # and must not be resurrected. The 'subscribe' keyword is already answered by the website
+        # CTA (/subscribe/) in the service-doors block above; canonical_flow_id('subscribe') is
+        # None, so even if a later path reached _send_generic_flow it would no-op rather than
+        # open a dead flow.
+        'flowId': canonical_flow_id('subscribe'),
         'message': {
             'body': '\U0001f514 Get updates, offers, and service news. Fill in your details to stay connected.',
             'footer': 'WECARE.DIGITAL',
