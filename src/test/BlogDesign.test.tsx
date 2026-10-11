@@ -870,9 +870,12 @@ describe( 'Blog post page', () => {
     // Recorded at .agents/tasks/contribute-whatsapp-cta/owner-decision.md: the glyph was dropped
     // as too busy inside the filled pill, and the quiet line carries the destination instead.
     expect( links[ 0 ].querySelector( 'svg' ) ).toBeNull();
-    const note = block.querySelector( '.bc-cta-note' )!;
+    // The destination microcopy now uses the shared global .wc-sweep-note class
+    // (src/styles/inner-ux.css), replacing the old per-component .bc-cta-note.
+    const note = block.querySelector( '.wc-sweep-note' )!;
     expect( note.textContent ).toBe( 'Continue on WhatsApp \u2192' );
     expect( note.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
+    expect( block.querySelector( '.bc-cta-note' ) ).toBeNull();
     // No radio-era .bc-note remains.
     expect( block.querySelector( '.bc-note' ) ).toBeNull();
 
@@ -919,13 +922,19 @@ describe( 'Blog post page', () => {
     expect( contribute.querySelector( 'svg' ) ).toBeNull();
 
     // TWIN MICROCOPY under each, identical text, both aria-hidden (the accessible name already
-    // carries "on WhatsApp"). This is the pair's shared "where it goes" line.
-    const subNote = container.querySelector( '.blog-wa-note' )!;
-    const bcNote = container.querySelector( '.bc-cta-note' )!;
-    expect( subNote.textContent ).toBe( 'Continue on WhatsApp \u2192' );
-    expect( bcNote.textContent ).toBe( 'Continue on WhatsApp \u2192' );
-    expect( subNote.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
-    expect( bcNote.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
+    // carries "on WhatsApp"). This is the pair's shared "where it goes" line. Both the Subscribe
+    // note (post page) and the Contribute note (BlogContribution) now use the ONE shared global
+    // class .wc-sweep-note (src/styles/inner-ux.css) instead of the old per-page .blog-wa-note /
+    // .bc-cta-note, so there are exactly two .wc-sweep-note lines here, both identical.
+    const notes = Array.from( container.querySelectorAll( '.wc-sweep-note' ) );
+    expect( notes.length ).toBe( 2 );
+    for ( const note of notes ) {
+      expect( note.textContent ).toBe( 'Continue on WhatsApp \u2192' );
+      expect( note.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
+    }
+    // The old per-page classes are gone, folded into .wc-sweep-note.
+    expect( container.querySelector( '.blog-wa-note' ) ).toBeNull();
+    expect( container.querySelector( '.bc-cta-note' ) ).toBeNull();
     // No radio-era .bc-note remains.
     expect( container.querySelector( '.bc-note' ) ).toBeNull();
 

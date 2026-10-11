@@ -107,7 +107,7 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, embedded =
         arrow that says "leaves here". The accessible name on the anchor already carries
         "on WhatsApp", so this line is aria-hidden to avoid a screen reader announcing the
         destination twice. */}
-    <p className="bc-cta-note" aria-hidden="true">Continue on WhatsApp →</p>
+    <p className="wc-sweep-note" aria-hidden="true">Continue on WhatsApp →</p>
 
     <style jsx>{`
       /* bc- prefixed because the globally imported src/styles/*.css declares unscoped rules for
@@ -160,60 +160,12 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, embedded =
       /* Opaque focus ring at offset, the page's standard - never a translucent alpha. 3px offset
          rather than 2px, because this is now the pill object and the pill rings outside itself. */
       .bc-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-      /* MICROCOPY under the pill: very small, quiet, naming the destination the button no longer
-         shows with a glyph. 13px/rgba(0,0,0,.54) is the page's muted-metadata rung; 10px of air
-         sits it close to the button it belongs to. The arrow is part of the text, not an icon.
-
-         HOVER CARRIES THE FOOTER TAGLINE'S COLOUR SWEEP, on owner instruction: a band of brand
-         green runs left-to-right through the muted text, exactly the .ft-tagline treatment in
-         Footer.tsx (gradient grey -> #1a3a2a -> grey, clipped to the text, driven by
-         background-position). The one difference is the TRIGGER: the footer plays it once on
-         scroll-arrival and replays on pointer; here it is hover-only, because this line is the
-         caption of a pill the reader is already pointing at.
-         WHY THE CLIP LIVES UNDER :hover AND NOT AT REST. background-clip:text needs
-         color:transparent to show the gradient, and transparent text with no painted gradient is
-         an invisible line - the exact trap Footer.tsx documents. So the resting rule keeps a
-         solid colour and only :hover introduces the gradient, the clip and the transparent fill.
-         Hover-out drops them and the line is plain grey again, with no JS anywhere.
-         READABILITY: both gradient stops are measured on white - rgba(0,0,0,.54)=4.61:1 and
-         #1a3a2a=12.48:1 - so the band only ever makes the text darker than its resting state,
-         never a lime wash that would erase it. */
-      /* SOLID GREY AT REST, ONE-SHOT LIME SWEEP ON HOVER - like the footer tagline, which runs its
-         sweep once and stops. The continuous looping was removed on owner instruction: a quiet
-         line of microcopy that keeps moving on its own pulls the eye. The clip, gradient and
-         transparent fill now live ONLY under :hover, so the resting line is plain solid grey; on
-         hover the band passes through the glyphs a single time (1 iteration, forwards) and settles.
-         Both stops are measured on white - rgba(0,0,0,.54)=4.61:1, #1a3a2a=12.48:1 - so the band
-         only DARKENS the text, never a lime wash that would erase it. */
-      /* Font matched to the footer tagline: 16px/1.6/rgba(0,0,0,.54). */
-      .bc-cta-note{
-        font-size:16px;line-height:1.6;color:rgba(0,0,0,.54);margin:10px 0 0;
-      }
-      /* 100% IDENTICAL TO THE FOOTER TAGLINE (.ft-tagline): same gradient stops (42/50/58), same
-         1.15s cubic-bezier(.45,.05,.55,.95), same keyframe 100% -> 0% (endpoints inside 0..100% so
-         the band settles flat, never off-screen). GUARDED BY @supports so an engine without
-         background-clip:text keeps the solid grey line rather than transparent text. */
-      @supports ((-webkit-background-clip:text) or (background-clip:text)){
-        .bc-cta-note:hover{
-          background-image:linear-gradient(100deg,
-            rgba(0,0,0,.54) 42%, #1a3a2a 50%, rgba(0,0,0,.54) 58%);
-          background-size:300% 100%;background-repeat:no-repeat;background-position:100% 0;
-          -webkit-background-clip:text;background-clip:text;
-          -webkit-text-fill-color:transparent;color:transparent;
-          animation:bc-note-sweep 1.15s cubic-bezier(.45,.05,.55,.95) 1 forwards;
-        }
-      }
-      @keyframes bc-note-sweep{from{background-position:100% 0}to{background-position:0% 0}}
+      /* MICROCOPY under the pill now uses the shared global .wc-sweep-note class
+         (src/styles/inner-ux.css) - the footer-tagline lime sweep on hover - so there is no
+         per-page copy here. The element carries className="wc-sweep-note". */
       @media(prefers-reduced-motion:reduce){
         .bc-cta{transition:none}
         .bc-cta:hover{transform:none;box-shadow:none}
-        /* Motion-sensitive readers get the line static and solid grey: no animation, no
-           transparent fill, no gradient - the WCAG 2.2.2 carve-out for auto-running motion.
-           Matches the guard Footer.tsx applies to .ft-tagline under this preference. */
-        .bc-cta-note{
-          animation:none;background-image:none;
-          -webkit-text-fill-color:currentColor;color:rgba(0,0,0,.54);
-        }
       }
     `}</style>
   </section>

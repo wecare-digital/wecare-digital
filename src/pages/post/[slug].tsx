@@ -524,7 +524,7 @@ export default function BlogPostPage ( {
           </a>
           {/* MICROCOPY: three words and a trailing arrow naming where the button goes. aria-hidden
               because the anchor's accessible name already carries "on WhatsApp". */}
-          <p className="blog-wa-note" aria-hidden="true">Continue on WhatsApp →</p>
+          <p className="wc-sweep-note" aria-hidden="true">Continue on WhatsApp →</p>
 
           {/* CONTRIBUTE - the voluntary-contribution block, placed AFTER Subscribe and BEFORE the
               share row so the reading order is content -> Tags -> Subscribe -> Contribute ->
@@ -790,46 +790,9 @@ export default function BlogPostPage ( {
         }
         .blog-wa-subscribe:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
         .blog-wa-subscribe:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-        /* MICROCOPY under the Subscribe pill - the twin of .bc-cta-note in BlogContribution.tsx.
-           Very small, quiet, naming the destination the button no longer shows with a glyph.
-           HOVER CARRIES THE FOOTER TAGLINE'S COLOUR SWEEP (see .ft-tagline in Footer.tsx and the
-           long note on .bc-cta-note in BlogContribution.tsx): a band of brand green runs through
-           the muted text on hover. Clip + transparent fill live under :hover only, so the resting
-           line stays solid grey rather than invisible. Both gradient stops are measured on white
-           (4.61:1 and 12.48:1), so the band only darkens the text, never washes it out. */
-        /* SOLID GREY AT REST, ONE-SHOT LIME SWEEP ON HOVER - like the footer tagline, which runs
-           its sweep once and stops. The continuous looping was removed on owner instruction: a
-           line of quiet microcopy that keeps moving on its own pulls the eye. The
-           clip/gradient/transparent-fill now live ONLY under :hover, so the resting line is plain
-           solid grey; on hover the band passes through the glyphs a single time (1 iteration,
-           forwards) and settles. Both stops are on white (4.61:1 and 12.48:1), so the band only
-           darkens the text. */
-        /* Font matched to the footer tagline: 16px/1.6/rgba(0,0,0,.54). */
-        .blog-wa-note{
-          font-size:16px;line-height:1.6;color:rgba(0,0,0,.54);margin:10px 0 0;
-        }
-        /* 100% IDENTICAL TO THE FOOTER TAGLINE (.ft-tagline): same gradient stops (42/50/58),
-           same 1.15s cubic-bezier(.45,.05,.55,.95), same keyframe 100% -> 0% (endpoints inside
-           0..100% so the band settles flat, never off-screen). GUARDED BY @supports so an engine
-           without background-clip:text keeps the solid grey line rather than transparent text. */
-        @supports ((-webkit-background-clip:text) or (background-clip:text)){
-          .blog-wa-note:hover{
-            background-image:linear-gradient(100deg,
-              rgba(0,0,0,.54) 42%, #1a3a2a 50%, rgba(0,0,0,.54) 58%);
-            background-size:300% 100%;background-repeat:no-repeat;background-position:100% 0;
-            -webkit-background-clip:text;background-clip:text;
-            -webkit-text-fill-color:transparent;color:transparent;
-            animation:blog-wa-note-sweep 1.15s cubic-bezier(.45,.05,.55,.95) 1 forwards;
-          }
-        }
-        @keyframes blog-wa-note-sweep{from{background-position:100% 0}to{background-position:0% 0}}
-        /* Motion-sensitive readers get the line static and solid grey: WCAG 2.2.2 carve-out. */
-        @media(prefers-reduced-motion:reduce){
-          .blog-wa-note{
-            animation:none;background-image:none;
-            -webkit-text-fill-color:currentColor;color:rgba(0,0,0,.54);
-          }
-        }
+        /* MICROCOPY under the Subscribe pill now uses the shared global .wc-sweep-note class
+           (src/styles/inner-ux.css) - the footer-tagline lime sweep on hover - so there is no
+           per-page copy here. The element carries className="wc-sweep-note". */
         /* The share row sits in the same hairline rhythm as the tags above it and the pager below
            - 24px of air under a 1px e5e7eb rule - so the tail of the page reads as three bands of
            one object rather than three unrelated blocks. The controls style themselves; see

@@ -182,8 +182,10 @@ const ProductPage: React.FC<ProductPageProps> = ( {
         {/* MICROCOPY under the CTA, rendered only when the product declares one (today just
             /anew/). Very small and quiet, naming where the button goes. aria-hidden because the
             anchor's own label is the accessible name. Matches the blog post page's
-            Subscribe/Contribute pills (.bc-cta-note / .blog-wa-note). */}
-        { product.ctaNote && <p className="pdp-cta-note" aria-hidden="true">{ product.ctaNote }</p> }
+            Subscribe/Contribute pills, all now sharing the global .wc-sweep-note class. */}
+        {/* The shared .wc-sweep-note treatment (src/styles/inner-ux.css) - muted microcopy with
+            the footer-tagline lime sweep on hover. One global class, no per-page CSS. */}
+        { product.ctaNote && <p className="wc-sweep-note" aria-hidden="true">{ product.ctaNote }</p> }
 
         {/* PRICE, so a reader knows what they will pay before they open the chat. Opt-in: a page
             that passes no price renders nothing here, which is every product page except /anew/.
@@ -260,65 +262,9 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           }
           .pdp-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
           .pdp-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-          /* MICROCOPY under the CTA row - the twin of .bc-cta-note / .blog-wa-note on the blog
-             post page. 13px/rgba(0,0,0,.54) is the muted-metadata rung; 10px of air sits it close
-             to the button it belongs to. Only /anew/ carries one today.
-             HOVER CARRIES THE FOOTER TAGLINE'S COLOUR SWEEP (see .ft-tagline in Footer.tsx and the
-             long note on .bc-cta-note in BlogContribution.tsx): a brand-green band runs through
-             the muted text on hover. Clip + transparent fill live under :hover only so the resting
-             line stays solid grey, not invisible; both stops are measured on white (4.61:1 and
-             12.48:1) so the band only darkens the text. */
-          /* MATCHED TO THE FOOTER TAGLINE, "Trusted everyday services for Bharat" (.ft-tagline
-             in Footer.tsx): same 16px/1.6 muted-grey type, and the lime colour sweep runs ONCE
-             ON HOVER rather than looping on its own. The continuous auto-sweep was the right
-             idea but kept moving with no interaction, which pulled the eye to a line of quiet
-             microcopy - so it now behaves like the footer line: solid grey at rest, the lime
-             band passing through the glyphs when the reader hovers. The gradient, the text clip
-             and the transparent fill live on the base rule so the band is clipped to the glyphs,
-             and both stops are measured on white (rgba(0,0,0,.54) 4.61:1, #1a3a2a 12.48:1) so the
-             band only darkens the text, never erases it. At rest background-position sits off to
-             one side so no band shows; :hover plays it across once. */
-          /* SOLID GREY AT REST, ONE-SHOT LIME SWEEP ON HOVER - like the footer tagline, which runs
-             its sweep ONCE and then stops. The clip/gradient/transparent-fill now live ONLY under
-             :hover (inside the animation), so the resting line is a plain solid grey with a real
-             color, never a transparent-filled gradient that could read as "moving" or faint. On
-             hover the lime band passes through the glyphs a single time (1 iteration, forwards)
-             and settles; it does not loop. Both gradient stops are measured on white
-             (rgba(0,0,0,.54) 4.61:1, #1a3a2a 12.48:1) so the band only darkens the text. */
-          .pdp-cta-note{
-            font-size:16px;line-height:1.6;color:rgba(0,0,0,.54);margin:10px 0 0;
-          }
-          /* The lime sweep on hover. GUARDED BY @supports: the transparent text fill is only safe
-             where background-clip:text actually works. A browser/WebView that supports the
-             gradient but NOT clip-to-text would otherwise paint the glyphs transparent on hover -
-             i.e. invisible text. Inside @supports the glyphs are clipped and the band shows; the
-             rest - gradient, size, one-shot animation - is harmless without it, so it stays
-             outside. On an unsupported engine the line simply stays solid grey on hover. */
-          @supports ((-webkit-background-clip:text) or (background-clip:text)){
-            .pdp-cta-note:hover{
-              /* 100% IDENTICAL TO THE FOOTER TAGLINE (.ft-tagline in Footer.tsx): same gradient
-                 stops (42/50/58), same 1.15s cubic-bezier(.45,.05,.55,.95), same keyframe running
-                 100% -> 0% (both endpoints inside 0..100% so the band settles flat on the glyphs,
-                 never off-screen). The only difference from the footer is the trigger: the footer
-                 plays on scroll-in, this plays once on hover. Font is already the footer's
-                 16px/1.6/rgba(0,0,0,.54). */
-              background-image:linear-gradient(100deg,
-                rgba(0,0,0,.54) 42%, #1a3a2a 50%, rgba(0,0,0,.54) 58%);
-              background-size:300% 100%;background-repeat:no-repeat;background-position:100% 0;
-              -webkit-background-clip:text;background-clip:text;
-              -webkit-text-fill-color:transparent;color:transparent;
-              animation:pdp-cta-note-sweep 1.15s cubic-bezier(.45,.05,.55,.95) 1 forwards;
-            }
-          }
-          @keyframes pdp-cta-note-sweep{from{background-position:100% 0}to{background-position:0% 0}}
-          /* Motion-sensitive readers get the line static and solid grey: no sweep, no transparent
-             fill, no gradient - the WCAG carve-out for motion on interaction. */
-          @media(prefers-reduced-motion:reduce){
-            .pdp-cta-note,.pdp-cta-note:hover{
-              animation:none;background-image:none;
-              -webkit-text-fill-color:currentColor;color:rgba(0,0,0,.54);
-            }
-          }
+          /* MICROCOPY under the CTA row now uses the shared global .wc-sweep-note class
+             (src/styles/inner-ux.css) - the footer-tagline lime sweep on hover - so there is no
+             per-page copy of it here. The element carries className="wc-sweep-note" above. */
 
           /* A ROOMIER QUIET CARD, STILL A 1px HAIRLINE. Geometry is the house quiet-card trio
              - padding:22px, 1px #e5e7eb, 14px radius - the same declaration as

@@ -3115,3 +3115,69 @@ html {
     transform: none !important;
   }
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   .wc-sweep-note — THE ONE SHARED "muted microcopy with a footer-style lime
+   sweep on hover" treatment.
+
+   WHY THIS IS GLOBAL AND NOT THREE COPIES. This exact effect was duplicated,
+   byte for byte, in three component styled-jsx blocks: .pdp-cta-note
+   (ProductPage.tsx), .blog-wa-note (post/[slug].tsx) and .bc-cta-note
+   (BlogContribution.tsx) — the "Continue on WhatsApp →" / contribute microcopy
+   under the CTAs. Three copies drift: they had already fallen out of sync once
+   (one looped `infinite`, the others ran once; the keyframe endpoints
+   disagreed). This is the single source of truth. Any page that wants the
+   effect adds class="wc-sweep-note" to a muted <p>; nothing else is needed.
+
+   IT IS 100% THE FOOTER TAGLINE (.ft-tagline in Footer.tsx), with ONE
+   difference: the footer plays its sweep ONCE on scroll-into-view (an entrance,
+   armed by JS), whereas this plays ONCE on hover. Everything else is identical —
+   16px/1.6/rgba(0,0,0,.54) type, the two-stop gradient measured on white
+   (rgba(0,0,0,.54) 4.61:1, #1a3a2a 12.48:1 — the band only darkens, never
+   erases), the 42/50/58 stops, the 1.15s cubic-bezier(.45,.05,.55,.95), and the
+   keyframe running 100% → 0% so both endpoints stay inside 0..100% and the band
+   settles flat on the glyphs instead of sliding off-screen.
+
+   The footer is NOT folded in here on purpose: its trigger (scroll-in), its JS
+   arming (.is-armed / .is-in) and its own test (footerprobe.js) make it a
+   different mechanism that merely shares the gradient.
+
+   @supports GUARD: the transparent text fill is only applied where
+   background-clip:text works. An engine that has the gradient but not clip-to-
+   text would otherwise paint the glyphs transparent on hover (invisible text);
+   there, the line simply stays solid grey. reduced-motion gets a static grey
+   line with no sweep (WCAG 2.2.2 / 1.4.3 carve-out for motion on interaction).
+   ─────────────────────────────────────────────────────────────────────────── */
+.wc-sweep-note {
+  margin: 10px 0 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: rgba(0, 0, 0, .54);
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .wc-sweep-note:hover {
+    background-image: linear-gradient(100deg,
+      rgba(0, 0, 0, .54) 42%, #1a3a2a 50%, rgba(0, 0, 0, .54) 58%);
+    background-size: 300% 100%;
+    background-repeat: no-repeat;
+    background-position: 100% 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation: wc-sweep-note-run 1.15s cubic-bezier(.45, .05, .55, .95) 1 forwards;
+  }
+}
+@keyframes wc-sweep-note-run {
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wc-sweep-note,
+  .wc-sweep-note:hover {
+    animation: none;
+    background-image: none;
+    -webkit-text-fill-color: currentColor;
+    color: rgba(0, 0, 0, .54);
+  }
+}
