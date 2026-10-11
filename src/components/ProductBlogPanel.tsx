@@ -290,7 +290,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         .pbp-pill{
           display:inline-flex;align-items:center;min-height:36px;padding:0 16px;
           border:1px solid #e5e7eb;border-radius:50px;background:#fff;
-          color:#1a3a2a;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;
+          color:#1a3a2a;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer;
           transition:background-color .2s,border-color .2s;
         }
         .pbp-pill:hover{border-color:#1a3a2a}
@@ -306,7 +306,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         }
         .pbp-search input{
           width:100%;box-sizing:border-box;height:48px;padding:0 2px;
-          font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
+          font-size:18px;font-family:inherit;color:#1a1a1a;background:transparent;
           border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
@@ -315,7 +315,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
           border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470;
         }
 
-        .pbp-empty{margin:0;font-size:14px;line-height:1.4;color:rgba(0,0,0,.54)}
+        .pbp-empty{margin:0;font-size:16px;line-height:1.4;color:rgba(0,0,0,.54)}
 
         /* THE PAGER TRACK. A horizontal scroll-snap container, one page wide, that holds the pages
            side by side. scroll-snap-type:x mandatory makes a touch swipe settle cleanly on a page;
@@ -406,14 +406,14 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
            desktop affordance. */
         .pbp-chip{
           display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:50px;
-          border:1px solid #1a3a2a;color:#1a3a2a;font-size:12px;font-weight:600;
+          border:1px solid #1a3a2a;color:#1a3a2a;font-size:13px;font-weight:600;
           line-height:1;background:rgba(209,244,112,.35);
           transition:background-color .2s,border-color .2s,color .2s;
         }
-        .pbp-title{font-size:17px;font-weight:700;line-height:1.3;letter-spacing:-.2px;color:#000}
+        .pbp-title{font-size:20px;font-weight:700;line-height:1.3;letter-spacing:-.2px;color:#000}
         /* The short review: the post excerpt, clamped to two lines so no card runs long. */
         .pbp-excerpt{
-          font-size:14px;line-height:1.45;color:rgba(0,0,0,.62);
+          font-size:16px;line-height:1.45;color:rgba(0,0,0,.62);
           display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
         }
 
