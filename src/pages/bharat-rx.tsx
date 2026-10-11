@@ -1,6 +1,8 @@
 import React from 'react';
 import PageMeta from '../components/PageMeta';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
+import PublicShare from '../components/PublicShare';
+import ProductBuyBox from '../components/ProductBuyBox';
 
 /**
  * /bharat-rx — the Bharat Rx product page.
@@ -105,7 +107,14 @@ const BharatRxPage: React.FC = () => (
           </li>
         </ol>
 
-        <a className="brx-cta" href={ CUSTOMERSERVICE }>Start a request</a>
+        {/* OPTION A: the WhatsApp pill names its channel ("Continue on WhatsApp →") to match the
+            "Continue to checkout →" pill below, same as every ProductPage-based page. */}
+        <a className="brx-cta" href={ CUSTOMERSERVICE }>Continue on WhatsApp &rarr;</a>
+
+        {/* The "Continue to checkout →" pill and live price, beneath the WhatsApp CTA — the same
+            ProductBuyBox the eight ProductPage-based product pages mount. Bharat Rx owns its own
+            layout rather than ProductPage, so the box is placed here by hand; it self-styles. */}
+        <ProductBuyBox slug="bharat-rx" />
 
         {/* Health-adjacent service, so the boundary is stated on the page rather than left
             to the Terms. This is not a medical disclaimer written by me - it points at
@@ -173,6 +182,9 @@ const BharatRxPage: React.FC = () => (
           }
         `}</style>
       </section>
+
+      {/* The Share block at the foot of this page's content, inside the hero's measure. */}
+      <PublicShare />
     </RotatingHero>
   </>
 );

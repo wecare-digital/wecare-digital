@@ -1,6 +1,8 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
+import ServiceBuyBox from '../components/ServiceBuyBox';
 import { customerserviceBySlug } from '../content/customerservice';
+import { serviceByKind } from '../config/services';
 
 /**
  * /submit-request — the Submit Request page.
@@ -20,8 +22,16 @@ import { customerserviceBySlug } from '../content/customerservice';
  * PUBLIC, AND NOT [retired public path]/submit-request. That route exists and is authenticated by design — it
  * renders the dashboard Layout and reads a Cognito session. This page touches neither.
  */
-const SubmitRequestPage: React.FC = () => (
-  <ProductPage product={ customerserviceBySlug( 'submit-request' ) } />
-);
+const SubmitRequestPage: React.FC = () => {
+  // The Submit Request service. `serviceByKind` returns null only if the config were empty, which
+  // SERVICES_CONFIGURED and the drift test forbid; guarding keeps the page rendering if it is.
+  const service = serviceByKind( 'SUBMIT_REQUEST' );
+  return (
+    <ProductPage
+      product={ customerserviceBySlug( 'submit-request' ) }
+      belowCta={ service ? <ServiceBuyBox service={ service } /> : null }
+    />
+  );
+};
 
 export default SubmitRequestPage;

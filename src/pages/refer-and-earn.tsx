@@ -1,5 +1,6 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
+import ProductBuyBox from '../components/ProductBuyBox';
 import { customerserviceBySlug } from '../content/customerservice';
 
 /**
@@ -20,6 +21,11 @@ import { customerserviceBySlug } from '../content/customerservice';
  * PUBLIC, AND NOT [retired public path]/refer-and-earn. That route exists and is authenticated by design — it
  * renders the dashboard Layout and reads a Cognito session. This page touches neither.
  */
-const ReferAndEarnPage: React.FC = () => <ProductPage product={ customerserviceBySlug( 'refer-and-earn' ) } />;
+const ReferAndEarnPage: React.FC = () => (
+  <ProductPage
+    product={ customerserviceBySlug( 'refer-and-earn' ) }
+    belowCta={ <ProductBuyBox slug="refer-and-earn" /> }
+  />
+);
 
 export default ReferAndEarnPage;

@@ -1,5 +1,6 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
+import ProductBuyBox from '../components/ProductBuyBox';
 import { productBySlug } from '../content/products';
 
 /**
@@ -34,6 +35,7 @@ const HunarPage: React.FC = () => (
   <ProductPage
     product={ productBySlug( 'hunar' ) }
     crumbs={ [ { label: 'Home', href: '/' }, { label: 'Shop', href: '/shop/' }, { label: 'Hunar' } ] }
+    belowCta={ <ProductBuyBox slug="hunar" /> }
   />
 );
 

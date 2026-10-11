@@ -1,5 +1,6 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
+import ProductBuyBox from '../components/ProductBuyBox';
 import { productBySlug } from '../content/products';
 
 /**
@@ -24,6 +25,7 @@ const ClearClosurePage: React.FC = () => (
   <ProductPage
     product={ productBySlug( 'clear-closure' ) }
     crumbs={ [ { label: 'Home', href: '/' }, { label: 'Shop', href: '/shop/' }, { label: 'Clear Closure' } ] }
+    belowCta={ <ProductBuyBox slug="clear-closure" /> }
   />
 );
 

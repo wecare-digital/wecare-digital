@@ -1,6 +1,8 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
+import ServiceBuyBox from '../components/ServiceBuyBox';
 import { customerserviceBySlug } from '../content/customerservice';
+import { serviceByKind } from '../config/services';
 
 /**
  * /vault — asking for a copy of a document held against one of your requests.
@@ -34,8 +36,14 @@ import { customerserviceBySlug } from '../content/customerservice';
  * HTTP 200, and in PUBLIC_EXACT in scripts/generate-sitemap.js or it is never advertised.
  * trailingSlash means the URL is /vault/.
  */
-const VaultPage: React.FC = () => (
-  <ProductPage product={ customerserviceBySlug( 'vault' ) } />
-);
+const VaultPage: React.FC = () => {
+  const service = serviceByKind( 'VAULT' );
+  return (
+    <ProductPage
+      product={ customerserviceBySlug( 'vault' ) }
+      belowCta={ service ? <ServiceBuyBox service={ service } /> : null }
+    />
+  );
+};
 
 export default VaultPage;
