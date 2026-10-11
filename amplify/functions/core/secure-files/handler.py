@@ -952,6 +952,34 @@ def _entitlement_id(customer_id: str, file_id: str) -> str:
     return ENTITLEMENT_PREFIX + str(customer_id) + "#" + str(file_id)
 
 
+def _entitlement_for_file(customer_id: str, file_id: str) -> Optional[Dict[str, Any]]:
+    """The caller's durable entitlement for one file, or None. Read-only; no migration."""
+    if not customer_id or not file_id:
+        return None
+    row = _table(GRANTS_TABLE).get_item(
+        Key={"grantId": _entitlement_id(customer_id, file_id)}, ConsistentRead=True
+    ).get("Item") or {}
+    if (row.get("recordType") == "VAULT_ENTITLEMENT"
+            and row.get("entitlementState") == "ACTIVE"
+            and row.get("customerId") == customer_id
+            and row.get("fileId") == file_id):
+        return row
+    return None
+
+
+def _window_already_open(identity: Dict[str, Any], file_id: str) -> bool:
+    """feat-006: True when the caller already has an OPEN access window for this file.
+
+    The 'never charge while a window is open' guard. ₹49 buys one window; inside it a new
+    charge would be a double-charge for access the customer already has, so the charge
+    entrypoints refuse and the customer is pointed at their live access instead. Once the
+    window closes this returns False and a fresh ₹49 opens a NEW window on the SAME durable
+    entitlement (Path C renewal) — no second entitlement row.
+    """
+    entitlement = _entitlement_for_file(str(identity.get("subject") or ""), file_id)
+    return vault_window.window_open(entitlement, int(time.time()))
+
+
 def _ensure_entitlement(grant: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Create/read non-TTL paid entitlement from authoritative paid evidence."""
     customer_id = str(grant.get("customerId") or "")
@@ -1166,6 +1194,17 @@ def _create_order(file_id: str, identity: Dict[str, Any], origin: str) -> Dict[s
     item = _owned_active_file(file_id, identity)
     if not item:
         return _not_registered(origin)
+
+    # feat-006: never charge while a window is open. The customer already has free access.
+    if _window_already_open(identity, file_id):
+        return cors_response(
+            409,
+            {
+                "error": "ACCESS_WINDOW_OPEN",
+                "message": "Your access window is still open — download is free right now, no payment needed.",
+            },
+            origin,
+        )
 
     if not _payment_enabled():
         # Refuse loudly rather than silently granting. Nothing here contacts
@@ -1414,7 +1453,14 @@ def _redeem_after_reconcile(
     entitlement = _active_entitlement(entitlement["grantId"], file_id, identity)
     if not entitlement:
         return _not_registered(origin)
+    # A reconcile means a fresh payment just confirmed, so this opens (or renews) the window —
+    # the same delivery-starts-the-clock rule as the main redeem path.
+    now = int(time.time())
+    if not vault_window.window_open(entitlement, now):
+        entitlement = _open_access_window(entitlement, now)
     payload = _issue_download_session(entitlement, item)
+    payload["accessWindowEndsAt"] = vault_window.window_ends_at(entitlement)
+    payload["accessWindowCount"] = vault_window.window_count(entitlement)
     _queue_vault_review(entitlement)
     return cors_response(200, payload, origin)
 
@@ -1450,6 +1496,17 @@ def _send_whatsapp_payment(file_id: str, identity: Dict[str, Any], origin: str):
     item = _owned_active_file(file_id, identity)
     if not item:
         return _not_registered(origin)
+
+    # feat-006: never charge while a window is open — the customer already has free access.
+    if _window_already_open(identity, file_id):
+        return cors_response(
+            409,
+            {
+                "error": "ACCESS_WINDOW_OPEN",
+                "message": "Your access window is still open — download is free right now, no payment needed.",
+            },
+            origin,
+        )
 
     if not _payment_enabled():
         return cors_response(

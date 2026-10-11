@@ -301,3 +301,97 @@ def test_tag_is_bounded_and_control_chars_stripped(handler):
     cleaned = "".join(c for c in raw.strip() if c.isprintable())[:60]
     assert "\x00" not in cleaned and "\n" not in cleaned
     assert len(cleaned) <= 60
+
+
+# ── feat-006: Path C renewal + never charge while a window is open ───────────
+
+class _GuardTables:
+    """GRANTS + FILES fake with just enough for the charge guard and renewal."""
+    def __init__(self, file, entitlement=None):
+        self.rows = {file["fileId"]: dict(file)}
+        if entitlement:
+            self.rows[entitlement["grantId"]] = dict(entitlement)
+
+    def get_item(self, Key, ConsistentRead=False):
+        k = Key.get("grantId") or Key.get("fileId")
+        row = self.rows.get(k)
+        return {"Item": dict(row)} if row else {}
+
+    def put_item(self, Item, **_):
+        self.rows[Item["grantId"]] = dict(Item)
+
+    def update_item(self, Key, UpdateExpression="", ExpressionAttributeValues=None, **_):
+        k = Key.get("grantId") or Key.get("fileId")
+        row = self.rows.setdefault(k, {"grantId": k})
+        vals = ExpressionAttributeValues or {}
+        if ":s" in vals:
+            row["accessWindowStartedAt"] = vals[":s"]
+            row["accessWindowEndsAt"] = vals[":e"]
+            row["accessWindowCount"] = vals[":c"]
+
+
+ENT_ID = "vault-entitlement#cust-sub-1#f1"
+
+
+def _ent(**extra):
+    base = {"grantId": ENT_ID, "recordType": "VAULT_ENTITLEMENT", "entitlementState": "ACTIVE",
+            "customerId": "cust-sub-1", "fileId": "f1", "ownerPhone": "919999999999"}
+    base.update(extra)
+    return base
+
+
+def test_window_already_open_is_true_inside_the_window(handler, monkeypatch):
+    now = int(__import__("time").time())
+    tables = _GuardTables(dict(ACTIVE_FILE), _ent(accessWindowEndsAt=now + 3600, accessWindowCount=1))
+    monkeypatch.setattr(handler, "_table", lambda _n: tables)
+    assert handler._window_already_open(IDENTITY, "f1") is True
+
+
+def test_window_already_open_is_false_once_expired(handler, monkeypatch):
+    now = int(__import__("time").time())
+    tables = _GuardTables(dict(ACTIVE_FILE), _ent(accessWindowEndsAt=now - 3600, accessWindowCount=1))
+    monkeypatch.setattr(handler, "_table", lambda _n: tables)
+    assert handler._window_already_open(IDENTITY, "f1") is False
+
+
+def test_create_order_refuses_while_window_is_open(handler, monkeypatch):
+    now = int(__import__("time").time())
+    tables = _GuardTables(dict(ACTIVE_FILE), _ent(accessWindowEndsAt=now + 3600, accessWindowCount=1))
+    monkeypatch.setattr(handler, "_table", lambda _n: tables)
+    monkeypatch.setattr(handler, "_owned_active_file", lambda _f, _i: dict(ACTIVE_FILE))
+    monkeypatch.setenv("SECURE_FILES_PAYMENT_ENABLED", "true")
+
+    def _no_razorpay(*_a, **_k):  # must not be reached while a window is open
+        raise AssertionError("razorpay contacted while window open")
+    monkeypatch.setitem(sys.modules, "razorpay_orders",
+                        type(sys)("razorpay_orders"))
+    sys.modules["razorpay_orders"].create_order = _no_razorpay
+
+    resp = handler._create_order("f1", IDENTITY, "https://wecare.digital")
+    assert resp["statusCode"] == 409
+    assert "ACCESS_WINDOW_OPEN" in resp["body"]
+
+
+def test_whatsapp_payment_refuses_while_window_is_open(handler, monkeypatch):
+    now = int(__import__("time").time())
+    tables = _GuardTables(dict(ACTIVE_FILE), _ent(accessWindowEndsAt=now + 3600, accessWindowCount=1))
+    monkeypatch.setattr(handler, "_table", lambda _n: tables)
+    monkeypatch.setattr(handler, "_owned_active_file", lambda _f, _i: dict(ACTIVE_FILE))
+    monkeypatch.setenv("SECURE_FILES_PAYMENT_ENABLED", "true")
+    resp = handler._send_whatsapp_payment("f1", IDENTITY, "https://wecare.digital")
+    assert resp["statusCode"] == 409
+    assert "ACCESS_WINDOW_OPEN" in resp["body"]
+
+
+def test_renewal_after_expiry_reopens_same_entitlement_and_increments_count(handler, monkeypatch):
+    now = int(__import__("time").time())
+    # One expired window already used -> a fresh delivery (renewal payment) opens window #2.
+    ent = _ent(accessWindowEndsAt=now - 3600, accessWindowCount=1)
+    tables = _GuardTables(dict(ACTIVE_FILE), ent)
+    monkeypatch.setattr(handler, "_table", lambda _n: tables)
+    refreshed = handler._open_access_window(ent, now)
+    assert refreshed["accessWindowCount"] == 2  # same entitlement row, count incremented
+    assert tables.rows[ENT_ID]["accessWindowCount"] == 2
+    # Still exactly one entitlement row — renewal did not mint a second.
+    ent_rows = [k for k in tables.rows if str(k).startswith("vault-entitlement#")]
+    assert ent_rows == [ENT_ID]
