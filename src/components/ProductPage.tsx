@@ -191,7 +191,17 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           </p>
         ) }
 
-        { product.note && <p className="pdp-note">{ product.note }</p> }
+        {/* The boundary note. A note may hold more than one paragraph, separated by a blank line
+            (\n\n) in the source string; each becomes its own <p> so the break is visible rather
+            than collapsing to a space in HTML. A single-paragraph note - every product but /anew/
+            - renders exactly one <p>, byte-for-byte what it did before. */}
+        { product.note && (
+          <div className="pdp-note">
+            { product.note.split( /\n{2,}/ ).map( ( para, i ) => (
+              <p className="pdp-note-p" key={ i }>{ para.trim() }</p>
+            ) ) }
+          </div>
+        ) }
 
         {/* SHARE - the same component the blog and post pages use, so the Anew page can be sent
             on in one tap. Rendered only when an absolute URL is supplied. */}
@@ -299,9 +309,17 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             margin:34px 0 0;padding:22px;
             border:1px solid #e5e7eb;border-radius:14px;
             background:#fcfdfb;
+          }
+          /* The paragraphs inside the note carry the legal-copy type. The box owns the outer
+             spacing (its 22px padding), so a paragraph has no outer margin except the gap between
+             paragraphs: 12px between, nothing before the first or after the last, so a single-
+             paragraph note sits exactly as it did when .pdp-note was itself the <p>. */
+          .pdp-note-p{
+            margin:0;
             font-size:17px;font-weight:400;line-height:1.55;letter-spacing:-.05px;
             color:rgba(0,0,0,.898);
           }
+          .pdp-note-p + .pdp-note-p{margin-top:12px}
 
           /* PRICE line. The price is the card rung in dark green (lime means actionable and the
              pill owns lime). 22px of air above it, matching the CTA row's own top gap. */

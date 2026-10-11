@@ -271,7 +271,7 @@ export const PRODUCTS: ProductDef[] = [
       },
     ],
     note:
-      'Anew is a guided written reflection, not therapy, counselling, or medical, legal, financial or tax advice. The conclusions you draw and any action you take remain yours. If you need mental-health support, please speak to a qualified professional; in an emergency, contact local emergency services.',
+      'Anew is a guided written reflection, not therapy, counselling, or medical, legal, financial or tax advice. It does not make decisions on your behalf. The conclusions you draw and any action you take remain yours.\n\nIf you need mental-health support, please speak to a qualified professional; in an emergency, contact local emergency services.',
     ctaLabel: 'Start a conversation',
     ctaHref: 'https://wa.me/message/F2D7PVR5Q45MP1',
     // Text-only pill plus the quiet "Continue on WhatsApp →" microcopy, matching the blog post
