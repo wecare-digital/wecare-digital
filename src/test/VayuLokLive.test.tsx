@@ -495,8 +495,18 @@ function environmentFetch() {
         json: async () => ( {
           hourlyForecasts: Array.from( { length: 96 }, ( _, idx ) => idx + 1 ).map( i => ( {
             dateTime: hour( i ),
-            indexes: [ { code: 'ind_cpcb', aqi: 70 + i } ],
-            pollutants: [ { code: 'pm25', concentration: { value: 25 + i, units: 'MICROGRAMS_PER_CUBIC_METER' } } ],
+            indexes: [
+              { code: 'ind_cpcb', displayName: 'India CPCB AQI', aqi: 70 + i, category: 'Satisfactory', dominantPollutant: 'pm25' },
+              { code: 'uaqi', displayName: 'Universal AQI', aqi: 60 + i, aqiDisplay: String( 60 + i ), category: 'Good air quality', dominantPollutant: 'pm25' },
+            ],
+            pollutants: [ {
+              code: 'pm25',
+              displayName: 'PM2.5',
+              fullName: 'Fine particulate matter',
+              concentration: { value: 25 + i, units: 'MICROGRAMS_PER_CUBIC_METER' },
+              additionalInfo: { sources: 'Forecast source information.', effects: 'Forecast health effect information.' },
+            } ],
+            healthRecommendations: { generalPopulation: 'Forecast health recommendation.' },
           } ) ),
         } ),
       } as Response );
@@ -1054,6 +1064,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     fireEvent.click( within( forecastRange ).getByRole( 'button', { name: '96h' } ) );
     expect( within( forecastRange ).getByRole( 'button', { name: '96h' } ) ).toHaveAttribute( 'aria-pressed', 'true' );
     await waitFor( () => expect( container.querySelectorAll( '.vl-live-air-forecast-card' ).length ).toBe( 96 ) );
+    const forecastDetail = container.querySelector( '.vl-live-air-forecast-detail' );
+    expect( forecastDetail?.textContent ).toContain( 'Dominant' );
+    expect( forecastDetail?.textContent ).toContain( 'Local / Universal' );
+    expect( forecastDetail?.textContent ).toContain( 'Forecast health recommendation.' );
+    expect( forecastDetail?.textContent ).toContain( 'Sources' );
+    expect( forecastDetail?.textContent ).toContain( 'Effects' );
 
     const historyRange = await screen.findByRole( 'group', { name: 'Air history range' } );
     fireEvent.click( within( historyRange ).getByRole( 'button', { name: '30d' } ) );
@@ -1075,6 +1091,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       } );
       expect( pm25 ).toBeTruthy();
     } );
+    expect( container.querySelector( '.vl-live-air-heatmap-legend.is-pm25' )?.textContent ).toContain( 'Higher' );
+    expect( container.querySelector( '.vl-live-air-heatmap-legend.is-pm25' )?.textContent ).toContain( 'Lower' );
   } );
 
   it( 'does not force India CPCB custom AQI on non-India destinations', async () => {
