@@ -915,6 +915,15 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( svg.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
     } );
 
+    // Hover/tap inspection exposes a specific hour + AQI while the current lime marker stays.
+    expect( chart.getAttribute( 'aria-label' ) ).toContain( 'Hover or tap the chart to inspect an hour.' );
+    fireEvent.pointerDown( chart, { clientX: 0, pointerType: 'touch' } );
+    await waitFor( () => expect( container.querySelector( '.vl-live-air-history-inspect' ) ).not.toBeNull() );
+    const inspect = container.querySelector( '.vl-live-air-history-inspect' );
+    expect( inspect?.textContent ).toMatch( /AQI \d+/ );
+    expect( inspect?.textContent ).toMatch( /IST/ );
+    expect( container.querySelector( '.vl-live-air-history-bubble' )?.textContent ).toBe( '72' );
+
     // NO RED anywhere in the three new sections' markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
   } );
@@ -1294,7 +1303,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( searchWrapRule ).toContain( 'border:1px solid #e5e7eb' );
     expect( searchWrapRule ).toContain( 'border-top:3px solid #d1f470' );
     expect( searchWrapRule ).toContain( 'border-radius:14px' );
-    expect( searchWrapRule ).toContain( 'box-shadow:0 6px 18px rgba(0,0,0,.08)' );
+    expect( searchWrapRule ).toContain( 'box-shadow:none' );
     expect( searchWrapRule ).toContain( 'z-index:30' );
     expect( searchWrapRule ).not.toContain( 'grid-area:1/1' );
 
@@ -1319,15 +1328,30 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const infoHoverRule = css.match( /\.vl-live-air-pollutant-info:hover\{[^}]*\}/ )?.[ 0 ] || '';
     expect( infoHoverRule ).toContain( 'background:var(--lime-hover)' );
     expect( infoHoverRule ).toContain( 'color:var(--green)' );
+    expect( css ).toContain( '.vl-live-air-health-tabs{scroll-snap-type:x mandatory' );
+    expect( css ).toContain( '.vl-live-air-health-tab{scroll-snap-align:start}' );
+    const moreRule = css.match( /\.vl-live-air-health-more\{[^}]*\}/ )?.[ 0 ] || '';
+    const moreHoverRule = css.match( /\.vl-live-air-health-more:hover\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( moreRule ).toContain( 'text-decoration:none' );
+    expect( moreHoverRule ).toContain( 'text-decoration:underline' );
 
     // One UI-system pass: section headings share the homepage card-heading token and one
     // lime accent; pollutant names are real content (17px), not metadata-sized copy.
     const sectionTitleRule = css.match( /\.vl-live-air-pollutants-title,\.vl-live-air-heatmap-label,\.vl-live-air-health-title,\.vl-live-air-history-title\{[^}]*\}/ )?.[ 0 ] || '';
     expect( sectionTitleRule ).toContain( 'font-size:var(--vl-card-heading-size)' );
     expect( sectionTitleRule ).toContain( 'border-left:3px solid var(--lime)' );
+    const sectionRule = css.match( /\.vl-live-air-pollutants,\.vl-live-air-heatmap,\.vl-live-air-health,\.vl-live-air-history\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( sectionRule ).toContain( 'margin-top:var(--vl-section-gap)' );
+    expect( sectionRule ).toContain( 'padding-top:var(--vl-section-pad)' );
     expect( css ).not.toContain( '.vl-live-air-pollutants-title::before' );
     const pollutantLabelRule = css.match( /\.vl-live-air-pollutant-label\{[^}]*\}/ )?.[ 0 ] || '';
     expect( pollutantLabelRule ).toContain( 'font-size:17px' );
+    const pollutantRowRule = css.match( /\.vl-live-air-pollutant-row\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( pollutantRowRule ).toContain( 'grid-template-columns:minmax(0,1fr) minmax(118px,auto) var(--vl-action-size)' );
+    const pollutantValueRule = css.match( /\.vl-live-air-pollutant-value\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( pollutantValueRule ).toContain( 'min-width:118px' );
+    expect( pollutantValueRule ).toContain( 'text-align:right' );
+    expect( pollutantValueRule ).toContain( 'font-variant-numeric:tabular-nums' );
     expect( container.querySelector( '.vl-live-air-heatmap-state' )?.textContent ).toMatch( /On|Off/ );
 
     // The duplicate top Air Quality Details heading is gone; the inner section is Pollutants.
