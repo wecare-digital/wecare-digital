@@ -394,6 +394,7 @@ interface AirState {
   indexName?: string;
   indexCode?: string;
   aqiDisplay?: string;
+  regionCode?: string;
   indexes?: AirIndexInfo[];
   universalIndex?: AirIndexInfo;
   localIndex?: AirIndexInfo;
@@ -482,7 +483,15 @@ interface AirPoint {
   localAqi?: number;
   universalAqi?: number;
   healthRecommendations?: Partial<Record<HealthRecommendationKey, string>>;
-  pollutants?: { code: string; value: number; unit: string }[];
+  pollutants?: {
+    code: string;
+    label?: string;
+    fullName?: string;
+    value: number;
+    unit: string;
+    sources?: string;
+    effects?: string;
+  }[];
 }
 interface WeatherAlertRow {
   id: string;
@@ -582,7 +591,15 @@ function airPointFromApi( row: Record<string, any> ): AirPoint | null {
   const aqi = n( idx?.aqi );
   if ( !Number.isFinite( aqi ) ) return null;
   const pollutantRows = ( Array.isArray( row?.pollutants ) ? row.pollutants : [] )
-    .map( ( p: any ) => ( { code: String( p?.code || '' ), value: n( p?.concentration?.value ), unit: concUnitLabel( p?.concentration?.units ) } ) )
+    .map( ( p: any ) => ( {
+      code: String( p?.code || '' ),
+      ...( typeof p?.displayName === 'string' && p.displayName.trim() ? { label: p.displayName.trim() } : {} ),
+      ...( typeof p?.fullName === 'string' && p.fullName.trim() ? { fullName: p.fullName.trim() } : {} ),
+      value: n( p?.concentration?.value ),
+      unit: concUnitLabel( p?.concentration?.units ),
+      ...( typeof p?.additionalInfo?.sources === 'string' && p.additionalInfo.sources.trim() ? { sources: p.additionalInfo.sources.trim() } : {} ),
+      ...( typeof p?.additionalInfo?.effects === 'string' && p.additionalInfo.effects.trim() ? { effects: p.additionalInfo.effects.trim() } : {} ),
+    } ) )
     .filter( p => Boolean( p.code ) && Number.isFinite( p.value ) );
   const pm = pollutantRows.find( p => p.code === 'pm25' );
   const healthRecommendations = parseHealthRecommendations( row?.healthRecommendations );
@@ -747,6 +764,7 @@ function airStateFromApiData( data: Record<string, any> | null | undefined ): Ai
     ...( idx.displayName ? { indexName: idx.displayName } : {} ),
     indexCode: idx.code,
     ...( idx.aqiDisplay ? { aqiDisplay: idx.aqiDisplay } : {} ),
+    ...( typeof data?.regionCode === 'string' && data.regionCode ? { regionCode: data.regionCode } : {} ),
     indexes,
     ...( universalIndex ? { universalIndex } : {} ),
     ...( localIndex ? { localIndex } : {} ),
@@ -2331,11 +2349,11 @@ const VayuLokLive: React.FC = () => {
                             </button>
                           </div>
                         </div>
-                        <div className="vl-live-air-heatmap-legend">
+                        <div className={ `vl-live-air-heatmap-legend is-${heatmapMetric.toLowerCase()}` }>
                           <span className="vl-live-air-heatmap-ramp" aria-hidden="true" />
                           <span className="vl-live-air-heatmap-ends">
-                            <span className="vl-live-air-heatmap-end">Poor</span>
-                            <span className="vl-live-air-heatmap-end">Excellent</span>
+                            <span className="vl-live-air-heatmap-end">{ heatmapMetric === 'AQI' ? 'Poor' : 'Higher' }</span>
+                            <span className="vl-live-air-heatmap-end">{ heatmapMetric === 'AQI' ? 'Excellent' : 'Lower' }</span>
                           </span>
                         </div>
                       </div>
@@ -2373,6 +2391,17 @@ const VayuLokLive: React.FC = () => {
                                 { airForecast[ airForecastInspectIdx ].healthRecommendations?.generalPopulation && (
                                   <p>{ airForecast[ airForecastInspectIdx ].healthRecommendations?.generalPopulation }</p>
                                 ) }
+                                { ( () => {
+                                  const point = airForecast[ airForecastInspectIdx ];
+                                  const dominant = point.pollutants?.find( pollutant => pollutant.code === point.dominant );
+                                  if ( !dominant?.sources && !dominant?.effects ) return null;
+                                  return (
+                                    <p className="vl-live-air-forecast-additional">
+                                      { dominant.sources && <span><strong>Sources</strong> { compactAirInfo( dominant.sources, 120 ) }</span> }
+                                      { dominant.effects && <span><strong>Effects</strong> { compactAirInfo( dominant.effects, 120 ) }</span> }
+                                    </p>
+                                  );
+                                } )() }
                               </div>
                             ) }
                           </>
@@ -2895,6 +2924,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-heatmap-switch.is-on{background:var(--lime-hover);color:var(--green)}
         .vl-live-air-heatmap-legend{margin-top:0}
         .vl-live-air-heatmap-ramp{display:block;height:8px;border-radius:999px;background:linear-gradient(90deg,#c98a2e 0%,#e8c547 42%,#d1f470 74%,#3da35a 100%)}
+        .vl-live-air-heatmap-legend.is-pm25 .vl-live-air-heatmap-ramp{background:linear-gradient(90deg,#9849e8 0%,#2563eb 100%)}
         .vl-live-air-heatmap-ends{display:flex;align-items:center;justify-content:space-between;margin-top:6px}
         .vl-live-air-heatmap-end{color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.02em}
         .vl-live-air-range{display:inline-flex;align-items:center;gap:4px;padding:2px;border-radius:999px;background:#f4f5f1}
@@ -2912,6 +2942,8 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-forecast-detail{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:10px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.4}
         .vl-live-air-forecast-detail strong{color:var(--status);font-weight:700}
         .vl-live-air-forecast-detail p{flex:1 0 100%;margin:2px 0 0;color:var(--body);font-size:14px;font-weight:400;line-height:1.45}
+        .vl-live-air-forecast-additional{display:flex;flex-direction:column;gap:4px}
+        .vl-live-air-forecast-additional span{display:block}
 
         /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
            Icons and arrows inherit the ONE action-icon system above. The row stays horizontal;
