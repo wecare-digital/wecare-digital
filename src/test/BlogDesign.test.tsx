@@ -378,31 +378,32 @@ describe( 'Blog pagination', () => {
   it( 'sends page 1 to /blog/ rather than to /blog/page/1/', () => {
     const { container } = render( <BlogIndexPage { ...propsFor( { posts: manyCards, page: 2, totalPages: 3, totalPosts: 60 } ) } /> );
 
+    // The prev arrow (rel=prev) is now the only control that points at page 1, and it must point
+    // at /blog/ rather than /blog/page/1/. The Perspectives pager prints no numbered page links.
     const newer = container.querySelector( 'a[rel="prev"]' );
     expect( newer ).not.toBeNull();
     expect( samePath( newer!.getAttribute( 'href' ) ) ).toBe( '/blog' );
-
-    // And the numbered link for page 1 agrees with it - not /blog/page/1/.
-    const one = Array.from( container.querySelectorAll( 'a.pager-num' ) )
-      .find( node => node.textContent?.trim().endsWith( '1' ) );
-    expect( samePath( one!.getAttribute( 'href' ) ) ).toBe( '/blog' );
+    expect( container.querySelector( 'a.pager-num' ) ).toBeNull();
   } );
 
-  it( 'marks the current page and offers only the directions that exist', () => {
+  it( 'is a Perspectives pager: arrows for the directions that exist, no numbers', () => {
     const { container: first } = render( <BlogIndex { ...propsFor( { posts: manyCards, page: 1, totalPages: 3, totalPosts: 60 } ) } /> );
-    // Page 1 has no previous page: the control is rendered so the row does not reflow, but it
-    // is not a link and is hidden from the accessibility tree.
+    // Page 1 has no previous page: the arrow is rendered so the row does not reflow, but it is
+    // not a link and is hidden from the accessibility tree.
     expect( first.querySelector( 'a[rel="prev"]' ) ).toBeNull();
-    expect( first.querySelector( '.pager-step.is-off[aria-hidden="true"]' ) ).not.toBeNull();
+    expect( first.querySelector( '.pager-arrow.is-off[aria-hidden="true"]' ) ).not.toBeNull();
     expect( samePath( first.querySelector( 'a[rel="next"]' )!.getAttribute( 'href' ) ) ).toBe( '/blog/page/2' );
-    // Scoped to the pager: Breadcrumbs marks its own last crumb aria-current="page", so an
-    // unscoped query finds "Blog" first and would pass on page 1 for the wrong reason.
-    expect( first.querySelector( '.pager [aria-current="page"]' )!.textContent ).toBe( '1' );
+    // No numbered page chip anywhere in the pager - position lives in the progress bar instead.
+    expect( first.querySelector( '.pager .pager-num' ) ).toBeNull();
+    expect( first.querySelector( '.pager [aria-current="page"]' ) ).toBeNull();
+    const firstBar = first.querySelector( '.pager-progress-track' )!;
+    expect( firstBar.getAttribute( 'aria-valuenow' ) ).toBe( '1' );
+    expect( firstBar.getAttribute( 'aria-valuetext' ) ).toBe( 'Page 1 of 3' );
 
     const { container: last } = render( <BlogIndexPage { ...propsFor( { posts: manyCards, page: 3, totalPages: 3, totalPosts: 60 } ) } /> );
     expect( last.querySelector( 'a[rel="next"]' ) ).toBeNull();
     expect( samePath( last.querySelector( 'a[rel="prev"]' )!.getAttribute( 'href' ) ) ).toBe( '/blog/page/2' );
-    expect( last.querySelector( '.pager [aria-current="page"]' )!.textContent ).toBe( '3' );
+    expect( last.querySelector( '.pager-progress-track' )!.getAttribute( 'aria-valuetext' ) ).toBe( 'Page 3 of 3' );
   } );
 
   it( 'hides the paginator while a search or a category is narrowing the list', async () => {

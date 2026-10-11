@@ -40,9 +40,10 @@
  *
  * Two findings are deliberately left red, both documented at their rule:
  *
- *   - `/blog/` scores 96 on `.pager-step.is-off` at 2.24:1. WCAG 1.4.3 exempts text in an
- *     INACTIVE component, and the markup is aria-hidden, so raising it would make
- *     "unavailable" look available. axe cannot tell the difference.
+ *   - `/blog/` scores low on `.pager-arrow.is-off` (the disabled end of the Perspectives pager,
+ *     dimmed with opacity). WCAG 1.4.3 exempts text in an INACTIVE component, and the markup is
+ *     aria-hidden, so raising it would make "unavailable" look available. axe cannot tell the
+ *     difference.
  *
  * Lighthouse lives in this directory's package.json rather than the app's, for the same reason
  * playwright-core does: the app's dependency tree and lockfile stay untouched, and the browser
@@ -93,9 +94,9 @@ const EXPECTED = {
 /** axe flags these, and the markup is correct. Keep the reason with the id. */
 const JUSTIFIED_CONTRAST = {
   '/blog/':
-    '.pager-step.is-off is the disabled end of the pager at 2.24:1. WCAG 1.4.3 exempts text in '
-    + 'an inactive component and the span is aria-hidden; raising it would make "unavailable" '
-    + 'look available.',
+    '.pager-arrow.is-off is the disabled end of the Perspectives pager, dimmed with opacity. '
+    + 'WCAG 1.4.3 exempts text in an inactive component and the span is aria-hidden; raising it '
+    + 'would make "unavailable" look available.',
 };
 
 /**

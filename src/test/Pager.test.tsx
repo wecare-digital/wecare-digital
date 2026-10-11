@@ -58,49 +58,69 @@ describe( 'pageWindow', () => {
   } );
 } );
 
-describe( 'Pager', () => {
-  it( 'keeps the three responsive rules that moved out of BlogIndexView', () => {
+describe( 'Pager (Perspectives style)', () => {
+  it( 'declares its own narrow-screen block, so a rule here has a home', () => {
     const { container } = render(
       <Pager page={ 2 } totalPages={ 5 } hrefFor={ hrefFor } ariaLabel="Shop pages" />,
     );
     const block = narrowBlock( cssOf( container ) );
     expect( block, 'Pager declares no max-width:767px block of its own' ).not.toBe( '' );
-    // The numbers wrap to their own row under the prev/next pair.
-    expect( block ).toContain( 'order:3' );
-    // The steps go full width once the numbers are on their own row.
-    expect( block ).toContain( 'flex:1' );
-    // Still through :global(), because .pager-step is on a next/link.
-    expect( block ).toContain( ':global(.pager-step)' );
   } );
 
-  it( 'marks the current page and offers only the directions that exist', () => {
+  it( 'is two circular arrows plus a lime progress bar, with NO page numbers', () => {
+    const { container } = render(
+      <Pager page={ 2 } totalPages={ 5 } hrefFor={ hrefFor } ariaLabel="Blog pages" />,
+    );
+    // The arrows, drawn chevrons on real links where a page exists.
+    const arrows = Array.from( container.querySelectorAll( '.pager-arrow' ) );
+    expect( arrows ).toHaveLength( 2 );
+    // The lime progress bar.
+    expect( container.querySelector( '.pager-progress-track[role="progressbar"]' ) ).not.toBeNull();
+    expect( container.querySelector( '.pager-progress-fill' ) ).not.toBeNull();
+    // No numbered page list, no current-page chip, no ellipsis - the whole numbered idiom is gone.
+    expect( container.querySelector( '.pager-list' ) ).toBeNull();
+    expect( container.querySelector( '.pager-num' ) ).toBeNull();
+    expect( container.querySelector( '.pager-gap' ) ).toBeNull();
+    expect( container.querySelector( '[aria-current="page"]' ) ).toBeNull();
+    // Nothing in the nav prints a page number to a sighted reader. Exclude <style>, whose
+    // styled-jsx CSS text carries digits in values that are not visible to a reader.
+    const visible = Array.from( container.querySelectorAll( 'nav.pager *:not(style)' ) )
+      .flatMap( n => Array.from( n.childNodes ) )
+      .filter( n => n.nodeType === 3 )
+      .map( n => n.textContent || '' )
+      .join( ' ' );
+    expect( visible ).not.toMatch( /\d/ );
+  } );
+
+  it( 'offers only the directions that exist, with real rel=prev/next links', () => {
     const { container } = render(
       <Pager page={ 1 } totalPages={ 3 } hrefFor={ hrefFor } ariaLabel="Shop pages" />,
     );
+    // No prev link on page 1; an inert, aria-hidden arrow in its place so the row does not reflow.
     expect( container.querySelector( 'a[rel="prev"]' ) ).toBeNull();
-    // Rendered rather than omitted so the row does not reflow, and hidden from the
-    // accessibility tree because it is a dead control.
-    expect( container.querySelector( '.pager-step.is-off[aria-hidden="true"]' ) ).not.toBeNull();
-    expect( container.querySelector( 'a[rel="next"]' ) ).not.toBeNull();
-    expect( container.querySelector( '.pager [aria-current="page"]' )!.textContent ).toBe( '1' );
+    expect( container.querySelector( '.pager-arrow.is-off[aria-hidden="true"]' ) ).not.toBeNull();
+    // A real next link to the adjacent page URL - the no-JS / crawlable path. next/link strips
+    // the trailing slash in jsdom, so compare slash-insensitively.
+    const next = container.querySelector( 'a[rel="next"]' );
+    expect( next ).not.toBeNull();
+    expect( String( next!.getAttribute( 'href' ) ).replace( /\/$/, '' ) ).toBe( '/shop/page/2' );
   } );
 
-  it( 'renders a real ellipsis character for an elision', () => {
+  it( 'carries position in the progressbar for assistive tech, not as printed text', () => {
     const { container } = render(
-      <Pager page={ 10 } totalPages={ 20 } hrefFor={ hrefFor } ariaLabel="Shop pages" />,
+      <Pager page={ 2 } totalPages={ 4 } hrefFor={ hrefFor } ariaLabel="Blog pages" />,
     );
-    const gaps = Array.from( container.querySelectorAll( '.pager-gap' ) );
-    expect( gaps.length ).toBe( 2 );
-    // A real character, not a styled empty element: a screen reader needs something
-    // between "1" and "9" or the jump is silent.
-    for ( const gap of gaps ) expect( gap.textContent ).toBe( '…' );
+    const bar = container.querySelector( '.pager-progress-track' )!;
+    expect( bar.getAttribute( 'aria-valuenow' ) ).toBe( '2' );
+    expect( bar.getAttribute( 'aria-valuemax' ) ).toBe( '4' );
+    expect( bar.getAttribute( 'aria-valuetext' ) ).toBe( 'Page 2 of 4' );
   } );
 
-  it( 'defaults its step labels to the blog listing, so that call site passes none', () => {
+  it( 'names the arrows from the step labels, defaulting to the blog listing', () => {
     const { container } = render(
       <Pager page={ 2 } totalPages={ 3 } hrefFor={ hrefFor } ariaLabel="Blog pages" />,
     );
-    expect( container.querySelector( 'a[rel="prev"]' )!.textContent ).toContain( 'Newer' );
-    expect( container.querySelector( 'a[rel="next"]' )!.textContent ).toContain( 'Older' );
+    expect( container.querySelector( 'a[rel="prev"]' )!.getAttribute( 'aria-label' ) ).toContain( 'Newer' );
+    expect( container.querySelector( 'a[rel="next"]' )!.getAttribute( 'aria-label' ) ).toContain( 'Older' );
   } );
 } );
