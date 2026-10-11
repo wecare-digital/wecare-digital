@@ -284,20 +284,17 @@ const VayuLokPage: React.FC = () => {
           already been lost twice to edits of the surrounding markup.
           A PLAIN STATIC IMPORT, deliberately not next/dynamic. VayuLokLive touches
           window, document and google only inside effects and in helpers that return
-          early on typeof window === 'undefined', and it imports deck.gl dynamically
-          inside the layer-activation effect, so it prerenders safely under the
+          early on typeof window === 'undefined', so it prerenders safely under the
           output:'export' build. ssr:false would merely empty this section out of the
           exported HTML for no SSR gain. It is self-styling under a vl-live- scope, so
-          it needs no wrapper and no rule here.
-          WHAT THE KEYLESS PATH ACTUALLY RENDERS - stated precisely, because the first
-          version of this comment overstated it. With NEXT_PUBLIC_GOOGLE_MAPS_KEY unset,
+          it needs no wrapper and no rule here. (The map stack is loaded by injecting the
+          Maps JS <script> inside an effect, after mount; the component imports no deck.gl -
+          both the AQI and PM2.5 heatmaps are Google ImageMapType tile overlays.)
+          WHAT THE KEYLESS PATH ACTUALLY RENDERS. With NEXT_PUBLIC_GOOGLE_MAPS_KEY unset,
           which is every CI and sandbox run, the component injects no Maps JS, mounts no
           interactive canvas, shows no live air or weather panels and issues no fetch
-          calls - but it DOES render a Google Maps embed iframe where the canvas would
-          be, eagerly, pinned to the default place. That iframe is a third-party request
-          on load, so this path is degraded, not network-silent. The component's own test
-          pins it under the name "shows the keyless map", so do not describe this page as
-          map-free while the key is absent. */}
+          calls. It renders a self-contained placeholder (no iframe, no remote asset) where
+          the canvas would be, so this path contacts no third party. */}
       <VayuLokLive />
 
       {/* EXPLANATORY FAQ. A short, honest prose block beneath the live widget: it gives search

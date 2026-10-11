@@ -835,29 +835,6 @@ function localAqiOverride( regionCode?: string ): Record<string, unknown> {
     : {};
 }
 
-function airRequestBody( lat: number, lng: number, regionCode?: string ): Record<string, unknown> {
-  return {
-    location: { latitude: lat, longitude: lng },
-    extraComputations: [
-      'POLLUTANT_CONCENTRATION',
-      'LOCAL_AQI',
-      'HEALTH_RECOMMENDATIONS',
-      'DOMINANT_POLLUTANT_CONCENTRATION',
-    ],
-    languageCode: 'en',
-    universalAqi: true,
-    ...localAqiOverride( regionCode ),
-  };
-}
-
-/* A sampled dot: a REAL grid point carrying its lat/lng and parsed AQI/PM2.5. */
-interface AirDot {
-  lat: number;
-  lng: number;
-  aqi: number;
-  pm25?: number;
-}
-
 function relativeAgeLabel( value?: string | number ): { label: string; stale: boolean } {
   if ( value === undefined || value === null ) return { label: 'Current', stale: false };
   const ms = typeof value === 'number' ? value : new Date( value ).getTime();
@@ -1008,17 +985,15 @@ const VayuLokLive: React.FC = () => {
   const historyCache = useRef<Record<string, { ts: number; points: AirPoint[] }>>( {} );
   const timeZoneCache = useRef<Record<string, LocationTimeState>>( {} );
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
-  // FEAT-002: the deck.gl GoogleMapsOverlay instance (created lazily on first layer
-  // activation), the AbortController for the in-flight grid fetch, and the grid cache
-  // keyed by area+grid+layer+time-bucket so re-activating the same layer bills nothing.
-  const deckOverlayRef = useRef<unknown>( null );
   // The google.maps.ImageMapType instance for the continuous AQI heatmap tile overlay
   // (FEAT-001). Attached by DEFAULT once the KEYED map is initialized (layer defaults to
   // 'AQI'), pushed onto map.overlayMapTypes, and detached idempotently on toggle-off /
   // switch-to-PM2.5 / unmount. On the keyless path it is NEVER constructed.
+  //
+  // NOTE: both AQI and PM2.5 are now Google ImageMapType TILE overlays. The earlier deck.gl
+  // GoogleMapsOverlay dot-grid (and its grid fetch/cache/abort refs) was superseded and has
+  // been removed - deck.gl is no longer imported or used anywhere in this component.
   const heatmapOverlayRef = useRef<unknown>( null );
-  const gridAbortRef = useRef<AbortController | null>( null );
-  const gridCache = useRef<Record<string, { ts: number; dots: AirDot[]; center: AirState | null }>>( {} );
 
   useEffect( () => {
     const timer = window.setInterval( () => setClockNow( Date.now() ), 30_000 );
@@ -1394,13 +1369,6 @@ const VayuLokLive: React.FC = () => {
 
     const map = mapRef.current;
 
-    // Detach the deck.gl dot overlay (used by the PM2.5 layer) idempotently.
-    const detachDots = () => {
-      const existing = deckOverlayRef.current as { setMap?: ( m: unknown ) => void; setProps?: ( p: { layers: unknown[] } ) => void } | null;
-      existing?.setProps?.( { layers: [] } );
-      existing?.setMap?.( null );
-    };
-
     // Detach the AQI heatmap ImageMapType from map.overlayMapTypes idempotently. overlayMapTypes
     // is an MVCArray; remove this exact instance by index so unrelated overlays are untouched,
     // and null the ref so a later toggle-on re-pushes exactly one (never a duplicate).
@@ -1427,21 +1395,19 @@ const VayuLokLive: React.FC = () => {
       heatmapOverlayRef.current = null;
     };
 
-    // No layer active -> ensure BOTH overlay types are detached and the single-point air clears.
+    // No layer active -> ensure the heatmap overlay is detached and the single-point air clears.
     if ( !layer ) {
-      detachDots();
       detachHeatmap();
       requestAnimationFrame( () => { setDataLoading( false ); } );
       return;
     }
     if ( !map ) return;
 
-    // AQI -> continuous heatmap TILE overlay (no deck.gl dot grid, no grid fetch). Tear down
-    // the PM2.5 dots first so the two overlay types are never shown at once, then attach the
-    // ImageMapType exactly once. Attached by DEFAULT here (layer defaults to 'AQI') once the
-    // keyed map is ready - never at module load, never on the keyless path.
+    // AQI/PM2.5 -> continuous heatmap TILE overlay. Both are Google ImageMapType tile products;
+    // attach the selected one exactly once. Attached by DEFAULT here (layer defaults to 'AQI')
+    // once the keyed map is ready - never at module load, never on the keyless path.
     if ( layer === 'AQI' || layer === 'PM25' ) {
-      detachDots();
+      detachHeatmap();
       const w = window as unknown as { google?: { maps?: {
         ImageMapType?: new ( opts: Record<string, unknown> ) => unknown;
         Size?: new ( w: number, h: number ) => unknown;

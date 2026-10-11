@@ -3,19 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 /* ---------------------------------------------------------------------------------------
-   deck.gl DYNAMIC-IMPORT MOCKS (FEAT-002)
+   deck.gl REGRESSION GUARD (formerly FEAT-002 dynamic-import mocks)
    ---------------------------------------------------------------------------------------
-   The component imports the deck.gl overlay + scatter layer DYNAMICALLY, inside the
-   layer-activation effect:
-       const { GoogleMapsOverlay } = await import( '@deck.gl/google-maps' );
-       const { ScatterplotLayer }  = await import( '@deck.gl/layers' );
-   so they stay out of SSR / the initial bundle and are NEVER loaded on the no-key
-   honest-degradation path. These vi.mock factories replace both packages with fakes that
-   RECORD what the component does: which map the overlay is attached to (setMap), what
-   layers it is given (setProps), and the props each ScatterplotLayer receives (so a test
-   can read back the fill colours and the real point data). vi.mock is hoisted and survives
-   vi.resetModules(), so every freshly re-imported component instance gets these fakes. The
-   shared recorder is created with vi.hoisted so the factory may reference it safely. */
+   The component NO LONGER imports deck.gl: both the AQI and PM2.5 heatmaps are Google
+   ImageMapType tile overlays, and the old GoogleMapsOverlay/ScatterplotLayer dot-grid path
+   (plus its grid fetch/cache) has been removed. These vi.mock factories and the recorder are
+   kept as a REGRESSION GUARD: the component must never attach a deck.gl overlay, which the
+   assertions `deckRec.overlaySetMapCalls.some(Boolean) === false` verify. If deck.gl is ever
+   reintroduced the recorder will capture it; if these packages are later removed from the
+   dependency tree, delete this block and those two assertions together. */
 const deckRec = vi.hoisted( () => ( {
   overlaySetMapCalls: [] as unknown[],   // every arg passed to overlay.setMap(...)
   overlaySetPropsCalls: [] as { layers: unknown[] }[],
