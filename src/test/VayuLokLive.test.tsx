@@ -381,7 +381,7 @@ function environmentFetch() {
           dateTime: now.toISOString(),
           indexes: [ { code: 'ind_cpcb', aqi: 74, category: 'Satisfactory', dominantPollutant: 'pm25' } ],
           pollutants: [
-            { code: 'pm25', concentration: { value: 28, units: 'MICROGRAMS_PER_CUBIC_METER' } },
+            { code: 'pm25', concentration: { value: 28, units: 'MICROGRAMS_PER_CUBIC_METER' }, additionalInfo: { sources: 'Combustion of fuels in vehicles, power plants and industry.', effects: 'Penetrates deep into lungs and can trigger respiratory and cardiovascular problems.' } },
             { code: 'pm10', concentration: { value: 44, units: 'MICROGRAMS_PER_CUBIC_METER' } },
           ],
           healthRecommendations: { generalPopulation: 'Normal outdoor activity is suitable for most people.' },
@@ -633,10 +633,38 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const tip = firstRow.querySelector( `#${describedBy}` );
     expect( tip ).not.toBeNull();
     expect( tip?.getAttribute( 'role' ) ).toBe( 'tooltip' );
-    // The tooltip carries the pollutant label + value + unit.
-    const label = firstRow.querySelector( '.vl-live-air-pollutant-label' )?.textContent ?? '';
-    expect( tip?.textContent ).toContain( label );
-    expect( tip?.textContent ).toMatch( /\d/ );
+
+    // RICH POPOVER: the pm25 row (dominant pollutant, first row) carries Google's
+    // per-pollutant sources + effects. The popover shows the pollutant NAME heading plus
+    // the 'Sources:' and 'Effects:' subheadings with the exact API-supplied text. The
+    // descriptions come ONLY from the mocked additionalInfo (never fabricated).
+    const pm25Row = Array.from( rows ).find(
+      r => ( r.querySelector( '.vl-live-air-pollutant-label' )?.textContent ?? '' ).includes( 'PM2.5' )
+    ) as HTMLElement;
+    expect( pm25Row ).toBeTruthy();
+    const pm25Describe = pm25Row.querySelector( '.vl-live-air-pollutant-info' )?.getAttribute( 'aria-describedby' );
+    const pm25Tip = pm25Row.querySelector( `#${pm25Describe}` );
+    expect( pm25Tip ).not.toBeNull();
+    expect( pm25Tip?.getAttribute( 'role' ) ).toBe( 'tooltip' );
+    expect( pm25Tip?.textContent ).toContain( 'PM2.5' );
+    expect( pm25Tip?.textContent ).toContain( 'Sources:' );
+    expect( pm25Tip?.textContent ).toContain( 'Combustion of fuels in vehicles, power plants and industry.' );
+    expect( pm25Tip?.textContent ).toContain( 'Effects:' );
+    expect( pm25Tip?.textContent ).toContain( 'Penetrates deep into lungs and can trigger respiratory and cardiovascular problems.' );
+
+    // The pm10 row has no additionalInfo in the mock, so it falls back to the value+unit
+    // line and renders NO 'Sources:'/'Effects:' heading (honest degradation per row).
+    const pm10Row = Array.from( rows ).find(
+      r => ( r.querySelector( '.vl-live-air-pollutant-label' )?.textContent ?? '' ).includes( 'PM10' )
+    ) as HTMLElement;
+    expect( pm10Row ).toBeTruthy();
+    const pm10Describe = pm10Row.querySelector( '.vl-live-air-pollutant-info' )?.getAttribute( 'aria-describedby' );
+    const pm10Tip = pm10Row.querySelector( `#${pm10Describe}` );
+    const pm10Label = pm10Row.querySelector( '.vl-live-air-pollutant-label' )?.textContent ?? '';
+    expect( pm10Tip?.textContent ).toContain( pm10Label );
+    expect( pm10Tip?.textContent ).toMatch( /\d/ );
+    expect( pm10Tip?.textContent ).not.toContain( 'Sources:' );
+    expect( pm10Tip?.textContent ).not.toContain( 'Effects:' );
 
     // NO RED anywhere in the rendered card markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
@@ -833,6 +861,21 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( body.customLocalAqis ).toEqual( [ { regionCode: 'IN', aqi: 'ind_cpcb' } ] );
     expect( body.universalAqi ).toBe( true );
     expect( body.languageCode ).toBe( 'en' );
+
+    // POLLUTANT_ADDITIONAL_INFO. The fetchAir selected-place call (body carries
+    // location.latitude) must ask for Google's per-pollutant sources + effects so the
+    // rich pollutant popover can show them. Scoped to this selected-place call only.
+    const selectedPlaceCall = fetchSpy.mock.calls.find( call => {
+      if ( !requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/currentConditions' ) ) return false;
+      const raw = ( call[ 1 ] as RequestInit | undefined )?.body;
+      if ( !raw ) return false;
+      const parsed = JSON.parse( String( raw ) ) as { location?: { latitude?: number } };
+      return typeof parsed.location?.latitude === 'number';
+    } );
+    expect( selectedPlaceCall ).toBeTruthy();
+    const selectedBody = JSON.parse( String( ( selectedPlaceCall![ 1 ] as RequestInit ).body ) );
+    expect( selectedBody.extraComputations ).toContain( 'POLLUTANT_ADDITIONAL_INFO' );
+    expect( selectedBody.extraComputations ).toContain( 'POLLUTANT_CONCENTRATION' );
   } );
 
   it( 'requests the India CPCB local AQI on the layer-activation grid/center-point air body (airRequestBody) too', async () => {
@@ -1092,6 +1135,14 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const shareWa = extras?.querySelector( 'a[aria-label="Share this page on WhatsApp"]' );
     expect( shareWa ).not.toBeNull();
     expect( shareWa?.getAttribute( 'href' ) ).toContain( 'wecare.digital%2Fvayulok%2F' );
+
+    // HONEST POLLUTANT DESCRIPTIONS. Sources/Effects text comes ONLY from Google's API
+    // additionalInfo; the keyless path fires no air call, so no pollutant popover and no
+    // fabricated descriptions may appear. Neither the rich Sources/Effects headings nor the
+    // keyed mock's description strings leak onto this path.
+    expect( container.querySelector( '.vl-live-air-pollutant-pop' ) ).toBeNull();
+    expect( container.innerHTML ).not.toContain( 'Combustion of fuels in vehicles, power plants and industry.' );
+    expect( container.innerHTML ).not.toContain( 'Penetrates deep into lungs and can trigger respiratory and cardiovascular problems.' );
 
     expect( fetchSpy ).not.toHaveBeenCalled();
     expect( container.textContent ).not.toContain( 'Live air quality and weather' );

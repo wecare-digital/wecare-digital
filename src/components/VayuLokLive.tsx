@@ -361,7 +361,7 @@ interface AirState {
   word: string;
   sev: Sev;
   dominant?: string;
-  pollutants: { code: string; label: string; value: number; unit: string }[];
+  pollutants: { code: string; label: string; value: number; unit: string; sources?: string; effects?: string }[];
   advisory?: string;
   updatedAt?: string;
 }
@@ -535,11 +535,20 @@ function airStateFromApiData( data: Record<string, any> | null | undefined ): Ai
   const aqi = idx.aqi as number;
   const cat = aqiCategory( aqi );
   const pollutants: AirState['pollutants'] = [];
-  ( data?.pollutants || [] ).forEach( ( p: { code?: string; concentration?: { value?: number; units?: string } } ) => {
+  ( data?.pollutants || [] ).forEach( ( p: { code?: string; concentration?: { value?: number; units?: string }; additionalInfo?: { sources?: string; effects?: string } } ) => {
     const label = p.code ? POLLUTANT_LABELS[ p.code ] : undefined;
     const v = p.concentration?.value;
     if ( label && Number.isFinite( v ) ) {
-      pollutants.push( { code: p.code as string, label, value: v as number, unit: concUnitLabel( p.concentration?.units ) } );
+      pollutants.push( {
+        code: p.code as string,
+        label,
+        value: v as number,
+        unit: concUnitLabel( p.concentration?.units ),
+        // Carry Google's per-pollutant sources/effects ONLY when present as a non-empty
+        // string; absent additionalInfo leaves the field undefined (never fabricated).
+        ...( typeof p.additionalInfo?.sources === 'string' && p.additionalInfo.sources ? { sources: p.additionalInfo.sources } : {} ),
+        ...( typeof p.additionalInfo?.effects === 'string' && p.additionalInfo.effects ? { effects: p.additionalInfo.effects } : {} ),
+      } );
     }
   } );
   const advisory = data?.healthRecommendations?.generalPopulation;
@@ -1306,6 +1315,10 @@ const VayuLokLive: React.FC = () => {
                 'LOCAL_AQI',
                 'HEALTH_RECOMMENDATIONS',
                 'DOMINANT_POLLUTANT_CONCENTRATION',
+                // Request Google's per-pollutant sources/effects strings so the info popover
+                // on each pollutant row can show them. Scoped to this selected-place call only
+                // (not the shared grid airRequestBody) to avoid bloating the many grid fetches.
+                'POLLUTANT_ADDITIONAL_INFO',
               ],
               languageCode: 'en',
               universalAqi: true,
@@ -1326,11 +1339,20 @@ const VayuLokLive: React.FC = () => {
         const aqi = idx.aqi as number;
         const cat = aqiCategory( aqi );
         const pollutants: AirState['pollutants'] = [];
-        ( data?.pollutants || [] ).forEach( ( p: { code?: string; concentration?: { value?: number; units?: string } } ) => {
+        ( data?.pollutants || [] ).forEach( ( p: { code?: string; concentration?: { value?: number; units?: string }; additionalInfo?: { sources?: string; effects?: string } } ) => {
           const label = p.code ? POLLUTANT_LABELS[ p.code ] : undefined;
           const v = p.concentration?.value;
           if ( label && Number.isFinite( v ) ) {
-            pollutants.push( { code: p.code as string, label, value: v as number, unit: concUnitLabel( p.concentration?.units ) } );
+            pollutants.push( {
+              code: p.code as string,
+              label,
+              value: v as number,
+              unit: concUnitLabel( p.concentration?.units ),
+              // Carry Google's per-pollutant sources/effects ONLY when present as a non-empty
+              // string; absent additionalInfo leaves the field undefined (never fabricated).
+              ...( typeof p.additionalInfo?.sources === 'string' && p.additionalInfo.sources ? { sources: p.additionalInfo.sources } : {} ),
+              ...( typeof p.additionalInfo?.effects === 'string' && p.additionalInfo.effects ? { effects: p.additionalInfo.effects } : {} ),
+            } );
           }
         } );
         const advisory = data?.healthRecommendations?.generalPopulation;
@@ -2047,7 +2069,29 @@ const VayuLokLive: React.FC = () => {
                                   aria-describedby={ `vl-live-air-pollutant-tip-${p.code}` }
                                 >
                                   <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" /><line x1="10" y1="9" x2="10" y2="14" /><circle cx="10" cy="6" r=".9" /></svg>
-                                  <span className="vl-live-air-pollutant-tip" id={ `vl-live-air-pollutant-tip-${p.code}` } role="tooltip">{ `${p.label}: ${Math.round( p.value )} ${p.unit}` }</span>
+                                  <span className="vl-live-air-pollutant-tip" id={ `vl-live-air-pollutant-tip-${p.code}` } role="tooltip">
+                                    <span className="vl-live-air-pollutant-pop">
+                                      <span className="vl-live-air-pollutant-pop-title">{ p.label }</span>
+                                      { ( p.sources || p.effects ) ? (
+                                        <>
+                                          { p.sources && (
+                                            <>
+                                              <span className="vl-live-air-pollutant-pop-head">Sources:</span>
+                                              <span className="vl-live-air-pollutant-pop-text">{ p.sources }</span>
+                                            </>
+                                          ) }
+                                          { p.effects && (
+                                            <>
+                                              <span className="vl-live-air-pollutant-pop-head">Effects:</span>
+                                              <span className="vl-live-air-pollutant-pop-text">{ p.effects }</span>
+                                            </>
+                                          ) }
+                                        </>
+                                      ) : (
+                                        <span className="vl-live-air-pollutant-pop-text">{ `${p.label}: ${Math.round( p.value )} ${p.unit}` }</span>
+                                      ) }
+                                    </span>
+                                  </span>
                                 </span>
                               </li>
                             ) ) }
@@ -2458,7 +2502,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-history-title::before{background:var(--warning)}
         .vl-live-air-pollutants-title{margin:0 0 10px;color:var(--heading);font-size:12.5px;font-weight:700;letter-spacing:-.1px}
         .vl-live-air-pollutant-list{margin:0;padding:0;list-style:none;border:1px solid var(--hair);border-radius:12px;overflow:hidden}
-        .vl-live-air-pollutant-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:11px 13px;background:#fff}
+        .vl-live-air-pollutant-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:11px 13px;background:#fff;border-left:2px solid transparent;transition:background .15s ease,border-color .15s ease}
         .vl-live-air-pollutant-row+.vl-live-air-pollutant-row{border-top:1px solid var(--hair)}
         .vl-live-air-pollutant-value{color:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.2px}
         .vl-live-air-pollutant-value small{margin-left:3px;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:0}
@@ -2472,8 +2516,14 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-info svg{width:15px;height:15px;stroke:var(--info);fill:none;stroke-width:1.6;stroke-linecap:round;transition:stroke .15s ease}
         .vl-live-air-pollutant-info:hover svg,.vl-live-air-pollutant-info:focus-visible svg{stroke:var(--lime)}
         .vl-live-air-pollutant-info:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(209,244,112,.45)}
-        .vl-live-air-pollutant-tip{position:absolute;bottom:calc(100% + 7px);right:0;z-index:1700;min-width:max-content;max-width:180px;padding:6px 9px;border-radius:8px;background:var(--green);color:#fff;font-size:11px;font-weight:600;line-height:1.3;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.18);opacity:0;visibility:hidden;transform:translateY(3px);transition:opacity .15s ease,transform .15s ease,visibility .15s ease;pointer-events:none}
+        .vl-live-air-pollutant-tip{position:absolute;bottom:calc(100% + 8px);right:0;z-index:1700;width:max-content;max-width:240px;padding:11px 13px;border-radius:12px;border:1px solid var(--hair);background:#fff;color:var(--status);font-size:11px;font-weight:500;line-height:1.4;text-align:left;box-shadow:0 10px 28px rgba(0,0,0,.16);opacity:0;visibility:hidden;transform:translateY(3px);transition:opacity .15s ease,transform .15s ease,visibility .15s ease;pointer-events:none}
         .vl-live-air-pollutant-info:hover .vl-live-air-pollutant-tip,.vl-live-air-pollutant-info:focus-visible .vl-live-air-pollutant-tip,.vl-live-air-pollutant-info:focus-within .vl-live-air-pollutant-tip{opacity:1;visibility:visible;transform:translateY(0)}
+        .vl-live-air-pollutant-pop{display:flex;flex-direction:column;gap:3px}
+        .vl-live-air-pollutant-pop-title{display:inline-block;align-self:flex-start;margin-bottom:4px;padding:2px 8px;border-radius:6px;background:var(--lime);color:var(--heading);font-size:12px;font-weight:700;letter-spacing:.1px}
+        .vl-live-air-pollutant-pop-head{margin-top:5px;color:var(--heading);font-size:11px;font-weight:700}
+        .vl-live-air-pollutant-pop-head:first-of-type{margin-top:0}
+        .vl-live-air-pollutant-pop-text{color:var(--muted);font-size:11px;font-weight:500;line-height:1.45}
+        .vl-live-air-pollutant-row:focus-within,.vl-live-air-pollutant-row:hover{background:rgba(209,244,112,.18);border-left-color:var(--lime)}
 
         /* ── HEATMAP (toggle + Poor->Excellent legend) ──────────────────────────────
            The switch drives the existing deck.gl AQI overlay via the layer state. On/off is
