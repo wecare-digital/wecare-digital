@@ -843,7 +843,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const hoverRule = css.match( /\.vl-live-air-pollutant-info:hover,[\s\S]*?\{[^}]*\}/ )?.[ 0 ] || '';
     expect( hoverRule ).toContain( 'background:var(--lime-hover)' );
     expect( hoverRule ).toContain( 'border:0' );
-    expect( hoverRule ).toContain( 'box-shadow:none' );
+    expect( hoverRule ).toContain( 'box-shadow:0 6px 14px rgba(26,58,42,.16)' );
+    expect( hoverRule ).toContain( 'transform:translateY(-2px) scale(1.04)' );
     expect( hoverRule ).not.toContain( 'background:var(--green)' );
 
     const personaRule = css.match( /\.vl-live-air-health-persona\{[^}]*\}/ )?.[ 0 ] || '';
@@ -893,7 +894,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( chart.getAttribute( 'aria-label' ) ).toMatch( /AQI history/ );
     expect( chart.getAttribute( 'aria-label' ) ).toMatch( /current 72/ );
     expect( container.querySelector( '.vl-live-air-history-stamp' )?.textContent ).toMatch( /UTC/ );
-    expect( container.querySelector( '.vl-live-air-history-bubble' )?.textContent ).toBe( '72' );
+    const historyBubble = container.querySelector( '.vl-live-air-history-bubble' );
+    expect( historyBubble?.textContent ).toBe( '72' );
+    const bubbleRule = css.match( /\.vl-live-air-history-bubble\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( bubbleRule ).toContain( 'background:var(--lime)' );
+    expect( bubbleRule ).toContain( 'border:0' );
+    expect( bubbleRule ).toContain( 'border-radius:999px' );
     const historyNav = container.querySelector( '.vl-live-air-history-head .vl-live-air-history-nav' );
     expect( historyNav ).not.toBeNull();
     expect( historyNav?.querySelectorAll( 'button' ) ).toHaveLength( 2 );
@@ -1284,9 +1290,12 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
 
     const searchSurface = container.querySelector( '.vl-live-map-search' );
     const mapRegion = container.querySelector( '.vl-live-map-region' );
+    const mapMain = container.querySelector( '.vl-live-shell' );
     expect( searchSurface ).not.toBeNull();
     expect( mapRegion ).not.toBeNull();
-    expect( searchSurface?.compareDocumentPosition( mapRegion as Node ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
+    expect( mapMain ).not.toBeNull();
+    expect( mapMain?.contains( searchSurface ) ).toBe( false );
+    expect( searchSurface?.compareDocumentPosition( mapMain as Node ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
 
     // Pollutant info control follows the SupportWidget WhatsApp skin exactly:
     // lime surface, deep-green icon, lighter-lime hover, circular shape.
