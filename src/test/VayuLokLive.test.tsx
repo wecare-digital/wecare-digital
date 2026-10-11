@@ -679,15 +679,20 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( panel.querySelector( '.vl-live-air-aqi-spine' ) ).not.toBeNull();
     expect( panel.querySelector( '.vl-live-air-gauge-svg' ) ).toBeNull();
     expect( panel.querySelector( '.vl-live-air-gauge-arc' ) ).toBeNull();
-    // AQI metadata is one quiet row under the homepage-scale category heading:
-    // index name + dominant pollutant + update age, with no pills or competing glyphs.
+    // AQI metadata is one quiet row under the homepage-scale category heading: an "AQI <n>"
+    // chip and a "Dominant <pollutant>" chip, each with a leading Material icon, plus the
+    // update age. The index-name ("India CPCB AQI"/"NAQI") and the Universal AQI line were
+    // intentionally removed so the row reads AQI + Dominant only.
     const summaryMeta = panel.querySelector( '.vl-live-air-summary-meta' );
-    expect( summaryMeta?.textContent ).toContain( 'India CPCB AQI' );
+    expect( summaryMeta?.textContent ).toContain( 'AQI' );
+    expect( summaryMeta?.textContent ).not.toContain( 'India CPCB AQI' );
+    expect( summaryMeta?.textContent ).not.toContain( 'Universal AQI' );
     expect( summaryMeta?.textContent ).toContain( 'Dominant' );
     expect( summaryMeta?.textContent ).toContain( 'PM2.5' );
     expect( summaryMeta?.textContent ).not.toContain( 'pm25' );
     expect( summaryMeta?.textContent ).toMatch( /Updated/ );
-    expect( summaryMeta?.querySelector( 'svg' ) ).toBeNull();
+    // The AQI and Dominant chips now each carry a leading icon.
+    expect( summaryMeta?.querySelectorAll( '.vl-live-air-summary-chip svg' ).length ).toBe( 2 );
     expect( panel.querySelector( '.vl-live-air-dominant' ) ).toBeNull();
     expect( panel.querySelector( '.vl-live-air-index-name' ) ).toBeNull();
     expect( panel.querySelector( '.vl-live-air-fact' ) ).toBeNull();
@@ -1007,13 +1012,19 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( chart.getAttribute( 'role' ) ).toBe( 'img' );
     expect( chart.getAttribute( 'aria-label' ) ).toMatch( /AQI history/ );
     expect( chart.getAttribute( 'aria-label' ) ).toMatch( /current 72/ );
-    expect( container.querySelector( '.vl-live-air-history-stamp' )?.textContent ).toMatch( /IST/ );
-    const historyBubble = container.querySelector( '.vl-live-air-history-bubble' );
-    expect( historyBubble?.textContent ).toBe( '72' );
-    const bubbleRule = css.match( /\.vl-live-air-history-bubble\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( bubbleRule ).toContain( 'background:var(--lime)' );
-    expect( bubbleRule ).toContain( 'border:0' );
-    expect( bubbleRule ).toContain( 'border-radius:999px' );
+    // The reading date/time moved out of the header and below the chart, styled as a lime-tinted
+    // pill with a leading clock icon in the site accent colour; the on-chart AQI value bubble was
+    // removed (the chart no longer prints the raw number).
+    const historyStamp = container.querySelector( '.vl-live-air-history-stamp' );
+    expect( historyStamp?.textContent ).toMatch( /IST/ );
+    expect( historyStamp?.querySelector( '.vl-live-air-history-stamp-icon' ) ).not.toBeNull();
+    expect( container.querySelector( '.vl-live-air-history-bubble' ) ).toBeNull();
+    const stampRule = css.match( /\.vl-live-air-history-stamp\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( stampRule ).toContain( 'background:var(--lime-tint)' );
+    expect( stampRule ).toContain( 'color:var(--green)' );
+    expect( stampRule ).toContain( 'border-radius:var(--pill-r)' );
+    // It sits below the chart, not inside the header row.
+    expect( container.querySelector( '.vl-live-air-history-head .vl-live-air-history-stamp' ) ).toBeNull();
     const historyNav = container.querySelector( '.vl-live-air-history-head .vl-live-air-history-nav' );
     expect( historyNav ).not.toBeNull();
     expect( historyNav?.querySelectorAll( 'button' ) ).toHaveLength( 2 );
@@ -1021,14 +1032,15 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( svg.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
     } );
 
-    // Hover/tap inspection exposes a specific hour + AQI while the current lime marker stays.
+    // Hover/tap inspection surfaces the specific hour's local time. The raw AQI value is no
+    // longer printed on the chart (neither in the inspect tooltip nor an on-chart bubble).
     expect( chart.getAttribute( 'aria-label' ) ).toContain( 'Hover or tap the chart to inspect an hour.' );
     fireEvent.pointerDown( chart, { clientX: 0, pointerType: 'touch' } );
     await waitFor( () => expect( container.querySelector( '.vl-live-air-history-inspect' ) ).not.toBeNull() );
     const inspect = container.querySelector( '.vl-live-air-history-inspect' );
-    expect( inspect?.textContent ).toMatch( /AQI \d+/ );
     expect( inspect?.textContent ).toMatch( /IST/ );
-    expect( container.querySelector( '.vl-live-air-history-bubble' )?.textContent ).toBe( '72' );
+    expect( inspect?.textContent ).not.toMatch( /AQI \d+/ );
+    expect( container.querySelector( '.vl-live-air-history-bubble' ) ).toBeNull();
 
     // NO RED anywhere in the three new sections' markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
