@@ -253,21 +253,21 @@ export const PRODUCTS: ProductDef[] = [
     frame: 'Reflection into',
     words: cycle( 'clarity', 'action', 'direction', 'focus' ),
     sub: 'Share what you’re considering. Receive a written reflection on your situation that you can read and revisit in your own time — no calls.',
-    sectionHeading: 'What Anew does',
+    sectionHeading: 'A second look at a decision that matters.',
     lead:
-      'Tell us about a decision in your own words. We read it carefully and reflect back what appears important, what may be shaping your thinking, where the real tension is, and what could deserve another look before you act.',
+      'Some decisions stay difficult even when you already know the facts.\n\nTell us about yours in your own words. We read it carefully and reflect back what matters most, what may be driving the decision, which priorities are pulling in different directions, and what may deserve another look before you act.',
     points: [
       {
         heading: 'Written, not a meeting',
-        body: 'No calls, no scheduling, no questionnaire. You write naturally; we respond in writing you can save and return to whenever you need another look.',
+        body: 'No calls, no scheduling, no questionnaire. You write naturally, in your own words, and we respond in writing so you can read it in your own time, return to it later, and consider it without having to respond in the moment.',
       },
       {
         heading: 'A reflection, not a verdict',
-        body: 'We weigh the assumptions, priorities, tensions and trade-offs in your situation — not a generic pros-and-cons list, and not a decision made for you.',
+        body: 'We look at the assumptions, priorities and trade-offs within the situation you describe. The aim is not to produce a generic pros-and-cons list or decide what you should do, but to help you see the decision from a clearer angle.',
       },
       {
         heading: 'Usually within 2–3 business days',
-        body: 'Once we have what we need to review, you receive your personalised reflection. One short written clarification is included if something needs it.',
+        body: 'Once we have what we need to review your situation, you receive your written reflection, usually within 2–3 business days. One short written clarification is included if something needs another look.',
       },
     ],
     note:

@@ -122,7 +122,13 @@ const ProductPage: React.FC<ProductPageProps> = ( {
       ) }
       <section className="pdp" aria-label={ `About ${product.name}` }>
         <h2 className="pdp-h2">{ product.sectionHeading }</h2>
-        <p className="pdp-lead">{ product.lead }</p>
+        {/* The lead may hold more than one paragraph, split on a blank line (\n\n) in the source,
+            the same way the boundary note does - so an opener line can sit above the main
+            paragraph. A single-paragraph lead - every product but /anew/ - renders exactly one
+            <p className="pdp-lead">, byte-for-byte what it was before. */}
+        { product.lead.split( /\n{2,}/ ).map( ( para, i ) => (
+          <p className="pdp-lead" key={ i }>{ para.trim() }</p>
+        ) ) }
 
         <ul className="pdp-points">
           { product.points.map( ( point, i ) => (
@@ -220,6 +226,10 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           /* The lead runs at the body level but slightly tighter, because it is a paragraph
              of context rather than a point being made. */
           .pdp-lead{font-size:20px;font-weight:400;line-height:1.45;letter-spacing:-.125px;color:rgba(0,0,0,.898);margin:0 0 34px}
+          /* When a lead is split into an opener + a main paragraph (today only /anew/), the
+             paragraphs sit 16px apart; the 34px below the LAST lead stays as the gap before the
+             points. A single-paragraph lead is always :last-of-type, so it keeps 34px untouched. */
+          .pdp-lead:not(:last-of-type){margin-bottom:16px}
 
           .pdp-points{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:20px}
           .pdp-point{display:flex;gap:16px;align-items:flex-start}
