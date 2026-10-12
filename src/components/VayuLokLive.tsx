@@ -44,9 +44,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
  * return tree. No bare html/body/* selectors; the mock's data-vl-preview-only block and
  * .vl-preview-shell are PREVIEW-ONLY and are NOT ported.
  *
- * ATTRIBUTION. There is no CSS targeting .gm-style-cc, a[href*="google"] or
- * img[alt="Google"], and every overlay stays inset from the map's bottom corners, where
- * Google paints its logo and legal notices (Maps Platform ToS).
+ * ATTRIBUTION. Google Maps logo/legal attribution remains visible. VayuLok does not hide
+ * .gm-style-cc, the Google Maps link, or the Google logo; overlays stay inset from those corners.
  */
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
@@ -3181,9 +3180,6 @@ const VayuLokLive: React.FC = () => {
                             { Number.isFinite( weather.temperatureChange ) && weather.temperatureChange !== 0 && (
                               <span data-wc-no-translate="true">{ ( weather.temperatureChange as number ) > 0 ? '↑' : '↓' } { Math.abs( weather.temperatureChange as number ) }° / 24h</span>
                             ) }
-                            { Number.isFinite( weather.dayMin ) && Number.isFinite( weather.dayMax ) && (
-                              <span>Today <span data-wc-no-translate="true">{ weather.dayMin }°–{ weather.dayMax }°</span></span>
-                            ) }
                           </div>
                         </div>
                         { coreFetchedAt && <div className="vl-live-wx-freshness">Current · { relativeAgeLabel( coreFetchedAt ).label.replace( /^Updated\s*/i, 'updated ' ) }</div> }
@@ -3221,7 +3217,7 @@ const VayuLokLive: React.FC = () => {
                           { weatherAlertStatus === 'loading' ? (
                             <p className="vl-live-air-history-empty" role="status">Checking weather alerts…</p>
                           ) : weatherAlertStatus === 'unsupported' ? (
-                            <p className="vl-live-air-history-empty">Weather alerts are not supported by Google for this region.</p>
+                            <p className="vl-live-air-history-empty">Weather alerts aren’t available for this location.</p>
                           ) : weatherAlertStatus === 'error' ? (
                             <p className="vl-live-air-history-empty" role="status">Weather alerts are temporarily unavailable.</p>
                           ) : weatherAlertStatus === 'active' && weatherAlerts.length ? weatherAlerts.map( alert => (
@@ -3924,11 +3920,6 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%;border-radius:var(--panel-r);overflow:hidden}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
-        /* Narrow live test: hide only Google attribution/branding nodes; do not touch map controls. */
-        .vl-live :global(.gm-style-cc),
-        .vl-live :global(a[aria-label="Google Maps"]),
-        .vl-live :global(img[alt="Google"]){display:none!important}
-
         /* REFERENCE-MATCHED ATMOSPHERE. This is code-rendered, not a background image.
            Clouds are soft translucent SVG masses; wind is a field of animated dashed
            streamlines; the lower-left vortex gives the storm/cyclone read from the approved
