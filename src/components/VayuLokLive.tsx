@@ -5,12 +5,15 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
  *
  * WHAT THIS IS. The REAL, live-wired version of docs/mocks/vayulok-live-mock.html.
  * The mock is a VISUAL reference only: its layout and styled-jsx design tokens are
- * ported verbatim here, but every static sample value is replaced with LIVE data.
+ * ported verbatim here, but every static sample value is replaced with LIVE data
+ * fetched CLIENT-SIDE from Google's India-SKU APIs plus the Maps JavaScript API.
  *
- * ARCHITECTURE. Maps JavaScript, Places, Time Zone and Google heatmap tile images remain
- * browser-side because they are interactive client SDK/tile surfaces. Weather and Air Quality
- * JSON web-service calls go through the hardened POST /vayulok/environment Lambda, which owns
- * the server credential, provider fan-out, validation and caching.
+ * THE MOCK'S "never call these from a browser" STANCE IS A MOCK CONSTRAINT, NOT THIS
+ * PAGE'S. The mock header says weather/air/pollen are server-side web services
+ * and uses static placeholders. For the real page the owner wants LIVE data, and these
+ * Google APIs ARE called client-side from the browser with the referrer-restricted
+ * browser key - exactly as the shipped src/components/ContactLocation.tsx already calls
+ * Open-Meteo client-side. So this component follows ContactLocation's proven approach.
  *
  * THE KEY. Read ONLY from process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY, exactly as
  * ContactLocation.tsx does. With output:'export', that value is inlined into a JS chunk
@@ -47,30 +50,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
  */
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
-const ENVIRONMENT_URL = `${process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api'}/vayulok/environment`;
-
-async function environmentLookup(
-  operation: string,
-  place: Pick<PlaceState, 'lat' | 'lng' | 'regionCode'>,
-  signal: AbortSignal,
-  extra: Record<string, unknown> = {},
-): Promise<Record<string, any> | null> {
-  const res = await fetch( ENVIRONMENT_URL, {
-    method: 'POST',
-    signal,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify( {
-      operation,
-      latitude: place.lat,
-      longitude: place.lng,
-      ...( place.regionCode ? { regionCode: place.regionCode } : {} ),
-      ...extra,
-    } ),
-  } );
-  if ( !res.ok ) return null;
-  const data = await res.json();
-  return data && typeof data === 'object' ? data : null;
-}
 
 // Selected-place marker uses Google's canonical Material Symbols Outlined "location_on"
  // glyph (source: google/material-design-icons), presented on the same lime/green circle
@@ -542,9 +521,6 @@ interface WeatherDay {
   sunset?: string;
   // Added for the daily detail panel.
   nightCondition?: string;
-  nightIcon?: string;
-  dayDetails?: WeatherPeriodDetail;
-  nightDetails?: WeatherPeriodDetail;
   feelsLikeMin?: number;
   feelsLikeMax?: number;
   humidity?: number;
@@ -586,25 +562,6 @@ interface AirPoint {
     effects?: string;
   }[];
 }
-interface WeatherPeriodDetail {
-  condition?: string;
-  icon?: string;
-  humidity?: number;
-  uv?: number;
-  rainProb?: number;
-  rainMm?: number;
-  stormProb?: number;
-  windSpeed?: number;
-  windUnit?: string;
-  windDir?: string;
-  windGust?: number;
-  precipitationType?: string;
-  pressureHpa?: number;
-  cloudCover?: number;
-  visibilityKm?: number;
-  heatIndex?: number;
-  windChill?: number;
-}
 interface WeatherAlertRow {
   id: string;
   title: string;
@@ -626,6 +583,14 @@ interface WeatherAlertRow {
   sourceUrl?: string;
 }
 interface PollenRow { label: string; index: number; word: string; day: string; }
+
+// Google Weather publicAlerts coverage (Google Weather coverage page, checked 2026-10-12).
+// Do not bill unsupported regions (including India); supported regions query live alerts.
+const WEATHER_ALERT_REGION_CODES = new Set( [
+  'AT','AU','BA','BE','BG','BR','CH','CI','CO','CY','CZ','DE','DK','EC','EE','ES','FI','FR',
+  'GB','GH','GR','HR','HU','IE','IS','IT','JM','JP','KR','LT','LU','LV','MG','MK','MX','NL',
+  'NO','NZ','PH','PL','PT','RO','RS','SB','SE','SG','SI','SK','TH','TW','US','VN',
+] );
 
 const COMPASS = [ 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW' ];
 function windDirection( deg: number ): string {
@@ -1053,7 +1018,6 @@ const VayuLokLive: React.FC = () => {
   const [ weatherHistory, setWeatherHistory ] = useState<WeatherHour[]>( [] );
   const [ weatherDaily, setWeatherDaily ] = useState<WeatherDay[]>( [] );
   const [ weatherAlerts, setWeatherAlerts ] = useState<WeatherAlertRow[]>( [] );
-  const [ weatherAlertStatus, setWeatherAlertStatus ] = useState<'idle' | 'loading' | 'active' | 'none' | 'unsupported' | 'error'>( 'idle' );
   const [ airForecast, setAirForecast ] = useState<AirPoint[]>( [] );
   const [ airForecastHours, setAirForecastHours ] = useState<24 | 48 | 96>( 24 );
   const [ airForecastInspectIdx, setAirForecastInspectIdx ] = useState( 0 );
@@ -1061,7 +1025,6 @@ const VayuLokLive: React.FC = () => {
   const [ weatherHours, setWeatherHours ] = useState<24 | 48>( 24 );
   const [ weatherHourInspectIdx, setWeatherHourInspectIdx ] = useState<number | null>( null );
   const [ weatherDayInspectIdx, setWeatherDayInspectIdx ] = useState<number | null>( null );
-  const [ weatherDayPeriod, setWeatherDayPeriod ] = useState<'day' | 'night'>( 'day' );
   const [ weatherHistMetric, setWeatherHistMetric ] = useState<'temp' | 'rain' | 'humidity' | 'pressure' | 'wind' | 'cloud'>( 'temp' );
   const [ weatherHistoryInspectIdx, setWeatherHistoryInspectIdx ] = useState<number | null>( null );
   // Explicit Air-forecast state machine so the section can show loading skeletons, the real
@@ -1081,8 +1044,6 @@ const VayuLokLive: React.FC = () => {
   const [ coreError, setCoreError ] = useState( false );
   const [ refreshNonce, setRefreshNonce ] = useState( 0 );
   const [ coreFetchedAt, setCoreFetchedAt ] = useState<number | null>( null );
-  const [ forecastFetchedAt, setForecastFetchedAt ] = useState<number | null>( null );
-  const [ weatherHistoryFetchedAt, setWeatherHistoryFetchedAt ] = useState<number | null>( null );
   const [ mapCandidate, setMapCandidate ] = useState<PlaceState | null>( null );
   const [ addressDescriptor, setAddressDescriptor ] = useState( '' );
   const [ locationTime, setLocationTime ] = useState<LocationTimeState>( DEFAULT_LOCATION_TIME );
@@ -1132,11 +1093,9 @@ const VayuLokLive: React.FC = () => {
     hourly: WeatherHour[];
     daily: WeatherDay[];
     alerts: WeatherAlertRow[];
-    alertStatus: 'idle' | 'loading' | 'active' | 'none' | 'unsupported' | 'error';
     airForecast: AirPoint[];
   }>>( {} );
   const historyCache = useRef<Record<string, { ts: number; points: AirPoint[] }>>( {} );
-  const weatherHistoryCache = useRef<Record<string, { ts: number; rows: WeatherHour[] }>>( {} );
   const timeZoneCache = useRef<Record<string, LocationTimeState>>( {} );
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
   // The google.maps.ImageMapType instance for the continuous AQI heatmap tile overlay
@@ -1150,8 +1109,6 @@ const VayuLokLive: React.FC = () => {
   // GoogleMapsOverlay dot-grid (and its grid fetch/cache/abort refs) was superseded and has
   // been removed - deck.gl is no longer imported or used anywhere in this component.
   const heatmapOverlayRef = useRef<unknown>( null );
-  const alertBoundaryFeaturesRef = useRef<unknown[]>( [] );
-  const [ activeAlertBoundaryId, setActiveAlertBoundaryId ] = useState<string | null>( null );
 
   useEffect( () => {
     const timer = window.setInterval( () => setClockNow( Date.now() ), 30_000 );
@@ -1248,67 +1205,6 @@ const VayuLokLive: React.FC = () => {
     setPollutantTip( { code, top, left, side } );
   }, [] );
 
-  const clearAlertBoundary = useCallback( () => {
-    const map = mapRef.current as { data?: { remove?: ( f: unknown ) => void } } | null;
-    if ( map?.data?.remove ) {
-      alertBoundaryFeaturesRef.current.forEach( feature => map.data?.remove?.( feature ) );
-    }
-    alertBoundaryFeaturesRef.current = [];
-    setActiveAlertBoundaryId( null );
-  }, [] );
-
-  const showAlertBoundary = useCallback( ( alert: WeatherAlertRow ) => {
-    if ( !alert.polygon ) return;
-    const map = mapRef.current as {
-      data?: {
-        addGeoJson?: ( geo: Record<string, unknown> ) => unknown[];
-        setStyle?: ( style: Record<string, unknown> ) => void;
-        remove?: ( f: unknown ) => void;
-      };
-      fitBounds?: ( bounds: { north: number; south: number; east: number; west: number }, padding?: number ) => void;
-    } | null;
-    if ( !map?.data?.addGeoJson ) return;
-    try {
-      alertBoundaryFeaturesRef.current.forEach( feature => map.data?.remove?.( feature ) );
-      const geometry = JSON.parse( alert.polygon ) as { type?: string; coordinates?: unknown };
-      const feature = geometry?.type === 'Feature'
-        ? geometry as unknown as Record<string, unknown>
-        : { type: 'Feature', properties: { alertId: alert.id }, geometry };
-      const added = map.data.addGeoJson( feature );
-      alertBoundaryFeaturesRef.current = Array.isArray( added ) ? added : [];
-      map.data.setStyle?.( {
-        fillColor: '#d1f470',
-        fillOpacity: .2,
-        strokeColor: '#1a3a2a',
-        strokeOpacity: .9,
-        strokeWeight: 2,
-      } );
-
-      const points: [ number, number ][] = [];
-      const walk = ( value: unknown ) => {
-        if ( Array.isArray( value ) && value.length >= 2 && typeof value[ 0 ] === 'number' && typeof value[ 1 ] === 'number' ) {
-          points.push( [ value[ 0 ], value[ 1 ] ] );
-          return;
-        }
-        if ( Array.isArray( value ) ) value.forEach( walk );
-      };
-      walk( geometry?.coordinates );
-      if ( points.length && map.fitBounds ) {
-        const lngs = points.map( p => p[ 0 ] );
-        const lats = points.map( p => p[ 1 ] );
-        map.fitBounds( {
-          north: Math.max( ...lats ),
-          south: Math.min( ...lats ),
-          east: Math.max( ...lngs ),
-          west: Math.min( ...lngs ),
-        }, 36 );
-      }
-      setActiveAlertBoundaryId( alert.id );
-    } catch {
-      clearAlertBoundary();
-    }
-  }, [ clearAlertBoundary ] );
-
   useEffect( () => {
     if ( !pollutantTip || typeof document === 'undefined' ) return;
 
@@ -1333,8 +1229,7 @@ const VayuLokLive: React.FC = () => {
   useEffect( () => {
     setMapCandidate( null );
     setAddressDescriptor( '' );
-    clearAlertBoundary();
-  }, [ place.lat, place.lng, clearAlertBoundary ] );
+  }, [ place.lat, place.lng ] );
 
   useEffect( () => {
     if ( !MAPS_KEY || mapReady ) return;
@@ -1698,20 +1593,48 @@ const VayuLokLive: React.FC = () => {
       air: null, weather: null, pollen: null,
     };
 
-    // Air + Weather JSON calls use the server environment proxy; Maps/Places remain browser-side.
+    // AIR QUALITY - India SKU currentConditions:lookup, India local AQI preferred.
     const fetchAir = async () => {
       try {
-        const data = await environmentLookup( 'air_current', place, ac.signal );
-        if ( !data || ac.signal.aborted ) return;
+        const res = await fetch(
+          `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${encodeURIComponent( MAPS_KEY )}`,
+          {
+            method: 'POST',
+            signal: ac.signal,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify( {
+              location: { latitude: lat, longitude: lng },
+              extraComputations: [
+                'POLLUTANT_CONCENTRATION',
+                'LOCAL_AQI',
+                'HEALTH_RECOMMENDATIONS',
+                'DOMINANT_POLLUTANT_CONCENTRATION',
+                // Request Google's per-pollutant sources/effects strings so the info popover
+                // on each pollutant row can show them.
+                'POLLUTANT_ADDITIONAL_INFO',
+              ],
+              languageCode: 'en',
+              universalAqi: true,
+              ...localAqiOverride( place.regionCode ),
+            } ),
+          },
+        );
+        if ( !res.ok ) return;
+        const data = await res.json();
         const parsedAir = airStateFromApiData( data );
         if ( parsedAir ) store.air = parsedAir;
-      } catch { /* independent degradation */ }
+      } catch { /* silent degradation */ }
     };
 
+    // WEATHER - India SKU currentConditions:lookup (cheapest current snapshot).
     const fetchWeather = async () => {
       try {
-        const d = await environmentLookup( 'weather_current', place, ac.signal );
-        if ( !d || ac.signal.aborted ) return;
+        const res = await fetch(
+          `https://weather.googleapis.com/v1/currentConditions:lookup?key=${encodeURIComponent( MAPS_KEY )}&location.latitude=${lat}&location.longitude=${lng}&unitsSystem=METRIC`,
+          { signal: ac.signal },
+        );
+        if ( !res.ok ) return;
+        const d = await res.json();
         const temp = d?.temperature?.degrees;
         const feels = d?.feelsLikeTemperature?.degrees;
         const humidity = d?.relativeHumidity;
@@ -1752,11 +1675,14 @@ const VayuLokLive: React.FC = () => {
         if ( Number.isFinite( cloud ) ) out.cloudCover = Math.round( cloud );
         if ( typeof d?.currentTime === 'string' ) out.currentTime = d.currentTime;
         if ( typeof condition === 'string' ) out.condition = condition;
+        // Extra current fields Google already returns (no extra call).
         if ( typeof d?.weatherCondition?.iconBaseUri === 'string' ) out.icon = d.weatherCondition.iconBaseUri;
         if ( typeof d?.isDaytime === 'boolean' ) out.isDaytime = d.isDaytime;
         const chill = n( d?.windChill?.degrees );
         if ( Number.isFinite( chill ) ) out.windChill = Math.round( chill );
         if ( typeof d?.precipitation?.probability?.type === 'string' ) out.precipitationType = d.precipitation.probability.type;
+        // currentConditionsHistory: recent 24h change, day min/max and accumulated precip -
+        // returned on the same response, so no second request.
         const hist = d?.currentConditionsHistory;
         const tChange = n( hist?.temperatureChange?.degrees );
         const dMax = n( hist?.maxTemperature?.degrees );
@@ -1766,8 +1692,9 @@ const VayuLokLive: React.FC = () => {
         if ( Number.isFinite( dMax ) ) out.dayMax = Math.round( dMax );
         if ( Number.isFinite( dMin ) ) out.dayMin = Math.round( dMin );
         if ( Number.isFinite( qpf ) ) out.recentQpf = qpf;
+        // Only keep weather if at least one field arrived.
         if ( Object.keys( out ).length ) store.weather = out;
-      } catch { /* independent degradation */ }
+      } catch { /* silent degradation */ }
     };
 
     // Google Pollen has no India coverage. Keep the slot empty without issuing a request.
@@ -1806,35 +1733,38 @@ const VayuLokLive: React.FC = () => {
       setWeatherHourly( cachedForecast.hourly );
       setWeatherDaily( cachedForecast.daily );
       setWeatherAlerts( cachedForecast.alerts );
-      setWeatherAlertStatus( cachedForecast.alertStatus );
       setAirForecast( cachedForecast.airForecast );
       setAirForecastStatus( cachedForecast.airForecast.length ? 'success' : 'empty' );
-      setForecastFetchedAt( cachedForecast.ts );
       return () => ac.abort();
     }
 
     setWeatherHourly( [] );
     setWeatherDaily( [] );
     setWeatherAlerts( [] );
-    setWeatherAlertStatus( 'loading' );
     setAirForecast( [] );
     setAirForecastStatus( 'loading' );
     const forecastStore: {
       hourly: WeatherHour[];
       daily: WeatherDay[];
       alerts: WeatherAlertRow[];
-      alertStatus: 'idle' | 'loading' | 'active' | 'none' | 'unsupported' | 'error';
       airForecast: AirPoint[];
-    } = { hourly: [], daily: [], alerts: [], alertStatus: 'loading', airForecast: [] };
+    } = { hourly: [], daily: [], alerts: [], airForecast: [] };
 
-    const env = ( operation: string, extra: Record<string, unknown> = {} ) =>
-      environmentLookup( operation, place, ac.signal, extra );
+    const getJson = async ( url: string ) => {
+      const res = await fetch( url, { signal: ac.signal } );
+      if ( !res.ok ) return null;
+      return res.json();
+    };
 
     const loadHourly = async () => {
       const rows: WeatherHour[] = [];
       let pageToken = '';
       for ( let page = 0; page < 2 && !ac.signal.aborted; page++ ) {
-        const data = await env( 'weather_hourly', pageToken ? { pageToken } : {} );
+        let url = 'https://weather.googleapis.com/v1/forecast/hours:lookup?key=' + encodeURIComponent( MAPS_KEY )
+          + '&location.latitude=' + lat + '&location.longitude=' + lng
+          + '&hours=48&pageSize=24&unitsSystem=METRIC&languageCode=en';
+        if ( pageToken ) url += '&pageToken=' + encodeURIComponent( pageToken );
+        const data = await getJson( url );
         if ( !data || ac.signal.aborted ) break;
         rows.push( ...( Array.isArray( data.forecastHours ) ? data.forecastHours : [] )
           .map( ( row: Record<string, any> ) => weatherHourFromApi( row ) )
@@ -1847,50 +1777,16 @@ const VayuLokLive: React.FC = () => {
     };
 
     const loadDaily = async () => {
-      const data = await env( 'weather_daily' );
+      const url = 'https://weather.googleapis.com/v1/forecast/days:lookup?key=' + encodeURIComponent( MAPS_KEY )
+        + '&location.latitude=' + lat + '&location.longitude=' + lng
+        + '&days=10&pageSize=10&unitsSystem=METRIC&languageCode=en';
+      const data = await getJson( url );
       if ( !data || ac.signal.aborted ) return;
       const rows: WeatherDay[] = ( Array.isArray( data.forecastDays ) ? data.forecastDays : [] ).map( ( row: any, i: number ) => {
         const d = row?.displayDate || {};
         const date = d?.year && d?.month && d?.day ? new Date( Date.UTC( d.year, d.month - 1, d.day ) ) : new Date();
         const p = row?.daytimeForecast || row?.nighttimeForecast || {};
         const night = row?.nighttimeForecast || {};
-        const periodDetail = ( raw: any ): WeatherPeriodDetail => {
-          const detail: WeatherPeriodDetail = {};
-          if ( typeof raw?.weatherCondition?.description?.text === 'string' ) detail.condition = raw.weatherCondition.description.text;
-          if ( typeof raw?.weatherCondition?.iconBaseUri === 'string' ) detail.icon = raw.weatherCondition.iconBaseUri;
-          const fields = {
-            humidity: n( raw?.relativeHumidity ),
-            uv: n( raw?.uvIndex ),
-            rainProb: n( raw?.precipitation?.probability?.percent ),
-            rainMm: n( raw?.precipitation?.qpf?.quantity ),
-            stormProb: n( raw?.thunderstormProbability ),
-            windSpeed: n( raw?.wind?.speed?.value ),
-            windDeg: n( raw?.wind?.direction?.degrees ),
-            windGust: n( raw?.wind?.gust?.value ),
-            pressure: n( raw?.airPressure?.meanSeaLevelMillibars ),
-            cloud: n( raw?.cloudCover ),
-            visibility: n( raw?.visibility?.distance ),
-            heatIndex: n( raw?.heatIndex?.degrees ),
-            windChill: n( raw?.windChill?.degrees ),
-          };
-          if ( Number.isFinite( fields.humidity ) ) detail.humidity = Math.round( fields.humidity );
-          if ( Number.isFinite( fields.uv ) ) detail.uv = Math.round( fields.uv );
-          if ( Number.isFinite( fields.rainProb ) ) detail.rainProb = Math.round( fields.rainProb );
-          if ( Number.isFinite( fields.rainMm ) ) detail.rainMm = fields.rainMm;
-          if ( Number.isFinite( fields.stormProb ) ) detail.stormProb = Math.round( fields.stormProb );
-          if ( Number.isFinite( fields.windSpeed ) ) { detail.windSpeed = Math.round( fields.windSpeed ); detail.windUnit = windUnitLabel( raw?.wind?.speed?.unit ); }
-          if ( Number.isFinite( fields.windDeg ) ) detail.windDir = windDirection( fields.windDeg );
-          if ( Number.isFinite( fields.windGust ) ) detail.windGust = Math.round( fields.windGust );
-          if ( Number.isFinite( fields.pressure ) ) detail.pressureHpa = Math.round( fields.pressure );
-          if ( Number.isFinite( fields.cloud ) ) detail.cloudCover = Math.round( fields.cloud );
-          if ( Number.isFinite( fields.visibility ) ) detail.visibilityKm = fields.visibility;
-          if ( Number.isFinite( fields.heatIndex ) ) detail.heatIndex = Math.round( fields.heatIndex );
-          if ( Number.isFinite( fields.windChill ) ) detail.windChill = Math.round( fields.windChill );
-          if ( typeof raw?.precipitation?.probability?.type === 'string' ) detail.precipitationType = raw.precipitation.probability.type;
-          return detail;
-        };
-        const dayDetails = periodDetail( p );
-        const nightDetails = periodDetail( night );
         const min = n( row?.minTemperature?.degrees );
         const max = n( row?.maxTemperature?.degrees );
         const rain = n( p?.precipitation?.probability?.percent );
@@ -1923,9 +1819,6 @@ const VayuLokLive: React.FC = () => {
           ...( typeof row?.sunEvents?.sunsetTime === 'string' ? { sunset: row.sunEvents.sunsetTime } : {} ),
           // Detail-panel dimensions.
           ...( typeof night?.weatherCondition?.description?.text === 'string' ? { nightCondition: night.weatherCondition.description.text } : {} ),
-          ...( typeof night?.weatherCondition?.iconBaseUri === 'string' ? { nightIcon: night.weatherCondition.iconBaseUri } : {} ),
-          ...( Object.keys( dayDetails ).length ? { dayDetails } : {} ),
-          ...( Object.keys( nightDetails ).length ? { nightDetails } : {} ),
           ...( Number.isFinite( flMin ) ? { feelsLikeMin: Math.round( flMin ) } : {} ),
           ...( Number.isFinite( flMax ) ? { feelsLikeMax: Math.round( flMax ) } : {} ),
           ...( Number.isFinite( humidity ) ? { humidity: Math.round( humidity ) } : {} ),
@@ -1951,64 +1844,58 @@ const VayuLokLive: React.FC = () => {
       setWeatherDaily( rows );
     };
 
+    // Weather alerts are coverage-gated by region: unsupported regions (including India) make
+    // no request, while supported regions query Google's authoritative publicAlerts endpoint.
     const loadAlerts = async () => {
-      try {
-        const data = await env( 'weather_alerts' );
-        if ( !data || ac.signal.aborted ) {
-          forecastStore.alertStatus = 'error';
-          setWeatherAlertStatus( 'error' );
-          return;
-        }
-        const status = ( [ 'active', 'none', 'unsupported' ] as const ).includes( data.alertStatus )
-          ? data.alertStatus as 'active' | 'none' | 'unsupported'
-          : ( Array.isArray( data.weatherAlerts ) && data.weatherAlerts.length ? 'active' : 'none' );
-        const rows: WeatherAlertRow[] = ( Array.isArray( data.weatherAlerts ) ? data.weatherAlerts : [] )
-          .map( ( row: any ) => {
-            const title = typeof row?.alertTitle?.text === 'string' ? row.alertTitle.text.trim() : '';
-            const id = typeof row?.alertId === 'string' ? row.alertId : '';
-            if ( !title || !id ) return null;
-            const sourceName = typeof row?.dataSource?.name === 'string' ? row.dataSource.name.trim() : '';
-            const sourcePublisher = typeof row?.dataSource?.publisher === 'string' ? row.dataSource.publisher.trim() : '';
-            const instructions = Array.isArray( row?.instruction )
-              ? row.instruction.filter( ( x: unknown ) => typeof x === 'string' && x.trim() ).map( ( x: string ) => x.trim() )
-              : typeof row?.instruction === 'string' && row.instruction.trim() ? [ row.instruction.trim() ] : [];
-            const recommendations = ( Array.isArray( row?.safetyRecommendations ) ? row.safetyRecommendations : [] )
-              .map( ( item: any ) => {
-                const directive = typeof item?.directive === 'string' ? item.directive.trim() : '';
-                if ( !directive ) return null;
-                return {
-                  directive,
-                  ...( typeof item?.subtext === 'string' && item.subtext.trim() ? { subtext: item.subtext.trim() } : {} ),
-                };
-              } )
-              .filter( Boolean ) as { directive: string; subtext?: string }[];
-            return {
-              id, title,
-              ...( typeof row?.eventType === 'string' ? { eventType: row.eventType } : {} ),
-              ...( typeof row?.description === 'string' && row.description.trim() ? { description: row.description.trim() } : {} ),
-              ...( typeof row?.areaName === 'string' && row.areaName.trim() ? { area: row.areaName.trim() } : {} ),
-              ...( typeof row?.polygon === 'string' && row.polygon.trim() ? { polygon: row.polygon.trim() } : {} ),
-              ...( typeof row?.severity === 'string' ? { severity: row.severity } : {} ),
-              ...( typeof row?.certainty === 'string' ? { certainty: row.certainty } : {} ),
-              ...( typeof row?.urgency === 'string' ? { urgency: row.urgency } : {} ),
-              ...( instructions.length ? { instruction: instructions } : {} ),
-              ...( recommendations.length ? { safetyRecommendations: recommendations } : {} ),
-              ...( typeof row?.startTime === 'string' ? { startTime: row.startTime } : {} ),
-              ...( typeof row?.expirationTime === 'string' ? { expires: row.expirationTime } : {} ),
-              ...( sourceName ? { source: sourceName } : {} ),
-              ...( sourcePublisher ? { sourcePublisher } : {} ),
-              ...( typeof row?.dataSource?.authorityUri === 'string' ? { sourceUrl: row.dataSource.authorityUri } : {} ),
-            } as WeatherAlertRow;
-          } )
-          .filter( Boolean ) as WeatherAlertRow[];
-        forecastStore.alerts = rows;
-        forecastStore.alertStatus = status;
-        setWeatherAlerts( rows );
-        setWeatherAlertStatus( status );
-      } catch {
-        forecastStore.alertStatus = 'error';
-        setWeatherAlertStatus( 'error' );
-      }
+      const regionCode = String( place.regionCode || '' ).toUpperCase();
+      if ( !WEATHER_ALERT_REGION_CODES.has( regionCode ) ) return;
+      const url = 'https://weather.googleapis.com/v1/publicAlerts:lookup?key=' + encodeURIComponent( MAPS_KEY )
+        + '&location.latitude=' + lat + '&location.longitude=' + lng + '&languageCode=en';
+      const data = await getJson( url );
+      if ( !data || ac.signal.aborted ) return;
+      const rows: WeatherAlertRow[] = ( Array.isArray( data.weatherAlerts ) ? data.weatherAlerts : [] )
+        .map( ( row: any ) => {
+          const title = typeof row?.alertTitle?.text === 'string' ? row.alertTitle.text.trim() : '';
+          const id = typeof row?.alertId === 'string' ? row.alertId : '';
+          if ( !title || !id ) return null;
+          const sourceName = typeof row?.dataSource?.name === 'string' ? row.dataSource.name.trim() : '';
+          const sourcePublisher = typeof row?.dataSource?.publisher === 'string' ? row.dataSource.publisher.trim() : '';
+          const instructions = Array.isArray( row?.instruction )
+            ? row.instruction.filter( ( x: unknown ) => typeof x === 'string' && x.trim() ).map( ( x: string ) => x.trim() )
+            : typeof row?.instruction === 'string' && row.instruction.trim() ? [ row.instruction.trim() ] : [];
+          const recommendations = ( Array.isArray( row?.safetyRecommendations ) ? row.safetyRecommendations : [] )
+            .map( ( item: any ) => {
+              const directive = typeof item?.directive === 'string' ? item.directive.trim() : '';
+              if ( !directive ) return null;
+              return {
+                directive,
+                ...( typeof item?.subtext === 'string' && item.subtext.trim() ? { subtext: item.subtext.trim() } : {} ),
+              };
+            } )
+            .filter( Boolean ) as { directive: string; subtext?: string }[];
+          return {
+            id,
+            title,
+            ...( typeof row?.eventType === 'string' ? { eventType: row.eventType } : {} ),
+            ...( typeof row?.description === 'string' && row.description.trim() ? { description: row.description.trim() } : {} ),
+            ...( typeof row?.areaName === 'string' && row.areaName.trim() ? { area: row.areaName.trim() } : {} ),
+            ...( typeof row?.polygon === 'string' && row.polygon.trim() ? { polygon: row.polygon.trim() } : {} ),
+            ...( typeof row?.severity === 'string' ? { severity: row.severity } : {} ),
+            ...( typeof row?.certainty === 'string' ? { certainty: row.certainty } : {} ),
+            ...( typeof row?.urgency === 'string' ? { urgency: row.urgency } : {} ),
+            ...( instructions.length ? { instruction: instructions } : {} ),
+            ...( recommendations.length ? { safetyRecommendations: recommendations } : {} ),
+            ...( typeof row?.startTime === 'string' ? { startTime: row.startTime } : {} ),
+            ...( typeof row?.expirationTime === 'string' ? { expires: row.expirationTime } : {} ),
+            ...( typeof row?.timezoneOffset === 'string' ? { timezoneOffset: row.timezoneOffset } : {} ),
+            ...( sourceName ? { source: sourceName } : {} ),
+            ...( sourcePublisher ? { sourcePublisher } : {} ),
+            ...( typeof row?.dataSource?.authorityUri === 'string' ? { sourceUrl: row.dataSource.authorityUri } : {} ),
+          } as WeatherAlertRow;
+        } )
+        .filter( Boolean ) as WeatherAlertRow[];
+      forecastStore.alerts = rows;
+      setWeatherAlerts( rows );
     };
 
     const loadAirForecast = async () => {
@@ -2022,12 +1909,42 @@ const VayuLokLive: React.FC = () => {
       // ranges, so request 95h to stay inside the limit. (Measured against the live API: 96h =>
       // 400, 95h => 200 with 96 rows.) This is the fix for the forecast rendering empty in prod.
       const end = new Date( start.getTime() + 95 * 60 * 60 * 1000 );
-      const data = await env( 'air_forecast' );
+      const res = await fetch(
+        'https://airquality.googleapis.com/v1/forecast:lookup?key=' + encodeURIComponent( MAPS_KEY ),
+        {
+          method: 'POST',
+          signal: ac.signal,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify( {
+            location: { latitude: lat, longitude: lng },
+            period: { startTime: start.toISOString(), endTime: end.toISOString() },
+            pageSize: 96,
+            universalAqi: true,
+            ...localAqiOverride( place.regionCode ),
+            extraComputations: [
+              'LOCAL_AQI',
+              'POLLUTANT_CONCENTRATION',
+              'DOMINANT_POLLUTANT_CONCENTRATION',
+              'HEALTH_RECOMMENDATIONS',
+              'POLLUTANT_ADDITIONAL_INFO',
+            ],
+            languageCode: 'en',
+          } ),
+        },
+      );
       if ( ac.signal.aborted ) return;
-      if ( !data ) {
+      if ( !res.ok ) {
+        // Surface the failure instead of silently rendering an empty section. Log enough
+        // technical detail in development to identify an HTTP/API/key problem, but never the
+        // key or raw response - the URL carries the key in its query string, so log status only.
+        if ( process.env.NODE_ENV !== 'production' ) {
+          // eslint-disable-next-line no-console
+          console.error( `[VayuLok] air forecast:lookup failed - HTTP ${res.status} ${res.statusText}` );
+        }
         setAirForecastStatus( 'error' );
         return;
       }
+      const data = await res.json();
       const rows = ( Array.isArray( data.hourlyForecasts ) ? data.hourlyForecasts : [] )
         .map( ( row: Record<string, any> ) => airPointFromApi( row ) )
         .filter( Boolean ) as AirPoint[];
@@ -2048,9 +1965,7 @@ const VayuLokLive: React.FC = () => {
 
     void Promise.allSettled( [ loadHourly(), loadDaily(), loadAlerts(), loadAirForecast() ] ).then( () => {
       if ( ac.signal.aborted ) return;
-      const fetchedAt = Date.now();
-      forecastCache.current[ forecastKey ] = { ts: fetchedAt, ...forecastStore };
-      setForecastFetchedAt( fetchedAt );
+      forecastCache.current[ forecastKey ] = { ts: Date.now(), ...forecastStore };
     } );
     return () => ac.abort();
   }, [ place, hasSelection ] );
@@ -2058,30 +1973,21 @@ const VayuLokLive: React.FC = () => {
   useEffect( () => {
     if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
     const ac = new AbortController();
-    const historyKey = `${place.lat.toFixed( 4 )},${place.lng.toFixed( 4 )}`;
-    const cached = weatherHistoryCache.current[ historyKey ];
-    const WEATHER_HISTORY_TTL_MS = 6 * 60 * 60 * 1000;
-    if ( cached && Date.now() - cached.ts < WEATHER_HISTORY_TTL_MS ) {
-      setWeatherHistory( cached.rows );
-      setWeatherHistoryFetchedAt( cached.ts );
-      return () => ac.abort();
-    }
     setWeatherHistory( [] );
+    const { lat, lng } = place;
     const run = async () => {
       try {
-        const data = await environmentLookup( 'weather_history', place, ac.signal );
-        if ( !data || ac.signal.aborted ) return;
+        const url = 'https://weather.googleapis.com/v1/history/hours:lookup?key=' + encodeURIComponent( MAPS_KEY )
+          + '&location.latitude=' + lat + '&location.longitude=' + lng
+          + '&hours=24&pageSize=24&unitsSystem=METRIC&languageCode=en';
+        const res = await fetch( url, { signal: ac.signal } );
+        if ( !res.ok || ac.signal.aborted ) return;
+        const data = await res.json();
         const rows = ( Array.isArray( data.historyHours ) ? data.historyHours : [] )
           .map( ( row: Record<string, any> ) => weatherHourFromApi( row ) )
           .filter( Boolean ) as WeatherHour[];
         rows.sort( ( a, b ) => a.time - b.time );
-        const latest = rows.slice( -24 );
-        if ( !ac.signal.aborted ) {
-          const fetchedAt = Date.now();
-          weatherHistoryCache.current[ historyKey ] = { ts: fetchedAt, rows: latest };
-          setWeatherHistory( latest );
-          setWeatherHistoryFetchedAt( fetchedAt );
-        }
+        if ( !ac.signal.aborted ) setWeatherHistory( rows.slice( -24 ) );
       } catch { /* historical weather is optional */ }
     };
     void run();
@@ -2111,11 +2017,32 @@ const VayuLokLive: React.FC = () => {
       let pageToken = '';
       let page = 0;
       do {
-        const data = await environmentLookup( 'air_history', place, ac.signal, {
+        const body: Record<string, unknown> = {
+          location: { latitude: lat, longitude: lng },
           hours: historyRange,
-          ...( pageToken ? { pageToken } : {} ),
-        } );
-        if ( !data ) break;
+          pageSize: Math.min( 100, historyRange ),
+          universalAqi: true,
+          ...localAqiOverride( place.regionCode ),
+          extraComputations: [
+            'LOCAL_AQI',
+            'POLLUTANT_CONCENTRATION',
+            'DOMINANT_POLLUTANT_CONCENTRATION',
+            'POLLUTANT_ADDITIONAL_INFO',
+          ],
+          languageCode: 'en',
+        };
+        if ( pageToken ) body.pageToken = pageToken;
+        const res = await fetch(
+          'https://airquality.googleapis.com/v1/history:lookup?key=' + encodeURIComponent( MAPS_KEY ),
+          {
+            method: 'POST',
+            signal: ac.signal,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify( body ),
+          },
+        );
+        if ( !res.ok ) break;
+        const data = await res.json();
         ( Array.isArray( data.hoursInfo ) ? data.hoursInfo : [] ).forEach( ( row: Record<string, any> ) => {
           const p = airPointFromApi( row );
           if ( p ) points.push( p );
@@ -3058,16 +2985,9 @@ const VayuLokLive: React.FC = () => {
                                     <span><strong>Local / Universal</strong> <span data-wc-no-translate="true">{ inspected.localAqi } / { inspected.universalAqi }</span></span>
                                   ) }
                                   { inspected.pollutants?.map( p => (
-                                    <span key={ p.code } className="vl-live-air-history-pollutant">
+                                    <span key={ p.code }>
                                       <strong>{ p.label || POLLUTANT_LABELS[ p.code ] || p.code }</strong>{' '}
                                       <span data-wc-no-translate="true">{ formatPollutantValue( p.value ) } { p.unit }</span>
-                                      { ( p.sources || p.effects ) && (
-                                        <details className="vl-live-air-history-info">
-                                          <summary aria-label={ `More about ${p.label || POLLUTANT_LABELS[ p.code ] || p.code}` }>ⓘ</summary>
-                                          { p.sources && <span><strong>Sources</strong> { p.sources }</span> }
-                                          { p.effects && <span><strong>Effects</strong> { p.effects }</span> }
-                                        </details>
-                                      ) }
                                     </span>
                                   ) ) }
                                 </div>
@@ -3107,15 +3027,15 @@ const VayuLokLive: React.FC = () => {
                             { Number.isFinite( weather.temperatureChange ) && weather.temperatureChange !== 0 && (
                               <span data-wc-no-translate="true">{ ( weather.temperatureChange as number ) > 0 ? '↑' : '↓' } { Math.abs( weather.temperatureChange as number ) }° / 24h</span>
                             ) }
-
+                            { Number.isFinite( weather.dayMin ) && Number.isFinite( weather.dayMax ) && (
+                              <span>Today <span data-wc-no-translate="true">{ weather.dayMin }°–{ weather.dayMax }°</span></span>
+                            ) }
                           </div>
                         </div>
-                        { coreFetchedAt && <div className="vl-live-wx-freshness">{ relativeAgeLabel( coreFetchedAt ).label }</div> }
 
                         {/* CURRENT METRICS - compact grid, only fields Google returned. */}
                         <ul className="vl-live-wx-grid">
                           { ( [
-                            Number.isFinite( weather.dayMin ) && Number.isFinite( weather.dayMax ) ? { k: 'Day range', v: `${weather.dayMin}° — ${weather.dayMax}°` } : null,
                             Number.isFinite( weather.humidity ) ? { k: 'Humidity', v: `${weather.humidity}%` } : null,
                             Number.isFinite( weather.rainProb ) ? { k: 'Rain', v: `${weather.rainProb}%${Number.isFinite( weather.rainMm ) ? ` · ${weather.rainMm} mm` : ''}` } : null,
                             Number.isFinite( weather.windSpeed ) ? { k: 'Wind', v: `${weather.windSpeed} ${weather.windUnit || 'km/h'}${weather.windDir ? ` ${weather.windDir}` : ''}` } : null,
@@ -3139,16 +3059,12 @@ const VayuLokLive: React.FC = () => {
                           ) ) }
                         </ul>
 
-                        {/* ALERTS - status comes from the server-side coverage gate. */}
+                        {/* ALERTS - query only where Google's coverage table supports publicAlerts. */}
                         <div className="vl-live-wx-alerts">
                           <h4 className="vl-live-air-forecast-title">Alerts</h4>
-                          { weatherAlertStatus === 'loading' ? (
-                            <p className="vl-live-air-history-empty" role="status">Checking weather alerts…</p>
-                          ) : weatherAlertStatus === 'unsupported' ? (
+                          { !WEATHER_ALERT_REGION_CODES.has( String( place.regionCode || '' ).toUpperCase() ) ? (
                             <p className="vl-live-air-history-empty">Weather alerts are not supported by Google for this region.</p>
-                          ) : weatherAlertStatus === 'error' ? (
-                            <p className="vl-live-air-history-empty" role="status">Weather alerts are temporarily unavailable.</p>
-                          ) : weatherAlertStatus === 'active' && weatherAlerts.length ? weatherAlerts.map( alert => (
+                          ) : weatherAlerts.length ? weatherAlerts.map( alert => (
                             <div key={ alert.id } className={ `vl-live-wx-alert sev-${( alert.severity || 'minor' ).toLowerCase()}` }>
                               <strong>{ alert.title }</strong>
                               { alert.eventType && <span className="vl-live-wx-alert-event">{ alert.eventType.replace( /_/g, ' ' ) }</span> }
@@ -3171,14 +3087,10 @@ const VayuLokLive: React.FC = () => {
                                 <p key={ `safety-${idx}` }><strong>Safety</strong> { item.directive }{ item.subtext ? ` ${item.subtext}` : '' }</p>
                               ) ) }
                               { alert.polygon && (
-                                <button
-                                  type="button"
-                                  className="vl-live-wx-alert-map-btn"
-                                  aria-pressed={ activeAlertBoundaryId === alert.id }
-                                  onClick={ () => activeAlertBoundaryId === alert.id ? clearAlertBoundary() : showAlertBoundary( alert ) }
-                                >
-                                  { activeAlertBoundaryId === alert.id ? 'Clear affected area' : 'View affected area' }
-                                </button>
+                                <details className="vl-live-wx-alert-boundary">
+                                  <summary>Affected-area boundary</summary>
+                                  <code data-wc-no-translate="true">{ alert.polygon }</code>
+                                </details>
                               ) }
                               { alert.source && (
                                 <small className="vl-live-wx-alert-src">
@@ -3245,7 +3157,6 @@ const VayuLokLive: React.FC = () => {
                             ) }
                           </div>
                         ) }
-                        { forecastFetchedAt && <div className="vl-live-wx-freshness">Forecast · { relativeAgeLabel( forecastFetchedAt ).label.toLowerCase() }</div> }
 
                         {/* 10-DAY FORECAST - compact vertical rows, detail on selection. */}
                         { weatherDaily.length > 0 && (
@@ -3254,7 +3165,7 @@ const VayuLokLive: React.FC = () => {
                             <ul className="vl-live-wx-daily-list">
                               { weatherDaily.map( ( day, idx ) => (
                                 <li key={ day.time }>
-                                  <button type="button" className={ `vl-live-wx-daily-row ${weatherDayInspectIdx === idx ? 'is-active' : ''}`.trim() } aria-expanded={ weatherDayInspectIdx === idx } onClick={ () => { setWeatherDayPeriod( 'day' ); setWeatherDayInspectIdx( weatherDayInspectIdx === idx ? null : idx ); } }>
+                                  <button type="button" className={ `vl-live-wx-daily-row ${weatherDayInspectIdx === idx ? 'is-active' : ''}`.trim() } aria-expanded={ weatherDayInspectIdx === idx } onClick={ () => setWeatherDayInspectIdx( weatherDayInspectIdx === idx ? null : idx ) }>
                                     <span className="vl-live-wx-daily-day">{ day.label }</span>
                                     { day.icon ? <img className="vl-live-wx-daily-icon" src={ `${day.icon}.png` } alt="" aria-hidden="true" data-wc-no-translate="true" /> : <span className="vl-live-wx-daily-icon-spacer" aria-hidden="true" /> }
                                     { day.condition && <span className="vl-live-wx-daily-cond">{ day.condition }</span> }
@@ -3262,49 +3173,30 @@ const VayuLokLive: React.FC = () => {
                                     { Number.isFinite( day.rainProb ) && <span className="vl-live-wx-daily-rain" data-wc-no-translate="true">{ day.rainProb }%</span> }
                                   </button>
                                   { weatherDayInspectIdx === idx && (
-                                    <div className="vl-live-wx-daily-expand">
-                                      <div className="vl-live-air-range vl-live-wx-period-toggle" role="group" aria-label={ `${day.label} forecast period` }>
-                                        <button type="button" className={ weatherDayPeriod === 'day' ? 'is-active' : '' } aria-pressed={ weatherDayPeriod === 'day' } onClick={ () => setWeatherDayPeriod( 'day' ) }>Day</button>
-                                        <button type="button" className={ weatherDayPeriod === 'night' ? 'is-active' : '' } aria-pressed={ weatherDayPeriod === 'night' } onClick={ () => setWeatherDayPeriod( 'night' ) }>Night</button>
-                                      </div>
+                                    <div className="vl-live-air-forecast-detail">
                                       { ( () => {
-                                        const period = weatherDayPeriod === 'night' ? day.nightDetails : day.dayDetails;
-                                        const periodIcon = weatherDayPeriod === 'night' ? day.nightIcon : day.icon;
-                                        const periodCondition = weatherDayPeriod === 'night' ? day.nightCondition : day.condition;
-                                        const bits: { k: string; v: string; translate?: boolean }[] = [];
+                                        const bits: { k: string; v: string }[] = [];
+                                        if ( day.nightCondition ) bits.push( { k: 'Night', v: day.nightCondition } );
                                         if ( Number.isFinite( day.feelsLikeMin ) && Number.isFinite( day.feelsLikeMax ) ) bits.push( { k: 'Feels', v: `${day.feelsLikeMin}°–${day.feelsLikeMax}°` } );
-                                        if ( Number.isFinite( period?.humidity ) ) bits.push( { k: 'Humidity', v: `${period?.humidity}%` } );
-                                        if ( Number.isFinite( period?.uv ) ) bits.push( { k: 'UV', v: `${period?.uv}` } );
-                                        if ( Number.isFinite( period?.rainProb ) ) bits.push( { k: 'Rain chance', v: `${period?.rainProb}%` } );
-                                        if ( Number.isFinite( period?.rainMm ) ) bits.push( { k: 'Rain', v: `${period?.rainMm} mm` } );
-                                        if ( Number.isFinite( period?.stormProb ) && ( period?.stormProb as number ) > 0 ) bits.push( { k: 'Storm', v: `${period?.stormProb}%` } );
-                                        if ( Number.isFinite( period?.windSpeed ) ) bits.push( { k: 'Wind', v: `${period?.windSpeed} ${period?.windUnit || 'km/h'}${period?.windDir ? ` ${period.windDir}` : ''}` } );
-                                        if ( Number.isFinite( period?.windGust ) ) bits.push( { k: 'Gust', v: `${period?.windGust} ${period?.windUnit || 'km/h'}` } );
-                                        if ( period?.precipitationType ) bits.push( { k: 'Precipitation', v: period.precipitationType.replace( /_/g, ' ' ), translate: true } );
-                                        if ( Number.isFinite( period?.pressureHpa ) ) bits.push( { k: 'Pressure', v: `${period?.pressureHpa} mb` } );
-                                        if ( Number.isFinite( period?.cloudCover ) ) bits.push( { k: 'Cloud', v: `${period?.cloudCover}%` } );
-                                        if ( Number.isFinite( period?.visibilityKm ) ) bits.push( { k: 'Visibility', v: `${period?.visibilityKm} km` } );
-                                        if ( Number.isFinite( period?.heatIndex ) ) bits.push( { k: 'Heat index', v: `${period?.heatIndex}°` } );
-                                        if ( Number.isFinite( period?.windChill ) ) bits.push( { k: 'Wind chill', v: `${period?.windChill}°` } );
-                                        if ( Number.isFinite( day.iceThicknessMm ) && ( day.iceThicknessMm as number ) > 0 ) bits.push( { k: 'Ice', v: `${day.iceThicknessMm} mm` } );
-                                        if ( weatherDayPeriod === 'day' && day.sunrise ) bits.push( { k: 'Sunrise', v: formatHistoryPointLabel( new Date( day.sunrise ).getTime(), locationTime.timeZoneId, locationZoneLabel ) } );
-                                        if ( weatherDayPeriod === 'day' && day.sunset ) bits.push( { k: 'Sunset', v: formatHistoryPointLabel( new Date( day.sunset ).getTime(), locationTime.timeZoneId, locationZoneLabel ) } );
-                                        if ( weatherDayPeriod === 'night' && day.moonrise ) bits.push( { k: 'Moonrise', v: formatHistoryPointLabel( new Date( day.moonrise ).getTime(), locationTime.timeZoneId, locationZoneLabel ) } );
-                                        if ( weatherDayPeriod === 'night' && day.moonset ) bits.push( { k: 'Moonset', v: formatHistoryPointLabel( new Date( day.moonset ).getTime(), locationTime.timeZoneId, locationZoneLabel ) } );
-                                        if ( weatherDayPeriod === 'night' && day.moonPhase ) bits.push( { k: 'Moon', v: moonPhaseLabel( day.moonPhase ), translate: true } );
-                                        return (
-                                          <>
-                                            { ( periodIcon || periodCondition ) && (
-                                              <div className="vl-live-wx-period-summary">
-                                                { periodIcon && <img src={ `${periodIcon}.png` } alt="" aria-hidden="true" data-wc-no-translate="true" /> }
-                                                { periodCondition && <strong>{ periodCondition }</strong> }
-                                              </div>
-                                            ) }
-                                            <div className="vl-live-air-forecast-detail">
-                                              { bits.map( b => <span key={ b.k }><strong>{ b.k }</strong>{' '}{ b.translate ? b.v : <span data-wc-no-translate="true">{ b.v }</span> }</span> ) }
-                                            </div>
-                                          </>
-                                        );
+                                        if ( Number.isFinite( day.humidity ) ) bits.push( { k: 'Humidity', v: `${day.humidity}%` } );
+                                        if ( Number.isFinite( day.uv ) ) bits.push( { k: 'UV', v: `${day.uv}` } );
+                                        if ( Number.isFinite( day.rainMm ) ) bits.push( { k: 'Rain', v: `${day.rainMm} mm` } );
+                                        if ( Number.isFinite( day.stormProb ) && ( day.stormProb as number ) > 0 ) bits.push( { k: 'Storm', v: `${day.stormProb}%` } );
+                                        if ( Number.isFinite( day.windSpeed ) ) bits.push( { k: 'Wind', v: `${day.windSpeed} ${day.windUnit || 'km/h'}${day.windDir ? ` ${day.windDir}` : ''}` } );
+                                        if ( Number.isFinite( day.windGust ) ) bits.push( { k: 'Gust', v: `${day.windGust} ${day.windUnit || 'km/h'}` } );
+                                        if ( day.precipitationType ) bits.push( { k: 'Precipitation', v: day.precipitationType.replace( /_/g, ' ' ) } );
+                                        if ( Number.isFinite( day.pressureHpa ) ) bits.push( { k: 'Pressure', v: `${day.pressureHpa} mb` } );
+                                        if ( Number.isFinite( day.cloudCover ) ) bits.push( { k: 'Cloud', v: `${day.cloudCover}%` } );
+                                        if ( Number.isFinite( day.visibilityKm ) ) bits.push( { k: 'Visibility', v: `${day.visibilityKm} km` } );
+                                        if ( Number.isFinite( day.heatIndex ) ) bits.push( { k: 'Heat index', v: `${day.heatIndex}°` } );
+                                        if ( Number.isFinite( day.windChill ) ) bits.push( { k: 'Wind chill', v: `${day.windChill}°` } );
+                                        if ( Number.isFinite( day.iceThicknessMm ) ) bits.push( { k: 'Ice', v: `${day.iceThicknessMm} mm` } );
+                                        if ( day.sunrise ) bits.push( { k: 'Sunrise', v: formatHistoryPointLabel( new Date( day.sunrise ).getTime(), locationTime.timeZoneId, locationZoneLabel ) } );
+                                        if ( day.sunset ) bits.push( { k: 'Sunset', v: formatHistoryPointLabel( new Date( day.sunset ).getTime(), locationTime.timeZoneId, locationZoneLabel ) } );
+                                        if ( day.moonrise ) bits.push( { k: 'Moonrise', v: formatHistoryPointLabel( new Date( day.moonrise ).getTime(), locationTime.timeZoneId, locationZoneLabel ) } );
+                                        if ( day.moonset ) bits.push( { k: 'Moonset', v: formatHistoryPointLabel( new Date( day.moonset ).getTime(), locationTime.timeZoneId, locationZoneLabel ) } );
+                                        if ( day.moonPhase ) bits.push( { k: 'Moon', v: moonPhaseLabel( day.moonPhase ) } );
+                                        return bits.map( b => <span key={ b.k }>{ b.k === 'Night' || b.k === 'Moon' ? <><strong>{ b.k }</strong> { b.v }</> : <><strong>{ b.k }</strong> <span data-wc-no-translate="true">{ b.v }</span></> }</span> );
                                       } )() }
                                     </div>
                                   ) }
@@ -3382,7 +3274,6 @@ const VayuLokLive: React.FC = () => {
                             ) }
                           </div>
                         ) }
-                        { weatherHistoryFetchedAt && <div className="vl-live-wx-freshness">History · { relativeAgeLabel( weatherHistoryFetchedAt ).label.toLowerCase() }</div> }
 
                         { weather.currentTime && <span className="vl-live-sr-only">Weather updated for the selected place.</span> }
                       </>
@@ -3768,26 +3659,15 @@ const VayuLokLive: React.FC = () => {
         .vl-live-wx-alert-src{color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
         .vl-live-wx-alert-event,.vl-live-wx-alert-time{color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
         .vl-live-wx-alert-src a{color:var(--green);font-weight:700;text-decoration:underline;text-underline-offset:2px}
-        .vl-live-wx-alert-map-btn{align-self:flex-start;margin-top:6px;padding:7px 10px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);font:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
-        .vl-live-wx-alert-map-btn:hover,.vl-live-wx-alert-map-btn[aria-pressed="true"]{background:var(--lime-tint)}
-        .vl-live-wx-daily-expand{padding:10px 14px 14px;border-top:1px solid var(--hair);background:#fff}
-        .vl-live-wx-period-toggle{width:max-content;margin:0 0 10px}
-        .vl-live-wx-period-summary{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-        .vl-live-wx-period-summary img{width:34px;height:34px;object-fit:contain}
-        .vl-live-wx-period-summary strong{font-size:17px;font-weight:700;line-height:1.25}
-        .vl-live-wx-freshness{margin-top:8px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
+        .vl-live-wx-alert-boundary{margin-top:4px;color:var(--muted);font-size:11.5px;font-weight:600}
+        .vl-live-wx-alert-boundary summary{cursor:pointer;color:var(--green);font-weight:700}
+        .vl-live-wx-alert-boundary code{display:block;max-height:96px;margin-top:6px;padding:8px;overflow:auto;border:1px solid var(--hair);border-radius:8px;background:#f7f7f5;color:var(--status);font-size:10.5px;white-space:pre-wrap;word-break:break-word}
 
         /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
            Icons and arrows inherit the ONE action-icon system above. The row stays horizontal;
            selection uses the lighter-lime surface, never a border/ring. Recommendation type
            follows the home-page heading/body ladder exactly. */
-        .vl-live-air-history-pollutant{display:inline-flex;align-items:center;gap:4px}
-        .vl-live-air-history-info{position:relative;display:inline-block}
-        .vl-live-air-history-info summary{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--lime);color:var(--green);font-size:12px;font-weight:800;cursor:pointer;list-style:none}
-        .vl-live-air-history-info summary::-webkit-details-marker{display:none}
-        .vl-live-air-history-info[open]{display:block;flex-basis:100%;padding:8px 0 0}
-        .vl-live-air-history-info[open] span{display:block;margin-top:4px;color:var(--body);font-size:13px;font-weight:400;line-height:1.42}
-                .vl-live-air-health-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap)}
+        .vl-live-air-health-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap)}
         .vl-live-air-health-pager{display:flex;align-items:center;gap:6px}
         .vl-live-air-health-tabs{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:0 0 4px;scrollbar-width:none;white-space:nowrap}
         .vl-live-air-health-tabs::-webkit-scrollbar{display:none}
