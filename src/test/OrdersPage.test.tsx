@@ -1200,7 +1200,10 @@ describe( '/orders/ — the order-source tag', () => {
     const { container } = await renderSignedIn( answer( 200, {
       orders: [ row( { channel: 'whatsapp' } ) ], profile: profile(),
     } ) );
-    await screen.findByText( 'WhatsApp' );
+    // Wait on the orders source tag specifically, not the bare text "WhatsApp": the public
+    // Subscribe+Share block at the foot of the page also renders a "WhatsApp" share control,
+    // so findByText( 'WhatsApp' ) now matches two nodes. .ord-src is the table's channel tag.
+    await waitFor( () => expect( container.querySelector( '.ord-src' )?.textContent ).toBe( 'WhatsApp' ) );
     const headers = Array.from( container.querySelectorAll( 'th[scope="col"]' ) )
       .map( node => node.textContent );
     expect( headers ).toEqual( [ 'Order #', 'Date', 'Amount', 'Status', 'Invoice' ] );
@@ -1238,7 +1241,9 @@ describe( '/orders/ — the order-source tag', () => {
     const { container } = await renderSignedIn( answer( 200, {
       orders: [ row( { channel: 'whatsapp' } ) ], profile: profile(),
     } ) );
-    await screen.findByText( 'WhatsApp' );
+    // Wait on .ord-src, not the bare text: the Subscribe+Share block also renders a "WhatsApp"
+    // share control, so findByText( 'WhatsApp' ) now matches two nodes.
+    await waitFor( () => expect( container.querySelector( '.ord-src' )?.textContent ).toBe( 'WhatsApp' ) );
     expect( container.querySelector( '.ord-src' ) )
       .not.toHaveAttribute( 'data-wc-no-translate' );
   } );
