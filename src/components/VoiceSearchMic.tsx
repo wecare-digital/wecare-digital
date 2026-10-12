@@ -113,19 +113,19 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript } ) => {
       </button>
       <style jsx>{`
         .voice-search-mic{
-          position:absolute;right:4px;top:50%;z-index:2;
+          position:absolute;right:4px;bottom:6px;top:auto;z-index:2;
           display:inline-grid;place-items:center;width:32px;height:32px;padding:0;
           border:0;border-radius:0;background:transparent;color:#d1f470;
-          transform:translateY(-50%);cursor:pointer;
+          transform:none;cursor:pointer;
           transition:color .14s ease,transform .14s ease,opacity .14s ease;
         }
         .voice-search-mic svg{width:23px;height:23px;display:block;overflow:visible}
         .voice-search-mic-glyph{fill:currentColor;stroke:#1a3a2a;stroke-width:36;stroke-linejoin:round;paint-order:stroke fill}
         .voice-search-mic:hover{color:#c5e866}
-        .voice-search-mic:active{transform:translateY(-50%) scale(.94)}
+        .voice-search-mic:active{transform:scale(.94)}
         .voice-search-mic:focus-visible{outline:2px solid #1a3a2a;outline-offset:2px}
         .voice-search-mic.is-listening{color:#d1f470;animation:voice-search-pulse 1.1s ease-in-out infinite}
-        @keyframes voice-search-pulse{0%,100%{transform:translateY(-50%) scale(1)}50%{transform:translateY(-50%) scale(1.08)}}
+        @keyframes voice-search-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
         @media(prefers-reduced-motion:reduce){.voice-search-mic{transition:none}.voice-search-mic.is-listening{animation:none}}
       `}</style>
     </>
