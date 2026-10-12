@@ -108,7 +108,7 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript } ) => {
         onClick={ toggle }
       >
         <svg viewBox="0 -960 960 960" aria-hidden="true">
-          <path d={ VOICE_SEARCH_MIC_PATH } />
+          <path className="voice-search-mic-glyph" d={ VOICE_SEARCH_MIC_PATH } />
         </svg>
       </button>
       <style jsx>{`
@@ -119,12 +119,13 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript } ) => {
           transform:translateY(-50%);cursor:pointer;
           transition:color .14s ease,transform .14s ease,opacity .14s ease;
         }
-        .voice-search-mic svg{width:19px;height:19px;display:block;fill:currentColor}
+        .voice-search-mic svg{width:23px;height:23px;display:block;overflow:visible}
+        .voice-search-mic-glyph{fill:currentColor;stroke:#1a3a2a;stroke-width:36;stroke-linejoin:round;paint-order:stroke fill}
         .voice-search-mic:hover{color:#c5e866}
         .voice-search-mic:active{transform:translateY(-50%) scale(.94)}
         .voice-search-mic:focus-visible{outline:2px solid #1a3a2a;outline-offset:2px}
         .voice-search-mic.is-listening{color:#d1f470;animation:voice-search-pulse 1.1s ease-in-out infinite}
-        @keyframes voice-search-pulse{0%,100%{opacity:1;transform:translateY(-50%) scale(1)}50%{opacity:.58;transform:translateY(-50%) scale(1.08)}}
+        @keyframes voice-search-pulse{0%,100%{transform:translateY(-50%) scale(1)}50%{transform:translateY(-50%) scale(1.08)}}
         @media(prefers-reduced-motion:reduce){.voice-search-mic{transition:none}.voice-search-mic.is-listening{animation:none}}
       `}</style>
     </>
