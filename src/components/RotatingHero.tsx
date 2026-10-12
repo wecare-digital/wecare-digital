@@ -96,18 +96,24 @@ interface RotatingHeroProps {
    * With subordinate set, the wrapper becomes a <section> and the headline an <h2>. Nothing
    * visual changes: .rh-head styles by class, not by tag, so the 55px/600 rung is identical
    * either way. What changes is only what the document says it is.
+   *
+   * NOTE: this flag no longer gates the Subscribe+Share block (that is `noShare` alone now) and
+   * is currently unused by any call site - /post/[slug] does not render RotatingHero. It is kept
+   * for a future surface that embeds this hero as a section of its own page.
    */
   subordinate?: boolean;
   /**
-   * Suppress the Subscribe+Share block for a page that already carries its own Share.
+   * Suppress the Subscribe+Share block for a page that genuinely must not carry it.
    *
    * The block is auto-mounted here for every RotatingHero page, which is right for the marketing
-   * and product surfaces. The blog INDEX and its paginated/topic variants are the exception: they
-   * use this hero as their real <main>/<h1> (so `subordinate` is wrong - that would demote the
-   * landmark and heading), but they ALSO render their own Subscribe via components/BlogFooterCTA,
-   * so the auto-mounted block is a duplicate there. /post/[slug] already suppresses it through
-   * `subordinate`; this flag is the equivalent for /blog without touching its semantics. See the
-   * PublicShare docstring: "NOT ON /blog OR /post".
+   * and product surfaces AND, since the owner unified the blog onto this one global block, for the
+   * blog index and its paginated/topic variants too - BlogIndexView used to pass `noShare` and
+   * render its own Subscribe via components/BlogFooterCTA, and now does neither, so the one
+   * auto-mounted PublicShare is the blog's only Subscribe+Share.
+   *
+   * The mount is gated on `!noShare` ALONE (not on `subordinate`): a subordinate page is still a
+   * section of someone else's page for landmark/heading purposes, but that no longer suppresses
+   * the block. This flag stays as the explicit opt-out for any page that must not carry it.
    */
   noShare?: boolean;
 }
@@ -270,13 +276,14 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, 
             Rendered here means every page that uses RotatingHero (Contact, Terms, Privacy, Bharat
             Rx, the product/service pages) gets one consistent, aligned block.
 
-            NOT IN SUBORDINATE MODE. `subordinate` is passed only by /blog and /post/[slug], and
-            those surfaces ALREADY carry their own Share inside the blog/post CTA band (see the
-            PublicShare docstring: "NOT ON /blog OR /post"). Rendering it here too put TWO share
-            blocks on all ~1,380 content pages. The subordinate flag is the exact, existing signal
-            for "this hero is a section of someone else's page", so it is also the right gate for
-            suppressing the block. */}
-        { !subordinate && !noShare && <PublicShare /> }
+            GATED ON `!noShare` ONLY, NOT on `subordinate`. The owner unified the blog surfaces
+            onto this one global block: /blog (and its paginated/topic variants, via
+            BlogIndexView) now WANT the auto-mounted PublicShare rather than their own old
+            Subscribe band, so they no longer pass `noShare`. A `subordinate` page is still a
+            section of someone else's page for landmark/heading purposes, but that is orthogonal
+            to whether it carries the Subscribe+Share block - so the gate is `noShare` alone.
+            `noShare` is kept for any page that genuinely must not carry the block. */}
+        { !noShare && <PublicShare /> }
       </div>
 
       <style jsx>{`

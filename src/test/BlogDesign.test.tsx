@@ -209,37 +209,37 @@ describe( 'Blog design alignment', () => {
   } );
 
   /**
-   * THE SUBSCRIBE / CONTRIBUTE / SHARE BAND IS ON THE INDEX TOO. Owner instruction, 2026-10-11:
-   * the same three-part CTA block the post page carries at its foot now also sits at the foot of
-   * /blog/, via the shared BlogFooterCTA. This pins that all three parts render and that the two
-   * WhatsApp links are the distinct ones (Subscribe WUDPTMYSO6XII1, Contribute its own link).
+   * THE GLOBAL SUBSCRIBE + SHARE BLOCK IS ON THE INDEX NOW. The owner unified every public
+   * surface onto the ONE PublicShare block (Subscribe followed by Share), so BlogIndexView no
+   * longer passes `noShare` to RotatingHero and no longer renders its own three-part BlogFooterCTA
+   * band. This pins that the index carries exactly ONE PublicShare (Subscribe pill at the
+   * subscribe deep link + the Share row) and NO old `.blog-cta` band.
    */
-  it( 'carries the Subscribe / Contribute / Share band at the foot of the index', () => {
+  it( 'carries exactly one global Subscribe + Share block at the foot of the index', () => {
     mockSearchIndex( [ firstCard, secondCard ] );
     const { container } = render( <BlogIndex { ...propsFor() } /> );
 
-    // Subscribe: a WhatsApp anchor at the subscribe deep link, text-only with the microcopy.
-    const subscribe = container.querySelector( 'a.blog-cta-subscribe' );
+    // Exactly ONE PublicShare block.
+    const shares = container.querySelectorAll( 'section.public-share' );
+    expect( shares ).toHaveLength( 1 );
+
+    // Subscribe: the PublicShare pill at the subscribe deep link, text-only "Subscribe".
+    const subscribe = shares[ 0 ].querySelector( 'a.ps-subscribe' );
     expect( subscribe ).not.toBeNull();
     expect( subscribe!.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
     expect( subscribe!.textContent ).toBe( 'Subscribe' );
 
-    // Contribute: the shared block, embedded (no second top rule), with its own distinct link.
-    const contribution = container.querySelector( 'section.bc' );
-    expect( contribution ).not.toBeNull();
-    const contributeLink = contribution!.querySelector( 'a.bc-cta' )!;
-    expect( contributeLink.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/BYFLCAAMSZBXD1' );
-    // The two WhatsApp links must differ.
-    expect( subscribe!.getAttribute( 'href' ) ).not.toBe( contributeLink.getAttribute( 'href' ) );
+    // Share: the row follows Subscribe inside the same block.
+    expect( shares[ 0 ].querySelector( '.ps-row' ) ).not.toBeNull();
 
-    // Share: the shared row (its WhatsApp anchor renders in the static markup).
-    expect( container.querySelector( '.blog-cta-share' ) ).not.toBeNull();
+    // The OLD three-part band is gone, markup and all - no .blog-cta, no .blog-cta-subscribe.
+    expect( container.querySelector( '.blog-cta' ) ).toBeNull();
+    expect( container.querySelector( 'a.blog-cta-subscribe' ) ).toBeNull();
 
-    // Ordering: the band sits after the post grid.
+    // Ordering: the block sits after the post grid.
     const grid = container.querySelector( '.post-grid' );
-    const band = container.querySelector( '.blog-cta' )!;
     if ( grid ) {
-      expect( grid.compareDocumentPosition( band ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
+      expect( grid.compareDocumentPosition( shares[ 0 ] ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
     }
   } );
 
@@ -834,35 +834,41 @@ describe( 'Blog post page', () => {
   } );
 
   /**
-   * THE WHATSAPP SUBSCRIBE BUTTON AND CONTRIBUTION SIT BETWEEN TAGS AND SHARE, in that order.
+   * CONTRIBUTION THEN THE GLOBAL SUBSCRIBE + SHARE BLOCK SIT BETWEEN TAGS AND THE PAGER.
    *
-   * The in-page subscriber form was removed in favour of a single button that opens a WhatsApp
-   * conversation (a.blog-wa-subscribe, href wa.me/message/WUDPTMYSO6XII1). It sits where the box used to,
-   * so the end of the article is content -> Tags -> WhatsApp subscribe -> Contribution -> Share.
-   * Document position is asserted rather than mere presence so either block moving silently fails.
+   * The owner unified every public surface onto the ONE global PublicShare block, so the post
+   * page's own inline Subscribe pill (a.blog-wa-subscribe) and its own ShareLinks row are gone.
+   * The tail is now content -> Tags -> Contribution -> PublicShare (Subscribe + Share), with
+   * PublicShare still wrapped in the .post-share reveal sentinel. Document position is asserted
+   * rather than mere presence so either block moving silently fails.
    */
-  it( 'renders the WhatsApp subscribe button above Contribution, between Tags and Share', () => {
+  it( 'renders Contribution then the global Subscribe + Share block, between Tags and the pager', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
 
     const tags = container.querySelector( 'nav.tags' );
-    const subscribe = container.querySelector( 'a.blog-wa-subscribe' );
     const contribution = container.querySelector( 'section.bc' );
     const share = container.querySelector( '.post-share' );
+    const publicShare = container.querySelector( 'section.public-share' );
 
     expect( tags ).not.toBeNull();
-    expect( subscribe ).not.toBeNull();
     expect( contribution ).not.toBeNull();
     expect( share ).not.toBeNull();
+    expect( publicShare ).not.toBeNull();
 
-    // The in-page signup box is gone; nothing renders section.blog-subscribe any more.
+    // The old inline Subscribe pill is gone, and so is the in-page signup form.
+    expect( container.querySelector( 'a.blog-wa-subscribe' ) ).toBeNull();
     expect( container.querySelector( 'section.blog-subscribe' ) ).toBeNull();
 
-    // The button points directly at the WhatsApp subscribe deep link.
-    expect( subscribe!.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
+    // Exactly ONE global Subscribe + Share block, and it is inside the .post-share sentinel.
+    expect( container.querySelectorAll( 'section.public-share' ) ).toHaveLength( 1 );
+    expect( share!.contains( publicShare! ) ).toBe( true );
 
-    expect( tags!.compareDocumentPosition( subscribe! ) & Node.DOCUMENT_POSITION_FOLLOWING )
-      .toBeTruthy();
-    expect( subscribe!.compareDocumentPosition( contribution! ) & Node.DOCUMENT_POSITION_FOLLOWING )
+    // The PublicShare Subscribe pill points at the subscribe deep link.
+    expect( publicShare!.querySelector( 'a.ps-subscribe' )!.getAttribute( 'href' ) )
+      .toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
+
+    // Reading order: Tags -> Contribution -> Subscribe+Share.
+    expect( tags!.compareDocumentPosition( contribution! ) & Node.DOCUMENT_POSITION_FOLLOWING )
       .toBeTruthy();
     expect( contribution!.compareDocumentPosition( share! ) & Node.DOCUMENT_POSITION_FOLLOWING )
       .toBeTruthy();
@@ -934,67 +940,62 @@ describe( 'Blog post page', () => {
   } );
 
   /**
-   * TWO WHATSAPP CTAS AT THE TAIL OF A POST: A MATCHED PAIR, TWO DISTINCT CONVERSATIONS.
+   * TWO WHATSAPP CTAS AT THE TAIL OF A POST, TWO DISTINCT CONVERSATIONS - BUT FROM TWO SOURCES.
    *
-   * Owner instruction, 2026-10-10: Subscribe and Contribute are the same object - lime pill,
-   * one word, text only, and a short "Continue on WhatsApp →" microcopy line below - and they
-   * open DIFFERENT Meta message links, WUDPTMYSO6XII1 and BYFLCAAMSZBXD1. Pointing one button at
-   * the other's link would look entirely correct on screen, which is why both hrefs are pinned
-   * here as literals AND asserted to differ.
-   *
-   * NEITHER button carries a glyph: the owner found the WhatsApp logo inside the filled pill too
-   * busy and dropped it, moving the destination into the microcopy. Both the glyph's absence and
-   * the microcopy's presence are asserted on each. Recorded at
-   * .agents/tasks/contribute-whatsapp-cta/owner-decision.md.
+   * The owner unified the Subscribe pill into the ONE global PublicShare block, so the post page
+   * no longer owns its inline Subscribe pill. The two WhatsApp links at the tail are now:
+   *   - Contribute, from BlogContribution (`section.bc a.bc-cta`), opening BYFLCAAMSZBXD1; and
+   *   - Subscribe, from the global PublicShare (`section.public-share a.ps-subscribe`), opening
+   *     WUDPTMYSO6XII1.
+   * They are still DIFFERENT Meta message links - pointing one at the other's link would look
+   * entirely correct on screen, which is why both hrefs are pinned here as literals AND asserted
+   * to differ. The Contribute pill keeps its single-word-plus-amount face, its glyph-free pill and
+   * its one `.wc-sweep-note` microcopy; PublicShare's Subscribe is a text-only pill with no
+   * microcopy of its own.
    */
-  it( 'pairs Subscribe and Contribute as two distinct text-only WhatsApp links with twin microcopy', () => {
+  it( 'carries two distinct WhatsApp links at the tail: Contribute (block) and Subscribe (PublicShare)', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
 
-    const subscribe = container.querySelector( 'a.blog-wa-subscribe' )!;
-    const contribute = container.querySelector( 'section.bc a' )!;
+    const contribute = container.querySelector( 'section.bc a.bc-cta' )!;
+    const subscribe = container.querySelector( 'section.public-share a.ps-subscribe' )!;
+
+    expect( contribute ).not.toBeNull();
+    expect( subscribe ).not.toBeNull();
 
     expect( subscribe.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
     expect( contribute.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/BYFLCAAMSZBXD1' );
     expect( subscribe.getAttribute( 'href' ) ).not.toBe( contribute.getAttribute( 'href' ) );
 
-    // One word each, and the full WhatsApp context in the accessible name (WCAG 2.5.3).
-    expect( subscribe.querySelector( 'span' )?.textContent ).toBe( 'Subscribe' );
-    // Contribute names the suggested amount on its face (owner instruction 2026-10-11); Subscribe
-    // stays a single word. The pair is still a twin in shape - lime pill, text only, twin
-    // microcopy - the only difference is the amount Contribute now quotes.
+    // The old inline Subscribe pill is gone from the page.
+    expect( container.querySelector( 'a.blog-wa-subscribe' ) ).toBeNull();
+
+    // Contribute names the suggested amount on its face; Subscribe stays a single word.
     expect( contribute.querySelector( 'span' )?.textContent ).toBe( `Contribute ${ CONTRIBUTE_AMOUNT_LABEL }` );
+    expect( subscribe.textContent ).toBe( 'Subscribe' );
     expect( subscribe.getAttribute( 'aria-label' ) ).toBe( 'Subscribe on WhatsApp' );
     expect( contribute.getAttribute( 'aria-label' ) ).toBe( `Contribute ${ CONTRIBUTE_AMOUNT_LABEL } on WhatsApp` );
 
-    // NEITHER carries a glyph any more.
+    // Neither carries a glyph.
     expect( subscribe.querySelector( 'svg' ) ).toBeNull();
     expect( contribute.querySelector( 'svg' ) ).toBeNull();
 
-    // TWIN MICROCOPY under each, identical text, both aria-hidden (the accessible name already
-    // carries "on WhatsApp"). This is the pair's shared "where it goes" line. Both the Subscribe
-    // note (post page) and the Contribute note (BlogContribution) now use the ONE shared global
-    // class .wc-sweep-note (src/styles/inner-ux.css) instead of the old per-page .blog-wa-note /
-    // .bc-cta-note, so there are exactly two .wc-sweep-note lines here, both identical.
+    // The Contribute block keeps its ONE microcopy line; the old Subscribe microcopy is gone with
+    // the inline pill. There is exactly one .wc-sweep-note on the page now, inside the block.
+    const block = container.querySelector( 'section.bc' )!;
     const notes = Array.from( container.querySelectorAll( '.wc-sweep-note' ) );
-    expect( notes.length ).toBe( 2 );
-    for ( const note of notes ) {
-      expect( note.textContent ).toBe( 'Continue on WhatsApp \u2192' );
-      expect( note.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
-    }
-    // The old per-page classes are gone, folded into .wc-sweep-note.
+    expect( notes.length ).toBe( 1 );
+    expect( block.contains( notes[ 0 ] ) ).toBe( true );
+    expect( notes[ 0 ].textContent ).toBe( 'Continue on WhatsApp \u2192' );
+    expect( notes[ 0 ].getAttribute( 'aria-hidden' ) ).toBe( 'true' );
+    // The old per-page classes stay gone.
     expect( container.querySelector( '.blog-wa-note' ) ).toBeNull();
     expect( container.querySelector( '.bc-cta-note' ) ).toBeNull();
-    // No radio-era .bc-note remains.
     expect( container.querySelector( '.bc-note' ) ).toBeNull();
 
-    // And the same pill object: both carry the home CTA's values.
-    //
-    // THE RADIUS IS IN THIS LIST NOW, and it was not before. `.bc-cta` used to declare 999px
-    // against Subscribe's 50px - visually identical at a 52px height, so nothing on screen told
-    // you the two rules disagreed, and a comment claiming an exact match was wrong. `.bc-cta` is
-    // 50px now, which makes the twin claim a thing this loop can actually hold.
+    // Both pills carry the home CTA's values - the Contribute pill inline, the Subscribe pill in
+    // PublicShare's own style block (both are in the rendered tree, so cssOf sees both).
     const css = cssOf( container );
-    for ( const selector of [ '.blog-wa-subscribe{', '.bc-cta{' ] )
+    for ( const selector of [ '.ps-subscribe{', '.bc-cta{' ] )
     {
       const rule = css.slice( css.indexOf( selector ), css.indexOf( '}', css.indexOf( selector ) ) );
       expect( rule, selector ).toContain( 'min-height:52px' );
