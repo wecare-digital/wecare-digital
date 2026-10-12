@@ -49,12 +49,23 @@ MAX_UPSTREAM_BYTES = int(
     os.environ.get("VAYULOK_MAX_UPSTREAM_BYTES", str(6 * 1024 * 1024))
 )
 
-INDIA_BOUNDS = {
-    "north": 37.6,
-    "south": 6.4,
-    "west": 68.1,
-    "east": 97.4,
+WORLD_BOUNDS = {
+    "north": 90.0,
+    "south": -90.0,
+    "west": -180.0,
+    "east": 180.0,
 }
+
+# Google Weather public-alert coverage, maintained server-side so the browser does not
+# need a deploy when provider coverage changes. India intentionally remains unsupported.
+WEATHER_ALERT_REGION_CODES = frozenset(
+    {
+        "AT","AU","BA","BE","BG","BR","CH","CI","CO","CY","CZ","DE","DK","EC","EE","ES",
+        "FI","FR","GB","GH","GR","HR","HU","IE","IS","IT","JM","JP","KR","LT","LU","LV",
+        "MG","MK","MX","NL","NO","NZ","PH","PL","PT","RO","RS","SB","SE","SG","SI","SK",
+        "TH","TW","US","VN",
+    }
+)
 
 WEATHER_BASE = "https://weather.googleapis.com/v1"
 AIR_BASE = "https://airquality.googleapis.com/v1"
@@ -67,12 +78,13 @@ OPERATIONS = frozenset(
         "weather_hourly",
         "weather_daily",
         "weather_history",
+        "weather_alerts",
         "air_forecast",
         "air_history",
     }
 )
 
-_COMMON_FIELDS = frozenset({"operation", "latitude", "longitude"})
+_COMMON_FIELDS = frozenset({"operation", "latitude", "longitude", "regionCode"})
 OPERATION_FIELDS = {
     "air_current": _COMMON_FIELDS,
     "air_grid": _COMMON_FIELDS | {"gridSize"},
@@ -80,12 +92,25 @@ OPERATION_FIELDS = {
     "weather_hourly": _COMMON_FIELDS | {"pageToken"},
     "weather_daily": _COMMON_FIELDS,
     "weather_history": _COMMON_FIELDS,
+    "weather_alerts": _COMMON_FIELDS,
     "air_forecast": _COMMON_FIELDS,
     "air_history": _COMMON_FIELDS | {"hours", "pageToken"},
 }
 
 _secret_client = None
 _key_cache: Dict[str, Any] = {"loaded": False, "key": "", "loaded_at": 0.0}
+_response_cache: Dict[str, Dict[str, Any]] = {}
+
+CACHE_TTLS = {
+    "air_current": 15 * 60,
+    "weather_current": 15 * 60,
+    "weather_hourly": 30 * 60,
+    "weather_daily": 30 * 60,
+    "weather_history": 6 * 60 * 60,
+    "weather_alerts": 5 * 60,
+    "air_forecast": 30 * 60,
+    "air_history": 60 * 60,
+}
 
 
 class ProviderUnavailable(RuntimeError):
@@ -193,11 +218,31 @@ def _number(value: Any, name: str) -> float:
 def _location(payload: Mapping[str, Any]) -> tuple[float, float]:
     lat = _number(payload.get("latitude"), "latitude")
     lng = _number(payload.get("longitude"), "longitude")
-    if not (INDIA_BOUNDS["south"] <= lat <= INDIA_BOUNDS["north"]):
-        raise ValueError("latitude outside VayuLok India bounds")
-    if not (INDIA_BOUNDS["west"] <= lng <= INDIA_BOUNDS["east"]):
-        raise ValueError("longitude outside VayuLok India bounds")
+    if not (WORLD_BOUNDS["south"] <= lat <= WORLD_BOUNDS["north"]):
+        raise ValueError("latitude outside world bounds")
+    if not (WORLD_BOUNDS["west"] <= lng <= WORLD_BOUNDS["east"]):
+        raise ValueError("longitude outside world bounds")
     return lat, lng
+
+
+def _region_code(payload: Mapping[str, Any]) -> str:
+    value = payload.get("regionCode")
+    if value in (None, ""):
+        return ""
+    if not isinstance(value, str):
+        raise ValueError("regionCode must be a string")
+    value = value.strip().upper()
+    if len(value) != 2 or not value.isalpha():
+        raise ValueError("regionCode must be a 2-letter country code")
+    return value
+
+
+def _local_aqi_override(region_code: str) -> Dict[str, Any]:
+    return (
+        {"customLocalAqis": [{"regionCode": "IN", "aqi": "ind_cpcb"}]}
+        if region_code == "IN"
+        else {}
+    )
 
 
 def _page_token(payload: Mapping[str, Any]) -> str:
@@ -344,28 +389,22 @@ def _google_json(
     return parsed
 
 
-def _air_current(lat: float, lng: float) -> Dict[str, Any]:
-    return _google_json(
-        f"{AIR_BASE}/currentConditions:lookup",
-        method="POST",
-        body={
-            "location": {"latitude": lat, "longitude": lng},
-            # POLLUTANT_ADDITIONAL_INFO is included so this proxy response is feature-complete
-            # against the browser's direct currentConditions call: the frontend's pollutant
-            # info popovers render the per-pollutant sources/effects strings this computation
-            # returns. Without it, routing current conditions through this Lambda would silently
-            # drop those popovers - so it belongs here before any such wiring lands.
-            "extraComputations": [
-                "POLLUTANT_CONCENTRATION",
-                "LOCAL_AQI",
-                "HEALTH_RECOMMENDATIONS",
-                "DOMINANT_POLLUTANT_CONCENTRATION",
-                "POLLUTANT_ADDITIONAL_INFO",
-            ],
-            "languageCode": "en",
-            "universalAqi": True,
-        },
-    )
+def _air_current(lat: float, lng: float, region_code: str = "") -> Dict[str, Any]:
+    body: Dict[str, Any] = {
+        "location": {"latitude": lat, "longitude": lng},
+        # POLLUTANT_ADDITIONAL_INFO keeps the current pollutant Sources / Effects popovers.
+        "extraComputations": [
+            "POLLUTANT_CONCENTRATION",
+            "LOCAL_AQI",
+            "HEALTH_RECOMMENDATIONS",
+            "DOMINANT_POLLUTANT_CONCENTRATION",
+            "POLLUTANT_ADDITIONAL_INFO",
+        ],
+        "languageCode": "en",
+        "universalAqi": True,
+    }
+    body.update(_local_aqi_override(region_code))
+    return _google_json(f"{AIR_BASE}/currentConditions:lookup", method="POST", body=body)
 
 
 def _air_grid(lat: float, lng: float, grid_size: int) -> Dict[str, Any]:
@@ -390,10 +429,9 @@ def _air_grid(lat: float, lng: float, grid_size: int) -> Dict[str, Any]:
 
     def one(cell: tuple[float, float]) -> Dict[str, Any]:
         cell_lat, cell_lng = cell
-        # Edge cells can cross the product bounds when the selected point sits
-        # exactly on the border. Clamp rather than ask Google outside India.
-        cell_lat = min(max(cell_lat, INDIA_BOUNDS["south"]), INDIA_BOUNDS["north"])
-        cell_lng = min(max(cell_lng, INDIA_BOUNDS["west"]), INDIA_BOUNDS["east"])
+        # Clamp edge cells to valid world coordinates.
+        cell_lat = min(max(cell_lat, WORLD_BOUNDS["south"]), WORLD_BOUNDS["north"])
+        cell_lng = min(max(cell_lng, WORLD_BOUNDS["west"]), WORLD_BOUNDS["east"])
         try:
             data = _air_current(cell_lat, cell_lng)
             return {"latitude": cell_lat, "longitude": cell_lng, "data": data}
@@ -405,11 +443,37 @@ def _air_grid(lat: float, lng: float, grid_size: int) -> Dict[str, Any]:
     return {"samples": samples}
 
 
+def _cache_key(operation: str, payload: Mapping[str, Any]) -> str:
+    material = {
+        "operation": operation,
+        "latitude": round(float(payload.get("latitude")), 4),
+        "longitude": round(float(payload.get("longitude")), 4),
+        "regionCode": str(payload.get("regionCode") or "").upper(),
+        "hours": payload.get("hours"),
+        "pageToken": payload.get("pageToken") or "",
+    }
+    return json.dumps(material, sort_keys=True, separators=(",", ":"))
+
+
+def _cached_dispatch(operation: str, payload: Mapping[str, Any]) -> Dict[str, Any]:
+    ttl = CACHE_TTLS.get(operation, 0)
+    key = _cache_key(operation, payload)
+    now = time.monotonic()
+    cached = _response_cache.get(key)
+    if ttl and cached and now - float(cached.get("ts") or 0.0) < ttl:
+        return cached["data"]
+    data = _dispatch(operation, payload)
+    if ttl:
+        _response_cache[key] = {"ts": now, "data": data}
+    return data
+
+
 def _dispatch(operation: str, payload: Mapping[str, Any]) -> Dict[str, Any]:
     lat, lng = _location(payload)
+    region_code = _region_code(payload)
 
     if operation == "air_current":
-        return _air_current(lat, lng)
+        return _air_current(lat, lng, region_code)
 
     if operation == "air_grid":
         return _air_grid(lat, lng, _grid_size(payload))
@@ -451,6 +515,7 @@ def _dispatch(operation: str, payload: Mapping[str, Any]) -> Dict[str, Any]:
                     "location.latitude": lat,
                     "location.longitude": lng,
                     "days": 10,
+                    "pageSize": 10,
                     "unitsSystem": "METRIC",
                     "languageCode": "en",
                 },
@@ -472,6 +537,27 @@ def _dispatch(operation: str, payload: Mapping[str, Any]) -> Dict[str, Any]:
             )
         )
 
+    if operation == "weather_alerts":
+        if region_code and region_code not in WEATHER_ALERT_REGION_CODES:
+            return {
+                "weatherAlerts": [],
+                "regionCode": region_code,
+                "alertStatus": "unsupported",
+            }
+        data = _google_json(
+            _query(
+                f"{WEATHER_BASE}/publicAlerts:lookup",
+                {
+                    "location.latitude": lat,
+                    "location.longitude": lng,
+                    "languageCode": "en",
+                },
+            )
+        )
+        rows = data.get("weatherAlerts")
+        data["alertStatus"] = "active" if isinstance(rows, list) and rows else "none"
+        return data
+
     if operation == "air_forecast":
         now = dt.datetime.now(dt.timezone.utc)
         start = now.replace(minute=0, second=0, microsecond=0) + dt.timedelta(hours=1)
@@ -479,25 +565,27 @@ def _dispatch(operation: str, payload: Mapping[str, Any]) -> Dict[str, Any]:
         # "time period is not supported". 95h still returns ~96 hourly rows. Matches the
         # browser path in src/components/VayuLokLive.tsx. (Measured: 96h => 400, 95h => 200.)
         end = start + dt.timedelta(hours=95)
+        request_body: Dict[str, Any] = {
+            "location": {"latitude": lat, "longitude": lng},
+            "period": {
+                "startTime": start.isoformat().replace("+00:00", "Z"),
+                "endTime": end.isoformat().replace("+00:00", "Z"),
+            },
+            "pageSize": 96,
+            "universalAqi": True,
+            "extraComputations": [
+                "LOCAL_AQI",
+                "POLLUTANT_CONCENTRATION",
+                "DOMINANT_POLLUTANT_CONCENTRATION",
+                "POLLUTANT_ADDITIONAL_INFO",
+            ],
+            "languageCode": "en",
+        }
+        request_body.update(_local_aqi_override(region_code))
         return _google_json(
             f"{AIR_BASE}/forecast:lookup",
             method="POST",
-            body={
-                "location": {"latitude": lat, "longitude": lng},
-                "period": {
-                    "startTime": start.isoformat().replace("+00:00", "Z"),
-                    "endTime": end.isoformat().replace("+00:00", "Z"),
-                },
-                "pageSize": 96,
-                "universalAqi": True,
-                "customLocalAqis": [{"regionCode": "IN", "aqi": "ind_cpcb"}],
-                "extraComputations": [
-                    "LOCAL_AQI",
-                    "POLLUTANT_CONCENTRATION",
-                    "DOMINANT_POLLUTANT_CONCENTRATION",
-                ],
-                "languageCode": "en",
-            },
+            body=request_body,
         )
 
     if operation == "air_history":
@@ -508,10 +596,15 @@ def _dispatch(operation: str, payload: Mapping[str, Any]) -> Dict[str, Any]:
             "hours": hours,
             "pageSize": min(100, hours),
             "universalAqi": True,
-            "customLocalAqis": [{"regionCode": "IN", "aqi": "ind_cpcb"}],
-            "extraComputations": ["LOCAL_AQI", "POLLUTANT_CONCENTRATION"],
+            "extraComputations": [
+                "LOCAL_AQI",
+                "POLLUTANT_CONCENTRATION",
+                "DOMINANT_POLLUTANT_CONCENTRATION",
+                "POLLUTANT_ADDITIONAL_INFO",
+            ],
             "languageCode": "en",
         }
+        request_body.update(_local_aqi_override(region_code))
         if token:
             request_body["pageToken"] = token
         return _google_json(
@@ -545,7 +638,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:  # noqa: ARG
         if not isinstance(operation, str) or operation not in OPERATIONS:
             raise ValueError("unsupported operation")
         _validate_payload_fields(operation, payload)
-        return _response(event, 200, _dispatch(operation, payload))
+        return _response(event, 200, _cached_dispatch(operation, payload))
     except ValueError as exc:
         return _response(
             event, 400, {"error": "invalid_request", "detail": str(exc)}

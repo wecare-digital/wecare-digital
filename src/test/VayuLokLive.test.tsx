@@ -387,6 +387,17 @@ function requestIs( input: RequestInfo | URL, hostname: string, pathnamePrefix?:
   return Boolean( url && url.hostname === hostname && ( !pathnamePrefix || url.pathname.startsWith( pathnamePrefix ) ) );
 }
 
+function environmentOperationIs( call: unknown[], operation: string ): boolean {
+  const input = call[ 0 ] as RequestInfo | URL;
+  const init = call[ 1 ] as RequestInit | undefined;
+  if ( !String( input ).includes( '/vayulok/environment' ) || !init?.body ) return false;
+  try {
+    return JSON.parse( String( init.body ) )?.operation === operation;
+  } catch {
+    return false;
+  }
+}
+
 function airConditionsFetch( aqi = 120, pm25 = 58 ) {
   return vi.fn( ( input: RequestInfo | URL, _init?: RequestInit ) => {
     const url = String( input );
@@ -408,8 +419,34 @@ function airConditionsFetch( aqi = 120, pm25 = 58 ) {
 function environmentFetch() {
   const now = new Date();
   const hour = ( offset: number ) => new Date( now.getTime() + offset * 60 * 60 * 1000 ).toISOString();
-  return vi.fn( ( input: RequestInfo | URL, _init?: RequestInit ) => {
+  const reply = ( input: RequestInfo | URL, _init?: RequestInit ): Promise<Response> => {
     const url = String( input );
+    if ( url.includes( '/vayulok/environment' ) ) {
+      let payload: Record<string, any> = {};
+      try { payload = JSON.parse( String( _init?.body || '{}' ) ); } catch { /* invalid -> empty */ }
+      const providerUrlByOperation: Record<string, string> = {
+        air_current: 'https://airquality.googleapis.com/v1/currentConditions:lookup',
+        weather_current: 'https://weather.googleapis.com/v1/currentConditions:lookup',
+        weather_hourly: 'https://weather.googleapis.com/v1/forecast/hours:lookup',
+        weather_daily: 'https://weather.googleapis.com/v1/forecast/days:lookup',
+        weather_history: 'https://weather.googleapis.com/v1/history/hours:lookup',
+        air_forecast: 'https://airquality.googleapis.com/v1/forecast:lookup',
+        air_history: 'https://airquality.googleapis.com/v1/history:lookup',
+      };
+      if ( payload.operation === 'weather_alerts' ) {
+        if ( payload.regionCode === 'IN' ) {
+          return Promise.resolve( { ok: true, json: async () => ( { weatherAlerts: [], regionCode: 'IN', alertStatus: 'unsupported' } ) } as Response );
+        }
+        return reply( 'https://weather.googleapis.com/v1/publicAlerts:lookup', _init ).then( async response => {
+          const data = await response.json();
+          const rows = Array.isArray( data.weatherAlerts ) ? data.weatherAlerts : [];
+          return { ok: true, json: async () => ( { ...data, alertStatus: rows.length ? 'active' : 'none' } ) } as Response;
+        } );
+      }
+      const providerUrl = providerUrlByOperation[ payload.operation ];
+      if ( providerUrl ) return reply( providerUrl, _init );
+      return Promise.resolve( { ok: false, json: async () => ( {} ) } as Response );
+    }
     if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
       return Promise.resolve( {
         ok: true,
@@ -594,7 +631,8 @@ function environmentFetch() {
       } as Response );
     }
     return Promise.resolve( { ok: false, json: async () => ( {} ) } as Response );
-  } );
+  };
+  return vi.fn( reply );
 }
 
 
