@@ -2278,7 +2278,9 @@ const VayuLokLive: React.FC = () => {
                   (header + toggle + honest empty state) shows, firing no fetch of its own. */}
               <div className="vl-live-air-card-wrap">
               <aside className="vl-live-air-card" aria-label="Air quality details" onScroll={ () => setPollutantTip( null ) }>
-                <div className="vl-live-air-context" aria-label="Selected location and local time">
+                {/* Place name (as Google returned it), the live clock and the zone label are raw
+                    data, not UI copy - kept out of translation per the data-honesty rule. */}
+                <div className="vl-live-air-context" aria-label="Selected location and local time" data-wc-no-translate="true">
                   <span className="vl-live-air-context-item is-location" title={ place.addr || place.name }>
                     <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.location } /></svg>
                     <strong>{ place.name }</strong>
@@ -2367,7 +2369,7 @@ const VayuLokLive: React.FC = () => {
                             { air.pollutants.map( p => (
                               <li className="vl-live-air-pollutant-row" key={ p.code }>
                                 <span className="vl-live-air-pollutant-label">{ p.label }</span>
-                                <span className="vl-live-air-pollutant-value">{ formatPollutantValue( p.value ) } <small title={ unitTermLabel( p.unit ) }>{ p.unit }</small></span>
+                                <span className="vl-live-air-pollutant-value" data-wc-no-translate="true">{ formatPollutantValue( p.value ) } <small title={ unitTermLabel( p.unit ) }>{ p.unit }</small></span>
                                 <button
                                   type="button"
                                   className="vl-live-air-pollutant-info"
@@ -2465,8 +2467,8 @@ const VayuLokLive: React.FC = () => {
                               { airForecast.slice( 0, airForecastHours ).map( ( point, idx ) => (
                                 <button key={ point.time } type="button" className={ `vl-live-air-forecast-card ${airForecastInspectIdx === idx ? 'is-active' : ''}`.trim() } aria-pressed={ airForecastInspectIdx === idx } onClick={ () => setAirForecastInspectIdx( idx ) }>
                                   <span>{ formatHistoryPointLabel( point.time, locationTime.timeZoneId, locationZoneLabel ) }</span>
-                                  <strong>AQI { point.aqi }</strong>
-                                  { Number.isFinite( point.pm25 ) && <small>PM2.5 { Math.round( point.pm25 as number ) } µg/m³</small> }
+                                  <strong>AQI <span data-wc-no-translate="true">{ point.aqi }</span></strong>
+                                  { Number.isFinite( point.pm25 ) && <small>PM2.5 <span data-wc-no-translate="true">{ Math.round( point.pm25 as number ) } µg/m³</span></small> }
                                 </button>
                               ) ) }
                             </div>
@@ -2757,7 +2759,7 @@ const VayuLokLive: React.FC = () => {
                               </div>
                               <div className="vl-live-air-history-stamp" aria-label="Reading time">
                                 <svg className="vl-live-air-history-stamp-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
-                                <span>{ stamp }</span>
+                                <span data-wc-no-translate="true">{ stamp }</span>
                               </div>
                               <span className="vl-live-sr-only">Latest reading { Math.round( latest.aqi ) }, { latest.word }.</span>
                             </>
