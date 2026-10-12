@@ -47,6 +47,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
  */
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
+
+// TEST-ONLY: lets us visually evaluate the map without Google's rendered attribution.
+// Never enable this flag in production; Google Maps Platform requires its attribution to remain visible.
+const HIDE_GOOGLE_MAP_ATTRIBUTION_TEST = process.env.NEXT_PUBLIC_HIDE_GOOGLE_MAP_ATTRIBUTION_TEST === '1';
 const ENVIRONMENT_URL = `${process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api'}/vayulok/environment`;
 
 async function environmentLookup(
@@ -2505,7 +2509,7 @@ const VayuLokLive: React.FC = () => {
   }, [ weather ] );
 
   return (
-    <section className="vl-live" aria-label="VayuLok conditions">
+    <section className={`vl-live${HIDE_GOOGLE_MAP_ATTRIBUTION_TEST ? " vl-live-hide-google-attribution-test" : ""}`} aria-label="VayuLok conditions">
       {/* Search is ALWAYS rendered - it does not wait for the map to paint, so a user can look up
           a city or pincode while the map is still loading or if it fails entirely. The map is a
           visualization layer, not a prerequisite for searching or for the environmental data. */}
@@ -3848,6 +3852,13 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%;border-radius:var(--panel-r);overflow:hidden}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
+        /* TEST-ONLY attribution suppression. Enabled only when
+           NEXT_PUBLIC_HIDE_GOOGLE_MAP_ATTRIBUTION_TEST=1 at build time.
+           This is intentionally isolated from the normal/production map path. */
+        .vl-live-hide-google-attribution-test :global(.gm-style-cc),
+        .vl-live-hide-google-attribution-test :global(.gmnoprint),
+        .vl-live-hide-google-attribution-test :global(a[aria-label="Google Maps"]),
+        .vl-live-hide-google-attribution-test :global(img[alt="Google"]){display:none!important}
 
         /* REFERENCE-MATCHED ATMOSPHERE. This is code-rendered, not a background image.
            Clouds are soft translucent SVG masses; wind is a field of animated dashed
