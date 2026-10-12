@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import BrandLockup from './BrandLockup';
 import HeaderCart from './HeaderCart';
+import VoiceSearchMic from './VoiceSearchMic';
 import { PRODUCTS } from '../content/products';
 
 /**
@@ -436,15 +437,18 @@ const Header: React.FC = () => {
                   searching is the only way to use it, but this menu is readable at a
                   glance - popping the on-screen keyboard over the whole catalogue on a
                   phone would cost more than it saves. */}
-              <input
-                className="nav-search"
-                type="search"
-                value={ query }
-                placeholder="Search"
-                aria-label="Search navigation"
-                onChange={ event => setQuery( event.target.value ) }
-                onKeyDown={ event => { if ( event.key === 'Escape' ) close(); } }
-              />
+              <div className="nav-search-field">
+                <input
+                  className="nav-search"
+                  type="search"
+                  value={ query }
+                  placeholder="Search"
+                  aria-label="Search navigation"
+                  onChange={ event => setQuery( event.target.value ) }
+                  onKeyDown={ event => { if ( event.key === 'Escape' ) close(); } }
+                />
+                <VoiceSearchMic onTranscript={ setQuery } />
+              </div>
 
               {/* Flat results while searching: column headings over a filtered list
                   describe categories that are no longer all present, which reads as
@@ -738,12 +742,9 @@ const Header: React.FC = () => {
         /* Search field. Sized off the language panel's input rather than a new set of
            numbers - same 42px row, same 10px radius, same focus ring - so the two
            search fields on the site are recognisably the same control. */
-        /* THE SITE-WIDE SEARCH LOOK: borderless, bottom hairline only, no icon, no box. The same
-           field as the blog search (BlogSearch) and the Anew blog panel (ProductBlogPanel), so
-           every search a visitor meets reads as one control. Transparent fill, 1px bottom
-           hairline, and on focus the hairline darkens with a lime underline (WCAG 1.4.11 without
-           a box). */
-        .nav-search{width:100%;margin:0 0 12px;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;padding:0 2px;font-size:16px;font-weight:400;line-height:1.3;color:rgba(0,0,0,.898);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+        /* THE SITE-WIDE SEARCH LOOK: borderless bottom hairline plus the shared lime voice mic. */
+        .nav-search-field{position:relative;margin:0 0 12px}
+        .nav-search{width:100%;margin:0;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;padding:0 44px 0 2px;font-size:16px;font-weight:400;line-height:1.3;color:rgba(0,0,0,.898);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
         .nav-search::placeholder{color:rgba(0,0,0,.42)}
         .nav-search:focus-visible{border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470}
 

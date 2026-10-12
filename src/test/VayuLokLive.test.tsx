@@ -1638,6 +1638,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( speech ).not.toBeNull();
     expect( speech!.lang ).toBe( 'bn-IN' );
     expect( mic.getAttribute( 'aria-pressed' ) ).toBe( 'true' );
+    const micPath = mic.querySelector( 'path' );
+    expect( micPath?.getAttribute( 'd' ) ).toBe(
+      'M408-453.92q-29-30.91-29-75.08v-251q0-41.67 29.44-70.83Q437.88-880 479.94-880t71.56 29.17Q581-821.67 581-780v251q0 44.17-29 75.08Q523-423 480-423t-72-30.92ZM480-651Zm-30 531v-136q-106-11-178-89t-72-184h60q0 91 64.29 153t155.5 62q91.21 0 155.71-62Q700-438 700-529h60q0 106-72 184t-178 89v136h-60Zm59.5-376.5Q521-510 521-529v-251q0-17-11.79-28.5T480-820q-17.42 0-29.21 11.5T439-780v251q0 19 11.5 32.5T480-483q18 0 29.5-13.5Z',
+    );
+    const voiceCss = Array.from( document.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
+    expect( voiceCss ).toContain( 'background:#1a3a2a;color:#d1f470' );
 
     act( () => {
       speech!.onresult?.( { results: [ [ { transcript: 'কলকাতা' } ] ] } );
@@ -1871,16 +1877,6 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
     expect( fieldRule ).toContain( 'border-radius:0' );
     expect( fieldRule ).toContain( 'position:relative' );
-    const voiceRule = cssRuleFor( css, '.vl-live-voice-btn' );
-    expect( voiceRule ).toContain( 'color:var(--green)' );
-    expect( voiceRule ).toContain( 'width:32px' );
-    expect( voiceRule ).toContain( 'height:32px' );
-    const voiceHoverRule = cssRuleFor( css, '.vl-live-voice-btn:hover' );
-    expect( voiceHoverRule ).toContain( 'background:var(--lime-tint)' );
-    expect( voiceHoverRule ).toContain( 'color:var(--green)' );
-    const voiceListeningRule = cssRuleFor( css, '.vl-live-voice-btn.is-listening' );
-    expect( voiceListeningRule ).toContain( 'background:var(--lime)' );
-    expect( voiceListeningRule ).toContain( 'color:var(--green)' );
     // DECOUPLED FROM mapReady: the search box now renders on EVERY path (it no longer waits for
     // the map to paint), so a user can search for a city/pincode even on the keyless path or if
     // the map fails. The live #vl-live-search input is therefore present here.

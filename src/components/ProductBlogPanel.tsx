@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { BlogCard } from '../lib/public-blog';
 import BlogTags from './BlogTags';
 import RssIcon from './RssIcon';
+import VoiceSearchMic from './VoiceSearchMic';
 
 /**
  * THE RIGHT-HAND BLOG PANEL on a product page (today only /anew/).
@@ -26,8 +27,8 @@ import RssIcon from './RssIcon';
  * projection /blog/ renders and the same one search already matches on - title, excerpt, category,
  * tags, publishedDate. Nothing new is fetched; anew.tsx hands these in from getStaticProps.
  *
- * THE SEARCH BOX IS DELIBERATELY PLAINER THAN BlogSearch. Owner spec: no inner border, no search
- * icon, no submit button - it filters live as you type.
+ * THE SEARCH BOX keeps the borderless live-search treatment and now carries the same shared
+ * lime voice mic as the menu, VayuLok and the other public search surfaces.
  *
  * TWO CATEGORIES, NO "ALL". Owner instruction: the switch shows only the real categories
  * (Conversations, Gastronomy today), with no "All" option. It defaults to the first category.
@@ -211,7 +212,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         ) ) }
       </div>
 
-      {/* Borderless live search. A real labelled input (sr-only label), no icon, no button. */}
+      {/* Borderless live search with the shared site voice mic. */}
       <div className="pbp-search">
         <label className="pbp-sr" htmlFor="pbp-q">Search the blog</label>
         <input
@@ -222,6 +223,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
           value={ query }
           onChange={ e => { setQuery( e.target.value ); resetToFirstPage(); } }
         />
+        <VoiceSearchMic onTranscript={ transcript => { setQuery( transcript ); resetToFirstPage(); } } />
       </div>
 
       {/* THE SWIPEABLE PAGER. The track is a horizontal scroll-snap container: each child .pbp-page
@@ -308,15 +310,14 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         .pbp-pill.is-on{background:#d1f470;border-color:#1a3a2a}
         .pbp-pill:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
 
-        /* BORDERLESS SEARCH. No inner border, no icon, no button. One quiet bottom hairline so it
-           still reads as a field; the hairline darkens and a lime underline grows on focus. */
+        /* BORDERLESS SEARCH. One quiet bottom hairline plus the shared lime voice mic. */
         .pbp-search{position:relative;margin:0 0 16px}
         .pbp-sr{
           position:absolute;width:1px;height:1px;padding:0;margin:-1px;
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
         .pbp-search input{
-          width:100%;box-sizing:border-box;height:48px;padding:0 2px;
+          width:100%;box-sizing:border-box;height:48px;padding:0 44px 0 2px;
           font-size:18px;font-family:inherit;color:#1a1a1a;background:transparent;
           border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;

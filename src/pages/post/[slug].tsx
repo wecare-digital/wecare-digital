@@ -15,6 +15,7 @@ import { postContext, type PostLink } from '../../lib/post-neighbours';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import BlogTags from '../../components/BlogTags';
 import RssIcon from '../../components/RssIcon';
+import VoiceSearchMic from '../../components/VoiceSearchMic';
 
 /**
  * EVERY FIELD BELOW `post` IS OPTIONAL, and that is not defensiveness - it is what keeps
@@ -149,6 +150,8 @@ export default function BlogPostPage ( {
    * hit and scrolling back up does not replay it.
    */
   const shareRef = useRef<HTMLDivElement | null>( null );
+  const postSearchFormRef = useRef<HTMLFormElement | null>( null );
+  const postSearchInputRef = useRef<HTMLInputElement | null>( null );
   useEffect( () => {
     const el = shareRef.current;
     const article = el?.closest( 'article' );
@@ -371,12 +374,20 @@ export default function BlogPostPage ( {
               panel, so a reader meets one search control across the blog. On a POST page there is
               no post list in the page to filter live, so this is a real GET form to /blog/: typing
               a term and pressing Enter navigates to /blog/?q=<term>, where the index reads ?q= and
-              filters the full corpus. name="q" is the param /blog/ reads. No submit button and no
-              icon, matching the borderless field on the other surfaces; the form still submits on
+              filters the full corpus. name="q" is the param /blog/ reads. There is still no visible
+              submit button; the shared lime mic is the one icon on this borderless field. The form submits on
               Enter, and the sr-only label gives it an accessible name. */}
-          <form className="post-search" role="search" action="/blog/" method="get">
+          <form ref={ postSearchFormRef } className="post-search" role="search" action="/blog/" method="get">
             <label className="post-search-sr" htmlFor="post-q">Search the blog</label>
-            <input id="post-q" name="q" type="search" autoComplete="off" placeholder="Search posts" />
+            <input ref={ postSearchInputRef } id="post-q" name="q" type="search" autoComplete="off" placeholder="Search posts" />
+            <VoiceSearchMic
+              onTranscript={ transcript => {
+                if ( !postSearchInputRef.current ) return;
+                postSearchInputRef.current.value = transcript;
+                if ( postSearchFormRef.current?.requestSubmit ) postSearchFormRef.current.requestSubmit();
+                else postSearchFormRef.current?.submit();
+              } }
+            />
           </form>
           { post.category && <div className="category">{ post.category }</div> }
           <h1>{ post.title }</h1>
@@ -564,7 +575,7 @@ export default function BlogPostPage ( {
         .article-shell{max-width:1300px;margin:0 auto;padding:140px 24px 96px;color:#1a1a1a;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
         article{max-width:700px;margin:0 auto}
         /* THE GLOBAL BORDERLESS SEARCH FIELD, matching /blog/ (.blog-search) and the /anew/ panel
-           (.pbp-search): transparent fill, one quiet bottom hairline, no icon, no button. On focus
+           (.pbp-search): transparent fill, one quiet bottom hairline, the shared lime mic, no submit button. On focus
            the hairline darkens and a lime underline grows. A GET form, so it works with no JS. */
         .post-search{position:relative;margin:0 0 24px;max-width:520px}
         .post-search-sr{
@@ -572,7 +583,7 @@ export default function BlogPostPage ( {
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
         .post-search input{
-          width:100%;box-sizing:border-box;height:52px;padding:0 2px;
+          width:100%;box-sizing:border-box;height:52px;padding:0 44px 0 2px;
           font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
           border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
