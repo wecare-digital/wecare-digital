@@ -2592,9 +2592,12 @@ const VayuLokLive: React.FC = () => {
                                 { airForecast[ airForecastInspectIdx ].localAqi != null && airForecast[ airForecastInspectIdx ].universalAqi != null && (
                                   <span><strong>Local / Universal</strong> { airForecast[ airForecastInspectIdx ].localAqi } / { airForecast[ airForecastInspectIdx ].universalAqi }</span>
                                 ) }
-                                { airForecast[ airForecastInspectIdx ].healthRecommendations?.generalPopulation && (
-                                  <p>{ airForecast[ airForecastInspectIdx ].healthRecommendations?.generalPopulation }</p>
-                                ) }
+                                {/* The per-hour general-population health advisory paragraph was
+                                    removed from the forecast detail: it duplicated the dedicated
+                                    Health Recommendations section below and broke the forecast
+                                    panel's compact type scale. The forecast detail now shows only
+                                    the compact forecast metrics (dominant, local/universal, and the
+                                    dominant pollutant's sources/effects). */}
                               </div>
                             ) }
                           </>
@@ -3376,10 +3379,11 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-forecast-card small{color:var(--status);font-size:10.5px;font-weight:600;line-height:1.3}
         .vl-live-air-forecast-detail{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:10px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.4}
         .vl-live-air-forecast-detail strong{color:var(--status);font-weight:700}
-        /* Match the rest of the card: the forecast's recommendation paragraph uses the shared
-           body-text ladder (same tokens as .vl-live-air-health-text) rather than a bespoke 14px,
-           so its font no longer looks smaller/off against the other sections. */
-        .vl-live-air-forecast-detail p{flex:1 0 100%;margin:2px 0 0;color:var(--body);font-size:var(--vl-body-size);font-weight:var(--vl-body-weight);line-height:var(--vl-body-lh);letter-spacing:var(--vl-body-track)}
+        /* Any paragraph inside the forecast detail shares the SAME compact type as the detail
+           chips (11.5px/600) so the forecast section reads as one consistent scale. (The large
+           general-population advisory paragraph was removed from the forecast detail; the
+           dedicated advisory section on the Air tab still carries it.) */
+        .vl-live-air-forecast-detail p{flex:1 0 100%;margin:2px 0 0;color:var(--body);font-size:11.5px;font-weight:600;line-height:1.4;letter-spacing:0}
 
         /* ── WEATHER TAB ─────────────────────────────────────────────────────────
            Reuses the Air panel's section headings, range pills and forecast strip/detail; these
