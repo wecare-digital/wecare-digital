@@ -161,8 +161,24 @@ const VayuLokPage: React.FC = () => {
   }, [] );
 
   useEffect( () => {
+    // RE-MEASURE ON RESIZE AND FONT-LOAD, not only when the word changes - the same fix
+    // index.tsx, RotatingHero.tsx and grahak-os carry. Running on [ cycleIndex ] alone left the
+    // pill's px width stale: the hero font-size is a clamp(...vw...), so each word's rendered
+    // width depends on the viewport, and the Inter webfont swaps in after first paint and widens
+    // every word. With overflow:hidden on .vl-cycle a stale, too-narrow width clips the tail of
+    // the word ("Air" -> "Ai", "Forecast" -> "Foreca"). Under prefers-reduced-motion the interval
+    // never starts, so nothing self-heals. Observe the active word (not the pill this effect sets).
     const el = wordRefs.current[ cycleIndex ];
-    if ( el ) setCycleW( el.offsetWidth );
+    if ( !el ) return undefined;
+    const measure = () => setCycleW( el.offsetWidth );
+    measure();
+    if ( typeof document !== 'undefined' && ( document as any ).fonts?.ready?.then ) {
+      ( document as any ).fonts.ready.then( () => measure() );
+    }
+    if ( typeof ResizeObserver === 'undefined' ) return undefined;
+    const ro = new ResizeObserver( measure );
+    ro.observe( el );
+    return () => ro.disconnect();
   }, [ cycleIndex ] );
 
   return (
