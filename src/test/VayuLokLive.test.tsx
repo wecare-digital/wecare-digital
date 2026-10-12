@@ -1645,7 +1645,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const voiceCss = Array.from( document.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
     expect( voiceCss ).toContain( 'background:transparent;color:#d1f470' );
     expect( voiceCss ).toContain( 'border-radius:0' );
+    expect( voiceCss ).toContain( 'width:23px;height:23px' );
+    expect( voiceCss ).toContain( 'stroke:#1a3a2a;stroke-width:36' );
+    expect( voiceCss ).toContain( 'paint-order:stroke fill' );
     expect( voiceCss ).not.toContain( 'border-radius:50%;background:#1a3a2a' );
+    expect( voiceCss ).not.toContain( 'opacity:.58' );
 
     act( () => {
       speech!.onresult?.( { results: [ [ { transcript: 'কলকাতা' } ] ] } );
