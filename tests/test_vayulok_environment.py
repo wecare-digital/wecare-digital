@@ -227,7 +227,9 @@ def test_air_grid_accepts_only_the_two_v8_grid_sizes(mod):
     upstream.assert_not_called()
 
 
-def test_air_forecast_is_fixed_to_96_hours(mod):
+def test_air_forecast_window_stays_within_googles_limit(mod):
+    # forecast:lookup rejects an exactly-96-hour period (HTTP 400 "time period is not
+    # supported"); 95h is the largest accepted window and still returns ~96 hourly rows.
     with patch.object(mod, "_google_json", return_value={}) as upstream:
         mod._dispatch(
             "air_forecast", {"latitude": 19.076, "longitude": 72.8777}
@@ -240,7 +242,7 @@ def test_air_forecast_is_fixed_to_96_hours(mod):
     end = mod.dt.datetime.fromisoformat(
         request_body["period"]["endTime"].replace("Z", "+00:00")
     )
-    assert end - start == mod.dt.timedelta(hours=96)
+    assert end - start == mod.dt.timedelta(hours=95)
 
 
 @pytest.mark.parametrize("hours", [24, 168, 720])

@@ -1691,7 +1691,12 @@ const VayuLokLive: React.FC = () => {
       const start = new Date();
       start.setUTCMinutes( 0, 0, 0 );
       start.setUTCHours( start.getUTCHours() + 1 );
-      const end = new Date( start.getTime() + 96 * 60 * 60 * 1000 );
+      // Google's forecast:lookup rejects an EXACTLY-96-hour period with HTTP 400
+      // "The specified time period is not supported" - the supported window tops out at 95h.
+      // A 95-hour period still returns ~96 hourly rows, which fully covers the 24/48/96h UI
+      // ranges, so request 95h to stay inside the limit. (Measured against the live API: 96h =>
+      // 400, 95h => 200 with 96 rows.) This is the fix for the forecast rendering empty in prod.
+      const end = new Date( start.getTime() + 95 * 60 * 60 * 1000 );
       const res = await fetch(
         'https://airquality.googleapis.com/v1/forecast:lookup?key=' + encodeURIComponent( MAPS_KEY ),
         {
