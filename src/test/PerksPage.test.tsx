@@ -72,6 +72,10 @@ describe( 'Perks page', () => {
 
   it( 'has no working-looking transacting control', () => {
     const { container } = render( <PerksPage /> );
+    // Drop the shared Subscribe+Share block before counting: every public page now carries it at
+    // the foot of its content, and ShareLinks legitimately renders share buttons (native-share,
+    // copy-link). Those are the block's controls, not a transacting control on the Perks page.
+    container.querySelector( '.public-share' )?.remove();
     // No buttons at all. The only links are honest navigation to pages that already work; none
     // transacts and none carries a dead #gift-cards/#rewards/#offers anchor.
     expect( container.querySelectorAll( 'button' ) ).toHaveLength( 0 );
