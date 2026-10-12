@@ -539,7 +539,7 @@ function environmentFetch() {
             iceThickness: { thickness: 0, unit: 'MILLIMETERS' },
             daytimeForecast: {
               precipitation: { probability: { percent: 20, type: 'RAIN' }, qpf: { quantity: 0.6 } },
-              weatherCondition: { description: { text: 'Partly cloudy' } },
+              weatherCondition: { description: { text: 'Partly cloudy' }, iconBaseUri: 'https://example.test/weather/day' },
               relativeHumidity: 66,
               uvIndex: 5,
               thunderstormProbability: 10,
@@ -863,6 +863,19 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( String( dailyCall?.[ 0 ] ) ).toContain( 'pageSize=10' );
     // 24h history with a metric toggle.
     expect( within( panel ).getByRole( 'group', { name: 'Weather history metric' } ) ).toBeTruthy();
+    expect( panel.querySelector( '.vl-live-wx-daily-icon' ) ).not.toBeNull();
+    // History cards are selectable; selection reveals the full returned hourly snapshot.
+    const historyCard = panel.querySelector( '.vl-live-wx-hist-item' ) as HTMLButtonElement;
+    expect( historyCard ).toBeTruthy();
+    fireEvent.click( historyCard );
+    await waitFor( () => {
+      const detail = panel.querySelector( '.vl-live-wx-history .vl-live-air-forecast-detail' );
+      expect( detail?.textContent ).toContain( 'Feels' );
+      expect( detail?.textContent ).toContain( 'Dew point' );
+      expect( detail?.textContent ).toContain( 'Pressure' );
+      expect( detail?.textContent ).toContain( 'Wind' );
+      expect( detail?.textContent ).toContain( 'Cloud' );
+    } );
     // Alerts: India has no coverage, so the neutral line shows (not an empty noisy panel).
     expect( panel.textContent ).toContain( 'Weather alerts are not supported by Google for this region.' );
     // No publicAlerts request was made for India.
@@ -1355,6 +1368,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const forecastDetail = container.querySelector( '.vl-live-air-forecast-detail' );
     expect( forecastDetail?.textContent ).toContain( 'Dominant' );
     expect( forecastDetail?.textContent ).toContain( 'Local / Universal' );
+    expect( forecastDetail?.textContent ).toContain( 'PM2.5' );
+    expect( forecastDetail?.textContent ).toMatch( /26\s*µg\/m³/ );
     // The general-population health advisory paragraph was removed from the forecast detail (it
     // duplicated the dedicated Health Recommendations section and broke the compact type scale).
     expect( forecastDetail?.textContent ).not.toContain( 'Forecast health recommendation.' );
@@ -1381,6 +1396,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
         return raw ? JSON.parse( String( raw ) ).hours === 24 : false;
       } );
       expect( has24 ).toBe( true );
+      const history24 = calls.find( call => {
+        const raw = ( call[ 1 ] as RequestInit | undefined )?.body;
+        return raw ? JSON.parse( String( raw ) ).hours === 24 : false;
+      } );
+      const history24Body = JSON.parse( String( ( history24?.[ 1 ] as RequestInit | undefined )?.body || '{}' ) );
+      expect( history24Body.extraComputations ).toContain( 'POLLUTANT_ADDITIONAL_INFO' );
     } );
 
     const metric = await screen.findByRole( 'group', { name: 'Heatmap metric' } );
@@ -1837,6 +1858,13 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const weatherDailyListRule = css.match( /\.vl-live-wx-daily-list\{[^}]*\}/ )?.[ 0 ] || '';
     expect( weatherDailyListRule ).toContain( 'max-height:430px' );
     expect( weatherDailyListRule ).toContain( 'overflow-y:auto' );
+    const weatherHistoryHeadRule = css.match( /\.vl-live-wx-history \.vl-live-air-forecast-head\{[^}]*\}/ )?.[ 0 ] || '';
+    const weatherHistoryTitleRule = css.match( /\.vl-live-wx-history \.vl-live-air-forecast-title\{[^}]*\}/ )?.[ 0 ] || '';
+    const weatherHistoryStripRule = css.match( /\.vl-live-wx-hist-strip\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( weatherHistoryHeadRule ).toContain( 'display:block' );
+    expect( weatherHistoryHeadRule ).toContain( 'margin-bottom:8px' );
+    expect( weatherHistoryTitleRule ).toContain( 'white-space:nowrap' );
+    expect( weatherHistoryStripRule ).toContain( 'margin:8px 0 0' );
     // The heatmap On/Off state control lives in the air panel's `air ? (...)` branch, so on the
     // keyless path (no live air data) it is correctly absent. Assert that absence rather than a
     // live On/Off string, which this path can never produce.
