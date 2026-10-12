@@ -453,12 +453,21 @@ function environmentFetch() {
           feelsLikeTemperature: { degrees: 27 },
           relativeHumidity: 68,
           wind: { speed: { value: 8, unit: 'KILOMETERS_PER_HOUR' }, direction: { degrees: 90 }, gust: { value: 12 } },
-          precipitation: { probability: { percent: 10 }, qpf: { quantity: 0.4 } },
+          precipitation: { probability: { percent: 10, type: 'RAIN' }, qpf: { quantity: 0.4 } },
+          thunderstormProbability: 15,
           uvIndex: 4,
           visibility: { distance: 11 },
           airPressure: { meanSeaLevelMillibars: 1009 },
           dewPoint: { degrees: 19 },
+          heatIndex: { degrees: 29 },
+          windChill: { degrees: 25 },
           cloudCover: 35,
+          currentConditionsHistory: {
+            temperatureChange: { degrees: 1.5 },
+            minTemperature: { degrees: 21 },
+            maxTemperature: { degrees: 30 },
+            qpf: { quantity: 4.8 },
+          },
           weatherCondition: { description: { text: 'Mostly sunny' } },
         } ),
       } as Response );
@@ -471,8 +480,18 @@ function environmentFetch() {
             interval: { startTime: hour( i ) },
             temperature: { degrees: 26 + i },
             feelsLikeTemperature: { degrees: 27 + i },
-            precipitation: { probability: { percent: 10 + i * 5 }, qpf: { quantity: i / 10 } },
-            wind: { speed: { value: 8 + i, unit: 'KILOMETERS_PER_HOUR' }, direction: { degrees: 90 } },
+            precipitation: { probability: { percent: 10 + i * 5, type: 'RAIN' }, qpf: { quantity: i / 10 } },
+            wind: { speed: { value: 8 + i, unit: 'KILOMETERS_PER_HOUR' }, direction: { degrees: 90 }, gust: { value: 14 + i } },
+            relativeHumidity: 65,
+            dewPoint: { degrees: 19 },
+            heatIndex: { degrees: 29 + i },
+            windChill: { degrees: 25 + i },
+            wetBulbTemperature: { degrees: 21 },
+            airPressure: { meanSeaLevelMillibars: 1009 },
+            visibility: { distance: 11 },
+            iceThickness: { thickness: 0, unit: 'MILLIMETERS' },
+            cloudCover: 35,
+            thunderstormProbability: 12,
             uvIndex: 4,
             weatherCondition: { description: { text: 'Mostly sunny' } },
           } ) ),
@@ -489,8 +508,17 @@ function environmentFetch() {
               interval: { startTime: hour( offset ) },
               temperature: { degrees: 24 + ( idx % 4 ) },
               feelsLikeTemperature: { degrees: 25 + ( idx % 4 ) },
-              precipitation: { probability: { percent: 5 }, qpf: { quantity: idx % 6 === 0 ? 0.3 : 0 } },
-              wind: { speed: { value: 7, unit: 'KILOMETERS_PER_HOUR' }, direction: { degrees: 45 } },
+              precipitation: { probability: { percent: 5, type: 'RAIN' }, qpf: { quantity: idx % 6 === 0 ? 0.3 : 0 } },
+              wind: { speed: { value: 7, unit: 'KILOMETERS_PER_HOUR' }, direction: { degrees: 45 }, gust: { value: 10 } },
+              relativeHumidity: 70,
+              dewPoint: { degrees: 18 },
+              heatIndex: { degrees: 27 },
+              windChill: { degrees: 23 },
+              wetBulbTemperature: { degrees: 20 },
+              airPressure: { meanSeaLevelMillibars: 1011 },
+              visibility: { distance: 12 },
+              iceThickness: { thickness: 0, unit: 'MILLIMETERS' },
+              cloudCover: 40,
               weatherCondition: { description: { text: 'Clear' } },
             };
           } ),
@@ -501,13 +529,27 @@ function environmentFetch() {
       return Promise.resolve( {
         ok: true,
         json: async () => ( {
-          forecastDays: [ {
-            displayDate: { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1, day: now.getUTCDate() },
-            minTemperature: { degrees: 20 },
-            maxTemperature: { degrees: 29 },
-            daytimeForecast: { precipitation: { probability: { percent: 20 } }, weatherCondition: { description: { text: 'Partly cloudy' } } },
-            sunEvents: { sunriseTime: hour( -6 ), sunsetTime: hour( 6 ) },
-          } ],
+          forecastDays: Array.from( { length: 10 }, ( _, idx ) => ( {
+            displayDate: { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1, day: now.getUTCDate() + idx },
+            minTemperature: { degrees: 20 + ( idx % 2 ) },
+            maxTemperature: { degrees: 29 + ( idx % 3 ) },
+            feelsLikeMinTemperature: { degrees: 21 },
+            feelsLikeMaxTemperature: { degrees: 31 },
+            maxHeatIndex: { degrees: 32 },
+            iceThickness: { thickness: 0, unit: 'MILLIMETERS' },
+            daytimeForecast: {
+              precipitation: { probability: { percent: 20, type: 'RAIN' }, qpf: { quantity: 0.6 } },
+              weatherCondition: { description: { text: 'Partly cloudy' } },
+              relativeHumidity: 66,
+              uvIndex: 5,
+              thunderstormProbability: 10,
+              cloudCover: 45,
+              wind: { speed: { value: 9, unit: 'KILOMETERS_PER_HOUR' }, direction: { degrees: 90 }, gust: { value: 15 } },
+            },
+            nighttimeForecast: { weatherCondition: { description: { text: 'Clear' } } },
+            sunEvents: { sunriseTime: hour( -6 + idx * 24 ), sunsetTime: hour( 6 + idx * 24 ) },
+            moonEvents: { moonriseTimes: [ hour( 8 + idx * 24 ) ], moonsetTimes: [ hour( 20 + idx * 24 ) ] },
+          } ) ),
         } ),
       } as Response );
     }
@@ -814,18 +856,77 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     // Hourly forecast strip with 24h/48h range.
     expect( panel.querySelector( '.vl-live-air-forecast-strip' ) ).not.toBeNull();
     expect( within( panel ).getByRole( 'group', { name: 'Weather forecast range' } ) ).toBeTruthy();
-    // 10-day rows.
-    expect( panel.querySelector( '.vl-live-wx-daily-row' ) ).not.toBeNull();
+    // Google defaults daily pageSize to 5; VayuLok explicitly asks for 10 and renders all ten.
+    expect( panel.querySelectorAll( '.vl-live-wx-daily-row' ).length ).toBe( 10 );
+    const dailyCall = fetchSpy.mock.calls.find( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/forecast/days' ) );
+    expect( String( dailyCall?.[ 0 ] ) ).toContain( 'days=10' );
+    expect( String( dailyCall?.[ 0 ] ) ).toContain( 'pageSize=10' );
     // 24h history with a metric toggle.
     expect( within( panel ).getByRole( 'group', { name: 'Weather history metric' } ) ).toBeTruthy();
     // Alerts: India has no coverage, so the neutral line shows (not an empty noisy panel).
-    expect( panel.textContent ).toContain( 'No active weather or hazard alerts' );
+    expect( panel.textContent ).toContain( 'Weather alerts are not supported by Google for this region.' );
     // No publicAlerts request was made for India.
     expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
     // Raw temperature value carries data-wc-no-translate (keeps numbers honest under translation).
     expect( panel.querySelector( '.vl-live-wx-now-temp' )?.getAttribute( 'data-wc-no-translate' ) ).toBe( 'true' );
     // NO RED.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
+  } );
+
+  it( 'queries and renders full Google public alerts for a supported region', async () => {
+    rec = installGoogleMaps( { placeCountryCode: 'US' } );
+    const baseFetch = environmentFetch();
+    const alertFetch = vi.fn( ( input: RequestInfo | URL, init?: RequestInit ) => {
+      if ( requestIs( input, 'weather.googleapis.com', '/v1/publicAlerts' ) ) {
+        return Promise.resolve( {
+          ok: true,
+          json: async () => ( {
+            weatherAlerts: [ {
+              alertId: 'alert-1',
+              alertTitle: { text: 'Flash Flood Warning', languageCode: 'en' },
+              eventType: 'FLASH_FLOOD',
+              areaName: 'Wake County, NC',
+              polygon: '{"type":"Polygon","coordinates":[[[-78.4,35.7],[-78.2,35.7],[-78.4,35.7]]]}',
+              description: 'Flash flooding is occurring.',
+              severity: 'SEVERE',
+              certainty: 'LIKELY',
+              urgency: 'IMMEDIATE',
+              instruction: [ 'Move to higher ground.' ],
+              safetyRecommendations: [ { directive: 'Avoid flooded roads.', subtext: 'Turn around, do not drown.' } ],
+              startTime: new Date().toISOString(),
+              expirationTime: new Date( Date.now() + 60 * 60 * 1000 ).toISOString(),
+              timezoneOffset: '-14400s',
+              dataSource: { publisher: 'NOAA', name: 'National Weather Service', authorityUri: 'https://www.weather.gov/' },
+            } ],
+            regionCode: 'US',
+          } ),
+        } as Response );
+      }
+      return baseFetch( input, init );
+    } );
+    vi.stubGlobal( 'fetch', alertFetch );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
+    const panel = await waitFor( () => {
+      const el = container.querySelector( '[aria-label="Weather details"]' ) as HTMLElement | null;
+      expect( el?.textContent ).toContain( 'Flash Flood Warning' );
+      return el as HTMLElement;
+    } );
+    expect( alertFetch.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( true );
+    expect( panel.textContent ).toContain( 'FLASH FLOOD' );
+    expect( panel.textContent ).toContain( 'SEVERE' );
+    expect( panel.textContent ).toContain( 'LIKELY' );
+    expect( panel.textContent ).toContain( 'IMMEDIATE' );
+    expect( panel.textContent ).toContain( 'Wake County, NC' );
+    expect( panel.textContent ).toContain( 'Move to higher ground.' );
+    expect( panel.textContent ).toContain( 'Avoid flooded roads.' );
+    expect( panel.textContent ).toContain( 'Affected-area boundary' );
+    const sourceLink = within( panel ).getByRole( 'link', { name: 'National Weather Service' } );
+    expect( sourceLink ).toHaveAttribute( 'href', 'https://www.weather.gov/' );
   } );
 
   it( 'renders pollutant concentrations faithfully: a real 0.4 stays 0.4, 0.04 stays 0.04, exact 0 stays 0', async () => {
