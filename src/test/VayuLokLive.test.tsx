@@ -1827,6 +1827,16 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( pollutantValueRule ).toContain( 'min-width:118px' );
     expect( pollutantValueRule ).toContain( 'text-align:right' );
     expect( pollutantValueRule ).toContain( 'font-variant-numeric:tabular-nums' );
+    // Shared Air + Weather forecast cards are deliberately readable, not metadata-sized.
+    const forecastTimeRule = css.match( /\.vl-live-air-forecast-card span\{[^}]*\}/ )?.[ 0 ] || '';
+    const forecastValueRule = css.match( /\.vl-live-air-forecast-card strong\{[^}]*\}/ )?.[ 0 ] || '';
+    const forecastMetaRule = css.match( /\.vl-live-air-forecast-card small\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( forecastTimeRule ).toContain( 'font-size:13px' );
+    expect( forecastValueRule ).toContain( 'font-size:18px' );
+    expect( forecastMetaRule ).toContain( 'font-size:13px' );
+    const weatherDailyListRule = css.match( /\.vl-live-wx-daily-list\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( weatherDailyListRule ).toContain( 'max-height:430px' );
+    expect( weatherDailyListRule ).toContain( 'overflow-y:auto' );
     // The heatmap On/Off state control lives in the air panel's `air ? (...)` branch, so on the
     // keyless path (no live air data) it is correctly absent. Assert that absence rather than a
     // live On/Off string, which this path can never produce.
