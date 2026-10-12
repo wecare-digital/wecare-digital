@@ -10,6 +10,7 @@ import React, { useEffect, useState } from 'react';
 
 import PageTopBand from '../../components/PageTopBand';
 import PublicShare from '../../components/PublicShare';
+import ContributeBlock from '../../components/ContributeBlock';
 import { getSession, restoreSession } from '../../lib/customerAuth';
 import { isOrderNumber, isPaid } from '../../lib/paymentVocabulary';
 
@@ -84,7 +85,9 @@ export default function CheckoutSuccess (): React.ReactElement {
           </div>
         </section>
 
-        {/* Subscribe + Share, last child inside PageTopBand. Consistent with every public page. */}
+        {/* Contribute + Subscribe + Share, last children inside PageTopBand. Consistent with
+            every public page: ContributeBlock above the Subscribe+Share block. */}
+        <ContributeBlock />
         <PublicShare />
 
         <style jsx>{`

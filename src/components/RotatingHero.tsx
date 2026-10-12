@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import BrandBadge from './BrandBadge';
 import PublicShare from './PublicShare';
+import ContributeBlock from './ContributeBlock';
 
 /**
  * The Home hero — badge, rotating headline pill, one body line — as a reusable,
@@ -283,7 +284,21 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, 
             section of someone else's page for landmark/heading purposes, but that is orthogonal
             to whether it carries the Subscribe+Share block - so the gate is `noShare` alone.
             `noShare` is kept for any page that genuinely must not carry the block. */}
-        { !noShare && <PublicShare /> }
+        {/* CONTRIBUTE + SUBSCRIBE/SHARE, ONE TAIL. Owner instruction: the voluntary ContributeBlock
+            sits on every public page EXCEPT Home, directly above the Subscribe+Share row. They are
+            wrapped in ONE .rh-tail div so .rh-layout (display:flex; gap:96px) treats the pair as a
+            SINGLE child - one 96px gap above the pair, and NONE between the two blocks. Before this
+            wrapper each block was its own flex child, so the 96px flex gap opened a large void above
+            Contribute and another between Contribute and Subscribe (the gaps the owner flagged).
+            Inside .rh-tail the two blocks own their own tight rhythm via their own separators.
+            Home does not use RotatingHero (it renders its own PublicShare), so this leaves Home
+            untouched. Gated on `!noShare`, so a page opting out of the share band opts out of both. */}
+        { !noShare && (
+          <div className="rh-tail">
+            <ContributeBlock />
+            <PublicShare />
+          </div>
+        ) }
       </div>
 
       <style jsx>{`
@@ -308,6 +323,10 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, 
           padding:80px 24px 48px;box-sizing:border-box;
           display:flex;flex-direction:column;gap:96px;
         }
+        /* THE TAIL PAIR - Contribute + Subscribe/Share - is one flex child of .rh-layout, so the
+           96px flex gap sits ONCE above the pair, not between the two blocks. Inside, the blocks
+           carry their own separators and spacing, so this wrapper adds no gap of its own. */
+        .rh-tail{display:flex;flex-direction:column}
         /* align-items:flex-start replaces an align-self on the badge: without it the
            flex default stretches the pill to the full 1300px measure. */
         .rh-hero{display:flex;flex-direction:column;align-items:flex-start}

@@ -90,10 +90,12 @@ describe( 'Shipments page', () => {
 
   it( 'carries exactly two wa.me anchors and no form, field or button', () => {
     const { container } = render( <ShipmentsPage /> );
-    // Drop the shared Subscribe+Share block before counting: every public page now carries it at
-    // the foot of its content, and it adds a Subscribe wa.me anchor plus share buttons that are
-    // the block's own, not the shipments page's. This test is about THIS page's controls.
+    // Drop the two shared sitewide bands before counting: every public page now carries them at
+    // the foot of its content. .public-share adds a Subscribe wa.me anchor plus share buttons;
+    // .contribute (ContributeBlock) adds a Contribute wa.me anchor and a checkout button. Both are
+    // the bands' own furniture, not the shipments page's. This test is about THIS page's controls.
     container.querySelector( '.public-share' )?.remove();
+    container.querySelector( '.contribute' )?.remove();
     const waLinks = Array.from( container.querySelectorAll( 'a[href*="wa.me"]' ) );
     expect( waLinks ).toHaveLength( 2 );
     // In document order: tracking first, pickup second.
@@ -106,6 +108,10 @@ describe( 'Shipments page', () => {
 
   it( 'surfaces no transacting control or price', () => {
     const { container } = render( <ShipmentsPage /> );
+    // The sitewide ContributeBlock names the suggested amount ("₹250 · voluntary") and carries a
+    // checkout control; it is sitewide furniture, not this page transacting, so drop it before
+    // asserting the page itself surfaces no price or buy control.
+    container.querySelector( '.contribute' )?.remove();
     const text = ( container.textContent || '' ).toLowerCase();
     expect( text ).not.toContain( 'add to cart' );
     expect( text ).not.toContain( 'pay now' );

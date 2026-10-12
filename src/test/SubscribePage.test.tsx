@@ -54,8 +54,13 @@ describe( 'Subscribe page', () => {
     // the whatsappServiceEntries 'subscribe' row and PublicShare's SUBSCRIBE_HREF are pinned equal
     // so they cannot drift.
     expect( SUBSCRIBE_CTA_HREF ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
-    expect( screen.getByRole( 'link', { name: /Continue on WhatsApp/ } ) )
-      .toHaveAttribute( 'href', SUBSCRIBE_CTA_HREF );
+    // Two links now read "Continue on WhatsApp ->": this page's own primary CTA, and the sitewide
+    // ContributeBlock (section.contribute) which carries the same label on every public page. The
+    // page CTA is the one that resolves to SUBSCRIBE_CTA_HREF; the Contribute link points at the
+    // Contribute Meta link instead. Pick the page's own CTA (the one outside .contribute).
+    const whatsappLinks = screen.getAllByRole( 'link', { name: /Continue on WhatsApp/ } );
+    const pageCta = whatsappLinks.find( el => !el.closest( '.contribute' ) );
+    expect( pageCta ).toHaveAttribute( 'href', SUBSCRIBE_CTA_HREF );
   } );
 
   it( 'resolves its WhatsApp service entry to the same Meta message link the CTA uses', () => {
@@ -66,20 +71,23 @@ describe( 'Subscribe page', () => {
 
   it( 'has no form, field or button, so nothing looks like an on-page sign-up', () => {
     const { container } = render( <SubscribePage /> );
-    // The page's OWN body has no form controls. The end-of-content Share block (.public-share)
-    // ships ShareLinks' own share-sheet / copy-link buttons and a hidden copy-fallback input on
-    // every public page, so it is excluded here - it is sitewide furniture, not an on-page sign-up.
-    const share = container.querySelector( '.public-share' );
+    // The page's OWN body has no form controls. Two end-of-content bands are sitewide furniture,
+    // not this page's on-page sign-up, so both are excluded here:
+    //   - .public-share ships ShareLinks' share-sheet / copy-link buttons and a hidden copy input;
+    //   - .contribute (ContributeBlock) ships the voluntary-contribution checkout BUTTON.
+    // Both sit on every public page.
+    const furniture = ( el: Element ) =>
+      !!el.closest( '.public-share' ) || !!el.closest( '.contribute' );
     const ownControls = Array.from(
       container.querySelectorAll( 'form, input, textarea, select, button' ),
-    ).filter( el => !share || !share.contains( el ) );
+    ).filter( el => !furniture( el ) );
     expect( ownControls ).toHaveLength( 0 );
-    // The ONE anchor the page's OWN body carries is the WhatsApp CTA. The end-of-content
-    // .public-share band also carries a sitewide Subscribe pill (the same Meta short link),
-    // which is excluded here for the same reason its form controls are above: it is sitewide
-    // furniture, not this page's on-page sign-up. Both resolve to SUBSCRIBE_CTA_HREF.
+    // The ONE anchor the page's OWN body carries is the WhatsApp CTA. The two sitewide bands also
+    // carry WhatsApp anchors (the Subscribe pill in .public-share, the Contribute link in
+    // .contribute), excluded here for the same reason the controls are: they are sitewide
+    // furniture, not this page's on-page sign-up.
     const ownWaLinks = Array.from( container.querySelectorAll( 'a[href*="wa.me"]' ) )
-      .filter( el => !share || !share.contains( el ) );
+      .filter( el => !furniture( el ) );
     expect( ownWaLinks ).toHaveLength( 1 );
     expect( ownWaLinks[ 0 ] ).toHaveAttribute( 'href', SUBSCRIBE_CTA_HREF );
     expect( container.querySelectorAll( 'a[href^="mailto:"]' ) ).toHaveLength( 0 );

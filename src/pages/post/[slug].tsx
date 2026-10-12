@@ -4,7 +4,7 @@ import { Fragment, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import PublicShare from '../../components/PublicShare';
-import BlogContribution from '../../components/BlogContribution';
+import ContributeBlock from '../../components/ContributeBlock';
 import {
   SOCIAL_CARD_URL, SOCIAL_CARD_W, SOCIAL_CARD_H, SOCIAL_CARD_TYPE, SOCIAL_CARD_ALT, SHARE_CARD_TYPE,
 } from '../../config/share';
@@ -443,13 +443,13 @@ export default function BlogPostPage ( {
           {/* CONTRIBUTE - the voluntary-contribution block, placed BEFORE the global
               Subscribe+Share so the reading order is content -> Tags -> Contribute ->
               Subscribe+Share -> pager/related.
-              It stays a component (components/BlogContribution.tsx) so the pill and its unit cases
-              live in one place rather than inlined here. postId AND slug are still passed so the
-              block is attributable (data-post-id); the component's heading is an h2, never an h1,
-              so the page keeps its single h1 and htmlcheck's H1-MANY guard is satisfied. It does
-              NOT take the shareRef - that stays on the .post-share wrapper below, which is the
-              IntersectionObserver reveal sentinel. */}
-          <BlogContribution postId={ post.id } slug={ post.slug } />
+              This is now components/ContributeBlock, the richer both-paths appeal (the WhatsApp
+              conversation AND the on-site checkout path) rather than the old WhatsApp-only
+              BlogContribution. The same block is carried on the blog index, so the two surfaces
+              match. Its heading is an h2, never an h1, so the page keeps its single h1 and
+              htmlcheck's H1-MANY guard is satisfied. It does NOT take the shareRef - that stays on
+              the .post-share wrapper below, which is the IntersectionObserver reveal sentinel. */}
+          <ContributeBlock />
 
           {/* THE GLOBAL SUBSCRIBE + SHARE BLOCK, AT THE END OF THE READING.
               The page no longer renders its own ShareLinks row; PublicShare is the ONE

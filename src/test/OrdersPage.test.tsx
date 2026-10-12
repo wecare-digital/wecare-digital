@@ -282,9 +282,13 @@ describe( '/orders/ — the two-column layout', () => {
     expect( panel.tagName ).toBe( 'ASIDE' );
     expect( panel.querySelector( 'h1, h2, h3, h4, h5, h6' )!.textContent )
       .toBe( 'What we have on file' );
-    // The card renders INSIDE it, and the h2 ladder is unchanged by the panel existing.
+    // The card renders INSIDE it, and the h2 ladder is unchanged by the panel existing. The
+    // sitewide ContributeBlock (section.contribute) adds its own "Contribute" h2 on every public
+    // page; it is furniture, not an orders-page rung, so exclude it from the ladder.
     expect( panel.textContent ).toContain( 'rahul@example.com' );
-    const h2 = Array.from( container.querySelectorAll( 'h2' ) ).map( h => h.textContent );
+    const h2 = Array.from( container.querySelectorAll( 'h2' ) )
+      .filter( h => !h.closest( '.contribute' ) )
+      .map( h => h.textContent );
     expect( h2 ).toEqual( [ 'What we have on file', 'Your requests', 'Order history' ] );
   } );
 
@@ -444,6 +448,9 @@ describe( '/orders/ — the order list', () => {
       orders: [ row( { amountPaise: null } ) ], profile: profile(),
     } ) );
     expect( await screen.findByText( 'Amount unavailable' ) ).toBeInTheDocument();
+    // The sitewide ContributeBlock names a suggested amount ("₹250 · voluntary"); it is furniture,
+    // not this order's money, so drop it before asserting no rupee sign leaks from the order row.
+    container.querySelector( '.contribute' )?.remove();
     expect( container.textContent ).not.toContain( '₹' );
   } );
 
@@ -453,6 +460,7 @@ describe( '/orders/ — the order list', () => {
       orders: [ row( { currency: 'USD', currencyUnexpected: true } ) ], profile: profile(),
     } ) );
     expect( await screen.findByText( 'Amount unavailable' ) ).toBeInTheDocument();
+    container.querySelector( '.contribute' )?.remove();
     expect( container.textContent ).not.toContain( '₹' );
   } );
 
@@ -525,7 +533,11 @@ describe( '/orders/ — the order list', () => {
       orders: [ row() ], profile: profile(),
     } ) );
     await screen.findByText( 'WD-1042' );
-    const h2 = Array.from( container.querySelectorAll( 'h2' ) ).map( h => h.textContent );
+    // Exclude the sitewide ContributeBlock's own "Contribute" h2: it is furniture on every public
+    // page, not one of this page's rungs.
+    const h2 = Array.from( container.querySelectorAll( 'h2' ) )
+      .filter( h => !h.closest( '.contribute' ) )
+      .map( h => h.textContent );
     expect( h2 ).toEqual( [ 'What we have on file', 'Your requests', 'Order history' ] );
   } );
 } );

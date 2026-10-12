@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import PublicShare from '../components/PublicShare';
+import ContributeBlock from '../components/ContributeBlock';
 
 const NotFound: React.FC = () => {
   const router = useRouter();
@@ -32,6 +33,7 @@ const NotFound: React.FC = () => {
           {/* Subscribe + Share, so no public route is without the block. NOTE: this page
               redirects to '/' on mount, so a visitor rarely sees it - the block is here for
               sitewide consistency, not because the 404 is a real destination. */}
+          <ContributeBlock />
           <PublicShare />
         </div>
 

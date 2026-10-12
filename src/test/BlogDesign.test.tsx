@@ -5,7 +5,7 @@ import BlogIndex from '../pages/blog/index';
 import BlogIndexPage from '../pages/blog/page/[page]';
 import BlogPostPage from '../pages/post/[slug]';
 import ProductBlogPanel from '../components/ProductBlogPanel';
-import { CONTRIBUTE_AMOUNT_LABEL } from '../components/BlogContribution';
+import { CONTRIBUTE_BLOCK_AMOUNT_LABEL } from '../components/ContributeBlock';
 import { toBlogCard, blogPageCount, POSTS_PER_PAGE, type BlogCard, type PublicBlogPost } from '../lib/public-blog';
 import type { BlogIndexPageProps } from '../lib/blog-index-props';
 /* CONTRIBUTION_CHOICES was imported here to hold the rendered amount pills equal to the central
@@ -846,7 +846,9 @@ describe( 'Blog post page', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
 
     const tags = container.querySelector( 'nav.tags' );
-    const contribution = container.querySelector( 'section.bc' );
+    // The contribution block is now ContributeBlock (section.contribute), the both-paths appeal,
+    // not the old WhatsApp-only BlogContribution (section.bc).
+    const contribution = container.querySelector( 'section.contribute' );
     const share = container.querySelector( '.post-share' );
     const publicShare = container.querySelector( 'section.public-share' );
 
@@ -881,61 +883,59 @@ describe( 'Blog post page', () => {
    * THE MANDATED COPY, AND NO SECOND H1. The heading and primary message are fixed strings in the
    * brief; the heading must be an h2 so the post keeps exactly one h1 (htmlcheck guards H1-MANY).
    */
-  it( 'shows the Contribute heading and message, and adds no second h1', () => {
+  it( 'shows the Contribute heading and the compact amount label, and adds no second h1', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
 
-    const block = container.querySelector( 'section.bc' )!;
+    // ContributeBlock renders section.contribute with its h2 and the one compact line. There is
+    // no copy sentence any more - the block is just the eyebrow + the line.
+    const block = container.querySelector( 'section.contribute' )!;
     expect( block.querySelector( 'h2' )?.textContent ).toBe( 'Contribute' );
-    expect( block.textContent ).toContain(
-      'If you found this useful, you\u2019re welcome to make a small voluntary contribution.'
-    );
+    expect( block.textContent ).not.toContain( 'If this helped' );
+    expect( block.querySelector( '.contribute-label' )?.textContent )
+      .toBe( `Contribute ${ CONTRIBUTE_BLOCK_AMOUNT_LABEL }` );
     // Still exactly one h1 on the whole page - the title - and the contribution added none.
     expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
     expect( block.querySelector( 'h1' ) ).toBeNull();
   } );
 
   /**
-   * THE CONTRIBUTION BLOCK IS A WHATSAPP LINK, NOT A FORM - owner instruction, 2026-10-10.
+   * THE CONTRIBUTION BLOCK IS ONE COMPACT LINE WITH BOTH PATHS - owner instruction, 2026-10-12.
    *
-   * THIS CASE USED TO ASSERT THE AMOUNT PILLS, reading them from src/config/contribution.ts so
-   * the markup could not drift from the one source. Both button-looking elements it measured -
-   * the ₹250 amount pill and the "Contribute ₹250" submit - were removed on owner instruction,
-   * so there are no faces left to compare and the config-derived assertion has nothing to hold
-   * the markup to. It is NOT weakened to make it pass: the new truth is narrower and checkable,
-   * which is one anchor at one exact URL and no transacting control. The config itself is
-   * untouched and still pinned by src/test/BlogContribution.test.tsx.
+   * The post page carries components/ContributeBlock. The two big pill buttons and the copy
+   * sentence are gone; the block is now the eyebrow + a single line: a ₹ glyph, a "Contribute
+   * ₹250" static label, then two inline TEXT links - "on WhatsApp" (a real anchor to the Contribute
+   * chat) and "on the website →" (a button that names the variant in the cart and goes to /cart/).
+   * The amount is a static label from src/config/contribution.ts, so the figure cannot drift. No
+   * radio group and no on-page form - the browser never sends a price; cart_v2 prices the variant.
    */
-  it( 'offers one WhatsApp anchor in the contribution block, and no amount or form', () => {
+  it( 'offers both contribution paths as inline links, with the amount as a static label', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
-    const block = container.querySelector( 'section.bc' )!;
+    const block = container.querySelector( 'section.contribute' )!;
 
-    const links = Array.from( block.querySelectorAll( 'a' ) );
-    expect( links ).toHaveLength( 1 );
-    expect( links[ 0 ] ).toHaveAttribute( 'href', 'https://wa.me/message/BYFLCAAMSZBXD1' );
-    // The pill names the suggested amount (owner instruction 2026-10-11): "Contribute ₹250",
-    // read from the central config so the figure cannot drift.
-    expect( links[ 0 ].textContent ).toBe( `Contribute ${ CONTRIBUTE_AMOUNT_LABEL }` );
-    expect( links[ 0 ] ).toHaveAttribute( 'aria-label', `Contribute ${ CONTRIBUTE_AMOUNT_LABEL } on WhatsApp` );
-    // TEXT-ONLY pill (no glyph), with the destination in a short microcopy line below it.
-    // Recorded at .agents/tasks/contribute-whatsapp-cta/owner-decision.md: the glyph was dropped
-    // as too busy inside the filled pill, and the quiet line carries the destination instead.
-    expect( links[ 0 ].querySelector( 'svg' ) ).toBeNull();
-    // The destination microcopy now uses the shared global .wc-sweep-note class
-    // (src/styles/inner-ux.css), replacing the old per-component .bc-cta-note.
-    const note = block.querySelector( '.wc-sweep-note' )!;
-    expect( note.textContent ).toBe( 'Continue on WhatsApp \u2192' );
-    expect( note.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
-    expect( block.querySelector( '.bc-cta-note' ) ).toBeNull();
-    // No radio-era .bc-note remains.
-    expect( block.querySelector( '.bc-note' ) ).toBeNull();
+    // WhatsApp path: a real anchor at the one Contribute message link.
+    const whatsapp = block.querySelector( 'a.contribute-link' )!;
+    expect( whatsapp ).toHaveAttribute( 'href', 'https://wa.me/message/BYFLCAAMSZBXD1' );
+    expect( whatsapp.textContent ).toBe( 'on WhatsApp' );
+    expect( whatsapp.getAttribute( 'aria-label' ) ).toContain( 'WhatsApp' );
 
-    // Nothing to choose and nothing to submit: the amount pill, its radio and the submit button
-    // are all gone rather than hidden.
-    expect( block.querySelectorAll( 'form, input, button, fieldset' ) ).toHaveLength( 0 );
+    // Website path: a button (writes the cart, navigates to /cart/).
+    const website = block.querySelector( 'button.contribute-link-btn' )!;
+    expect( website.textContent ).toBe( 'on the website \u2192' );
+    expect( website.getAttribute( 'aria-label' ) ).toContain( 'website' );
+
+    // Exactly one anchor and one button in the block: the two paths, nothing else.
+    expect( block.querySelectorAll( 'a' ) ).toHaveLength( 1 );
+    expect( block.querySelectorAll( 'button' ) ).toHaveLength( 1 );
+    // Neither link carries a glyph icon.
+    expect( whatsapp.querySelector( 'svg' ) ).toBeNull();
+    expect( website.querySelector( 'svg' ) ).toBeNull();
+
+    // The amount is a STATIC LABEL on the line ("Contribute ₹250"), not a chooseable control: no
+    // radio group, no amount input - the browser sends no price.
+    expect( block.querySelector( '.contribute-label' )?.textContent )
+      .toBe( `Contribute ${ CONTRIBUTE_BLOCK_AMOUNT_LABEL }` );
     expect( block.querySelector( '[role="radiogroup"]' ) ).toBeNull();
-    expect( block.querySelector( '.bc-choice-face' ) ).toBeNull();
-    // The amount is NAMED on the pill, but it is a static label, not a chooseable control: the one
-    // rupee figure in the block sits on the single anchor.
+    expect( block.querySelectorAll( 'form, input, fieldset' ) ).toHaveLength( 0 );
     expect( block.textContent || '' ).toContain( '\u20B9250' );
   } );
 
@@ -944,19 +944,19 @@ describe( 'Blog post page', () => {
    *
    * The owner unified the Subscribe pill into the ONE global PublicShare block, so the post page
    * no longer owns its inline Subscribe pill. The two WhatsApp links at the tail are now:
-   *   - Contribute, from BlogContribution (`section.bc a.bc-cta`), opening BYFLCAAMSZBXD1; and
+   *   - Contribute, from ContributeBlock (`section.contribute a.contribute-link`), opening
+   *     BYFLCAAMSZBXD1; and
    *   - Subscribe, from the global PublicShare (`section.public-share a.ps-subscribe`), opening
    *     WUDPTMYSO6XII1.
    * They are still DIFFERENT Meta message links - pointing one at the other's link would look
    * entirely correct on screen, which is why both hrefs are pinned here as literals AND asserted
-   * to differ. The Contribute pill keeps its single-word-plus-amount face, its glyph-free pill and
-   * its one `.wc-sweep-note` microcopy; PublicShare's Subscribe is a text-only pill with no
-   * microcopy of its own.
+   * to differ. The Contribute link is a quiet text link on the compact line; PublicShare's
+   * Subscribe is a lime pill.
    */
   it( 'carries two distinct WhatsApp links at the tail: Contribute (block) and Subscribe (PublicShare)', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
 
-    const contribute = container.querySelector( 'section.bc a.bc-cta' )!;
+    const contribute = container.querySelector( 'section.contribute a.contribute-link' )!;
     const subscribe = container.querySelector( 'section.public-share a.ps-subscribe' )!;
 
     expect( contribute ).not.toBeNull();
@@ -969,43 +969,30 @@ describe( 'Blog post page', () => {
     // The old inline Subscribe pill is gone from the page.
     expect( container.querySelector( 'a.blog-wa-subscribe' ) ).toBeNull();
 
-    // Contribute names the suggested amount on its face; Subscribe stays a single word.
-    expect( contribute.querySelector( 'span' )?.textContent ).toBe( `Contribute ${ CONTRIBUTE_AMOUNT_LABEL }` );
+    // The Contribute link's face and name; Subscribe stays a single word.
+    expect( contribute.textContent ).toBe( 'on WhatsApp' );
     expect( subscribe.textContent ).toBe( 'Subscribe' );
     expect( subscribe.getAttribute( 'aria-label' ) ).toBe( 'Subscribe on WhatsApp' );
-    expect( contribute.getAttribute( 'aria-label' ) ).toBe( `Contribute ${ CONTRIBUTE_AMOUNT_LABEL } on WhatsApp` );
+    expect( contribute.getAttribute( 'aria-label' ) ).toContain( 'WhatsApp' );
 
     // Neither carries a glyph.
     expect( subscribe.querySelector( 'svg' ) ).toBeNull();
     expect( contribute.querySelector( 'svg' ) ).toBeNull();
 
-    // The Contribute block keeps its ONE microcopy line; the old Subscribe microcopy is gone with
-    // the inline pill. There is exactly one .wc-sweep-note on the page now, inside the block.
-    const block = container.querySelector( 'section.bc' )!;
-    const notes = Array.from( container.querySelectorAll( '.wc-sweep-note' ) );
-    expect( notes.length ).toBe( 1 );
-    expect( block.contains( notes[ 0 ] ) ).toBe( true );
-    expect( notes[ 0 ].textContent ).toBe( 'Continue on WhatsApp \u2192' );
-    expect( notes[ 0 ].getAttribute( 'aria-hidden' ) ).toBe( 'true' );
-    // The old per-page classes stay gone.
+    // The old per-page inline-pill classes stay gone.
     expect( container.querySelector( '.blog-wa-note' ) ).toBeNull();
     expect( container.querySelector( '.bc-cta-note' ) ).toBeNull();
-    expect( container.querySelector( '.bc-note' ) ).toBeNull();
 
-    // Both pills carry the home CTA's values - the Contribute pill inline, the Subscribe pill in
-    // PublicShare's own style block (both are in the rendered tree, so cssOf sees both).
+    // The Subscribe pill keeps the home CTA's values in PublicShare's own style block.
     const css = cssOf( container );
-    for ( const selector of [ '.ps-subscribe{', '.bc-cta{' ] )
-    {
-      const rule = css.slice( css.indexOf( selector ), css.indexOf( '}', css.indexOf( selector ) ) );
-      expect( rule, selector ).toContain( 'min-height:52px' );
-      expect( rule, selector ).toContain( 'padding:0 28px' );
-      expect( rule, selector ).toContain( 'border:2px solid #1a3a2a' );
-      expect( rule, selector ).toContain( 'border-radius:50px' );
-      expect( rule, selector ).toContain( 'background:#d1f470' );
-      expect( rule, selector ).toContain( 'font-size:17px;font-weight:600' );
-      expect( rule, selector ).toContain( 'justify-content:center' );
-    }
+    const selector = '.ps-subscribe{';
+    const rule = css.slice( css.indexOf( selector ), css.indexOf( '}', css.indexOf( selector ) ) );
+    expect( rule ).toContain( 'min-height:52px' );
+    expect( rule ).toContain( 'padding:0 28px' );
+    expect( rule ).toContain( 'border:2px solid #1a3a2a' );
+    expect( rule ).toContain( 'border-radius:50px' );
+    expect( rule ).toContain( 'background:#d1f470' );
+    expect( rule ).toContain( 'color:#1a3a2a' );
   } );
 } );
 
