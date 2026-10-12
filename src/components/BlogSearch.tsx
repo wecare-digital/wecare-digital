@@ -119,7 +119,14 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
           />
           <VoiceSearchMic onTranscript={ onVoiceTranscript } />
         </div>
-        <button type="submit">Search</button>
+        {/* THE SUBMIT STAYS IN THE DOM BUT IS VISUALLY HIDDEN. It is the no-JavaScript and
+            Enter-to-navigate path the component depends on, so it must remain focusable with a
+            real accessible name - but on screen the field reads as the site's ONE borderless
+            inline search (the menu search and the blog index both show just a field + mic, no
+            separate button). Hiding it with the sr-only clip pattern - not display:none - keeps it
+            in the tab order and submittable while removing the visible "box bolted to a button"
+            the owner flagged on /shop/. */}
+        <button type="submit" className="bs-submit">Search</button>
       </form>
 
       { announce && (
@@ -192,31 +199,33 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
         .bs-form input:focus-visible{
           border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470;
         }
-        /* QUIET TEXT SUBMIT, NOT A LIME PILL. The borderless field is the common search look, and
-           a filled pill beside it brought back the "box bolted to a button" the field just shed.
-           The button stays in the DOM - it is the no-JS and Enter-to-navigate path the component
-           depends on - but it is now a plain dark-green text control with no box, so the field
-           reads as one borderless search like the menu and the Anew panel. */
-        .bs-form button{
-          height:52px;padding:0 8px;flex:none;
-          border:0;border-radius:0;background:transparent;
-          color:#1a3a2a;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;
-          text-decoration:underline;text-underline-offset:3px;transition:opacity .2s;
+        /* THE SUBMIT IS VISUALLY HIDDEN, same sr-only clip as .bs-label above. The field now reads
+           as the site's ONE borderless inline search - a field plus the lime mic, no separate
+           button - matching the menu search and the blog index. The button is kept in the DOM
+           (not display:none) so it stays focusable and submittable for the no-JavaScript and
+           Enter-to-navigate paths the component depends on. When focused by keyboard it reveals
+           itself as a quiet dark-green text control so a sighted keyboard user can see where they
+           are. */
+        .bs-submit{
+          position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+          overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
-        .bs-form button:hover{opacity:.7}
-        .bs-form button:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;border-radius:6px}
+        .bs-submit:focus-visible{
+          position:static;width:auto;height:52px;margin:0;clip:auto;overflow:visible;
+          padding:0 8px;flex:none;background:transparent;
+          color:#1a3a2a;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;
+          text-decoration:underline;text-underline-offset:3px;
+          outline:3px solid #1a3a2a;outline-offset:3px;border-radius:6px;
+        }
         /* The body rung, muted - it is a status line, not content. */
         .bs-count{
           margin:12px 0 0;font-size:17px;line-height:1.4;
           letter-spacing:-.125px;color:rgba(0,0,0,.62);
         }
         @media(max-width:767px){
-          /* The button keeps its label rather than collapsing to an icon: an icon-only submit
-             needs its own accessible name, and "Search" already is one. */
+          /* The field runs the full measure on a phone; the submit is visually hidden on every
+             width now (sr-only above), so there is no button layout to adjust here. */
           .bs-form{max-width:none}
-        }
-        @media(prefers-reduced-motion:reduce){
-          .bs-form button{transition:none}
         }
       `}</style>
     </div>
