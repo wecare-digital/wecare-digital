@@ -1016,6 +1016,7 @@ const VayuLokLive: React.FC = () => {
   const [ weatherHourInspectIdx, setWeatherHourInspectIdx ] = useState<number | null>( null );
   const [ weatherDayInspectIdx, setWeatherDayInspectIdx ] = useState<number | null>( null );
   const [ weatherHistMetric, setWeatherHistMetric ] = useState<'temp' | 'rain' | 'humidity' | 'pressure' | 'wind' | 'cloud'>( 'temp' );
+  const [ weatherHistoryInspectIdx, setWeatherHistoryInspectIdx ] = useState<number | null>( null );
   // Explicit Air-forecast state machine so the section can show loading skeletons, the real
   // strip, an honest "no rows" empty state, or a concise error - instead of silently rendering
   // nothing when the forecast:lookup request fails. 'idle' is the pre-selection resting state.
@@ -1092,7 +1093,9 @@ const VayuLokLive: React.FC = () => {
   // 'AQI'), pushed onto map.overlayMapTypes, and detached idempotently on toggle-off /
   // switch-to-PM2.5 / unmount. On the keyless path it is NEVER constructed.
   //
-  // NOTE: both AQI and PM2.5 are now Google ImageMapType TILE overlays. The earlier deck.gl
+  // NOTE: Google's heatmap MapType enum exposes global UAQI and PM2.5 plus regional AQI palettes;
+  // it does NOT expose PM10/NO2/O3 pollutant heatmap tiles. Keep AQI + PM2.5 only rather than
+  // inventing unsupported map types. The earlier deck.gl
   // GoogleMapsOverlay dot-grid (and its grid fetch/cache/abort refs) was superseded and has
   // been removed - deck.gl is no longer imported or used anywhere in this component.
   const heatmapOverlayRef = useRef<unknown>( null );
@@ -1105,6 +1108,10 @@ const VayuLokLive: React.FC = () => {
   useEffect( () => {
     setHistoryInspectIdx( null );
   }, [ airHistory ] );
+
+  useEffect( () => {
+    setWeatherHistoryInspectIdx( null );
+  }, [ weatherHistory ] );
 
   useEffect( () => {
     setAirForecastInspectIdx( 0 );
@@ -1553,7 +1560,7 @@ const VayuLokLive: React.FC = () => {
     const cacheKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}`;
 
     const cached = cache.current[ cacheKey ];
-    const CORE_TTL_MS = 5 * 60 * 1000;
+    const CORE_TTL_MS = 15 * 60 * 1000;
     if ( cached && Date.now() - cached.ts < CORE_TTL_MS ) {
       requestAnimationFrame( () => {
         setAir( cached.air );
@@ -1711,7 +1718,7 @@ const VayuLokLive: React.FC = () => {
     const { lat, lng } = place;
     const forecastKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}`;
     const cachedForecast = forecastCache.current[ forecastKey ];
-    const FORECAST_TTL_MS = 15 * 60 * 1000;
+    const FORECAST_TTL_MS = 30 * 60 * 1000;
     if ( cachedForecast && Date.now() - cachedForecast.ts < FORECAST_TTL_MS ) {
       setWeatherHourly( cachedForecast.hourly );
       setWeatherDaily( cachedForecast.daily );
@@ -2005,7 +2012,12 @@ const VayuLokLive: React.FC = () => {
           pageSize: Math.min( 100, historyRange ),
           universalAqi: true,
           ...localAqiOverride( place.regionCode ),
-          extraComputations: [ 'LOCAL_AQI', 'POLLUTANT_CONCENTRATION', 'DOMINANT_POLLUTANT_CONCENTRATION' ],
+          extraComputations: [
+            'LOCAL_AQI',
+            'POLLUTANT_CONCENTRATION',
+            'DOMINANT_POLLUTANT_CONCENTRATION',
+            'POLLUTANT_ADDITIONAL_INFO',
+          ],
           languageCode: 'en',
         };
         if ( pageToken ) body.pageToken = pageToken;
@@ -2679,6 +2691,12 @@ const VayuLokLive: React.FC = () => {
                                 { airForecast[ airForecastInspectIdx ].localAqi != null && airForecast[ airForecastInspectIdx ].universalAqi != null && (
                                   <span><strong>Local / Universal</strong> { airForecast[ airForecastInspectIdx ].localAqi } / { airForecast[ airForecastInspectIdx ].universalAqi }</span>
                                 ) }
+                                { airForecast[ airForecastInspectIdx ].pollutants?.map( p => (
+                                  <span key={ p.code }>
+                                    <strong>{ p.label || POLLUTANT_LABELS[ p.code ] || p.code }</strong>{' '}
+                                    <span data-wc-no-translate="true">{ formatPollutantValue( p.value ) } { p.unit }</span>
+                                  </span>
+                                ) ) }
                                 {/* The per-hour general-population health advisory paragraph was
                                     removed from the forecast detail: it duplicated the dedicated
                                     Health Recommendations section below and broke the forecast
@@ -2948,6 +2966,21 @@ const VayuLokLive: React.FC = () => {
                                     : '' }
                                 </span>
                               </div>
+                              { inspected && (
+                                <div className="vl-live-air-forecast-detail vl-live-air-history-detail">
+                                  <span><strong>AQI</strong> <span data-wc-no-translate="true">{ inspected.aqi }</span></span>
+                                  { inspected.dominant && <span><strong>Dominant</strong> { POLLUTANT_LABELS[ inspected.dominant ] || inspected.dominant }</span> }
+                                  { inspected.localAqi != null && inspected.universalAqi != null && (
+                                    <span><strong>Local / Universal</strong> <span data-wc-no-translate="true">{ inspected.localAqi } / { inspected.universalAqi }</span></span>
+                                  ) }
+                                  { inspected.pollutants?.map( p => (
+                                    <span key={ p.code }>
+                                      <strong>{ p.label || POLLUTANT_LABELS[ p.code ] || p.code }</strong>{' '}
+                                      <span data-wc-no-translate="true">{ formatPollutantValue( p.value ) } { p.unit }</span>
+                                    </span>
+                                  ) ) }
+                                </div>
+                              ) }
                               <div className="vl-live-air-history-stamp" aria-label="Reading time">
                                 <svg className="vl-live-air-history-stamp-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
                                 <span data-wc-no-translate="true">{ stamp }</span>
@@ -3123,6 +3156,7 @@ const VayuLokLive: React.FC = () => {
                                 <li key={ day.time }>
                                   <button type="button" className={ `vl-live-wx-daily-row ${weatherDayInspectIdx === idx ? 'is-active' : ''}`.trim() } aria-expanded={ weatherDayInspectIdx === idx } onClick={ () => setWeatherDayInspectIdx( weatherDayInspectIdx === idx ? null : idx ) }>
                                     <span className="vl-live-wx-daily-day">{ day.label }</span>
+                                    { day.icon ? <img className="vl-live-wx-daily-icon" src={ `${day.icon}.png` } alt="" aria-hidden="true" data-wc-no-translate="true" /> : <span className="vl-live-wx-daily-icon-spacer" aria-hidden="true" /> }
                                     { day.condition && <span className="vl-live-wx-daily-cond">{ day.condition }</span> }
                                     <span className="vl-live-wx-daily-temp" data-wc-no-translate="true">{ Number.isFinite( day.min ) ? `${day.min}°` : '' }{ Number.isFinite( day.min ) && Number.isFinite( day.max ) ? ' — ' : '' }{ Number.isFinite( day.max ) ? `${day.max}°` : '' }</span>
                                     { Number.isFinite( day.rainProb ) && <span className="vl-live-wx-daily-rain" data-wc-no-translate="true">{ day.rainProb }%</span> }
@@ -3174,7 +3208,7 @@ const VayuLokLive: React.FC = () => {
                               </div>
                             </div>
                             <ul className="vl-live-wx-hist-strip" aria-label="Last 24 hours">
-                              { weatherHistory.map( hour => {
+                              { weatherHistory.map( ( hour, idx ) => {
                                 const value = weatherHistMetric === 'temp' ? ( Number.isFinite( hour.temp ) ? `${hour.temp}°` : '' )
                                   : weatherHistMetric === 'rain' ? ( Number.isFinite( hour.rainMm ) ? `${hour.rainMm} mm` : Number.isFinite( hour.rainProb ) ? `${hour.rainProb}%` : '' )
                                     : weatherHistMetric === 'humidity' ? ( Number.isFinite( hour.humidity ) ? `${hour.humidity}%` : '' )
@@ -3182,13 +3216,50 @@ const VayuLokLive: React.FC = () => {
                                         : weatherHistMetric === 'wind' ? ( Number.isFinite( hour.windSpeed ) ? `${hour.windSpeed} ${hour.windUnit || 'km/h'}` : '' )
                                           : ( Number.isFinite( hour.cloudCover ) ? `${hour.cloudCover}%` : '' );
                                 return (
-                                  <li key={ hour.time } className="vl-live-wx-hist-item">
-                                    <span className="vl-live-wx-hist-t" data-wc-no-translate="true">{ formatHistoryPointLabel( hour.time, locationTime.timeZoneId, locationZoneLabel ) }</span>
-                                    <span className="vl-live-wx-hist-v" data-wc-no-translate="true">{ value }</span>
+                                  <li key={ hour.time } className="vl-live-wx-hist-slot">
+                                    <button
+                                      type="button"
+                                      className={ `vl-live-wx-hist-item ${weatherHistoryInspectIdx === idx ? 'is-active' : ''}`.trim() }
+                                      aria-pressed={ weatherHistoryInspectIdx === idx }
+                                      onClick={ () => setWeatherHistoryInspectIdx( weatherHistoryInspectIdx === idx ? null : idx ) }
+                                    >
+                                      <span className="vl-live-wx-hist-t" data-wc-no-translate="true">{ formatHistoryPointLabel( hour.time, locationTime.timeZoneId, locationZoneLabel ) }</span>
+                                      <span className="vl-live-wx-hist-v" data-wc-no-translate="true">{ value }</span>
+                                    </button>
                                   </li>
                                 );
                               } ) }
                             </ul>
+                            { weatherHistoryInspectIdx != null && weatherHistory[ weatherHistoryInspectIdx ] && (
+                              <div className="vl-live-air-forecast-detail">
+                                { ( () => {
+                                  const h = weatherHistory[ weatherHistoryInspectIdx ];
+                                  const bits: { k: string; v: string; raw?: boolean }[] = [];
+                                  if ( h.condition ) bits.push( { k: 'Condition', v: h.condition } );
+                                  if ( Number.isFinite( h.temp ) ) bits.push( { k: 'Temp', v: `${h.temp}°`, raw: true } );
+                                  if ( Number.isFinite( h.feelsLike ) ) bits.push( { k: 'Feels', v: `${h.feelsLike}°`, raw: true } );
+                                  if ( Number.isFinite( h.humidity ) ) bits.push( { k: 'Humidity', v: `${h.humidity}%`, raw: true } );
+                                  if ( Number.isFinite( h.dewPoint ) ) bits.push( { k: 'Dew point', v: `${h.dewPoint}°`, raw: true } );
+                                  if ( Number.isFinite( h.heatIndex ) ) bits.push( { k: 'Heat index', v: `${h.heatIndex}°`, raw: true } );
+                                  if ( Number.isFinite( h.wetBulb ) ) bits.push( { k: 'Wet bulb', v: `${h.wetBulb}°`, raw: true } );
+                                  if ( Number.isFinite( h.windChill ) ) bits.push( { k: 'Wind chill', v: `${h.windChill}°`, raw: true } );
+                                  if ( Number.isFinite( h.rainProb ) ) bits.push( { k: 'Rain', v: `${h.rainProb}%${Number.isFinite( h.rainMm ) ? ` · ${h.rainMm} mm` : ''}`, raw: true } );
+                                  if ( h.precipitationType ) bits.push( { k: 'Precipitation', v: h.precipitationType.replace( /_/g, ' ' ) } );
+                                  if ( Number.isFinite( h.stormProb ) ) bits.push( { k: 'Storm', v: `${h.stormProb}%`, raw: true } );
+                                  if ( Number.isFinite( h.pressureHpa ) ) bits.push( { k: 'Pressure', v: `${h.pressureHpa} mb`, raw: true } );
+                                  if ( Number.isFinite( h.windSpeed ) ) bits.push( { k: 'Wind', v: `${h.windSpeed} ${h.windUnit || 'km/h'}${h.windDir ? ` ${h.windDir}` : ''}`, raw: true } );
+                                  if ( Number.isFinite( h.windGust ) ) bits.push( { k: 'Gust', v: `${h.windGust} ${h.windUnit || 'km/h'}`, raw: true } );
+                                  if ( Number.isFinite( h.visibilityKm ) ) bits.push( { k: 'Visibility', v: `${h.visibilityKm} km`, raw: true } );
+                                  if ( Number.isFinite( h.cloudCover ) ) bits.push( { k: 'Cloud', v: `${h.cloudCover}%`, raw: true } );
+                                  if ( Number.isFinite( h.iceThicknessMm ) && ( h.iceThicknessMm as number ) > 0 ) bits.push( { k: 'Ice', v: `${h.iceThicknessMm} mm`, raw: true } );
+                                  return bits.map( b => (
+                                    <span key={ b.k }><strong>{ b.k }</strong>{' '}
+                                      { b.raw ? <span data-wc-no-translate="true">{ b.v }</span> : b.v }
+                                    </span>
+                                  ) );
+                                } )() }
+                              </div>
+                            ) }
                           </div>
                         ) }
 
@@ -3545,17 +3616,24 @@ const VayuLokLive: React.FC = () => {
         .vl-live-wx-grid-item:hover{background:var(--lime-tint)}
         .vl-live-wx-daily{margin-top:var(--vl-section-gap)}
         .vl-live-wx-daily-list{max-height:430px;margin:var(--vl-heading-gap) 0 0;padding:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;list-style:none}
-        .vl-live-wx-daily-row{display:grid;grid-template-columns:68px minmax(0,1fr) auto auto;align-items:center;gap:var(--vl-content-gap);width:100%;min-height:48px;padding:12px 14px;border:0;border-top:1px solid var(--hair);border-left:2px solid transparent;border-radius:0;background:#fff;color:var(--body);text-align:left;cursor:pointer;transition:background-color .14s ease,border-color .14s ease}
+        .vl-live-wx-daily-row{display:grid;grid-template-columns:68px 30px minmax(0,1fr) auto auto;align-items:center;gap:10px;width:100%;min-height:48px;padding:12px 14px;border:0;border-top:1px solid var(--hair);border-left:2px solid transparent;border-radius:0;background:#fff;color:var(--body);text-align:left;cursor:pointer;transition:background-color .14s ease,border-color .14s ease}
         .vl-live-wx-daily-list li:first-child .vl-live-wx-daily-row{border-top:0}
         .vl-live-wx-daily-row:hover,.vl-live-wx-daily-row.is-active{background:var(--lime-tint);border-left-color:var(--lime)}
         .vl-live-wx-daily-day{color:var(--body);font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.18px}
+        .vl-live-wx-daily-icon,.vl-live-wx-daily-icon-spacer{display:block;width:28px;height:28px;object-fit:contain}
         .vl-live-wx-daily-cond{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
         .vl-live-wx-daily-temp{color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;font-variant-numeric:tabular-nums}
         .vl-live-wx-daily-rain{color:var(--status);font-size:11.5px;font-weight:600;line-height:1.35}
         .vl-live-wx-history{margin-top:var(--vl-section-gap)}
-        .vl-live-wx-hist-strip{display:flex;gap:8px;margin:var(--vl-heading-gap) 0 0;padding:0 0 6px;overflow-x:auto;list-style:none;scrollbar-width:none}
+        .vl-live-wx-history .vl-live-air-forecast-head{display:block;margin-bottom:8px}
+        .vl-live-wx-history .vl-live-air-forecast-title{white-space:nowrap}
+        .vl-live-wx-history .vl-live-air-range{display:flex;width:100%;max-width:100%;margin-top:8px;overflow-x:auto;scrollbar-width:none}
+        .vl-live-wx-history .vl-live-air-range::-webkit-scrollbar{display:none}
+        .vl-live-wx-hist-strip{display:flex;gap:8px;margin:8px 0 0;padding:0 0 6px;overflow-x:auto;list-style:none;scrollbar-width:none}
         .vl-live-wx-hist-strip::-webkit-scrollbar{display:none}
-        .vl-live-wx-hist-item{display:flex;flex:0 0 72px;flex-direction:column;align-items:center;gap:4px;padding:10px;border:1px solid var(--hair);border-radius:10px;background:#fff}
+        .vl-live-wx-hist-slot{flex:0 0 86px}
+        .vl-live-wx-hist-item{display:flex;width:100%;min-height:86px;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px;border:1px solid var(--hair);border-radius:10px;background:#fff}
+        .vl-live-wx-hist-item:hover,.vl-live-wx-hist-item.is-active{border-color:var(--lime);background:var(--lime-tint)}
         .vl-live-wx-hist-t{color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
         .vl-live-wx-hist-v{color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;font-variant-numeric:tabular-nums}
         .vl-live-wx-alerts{margin-top:var(--vl-section-gap)}
@@ -3713,6 +3791,9 @@ const VayuLokLive: React.FC = () => {
           .vl-live-air-context-item.is-time{margin-left:auto}
           .vl-live-air-health-tabs{scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scroll-padding-inline:2px}
           .vl-live-air-history-head,.vl-live-air-forecast-head{align-items:flex-start;flex-direction:column}
+          .vl-live-wx-history .vl-live-air-forecast-head{display:block}
+          .vl-live-wx-daily-row{grid-template-columns:54px 28px minmax(0,1fr) auto;gap:8px}
+          .vl-live-wx-daily-rain{display:none}
           .vl-live-air-history-head-meta{width:100%;justify-content:space-between}
           .vl-live-air-range{max-width:100%;overflow-x:auto}
           .vl-live-air-health-tab{scroll-snap-align:start}
