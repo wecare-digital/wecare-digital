@@ -3393,36 +3393,37 @@ const VayuLokLive: React.FC = () => {
         .vl-live-wx-now-head{display:flex;align-items:center;gap:12px}
         .vl-live-wx-now-icon{width:52px;height:52px;flex:0 0 52px;object-fit:contain}
         .vl-live-wx-now-temp{display:block;color:#000;font-size:40px;font-weight:700;line-height:1;letter-spacing:-1px}
-        .vl-live-wx-now-cond{display:block;margin-top:2px;color:var(--status);font-size:15px;font-weight:600}
-        .vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:12.5px;font-weight:600}
+        .vl-live-wx-now-cond{display:block;margin-top:2px;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
+        .vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
         .vl-live-wx-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin:0 0 var(--vl-section-gap);padding:0;list-style:none;border:1px solid var(--hair);border-radius:var(--radius-lg,12px);overflow:hidden;background:var(--hair)}
-        .vl-live-wx-grid-item{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:10px 12px;background:#fff}
-        .vl-live-wx-grid-k{color:var(--muted);font-size:12px;font-weight:600}
-        .vl-live-wx-grid-v{color:#000;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+        .vl-live-wx-grid-item{display:flex;align-items:baseline;justify-content:space-between;gap:var(--vl-content-gap);padding:14px;background:#fff;transition:background-color .14s ease}
+        .vl-live-wx-grid-k{min-width:0;color:var(--body);font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.18px}
+        .vl-live-wx-grid-v{color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;font-variant-numeric:tabular-nums;text-align:right}
+        .vl-live-wx-grid-item:hover{background:var(--lime-tint)}
         .vl-live-wx-daily{margin-top:var(--vl-section-gap)}
         .vl-live-wx-daily-list{margin:var(--vl-heading-gap) 0 0;padding:0;list-style:none}
-        .vl-live-wx-daily-row{display:grid;grid-template-columns:60px 1fr auto auto;align-items:center;gap:10px;width:100%;min-height:40px;padding:8px 10px;border:0;border-top:1px solid var(--hair);border-radius:0;background:transparent;color:var(--body);text-align:left;cursor:pointer;transition:background-color .14s ease}
+        .vl-live-wx-daily-row{display:grid;grid-template-columns:68px minmax(0,1fr) auto auto;align-items:center;gap:var(--vl-content-gap);width:100%;min-height:48px;padding:12px 14px;border:0;border-top:1px solid var(--hair);border-left:2px solid transparent;border-radius:0;background:#fff;color:var(--body);text-align:left;cursor:pointer;transition:background-color .14s ease,border-color .14s ease}
         .vl-live-wx-daily-list li:first-child .vl-live-wx-daily-row{border-top:0}
-        .vl-live-wx-daily-row:hover,.vl-live-wx-daily-row.is-active{background:var(--lime-tint)}
-        .vl-live-wx-daily-day{font-weight:700;color:#000}
-        .vl-live-wx-daily-cond{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:12px}
-        .vl-live-wx-daily-temp{font-weight:700;font-variant-numeric:tabular-nums;color:#000;font-size:13px}
-        .vl-live-wx-daily-rain{color:var(--status);font-size:11.5px;font-weight:600}
+        .vl-live-wx-daily-row:hover,.vl-live-wx-daily-row.is-active{background:var(--lime-tint);border-left-color:var(--lime)}
+        .vl-live-wx-daily-day{color:var(--body);font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.18px}
+        .vl-live-wx-daily-cond{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
+        .vl-live-wx-daily-temp{color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;font-variant-numeric:tabular-nums}
+        .vl-live-wx-daily-rain{color:var(--status);font-size:11.5px;font-weight:600;line-height:1.35}
         .vl-live-wx-history{margin-top:var(--vl-section-gap)}
         .vl-live-wx-hist-strip{display:flex;gap:8px;margin:var(--vl-heading-gap) 0 0;padding:0 0 6px;overflow-x:auto;list-style:none;scrollbar-width:none}
         .vl-live-wx-hist-strip::-webkit-scrollbar{display:none}
-        .vl-live-wx-hist-item{display:flex;flex:0 0 56px;flex-direction:column;align-items:center;gap:4px;padding:8px 6px;border:1px solid var(--hair);border-radius:10px;background:#fff}
-        .vl-live-wx-hist-t{color:var(--muted);font-size:10px;font-weight:600}
-        .vl-live-wx-hist-v{color:#000;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+        .vl-live-wx-hist-item{display:flex;flex:0 0 72px;flex-direction:column;align-items:center;gap:4px;padding:10px;border:1px solid var(--hair);border-radius:10px;background:#fff}
+        .vl-live-wx-hist-t{color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
+        .vl-live-wx-hist-v{color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;font-variant-numeric:tabular-nums}
         .vl-live-wx-alerts{margin-top:var(--vl-section-gap)}
         .vl-live-wx-alert{display:flex;flex-direction:column;gap:3px;margin-top:var(--vl-heading-gap);padding:12px 14px;border:1px solid var(--hair);border-left:3px solid var(--lime);border-radius:var(--radius-lg,12px);background:#fff}
         .vl-live-wx-alert.sev-extreme,.vl-live-wx-alert.sev-severe{border-left-color:#c98a2e;background:#fdf6e9}
         .vl-live-wx-alert.sev-moderate{border-left-color:#e8c547}
-        .vl-live-wx-alert strong{color:#000;font-size:14px;font-weight:700}
-        .vl-live-wx-alert-meta{color:var(--status);font-size:11px;font-weight:700;letter-spacing:.02em;text-transform:uppercase}
-        .vl-live-wx-alert-area{color:var(--muted);font-size:12px;font-weight:600}
-        .vl-live-wx-alert p{margin:2px 0 0;color:var(--body);font-size:13px;line-height:1.45}
-        .vl-live-wx-alert-src{color:var(--muted);font-size:11px}
+        .vl-live-wx-alert strong{color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.18px}
+        .vl-live-wx-alert-meta{color:var(--status);font-size:11.5px;font-weight:700;line-height:1.35;letter-spacing:.02em;text-transform:uppercase}
+        .vl-live-wx-alert-area{color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
+        .vl-live-wx-alert p{margin:2px 0 0;color:var(--body);font-size:13px;font-weight:400;line-height:1.42}
+        .vl-live-wx-alert-src{color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
 
         /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
            Icons and arrows inherit the ONE action-icon system above. The row stays horizontal;
