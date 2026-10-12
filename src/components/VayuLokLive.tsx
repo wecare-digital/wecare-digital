@@ -927,6 +927,10 @@ const VayuLokLive: React.FC = () => {
   const [ airForecast, setAirForecast ] = useState<AirPoint[]>( [] );
   const [ airForecastHours, setAirForecastHours ] = useState<24 | 48 | 96>( 24 );
   const [ airForecastInspectIdx, setAirForecastInspectIdx ] = useState( 0 );
+  // Explicit Air-forecast state machine so the section can show loading skeletons, the real
+  // strip, an honest "no rows" empty state, or a concise error - instead of silently rendering
+  // nothing when the forecast:lookup request fails. 'idle' is the pre-selection resting state.
+  const [ airForecastStatus, setAirForecastStatus ] = useState<'idle' | 'loading' | 'success' | 'empty' | 'error'>( 'idle' );
   const [ airHistory, setAirHistory ] = useState<AirPoint[]>( [] );
   // Default to the 168-hour (7-day) window so the Hourly History chart spans ~a week. The
   // history fetch effect keys on this value and only fetches on the keyed path (no key =>
@@ -1607,6 +1611,7 @@ const VayuLokLive: React.FC = () => {
       setWeatherDaily( cachedForecast.daily );
       setWeatherAlerts( cachedForecast.alerts );
       setAirForecast( cachedForecast.airForecast );
+      setAirForecastStatus( cachedForecast.airForecast.length ? 'success' : 'empty' );
       return () => ac.abort();
     }
 
@@ -1614,6 +1619,7 @@ const VayuLokLive: React.FC = () => {
     setWeatherDaily( [] );
     setWeatherAlerts( [] );
     setAirForecast( [] );
+    setAirForecastStatus( 'loading' );
     const forecastStore: {
       hourly: WeatherHour[];
       daily: WeatherDay[];
@@ -1681,6 +1687,7 @@ const VayuLokLive: React.FC = () => {
     const loadAlerts = async () => undefined;
 
     const loadAirForecast = async () => {
+      try {
       const start = new Date();
       start.setUTCMinutes( 0, 0, 0 );
       start.setUTCHours( start.getUTCHours() + 1 );
@@ -1708,13 +1715,35 @@ const VayuLokLive: React.FC = () => {
           } ),
         },
       );
-      if ( !res.ok || ac.signal.aborted ) return;
+      if ( ac.signal.aborted ) return;
+      if ( !res.ok ) {
+        // Surface the failure instead of silently rendering an empty section. Log enough
+        // technical detail in development to identify an HTTP/API/key problem, but never the
+        // key or raw response - the URL carries the key in its query string, so log status only.
+        if ( process.env.NODE_ENV !== 'production' ) {
+          // eslint-disable-next-line no-console
+          console.error( `[VayuLok] air forecast:lookup failed - HTTP ${res.status} ${res.statusText}` );
+        }
+        setAirForecastStatus( 'error' );
+        return;
+      }
       const data = await res.json();
       const rows = ( Array.isArray( data.hourlyForecasts ) ? data.hourlyForecasts : [] )
         .map( ( row: Record<string, any> ) => airPointFromApi( row ) )
         .filter( Boolean ) as AirPoint[];
       forecastStore.airForecast = rows;
       setAirForecast( rows );
+      // A valid 200 with zero usable rows is 'empty', not an error.
+      setAirForecastStatus( rows.length ? 'success' : 'empty' );
+      } catch ( err ) {
+        // Network/transport/parse failure (an aborted request is normal teardown, not an error).
+        if ( ac.signal.aborted ) return;
+        if ( process.env.NODE_ENV !== 'production' ) {
+          // eslint-disable-next-line no-console
+          console.error( '[VayuLok] air forecast:lookup threw', err instanceof Error ? err.message : err );
+        }
+        setAirForecastStatus( 'error' );
+      }
     };
 
     void Promise.allSettled( [ loadHourly(), loadDaily(), loadAlerts(), loadAirForecast() ] ).then( () => {
@@ -2218,11 +2247,17 @@ const VayuLokLive: React.FC = () => {
           <ul className="vl-live-search-results" id="vl-live-search-results" role="listbox" aria-label="Matching places" hidden={ !open || !results.length }>
             { results.map( ( r, i ) => (
               <li key={ `${r.name}-${r.addr}-${i}` } id={ `vl-live-search-option-${i}` } role="option" aria-selected={ i === active } onPointerDown={ e => { e.preventDefault(); void choose( r ); } }>
-                <strong>{ r.name }</strong>{ r.addr && <span>{ r.addr }</span> }
+                <svg className="vl-live-search-result-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.location } /></svg>
+                <span className="vl-live-search-result-text">
+                  <strong>{ r.name }</strong>{ r.addr && <span>{ r.addr }</span> }
+                </span>
               </li>
             ) ) }
           </ul>
-          { searchStatus === 'searching' && <p className="vl-live-search-status" role="status">Searching worldwide…</p> }
+          {/* "Searching…" is announced to screen readers (aria-live) but visually hidden, so the
+              field stays light and uncluttered while typing. Only genuine end states - no result,
+              or an actual failure - show visible helper text. */}
+          { searchStatus === 'searching' && <p className="vl-live-sr-only" role="status" aria-live="polite">Searching worldwide…</p> }
           { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">Place not found.</p> }
           { searchStatus === 'unavailable' && <p className="vl-live-search-status" role="status">Place search is temporarily unavailable.</p> }
         </div>
@@ -2411,7 +2446,20 @@ const VayuLokLive: React.FC = () => {
                             ) ) }
                           </div>
                         </div>
-                        { airForecast.length ? (
+                        { airForecastStatus === 'loading' && !airForecast.length ? (
+                          // LOADING: light skeleton cards while forecast:lookup is in flight.
+                          <div className="vl-live-air-forecast-strip is-skeleton" aria-hidden="true">
+                            { Array.from( { length: 6 } ).map( ( _, i ) => (
+                              <span key={ i } className="vl-live-air-forecast-card is-skeleton" />
+                            ) ) }
+                          </div>
+                        ) : airForecastStatus === 'error' ? (
+                          // ERROR: concise user-facing fallback; technical detail is logged in dev.
+                          <p className="vl-live-air-history-empty" role="status">Air forecast is temporarily unavailable.</p>
+                        ) : airForecastStatus === 'empty' ? (
+                          // EMPTY: a valid Google response with no usable forecast rows.
+                          <p className="vl-live-air-history-empty" role="status">Forecast unavailable for this location.</p>
+                        ) : airForecast.length ? (
                           <>
                             <div className="vl-live-air-forecast-strip" aria-label={ `Next ${airForecastHours} hours air forecast` }>
                               { airForecast.slice( 0, airForecastHours ).map( ( point, idx ) => (
@@ -2448,7 +2496,7 @@ const VayuLokLive: React.FC = () => {
                             ) }
                           </>
                         ) : (
-                          <p className="vl-live-air-history-empty">96-hour air forecast appears here once Google returns forecast data.</p>
+                          <p className="vl-live-air-history-empty">Air forecast appears here once a place is selected.</p>
                         ) }
                       </div>
 
@@ -2991,7 +3039,6 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-forecast-card:focus-visible,
         .vl-live-map-retry:focus-visible,
         .vl-live-air-history-chart:focus-visible,
-        .vl-live-search-results li:focus-visible,
         .vl-live-air-history-nav button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
         .vl-live-air-pollutant-info svg,
         .vl-live-air-heatmap-switch svg,
@@ -3044,6 +3091,10 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-forecast-strip::-webkit-scrollbar{display:none}
         .vl-live-air-forecast-card{display:flex;flex:0 0 122px;scroll-snap-align:start;flex-direction:column;align-items:flex-start;gap:4px;padding:10px;border:1px solid var(--hair);border-radius:10px;background:#fff;color:var(--body);text-align:left}
         .vl-live-air-forecast-card:hover,.vl-live-air-forecast-card.is-active{border-color:var(--lime);background:var(--lime-tint)}
+        /* LOADING skeleton: light shimmer cards while forecast:lookup is in flight. */
+        .vl-live-air-forecast-card.is-skeleton{min-height:62px;background:linear-gradient(90deg,#f4f5f1 25%,#ececec 37%,#f4f5f1 63%);background-size:400% 100%;border-color:var(--hair);animation:vl-live-shimmer 1.4s ease infinite}
+        @media(prefers-reduced-motion:reduce){.vl-live-air-forecast-card.is-skeleton{animation:none}}
+        @keyframes vl-live-shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
         .vl-live-air-forecast-card span{color:var(--muted);font-size:10.5px;font-weight:600;line-height:1.25}
         .vl-live-air-forecast-card strong{color:#000;font-size:15px;font-weight:700;line-height:1.2}
         .vl-live-air-forecast-card small{color:var(--status);font-size:10.5px;font-weight:600;line-height:1.3}
@@ -3162,12 +3213,21 @@ const VayuLokLive: React.FC = () => {
         .vl-live-search-field input::placeholder{color:rgba(0,0,0,.42)}
         .vl-live-search-field input::-webkit-search-cancel-button,.vl-live-search-field input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .vl-live-search-field input::-ms-clear{display:none;width:0;height:0}
-        .vl-live-search-field input:focus-visible{outline:3px solid var(--green);outline-offset:2px;border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470}
+        /* LIGHT, MINIMAL FOCUS. No heavy rectangular outline around the whole field - just a
+           thin dark-green bottom border with a subtle lime accent line, matching the site's
+           modern search treatment. Keyboard focus stays clearly visible. */
+        .vl-live-search-field input:focus-visible{outline:none;border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 var(--lime)}
         .vl-live-search-results{position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:31;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;box-shadow:0 10px 24px rgba(26,58,42,.14)}
-        .vl-live-search-results li{padding:10px 12px;border-radius:10px;cursor:pointer}
-        .vl-live-search-results li[aria-selected="true"]{background:var(--lime-tint)}
+        /* RESULT ROWS: clear hover + keyboard-selected states with a soft lime background and a
+           smooth 140ms transition. A small location glyph leads each row, matching the air card's
+           icon idiom; no heavy shadow, no oversized card. */
+        .vl-live-search-results li{display:flex;align-items:flex-start;gap:9px;padding:10px 12px;border-radius:10px;cursor:pointer;transition:background-color .14s ease}
+        .vl-live-search-results li:hover,.vl-live-search-results li[aria-selected="true"]{background:var(--lime-tint)}
+        .vl-live-search-results li[aria-selected="true"]{box-shadow:inset 2px 0 0 var(--lime)}
+        .vl-live-search-result-icon{flex:0 0 16px;width:16px;height:16px;margin-top:2px;fill:var(--green);opacity:.72}
+        .vl-live-search-result-text{min-width:0}
         .vl-live-search-results strong,.vl-live-search-results span{display:block}
-        .vl-live-search-results strong{font-size:15px;font-weight:700;color:var(--heading)}
+        .vl-live-search-results strong{font-size:15px;font-weight:800;color:var(--heading);letter-spacing:-.1px}
         .vl-live-search-results span{margin-top:3px;font-size:12px;color:var(--muted)}
         .vl-live-search-status{margin:8px 2px 0;font-size:11px;color:var(--muted)}
         @media(max-width:1050px){
