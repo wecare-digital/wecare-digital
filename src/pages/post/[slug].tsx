@@ -12,7 +12,6 @@ import { ORG_ID, ORIGIN, WEBSITE_ID, SITE_ENTITIES, ld } from '../../lib/schema'
 import { extractRecipe, recipeSchema } from '../../lib/recipe-schema';
 import { getPublicBlogPost, listPublicBlogPosts, PublicBlogPost } from '../../lib/public-blog';
 import { postContext, type PostLink } from '../../lib/post-neighbours';
-import RotatingHero, { CycleWord } from '../../components/RotatingHero';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import BlogTags from '../../components/BlogTags';
 import RssIcon from '../../components/RssIcon';
@@ -119,15 +118,6 @@ function inlineFormat ( text: string ) {
     return part;
   } );
 }
-
-/** Same four words and tints as /blog/ - this band is the blog's masthead, so it must not
- * say something different from the section it belongs to. */
-const HERO_WORDS: CycleWord[] = [
-  { word: 'clarity', tint: '#dbeafe', dot: '#2563eb' },
-  { word: 'practice', tint: '#fef3c7', dot: '#f0a818' },
-  { word: 'meaning', tint: '#e0f7c8', dot: '#3da35a' },
-  { word: 'change', tint: '#ede9fe', dot: '#9849e8' },
-];
 
 export default function BlogPostPage ( {
   post, newer, older, related = [], streamHref = '/blog/', streamLabel = 'Blog',
@@ -367,26 +357,6 @@ export default function BlogPostPage ( {
           <script type="application/ld+json" dangerouslySetInnerHTML={ ld( post.jsonLd?.faqSchema ) } />
         ) }
       </Head>
-      {/* THE BLOG'S MASTHEAD, ABOVE THE ARTICLE - option B, chosen by the owner from
-          docs/post-layout-review.html.
-          `subordinate` is not optional here: without it RotatingHero renders its own <main>
-          and <h1>, and this page already has both. That would put two main landmarks and two
-          h1s on all 824 posts, which fails MANY-MAIN at HIGH and H1-MANY in
-          tools/audit/htmlcheck.js. Measured in the mock before the prop existed: 2 mains,
-          2 h1s. With it the wrapper is a <section> and the headline an <h2>, styled by class
-          so the 55px/600 rung is pixel-identical either way.
-          NO badgeLabel, matching /blog/ and the home page: the header already states the
-          brand, and repeating it directly beneath is what the home page removed.
-          The trade is recorded rather than hidden: this band is the same on every post, so it
-          is the blog's masthead and not the article's own content, and it moves the writing
-          from 338px down to 812px. Both numbers are in the mock. */}
-      <RotatingHero
-        subordinate
-        frame="Notes on"
-        words={ HERO_WORDS }
-        sub="Short pieces on the distinctions that change how a thing is seen."
-        ariaLabel="WECARE.DIGITAL blog"
-      />
       <main className="article-shell">
         <article>
           {/* A REAL TRAIL, replacing a single "← Blog" back link at 13px/650 - the only
@@ -590,8 +560,8 @@ export default function BlogPostPage ( {
         </article>
       </main>
       <style jsx>{`
-        /* padding-top is 40px, not 156px: the hero above now owns the header offset. */
-        .article-shell{max-width:1300px;margin:0 auto;padding:40px 24px 96px;color:#1a1a1a;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+        /* Clear the fixed site header so readers land directly on the article. */
+        .article-shell{max-width:1300px;margin:0 auto;padding:140px 24px 96px;color:#1a1a1a;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
         article{max-width:700px;margin:0 auto}
         /* THE GLOBAL BORDERLESS SEARCH FIELD, matching /blog/ (.blog-search) and the /anew/ panel
            (.pbp-search): transparent fill, one quiet bottom hairline, no icon, no button. On focus
@@ -824,7 +794,7 @@ export default function BlogPostPage ( {
         }
         .post-related :global(.post-related-all:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px}
         @media(max-width:680px){
-          .article-shell{padding:128px 16px 64px}
+          .article-shell{padding:120px 16px 64px}
           h1{max-width:none}
           .byline{margin-bottom:34px}
           .content :global(p),.content :global(li){font-size:18px;line-height:1.6}
