@@ -5,7 +5,6 @@ import { topicSlug } from '../lib/blog-index-props';
 import RotatingHero, { CycleWord } from './RotatingHero';
 import Breadcrumbs from './Breadcrumbs';
 import Pager from './Pager';
-import BlogFooterCTA from './BlogFooterCTA';
 import RssIcon from './RssIcon';
 import VoiceSearchMic from './VoiceSearchMic';
 
@@ -89,10 +88,6 @@ export const HERO_WORDS: CycleWord[] = [
   { word: 'meaning', tint: '#e0f7c8', dot: '#3da35a' },
   { word: 'change', tint: '#ede9fe', dot: '#9849e8' },
 ];
-
-/** The canonical origin, for building absolute share URLs for the footer CTA's Share row. The
- *  same origin BlogIndexHead uses for canonicals. */
-const ORIGIN = 'https://wecare.digital';
 
 /** Where the full post list lives. Written post-build, beside the page it serves. Fetched once
  *  on mount now that "show every post" is the default rather than a search action. The name is
@@ -283,7 +278,6 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
       words={ HERO_WORDS }
       sub="Short pieces on the distinctions that change how a thing is seen — written by the people doing the work."
       ariaLabel="WECARE.DIGITAL blog"
-      noShare
     >
       <div className="blog-shell">
         <Breadcrumbs
@@ -397,16 +391,14 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
               />
             ) }
 
-            {/* THE SUBSCRIBE / CONTRIBUTE / SHARE BAND - the same block the post page carries at
-                its foot, on owner instruction, so the blog index tail reads as the same object.
-                The shared component (components/BlogFooterCTA.tsx) renders the WhatsApp Subscribe
-                pill, the Contribute block and the Share row. shareUrl is this listing's own
-                canonical page URL, built from the same streamBase/page the pager uses so a shared
-                link points at the page the reader is on. */}
-            <BlogFooterCTA
-              shareUrl={ `${ORIGIN}${blogPageHref( page, streamBase )}` }
-              shareTitle="WECARE.DIGITAL Blog"
-            />
+            {/* THE SUBSCRIBE + SHARE BLOCK IS THE GLOBAL ONE NOW. The owner unified the blog
+                surfaces onto components/PublicShare, auto-mounted by RotatingHero at the end of
+                this hero's own content measure (RotatingHero no longer gates it on `subordinate`,
+                and this view no longer passes `noShare`). The old three-part BlogFooterCTA band -
+                its own Subscribe pill and Share row - is removed so the index carries exactly ONE
+                Subscribe+Share, the same block every other public page carries. PublicShare
+                resolves this page's own canonical URL and title itself, so there is no shareUrl to
+                pass. */}
 
             {/* THE RSS SUBSCRIBE AFFORDANCE, ICON-ONLY, AT THE BOTTOM. It replaces the old text
                 pill that sat in a toolbar at the top; on owner instruction it is now a compact

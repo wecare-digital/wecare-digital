@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Fragment, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import ShareLinks from '../../components/ShareLinks';
+import PublicShare from '../../components/PublicShare';
 import BlogContribution from '../../components/BlogContribution';
 import {
   SOCIAL_CARD_URL, SOCIAL_CARD_W, SOCIAL_CARD_H, SOCIAL_CARD_TYPE, SOCIAL_CARD_ALT, SHARE_CARD_TYPE,
@@ -432,58 +432,41 @@ export default function BlogPostPage ( {
               typecheck.js would hold to the 40px/700 section-h2 rung. */}
           <BlogTags tags={ post.tags || [] } className="tags" ariaLabel="Tags on this post" />
 
-          {/* SUBSCRIBE ON WHATSAPP - the in-page signup box was removed in favour of a single
-              button that opens a WhatsApp conversation at this subscribe deep link. A real
-              anchor, not a button+onClick: it leaves the site, so it must be middle-clickable,
-              long-pressable and copyable.
-              TEXT ONLY, no glyph: the WhatsApp logo inside the filled pill read as too busy, so
-              the destination moves to the quiet `.blog-wa-note` microcopy below. This is the
-              matched twin of the Contribute pill in BlogContribution.tsx - same lime object, same
-              one-word label, same microcopy line. */}
-          <a
-            className="blog-wa-subscribe"
-            href="https://wa.me/message/WUDPTMYSO6XII1"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Subscribe on WhatsApp"
-          >
-            <span>Subscribe</span>
-          </a>
-          {/* MICROCOPY: three words and a trailing arrow naming where the button goes. aria-hidden
-              because the anchor's accessible name already carries "on WhatsApp". */}
-          <p className="wc-sweep-note" aria-hidden="true">Continue on WhatsApp →</p>
+          {/* THE OLD INLINE SUBSCRIBE PILL IS GONE. The post page used to carry its own
+              `.blog-wa-subscribe` WhatsApp pill and a `.wc-sweep-note` "Continue on WhatsApp →"
+              microcopy line here, plus its own `.post-share` ShareLinks row below Contribution.
+              The owner unified every public surface onto the ONE global Subscribe+Share block
+              (components/PublicShare), so both the old Subscribe pill and the page's own Share row
+              are removed and PublicShare below provides Subscribe FOLLOWED BY Share in one block.
+              There is exactly ONE Subscribe+Share on the page now. */}
 
-          {/* CONTRIBUTE - the voluntary-contribution block, placed AFTER Subscribe and BEFORE the
-              share row so the reading order is content -> Tags -> Subscribe -> Contribute ->
-              Share -> pager/related.
-              IT IS THE SUBSCRIBE ANCHOR'S TWIN: one lime pill, the same WhatsApp glyph, one word,
-              opening a DIFFERENT Meta message link (BYFLCAAMSZBXD1, not the WUDPTMYSO6XII1 above).
-              There is no amount to choose, no form and no cart write - the block was a
-              central-config amount pill with an honest-degradation seam until the owner replaced
-              both of its button-looking controls with this single link; see the component's
-              docblock for what was removed and why.
+          {/* CONTRIBUTE - the voluntary-contribution block, placed BEFORE the global
+              Subscribe+Share so the reading order is content -> Tags -> Contribute ->
+              Subscribe+Share -> pager/related.
               It stays a component (components/BlogContribution.tsx) so the pill and its unit cases
               live in one place rather than inlined here. postId AND slug are still passed so the
               block is attributable (data-post-id); the component's heading is an h2, never an h1,
               so the page keeps its single h1 and htmlcheck's H1-MANY guard is satisfied. It does
-              NOT take the shareRef - that stays on .post-share below, which is the
+              NOT take the shareRef - that stays on the .post-share wrapper below, which is the
               IntersectionObserver reveal sentinel. */}
           <BlogContribution postId={ post.id } slug={ post.slug } />
 
-          {/* SHARE, AT THE END OF THE READING RATHER THAN THE START.
-              A share control above the article asks a reader to recommend something they have not
-              read yet; the end of the piece is where the intent actually exists, and it is where
-              the page already puts its other outbound controls - the pager and the related cards
-              follow immediately below. One row, one place: a second copy under the title would be
-              two controls competing to do one job.
-              canonical, NOT router.asPath: what gets shared has to be the address the page
-              declares as its own, without a utm string or a #hash the reader happened to arrive
-              with. post.title rather than the seoTitle, because the seoTitle carries the
-              " | WECARE.DIGITAL" suffix that belongs in a browser tab, not in a WhatsApp message
-              where og:site_name already says whose link it is.
-              This div is also the sentinel the reveal effect observes - see the note above. */}
+          {/* THE GLOBAL SUBSCRIBE + SHARE BLOCK, AT THE END OF THE READING.
+              The page no longer renders its own ShareLinks row; PublicShare is the ONE
+              Subscribe+Share block every public surface carries - Subscribe (the WhatsApp pill)
+              followed by Share (the icon row for THIS page's own URL + title) in one block.
+              canonical + post.title are passed as the share target, NOT router.asPath or the
+              seoTitle: what gets shared has to be the address the page declares as its own
+              (no utm string, no #hash) and the title without the " | WECARE.DIGITAL" tab suffix,
+              because og:site_name already says whose link it is. PublicShare would resolve these
+              from location/document itself, but passing them keeps the static export correct and
+              avoids a stale value pre-hydration.
+              The .post-share wrapper stays as the IntersectionObserver reveal sentinel - shareRef
+              still names it, so the staged entrance of this block, the pager and the related cards
+              is unchanged. Its own hairline border is dropped (see the CSS note) because
+              PublicShare carries its own full-width separator. */}
           <div className="post-share" ref={ shareRef }>
-            <ShareLinks url={ canonical } title={ post.title } />
+            <PublicShare url={ canonical } title={ post.title } />
           </div>
 
           {/* WALKING THE STREAM, ONE POST AT A TIME.
@@ -634,28 +617,16 @@ export default function BlogPostPage ( {
            layout rule, the .tags :global(a) pill, the four .tag-h0..3 dots and the hover/focus
            and reduced-motion handling all live there now, so the one component styles itself on
            every surface it renders. Nothing was dropped; it is the same block, in one place. */
-        /* SUBSCRIBE ON WHATSAPP BUTTON. Same object as the home-page CTA: 52px minimum
-           height, 28px inline padding, a 2px dark-green edge, 50px pill radius, 17px/600
-           label, and the same white hover inversion. TEXT ONLY now - the glyph was dropped,
-           so the destination lives in the .blog-wa-note microcopy below rather than on the
-           button. The visible label is Subscribe; the full WhatsApp context stays in the
-           accessible name. This mirrors the Contribute pill (.bc-cta) exactly. */
-        .blog-wa-subscribe{
-          display:inline-flex;align-items:center;justify-content:center;margin-top:44px;
-          min-height:52px;padding:0 28px;border:2px solid #1a3a2a;border-radius:50px;
-          background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;
-          text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s;
-        }
-        .blog-wa-subscribe:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-        .blog-wa-subscribe:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-        /* MICROCOPY under the Subscribe pill now uses the shared global .wc-sweep-note class
-           (src/styles/inner-ux.css) - the footer-tagline lime sweep on hover - so there is no
-           per-page copy here. The element carries className="wc-sweep-note". */
-        /* The share row sits in the same hairline rhythm as the tags above it and the pager below
-           - 24px of air under a 1px e5e7eb rule - so the tail of the page reads as three bands of
-           one object rather than three unrelated blocks. The controls style themselves; see
-           components/ShareLinks.tsx. */
-        .post-share{margin-top:44px;padding-top:24px;border-top:1px solid #e5e7eb}
+        /* THE OLD .blog-wa-subscribe PILL CSS IS GONE, with the markup it styled. The post page
+           no longer carries its own Subscribe pill (or the .wc-sweep-note microcopy that named
+           its destination); the global PublicShare block below provides Subscribe + Share, and
+           it styles its own .ps-subscribe pill. */
+        /* THE .post-share WRAPPER IS NOW JUST THE REVEAL SENTINEL. It wraps the global
+           PublicShare, which carries its OWN full-width hairline separator and its own top
+           spacing, so this wrapper must not add a second 1px rule and extra padding on top of
+           PublicShare's - that would read as a double divider. The margin-top keeps the block off
+           the Contribution above it; the border and padding move into PublicShare itself. */
+        .post-share{margin-top:4px}
 
         /* THE ENTRANCE, AND THE FINISHED STATE IS THE DEFAULT.
            Everything below is scoped to article.is-armed, a class the page adds only after
