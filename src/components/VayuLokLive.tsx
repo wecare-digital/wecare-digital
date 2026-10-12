@@ -1179,7 +1179,7 @@ const VayuLokLive: React.FC = () => {
       key: MAPS_KEY,
     } );
 
-    void fetch( `https://maps.googleapis.com/maps/api/timezone/json?${params.toString()}`, { signal: ac.signal } )
+    void fetch( `https://maps.googleapis.com/maps/api/timezone/json?${params.toString()}`, { signal: ac.signal, cache: 'no-store' } )
       .then( async res => res.ok ? res.json() : null )
       .then( data => {
         if ( ac.signal.aborted || data?.status !== 'OK' || typeof data?.timeZoneId !== 'string' ) return;
@@ -1685,6 +1685,7 @@ const VayuLokLive: React.FC = () => {
           {
             method: 'POST',
             signal: ac.signal,
+            cache: 'no-store',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify( {
               location: { latitude: lat, longitude: lng },
@@ -1715,7 +1716,7 @@ const VayuLokLive: React.FC = () => {
       try {
         const res = await fetch(
           `https://weather.googleapis.com/v1/currentConditions:lookup?key=${encodeURIComponent( MAPS_KEY )}&location.latitude=${lat}&location.longitude=${lng}&unitsSystem=METRIC`,
-          { signal: ac.signal },
+          { signal: ac.signal, cache: 'no-store' },
         );
         if ( !res.ok ) return;
         const d = await res.json();
@@ -1839,7 +1840,7 @@ const VayuLokLive: React.FC = () => {
     } = { hourly: [], daily: [], alerts: [], alertStatus: 'loading', airForecast: [] };
 
     const getJson = async ( url: string ) => {
-      const res = await fetch( url, { signal: ac.signal } );
+      const res = await fetch( url, { signal: ac.signal, cache: 'no-store' } );
       if ( !res.ok ) return null;
       return res.json();
     };
@@ -2034,6 +2035,7 @@ const VayuLokLive: React.FC = () => {
         {
           method: 'POST',
           signal: ac.signal,
+          cache: 'no-store',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify( {
             location: { latitude: lat, longitude: lng },
@@ -2101,7 +2103,7 @@ const VayuLokLive: React.FC = () => {
     const WEATHER_HISTORY_TTL_MS = 6 * 60 * 60 * 1000;
     if ( cached && Date.now() - cached.ts < WEATHER_HISTORY_TTL_MS ) {
       setWeatherHistory( cached.rows );
-      setWeatherHistoryFetchedAt( cached.ts );
+      setWeatherHistoryFetchedAt( cached.rows[ cached.rows.length - 1 ]?.time || cached.ts );
       return () => ac.abort();
     }
 
@@ -2111,7 +2113,7 @@ const VayuLokLive: React.FC = () => {
         const url = 'https://weather.googleapis.com/v1/history/hours:lookup?key=' + encodeURIComponent( MAPS_KEY )
           + '&location.latitude=' + lat + '&location.longitude=' + lng
           + '&hours=24&pageSize=24&unitsSystem=METRIC&languageCode=en';
-        const res = await fetch( url, { signal: ac.signal } );
+        const res = await fetch( url, { signal: ac.signal, cache: 'no-store' } );
         if ( !res.ok || ac.signal.aborted ) return;
         const data = await res.json();
         const rows = ( Array.isArray( data.historyHours ) ? data.historyHours : [] )
@@ -2123,7 +2125,7 @@ const VayuLokLive: React.FC = () => {
           const fetchedAt = Date.now();
           weatherHistoryCache.current[ historyKey ] = { ts: fetchedAt, rows: latest };
           setWeatherHistory( latest );
-          setWeatherHistoryFetchedAt( fetchedAt );
+          setWeatherHistoryFetchedAt( latest[ latest.length - 1 ]?.time || fetchedAt );
         }
       } catch { /* historical weather is optional */ }
     };
@@ -2174,6 +2176,7 @@ const VayuLokLive: React.FC = () => {
           {
             method: 'POST',
             signal: ac.signal,
+            cache: 'no-store',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify( body ),
           },
@@ -3182,7 +3185,7 @@ const VayuLokLive: React.FC = () => {
                             ) }
                           </div>
                         </div>
-                        { coreFetchedAt && <div className="vl-live-wx-freshness">Current · { relativeAgeLabel( coreFetchedAt ).label.replace( /^Updated\s*/i, 'updated ' ) }</div> }
+                        { ( weather.currentTime || coreFetchedAt ) && <div className="vl-live-wx-freshness">Current · { relativeAgeLabel( weather.currentTime || coreFetchedAt || undefined ).label.replace( /^Updated\s*/i, 'updated ' ) }</div> }
 
                         {/* CURRENT METRICS - compact grid, only fields Google returned. */}
                         <ul className="vl-live-wx-grid">
@@ -3317,7 +3320,7 @@ const VayuLokLive: React.FC = () => {
                             ) }
                           </div>
                         ) }
-                        { forecastFetchedAt && <div className="vl-live-wx-freshness">Forecast · { relativeAgeLabel( forecastFetchedAt ).label.replace( /^Updated\s*/i, 'updated ' ) }</div> }
+                        { forecastFetchedAt && <div className="vl-live-wx-freshness">Forecast · { relativeAgeLabel( forecastFetchedAt ).label.replace( /^Updated\s*/i, 'fetched ' ) }</div> }
 
                         {/* 10-DAY FORECAST - compact vertical rows, detail on selection. */}
                         { weatherDaily.length > 0 && (
@@ -3454,7 +3457,7 @@ const VayuLokLive: React.FC = () => {
                             ) }
                           </div>
                         ) }
-                        { weatherHistoryFetchedAt && <div className="vl-live-wx-freshness">History · { relativeAgeLabel( weatherHistoryFetchedAt ).label.replace( /^Updated\s*/i, 'updated ' ) }</div> }
+                        { weatherHistoryFetchedAt && <div className="vl-live-wx-freshness">History · { relativeAgeLabel( weatherHistoryFetchedAt ).label.replace( /^Updated\s*/i, 'latest ' ) }</div> }
 
                         { weather.currentTime && <span className="vl-live-sr-only">Weather updated for the selected place.</span> }
                       </>
