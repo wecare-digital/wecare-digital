@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import VoiceSearchMic from './VoiceSearchMic';
 
 /**
  * VayuLok LIVE content, appended BELOW the rotating-word hero on /vayulok/.
@@ -343,7 +344,7 @@ interface HealthPersonaDefinition {
 /* Local paths from Google's Material Symbols Outlined set. Keeping the SVG paths local avoids
    a runtime icon-font dependency while preserving Google's icon language across the Air card. */
 const MATERIAL_SYMBOL_PATHS: Record<
-  HealthPersonaIcon | 'info' | 'switches' | 'close' | 'air' | 'eco' | 'schedule' | 'location' | 'mic' | 'chevronLeft' | 'chevronRight',
+  HealthPersonaIcon | 'info' | 'switches' | 'close' | 'air' | 'eco' | 'schedule' | 'location' | 'chevronLeft' | 'chevronRight',
   string
 > = {
   info: 'M453-280h60v-240h-60v240Zm50.5-323.2q9.5-9.2 9.5-22.8 0-14.45-9.48-24.22-9.48-9.78-23.5-9.78t-23.52 9.78Q447-640.45 447-626q0 13.6 9.48 22.8 9.48 9.2 23.5 9.2t23.52-9.2ZM480.27-80q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z',
@@ -355,7 +356,6 @@ const MATERIAL_SYMBOL_PATHS: Record<
   air: 'M460-160q-50 0-85-35t-35-85h80q0 17 11.5 28.5T460-240q17 0 28.5-11.5T500-280q0-17-11.5-28.5T460-320H80v-80h380q50 0 85 35t35 85q0 50-35 85t-85 35ZM80-560v-80h540q26 0 43-17t17-43q0-26-17-43t-43-17q-26 0-43 17t-17 43h-80q0-59 40.5-99.5T620-840q59 0 99.5 40.5T760-700q0 59-40.5 99.5T620-560H80Zm660 320v-80q26 0 43-17t17-43q0-26-17-43t-43-17H80v-80h660q59 0 99.5 40.5T880-380q0 59-40.5 99.5T740-240Z',
   schedule: 'm612-292 56-56-148-148v-184h-80v216l172 172ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-400Zm0 320q133 0 226.5-93.5T800-480q0-133-93.5-226.5T480-800q-133 0-226.5 93.5T160-480q0 133 93.5 226.5T480-160Z',
   location: 'M480-480q33 0 56.5-23.5T560-560q0-33-23.5-56.5T480-640q-33 0-56.5 23.5T400-560q0 33 23.5 56.5T480-480Zm0 294q122-112 181-203.5T720-552q0-109-69.5-178.5T480-800q-101 0-170.5 69.5T240-552q0 71 59 162.5T480-186Zm0 106Q319-217 239.5-334.5T160-552q0-150 96.5-239T480-880q127 0 223.5 89T800-552q0 100-79.5 217.5T480-80Zm0-480Z',
-  mic: 'M480-400q-50 0-85-35t-35-85v-240q0-50 35-85t85-35q50 0 85 35t35 85v240q0 50-35 85t-85 35Zm-40 280v-123q-104-14-172-93t-68-184h80q0 83 58.5 141.5T480-320q83 0 141.5-58.5T680-520h80q0 105-68 184t-172 93v123h160v80H280v-80h160Zm40-360q17 0 28.5-11.5T520-520v-240q0-17-11.5-28.5T480-800q-17 0-28.5 11.5T440-760v240q0 17 11.5 28.5T480-480Zm0-160Z',
   general: 'M420-340h120v-100h100v-120H540v-100H420v100H320v120h100v100Zm60 260q-139-35-229.5-159.5T160-516v-244l320-120 320 120v244q0 152-90.5 276.5T480-80Zm0-84q104-33 172-132t68-220v-189l-240-90-240 90v189q0 121 68 220t172 132Zm0-316Z',
   elderly: 'm320-40-48-36 104-139-8-191q-2-52 5.5-109.5T397-617l-97 56v111h-60v-146l167-96q17-10 32.5-15t29.5-5q27 0 48.5 21t41.5 66q20 46 59 75.5t94 46.5q7-4 13.5-5.5T739-510q23 0 42 18.5t19 41.5v410h-30v-410q0-12-9-21t-21-9q-12 0-21 9t-9 21v30h-30v-33q-42-11-87.5-42T521-568q-12 34-18.5 75t-4.5 73l97 137v243h-60v-219l-85-95-10 154L320-40Zm218-714q-30 0-51.5-21.5T465-827q0-30 21.5-51.5T538-900q30 0 51.5 21.5T611-827q0 30-21.5 51.5T538-754Z',
   respiratory: 'M190-120q-46 0-78-32t-32-78v-185l108-279q12-31 40.07-48.5t60.82-17.5q42.11 0 71.61 29.57T390-659v39h-60v-39q0-17.19-12.83-29.1-12.82-11.9-29.92-11.9-14.25 0-26.25 6.5T244-674L140-405v175q0 21.25 14.38 35.62Q168.75-180 190-180h140q21.25 0 35.63-14.38Q380-208.75 380-230v-70h60v70q0 46-32.08 78-32.09 32-77.92 32H190Zm580 0H630q-45.83 0-77.92-32Q520-184 520-230v-70h60v70q0 21.25 14.38 35.62Q608.75-180 630-180h140q21.25 0 35.63-14.38Q820-208.75 820-230v-175L716-674q-5-13-17-19.5t-26-6.5q-17 0-30 11.9-13 11.91-13 29.1v39h-60v-39q0-41.86 29.52-71.43Q629.03-760 671.2-760q32.8 0 60.8 17.5t40 48.5l108 279v185q0 46-32.08 78-32.09 32-77.92 32ZM334-456Zm292 0Zm-146-62L376-414l-42-42 116-116v-308h60v308l116 116-42 42-104-104Z',
@@ -998,35 +998,6 @@ function bestOutsideWindow( weatherHours: WeatherHour[], airHours: AirPoint[] ):
   return { label: hourLabel( best.start.w.time ) + '–' + hourLabel( end ), note: notes.join( ' · ' ) || 'Best upcoming outdoor window' };
 }
 
-interface VoiceRecognitionEventLike {
-  results?: ArrayLike<ArrayLike<{ transcript?: string }>>;
-}
-interface VoiceRecognitionLike {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  maxAlternatives: number;
-  start: () => void;
-  stop?: () => void;
-  abort?: () => void;
-  onstart: ( () => void ) | null;
-  onend: ( () => void ) | null;
-  onerror: ( () => void ) | null;
-  onresult: ( ( event: VoiceRecognitionEventLike ) => void ) | null;
-}
-type VoiceRecognitionConstructor = new () => VoiceRecognitionLike;
-
-const VOICE_LOCALE_BY_BASE: Record<string, string> = {
-  en: 'en-IN', hi: 'hi-IN', bn: 'bn-IN', ta: 'ta-IN', te: 'te-IN',
-  mr: 'mr-IN', gu: 'gu-IN', kn: 'kn-IN', ml: 'ml-IN', pa: 'pa-IN', ur: 'ur-IN',
-};
-
-function voiceLocaleForPage ( value: string ): string {
-  const lang = ( value || 'en' ).trim();
-  const base = lang.toLowerCase().split( /[-_]/ )[ 0 ];
-  return VOICE_LOCALE_BY_BASE[ base ] || lang || 'en-IN';
-}
-
 const RECENT_PLACES_KEY = 'vayulok_recent_places_v2';
 
 function recentPlaces(): PlaceState[] {
@@ -1106,8 +1077,6 @@ const VayuLokLive: React.FC = () => {
   const [ results, setResults ] = useState<SearchResult[]>( [] );
   const [ open, setOpen ] = useState( false );
   const [ active, setActive ] = useState( -1 );
-  const [ voiceSupported, setVoiceSupported ] = useState( false );
-  const [ voiceListening, setVoiceListening ] = useState( false );
   // Bumped by the map-failed "Try again" button to re-run the map init + timeout effects.
   const [ mapInitNonce, setMapInitNonce ] = useState( 0 );
 
@@ -1154,7 +1123,6 @@ const VayuLokLive: React.FC = () => {
   const weatherHistoryCache = useRef<Record<string, { ts: number; rows: WeatherHour[] }>>( {} );
   const timeZoneCache = useRef<Record<string, LocationTimeState>>( {} );
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
-  const voiceRecognitionRef = useRef<VoiceRecognitionLike | null>( null );
   // The google.maps.ImageMapType instance for the continuous AQI heatmap tile overlay
   // (FEAT-001). Attached by DEFAULT once the KEYED map is initialized (layer defaults to
   // 'AQI'), pushed onto map.overlayMapTypes, and detached idempotently on toggle-off /
@@ -2467,62 +2435,6 @@ const VayuLokLive: React.FC = () => {
   }, [ ensurePlacesLibrary, ensureGeocoder ] );
 
 
-  useEffect( () => {
-    if ( typeof window === 'undefined' ) return;
-    const speechWindow = window as typeof window & {
-      SpeechRecognition?: VoiceRecognitionConstructor;
-      webkitSpeechRecognition?: VoiceRecognitionConstructor;
-    };
-    const Recognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
-    if ( !Recognition ) {
-      setVoiceSupported( false );
-      return;
-    }
-
-    const recognition = new Recognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    recognition.onstart = () => setVoiceListening( true );
-    recognition.onend = () => setVoiceListening( false );
-    recognition.onerror = () => setVoiceListening( false );
-    recognition.onresult = event => {
-      const transcript = String( event.results?.[ 0 ]?.[ 0 ]?.transcript || '' ).trim();
-      if ( !transcript ) return;
-      if ( searchTimer.current ) clearTimeout( searchTimer.current );
-      autocompleteTokenRef.current = null;
-      setQuery( transcript );
-      void runSearch( transcript );
-    };
-    voiceRecognitionRef.current = recognition;
-    setVoiceSupported( true );
-
-    return () => {
-      recognition.onstart = null;
-      recognition.onend = null;
-      recognition.onerror = null;
-      recognition.onresult = null;
-      recognition.abort?.();
-      if ( voiceRecognitionRef.current === recognition ) voiceRecognitionRef.current = null;
-    };
-  }, [ runSearch ] );
-
-  const toggleVoiceSearch = useCallback( () => {
-    const recognition = voiceRecognitionRef.current;
-    if ( !recognition || typeof document === 'undefined' ) return;
-    if ( voiceListening ) {
-      recognition.stop?.();
-      return;
-    }
-    recognition.lang = voiceLocaleForPage( document.documentElement.lang || navigator.language || 'en' );
-    try {
-      recognition.start();
-    } catch {
-      // Browsers throw if start() is called while a previous recognition session is closing.
-      setVoiceListening( false );
-    }
-  }, [ voiceListening ] );
-
   const onQueryChange = ( e: React.ChangeEvent<HTMLInputElement> ) => {
     const v = e.target.value;
     setQuery( v );
@@ -2691,18 +2603,14 @@ const VayuLokLive: React.FC = () => {
               } }
               onKeyDown={ onKeyDown }
             />
-            { voiceSupported && (
-              <button
-                type="button"
-                className={ `vl-live-voice-btn ${voiceListening ? 'is-listening' : ''}`.trim() }
-                aria-label={ voiceListening ? 'Stop voice search' : 'Search by voice' }
-                title={ voiceListening ? 'Stop voice search' : 'Search by voice' }
-                aria-pressed={ voiceListening }
-                onClick={ toggleVoiceSearch }
-              >
-                <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.mic } /></svg>
-              </button>
-            ) }
+            <VoiceSearchMic
+              onTranscript={ transcript => {
+                if ( searchTimer.current ) clearTimeout( searchTimer.current );
+                autocompleteTokenRef.current = null;
+                setQuery( transcript );
+                void runSearch( transcript );
+              } }
+            />
           </div>
           <ul className="vl-live-search-results" id="vl-live-search-results" role="listbox" aria-label="Matching places" hidden={ !open || !results.length }>
             { results.map( ( r, i ) => (
@@ -4062,13 +3970,6 @@ const VayuLokLive: React.FC = () => {
            thin dark-green bottom border with a subtle lime accent line, matching the site's
            modern search treatment. Keyboard focus stays clearly visible. */
         .vl-live-search-field input:focus-visible{outline:none;border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 var(--lime)}
-        .vl-live-voice-btn{position:absolute;right:4px;top:50%;display:inline-grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--green);opacity:.68;transform:translateY(-50%);transition:background-color .14s ease,color .14s ease,opacity .14s ease,transform .14s ease}
-        .vl-live-voice-btn svg{width:19px;height:19px;fill:currentColor}
-        .vl-live-voice-btn:hover{background:var(--lime-tint);color:var(--green);opacity:1}
-        .vl-live-voice-btn:active{transform:translateY(-50%) scale(.94)}
-        .vl-live-voice-btn:focus-visible{outline:2px solid var(--green);outline-offset:2px}
-        .vl-live-voice-btn.is-listening{background:var(--lime);color:var(--green);opacity:1;animation:vl-live-voice-pulse 1.1s ease-in-out infinite}
-        @keyframes vl-live-voice-pulse{0%,100%{box-shadow:0 0 0 0 rgba(209,244,112,.48)}50%{box-shadow:0 0 0 6px rgba(209,244,112,0)}}
         .vl-live-search-results{position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:31;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;box-shadow:0 10px 24px rgba(26,58,42,.14)}
         /* RESULT ROWS: clear hover + keyboard-selected states with a soft lime background and a
            smooth 140ms transition. A small location glyph leads each row, matching the air card's
@@ -4115,7 +4016,7 @@ const VayuLokLive: React.FC = () => {
         }
         @media(prefers-reduced-motion:reduce){
           .vl-live *{scroll-behavior:auto!important;transition:none!important}
-          .vl-live-cloud-field,.vl-live-wind-path,.vl-live-vortex,.vl-live-voice-btn{animation:none!important}
+          .vl-live-cloud-field,.vl-live-wind-path,.vl-live-vortex{animation:none!important}
         }
       `}</style>
     </section>

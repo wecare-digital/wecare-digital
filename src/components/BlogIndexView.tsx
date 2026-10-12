@@ -7,6 +7,7 @@ import Breadcrumbs from './Breadcrumbs';
 import Pager from './Pager';
 import BlogFooterCTA from './BlogFooterCTA';
 import RssIcon from './RssIcon';
+import VoiceSearchMic from './VoiceSearchMic';
 
 /**
  * The blog index, one page of it.
@@ -291,8 +292,8 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
             : [ { label: 'Home', href: '/' }, { label: 'Blog' } ] }
         />
         {/* BORDERLESS LIVE SEARCH over the WHOLE corpus - the same field as the /anew/ panel
-            (ProductBlogPanel .pbp-search): no inner border, one quiet bottom hairline, no icon,
-            no submit button, filtering as you type. A real sr-only label gives it an accessible
+            (ProductBlogPanel .pbp-search): no inner border, one quiet bottom hairline, the shared
+            lime voice mic, and no submit button, filtering as you type. A real sr-only label gives it an accessible
             name. The old top toolbar - the "N posts" count and the text RSS pill - is gone; the
             count went on owner instruction and the RSS affordance moved to an icon at the bottom.
             It filters the full corpus (scoped to this category) and seeds from ?q= on first
@@ -307,6 +308,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
             value={ query }
             onChange={ e => setQuery( e.target.value ) }
           />
+          <VoiceSearchMic onTranscript={ setQuery } />
         </div>
 
         { totalPosts > 0 ? (
@@ -549,7 +551,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
 
         /* BORDERLESS LIVE SEARCH - the /anew/ panel's field (ProductBlogPanel .pbp-search),
            so every search a visitor meets on the site reads as one control: no inner border, one
-           quiet bottom hairline, no icon, no button. The hairline darkens and a lime underline
+           quiet bottom hairline, the shared lime mic, no submit button. The hairline darkens and a lime underline
            grows on focus. 52px is the site's field height (BlogSearch's own), 17px the base body
            size that keeps iOS from zooming the field on focus. */
         .blog-search{position:relative;margin:0 0 32px;max-width:520px}
@@ -559,7 +561,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
         .blog-search input{
-          width:100%;box-sizing:border-box;height:52px;padding:0 2px;
+          width:100%;box-sizing:border-box;height:52px;padding:0 44px 0 2px;
           font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
           border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
