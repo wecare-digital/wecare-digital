@@ -124,12 +124,17 @@ const VayuLokPage: React.FC = () => {
   // and owner-constraints.md "NO RED anywhere"). Yellow for Pollen for the obvious
   // reason. Neither touches the brand palette - like the Grahak OS channel tints,
   // these are a per-subject system that sits outside it by design.
+  // Every rotating word names a capability VayuLok actually ships today. 'Pollen' and 'Solar'
+  // were removed: neither has a wired endpoint (Google Pollen has no India coverage; Solar is
+  // unbuilt), so advertising them in the hero overstated the product. They are replaced by two
+  // real, prominent features - the Air Forecast's companion History view and the live Pollutants
+  // breakdown - reusing the same tint/dot construction rule (pale tint + saturated same-hue dot).
   const cycleWords = [
     { word: 'Air', tint: '#e0f7c8', dot: '#3da35a' },
-    { word: 'Pollen', tint: '#fef9c3', dot: '#ca8a04' },
     { word: 'Weather', tint: '#dbeafe', dot: '#2563eb' },
     { word: 'Forecast', tint: '#ede9fe', dot: '#9849e8' },
-    { word: 'Solar', tint: '#fef3c7', dot: '#f0a818' },
+    { word: 'History', tint: '#fef9c3', dot: '#ca8a04' },
+    { word: 'Pollutants', tint: '#e0f7c8', dot: '#3da35a' },
     { word: 'Heatmap', tint: '#fbe6d4', dot: '#c2591b' },
   ];
   const [ cycleIndex, setCycleIndex ] = useState( 0 );

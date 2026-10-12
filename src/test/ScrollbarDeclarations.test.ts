@@ -143,7 +143,7 @@ describe( 'scrollbar thumb colour is declared in exactly two files', () => {
     }
   } );
 
-  it( 'leaves the eleven display:none and height:6px hiders alone', () => {
+  it( 'leaves the twelve display:none and height:6px hiders alone', () => {
     // They set no colour, so they do not compete, and deleting one would bring back a visible
     // scrollbar on a tab strip or a carousel. Counted so a silent cull is caught here.
     // Nine when the count last settled: the eight tab-strip/carousel hiders plus the Anew
@@ -157,12 +157,15 @@ describe( 'scrollbar thumb colour is declared in exactly two files', () => {
     // none and set NO colour, so neither competes with the thumb-colour invariant above; they
     // are legitimate hiders. (The earlier .vl-live-forecast-track / .vl-live-photo-rail hiders
     // from the removed left panel are gone - these two live on the floating card instead.)
+    //
+    // A TWELFTH arrived with the Weather tab: .vl-live-wx-hist-strip (the Last-24-Hours history
+    // strip) hides its horizontal scrollbar the same colourless way, so the count is twelve.
     const hiders = files.flatMap( f => {
       const src = stripComments( fs.readFileSync( f, 'utf8' ) );
       return Array.from( src.matchAll( /::-webkit-scrollbar(?!-)[^{}]*\{([^}]*)\}/g ) )
         .filter( m => /display\s*:\s*none|height\s*:\s*6px/.test( m[ 1 ] ) );
     } );
-    expect( hiders.length ).toBe( 11 );
+    expect( hiders.length ).toBe( 12 );
   } );
 
   it( 'finds a planted declaration, and loses a commented one', () => {
