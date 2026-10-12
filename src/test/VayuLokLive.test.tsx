@@ -548,7 +548,7 @@ function environmentFetch() {
             },
             nighttimeForecast: { weatherCondition: { description: { text: 'Clear' } } },
             sunEvents: { sunriseTime: hour( -6 + idx * 24 ), sunsetTime: hour( 6 + idx * 24 ) },
-            moonEvents: { moonriseTimes: [ hour( 8 + idx * 24 ) ], moonsetTimes: [ hour( 20 + idx * 24 ) ] },
+            moonEvents: { moonriseTimes: [ hour( 8 + idx * 24 ) ], moonsetTimes: [ hour( 20 + idx * 24 ) ], moonPhase: 'WAXING_CRESCENT' },
           } ) ),
         } ),
       } as Response );
@@ -883,6 +883,36 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     // Raw temperature value carries data-wc-no-translate (keeps numbers honest under translation).
     expect( panel.querySelector( '.vl-live-wx-now-temp' )?.getAttribute( 'data-wc-no-translate' ) ).toBe( 'true' );
     // NO RED.
+    expect( container.innerHTML ).not.toContain( 'dc2626' );
+  } );
+
+  it( 'adds a humanised moon phase to the daily astronomy when a 10-day row is expanded', async () => {
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+    fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
+
+    const row = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-wx-daily-row' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    fireEvent.click( row );
+    const detail = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-wx-daily-list .vl-live-air-forecast-detail' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    // Sun/moon event times already render; the moon phase is the new field.
+    expect( detail.textContent ).toContain( 'Sunrise' );
+    expect( detail.textContent ).toContain( 'Moonrise' );
+    expect( detail.textContent ).toContain( 'Moon' );
+    // The SCREAMING_SNAKE enum is humanised to sentence case, never shown raw.
+    expect( detail.textContent ).toContain( 'Waxing crescent' );
+    expect( detail.textContent ).not.toContain( 'WAXING_CRESCENT' );
     expect( container.innerHTML ).not.toContain( 'dc2626' );
   } );
 

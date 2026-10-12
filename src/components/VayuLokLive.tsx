@@ -540,6 +540,7 @@ interface WeatherDay {
   iceThicknessMm?: number;
   moonrise?: string;
   moonset?: string;
+  moonPhase?: string;
 }
 interface AirPoint {
   time: number;
@@ -761,6 +762,15 @@ function airPointFromApi( row: Record<string, any> ): AirPoint | null {
 
 function hourLabel( ms: number ): string {
   return new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric' } ).format( new Date( ms ) );
+}
+
+/* Readable label for the Weather days-forecast moonPhase enum (e.g. WAXING_CRESCENT ->
+   "Waxing crescent"). Unlike the inline `.replace( /_/g, ' ' )` used for short precipitation/
+   event enums, the moon phase is a full phrase, so it reads better in sentence case. */
+function moonPhaseLabel( value?: string ): string {
+  if ( typeof value !== 'string' || !value.trim() ) return '';
+  const words = value.trim().toLowerCase().replace( /_/g, ' ' );
+  return words.charAt( 0 ).toUpperCase() + words.slice( 1 );
 }
 
 /* Friendly labels for the Google pollutant codes, shared by the pollutant rows and the
@@ -1827,6 +1837,7 @@ const VayuLokLive: React.FC = () => {
           ...( Number.isFinite( ice ) ? { iceThicknessMm: ice } : {} ),
           ...( typeof row?.moonEvents?.moonriseTimes?.[ 0 ] === 'string' ? { moonrise: row.moonEvents.moonriseTimes[ 0 ] } : {} ),
           ...( typeof row?.moonEvents?.moonsetTimes?.[ 0 ] === 'string' ? { moonset: row.moonEvents.moonsetTimes[ 0 ] } : {} ),
+          ...( typeof row?.moonEvents?.moonPhase === 'string' ? { moonPhase: row.moonEvents.moonPhase } : {} ),
         };
       } );
       forecastStore.daily = rows;
@@ -3184,7 +3195,8 @@ const VayuLokLive: React.FC = () => {
                                         if ( day.sunset ) bits.push( { k: 'Sunset', v: formatHistoryPointLabel( new Date( day.sunset ).getTime(), locationTime.timeZoneId, locationZoneLabel ) } );
                                         if ( day.moonrise ) bits.push( { k: 'Moonrise', v: formatHistoryPointLabel( new Date( day.moonrise ).getTime(), locationTime.timeZoneId, locationZoneLabel ) } );
                                         if ( day.moonset ) bits.push( { k: 'Moonset', v: formatHistoryPointLabel( new Date( day.moonset ).getTime(), locationTime.timeZoneId, locationZoneLabel ) } );
-                                        return bits.map( b => <span key={ b.k }>{ b.k === 'Night' ? <><strong>{ b.k }</strong> { b.v }</> : <><strong>{ b.k }</strong> <span data-wc-no-translate="true">{ b.v }</span></> }</span> );
+                                        if ( day.moonPhase ) bits.push( { k: 'Moon', v: moonPhaseLabel( day.moonPhase ) } );
+                                        return bits.map( b => <span key={ b.k }>{ b.k === 'Night' || b.k === 'Moon' ? <><strong>{ b.k }</strong> { b.v }</> : <><strong>{ b.k }</strong> <span data-wc-no-translate="true">{ b.v }</span></> }</span> );
                                       } )() }
                                     </div>
                                   ) }
