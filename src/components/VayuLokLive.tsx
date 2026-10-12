@@ -634,6 +634,14 @@ function formatPollutantValue( value: number ): string {
   return parseFloat( value.toFixed( decimals ) ).toString();
 }
 
+// Turn a Google SCREAMING_SNAKE enum (e.g. LIGHT_RAIN) into readable Title case ("Light rain")
+// for the few places an enum value is shown as text (precipitation type). Kept generic.
+function titleCaseEnum( value?: string ): string {
+  if ( typeof value !== 'string' || !value.trim() ) return '';
+  const words = value.trim().toLowerCase().replace( /_/g, ' ' );
+  return words.charAt( 0 ).toUpperCase() + words.slice( 1 );
+}
+
 // Short display label for the wind-speed unit the Weather API returns on wind.speed.unit
 // (e.g. KILOMETERS_PER_HOUR, MILES_PER_HOUR). Fall back to km/h under unitsSystem=METRIC.
 function windUnitLabel( unit?: string ): string {
@@ -1786,12 +1794,43 @@ const VayuLokLive: React.FC = () => {
     };
 
     // Google Weather public alerts are not supported for India.
-    // Google Weather publicAlerts:lookup has NO India coverage, so for this India-first page we
-    // do not issue the request (it would always return empty and still cost a call). The Weather
-    // tab's Alerts block shows a neutral "No active alerts" line instead of a noisy empty panel.
-    // If VayuLok later serves alert-covered regions, enable this per-region and attribute the
-    // originating authority (Google requires source attribution when an alert is shown).
-    const loadAlerts = async () => undefined;
+    // Query Google Weather publicAlerts:lookup for live authoritative hazard/weather alerts
+    // (floods, cyclones, heat, thunderstorms, etc.). The response is { weatherAlerts: [...],
+    // regionCode }. Coverage is region-specific: covered regions return 200 with a (possibly
+    // empty) array; UNCOVERED regions (currently India) return 404 NOT_FOUND. Both the empty
+    // array and the 404 mean "no active alerts to show" - the UI shows a neutral line, never a
+    // noisy empty panel. Only a real transport/parse failure is swallowed quietly. Google
+    // requires the originating authority (dataSource) to be attributed whenever an alert shows.
+    const loadAlerts = async () => {
+      try {
+        const url = 'https://weather.googleapis.com/v1/publicAlerts:lookup?key=' + encodeURIComponent( MAPS_KEY )
+          + '&location.latitude=' + lat + '&location.longitude=' + lng + '&languageCode=en';
+        const res = await fetch( url, { signal: ac.signal } );
+        if ( ac.signal.aborted ) return;
+        if ( !res.ok ) return; // 404 (no coverage) and other non-200s => no alerts to show.
+        const data = await res.json();
+        const rows = ( Array.isArray( data?.weatherAlerts ) ? data.weatherAlerts : [] )
+          .map( ( row: Record<string, any> ): WeatherAlertRow | null => {
+            const title = row?.alertTitle || row?.eventType || row?.event;
+            if ( typeof title !== 'string' || !title.trim() ) return null;
+            return {
+              id: String( row?.alertId || row?.id || `${row?.eventType || 'alert'}-${row?.startTime || ''}` ),
+              title: title.trim(),
+              ...( typeof row?.instruction === 'string' && row.instruction.trim() ? { description: row.instruction.trim() }
+                : typeof row?.description === 'string' && row.description.trim() ? { description: row.description.trim() } : {} ),
+              ...( typeof row?.areaName === 'string' && row.areaName.trim() ? { area: row.areaName.trim() } : {} ),
+              ...( typeof row?.severity === 'string' ? { severity: row.severity } : {} ),
+              ...( typeof row?.urgency === 'string' ? { urgency: row.urgency } : {} ),
+              ...( typeof row?.expirationTime === 'string' ? { expires: row.expirationTime } : {} ),
+              ...( typeof row?.dataSource === 'string' && row.dataSource.trim() ? { source: row.dataSource.trim() }
+                : typeof row?.dataSource?.name === 'string' ? { source: row.dataSource.name } : {} ),
+            };
+          } )
+          .filter( Boolean ) as WeatherAlertRow[];
+        forecastStore.alerts = rows;
+        setWeatherAlerts( rows );
+      } catch { /* alerts are optional; a transport failure leaves the neutral "no alerts" line */ }
+    };
 
     const loadAirForecast = async () => {
       try {
@@ -2914,7 +2953,11 @@ const VayuLokLive: React.FC = () => {
                             Number.isFinite( weather.pressureHpa ) ? { k: 'Pressure', v: `${weather.pressureHpa} mb` } : null,
                             Number.isFinite( weather.cloudCover ) ? { k: 'Cloud', v: `${weather.cloudCover}%` } : null,
                             Number.isFinite( weather.dewPoint ) ? { k: 'Dew point', v: `${weather.dewPoint}°` } : null,
+                            Number.isFinite( weather.heatIndex ) ? { k: 'Heat index', v: `${weather.heatIndex}°` } : null,
+                            Number.isFinite( weather.windChill ) ? { k: 'Wind chill', v: `${weather.windChill}°` } : null,
+                            Number.isFinite( weather.wetBulb ) ? { k: 'Wet bulb', v: `${weather.wetBulb}°` } : null,
                             Number.isFinite( weather.stormProb ) && ( weather.stormProb as number ) > 0 ? { k: 'Storm', v: `${weather.stormProb}%` } : null,
+                            weather.precipitationType && weather.precipitationType.toUpperCase() !== 'NONE' ? { k: 'Precip type', v: titleCaseEnum( weather.precipitationType ) } : null,
                           ] as ( { k: string; v: string } | null )[] ).filter( Boolean ).map( item => (
                             <li key={ ( item as { k: string } ).k } className="vl-live-wx-grid-item">
                               <span className="vl-live-wx-grid-k">{ ( item as { k: string } ).k }</span>

@@ -820,11 +820,50 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( within( panel ).getByRole( 'group', { name: 'Weather history metric' } ) ).toBeTruthy();
     // Alerts: India has no coverage, so the neutral line shows (not an empty noisy panel).
     expect( panel.textContent ).toContain( 'No active weather or hazard alerts' );
-    // No publicAlerts request was made for India.
-    expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
+    // The publicAlerts request IS now issued (coverage is per-region; India 404s, covered
+    // regions 200 with an array). With the mock returning an empty array, the neutral line shows.
+    await waitFor( () => expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( true ) );
     // Raw temperature value carries data-wc-no-translate (keeps numbers honest under translation).
     expect( panel.querySelector( '.vl-live-wx-now-temp' )?.getAttribute( 'data-wc-no-translate' ) ).toBe( 'true' );
     // NO RED.
+    expect( container.innerHTML ).not.toContain( 'dc2626' );
+  } );
+
+  it( 'renders a live weather public alert with its title, area and source attribution', async () => {
+    const base = environmentFetch();
+    const withAlert = vi.fn( ( input: RequestInfo | URL, init?: RequestInit ) => {
+      if ( requestIs( input, 'weather.googleapis.com', '/v1/publicAlerts' ) ) {
+        return Promise.resolve( { ok: true, json: async () => ( {
+          regionCode: 'IN',
+          weatherAlerts: [ {
+            alertId: 'a1', alertTitle: 'Flash Flood Warning', eventType: 'FLASH_FLOOD',
+            areaName: 'East Khasi Hills', severity: 'SEVERE', urgency: 'IMMEDIATE',
+            instruction: 'Avoid low-lying roads and flooded crossings.',
+            dataSource: 'India Meteorological Department', expirationTime: '2026-10-12T12:00:00Z',
+          } ],
+        } ) } as Response );
+      }
+      return base( input, init );
+    } );
+    vi.stubGlobal( 'fetch', withAlert );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+    fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
+
+    const alert = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-wx-alert' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    expect( alert.textContent ).toContain( 'Flash Flood Warning' );
+    expect( alert.textContent ).toContain( 'East Khasi Hills' );
+    expect( alert.textContent ).toContain( 'Avoid low-lying roads' );
+    // Google requires source attribution whenever an alert is shown.
+    expect( alert.textContent ).toContain( 'India Meteorological Department' );
+    // Severity drives the styling class (amber/dark, never red).
+    expect( alert.className ).toContain( 'sev-severe' );
     expect( container.innerHTML ).not.toContain( 'dc2626' );
   } );
 
@@ -1463,7 +1502,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.fitBoundsCalls.length ).toBeGreaterThan( 0 ) );
   } );
 
-  it( 'does not call unsupported India pollen or Google weather-alert endpoints', async () => {
+  it( 'does not call the unsupported India pollen endpoint, but does query weather public alerts', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
@@ -1473,8 +1512,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await selectMumbai();
     await waitFor( () => expect( fetchSpy.mock.calls.length ).toBeGreaterThan( 3 ) );
 
+    // Pollen has no India coverage and is never requested.
     expect( fetchSpy.mock.calls.some( call => requestUrl( call[ 0 ] as RequestInfo | URL )?.hostname === 'pollen.googleapis.com' ) ).toBe( false );
-    expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
+    // publicAlerts IS queried now - coverage is per-region (India 404s, covered regions return an
+    // array); the component relies on the response, not on skipping the request.
+    await waitFor( () => expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( true ) );
   } );
 
   it( 'paints the AQI heatmap and mounts the code-rendered atmosphere by default', async () => {
