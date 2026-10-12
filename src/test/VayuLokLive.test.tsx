@@ -896,9 +896,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( within( panel ).getByRole( 'group', { name: 'Weather forecast range' } ) ).toBeTruthy();
     // Google defaults daily pageSize to 5; VayuLok explicitly asks for 10 and renders all ten.
     expect( panel.querySelectorAll( '.vl-live-wx-daily-row' ).length ).toBe( 10 );
-    const dailyCall = fetchSpy.mock.calls.find( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/forecast/days' ) );
-    expect( String( dailyCall?.[ 0 ] ) ).toContain( 'days=10' );
-    expect( String( dailyCall?.[ 0 ] ) ).toContain( 'pageSize=10' );
+    const dailyCall = fetchSpy.mock.calls.find( call => environmentOperationIs( call, 'weather_daily' ) );
+    expect( dailyCall ).toBeTruthy();
     // 24h history with a metric toggle.
     expect( within( panel ).getByRole( 'group', { name: 'Weather history metric' } ) ).toBeTruthy();
     expect( panel.querySelector( '.vl-live-wx-daily-icon' ) ).not.toBeNull();
@@ -939,14 +938,19 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       return el as HTMLElement;
     } );
     fireEvent.click( row );
-    const detail = await waitFor( () => {
+    // Day details contain solar events; Night details contain lunar events + moon phase.
+    let detail = await waitFor( () => {
       const el = container.querySelector( '.vl-live-wx-daily-list .vl-live-air-forecast-detail' );
       expect( el ).not.toBeNull();
       return el as HTMLElement;
     } );
-    // Sun/moon event times already render; the moon phase is the new field.
     expect( detail.textContent ).toContain( 'Sunrise' );
-    expect( detail.textContent ).toContain( 'Moonrise' );
+    fireEvent.click( within( container ).getByRole( 'button', { name: 'Night' } ) );
+    detail = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-wx-daily-list .vl-live-air-forecast-detail' ) as HTMLElement | null;
+      expect( el?.textContent ).toContain( 'Moonrise' );
+      return el as HTMLElement;
+    } );
     expect( detail.textContent ).toContain( 'Moon' );
     // The SCREAMING_SNAKE enum is humanised to sentence case, never shown raw.
     expect( detail.textContent ).toContain( 'Waxing crescent' );
@@ -958,7 +962,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     rec = installGoogleMaps( { placeCountryCode: 'US' } );
     const baseFetch = environmentFetch();
     const alertFetch = vi.fn( ( input: RequestInfo | URL, init?: RequestInit ) => {
-      if ( requestIs( input, 'weather.googleapis.com', '/v1/publicAlerts' ) ) {
+      if ( String( input ).includes( '/vayulok/environment' ) && (() => {
+        try { return JSON.parse( String( init?.body || '{}' ) )?.operation === 'weather_alerts'; } catch { return false; }
+      })() ) {
         return Promise.resolve( {
           ok: true,
           json: async () => ( {
@@ -980,6 +986,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
               dataSource: { publisher: 'NOAA', name: 'National Weather Service', authorityUri: 'https://www.weather.gov/' },
             } ],
             regionCode: 'US',
+            alertStatus: 'active',
           } ),
         } as Response );
       }
@@ -997,7 +1004,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( el?.textContent ).toContain( 'Flash Flood Warning' );
       return el as HTMLElement;
     } );
-    expect( alertFetch.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( true );
+    expect( alertFetch.mock.calls.some( call => environmentOperationIs( call, 'weather_alerts' ) ) ).toBe( true );
     expect( panel.textContent ).toContain( 'FLASH FLOOD' );
     expect( panel.textContent ).toContain( 'SEVERE' );
     expect( panel.textContent ).toContain( 'LIKELY' );
@@ -1005,7 +1012,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( panel.textContent ).toContain( 'Wake County, NC' );
     expect( panel.textContent ).toContain( 'Move to higher ground.' );
     expect( panel.textContent ).toContain( 'Avoid flooded roads.' );
-    expect( panel.textContent ).toContain( 'Affected-area boundary' );
+    expect( panel.textContent ).toContain( 'View affected area' );
     const sourceLink = within( panel ).getByRole( 'link', { name: 'National Weather Service' } );
     expect( sourceLink ).toHaveAttribute( 'href', 'https://www.weather.gov/' );
   } );
@@ -1015,8 +1022,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     // as "no pollutant" and misrepresent the measurement, so sub-1 values keep their significant
     // decimals (0.4 ppb -> "0.4 ppb", 0.04 ppm -> "0.04 ppm") rather than being flattened to 0 or
     // an invented "<1"; a genuine 0 stays "0"; values >= 1 round to an integer.
-    const traceFetch = vi.fn( ( input: RequestInfo | URL ) => {
-      if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
+    const traceFetch = vi.fn( ( input: RequestInfo | URL, init?: RequestInit ) => {
+      if ( String( input ).includes( '/vayulok/environment' ) && (() => {
+        try { return JSON.parse( String( init?.body || '{}' ) )?.operation === 'air_current'; } catch { return false; }
+      })() ) {
         return Promise.resolve( {
           ok: true,
           json: async () => ( {
@@ -1342,7 +1351,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     } );
   } );
 
-  it( 'uses real 24-hour weather history and requests 96 hours of AQ forecast', async () => {
+  it( 'routes 24-hour Weather history and Air forecast through the environment proxy', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
@@ -1351,39 +1360,19 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await selectMumbai();
 
-    await waitFor( () => expect(
-      fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/history/hours' ) ),
-    ).toBe( true ) );
-
-    const airForecastCall = await waitFor( () => {
-      const call = fetchSpy.mock.calls.find( call => requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/forecast' ) );
-      expect( call ).toBeTruthy();
-      return call!;
+    await waitFor( () => {
+      expect( fetchSpy.mock.calls.some( call => environmentOperationIs( call, 'weather_history' ) ) ).toBe( true );
+      expect( fetchSpy.mock.calls.some( call => environmentOperationIs( call, 'air_forecast' ) ) ).toBe( true );
     } );
-    const init = airForecastCall[ 1 ] as RequestInit;
-    const body = JSON.parse( String( init.body ) );
-    expect( body.pageSize ).toBe( 96 );
-    expect( body.extraComputations ).toEqual( expect.arrayContaining( [
-      'LOCAL_AQI',
-      'POLLUTANT_CONCENTRATION',
-      'DOMINANT_POLLUTANT_CONCENTRATION',
-      'HEALTH_RECOMMENDATIONS',
-      'POLLUTANT_ADDITIONAL_INFO',
-    ] ) );
-    const start = new Date( body.period.startTime ).getTime();
-    const end = new Date( body.period.endTime ).getTime();
-    // 95 hours, NOT 96: Google's forecast:lookup rejects an exactly-96-hour period with HTTP 400
-    // ("time period is not supported"); 95h still returns ~96 hourly rows. Requesting 96h was the
-    // cause of the forecast rendering empty in production.
-    expect( Math.round( ( end - start ) / 3_600_000 ) ).toBe( 95 );
+
+    const airForecastCall = fetchSpy.mock.calls.find( call => environmentOperationIs( call, 'air_forecast' ) )!;
+    const body = JSON.parse( String( ( airForecastCall[ 1 ] as RequestInit ).body ) );
+    expect( body.regionCode ).toBe( 'IN' );
+    expect( body.latitude ).toBeCloseTo( 19.076 );
+    expect( body.longitude ).toBeCloseTo( 72.8777 );
   } );
 
-  it( 'requests the India CPCB local AQI (customLocalAqis ind_cpcb) on the currentConditions:lookup air call', async () => {
-    // INDIA API PARITY FIX. The left-card currentConditions:lookup parser prefers the India
-    // CPCB index (indexes.find( i => i.code === 'ind_cpcb' )), so the request must actually ask
-    // for it via customLocalAqis - matching the forecast + history calls that already do. Before
-    // the fix this body was MISSING customLocalAqis, so ind_cpcb never came back and the parser
-    // silently fell to uaqi.
+  it( 'sends India regionCode to the environment proxy for CPCB local-AQI policy', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
@@ -1393,31 +1382,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await selectMumbai();
 
     const airLookupCall = await waitFor( () => {
-      const call = fetchSpy.mock.calls.find( call =>
-        requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/currentConditions' )
-        && Boolean( ( call[ 1 ] as RequestInit | undefined )?.body ) );
+      const call = fetchSpy.mock.calls.find( call => environmentOperationIs( call, 'air_current' ) );
       expect( call ).toBeTruthy();
       return call!;
     } );
     const body = JSON.parse( String( ( airLookupCall[ 1 ] as RequestInit ).body ) );
-    expect( body.customLocalAqis ).toEqual( [ { regionCode: 'IN', aqi: 'ind_cpcb' } ] );
-    expect( body.universalAqi ).toBe( true );
-    expect( body.languageCode ).toBe( 'en' );
-
-    // POLLUTANT_ADDITIONAL_INFO. The fetchAir selected-place call (body carries
-    // location.latitude) must ask for Google's per-pollutant sources + effects so the
-    // rich pollutant popover can show them. Scoped to this selected-place call only.
-    const selectedPlaceCall = fetchSpy.mock.calls.find( call => {
-      if ( !requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/currentConditions' ) ) return false;
-      const raw = ( call[ 1 ] as RequestInit | undefined )?.body;
-      if ( !raw ) return false;
-      const parsed = JSON.parse( String( raw ) ) as { location?: { latitude?: number } };
-      return typeof parsed.location?.latitude === 'number';
-    } );
-    expect( selectedPlaceCall ).toBeTruthy();
-    const selectedBody = JSON.parse( String( ( selectedPlaceCall![ 1 ] as RequestInit ).body ) );
-    expect( selectedBody.extraComputations ).toContain( 'POLLUTANT_ADDITIONAL_INFO' );
-    expect( selectedBody.extraComputations ).toContain( 'POLLUTANT_CONCENTRATION' );
+    expect( body.regionCode ).toBe( 'IN' );
   } );
   it( 'surfaces Google Air forecast ranges, 24h/7d history (no 30d) and PM2.5 heatmap tiles', async () => {
     const fetchSpy = environmentFetch();
@@ -1452,7 +1422,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( within( historyRange ).getByRole( 'button', { name: '7d' } ) ).toBeTruthy();
     fireEvent.click( within( historyRange ).getByRole( 'button', { name: '24h' } ) );
     await waitFor( () => {
-      const calls = fetchSpy.mock.calls.filter( call => requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/history' ) );
+      const calls = fetchSpy.mock.calls.filter( call => environmentOperationIs( call, 'air_history' ) );
       // No history request should ever ask for the removed 720-hour (30-day) window.
       const has720 = calls.some( call => {
         const raw = ( call[ 1 ] as RequestInit | undefined )?.body;
@@ -1468,8 +1438,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
         const raw = ( call[ 1 ] as RequestInit | undefined )?.body;
         return raw ? JSON.parse( String( raw ) ).hours === 24 : false;
       } );
-      const history24Body = JSON.parse( String( ( history24?.[ 1 ] as RequestInit | undefined )?.body || '{}' ) );
-      expect( history24Body.extraComputations ).toContain( 'POLLUTANT_ADDITIONAL_INFO' );
+      expect( history24 ).toBeTruthy();
     } );
 
     const metric = await screen.findByRole( 'group', { name: 'Heatmap metric' } );
@@ -1490,7 +1459,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     // fallback, not silently render nothing.
     const base = environmentFetch();
     const failingForecast = vi.fn( ( input: RequestInfo | URL, init?: RequestInit ) => {
-      if ( requestIs( input, 'airquality.googleapis.com', '/v1/forecast' ) ) {
+      if ( String( input ).includes( '/vayulok/environment' ) && (() => {
+        try { return JSON.parse( String( init?.body || '{}' ) )?.operation === 'air_forecast'; } catch { return false; }
+      })() ) {
         return Promise.resolve( { ok: false, status: 500, statusText: 'Internal Server Error', json: async () => ( {} ) } as Response );
       }
       return base( input, init );
@@ -1512,7 +1483,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
   it( 'shows an Air Forecast empty state when Google returns no forecast rows', async () => {
     const base = environmentFetch();
     const emptyForecast = vi.fn( ( input: RequestInfo | URL, init?: RequestInit ) => {
-      if ( requestIs( input, 'airquality.googleapis.com', '/v1/forecast' ) ) {
+      if ( String( input ).includes( '/vayulok/environment' ) && (() => {
+        try { return JSON.parse( String( init?.body || '{}' ) )?.operation === 'air_forecast'; } catch { return false; }
+      })() ) {
         return Promise.resolve( { ok: true, status: 200, json: async () => ( { hourlyForecasts: [] } ) } as Response );
       }
       return base( input, init );
@@ -1553,7 +1526,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( option.querySelector( '.vl-live-search-result-icon' ) ).not.toBeNull();
   } );
 
-  it( 'does not force India CPCB custom AQI on non-India destinations', async () => {
+  it( 'passes a non-India regionCode to the server without client-side CPCB policy', async () => {
     rec = installGoogleMaps( { placeCountryCode: 'BD' } );
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
@@ -1564,19 +1537,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await selectMumbai();
 
     const selectedPlaceCall = await waitFor( () => {
-      const call = fetchSpy.mock.calls.find( call => {
-        if ( !requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/currentConditions' ) ) return false;
-        const raw = ( call[ 1 ] as RequestInit | undefined )?.body;
-        if ( !raw ) return false;
-        const parsed = JSON.parse( String( raw ) );
-        return parsed.location?.latitude === 19.076;
-      } );
+      const call = fetchSpy.mock.calls.find( call => environmentOperationIs( call, 'air_current' ) );
       expect( call ).toBeTruthy();
       return call!;
     } );
     const body = JSON.parse( String( ( selectedPlaceCall[ 1 ] as RequestInit ).body ) );
-    expect( body.universalAqi ).toBe( true );
-    expect( body.extraComputations ).toContain( 'LOCAL_AQI' );
+    expect( body.regionCode ).toBe( 'BD' );
     expect( body.customLocalAqis ).toBeUndefined();
   } );
 
