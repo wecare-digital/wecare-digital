@@ -1365,11 +1365,16 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( fetchSpy.mock.calls.some( call => environmentOperationIs( call, 'air_forecast' ) ) ).toBe( true );
     } );
 
-    const airForecastCall = fetchSpy.mock.calls.find( call => environmentOperationIs( call, 'air_forecast' ) )!;
+    const airForecastCall = fetchSpy.mock.calls.findLast( call => {
+      if ( !environmentOperationIs( call, 'air_forecast' ) ) return false;
+      const raw = ( call[ 1 ] as RequestInit | undefined )?.body;
+      if ( !raw ) return false;
+      const payload = JSON.parse( String( raw ) );
+      return payload.latitude === 19.076 && payload.longitude === 72.8777;
+    } )!;
+    expect( airForecastCall ).toBeTruthy();
     const body = JSON.parse( String( ( airForecastCall[ 1 ] as RequestInit ).body ) );
     expect( body.regionCode ).toBe( 'IN' );
-    expect( body.latitude ).toBeCloseTo( 19.076 );
-    expect( body.longitude ).toBeCloseTo( 72.8777 );
   } );
 
   it( 'sends India regionCode to the environment proxy for CPCB local-AQI policy', async () => {
@@ -1537,7 +1542,13 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await selectMumbai();
 
     const selectedPlaceCall = await waitFor( () => {
-      const call = fetchSpy.mock.calls.find( call => environmentOperationIs( call, 'air_current' ) );
+      const call = fetchSpy.mock.calls.findLast( call => {
+        if ( !environmentOperationIs( call, 'air_current' ) ) return false;
+        const raw = ( call[ 1 ] as RequestInit | undefined )?.body;
+        if ( !raw ) return false;
+        const payload = JSON.parse( String( raw ) );
+        return payload.latitude === 19.076 && payload.longitude === 72.8777;
+      } );
       expect( call ).toBeTruthy();
       return call!;
     } );
