@@ -43,9 +43,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
  * class to markup it can statically see, so every element stays INLINE in this component's
  * return tree. No bare html/body/* selectors; the mock's data-vl-preview-only block and
  * .vl-preview-shell are PREVIEW-ONLY and are NOT ported.
- *
- * ATTRIBUTION. Google Maps logo/legal attribution remains visible. VayuLok does not hide
- * .gm-style-cc, the Google Maps link, or the Google logo; overlays stay inset from those corners.
  */
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
