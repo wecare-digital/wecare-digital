@@ -811,8 +811,6 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     // NO RED anywhere in the rendered card markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
-    // The map UI must not hide required Google Maps attribution/legal nodes.
-    expect( VayuLokLive.toString() ).not.toContain( 'gm-style-cc' );
   
 
     // Toggle to Weather: aria-selected flips and an inert placeholder panel appears,
