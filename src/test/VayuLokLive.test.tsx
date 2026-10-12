@@ -637,6 +637,21 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( fetchSpy ).toHaveBeenCalled() );
   } );
 
+  it( 'reveals the map canvas immediately after construction without waiting for tilesloaded', async () => {
+    rec = installGoogleMaps( { paintMap: false } );
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await waitFor( () => {
+      expect( container.querySelector( '.vl-live-map-canvas' )?.classList.contains( 'is-ready' ) ).toBe( true );
+    } );
+    expect( container.querySelector( '.vl-live-map-fallback' ) ).toBeNull();
+    // No tilesloaded event was fired, so tile-dependent atmosphere stays gated.
+    expect( container.querySelector( '.vl-live-atmosphere' ) ).toBeNull();
+  } );
+
   it( 'search selection recenters the map and keeps only the map marker, not a bottom pill', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
@@ -1691,10 +1706,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( voiceCss ).toContain( 'background:transparent;color:#3da35a' );
     expect( voiceCss ).toContain( 'border-radius:0' );
     expect( voiceCss ).toContain( 'width:23px;height:23px' );
-    expect( voiceCss ).toContain( 'stroke:#1a3a2a;stroke-width:36' );
-    expect( voiceCss ).toContain( 'paint-order:stroke fill' );
+    expect( voiceCss ).toContain( '.voice-search-mic-glyph{fill:currentColor}' );
+    expect( voiceCss ).not.toContain( 'stroke:#1a3a2a' );
+    expect( voiceCss ).not.toContain( 'paint-order:stroke fill' );
     expect( voiceCss ).not.toContain( 'border-radius:50%;background:#1a3a2a' );
-    expect( voiceCss ).toContain( '@keyframes voice-search-pulse{0%,100%{transform:translateY(-50%) scale(1)}50%{transform:translateY(-50%) scale(1.08)}}' );
+    expect( voiceCss ).toContain( '@keyframes voice-search-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}' );
 
     act( () => {
       speech!.onresult?.( { results: [ [ { transcript: 'কলকাতা' } ] ] } );

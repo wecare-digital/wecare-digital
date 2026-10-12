@@ -120,8 +120,8 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript } ) => {
           transition:color .14s ease,transform .14s ease,opacity .14s ease;
         }
         .voice-search-mic svg{width:23px;height:23px;display:block;overflow:visible}
-        .voice-search-mic-glyph{fill:currentColor;stroke:#1a3a2a;stroke-width:36;stroke-linejoin:round;paint-order:stroke fill}
-        .voice-search-mic:hover{color:#1a3a2a}
+        .voice-search-mic-glyph{fill:currentColor}
+        .voice-search-mic:hover{color:#2f9e44}
         .voice-search-mic:active{transform:scale(.94)}
         .voice-search-mic:focus-visible{outline:2px solid #1a3a2a;outline-offset:2px}
         .voice-search-mic.is-listening{color:#3da35a;animation:voice-search-pulse 1.1s ease-in-out infinite}
