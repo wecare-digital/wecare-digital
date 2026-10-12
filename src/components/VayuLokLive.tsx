@@ -2595,17 +2595,6 @@ const VayuLokLive: React.FC = () => {
                                 { airForecast[ airForecastInspectIdx ].healthRecommendations?.generalPopulation && (
                                   <p>{ airForecast[ airForecastInspectIdx ].healthRecommendations?.generalPopulation }</p>
                                 ) }
-                                { ( () => {
-                                  const point = airForecast[ airForecastInspectIdx ];
-                                  const dominant = point.pollutants?.find( pollutant => pollutant.code === point.dominant );
-                                  if ( !dominant?.sources && !dominant?.effects ) return null;
-                                  return (
-                                    <p className="vl-live-air-forecast-additional">
-                                      { dominant.sources && <span><strong>Sources</strong> { compactAirInfo( dominant.sources, 120 ) }</span> }
-                                      { dominant.effects && <span><strong>Effects</strong> { compactAirInfo( dominant.effects, 120 ) }</span> }
-                                    </p>
-                                  );
-                                } )() }
                               </div>
                             ) }
                           </>
@@ -3387,9 +3376,10 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-forecast-card small{color:var(--status);font-size:10.5px;font-weight:600;line-height:1.3}
         .vl-live-air-forecast-detail{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:10px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.4}
         .vl-live-air-forecast-detail strong{color:var(--status);font-weight:700}
-        .vl-live-air-forecast-detail p{flex:1 0 100%;margin:2px 0 0;color:var(--body);font-size:14px;font-weight:400;line-height:1.45}
-        .vl-live-air-forecast-additional{display:flex;flex-direction:column;gap:4px}
-        .vl-live-air-forecast-additional span{display:block}
+        /* Match the rest of the card: the forecast's recommendation paragraph uses the shared
+           body-text ladder (same tokens as .vl-live-air-health-text) rather than a bespoke 14px,
+           so its font no longer looks smaller/off against the other sections. */
+        .vl-live-air-forecast-detail p{flex:1 0 100%;margin:2px 0 0;color:var(--body);font-size:var(--vl-body-size);font-weight:var(--vl-body-weight);line-height:var(--vl-body-lh);letter-spacing:var(--vl-body-track)}
 
         /* ── WEATHER TAB ─────────────────────────────────────────────────────────
            Reuses the Air panel's section headings, range pills and forecast strip/detail; these
