@@ -92,6 +92,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import PageTopBand from '../components/PageTopBand';
 import PublicShare from '../components/PublicShare';
+import ContributeBlock from '../components/ContributeBlock';
 import PillButton from '../components/PillButton';
 import CheckoutProfile from '../components/CheckoutProfile';
 import type { CheckoutProfileMode, CheckoutProfileValue } from '../components/CheckoutProfile';
@@ -2142,6 +2143,7 @@ export default function Cart (): React.ReactElement {
 
           {/* Subscribe + Share, last child of .cart-in so it shares the /cart/ page and sits at
               the content end. Shown in every cart state, consistent with every public page. */}
+          <ContributeBlock />
           <PublicShare />
         </div>
 

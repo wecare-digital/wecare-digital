@@ -3,7 +3,6 @@ import React from 'react';
 import PageMeta from './PageMeta';
 import RotatingHero from './RotatingHero';
 import ProductBlogPanel from './ProductBlogPanel';
-import ShareLinks from './ShareLinks';
 import Breadcrumbs, { type Crumb } from './Breadcrumbs';
 import type { ProductDef } from '../content/products';
 import type { BlogCard } from '../lib/public-blog';
@@ -56,11 +55,6 @@ interface ProductPageProps {
   price?: string;
   priceUnit?: string;
   /**
-   * OPTIONAL SHARE ROW. When an absolute URL is passed, the same ShareLinks component the blog and
-   * post pages use is rendered under the left column.
-   */
-  shareUrl?: string;
-  /**
    * OPT-IN BREADCRUMB above the product copy. Omit it and the page renders byte for byte what it
    * rendered before, which is what keeps the nine non-shop routes that mount this component - the
    * seven CUSTOMERSERVICE entries plus /shipments/ and /subscribe/ - and their pinned tests
@@ -91,7 +85,6 @@ const ProductPage: React.FC<ProductPageProps> = ( {
   blogHeading,
   price,
   priceUnit,
-  shareUrl,
   crumbs,
   belowCta,
 } ) => {
@@ -230,13 +223,11 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           </div>
         ) }
 
-        {/* SHARE - the same component the blog and post pages use, so the Anew page can be sent
-            on in one tap. Rendered only when an absolute URL is supplied. */}
-        { shareUrl && (
-          <div className="pdp-share">
-            <ShareLinks url={ shareUrl } title={ product.title } label="Share Anew" />
-          </div>
-        ) }
+        {/* THE PAGE'S OWN SHARE ROW IS GONE. It used to render ShareLinks ("Share Anew") here when
+            a shareUrl was supplied, but every public page now carries the ONE global Subscribe+Share
+            block (components/PublicShare, auto-mounted by RotatingHero at the content end). A second
+            share row on the same page read as "Share" appearing twice, so the page-level one is
+            removed and PublicShare is the single share. */}
 
         <style jsx>{`
           .pdp{max-width:700px}
@@ -326,7 +317,6 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           .pdp-price-unit{font-size:15px;font-weight:600;color:rgba(0,0,0,.54)}
 
           /* The share row sits below the boundary note with its own air. */
-          .pdp-share{margin:28px 0 0}
 
           /* THE TWO-COLUMN WRAP, SCOPED TO .has-aside so every other product page is untouched.
              Default (no aside): a plain block, so .pdp keeps its own 700px measure exactly as

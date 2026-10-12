@@ -8,6 +8,7 @@ import Head from 'next/head';
 import PageMeta from '../../components/PageMeta';
 import BrandBadge from '../../components/BrandBadge';
 import PublicShare from '../../components/PublicShare';
+import ContributeBlock from '../../components/ContributeBlock';
 
 const GrahakOsPage: React.FC = () => {
   const [visible, setVisible] = useState<Set<string>>(new Set());
@@ -617,6 +618,7 @@ response = requests.post(
             wrapper rhythm. This restores that rhythm here so the block's bottom air is consistent
             sitewide. */}
         <div className="pp-inner gos-share-wrap">
+          <ContributeBlock />
           <PublicShare />
         </div>
 

@@ -4,6 +4,7 @@ import type { GetStaticPaths, GetStaticProps } from 'next';
 import ShopProductHead from '../../components/ShopProductHead';
 import PageTopBand from '../../components/PageTopBand';
 import PublicShare from '../../components/PublicShare';
+import ContributeBlock from '../../components/ContributeBlock';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { SHOP_PRODUCTS, shopProductBySlug } from '../../content/shop';
 import type { ShopProduct } from '../../content/shop';
@@ -152,6 +153,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
 
           {/* Subscribe + Share, last child of .shopd-in so it shares this product page and sits
               at the content end - the same block every public page carries. */}
+          <ContributeBlock />
           <PublicShare />
         </div>
 

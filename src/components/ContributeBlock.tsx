@@ -1,7 +1,13 @@
 import React, { useCallback, useState } from 'react';
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_CURRENCY } from '../config/contribution';
 import { setContribution } from '../lib/cart';
-import { CONTRIBUTE_CTA_HREF } from './BlogContribution';
+
+/**
+ * The owner's Contribute Meta message link. The ONE place this URL is written now that the old
+ * WhatsApp-only BlogContribution block has been retired. It used to live in BlogContribution and
+ * be re-used here; with that component deleted the constant moves to its only remaining home.
+ */
+export const CONTRIBUTE_CTA_HREF = 'https://wa.me/message/BYFLCAAMSZBXD1';
 
 /**
  * CONTRIBUTE BLOCK - a reusable voluntary-contribution block that offers BOTH ways to give.
@@ -81,38 +87,41 @@ const ContributeBlock: React.FC<ContributeBlockProps> = ( { embedded = false } )
     <section className={ embedded ? 'contribute is-embedded' : 'contribute' } aria-labelledby="contribute-title">
       {/* h2, never h1: a host page already owns its single h1. */}
       <h2 className="contribute-title" id="contribute-title">Contribute</h2>
-      <p className="contribute-copy">If this helped, consider a small voluntary contribution.</p>
 
-      <div className="contribute-actions">
-        {/* PRIMARY, LIME - the WhatsApp conversation. A real anchor at the owner's Contribute Meta
-            message link, re-used from BlogContribution so the two surfaces cannot diverge. The
-            accessible name contains the visible "Continue" (WCAG 2.5.3). */}
+      {/* ONE COMPACT LINE, BOTH PATHS. Owner instruction (2026-10-12): drop the two big pill
+          buttons and the copy sentence; the whole appeal is a single quiet line - a ₹ glyph, the
+          suggested amount as a static label, then two small inline links that address the two
+          contribution paths. "₹250" is a label from the central config, never a price the browser
+          sends. The two links are the SAME destinations the old pills had, now as text:
+            - "on WhatsApp" -> the Contribute Meta chat (a real anchor, new tab);
+            - "on the website" -> a button that names the variant in the cart and goes to /cart/.
+          Rendered as a <p> so the glyph+label is text and the two actions sit inline within it. */}
+      <p className="contribute-line">
+        <span className="contribute-mark" aria-hidden="true">{ '\u20B9' }</span>
+        <span className="contribute-label" data-wc-no-translate="true">
+          { `Contribute ${ CONTRIBUTE_BLOCK_AMOUNT_LABEL }` }
+        </span>
+        <span className="contribute-sep" aria-hidden="true">{ '\u00B7' }</span>
+        {/* WhatsApp path - a real anchor (leaves the site, so middle-clickable/copyable). The
+            accessible name names the action AND the destination (WCAG 2.5.3). */}
         <a
-          className="contribute-cta contribute-cta-primary"
+          className="contribute-link"
           href={ CONTRIBUTE_CTA_HREF }
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Continue on WhatsApp to contribute"
-        >Continue on WhatsApp →</a>
-
-        {/* SECONDARY, OUTLINED - the on-site checkout. Adds the Contribute product to the cart and
-            goes to /cart/. A button, because it writes to the cart and navigates rather than
-            leaving the site. The accessible name contains the visible "Continue" (WCAG 2.5.3). */}
+          aria-label="Contribute on WhatsApp"
+        >on WhatsApp</a>
+        <span className="contribute-sep" aria-hidden="true">{ '\u00B7' }</span>
+        {/* On-site path - a button, because it writes the cart and navigates rather than leaving
+            the site. Styled as a text link to match its sibling. */}
         <button
           type="button"
-          className="contribute-cta contribute-cta-secondary"
+          className="contribute-link contribute-link-btn"
           onClick={ onCheckout }
           disabled={ busy }
           aria-busy={ busy }
-          aria-label="Continue to checkout to contribute"
-        >{ busy ? 'One moment…' : 'Continue to checkout →' }</button>
-      </div>
-
-      {/* THE AMOUNT, A STATIC LABEL - "₹250 · voluntary". The figure is from the central config;
-          "voluntary" says the ask is optional. No price is sent from the browser; the server
-          prices the named variant. */}
-      <p className="contribute-amount" data-wc-no-translate="true">
-        { `${ CONTRIBUTE_BLOCK_AMOUNT_LABEL } \u00B7 voluntary` }
+          aria-label="Contribute on the website at checkout"
+        >{ busy ? 'one moment…' : 'on the website \u2192' }</button>
       </p>
 
       <style jsx>{`
@@ -131,47 +140,46 @@ const ContributeBlock: React.FC<ContributeBlockProps> = ( { embedded = false } )
           font-size:12px;font-weight:700;line-height:1.2;letter-spacing:.08em;text-transform:uppercase;
           color:rgba(0,0,0,.54);margin:0 0 12px;
         }
-        .contribute-copy{
-          font-size:18px;line-height:1.5;letter-spacing:-.125px;font-weight:400;
-          color:rgba(0,0,0,.898);margin:0 0 20px;max-width:60ch;
+        /* THE ONE LINE. A single flowing row: the ₹ glyph, the "Contribute ₹250" label, then the
+           two inline text links separated by middle dots. flex-wrap means on a narrow phone the
+           links drop to a second line before anything overflows; align-items:baseline keeps the
+           glyph, label and links sitting on one type baseline. 17px/400 is reading text, not a
+           pill - this is a quiet line, not a buy-box. */
+        .contribute-line{
+          margin:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:0 8px;
+          font-size:17px;line-height:1.5;letter-spacing:-.125px;color:rgba(0,0,0,.898);
         }
-        /* THE PAIR, like the product buy-box: the lime primary first, the outlined secondary
-           beside it, wrapping to a second line on a narrow screen. Each is a >=44px (actually
-           52px) WCAG 2.5.8 tap target. */
-        .contribute-actions{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center}
-        /* SHARED PILL GEOMETRY - the site's CTA object, identical to .bc-cta / .ps-subscribe:
-           min-height 52px, 28px inline padding, a 2px #1a3a2a edge (the edge clears WCAG 1.4.11
-           for a control boundary - lime alone is 1.24:1), 50px radius, 17px/600 label. */
-        .contribute-cta{
-          display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;
-          min-height:52px;padding:0 28px;border:2px solid #1a3a2a;border-radius:50px;
-          font-size:17px;font-weight:600;line-height:1.2;text-decoration:none;cursor:pointer;
-          transition:background-color .2s,transform .2s,box-shadow .2s;
+        /* THE ₹ GLYPH in a soft lime disc - a small quiet mark, not a control. tabular so the
+           rupee sign sits centred. */
+        .contribute-mark{
+          display:inline-flex;align-items:center;justify-content:center;
+          width:26px;height:26px;border-radius:50%;background:#eef7d6;
+          font-size:15px;font-weight:700;color:#1a3a2a;flex:none;
         }
-        /* PRIMARY: lime fill, #1a3a2a type at 10.04:1; the house white hover inversion with the one
-           allowed lift and shadow (white gives #1a3a2a type 12.48:1). */
-        .contribute-cta-primary{background:#d1f470;color:#1a3a2a}
-        .contribute-cta-primary:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-        .contribute-cta-primary:active{transform:translateY(0)}
-        /* SECONDARY: outlined white, inverting to the lime fill on hover - the ProductBuyBox
-           .pbb-cta treatment, so the two families match. */
-        .contribute-cta-secondary{background:#fff;color:#1a3a2a}
-        .contribute-cta-secondary:hover:not(:disabled){background:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-        .contribute-cta-secondary:active:not(:disabled){transform:translateY(0)}
-        .contribute-cta-secondary:disabled{opacity:.55;cursor:default}
+        /* THE LABEL - "Contribute ₹250", the static figure from config. Slightly heavier than the
+           links so the amount reads as the subject of the line. */
+        .contribute-label{font-weight:600;color:#1a1a1a;font-variant-numeric:tabular-nums}
+        /* THE SEPARATOR DOTS between label and links, and between the two links. */
+        .contribute-sep{color:rgba(0,0,0,.32)}
+        /* THE TWO ACTIONS, as text links. Underlined so each reads as a link rather than running
+           into the label; #1a3a2a type on white is 12.48:1. The button variant resets native
+           chrome so it matches the anchor exactly - same font, no border, no background, pointer
+           cursor - because it does the same job (start a contribution) and should read the same. */
+        /* THE TWO ACTIONS, as text links with a LIME underline. The text stays #1a3a2a (12.48:1
+           on white, the readable value); only the underline is the brand lime #d1f470, set with
+           text-decoration-color so the link reads as a house link rather than a default dark one.
+           A thicker 2.5px rule makes the lime visible under the type. The button variant resets
+           native chrome so it matches the anchor exactly. */
+        .contribute-link{
+          font:inherit;font-weight:600;color:#1a3a2a;
+          text-decoration:underline;text-decoration-color:#d1f470;
+          text-underline-offset:3px;text-decoration-thickness:2.5px;cursor:pointer;
+          background:none;border:0;padding:0;transition:text-decoration-color .18s;
+        }
+        .contribute-link:hover{text-decoration-color:#1a3a2a}
+        .contribute-link:disabled{opacity:.55;cursor:default;text-decoration:none}
         /* Opaque focus ring at offset, the page's standard - never a translucent alpha. */
-        .contribute-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-        /* THE AMOUNT LINE, quiet and tabular so it reads as a figure rather than a claim. */
-        .contribute-amount{
-          margin:16px 0 0;font-size:15px;font-weight:600;line-height:1.4;letter-spacing:-.125px;
-          color:rgba(0,0,0,.54);font-variant-numeric:tabular-nums;
-        }
-        /* NOTHING MOVES FOR A READER WHO ASKED FOR LESS MOTION - the lift and shadow are the only
-           motion here, so both are cancelled while the colour feedback stays. */
-        @media(prefers-reduced-motion:reduce){
-          .contribute-cta{transition:background-color .2s}
-          .contribute-cta-primary:hover,.contribute-cta-secondary:hover:not(:disabled){transform:none;box-shadow:none}
-        }
+        .contribute-link:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;border-radius:3px}
       `}</style>
     </section>
   );

@@ -72,10 +72,12 @@ describe( 'Perks page', () => {
 
   it( 'has no working-looking transacting control', () => {
     const { container } = render( <PerksPage /> );
-    // Drop the shared Subscribe+Share block before counting: every public page now carries it at
-    // the foot of its content, and ShareLinks legitimately renders share buttons (native-share,
-    // copy-link). Those are the block's controls, not a transacting control on the Perks page.
+    // Drop the two shared sitewide bands before counting: every public page now carries them at
+    // the foot of its content. .public-share renders ShareLinks' share buttons (native-share,
+    // copy-link); .contribute (ContributeBlock) renders a voluntary-contribution checkout button.
+    // Those are the bands' own controls, not a transacting control on the Perks page.
     container.querySelector( '.public-share' )?.remove();
+    container.querySelector( '.contribute' )?.remove();
     // No buttons at all. The only links are honest navigation to pages that already work; none
     // transacts and none carries a dead #gift-cards/#rewards/#offers anchor.
     expect( container.querySelectorAll( 'button' ) ).toHaveLength( 0 );
@@ -90,6 +92,9 @@ describe( 'Perks page', () => {
 
   it( 'invents no points, balances, history or live offers', () => {
     const { container } = render( <PerksPage /> );
+    // The sitewide ContributeBlock names a suggested amount ("₹250 · voluntary"); it is sitewide
+    // furniture, not a Perks balance or offer, so drop it before asserting the page invents none.
+    container.querySelector( '.contribute' )?.remove();
     const text = ( container.textContent || '' ).toLowerCase();
     expect( text ).not.toMatch( /\d+\s*points/ );
     expect( text ).not.toMatch( /balance:\s*₹?\d/ );
