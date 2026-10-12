@@ -365,6 +365,8 @@ afterEach( () => {
   clearGoogleMaps();
   document.body.innerHTML = '';
   try { window.localStorage?.clear(); } catch { /* storage may be unavailable */ }
+  document.documentElement.lang = 'en';
+  document.documentElement.dir = 'ltr';
   vi.useRealTimers();
 } );
 
@@ -612,6 +614,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const { container } = render( <VayuLokLive /> );
 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    // First-paint performance contract: only the maps library is required before construction;
+    // the other libraries are allowed to continue in the background.
+    expect( rec.importedLibraries[ 0 ] ).toBe( 'maps' );
     expect( rec.mapOpts?.restriction ).toBeUndefined();
     expect( rec.mapOpts?.center ).toEqual( { lat: 25, lng: 86 } );
     expect( rec.mapOpts?.zoom ).toBe( 4 );
@@ -1602,6 +1607,50 @@ describe( 'VayuLokLive v8 approved design contract', () => {
   } );
 
 
+  it( 'uses the active site language for voice search and sends the transcript through the existing place search', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    let speech: FakeSpeechRecognition | null = null;
+
+    class FakeSpeechRecognition {
+      lang = '';
+      continuous = true;
+      interimResults = true;
+      maxAlternatives = 0;
+      onstart: ( () => void ) | null = null;
+      onend: ( () => void ) | null = null;
+      onerror: ( () => void ) | null = null;
+      onresult: ( ( event: { results: Array<Array<{ transcript: string }>> } ) => void ) | null = null;
+      constructor() { speech = this; }
+      start() { this.onstart?.(); }
+      stop() { this.onend?.(); }
+      abort() { /* cleanup only */ }
+    }
+
+    vi.stubGlobal( 'SpeechRecognition', FakeSpeechRecognition );
+    document.documentElement.lang = 'bn';
+
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const mic = await screen.findByRole( 'button', { name: 'Search by voice' } );
+    fireEvent.click( mic );
+    expect( speech ).not.toBeNull();
+    expect( speech!.lang ).toBe( 'bn-IN' );
+    expect( mic.getAttribute( 'aria-pressed' ) ).toBe( 'true' );
+
+    act( () => {
+      speech!.onresult?.( { results: [ [ { transcript: 'কলকাতা' } ] ] } );
+      speech!.onend?.();
+    } );
+
+    const input = screen.getByRole( 'combobox' ) as HTMLInputElement;
+    await waitFor( () => expect( input.value ).toBe( 'কলকাতা' ) );
+    await waitFor( () => expect(
+      rec.autocompleteCalls.some( req => req.input === 'কলকাতা' ),
+    ).toBe( true ) );
+  } );
+
   it( 'reopens typed autocomplete on focus and selects suggestions with pointer input', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
@@ -1803,14 +1852,15 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( css ).not.toContain( '.vl-live-air-card-wrap::after{' );
 
     // GLOBAL SEARCH FIELD: the outer wrapper is visually absent. The input itself reuses
-    // Header .nav-search / ProductBlogPanel .pbp-search: transparent, bottom hairline only.
-    expect( container.querySelector( '.vl-live-search-field svg' ) ).toBeNull();
+    // Header .nav-search / ProductBlogPanel .pbp-search; an optional voice action floats inside
+    // the right edge only in browsers that expose SpeechRecognition.
     const inputRule = css.match( /\.vl-live-search-field input\{[^}]*\}/ )?.[ 0 ] || '';
     expect( inputRule ).toContain( 'border-bottom:1px solid #e5e7eb' );
     expect( inputRule ).toContain( 'border:0' );
     expect( inputRule ).toContain( 'font-size:16px' );
     expect( inputRule ).toContain( 'font-weight:400' );
     expect( inputRule ).toContain( 'background:transparent' );
+    expect( inputRule ).toContain( 'padding:0 44px 0 2px' );
     // LIGHT focus treatment: a thin dark-green bottom border + a subtle lime accent line, NOT a
     // heavy rectangular outline around the whole field.
     const inputFocus = css.match( /\.vl-live-search-field input:focus-visible\{[^}]*\}/ )?.[ 0 ] || '';
@@ -1820,6 +1870,17 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( inputFocus ).not.toContain( 'outline:3px' );
     const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
     expect( fieldRule ).toContain( 'border-radius:0' );
+    expect( fieldRule ).toContain( 'position:relative' );
+    const voiceRule = cssRuleFor( css, '.vl-live-voice-btn' );
+    expect( voiceRule ).toContain( 'color:var(--green)' );
+    expect( voiceRule ).toContain( 'width:32px' );
+    expect( voiceRule ).toContain( 'height:32px' );
+    const voiceHoverRule = cssRuleFor( css, '.vl-live-voice-btn:hover' );
+    expect( voiceHoverRule ).toContain( 'background:var(--lime-tint)' );
+    expect( voiceHoverRule ).toContain( 'color:var(--green)' );
+    const voiceListeningRule = cssRuleFor( css, '.vl-live-voice-btn.is-listening' );
+    expect( voiceListeningRule ).toContain( 'background:var(--lime)' );
+    expect( voiceListeningRule ).toContain( 'color:var(--green)' );
     // DECOUPLED FROM mapReady: the search box now renders on EVERY path (it no longer waits for
     // the map to paint), so a user can search for a city/pincode even on the keyless path or if
     // the map fails. The live #vl-live-search input is therefore present here.
