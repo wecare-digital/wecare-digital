@@ -1148,7 +1148,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     ] ) );
     const start = new Date( body.period.startTime ).getTime();
     const end = new Date( body.period.endTime ).getTime();
-    expect( Math.round( ( end - start ) / 3_600_000 ) ).toBe( 96 );
+    // 95 hours, NOT 96: Google's forecast:lookup rejects an exactly-96-hour period with HTTP 400
+    // ("time period is not supported"); 95h still returns ~96 hourly rows. Requesting 96h was the
+    // cause of the forecast rendering empty in production.
+    expect( Math.round( ( end - start ) / 3_600_000 ) ).toBe( 95 );
   } );
 
   it( 'requests the India CPCB local AQI (customLocalAqis ind_cpcb) on the currentConditions:lookup air call', async () => {
