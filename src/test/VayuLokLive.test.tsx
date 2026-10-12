@@ -781,9 +781,51 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( airTab ).toHaveAttribute( 'aria-selected', 'false' );
     const weatherPanel = container.querySelector( '[aria-label="Weather details"]' );
     expect( weatherPanel ).not.toBeNull();
-    expect( weatherPanel?.textContent ).toMatch( /coming soon/i );
+    // The Weather tab now renders the real current-conditions dashboard from the already-fetched
+    // weather data (environmentFetch returns 26°, feels 27, humidity 68, "Mostly sunny").
+    await waitFor( () => {
+      expect( weatherPanel?.querySelector( '.vl-live-wx-now-temp' )?.textContent ).toContain( '26°' );
+    } );
+    expect( weatherPanel?.querySelector( '.vl-live-wx-now-cond' )?.textContent ).toContain( 'Mostly sunny' );
+    expect( weatherPanel?.textContent ).not.toMatch( /coming soon/i );
     // The Air panel is no longer shown while Weather is selected.
     expect( container.querySelector( '[aria-label="Air details"]' ) ).toBeNull();
+  } );
+
+  it( 'renders the full Weather dashboard (metrics grid, hourly, 10-day, 24h history, neutral alerts)', async () => {
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
+    const panel = await waitFor( () => {
+      const el = container.querySelector( '[aria-label="Weather details"]' );
+      expect( el?.querySelector( '.vl-live-wx-now-temp' ) ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+
+    // Current metrics grid shows only returned fields.
+    expect( panel.querySelector( '.vl-live-wx-grid' ) ).not.toBeNull();
+    expect( panel.textContent ).toContain( 'Humidity' );
+    expect( panel.textContent ).toContain( 'Wind' );
+    // Hourly forecast strip with 24h/48h range.
+    expect( panel.querySelector( '.vl-live-air-forecast-strip' ) ).not.toBeNull();
+    expect( within( panel ).getByRole( 'group', { name: 'Weather forecast range' } ) ).toBeTruthy();
+    // 10-day rows.
+    expect( panel.querySelector( '.vl-live-wx-daily-row' ) ).not.toBeNull();
+    // 24h history with a metric toggle.
+    expect( within( panel ).getByRole( 'group', { name: 'Weather history metric' } ) ).toBeTruthy();
+    // Alerts: India has no coverage, so the neutral line shows (not an empty noisy panel).
+    expect( panel.textContent ).toContain( 'No active weather or hazard alerts' );
+    // No publicAlerts request was made for India.
+    expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
+    // Raw temperature value carries data-wc-no-translate (keeps numbers honest under translation).
+    expect( panel.querySelector( '.vl-live-wx-now-temp' )?.getAttribute( 'data-wc-no-translate' ) ).toBe( 'true' );
+    // NO RED.
+    expect( container.innerHTML ).not.toContain( 'dc2626' );
   } );
 
   it( 'renders pollutant concentrations faithfully: a real 0.4 stays 0.4, 0.04 stays 0.04, exact 0 stays 0', async () => {
