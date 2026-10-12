@@ -2966,6 +2966,21 @@ const VayuLokLive: React.FC = () => {
                                     : '' }
                                 </span>
                               </div>
+                              { inspected && (
+                                <div className="vl-live-air-forecast-detail vl-live-air-history-detail">
+                                  <span><strong>AQI</strong> <span data-wc-no-translate="true">{ inspected.aqi }</span></span>
+                                  { inspected.dominant && <span><strong>Dominant</strong> { POLLUTANT_LABELS[ inspected.dominant ] || inspected.dominant }</span> }
+                                  { inspected.localAqi != null && inspected.universalAqi != null && (
+                                    <span><strong>Local / Universal</strong> <span data-wc-no-translate="true">{ inspected.localAqi } / { inspected.universalAqi }</span></span>
+                                  ) }
+                                  { inspected.pollutants?.map( p => (
+                                    <span key={ p.code }>
+                                      <strong>{ p.label || POLLUTANT_LABELS[ p.code ] || p.code }</strong>{' '}
+                                      <span data-wc-no-translate="true">{ formatPollutantValue( p.value ) } { p.unit }</span>
+                                    </span>
+                                  ) ) }
+                                </div>
+                              ) }
                               <div className="vl-live-air-history-stamp" aria-label="Reading time">
                                 <svg className="vl-live-air-history-stamp-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
                                 <span data-wc-no-translate="true">{ stamp }</span>
