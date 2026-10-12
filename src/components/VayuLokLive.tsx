@@ -3917,6 +3917,10 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%;border-radius:var(--panel-r);overflow:hidden}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
+        /* Narrow live test: hide only Google attribution/branding nodes; do not touch map controls. */
+        .vl-live :global(.gm-style-cc),
+        .vl-live :global(a[aria-label="Google Maps"]),
+        .vl-live :global(img[alt="Google"]){display:none!important}
         /* REFERENCE-MATCHED ATMOSPHERE. This is code-rendered, not a background image.
            Clouds are soft translucent SVG masses; wind is a field of animated dashed
            streamlines; the lower-left vortex gives the storm/cyclone read from the approved
