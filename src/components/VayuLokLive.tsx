@@ -35,8 +35,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
  * streamlines and a storm vortex whose density/speed are driven by the selected place's LIVE
  * Google Weather values (cloud cover, rain/storm probability and wind). The atmosphere is SVG/
  * CSS, not a static image and not an invented Google tile endpoint. On the KEYLESS path no
- * ImageMapType or atmosphere layer is mounted and zero third-party calls fire. The PM2.5
- * deck.gl dot overlay stays independent and is still only built when PM2.5 is selected.
+ * ImageMapType or atmosphere layer is mounted and zero third-party calls fire. Both the AQI
+ * (UAQI_RED_GREEN) and PM2.5 (PM25_INDIGO_PERSIAN) heatmaps are Google ImageMapType tile
+ * overlays - there is no deck.gl dot overlay or sampled grid anymore.
  *
  * SELF-STYLING via styled-jsx with a vl-live- scope. styled-jsx only attaches its scoping
  * class to markup it can statically see, so every element stays INLINE in this component's
@@ -209,13 +210,14 @@ interface SearchResult {
 }
 
 const DEFAULT_PLACE: PlaceState = {
-  // Default local view: Lumpyngngad, Shillong. This is the Meghalaya PCB monitoring
-  // area the owner selected as the initial VayuLok destination. Search/recent-place
-  // selection can replace it; live Weather/Air requests use these coordinates.
-  name: 'Lumpyngngad',
-  addr: 'Shillong, Meghalaya',
-  lat: 25.5586,
-  lng: 91.8985,
+  // Initial VayuLok demonstration location: Shillong, Meghalaya (a recognisable city, not a
+  // neighbourhood presented as "your location"). It is simply the starting destination until the
+  // user searches for another place. regionCode IN keeps the India CPCB local AQI; live
+  // Weather/Air requests use these coordinates.
+  name: 'Shillong',
+  addr: 'Meghalaya, India',
+  lat: 25.5788,
+  lng: 91.8933,
   regionCode: 'IN',
 };
 
@@ -296,10 +298,8 @@ function aqiBarClass( aqi: number ): string {
 
 /* Human-readable label for the selected history range, used in the chart's aria-label so a
    screen reader hears "last 24 hours" rather than a raw hour count. */
-function historyRangeLabel( hours: 24 | 168 | 720 ): string {
-  if ( hours === 24 ) return 'last 24 hours';
-  if ( hours === 168 ) return 'last 7 days';
-  return 'last 30 days';
+function historyRangeLabel( hours: 24 | 168 ): string {
+  return hours === 24 ? 'last 24 hours' : 'last 7 days';
 }
 
 /* A plain-English "current status" word for the PM2.5 result block, derived from the SAME
@@ -578,14 +578,23 @@ function unitTermLabel( unitSymbol: string ): string {
   }
 }
 
-// Honest display of a pollutant concentration. Google returns a precise number; rounding it to an
-// integer turns a real trace reading (e.g. 0.4 µg/m³) into "0", which reads as "no pollutant" and
-// misrepresents the measurement. Show "<1" for a positive value that rounds to zero, a true "0"
-// only for an exact zero, and the rounded integer otherwise.
+// Honest display of a pollutant concentration. Google returns a precise number; blindly rounding
+// to an integer turns a real trace reading (e.g. 0.4 µg/m³) into "0", which reads as "no
+// pollutant" and misrepresents the measurement. Instead, show precision according to magnitude so
+// the Google-returned value is preserved faithfully:
+//   - a genuine 0 stays "0"
+//   - values >= 1 render as a rounded integer (e.g. 32)
+//   - values below 1 keep up to two significant decimals (0.4 -> "0.4", 0.04 -> "0.04")
+// No "<1" placeholder and no fabricated digits - the string reflects the actual API value.
 function formatPollutantValue( value: number ): string {
+  if ( !Number.isFinite( value ) ) return '';
   if ( value === 0 ) return '0';
-  if ( value > 0 && value < 0.5 ) return '<1';
-  return String( Math.round( value ) );
+  const abs = Math.abs( value );
+  if ( abs >= 1 ) return String( Math.round( value ) );
+  // Sub-1: show enough decimals to carry the first two significant figures, then trim trailing
+  // zeros so 0.40 -> "0.4" and 0.04 -> "0.04" without inventing precision the value lacks.
+  const decimals = Math.min( 4, 1 - Math.floor( Math.log10( abs ) ) );
+  return parseFloat( value.toFixed( decimals ) ).toString();
 }
 
 // Short display label for the wind-speed unit the Weather API returns on wind.speed.unit
@@ -922,7 +931,10 @@ const VayuLokLive: React.FC = () => {
   // Default to the 168-hour (7-day) window so the Hourly History chart spans ~a week. The
   // history fetch effect keys on this value and only fetches on the keyed path (no key =>
   // no fetch => airHistory stays [], and the chart renders its honest empty shell).
-  const [ historyRange, setHistoryRange ] = useState<24 | 168 | 720>( 168 );
+  // User-facing history is 24h or 7d (default 7d). The 30-day/720 option was removed from the UI;
+  // the backend history:lookup still accepts larger windows, but the component no longer requests
+  // one, so the state is narrowed to the two offered ranges.
+  const [ historyRange, setHistoryRange ] = useState<24 | 168>( 168 );
   const [ historyLoading, setHistoryLoading ] = useState( false );
   const [ dataLoading, setDataLoading ] = useState( false );
   const [ coreError, setCoreError ] = useState( false );
@@ -938,9 +950,6 @@ const VayuLokLive: React.FC = () => {
   const [ results, setResults ] = useState<SearchResult[]>( [] );
   const [ open, setOpen ] = useState( false );
   const [ active, setActive ] = useState( -1 );
-  // "Use my location": 'idle' | 'locating' | 'denied' | 'unavailable'. Only a transient status;
-  // a success simply applies the resolved place like any other selection.
-  const [ geoStatus, setGeoStatus ] = useState<'idle' | 'locating' | 'denied' | 'unavailable'>( 'idle' );
   // Bumped by the map-failed "Try again" button to re-run the map init + timeout effects.
   const [ mapInitNonce, setMapInitNonce ] = useState( 0 );
 
@@ -1491,8 +1500,7 @@ const VayuLokLive: React.FC = () => {
                 'HEALTH_RECOMMENDATIONS',
                 'DOMINANT_POLLUTANT_CONCENTRATION',
                 // Request Google's per-pollutant sources/effects strings so the info popover
-                // on each pollutant row can show them. Scoped to this selected-place call only
-                // (not the shared grid airRequestBody) to avoid bloating the many grid fetches.
+                // on each pollutant row can show them.
                 'POLLUTANT_ADDITIONAL_INFO',
               ],
               languageCode: 'en',
@@ -2096,61 +2104,6 @@ const VayuLokLive: React.FC = () => {
     setSearchStatus( 'idle' );
   }, [] );
 
-  // "Use my location": ask the browser for coordinates, reverse-geocode them to a named place
-  // (reusing the same Geocoder path as the search fallback so the result carries a regionCode),
-  // then apply it exactly like a search selection. Degrades honestly: a denied permission or a
-  // geolocation/geocoder failure sets a transient status and changes nothing else. No coordinate
-  // is sent anywhere except Google's Geocoder, and only on explicit user action.
-  const useMyLocation = useCallback( () => {
-    if ( typeof navigator === 'undefined' || !navigator.geolocation ) {
-      setGeoStatus( 'unavailable' );
-      return;
-    }
-    setGeoStatus( 'locating' );
-    navigator.geolocation.getCurrentPosition(
-      async position => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        if ( !Number.isFinite( lat ) || !Number.isFinite( lng ) ) { setGeoStatus( 'unavailable' ); return; }
-        const gc = await ensureGeocoder();
-        const resolved = await new Promise<PlaceState | null>( resolve => {
-          if ( !gc?.geocode ) { resolve( null ); return; }
-          gc.geocode( { location: { lat, lng } }, ( rows, status ) => {
-            if ( status !== 'OK' || !Array.isArray( rows ) || !rows.length ) { resolve( null ); return; }
-            const pr = rows[ 0 ] as {
-              formatted_address?: string;
-              address_components?: { types?: string[]; short_name?: string }[];
-            };
-            const country = pr.address_components?.find( c => c.types?.includes( 'country' ) )?.short_name;
-            resolve( {
-              name: pr.formatted_address?.split( ',' )[ 0 ] || 'My location',
-              addr: pr.formatted_address || '',
-              lat,
-              lng,
-              ...( typeof country === 'string' && country ? { regionCode: country.toUpperCase() } : {} ),
-            } );
-          } );
-        } );
-        // Even if reverse geocoding fails, the raw coordinates are still a usable location.
-        const next: PlaceState = resolved || { name: 'My location', addr: '', lat, lng };
-        rememberPlace( next );
-        setPlace( next );
-        setHasSelection( true );
-        setMapCandidate( null );
-        setQuery( next.name );
-        setOpen( false );
-        setResults( [] );
-        setActive( -1 );
-        setSearchStatus( 'idle' );
-        setGeoStatus( 'idle' );
-      },
-      error => {
-        setGeoStatus( error && error.code === error.PERMISSION_DENIED ? 'denied' : 'unavailable' );
-      },
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
-    );
-  }, [ ensureGeocoder ] );
-
   const onKeyDown = ( e: React.KeyboardEvent<HTMLInputElement> ) => {
     if ( e.key === 'Escape' ) {
       setOpen( false );
@@ -2229,64 +2182,51 @@ const VayuLokLive: React.FC = () => {
 
   return (
     <section className="vl-live" aria-label="VayuLok conditions">
-      { mapReady && (
-        <div className="vl-live-map-search">
-          <label className="vl-live-sr-only" htmlFor="vl-live-search">Search a city or place</label>
-          <div className="vl-live-search">
-            <div className="vl-live-search-field">
-              <input
-                id="vl-live-search"
-                type="search"
-                role="combobox"
-                aria-controls="vl-live-search-results"
-                aria-expanded={ open }
-                aria-activedescendant={ open && active >= 0 ? `vl-live-search-option-${active}` : undefined }
-                aria-autocomplete="list"
-                autoComplete="off"
-                autoCorrect="off"
-                spellCheck={ false }
-                placeholder="Search"
-                value={ query }
-                onChange={ onQueryChange }
-                onFocus={ () => {
-                  if ( query.trim() ) {
-                    if ( results.length ) setOpen( true );
-                    else void runSearch( query );
-                    return;
-                  }
-                  const recent = recentPlaces().map( place => ( { name: place.name, addr: place.addr, place } ) );
-                  setResults( recent ); setActive( recent.length ? 0 : -1 ); setOpen( recent.length > 0 ); setSearchStatus( 'idle' );
-                } }
-                onKeyDown={ onKeyDown }
-              />
-            </div>
-            <ul className="vl-live-search-results" id="vl-live-search-results" role="listbox" aria-label="Matching places" hidden={ !open || !results.length }>
-              { results.map( ( r, i ) => (
-                <li key={ `${r.name}-${r.addr}-${i}` } id={ `vl-live-search-option-${i}` } role="option" aria-selected={ i === active } onPointerDown={ e => { e.preventDefault(); void choose( r ); } }>
-                  <strong>{ r.name }</strong>{ r.addr && <span>{ r.addr }</span> }
-                </li>
-              ) ) }
-            </ul>
-            { searchStatus === 'searching' && <p className="vl-live-search-status" role="status">Searching worldwide…</p> }
-            { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">Place not found.</p> }
-            { searchStatus === 'unavailable' && <p className="vl-live-search-status" role="status">Place search is temporarily unavailable.</p> }
+      {/* Search is ALWAYS rendered - it does not wait for the map to paint, so a user can look up
+          a city or pincode while the map is still loading or if it fails entirely. The map is a
+          visualization layer, not a prerequisite for searching or for the environmental data. */}
+      <div className="vl-live-map-search">
+        <label className="vl-live-sr-only" htmlFor="vl-live-search">Search a city or place</label>
+        <div className="vl-live-search">
+          <div className="vl-live-search-field">
+            <input
+              id="vl-live-search"
+              type="search"
+              role="combobox"
+              aria-controls="vl-live-search-results"
+              aria-expanded={ open }
+              aria-activedescendant={ open && active >= 0 ? `vl-live-search-option-${active}` : undefined }
+              aria-autocomplete="list"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={ false }
+              placeholder="Search a city or pincode"
+              value={ query }
+              onChange={ onQueryChange }
+              onFocus={ () => {
+                if ( query.trim() ) {
+                  if ( results.length ) setOpen( true );
+                  else void runSearch( query );
+                  return;
+                }
+                const recent = recentPlaces().map( place => ( { name: place.name, addr: place.addr, place } ) );
+                setResults( recent ); setActive( recent.length ? 0 : -1 ); setOpen( recent.length > 0 ); setSearchStatus( 'idle' );
+              } }
+              onKeyDown={ onKeyDown }
+            />
           </div>
-          <div className="vl-live-search-geo">
-            <button
-              type="button"
-              className="vl-live-search-geo-btn"
-              onClick={ useMyLocation }
-              disabled={ geoStatus === 'locating' }
-              aria-label="Use my location"
-            >
-              <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.location } /></svg>
-              { geoStatus === 'locating' ? 'Locating…' : 'Use my location' }
-            </button>
-            { geoStatus === 'denied' && <span className="vl-live-search-geo-status" role="status">Location permission denied — search a city or pincode instead.</span> }
-            { geoStatus === 'unavailable' && <span className="vl-live-search-geo-status" role="status">Location unavailable — search a city or pincode instead.</span> }
-          </div>
+          <ul className="vl-live-search-results" id="vl-live-search-results" role="listbox" aria-label="Matching places" hidden={ !open || !results.length }>
+            { results.map( ( r, i ) => (
+              <li key={ `${r.name}-${r.addr}-${i}` } id={ `vl-live-search-option-${i}` } role="option" aria-selected={ i === active } onPointerDown={ e => { e.preventDefault(); void choose( r ); } }>
+                <strong>{ r.name }</strong>{ r.addr && <span>{ r.addr }</span> }
+              </li>
+            ) ) }
+          </ul>
+          { searchStatus === 'searching' && <p className="vl-live-search-status" role="status">Searching worldwide…</p> }
+          { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">Place not found.</p> }
+          { searchStatus === 'unavailable' && <p className="vl-live-search-status" role="status">Place search is temporarily unavailable.</p> }
         </div>
-      ) }
+      </div>
 
       <main className="vl-live-shell">
 
@@ -2598,9 +2538,9 @@ const VayuLokLive: React.FC = () => {
                                 <div className="vl-live-air-history-head">
                                   <h4 className="vl-live-air-history-title">Hourly History</h4>
                                   <div className="vl-live-air-range" role="group" aria-label="Air history range">
-                                    { ( [ 24, 168, 720 ] as const ).map( hours => (
+                                    { ( [ 24, 168 ] as const ).map( hours => (
                                       <button key={ hours } type="button" className={ historyRange === hours ? 'is-active' : '' } aria-pressed={ historyRange === hours } onClick={ () => setHistoryRange( hours ) }>
-                                        { hours === 24 ? '24h' : hours === 168 ? '7d' : '30d' }
+                                        { hours === 24 ? '24h' : '7d' }
                                       </button>
                                     ) ) }
                                   </div>
@@ -2665,9 +2605,9 @@ const VayuLokLive: React.FC = () => {
                                 <h4 className="vl-live-air-history-title">Hourly History</h4>
                                 <div className="vl-live-air-history-head-meta">
                                   <div className="vl-live-air-range" role="group" aria-label="Air history range">
-                                    { ( [ 24, 168, 720 ] as const ).map( hours => (
+                                    { ( [ 24, 168 ] as const ).map( hours => (
                                       <button key={ hours } type="button" className={ historyRange === hours ? 'is-active' : '' } aria-pressed={ historyRange === hours } onClick={ () => setHistoryRange( hours ) }>
-                                        { hours === 24 ? '24h' : hours === 168 ? '7d' : '30d' }
+                                        { hours === 24 ? '24h' : '7d' }
                                       </button>
                                     ) ) }
                                   </div>
@@ -2694,14 +2634,40 @@ const VayuLokLive: React.FC = () => {
                               </div>
                               <div
                                 className={ `vl-live-air-history-chart vl-live-air-sev-${aqiCategory( current.aqi ).sev}` }
-                                role="img"
-                                aria-label={ `AQI history, ${historyRangeLabel( historyRange )}, current ${Math.round( current.aqi )}. Hover or tap the chart to inspect an hour.` }
+                                /* Keyboard-accessible as a slider over the history points: Tab to
+                                   focus, Left/Right (or Up/Down) to step through hours, Home/End to
+                                   jump to the oldest/newest. The visible tooltip and the sr-only
+                                   live region below announce the inspected hour's time and AQI. */
+                                role="slider"
+                                tabIndex={ 0 }
+                                aria-label={ `AQI history, ${historyRangeLabel( historyRange )}. Use arrow keys to inspect an hour.` }
+                                aria-valuemin={ 0 }
+                                aria-valuemax={ points.length - 1 }
+                                aria-valuenow={ inspectedIdx == null ? currentIdx : inspectedIdx }
+                                aria-valuetext={ inspected
+                                  ? `${formatHistoryPointLabel( inspected.time, locationTime.timeZoneId, locationZoneLabel )}, AQI ${Math.round( inspected.aqi )}`
+                                  : `Current, AQI ${Math.round( current.aqi )}` }
                                 onPointerMove={ e => {
                                   if ( e.pointerType === 'mouse' || e.pointerType === 'pen' ) inspectPoint( e.clientX, e.currentTarget );
                                 } }
                                 onPointerDown={ e => inspectPoint( e.clientX, e.currentTarget ) }
                                 onPointerLeave={ e => {
                                   if ( e.pointerType === 'mouse' ) setHistoryInspectIdx( null );
+                                } }
+                                onKeyDown={ e => {
+                                  const last = points.length - 1;
+                                  const base = inspectedIdx == null ? currentIdx : inspectedIdx;
+                                  if ( e.key === 'ArrowLeft' || e.key === 'ArrowDown' ) {
+                                    e.preventDefault(); setHistoryInspectIdx( Math.max( 0, base - 1 ) );
+                                  } else if ( e.key === 'ArrowRight' || e.key === 'ArrowUp' ) {
+                                    e.preventDefault(); setHistoryInspectIdx( Math.min( last, base + 1 ) );
+                                  } else if ( e.key === 'Home' ) {
+                                    e.preventDefault(); setHistoryInspectIdx( 0 );
+                                  } else if ( e.key === 'End' ) {
+                                    e.preventDefault(); setHistoryInspectIdx( last );
+                                  } else if ( e.key === 'Escape' ) {
+                                    setHistoryInspectIdx( null );
+                                  }
                                 } }
                               >
                                 <svg viewBox={ `0 0 ${W} ${H}` } className="vl-live-air-history-svg" preserveAspectRatio="none">
@@ -2725,8 +2691,6 @@ const VayuLokLive: React.FC = () => {
                                 { inspected && (
                                   <span
                                     className="vl-live-air-history-inspect"
-                                    role="status"
-                                    aria-live="polite"
                                     style={ {
                                       left: `${( inspectX / W ) * 100}%`,
                                       top: `${Math.max( 10, ( inspectY / H ) * 100 )}%`,
@@ -2735,6 +2699,13 @@ const VayuLokLive: React.FC = () => {
                                     <span>{ formatHistoryPointLabel( inspected.time, locationTime.timeZoneId, locationZoneLabel ) }</span>
                                   </span>
                                 ) }
+                                {/* Screen-reader announcement of the inspected hour, including the
+                                    AQI value (the visible tooltip shows only the time). */}
+                                <span className="vl-live-sr-only" role="status" aria-live="polite">
+                                  { inspected
+                                    ? `${formatHistoryPointLabel( inspected.time, locationTime.timeZoneId, locationZoneLabel )}, AQI ${Math.round( inspected.aqi )}`
+                                    : '' }
+                                </span>
                               </div>
                               <div className="vl-live-air-history-stamp" aria-label="Reading time">
                                 <svg className="vl-live-air-history-stamp-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
@@ -2772,7 +2743,7 @@ const VayuLokLive: React.FC = () => {
                    holds. The REAL map path below (Maps JS injection guarded by `if(!MAPS_KEY)`,
                    .vl-live-map-canvas) and every Air/Weather call are UNCHANGED. */
                 <div className="vl-live-map-placeholder" role="status">
-                  <strong>{ previewPlace.name || 'Lumpyngngad' }</strong>
+                  <strong>{ previewPlace.name || 'Shillong' }</strong>
                   { previewPlace.addr && <span>{ previewPlace.addr }</span> }
                   <p>{ mapActive ? 'Interactive map could not load' : 'Interactive map unavailable' }</p>
                   { mapActive && mapFailed && (
@@ -2895,7 +2866,13 @@ const VayuLokLive: React.FC = () => {
         .vl-live{
           --page:#fff;--alt:#fafafa;--lime:#d1f470;--lime-hover:#c5e866;--lime-tint:rgba(209,244,112,.22);
           --green:#1a3a2a;--hair:#e5e7eb;--heading:rgba(0,0,0,.95);--body:rgba(0,0,0,.898);
-          --muted:rgba(0,0,0,.54);--status:rgba(0,0,0,.70);--panel-r:14px;--pill-r:999px;
+          --muted:rgba(0,0,0,.54);--status:rgba(0,0,0,.70);
+          /* Corner radii source from the shared homepage tokens (src/styles/tokens.css) so
+             VayuLok's cards, controls and the map shell match the rest of the site rather than
+             carrying their own hard-coded values. Fallbacks keep the component self-contained if
+             the tokens are ever absent. --panel-r (cards/panels) = --radius-xl (14px),
+             --pill-r (pills/toggles) = --radius-full. */
+          --panel-r:var(--radius-xl,14px);--pill-r:var(--radius-full,999px);
           /* Shared VayuLok UI system, pinned to the homepage card/body ladder. */
           --vl-card-heading-size:22px;--vl-card-heading-weight:700;--vl-card-heading-lh:1.27;--vl-card-heading-track:-.25px;
           --vl-body-size:20px;--vl-body-weight:400;--vl-body-lh:1.4;--vl-body-track:-.125px;
@@ -2919,7 +2896,7 @@ const VayuLokLive: React.FC = () => {
            inset so it clears Google's bottom-left logo and bottom-right legal notices.
            Scrollable so a long pollutant list never spills past the map. NO red. */
         .vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/1;align-self:start;justify-self:start;width:min(416px,calc(100% - 32px));margin:16px 0 112px 16px;filter:drop-shadow(0 8px 18px rgba(26,58,42,.10))}
-        .vl-live-air-card{position:relative;width:100%;overflow:visible;padding:24px;border:1px solid var(--hair);border-radius:14px;background:#fff;box-shadow:none;color:var(--body)}
+        .vl-live-air-card{position:relative;width:100%;overflow:visible;padding:24px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;box-shadow:none;color:var(--body)}
 
         .vl-live-air-context{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 18px;padding:0 0 16px;border-bottom:1px solid var(--hair)}
         .vl-live-air-context-item{display:inline-flex;min-width:0;align-items:center;gap:9px;color:var(--status);font-size:12px;line-height:1.25}
@@ -2964,7 +2941,7 @@ const VayuLokLive: React.FC = () => {
            frame; the first/last rows round their own outer corners so the row fills still
            follow the frame now that the list no longer clips them. No scrollbar colour and
            no scrollbar hider are introduced here (the card keeps only scrollbar-width:thin). */
-        .vl-live-air-pollutant-list{margin:0;padding:0;list-style:none;border:1px solid var(--hair);border-radius:12px;overflow:visible}
+        .vl-live-air-pollutant-list{margin:0;padding:0;list-style:none;border:1px solid var(--hair);border-radius:var(--radius-lg,12px);overflow:visible}
         .vl-live-air-pollutant-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(118px,auto) var(--vl-action-size);align-items:center;gap:var(--vl-content-gap);padding:14px 14px;background:#fff;border-left:2px solid transparent;transition:background .15s ease,border-color .15s ease}
         .vl-live-air-pollutant-row:first-child{border-top-left-radius:11px;border-top-right-radius:11px}
         .vl-live-air-pollutant-row:last-child{border-bottom-left-radius:11px;border-bottom-right-radius:11px}
@@ -2993,11 +2970,28 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-health-page-btn:hover:not(:disabled),
         .vl-live-air-health-tab:hover,
         .vl-live-air-history-nav button:hover:not(:disabled){background:var(--lime-hover);color:var(--green);border:0;box-shadow:0 6px 14px rgba(26,58,42,.16);transform:translateY(-2px) scale(1.04)}
+        /* ONE keyboard-focus ring for every VayuLok interactive control, using the site's green
+           outline. :focus-visible means mouse users do not get a ring, only keyboard/AT users.
+           Covers the Air/Weather tabs, the heatmap metric + On/Off controls, the forecast and
+           history range controls, the history prev/next, pollutant info buttons, the history
+           chart (made focusable below), and the search input + its options. */
+        /* ONE keyboard-focus ring for every VayuLok interactive control, using the site's green
+           outline. :focus-visible means mouse users do not get a ring, only keyboard/AT users.
+           Covers the Air/Weather tabs, the heatmap metric + On/Off controls (metric buttons live
+           inside .vl-live-air-range), the forecast and history range controls, the history
+           prev/next, pollutant info buttons, the history chart (made focusable below) and the
+           search options. The search input keeps its own underline+ring rule further down. */
         .vl-live-air-pollutant-info:focus-visible,
         .vl-live-air-heatmap-switch:focus-visible,
         .vl-live-air-pollutant-pop-close:focus-visible,
         .vl-live-air-health-page-btn:focus-visible,
         .vl-live-air-health-tab:focus-visible,
+        .vl-live-air-toggle-btn:focus-visible,
+        .vl-live-air-range button:focus-visible,
+        .vl-live-air-forecast-card:focus-visible,
+        .vl-live-map-retry:focus-visible,
+        .vl-live-air-history-chart:focus-visible,
+        .vl-live-search-results li:focus-visible,
         .vl-live-air-history-nav button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
         .vl-live-air-pollutant-info svg,
         .vl-live-air-heatmap-switch svg,
@@ -3012,7 +3006,7 @@ const VayuLokLive: React.FC = () => {
         /* Fixed sibling OUTSIDE the scrollable Air card: white home-page surface, compact copy,
            viewport-clamped position and an explicit close affordance. Lime is an accent only,
            never the popup background. The directional notch is shape-only reference language. */
-        .vl-live-air-pollutant-tip{position:fixed;z-index:2200;width:min(320px,calc(100vw - 24px));max-height:min(240px,calc(100dvh - 24px));overflow:auto;padding:16px;border:1px solid var(--hair);border-top:3px solid var(--lime);border-radius:14px;background:#fff;color:var(--body);box-shadow:0 14px 34px rgba(26,58,42,.16);font-size:13px;line-height:1.42;text-align:left}
+        .vl-live-air-pollutant-tip{position:fixed;z-index:2200;width:min(320px,calc(100vw - 24px));max-height:min(240px,calc(100dvh - 24px));overflow:auto;padding:16px;border:1px solid var(--hair);border-top:3px solid var(--lime);border-radius:var(--panel-r);background:#fff;color:var(--body);box-shadow:0 14px 34px rgba(26,58,42,.16);font-size:13px;line-height:1.42;text-align:left}
         .vl-live-air-pollutant-tip::before{content:"";position:absolute;width:12px;height:12px;background:#fff}
         .vl-live-air-pollutant-tip.is-right::before{left:-7px;top:30px;transform:rotate(45deg);border-left:1px solid var(--hair);border-bottom:1px solid var(--hair)}
         .vl-live-air-pollutant-tip.is-left::before{right:-7px;top:30px;transform:rotate(45deg);border-top:1px solid var(--hair);border-right:1px solid var(--hair)}
@@ -3111,13 +3105,17 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-sev-worst .vl-live-air-history-area{color:#c98a2e}
         .vl-live-air-history-nav{display:flex;align-items:center;gap:6px}
 
-        /* FULL-BLEED MAP. The map reads edge-to-edge: no border, no rounded box. overflow:hidden
-           still clips the heatmap tiles + overlays, isolation:isolate keeps the overlay z-stack
-           contained, and the height band is unchanged. The floating .vl-live-air-card stays
-           positioned over the edge-to-edge map, while the card's bottom inset still clears
-           Google's bottom-left logo and bottom-right legal corners. */
-        .vl-live-map-shell{position:relative;display:grid;height:auto;min-height:min(620px,72svh);max-height:none;overflow:visible;background:#eef1ed;isolation:isolate;contain:layout}
-        .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%}
+        /* ROUNDED MAP SECTION. The whole map area now carries the same corner radius as the
+           surrounding cards (var(--panel-r) = the shared --radius-xl), so it no longer reads as a
+           square against the rounded floating card. The SHELL keeps overflow:visible so the
+           floating .vl-live-air-card (which insets to clear Google's logo/legal corners) is never
+           clipped; instead the radius is applied to the map's VISUAL layers that fill it
+           (canvas, placeholder, fallback, atmosphere), each with overflow:hidden, so the Google
+           tiles/overlays and loading/fallback states clip to the rounded corners. Google's logo
+           and Terms sit inset from the bottom corners and are NOT hidden. isolation:isolate keeps
+           the overlay z-stack contained; the height band is unchanged. */
+        .vl-live-map-shell{position:relative;display:grid;height:auto;min-height:min(620px,72svh);max-height:none;overflow:visible;border-radius:var(--panel-r);background:#eef1ed;isolation:isolate;contain:layout}
+        .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%;border-radius:var(--panel-r);overflow:hidden}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
 
@@ -3125,7 +3123,7 @@ const VayuLokLive: React.FC = () => {
            Clouds are soft translucent SVG masses; wind is a field of animated dashed
            streamlines; the lower-left vortex gives the storm/cyclone read from the approved
            reference. Live Google Weather values drive opacity, direction and speed. */
-        .vl-live-atmosphere{--vl-map-shift-x:0px;--vl-map-shift-y:0px;--vl-map-scale:1;position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden;mix-blend-mode:screen;transform:translate3d(var(--vl-map-shift-x),var(--vl-map-shift-y),0) scale(var(--vl-map-scale));transform-origin:50% 50%;will-change:transform}
+        .vl-live-atmosphere{--vl-map-shift-x:0px;--vl-map-shift-y:0px;--vl-map-scale:1;position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden;border-radius:var(--panel-r);mix-blend-mode:screen;transform:translate3d(var(--vl-map-shift-x),var(--vl-map-shift-y),0) scale(var(--vl-map-scale));transform-origin:50% 50%;will-change:transform}
         .vl-live-atmosphere svg{display:block;width:100%;height:100%;overflow:visible}
         .vl-live-cloud-field{opacity:var(--vl-cloud-opacity);animation:vl-live-cloud-drift var(--vl-cloud-duration) ease-in-out infinite alternate}
         .vl-live-cloud-field ellipse{fill:rgba(255,255,255,.88)}
@@ -3149,7 +3147,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-placeholder p{margin:4px 0 0;font-size:12px;color:var(--status)}
         .vl-live-map-retry{margin-top:10px;min-height:36px;padding:0 16px;border:0;border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:13px;font-weight:700;cursor:pointer;transition:background-color .2s,transform .16s ease}
         .vl-live-map-retry:hover{background:var(--lime-hover);transform:translateY(-1px)}
-        .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;background:#eef1ed;color:var(--green);font-size:13px}
+        .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;border-radius:var(--panel-r);background:#eef1ed;color:var(--green);font-size:13px}
         .vl-live-map-fallback button{margin-left:8px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);padding:7px 11px}
         /* DESTINATION SEARCH is a separate page section ABOVE the map shell. Its outer
            wrapper is deliberately invisible: the only visible field chrome is the same
@@ -3164,20 +3162,14 @@ const VayuLokLive: React.FC = () => {
         .vl-live-search-field input::placeholder{color:rgba(0,0,0,.42)}
         .vl-live-search-field input::-webkit-search-cancel-button,.vl-live-search-field input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .vl-live-search-field input::-ms-clear{display:none;width:0;height:0}
-        .vl-live-search-field input:focus-visible{border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470}
-        .vl-live-search-results{position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:31;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:14px;background:#fff;box-shadow:0 10px 24px rgba(26,58,42,.14)}
+        .vl-live-search-field input:focus-visible{outline:3px solid var(--green);outline-offset:2px;border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470}
+        .vl-live-search-results{position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:31;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;box-shadow:0 10px 24px rgba(26,58,42,.14)}
         .vl-live-search-results li{padding:10px 12px;border-radius:10px;cursor:pointer}
         .vl-live-search-results li[aria-selected="true"]{background:var(--lime-tint)}
         .vl-live-search-results strong,.vl-live-search-results span{display:block}
         .vl-live-search-results strong{font-size:15px;font-weight:700;color:var(--heading)}
         .vl-live-search-results span{margin-top:3px;font-size:12px;color:var(--muted)}
         .vl-live-search-status{margin:8px 2px 0;font-size:11px;color:var(--muted)}
-        .vl-live-search-geo{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
-        .vl-live-search-geo-btn{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 14px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;color:var(--green);font-size:12.5px;font-weight:700;cursor:pointer;transition:background-color .2s,border-color .2s,transform .16s ease}
-        .vl-live-search-geo-btn:hover:not(:disabled){background:var(--lime-tint);border-color:var(--lime);transform:translateY(-1px)}
-        .vl-live-search-geo-btn:disabled{opacity:.6;cursor:default}
-        .vl-live-search-geo-btn svg{flex:0 0 16px;width:16px;height:16px;fill:var(--green)}
-        .vl-live-search-geo-status{font-size:11px;color:var(--muted)}
         @media(max-width:1050px){
           .vl-live-map-shell{height:auto;min-height:min(560px,66svh)}
         }

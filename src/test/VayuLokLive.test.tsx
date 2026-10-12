@@ -786,10 +786,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( container.querySelector( '[aria-label="Air details"]' ) ).toBeNull();
   } );
 
-  it( 'renders pollutant concentrations honestly: exact 0 stays 0, a positive trace shows <1', async () => {
-    // Google returns precise concentrations. Rounding a real trace (0.4) to "0" would read as
-    // "no pollutant" and misrepresent the measurement, so a positive sub-0.5 value shows "<1"
-    // while an exact 0 stays "0".
+  it( 'renders pollutant concentrations faithfully: a real 0.4 stays 0.4, 0.04 stays 0.04, exact 0 stays 0', async () => {
+    // Google returns precise concentrations. Blindly rounding a real trace (0.4) to "0" would read
+    // as "no pollutant" and misrepresent the measurement, so sub-1 values keep their significant
+    // decimals (0.4 ppb -> "0.4 ppb", 0.04 ppm -> "0.04 ppm") rather than being flattened to 0 or
+    // an invented "<1"; a genuine 0 stays "0"; values >= 1 round to an integer.
     const traceFetch = vi.fn( ( input: RequestInfo | URL ) => {
       if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
         return Promise.resolve( {
@@ -800,6 +801,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
             pollutants: [
               { code: 'no2', displayName: 'NO2', concentration: { value: 0, units: 'PARTS_PER_BILLION' } },
               { code: 'so2', displayName: 'SO2', concentration: { value: 0.4, units: 'PARTS_PER_BILLION' } },
+              { code: 'co', displayName: 'CO', concentration: { value: 0.04, units: 'PARTS_PER_MILLION' } },
               { code: 'pm25', displayName: 'PM2.5', concentration: { value: 32, units: 'MICROGRAMS_PER_CUBIC_METER' } },
             ],
           } ),
@@ -822,7 +824,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       .find( r => ( r.querySelector( '.vl-live-air-pollutant-label' )?.textContent ?? '' ).includes( label ) )
       ?.querySelector( '.vl-live-air-pollutant-value' )?.textContent?.trim() ?? '';
     expect( valueOf( 'NO2' ) ).toMatch( /^0\s/ );        // exact zero stays 0
-    expect( valueOf( 'SO2' ) ).toContain( '<1' );          // positive trace is not rounded to 0
+    expect( valueOf( 'SO2' ) ).toContain( '0.4' );         // real trace preserved, not rounded to 0
+    expect( valueOf( 'SO2' ) ).not.toContain( '<1' );      // and NOT replaced by a placeholder
+    expect( valueOf( 'CO' ) ).toContain( '0.04' );         // two significant decimals preserved
     expect( valueOf( 'PM2.5' ) ).toMatch( /^32\s/ );
   } );
 
@@ -1005,9 +1009,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( el ).not.toBeNull();
       return el as HTMLElement;
     } );
-    expect( chart.getAttribute( 'role' ) ).toBe( 'img' );
+    // The chart is a keyboard-operable slider over the history points: focusable, with
+    // aria-value* describing the inspected position.
+    expect( chart.getAttribute( 'role' ) ).toBe( 'slider' );
+    expect( chart.getAttribute( 'tabindex' ) ).toBe( '0' );
     expect( chart.getAttribute( 'aria-label' ) ).toMatch( /AQI history/ );
-    expect( chart.getAttribute( 'aria-label' ) ).toMatch( /current 72/ );
+    expect( chart.getAttribute( 'aria-valuetext' ) ).toMatch( /AQI \d+/ );
     // The reading date/time moved out of the header and below the chart, styled as a lime-tinted
     // pill with a leading clock icon in the site accent colour; the on-chart AQI value bubble was
     // removed (the chart no longer prints the raw number).
@@ -1028,9 +1035,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( svg.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
     } );
 
-    // Hover/tap inspection surfaces the specific hour's local time. The raw AQI value is no
-    // longer printed on the chart (neither in the inspect tooltip nor an on-chart bubble).
-    expect( chart.getAttribute( 'aria-label' ) ).toContain( 'Hover or tap the chart to inspect an hour.' );
+    // Pointer inspection surfaces the specific hour's local time (the visible tooltip shows only
+    // the time; the AQI is carried in the chart's aria-valuetext and the sr-only live region).
+    expect( chart.getAttribute( 'aria-label' ) ).toContain( 'Use arrow keys to inspect an hour.' );
     fireEvent.pointerDown( chart, { clientX: 0, pointerType: 'touch' } );
     await waitFor( () => expect( container.querySelector( '.vl-live-air-history-inspect' ) ).not.toBeNull() );
     const inspect = container.querySelector( '.vl-live-air-history-inspect' );
@@ -1038,35 +1045,31 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( inspect?.textContent ).not.toMatch( /AQI \d+/ );
     expect( container.querySelector( '.vl-live-air-history-bubble' ) ).toBeNull();
 
+    // Keyboard inspection: focusing the chart and pressing Home jumps to the oldest hour and the
+    // slider announces an AQI through aria-valuetext.
+    chart.focus();
+    fireEvent.keyDown( chart, { key: 'Home' } );
+    await waitFor( () => expect( chart.getAttribute( 'aria-valuenow' ) ).toBe( '0' ) );
+    expect( chart.getAttribute( 'aria-valuetext' ) ).toMatch( /AQI \d+/ );
+
     // NO RED anywhere in the three new sections' markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
   } );
 
-  it( 'offers "Use my location" and applies the reverse-geocoded place on success', async () => {
-    const geolocation = {
-      getCurrentPosition: vi.fn( ( success: ( p: { coords: { latitude: number; longitude: number } } ) => void ) => {
-        success( { coords: { latitude: 19.076, longitude: 72.8777 } } );
-      } ),
-    };
-    vi.stubGlobal( 'navigator', { ...navigator, geolocation } );
+  it( 'does not render a "Use my location" control or trigger browser geolocation', async () => {
+    // VayuLok no longer depends on browser geolocation permission; the primary location
+    // interaction is city/place/pincode search. There must be no geolocation button and the
+    // component must never call navigator.geolocation.
+    const getCurrentPosition = vi.fn();
+    vi.stubGlobal( 'navigator', { ...navigator, geolocation: { getCurrentPosition } } );
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
-    const { container } = render( <VayuLokLive /> );
+    render( <VayuLokLive /> );
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
-    const geoBtn = await screen.findByRole( 'button', { name: 'Use my location' } );
-    expect( geoBtn ).toBeTruthy();
-    fireEvent.click( geoBtn );
-
-    // The browser coords are reverse-geocoded (FakeGeocoder returns a Mumbai result) and applied
-    // like any selection: the air card header reflects the resolved place. The reverse-geocoded
-    // place has no viewport, so the camera recentres via setCenter + setZoom (not fitBounds).
-    await waitFor( () => {
-      const context = container.querySelector( '.vl-live-air-context' );
-      expect( context?.textContent ).toContain( 'Mumbai' );
-    } );
-    await waitFor( () => expect( rec.setZoomCalls.length ).toBeGreaterThan( 0 ) );
-    expect( geolocation.getCurrentPosition ).toHaveBeenCalled();
+    expect( screen.queryByRole( 'button', { name: 'Use my location' } ) ).toBeNull();
+    expect( screen.queryByText( /Location permission denied/ ) ).toBeNull();
+    expect( getCurrentPosition ).not.toHaveBeenCalled();
   } );
 
   it( 'shows IST by default and resolves selected-place local time through Google Time Zone API', async () => {
@@ -1087,10 +1090,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     await selectMumbai();
 
-    // The component resolves local time for its initial default place (Lumpyngngad,
-    // 25.5586,91.8985) AND again for the selected place, so there are TWO timezone calls.
-    // Match the one for Mumbai's coordinates rather than the first call, which would be the
-    // default-place lookup.
+    // The component resolves local time for its initial default place (Shillong, 25.5788,91.8933)
+    // AND again for the selected place, so there are TWO timezone calls. Match the one for
+    // Mumbai's coordinates rather than the first call, which would be the default-place lookup.
     const tzCall = await waitFor( () => {
       const call = fetchSpy.mock.calls.find( call => {
         const url = requestUrl( call[ 0 ] as RequestInfo | URL );
@@ -1190,7 +1192,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( selectedBody.extraComputations ).toContain( 'POLLUTANT_ADDITIONAL_INFO' );
     expect( selectedBody.extraComputations ).toContain( 'POLLUTANT_CONCENTRATION' );
   } );
-  it( 'surfaces Google Air forecast ranges, 30-day history and PM2.5 heatmap tiles', async () => {
+  it( 'surfaces Google Air forecast ranges, 24h/7d history (no 30d) and PM2.5 heatmap tiles', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
@@ -1211,15 +1213,25 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( forecastDetail?.textContent ).toContain( 'Sources' );
     expect( forecastDetail?.textContent ).toContain( 'Effects' );
 
+    // History offers only 24h and 7d now - the 30d option was removed from the UI.
     const historyRange = await screen.findByRole( 'group', { name: 'Air history range' } );
-    fireEvent.click( within( historyRange ).getByRole( 'button', { name: '30d' } ) );
+    expect( within( historyRange ).queryByRole( 'button', { name: '30d' } ) ).toBeNull();
+    expect( within( historyRange ).getByRole( 'button', { name: '24h' } ) ).toBeTruthy();
+    expect( within( historyRange ).getByRole( 'button', { name: '7d' } ) ).toBeTruthy();
+    fireEvent.click( within( historyRange ).getByRole( 'button', { name: '24h' } ) );
     await waitFor( () => {
       const calls = fetchSpy.mock.calls.filter( call => requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/history' ) );
+      // No history request should ever ask for the removed 720-hour (30-day) window.
       const has720 = calls.some( call => {
         const raw = ( call[ 1 ] as RequestInit | undefined )?.body;
         return raw ? JSON.parse( String( raw ) ).hours === 720 : false;
       } );
-      expect( has720 ).toBe( true );
+      expect( has720 ).toBe( false );
+      const has24 = calls.some( call => {
+        const raw = ( call[ 1 ] as RequestInit | undefined )?.body;
+        return raw ? JSON.parse( String( raw ) ).hours === 24 : false;
+      } );
+      expect( has24 ).toBe( true );
     } );
 
     const metric = await screen.findByRole( 'group', { name: 'Heatmap metric' } );
@@ -1455,7 +1467,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const placeholder = container.querySelector( '.vl-live-map-placeholder' );
     expect( placeholder ).not.toBeNull();
     expect( placeholder?.tagName ).toBe( 'DIV' );
-    expect( placeholder?.textContent ).toContain( 'Lumpyngngad' );
+    expect( placeholder?.textContent ).toContain( 'Shillong' );
     expect( placeholder?.textContent ).toContain( 'Interactive map unavailable' );
 
     // HONEST DEGRADATION for the three new Air sections. Without a key `air` is null, so the
@@ -1526,15 +1538,15 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const inputFocus = css.match( /\.vl-live-search-field input:focus-visible\{[^}]*\}/ )?.[ 0 ] || '';
     expect( inputFocus ).toContain( 'border-bottom-color:#1a3a2a' );
     expect( inputFocus ).toContain( '0 1px 0 0 #d1f470' );
+    expect( inputFocus ).toContain( 'outline:3px solid var(--green)' );
     const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
     expect( fieldRule ).toContain( 'border-radius:0' );
-    // KEYLESS CONTRACT: the search box is rendered inside `{ mapReady && (...) }`, and on the
-    // no-key path the Maps script is never injected so mapReady stays false - the live
-    // #vl-live-search input therefore does NOT exist here. Its CSS idiom is still present in the
-    // stylesheet (styled-jsx emits the whole sheet regardless), which is what the assertions
-    // above verify. Asserting a 'Search' placeholder on this path contradicted the honest
-    // degradation the rest of this file proves, so assert the input's correct absence instead.
-    expect( container.querySelector( '#vl-live-search' ) ).toBeNull();
+    // DECOUPLED FROM mapReady: the search box now renders on EVERY path (it no longer waits for
+    // the map to paint), so a user can search for a city/pincode even on the keyless path or if
+    // the map fails. The live #vl-live-search input is therefore present here.
+    const searchInput = container.querySelector( '#vl-live-search' ) as HTMLInputElement | null;
+    expect( searchInput ).not.toBeNull();
+    expect( searchInput?.getAttribute( 'placeholder' ) ).toBe( 'Search a city or pincode' );
     expect( css ).toContain( '.vl-live-search-field input::-webkit-search-cancel-button' );
     expect( css ).toContain( '-webkit-appearance:none' );
     expect( css ).toContain( '.vl-live-search-field input::-ms-clear{display:none' );
@@ -1549,15 +1561,12 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( searchWrapRule ).toContain( 'z-index:30' );
     expect( searchWrapRule ).not.toContain( 'grid-area:1/1' );
 
-    // The map region and shell render on every path; the search surface (.vl-live-map-search)
-    // is gated behind `{ mapReady && (...) }`, so on the keyless path - where the Maps script is
-    // never injected and mapReady stays false - it is correctly absent. Its layout CSS idiom is
-    // still asserted above from the emitted stylesheet. This mirrors the honest-degradation
-    // contract the rest of this file proves rather than requiring a live search box without a map.
+    // The map region, shell AND the search surface now render on every path - search is no longer
+    // gated on mapReady, so it is usable while the map loads or if it fails.
     const searchSurface = container.querySelector( '.vl-live-map-search' );
     const mapRegion = container.querySelector( '.vl-live-map-region' );
     const mapMain = container.querySelector( '.vl-live-shell' );
-    expect( searchSurface ).toBeNull();
+    expect( searchSurface ).not.toBeNull();
     expect( mapRegion ).not.toBeNull();
     expect( mapMain ).not.toBeNull();
 
