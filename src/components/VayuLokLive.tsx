@@ -1785,9 +1785,9 @@ const VayuLokLive: React.FC = () => {
         const pressure = n( p?.airPressure?.meanSeaLevelMillibars );
         const cloud = n( p?.cloudCover );
         const visibility = n( p?.visibility?.distance );
-        const heatIndex = n( p?.heatIndex?.degrees );
+        const heatIndex = n( row?.maxHeatIndex?.degrees ?? p?.heatIndex?.degrees );
         const windChill = n( p?.windChill?.degrees );
-        const ice = n( p?.iceThickness?.thickness );
+        const ice = n( row?.iceThickness?.thickness ?? p?.iceThickness?.thickness );
         const precipType = typeof p?.precipitation?.probability?.type === 'string' ? p.precipitation.probability.type : undefined;
         return {
           time: date.getTime(),
@@ -3019,7 +3019,7 @@ const VayuLokLive: React.FC = () => {
                         <div className="vl-live-wx-alerts">
                           <h4 className="vl-live-air-forecast-title">Alerts</h4>
                           { !WEATHER_ALERT_REGION_CODES.has( String( place.regionCode || '' ).toUpperCase() ) ? (
-                            <p className="vl-live-air-history-empty">Google Weather alerts are not available for this region.</p>
+                            <p className="vl-live-air-history-empty">Weather alerts are not supported by Google for this region.</p>
                           ) : weatherAlerts.length ? weatherAlerts.map( alert => (
                             <div key={ alert.id } className={ `vl-live-wx-alert sev-${( alert.severity || 'minor' ).toLowerCase()}` }>
                               <strong>{ alert.title }</strong>
