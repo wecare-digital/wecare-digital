@@ -1254,7 +1254,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const forecastDetail = container.querySelector( '.vl-live-air-forecast-detail' );
     expect( forecastDetail?.textContent ).toContain( 'Dominant' );
     expect( forecastDetail?.textContent ).toContain( 'Local / Universal' );
-    expect( forecastDetail?.textContent ).toContain( 'Forecast health recommendation.' );
+    expect( forecastDetail?.textContent ).not.toContain( 'Forecast health recommendation.' );
     // Sources/Effects were removed from the Air Forecast detail panel; they must no longer render.
     expect( forecastDetail?.textContent ).not.toContain( 'Sources' );
     expect( forecastDetail?.textContent ).not.toContain( 'Effects' );
