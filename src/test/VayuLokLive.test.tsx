@@ -1213,8 +1213,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( forecastDetail?.textContent ).toContain( 'Dominant' );
     expect( forecastDetail?.textContent ).toContain( 'Local / Universal' );
     expect( forecastDetail?.textContent ).toContain( 'Forecast health recommendation.' );
-    expect( forecastDetail?.textContent ).toContain( 'Sources' );
-    expect( forecastDetail?.textContent ).toContain( 'Effects' );
+    // Sources/Effects were removed from the Air Forecast detail panel; they must no longer render.
+    expect( forecastDetail?.textContent ).not.toContain( 'Sources' );
+    expect( forecastDetail?.textContent ).not.toContain( 'Effects' );
 
     // History offers only 24h and 7d now - the 30d option was removed from the UI.
     const historyRange = await screen.findByRole( 'group', { name: 'Air history range' } );
