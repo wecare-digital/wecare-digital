@@ -532,6 +532,7 @@ interface WeatherDay {
   windGust?: number;
   moonrise?: string;
   moonset?: string;
+  moonPhase?: string;
 }
 interface AirPoint {
   time: number;
@@ -640,6 +641,26 @@ function titleCaseEnum( value?: string ): string {
   if ( typeof value !== 'string' || !value.trim() ) return '';
   const words = value.trim().toLowerCase().replace( /_/g, ' ' );
   return words.charAt( 0 ).toUpperCase() + words.slice( 1 );
+}
+
+// Format an ISO instant (sunrise/sunset/moonrise/moonset from the Weather days forecast) as a
+// short local clock time in the viewed location's timezone (e.g. "5:19 AM"). Returns '' on a
+// missing/unparseable value so the caller can simply omit the row.
+function formatClockTime( iso: string | undefined, timeZoneId: string ): string {
+  if ( typeof iso !== 'string' || !iso ) return '';
+  const ms = new Date( iso ).getTime();
+  if ( !Number.isFinite( ms ) ) return '';
+  try {
+    return new Intl.DateTimeFormat( 'en-IN', { timeZone: timeZoneId || 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' } ).format( new Date( ms ) );
+  } catch {
+    return new Intl.DateTimeFormat( 'en-IN', { hour: 'numeric', minute: '2-digit' } ).format( new Date( ms ) );
+  }
+}
+
+// Readable label for the Weather API moonPhase enum (e.g. WAXING_CRESCENT -> "Waxing crescent").
+// Reuses titleCaseEnum so the whole phrase after the first word stays lowercase.
+function moonPhaseLabel( value?: string ): string {
+  return titleCaseEnum( value );
 }
 
 // Short display label for the wind-speed unit the Weather API returns on wind.speed.unit
@@ -1787,6 +1808,7 @@ const VayuLokLive: React.FC = () => {
           ...( Number.isFinite( windGust ) ? { windGust: Math.round( windGust ) } : {} ),
           ...( typeof row?.moonEvents?.moonriseTimes?.[ 0 ] === 'string' ? { moonrise: row.moonEvents.moonriseTimes[ 0 ] } : {} ),
           ...( typeof row?.moonEvents?.moonsetTimes?.[ 0 ] === 'string' ? { moonset: row.moonEvents.moonsetTimes[ 0 ] } : {} ),
+          ...( typeof row?.moonEvents?.moonPhase === 'string' ? { moonPhase: row.moonEvents.moonPhase } : {} ),
         };
       } );
       forecastStore.daily = rows;
@@ -3053,7 +3075,17 @@ const VayuLokLive: React.FC = () => {
                                         if ( Number.isFinite( day.stormProb ) && ( day.stormProb as number ) > 0 ) bits.push( { k: 'Storm', v: `${day.stormProb}%` } );
                                         if ( Number.isFinite( day.windSpeed ) ) bits.push( { k: 'Wind', v: `${day.windSpeed} ${day.windUnit || 'km/h'}${day.windDir ? ` ${day.windDir}` : ''}` } );
                                         if ( Number.isFinite( day.windGust ) ) bits.push( { k: 'Gust', v: `${day.windGust} ${day.windUnit || 'km/h'}` } );
-                                        return bits.map( b => <span key={ b.k }>{ b.k === 'Night' ? <><strong>{ b.k }</strong> { b.v }</> : <><strong>{ b.k }</strong> <span data-wc-no-translate="true">{ b.v }</span></> }</span> );
+                                        // Astronomy - sun/moon times returned by the days forecast, shown in the location's zone.
+                                        const sunrise = formatClockTime( day.sunrise, locationTime.timeZoneId );
+                                        const sunset = formatClockTime( day.sunset, locationTime.timeZoneId );
+                                        if ( sunrise ) bits.push( { k: 'Sunrise', v: sunrise } );
+                                        if ( sunset ) bits.push( { k: 'Sunset', v: sunset } );
+                                        const moonrise = formatClockTime( day.moonrise, locationTime.timeZoneId );
+                                        const moonset = formatClockTime( day.moonset, locationTime.timeZoneId );
+                                        if ( moonrise ) bits.push( { k: 'Moonrise', v: moonrise } );
+                                        if ( moonset ) bits.push( { k: 'Moonset', v: moonset } );
+                                        if ( day.moonPhase ) bits.push( { k: 'Moon', v: moonPhaseLabel( day.moonPhase ) } );
+                                        return bits.map( b => <span key={ b.k }>{ b.k === 'Night' || b.k === 'Moon' ? <><strong>{ b.k }</strong> { b.v }</> : <><strong>{ b.k }</strong> <span data-wc-no-translate="true">{ b.v }</span></> }</span> );
                                       } )() }
                                     </div>
                                   ) }

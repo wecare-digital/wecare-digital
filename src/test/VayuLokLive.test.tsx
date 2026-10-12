@@ -507,6 +507,7 @@ function environmentFetch() {
             maxTemperature: { degrees: 29 },
             daytimeForecast: { precipitation: { probability: { percent: 20 } }, weatherCondition: { description: { text: 'Partly cloudy' } } },
             sunEvents: { sunriseTime: hour( -6 ), sunsetTime: hour( 6 ) },
+            moonEvents: { moonPhase: 'WAXING_CRESCENT', moonriseTimes: [ hour( 2 ) ], moonsetTimes: [ hour( 10 ) ] },
           } ],
         } ),
       } as Response );
@@ -864,6 +865,39 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( alert.textContent ).toContain( 'India Meteorological Department' );
     // Severity drives the styling class (amber/dark, never red).
     expect( alert.className ).toContain( 'sev-severe' );
+    expect( container.innerHTML ).not.toContain( 'dc2626' );
+  } );
+
+  it( 'surfaces Google daily sun and moon astronomy when a 10-day row is expanded', async () => {
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+    fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
+
+    const row = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-wx-daily-row' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    // Astronomy lives in the expandable detail, not the collapsed row.
+    fireEvent.click( row );
+    const detail = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-air-forecast-detail' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    // Sunrise/sunset (from sunEvents) and moonrise/moonset + readable moon phase (from moonEvents).
+    expect( detail.textContent ).toContain( 'Sunrise' );
+    expect( detail.textContent ).toContain( 'Sunset' );
+    expect( detail.textContent ).toContain( 'Moonrise' );
+    expect( detail.textContent ).toContain( 'Moonset' );
+    expect( detail.textContent ).toContain( 'Moon' );
+    // Enum is humanised, never shown raw.
+    expect( detail.textContent ).toContain( 'Waxing crescent' );
+    expect( detail.textContent ).not.toContain( 'WAXING_CRESCENT' );
     expect( container.innerHTML ).not.toContain( 'dc2626' );
   } );
 
