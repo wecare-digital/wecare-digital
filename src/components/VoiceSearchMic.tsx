@@ -115,16 +115,16 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript } ) => {
         .voice-search-mic{
           position:absolute;right:4px;top:50%;z-index:2;
           display:inline-grid;place-items:center;width:32px;height:32px;padding:0;
-          border:0;border-radius:50%;background:#1a3a2a;color:#d1f470;
+          border:0;border-radius:0;background:transparent;color:#d1f470;
           transform:translateY(-50%);cursor:pointer;
-          transition:box-shadow .14s ease,transform .14s ease,opacity .14s ease;
+          transition:color .14s ease,transform .14s ease,opacity .14s ease;
         }
         .voice-search-mic svg{width:19px;height:19px;display:block;fill:currentColor}
-        .voice-search-mic:hover{box-shadow:0 0 0 3px rgba(209,244,112,.32)}
+        .voice-search-mic:hover{color:#c5e866}
         .voice-search-mic:active{transform:translateY(-50%) scale(.94)}
-        .voice-search-mic:focus-visible{outline:2px solid #1a3a2a;outline-offset:2px;box-shadow:0 0 0 4px #d1f470}
-        .voice-search-mic.is-listening{box-shadow:0 0 0 4px rgba(209,244,112,.38);animation:voice-search-pulse 1.1s ease-in-out infinite}
-        @keyframes voice-search-pulse{0%,100%{box-shadow:0 0 0 2px rgba(209,244,112,.30)}50%{box-shadow:0 0 0 7px rgba(209,244,112,0)}}
+        .voice-search-mic:focus-visible{outline:2px solid #1a3a2a;outline-offset:2px}
+        .voice-search-mic.is-listening{color:#d1f470;animation:voice-search-pulse 1.1s ease-in-out infinite}
+        @keyframes voice-search-pulse{0%,100%{opacity:1;transform:translateY(-50%) scale(1)}50%{opacity:.58;transform:translateY(-50%) scale(1.08)}}
         @media(prefers-reduced-motion:reduce){.voice-search-mic{transition:none}.voice-search-mic.is-listening{animation:none}}
       `}</style>
     </>
