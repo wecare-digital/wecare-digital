@@ -203,12 +203,15 @@ describe( 'the door points at the WABA that has the review Flow', () => {
 
 // ──────────────────────────── /orders/ , the attributed door ────────────────────────────
 
+// The review link is matched by href*="text=review" (its wa.me deep link carries text=review...),
+// NOT the broad href*="wa.me": the public Subscribe+Share block at the foot of /orders/ renders a
+// Subscribe anchor to wa.me/message/..., which the broad selector would also catch.
 describe( '/orders/ review button with the flag OFF', () => {
   it( 'renders no review row at all', async () => {
     const { container } = await renderOrders( answer( 200, { orders: [ row() ] } ) );
     await openFirstRow( container );
     expect( screen.queryByText( 'Review' ) ).toBeNull();
-    expect( container.querySelector( 'a[href*="wa.me"]' ) ).toBeNull();
+    expect( container.querySelector( 'a[href*="text=review"]' ) ).toBeNull();
   } );
 } );
 
@@ -219,7 +222,7 @@ describe( '/orders/ review button with the flag ON', () => {
     const { container } = await renderOrders( answer( 200, { orders: [ row() ] } ) );
     await openFirstRow( container );
 
-    const link = container.querySelector( 'a[href*="wa.me"]' ) as HTMLAnchorElement;
+    const link = container.querySelector( 'a[href*="text=review"]' ) as HTMLAnchorElement;
     expect( link ).toBeTruthy();
     expect( link.getAttribute( 'href' ) )
       .toBe( 'https://wa.me/919330994400?text=review%20WD-ORD-A7K2M9PQ' );
@@ -232,7 +235,7 @@ describe( '/orders/ review button with the flag ON', () => {
       answer( 200, { orders: [ row( { orderNumber: '' } ) ] } ) );
     await openFirstRow( container );
 
-    const link = container.querySelector( 'a[href*="wa.me"]' ) as HTMLAnchorElement;
+    const link = container.querySelector( 'a[href*="text=review"]' ) as HTMLAnchorElement;
     expect( link.getAttribute( 'href' ) )
       .toBe( 'https://wa.me/919330994400?text=review%20WD-PAY-REF0001' );
   } );
@@ -247,7 +250,7 @@ describe( '/orders/ review button with the flag ON', () => {
       answer( 200, { orders: [ row( { orderNumber: '', referenceId: '' } ) ] } ) );
     await openFirstRow( container );
     expect( screen.queryByText( 'Review' ) ).toBeNull();
-    expect( container.querySelector( 'a[href*="wa.me"]' ) ).toBeNull();
+    expect( container.querySelector( 'a[href*="text=review"]' ) ).toBeNull();
   } );
 
   it( 'omits the row for a legacy spaced order number instead of mangling it', async () => {
@@ -255,7 +258,7 @@ describe( '/orders/ review button with the flag ON', () => {
       orders: [ row( { orderNumber: 'WD-ORD - A1B2C3D4 - 20260101', referenceId: '' } ) ],
     } ) );
     await openFirstRow( container );
-    expect( container.querySelector( 'a[href*="wa.me"]' ) ).toBeNull();
+    expect( container.querySelector( 'a[href*="text=review"]' ) ).toBeNull();
   } );
 
   it( 'reuses the shared pill, and its accessible name is its visible text', async () => {
@@ -280,9 +283,9 @@ describe( '/orders/ review button with the flag ON', () => {
       orders: [ row(), row( { orderNumber: 'WD-ORD-B8L3N4RS', referenceId: 'WD-PAY-REF0002' } ) ],
     } ) );
     // Nothing open yet.
-    expect( container.querySelectorAll( 'a[href*="wa.me"]' ) ).toHaveLength( 0 );
+    expect( container.querySelectorAll( 'a[href*="text=review"]' ) ).toHaveLength( 0 );
     await openFirstRow( container );
-    expect( container.querySelectorAll( 'a[href*="wa.me"]' ) ).toHaveLength( 1 );
+    expect( container.querySelectorAll( 'a[href*="text=review"]' ) ).toHaveLength( 1 );
   } );
 } );
 

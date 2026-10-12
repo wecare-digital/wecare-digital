@@ -90,6 +90,10 @@ describe( 'Shipments page', () => {
 
   it( 'carries exactly two wa.me anchors and no form, field or button', () => {
     const { container } = render( <ShipmentsPage /> );
+    // Drop the shared Subscribe+Share block before counting: every public page now carries it at
+    // the foot of its content, and it adds a Subscribe wa.me anchor plus share buttons that are
+    // the block's own, not the shipments page's. This test is about THIS page's controls.
+    container.querySelector( '.public-share' )?.remove();
     const waLinks = Array.from( container.querySelectorAll( 'a[href*="wa.me"]' ) );
     expect( waLinks ).toHaveLength( 2 );
     // In document order: tracking first, pickup second.
