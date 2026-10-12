@@ -2,6 +2,7 @@
 import React, { useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import PublicShare from '../components/PublicShare';
 
 const NotFound: React.FC = () => {
   const router = useRouter();
@@ -27,6 +28,11 @@ const NotFound: React.FC = () => {
               the one property a 404 page should never give up. */}
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a className="nf-cta" href="/">Go to WECARE.DIGITAL</a>
+
+          {/* Subscribe + Share, so no public route is without the block. NOTE: this page
+              redirects to '/' on mount, so a visitor rarely sees it - the block is here for
+              sitewide consistency, not because the 404 is a real destination. */}
+          <PublicShare />
         </div>
 
         <style jsx>{`

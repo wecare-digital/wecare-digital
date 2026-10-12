@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Head from 'next/head';
 import PageMeta from '../../components/PageMeta';
 import BrandBadge from '../../components/BrandBadge';
+import PublicShare from '../../components/PublicShare';
 
 const GrahakOsPage: React.FC = () => {
   const [visible, setVisible] = useState<Set<string>>(new Set());
@@ -43,8 +44,24 @@ const GrahakOsPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // RE-MEASURE ON RESIZE AND FONT-LOAD, not only when the word changes - the same fix
+    // index.tsx and RotatingHero.tsx carry. Running on [cycleIndex] alone left the pill's px
+    // width stale: hero font-size is a clamp(...vw...), so each word's rendered width depends on
+    // the viewport, and the Inter webfont swaps in after first paint and widens every word. With
+    // overflow:hidden on .hero-cycle a stale, too-narrow width clips the tail of the word
+    // ("WhatsApp" -> "WhatsAp"). Under prefers-reduced-motion the interval never starts, so it
+    // never self-heals. Observe the active word (not the pill, which this effect sets).
     const el = heroRefs.current[cycleIndex];
-    if (el) setHeroWidth(el.offsetWidth);
+    if (!el) return undefined;
+    const measure = () => setHeroWidth(el.offsetWidth);
+    measure();
+    if (typeof document !== 'undefined' && (document as any).fonts?.ready?.then) {
+      (document as any).fonts.ready.then(() => measure());
+    }
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [cycleIndex]);
 
   // NOTE: the rotating pill markup must be written INLINE in the returned JSX.
@@ -589,6 +606,19 @@ response = requests.post(
               .gos-closer-head does not set white-space. */}
           <h2 className="gos-closer-head">Transform customer<br/>engagement with<br/>Grahak OS</h2>
         </section>
+
+        {/* Subscribe + Share. The page's sections are full-bleed, so the block is wrapped in a
+            .pp-inner column - the same 1300px / 24px measure the rest of the page content uses -
+            so it aligns with the content rather than spanning the viewport. Last thing in <main>.
+            THE 96px/64px BOTTOM PADDING IS DELIBERATE AND MATCHES EVERY OTHER PAGE. .pp-inner on
+            its own has padding:0 24px - no bottom space - so after the share block dropped its own
+            bottom padding (Option A, shared across all pages via PublicShare), grahak-os alone had
+            the block hugging the viewport bottom while home/rh/PageTopBand pages kept their 96px
+            wrapper rhythm. This restores that rhythm here so the block's bottom air is consistent
+            sitewide. */}
+        <div className="pp-inner gos-share-wrap">
+          <PublicShare />
+        </div>
 
 
         <style jsx>{`
@@ -1438,6 +1468,10 @@ response = requests.post(
              edge. Measured in a real browser at 1440px: hero text at 94px, strip items at
              70px. 1252px makes both 94px. */
           .pp-inner{max-width:1300px;margin:0 auto;padding:0 24px;box-sizing:border-box}
+          /* The share block's wrapper adds the sitewide bottom rhythm (.pp-inner has none), so the
+             block's bottom air matches home / rh-layout / PageTopBand (96px, 64px under 768px). */
+          .gos-share-wrap{padding-bottom:48px}
+          @media(max-width:767px){ .gos-share-wrap{padding-bottom:40px} }
 
           /* ===== TEMPORARY: proposed Capabilities strip, for side-by-side review =====
              NO NEW TOKENS. Every value below already exists in the language:

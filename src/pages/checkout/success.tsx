@@ -9,6 +9,7 @@ import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 
 import PageTopBand from '../../components/PageTopBand';
+import PublicShare from '../../components/PublicShare';
 import { getSession, restoreSession } from '../../lib/customerAuth';
 import { isOrderNumber, isPaid } from '../../lib/paymentVocabulary';
 
@@ -82,6 +83,9 @@ export default function CheckoutSuccess (): React.ReactElement {
             <Link className="cs-btn cs-btn-quiet" href="/">Back to home</Link>
           </div>
         </section>
+
+        {/* Subscribe + Share, last child inside PageTopBand. Consistent with every public page. */}
+        <PublicShare />
 
         <style jsx>{`
           /* No top padding, no measure, no font stack: PageTopBand owns all three. */
