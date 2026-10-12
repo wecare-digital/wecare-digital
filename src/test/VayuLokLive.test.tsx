@@ -853,6 +853,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( panel.querySelector( '.vl-live-wx-grid' ) ).not.toBeNull();
     expect( panel.textContent ).toContain( 'Humidity' );
     expect( panel.textContent ).toContain( 'Wind' );
+    expect( panel.textContent ).toContain( 'Day range' );
     // Hourly forecast strip with 24h/48h range.
     expect( panel.querySelector( '.vl-live-air-forecast-strip' ) ).not.toBeNull();
     expect( within( panel ).getByRole( 'group', { name: 'Weather forecast range' } ) ).toBeTruthy();
@@ -878,6 +879,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     } );
     // Alerts: India has no coverage, so the neutral line shows (not an empty noisy panel).
     expect( panel.textContent ).toContain( 'Weather alerts are not supported by Google for this region.' );
+    // Unsupported is a distinct state, not the same as a successful "no alerts" response.
     // No publicAlerts request was made for India.
     expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
     // Raw temperature value carries data-wc-no-translate (keeps numbers honest under translation).
@@ -901,14 +903,19 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       return el as HTMLElement;
     } );
     fireEvent.click( row );
-    const detail = await waitFor( () => {
+    let detail = await waitFor( () => {
       const el = container.querySelector( '.vl-live-wx-daily-list .vl-live-air-forecast-detail' );
       expect( el ).not.toBeNull();
       return el as HTMLElement;
     } );
-    // Sun/moon event times already render; the moon phase is the new field.
     expect( detail.textContent ).toContain( 'Sunrise' );
-    expect( detail.textContent ).toContain( 'Moonrise' );
+    const periodToggle = await screen.findByRole( 'group', { name: /Today forecast period/i } );
+    fireEvent.click( within( periodToggle ).getByRole( 'button', { name: 'Night' } ) );
+    detail = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-wx-daily-list .vl-live-air-forecast-detail' );
+      expect( el?.textContent ).toContain( 'Moonrise' );
+      return el as HTMLElement;
+    } );
     expect( detail.textContent ).toContain( 'Moon' );
     // The SCREAMING_SNAKE enum is humanised to sentence case, never shown raw.
     expect( detail.textContent ).toContain( 'Waxing crescent' );
@@ -967,7 +974,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( panel.textContent ).toContain( 'Wake County, NC' );
     expect( panel.textContent ).toContain( 'Move to higher ground.' );
     expect( panel.textContent ).toContain( 'Avoid flooded roads.' );
-    expect( panel.textContent ).toContain( 'Affected-area boundary' );
+    expect( panel.textContent ).toContain( 'View affected area' );
     const sourceLink = within( panel ).getByRole( 'link', { name: 'National Weather Service' } );
     expect( sourceLink ).toHaveAttribute( 'href', 'https://www.weather.gov/' );
   } );
