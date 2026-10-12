@@ -811,6 +811,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     // NO RED anywhere in the rendered card markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
+    // The map UI must not hide required Google Maps attribution/legal nodes.
+    expect( VayuLokLive.toString() ).not.toContain( 'gm-style-cc' );
+  
 
     // Toggle to Weather: aria-selected flips and an inert placeholder panel appears,
     // with no invented weather data.
@@ -877,8 +880,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( detail?.textContent ).toContain( 'Wind' );
       expect( detail?.textContent ).toContain( 'Cloud' );
     } );
-    // Alerts: India has no coverage, so the neutral line shows (not an empty noisy panel).
-    expect( panel.textContent ).toContain( 'Weather alerts are not supported by Google for this region.' );
+    // Alerts: India has no coverage, so the neutral customer-facing line avoids provider/internal wording.
+    expect( panel.textContent ).toContain( 'Weather alerts aren’t available for this location.' );
     // Unsupported is a distinct state, not the same as a successful "no alerts" response.
     // No publicAlerts request was made for India.
     expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
