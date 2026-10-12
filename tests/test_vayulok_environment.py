@@ -1,7 +1,7 @@
 """Contract tests for the public VayuLok environmental gateway.
 
 No live AWS or Google request is made. The tests pin the security boundary:
-our browser may choose one named operation and India coordinates, but cannot
+our browser may choose one named operation and valid world coordinates, but cannot
 choose an upstream URL, key, provider request body, or unbounded fan-out.
 """
 from __future__ import annotations
@@ -111,12 +111,33 @@ def test_only_named_operations_are_admitted(mod):
     assert resp["statusCode"] == 400
     assert body(resp)["error"] == "invalid_request"
 
+def test_weather_alert_operation_is_admitted(mod):
+    with patch.object(
+        mod,
+        "_cached_dispatch",
+        return_value={"weatherAlerts": [], "alertStatus": "unsupported"},
+    ) as dispatch:
+        resp = mod.handler(
+            event(
+                {
+                    "operation": "weather_alerts",
+                    "latitude": 19.076,
+                    "longitude": 72.8777,
+                    "regionCode": "IN",
+                }
+            ),
+            None,
+        )
+    assert resp["statusCode"] == 200
+    dispatch.assert_called_once()
+
+
 
 @pytest.mark.parametrize(
     ("lat", "lng"),
-    [(0, 72.8), (45, 72.8), (19, 50), (19, 120)],
+    [(-91, 72.8), (91, 72.8), (19, -181), (19, 181)],
 )
-def test_coordinates_are_bounded_to_the_product_india_box(mod, lat, lng):
+def test_coordinates_are_bounded_to_valid_world_coordinates(mod, lat, lng):
     with patch.object(mod, "_google_json") as upstream:
         resp = mod.handler(
             event(
@@ -130,6 +151,16 @@ def test_coordinates_are_bounded_to_the_product_india_box(mod, lat, lng):
         )
     assert resp["statusCode"] == 400
     upstream.assert_not_called()
+
+
+def test_worldwide_coordinates_are_allowed(mod):
+    with patch.object(mod, "_google_json", return_value={"ok": True}) as upstream:
+        result = mod._dispatch(
+            "weather_current",
+            {"latitude": 40.7128, "longitude": -74.0060, "regionCode": "US"},
+        )
+    assert result == {"ok": True}
+    upstream.assert_called_once()
 
 
 def test_unexpected_fields_are_rejected_before_provider_call(mod):
@@ -170,6 +201,74 @@ def test_weather_request_is_server_owned_and_has_no_key_in_url(mod):
     assert "location.latitude=19.076" in url
     assert "location.longitude=72.8777" in url
     assert "key=" not in url.lower()
+
+def test_air_current_uses_india_local_aqi_only_for_india(mod):
+    with patch.object(mod, "_google_json", return_value={}) as upstream:
+        mod._dispatch(
+            "air_current",
+            {"latitude": 19.076, "longitude": 72.8777, "regionCode": "IN"},
+        )
+    india_body = upstream.call_args.kwargs["body"]
+    assert india_body["customLocalAqis"] == [{"regionCode": "IN", "aqi": "ind_cpcb"}]
+
+    with patch.object(mod, "_google_json", return_value={}) as upstream:
+        mod._dispatch(
+            "air_current",
+            {"latitude": 40.7128, "longitude": -74.0060, "regionCode": "US"},
+        )
+    us_body = upstream.call_args.kwargs["body"]
+    assert "customLocalAqis" not in us_body
+
+
+def test_weather_alerts_are_server_coverage_gated(mod):
+    with patch.object(mod, "_google_json") as upstream:
+        india = mod._dispatch(
+            "weather_alerts",
+            {"latitude": 19.076, "longitude": 72.8777, "regionCode": "IN"},
+        )
+    assert india["alertStatus"] == "unsupported"
+    upstream.assert_not_called()
+
+    with patch.object(
+        mod,
+        "_google_json",
+        return_value={"weatherAlerts": [{"alertId": "a"}], "regionCode": "US"},
+    ) as upstream:
+        us = mod._dispatch(
+            "weather_alerts",
+            {"latitude": 35.8246, "longitude": -78.3168, "regionCode": "US"},
+        )
+    assert us["alertStatus"] == "active"
+    assert upstream.call_args.args[0].startswith(
+        "https://weather.googleapis.com/v1/publicAlerts:lookup?"
+    )
+
+
+def test_weather_daily_explicitly_requests_all_ten_rows(mod):
+    with patch.object(mod, "_google_json", return_value={}) as upstream:
+        mod._dispatch(
+            "weather_daily",
+            {"latitude": 19.076, "longitude": 72.8777, "regionCode": "IN"},
+        )
+    url = upstream.call_args.args[0]
+    assert "days=10" in url
+    assert "pageSize=10" in url
+
+
+def test_response_cache_avoids_duplicate_provider_call(mod):
+    mod._response_cache.clear()
+    payload = {
+        "operation": "weather_current",
+        "latitude": 19.076,
+        "longitude": 72.8777,
+        "regionCode": "IN",
+    }
+    with patch.object(mod, "_dispatch", return_value={"temperature": 26}) as dispatch:
+        first = mod._cached_dispatch("weather_current", payload)
+        second = mod._cached_dispatch("weather_current", payload)
+    assert first == second == {"temperature": 26}
+    dispatch.assert_called_once()
+
 
 
 def test_google_key_is_sent_in_header_not_query_string(mod):
