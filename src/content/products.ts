@@ -1,4 +1,5 @@
 import type { CycleWord } from '../components/RotatingHero';
+import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
 
 /**
  * The WECARE.DIGITAL product pages, as data.
@@ -112,15 +113,15 @@ export interface ProductDef {
   ctaHref2?: string;
 }
 
-// Every product's call to action lands here until the real per-product destinations
-// exist. Referenced through a constant so `grep PRODUCT_CTA` lists them all.
+// Every product's call to action opens WhatsApp with the product name pre-filled, using the
+// keyword deep link to the business number (+91 93309 94400). This works on any device with no
+// Meta setup: whatsappKeywordLink encodes the name into ?text=, so Elsewhere opens a chat
+// pre-filled "Elsewhere", Expo Week opens "Expo Week", and so on. The ctaNote on each product
+// ("Continue on WhatsApp →") is now accurate — the button really does open WhatsApp.
 //
-// Was '[retired public path]' until 2026-09-25, which was broken twice
-// over: `www` 301s to the apex, and `[retired public path]` was deleted with the retired-URL stubs
-// in commit 6bc44a35, so the chain ran 301 -> 301 -> 404. Now the apex directly, and
-// /contact/ because it is a real 200 page and is the destination the retirement note in
-// _app.tsx nominated for /customerservice.
-const PRODUCT_CTA = 'https://wecare.digital/contact/';
+// When Meta issues a dedicated wa.me/message/… short link for a product, swap that product's
+// ctaHref for the short link (as /anew/ already does with F2D7PVR5Q45MP1); the keyword deep
+// link stays a safe fallback for the rest.
 
 export const PRODUCTS: ProductDef[] = [
   {
@@ -144,7 +145,7 @@ export const PRODUCTS: ProductDef[] = [
     note:
       'Visas, entry permissions and travel approvals are granted by governments and airlines, not by us. We prepare and submit what is needed and keep you informed; we cannot guarantee an outcome another authority controls.',
     ctaLabel: 'Plan a journey',
-    ctaHref: PRODUCT_CTA,
+    ctaHref: whatsappKeywordLink( 'Elsewhere' ),
     ctaNote: 'Continue on WhatsApp →',
   },
   {
@@ -166,7 +167,7 @@ export const PRODUCTS: ProductDef[] = [
       { heading: 'Plan with purpose', body: 'Built around sustainable travel, so seeing more of a place does not mean costing it more.' },
     ],
     ctaLabel: 'Enter the expo',
-    ctaHref: PRODUCT_CTA,
+    ctaHref: whatsappKeywordLink( 'Expo Week' ),
     ctaNote: 'Continue on WhatsApp →',
   },
   {
@@ -190,7 +191,7 @@ export const PRODUCTS: ProductDef[] = [
     note:
       'Dastavez is not a law firm and is not a substitute for a lawyer\'s advice. We prepare and process documentation; where a matter needs legal representation or an opinion, that is work for a qualified advocate.',
     ctaLabel: 'Start a filing',
-    ctaHref: PRODUCT_CTA,
+    ctaHref: whatsappKeywordLink( 'Dastavez' ),
     ctaNote: 'Continue on WhatsApp →',
   },
   {
@@ -214,7 +215,7 @@ export const PRODUCTS: ProductDef[] = [
     note:
       'Clear Closure provides the platform and connects you to independent professionals. It does not act for either party, and nothing here removes your right to approach a consumer commission, regulator or court — Terms sections 37 and 39 set that out.',
     ctaLabel: 'Open a matter',
-    ctaHref: PRODUCT_CTA,
+    ctaHref: whatsappKeywordLink( 'Clear Closure' ),
     ctaNote: 'Continue on WhatsApp →',
   },
   {
@@ -236,7 +237,7 @@ export const PRODUCTS: ProductDef[] = [
       { heading: 'Standard quantities, fair price', body: 'Measured consistently and priced openly, with responsible sourcing behind it.' },
     ],
     ctaLabel: 'Browse kits',
-    ctaHref: PRODUCT_CTA,
+    ctaHref: whatsappKeywordLink( 'Ritual Guru' ),
     ctaNote: 'Continue on WhatsApp →',
   },
   {
@@ -351,7 +352,7 @@ export const PRODUCTS: ProductDef[] = [
     note:
       'Hunar improves how your experience is presented. It does not place candidates, guarantee interviews or employment outcomes, and it will not add experience you do not have — an inflated CV fails at the point it is checked, which is later and more expensively.',
     ctaLabel: 'Sharpen a CV',
-    ctaHref: PRODUCT_CTA,
+    ctaHref: whatsappKeywordLink( 'Hunar' ),
     ctaNote: 'Continue on WhatsApp →',
   },
   {
@@ -373,7 +374,7 @@ export const PRODUCTS: ProductDef[] = [
       { heading: 'Useful exactly when it matters', body: 'A blocked car, a lost bag, a delivery at a gate — reachable in the moment, unreachable afterwards.' },
     ],
     ctaLabel: 'Get a code',
-    ctaHref: PRODUCT_CTA,
+    ctaHref: whatsappKeywordLink( 'Niji Setu' ),
     ctaNote: 'Continue on WhatsApp →',
   },
 ];
