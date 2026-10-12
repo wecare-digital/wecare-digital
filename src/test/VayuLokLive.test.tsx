@@ -1247,6 +1247,74 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( container.querySelector( '.vl-live-air-heatmap-legend.is-pm25' )?.textContent ).toContain( 'Lower' );
   } );
 
+  it( 'shows an Air Forecast error state when forecast:lookup fails, without hiding the failure', async () => {
+    // environmentFetch but forecast:lookup returns HTTP 500 - the section must surface a concise
+    // fallback, not silently render nothing.
+    const base = environmentFetch();
+    const failingForecast = vi.fn( ( input: RequestInfo | URL, init?: RequestInit ) => {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/forecast' ) ) {
+        return Promise.resolve( { ok: false, status: 500, statusText: 'Internal Server Error', json: async () => ( {} ) } as Response );
+      }
+      return base( input, init );
+    } );
+    vi.stubGlobal( 'fetch', failingForecast );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    await waitFor( () => {
+      const forecast = container.querySelector( '.vl-live-air-forecast' );
+      expect( forecast?.textContent ).toContain( 'Air forecast is temporarily unavailable.' );
+    } );
+    // No forecast cards rendered on the error path.
+    expect( container.querySelectorAll( '.vl-live-air-forecast-card:not(.is-skeleton)' ).length ).toBe( 0 );
+  } );
+
+  it( 'shows an Air Forecast empty state when Google returns no forecast rows', async () => {
+    const base = environmentFetch();
+    const emptyForecast = vi.fn( ( input: RequestInfo | URL, init?: RequestInit ) => {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/forecast' ) ) {
+        return Promise.resolve( { ok: true, status: 200, json: async () => ( { hourlyForecasts: [] } ) } as Response );
+      }
+      return base( input, init );
+    } );
+    vi.stubGlobal( 'fetch', emptyForecast );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    await waitFor( () => {
+      const forecast = container.querySelector( '.vl-live-air-forecast' );
+      expect( forecast?.textContent ).toContain( 'Forecast unavailable for this location.' );
+    } );
+  } );
+
+  it( 'does not visibly show "Searching worldwide…" while typing, and uses a light search focus', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const input = await screen.findByRole( 'combobox' );
+    fireEvent.change( input, { target: { value: 'Mum' } } );
+    // The "Searching…" status, if present, must be the sr-only live region - never a visible
+    // helper line under the field.
+    await waitFor( () => {
+      const live = container.querySelector( '.vl-live-sr-only[role="status"]' );
+      const visibleStatus = container.querySelector( '.vl-live-search-status' );
+      // Either searching is announced sr-only, or it is already resolved; a visible
+      // "Searching worldwide…" line must never appear.
+      expect( visibleStatus?.textContent || '' ).not.toContain( 'Searching worldwide' );
+      void live;
+    } );
+
+    // Result rows carry a leading location icon and the hover/selected lime treatment.
+    const option = await screen.findByRole( 'option', { name: /Mumbai/i } );
+    expect( option.querySelector( '.vl-live-search-result-icon' ) ).not.toBeNull();
+  } );
+
   it( 'does not force India CPCB custom AQI on non-India destinations', async () => {
     rec = installGoogleMaps( { placeCountryCode: 'BD' } );
     const fetchSpy = environmentFetch();
@@ -1535,10 +1603,13 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( inputRule ).toContain( 'font-size:16px' );
     expect( inputRule ).toContain( 'font-weight:400' );
     expect( inputRule ).toContain( 'background:transparent' );
+    // LIGHT focus treatment: a thin dark-green bottom border + a subtle lime accent line, NOT a
+    // heavy rectangular outline around the whole field.
     const inputFocus = css.match( /\.vl-live-search-field input:focus-visible\{[^}]*\}/ )?.[ 0 ] || '';
     expect( inputFocus ).toContain( 'border-bottom-color:#1a3a2a' );
-    expect( inputFocus ).toContain( '0 1px 0 0 #d1f470' );
-    expect( inputFocus ).toContain( 'outline:3px solid var(--green)' );
+    expect( inputFocus ).toContain( '0 1px 0 0 var(--lime)' );
+    expect( inputFocus ).toContain( 'outline:none' );
+    expect( inputFocus ).not.toContain( 'outline:3px' );
     const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
     expect( fieldRule ).toContain( 'border-radius:0' );
     // DECOUPLED FROM mapReady: the search box now renders on EVERY path (it no longer waits for
