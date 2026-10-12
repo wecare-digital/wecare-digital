@@ -1026,6 +1026,7 @@ const VayuLokLive: React.FC = () => {
   const [ place, setPlace ] = useState<PlaceState>( DEFAULT_PLACE );
   const [ hasSelection, setHasSelection ] = useState( true );
   const [ detailTab, setDetailTab ] = useState<'air' | 'weather'>( 'air' );
+  const [ mapVisible, setMapVisible ] = useState( false );
   const [ mapReady, setMapReady ] = useState( false );
   const [ mapFailed, setMapFailed ] = useState( false );
   const [ searchStatus, setSearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable'>( 'idle' );
@@ -1435,6 +1436,14 @@ const VayuLokLive: React.FC = () => {
       } );
       mapRef.current = map;
 
+      // Show the Google canvas as soon as the Map constructor succeeds. Google paints
+      // base tiles progressively, so keeping the canvas at opacity:0 until `tilesloaded`
+      // made a healthy map look stuck on "Loading map…". `mapReady` remains the stricter
+      // tile-confirmed signal used by overlays and the 12s bad-key watchdog.
+      requestAnimationFrame( () => {
+        if ( !cancelled ) setMapVisible( true );
+      } );
+
       const motionMap = map as {
         addListener?: ( eventName: string, handler: () => void ) => { remove?: () => void };
         getCenter?: () => { lat?: () => number; lng?: () => number } | null;
@@ -1492,10 +1501,9 @@ const VayuLokLive: React.FC = () => {
       // Intentionally no map click handler. Location changes are owned by the search/recent
       // place selector only, which keeps the map, AQI tiles and atmosphere visually aligned.
 
-      // A constructed Map is not the same thing as a painted map. With an invalid or
-      // refused browser key Google can still create the map object while its tiles never
-      // arrive, which previously hid the fallback and exposed a blank panel. Only reveal
-      // the Maps JS canvas after the first visible tile batch has loaded.
+      // `tilesloaded` is now a HEALTH/READINESS signal, not a visibility gate. A refused
+      // browser key can still construct a Map object while never delivering usable tiles;
+      // keeping mapReady tied to this event preserves the existing 12s fallback watchdog.
       const mapWithEvents = map as {
         addListener?: ( eventName: string, handler: () => void ) => { remove?: () => void };
       };
@@ -3487,7 +3495,7 @@ const VayuLokLive: React.FC = () => {
                     <button
                       type="button"
                       className="vl-live-map-retry"
-                      onClick={ () => { setMapFailed( false ); setMapReady( false ); setMapInitNonce( n => n + 1 ); } }
+                      onClick={ () => { setMapFailed( false ); setMapVisible( false ); setMapReady( false ); setMapInitNonce( n => n + 1 ); } }
                     >
                       Try again
                     </button>
@@ -3495,12 +3503,12 @@ const VayuLokLive: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  { !mapReady && (
+                  { !mapVisible && (
                     <div className="vl-live-map-fallback" role="status">
                       <span>Loading map…</span>
                     </div>
                   ) }
-                  <div className={ `vl-live-map-canvas ${mapReady ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ hasSelection ? `Map of ${place.name}` : 'Interactive world map' } />
+                  <div className={ `vl-live-map-canvas ${mapVisible ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ hasSelection ? `Map of ${place.name}` : 'Interactive world map' } />
                   { mapReady && (
                     <div ref={ atmosphereRef } className="vl-live-atmosphere" style={ atmosphereStyle } aria-hidden="true">
                       <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
