@@ -2,12 +2,11 @@ import React, { useEffect, useState } from 'react';
 import ShareLinks from './ShareLinks';
 
 /**
- * The Subscribe WhatsApp link. DUMMY / PLACEHOLDER for the time being (owner instruction): the
- * keyword deep link to the business number, equal to SUBSCRIBE_CTA_HREF in src/content/subscribe.ts
- * and the whatsappServiceEntries 'subscribe' row, so every Subscribe entry point agrees. Swap all
- * three to the real wa.me/message/… short link together when it is ready.
+ * The Subscribe WhatsApp link: the dedicated Meta short link, equal to SUBSCRIBE_CTA_HREF in
+ * src/content/subscribe.ts and the whatsappServiceEntries 'subscribe' row, so every Subscribe
+ * entry point agrees and matches the blog surfaces.
  */
-const SUBSCRIBE_HREF = 'https://wa.me/919330994400?text=Subscribe';
+const SUBSCRIBE_HREF = 'https://wa.me/message/WUDPTMYSO6XII1';
 
 /**
  * THE "SUBSCRIBE + SHARE" BLOCK FOR PUBLIC PAGES.

@@ -12,12 +12,12 @@ export const WHATSAPP_SERVICE_ENTRIES = [
   { slug: 'request-pickup', label: 'Request Pickup', keyword: 'Request Pickup', messageLink: '', flowId: '', state: 'Public page live; keyword deep link only, no Meta short link or Flow yet' },
   { slug: 'shipments', label: 'Shipments', keyword: 'Shipments', messageLink: 'https://wa.me/message/WGN4NMFLFSJVB1', flowId: '', state: 'Verified order history; carrier booking is separate' },
   { slug: 'leave-review', label: 'Leave Review', keyword: 'Leave Review', messageLink: REVIEW_ENTRY_URL, flowId: '1578178897413815', state: 'Published' },
-  // DUMMY / PLACEHOLDER (owner instruction, time being): the dedicated Subscribe short link is not
-  // finalised, so this points at the keyword deep link to the business number. It must stay EQUAL
-  // to SUBSCRIBE_CTA_HREF in src/content/subscribe.ts — ProductPage renders the CTA as
-  // whatsappServiceLink(slug) || ctaHref, so a mismatch would show the entry link, not the content
-  // one. Swap both to the real wa.me/message/… short link together when it is ready.
-  { slug: 'subscribe', label: 'Subscribe', keyword: 'Subscribe', messageLink: 'https://wa.me/919330994400?text=Subscribe', flowId: '', state: 'Placeholder keyword deep link; dedicated Subscribe short link pending' },
+  // The dedicated Subscribe Meta short link, the same one the blog surfaces use
+  // (post/[slug].tsx, BlogFooterCTA.tsx). It must stay EQUAL to SUBSCRIBE_CTA_HREF in
+  // src/content/subscribe.ts and SUBSCRIBE_HREF in src/components/PublicShare.tsx —
+  // ProductPage renders the CTA as whatsappServiceLink(slug) || ctaHref, so a mismatch would
+  // show the entry link, not the content one.
+  { slug: 'subscribe', label: 'Subscribe', keyword: 'Subscribe', messageLink: 'https://wa.me/message/WUDPTMYSO6XII1', flowId: '', state: 'Dedicated Subscribe Meta short link; shared with the blog surfaces' },
   { slug: 'anew', label: 'Anew', keyword: 'Start a conversation', messageLink: 'https://wa.me/message/F2D7PVR5Q45MP1', flowId: '', state: 'Public Anew conversation entry' },
   { slug: 'customer-id', label: 'Customer ID', keyword: 'Customer ID', messageLink: '', flowId: '', state: 'Stored public customer UUID' },
 ] as const;

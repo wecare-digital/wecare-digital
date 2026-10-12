@@ -50,11 +50,10 @@ describe( 'Subscribe page', () => {
     // primary pill as the channel-naming "Continue on WhatsApp ->" (ProductPage no longer prints
     // ctaLabel on the pill face). So the link is found by that visible name now.
     expect( SUBSCRIBE_CTA_LABEL ).toBe( 'Open WhatsApp' );
-    // DUMMY / PLACEHOLDER for the time being (owner instruction): the keyword deep link to the
-    // business number stands in until the dedicated Subscribe short link is ready. When it is,
-    // update SUBSCRIBE_CTA_HREF, the whatsappServiceEntries 'subscribe' row and the copy lines
-    // together — the pin is deliberate so they cannot drift.
-    expect( SUBSCRIBE_CTA_HREF ).toBe( 'https://wa.me/919330994400?text=Subscribe' );
+    // The dedicated Subscribe Meta short link, shared with the blog surfaces. SUBSCRIBE_CTA_HREF,
+    // the whatsappServiceEntries 'subscribe' row and PublicShare's SUBSCRIBE_HREF are pinned equal
+    // so they cannot drift.
+    expect( SUBSCRIBE_CTA_HREF ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
     expect( screen.getByRole( 'link', { name: /Continue on WhatsApp/ } ) )
       .toHaveAttribute( 'href', SUBSCRIBE_CTA_HREF );
   } );
@@ -76,7 +75,7 @@ describe( 'Subscribe page', () => {
     ).filter( el => !share || !share.contains( el ) );
     expect( ownControls ).toHaveLength( 0 );
     // The ONE anchor the page's OWN body carries is the WhatsApp CTA. The end-of-content
-    // .public-share band also carries a sitewide Subscribe pill (the same placeholder wa.me link),
+    // .public-share band also carries a sitewide Subscribe pill (the same Meta short link),
     // which is excluded here for the same reason its form controls are above: it is sitewide
     // furniture, not this page's on-page sign-up. Both resolve to SUBSCRIBE_CTA_HREF.
     const ownWaLinks = Array.from( container.querySelectorAll( 'a[href*="wa.me"]' ) )

@@ -32,13 +32,12 @@ import type { ProductDef } from './products';
  */
 export const SUBSCRIBE_CTA_LABEL = 'Open WhatsApp';
 /**
- * DUMMY / PLACEHOLDER WHATSAPP LINK, for the time being (owner instruction). The dedicated
- * Subscribe short link is not finalised, so this is the keyword deep link to the business number —
- * the same safe fallback `whatsappServiceEntries.ts` uses for an entry without a short link, and
- * it always opens a chat with "Subscribe" pre-filled. Swap this one line for the real
- * `wa.me/message/…` short link when it is ready; the label and the three copy lines below stay.
+ * The dedicated Subscribe Meta short link — the same one the blog surfaces use and the one the
+ * `subscribe` row in `whatsappServiceEntries.ts` carries. These three must stay byte-equal:
+ * ProductPage renders the CTA as `whatsappServiceLink(slug) || ctaHref`, so a mismatch would
+ * show the entry link rather than this one. The label and the three copy lines below stay.
  */
-export const SUBSCRIBE_CTA_HREF = 'https://wa.me/919330994400?text=Subscribe';
+export const SUBSCRIBE_CTA_HREF = 'https://wa.me/message/WUDPTMYSO6XII1';
 
 const BLUE = { tint: '#dbeafe', dot: '#2563eb' };
 const AMBER = { tint: '#fef3c7', dot: '#f0a818' };
