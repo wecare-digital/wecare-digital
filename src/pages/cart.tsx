@@ -91,6 +91,7 @@ import Link from 'next/link';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import PageTopBand from '../components/PageTopBand';
+import PublicShare from '../components/PublicShare';
 import PillButton from '../components/PillButton';
 import CheckoutProfile from '../components/CheckoutProfile';
 import type { CheckoutProfileMode, CheckoutProfileValue } from '../components/CheckoutProfile';
@@ -2138,6 +2139,10 @@ export default function Cart (): React.ReactElement {
               <p className="cart-back"><Link href="/shop/">Keep shopping</Link></p>
             </>
           )}
+
+          {/* Subscribe + Share, last child of .cart-in so it shares the /cart/ page and sits at
+              the content end. Shown in every cart state, consistent with every public page. */}
+          <PublicShare />
         </div>
 
         <style jsx>{`

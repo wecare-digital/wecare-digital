@@ -282,6 +282,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
       words={ HERO_WORDS }
       sub="Short pieces on the distinctions that change how a thing is seen — written by the people doing the work."
       ariaLabel="WECARE.DIGITAL blog"
+      noShare
     >
       <div className="blog-shell">
         <Breadcrumbs

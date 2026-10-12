@@ -121,7 +121,7 @@ const PageTopBand: React.FC<PageTopBandProps> = ( { heading, sub, ariaLabel, chi
         }
         .ptb-layout{
           width:100%;max-width:1300px;margin:0 auto;
-          padding:80px 24px 96px;box-sizing:border-box;
+          padding:80px 24px 48px;box-sizing:border-box;
           display:flex;flex-direction:column;gap:96px;
         }
         /* align-items:flex-start, or the flex default stretches the heading box to the full
@@ -164,7 +164,7 @@ const PageTopBand: React.FC<PageTopBandProps> = ( { heading, sub, ariaLabel, chi
             min-height:calc(100dvh - 85px);
             padding-top:96px;
           }
-          .ptb-layout{padding:48px 16px 64px;gap:64px}
+          .ptb-layout{padding:48px 16px 40px;gap:64px}
           .ptb-h1{line-height:1.1}
         }
 

@@ -59,6 +59,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PageMeta from '../../components/PageMeta';
 import BrandBadge from '../../components/BrandBadge';
+import PublicShare from '../../components/PublicShare';
 import VayuLokApprovedGlobe from '../../components/VayuLokApprovedGlobe';
 import VayuLokLive from '../../components/VayuLokLive';
 
@@ -282,8 +283,17 @@ const VayuLokPage: React.FC = () => {
           the canvas would be, so this path contacts no third party. */}
       <VayuLokLive />
 
+      {/* Subscribe + Share. VayuLokLive and .vl-shell are full-bleed, so the block is wrapped in
+          a 1300px/24px measure (vl-layout's own measure) with the sitewide 96px/64px bottom
+          rhythm, so it aligns with the hero content and ends consistently with every other page. */}
+      <div className="vl-share-wrap">
+        <PublicShare />
+      </div>
+
 
       <style jsx>{`
+        .vl-share-wrap{width:100%;max-width:1300px;margin:0 auto;padding:0 24px 48px;box-sizing:border-box}
+        @media(max-width:767px){ .vl-share-wrap{padding:0 16px 40px} }
         /* Header is fixed at 108px, 96px under 767px - the same offsets the home
            page uses, so the two public shells start at the same place.
            The font stack is declared rather than inherited, matching .page on

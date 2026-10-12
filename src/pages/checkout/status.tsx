@@ -78,6 +78,7 @@ import Link from 'next/link';
 import React, { useCallback, useEffect, useState } from 'react';
 
 import PageTopBand from '../../components/PageTopBand';
+import PublicShare from '../../components/PublicShare';
 import { getSession, restoreSession } from '../../lib/customerAuth';
 import { amountLabel, isInFlight, isOrderNumber, isPaid, isRetryable } from '../../lib/paymentVocabulary';
 
@@ -323,6 +324,11 @@ export default function CheckoutStatus (): React.ReactElement {
             </div>
           )}
         </section>
+
+        {/* Subscribe + Share, last child inside PageTopBand so it shares the /checkout/status/
+            page itself. The page is noindex/session-bound, but the block shares the current URL,
+            which here is simply the status screen - harmless and consistent with every public page. */}
+        <PublicShare />
 
         <style jsx>{`
           /* No top padding, no measure, no font stack: PageTopBand owns all three. 700px is the

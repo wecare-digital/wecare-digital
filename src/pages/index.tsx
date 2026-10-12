@@ -65,6 +65,7 @@ import Head from 'next/head';
 // same either way - so this side is the one worth being consistent with.
 import Link from 'next/link';
 import WorkflowTerminal from '../components/WorkflowTerminal';
+import PublicShare from '../components/PublicShare';
 
 /* The SUITE array that used to live here - the three original products plus the seven from
    src/content/products.ts - went with the service-directory grid it fed. See the comment on
@@ -583,6 +584,11 @@ const HomePage: React.FC = () => {
               <a className="home-close-cta" href="/contact/">Tell us what you need</a>
             </div>
           </section>
+
+          {/* The Subscribe + Share block, as the last child of .home-layout so it inherits the
+              page's own 1300px measure and the 96px flex rhythm - identical to the measure every
+              RotatingHero page uses - and sits at the content end with no viewport-height void. */}
+          <PublicShare />
         </div>
       </main>
       <style jsx>{`
@@ -1030,7 +1036,7 @@ const HomePage: React.FC = () => {
           width:100%;
           max-width:1300px;
           margin:0 auto;
-          padding:80px 24px 96px;
+          padding:80px 24px 48px;
           box-sizing:border-box;
           display:flex;
           flex-direction:column;
@@ -1199,7 +1205,7 @@ const HomePage: React.FC = () => {
 
         @media(max-width:767px){
           .home-shell{padding-top:96px}
-          .home-layout{padding:48px 16px 64px;gap:64px}
+          .home-layout{padding:48px 16px 40px;gap:64px}
           /* line-height only. The letter-spacing override that used to sit here is gone:
              tracking is now -0.04em, which scales itself, so restating it per breakpoint is
              what caused the 2.75x optical swing this replaced. */

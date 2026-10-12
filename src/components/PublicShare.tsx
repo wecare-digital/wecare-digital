@@ -105,8 +105,17 @@ const PublicShare: React.FC<PublicShareProps> = ( { url, title, label = 'Share' 
            defect. 28px top and bottom around the 52px row gives a balanced ~108px band.
            width:100% so the block spans the FULL content measure (not a narrow strip); the
            separator rule therefore runs the whole width. Left-aligned horizontally. */
+        /* BALANCED BAND, ~28px top / ~48px bottom. The block is the LAST child of each page's
+           content wrapper (.home-layout, .rh-layout, .ord-page, grahak's .gos-share-wrap, vayulok's
+           .vl-share-wrap, PageTopBand's layout), and those wrappers already carry a 96px (64px
+           mobile) bottom padding. The block adds its own 48px bottom and then pulls the wrapper's
+           extra up with a negative margin (96-48 = -48 desktop, 64-48 = -16 mobile), so the air
+           below the row nets to 48px on EVERY page rather than the wrapper's full 96px, which read
+           empty under a single thin row. 28px top stays so the row sits off its separator. The
+           negative margin only cancels padding the wrapper already had; it never pulls into content. */
         .public-share{
-          width:100%;margin-top:48px;padding:28px 0;border-top:1px solid #e5e7eb;box-sizing:border-box;
+          width:100%;margin-top:48px;padding:28px 0 0;
+          border-top:1px solid #e5e7eb;box-sizing:border-box;
           display:flex;align-items:center;
           font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
         }

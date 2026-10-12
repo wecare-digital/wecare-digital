@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import BrandBadge from './BrandBadge';
+import PublicShare from './PublicShare';
 
 /**
  * The Home hero — badge, rotating headline pill, one body line — as a reusable,
@@ -97,9 +98,21 @@ interface RotatingHeroProps {
    * either way. What changes is only what the document says it is.
    */
   subordinate?: boolean;
+  /**
+   * Suppress the Subscribe+Share block for a page that already carries its own Share.
+   *
+   * The block is auto-mounted here for every RotatingHero page, which is right for the marketing
+   * and product surfaces. The blog INDEX and its paginated/topic variants are the exception: they
+   * use this hero as their real <main>/<h1> (so `subordinate` is wrong - that would demote the
+   * landmark and heading), but they ALSO render their own Subscribe via components/BlogFooterCTA,
+   * so the auto-mounted block is a duplicate there. /post/[slug] already suppresses it through
+   * `subordinate`; this flag is the equivalent for /blog without touching its semantics. See the
+   * PublicShare docstring: "NOT ON /blog OR /post".
+   */
+  noShare?: boolean;
 }
 
-const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, sub, ariaLabel, children, subordinate = false } ) => {
+const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, sub, ariaLabel, children, subordinate = false, noShare = false } ) => {
   const [ cycleIndex, setCycleIndex ] = useState( 0 );
   const [ cycleW, setCycleW ] = useState<number | null>( null );
   const wordRefs = useRef<( HTMLSpanElement | null )[]>( [] );
@@ -176,8 +189,30 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, 
   }, [ words.length ] );
 
   useEffect( () => {
+    // RE-MEASURE ON RESIZE AND FONT-LOAD, not only when the word changes. This effect used
+    // to run on [ cycleIndex ] alone, which left the pill's px width stale on every other
+    // input: font-size is a clamp(...vw...), so a word's rendered width is a function of the
+    // viewport, and the Inter webfont swaps in AFTER first paint and widens every word. With
+    // overflow:hidden on .rh-cycle a stale, too-narrow width clips the tail of the word
+    // ("consults" -> "consult", "submit a request" -> "submit a reques") - visible on all 22
+    // pages that use this hero. Under prefers-reduced-motion the 2400ms interval never starts,
+    // so nothing ever self-heals and the clip is permanent. index.tsx already fixes the Home
+    // copy exactly this way; this ports it to the shared component.
+    //
+    // OBSERVE THE WORD, NOT THE PILL: the pill's width is what this sets, so observing it would
+    // feed itself. The active word's content box is the thing that actually changes.
     const el = wordRefs.current[ cycleIndex ];
-    if ( el ) setCycleW( el.offsetWidth );
+    if ( !el ) return undefined;
+    const measure = () => setCycleW( el.offsetWidth );
+    measure();
+    // Guarded: jsdom (the test env) implements neither ResizeObserver nor document.fonts.
+    if ( typeof document !== 'undefined' && ( document as any ).fonts?.ready?.then ) {
+      ( document as any ).fonts.ready.then( () => measure() );
+    }
+    if ( typeof ResizeObserver === 'undefined' ) return undefined;
+    const ro = new ResizeObserver( measure );
+    ro.observe( el );
+    return () => ro.disconnect();
   }, [ cycleIndex ] );
 
   const active = words.length ? cycleIndex % words.length : 0;
@@ -229,6 +264,19 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, 
         </div>
 
         { children }
+
+        {/* THE SUBSCRIBE + SHARE BLOCK, inside the hero's own content measure (.rh-layout), so it
+            aligns with the page content and sits at the content end with no viewport-height void.
+            Rendered here means every page that uses RotatingHero (Contact, Terms, Privacy, Bharat
+            Rx, the product/service pages) gets one consistent, aligned block.
+
+            NOT IN SUBORDINATE MODE. `subordinate` is passed only by /blog and /post/[slug], and
+            those surfaces ALREADY carry their own Share inside the blog/post CTA band (see the
+            PublicShare docstring: "NOT ON /blog OR /post"). Rendering it here too put TWO share
+            blocks on all ~1,380 content pages. The subordinate flag is the exact, existing signal
+            for "this hero is a section of someone else's page", so it is also the right gate for
+            suppressing the block. */}
+        { !subordinate && !noShare && <PublicShare /> }
       </div>
 
       <style jsx>{`
@@ -250,7 +298,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, 
         }
         .rh-layout{
           width:100%;max-width:1300px;margin:0 auto;
-          padding:80px 24px 96px;box-sizing:border-box;
+          padding:80px 24px 48px;box-sizing:border-box;
           display:flex;flex-direction:column;gap:96px;
         }
         /* align-items:flex-start replaces an align-self on the badge: without it the
@@ -347,7 +395,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, 
 
         @media(max-width:767px){
           .rh-shell{min-height:calc(100vh - 85px);padding-top:96px}
-          .rh-layout{padding:48px 16px 64px;gap:64px}
+          .rh-layout{padding:48px 16px 40px;gap:64px}
           .rh-head{line-height:1.1}
         }
         /* 320px OVERFLOWED BY 11px, and the cause is content rather than layout.
