@@ -350,11 +350,17 @@ def _air_current(lat: float, lng: float) -> Dict[str, Any]:
         method="POST",
         body={
             "location": {"latitude": lat, "longitude": lng},
+            # POLLUTANT_ADDITIONAL_INFO is included so this proxy response is feature-complete
+            # against the browser's direct currentConditions call: the frontend's pollutant
+            # info popovers render the per-pollutant sources/effects strings this computation
+            # returns. Without it, routing current conditions through this Lambda would silently
+            # drop those popovers - so it belongs here before any such wiring lands.
             "extraComputations": [
                 "POLLUTANT_CONCENTRATION",
                 "LOCAL_AQI",
                 "HEALTH_RECOMMENDATIONS",
                 "DOMINANT_POLLUTANT_CONCENTRATION",
+                "POLLUTANT_ADDITIONAL_INFO",
             ],
             "languageCode": "en",
             "universalAqi": True,
@@ -469,7 +475,10 @@ def _dispatch(operation: str, payload: Mapping[str, Any]) -> Dict[str, Any]:
     if operation == "air_forecast":
         now = dt.datetime.now(dt.timezone.utc)
         start = now.replace(minute=0, second=0, microsecond=0) + dt.timedelta(hours=1)
-        end = start + dt.timedelta(hours=96)
+        # 95h, not 96h: forecast:lookup rejects an exactly-96-hour period with HTTP 400
+        # "time period is not supported". 95h still returns ~96 hourly rows. Matches the
+        # browser path in src/components/VayuLokLive.tsx. (Measured: 96h => 400, 95h => 200.)
+        end = start + dt.timedelta(hours=95)
         return _google_json(
             f"{AIR_BASE}/forecast:lookup",
             method="POST",

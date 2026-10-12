@@ -229,25 +229,64 @@ function collectTextNodes ( root: HTMLElement ): Text[] {
   return nodes;
 }
 
-function buildBatches ( nodes: Text[] ): Array<Array<{ node: Text; text: string }>> {
-  const batches: Array<Array<{ node: Text; text: string }>> = [];
-  let current: Array<{ node: Text; text: string }> = [];
-  let bytes = 0;
-  for ( const node of nodes ) {
-    const text = node.nodeValue?.trim() || '';
-    const size = new Blob( [ text ] ).size;
-    if ( !text || size > MAX_BATCH_BYTES ) continue;
-    if ( current.length >= MAX_BATCH_ITEMS || bytes + size > MAX_BATCH_BYTES ) {
-      if ( current.length ) batches.push( current );
-      current = [];
-      bytes = 0;
-    }
-    current.push( { node, text } );
-    bytes += size;
+/**
+ * ATTRIBUTE TRANSLATION - explicit allowlist, nothing else.
+ *
+ * The TreeWalker above only sees Text nodes, so user-facing text that lives in an ATTRIBUTE
+ * (an input's placeholder, an icon-button's aria-label, a tooltip title) stayed English even
+ * after a language was chosen. This adds a NARROW, explicit allowlist of attributes to
+ * translate. It must stay narrow: translating ids/URLs/classes/data-keys/coordinates/
+ * dateTime/machine codes would corrupt behaviour, so only these three human-reading-only
+ * attributes are ever touched.
+ */
+const TRANSLATABLE_ATTRS = [ 'placeholder', 'aria-label', 'title' ] as const;
+
+/** One collected attribute slot: the element, which attribute, and its current English text. */
+interface AttrSlot { el: Element; attr: string; }
+
+/* An element is eligible on the SAME nearest-flag-wins rule as text nodes: a nearer
+   data-wc-no-translate / SKIP_TAG / aria-hidden ancestor rejects it, a nearer
+   data-wc-translate opts it in. (aria-hidden does NOT reject here the way it does for text,
+   because an aria-label on an aria-hidden-decorated control is still read by AT via the label
+   itself; but an explicit data-wc-no-translate ancestor still wins.) */
+function attributeEligible ( start: Element, root: HTMLElement ): boolean {
+  let el: Element | null = start;
+  while ( el ) {
+    const data = ( el as HTMLElement ).dataset;
+    if ( data?.wcTranslate === 'true' ) return true;
+    // SKIP_TAGS only disqualifies an ANCESTOR (e.g. a SCRIPT/STYLE wrapper), never the element
+    // that OWNS the attribute - the whole point of attribute translation is to reach an INPUT's
+    // placeholder or a button's aria-label, and INPUT/SELECT/TEXTAREA are in SKIP_TAGS for the
+    // text-node walk. data-wc-no-translate still wins at any level, including the element itself.
+    if ( data?.wcNoTranslate === 'true' ) return false;
+    if ( el !== start && SKIP_TAGS.has( el.tagName ) ) return false;
+    if ( el === root ) break;
+    el = el.parentElement;
   }
-  if ( current.length ) batches.push( current );
-  return batches;
+  return true;
 }
+
+function collectAttrSlots ( root: HTMLElement ): AttrSlot[] {
+  const slots: AttrSlot[] = [];
+  const selector = TRANSLATABLE_ATTRS.map( attr => `[${attr}]` ).join( ',' );
+  const seen = new Set<string>();
+  for ( const el of Array.from( root.querySelectorAll( selector ) ) ) {
+    if ( !attributeEligible( el, root ) ) continue;
+    for ( const attr of TRANSLATABLE_ATTRS ) {
+      const value = el.getAttribute( attr )?.trim() || '';
+      // Same floor as text nodes: at least two chars and a letter in a supported script, so
+      // numbers, codes and single glyphs are never sent.
+      if ( value.length < 2 || !/[A-Za-z\u0900-\u0DFF\u0600-\u06FF]/.test( value ) ) continue;
+      slots.push( { el, attr } );
+    }
+  }
+  void seen;
+  return slots;
+}
+
+/* buildBatches was replaced by translateInto's internal batching, which also de-duplicates
+   identical strings and handles attribute slots alongside text nodes. The MAX_BATCH_ITEMS /
+   MAX_BATCH_BYTES caps are now applied inside translateInto. */
 
 /** Below this width the pill goes slim and parks above the footer. Matches the CSS. */
 const MOBILE_MAX = 767;
@@ -274,6 +313,17 @@ const SupportWidget: React.FC = () => {
   const inputRef = useRef<HTMLInputElement | null>( null );
   const listRef = useRef<HTMLDivElement | null>( null );
   const originals = useRef<Map<Text, string> | null>( null );
+  // Original English attribute values, so returning to English restores placeholders/aria-labels/
+  // titles exactly as they were. Keyed element -> attr -> original string.
+  const attrOriginals = useRef<Map<Element, Record<string, string>> | null>( null );
+  // The live-content observer and the current language, kept in refs so the observer callback
+  // (created once) always sees the latest values and can be torn down on reset/unmount.
+  const observerRef = useRef<MutationObserver | null>( null );
+  const currentRef = useRef( 'en' );
+  // True while WE are writing translated text/attributes into the DOM, so the observer ignores
+  // its own mutations instead of looping. Also guards the debounce timer.
+  const writingRef = useRef( false );
+  const mutationTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
 
   /**
    * WHAT GETS TRANSLATED, AND THE ONE RULE THAT MAKES IT SAFE ON THE DASHBOARD.
@@ -317,10 +367,110 @@ const SupportWidget: React.FC = () => {
   ), [] );
 
   const restore = useCallback( () => {
-    if ( !originals.current ) return;
-    for ( const [ node, value ] of originals.current ) {
-      if ( node.parentNode ) node.nodeValue = value;
+    writingRef.current = true;
+    if ( originals.current ) {
+      for ( const [ node, value ] of originals.current ) {
+        if ( node.parentNode ) node.nodeValue = value;
+      }
     }
+    // Put every translated attribute back to its original English value.
+    if ( attrOriginals.current ) {
+      for ( const [ el, attrs ] of attrOriginals.current ) {
+        if ( !el.isConnected ) continue;
+        for ( const [ attr, value ] of Object.entries( attrs ) ) {
+          el.setAttribute( attr, value );
+        }
+      }
+    }
+    writingRef.current = false;
+  }, [] );
+
+  /**
+   * Translate a set of text nodes AND attribute slots to `code` in billing-conscious batches,
+   * writing the result into the DOM. Shared by the initial language pass and the live-content
+   * observer. Caches each node/attr's English original the first time it is seen so English
+   * restoration (and the observer's "already handled, skip it" dedup) both work. `writingRef`
+   * is held true across the DOM writes so the observer never reacts to our own edits.
+   */
+  const translateInto = useCallback( async ( code: string, nodes: Text[], slots: AttrSlot[] ): Promise<void> => {
+    // Record originals for anything not seen before (so restore + dedup work).
+    if ( !originals.current ) originals.current = new Map();
+    if ( !attrOriginals.current ) attrOriginals.current = new Map();
+    const freshNodes = nodes.filter( node => !originals.current!.has( node ) );
+    for ( const node of freshNodes ) originals.current.set( node, node.nodeValue || '' );
+    const freshSlots = slots.filter( slot => {
+      const existing = attrOriginals.current!.get( slot.el );
+      return !existing || !( slot.attr in existing );
+    } );
+    for ( const slot of freshSlots ) {
+      const bucket = attrOriginals.current.get( slot.el ) || {};
+      bucket[ slot.attr ] = slot.el.getAttribute( slot.attr ) || '';
+      attrOriginals.current.set( slot.el, bucket );
+    }
+
+    // Build one flat list of {text, apply} items (text nodes + attribute slots), dedup identical
+    // strings within the request so the same phrase is sent once, then batch by the shared caps.
+    type Item = { text: string; apply: ( translated: string ) => void };
+    const items: Item[] = [];
+    for ( const node of freshNodes ) {
+      const text = node.nodeValue?.trim() || '';
+      if ( text ) items.push( { text, apply: value => { if ( node.parentNode ) node.nodeValue = value; } } );
+    }
+    for ( const slot of freshSlots ) {
+      const text = slot.el.getAttribute( slot.attr )?.trim() || '';
+      if ( text ) items.push( { text, apply: value => { if ( slot.el.isConnected ) slot.el.setAttribute( slot.attr, value ); } } );
+    }
+    if ( !items.length ) return;
+
+    // Dedup identical source strings: translate each unique string once, fan the result out to
+    // every item that had it. Keeps the billed character count down on repeated phrases.
+    const uniqueTexts: string[] = [];
+    const indexByText = new Map<string, number>();
+    const itemUnique: number[] = [];
+    for ( const item of items ) {
+      let idx = indexByText.get( item.text );
+      if ( idx === undefined ) { idx = uniqueTexts.length; indexByText.set( item.text, idx ); uniqueTexts.push( item.text ); }
+      itemUnique.push( idx );
+    }
+
+    // Batch the UNIQUE strings by the existing item/byte caps.
+    const batches: Array<{ start: number; texts: string[] }> = [];
+    let batchTexts: string[] = [];
+    let batchStart = 0;
+    let bytes = 0;
+    for ( let i = 0; i < uniqueTexts.length; i++ ) {
+      const size = new Blob( [ uniqueTexts[ i ] ] ).size;
+      if ( size > MAX_BATCH_BYTES ) continue;
+      if ( batchTexts.length >= MAX_BATCH_ITEMS || bytes + size > MAX_BATCH_BYTES ) {
+        if ( batchTexts.length ) batches.push( { start: batchStart, texts: batchTexts } );
+        batchTexts = []; bytes = 0; batchStart = i;
+      }
+      batchTexts.push( uniqueTexts[ i ] );
+      bytes += size;
+    }
+    if ( batchTexts.length ) batches.push( { start: batchStart, texts: batchTexts } );
+
+    const translatedByUnique = new Array<string | undefined>( uniqueTexts.length );
+    for ( const batch of batches ) {
+      const response = await fetch( `${API_BASE}/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify( { texts: batch.texts, targetLanguage: code, sourceLanguage: 'en' } ),
+      } );
+      if ( !response.ok ) throw new Error( 'translate failed' );
+      const payload = await response.json();
+      const rows: Array<{ translatedText?: string }> = payload?.translations || [];
+      if ( rows.length !== batch.texts.length ) throw new Error( 'translation shape mismatch' );
+      rows.forEach( ( row, i ) => { translatedByUnique[ batch.start + i ] = row.translatedText; } );
+    }
+
+    // Write results back, suppressing the observer while we do.
+    writingRef.current = true;
+    items.forEach( ( item, i ) => {
+      const value = translatedByUnique[ itemUnique[ i ] ];
+      if ( value ) item.apply( value );
+    } );
+    writingRef.current = false;
   }, [] );
 
   /**
@@ -365,13 +515,57 @@ const SupportWidget: React.FC = () => {
    * The router is read defensively: this component renders in _app.tsx where a router always
    * exists, but it is also mounted directly by tests that do not provide one.
    */
+  /**
+   * LIVE-CONTENT OBSERVER. While a non-English language is active, pages like VayuLok insert
+   * new English text AFTER the initial translation pass (search results, Air Forecast cards,
+   * pollutant popovers, Google health/condition strings that arrive from a later API response).
+   * Without this, the page becomes half-translated. A MutationObserver watches the content root
+   * and translates only the NEW eligible text/attributes, batched and debounced.
+   *
+   * Loop safety: every write we make flips `writingRef` true (see translateInto/restore), and the
+   * callback bails while it is set. Dedup: translateInto skips nodes/attrs already in
+   * originals/attrOriginals, so re-observing a node we already handled costs nothing. Billing:
+   * only unseen English strings are sent, batched and de-duplicated per request.
+   */
+  const stopObserver = useCallback( () => {
+    if ( mutationTimer.current ) { clearTimeout( mutationTimer.current ); mutationTimer.current = null; }
+    if ( observerRef.current ) { observerRef.current.disconnect(); observerRef.current = null; }
+  }, [] );
+
+  const startObserver = useCallback( () => {
+    if ( typeof MutationObserver === 'undefined' ) return;
+    stopObserver();
+    const root = contentRoot();
+    const observer = new MutationObserver( () => {
+      // Ignore our own writes, and skip entirely if we are back on English.
+      if ( writingRef.current || currentRef.current === 'en' ) return;
+      // Debounce bursts of mutations into a single translation pass (120ms).
+      if ( mutationTimer.current ) clearTimeout( mutationTimer.current );
+      mutationTimer.current = setTimeout( () => {
+        mutationTimer.current = null;
+        const code = currentRef.current;
+        if ( code === 'en' || writingRef.current ) return;
+        // Re-collect; translateInto filters out everything already handled, so this only
+        // translates genuinely new English content.
+        const nodes = collectTextNodes( root );
+        const slots = collectAttrSlots( root );
+        void translateInto( code, nodes, slots ).catch( () => { /* leave new text English on failure */ } );
+      }, 120 );
+    } );
+    observer.observe( root, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: [ ...TRANSLATABLE_ATTRS ] } );
+    observerRef.current = observer;
+  }, [ contentRoot, stopObserver, translateInto ] );
+
   const router = useRouter();
   useEffect( () => {
     const events = router?.events;
     if ( !events ) return;
     const resetToEnglish = () => {
+      stopObserver();
       restore();
       originals.current = null;
+      attrOriginals.current = null;
+      currentRef.current = 'en';
       document.documentElement.lang = 'en';
       applyDirection( 'en' );
       setCurrent( 'en' );
@@ -379,7 +573,10 @@ const SupportWidget: React.FC = () => {
     };
     events.on( 'routeChangeStart', resetToEnglish );
     return () => { events.off( 'routeChangeStart', resetToEnglish ); };
-  }, [ router?.events, restore ] );
+  }, [ router?.events, restore, stopObserver ] );
+
+  // Tear the observer down if the widget itself unmounts.
+  useEffect( () => () => { stopObserver(); }, [ stopObserver ] );
 
   useEffect( () => {
     let cancelled = false;
@@ -434,7 +631,9 @@ const SupportWidget: React.FC = () => {
     // character. The selection lives for this page view only.
 
     if ( code === 'en' ) {
+      stopObserver();
       restore();
+      currentRef.current = 'en';
       document.documentElement.lang = 'en';
       // Back to ltr with the text. Restoring the words without restoring the direction
       // would leave English running right-to-left after a visitor tried Arabic and
@@ -446,40 +645,35 @@ const SupportWidget: React.FC = () => {
 
     const root = contentRoot();
     const nodes = collectTextNodes( root );
-    if ( !originals.current ) originals.current = new Map( nodes.map( node => [ node, node.nodeValue || '' ] ) );
-    restore();
+    const slots = collectAttrSlots( root );
+    currentRef.current = code;
     setBusy( true );
     const label = langs.find( lang => lang.code === code )?.name || code;
     setStatus( `Translating to ${label}.` );
 
     try {
-      for ( const batch of buildBatches( nodes ) ) {
-        const response = await fetch( `${API_BASE}/translate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify( { texts: batch.map( item => item.text ), targetLanguage: code, sourceLanguage: 'en' } ),
-        } );
-        if ( !response.ok ) throw new Error( 'translate failed' );
-        const payload = await response.json();
-        const translated: Array<{ translatedText?: string }> = payload?.translations || [];
-        if ( translated.length !== batch.length ) throw new Error( 'translation shape mismatch' );
-        translated.forEach( ( row, index ) => { if ( row.translatedText && batch[ index ].node.parentNode ) batch[ index ].node.nodeValue = row.translatedText; } );
-      }
+      // Translate text nodes AND the allowlisted attributes (placeholder/aria-label/title).
+      await translateInto( code, nodes, slots );
       document.documentElement.lang = code;
       // AFTER the batches, not before. A mid-flight failure restores English below, and
       // flipping direction first would mirror the layout for however long the request took
       // and then have to be undone - a visible lurch on a slow connection for a
       // translation that never arrived.
       applyDirection( code );
+      // Now watch for content inserted AFTER this pass (VayuLok's live panels, search
+      // results, later API responses) and translate it incrementally.
+      startObserver();
       setStatus( `Page translated to ${label}.` );
     } catch {
+      stopObserver();
       restore();
       // The text is English again, so the direction must be too.
+      currentRef.current = 'en';
       applyDirection( 'en' );
       setCurrent( 'en' );
       setStatus( 'Translation is unavailable right now.' );
     } finally { setBusy( false ); }
-  }, [ busy, contentRoot, langs, restore ] );
+  }, [ busy, contentRoot, langs, restore, translateInto, startObserver, stopObserver ] );
 
   /* The ref that mirrored applyLanguage for the catalogue effect is gone with the restore it
      existed to serve. It was only ever needed because that effect had to call a callback

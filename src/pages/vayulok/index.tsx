@@ -62,6 +62,48 @@ import BrandBadge from '../../components/BrandBadge';
 import VayuLokApprovedGlobe from '../../components/VayuLokApprovedGlobe';
 import VayuLokLive from '../../components/VayuLokLive';
 
+/*
+ * VAYULOK SOCIAL CARD. A VayuLok-specific landscape (1200x630, ~1.91:1) preview so a shared
+ * /vayulok/ link no longer falls back to the generic square WECARE.DIGITAL brand card. The asset
+ * lives in the shared media bucket under the same /get/o/stream/media/m/ CloudFront path every
+ * other brand asset uses (see _app.tsx BRAND ASSETS note); upload `vayulok-social.png` there.
+ * Because it is a true 1.91:1 image, twitter:card is 'summary_large_image' (PageMeta's default
+ * when an image is supplied) rather than the sitewide 'summary'.
+ */
+const VAYULOK_SOCIAL_CARD = {
+  url: 'https://wecare.digital/get/o/stream/media/m/vayulok-social.png',
+  alt: 'VayuLok by WECARE.DIGITAL — Bharat air and weather intelligence',
+  width: 1200,
+  height: 630,
+  card: 'summary_large_image' as const,
+};
+
+/*
+ * STRUCTURED DATA. Only a WebApplication node that accurately describes the live VayuLok app.
+ * There is deliberately NO FAQPage here: the visible "About VayuLok" FAQ was removed from the
+ * page, and FAQ structured data must only mark up content that is actually present (the sitewide
+ * FAQ schema was removed earlier for exactly that reason).
+ */
+function vayulokJsonLd(): Record<string, unknown>[] {
+  return [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebApplication',
+      '@id': 'https://wecare.digital/vayulok/#webapp',
+      name: 'VayuLok',
+      alternateName: 'VayuLok by WECARE.DIGITAL',
+      url: 'https://wecare.digital/vayulok/',
+      applicationCategory: 'HealthApplication',
+      operatingSystem: 'Web Browser',
+      description: 'Air and weather intelligence for Bharat: live air quality, weather, a 96-hour forecast and recent history for a chosen location.',
+      inLanguage: 'en-IN',
+      isAccessibleForFree: true,
+      provider: { '@id': 'https://wecare.digital/#organization' },
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'INR' },
+    },
+  ];
+}
+
 
 const VayuLokPage: React.FC = () => {
   // Order is hue rhythm as much as grouping. Air + Pollen are what is in the air,
@@ -82,12 +124,17 @@ const VayuLokPage: React.FC = () => {
   // and owner-constraints.md "NO RED anywhere"). Yellow for Pollen for the obvious
   // reason. Neither touches the brand palette - like the Grahak OS channel tints,
   // these are a per-subject system that sits outside it by design.
+  // Every rotating word names a capability VayuLok actually ships today. 'Pollen' and 'Solar'
+  // were removed: neither has a wired endpoint (Google Pollen has no India coverage; Solar is
+  // unbuilt), so advertising them in the hero overstated the product. They are replaced by two
+  // real, prominent features - the Air Forecast's companion History view and the live Pollutants
+  // breakdown - reusing the same tint/dot construction rule (pale tint + saturated same-hue dot).
   const cycleWords = [
     { word: 'Air', tint: '#e0f7c8', dot: '#3da35a' },
-    { word: 'Pollen', tint: '#fef9c3', dot: '#ca8a04' },
     { word: 'Weather', tint: '#dbeafe', dot: '#2563eb' },
     { word: 'Forecast', tint: '#ede9fe', dot: '#9849e8' },
-    { word: 'Solar', tint: '#fef3c7', dot: '#f0a818' },
+    { word: 'History', tint: '#fef9c3', dot: '#ca8a04' },
+    { word: 'Pollutants', tint: '#e0f7c8', dot: '#3da35a' },
     { word: 'Heatmap', tint: '#fbe6d4', dot: '#c2591b' },
   ];
   const [ cycleIndex, setCycleIndex ] = useState( 0 );
@@ -136,6 +183,8 @@ const VayuLokPage: React.FC = () => {
         title="VayuLok — Bharat air and weather intelligence | WECARE.DIGITAL"
         description="VayuLok by WECARE.DIGITAL — air and weather intelligence for Bharat: air quality, weather and forecasts for wherever you are."
         path="/vayulok/"
+        jsonLd={ vayulokJsonLd() }
+        image={ VAYULOK_SOCIAL_CARD }
       />
 
       {/* A SECTION, NOT A MAIN, and that is deliberate. VayuLokLive below renders its own
@@ -220,20 +269,17 @@ const VayuLokPage: React.FC = () => {
           already been lost twice to edits of the surrounding markup.
           A PLAIN STATIC IMPORT, deliberately not next/dynamic. VayuLokLive touches
           window, document and google only inside effects and in helpers that return
-          early on typeof window === 'undefined', and it imports deck.gl dynamically
-          inside the layer-activation effect, so it prerenders safely under the
+          early on typeof window === 'undefined', so it prerenders safely under the
           output:'export' build. ssr:false would merely empty this section out of the
           exported HTML for no SSR gain. It is self-styling under a vl-live- scope, so
-          it needs no wrapper and no rule here.
-          WHAT THE KEYLESS PATH ACTUALLY RENDERS - stated precisely, because the first
-          version of this comment overstated it. With NEXT_PUBLIC_GOOGLE_MAPS_KEY unset,
+          it needs no wrapper and no rule here. (The map stack is loaded by injecting the
+          Maps JS <script> inside an effect, after mount; the component imports no deck.gl -
+          both the AQI and PM2.5 heatmaps are Google ImageMapType tile overlays.)
+          WHAT THE KEYLESS PATH ACTUALLY RENDERS. With NEXT_PUBLIC_GOOGLE_MAPS_KEY unset,
           which is every CI and sandbox run, the component injects no Maps JS, mounts no
           interactive canvas, shows no live air or weather panels and issues no fetch
-          calls - but it DOES render a Google Maps embed iframe where the canvas would
-          be, eagerly, pinned to the default place. That iframe is a third-party request
-          on load, so this path is degraded, not network-silent. The component's own test
-          pins it under the name "shows the keyless map", so do not describe this page as
-          map-free while the key is absent. */}
+          calls. It renders a self-contained placeholder (no iframe, no remote asset) where
+          the canvas would be, so this path contacts no third party. */}
       <VayuLokLive />
 
 

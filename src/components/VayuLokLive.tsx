@@ -35,8 +35,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
  * streamlines and a storm vortex whose density/speed are driven by the selected place's LIVE
  * Google Weather values (cloud cover, rain/storm probability and wind). The atmosphere is SVG/
  * CSS, not a static image and not an invented Google tile endpoint. On the KEYLESS path no
- * ImageMapType or atmosphere layer is mounted and zero third-party calls fire. The PM2.5
- * deck.gl dot overlay stays independent and is still only built when PM2.5 is selected.
+ * ImageMapType or atmosphere layer is mounted and zero third-party calls fire. Both the AQI
+ * (UAQI_RED_GREEN) and PM2.5 (PM25_INDIGO_PERSIAN) heatmaps are Google ImageMapType tile
+ * overlays - there is no deck.gl dot overlay or sampled grid anymore.
  *
  * SELF-STYLING via styled-jsx with a vl-live- scope. styled-jsx only attaches its scoping
  * class to markup it can statically see, so every element stays INLINE in this component's
@@ -209,13 +210,14 @@ interface SearchResult {
 }
 
 const DEFAULT_PLACE: PlaceState = {
-  // Default local view: Lumpyngngad, Shillong. This is the Meghalaya PCB monitoring
-  // area the owner selected as the initial VayuLok destination. Search/recent-place
-  // selection can replace it; live Weather/Air requests use these coordinates.
-  name: 'Lumpyngngad',
-  addr: 'Shillong, Meghalaya',
-  lat: 25.5586,
-  lng: 91.8985,
+  // Initial VayuLok demonstration location: Shillong, Meghalaya (a recognisable city, not a
+  // neighbourhood presented as "your location"). It is simply the starting destination until the
+  // user searches for another place. regionCode IN keeps the India CPCB local AQI; live
+  // Weather/Air requests use these coordinates.
+  name: 'Shillong',
+  addr: 'Meghalaya, India',
+  lat: 25.5788,
+  lng: 91.8933,
   regionCode: 'IN',
 };
 
@@ -262,6 +264,30 @@ function aqiCategory( aqi: number ): { word: string; sev: Sev } {
   return { word: 'Severe', sev: 'worst' };
 }
 
+/* Map Google's returned category TEXT to our no-red severity band. Google drives the word
+   (airStateFromApiData prefers idx.category), but the colour/band used to always come from the
+   local CPCB threshold - so a reading Google calls e.g. "Good air quality" while the numeric AQI
+   sat in the local "Satisfactory" band would show a word and a colour that disagree. Deriving the
+   band from the same category text keeps word and colour in step. Returns null when the text is
+   not a recognised category, so the caller falls back to the numeric threshold. */
+function severityFromCategory( category?: string ): Sev | null {
+  if ( typeof category !== 'string' ) return null;
+  const c = category.toLowerCase();
+  if ( c.includes( 'excellent' ) || c.includes( 'good' ) ) return 'good';
+  if ( c.includes( 'satisfactory' ) || c.includes( 'moderate' ) ) {
+    // Google UAQI "Moderate" is a mid band; CPCB "Satisfactory" is better. Treat an explicit
+    // "moderate" as the mid band and "satisfactory" as the second band.
+    return c.includes( 'moderate' ) ? 'mod' : 'sat';
+  }
+  if ( c.includes( 'low' ) ) return 'sat';
+  if ( c.includes( 'unhealthy for sensitive' ) || c.includes( 'poor' ) ) {
+    return c.includes( 'very poor' ) ? 'worst' : 'poor';
+  }
+  if ( c.includes( 'unhealthy' ) ) return 'poor';
+  if ( c.includes( 'very poor' ) || c.includes( 'severe' ) || c.includes( 'hazardous' ) ) return 'worst';
+  return null;
+}
+
 /* The "Past air quality" history bar's AQI-ramp class. This reuses the SAME band logic as the
    live dot / pollutant tone (aqiCategory) so the history reads with the identical
    good -> sat -> mod -> poor -> worst ramp rather than a flat lime->green gradient. No new
@@ -272,10 +298,8 @@ function aqiBarClass( aqi: number ): string {
 
 /* Human-readable label for the selected history range, used in the chart's aria-label so a
    screen reader hears "last 24 hours" rather than a raw hour count. */
-function historyRangeLabel( hours: 24 | 168 | 720 ): string {
-  if ( hours === 24 ) return 'last 24 hours';
-  if ( hours === 168 ) return 'last 7 days';
-  return 'last 30 days';
+function historyRangeLabel( hours: 24 | 168 ): string {
+  return hours === 24 ? 'last 24 hours' : 'last 7 days';
 }
 
 /* A plain-English "current status" word for the PM2.5 result block, derived from the SAME
@@ -323,10 +347,11 @@ interface HealthPersonaDefinition {
 /* Local paths from Google's Material Symbols Outlined set. Keeping the SVG paths local avoids
    a runtime icon-font dependency while preserving Google's icon language across the Air card. */
 const MATERIAL_SYMBOL_PATHS: Record<
-  HealthPersonaIcon | 'info' | 'switches' | 'close' | 'air' | 'schedule' | 'location' | 'chevronLeft' | 'chevronRight',
+  HealthPersonaIcon | 'info' | 'switches' | 'close' | 'air' | 'eco' | 'schedule' | 'location' | 'chevronLeft' | 'chevronRight',
   string
 > = {
   info: 'M453-280h60v-240h-60v240Zm50.5-323.2q9.5-9.2 9.5-22.8 0-14.45-9.48-24.22-9.48-9.78-23.5-9.78t-23.52 9.78Q447-640.45 447-626q0 13.6 9.48 22.8 9.48 9.2 23.5 9.2t23.52-9.2ZM480.27-80q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z',
+  eco: 'M200-120q-33 0-56.5-23.5T120-200q0-11 3-21.5t9-19.5q42-29 90-44.5t98-15.5q20 0 39.5 2.5T498-291q-7-29-24.5-52T430-382q-45-20-67.5-61T340-533q0-83 58.5-141.5T540-733q100 0 170 70t70 170q0 61-25 116.5T684-280q-20 20-46 30t-54 10q-11 0-21.5-1.5T541-247q-9 29-30.5 50.5T460-166q-29 11-60 11H200Zm340-280q50 0 85-35t35-85q0-50-35-85t-85-35q-50 0-85 35t-35 85q0 50 35 85t85 35Z',
   switches: 'M270-289q-80 0-135-54.5T80-479q0-81 54.5-135.5T270-669q51 0 90 22t65 63h350q44 0 74.5 30.5T880-479q0 44-30.5 74.5T775-374H425q-26 41-65 63t-90 22Zm3-190Zm180 45h322q20 0 32.5-12.5T820-479q0-20-12.5-32.5T775-524H453q4 10 5.5 22t1.5 23q0 11-1.5 23t-5.5 22Zm-90.5 47.5Q400-424 400-479t-37.5-92.5Q325-609 270-609t-92.5 37.5Q140-534 140-479t37.5 92.5Q215-349 270-349t92.5-37.5Z',
   close: 'M256-214 214-256l224-224-224-224 42-42 224 224 224-224 42 42-224 224 224 224-42 42-224-224-224 224Z',
   chevronLeft: 'M560-240 320-480l240-240 56 56-184 184 184 184-56 56Z',
@@ -446,6 +471,16 @@ interface WeatherState {
   cloudCover?: number;
   condition?: string;
   currentTime?: string;
+  // Added for the Weather tab: Google returns these on currentConditions and in its
+  // currentConditionsHistory block (no extra API call needed).
+  icon?: string;
+  isDaytime?: boolean;
+  windChill?: number;
+  precipitationType?: string;
+  temperatureChange?: number;
+  dayMin?: number;
+  dayMax?: number;
+  recentQpf?: number;
 }
 interface WeatherHour {
   time: number;
@@ -460,6 +495,17 @@ interface WeatherHour {
   windDir?: string;
   condition?: string;
   icon?: string;
+  // Added for the hourly detail panel: the richer dimensions Google already returns per hour.
+  humidity?: number;
+  dewPoint?: number;
+  heatIndex?: number;
+  windChill?: number;
+  wetBulb?: number;
+  windGust?: number;
+  visibilityKm?: number;
+  pressureHpa?: number;
+  cloudCover?: number;
+  precipitationType?: string;
 }
 interface WeatherDay {
   time: number;
@@ -472,6 +518,20 @@ interface WeatherDay {
   icon?: string;
   sunrise?: string;
   sunset?: string;
+  // Added for the daily detail panel.
+  nightCondition?: string;
+  feelsLikeMin?: number;
+  feelsLikeMax?: number;
+  humidity?: number;
+  uv?: number;
+  rainMm?: number;
+  stormProb?: number;
+  windSpeed?: number;
+  windUnit?: string;
+  windDir?: string;
+  windGust?: number;
+  moonrise?: string;
+  moonset?: string;
 }
 interface AirPoint {
   time: number;
@@ -501,6 +561,8 @@ interface WeatherAlertRow {
   severity?: string;
   urgency?: string;
   expires?: string;
+  // Google requires the originating authority to be attributed when an alert is shown.
+  source?: string;
 }
 interface PollenRow { label: string; index: number; word: string; day: string; }
 
@@ -537,6 +599,39 @@ function concUnitLabel( unit?: string ): string {
     case 'NANOGRAMS_PER_CUBIC_METER': return 'ng/m\u00B3';
     default: return unit || '';
   }
+}
+
+// Plain-language expansion of the short unit symbol, surfaced as a title/tooltip so a reader who
+// does not know "ppb" or "µg/m³" can still understand the number. Keyed on the short symbol that
+// concUnitLabel produces.
+function unitTermLabel( unitSymbol: string ): string {
+  switch ( unitSymbol ) {
+    case '\u00B5g/m\u00B3': return 'micrograms per cubic metre';
+    case 'mg/m\u00B3': return 'milligrams per cubic metre';
+    case 'ng/m\u00B3': return 'nanograms per cubic metre';
+    case 'ppb': return 'parts per billion';
+    case 'ppm': return 'parts per million';
+    default: return unitSymbol;
+  }
+}
+
+// Honest display of a pollutant concentration. Google returns a precise number; blindly rounding
+// to an integer turns a real trace reading (e.g. 0.4 µg/m³) into "0", which reads as "no
+// pollutant" and misrepresents the measurement. Instead, show precision according to magnitude so
+// the Google-returned value is preserved faithfully:
+//   - a genuine 0 stays "0"
+//   - values >= 1 render as a rounded integer (e.g. 32)
+//   - values below 1 keep up to two significant decimals (0.4 -> "0.4", 0.04 -> "0.04")
+// No "<1" placeholder and no fabricated digits - the string reflects the actual API value.
+function formatPollutantValue( value: number ): string {
+  if ( !Number.isFinite( value ) ) return '';
+  if ( value === 0 ) return '0';
+  const abs = Math.abs( value );
+  if ( abs >= 1 ) return String( Math.round( value ) );
+  // Sub-1: show enough decimals to carry the first two significant figures, then trim trailing
+  // zeros so 0.40 -> "0.4" and 0.04 -> "0.04" without inventing precision the value lacks.
+  const decimals = Math.min( 4, 1 - Math.floor( Math.log10( abs ) ) );
+  return parseFloat( value.toFixed( decimals ) ).toString();
 }
 
 // Short display label for the wind-speed unit the Weather API returns on wind.speed.unit
@@ -578,6 +673,26 @@ function weatherHourFromApi( row: Record<string, any> ): WeatherHour | null {
   if ( Number.isFinite( windDeg ) ) out.windDir = windDirection( windDeg );
   if ( typeof row?.weatherCondition?.description?.text === 'string' ) out.condition = row.weatherCondition.description.text;
   if ( typeof row?.weatherCondition?.iconBaseUri === 'string' ) out.icon = row.weatherCondition.iconBaseUri;
+  // Richer per-hour dimensions Google already returns - surfaced in the hourly detail panel.
+  const humidity = n( row?.relativeHumidity );
+  const dew = n( row?.dewPoint?.degrees );
+  const heat = n( row?.heatIndex?.degrees );
+  const chill = n( row?.windChill?.degrees );
+  const wet = n( row?.wetBulbTemperature?.degrees );
+  const gust = n( row?.wind?.gust?.value );
+  const vis = n( row?.visibility?.distance );
+  const pressure = n( row?.airPressure?.meanSeaLevelMillibars );
+  const cloud = n( row?.cloudCover );
+  if ( Number.isFinite( humidity ) ) out.humidity = Math.round( humidity );
+  if ( Number.isFinite( dew ) ) out.dewPoint = Math.round( dew );
+  if ( Number.isFinite( heat ) ) out.heatIndex = Math.round( heat );
+  if ( Number.isFinite( chill ) ) out.windChill = Math.round( chill );
+  if ( Number.isFinite( wet ) ) out.wetBulb = Math.round( wet );
+  if ( Number.isFinite( gust ) ) out.windGust = Math.round( gust );
+  if ( Number.isFinite( vis ) ) out.visibilityKm = vis;
+  if ( Number.isFinite( pressure ) ) out.pressureHpa = Math.round( pressure );
+  if ( Number.isFinite( cloud ) ) out.cloudCover = Math.round( cloud );
+  if ( typeof row?.precipitation?.probability?.type === 'string' ) out.precipitationType = row.precipitation.probability.type;
   return out;
 }
 
@@ -760,7 +875,9 @@ function airStateFromApiData( data: Record<string, any> | null | undefined ): Ai
   return {
     aqi,
     word: idx.category || cat.word,
-    sev: cat.sev,
+    // Prefer the band implied by Google's own category text so the colour matches the word;
+    // fall back to the numeric CPCB threshold when the category is absent/unrecognised.
+    sev: severityFromCategory( idx.category ) || cat.sev,
     ...( idx.displayName ? { indexName: idx.displayName } : {} ),
     indexCode: idx.code,
     ...( idx.aqiDisplay ? { aqiDisplay: idx.aqiDisplay } : {} ),
@@ -782,29 +899,6 @@ function localAqiOverride( regionCode?: string ): Record<string, unknown> {
   return regionCode === 'IN'
     ? { customLocalAqis: [ { regionCode: 'IN', aqi: 'ind_cpcb' } ] }
     : {};
-}
-
-function airRequestBody( lat: number, lng: number, regionCode?: string ): Record<string, unknown> {
-  return {
-    location: { latitude: lat, longitude: lng },
-    extraComputations: [
-      'POLLUTANT_CONCENTRATION',
-      'LOCAL_AQI',
-      'HEALTH_RECOMMENDATIONS',
-      'DOMINANT_POLLUTANT_CONCENTRATION',
-    ],
-    languageCode: 'en',
-    universalAqi: true,
-    ...localAqiOverride( regionCode ),
-  };
-}
-
-/* A sampled dot: a REAL grid point carrying its lat/lng and parsed AQI/PM2.5. */
-interface AirDot {
-  lat: number;
-  lng: number;
-  aqi: number;
-  pm25?: number;
 }
 
 function relativeAgeLabel( value?: string | number ): { label: string; stale: boolean } {
@@ -890,11 +984,23 @@ const VayuLokLive: React.FC = () => {
   const [ airForecast, setAirForecast ] = useState<AirPoint[]>( [] );
   const [ airForecastHours, setAirForecastHours ] = useState<24 | 48 | 96>( 24 );
   const [ airForecastInspectIdx, setAirForecastInspectIdx ] = useState( 0 );
+  // Weather tab UI state: hourly range + inspected hour, inspected day, and the history metric.
+  const [ weatherHours, setWeatherHours ] = useState<24 | 48>( 24 );
+  const [ weatherHourInspectIdx, setWeatherHourInspectIdx ] = useState<number | null>( null );
+  const [ weatherDayInspectIdx, setWeatherDayInspectIdx ] = useState<number | null>( null );
+  const [ weatherHistMetric, setWeatherHistMetric ] = useState<'temp' | 'rain' | 'humidity'>( 'temp' );
+  // Explicit Air-forecast state machine so the section can show loading skeletons, the real
+  // strip, an honest "no rows" empty state, or a concise error - instead of silently rendering
+  // nothing when the forecast:lookup request fails. 'idle' is the pre-selection resting state.
+  const [ airForecastStatus, setAirForecastStatus ] = useState<'idle' | 'loading' | 'success' | 'empty' | 'error'>( 'idle' );
   const [ airHistory, setAirHistory ] = useState<AirPoint[]>( [] );
   // Default to the 168-hour (7-day) window so the Hourly History chart spans ~a week. The
   // history fetch effect keys on this value and only fetches on the keyed path (no key =>
   // no fetch => airHistory stays [], and the chart renders its honest empty shell).
-  const [ historyRange, setHistoryRange ] = useState<24 | 168 | 720>( 168 );
+  // User-facing history is 24h or 7d (default 7d). The 30-day/720 option was removed from the UI;
+  // the backend history:lookup still accepts larger windows, but the component no longer requests
+  // one, so the state is narrowed to the two offered ranges.
+  const [ historyRange, setHistoryRange ] = useState<24 | 168>( 168 );
   const [ historyLoading, setHistoryLoading ] = useState( false );
   const [ dataLoading, setDataLoading ] = useState( false );
   const [ coreError, setCoreError ] = useState( false );
@@ -910,6 +1016,8 @@ const VayuLokLive: React.FC = () => {
   const [ results, setResults ] = useState<SearchResult[]>( [] );
   const [ open, setOpen ] = useState( false );
   const [ active, setActive ] = useState( -1 );
+  // Bumped by the map-failed "Try again" button to re-run the map init + timeout effects.
+  const [ mapInitNonce, setMapInitNonce ] = useState( 0 );
 
   // Which air-quality layer is active. Defaults to 'AQI' so the continuous AQI heatmap TILE
   // overlay paints by DEFAULT once the keyed map is ready (the keyed + map-ready guard in the
@@ -952,17 +1060,15 @@ const VayuLokLive: React.FC = () => {
   const historyCache = useRef<Record<string, { ts: number; points: AirPoint[] }>>( {} );
   const timeZoneCache = useRef<Record<string, LocationTimeState>>( {} );
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
-  // FEAT-002: the deck.gl GoogleMapsOverlay instance (created lazily on first layer
-  // activation), the AbortController for the in-flight grid fetch, and the grid cache
-  // keyed by area+grid+layer+time-bucket so re-activating the same layer bills nothing.
-  const deckOverlayRef = useRef<unknown>( null );
   // The google.maps.ImageMapType instance for the continuous AQI heatmap tile overlay
   // (FEAT-001). Attached by DEFAULT once the KEYED map is initialized (layer defaults to
   // 'AQI'), pushed onto map.overlayMapTypes, and detached idempotently on toggle-off /
   // switch-to-PM2.5 / unmount. On the keyless path it is NEVER constructed.
+  //
+  // NOTE: both AQI and PM2.5 are now Google ImageMapType TILE overlays. The earlier deck.gl
+  // GoogleMapsOverlay dot-grid (and its grid fetch/cache/abort refs) was superseded and has
+  // been removed - deck.gl is no longer imported or used anywhere in this component.
   const heatmapOverlayRef = useRef<unknown>( null );
-  const gridAbortRef = useRef<AbortController | null>( null );
-  const gridCache = useRef<Record<string, { ts: number; dots: AirDot[]; center: AirState | null }>>( {} );
 
   useEffect( () => {
     const timer = window.setInterval( () => setClockNow( Date.now() ), 30_000 );
@@ -1086,7 +1192,7 @@ const VayuLokLive: React.FC = () => {
     setMapFailed( false );
     const id = window.setTimeout( () => setMapFailed( true ), 12_000 );
     return () => window.clearTimeout( id );
-  }, [ mapReady ] );
+  }, [ mapReady, mapInitNonce ] );
 
   /* ---------------------------------------------------------------------------------
      MAP. Fires on load WHEN a key is present. The Maps JS script is injected once per
@@ -1326,7 +1432,8 @@ const VayuLokLive: React.FC = () => {
       cancelled = true;
       ( mapHost.current as ( HTMLDivElement & { __vlCleanup?: () => void } ) | null )?.__vlCleanup?.();
     };
-  }, [] );
+    // mapInitNonce lets the map-failed "Try again" button re-run initialisation.
+  }, [ mapInitNonce ] );
 
   /* ---------------------------------------------------------------------------------
      GOOGLE AIR HEATMAP TILES. AQI and PM2.5 both use Google's documented ImageMapType tile
@@ -1336,13 +1443,6 @@ const VayuLokLive: React.FC = () => {
     if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
 
     const map = mapRef.current;
-
-    // Detach the deck.gl dot overlay (used by the PM2.5 layer) idempotently.
-    const detachDots = () => {
-      const existing = deckOverlayRef.current as { setMap?: ( m: unknown ) => void; setProps?: ( p: { layers: unknown[] } ) => void } | null;
-      existing?.setProps?.( { layers: [] } );
-      existing?.setMap?.( null );
-    };
 
     // Detach the AQI heatmap ImageMapType from map.overlayMapTypes idempotently. overlayMapTypes
     // is an MVCArray; remove this exact instance by index so unrelated overlays are untouched,
@@ -1370,21 +1470,19 @@ const VayuLokLive: React.FC = () => {
       heatmapOverlayRef.current = null;
     };
 
-    // No layer active -> ensure BOTH overlay types are detached and the single-point air clears.
+    // No layer active -> ensure the heatmap overlay is detached and the single-point air clears.
     if ( !layer ) {
-      detachDots();
       detachHeatmap();
       requestAnimationFrame( () => { setDataLoading( false ); } );
       return;
     }
     if ( !map ) return;
 
-    // AQI -> continuous heatmap TILE overlay (no deck.gl dot grid, no grid fetch). Tear down
-    // the PM2.5 dots first so the two overlay types are never shown at once, then attach the
-    // ImageMapType exactly once. Attached by DEFAULT here (layer defaults to 'AQI') once the
-    // keyed map is ready - never at module load, never on the keyless path.
+    // AQI/PM2.5 -> continuous heatmap TILE overlay. Both are Google ImageMapType tile products;
+    // attach the selected one exactly once. Attached by DEFAULT here (layer defaults to 'AQI')
+    // once the keyed map is ready - never at module load, never on the keyless path.
     if ( layer === 'AQI' || layer === 'PM25' ) {
-      detachDots();
+      detachHeatmap();
       const w = window as unknown as { google?: { maps?: {
         ImageMapType?: new ( opts: Record<string, unknown> ) => unknown;
         Size?: new ( w: number, h: number ) => unknown;
@@ -1468,8 +1566,7 @@ const VayuLokLive: React.FC = () => {
                 'HEALTH_RECOMMENDATIONS',
                 'DOMINANT_POLLUTANT_CONCENTRATION',
                 // Request Google's per-pollutant sources/effects strings so the info popover
-                // on each pollutant row can show them. Scoped to this selected-place call only
-                // (not the shared grid airRequestBody) to avoid bloating the many grid fetches.
+                // on each pollutant row can show them.
                 'POLLUTANT_ADDITIONAL_INFO',
               ],
               languageCode: 'en',
@@ -1534,6 +1631,23 @@ const VayuLokLive: React.FC = () => {
         if ( Number.isFinite( cloud ) ) out.cloudCover = Math.round( cloud );
         if ( typeof d?.currentTime === 'string' ) out.currentTime = d.currentTime;
         if ( typeof condition === 'string' ) out.condition = condition;
+        // Extra current fields Google already returns (no extra call).
+        if ( typeof d?.weatherCondition?.iconBaseUri === 'string' ) out.icon = d.weatherCondition.iconBaseUri;
+        if ( typeof d?.isDaytime === 'boolean' ) out.isDaytime = d.isDaytime;
+        const chill = n( d?.windChill?.degrees );
+        if ( Number.isFinite( chill ) ) out.windChill = Math.round( chill );
+        if ( typeof d?.precipitation?.probability?.type === 'string' ) out.precipitationType = d.precipitation.probability.type;
+        // currentConditionsHistory: recent 24h change, day min/max and accumulated precip -
+        // returned on the same response, so no second request.
+        const hist = d?.currentConditionsHistory;
+        const tChange = n( hist?.temperatureChange?.degrees );
+        const dMax = n( hist?.maxTemperature?.degrees );
+        const dMin = n( hist?.minTemperature?.degrees );
+        const qpf = n( hist?.qpf?.quantity );
+        if ( Number.isFinite( tChange ) ) out.temperatureChange = Math.round( tChange * 10 ) / 10;
+        if ( Number.isFinite( dMax ) ) out.dayMax = Math.round( dMax );
+        if ( Number.isFinite( dMin ) ) out.dayMin = Math.round( dMin );
+        if ( Number.isFinite( qpf ) ) out.recentQpf = qpf;
         // Only keep weather if at least one field arrived.
         if ( Object.keys( out ).length ) store.weather = out;
       } catch { /* silent degradation */ }
@@ -1576,6 +1690,7 @@ const VayuLokLive: React.FC = () => {
       setWeatherDaily( cachedForecast.daily );
       setWeatherAlerts( cachedForecast.alerts );
       setAirForecast( cachedForecast.airForecast );
+      setAirForecastStatus( cachedForecast.airForecast.length ? 'success' : 'empty' );
       return () => ac.abort();
     }
 
@@ -1583,6 +1698,7 @@ const VayuLokLive: React.FC = () => {
     setWeatherDaily( [] );
     setWeatherAlerts( [] );
     setAirForecast( [] );
+    setAirForecastStatus( 'loading' );
     const forecastStore: {
       hourly: WeatherHour[];
       daily: WeatherDay[];
@@ -1626,9 +1742,19 @@ const VayuLokLive: React.FC = () => {
         const d = row?.displayDate || {};
         const date = d?.year && d?.month && d?.day ? new Date( Date.UTC( d.year, d.month - 1, d.day ) ) : new Date();
         const p = row?.daytimeForecast || row?.nighttimeForecast || {};
+        const night = row?.nighttimeForecast || {};
         const min = n( row?.minTemperature?.degrees );
         const max = n( row?.maxTemperature?.degrees );
         const rain = n( p?.precipitation?.probability?.percent );
+        const flMin = n( row?.feelsLikeMinTemperature?.degrees );
+        const flMax = n( row?.feelsLikeMaxTemperature?.degrees );
+        const humidity = n( p?.relativeHumidity );
+        const uv = n( p?.uvIndex );
+        const rainMm = n( p?.precipitation?.qpf?.quantity );
+        const storm = n( p?.thunderstormProbability );
+        const windSpeed = n( p?.wind?.speed?.value );
+        const windDeg = n( p?.wind?.direction?.degrees );
+        const windGust = n( p?.wind?.gust?.value );
         return {
           time: date.getTime(),
           label: i === 0 ? 'Today' : new Intl.DateTimeFormat( 'en-IN', { weekday: 'short', timeZone: 'UTC' } ).format( date ),
@@ -1640,6 +1766,19 @@ const VayuLokLive: React.FC = () => {
           ...( typeof p?.weatherCondition?.iconBaseUri === 'string' ? { icon: p.weatherCondition.iconBaseUri } : {} ),
           ...( typeof row?.sunEvents?.sunriseTime === 'string' ? { sunrise: row.sunEvents.sunriseTime } : {} ),
           ...( typeof row?.sunEvents?.sunsetTime === 'string' ? { sunset: row.sunEvents.sunsetTime } : {} ),
+          // Detail-panel dimensions.
+          ...( typeof night?.weatherCondition?.description?.text === 'string' ? { nightCondition: night.weatherCondition.description.text } : {} ),
+          ...( Number.isFinite( flMin ) ? { feelsLikeMin: Math.round( flMin ) } : {} ),
+          ...( Number.isFinite( flMax ) ? { feelsLikeMax: Math.round( flMax ) } : {} ),
+          ...( Number.isFinite( humidity ) ? { humidity: Math.round( humidity ) } : {} ),
+          ...( Number.isFinite( uv ) ? { uv: Math.round( uv ) } : {} ),
+          ...( Number.isFinite( rainMm ) ? { rainMm } : {} ),
+          ...( Number.isFinite( storm ) ? { stormProb: Math.round( storm ) } : {} ),
+          ...( Number.isFinite( windSpeed ) ? { windSpeed: Math.round( windSpeed ), windUnit: windUnitLabel( p?.wind?.speed?.unit ) } : {} ),
+          ...( Number.isFinite( windDeg ) ? { windDir: windDirection( windDeg ) } : {} ),
+          ...( Number.isFinite( windGust ) ? { windGust: Math.round( windGust ) } : {} ),
+          ...( typeof row?.moonEvents?.moonriseTimes?.[ 0 ] === 'string' ? { moonrise: row.moonEvents.moonriseTimes[ 0 ] } : {} ),
+          ...( typeof row?.moonEvents?.moonsetTimes?.[ 0 ] === 'string' ? { moonset: row.moonEvents.moonsetTimes[ 0 ] } : {} ),
         };
       } );
       forecastStore.daily = rows;
@@ -1647,13 +1786,24 @@ const VayuLokLive: React.FC = () => {
     };
 
     // Google Weather public alerts are not supported for India.
+    // Google Weather publicAlerts:lookup has NO India coverage, so for this India-first page we
+    // do not issue the request (it would always return empty and still cost a call). The Weather
+    // tab's Alerts block shows a neutral "No active alerts" line instead of a noisy empty panel.
+    // If VayuLok later serves alert-covered regions, enable this per-region and attribute the
+    // originating authority (Google requires source attribution when an alert is shown).
     const loadAlerts = async () => undefined;
 
     const loadAirForecast = async () => {
+      try {
       const start = new Date();
       start.setUTCMinutes( 0, 0, 0 );
       start.setUTCHours( start.getUTCHours() + 1 );
-      const end = new Date( start.getTime() + 96 * 60 * 60 * 1000 );
+      // Google's forecast:lookup rejects an EXACTLY-96-hour period with HTTP 400
+      // "The specified time period is not supported" - the supported window tops out at 95h.
+      // A 95-hour period still returns ~96 hourly rows, which fully covers the 24/48/96h UI
+      // ranges, so request 95h to stay inside the limit. (Measured against the live API: 96h =>
+      // 400, 95h => 200 with 96 rows.) This is the fix for the forecast rendering empty in prod.
+      const end = new Date( start.getTime() + 95 * 60 * 60 * 1000 );
       const res = await fetch(
         'https://airquality.googleapis.com/v1/forecast:lookup?key=' + encodeURIComponent( MAPS_KEY ),
         {
@@ -1677,13 +1827,35 @@ const VayuLokLive: React.FC = () => {
           } ),
         },
       );
-      if ( !res.ok || ac.signal.aborted ) return;
+      if ( ac.signal.aborted ) return;
+      if ( !res.ok ) {
+        // Surface the failure instead of silently rendering an empty section. Log enough
+        // technical detail in development to identify an HTTP/API/key problem, but never the
+        // key or raw response - the URL carries the key in its query string, so log status only.
+        if ( process.env.NODE_ENV !== 'production' ) {
+          // eslint-disable-next-line no-console
+          console.error( `[VayuLok] air forecast:lookup failed - HTTP ${res.status} ${res.statusText}` );
+        }
+        setAirForecastStatus( 'error' );
+        return;
+      }
       const data = await res.json();
       const rows = ( Array.isArray( data.hourlyForecasts ) ? data.hourlyForecasts : [] )
         .map( ( row: Record<string, any> ) => airPointFromApi( row ) )
         .filter( Boolean ) as AirPoint[];
       forecastStore.airForecast = rows;
       setAirForecast( rows );
+      // A valid 200 with zero usable rows is 'empty', not an error.
+      setAirForecastStatus( rows.length ? 'success' : 'empty' );
+      } catch ( err ) {
+        // Network/transport/parse failure (an aborted request is normal teardown, not an error).
+        if ( ac.signal.aborted ) return;
+        if ( process.env.NODE_ENV !== 'production' ) {
+          // eslint-disable-next-line no-console
+          console.error( '[VayuLok] air forecast:lookup threw', err instanceof Error ? err.message : err );
+        }
+        setAirForecastStatus( 'error' );
+      }
     };
 
     void Promise.allSettled( [ loadHourly(), loadDaily(), loadAlerts(), loadAirForecast() ] ).then( () => {
@@ -2151,49 +2323,57 @@ const VayuLokLive: React.FC = () => {
 
   return (
     <section className="vl-live" aria-label="VayuLok conditions">
-      { mapReady && (
-        <div className="vl-live-map-search">
-          <label className="vl-live-sr-only" htmlFor="vl-live-search">Search a city or place</label>
-          <div className="vl-live-search">
-            <div className="vl-live-search-field">
-              <input
-                id="vl-live-search"
-                type="search"
-                role="combobox"
-                aria-controls="vl-live-search-results"
-                aria-expanded={ open }
-                aria-autocomplete="list"
-                autoComplete="off"
-                autoCorrect="off"
-                spellCheck={ false }
-                placeholder="Search"
-                value={ query }
-                onChange={ onQueryChange }
-                onFocus={ () => {
-                  if ( query.trim() ) {
-                    if ( results.length ) setOpen( true );
-                    else void runSearch( query );
-                    return;
-                  }
-                  const recent = recentPlaces().map( place => ( { name: place.name, addr: place.addr, place } ) );
-                  setResults( recent ); setActive( recent.length ? 0 : -1 ); setOpen( recent.length > 0 ); setSearchStatus( 'idle' );
-                } }
-                onKeyDown={ onKeyDown }
-              />
-            </div>
-            <ul className="vl-live-search-results" id="vl-live-search-results" role="listbox" aria-label="Matching places" hidden={ !open || !results.length }>
-              { results.map( ( r, i ) => (
-                <li key={ `${r.name}-${r.addr}-${i}` } role="option" aria-selected={ i === active } onPointerDown={ e => { e.preventDefault(); void choose( r ); } }>
-                  <strong>{ r.name }</strong>{ r.addr && <span>{ r.addr }</span> }
-                </li>
-              ) ) }
-            </ul>
-            { searchStatus === 'searching' && <p className="vl-live-search-status" role="status">Searching worldwide…</p> }
-            { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">Place not found.</p> }
-            { searchStatus === 'unavailable' && <p className="vl-live-search-status" role="status">Place search is temporarily unavailable.</p> }
+      {/* Search is ALWAYS rendered - it does not wait for the map to paint, so a user can look up
+          a city or pincode while the map is still loading or if it fails entirely. The map is a
+          visualization layer, not a prerequisite for searching or for the environmental data. */}
+      <div className="vl-live-map-search">
+        <label className="vl-live-sr-only" htmlFor="vl-live-search">Search a city or place</label>
+        <div className="vl-live-search">
+          <div className="vl-live-search-field">
+            <input
+              id="vl-live-search"
+              type="search"
+              role="combobox"
+              aria-controls="vl-live-search-results"
+              aria-expanded={ open }
+              aria-activedescendant={ open && active >= 0 ? `vl-live-search-option-${active}` : undefined }
+              aria-autocomplete="list"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={ false }
+              placeholder="Search a city or pincode"
+              value={ query }
+              onChange={ onQueryChange }
+              onFocus={ () => {
+                if ( query.trim() ) {
+                  if ( results.length ) setOpen( true );
+                  else void runSearch( query );
+                  return;
+                }
+                const recent = recentPlaces().map( place => ( { name: place.name, addr: place.addr, place } ) );
+                setResults( recent ); setActive( recent.length ? 0 : -1 ); setOpen( recent.length > 0 ); setSearchStatus( 'idle' );
+              } }
+              onKeyDown={ onKeyDown }
+            />
           </div>
+          <ul className="vl-live-search-results" id="vl-live-search-results" role="listbox" aria-label="Matching places" hidden={ !open || !results.length }>
+            { results.map( ( r, i ) => (
+              <li key={ `${r.name}-${r.addr}-${i}` } id={ `vl-live-search-option-${i}` } role="option" aria-selected={ i === active } onPointerDown={ e => { e.preventDefault(); void choose( r ); } }>
+                <svg className="vl-live-search-result-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.location } /></svg>
+                <span className="vl-live-search-result-text">
+                  <strong>{ r.name }</strong>{ r.addr && <span>{ r.addr }</span> }
+                </span>
+              </li>
+            ) ) }
+          </ul>
+          {/* "Searching…" is announced to screen readers (aria-live) but visually hidden, so the
+              field stays light and uncluttered while typing. Only genuine end states - no result,
+              or an actual failure - show visible helper text. */}
+          { searchStatus === 'searching' && <p className="vl-live-sr-only" role="status" aria-live="polite">Searching worldwide…</p> }
+          { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">Place not found.</p> }
+          { searchStatus === 'unavailable' && <p className="vl-live-search-status" role="status">Place search is temporarily unavailable.</p> }
         </div>
-      ) }
+      </div>
 
       <main className="vl-live-shell">
 
@@ -2210,7 +2390,9 @@ const VayuLokLive: React.FC = () => {
                   (header + toggle + honest empty state) shows, firing no fetch of its own. */}
               <div className="vl-live-air-card-wrap">
               <aside className="vl-live-air-card" aria-label="Air quality details" onScroll={ () => setPollutantTip( null ) }>
-                <div className="vl-live-air-context" aria-label="Selected location and local time">
+                {/* Place name (as Google returned it), the live clock and the zone label are raw
+                    data, not UI copy - kept out of translation per the data-honesty rule. */}
+                <div className="vl-live-air-context" aria-label="Selected location and local time" data-wc-no-translate="true">
                   <span className="vl-live-air-context-item is-location" title={ place.addr || place.name }>
                     <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.location } /></svg>
                     <strong>{ place.name }</strong>
@@ -2222,7 +2404,13 @@ const VayuLokLive: React.FC = () => {
                       : 'India Standard Time default while Google Time Zone is unavailable or loading' }
                   >
                     <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
-                    <time dateTime={ new Date( clockNow ).toISOString() }>{ locationClock }</time>
+                    {/* clockNow is seeded from Date.now() at render, so the value baked into the
+                        static export (build time) differs from the client's value at hydration -
+                        an unavoidable, benign server/client difference React otherwise reports as
+                        hydration error #418. suppressHydrationWarning tells React to accept the
+                        client value for this node (both the dateTime and the text derive from
+                        clockNow), which is the intended mechanism for live timestamps. */}
+                    <time dateTime={ new Date( clockNow ).toISOString() } suppressHydrationWarning>{ locationClock }</time>
                     <small>{ locationZoneLabel }</small>
                   </span>
                 </div>
@@ -2271,12 +2459,15 @@ const VayuLokLive: React.FC = () => {
                         <div className="vl-live-air-gauge-meta">
                           <strong className="vl-live-air-gauge-word">{ air.word } air quality</strong>
                           <div className="vl-live-air-summary-meta">
-                            { air.indexName && <span>{ air.indexName }</span> }
-                            { air.localIndex && air.universalIndex && air.localIndex.code !== air.universalIndex.code && (
-                              <span><strong>Universal AQI</strong> { air.universalIndex.aqiDisplay || Math.round( air.universalIndex.aqi ) }</span>
-                            ) }
+                            <span className="vl-live-air-summary-chip">
+                              <svg className="vl-live-air-summary-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.air } /></svg>
+                              <strong>AQI</strong> { air.aqiDisplay || Math.round( air.aqi ) }
+                            </span>
                             { air.dominant && (
-                              <span><strong>Dominant</strong> { dominantPollutantLabel( air.dominant, air.pollutants ) }</span>
+                              <span className="vl-live-air-summary-chip">
+                                <svg className="vl-live-air-summary-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.eco } /></svg>
+                                <strong>Dominant</strong> { dominantPollutantLabel( air.dominant, air.pollutants ) }
+                              </span>
                             ) }
                             { air.updatedAt && <span>{ relativeAgeLabel( air.updatedAt ).label }</span> }
                           </div>
@@ -2290,7 +2481,7 @@ const VayuLokLive: React.FC = () => {
                             { air.pollutants.map( p => (
                               <li className="vl-live-air-pollutant-row" key={ p.code }>
                                 <span className="vl-live-air-pollutant-label">{ p.label }</span>
-                                <span className="vl-live-air-pollutant-value">{ Math.round( p.value ) } <small>{ p.unit }</small></span>
+                                <span className="vl-live-air-pollutant-value" data-wc-no-translate="true">{ formatPollutantValue( p.value ) } <small title={ unitTermLabel( p.unit ) }>{ p.unit }</small></span>
                                 <button
                                   type="button"
                                   className="vl-live-air-pollutant-info"
@@ -2369,14 +2560,27 @@ const VayuLokLive: React.FC = () => {
                             ) ) }
                           </div>
                         </div>
-                        { airForecast.length ? (
+                        { airForecastStatus === 'loading' && !airForecast.length ? (
+                          // LOADING: light skeleton cards while forecast:lookup is in flight.
+                          <div className="vl-live-air-forecast-strip is-skeleton" aria-hidden="true">
+                            { Array.from( { length: 6 } ).map( ( _, i ) => (
+                              <span key={ i } className="vl-live-air-forecast-card is-skeleton" />
+                            ) ) }
+                          </div>
+                        ) : airForecastStatus === 'error' ? (
+                          // ERROR: concise user-facing fallback; technical detail is logged in dev.
+                          <p className="vl-live-air-history-empty" role="status">Air forecast is temporarily unavailable.</p>
+                        ) : airForecastStatus === 'empty' ? (
+                          // EMPTY: a valid Google response with no usable forecast rows.
+                          <p className="vl-live-air-history-empty" role="status">Forecast unavailable for this location.</p>
+                        ) : airForecast.length ? (
                           <>
                             <div className="vl-live-air-forecast-strip" aria-label={ `Next ${airForecastHours} hours air forecast` }>
                               { airForecast.slice( 0, airForecastHours ).map( ( point, idx ) => (
                                 <button key={ point.time } type="button" className={ `vl-live-air-forecast-card ${airForecastInspectIdx === idx ? 'is-active' : ''}`.trim() } aria-pressed={ airForecastInspectIdx === idx } onClick={ () => setAirForecastInspectIdx( idx ) }>
                                   <span>{ formatHistoryPointLabel( point.time, locationTime.timeZoneId, locationZoneLabel ) }</span>
-                                  <strong>AQI { point.aqi }</strong>
-                                  { Number.isFinite( point.pm25 ) && <small>PM2.5 { Math.round( point.pm25 as number ) } µg/m³</small> }
+                                  <strong>AQI <span data-wc-no-translate="true">{ point.aqi }</span></strong>
+                                  { Number.isFinite( point.pm25 ) && <small>PM2.5 <span data-wc-no-translate="true">{ Math.round( point.pm25 as number ) } µg/m³</span></small> }
                                 </button>
                               ) ) }
                             </div>
@@ -2391,22 +2595,11 @@ const VayuLokLive: React.FC = () => {
                                 { airForecast[ airForecastInspectIdx ].healthRecommendations?.generalPopulation && (
                                   <p>{ airForecast[ airForecastInspectIdx ].healthRecommendations?.generalPopulation }</p>
                                 ) }
-                                { ( () => {
-                                  const point = airForecast[ airForecastInspectIdx ];
-                                  const dominant = point.pollutants?.find( pollutant => pollutant.code === point.dominant );
-                                  if ( !dominant?.sources && !dominant?.effects ) return null;
-                                  return (
-                                    <p className="vl-live-air-forecast-additional">
-                                      { dominant.sources && <span><strong>Sources</strong> { compactAirInfo( dominant.sources, 120 ) }</span> }
-                                      { dominant.effects && <span><strong>Effects</strong> { compactAirInfo( dominant.effects, 120 ) }</span> }
-                                    </p>
-                                  );
-                                } )() }
                               </div>
                             ) }
                           </>
                         ) : (
-                          <p className="vl-live-air-history-empty">96-hour air forecast appears here once Google returns forecast data.</p>
+                          <p className="vl-live-air-history-empty">Air forecast appears here once a place is selected.</p>
                         ) }
                       </div>
 
@@ -2496,9 +2689,9 @@ const VayuLokLive: React.FC = () => {
                                 <div className="vl-live-air-history-head">
                                   <h4 className="vl-live-air-history-title">Hourly History</h4>
                                   <div className="vl-live-air-range" role="group" aria-label="Air history range">
-                                    { ( [ 24, 168, 720 ] as const ).map( hours => (
+                                    { ( [ 24, 168 ] as const ).map( hours => (
                                       <button key={ hours } type="button" className={ historyRange === hours ? 'is-active' : '' } aria-pressed={ historyRange === hours } onClick={ () => setHistoryRange( hours ) }>
-                                        { hours === 24 ? '24h' : hours === 168 ? '7d' : '30d' }
+                                        { hours === 24 ? '24h' : '7d' }
                                       </button>
                                     ) ) }
                                   </div>
@@ -2563,13 +2756,13 @@ const VayuLokLive: React.FC = () => {
                                 <h4 className="vl-live-air-history-title">Hourly History</h4>
                                 <div className="vl-live-air-history-head-meta">
                                   <div className="vl-live-air-range" role="group" aria-label="Air history range">
-                                    { ( [ 24, 168, 720 ] as const ).map( hours => (
+                                    { ( [ 24, 168 ] as const ).map( hours => (
                                       <button key={ hours } type="button" className={ historyRange === hours ? 'is-active' : '' } aria-pressed={ historyRange === hours } onClick={ () => setHistoryRange( hours ) }>
-                                        { hours === 24 ? '24h' : hours === 168 ? '7d' : '30d' }
+                                        { hours === 24 ? '24h' : '7d' }
                                       </button>
                                     ) ) }
+                                  </div>
 
-                                  <span className="vl-live-air-history-stamp">{ stamp }</span>
                                   <div className="vl-live-air-history-nav" aria-label="Hourly history navigation">
                                     <button
                                       type="button"
@@ -2592,14 +2785,40 @@ const VayuLokLive: React.FC = () => {
                               </div>
                               <div
                                 className={ `vl-live-air-history-chart vl-live-air-sev-${aqiCategory( current.aqi ).sev}` }
-                                role="img"
-                                aria-label={ `AQI history, ${historyRangeLabel( historyRange )}, current ${Math.round( current.aqi )}. Hover or tap the chart to inspect an hour.` }
+                                /* Keyboard-accessible as a slider over the history points: Tab to
+                                   focus, Left/Right (or Up/Down) to step through hours, Home/End to
+                                   jump to the oldest/newest. The visible tooltip and the sr-only
+                                   live region below announce the inspected hour's time and AQI. */
+                                role="slider"
+                                tabIndex={ 0 }
+                                aria-label={ `AQI history, ${historyRangeLabel( historyRange )}. Use arrow keys to inspect an hour.` }
+                                aria-valuemin={ 0 }
+                                aria-valuemax={ points.length - 1 }
+                                aria-valuenow={ inspectedIdx == null ? currentIdx : inspectedIdx }
+                                aria-valuetext={ inspected
+                                  ? `${formatHistoryPointLabel( inspected.time, locationTime.timeZoneId, locationZoneLabel )}, AQI ${Math.round( inspected.aqi )}`
+                                  : `Current, AQI ${Math.round( current.aqi )}` }
                                 onPointerMove={ e => {
                                   if ( e.pointerType === 'mouse' || e.pointerType === 'pen' ) inspectPoint( e.clientX, e.currentTarget );
                                 } }
                                 onPointerDown={ e => inspectPoint( e.clientX, e.currentTarget ) }
                                 onPointerLeave={ e => {
                                   if ( e.pointerType === 'mouse' ) setHistoryInspectIdx( null );
+                                } }
+                                onKeyDown={ e => {
+                                  const last = points.length - 1;
+                                  const base = inspectedIdx == null ? currentIdx : inspectedIdx;
+                                  if ( e.key === 'ArrowLeft' || e.key === 'ArrowDown' ) {
+                                    e.preventDefault(); setHistoryInspectIdx( Math.max( 0, base - 1 ) );
+                                  } else if ( e.key === 'ArrowRight' || e.key === 'ArrowUp' ) {
+                                    e.preventDefault(); setHistoryInspectIdx( Math.min( last, base + 1 ) );
+                                  } else if ( e.key === 'Home' ) {
+                                    e.preventDefault(); setHistoryInspectIdx( 0 );
+                                  } else if ( e.key === 'End' ) {
+                                    e.preventDefault(); setHistoryInspectIdx( last );
+                                  } else if ( e.key === 'Escape' ) {
+                                    setHistoryInspectIdx( null );
+                                  }
                                 } }
                               >
                                 <svg viewBox={ `0 0 ${W} ${H}` } className="vl-live-air-history-svg" preserveAspectRatio="none">
@@ -2620,21 +2839,28 @@ const VayuLokLive: React.FC = () => {
                                     </>
                                   ) }
                                 </svg>
-                                <span className="vl-live-air-history-bubble" style={ { left: `${( cx / W ) * 100}%` } }>{ Math.round( current.aqi ) }</span>
                                 { inspected && (
                                   <span
                                     className="vl-live-air-history-inspect"
-                                    role="status"
-                                    aria-live="polite"
                                     style={ {
                                       left: `${( inspectX / W ) * 100}%`,
                                       top: `${Math.max( 10, ( inspectY / H ) * 100 )}%`,
                                     } }
                                   >
-                                    <strong>AQI { Math.round( inspected.aqi ) }</strong>
                                     <span>{ formatHistoryPointLabel( inspected.time, locationTime.timeZoneId, locationZoneLabel ) }</span>
                                   </span>
                                 ) }
+                                {/* Screen-reader announcement of the inspected hour, including the
+                                    AQI value (the visible tooltip shows only the time). */}
+                                <span className="vl-live-sr-only" role="status" aria-live="polite">
+                                  { inspected
+                                    ? `${formatHistoryPointLabel( inspected.time, locationTime.timeZoneId, locationZoneLabel )}, AQI ${Math.round( inspected.aqi )}`
+                                    : '' }
+                                </span>
+                              </div>
+                              <div className="vl-live-air-history-stamp" aria-label="Reading time">
+                                <svg className="vl-live-air-history-stamp-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
+                                <span data-wc-no-translate="true">{ stamp }</span>
                               </div>
                               <span className="vl-live-sr-only">Latest reading { Math.round( latest.aqi ) }, { latest.word }.</span>
                             </>
@@ -2651,7 +2877,180 @@ const VayuLokLive: React.FC = () => {
 
                 { detailTab === 'weather' && (
                   <div className="vl-live-air-panel" role="tabpanel" id="vl-live-weather-panel" aria-labelledby="vl-live-weather-tab" aria-label="Weather details">
-                    <p className="vl-live-air-empty">Weather details are coming soon.</p>
+                    { weather ? (
+                      <>
+                        {/* CURRENT CONDITIONS - large primary block, mirroring the Air AQI hero. */}
+                        <div className="vl-live-wx-now">
+                          <div className="vl-live-wx-now-head">
+                            { weather.icon && <img className="vl-live-wx-now-icon" src={ `${weather.icon}.png` } alt="" data-wc-no-translate="true" aria-hidden="true" /> }
+                            <div>
+                              { Number.isFinite( weather.temp ) && <strong className="vl-live-wx-now-temp" data-wc-no-translate="true">{ weather.temp }°</strong> }
+                              { weather.condition && <span className="vl-live-wx-now-cond">{ weather.condition }</span> }
+                            </div>
+                          </div>
+                          <div className="vl-live-wx-now-sub">
+                            { Number.isFinite( weather.feelsLike ) && <span>Feels <span data-wc-no-translate="true">{ weather.feelsLike }°</span></span> }
+                            { Number.isFinite( weather.temperatureChange ) && weather.temperatureChange !== 0 && (
+                              <span data-wc-no-translate="true">{ ( weather.temperatureChange as number ) > 0 ? '↑' : '↓' } { Math.abs( weather.temperatureChange as number ) }° / 24h</span>
+                            ) }
+                            { Number.isFinite( weather.dayMin ) && Number.isFinite( weather.dayMax ) && (
+                              <span>Today <span data-wc-no-translate="true">{ weather.dayMin }°–{ weather.dayMax }°</span></span>
+                            ) }
+                          </div>
+                        </div>
+
+                        {/* CURRENT METRICS - compact grid, only fields Google returned. */}
+                        <ul className="vl-live-wx-grid">
+                          { ( [
+                            Number.isFinite( weather.humidity ) ? { k: 'Humidity', v: `${weather.humidity}%` } : null,
+                            Number.isFinite( weather.rainProb ) ? { k: 'Rain', v: `${weather.rainProb}%${Number.isFinite( weather.rainMm ) ? ` · ${weather.rainMm} mm` : ''}` } : null,
+                            Number.isFinite( weather.windSpeed ) ? { k: 'Wind', v: `${weather.windSpeed} ${weather.windUnit || 'km/h'}${weather.windDir ? ` ${weather.windDir}` : ''}` } : null,
+                            Number.isFinite( weather.windGust ) ? { k: 'Gust', v: `${weather.windGust} ${weather.windUnit || 'km/h'}` } : null,
+                            Number.isFinite( weather.uv ) ? { k: 'UV', v: `${weather.uv}` } : null,
+                            Number.isFinite( weather.visibilityKm ) ? { k: 'Visibility', v: `${weather.visibilityKm} km` } : null,
+                            Number.isFinite( weather.pressureHpa ) ? { k: 'Pressure', v: `${weather.pressureHpa} mb` } : null,
+                            Number.isFinite( weather.cloudCover ) ? { k: 'Cloud', v: `${weather.cloudCover}%` } : null,
+                            Number.isFinite( weather.dewPoint ) ? { k: 'Dew point', v: `${weather.dewPoint}°` } : null,
+                            Number.isFinite( weather.stormProb ) && ( weather.stormProb as number ) > 0 ? { k: 'Storm', v: `${weather.stormProb}%` } : null,
+                          ] as ( { k: string; v: string } | null )[] ).filter( Boolean ).map( item => (
+                            <li key={ ( item as { k: string } ).k } className="vl-live-wx-grid-item">
+                              <span className="vl-live-wx-grid-k">{ ( item as { k: string } ).k }</span>
+                              <span className="vl-live-wx-grid-v" data-wc-no-translate="true">{ ( item as { v: string } ).v }</span>
+                            </li>
+                          ) ) }
+                        </ul>
+
+                        {/* ALERTS - only authoritative live alerts; a neutral line when none. */}
+                        <div className="vl-live-wx-alerts">
+                          <h4 className="vl-live-air-forecast-title">Alerts</h4>
+                          { weatherAlerts.length ? weatherAlerts.map( alert => (
+                            <div key={ alert.id } className={ `vl-live-wx-alert sev-${( alert.severity || 'minor' ).toLowerCase()}` }>
+                              <strong>{ alert.title }</strong>
+                              { ( alert.severity || alert.urgency ) && <span className="vl-live-wx-alert-meta" data-wc-no-translate="true">{ [ alert.severity, alert.urgency ].filter( Boolean ).join( ' · ' ) }</span> }
+                              { alert.area && <span className="vl-live-wx-alert-area">{ alert.area }</span> }
+                              { alert.description && <p>{ alert.description }</p> }
+                              { alert.source && <small className="vl-live-wx-alert-src">Source: <span data-wc-no-translate="true">{ alert.source }</span></small> }
+                            </div>
+                          ) ) : (
+                            <p className="vl-live-air-history-empty">No active weather or hazard alerts for this location.</p>
+                          ) }
+                        </div>
+
+                        {/* HOURLY FORECAST - reuses the Air Forecast strip interaction. */}
+                        { weatherHourly.length > 0 && (
+                          <div className="vl-live-air-forecast">
+                            <div className="vl-live-air-forecast-head">
+                              <h4 className="vl-live-air-forecast-title">Hourly Forecast</h4>
+                              <div className="vl-live-air-range" role="group" aria-label="Weather forecast range">
+                                { ( [ 24, 48 ] as const ).map( hours => (
+                                  <button key={ hours } type="button" className={ weatherHours === hours ? 'is-active' : '' } aria-pressed={ weatherHours === hours } onClick={ () => setWeatherHours( hours ) }>
+                                    { hours }h
+                                  </button>
+                                ) ) }
+                              </div>
+                            </div>
+                            <div className="vl-live-air-forecast-strip" aria-label={ `Next ${weatherHours} hours weather forecast` }>
+                              { weatherHourly.slice( 0, weatherHours ).map( ( hour, idx ) => (
+                                <button key={ hour.time } type="button" className={ `vl-live-air-forecast-card ${weatherHourInspectIdx === idx ? 'is-active' : ''}`.trim() } aria-pressed={ weatherHourInspectIdx === idx } onClick={ () => setWeatherHourInspectIdx( weatherHourInspectIdx === idx ? null : idx ) }>
+                                  <span>{ idx === 0 ? 'Now' : formatHistoryPointLabel( hour.time, locationTime.timeZoneId, locationZoneLabel ) }</span>
+                                  { Number.isFinite( hour.temp ) && <strong data-wc-no-translate="true">{ hour.temp }°</strong> }
+                                  { hour.condition && <small>{ hour.condition }</small> }
+                                  { Number.isFinite( hour.rainProb ) && <small data-wc-no-translate="true">Rain { hour.rainProb }%</small> }
+                                </button>
+                              ) ) }
+                            </div>
+                            { weatherHourInspectIdx != null && weatherHourly[ weatherHourInspectIdx ] && (
+                              <div className="vl-live-air-forecast-detail">
+                                { ( () => {
+                                  const h = weatherHourly[ weatherHourInspectIdx ];
+                                  const bits: { k: string; v: string }[] = [];
+                                  if ( Number.isFinite( h.feelsLike ) ) bits.push( { k: 'Feels', v: `${h.feelsLike}°` } );
+                                  if ( Number.isFinite( h.humidity ) ) bits.push( { k: 'Humidity', v: `${h.humidity}%` } );
+                                  if ( Number.isFinite( h.rainMm ) ) bits.push( { k: 'Rain', v: `${h.rainMm} mm` } );
+                                  if ( Number.isFinite( h.stormProb ) && ( h.stormProb as number ) > 0 ) bits.push( { k: 'Storm', v: `${h.stormProb}%` } );
+                                  if ( Number.isFinite( h.windSpeed ) ) bits.push( { k: 'Wind', v: `${h.windSpeed} ${h.windUnit || 'km/h'}${h.windDir ? ` ${h.windDir}` : ''}` } );
+                                  if ( Number.isFinite( h.windGust ) ) bits.push( { k: 'Gust', v: `${h.windGust} ${h.windUnit || 'km/h'}` } );
+                                  if ( Number.isFinite( h.uv ) ) bits.push( { k: 'UV', v: `${h.uv}` } );
+                                  if ( Number.isFinite( h.visibilityKm ) ) bits.push( { k: 'Visibility', v: `${h.visibilityKm} km` } );
+                                  if ( Number.isFinite( h.pressureHpa ) ) bits.push( { k: 'Pressure', v: `${h.pressureHpa} mb` } );
+                                  if ( Number.isFinite( h.cloudCover ) ) bits.push( { k: 'Cloud', v: `${h.cloudCover}%` } );
+                                  if ( Number.isFinite( h.dewPoint ) ) bits.push( { k: 'Dew point', v: `${h.dewPoint}°` } );
+                                  return bits.map( b => <span key={ b.k }><strong>{ b.k }</strong> <span data-wc-no-translate="true">{ b.v }</span></span> );
+                                } )() }
+                              </div>
+                            ) }
+                          </div>
+                        ) }
+
+                        {/* 10-DAY FORECAST - compact vertical rows, detail on selection. */}
+                        { weatherDaily.length > 0 && (
+                          <div className="vl-live-wx-daily">
+                            <h4 className="vl-live-air-forecast-title">10-Day Forecast</h4>
+                            <ul className="vl-live-wx-daily-list">
+                              { weatherDaily.map( ( day, idx ) => (
+                                <li key={ day.time }>
+                                  <button type="button" className={ `vl-live-wx-daily-row ${weatherDayInspectIdx === idx ? 'is-active' : ''}`.trim() } aria-expanded={ weatherDayInspectIdx === idx } onClick={ () => setWeatherDayInspectIdx( weatherDayInspectIdx === idx ? null : idx ) }>
+                                    <span className="vl-live-wx-daily-day">{ day.label }</span>
+                                    { day.condition && <span className="vl-live-wx-daily-cond">{ day.condition }</span> }
+                                    <span className="vl-live-wx-daily-temp" data-wc-no-translate="true">{ Number.isFinite( day.min ) ? `${day.min}°` : '' }{ Number.isFinite( day.min ) && Number.isFinite( day.max ) ? ' — ' : '' }{ Number.isFinite( day.max ) ? `${day.max}°` : '' }</span>
+                                    { Number.isFinite( day.rainProb ) && <span className="vl-live-wx-daily-rain" data-wc-no-translate="true">{ day.rainProb }%</span> }
+                                  </button>
+                                  { weatherDayInspectIdx === idx && (
+                                    <div className="vl-live-air-forecast-detail">
+                                      { ( () => {
+                                        const bits: { k: string; v: string }[] = [];
+                                        if ( day.nightCondition ) bits.push( { k: 'Night', v: day.nightCondition } );
+                                        if ( Number.isFinite( day.feelsLikeMin ) && Number.isFinite( day.feelsLikeMax ) ) bits.push( { k: 'Feels', v: `${day.feelsLikeMin}°–${day.feelsLikeMax}°` } );
+                                        if ( Number.isFinite( day.humidity ) ) bits.push( { k: 'Humidity', v: `${day.humidity}%` } );
+                                        if ( Number.isFinite( day.uv ) ) bits.push( { k: 'UV', v: `${day.uv}` } );
+                                        if ( Number.isFinite( day.rainMm ) ) bits.push( { k: 'Rain', v: `${day.rainMm} mm` } );
+                                        if ( Number.isFinite( day.stormProb ) && ( day.stormProb as number ) > 0 ) bits.push( { k: 'Storm', v: `${day.stormProb}%` } );
+                                        if ( Number.isFinite( day.windSpeed ) ) bits.push( { k: 'Wind', v: `${day.windSpeed} ${day.windUnit || 'km/h'}${day.windDir ? ` ${day.windDir}` : ''}` } );
+                                        if ( Number.isFinite( day.windGust ) ) bits.push( { k: 'Gust', v: `${day.windGust} ${day.windUnit || 'km/h'}` } );
+                                        return bits.map( b => <span key={ b.k }>{ b.k === 'Night' ? <><strong>{ b.k }</strong> { b.v }</> : <><strong>{ b.k }</strong> <span data-wc-no-translate="true">{ b.v }</span></> }</span> );
+                                      } )() }
+                                    </div>
+                                  ) }
+                                </li>
+                              ) ) }
+                            </ul>
+                          </div>
+                        ) }
+
+                        {/* LAST 24 HOURS - weather history with a metric toggle. */}
+                        { weatherHistory.length > 0 && (
+                          <div className="vl-live-wx-history">
+                            <div className="vl-live-air-forecast-head">
+                              <h4 className="vl-live-air-forecast-title">Last 24 Hours</h4>
+                              <div className="vl-live-air-range" role="group" aria-label="Weather history metric">
+                                { ( [ [ 'temp', 'Temp' ], [ 'rain', 'Rain' ], [ 'humidity', 'Humidity' ] ] as const ).map( ( [ metric, label ] ) => (
+                                  <button key={ metric } type="button" className={ weatherHistMetric === metric ? 'is-active' : '' } aria-pressed={ weatherHistMetric === metric } onClick={ () => setWeatherHistMetric( metric ) }>
+                                    { label }
+                                  </button>
+                                ) ) }
+                              </div>
+                            </div>
+                            <ul className="vl-live-wx-hist-strip" aria-label="Last 24 hours">
+                              { weatherHistory.map( hour => {
+                                const value = weatherHistMetric === 'temp' ? ( Number.isFinite( hour.temp ) ? `${hour.temp}°` : '' )
+                                  : weatherHistMetric === 'rain' ? ( Number.isFinite( hour.rainMm ) ? `${hour.rainMm} mm` : Number.isFinite( hour.rainProb ) ? `${hour.rainProb}%` : '' )
+                                    : ( Number.isFinite( hour.humidity ) ? `${hour.humidity}%` : '' );
+                                return (
+                                  <li key={ hour.time } className="vl-live-wx-hist-item">
+                                    <span className="vl-live-wx-hist-t" data-wc-no-translate="true">{ formatHistoryPointLabel( hour.time, locationTime.timeZoneId, locationZoneLabel ) }</span>
+                                    <span className="vl-live-wx-hist-v" data-wc-no-translate="true">{ value }</span>
+                                  </li>
+                                );
+                              } ) }
+                            </ul>
+                          </div>
+                        ) }
+
+                        { weather.currentTime && <span className="vl-live-sr-only">Weather updated for the selected place.</span> }
+                      </>
+                    ) : (
+                      <p className="vl-live-air-empty">Live weather appears here once a place is selected.</p>
+                    ) }
                   </div>
                 ) }
 
@@ -2668,9 +3067,18 @@ const VayuLokLive: React.FC = () => {
                    holds. The REAL map path below (Maps JS injection guarded by `if(!MAPS_KEY)`,
                    .vl-live-map-canvas) and every Air/Weather call are UNCHANGED. */
                 <div className="vl-live-map-placeholder" role="status">
-                  <strong>{ previewPlace.name || 'Lumpyngngad' }</strong>
+                  <strong>{ previewPlace.name || 'Shillong' }</strong>
                   { previewPlace.addr && <span>{ previewPlace.addr }</span> }
                   <p>{ mapActive ? 'Interactive map could not load' : 'Interactive map unavailable' }</p>
+                  { mapActive && mapFailed && (
+                    <button
+                      type="button"
+                      className="vl-live-map-retry"
+                      onClick={ () => { setMapFailed( false ); setMapReady( false ); setMapInitNonce( n => n + 1 ); } }
+                    >
+                      Try again
+                    </button>
+                  ) }
                 </div>
               ) : (
                 <>
@@ -2782,7 +3190,13 @@ const VayuLokLive: React.FC = () => {
         .vl-live{
           --page:#fff;--alt:#fafafa;--lime:#d1f470;--lime-hover:#c5e866;--lime-tint:rgba(209,244,112,.22);
           --green:#1a3a2a;--hair:#e5e7eb;--heading:rgba(0,0,0,.95);--body:rgba(0,0,0,.898);
-          --muted:rgba(0,0,0,.54);--status:rgba(0,0,0,.70);--panel-r:14px;--pill-r:999px;
+          --muted:rgba(0,0,0,.54);--status:rgba(0,0,0,.70);
+          /* Corner radii source from the shared homepage tokens (src/styles/tokens.css) so
+             VayuLok's cards, controls and the map shell match the rest of the site rather than
+             carrying their own hard-coded values. Fallbacks keep the component self-contained if
+             the tokens are ever absent. --panel-r (cards/panels) = --radius-xl (14px),
+             --pill-r (pills/toggles) = --radius-full. */
+          --panel-r:var(--radius-xl,14px);--pill-r:var(--radius-full,999px);
           /* Shared VayuLok UI system, pinned to the homepage card/body ladder. */
           --vl-card-heading-size:22px;--vl-card-heading-weight:700;--vl-card-heading-lh:1.27;--vl-card-heading-track:-.25px;
           --vl-body-size:20px;--vl-body-weight:400;--vl-body-lh:1.4;--vl-body-track:-.125px;
@@ -2806,7 +3220,7 @@ const VayuLokLive: React.FC = () => {
            inset so it clears Google's bottom-left logo and bottom-right legal notices.
            Scrollable so a long pollutant list never spills past the map. NO red. */
         .vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/1;align-self:start;justify-self:start;width:min(416px,calc(100% - 32px));margin:16px 0 112px 16px;filter:drop-shadow(0 8px 18px rgba(26,58,42,.10))}
-        .vl-live-air-card{position:relative;width:100%;overflow:visible;padding:24px;border:1px solid var(--hair);border-radius:14px;background:#fff;box-shadow:none;color:var(--body)}
+        .vl-live-air-card{position:relative;width:100%;overflow:visible;padding:24px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;box-shadow:none;color:var(--body)}
 
         .vl-live-air-context{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 18px;padding:0 0 16px;border-bottom:1px solid var(--hair)}
         .vl-live-air-context-item{display:inline-flex;min-width:0;align-items:center;gap:9px;color:var(--status);font-size:12px;line-height:1.25}
@@ -2838,9 +3252,10 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-aqi-unit{display:block;margin-top:4px;color:var(--muted);font-size:10.5px;font-weight:700;line-height:1;letter-spacing:.08em;text-transform:uppercase}
         .vl-live-air-gauge-meta{min-width:0}
         .vl-live-air-gauge-word{display:block;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
-        .vl-live-air-summary-meta{display:flex;flex-wrap:wrap;align-items:center;gap:5px 10px;margin-top:8px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
-        .vl-live-air-summary-meta span+span::before{content:"·";margin-right:10px;color:rgba(0,0,0,.28)}
+        .vl-live-air-summary-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
         .vl-live-air-summary-meta strong{color:var(--status);font-weight:700}
+        .vl-live-air-summary-chip{display:inline-flex;align-items:center;gap:5px}
+        .vl-live-air-summary-icon{flex:0 0 16px;width:16px;height:16px;padding:2px;border-radius:50%;background:var(--lime);fill:var(--green)}
 
         .vl-live-air-pollutants,.vl-live-air-heatmap,.vl-live-air-forecast,.vl-live-air-health,.vl-live-air-history{margin-top:var(--vl-section-gap);padding-top:var(--vl-section-pad);border-top:1px solid var(--hair)}
         .vl-live-air-pollutants-title,.vl-live-air-heatmap-label,.vl-live-air-forecast-title,.vl-live-air-health-title,.vl-live-air-history-title{display:block;margin:0;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track);padding-left:10px;border-left:3px solid var(--lime)}
@@ -2850,7 +3265,7 @@ const VayuLokLive: React.FC = () => {
            frame; the first/last rows round their own outer corners so the row fills still
            follow the frame now that the list no longer clips them. No scrollbar colour and
            no scrollbar hider are introduced here (the card keeps only scrollbar-width:thin). */
-        .vl-live-air-pollutant-list{margin:0;padding:0;list-style:none;border:1px solid var(--hair);border-radius:12px;overflow:visible}
+        .vl-live-air-pollutant-list{margin:0;padding:0;list-style:none;border:1px solid var(--hair);border-radius:var(--radius-lg,12px);overflow:visible}
         .vl-live-air-pollutant-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(118px,auto) var(--vl-action-size);align-items:center;gap:var(--vl-content-gap);padding:14px 14px;background:#fff;border-left:2px solid transparent;transition:background .15s ease,border-color .15s ease}
         .vl-live-air-pollutant-row:first-child{border-top-left-radius:11px;border-top-right-radius:11px}
         .vl-live-air-pollutant-row:last-child{border-bottom-left-radius:11px;border-bottom-right-radius:11px}
@@ -2879,11 +3294,27 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-health-page-btn:hover:not(:disabled),
         .vl-live-air-health-tab:hover,
         .vl-live-air-history-nav button:hover:not(:disabled){background:var(--lime-hover);color:var(--green);border:0;box-shadow:0 6px 14px rgba(26,58,42,.16);transform:translateY(-2px) scale(1.04)}
+        /* ONE keyboard-focus ring for every VayuLok interactive control, using the site's green
+           outline. :focus-visible means mouse users do not get a ring, only keyboard/AT users.
+           Covers the Air/Weather tabs, the heatmap metric + On/Off controls, the forecast and
+           history range controls, the history prev/next, pollutant info buttons, the history
+           chart (made focusable below), and the search input + its options. */
+        /* ONE keyboard-focus ring for every VayuLok interactive control, using the site's green
+           outline. :focus-visible means mouse users do not get a ring, only keyboard/AT users.
+           Covers the Air/Weather tabs, the heatmap metric + On/Off controls (metric buttons live
+           inside .vl-live-air-range), the forecast and history range controls, the history
+           prev/next, pollutant info buttons, the history chart (made focusable below) and the
+           search options. The search input keeps its own underline+ring rule further down. */
         .vl-live-air-pollutant-info:focus-visible,
         .vl-live-air-heatmap-switch:focus-visible,
         .vl-live-air-pollutant-pop-close:focus-visible,
         .vl-live-air-health-page-btn:focus-visible,
         .vl-live-air-health-tab:focus-visible,
+        .vl-live-air-toggle-btn:focus-visible,
+        .vl-live-air-range button:focus-visible,
+        .vl-live-air-forecast-card:focus-visible,
+        .vl-live-map-retry:focus-visible,
+        .vl-live-air-history-chart:focus-visible,
         .vl-live-air-history-nav button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
         .vl-live-air-pollutant-info svg,
         .vl-live-air-heatmap-switch svg,
@@ -2898,7 +3329,7 @@ const VayuLokLive: React.FC = () => {
         /* Fixed sibling OUTSIDE the scrollable Air card: white home-page surface, compact copy,
            viewport-clamped position and an explicit close affordance. Lime is an accent only,
            never the popup background. The directional notch is shape-only reference language. */
-        .vl-live-air-pollutant-tip{position:fixed;z-index:2200;width:min(320px,calc(100vw - 24px));max-height:min(240px,calc(100dvh - 24px));overflow:auto;padding:16px;border:1px solid var(--hair);border-top:3px solid var(--lime);border-radius:14px;background:#fff;color:var(--body);box-shadow:0 14px 34px rgba(26,58,42,.16);font-size:13px;line-height:1.42;text-align:left}
+        .vl-live-air-pollutant-tip{position:fixed;z-index:2200;width:min(320px,calc(100vw - 24px));max-height:min(240px,calc(100dvh - 24px));overflow:auto;padding:16px;border:1px solid var(--hair);border-top:3px solid var(--lime);border-radius:var(--panel-r);background:#fff;color:var(--body);box-shadow:0 14px 34px rgba(26,58,42,.16);font-size:13px;line-height:1.42;text-align:left}
         .vl-live-air-pollutant-tip::before{content:"";position:absolute;width:12px;height:12px;background:#fff}
         .vl-live-air-pollutant-tip.is-right::before{left:-7px;top:30px;transform:rotate(45deg);border-left:1px solid var(--hair);border-bottom:1px solid var(--hair)}
         .vl-live-air-pollutant-tip.is-left::before{right:-7px;top:30px;transform:rotate(45deg);border-top:1px solid var(--hair);border-right:1px solid var(--hair)}
@@ -2936,14 +3367,58 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-forecast-strip::-webkit-scrollbar{display:none}
         .vl-live-air-forecast-card{display:flex;flex:0 0 122px;scroll-snap-align:start;flex-direction:column;align-items:flex-start;gap:4px;padding:10px;border:1px solid var(--hair);border-radius:10px;background:#fff;color:var(--body);text-align:left}
         .vl-live-air-forecast-card:hover,.vl-live-air-forecast-card.is-active{border-color:var(--lime);background:var(--lime-tint)}
+        /* LOADING skeleton: light shimmer cards while forecast:lookup is in flight. */
+        .vl-live-air-forecast-card.is-skeleton{min-height:62px;background:linear-gradient(90deg,#f4f5f1 25%,#ececec 37%,#f4f5f1 63%);background-size:400% 100%;border-color:var(--hair);animation:vl-live-shimmer 1.4s ease infinite}
+        @media(prefers-reduced-motion:reduce){.vl-live-air-forecast-card.is-skeleton{animation:none}}
+        @keyframes vl-live-shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
         .vl-live-air-forecast-card span{color:var(--muted);font-size:10.5px;font-weight:600;line-height:1.25}
         .vl-live-air-forecast-card strong{color:#000;font-size:15px;font-weight:700;line-height:1.2}
         .vl-live-air-forecast-card small{color:var(--status);font-size:10.5px;font-weight:600;line-height:1.3}
         .vl-live-air-forecast-detail{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:10px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.4}
         .vl-live-air-forecast-detail strong{color:var(--status);font-weight:700}
-        .vl-live-air-forecast-detail p{flex:1 0 100%;margin:2px 0 0;color:var(--body);font-size:14px;font-weight:400;line-height:1.45}
-        .vl-live-air-forecast-additional{display:flex;flex-direction:column;gap:4px}
-        .vl-live-air-forecast-additional span{display:block}
+        /* Match the rest of the card: the forecast's recommendation paragraph uses the shared
+           body-text ladder (same tokens as .vl-live-air-health-text) rather than a bespoke 14px,
+           so its font no longer looks smaller/off against the other sections. */
+        .vl-live-air-forecast-detail p{flex:1 0 100%;margin:2px 0 0;color:var(--body);font-size:var(--vl-body-size);font-weight:var(--vl-body-weight);line-height:var(--vl-body-lh);letter-spacing:var(--vl-body-track)}
+
+        /* ── WEATHER TAB ─────────────────────────────────────────────────────────
+           Reuses the Air panel's section headings, range pills and forecast strip/detail; these
+           rules add only the pieces specific to Weather (the current hero, the metric grid, the
+           10-day rows, the history strip, the alerts block). Same tokens, no red. */
+        .vl-live-wx-now{display:flex;flex-direction:column;gap:6px;margin-bottom:var(--vl-section-gap)}
+        .vl-live-wx-now-head{display:flex;align-items:center;gap:12px}
+        .vl-live-wx-now-icon{width:52px;height:52px;flex:0 0 52px;object-fit:contain}
+        .vl-live-wx-now-temp{display:block;color:#000;font-size:40px;font-weight:700;line-height:1;letter-spacing:-1px}
+        .vl-live-wx-now-cond{display:block;margin-top:2px;color:var(--status);font-size:15px;font-weight:600}
+        .vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:12.5px;font-weight:600}
+        .vl-live-wx-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin:0 0 var(--vl-section-gap);padding:0;list-style:none;border:1px solid var(--hair);border-radius:var(--radius-lg,12px);overflow:hidden;background:var(--hair)}
+        .vl-live-wx-grid-item{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:10px 12px;background:#fff}
+        .vl-live-wx-grid-k{color:var(--muted);font-size:12px;font-weight:600}
+        .vl-live-wx-grid-v{color:#000;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+        .vl-live-wx-daily{margin-top:var(--vl-section-gap)}
+        .vl-live-wx-daily-list{margin:var(--vl-heading-gap) 0 0;padding:0;list-style:none}
+        .vl-live-wx-daily-row{display:grid;grid-template-columns:60px 1fr auto auto;align-items:center;gap:10px;width:100%;min-height:40px;padding:8px 10px;border:0;border-top:1px solid var(--hair);border-radius:0;background:transparent;color:var(--body);text-align:left;cursor:pointer;transition:background-color .14s ease}
+        .vl-live-wx-daily-list li:first-child .vl-live-wx-daily-row{border-top:0}
+        .vl-live-wx-daily-row:hover,.vl-live-wx-daily-row.is-active{background:var(--lime-tint)}
+        .vl-live-wx-daily-day{font-weight:700;color:#000}
+        .vl-live-wx-daily-cond{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:12px}
+        .vl-live-wx-daily-temp{font-weight:700;font-variant-numeric:tabular-nums;color:#000;font-size:13px}
+        .vl-live-wx-daily-rain{color:var(--status);font-size:11.5px;font-weight:600}
+        .vl-live-wx-history{margin-top:var(--vl-section-gap)}
+        .vl-live-wx-hist-strip{display:flex;gap:8px;margin:var(--vl-heading-gap) 0 0;padding:0 0 6px;overflow-x:auto;list-style:none;scrollbar-width:none}
+        .vl-live-wx-hist-strip::-webkit-scrollbar{display:none}
+        .vl-live-wx-hist-item{display:flex;flex:0 0 56px;flex-direction:column;align-items:center;gap:4px;padding:8px 6px;border:1px solid var(--hair);border-radius:10px;background:#fff}
+        .vl-live-wx-hist-t{color:var(--muted);font-size:10px;font-weight:600}
+        .vl-live-wx-hist-v{color:#000;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+        .vl-live-wx-alerts{margin-top:var(--vl-section-gap)}
+        .vl-live-wx-alert{display:flex;flex-direction:column;gap:3px;margin-top:var(--vl-heading-gap);padding:12px 14px;border:1px solid var(--hair);border-left:3px solid var(--lime);border-radius:var(--radius-lg,12px);background:#fff}
+        .vl-live-wx-alert.sev-extreme,.vl-live-wx-alert.sev-severe{border-left-color:#c98a2e;background:#fdf6e9}
+        .vl-live-wx-alert.sev-moderate{border-left-color:#e8c547}
+        .vl-live-wx-alert strong{color:#000;font-size:14px;font-weight:700}
+        .vl-live-wx-alert-meta{color:var(--status);font-size:11px;font-weight:700;letter-spacing:.02em;text-transform:uppercase}
+        .vl-live-wx-alert-area{color:var(--muted);font-size:12px;font-weight:600}
+        .vl-live-wx-alert p{margin:2px 0 0;color:var(--body);font-size:13px;line-height:1.45}
+        .vl-live-wx-alert-src{color:var(--muted);font-size:11px}
 
         /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
            Icons and arrows inherit the ONE action-icon system above. The row stays horizontal;
@@ -2968,7 +3443,8 @@ const VayuLokLive: React.FC = () => {
            bubble shows the current AQI number so meaning never rests on colour alone. */
         .vl-live-air-history-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap)}
         .vl-live-air-history-head-meta{display:flex;align-items:center;gap:8px}
-        .vl-live-air-history-stamp{color:var(--muted);font-size:11.5px;font-weight:600;letter-spacing:0;white-space:nowrap}
+        .vl-live-air-history-stamp{display:flex;width:fit-content;align-items:center;gap:6px;margin:10px auto 0;padding:4px 12px;border-radius:var(--pill-r);background:var(--lime-tint);color:var(--green);font-size:11.5px;font-weight:700;letter-spacing:0;white-space:nowrap}
+        .vl-live-air-history-stamp-icon{flex:0 0 15px;width:15px;height:15px;fill:var(--green)}
         .vl-live-air-history-empty{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
         .vl-live-air-history-chart{position:relative;margin-top:0;touch-action:pan-y;cursor:crosshair}
         .vl-live-air-history-svg{display:block;width:100%;height:120px}
@@ -2994,16 +3470,19 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-sev-poor .vl-live-air-history-area{color:#e8c547}
         .vl-live-air-sev-worst .vl-live-air-history-line,.vl-live-air-sev-worst .vl-live-air-history-dot{stroke:#c98a2e}
         .vl-live-air-sev-worst .vl-live-air-history-area{color:#c98a2e}
-        .vl-live-air-history-bubble{position:absolute;top:0;transform:translateX(-50%);min-width:30px;padding:3px 8px;border:0;border-radius:999px;background:var(--lime);color:var(--green);box-shadow:0 4px 10px rgba(26,58,42,.14);font-size:11px;font-weight:700;text-align:center}
         .vl-live-air-history-nav{display:flex;align-items:center;gap:6px}
 
-        /* FULL-BLEED MAP. The map reads edge-to-edge: no border, no rounded box. overflow:hidden
-           still clips the heatmap tiles + overlays, isolation:isolate keeps the overlay z-stack
-           contained, and the height band is unchanged. The floating .vl-live-air-card stays
-           positioned over the edge-to-edge map, while the card's bottom inset still clears
-           Google's bottom-left logo and bottom-right legal corners. */
-        .vl-live-map-shell{position:relative;display:grid;height:auto;min-height:min(620px,72svh);max-height:none;overflow:visible;background:#eef1ed;isolation:isolate;contain:layout}
-        .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%}
+        /* ROUNDED MAP SECTION. The whole map area now carries the same corner radius as the
+           surrounding cards (var(--panel-r) = the shared --radius-xl), so it no longer reads as a
+           square against the rounded floating card. The SHELL keeps overflow:visible so the
+           floating .vl-live-air-card (which insets to clear Google's logo/legal corners) is never
+           clipped; instead the radius is applied to the map's VISUAL layers that fill it
+           (canvas, placeholder, fallback, atmosphere), each with overflow:hidden, so the Google
+           tiles/overlays and loading/fallback states clip to the rounded corners. Google's logo
+           and Terms sit inset from the bottom corners and are NOT hidden. isolation:isolate keeps
+           the overlay z-stack contained; the height band is unchanged. */
+        .vl-live-map-shell{position:relative;display:grid;height:auto;min-height:min(620px,72svh);max-height:none;overflow:visible;border-radius:var(--panel-r);background:#eef1ed;isolation:isolate;contain:layout}
+        .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%;border-radius:var(--panel-r);overflow:hidden}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
 
@@ -3011,7 +3490,7 @@ const VayuLokLive: React.FC = () => {
            Clouds are soft translucent SVG masses; wind is a field of animated dashed
            streamlines; the lower-left vortex gives the storm/cyclone read from the approved
            reference. Live Google Weather values drive opacity, direction and speed. */
-        .vl-live-atmosphere{--vl-map-shift-x:0px;--vl-map-shift-y:0px;--vl-map-scale:1;position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden;mix-blend-mode:screen;transform:translate3d(var(--vl-map-shift-x),var(--vl-map-shift-y),0) scale(var(--vl-map-scale));transform-origin:50% 50%;will-change:transform}
+        .vl-live-atmosphere{--vl-map-shift-x:0px;--vl-map-shift-y:0px;--vl-map-scale:1;position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden;border-radius:var(--panel-r);mix-blend-mode:screen;transform:translate3d(var(--vl-map-shift-x),var(--vl-map-shift-y),0) scale(var(--vl-map-scale));transform-origin:50% 50%;will-change:transform}
         .vl-live-atmosphere svg{display:block;width:100%;height:100%;overflow:visible}
         .vl-live-cloud-field{opacity:var(--vl-cloud-opacity);animation:vl-live-cloud-drift var(--vl-cloud-duration) ease-in-out infinite alternate}
         .vl-live-cloud-field ellipse{fill:rgba(255,255,255,.88)}
@@ -3033,7 +3512,9 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-placeholder strong{font-size:15px;letter-spacing:-.01em}
         .vl-live-map-placeholder span{font-size:12.5px;color:var(--muted)}
         .vl-live-map-placeholder p{margin:4px 0 0;font-size:12px;color:var(--status)}
-        .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;background:#eef1ed;color:var(--green);font-size:13px}
+        .vl-live-map-retry{margin-top:10px;min-height:36px;padding:0 16px;border:0;border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:13px;font-weight:700;cursor:pointer;transition:background-color .2s,transform .16s ease}
+        .vl-live-map-retry:hover{background:var(--lime-hover);transform:translateY(-1px)}
+        .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;border-radius:var(--panel-r);background:#eef1ed;color:var(--green);font-size:13px}
         .vl-live-map-fallback button{margin-left:8px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);padding:7px 11px}
         /* DESTINATION SEARCH is a separate page section ABOVE the map shell. Its outer
            wrapper is deliberately invisible: the only visible field chrome is the same
@@ -3048,12 +3529,21 @@ const VayuLokLive: React.FC = () => {
         .vl-live-search-field input::placeholder{color:rgba(0,0,0,.42)}
         .vl-live-search-field input::-webkit-search-cancel-button,.vl-live-search-field input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .vl-live-search-field input::-ms-clear{display:none;width:0;height:0}
-        .vl-live-search-field input:focus-visible{border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470}
-        .vl-live-search-results{position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:31;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:14px;background:#fff;box-shadow:0 10px 24px rgba(26,58,42,.14)}
-        .vl-live-search-results li{padding:10px 12px;border-radius:10px;cursor:pointer}
-        .vl-live-search-results li[aria-selected="true"]{background:var(--lime-tint)}
+        /* LIGHT, MINIMAL FOCUS. No heavy rectangular outline around the whole field - just a
+           thin dark-green bottom border with a subtle lime accent line, matching the site's
+           modern search treatment. Keyboard focus stays clearly visible. */
+        .vl-live-search-field input:focus-visible{outline:none;border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 var(--lime)}
+        .vl-live-search-results{position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:31;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;box-shadow:0 10px 24px rgba(26,58,42,.14)}
+        /* RESULT ROWS: clear hover + keyboard-selected states with a soft lime background and a
+           smooth 140ms transition. A small location glyph leads each row, matching the air card's
+           icon idiom; no heavy shadow, no oversized card. */
+        .vl-live-search-results li{display:flex;align-items:flex-start;gap:9px;padding:10px 12px;border-radius:10px;cursor:pointer;transition:background-color .14s ease}
+        .vl-live-search-results li:hover,.vl-live-search-results li[aria-selected="true"]{background:var(--lime-tint)}
+        .vl-live-search-results li[aria-selected="true"]{box-shadow:inset 2px 0 0 var(--lime)}
+        .vl-live-search-result-icon{flex:0 0 16px;width:16px;height:16px;margin-top:2px;fill:var(--green);opacity:.72}
+        .vl-live-search-result-text{min-width:0}
         .vl-live-search-results strong,.vl-live-search-results span{display:block}
-        .vl-live-search-results strong{font-size:15px;font-weight:700;color:var(--heading)}
+        .vl-live-search-results strong{font-size:15px;font-weight:800;color:var(--heading);letter-spacing:-.1px}
         .vl-live-search-results span{margin-top:3px;font-size:12px;color:var(--muted)}
         .vl-live-search-status{margin:8px 2px 0;font-size:11px;color:var(--muted)}
         @media(max-width:1050px){

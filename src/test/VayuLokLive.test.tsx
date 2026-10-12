@@ -3,19 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 /* ---------------------------------------------------------------------------------------
-   deck.gl DYNAMIC-IMPORT MOCKS (FEAT-002)
+   deck.gl REGRESSION GUARD (formerly FEAT-002 dynamic-import mocks)
    ---------------------------------------------------------------------------------------
-   The component imports the deck.gl overlay + scatter layer DYNAMICALLY, inside the
-   layer-activation effect:
-       const { GoogleMapsOverlay } = await import( '@deck.gl/google-maps' );
-       const { ScatterplotLayer }  = await import( '@deck.gl/layers' );
-   so they stay out of SSR / the initial bundle and are NEVER loaded on the no-key
-   honest-degradation path. These vi.mock factories replace both packages with fakes that
-   RECORD what the component does: which map the overlay is attached to (setMap), what
-   layers it is given (setProps), and the props each ScatterplotLayer receives (so a test
-   can read back the fill colours and the real point data). vi.mock is hoisted and survives
-   vi.resetModules(), so every freshly re-imported component instance gets these fakes. The
-   shared recorder is created with vi.hoisted so the factory may reference it safely. */
+   The component NO LONGER imports deck.gl: both the AQI and PM2.5 heatmaps are Google
+   ImageMapType tile overlays, and the old GoogleMapsOverlay/ScatterplotLayer dot-grid path
+   (plus its grid fetch/cache) has been removed. These vi.mock factories and the recorder are
+   kept as a REGRESSION GUARD: the component must never attach a deck.gl overlay, which the
+   assertions `deckRec.overlaySetMapCalls.some(Boolean) === false` verify. If deck.gl is ever
+   reintroduced the recorder will capture it; if these packages are later removed from the
+   dependency tree, delete this block and those two assertions together. */
 const deckRec = vi.hoisted( () => ( {
   overlaySetMapCalls: [] as unknown[],   // every arg passed to overlay.setMap(...)
   overlaySetPropsCalls: [] as { layers: unknown[] }[],
@@ -69,6 +65,32 @@ function matchesVayuLokRamp( fill: [ number, number, number, number ] ): boolean
   return Object.values( VAYULOK_AQI_FILLS ).some(
     ramp => ramp[ 0 ] === fill[ 0 ] && ramp[ 1 ] === fill[ 1 ] && ramp[ 2 ] === fill[ 2 ],
   );
+}
+
+/* Return the declaration body ("{...}") of the rule that applies to `selector`, whether that
+   selector owns a standalone block or sits ANYWHERE inside a comma-separated group. The component
+   shares one "ONE ACTION-ICON SYSTEM" rule across several selectors (e.g.
+   .vl-live-air-health-page-btn, .vl-live-air-health-tab, .vl-live-air-history-nav button{...}),
+   so a naive /\.selector\{[^}]*\}/ match returns '' for every grouped selector except the one
+   that happens to sit immediately before the '{'. This walks every "<selector-list>{<body>}" rule
+   and returns the body of the first whose comma-separated selector list contains the exact
+   target, so it is robust to grouping and to the selector's position within the group. */
+function cssRuleFor( css: string, selector: string ): string {
+  const target = selector.trim();
+  // Strip CSS comments first so a /* ... */ before a grouped rule cannot be swallowed into the
+  // preceding selector list and shift which "{...}" block a selector is attributed to.
+  const clean = css.replace( /\/\*[\s\S]*?\*\//g, '' );
+  const ruleRe = /([^{}]+)\{([^}]*)\}/g;
+  const bodies: string[] = [];
+  let m: RegExpExecArray | null;
+  while ( ( m = ruleRe.exec( clean ) ) ) {
+    const selectors = m[ 1 ].split( ',' ).map( s => s.trim() );
+    if ( selectors.includes( target ) ) bodies.push( m[ 2 ] );
+  }
+  // A selector may legitimately appear in several grouped rules (base + :hover + transition…);
+  // joining every matching body lets a single toContain() assertion find a declaration wherever
+  // the component chose to place it, without caring about grouping order.
+  return bodies.join( ';' );
 }
 
 /**
@@ -325,7 +347,13 @@ let rec: MapsRecorder;
 async function selectMumbai() {
   const input = await screen.findByRole( 'combobox' );
   fireEvent.change( input, { target: { value: 'Mumbai' } } );
-  fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+  // The suggestion <li> commits the selection on `onPointerDown` (pointer events are the
+  // component's chosen interaction so a touch/mouse tap recentres before blur closes the
+  // list). fireEvent.mouseDown dispatches a `mousedown` event, which never invokes a React
+  // `onPointerDown` handler, so `choose()` never ran and fitBounds was never called - this is
+  // what left every selectMumbai()-driven test timing out. Fire pointerDown to match the DOM
+  // contract, exactly as the standalone selection test at the bottom of this file already does.
+  fireEvent.pointerDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
   await waitFor( () => expect( rec.fitBoundsCalls.length ).toBeGreaterThan( 0 ) );
 }
 
@@ -647,15 +675,20 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( panel.querySelector( '.vl-live-air-aqi-spine' ) ).not.toBeNull();
     expect( panel.querySelector( '.vl-live-air-gauge-svg' ) ).toBeNull();
     expect( panel.querySelector( '.vl-live-air-gauge-arc' ) ).toBeNull();
-    // AQI metadata is one quiet row under the homepage-scale category heading:
-    // index name + dominant pollutant + update age, with no pills or competing glyphs.
+    // AQI metadata is one quiet row under the homepage-scale category heading: an "AQI <n>"
+    // chip and a "Dominant <pollutant>" chip, each with a leading Material icon, plus the
+    // update age. The index-name ("India CPCB AQI"/"NAQI") and the Universal AQI line were
+    // intentionally removed so the row reads AQI + Dominant only.
     const summaryMeta = panel.querySelector( '.vl-live-air-summary-meta' );
-    expect( summaryMeta?.textContent ).toContain( 'India CPCB AQI' );
+    expect( summaryMeta?.textContent ).toContain( 'AQI' );
+    expect( summaryMeta?.textContent ).not.toContain( 'India CPCB AQI' );
+    expect( summaryMeta?.textContent ).not.toContain( 'Universal AQI' );
     expect( summaryMeta?.textContent ).toContain( 'Dominant' );
     expect( summaryMeta?.textContent ).toContain( 'PM2.5' );
     expect( summaryMeta?.textContent ).not.toContain( 'pm25' );
     expect( summaryMeta?.textContent ).toMatch( /Updated/ );
-    expect( summaryMeta?.querySelector( 'svg' ) ).toBeNull();
+    // The AQI and Dominant chips now each carry a leading icon.
+    expect( summaryMeta?.querySelectorAll( '.vl-live-air-summary-chip svg' ).length ).toBe( 2 );
     expect( panel.querySelector( '.vl-live-air-dominant' ) ).toBeNull();
     expect( panel.querySelector( '.vl-live-air-index-name' ) ).toBeNull();
     expect( panel.querySelector( '.vl-live-air-fact' ) ).toBeNull();
@@ -727,6 +760,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( pm10Tip?.textContent ).toMatch( /\d/ );
     expect( pm10Tip?.textContent ).not.toContain( 'Sources' );
     expect( pm10Tip?.textContent ).not.toContain( 'Effects' );
+    fireEvent.blur( pm10Info );
+
+    // The unit symbol carries a plain-language expansion as a title, so a reader who does not
+    // know the abbreviation can still understand it (µg/m³ -> micrograms per cubic metre).
+    const pm25Unit = firstRow.querySelector( '.vl-live-air-pollutant-value small' );
+    expect( pm25Unit?.getAttribute( 'title' ) ).toBe( 'micrograms per cubic metre' );
 
     // NO RED anywhere in the rendered card markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
@@ -742,9 +781,111 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( airTab ).toHaveAttribute( 'aria-selected', 'false' );
     const weatherPanel = container.querySelector( '[aria-label="Weather details"]' );
     expect( weatherPanel ).not.toBeNull();
-    expect( weatherPanel?.textContent ).toMatch( /coming soon/i );
+    // The Weather tab now renders the real current-conditions dashboard from the already-fetched
+    // weather data (environmentFetch returns 26°, feels 27, humidity 68, "Mostly sunny").
+    await waitFor( () => {
+      expect( weatherPanel?.querySelector( '.vl-live-wx-now-temp' )?.textContent ).toContain( '26°' );
+    } );
+    expect( weatherPanel?.querySelector( '.vl-live-wx-now-cond' )?.textContent ).toContain( 'Mostly sunny' );
+    expect( weatherPanel?.textContent ).not.toMatch( /coming soon/i );
     // The Air panel is no longer shown while Weather is selected.
     expect( container.querySelector( '[aria-label="Air details"]' ) ).toBeNull();
+  } );
+
+  it( 'renders the full Weather dashboard (metrics grid, hourly, 10-day, 24h history, neutral alerts)', async () => {
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
+    const panel = await waitFor( () => {
+      const el = container.querySelector( '[aria-label="Weather details"]' );
+      expect( el?.querySelector( '.vl-live-wx-now-temp' ) ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+
+    // Current metrics grid shows only returned fields.
+    expect( panel.querySelector( '.vl-live-wx-grid' ) ).not.toBeNull();
+    expect( panel.textContent ).toContain( 'Humidity' );
+    expect( panel.textContent ).toContain( 'Wind' );
+    // Hourly forecast strip with 24h/48h range.
+    expect( panel.querySelector( '.vl-live-air-forecast-strip' ) ).not.toBeNull();
+    expect( within( panel ).getByRole( 'group', { name: 'Weather forecast range' } ) ).toBeTruthy();
+    // 10-day rows.
+    expect( panel.querySelector( '.vl-live-wx-daily-row' ) ).not.toBeNull();
+    // 24h history with a metric toggle.
+    expect( within( panel ).getByRole( 'group', { name: 'Weather history metric' } ) ).toBeTruthy();
+    // Alerts: India has no coverage, so the neutral line shows (not an empty noisy panel).
+    expect( panel.textContent ).toContain( 'No active weather or hazard alerts' );
+    // No publicAlerts request was made for India.
+    expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
+    // Raw temperature value carries data-wc-no-translate (keeps numbers honest under translation).
+    expect( panel.querySelector( '.vl-live-wx-now-temp' )?.getAttribute( 'data-wc-no-translate' ) ).toBe( 'true' );
+    // NO RED.
+    expect( container.innerHTML ).not.toContain( 'dc2626' );
+  } );
+
+  it( 'renders pollutant concentrations faithfully: a real 0.4 stays 0.4, 0.04 stays 0.04, exact 0 stays 0', async () => {
+    // Google returns precise concentrations. Blindly rounding a real trace (0.4) to "0" would read
+    // as "no pollutant" and misrepresent the measurement, so sub-1 values keep their significant
+    // decimals (0.4 ppb -> "0.4 ppb", 0.04 ppm -> "0.04 ppm") rather than being flattened to 0 or
+    // an invented "<1"; a genuine 0 stays "0"; values >= 1 round to an integer.
+    const traceFetch = vi.fn( ( input: RequestInfo | URL ) => {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
+        return Promise.resolve( {
+          ok: true,
+          json: async () => ( {
+            dateTime: new Date().toISOString(),
+            indexes: [ { code: 'ind_cpcb', displayName: 'India CPCB AQI', aqi: 41, category: 'Good', dominantPollutant: 'co' } ],
+            pollutants: [
+              { code: 'no2', displayName: 'NO2', concentration: { value: 0, units: 'PARTS_PER_BILLION' } },
+              { code: 'so2', displayName: 'SO2', concentration: { value: 0.4, units: 'PARTS_PER_BILLION' } },
+              { code: 'co', displayName: 'CO', concentration: { value: 0.04, units: 'PARTS_PER_MILLION' } },
+              { code: 'pm25', displayName: 'PM2.5', concentration: { value: 32, units: 'MICROGRAMS_PER_CUBIC_METER' } },
+            ],
+          } ),
+        } as Response );
+      }
+      return Promise.resolve( { ok: true, json: async () => ( {} ) } as Response );
+    } );
+    vi.stubGlobal( 'fetch', traceFetch );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    const rows = await waitFor( () => {
+      const found = container.querySelectorAll( '.vl-live-air-pollutant-row' );
+      expect( found.length ).toBeGreaterThan( 0 );
+      return found;
+    } );
+    const valueOf = ( label: string ) => Array.from( rows )
+      .find( r => ( r.querySelector( '.vl-live-air-pollutant-label' )?.textContent ?? '' ).includes( label ) )
+      ?.querySelector( '.vl-live-air-pollutant-value' )?.textContent?.trim() ?? '';
+    expect( valueOf( 'NO2' ) ).toMatch( /^0\s/ );        // exact zero stays 0
+    expect( valueOf( 'SO2' ) ).toContain( '0.4' );         // real trace preserved, not rounded to 0
+    expect( valueOf( 'SO2' ) ).not.toContain( '<1' );      // and NOT replaced by a placeholder
+    expect( valueOf( 'CO' ) ).toContain( '0.04' );         // two significant decimals preserved
+    expect( valueOf( 'PM2.5' ) ).toMatch( /^32\s/ );
+  } );
+
+  it( 'links the search combobox to its active option via aria-activedescendant', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const input = await screen.findByRole( 'combobox' );
+    // No active option before any results, so no activedescendant is advertised.
+    expect( input.getAttribute( 'aria-activedescendant' ) ).toBeFalsy();
+    fireEvent.change( input, { target: { value: 'Mumbai' } } );
+    const option = await screen.findByRole( 'option', { name: /Mumbai/i } );
+    await waitFor( () =>
+      expect( input.getAttribute( 'aria-activedescendant' ) ).toBe( option.id ) );
+    expect( option.id ).toMatch( /^vl-live-search-option-\d+$/ );
   } );
 
   it( 'adds a heatmap toggle, Poor/Excellent legend, health persona tablist and an hourly-history chart to the Air panel', async () => {
@@ -845,9 +986,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( container.querySelector( '.vl-live-air-health-page-count' ) ).toBeNull();
 
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
-    const healthBtnRule = css.match( /\.vl-live-air-health-page-btn\{[^}]*\}/ )?.[ 0 ] || '';
-    const healthTabRule = css.match( /\.vl-live-air-health-tab\{[^}]*\}/ )?.[ 0 ] || '';
-    const historyBtnRule = css.match( /\.vl-live-air-history-nav button\{[^}]*\}/ )?.[ 0 ] || '';
+    const healthBtnRule = cssRuleFor( css, '.vl-live-air-health-page-btn' );
+    const healthTabRule = cssRuleFor( css, '.vl-live-air-health-tab' );
+    const historyBtnRule = cssRuleFor( css, '.vl-live-air-history-nav button' );
     expect( healthBtnRule ).toContain( 'width:var(--vl-action-size)' );
     expect( healthBtnRule ).toContain( 'height:var(--vl-action-size)' );
     expect( healthBtnRule ).toContain( 'border-radius:50%' );
@@ -910,16 +1051,25 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( el ).not.toBeNull();
       return el as HTMLElement;
     } );
-    expect( chart.getAttribute( 'role' ) ).toBe( 'img' );
+    // The chart is a keyboard-operable slider over the history points: focusable, with
+    // aria-value* describing the inspected position.
+    expect( chart.getAttribute( 'role' ) ).toBe( 'slider' );
+    expect( chart.getAttribute( 'tabindex' ) ).toBe( '0' );
     expect( chart.getAttribute( 'aria-label' ) ).toMatch( /AQI history/ );
-    expect( chart.getAttribute( 'aria-label' ) ).toMatch( /current 72/ );
-    expect( container.querySelector( '.vl-live-air-history-stamp' )?.textContent ).toMatch( /IST/ );
-    const historyBubble = container.querySelector( '.vl-live-air-history-bubble' );
-    expect( historyBubble?.textContent ).toBe( '72' );
-    const bubbleRule = css.match( /\.vl-live-air-history-bubble\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( bubbleRule ).toContain( 'background:var(--lime)' );
-    expect( bubbleRule ).toContain( 'border:0' );
-    expect( bubbleRule ).toContain( 'border-radius:999px' );
+    expect( chart.getAttribute( 'aria-valuetext' ) ).toMatch( /AQI \d+/ );
+    // The reading date/time moved out of the header and below the chart, styled as a lime-tinted
+    // pill with a leading clock icon in the site accent colour; the on-chart AQI value bubble was
+    // removed (the chart no longer prints the raw number).
+    const historyStamp = container.querySelector( '.vl-live-air-history-stamp' );
+    expect( historyStamp?.textContent ).toMatch( /IST/ );
+    expect( historyStamp?.querySelector( '.vl-live-air-history-stamp-icon' ) ).not.toBeNull();
+    expect( container.querySelector( '.vl-live-air-history-bubble' ) ).toBeNull();
+    const stampRule = css.match( /\.vl-live-air-history-stamp\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( stampRule ).toContain( 'background:var(--lime-tint)' );
+    expect( stampRule ).toContain( 'color:var(--green)' );
+    expect( stampRule ).toContain( 'border-radius:var(--pill-r)' );
+    // It sits below the chart, not inside the header row.
+    expect( container.querySelector( '.vl-live-air-history-head .vl-live-air-history-stamp' ) ).toBeNull();
     const historyNav = container.querySelector( '.vl-live-air-history-head .vl-live-air-history-nav' );
     expect( historyNav ).not.toBeNull();
     expect( historyNav?.querySelectorAll( 'button' ) ).toHaveLength( 2 );
@@ -927,17 +1077,41 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( svg.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
     } );
 
-    // Hover/tap inspection exposes a specific hour + AQI while the current lime marker stays.
-    expect( chart.getAttribute( 'aria-label' ) ).toContain( 'Hover or tap the chart to inspect an hour.' );
+    // Pointer inspection surfaces the specific hour's local time (the visible tooltip shows only
+    // the time; the AQI is carried in the chart's aria-valuetext and the sr-only live region).
+    expect( chart.getAttribute( 'aria-label' ) ).toContain( 'Use arrow keys to inspect an hour.' );
     fireEvent.pointerDown( chart, { clientX: 0, pointerType: 'touch' } );
     await waitFor( () => expect( container.querySelector( '.vl-live-air-history-inspect' ) ).not.toBeNull() );
     const inspect = container.querySelector( '.vl-live-air-history-inspect' );
-    expect( inspect?.textContent ).toMatch( /AQI \d+/ );
     expect( inspect?.textContent ).toMatch( /IST/ );
-    expect( container.querySelector( '.vl-live-air-history-bubble' )?.textContent ).toBe( '72' );
+    expect( inspect?.textContent ).not.toMatch( /AQI \d+/ );
+    expect( container.querySelector( '.vl-live-air-history-bubble' ) ).toBeNull();
+
+    // Keyboard inspection: focusing the chart and pressing Home jumps to the oldest hour and the
+    // slider announces an AQI through aria-valuetext.
+    chart.focus();
+    fireEvent.keyDown( chart, { key: 'Home' } );
+    await waitFor( () => expect( chart.getAttribute( 'aria-valuenow' ) ).toBe( '0' ) );
+    expect( chart.getAttribute( 'aria-valuetext' ) ).toMatch( /AQI \d+/ );
 
     // NO RED anywhere in the three new sections' markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
+  } );
+
+  it( 'does not render a "Use my location" control or trigger browser geolocation', async () => {
+    // VayuLok no longer depends on browser geolocation permission; the primary location
+    // interaction is city/place/pincode search. There must be no geolocation button and the
+    // component must never call navigator.geolocation.
+    const getCurrentPosition = vi.fn();
+    vi.stubGlobal( 'navigator', { ...navigator, geolocation: { getCurrentPosition } } );
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    expect( screen.queryByRole( 'button', { name: 'Use my location' } ) ).toBeNull();
+    expect( screen.queryByText( /Location permission denied/ ) ).toBeNull();
+    expect( getCurrentPosition ).not.toHaveBeenCalled();
   } );
 
   it( 'shows IST by default and resolves selected-place local time through Google Time Zone API', async () => {
@@ -958,9 +1132,19 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     await selectMumbai();
 
+    // The component resolves local time for its initial default place (Shillong, 25.5788,91.8933)
+    // AND again for the selected place, so there are TWO timezone calls. Match the one for
+    // Mumbai's coordinates rather than the first call, which would be the default-place lookup.
     const tzCall = await waitFor( () => {
-      const call = fetchSpy.mock.calls.find( call =>
-        requestIs( call[ 0 ] as RequestInfo | URL, 'maps.googleapis.com', '/maps/api/timezone/json' ) );
+      const call = fetchSpy.mock.calls.find( call => {
+        const url = requestUrl( call[ 0 ] as RequestInfo | URL );
+        return Boolean(
+          url
+          && url.hostname === 'maps.googleapis.com'
+          && url.pathname.startsWith( '/maps/api/timezone/json' )
+          && url.searchParams.get( 'location' ) === '19.076,72.8777',
+        );
+      } );
       expect( call ).toBeTruthy();
       return call!;
     } );
@@ -1006,7 +1190,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     ] ) );
     const start = new Date( body.period.startTime ).getTime();
     const end = new Date( body.period.endTime ).getTime();
-    expect( Math.round( ( end - start ) / 3_600_000 ) ).toBe( 96 );
+    // 95 hours, NOT 96: Google's forecast:lookup rejects an exactly-96-hour period with HTTP 400
+    // ("time period is not supported"); 95h still returns ~96 hourly rows. Requesting 96h was the
+    // cause of the forecast rendering empty in production.
+    expect( Math.round( ( end - start ) / 3_600_000 ) ).toBe( 95 );
   } );
 
   it( 'requests the India CPCB local AQI (customLocalAqis ind_cpcb) on the currentConditions:lookup air call', async () => {
@@ -1050,7 +1237,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( selectedBody.extraComputations ).toContain( 'POLLUTANT_ADDITIONAL_INFO' );
     expect( selectedBody.extraComputations ).toContain( 'POLLUTANT_CONCENTRATION' );
   } );
-  it( 'surfaces Google Air forecast ranges, 30-day history and PM2.5 heatmap tiles', async () => {
+  it( 'surfaces Google Air forecast ranges, 24h/7d history (no 30d) and PM2.5 heatmap tiles', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
@@ -1068,18 +1255,29 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( forecastDetail?.textContent ).toContain( 'Dominant' );
     expect( forecastDetail?.textContent ).toContain( 'Local / Universal' );
     expect( forecastDetail?.textContent ).toContain( 'Forecast health recommendation.' );
-    expect( forecastDetail?.textContent ).toContain( 'Sources' );
-    expect( forecastDetail?.textContent ).toContain( 'Effects' );
+    // Sources/Effects were removed from the Air Forecast detail panel; they must no longer render.
+    expect( forecastDetail?.textContent ).not.toContain( 'Sources' );
+    expect( forecastDetail?.textContent ).not.toContain( 'Effects' );
 
+    // History offers only 24h and 7d now - the 30d option was removed from the UI.
     const historyRange = await screen.findByRole( 'group', { name: 'Air history range' } );
-    fireEvent.click( within( historyRange ).getByRole( 'button', { name: '30d' } ) );
+    expect( within( historyRange ).queryByRole( 'button', { name: '30d' } ) ).toBeNull();
+    expect( within( historyRange ).getByRole( 'button', { name: '24h' } ) ).toBeTruthy();
+    expect( within( historyRange ).getByRole( 'button', { name: '7d' } ) ).toBeTruthy();
+    fireEvent.click( within( historyRange ).getByRole( 'button', { name: '24h' } ) );
     await waitFor( () => {
       const calls = fetchSpy.mock.calls.filter( call => requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/history' ) );
+      // No history request should ever ask for the removed 720-hour (30-day) window.
       const has720 = calls.some( call => {
         const raw = ( call[ 1 ] as RequestInit | undefined )?.body;
         return raw ? JSON.parse( String( raw ) ).hours === 720 : false;
       } );
-      expect( has720 ).toBe( true );
+      expect( has720 ).toBe( false );
+      const has24 = calls.some( call => {
+        const raw = ( call[ 1 ] as RequestInit | undefined )?.body;
+        return raw ? JSON.parse( String( raw ) ).hours === 24 : false;
+      } );
+      expect( has24 ).toBe( true );
     } );
 
     const metric = await screen.findByRole( 'group', { name: 'Heatmap metric' } );
@@ -1093,6 +1291,74 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     } );
     expect( container.querySelector( '.vl-live-air-heatmap-legend.is-pm25' )?.textContent ).toContain( 'Higher' );
     expect( container.querySelector( '.vl-live-air-heatmap-legend.is-pm25' )?.textContent ).toContain( 'Lower' );
+  } );
+
+  it( 'shows an Air Forecast error state when forecast:lookup fails, without hiding the failure', async () => {
+    // environmentFetch but forecast:lookup returns HTTP 500 - the section must surface a concise
+    // fallback, not silently render nothing.
+    const base = environmentFetch();
+    const failingForecast = vi.fn( ( input: RequestInfo | URL, init?: RequestInit ) => {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/forecast' ) ) {
+        return Promise.resolve( { ok: false, status: 500, statusText: 'Internal Server Error', json: async () => ( {} ) } as Response );
+      }
+      return base( input, init );
+    } );
+    vi.stubGlobal( 'fetch', failingForecast );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    await waitFor( () => {
+      const forecast = container.querySelector( '.vl-live-air-forecast' );
+      expect( forecast?.textContent ).toContain( 'Air forecast is temporarily unavailable.' );
+    } );
+    // No forecast cards rendered on the error path.
+    expect( container.querySelectorAll( '.vl-live-air-forecast-card:not(.is-skeleton)' ).length ).toBe( 0 );
+  } );
+
+  it( 'shows an Air Forecast empty state when Google returns no forecast rows', async () => {
+    const base = environmentFetch();
+    const emptyForecast = vi.fn( ( input: RequestInfo | URL, init?: RequestInit ) => {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/forecast' ) ) {
+        return Promise.resolve( { ok: true, status: 200, json: async () => ( { hourlyForecasts: [] } ) } as Response );
+      }
+      return base( input, init );
+    } );
+    vi.stubGlobal( 'fetch', emptyForecast );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    await waitFor( () => {
+      const forecast = container.querySelector( '.vl-live-air-forecast' );
+      expect( forecast?.textContent ).toContain( 'Forecast unavailable for this location.' );
+    } );
+  } );
+
+  it( 'does not visibly show "Searching worldwide…" while typing, and uses a light search focus', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const input = await screen.findByRole( 'combobox' );
+    fireEvent.change( input, { target: { value: 'Mum' } } );
+    // The "Searching…" status, if present, must be the sr-only live region - never a visible
+    // helper line under the field.
+    await waitFor( () => {
+      const live = container.querySelector( '.vl-live-sr-only[role="status"]' );
+      const visibleStatus = container.querySelector( '.vl-live-search-status' );
+      // Either searching is announced sr-only, or it is already resolved; a visible
+      // "Searching worldwide…" line must never appear.
+      expect( visibleStatus?.textContent || '' ).not.toContain( 'Searching worldwide' );
+      void live;
+    } );
+
+    // Result rows carry a leading location icon and the hover/selected lime treatment.
+    const option = await screen.findByRole( 'option', { name: /Mumbai/i } );
+    expect( option.querySelector( '.vl-live-search-result-icon' ) ).not.toBeNull();
   } );
 
   it( 'does not force India CPCB custom AQI on non-India destinations', async () => {
@@ -1315,7 +1581,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const placeholder = container.querySelector( '.vl-live-map-placeholder' );
     expect( placeholder ).not.toBeNull();
     expect( placeholder?.tagName ).toBe( 'DIV' );
-    expect( placeholder?.textContent ).toContain( 'Lumpyngngad' );
+    expect( placeholder?.textContent ).toContain( 'Shillong' );
     expect( placeholder?.textContent ).toContain( 'Interactive map unavailable' );
 
     // HONEST DEGRADATION for the three new Air sections. Without a key `air` is null, so the
@@ -1383,13 +1649,21 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( inputRule ).toContain( 'font-size:16px' );
     expect( inputRule ).toContain( 'font-weight:400' );
     expect( inputRule ).toContain( 'background:transparent' );
+    // LIGHT focus treatment: a thin dark-green bottom border + a subtle lime accent line, NOT a
+    // heavy rectangular outline around the whole field.
     const inputFocus = css.match( /\.vl-live-search-field input:focus-visible\{[^}]*\}/ )?.[ 0 ] || '';
     expect( inputFocus ).toContain( 'border-bottom-color:#1a3a2a' );
-    expect( inputFocus ).toContain( '0 1px 0 0 #d1f470' );
+    expect( inputFocus ).toContain( '0 1px 0 0 var(--lime)' );
+    expect( inputFocus ).toContain( 'outline:none' );
+    expect( inputFocus ).not.toContain( 'outline:3px' );
     const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
     expect( fieldRule ).toContain( 'border-radius:0' );
+    // DECOUPLED FROM mapReady: the search box now renders on EVERY path (it no longer waits for
+    // the map to paint), so a user can search for a city/pincode even on the keyless path or if
+    // the map fails. The live #vl-live-search input is therefore present here.
     const searchInput = container.querySelector( '#vl-live-search' ) as HTMLInputElement | null;
-    expect( searchInput?.getAttribute( 'placeholder' ) ).toBe( 'Search' );
+    expect( searchInput ).not.toBeNull();
+    expect( searchInput?.getAttribute( 'placeholder' ) ).toBe( 'Search a city or pincode' );
     expect( css ).toContain( '.vl-live-search-field input::-webkit-search-cancel-button' );
     expect( css ).toContain( '-webkit-appearance:none' );
     expect( css ).toContain( '.vl-live-search-field input::-ms-clear{display:none' );
@@ -1404,25 +1678,22 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( searchWrapRule ).toContain( 'z-index:30' );
     expect( searchWrapRule ).not.toContain( 'grid-area:1/1' );
 
+    // The map region, shell AND the search surface now render on every path - search is no longer
+    // gated on mapReady, so it is usable while the map loads or if it fails.
     const searchSurface = container.querySelector( '.vl-live-map-search' );
     const mapRegion = container.querySelector( '.vl-live-map-region' );
     const mapMain = container.querySelector( '.vl-live-shell' );
     expect( searchSurface ).not.toBeNull();
     expect( mapRegion ).not.toBeNull();
     expect( mapMain ).not.toBeNull();
-    expect( mapMain?.contains( searchSurface ) ).toBe( false );
-    expect( searchSurface ).not.toBeNull();
-    expect( mapMain ).not.toBeNull();
-    if ( !searchSurface || !mapMain ) throw new Error( 'Expected search surface and map shell.' );
-    expect( searchSurface.compareDocumentPosition( mapMain ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
 
     // Pollutant info control follows the SupportWidget WhatsApp skin exactly:
     // lime surface, deep-green icon, lighter-lime hover, circular shape.
-    const infoRule = css.match( /\.vl-live-air-pollutant-info\{[^}]*\}/ )?.[ 0 ] || '';
+    const infoRule = cssRuleFor( css, '.vl-live-air-pollutant-info' );
     expect( infoRule ).toContain( 'background:var(--lime)' );
     expect( infoRule ).toContain( 'color:var(--green)' );
     expect( infoRule ).toContain( 'border-radius:50%' );
-    const infoHoverRule = css.match( /\.vl-live-air-pollutant-info:hover\{[^}]*\}/ )?.[ 0 ] || '';
+    const infoHoverRule = cssRuleFor( css, '.vl-live-air-pollutant-info:hover' );
     expect( infoHoverRule ).toContain( 'background:var(--lime-hover)' );
     expect( infoHoverRule ).toContain( 'color:var(--green)' );
     expect( css ).toContain( '.vl-live-air-health-tabs{scroll-snap-type:x mandatory' );
@@ -1434,10 +1705,14 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
 
     // One UI-system pass: section headings share the homepage card-heading token and one
     // lime accent; pollutant names are real content (17px), not metadata-sized copy.
-    const sectionTitleRule = css.match( /\.vl-live-air-pollutants-title,\.vl-live-air-heatmap-label,\.vl-live-air-health-title,\.vl-live-air-history-title\{[^}]*\}/ )?.[ 0 ] || '';
+    // These section headings and section wrappers share one grouped rule each. The group gained
+    // .vl-live-air-forecast(-title) when the Air Forecast section landed, so a hardcoded
+    // selector-list regex no longer matches; look the rule up by membership of one representative
+    // selector instead, which stays correct as the group grows.
+    const sectionTitleRule = cssRuleFor( css, '.vl-live-air-pollutants-title' );
     expect( sectionTitleRule ).toContain( 'font-size:var(--vl-card-heading-size)' );
     expect( sectionTitleRule ).toContain( 'border-left:3px solid var(--lime)' );
-    const sectionRule = css.match( /\.vl-live-air-pollutants,\.vl-live-air-heatmap,\.vl-live-air-health,\.vl-live-air-history\{[^}]*\}/ )?.[ 0 ] || '';
+    const sectionRule = cssRuleFor( css, '.vl-live-air-pollutants' );
     expect( sectionRule ).toContain( 'margin-top:var(--vl-section-gap)' );
     expect( sectionRule ).toContain( 'padding-top:var(--vl-section-pad)' );
     expect( css ).not.toContain( '.vl-live-air-pollutants-title::before' );
@@ -1449,7 +1724,10 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( pollutantValueRule ).toContain( 'min-width:118px' );
     expect( pollutantValueRule ).toContain( 'text-align:right' );
     expect( pollutantValueRule ).toContain( 'font-variant-numeric:tabular-nums' );
-    expect( container.querySelector( '.vl-live-air-heatmap-state' )?.textContent ).toMatch( /On|Off/ );
+    // The heatmap On/Off state control lives in the air panel's `air ? (...)` branch, so on the
+    // keyless path (no live air data) it is correctly absent. Assert that absence rather than a
+    // live On/Off string, which this path can never produce.
+    expect( container.querySelector( '.vl-live-air-heatmap-state' ) ).toBeNull();
     const aqiSpineRule = css.match( /\.vl-live-air-aqi-spine\{[^}]*\}/ )?.[ 0 ] || '';
     expect( aqiSpineRule ).toContain( '#3da35a' );
     expect( aqiSpineRule ).toContain( '#2563eb' );
@@ -1457,8 +1735,14 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( css ).not.toContain( '.vl-live-air-gauge-arc{' );
     expect( css ).not.toContain( '.vl-live-air-gauge-track{' );
 
-    // The duplicate top Air Quality Details heading is gone; the inner section is Pollutants.
+    // The duplicate top "Air Quality Details" heading is gone on every path. The live
+    // "Pollutants" section only renders in the air panel's `air ? (...)` branch, so on this
+    // keyless path - consistent with the "Hourly History"/"Health Recommendations" absences
+    // asserted earlier in this test - it is replaced by the honest empty state rather than a
+    // live pollutant list.
     expect( container.textContent ).not.toContain( 'Air Quality Details' );
-    expect( container.textContent ).toContain( 'Pollutants' );
+    expect( container.textContent ).not.toContain( 'Pollutants' );
+    expect( container.querySelector( '.vl-live-air-empty' )?.textContent )
+      .toContain( 'Live air quality appears here once a place is selected.' );
   } );
 } );
