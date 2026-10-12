@@ -840,6 +840,39 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( container.querySelector( '[aria-label="Air details"]' ) ).toBeNull();
   } );
 
+  it( 'uses Google currentTime for Weather freshness instead of the browser fetch-completion time', async () => {
+    const realNow = Date.now();
+    const providerTime = new Date( realNow - 12 * 60 * 1000 ).toISOString();
+    const baseFetch = environmentFetch();
+    const fetchSpy = vi.fn( async ( input: RequestInfo | URL, init?: RequestInit ) => {
+      if ( requestIs( input, 'weather.googleapis.com', '/v1/currentConditions' ) ) {
+        return {
+          ok: true,
+          json: async () => ( {
+            currentTime: providerTime,
+            temperature: { degrees: 26 },
+            feelsLikeTemperature: { degrees: 27 },
+            relativeHumidity: 68,
+            weatherCondition: { description: { text: 'Mostly sunny' } },
+          } ),
+        } as Response;
+      }
+      return baseFetch( input, init );
+    } );
+    vi.stubGlobal( 'fetch', fetchSpy );
+
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+    fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
+
+    await waitFor( () => {
+      const freshness = container.querySelector( '.vl-live-wx-freshness' )?.textContent || '';
+      expect( freshness ).toMatch( /Current · updated 1[12] min ago/ );
+    } );
+  } );
+
   it( 'renders the full Weather dashboard (metrics grid, hourly, 10-day, 24h history, neutral alerts)', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
@@ -868,6 +901,18 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const dailyCall = fetchSpy.mock.calls.find( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/forecast/days' ) );
     expect( String( dailyCall?.[ 0 ] ) ).toContain( 'days=10' );
     expect( String( dailyCall?.[ 0 ] ) ).toContain( 'pageSize=10' );
+    const googleDataCalls = fetchSpy.mock.calls.filter( call => {
+      const url = requestUrl( call[ 0 ] as RequestInfo | URL );
+      return Boolean( url && (
+        url.hostname === 'weather.googleapis.com'
+        || url.hostname === 'airquality.googleapis.com'
+        || ( url.hostname === 'maps.googleapis.com' && url.pathname.startsWith( '/maps/api/timezone/' ) )
+      ) );
+    } );
+    expect( googleDataCalls.length ).toBeGreaterThan( 0 );
+    googleDataCalls.forEach( call => {
+      expect( ( call[ 1 ] as RequestInit | undefined )?.cache ).toBe( 'no-store' );
+    } );
     // 24h history with a metric toggle.
     expect( within( panel ).getByRole( 'group', { name: 'Weather history metric' } ) ).toBeTruthy();
     expect( panel.querySelector( '.vl-live-wx-daily-icon' ) ).not.toBeNull();
@@ -1643,9 +1688,13 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       'M408-453.92q-29-30.91-29-75.08v-251q0-41.67 29.44-70.83Q437.88-880 479.94-880t71.56 29.17Q581-821.67 581-780v251q0 44.17-29 75.08Q523-423 480-423t-72-30.92ZM480-651Zm-30 531v-136q-106-11-178-89t-72-184h60q0 91 64.29 153t155.5 62q91.21 0 155.71-62Q700-438 700-529h60q0 106-72 184t-178 89v136h-60Zm59.5-376.5Q521-510 521-529v-251q0-17-11.79-28.5T480-820q-17.42 0-29.21 11.5T439-780v251q0 19 11.5 32.5T480-483q18 0 29.5-13.5Z',
     );
     const voiceCss = Array.from( document.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
-    expect( voiceCss ).toContain( 'background:transparent;color:#d1f470' );
+    expect( voiceCss ).toContain( 'background:transparent;color:#3da35a' );
     expect( voiceCss ).toContain( 'border-radius:0' );
+    expect( voiceCss ).toContain( 'width:23px;height:23px' );
+    expect( voiceCss ).toContain( 'stroke:#1a3a2a;stroke-width:36' );
+    expect( voiceCss ).toContain( 'paint-order:stroke fill' );
     expect( voiceCss ).not.toContain( 'border-radius:50%;background:#1a3a2a' );
+    expect( voiceCss ).toContain( '@keyframes voice-search-pulse{0%,100%{transform:translateY(-50%) scale(1)}50%{transform:translateY(-50%) scale(1.08)}}' );
 
     act( () => {
       speech!.onresult?.( { results: [ [ { transcript: 'কলকাতা' } ] ] } );
