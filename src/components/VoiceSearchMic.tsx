@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
-export const VOICE_SEARCH_MIC_PATH = 'M408-453.92q-29-30.91-29-75.08v-251q0-41.67 29.44-70.83Q437.88-880 479.94-880t71.56 29.17Q581-821.67 581-780v251q0 44.17-29 75.08Q523-423 480-423t-72-30.92ZM480-651Zm-30 531v-136q-106-11-178-89t-72-184h60q0 91 64.29 153t155.5 62q91.21 0 155.71-62Q700-438 700-529h60q0 106-72 184t-178 89v136h-60Zm59.5-376.5Q521-510 521-529v-251q0-17-11.79-28.5T480-820q-17.42 0-29.21 11.5T439-780v251q0 19 11.5 32.5T480-483q18 0 29.5-13.5Z';
+export const VOICE_SEARCH_MIC_PATH = 'M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z';
 
 interface VoiceRecognitionEventLike {
   results?: ArrayLike<ArrayLike<{ transcript?: string }>>;
@@ -107,7 +107,7 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript } ) => {
         data-voice-search-mic="true"
         onClick={ toggle }
       >
-        <svg viewBox="0 -960 960 960" aria-hidden="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
           <path className="voice-search-mic-glyph" d={ VOICE_SEARCH_MIC_PATH } />
         </svg>
       </button>
