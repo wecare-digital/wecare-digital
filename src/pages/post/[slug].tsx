@@ -4,7 +4,6 @@ import { Fragment, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import PublicShare from '../../components/PublicShare';
-import ContributeBlock from '../../components/ContributeBlock';
 import {
   SOCIAL_CARD_URL, SOCIAL_CARD_W, SOCIAL_CARD_H, SOCIAL_CARD_TYPE, SOCIAL_CARD_ALT, SHARE_CARD_TYPE,
 } from '../../config/share';
@@ -466,7 +465,7 @@ export default function BlogPostPage ( {
               is unchanged. Its own hairline border is dropped (see the CSS note) because
               PublicShare carries its own full-width separator. */}
           <div className="post-share" ref={ shareRef }>
-            <PublicShare url={ canonical } title={ post.title } />
+            <PublicShare contribute url={ canonical } title={ post.title } />
           </div>
 
           {/* WALKING THE STREAM, ONE POST AT A TIME.
