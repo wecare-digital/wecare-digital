@@ -77,9 +77,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import React, { useCallback, useEffect, useState } from 'react';
 
-import PageTopBand from '../../components/PageTopBand';
-import PublicShare from '../../components/PublicShare';
-import ContributeBlock from '../../components/ContributeBlock';
+import RotatingHero from '../../components/RotatingHero';
 import { getSession, restoreSession } from '../../lib/customerAuth';
 import { amountLabel, isInFlight, isOrderNumber, isPaid, isRetryable } from '../../lib/paymentVocabulary';
 
@@ -267,7 +265,16 @@ export default function CheckoutStatus (): React.ReactElement {
       </Head>
       {/* The h1 is the STATE, which is what this page is about, so the band's heading changes with
           it. There is no CTA in the band: the actions sit below, per skill §6. */}
-      <PageTopBand heading={ copy.title } sub={ copy.body } ariaLabel="Checkout status">
+      {/* UNIFIED HERO (owner 2026-10-13): same frame + lime pill + sub as every page, via the
+          shared RotatingHero. The dynamic status line is the frame; a single static lime pill
+          "your payment" carries the house design language without rotating on a payment screen
+          (WCAG 2.2.2). Contribute + Subscribe + Share are auto-mounted by the hero. */}
+      <RotatingHero
+        frame={ copy.title }
+        words={ [ { word: 'your payment', tint: '#e0f7c8', dot: '#3da35a' } ] }
+        sub={ copy.body }
+        ariaLabel="Checkout status"
+      >
         <section className="co-card" role="status" aria-live="polite">
           {/* The paid mark is a tick drawn from two borders, the same construction and the same
               56px as /checkout/success - a typed ✓ varies in shape and weight by platform font.
@@ -326,11 +333,8 @@ export default function CheckoutStatus (): React.ReactElement {
           )}
         </section>
 
-        {/* Subscribe + Share, last child inside PageTopBand so it shares the /checkout/status/
-            page itself. The page is noindex/session-bound, but the block shares the current URL,
-            which here is simply the status screen - harmless and consistent with every public page. */}
-        <ContributeBlock />
-        <PublicShare />
+        {/* Contribute + Subscribe + Share are AUTO-MOUNTED by RotatingHero now; removed the direct
+            mounts to avoid showing them twice. */}
 
         <style jsx>{`
           /* No top padding, no measure, no font stack: PageTopBand owns all three. 700px is the
@@ -428,7 +432,7 @@ export default function CheckoutStatus (): React.ReactElement {
             .co-card :global(.co-btn:hover){transform:none;box-shadow:none}
           }
         `}</style>
-      </PageTopBand>
+      </RotatingHero>
     </>
   );
 }

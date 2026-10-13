@@ -90,9 +90,8 @@ import Head from 'next/head';
 import Link from 'next/link';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
-import PageTopBand from '../components/PageTopBand';
-import PublicShare from '../components/PublicShare';
-import ContributeBlock from '../components/ContributeBlock';
+import RotatingHero from '../components/RotatingHero';
+
 import PillButton from '../components/PillButton';
 import CheckoutProfile from '../components/CheckoutProfile';
 import type { CheckoutProfileMode, CheckoutProfileValue } from '../components/CheckoutProfile';
@@ -1891,8 +1890,16 @@ export default function Cart (): React.ReactElement {
         {/* Customer-session, per-person: never indexed. */}
         <meta name="robots" content="noindex,nofollow" />
       </Head>
-      <PageTopBand
-        heading="Your cart"
+      {/* UNIFIED HERO DESIGN LANGUAGE (owner 2026-10-13): the cart carries the same hero as the
+          marketing pages - the frame headline + the lime brand pill + the sub-line - via the
+          shared RotatingHero, so every public page reads as one family. A SINGLE word is passed,
+          not four: a cart is a task screen, so the pill shows the keyword statically (RotatingHero
+          cycles i % words.length, which is a no-op for one word) - the house lime pill look with
+          no indefinite 2400ms motion, which keeps WCAG 2.2.2 satisfied on a transactional page.
+          Lime tint/dot, the home hero's climate-tech pair. */}
+      <RotatingHero
+        frame="Your"
+        words={ [ { word: 'cart', tint: '#e0f7c8', dot: '#3da35a' } ] }
         sub="Review what you have added before you check out."
         ariaLabel="Your cart"
       >
@@ -2141,10 +2148,9 @@ export default function Cart (): React.ReactElement {
             </>
           )}
 
-          {/* Subscribe + Share, last child of .cart-in so it shares the /cart/ page and sits at
-              the content end. Shown in every cart state, consistent with every public page. */}
-          <ContributeBlock />
-          <PublicShare />
+          {/* Contribute + Subscribe + Share are AUTO-MOUNTED by RotatingHero now (the hero renders
+              them as its .rh-tail after this content), so the page no longer mounts them directly -
+              doing so would show both blocks twice. */}
         </div>
 
         <style jsx>{`
@@ -2335,7 +2341,7 @@ export default function Cart (): React.ReactElement {
           }
           /* The CTA's reduced-motion handling moved into PillButton with the button itself. */
         `}</style>
-      </PageTopBand>
+      </RotatingHero>
     </>
   );
 }

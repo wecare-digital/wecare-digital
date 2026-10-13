@@ -2,9 +2,8 @@ import React, { useCallback, useState } from 'react';
 import Link from 'next/link';
 import type { GetStaticPaths, GetStaticProps } from 'next';
 import ShopProductHead from '../../components/ShopProductHead';
-import PageTopBand from '../../components/PageTopBand';
-import PublicShare from '../../components/PublicShare';
-import ContributeBlock from '../../components/ContributeBlock';
+import RotatingHero from '../../components/RotatingHero';
+
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { SHOP_PRODUCTS, shopProductBySlug } from '../../content/shop';
 import type { ShopProduct } from '../../content/shop';
@@ -55,8 +54,15 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
   return (
     <>
       <ShopProductHead product={ product } />
-      <PageTopBand
-        heading={ product.name }
+      {/* UNIFIED HERO (owner 2026-10-13): every public page carries the same frame + lime pill +
+          sub design language via the shared RotatingHero. Product pages read "Explore [name]" -
+          the product name is the lime pill (one static word, so the pill shows without the 2400ms
+          rotation). This is a single dynamic template, so every product - current and any future
+          one added to the catalogue - gets the hero automatically. Contribute + Subscribe + Share
+          are auto-mounted by the hero, so the direct mounts below are removed. */}
+      <RotatingHero
+        frame="Explore"
+        words={ [ { word: product.name, tint: '#e0f7c8', dot: '#3da35a' } ] }
         sub={ product.tagline }
         ariaLabel={ product.name }
       >
@@ -151,10 +157,8 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             </p>
           </section>
 
-          {/* Subscribe + Share, last child of .shopd-in so it shares this product page and sits
-              at the content end - the same block every public page carries. */}
-          <ContributeBlock />
-          <PublicShare />
+          {/* Contribute + Subscribe + Share are AUTO-MOUNTED by RotatingHero now; removed the
+              direct mounts to avoid showing them twice. */}
         </div>
 
         <style jsx>{`
@@ -249,7 +253,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             .shopd-in :global(.shopd-cta:hover){transform:none;box-shadow:none}
           }
         `}</style>
-      </PageTopBand>
+      </RotatingHero>
     </>
   );
 };

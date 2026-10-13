@@ -62,9 +62,7 @@ import Link from 'next/link';
 import React, { useCallback, useEffect, useState } from 'react';
 
 import OtpResend from '../../components/OtpResend';
-import PageTopBand from '../../components/PageTopBand';
-import PublicShare from '../../components/PublicShare';
-import ContributeBlock from '../../components/ContributeBlock';
+import RotatingHero from '../../components/RotatingHero';
 import PhoneField from '../../components/PhoneField';
 import PillButton from '../../components/PillButton';
 import { DEFAULT_DIAL_CODE } from '../../lib/dialCodes';
@@ -488,8 +486,12 @@ export default function CustomerSignIn (): React.ReactElement {
         {/* Customer-session, per-person, transactional: never indexed. */}
         <meta name="robots" content="noindex,nofollow" />
       </Head>
-      <PageTopBand
-        heading="Sign in to check out"
+      {/* UNIFIED HERO (owner 2026-10-13): same frame + lime pill + sub as the marketing pages, via
+          the shared RotatingHero. One static word (task page - no 2400ms rotation, WCAG 2.2.2).
+          Contribute + Subscribe + Share are auto-mounted by the hero. */}
+      <RotatingHero
+        frame="Sign in to"
+        words={ [ { word: 'check out', tint: '#e0f7c8', dot: '#3da35a' } ] }
         sub="We confirm it is you with a code on WhatsApp. New here? Same step sets you up."
         ariaLabel="Customer sign in"
       >
@@ -639,11 +641,8 @@ export default function CustomerSignIn (): React.ReactElement {
 
           <p className="si-back"><Link href="/cart/">Back to your cart</Link></p>
 
-          {/* Subscribe + Share, last child of .si-card so every public page carries the block.
-              It shares the sign-in page itself (noindex, but the block only shares the current URL
-              - harmless and keeps the sitewide consistency the owner asked for). */}
-          <ContributeBlock />
-          <PublicShare />
+          {/* Contribute + Subscribe + Share are AUTO-MOUNTED by RotatingHero now; the page no
+              longer mounts them directly (that would show them twice). */}
         </div>
 
         <style jsx>{`
@@ -717,7 +716,7 @@ export default function CustomerSignIn (): React.ReactElement {
             .si-input{scroll-margin-top:112px}
           }
         `}</style>
-      </PageTopBand>
+      </RotatingHero>
     </>
   );
 }

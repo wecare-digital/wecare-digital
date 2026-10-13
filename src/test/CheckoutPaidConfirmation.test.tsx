@@ -55,6 +55,22 @@ function respondWith ( attempt: unknown ): ReturnType<typeof vi.fn> {
   return fetchMock;
 }
 
+/**
+ * THE HEADING IS NOW THE HERO'S FRAME, NOT THE WHOLE H1. This screen renders the shared
+ * RotatingHero: the status line (`copy.title`) is the fixed first line `.rh-head-line`, and a
+ * static lime pill "your payment" follows it. The h1's accessible name is therefore the frame
+ * plus the pill word (twice - RotatingHero keeps an sr-only copy beside the visible pill), so
+ * `getByRole('heading', { name })` no longer matches the bare status line. These helpers locate
+ * the heading by its frame line instead - the SAME copy, read from the element that carries it -
+ * so every payment-safety assertion in this file is unchanged; only the lookup moved.
+ */
+function headingText (): string {
+  return document.querySelector( '.rh-head-line' )?.textContent || '';
+}
+async function findHeading ( frame: string ): Promise<void> {
+  await waitFor( () => expect( headingText() ).toBe( frame ) );
+}
+
 beforeEach( () => {
   window.history.replaceState( {}, '', '/checkout/status/?a=qa-attempt' );
   vi.spyOn( auth, 'getSession' ).mockReturnValue(
@@ -73,7 +89,7 @@ describe( 'a captured payment awaiting the Wix writeback', () => {
     respondWith( PAID_UNRECONCILED );
     render( <CheckoutStatus /> );
 
-    expect( await screen.findByRole( 'heading', { name: 'Payment received' } ) ).toBeTruthy();
+    await findHeading( 'Payment received' );
     // Nothing on the page may read as a failure or as doubt about the money.
     expect( screen.queryByText( /wasn't completed/i ) ).toBeNull();
     expect( screen.queryByText( /Nothing to show here/i ) ).toBeNull();
@@ -130,7 +146,7 @@ describe( 'the states that are not a confirmation', () => {
     render( <CheckoutStatus /> );
     // "Payment received" is correct — the money arrived — but there is no order number to show
     // and "do not pay again" is the sentence that prevents a second charge.
-    expect( await screen.findByRole( 'heading', { name: 'Payment received' } ) ).toBeTruthy();
+    await findHeading( 'Payment received' );
     expect( screen.getByText( /Do not pay again/ ) ).toBeTruthy();
     expect( screen.queryByText( 'Order number' ) ).toBeNull();
   } );
@@ -140,15 +156,14 @@ describe( 'the states that are not a confirmation', () => {
     // it anyway: the state decides, not the presence of an identifier.
     respondWith( { status: 'PAYMENT_PENDING', orderNumber: 'WD-ORD-7ZTSG8X7', amountPaise: 59900 } );
     render( <CheckoutStatus /> );
-    await waitFor( () => expect(
-      screen.getByRole( 'heading', { name: 'Confirming your payment' } ) ).toBeTruthy() );
+    await findHeading( 'Confirming your payment' );
     expect( screen.queryByText( 'WD-ORD-7ZTSG8X7' ) ).toBeNull();
   } );
 
   it( 'keeps the honest failure screen for a definite failure', async () => {
     respondWith( { status: 'PAYMENT_FAILED', canRetry: true } );
     render( <CheckoutStatus /> );
-    expect( await screen.findByRole( 'heading', { name: "Payment wasn't completed" } ) ).toBeTruthy();
+    await findHeading( "Payment wasn't completed" );
     expect( screen.getByRole( 'link', { name: 'Start again' } ) ).toBeTruthy();
     expect( screen.queryByText( 'Payment received' ) ).toBeNull();
   } );
@@ -156,7 +171,7 @@ describe( 'the states that are not a confirmation', () => {
   it( 'keeps the neutral screen for an unknown state, and claims nothing either way', async () => {
     respondWith( { status: 'PAYMENT_INITIATION_DISABLED' } );
     render( <CheckoutStatus /> );
-    expect( await screen.findByRole( 'heading', { name: 'Nothing to show here' } ) ).toBeTruthy();
+    await findHeading( 'Nothing to show here' );
     // It must not claim success, and it must not claim no charge was made: the browser cannot
     // know, and "no charge" is the reassurance that cannot be taken back.
     expect( document.body.textContent ).not.toContain( 'Payment received' );

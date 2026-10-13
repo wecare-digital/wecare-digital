@@ -89,22 +89,33 @@ function stubFetch ( body: unknown, ok = true ) {
 }
 
 /**
- * The band, asserted as STRUCTURE. `.ptb-top` holds the h1 and the sub-line and nothing else -
- * a consumer's children render outside it - so the button/link/rupee checks can only fail on
- * something passed through `heading` or `sub`.
+ * The hero, asserted as STRUCTURE. These pages now render the shared `RotatingHero`, so the band
+ * is `main.rh-shell` with its heading in the h1 `.rh-head`: the fixed first line is `.rh-head-line`
+ * (the `frame`) and the keyword is the lime pill word (`.rh-cyc-word`). The old `.ptb-*` names map
+ * to `.rh-*` one-for-one: `.ptb-shell`→`.rh-shell`, `.ptb-top`→`.rh-hero`, `.ptb-h1`→`.rh-head`.
+ *
+ * The h1's RAW textContent is the frame followed by the pill word TWICE - RotatingHero keeps an
+ * sr-only copy of the word list beside the visible pill - so the heading is checked as `frame`
+ * (`.rh-head-line`) plus the pill word (`.rh-cyc-word`) rather than against that concatenation.
+ * `.rh-hero` holds the badge, the h1 and the sub-line and nothing else - a consumer's children
+ * render outside it - so the button/link/rupee checks can only fail on something passed through
+ * `frame`, the pill `word` or `sub`.
  */
-function expectBand ( container: HTMLElement, heading: string, where: string ): void {
+function expectBand ( container: HTMLElement, frame: string, pill: string, where: string ): void {
   expect( container.querySelectorAll( 'main' ), where ).toHaveLength( 1 );
-  expect( container.querySelector( 'main' )!.className, where ).toContain( 'ptb-shell' );
-  const tops = container.querySelectorAll( '.ptb-top' );
-  expect( tops, where ).toHaveLength( 1 );
+  expect( container.querySelector( 'main' )!.className, where ).toContain( 'rh-shell' );
+  const heroes = container.querySelectorAll( '.rh-hero' );
+  expect( heroes, where ).toHaveLength( 1 );
   const h1s = container.querySelectorAll( 'h1' );
   expect( h1s, where ).toHaveLength( 1 );
-  expect( h1s[ 0 ].textContent, where ).toBe( heading );
-  // The one h1 is the BAND's, not a second heading the page grew beside it.
-  expect( container.querySelector( '.ptb-top h1' ), where ).not.toBeNull();
-  expect( tops[ 0 ].querySelectorAll( 'button, a' ), where ).toHaveLength( 0 );
-  expect( tops[ 0 ].textContent || '', where ).not.toContain( '₹' );
+  expect( h1s[ 0 ].className, where ).toContain( 'rh-head' );
+  expect( h1s[ 0 ].querySelector( '.rh-head-line' )!.textContent, where ).toBe( frame );
+  const words = Array.from( h1s[ 0 ].querySelectorAll( '.rh-cyc-word' ) ).map( w => w.textContent );
+  expect( words, where ).toEqual( [ pill ] );
+  // The one h1 is the HERO's, not a second heading the page grew beside it.
+  expect( heroes[ 0 ].querySelector( 'h1' ), where ).not.toBeNull();
+  expect( heroes[ 0 ].querySelectorAll( 'button, a' ), where ).toHaveLength( 0 );
+  expect( heroes[ 0 ].textContent || '', where ).not.toContain( '₹' );
 }
 
 beforeEach( () => {
@@ -128,7 +139,7 @@ describe( '/cart/ keeps the hero once a customer is signed in', () => {
     signedOut();
     const out = render( <Cart /> );
     await screen.findByText( 'Kiosk' );
-    expectBand( out.container, 'Your cart', 'signed out' );
+    expectBand( out.container, 'Your', 'cart', 'signed out' );
     out.unmount();
     vi.restoreAllMocks();
 
@@ -143,7 +154,7 @@ describe( '/cart/ keeps the hero once a customer is signed in', () => {
     // The identity card only renders on 'ready', so reaching it means the richest signed-in body
     // is mounted rather than the loading or empty one.
     expect( await screen.findByText( 'asha@example.com' ) ).toBeInTheDocument();
-    expectBand( container, 'Your cart', 'signed in' );
+    expectBand( container, 'Your', 'cart', 'signed in' );
     expect( container.textContent )
       .toContain( 'Review what you have added before you check out.' );
   } );
@@ -153,8 +164,8 @@ describe( '/checkout/success/ keeps the hero once a customer is signed in', () =
   it( 'renders the band on the verified-paid render as well as the unverified one', async () => {
     signedOut();
     const out = render( <CheckoutSuccess /> );
-    // No ?a=, so the honest answer is the holding heading - and the band is still the h1.
-    expectBand( out.container, 'Order confirmation unavailable', 'signed out' );
+    // No ?a=, so the honest answer is the holding heading - the frame of the one hero h1.
+    expectBand( out.container, 'Order confirmation unavailable', 'your order', 'signed out' );
     out.unmount();
     vi.restoreAllMocks();
 
@@ -162,10 +173,12 @@ describe( '/checkout/success/ keeps the hero once a customer is signed in', () =
     signedIn();
     stubFetch( { attempt: { status: 'PAYMENT_PAID', orderNumber: 'WD-ORD-VERIFIED' } } );
     const { container } = render( <CheckoutSuccess /> );
-    expect( await screen.findByRole( 'heading', { name: 'Payment successful' } ) )
-      .toBeInTheDocument();
+    // The verified heading is the hero's FRAME now (.rh-head-line), not the whole h1 - the pill
+    // "your order" is appended, so match the frame line rather than the h1 accessible name.
+    await waitFor( () => expect(
+      container.querySelector( '.rh-head-line' )!.textContent ).toBe( 'Payment successful' ) );
     expect( screen.getByText( 'WD-ORD-VERIFIED' ) ).toBeInTheDocument();
-    expectBand( container, 'Payment successful', 'signed in' );
+    expectBand( container, 'Payment successful', 'your order', 'signed in' );
   } );
 } );
 
@@ -173,7 +186,7 @@ describe( '/checkout/status/ keeps the hero once a customer is signed in', () =>
   it( 'renders the band on the paid render as well as the holding one', async () => {
     signedOut();
     const out = render( <CheckoutStatus /> );
-    expectBand( out.container, 'Nothing to show here', 'signed out' );
+    expectBand( out.container, 'Nothing to show here', 'your payment', 'signed out' );
     out.unmount();
     vi.restoreAllMocks();
 
@@ -183,12 +196,14 @@ describe( '/checkout/status/ keeps the hero once a customer is signed in', () =>
       status: 'PAYMENT_PAID', orderNumber: 'WD-ORD-VERIFIED', amountPaise: 121481, currency: 'INR',
     } } );
     const { container } = render( <CheckoutStatus /> );
-    expect( await screen.findByRole( 'heading', { name: 'Payment received' } ) )
-      .toBeInTheDocument();
+    // The paid heading is the hero's FRAME (.rh-head-line) now; the pill "your payment" is appended
+    // to the h1, so match the frame line rather than the h1 accessible name.
+    await waitFor( () => expect(
+      container.querySelector( '.rh-head-line' )!.textContent ).toBe( 'Payment received' ) );
     expect( screen.getByText( 'WD-ORD-VERIFIED' ) ).toBeInTheDocument();
     // The paid view is the one that grows an actions row, so the band must still be the only h1
     // and must still carry no link - which is what expectBand decides.
-    expectBand( container, 'Payment received', 'signed in' );
+    expectBand( container, 'Payment received', 'your payment', 'signed in' );
     expect( container.querySelectorAll( '.co-actions a' ).length ).toBeGreaterThan( 0 );
   } );
 } );

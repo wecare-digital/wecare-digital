@@ -201,26 +201,37 @@ describe( '/orders/ — structure and the top band', () => {
     const { container } = render( <OrdersPage /> );
     expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
     expect( container.querySelectorAll( 'main' ) ).toHaveLength( 1 );
-    expect( container.querySelector( 'h1' )!.textContent ).toBe( 'Your orders' );
+    // The hero is the shared RotatingHero now: "Your" is the fixed frame line (.rh-head-line) and
+    // "orders" is the lime pill word. The h1's raw textContent appends the pill word twice (an
+    // sr-only copy sits beside the visible pill), so assert the frame and the pill word separately.
+    const h1 = container.querySelector( 'h1' )!;
+    expect( h1.querySelector( '.rh-head-line' )!.textContent ).toBe( 'Your' );
+    const words = Array.from( h1.querySelectorAll( '.rh-cyc-word' ) ).map( w => w.textContent );
+    expect( words ).toEqual( [ 'orders' ] );
+    // The landmark is main.rh-shell.
+    expect( container.querySelector( 'main' )!.className ).toContain( 'rh-shell' );
   } );
 
   it( 'puts nothing conversion-shaped inside the band block itself', () => {
-    // .ptb-top holds only the h1 and the sub-line; children render outside it. So this can only
-    // fail on something passed through `sub`, which is a ReactNode - narrow, not vacuous.
+    // .rh-hero holds the h1 and the sub-line; children render outside it, below the hero. So this
+    // can only fail on something passed through `sub`, which is a ReactNode - narrow, not vacuous.
     const { container } = render( <OrdersPage /> );
-    const top = container.querySelector( '.ptb-top' )!;
+    const top = container.querySelector( '.rh-hero' )!;
     expect( top.querySelectorAll( 'button, a' ) ).toHaveLength( 0 );
     expect( top.textContent ).not.toContain( '₹' );
   } );
 
-  it( 'mounts the static PageTopBand and hand-rolls no header clearance', () => {
-    expect( SOURCE ).toContain( '<PageTopBand' );
+  it( 'mounts the shared RotatingHero and hand-rolls no header clearance', () => {
+    // The page moved off the static PageTopBand onto the shared RotatingHero, which owns the main
+    // landmark, the h1 and the two header-height clearances.
+    expect( SOURCE ).toContain( '<RotatingHero' );
     // The two header heights, asserted as CLEARANCE rather than as the bare numbers: `96px` on
     // its own is also a legitimate grid track width in this file (.ord-facts), so banning the
     // string would fail on a column rather than on a duplicated header offset.
     expect( CODE ).not.toMatch( /(?:padding|margin)(?:-block)?-?(?:top|start)?\s*:\s*(?:108|96)px/ );
     expect( CODE ).not.toMatch( /calc\(\s*100(?:v|d)h\s*-/ );
-    expect( CODE ).not.toContain( 'RotatingHero' );
+    // The clearance belongs to the hero, so the page must not hand-roll its own PageTopBand copy.
+    expect( CODE ).not.toContain( 'PageTopBand' );
   } );
 
   it( 'uses no retired red, in any notation', () => {
@@ -259,9 +270,13 @@ describe( '/orders/ — structure and the top band', () => {
     } ) );
     await screen.findByText( 'WD-1042' );
     expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
-    expect( container.querySelector( 'h1' )!.textContent ).toBe( 'Your orders' );
+    const h1 = container.querySelector( 'h1' )!;
+    // Same hero in the signed-in render: "Your" frame + "orders" pill, one main.rh-shell.
+    expect( h1.querySelector( '.rh-head-line' )!.textContent ).toBe( 'Your' );
+    expect( Array.from( h1.querySelectorAll( '.rh-cyc-word' ) ).map( w => w.textContent ) )
+      .toEqual( [ 'orders' ] );
     expect( container.querySelectorAll( 'main' ) ).toHaveLength( 1 );
-    const top = container.querySelectorAll( '.ptb-top' );
+    const top = container.querySelectorAll( '.rh-hero' );
     expect( top ).toHaveLength( 1 );
     expect( screen.getByText(
       'What you have bought from us, and what each payment is doing.' ) ).toBeInTheDocument();

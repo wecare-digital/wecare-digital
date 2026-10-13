@@ -185,7 +185,14 @@ describe( 'the product pages are untouched by it (ITEM 2)', () => {
     const { container } = render( React.createElement( ShopProductPage, { product } ) );
     const headings = container.querySelectorAll( 'h1' );
     expect( headings ).toHaveLength( 1 );
-    expect( headings[ 0 ].textContent ).toBe( product.name );
+    // The product page renders the shared RotatingHero: "Explore" is the fixed frame on the first
+    // headline line and the product name is the rotating pill word. Still exactly one h1. (Its raw
+    // textContent concatenates the frame with the pill word twice - RotatingHero keeps an sr-only
+    // copy beside the visible pill - so assert the frame and the pill word separately.)
+    expect( headings[ 0 ].querySelector( '.rh-head-line' )!.textContent ).toBe( 'Explore' );
+    const heroWords = Array.from( headings[ 0 ].querySelectorAll( '.rh-cyc-word' ) )
+      .map( node => node.textContent );
+    expect( heroWords ).toEqual( [ product.name ] );
 
     // file-assist reports variantCount 1, so the variant gate cannot disable the button. The
     // merchandise case - 10 variants, button disabled until one is chosen - is covered in

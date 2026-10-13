@@ -8,9 +8,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 
-import PageTopBand from '../../components/PageTopBand';
-import PublicShare from '../../components/PublicShare';
-import ContributeBlock from '../../components/ContributeBlock';
+import RotatingHero from '../../components/RotatingHero';
 import { getSession, restoreSession } from '../../lib/customerAuth';
 import { isOrderNumber, isPaid } from '../../lib/paymentVocabulary';
 
@@ -56,8 +54,13 @@ export default function CheckoutSuccess (): React.ReactElement {
         <title>{heading} — WECARE.DIGITAL</title>
         <meta name="robots" content="noindex,nofollow" />
       </Head>
-      <PageTopBand
-        heading={ heading }
+      {/* UNIFIED HERO (owner 2026-10-13): same frame + lime pill + sub as every page, via the
+          shared RotatingHero. The dynamic status is the frame; a single static lime pill "your
+          order" carries the house design language without rotating on a transactional screen
+          (WCAG 2.2.2). Contribute + Subscribe + Share are auto-mounted by the hero. */}
+      <RotatingHero
+        frame={ heading }
+        words={ [ { word: 'your order', tint: '#e0f7c8', dot: '#3da35a' } ] }
         sub={ verified ? 'Your payment is confirmed and your order is created.' : checking
           ? 'We are checking your order securely.'
           : 'We could not confirm this order. If you have paid, do not pay again.' }
@@ -85,10 +88,8 @@ export default function CheckoutSuccess (): React.ReactElement {
           </div>
         </section>
 
-        {/* Contribute + Subscribe + Share, last children inside PageTopBand. Consistent with
-            every public page: ContributeBlock above the Subscribe+Share block. */}
-        <ContributeBlock />
-        <PublicShare />
+        {/* Contribute + Subscribe + Share are AUTO-MOUNTED by RotatingHero now; removed the direct
+            mounts to avoid showing them twice. */}
 
         <style jsx>{`
           /* No top padding, no measure, no font stack: PageTopBand owns all three. */
@@ -156,7 +157,7 @@ export default function CheckoutSuccess (): React.ReactElement {
             .cs-card :global(.cs-btn:hover){transform:none;box-shadow:none}
           }
         `}</style>
-      </PageTopBand>
+      </RotatingHero>
     </>
   );
 }
