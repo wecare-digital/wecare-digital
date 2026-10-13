@@ -1,19 +1,19 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SUBSCRIBE_CTA_HREF } from '../content/subscribe';
-import { CONTRIBUTION_CHOICES } from '../config/contribution';
+import {
+  CONTRIBUTION_AMOUNT_LABEL,
+  CONTRIBUTION_CHOICES,
+  CONTRIBUTE_CTA_HREF,
+} from '../config/contribution';
 import { whatsappShareHref } from '../config/share';
 import { setContribution } from '../lib/cart';
-import {
-  CONTRIBUTE_BLOCK_AMOUNT_LABEL,
-  CONTRIBUTE_CTA_HREF,
-} from './ContributeBlock';
 
 /**
  * The compact page-tail action dock.
  *
- * Home renders Subscribe + Share. Every other public surface passes `contribute` and renders
- * Contribute + Subscribe + Share in the SAME band. Contribute and Share reveal short dropdowns;
- * Subscribe has one destination, so it stays a direct WhatsApp link.
+ * Every public surface, including Home, renders the SAME Contribute + Subscribe + Share band.
+ * Contribute and Share reveal short dropdowns; Subscribe has one destination, so it stays a
+ * direct WhatsApp link. There is no page-level opt-out for Contribute: this is one common block.
  *
  * The generic glyphs are Google Material Symbols Rounded. WhatsApp deliberately keeps the exact
  * filled mark already used by ShareLinks so the site's WhatsApp affordance does not fork.
@@ -25,8 +25,6 @@ export interface PublicShareProps {
   title?: string;
   /** Share dropdown title / tooltip. Defaults to Share. */
   label?: string;
-  /** Include the voluntary-contribution action. Home deliberately leaves this false. */
-  contribute?: boolean;
 }
 
 type OpenMenu = 'contribute' | 'share' | null;
@@ -46,7 +44,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
   url,
   title,
   label = 'Share',
-  contribute = false,
 } ) => {
   const [ resolvedUrl, setResolvedUrl ] = useState( url || '' );
   const [ resolvedTitle, setResolvedTitle ] = useState( title || '' );
@@ -144,25 +141,22 @@ const PublicShare: React.FC<PublicShareProps> = ( {
     }
   }, [ resolvedUrl ] );
 
-  const shareMenuClass = contribute
-    ? 'ps-menu ps-share-menu has-contribute'
-    : 'ps-menu ps-share-menu';
+  const shareMenuClass = 'ps-menu ps-share-menu has-contribute';
 
   return (
     <section
-      className={ contribute ? 'public-share has-contribute' : 'public-share' }
-      aria-label={ contribute ? 'Contribute, subscribe and share' : 'Subscribe and share this page' }
+      className="public-share has-contribute"
+      aria-label="Contribute, subscribe and share"
       ref={ rootRef }
     >
       <div className="ps-row">
-        { contribute && (
-          <section className="contribute" aria-labelledby="ps-contribute-heading">
+        <section className="contribute" aria-labelledby="ps-contribute-heading">
             <h2 className="ps-sr-only" id="ps-contribute-heading">Contribute</h2>
             <button
               ref={ contributeTriggerRef }
               type="button"
               className="ps-action ps-contribute"
-              aria-label={ `Contribute ${CONTRIBUTE_BLOCK_AMOUNT_LABEL}` }
+              aria-label={ `Contribute ${CONTRIBUTION_AMOUNT_LABEL}` }
               aria-expanded={ openMenu === 'contribute' }
               aria-controls="ps-contribute-menu"
               onClick={ () => toggleMenu( 'contribute' ) }
@@ -170,8 +164,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               <span className="ps-material" aria-hidden="true">currency_rupee</span>
               <span className="ps-tip" aria-hidden="true">Contribute</span>
             </button>
-          </section>
-        ) }
+        </section>
 
         <a
           className="ps-action ps-subscribe"
@@ -198,15 +191,14 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         </button>
       </div>
 
-      { contribute && (
-        <div
+      <div
           className={ openMenu === 'contribute' ? 'ps-menu ps-contribute-menu is-open' : 'ps-menu ps-contribute-menu' }
           id="ps-contribute-menu"
           hidden={ openMenu !== 'contribute' }
         >
           <div className="ps-menu-head">
             <div className="ps-menu-title contribute-label" data-wc-no-translate="true">
-              { `Contribute ${CONTRIBUTE_BLOCK_AMOUNT_LABEL}` }
+              { `Contribute ${CONTRIBUTION_AMOUNT_LABEL}` }
             </div>
             <p className="ps-menu-sub">Choose how to contribute.</p>
           </div>
@@ -249,8 +241,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               <span className="ps-material ps-chevron" aria-hidden="true">chevron_right</span>
             </button>
           </div>
-        </div>
-      ) }
+      </div>
 
       <div
         className={ openMenu === 'share' ? `${shareMenuClass} is-open` : shareMenuClass }
