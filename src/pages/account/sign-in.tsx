@@ -641,7 +641,7 @@ export default function CustomerSignIn (): React.ReactElement {
           {/* Subscribe + Share, last child of .si-card so every public page carries the block.
               It shares the sign-in page itself (noindex, but the block only shares the current URL
               - harmless and keeps the sitewide consistency the owner asked for). */}
-          <PublicShare contribute />
+          <PublicShare />
         </div>
 
         <style jsx>{`

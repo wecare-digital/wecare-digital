@@ -2142,7 +2142,7 @@ export default function Cart (): React.ReactElement {
 
           {/* Subscribe + Share, last child of .cart-in so it shares the /cart/ page and sits at
               the content end. Shown in every cart state, consistent with every public page. */}
-          <PublicShare contribute />
+          <PublicShare />
         </div>
 
         <style jsx>{`

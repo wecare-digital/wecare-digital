@@ -617,7 +617,7 @@ response = requests.post(
             wrapper rhythm. This restores that rhythm here so the block's bottom air is consistent
             sitewide. */}
         <div className="pp-inner gos-share-wrap">
-          <PublicShare contribute />
+          <PublicShare />
         </div>
 
 

@@ -1238,7 +1238,7 @@ export default function OrdersPage (): React.ReactElement {
           {/* Subscribe + Share, as the last child of .ord-page so it spans this page's own
               1100px measure and sits at the content end. Shown in every view state, which is
               correct: it shares the /orders/ page itself, not any one order. */}
-          <PublicShare contribute />
+          <PublicShare />
         </div>
 
         <style jsx>{`

@@ -318,7 +318,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
       <style jsx>{`
         .public-share{
           position:relative;width:100%;margin-top:48px;padding:24px 0 28px;
-          border-top:1px solid #e5e7eb;box-sizing:border-box;
+          box-sizing:border-box;
           font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
         }
         .public-share.has-contribute{margin-top:44px}
