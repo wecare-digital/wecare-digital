@@ -86,7 +86,7 @@ export default function CheckoutSuccess (): React.ReactElement {
 
         {/* Contribute + Subscribe + Share, last children inside PageTopBand. Consistent with
             every public page: ContributeBlock above the Subscribe+Share block. */}
-        <PublicShare contribute />
+        <PublicShare />
 
         <style jsx>{`
           /* No top padding, no measure, no font stack: PageTopBand owns all three. */
