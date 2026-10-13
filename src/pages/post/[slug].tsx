@@ -434,26 +434,14 @@ export default function BlogPostPage ( {
           {/* THE OLD INLINE SUBSCRIBE PILL IS GONE. The post page used to carry its own
               `.blog-wa-subscribe` WhatsApp pill and a `.wc-sweep-note` "Continue on WhatsApp →"
               microcopy line here, plus its own `.post-share` ShareLinks row below Contribution.
-              The owner unified every public surface onto the ONE global Subscribe+Share block
+              The owner unified every public surface onto the ONE global Contribute+Subscribe+Share block
               (components/PublicShare), so both the old Subscribe pill and the page's own Share row
-              are removed and PublicShare below provides Subscribe FOLLOWED BY Share in one block.
+              are removed and PublicShare below provides Contribute, Subscribe and Share in one block.
               There is exactly ONE Subscribe+Share on the page now. */}
-
-          {/* CONTRIBUTE - the voluntary-contribution block, placed BEFORE the global
-              Subscribe+Share so the reading order is content -> Tags -> Contribute ->
-              Subscribe+Share -> pager/related.
-              This is now components/ContributeBlock, the richer both-paths appeal (the WhatsApp
-              conversation AND the on-site checkout path) rather than the old WhatsApp-only
-              BlogContribution. The same block is carried on the blog index, so the two surfaces
-              match. Its heading is an h2, never an h1, so the page keeps its single h1 and
-              htmlcheck's H1-MANY guard is satisfied. It does NOT take the shareRef - that stays on
-              the .post-share wrapper below, which is the IntersectionObserver reveal sentinel. */}
-          <ContributeBlock />
-
-          {/* THE GLOBAL SUBSCRIBE + SHARE BLOCK, AT THE END OF THE READING.
+          {/* THE GLOBAL CONTRIBUTE + SUBSCRIBE + SHARE BLOCK, AT THE END OF THE READING.
               The page no longer renders its own ShareLinks row; PublicShare is the ONE
-              Subscribe+Share block every public surface carries - Subscribe (the WhatsApp pill)
-              followed by Share (the icon row for THIS page's own URL + title) in one block.
+              Contribute+Subscribe+Share block every public surface carries - the compact Contribute menu,
+              Subscribe, then Share (the icon row for THIS page's own URL + title) in one block.
               canonical + post.title are passed as the share target, NOT router.asPath or the
               seoTitle: what gets shared has to be the address the page declares as its own
               (no utm string, no #hash) and the title without the " | WECARE.DIGITAL" tab suffix,
@@ -465,7 +453,7 @@ export default function BlogPostPage ( {
               is unchanged. Its own hairline border is dropped (see the CSS note) because
               PublicShare carries its own full-width separator. */}
           <div className="post-share" ref={ shareRef }>
-            <PublicShare contribute url={ canonical } title={ post.title } />
+            <PublicShare url={ canonical } title={ post.title } />
           </div>
 
           {/* WALKING THE STREAM, ONE POST AT A TIME.
