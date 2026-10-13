@@ -206,39 +206,21 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
   }, [] );
 
   /**
-   * True once the full corpus is in hand AND it actually contains this category's posts.
-   *
-   * An EMPTY successful response does not expand. A transient empty index must not blank a blog
-   * that prerendered cards perfectly well - the same non-fatal-on-empty rule the feed and the
-   * index generators follow - so when the fetch comes back with nothing for this category the
-   * prerendered slice is left exactly as it shipped rather than being replaced by "no posts".
-   */
-  const expanded =
-    indexState === 'ready' &&
-    allCards !== null &&
-    ( activeCategory
-      ? allCards.some( post => post.category === activeCategory )
-      : allCards.length > 0 );
-
-  /**
-   * EVERY POST IN THIS CATEGORY, or the prerendered slice until the fetch lands / if it fails.
-   *
-   * The index covers the whole corpus, so it is narrowed to activeCategory here - /blog/ must
-   * not grow 240 Gastronomy posts once the fetch resolves, and a topic stream must not grow the
-   * rest of the site. Before expansion this is exactly the server-sent slice, so the first paint
-   * and the no-JS render are identical to what shipped.
+   * (The `expanded` flag was retired on 2026-10-13: the blog stays PAGINATED and no longer grows
+   * to the whole category once the full index loads. allCards is still fetched, but only to power
+   * search - the listing itself is always the prerendered paged slice.)
    */
   /**
-   * WHAT THE READER SEES, IN THREE CASES.
+   * WHAT THE READER SEES, IN TWO CASES.
    *
    *   A query is typed - filter the WHOLE corpus (scoped to this category) across
    *     title + excerpt + category + tags, and show every match. This needs allCards, so it only
    *     narrows once the fetch has landed; before that there is nothing to search and the normal
    *     list shows. All matches, no slice: the point of the box is to find a post, not to page to it.
-   *   No query, expanded - every post in the active category, the show-every-post default.
-   *   No query, not expanded - the prerendered slice, which is the first paint and the no-JS path.
+   *   No query - the prerendered paged slice, which is the first paint, the no-JS path, AND the
+   *     steady state now that the list no longer expands. The pager turns the pages.
    *
-   * The category scope is the same in all three: /blog/ is the default category, each topic
+   * The category scope is the same in both: /blog/ is the default category, each topic
    * stream is its own, so a search on Conversations never surfaces a Gastronomy post.
    */
   const trimmedQuery = query.trim().toLowerCase();
@@ -259,11 +241,13 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
         return hay.includes( trimmedQuery );
       } );
     }
-    if ( !expanded ) return posts;
-    return activeCategory
-      ? allCards!.filter( post => post.category === activeCategory )
-      : allCards!;
-  }, [ searching, trimmedQuery, expanded, allCards, posts, activeCategory ] );
+    // ALWAYS the prerendered paged slice when not searching (owner 2026-10-13): the blog stays
+    // PAGINATED rather than expanding to the whole category once the full index loads. The
+    // `expanded` behaviour (grow the list to every post and drop the pager) is retired - the
+    // full index (allCards) is still fetched, but only to power search; the listing itself is the
+    // page's own paginated slice at every moment, so the pager never disappears.
+    return posts;
+  }, [ searching, trimmedQuery, allCards, posts, activeCategory ] );
 
   /* WHICH STREAM THIS VIEW IS PAGING. Derived here rather than passed in, because the component
    * already holds both halves of the answer and the pills two hundred lines below compute the
@@ -372,14 +356,13 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
               </div>
             ) }
 
-            {/* THE PAGINATOR IS THE NO-JAVASCRIPT PATH, SO IT HIDES ONCE THE FULL LIST IS IN -
-                AND WHILE A SEARCH IS ACTIVE. When the on-mount fetch succeeds, every post in this
-                category is already on screen and there are no more pages to turn; and when a query
-                is typed, all matches are shown at once, so paging them would put two narrowings
-                between a reader and one post. Until then (first paint, a failed fetch, or scripts
-                off) the prerendered slice is paginated exactly as it shipped, which keeps the
-                whole blog reachable without JavaScript. */}
-            { !searching && !expanded && totalPages > 1 && (
+            {/* THE PAGINATOR IS ALWAYS SHOWN when there is more than one page and no search is
+                active (owner 2026-10-13). The blog no longer expands to the whole category once the
+                full index loads, so the pager stays - the listing is the prerendered paged slice at
+                every moment, and the pager turns the pages. It still hides WHILE A SEARCH IS ACTIVE,
+                because a query shows all matches at once and paging them would put two narrowings
+                between a reader and one post. */}
+            { !searching && totalPages > 1 && (
               /* components/Pager.tsx, which is this exact control moved out whole so /shop/
                  renders one declaration of it rather than a second copy. No prevLabel or
                  nextLabel: they default to Newer / Older, which is this listing's own copy. */

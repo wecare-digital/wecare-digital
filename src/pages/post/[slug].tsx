@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import PublicShare from '../../components/PublicShare';
+import RotatingHero from '../../components/RotatingHero';
 import {
   SOCIAL_CARD_URL, SOCIAL_CARD_W, SOCIAL_CARD_H, SOCIAL_CARD_TYPE, SOCIAL_CARD_ALT, SHARE_CARD_TYPE,
 } from '../../config/share';
@@ -359,8 +360,22 @@ export default function BlogPostPage ( {
           <script type="application/ld+json" dangerouslySetInnerHTML={ ld( post.jsonLd?.faqSchema ) } />
         ) }
       </Head>
-      <main className="article-shell">
-        <article>
+      {/* UNIFIED HERO (owner 2026-10-13): the post carries the same frame + lime pill + sub as
+          every public page, via the shared RotatingHero - "Read [post title]" with the title in
+          the lime pill. A SINGLE word (the title) is passed, so the pill is static (no 2400ms
+          rotation). RotatingHero owns the <main> and the ONE <h1>, so the article's own title
+          below is demoted to <h2> - the page keeps exactly one h1 (htmlcheck's H1-MANY guard) and
+          the hero is that h1. This is a single dynamic template, so every post - today's and any
+          added tomorrow - gets the hero automatically. `noShare` is passed because the post keeps
+          its OWN PublicShare at a specific mid-content spot (the .post-share reveal sentinel,
+          before the post-nav and related cards), so the hero must NOT auto-mount a second dock. */}
+      <RotatingHero
+        frame="Read"
+        words={ [ { word: post.title, tint: '#e0f7c8', dot: '#3da35a' } ] }
+        ariaLabel={ post.title }
+        noShare
+      >
+        <article className="article-shell">
           {/* A REAL TRAIL, replacing a single "← Blog" back link at 13px/650 - the only
               control on this page below the site's 12px/700 smallest UI rung. The page's own
               JSON-LD has always declared a BreadcrumbList; now the page shows one. */}
@@ -389,7 +404,10 @@ export default function BlogPostPage ( {
             />
           </form>
           { post.category && <div className="category">{ post.category }</div> }
-          <h1>{ post.title }</h1>
+          {/* The article title is an h2 now: the RotatingHero pill above is the page's single h1,
+              so the title steps down one level to keep exactly one h1. .post-title class carries
+              the old h1 styling so the visible treatment is unchanged. */}
+          <h2 className="post-title">{ post.title }</h2>
           {/* NO PUBLISHED DATE IN THE BYLINE, on owner instruction. It rendered beside the
               author as a formatted en-IN date and is gone from every blog and post surface.
               WHAT DELIBERATELY STAYS: datePublished and dateModified in the BlogPosting
@@ -539,10 +557,13 @@ export default function BlogPostPage ( {
             <RssIcon />
           </div>
         </article>
-      </main>
+      </RotatingHero>
       <style jsx>{`
-        /* Clear the fixed site header so readers land directly on the article. */
-        .article-shell{max-width:1300px;margin:0 auto;padding:140px 24px 96px;color:#1a1a1a;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+        /* NO HEADER CLEARANCE HERE ANY MORE: RotatingHero owns the <main>, the 108px/96px header
+           clearance, the measure and the gutter. .article-shell is now a plain <article> inside
+           .rh-layout, so it only needs its own 700px reading measure and font - the top padding
+           moved out with the <main>. */
+        .article-shell{max-width:700px;margin:0 auto;color:#1a1a1a;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
         article{max-width:700px;margin:0 auto}
         /* THE GLOBAL BORDERLESS SEARCH FIELD, matching /blog/ (.blog-search) and the /anew/ panel
            (.pbp-search): transparent fill, one quiet bottom hairline, the shared lime mic, no submit button. On focus
@@ -574,7 +595,10 @@ export default function BlogPostPage ( {
            .category in BlogIndexView.tsx for why identity takes the fill and not the .22
            tint - the short version is that .22 composites to a barely-not-white wash. */
         .category{display:inline-block;background:#d1f470;color:#1a3a2a;border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;letter-spacing:-.125px;margin-bottom:18px}
-        h1{font-size:clamp(36px,4.3vw,60px);line-height:1.04;letter-spacing:-0.04em;color:rgba(0,0,0,.95);margin:0 0 20px;font-weight:600;text-wrap:balance;max-width:20ch}
+        /* .post-title carries the article title's old h1 treatment unchanged - it is an <h2> now
+           (RotatingHero's pill is the page's one h1), but the visible size/weight is identical so
+           the article still opens on its title at full weight. */
+        .post-title{font-size:clamp(36px,4.3vw,60px);line-height:1.04;letter-spacing:-0.04em;color:rgba(0,0,0,.95);margin:0 0 20px;font-weight:600;text-wrap:balance;max-width:20ch}
         /* AUTHOR ONLY NOW, so the row is no longer a row. The flex, the gap and the wrap all
            existed to lay out two children - the author and the date - and with the date gone
            they described a layout that cannot happen.
@@ -763,7 +787,8 @@ export default function BlogPostPage ( {
         }
         .post-related :global(.post-related-all:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px}
         @media(max-width:680px){
-          .article-shell{padding:120px 16px 64px}
+          /* No header clearance here on mobile either - RotatingHero's .rh-layout owns it. */
+          .article-shell{padding:0}
           h1{max-width:none}
           .byline{margin-bottom:34px}
           .content :global(p),.content :global(li){font-size:18px;line-height:1.6}
