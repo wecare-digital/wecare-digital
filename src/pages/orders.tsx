@@ -3,7 +3,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import PageMeta from '../components/PageMeta';
 import PageTopBand from '../components/PageTopBand';
 import PublicShare from '../components/PublicShare';
-import ContributeBlock from '../components/ContributeBlock';
 import PillButton from '../components/PillButton';
 import CheckoutIdentityCard from '../components/CheckoutIdentityCard';
 import RequestsPanel from '../components/orders/RequestsPanel';
@@ -1239,8 +1238,7 @@ export default function OrdersPage (): React.ReactElement {
           {/* Subscribe + Share, as the last child of .ord-page so it spans this page's own
               1100px measure and sits at the content end. Shown in every view state, which is
               correct: it shares the /orders/ page itself, not any one order. */}
-          <ContributeBlock />
-          <PublicShare />
+          <PublicShare contribute />
         </div>
 
         <style jsx>{`
