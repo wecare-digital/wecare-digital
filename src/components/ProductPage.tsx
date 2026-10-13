@@ -56,11 +56,10 @@ interface ProductPageProps {
   priceUnit?: string;
   /**
    * OPT-IN BREADCRUMB above the product copy. Omit it and the page renders byte for byte what it
-   * rendered before, which is what keeps the nine non-shop routes that mount this component - the
-   * seven CUSTOMERSERVICE entries plus /shipments/ and /subscribe/ - and their pinned tests
-   * untouched.
+   * rendered before, which is what keeps the eight non-shop routes that mount this component - the
+   * seven CUSTOMERSERVICE entries plus /shipments/ - and their pinned tests untouched.
    *
-   * OPT-IN RATHER THAN ALWAYS-ON, AND THAT IS THE DECISION. Those nine are not shop members, so a
+   * OPT-IN RATHER THAN ALWAYS-ON, AND THAT IS THE DECISION. Those eight are not shop members, so a
    * Home / Shop / <Name> trail would be a false statement on them. The eight products pass one:
    * /shop/<slug>/ has rendered Home / Shop / <Product> since 2026-10-10 while these pages rendered
    * no breadcrumb at all, so going /shop/ to /anew/ dropped the trail entirely. That break is what
@@ -223,11 +222,9 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           </div>
         ) }
 
-        {/* THE PAGE'S OWN SHARE ROW IS GONE. It used to render ShareLinks ("Share Anew") here when
-            a shareUrl was supplied, but every public page now carries the ONE global Subscribe+Share
-            block (components/PublicShare, auto-mounted by RotatingHero at the content end). A second
-            share row on the same page read as "Share" appearing twice, so the page-level one is
-            removed and PublicShare is the single share. */}
+        {/* THE PAGE'S OWN SHARE ROW IS GONE. Every public page now carries the ONE common
+            Contribute + Subscribe + Share block (components/PublicShare, auto-mounted by
+            RotatingHero at the content end). A second page-level share row would duplicate it. */}
 
         <style jsx>{`
           .pdp{max-width:700px}
