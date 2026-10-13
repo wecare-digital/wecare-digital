@@ -93,7 +93,6 @@ describe( 'Shipments page', () => {
     // Drop the shared sitewide action dock before counting. It contains Subscribe/Share controls
     // and the Contribute actions; those are sitewide furniture, not the shipments page's controls.
     container.querySelector( '.public-share' )?.remove();
-    container.querySelector( '.contribute' )?.remove();
     const waLinks = Array.from( container.querySelectorAll( 'a[href*="wa.me"]' ) );
     expect( waLinks ).toHaveLength( 2 );
     // In document order: tracking first, pickup second.
@@ -106,10 +105,9 @@ describe( 'Shipments page', () => {
 
   it( 'surfaces no transacting control or price', () => {
     const { container } = render( <ShipmentsPage /> );
-    // The sitewide ContributeBlock names the suggested amount ("₹250 · voluntary") and carries a
-    // checkout control; it is sitewide furniture, not this page transacting, so drop it before
-    // asserting the page itself surfaces no price or buy control.
-    container.querySelector( '.contribute' )?.remove();
+    // The common page-tail carries the contribution amount and checkout action; remove the whole
+    // dock before asserting the Shipments page itself surfaces no price or buy control.
+    container.querySelector( '.public-share' )?.remove();
     const text = ( container.textContent || '' ).toLowerCase();
     expect( text ).not.toContain( 'add to cart' );
     expect( text ).not.toContain( 'pay now' );
