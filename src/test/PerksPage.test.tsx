@@ -92,9 +92,9 @@ describe( 'Perks page', () => {
 
   it( 'invents no points, balances, history or live offers', () => {
     const { container } = render( <PerksPage /> );
-    // The sitewide ContributeBlock names a suggested amount ("₹250 · voluntary"); it is sitewide
-    // furniture, not a Perks balance or offer, so drop it before asserting the page invents none.
-    container.querySelector( '.contribute' )?.remove();
+    // The common page-tail carries the sitewide contribution amount; remove that furniture before
+    // checking that the Perks page itself invents no balance or offer.
+    container.querySelector( '.public-share' )?.remove();
     const text = ( container.textContent || '' ).toLowerCase();
     expect( text ).not.toMatch( /\d+\s*points/ );
     expect( text ).not.toMatch( /balance:\s*₹?\d/ );
