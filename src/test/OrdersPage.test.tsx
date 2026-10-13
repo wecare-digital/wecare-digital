@@ -448,9 +448,9 @@ describe( '/orders/ — the order list', () => {
       orders: [ row( { amountPaise: null } ) ], profile: profile(),
     } ) );
     expect( await screen.findByText( 'Amount unavailable' ) ).toBeInTheDocument();
-    // The sitewide ContributeBlock names a suggested amount ("₹250 · voluntary"); it is furniture,
-    // not this order's money, so drop it before asserting no rupee sign leaks from the order row.
-    container.querySelector( '.contribute' )?.remove();
+    // The common page-tail contains the sitewide contribution amount; remove the whole dock before
+    // asserting that no rupee sign leaked from the order data itself.
+    container.querySelector( '.public-share' )?.remove();
     expect( container.textContent ).not.toContain( '₹' );
   } );
 
@@ -460,7 +460,7 @@ describe( '/orders/ — the order list', () => {
       orders: [ row( { currency: 'USD', currencyUnexpected: true } ) ], profile: profile(),
     } ) );
     expect( await screen.findByText( 'Amount unavailable' ) ).toBeInTheDocument();
-    container.querySelector( '.contribute' )?.remove();
+    container.querySelector( '.public-share' )?.remove();
     expect( container.textContent ).not.toContain( '₹' );
   } );
 
@@ -1236,7 +1236,8 @@ describe( '/orders/ — the order-source tag', () => {
     const { container } = await renderSignedIn( answer( 200, {
       orders: [ row( { channel: 'whatsapp' } ) ], profile: profile(),
     } ) );
-    const trigger = await screen.findByRole( 'button', { expanded: false } );
+    await waitFor( () => expect( container.querySelector( 'button.ord-ordbtn' ) ).not.toBeNull() );
+    const trigger = container.querySelector( 'button.ord-ordbtn[aria-expanded="false"]' ) as HTMLButtonElement;
     fireEvent.click( trigger );
     const terms = Array.from( container.querySelectorAll( '.ord-facts dt' ) )
       .map( node => node.textContent );
@@ -1609,7 +1610,7 @@ describe( '/orders/ — the copy control', () => {
     expect( rows[ 1 ].querySelectorAll( 'button.ord-copy' ) ).toHaveLength( 1 );
     expect( rows[ 1 ].querySelectorAll( '.ord-tip' ) ).toHaveLength( 1 );
     // Neither row loses its trigger.
-    expect( container.querySelectorAll( 'button[aria-expanded]' ) ).toHaveLength( 2 );
+    expect( container.querySelectorAll( 'button.ord-ordbtn[aria-expanded]' ) ).toHaveLength( 2 );
   } );
 
   it( 'keeps the hint redundant and reveals it with visibility, never opacity or display',
@@ -1648,7 +1649,7 @@ describe( '/orders/ — the copy control with no clipboard', () => {
       expect( container.querySelectorAll( 'button.ord-copy' ) ).toHaveLength( 0 );
       // The table is UNIFORM in this state: every row loses the line together.
       expect( container.querySelectorAll( '.ord-tip' ) ).toHaveLength( 0 );
-      expect( container.querySelectorAll( 'button[aria-expanded]' ) ).toHaveLength( 2 );
+      expect( container.querySelectorAll( 'button.ord-ordbtn[aria-expanded]' ) ).toHaveLength( 2 );
     }
     finally
     {
