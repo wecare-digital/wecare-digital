@@ -5,7 +5,7 @@ import BlogIndex from '../pages/blog/index';
 import BlogIndexPage from '../pages/blog/page/[page]';
 import BlogPostPage from '../pages/post/[slug]';
 import ProductBlogPanel from '../components/ProductBlogPanel';
-import { CONTRIBUTE_BLOCK_AMOUNT_LABEL } from '../components/ContributeBlock';
+import { CONTRIBUTION_AMOUNT_LABEL } from '../config/contribution';
 import { toBlogCard, blogPageCount, POSTS_PER_PAGE, type BlogCard, type PublicBlogPost } from '../lib/public-blog';
 import type { BlogIndexPageProps } from '../lib/blog-index-props';
 /* CONTRIBUTION_CHOICES was imported here to hold the rendered amount pills equal to the central
@@ -223,11 +223,12 @@ describe( 'Blog design alignment', () => {
     const shares = container.querySelectorAll( 'section.public-share' );
     expect( shares ).toHaveLength( 1 );
 
-    // Subscribe: the PublicShare pill at the subscribe deep link, text-only "Subscribe".
+    // Subscribe is now the 48px notification action in the common dock. Its accessible name and
+    // destination are the contract; Material Symbols text is intentionally aria-hidden.
     const subscribe = shares[ 0 ].querySelector( 'a.ps-subscribe' );
     expect( subscribe ).not.toBeNull();
     expect( subscribe!.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
-    expect( subscribe!.textContent ).toBe( 'Subscribe' );
+    expect( subscribe!.getAttribute( 'aria-label' ) ).toBe( 'Subscribe on WhatsApp' );
 
     // Share: the row follows Subscribe inside the same block.
     expect( shares[ 0 ].querySelector( '.ps-row' ) ).not.toBeNull();
@@ -834,48 +835,35 @@ describe( 'Blog post page', () => {
   } );
 
   /**
-   * CONTRIBUTION THEN THE GLOBAL SUBSCRIBE + SHARE BLOCK SIT BETWEEN TAGS AND THE PAGER.
+   * THE ONE COMMON ACTION DOCK SITS BETWEEN TAGS AND THE PAGER.
    *
-   * The owner unified every public surface onto the ONE global PublicShare block, so the post
-   * page's own inline Subscribe pill (a.blog-wa-subscribe) and its own ShareLinks row are gone.
-   * The tail is now content -> Tags -> Contribution -> PublicShare (Subscribe + Share), with
-   * PublicShare still wrapped in the .post-share reveal sentinel. Document position is asserted
-   * rather than mere presence so either block moving silently fails.
+   * Contribute, Subscribe and Share are now children of ONE PublicShare component. The post no
+   * longer renders a separate ContributeBlock or inline Subscribe/Share row.
    */
-  it( 'renders Contribution then the global Subscribe + Share block, between Tags and the pager', () => {
+  it( 'renders the unified Contribute + Subscribe + Share dock after Tags', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
 
     const tags = container.querySelector( 'nav.tags' );
-    // The contribution block is now ContributeBlock (section.contribute), the both-paths appeal,
-    // not the old WhatsApp-only BlogContribution (section.bc).
-    const contribution = container.querySelector( 'section.contribute' );
     const share = container.querySelector( '.post-share' );
     const publicShare = container.querySelector( 'section.public-share' );
+    const contribution = publicShare?.querySelector( 'section.contribute' ) || null;
 
     expect( tags ).not.toBeNull();
-    expect( contribution ).not.toBeNull();
     expect( share ).not.toBeNull();
     expect( publicShare ).not.toBeNull();
+    expect( contribution ).not.toBeNull();
 
-    // The old inline Subscribe pill is gone, and so is the in-page signup form.
     expect( container.querySelector( 'a.blog-wa-subscribe' ) ).toBeNull();
     expect( container.querySelector( 'section.blog-subscribe' ) ).toBeNull();
-
-    // Exactly ONE global Subscribe + Share block, and it is inside the .post-share sentinel.
     expect( container.querySelectorAll( 'section.public-share' ) ).toHaveLength( 1 );
     expect( share!.contains( publicShare! ) ).toBe( true );
+    expect( publicShare!.contains( contribution! ) ).toBe( true );
 
-    // The PublicShare Subscribe pill points at the subscribe deep link.
     expect( publicShare!.querySelector( 'a.ps-subscribe' )!.getAttribute( 'href' ) )
       .toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
 
-    // Reading order: Tags -> Contribution -> Subscribe+Share.
-    expect( tags!.compareDocumentPosition( contribution! ) & Node.DOCUMENT_POSITION_FOLLOWING )
+    expect( tags!.compareDocumentPosition( share! ) & Node.DOCUMENT_POSITION_FOLLOWING )
       .toBeTruthy();
-    expect( contribution!.compareDocumentPosition( share! ) & Node.DOCUMENT_POSITION_FOLLOWING )
-      .toBeTruthy();
-
-    // The reveal sentinel is untouched: shareRef still names .post-share.
     expect( share!.classList.contains( 'post-share' ) ).toBe( true );
   } );
 
@@ -892,7 +880,7 @@ describe( 'Blog post page', () => {
     expect( block.querySelector( 'h2' )?.textContent ).toBe( 'Contribute' );
     expect( block.textContent ).not.toContain( 'If this helped' );
     expect( block.querySelector( '.contribute-label' )?.textContent )
-      .toBe( `Contribute ${ CONTRIBUTE_BLOCK_AMOUNT_LABEL }` );
+      .toBe( `Contribute ${ CONTRIBUTION_AMOUNT_LABEL }` );
     // Still exactly one h1 on the whole page - the title - and the contribution added none.
     expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
     expect( block.querySelector( 'h1' ) ).toBeNull();
@@ -933,7 +921,7 @@ describe( 'Blog post page', () => {
     // The amount is a STATIC LABEL on the line ("Contribute ₹250"), not a chooseable control: no
     // radio group, no amount input - the browser sends no price.
     expect( block.querySelector( '.contribute-label' )?.textContent )
-      .toBe( `Contribute ${ CONTRIBUTE_BLOCK_AMOUNT_LABEL }` );
+      .toBe( `Contribute ${ CONTRIBUTION_AMOUNT_LABEL }` );
     expect( block.querySelector( '[role="radiogroup"]' ) ).toBeNull();
     expect( block.querySelectorAll( 'form, input, fieldset' ) ).toHaveLength( 0 );
     expect( block.textContent || '' ).toContain( '\u20B9250' );
