@@ -7,7 +7,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 /**
  * ALL PAGE-LEVEL COVERAGE FOR /orders/ LANDS HERE, and the containment is deliberate.
  *
- * `src/test/PublicPageTopBand.test.tsx` is Phase 2's file by its own file map, and
+ * `src/test/PublicPageHero.test.tsx` is Phase 2's file by its own file map, and
  * `src/test/LogicalDirectionCss.test.tsx` reads only `src/styles/*.css` by design, so it cannot
  * see a styled-jsx rule. Three of the band gates are file-driven off lists in that Phase 2 file
  * (hand-rolled clearance, retired palette, the red sweep); rather than edit a file another
@@ -201,26 +201,31 @@ describe( '/orders/ — structure and the top band', () => {
     const { container } = render( <OrdersPage /> );
     expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
     expect( container.querySelectorAll( 'main' ) ).toHaveLength( 1 );
-    expect( container.querySelector( 'h1' )!.textContent ).toBe( 'Your orders' );
+    // The shared RotatingHero's h1 is a fixed "Your" frame line plus a static pill word
+    // ("orders") - a single-element words array, so no rotation. The h1's textContent therefore
+    // concatenates the frame, the sr-only words copy and the visible word, so assert the two
+    // parts separately rather than the joined string.
+    expect( container.querySelector( '.rh-head-line' )!.textContent ).toBe( 'Your' );
+    expect( container.querySelector( '.rh-cyc-word.on' )!.textContent ).toBe( 'orders' );
   } );
 
   it( 'puts nothing conversion-shaped inside the band block itself', () => {
-    // .ptb-top holds only the h1 and the sub-line; children render outside it. So this can only
+    // .rh-hero holds only the h1 and the sub-line; children render outside it. So this can only
     // fail on something passed through `sub`, which is a ReactNode - narrow, not vacuous.
     const { container } = render( <OrdersPage /> );
-    const top = container.querySelector( '.ptb-top' )!;
+    const top = container.querySelector( '.rh-hero' )!;
     expect( top.querySelectorAll( 'button, a' ) ).toHaveLength( 0 );
     expect( top.textContent ).not.toContain( '₹' );
   } );
 
-  it( 'mounts the static PageTopBand and hand-rolls no header clearance', () => {
-    expect( SOURCE ).toContain( '<PageTopBand' );
+  it( 'mounts the shared RotatingHero and hand-rolls no header clearance', () => {
+    expect( SOURCE ).toContain( '<RotatingHero' );
     // The two header heights, asserted as CLEARANCE rather than as the bare numbers: `96px` on
     // its own is also a legitimate grid track width in this file (.ord-facts), so banning the
     // string would fail on a column rather than on a duplicated header offset.
     expect( CODE ).not.toMatch( /(?:padding|margin)(?:-block)?-?(?:top|start)?\s*:\s*(?:108|96)px/ );
     expect( CODE ).not.toMatch( /calc\(\s*100(?:v|d)h\s*-/ );
-    expect( CODE ).not.toContain( 'RotatingHero' );
+    expect( CODE ).not.toContain( 'PageTopBand' );
   } );
 
   it( 'uses no retired red, in any notation', () => {
@@ -259,9 +264,10 @@ describe( '/orders/ — structure and the top band', () => {
     } ) );
     await screen.findByText( 'WD-1042' );
     expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
-    expect( container.querySelector( 'h1' )!.textContent ).toBe( 'Your orders' );
+    expect( container.querySelector( '.rh-head-line' )!.textContent ).toBe( 'Your' );
+    expect( container.querySelector( '.rh-cyc-word.on' )!.textContent ).toBe( 'orders' );
     expect( container.querySelectorAll( 'main' ) ).toHaveLength( 1 );
-    const top = container.querySelectorAll( '.ptb-top' );
+    const top = container.querySelectorAll( '.rh-hero' );
     expect( top ).toHaveLength( 1 );
     expect( screen.getByText(
       'What you have bought from us, and what each payment is doing.' ) ).toBeInTheDocument();

@@ -90,8 +90,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
-import PageTopBand from '../components/PageTopBand';
-import PublicShare from '../components/PublicShare';
+import RotatingHero from '../components/RotatingHero';
 import PillButton from '../components/PillButton';
 import CheckoutProfile from '../components/CheckoutProfile';
 import type { CheckoutProfileMode, CheckoutProfileValue } from '../components/CheckoutProfile';
@@ -1890,8 +1889,14 @@ export default function Cart (): React.ReactElement {
         {/* Customer-session, per-person: never indexed. */}
         <meta name="robots" content="noindex,nofollow" />
       </Head>
-      <PageTopBand
-        heading="Your cart"
+      {/* UNIFIED TOP HERO (owner 2026-10-13): every public page carries the same frame + lime pill
+          + sub via the shared RotatingHero. A SINGLE word is passed so the pill is static (no
+          2400ms rotation) - a cart is a task screen, so the house look without indefinite motion
+          keeps WCAG 2.2.2. RotatingHero auto-mounts the page-tail dock (PublicShare) in its
+          .rh-tail, so the page's own direct <PublicShare /> is removed below. */}
+      <RotatingHero
+        frame="Your"
+        words={ [ { word: 'cart', tint: '#e0f7c8', dot: '#3da35a' } ] }
         sub="Review what you have added before you check out."
         ariaLabel="Your cart"
       >
@@ -2140,9 +2145,8 @@ export default function Cart (): React.ReactElement {
             </>
           )}
 
-          {/* Subscribe + Share, last child of .cart-in so it shares the /cart/ page and sits at
-              the content end. Shown in every cart state, consistent with every public page. */}
-          <PublicShare />
+          {/* The page-tail dock is AUTO-MOUNTED by RotatingHero (in its .rh-tail), so the page no
+              longer renders its own <PublicShare /> here - that would show the dock twice. */}
         </div>
 
         <style jsx>{`
@@ -2333,7 +2337,7 @@ export default function Cart (): React.ReactElement {
           }
           /* The CTA's reduced-motion handling moved into PillButton with the button itself. */
         `}</style>
-      </PageTopBand>
+      </RotatingHero>
     </>
   );
 }

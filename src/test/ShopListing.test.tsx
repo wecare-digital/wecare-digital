@@ -427,7 +427,7 @@ describe( 'the house rules this listing has to hold', () => {
   it( 'reuses the hero rotation rather than introducing a colour', () => {
     const { container } = render( <ShopListingView { ...propsFor( 1 ) } /> );
     const css = declarationsOnly( cssOf( container ) );
-    // Red is retired from these surfaces, and PublicPageTopBand.test.tsx enforces its absence
+    // Red is retired from these surfaces, and PublicPageHero.test.tsx enforces its absence
     // on the neighbouring shop files.
     expect( css ).not.toContain( '#dc2626' );
     expect( css ).not.toContain( '#fee2e2' );

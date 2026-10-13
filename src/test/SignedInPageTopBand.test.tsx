@@ -14,14 +14,14 @@ import * as customerAuth from '../lib/customerAuth';
  * THE HERO IN THE SIGNED-IN RENDER, which nothing pinned for these three pages.
  *
  * The owner reported the top band missing from /cart/, /orders/ and the checkout screens AFTER
- * LOGIN. `src/test/PublicPageTopBand.test.tsx` already drives all three pages through the band
+ * LOGIN. `src/test/PublicPageHero.test.tsx` already drives all three pages through the band
  * matrix, but every one of its cases renders the SIGNED-OUT branch and says so in code: the cart
  * cases open with `getSession().mockReturnValue(null)`, and the two checkout cases render with no
  * `?a=` in the URL, so neither ever reaches an authenticated read. `/orders/` is covered by
  * `OrdersPage.test.tsx`'s own signed-in pair and is deliberately not re-tested here.
  *
  * So this file is the other half, and it is a VERIFICATION rather than a fix: on each page
- * `PageTopBand` is the outermost element of the `return` and wraps the whole body, so the band
+ * `RotatingHero` is the outermost element of the `return` and wraps the whole body, so the band
  * cannot be dropped by a state change - only by an edit that moves it or puts a condition on it.
  * That is exactly the regression these cases fail on. Each page is asserted in BOTH states in the
  * same case, so a band that survives only one of them cannot pass.
@@ -30,7 +30,7 @@ import * as customerAuth from '../lib/customerAuth';
  * empty `#__next` for them and the signed-in DOM is produced client-side after sign-in, so the
  * browser harnesses cannot load the authenticated render at all. jsdom also applies no CSS, so
  * clearance and the type rungs stay with `tools/browser/devicecheck.js` on the signed-out render.
- * What is decidable here is STRUCTURE - one `main`, one `h1`, one `.ptb-top`, and nothing
+ * What is decidable here is STRUCTURE - one `main`, one `h1`, one `.rh-hero`, and nothing
  * conversion-shaped inside it - and that is what is asserted.
  */
 
@@ -89,20 +89,26 @@ function stubFetch ( body: unknown, ok = true ) {
 }
 
 /**
- * The band, asserted as STRUCTURE. `.ptb-top` holds the h1 and the sub-line and nothing else -
- * a consumer's children render outside it - so the button/link/rupee checks can only fail on
- * something passed through `heading` or `sub`.
+ * The band, asserted as STRUCTURE. The shared RotatingHero renders `main.rh-shell` with a single
+ * hero block `.rh-hero` holding the h1 and the sub-line and nothing else - a consumer's children
+ * render outside it - so the button/link/rupee checks can only fail on something passed through
+ * `frame` or `sub`.
+ *
+ * `frame` is the fixed first headline line (`.rh-head-line`); the static pill holds a single word
+ * that varies per page, so it is asserted by its caller rather than here. The h1's own textContent
+ * concatenates the frame, the sr-only words copy and the visible pill word, so this reads the
+ * frame line directly instead of the joined h1 string.
  */
-function expectBand ( container: HTMLElement, heading: string, where: string ): void {
+function expectBand ( container: HTMLElement, frame: string, where: string ): void {
   expect( container.querySelectorAll( 'main' ), where ).toHaveLength( 1 );
-  expect( container.querySelector( 'main' )!.className, where ).toContain( 'ptb-shell' );
-  const tops = container.querySelectorAll( '.ptb-top' );
+  expect( container.querySelector( 'main' )!.className, where ).toContain( 'rh-shell' );
+  const tops = container.querySelectorAll( '.rh-hero' );
   expect( tops, where ).toHaveLength( 1 );
   const h1s = container.querySelectorAll( 'h1' );
   expect( h1s, where ).toHaveLength( 1 );
-  expect( h1s[ 0 ].textContent, where ).toBe( heading );
   // The one h1 is the BAND's, not a second heading the page grew beside it.
-  expect( container.querySelector( '.ptb-top h1' ), where ).not.toBeNull();
+  expect( container.querySelector( '.rh-hero h1' ), where ).not.toBeNull();
+  expect( container.querySelector( '.rh-head-line' )!.textContent, where ).toBe( frame );
   expect( tops[ 0 ].querySelectorAll( 'button, a' ), where ).toHaveLength( 0 );
   expect( tops[ 0 ].textContent || '', where ).not.toContain( '₹' );
 }
@@ -128,7 +134,8 @@ describe( '/cart/ keeps the hero once a customer is signed in', () => {
     signedOut();
     const out = render( <Cart /> );
     await screen.findByText( 'Kiosk' );
-    expectBand( out.container, 'Your cart', 'signed out' );
+    expectBand( out.container, 'Your', 'signed out' );
+    expect( out.container.querySelector( '.rh-cyc-word.on' )!.textContent ).toBe( 'cart' );
     out.unmount();
     vi.restoreAllMocks();
 
@@ -143,7 +150,8 @@ describe( '/cart/ keeps the hero once a customer is signed in', () => {
     // The identity card only renders on 'ready', so reaching it means the richest signed-in body
     // is mounted rather than the loading or empty one.
     expect( await screen.findByText( 'asha@example.com' ) ).toBeInTheDocument();
-    expectBand( container, 'Your cart', 'signed in' );
+    expectBand( container, 'Your', 'signed in' );
+    expect( container.querySelector( '.rh-cyc-word.on' )!.textContent ).toBe( 'cart' );
     expect( container.textContent )
       .toContain( 'Review what you have added before you check out.' );
   } );
@@ -162,7 +170,10 @@ describe( '/checkout/success/ keeps the hero once a customer is signed in', () =
     signedIn();
     stubFetch( { attempt: { status: 'PAYMENT_PAID', orderNumber: 'WD-ORD-VERIFIED' } } );
     const { container } = render( <CheckoutSuccess /> );
-    expect( await screen.findByRole( 'heading', { name: 'Payment successful' } ) )
+    // The heading's accessible name now opens with the frame and then carries RotatingHero's
+    // sr-only words copy and the pill word, so match the frame prefix rather than the whole name.
+    // expectBand pins the exact frame on .rh-head-line below.
+    expect( await screen.findByRole( 'heading', { name: /^Payment successful/ } ) )
       .toBeInTheDocument();
     expect( screen.getByText( 'WD-ORD-VERIFIED' ) ).toBeInTheDocument();
     expectBand( container, 'Payment successful', 'signed in' );
@@ -183,7 +194,10 @@ describe( '/checkout/status/ keeps the hero once a customer is signed in', () =>
       status: 'PAYMENT_PAID', orderNumber: 'WD-ORD-VERIFIED', amountPaise: 121481, currency: 'INR',
     } } );
     const { container } = render( <CheckoutStatus /> );
-    expect( await screen.findByRole( 'heading', { name: 'Payment received' } ) )
+    // The heading's accessible name now opens with the frame and then carries RotatingHero's
+    // sr-only words copy and the pill word, so match the frame prefix rather than the whole name.
+    // expectBand pins the exact frame on .rh-head-line below.
+    expect( await screen.findByRole( 'heading', { name: /^Payment received/ } ) )
       .toBeInTheDocument();
     expect( screen.getByText( 'WD-ORD-VERIFIED' ) ).toBeInTheDocument();
     // The paid view is the one that grows an actions row, so the band must still be the only h1

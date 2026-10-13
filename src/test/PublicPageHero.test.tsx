@@ -4,7 +4,6 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
-import PageTopBand from '../components/PageTopBand';
 import Cart from '../pages/cart';
 import SignIn from '../pages/account/sign-in';
 import CheckoutStatus, { viewFor } from '../pages/checkout/status';
@@ -17,20 +16,23 @@ import * as cartLib from '../lib/cart';
 import { CONTRIBUTION_CHOICES } from '../config/contribution';
 
 /**
- * THE TOP SECTION EVERY PUBLIC PAGE MUST CARRY, and the four transactional pages that did not.
+ * THE SHARED TOP HERO EVERY PUBLIC PAGE MUST CARRY, across the five transactional pages.
  *
- * The owner reported these pages as missing the shared structure, the animations and the home
- * page's design language. Two of the three were measurable defects rather than matters of taste:
- * /checkout/status/ and /checkout/success/ carried NO header clearance at all - they centred a card
- * inside min-height:100vh under a 108px fixed header - and declared no font family, so their
- * typeface was a side effect of an Amplify stylesheet setting one on body.
+ * The owner (2026-10-13) unified every public page onto the shared `RotatingHero`, retiring the
+ * separate `PageTopBand` the transactional pages used to mount. Each of the five - /cart/,
+ * /account/sign-in/, /checkout/status/, /checkout/success/ and the product page - passes a
+ * SINGLE-element words array, so the lime pill is static: the 2400ms rotation never runs on a
+ * screen a customer is reading to find out whether their money moved, which keeps WCAG 2.2.2 and
+ * invents no marketing copy. RotatingHero owns the main landmark, the h1, the two-height header
+ * clearance, the 1300px measure and its own 'Inter' stack - so these pages hand-roll none of it.
  *
  * What is asserted where. jsdom applies no CSS, so clearance, type rungs and tap targets are
  * measured in a real browser: tools/browser/devicecheck.js now carries /cart/, /account/sign-in/,
  * /checkout/status/ and /checkout/success/ across fifteen postures, and pageaudit.js probes the
  * header clearance with elementFromPoint. These tests cover what jsdom can decide: the structure
- * (one main, one h1, nothing conversion-shaped inside the band), the opt-in direction of the
- * entrance animation, and the copy invariants that protect a customer's money.
+ * (one main, one h1, nothing conversion-shaped inside the hero band .rh-hero), the frame + static
+ * pill word on each page, and the copy invariants that protect a customer's money. The hero's own
+ * arming/entrance behaviour is RotatingHero's and is covered with that component, not here.
  */
 
 const KIOSK = (): ShopProduct => shopProductBySlug( 'kiosk' ) as ShopProduct;
@@ -51,7 +53,7 @@ const BAND_PAGE_FILES = [
  */
 const NO_RED_FILES = [
   ...BAND_PAGE_FILES,
-  'src/components/PageTopBand.tsx',
+  'src/components/RotatingHero.tsx',
   'src/components/HeaderCart.tsx',
 ];
 
@@ -79,104 +81,22 @@ afterEach( () => {
   vi.unstubAllGlobals();
 } );
 
-describe( 'PageTopBand ships the settled state and arms the entrance afterwards', () => {
-  it( 'renders a readable heading with no JavaScript having run', () => {
-    /*
-     * THE DIRECTION OF THIS IS THE WHOLE POINT, and getting it backwards shipped a blank hero on
-     * twelve pages of this site. The CSS default must be the FINISHED band, with JavaScript adding
-     * a class that puts the start state back - so a failed bundle, a crawler or a reader with
-     * scripting off sees a complete heading rather than an invisible one.
-     *
-     * The first render is the no-JS proxy: the effect has not run, so .is-armed is absent and the
-     * only declarations in play are the settled ones.
-     */
-    const { container } = render(
-      <PageTopBand heading="Your cart" sub="A sub-line." ariaLabel="Your cart" />,
-    );
-    const layout = container.querySelector( '.ptb-layout' ) as HTMLElement;
-    expect( layout.className ).not.toContain( 'is-armed' );
-    expect( screen.getByRole( 'heading', { level: 1 } ).textContent ).toBe( 'Your cart' );
-  } );
-
-  it( 'arms and then reveals once motion is known to be allowed', async () => {
-    const { container } = render(
-      <PageTopBand heading="Your cart" ariaLabel="Your cart" />,
-    );
-    const layout = () => container.querySelector( '.ptb-layout' ) as HTMLElement;
-    // .is-armed puts the start state back; .show plays it. Both land on the className, not through
-    // classList - RotatingHero records why: React rewrites className on render and silently drops
-    // an imperatively added class.
-    await waitFor( () => expect( layout().className ).toContain( 'is-armed' ) );
-    await waitFor( () => expect( layout().className ).toContain( 'show' ) );
-  } );
-
-  it( 'never arms at all when the reader asks for reduced motion', async () => {
-    vi.spyOn( window, 'matchMedia' ).mockImplementation( ( query: string ) => ( {
-      media: query, matches: true, onchange: null,
-      addEventListener: () => undefined, removeEventListener: () => undefined,
-      addListener: () => undefined, removeListener: () => undefined,
-      dispatchEvent: () => false,
-    } as unknown as MediaQueryList ) );
-
-    const { container } = render( <PageTopBand heading="Your cart" ariaLabel="Your cart" /> );
-    // Staying at the settled state is the correct response, because the settled state is what the
-    // CSS already declares. There is nothing to undo.
-    await new Promise( resolve => setTimeout( resolve, 120 ) );
-    expect( ( container.querySelector( '.ptb-layout' ) as HTMLElement ).className )
-      .not.toContain( 'is-armed' );
-  } );
-
-  it( 'puts the page inside the band rather than beside it', () => {
-    const { container } = render(
-      <PageTopBand heading="Your cart" ariaLabel="Your cart">
-        <p className="child">below the band</p>
-      </PageTopBand>,
-    );
-    // One main landmark, and the children share its measure. A page that rendered its own <main>
-    // alongside this one would report two, which tools/audit/htmlcheck.js flags at HIGH.
-    expect( container.querySelectorAll( 'main' ) ).toHaveLength( 1 );
-    expect( container.querySelector( '.ptb-layout > .child' ) ).not.toBeNull();
-  } );
-
-  it( 'arms only the heading and the sub-line, never the children', () => {
-    /*
-     * opacity:0 does NOT remove an element from the tab order. Arming a band that contains a form
-     * or a button would therefore leave invisible focusable controls for the length of the reveal,
-     * which is the defect skill §6 names. So the armed selectors name .ptb-h1 and .ptb-sub and
-     * nothing else.
-     */
-    const css = read( 'src/components/PageTopBand.tsx' );
-    expect( css ).toContain( '.ptb-layout.is-armed .ptb-h1,.ptb-layout.is-armed .ptb-sub{opacity:0' );
-    // No blanket rule over the layout or its descendants.
-    expect( css ).not.toMatch( /\.ptb-layout\.is-armed\s*\{[^}]*opacity:0/ );
-  } );
-
-  it( 'carries both header heights and declares its own font stack', () => {
-    const css = read( 'src/components/PageTopBand.tsx' );
-    // The two-height clearance, which is the thing /checkout/* had none of. A style attribute
-    // cannot express it, which is how an earlier page shipped a 48px pad under a 108px header.
-    expect( css ).toContain( 'padding-top:108px' );
-    expect( css ).toContain( 'padding-top:96px' );
-    // Declared, not inherited: --font-sans has no Inter in it, so an inheriting band falls to a
-    // serif the day the Amplify stylesheet import moves.
-    expect( css ).toContain( "font-family:'Inter'" );
-    // Tracking in em on the fluid size. A fixed px value against clamp() made optical tightness
-    // swing 2.75x across the breakpoints.
-    expect( css ).toContain( 'letter-spacing:-0.04em' );
-    expect( css ).not.toMatch( /clamp\([^)]*\)[^}]*letter-spacing:-?[\d.]+px/ );
-  } );
-} );
-
 describe( 'every page that moved onto the band kept exactly one h1 and one main', () => {
   it( 'renders one of each, with the page name as the heading', async () => {
-    const cases: { name: string; element: React.ReactElement; heading: string }[] = [
-      { name: 'cart', element: <Cart />, heading: 'Your cart' },
-      { name: 'sign-in', element: <SignIn />, heading: 'Sign in to check out' },
+    // RotatingHero's h1 is a fixed `frame` line plus a static pill holding a single word (each of
+    // these pages passes a single-element words array, so the pill does not rotate - a cart or a
+    // checkout screen is a task surface, so the house look without indefinite motion keeps WCAG
+    // 2.2.2). The h1's textContent concatenates the frame, the sr-only words copy and the visible
+    // word, so assert the frame line (.rh-head-line) and the visible pill word (.rh-cyc-word.on)
+    // separately rather than the joined h1 string.
+    const cases: { name: string; element: React.ReactElement; frame: string; word: string }[] = [
+      { name: 'cart', element: <Cart />, frame: 'Your', word: 'cart' },
+      { name: 'sign-in', element: <SignIn />, frame: 'Sign in to', word: 'check out' },
       // No ?a= in the URL, so the honest answer is the holding screen rather than "confirming" -
       // there is no attempt to confirm. The structure is what this test is about either way.
-      { name: 'status', element: <CheckoutStatus />, heading: 'Nothing to show here' },
-      { name: 'success', element: <CheckoutSuccess />, heading: 'Order confirmation unavailable' },
-      { name: 'product', element: <ShopProductPage product={ KIOSK() } />, heading: 'Kiosk' },
+      { name: 'status', element: <CheckoutStatus />, frame: 'Nothing to show here', word: 'your payment' },
+      { name: 'success', element: <CheckoutSuccess />, frame: 'Order confirmation unavailable', word: 'your order' },
+      { name: 'product', element: <ShopProductPage product={ KIOSK() } />, frame: 'Explore', word: 'Kiosk' },
     ];
     for ( const entry of cases )
     {
@@ -185,7 +105,10 @@ describe( 'every page that moved onto the band kept exactly one h1 and one main'
       expect( container.querySelectorAll( 'main' ), entry.name ).toHaveLength( 1 );
       const h1s = container.querySelectorAll( 'h1' );
       expect( h1s, entry.name ).toHaveLength( 1 );
-      expect( h1s[ 0 ].textContent, entry.name ).toBe( entry.heading );
+      expect( container.querySelector( '.rh-head-line' )!.textContent, entry.name )
+        .toBe( entry.frame );
+      expect( container.querySelector( '.rh-cyc-word.on' )!.textContent, entry.name )
+        .toBe( entry.word );
       unmount();
     }
   } );
@@ -197,7 +120,7 @@ describe( 'every page that moved onto the band kept exactly one h1 and one main'
      * the h1 - and the price now sits with the button that acts on it.
      */
     const { container } = render( <ShopProductPage product={ KIOSK() } /> );
-    const band = container.querySelector( '.ptb-top' ) as HTMLElement;
+    const band = container.querySelector( '.rh-hero' ) as HTMLElement;
     expect( band ).not.toBeNull();
     expect( band.querySelectorAll( 'button, a' ) ).toHaveLength( 0 );
     expect( band.textContent || '' ).not.toContain( '₹' );
@@ -209,10 +132,11 @@ describe( 'every page that moved onto the band kept exactly one h1 and one main'
   it( 'stops hand-rolling the clearance each page used to own', () => {
     // The point of sharing the band: five pages previously each stated their own 108px/96px pair,
     // or in two cases stated neither. None of them may state it again - a second copy is a second
-    // thing to get wrong at one of the two header heights.
+    // thing to get wrong at one of the two header heights. They now all mount the shared
+    // RotatingHero, which owns the clearance.
     for ( const file of BAND_PAGE_FILES )
     {
-      expect( read( file ), file ).toContain( 'PageTopBand' );
+      expect( read( file ), file ).toContain( 'RotatingHero' );
       // Comments stripped: two of these files explain in prose that they USED to centre a card
       // inside min-height:100vh, and a substring search cannot tell a citation from a declaration.
       const code = read( file ).replace( /\/\*[\s\S]*?\*\//g, '' ).replace( /^\s*\/\/.*$/gm, '' );
@@ -268,7 +192,7 @@ describe( 'no red anywhere on these pages, on owner instruction', () => {
      * hsl() is matched on hue rather than channels. The dominance margin rather than "any r > g" is
      * what keeps #1a3a2a, #d1f470 and rgba(0,0,0,.898) from being reported.
      *
-     * SCOPE. The five band pages PLUS the two components the band pages mount - PageTopBand and
+     * SCOPE. The five band pages PLUS the two components the band pages mount - RotatingHero and
      * HeaderCart - because an error treatment living in a shared component would be just as red and
      * is not covered by a per-page list.
      */
@@ -606,41 +530,44 @@ describe( 'the cart keeps its own top band, and every Phase-2 addition lands BEL
   /**
    * T15, and the owner's top-band requirement guarded against a later refactor.
    *
-   * Phase 2 creates no new page. /cart/ already carries a `PageTopBand` with its own heading and
-   * sub in the home hero's visual language, and the three routes the brief also names -
-   * /checkout/status/, /checkout/success/ and /account/sign-in/ - already carry one with
-   * per-outcome content. So the requirement is met by NOT REGRESSING it, which is a thing a test
-   * can hold and a comment cannot: the cases above already drive all four pages through the same
-   * band matrix, and keeping them green with NO edit to those pages is what makes them
-   * verified-unchanged rather than merely unedited.
+   * The owner (2026-10-13) unified every public page onto the shared `RotatingHero`. /cart/
+   * carries it with its own frame + static pill in the home hero's visual language, and the three
+   * routes the brief also names - /checkout/status/, /checkout/success/ and /account/sign-in/ -
+   * carry it with per-outcome content. Each passes a SINGLE-element words array, so the pill is
+   * static: a cart or a checkout screen is a task surface, so the house look WITHOUT the 2400ms
+   * rotation keeps WCAG 2.2.2 and invents no marketing copy above a screen a customer is reading
+   * to find out whether their money moved.
    *
    * The new work here is the second case: every Phase-2 addition - the mixed-basket notice, the
    * contribution amount row, the new outcome copy, the "Start a new cart" control - must render as
-   * a descendant of the band's `children` and NOT inside `.ptb-top`. The band states what the page
+   * a descendant of the band's `children` and NOT inside `.rh-hero`. The band states what the page
    * is; it carries no CTA, no price and no conversion furniture.
    */
-  it( 'renders exactly one h1, inside the band, with the cart\'s own heading and sub', () => {
+  it( 'renders exactly one h1, inside the band, with the cart\'s own frame and pill word', () => {
     vi.spyOn( customerAuth, 'getSession' ).mockReturnValue( null );
     const { container } = render( <Cart /> );
     const h1s = container.querySelectorAll( 'h1' );
     expect( h1s ).toHaveLength( 1 );
-    expect( h1s[ 0 ].textContent ).toBe( 'Your cart' );
+    // The h1 is RotatingHero's: the frame line "Your" plus the static pill word "cart". Assert
+    // the two parts separately - the h1 textContent also carries an sr-only words copy.
+    expect( container.querySelector( '.rh-head-line' )!.textContent ).toBe( 'Your' );
+    expect( container.querySelector( '.rh-cyc-word.on' )!.textContent ).toBe( 'cart' );
     // Inside the band, not merely on the page.
-    expect( container.querySelector( '.ptb-top h1' ) ).not.toBeNull();
+    expect( container.querySelector( '.rh-hero h1' ) ).not.toBeNull();
     // Its own sub, page-specific rather than generic. Still accurate for a contribution basket:
     // a contribution IS in the cart.
     expect( container.textContent )
       .toContain( 'Review what you have added before you check out.' );
   } );
 
-  it( 'puts no cart control, notice or amount field inside .ptb-top', () => {
+  it( 'puts no cart control, notice or amount field inside .rh-hero', () => {
     vi.spyOn( customerAuth, 'getSession' ).mockReturnValue( null );
     // A basket that exercises the contribution row and the mixed-basket notice together.
     cartLib.clearCart();
     cartLib.setContribution( CONTRIBUTION_CHOICES[ 0 ].variantId );
     cartLib.addItem( KIOSK(), 1 );
     const { container } = render( <Cart /> );
-    const band = container.querySelector( '.ptb-top' ) as HTMLElement;
+    const band = container.querySelector( '.rh-hero' ) as HTMLElement;
     expect( band ).not.toBeNull();
 
     // Nothing actionable and nothing money-shaped in the band itself.
@@ -656,34 +583,26 @@ describe( 'the cart keeps its own top band, and every Phase-2 addition lands BEL
     cartLib.clearCart();
   } );
 
-  it( 'leaves the checkout pages and sign-in untouched, which is why their cases still pass', () => {
-    // A source pin on the three routes the brief names but the design puts no code change on. If
-    // a future edit moves a band on any of them, this fails beside the matrix above rather than
-    // leaving "verified unchanged" as an unchecked claim.
+  it( 'mounts the shared RotatingHero on the checkout pages and sign-in, never the retired band', () => {
+    // A source pin on the three routes the brief names. If a future edit drops or swaps the band
+    // on any of them, this fails beside the matrix above rather than leaving the unification an
+    // unchecked claim. PageTopBand was deleted in this change, so its absence is pinned too.
     for ( const relative of [
       'src/pages/checkout/status.tsx',
       'src/pages/checkout/success.tsx',
       'src/pages/account/sign-in.tsx',
-      'src/components/PageTopBand.tsx',
     ] )
     {
       const source = fs.readFileSync( path.resolve( __dirname, '../..', relative ), 'utf8' );
-      // Each still mounts the STATIC band, never the rotating marketing hero: content that moves
-      // automatically for over 5s with no pause mechanism is a WCAG 2.2.2 failure, and four cycle
-      // words above a screen a customer is reading to find out whether their money moved would be
-      // invented marketing copy.
-      if ( relative !== 'src/components/PageTopBand.tsx' )
-      {
-        expect( source, relative ).toMatch( /<PageTopBand/ );
-      }
-      // `PageTopBand.tsx` itself NAMES `RotatingHero` in its header, where it explains why it
-      // omits the rotation -- a WCAG 2.2.2 pause failure, plus invented marketing copy above a
-      // screen a customer is reading to find out whether their money moved. A page MOUNTING it is
-      // the thing being refused, so the check is scoped to the pages.
-      if ( relative !== 'src/components/PageTopBand.tsx' )
-      {
-        expect( source, relative ).not.toMatch( /RotatingHero/ );
-      }
+      // Each mounts the shared hero. A single-element words array keeps the pill static, so the
+      // 2400ms rotation never runs on a transactional screen - the WCAG 2.2.2 reason the retired
+      // band existed is met inside RotatingHero itself now.
+      expect( source, relative ).toMatch( /<RotatingHero/ );
+      // The retired band is gone from the page's own code (comments stripped: a couple of these
+      // files still cite the band in prose, which a substring search cannot tell from a mount).
+      const code = source.replace( /\/\*[\s\S]*?\*\//g, '' ).replace( /^\s*\/\/.*$/gm, '' );
+      expect( code, relative ).not.toMatch( /<PageTopBand/ );
+      expect( code, relative ).not.toMatch( /import PageTopBand/ );
       // And no contribution code leaked into any of them.
       expect( source, relative ).not.toMatch( /[Cc]ontribution/ );
     }

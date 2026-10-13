@@ -674,7 +674,7 @@ describe( 'the cart page proceed flow', () => {
      *    charge was made, and this status - the server's own initiation gate being off - is one of
      *    the few responses that can support that claim. The status screen cannot carry it: its
      *    viewFor() folds this status in with "we cannot find this attempt" and anything
-     *    unrecognised, states where the money may in fact have moved, and PublicPageTopBand.test
+     *    unrecognised, states where the money may in fact have moved, and PublicPageHero.test
      *    pins that /checkout/status/ never says "no charge" in ANY state. So the sentence has to be
      *    shown by the page that received the response, where it stays pinned to its evidence.
      *
