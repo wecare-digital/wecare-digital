@@ -702,9 +702,13 @@ describe( 'Blog post page', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
     const css = cssOf( container );
 
-    expect( css ).toContain( '.article-shell{max-width:1300px' );
+    // RotatingHero now owns the <main>, header clearance and 1300px measure, so .article-shell is
+    // a plain <article> that only carries the 700px reading measure. The article title is an <h2>
+    // (.post-title) because the hero pill is the page's single h1; its old h1 treatment is kept
+    // verbatim on .post-title.
+    expect( css ).toContain( '.article-shell{max-width:700px' );
     expect( css ).toContain( 'article{max-width:700px' );
-    expect( css ).toContain( 'h1{font-size:clamp(36px,4.3vw,60px);line-height:1.04;letter-spacing:-0.04em;color:rgba(0,0,0,.95)' );
+    expect( css ).toContain( '.post-title{font-size:clamp(36px,4.3vw,60px);line-height:1.04;letter-spacing:-0.04em;color:rgba(0,0,0,.95)' );
     expect( css ).toContain( 'text-wrap:balance;max-width:20ch' );
     expect( css ).toContain( 'font-size:20px;line-height:1.55;letter-spacing:-.125px' );
     expect( css ).toContain( '.content :global(p + p){margin-top:28px}' );
