@@ -152,7 +152,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
 
           {/* Subscribe + Share, last child of .shopd-in so it shares this product page and sits
               at the content end - the same block every public page carries. */}
-          <PublicShare contribute />
+          <PublicShare />
         </div>
 
         <style jsx>{`
