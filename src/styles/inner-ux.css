@@ -3182,25 +3182,3 @@ html {
   }
 }
 
-/* ─── CONTRIBUTE → SUBSCRIBE+SHARE: ONE RHYTHM, NOT TWO BANDS ──────────────────────────────────
- *
- * On every public page except Home, components/ContributeBlock (.contribute) renders immediately
- * above components/PublicShare (.public-share). Each is self-styled with styled-jsx and each opens
- * its own trailing band: ContributeBlock a hairline + 44px top margin + 24px padding, and
- * PublicShare ANOTHER hairline + 48px top margin + 28px padding. Stacked, that put two separators
- * roughly 100px apart with nothing but empty space between them - the void visible under
- * "₹250 · suggested · voluntary · one-time".
- *
- * styled-jsx cannot write a rule that spans two sibling components, so the join lives here in the
- * app-wide stylesheet. When .public-share is the ADJACENT SIBLING of .contribute, it drops its big
- * 48px top MARGIN (that margin existed to separate PublicShare from page content when it was the
- * only trailing block; here ContributeBlock already opened the trailing rhythm, so the margin was
- * pure empty space - the ~100px void under "₹250 · ..."). Its own hairline separator and 28px
- * padding-top STAY, so the dividing line above Subscribe is kept; only the void above that line is
- * removed, leaving ContributeBlock's own 44px of air to do the separating. On Home (PublicShare
- * with no ContributeBlock before it) this selector does not match, so PublicShare keeps its full
- * standalone spacing. The adjacency is a real DOM fact - the two render back-to-back inside
- * .rh-layout / the direct-mount wrappers - so this is robust, not a magic negative-margin guess. */
-.contribute + .public-share {
-  margin-top: 0;
-}
