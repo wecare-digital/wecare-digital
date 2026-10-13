@@ -16,7 +16,7 @@ import { whatsappServiceLink } from '../config/whatsappServiceEntries';
  * user-visible "Zip" survives. The retired-name assertion below guards that it cannot creep back.
  *
  * WHAT THIS GUARDS. Shipments now follows the SAME thin shape as every other request page
- * (/drop-docs/, /subscribe/): a route file that renders the shared ProductPage over a ProductDef,
+ * (for example /drop-docs/): a route file that renders the shared ProductPage over a ProductDef,
  * so the hero is the shared RotatingHero and the page cannot drift from its siblings. The one
  * thing it adds is a SECOND CTA, so these assertions pin:
  *   - one <h1> and one <main>, both from the shared hero (htmlcheck's H1-MANY / MANY-MAIN);
@@ -90,10 +90,8 @@ describe( 'Shipments page', () => {
 
   it( 'carries exactly two wa.me anchors and no form, field or button', () => {
     const { container } = render( <ShipmentsPage /> );
-    // Drop the two shared sitewide bands before counting: every public page now carries them at
-    // the foot of its content. .public-share adds a Subscribe wa.me anchor plus share buttons;
-    // .contribute (ContributeBlock) adds a Contribute wa.me anchor and a checkout button. Both are
-    // the bands' own furniture, not the shipments page's. This test is about THIS page's controls.
+    // Drop the shared sitewide action dock before counting. It contains Subscribe/Share controls
+    // and the Contribute actions; those are sitewide furniture, not the shipments page's controls.
     container.querySelector( '.public-share' )?.remove();
     container.querySelector( '.contribute' )?.remove();
     const waLinks = Array.from( container.querySelectorAll( 'a[href*="wa.me"]' ) );
