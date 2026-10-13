@@ -207,7 +207,7 @@ const VayuLokPage: React.FC = () => {
       {/* A SECTION, NOT A MAIN, and that is deliberate. VayuLokLive below renders its own
           main.vl-live-shell, and HTML permits exactly one non-hidden main per document -
           two of them is what tools/audit/htmlcheck.js flags at HIGH and what
-          src/test/PublicPageTopBand.test.tsx asserts against for the other public pages.
+          src/test/PublicPageHero.test.tsx asserts against for the other public pages.
           The component's markup is not ours to change, so the single main landmark is the
           live section and the hero is a labelled region above it. Landmark navigation and
           skip-to-content therefore land on the live widget, which is this page's primary

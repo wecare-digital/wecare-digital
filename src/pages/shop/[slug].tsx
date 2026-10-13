@@ -2,8 +2,7 @@ import React, { useCallback, useState } from 'react';
 import Link from 'next/link';
 import type { GetStaticPaths, GetStaticProps } from 'next';
 import ShopProductHead from '../../components/ShopProductHead';
-import PageTopBand from '../../components/PageTopBand';
-import PublicShare from '../../components/PublicShare';
+import RotatingHero from '../../components/RotatingHero';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { SHOP_PRODUCTS, shopProductBySlug } from '../../content/shop';
 import type { ShopProduct } from '../../content/shop';
@@ -54,8 +53,9 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
   return (
     <>
       <ShopProductHead product={ product } />
-      <PageTopBand
-        heading={ product.name }
+      <RotatingHero
+        frame="Explore"
+        words={ [ { word: product.name, tint: '#e0f7c8', dot: '#3da35a' } ] }
         sub={ product.tagline }
         ariaLabel={ product.name }
       >
@@ -150,9 +150,8 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             </p>
           </section>
 
-          {/* Subscribe + Share, last child of .shopd-in so it shares this product page and sits
-              at the content end - the same block every public page carries. */}
-          <PublicShare />
+          {/* The page-tail dock is AUTO-MOUNTED by RotatingHero (in its .rh-tail), so the page
+              no longer renders its own <PublicShare /> here - that would show the dock twice. */}
         </div>
 
         <style jsx>{`
@@ -247,7 +246,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             .shopd-in :global(.shopd-cta:hover){transform:none;box-shadow:none}
           }
         `}</style>
-      </PageTopBand>
+      </RotatingHero>
     </>
   );
 };

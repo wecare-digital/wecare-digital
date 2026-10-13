@@ -62,8 +62,7 @@ import Link from 'next/link';
 import React, { useCallback, useEffect, useState } from 'react';
 
 import OtpResend from '../../components/OtpResend';
-import PageTopBand from '../../components/PageTopBand';
-import PublicShare from '../../components/PublicShare';
+import RotatingHero from '../../components/RotatingHero';
 import PhoneField from '../../components/PhoneField';
 import PillButton from '../../components/PillButton';
 import { DEFAULT_DIAL_CODE } from '../../lib/dialCodes';
@@ -487,8 +486,9 @@ export default function CustomerSignIn (): React.ReactElement {
         {/* Customer-session, per-person, transactional: never indexed. */}
         <meta name="robots" content="noindex,nofollow" />
       </Head>
-      <PageTopBand
-        heading="Sign in to check out"
+      <RotatingHero
+        frame="Sign in to"
+        words={ [ { word: 'check out', tint: '#e0f7c8', dot: '#3da35a' } ] }
         sub="We confirm it is you with a code on WhatsApp. New here? Same step sets you up."
         ariaLabel="Customer sign in"
       >
@@ -638,10 +638,8 @@ export default function CustomerSignIn (): React.ReactElement {
 
           <p className="si-back"><Link href="/cart/">Back to your cart</Link></p>
 
-          {/* Subscribe + Share, last child of .si-card so every public page carries the block.
-              It shares the sign-in page itself (noindex, but the block only shares the current URL
-              - harmless and keeps the sitewide consistency the owner asked for). */}
-          <PublicShare />
+          {/* The page-tail dock is AUTO-MOUNTED by RotatingHero (in its .rh-tail), so the page
+              no longer renders its own <PublicShare /> here - that would show the dock twice. */}
         </div>
 
         <style jsx>{`
@@ -715,7 +713,7 @@ export default function CustomerSignIn (): React.ReactElement {
             .si-input{scroll-margin-top:112px}
           }
         `}</style>
-      </PageTopBand>
+      </RotatingHero>
     </>
   );
 }
