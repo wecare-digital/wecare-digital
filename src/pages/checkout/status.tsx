@@ -328,7 +328,7 @@ export default function CheckoutStatus (): React.ReactElement {
         {/* Subscribe + Share, last child inside PageTopBand so it shares the /checkout/status/
             page itself. The page is noindex/session-bound, but the block shares the current URL,
             which here is simply the status screen - harmless and consistent with every public page. */}
-        <PublicShare contribute />
+        <PublicShare />
 
         <style jsx>{`
           /* No top padding, no measure, no font stack: PageTopBand owns all three. 700px is the

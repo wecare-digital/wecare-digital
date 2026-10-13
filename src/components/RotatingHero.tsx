@@ -283,12 +283,11 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, 
             section of someone else's page for landmark/heading purposes, but that is orthogonal
             to whether it carries the Subscribe+Share block - so the gate is `noShare` alone.
             `noShare` is kept for any page that genuinely must not carry the block. */}
-        {/* ONE PAGE-TAIL DOCK. PublicShare now owns the compact Contribute + Subscribe + Share
-            icon band when `contribute` is set. Home does not use RotatingHero and therefore keeps
-            the two-action Subscribe + Share version. */}
+        {/* ONE PAGE-TAIL DOCK. PublicShare owns the same compact Contribute + Subscribe + Share
+            icon band on every public surface, including Home. */}
         { !noShare && (
           <div className="rh-tail">
-            <PublicShare contribute />
+            <PublicShare />
           </div>
         ) }
       </div>

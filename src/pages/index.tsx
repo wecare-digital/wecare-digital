@@ -585,7 +585,7 @@ const HomePage: React.FC = () => {
             </div>
           </section>
 
-          {/* The Subscribe + Share block, as the last child of .home-layout so it inherits the
+          {/* The common Contribute + Subscribe + Share block, as the last child of .home-layout so it inherits the
               page's own 1300px measure and the 96px flex rhythm - identical to the measure every
               RotatingHero page uses - and sits at the content end with no viewport-height void. */}
           <PublicShare />
