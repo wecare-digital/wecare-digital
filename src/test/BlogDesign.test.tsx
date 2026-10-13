@@ -305,12 +305,10 @@ describe( 'Blog design alignment', () => {
 
   it( 'fetches the full list on mount and shows every post in the category', async () => {
     /*
-     * THE "SHOW EVERY POST" BEHAVIOUR (owner instruction, 2026-10-11). The page is prerendered
-     * with its slice, then the whole corpus arrives from /blog/search-index.json on mount and
-     * replaces it - scoped to the active category, so /blog/ grows to the default category's
-     * full list and never pulls in another stream's posts.
+     * THE INDEX IS FETCHED ON MOUNT, BUT ONLY TO POWER SEARCH (owner 2026-10-13). The listing
+     * stays the prerendered paged slice - it does NOT grow to the whole category. So the fetch
+     * fires, but the off-page post does not appear in the list; the reader turns the page for it.
      */
-    // Both posts are in the active category, so the fetched list expands the one-card slice.
     const secondConversations = { ...secondCard, category: 'Conversations' };
     const fetchMock = mockSearchIndex( [ firstCard, secondConversations ] );
     render( <BlogIndex { ...propsFor( {
@@ -321,14 +319,13 @@ describe( 'Blog design alignment', () => {
 
     // The slice is painted immediately.
     expect( screen.getByRole( 'heading', { name: samplePost.title } ) ).toBeInTheDocument();
-    // The full list is fetched once, on mount, with no interaction.
+    // The full list is fetched once, on mount, with no interaction (search needs it).
     await waitFor( () => {
       expect( fetchMock ).toHaveBeenCalledWith( '/blog/search-index.json', expect.anything() );
     } );
-    // And the second Conversations post, absent from the one-card slice, appears once it lands.
-    await waitFor( () => {
-      expect( screen.getByRole( 'heading', { name: secondPost.title } ) ).toBeInTheDocument();
-    } );
+    // But the second post, absent from the one-card slice, does NOT get injected - the list
+    // stays paginated.
+    expect( screen.queryByRole( 'heading', { name: secondPost.title } ) ).toBeNull();
   } );
 
   it( 'does not pull another category into the stream when the full list lands', async () => {
@@ -600,33 +597,33 @@ describe( 'Blog pagination', () => {
     expect( last.querySelector( '.pager-progress-track' )!.getAttribute( 'aria-valuetext' ) ).toBe( 'Page 3 of 3' );
   } );
 
-  it( 'paginates the prerendered slice until the full list arrives, then drops the pager', async () => {
-    // A fetch that resolves with the whole corpus.
+  it( 'keeps the pager and the prerendered slice - the list does NOT expand to the whole category', async () => {
+    // Owner 2026-10-13: the blog stays PAGINATED. The full index is still fetched (to power
+    // search), but the listing is always the prerendered paged slice and the pager never
+    // disappears - the "expand to every post / drop the pager" behaviour is retired.
     const fetchMock = mockSearchIndex( manyCards );
     const { container } = render( <BlogIndex { ...propsFor( {
       posts: manyCards.slice( 0, 2 ), page: 1, totalPages: 3, totalPosts: 5,
       categories: [ 'Conversations' ], categoryCounts: { Conversations: 5 },
     } ) } /> );
 
-    // Once the full list is in, the pager is gone and every post is listed.
+    // The index fetch still fires on mount (search needs it)...
     await waitFor( () => {
-      expect( container.querySelector( 'nav[aria-label="Blog pages"]' ) ).toBeNull();
+      expect( fetchMock ).toHaveBeenCalledWith( '/blog/search-index.json', expect.anything() );
     } );
-    expect( fetchMock ).toHaveBeenCalledWith( '/blog/search-index.json', expect.anything() );
-    expect( screen.getByRole( 'heading', { name: 'Post number 5' } ) ).toBeInTheDocument();
-    // Fetched exactly once, on mount.
+    // ...but the pager STAYS (totalPages > 1), and the off-page post does NOT get injected into
+    // the list - the reader turns the page to reach it.
+    expect( container.querySelector( 'nav[aria-label="Blog pages"]' ) ).not.toBeNull();
+    expect( screen.queryByRole( 'heading', { name: 'Post number 5' } ) ).toBeNull();
     expect( fetchMock ).toHaveBeenCalledTimes( 1 );
   } );
 
-  it( 'shows every published post, not just the page in front of the reader', async () => {
-    /**
-     * THE CASE "SHOW EVERY POST" EXISTS FOR. The page carries 2 cards; the corpus has 5. The
-     * three posts that are NOT on this prerendered page must appear once the on-mount fetch of
-     * /blog/search-index.json lands. Before this the reader had to turn pages or search; now the
-     * whole category is on one scroll.
-     */
+  it( 'shows only the page in front of the reader, with the pager to reach the rest', async () => {
+    // The page carries 2 cards (page 1 of 3); the corpus has 5. The three off-page posts are
+    // reached by turning the page via the pager, NOT by injecting them into this list - the blog
+    // is paginated, not a single-scroll of the whole category.
     const fetchMock = mockSearchIndex( manyCards );
-    render( <BlogIndex { ...propsFor( {
+    const { container } = render( <BlogIndex { ...propsFor( {
       posts: manyCards.slice( 0, 2 ), page: 1, totalPages: 3, totalPosts: 5,
       categories: [ 'Conversations' ], categoryCounts: { Conversations: 5 },
     } ) } /> );
@@ -634,12 +631,14 @@ describe( 'Blog pagination', () => {
     // The two prerendered cards are there from the first paint.
     expect( screen.getByRole( 'heading', { name: 'Post number 1' } ) ).toBeInTheDocument();
 
-    // The off-page posts arrive from the on-mount fetch.
+    // The on-mount index fetch still fires (for search), but off-page posts stay off this page.
     await waitFor( () => {
-      expect( screen.getByRole( 'heading', { name: 'Post number 5' } ) ).toBeInTheDocument();
+      expect( fetchMock ).toHaveBeenCalledWith( '/blog/search-index.json', expect.anything() );
     } );
-    expect( screen.getByRole( 'heading', { name: 'Post number 4' } ) ).toBeInTheDocument();
-    expect( fetchMock ).toHaveBeenCalledWith( '/blog/search-index.json', expect.anything() );
+    expect( screen.queryByRole( 'heading', { name: 'Post number 5' } ) ).toBeNull();
+    expect( screen.queryByRole( 'heading', { name: 'Post number 4' } ) ).toBeNull();
+    // The pager is present to reach them.
+    expect( container.querySelector( 'nav[aria-label="Blog pages"]' ) ).not.toBeNull();
   } );
 
   it( 'falls back to the paginated slice when the full list cannot be loaded', async () => {
