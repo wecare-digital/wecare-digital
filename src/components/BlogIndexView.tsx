@@ -3,7 +3,6 @@ import Link from 'next/link';
 import type { BlogCard } from '../lib/public-blog';
 import { topicSlug } from '../lib/blog-index-props';
 import RotatingHero, { CycleWord } from './RotatingHero';
-import ContributeBlock from './ContributeBlock';
 import Breadcrumbs from './Breadcrumbs';
 import Pager from './Pager';
 import RssIcon from './RssIcon';
@@ -391,16 +390,6 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
                 ariaLabel="Blog pages"
               />
             ) }
-
-            {/* CONTRIBUTE - the voluntary-contribution block (components/ContributeBlock), placed
-                AFTER the paginator and BEFORE the global Subscribe+Share, so the tail reading order
-                on the index is grid -> pager -> Contribute -> RSS -> Subscribe+Share. This is the
-                same ContributeBlock the post page now carries, so the two blog surfaces offer the
-                identical both-paths appeal (WhatsApp conversation + on-site checkout). PublicShare
-                is still auto-mounted by RotatingHero after this view's content, so Subscribe+Share
-                follows this block. */}
-            <ContributeBlock />
-
             {/* THE SUBSCRIBE + SHARE BLOCK IS THE GLOBAL ONE NOW. The owner unified the blog
                 surfaces onto components/PublicShare, auto-mounted by RotatingHero at the end of
                 this hero's own content measure (RotatingHero no longer gates it on `subordinate`,

@@ -64,7 +64,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import OtpResend from '../../components/OtpResend';
 import PageTopBand from '../../components/PageTopBand';
 import PublicShare from '../../components/PublicShare';
-import ContributeBlock from '../../components/ContributeBlock';
 import PhoneField from '../../components/PhoneField';
 import PillButton from '../../components/PillButton';
 import { DEFAULT_DIAL_CODE } from '../../lib/dialCodes';
@@ -642,8 +641,7 @@ export default function CustomerSignIn (): React.ReactElement {
           {/* Subscribe + Share, last child of .si-card so every public page carries the block.
               It shares the sign-in page itself (noindex, but the block only shares the current URL
               - harmless and keeps the sitewide consistency the owner asked for). */}
-          <ContributeBlock />
-          <PublicShare />
+          <PublicShare contribute />
         </div>
 
         <style jsx>{`
