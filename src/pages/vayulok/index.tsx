@@ -303,7 +303,7 @@ const VayuLokPage: React.FC = () => {
           a 1300px/24px measure (vl-layout's own measure) with the sitewide 96px/64px bottom
           rhythm, so it aligns with the hero content and ends consistently with every other page. */}
       <div className="vl-share-wrap">
-        <PublicShare contribute />
+        <PublicShare />
       </div>
 
 
