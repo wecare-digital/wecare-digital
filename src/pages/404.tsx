@@ -32,7 +32,7 @@ const NotFound: React.FC = () => {
           {/* Subscribe + Share, so no public route is without the block. NOTE: this page
               redirects to '/' on mount, so a visitor rarely sees it - the block is here for
               sitewide consistency, not because the 404 is a real destination. */}
-          <PublicShare contribute />
+          <PublicShare />
         </div>
 
         <style jsx>{`
