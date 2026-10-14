@@ -26,6 +26,7 @@ import blog_repetition
 import blog_sources
 import blog_templates
 import blog_verify
+import blog_source
 import faq
 import seo_freshness
 import seo_refresh
@@ -1030,7 +1031,8 @@ def handler(event: Dict[str, Any], context: Optional[Any]):
         try:
             if '/blog-public/' in path:
                 slug = path.split('/blog-public/', 1)[1].strip('/')
-                post = wix.get_blog_post_by_slug(slug)
+                # Source-of-truth is chosen by BLOG_SOURCE (default wix). See blog_source.py.
+                post = blog_source.get_blog_post_by_slug(slug)
                 if not post:
                     return _response(404, {'ok': False, 'error': 'Blog post not found'}, origin)
                 # APPROVED FAQ IS ATTACHED HERE, and only on the single-post route.
@@ -1054,7 +1056,7 @@ def handler(event: Dict[str, Any], context: Optional[Any]):
                 except Exception:  # noqa: BLE001
                     logger.exception('faq lookup failed for slug %s', slug)
                 return _cacheable(200, {'ok': True, 'post': post}, origin, event)
-            posts = wix.list_blog_posts()
+            posts = blog_source.list_blog_posts()
             fields = _projection(event)
             return _cacheable(200, {
                 'ok': True,
