@@ -12,9 +12,6 @@ import { useToastContext } from '../../../../contexts/ToastContext';
 import { useConfirm } from '../../../../contexts/ConfirmContext';
 import * as api from '../../../../api/client';
 
-// Embedded sub-page
-import VoiceInPage from '../voice-in/index';
-
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 interface Contact { contactId: string; name: string; phone: string; }
 interface VoiceCall {
