@@ -793,6 +793,10 @@ def _soft_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str
 
 
 def _hard_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str, Any]:
+    # Fail closed: no destructive message/media cleanup without an atomic retention lease.
+    return cors_response(409, {'error': 'HARD_DELETE_DISABLED',
+                               'archiveInstead': True}, origin)
+
     # Verify contact exists before scanning message tables
     table = dynamodb.Table(CONTACTS_TABLE)
     resp = table.get_item(Key={'id': contact_id})
