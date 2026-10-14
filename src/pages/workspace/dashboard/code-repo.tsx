@@ -54,8 +54,6 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'lambda-outbound-sms', category: 'SMS / Email / Voice', name: 'Outbound SMS', description: 'Send SMS via AWS Pinpoint / SNS.', path: 'amplify/functions/messaging/outbound-sms/handler.py', type: 'lambda' },
   { id: 'lambda-outbound-email', category: 'SMS / Email / Voice', name: 'Outbound Email', description: 'Send email via AWS SES.', path: 'amplify/functions/messaging/outbound-email/handler.py', type: 'lambda' },
   { id: 'lambda-sms-aws', category: 'SMS / Email / Voice', name: 'SMS AWS', description: 'AWS Pinpoint SMS inbound handler.', path: 'amplify/functions/messaging/sms-aws/handler.py', type: 'lambda' },
-  // `lambda-sms-airtel` REMOVED 2026-09-25. It pointed at
-  // `amplify/functions/messaging/sms-in/airtel/handler.py`, a path that does not
   // exist, for a retired provider whose Lambda is absent from the account.
   { id: 'lambda-voice-aws', category: 'SMS / Email / Voice', name: 'Voice AWS', description: 'AWS Connect voice call handler.', path: 'amplify/functions/messaging/voice-aws/handler.py', type: 'lambda' },
   { id: 'lambda-outbound-voice', category: 'SMS / Email / Voice', name: 'Outbound Voice', description: 'Outbound voice calls via AWS Connect.', path: 'amplify/functions/messaging/outbound-voice/handler.py', type: 'lambda' },
@@ -78,7 +76,6 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'lambda-cleanup', category: 'Operations', name: 'System Cleanup', description: 'Scheduled cleanup — expired data, orphaned records, TTL enforcement.', path: 'amplify/functions/operations/system-cleanup/handler.py', type: 'lambda' },
 
   // ── Ecommerce ──
-  { id: 'lambda-wix', category: 'Ecommerce', name: 'Wix Store', description: 'Wix ecommerce integration — order sync, product catalog, webhooks.', path: 'amplify/functions/ecommerce/wix-store/handler.py', type: 'lambda' },
   { id: 'lambda-product-img', category: 'Ecommerce', name: 'Product Image Gen', description: 'AI product image generation using Bedrock Titan Image.', path: 'amplify/functions/ecommerce/product-image-gen/handler.py', type: 'lambda' },
 ];
 
