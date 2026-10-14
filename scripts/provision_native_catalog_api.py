@@ -132,7 +132,7 @@ def apply():
     )
     artifact = zip_code()
     env = {"Variables": {
-        "AWS_REGION": REGION, "PRODUCTS_TABLE": TABLE,
+        "PRODUCTS_TABLE": TABLE,
         "COGNITO_USER_POOL_ID": STAFF_POOL, "LOG_LEVEL": "INFO",
         "AUTH_SKIP_PATHS": "",
     }}
