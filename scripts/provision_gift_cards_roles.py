@@ -1,67 +1,9 @@
 #!/usr/bin/env python3
-"""Provision the TWO gift-card execution roles, the pinned cryptography layer, and the two alarms.
+"""Provision the AWS-native gift-card execution role and alarms.
 
-Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/gift-cards-service-plugin-20261001.md`
-sections 5.1.1 (the layer), 6.5 (the two detectors) and 10.1 (the scoped IAM), plus DECISION 6 of
-that task's `plan.md`.
-
-TWO FUNCTIONS, TWO ROLES, AND THE DIFFERENCES ARE THE WHOLE POINT
------------------------------------------------------------------
-|  | `wecare-gift-cards` | `wecare-wix-giftcard-spi` | Why |
-|---|---|---|---|
-| `dynamodb:DeleteItem` | **yes** | **no** | only the staff/customer function releases a `GCHOLD#` row; the SPI has no reason to delete anything, and a card, transaction or pointer row is never deleted by either |
-| `UpdateItem` on PaymentAttemptsTable | **no** | **yes** | the SPI writes `GC_VOIDED` through `advance()`; issuance never touches a payment attempt |
-| reachable by Wix | no | **yes**, with no API Gateway authorizer | which is exactly why issuance is not in that function |
-
-NEITHER IS `wecare-digital-lambda-role`
----------------------------------------
-That shared fleet role is attached to ~65 functions, so a statement added there would grant every one
-of them access to a liability ledger. Nothing in this script touches it.
-
-WHY THE SPI ROLE CANNOT ISSUE A CARD, AND WHY IAM IS NOT WHAT STOPS IT
-----------------------------------------------------------------------
-`PutItem` on `GiftCardsTable` is identical in both roles, because the SPI MUST write `GCTXN#`,
-`GCTXNID#` and `GCORDER#` rows - so a permission boundary cannot distinguish issuance from a
-transaction record. The guarantee is STRUCTURAL: issuance lives in `gift_card_store.issue`, which is
-called only from `wecare-gift-cards`' handler, and the SPI handler has no code path to it. Stated
-here so nobody later reads "both can PutItem" as a finding.
-
-ONE SECRET, BOTH FUNCTIONS
---------------------------
-`wecare/wix/giftcard-spi` carries `public_key`, `app_id`, `instance_id` and `code_pepper`. Both
-functions need `code_pepper` to derive `codeHash`; only the SPI needs `public_key`. Splitting it was
-considered and rejected: the pepper is the field BOTH need, so a split would mean two secrets with
-overlapping contents and two rotation procedures. The ARN pattern ends `-*` because Secrets Manager
-appends a six-character suffix to every secret ARN, and a pattern without it matches nothing.
-
-Nothing here reads a secret VALUE. The grant is for the FUNCTION at runtime, which is the only place
-a secret value is permitted to exist, and `secretsmanager get-secret-value` is never called from a
-shell.
-
-DECISION 6 - THE KMS GRANTS
----------------------------
-The table is encrypted with the customer-managed key behind `alias/wecare-gift-cards`, so each role
-additionally needs `kms:Decrypt` and `kms:GenerateDataKey` - conditioned on
-`kms:ViaService = dynamodb.us-east-1.amazonaws.com`, so the grant is "use the key through DynamoDB"
-rather than "decrypt anything under this key". Named by ALIAS in the policy's resource is not
-possible (a policy resource must be a key ARN), so the ARN is resolved at apply time from the alias
-and `--verify` re-resolves it rather than trusting a stored copy.
-
-THE LAYER IS VERSION-PINNED, DELIBERATELY
------------------------------------------
-    arn:aws:lambda:us-east-1:775261844268:layer:cryptography-python312:1
-
-A layer version is immutable, so pinning means the verifier's crypto implementation cannot change
-under it without a deliberate edit here. A floating reference would let a layer republish alter
-signature verification on a payment route with no code change and no review. The same layer already
-serves `wecare-whatsapp-business-api`'s RSA work, so the capability is proven on this runtime in this
-account.
-
-Usage:
-    python scripts/provision_gift_cards_roles.py              # dry run, the default
-    python scripts/provision_gift_cards_roles.py --apply
-    python scripts/provision_gift_cards_roles.py --apply --alarms
-    python scripts/provision_gift_cards_roles.py --verify
+The retired provider SPI has no Lambda, route, IAM role or secret in AWS and is not
+provisioned by this script. The native gift-card function reads the provider-neutral
+HMAC pepper secret and the GiftCardsTable only.
 """
 
 from __future__ import annotations
@@ -79,38 +21,19 @@ REGION = "us-east-1"
 ACCOUNT_ID = "775261844268"
 
 GIFT_CARDS_FUNCTION = "wecare-gift-cards"
-SPI_FUNCTION = "wecare-wix-giftcard-spi"
-
 GIFT_CARDS_ROLE = "wecare-gift-cards-role"
-SPI_ROLE = "wecare-wix-giftcard-spi-role"
-
 GIFT_CARDS_POLICY = "wecare-gift-cards-table"
-SPI_POLICY = "wecare-wix-giftcard-spi-tables"
-
 LOG_RETENTION_DAYS = 30
 
 GIFT_CARDS_TABLE = "stack-wecare-digital-GiftCardsTable"
-PAYMENT_ATTEMPTS_TABLE = "stack-wecare-digital-PaymentAttemptsTable"
 STATUS_INDEX = "status-index"
-SPI_SECRET = "wecare/wix/giftcard-spi"
+PEPPER_SECRET = "wecare/prod/security/giftcard-pepper"
 
 KMS_ALIAS = "alias/wecare-gift-cards"
 
-#: VERSION PINNED. See the module docstring.
-CRYPTOGRAPHY_LAYER_ARN = (
-    f"arn:aws:lambda:{REGION}:{ACCOUNT_ID}:layer:cryptography-python312:1")
-
-#: The two section 6.5 detectors. A single occurrence of either is actionable, which is why the
-#: threshold is 1 rather than a rate.
+#: A captured-vs-recorded amount mismatch is always actionable.
 METRIC_NAMESPACE = "WecareGiftCards"
 ALARMS = (
-    {
-        "name": "wecare-gift-card-wix-spi-redemption",
-        "metric": "WixSpiRedemption",
-        "description": ("Wix called our /v1/redeem. Section 1.3 predicts this never happens, so a "
-                        "single occurrence means that prediction is wrong and the two-namespace "
-                        "double-spend analysis needs revisiting."),
-    },
     {
         "name": "wecare-gift-card-charge-mismatch",
         "metric": "ChargedVsCapturedMismatch",
@@ -163,7 +86,7 @@ def secret_arn() -> str:
     known until the secret is created - so the wildcard is the documented way to name ONE secret,
     not a widening to all of them.
     """
-    return f"arn:aws:secretsmanager:{REGION}:{ACCOUNT_ID}:secret:{SPI_SECRET}-*"
+    return f"arn:aws:secretsmanager:{REGION}:{ACCOUNT_ID}:secret:{PEPPER_SECRET}-*"
 
 
 def log_group(function: str) -> str:
@@ -245,7 +168,7 @@ def gift_cards_policy(key_arn: str = "") -> dict:
             },
             kms_statement(key_arn),
             {
-                "Sid": "ReadGiftCardSpiSecret",
+                "Sid": "ReadGiftCardPepper",
                 "Effect": "Allow",
                 "Action": ["secretsmanager:GetSecretValue"],
                 "Resource": [secret_arn()],
@@ -265,57 +188,8 @@ def gift_cards_policy(key_arn: str = "") -> dict:
     }
 
 
-def spi_policy(key_arn: str = "") -> dict:
-    """`wecare-wix-giftcard-spi-role`'s inline policy, built with no AWS call.
-
-    Two asymmetries against the other role, both deliberate: NO `DeleteItem` anywhere, and
-    `UpdateItem` on `PaymentAttemptsTable` for the `GC_VOIDED` write. That second grant is for a
-    call that can actually be composed, which is what DECISION 9 bought by putting
-    `paymentAttemptId` on the `GCTXNID#` pointer row - without it the grant would be privilege for
-    an unreachable code path.
-
-    No `Query` on `PaymentAttemptsTable`: the SPI reaches an attempt only by its exact
-    `paymentAttemptId`.
-    """
-    return {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Sid": "GiftCardLedgerNoDelete",
-                "Effect": "Allow",
-                "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem",
-                           "dynamodb:Query"],
-                "Resource": [table_arn(GIFT_CARDS_TABLE), index_arn(GIFT_CARDS_TABLE)],
-            },
-            {
-                "Sid": "AdvanceGiftCardStageOnAPaymentAttempt",
-                "Effect": "Allow",
-                "Action": ["dynamodb:UpdateItem"],
-                "Resource": [table_arn(PAYMENT_ATTEMPTS_TABLE)],
-            },
-            kms_statement(key_arn),
-            {
-                "Sid": "ReadGiftCardSpiSecret",
-                "Effect": "Allow",
-                "Action": ["secretsmanager:GetSecretValue"],
-                "Resource": [secret_arn()],
-            },
-            {
-                "Sid": "OwnLogGroup",
-                "Effect": "Allow",
-                "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
-                "Resource": [
-                    f"arn:aws:logs:{REGION}:{ACCOUNT_ID}:log-group:{log_group(SPI_FUNCTION)}",
-                    f"arn:aws:logs:{REGION}:{ACCOUNT_ID}:log-group:{log_group(SPI_FUNCTION)}:*",
-                ],
-            },
-        ],
-    }
-
-
 ROLES = (
     (GIFT_CARDS_ROLE, GIFT_CARDS_POLICY, gift_cards_policy, GIFT_CARDS_FUNCTION),
-    (SPI_ROLE, SPI_POLICY, spi_policy, SPI_FUNCTION),
 )
 
 
@@ -372,34 +246,6 @@ def ensure_log_group(function: str, apply: bool) -> str:
     return "exists; retention verified" if exists else "created"
 
 
-def ensure_layer(apply: bool) -> str:
-    """Attach the version-pinned cryptography layer to the SPI function.
-
-    `scripts/deploy_all_lambdas.py` validates every top-level import against the package PLUS the
-    function's LIVE layer list, so a new function with no layers attached fails that gate before it
-    ever deploys. Attaching here is what makes the SPI function deployable at all, and test 110
-    reproduces the same check offline so the gate is not the first place it is discovered.
-    """
-    try:
-        current = lam().get_function_configuration(FunctionName=SPI_FUNCTION)
-    except ClientError as exc:
-        if exc.response.get("Error", {}).get("Code") == "ResourceNotFoundException":
-            return (f"{SPI_FUNCTION} does not exist yet; attach "
-                    f"{CRYPTOGRAPHY_LAYER_ARN} after the first deploy")
-        raise
-    attached = [layer.get("Arn") for layer in current.get("Layers") or []]
-    if CRYPTOGRAPHY_LAYER_ARN in attached:
-        return f"already attached ({CRYPTOGRAPHY_LAYER_ARN})"
-    if not apply:
-        return f"would attach {CRYPTOGRAPHY_LAYER_ARN}"
-    # Additive: keep whatever else is attached. `update-function-configuration` REPLACES the layer
-    # list, so dropping the existing ones would be a silent regression.
-    lam().update_function_configuration(
-        FunctionName=SPI_FUNCTION,
-        Layers=sorted(set(attached) | {CRYPTOGRAPHY_LAYER_ARN}))
-    return f"attached {CRYPTOGRAPHY_LAYER_ARN}"
-
-
 def alarm_topic_arn() -> str:
     for page in sns().get_paginator("list_topics").paginate():
         for topic in page.get("Topics", []):
@@ -409,7 +255,7 @@ def alarm_topic_arn() -> str:
 
 
 def ensure_alarms(apply: bool) -> str:
-    """The two section 6.5 alarms, at `Sum >= 1` over five minutes, one datapoint.
+    """The gift-card mismatch alarm, at `Sum >= 1` over five minutes, one datapoint.
 
     A threshold of one rather than a rate, because a single occurrence of either is actionable: the
     first means Wix called an endpoint section 1.3 predicts it never calls, and the second means a
@@ -488,14 +334,6 @@ def verify() -> int:
             if resource == "*":
                 problems.append(f"{name} carries a wildcard resource")
 
-        # The asymmetries. These are what make two roles worth having.
-        if name == SPI_ROLE and "dynamodb:DeleteItem" in actions:
-            problems.append("the SPI role must not hold DeleteItem")
-        if name == GIFT_CARDS_ROLE and any(
-                table_arn(PAYMENT_ATTEMPTS_TABLE) in s.get("Resource", [])
-                for s in live_document.get("Statement", [])):
-            problems.append("the gift-cards role must not reach PaymentAttemptsTable")
-
         # The KMS condition, re-read rather than assumed.
         via = [((s.get("Condition") or {}).get("StringEquals") or {}).get("kms:ViaService")
                for s in live_document.get("Statement", [])
@@ -523,19 +361,6 @@ def verify() -> int:
         print(f"  actions: {sorted(actions)}")
         print(f"  log retention: {retention}")
 
-    # The layer, on the live function.
-    try:
-        configuration = lam().get_function_configuration(FunctionName=SPI_FUNCTION)
-        layers = [layer.get("Arn") for layer in configuration.get("Layers") or []]
-        print(f"layers on {SPI_FUNCTION}: {layers}")
-        if CRYPTOGRAPHY_LAYER_ARN not in layers:
-            problems.append(f"{SPI_FUNCTION} is missing {CRYPTOGRAPHY_LAYER_ARN}; its top-level "
-                            f"imports will fail the deploy gate")
-    except ClientError as exc:
-        if exc.response.get("Error", {}).get("Code") != "ResourceNotFoundException":
-            raise
-        print(f"layers on {SPI_FUNCTION}: function not created yet")
-
     live_alarms = {a["AlarmName"] for a in cloudwatch().describe_alarms(
         AlarmNames=[alarm["name"] for alarm in ALARMS]).get("MetricAlarms", [])}
     for alarm in ALARMS:
@@ -558,7 +383,7 @@ def main(argv=None) -> int:
     parser.add_argument("--apply", action="store_true",
                         help="create or reconcile; without it this is a dry run")
     parser.add_argument("--alarms", action="store_true",
-                        help="also create the two section 6.5 alarms")
+                        help="also create the gift-card mismatch alarm")
     parser.add_argument("--verify", action="store_true")
     args = parser.parse_args(argv)
 
@@ -571,13 +396,11 @@ def main(argv=None) -> int:
     for name, policy_name, document, function in ROLES:
         print(f"role {name}: {ensure_role(name, policy_name, document, args.apply, key_arn)}")
         print(f"log group {log_group(function)}: {ensure_log_group(function, args.apply)}")
-    print(f"layer: {ensure_layer(args.apply)}")
     if args.alarms:
         print(f"alarms: {ensure_alarms(args.apply)}")
     if not args.apply:
         print("\ndry run: nothing changed")
-        print(json.dumps({GIFT_CARDS_ROLE: gift_cards_policy(key_arn),
-                          SPI_ROLE: spi_policy(key_arn)}, indent=2))
+        print(json.dumps({GIFT_CARDS_ROLE: gift_cards_policy(key_arn)}, indent=2))
         return 0
     print("\nread-back verification:")
     return verify()
