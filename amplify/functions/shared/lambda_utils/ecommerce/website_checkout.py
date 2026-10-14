@@ -98,7 +98,7 @@ _ATTEMPT_BLOB_BUDGET_BYTES = 180_000
 #: `additionalFees` — which are never trimmed at any size — stay representable.
 _WIX_PAYLOAD_FLOOR_BYTES = 20_000
 
-#: Mirrors `wix_writeback.PAYLOAD_REDUCED_FLAG` as a LITERAL, for the same reason
+#: Stable reduced-payload marker retained as a literal for backward-compatible records.
 #: `finalization.ACCEPTED_CHECKOUT_MODES` mirrors `CHECKOUT_MODE_WEBSITE` as one: this module
 #: holds no import of its sibling writeback adapter. A divergence between the two would silently
 #: DISABLE `accept_paid`'s reduced-payload refusal, so a test pins them equal.
