@@ -73,18 +73,6 @@
               "Version": "2012-10-17",
               "Statement": [
                 {
-                  "Sid": "ReadWixApiKey",
-                  "Effect": "Allow",
-                  "Action": [
-                    "secretsmanager:GetSecretValue"
-                  ],
-                  "Resource": [
-                    {
-                      "Fn::Sub": "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:wecare/wix/headless-api-key-*"
-                    }
-                  ]
-                },
-                {
                   "Sid": "PaymentAttemptAndCommerceKeys",
                   "Effect": "Allow",
                   "Action": [
@@ -162,6 +150,66 @@
                 }
               ]
             }
+          },
+          {
+            "PolicyName": "CheckoutNativeCatalogAuthority",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "ReadNativeCustomerAndServiceIntent",
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem"
+                  ],
+                  "Resource": [
+                    "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-ContactsTable",
+                    "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-ServiceRequestsTable"
+                  ]
+                },
+                {
+                  "Sid": "VerifyNativeCustomer",
+                  "Effect": "Allow",
+                  "Action": [
+                    "cognito-idp:ListUsers"
+                  ],
+                  "Resource": "arn:aws:cognito-idp:us-east-1:775261844268:userpool/us-east-1_46ULYuukt"
+                },
+                {
+                  "Sid": "SendCanonicalNativePayment",
+                  "Effect": "Allow",
+                  "Action": [
+                    "lambda:InvokeFunction"
+                  ],
+                  "Resource": "arn:aws:lambda:us-east-1:775261844268:function:wecare-outbound-whatsapp:live"
+                },
+                {
+                  "Sid": "ReadNativeProductCatalog",
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:Query",
+                    "dynamodb:Scan",
+                    "dynamodb:BatchGetItem"
+                  ],
+                  "Resource": [
+                    "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-ProductsTable",
+                    "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-ProductsTable/index/*"
+                  ]
+                },
+                {
+                  "Sid": "ReserveNativeInventory",
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:TransactWriteItems"
+                  ],
+                  "Resource": [
+                    "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-ProductsTable",
+                    "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-WixOrderIds"
+                  ]
+                }
+              ]
+            }
           }
         ],
         "Tags": [
@@ -208,22 +256,24 @@
             "Ref": "CodeS3Key"
           }
         },
-        "Description": "Customer checkout: authoritative Wix total, readiness gate, PaymentAttempt, in-chat handoff. Initiation off by default.",
+        "Description": "Customer checkout: AWS-native catalog pricing, atomic stock reservation, readiness gate and PaymentAttempt.",
         "Timeout": 20,
         "MemorySize": 256,
         "Environment": {
           "Variables": {
             "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",
             "COMMERCE_KEYS_TABLE": "stack-wecare-digital-WixOrderIds",
-            "WIX_API_KEY_SECRET": "wecare/wix/headless-api-key",
             "RAZORPAY_SECRET_ID": "wecare/razorpay/api",
             "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
             "ORDERS_TABLE": "stack-wecare-digital-OrderTable",
-            "WIX_SITE_ID": "c993128b-26be-41cd-9fcd-904abe23462f",
             "SENDER_FUNCTION": "wecare-whatsapp-business-api:live",
             "PAYMENT_WABA_ID": "2094615664435155",
             "EXPECTED_CONFIGURATION_NAME": "",
-            "EXPECTED_PROVIDER_MID": ""
+            "EXPECTED_PROVIDER_MID": "",
+            "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
+            "CHECKOUT_MODE": "AWS_NATIVE",
+            "CATALOG_SOURCE": "aws",
+            "NATIVE_STOCK_RESERVATION_ENABLED": "true"
           }
         },
         "Tags": [
