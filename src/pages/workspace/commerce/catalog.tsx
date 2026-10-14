@@ -1,1048 +1,451 @@
 /**
- * Catalog - Wix Headless Commerce: Catalog V3, categories, inventory, orders.
+ * Staff AWS-native product editor.
  *
- * WHY THIS MOVED FROM /store TO /workspace/commerce/catalog.
+ * The public shop renders a static ProductsTable snapshot. Staff edits update
+ * ProductsTable, and the scheduled OIDC catalog publisher commits a new snapshot
+ * to trigger an Amplify rebuild. Payment quotes always read live ProductsTable.
  *
- * It is a staff page: it imports the authenticated Layout, and _app.tsx wraps every route
- * that is not on the public allowlist in the Cognito Authenticator. At /store that produced a
- * PUBLIC-looking URL whose prerendered HTML was the staff sign-in screen at HTTP 200, with the
- * public header and footer around it. Measured on the export: no <main>, no <h1>, no
- * .page-title - because the Authenticator renders INSTEAD of these children when there is no
- * session, and a static export is always prerendered without one. It was the only public
- * route on the site failing both the landmark and heading checks in tools/audit/htmlcheck.js.
- *
- * _app.tsx already records what this shape cost once: /contact-test was both allowlisted AND
- * wrapped in Layout, which leaked the entire staff sidebar into public HTML. That note names
- * /store as having been clean at the time. It was not clean any more.
- *
- * Under /workspace/ the sign-in wall is the correct response to an anonymous request, the URL
- * no longer implies a storefront, and htmlcheck's public sweep - which is scoped to the 18
- * authored public routes - stops reporting it.
- *
- * IT ALSO FREES A PREFIX THAT WAS DOING THREE JOBS. _routes.json declares
- * GET /store/preview-product-image, POST /store/generate-product-image and
- * POST /store/convert-flag, so /store/* was simultaneously a public page, a staff page and an
- * API namespace. Those API routes are unaffected by this move and keep their paths.
- *
- * The old URL is not redirected in-repo: there are no public inbound links to it, it was never
- * in the sitemap, and Amplify's /<*> -> /index.html rule already catches a stale bookmark.
+ * No Wix runtime API and no Meta catalog as price authority.
  */
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import Layout from '../../../components/Layout';
 import PageHeader from '../../../components/PageHeader';
 import SEO from '../../../components/SEO';
-import Tabs, { TabItem } from '../../../components/ui/Tabs';
-import Table from '../../../components/ui/Table';
-import Modal from '../../../components/ui/Modal';
 import Spinner from '../../../components/ui/Spinner';
-import EmptyState from '../../../components/ui/EmptyState';
-import Select, { type SelectOption } from '../../../components/ui/Select';
 import * as api from '../../../api/client';
 
-interface PageProps {
-  signOut?: () => void;
-  user?: any;
+interface PageProps { signOut?: () => void; user?: any; }
+
+interface NativeVariant {
+  sku: string;
+  label: string;
+  priceMinor: number;
+  inventory: number;
+}
+interface NativeProduct {
+  id: string;
+  title: string;
+  slug: string;
+  status: 'draft' | 'active' | 'archived';
+  currency: string;
+  priceMinor: number;
+  updatedAt: string;
+  tagline?: string;
+  descriptionHtml?: string;
+  variants: NativeVariant[];
+  imageRefs?: string[];
+  categories?: string[];
+}
+type Tab = 'products' | 'orders' | 'meta';
+type VariantDraft = { price: string; stockDelta: string; label: string };
+
+const API_ROOT = (process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api')
+  .replace(/\/$/, '') + '/native-catalog/products';
+const boxStyle: React.CSSProperties = {
+  background: '#fff', border: '1px solid #dfe5e4', borderRadius: 12,
+  padding: 18, marginBottom: 16,
+};
+const fieldStyle: React.CSSProperties = {
+  display: 'block', width: '100%', padding: '9px 12px', fontSize: 14,
+  borderRadius: 8, border: '1px solid #cbd5d1', marginTop: 5,
+};
+const muted: React.CSSProperties = { color: '#66746f', fontSize: 12 };
+const rowStyle: React.CSSProperties = {
+  padding: '11px 0', borderBottom: '1px solid #e4e9e7', display: 'flex',
+  alignItems: 'center', gap: 14, flexWrap: 'wrap',
+};
+
+function formatINR(paise: number): string {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency', currency: 'INR',
+  }).format(paise / 100);
 }
 
-type TabType = 'products' | 'orders' | 'collections' | 'manage' | 'admin' | 'settings';
+function parsePaise(input: string): number {
+  const value = input.trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(value)) {
+    throw new Error('Enter an amount in rupees with at most two decimal places.');
+  }
+  const parts = value.split('.');
+  const minor = Number(parts[0]) * 100 + Number((parts[1] || '').padEnd(2, '0') || 0);
+  if (!Number.isSafeInteger(minor) || minor < 0 || minor > 100_000_000) {
+    throw new Error('Amount outside the supported price range.');
+  }
+  return minor;
+}
 
-/* The option rows, hoisted. Same order, same values, same visible text as the <option>s they
-   replaced, including the '' placeholder row the order filter reads as "no filter". */
-const ORDER_STATUS_FILTER_OPTIONS: SelectOption[] = [
-  { value: '', label: 'All Statuses' },
-  { value: 'PAID', label: 'Paid' },
-  { value: 'NOT_PAID', label: 'Not Paid' },
-  { value: 'PARTIALLY_PAID', label: 'Partially Paid' },
-  { value: 'PARTIALLY_REFUNDED', label: 'Partially Refunded' },
-  { value: 'FULLY_REFUNDED', label: 'Fully Refunded' },
-];
-const CURRENCY_OPTIONS: SelectOption[] = [
-  { value: 'INR', label: 'INR (₹)' },
-  { value: 'USD', label: 'USD ($)' },
-  { value: 'EUR', label: 'EUR (€)' },
-  { value: 'GBP', label: 'GBP (£)' },
-];
-const PRODUCT_TYPE_OPTIONS: SelectOption[] = [
-  { value: 'digital', label: 'Digital' },
-  { value: 'physical', label: 'Physical' },
-];
+async function nativeCall(
+  path: string, init: RequestInit = {},
+): Promise<any> {
+  const response = await api.authFetch(API_ROOT + path, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init.headers || {}),
+    },
+  });
+  let data: any = null;
+  try { data = await response.json(); } catch { /* fail as an HTTP error below */ }
+  if (!response.ok || !data) {
+    const reason = typeof data?.error === 'string' ? data.error :
+      'AWS catalog API unavailable';
+    throw new Error(reason + (response.status === 409 ? ' — Reload and review the current version.' : ''));
+  }
+  return data;
+}
 
-/* LAYOUT ONLY - what the inline `width: '100%'` carried, and a width for the filter, which
-   is a flex child beside a search input. */
-const FULL_WIDTH: React.CSSProperties = { width: '100%' };
-const FILTER_STYLE: React.CSSProperties = { width: 190 };
+const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
+  const [tab, setTab] = useState<Tab>('products');
+  const [products, setProducts] = useState<NativeProduct[]>([]);
+  const [orders, setOrders] = useState<api.Order[]>([]);
+  const [selected, setSelected] = useState<NativeProduct | null>(null);
+  const [search, setSearch] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [editTitle, setEditTitle] = useState('');
+  const [editTagline, setEditTagline] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editStatus, setEditStatus] = useState<NativeProduct['status']>('draft');
+  const [drafts, setDrafts] = useState<Record<string, VariantDraft>>({});
+  const [newTitle, setNewTitle] = useState('');
+  const [newSlug, setNewSlug] = useState('');
+  const [newPrice, setNewPrice] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [metaPlan, setMetaPlan] = useState<api.MetaCatalogSyncControl | null>(null);
 
-const TABS: TabItem[] = [
-  { id: 'products', label: 'Products' },
-  { id: 'orders', label: 'Orders' },
-  { id: 'collections', label: 'Categories' },
-  { id: 'manage', label: 'Product Manager' },
-  { id: 'admin', label: 'Store Admin' },
-  { id: 'settings', label: 'Settings' },
-];
+  const reloadProducts = useCallback(async () => {
+    const data = await nativeCall('');
+    if (!Array.isArray(data.products)) throw new Error('Invalid native products response');
+    setProducts(data.products);
+    return data.products as NativeProduct[];
+  }, []);
 
-const StorePage: React.FC<PageProps> = ( { signOut, user } ) => {
-  const [ activeTab, setActiveTab ] = useState<TabType>( 'products' );
-  const [ loading, setLoading ] = useState( false );
-  const [ syncing, setSyncing ] = useState( false );
+  const run = useCallback(async (fn: () => Promise<void>) => {
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try { await fn(); } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Request failed');
+    } finally { setBusy(false); }
+  }, []);
 
-  // Meta catalog owner-approval control. This never bypasses server gates: the backend requires
-  // Admin + MFA, derives the approver identity from Cognito and recomputes the exact live plan.
-  const [ metaCatalog, setMetaCatalog ] = useState<api.MetaCatalogSyncControl | null>( null );
-  const [ metaCatalogBusy, setMetaCatalogBusy ] = useState( false );
-  const [ metaCatalogMessage, setMetaCatalogMessage ] = useState( '' );
+  const showProduct = useCallback((p: NativeProduct | null) => {
+    setSelected(p);
+    if (!p) return;
+    setEditTitle(p.title);
+    setEditTagline(p.tagline || '');
+    setEditDescription(p.descriptionHtml || '');
+    setEditStatus(p.status);
+    setDrafts(Object.fromEntries((p.variants || []).map(v => [v.sku, {
+      label: v.label || 'Standard',
+      price: (v.priceMinor / 100).toFixed(2),
+      stockDelta: '0',
+    }])));
+  }, []);
 
-  // Products
-  const [ products, setProducts ] = useState<api.WixProduct[]>( [] );
-  const [ productCount, setProductCount ] = useState( 0 );
-  const [ productSearch, setProductSearch ] = useState( '' );
-  const [ selectedProduct, setSelectedProduct ] = useState<api.WixProduct | null>( null );
+  useEffect(() => {
+    void run(async () => { await reloadProducts(); });
+  }, [reloadProducts, run]);
 
-  // Orders
-  const [ orders, setOrders ] = useState<api.WixOrder[]>( [] );
-  const [ orderCount, setOrderCount ] = useState( 0 );
-  const [ orderSearch, setOrderSearch ] = useState( '' );
-  const [ orderStatusFilter, setOrderStatusFilter ] = useState( '' );
-  const [ selectedOrder, setSelectedOrder ] = useState<api.WixOrder | null>( null );
-
-  // Categories (the route id stays 'collections' for compatibility)
-  const [ collections, setCollections ] = useState<api.WixCollection[]>( [] );
-  const [ collectionCount, setCollectionCount ] = useState( 0 );
-  const [ selectedCollectionId, setSelectedCollectionId ] = useState<string>( '' );
-
-  // Sites (settings)
-  const [ sites, setSites ] = useState<any[]>( [] );
-
-  // Product Manager
-  const [ manageMode, setManageMode ] = useState<'single' | 'bulk'>( 'single' );
-  const [ creating, setCreating ] = useState( false );
-  const [ createResult, setCreateResult ] = useState<any>( null );
-  const [ sampleProducts, setSampleProducts ] = useState<any[]>( [] );
-  const [ newProduct, setNewProduct ] = useState( {
-    name: '',
-    productType: 'digital' as 'digital' | 'physical',
-    description: '',
-    price: '',
-    currency: 'INR',
-    sku: '',
-    ribbon: 'BNB CLUB',
-    brand: 'WECARE.DIGITAL',
-    weight: '0',
-  } );
-  const [ bulkJson, setBulkJson ] = useState( '' );
-
-  // ---- Data fetching ----
-  const fetchProducts = useCallback( async () => {
-    setLoading( true );
-    try
-    {
-      const data = await api.listWixProducts( {
-        limit: 100,
-        search: productSearch || undefined,
-        collectionId: selectedCollectionId || undefined,
-      } );
-      setProducts( data.products );
-      setProductCount( data.totalCount );
-    } catch ( e )
-    {
-      console.error( 'Failed to fetch products:', e );
+  useEffect(() => {
+    if (tab === 'orders') {
+      void run(async () => {
+        const result = await api.listOrders({ limit: 50 });
+        setOrders(result.orders || []);
+      });
     }
-    setLoading( false );
-  }, [ productSearch, selectedCollectionId ] );
-
-  const fetchOrders = useCallback( async () => {
-    setLoading( true );
-    try
-    {
-      const params: any = { limit: 50 };
-      if ( orderStatusFilter ) params.paymentStatus = orderStatusFilter;
-      if ( orderSearch )
-      {
-        // Search: try as WD custom order number first, then email
-        if ( orderSearch.startsWith( 'WD' ) )
-        {
-          params.customOrderNumber = orderSearch;
-        } else if ( orderSearch.includes( '@' ) )
-        {
-          params.email = orderSearch;
-        } else
-        {
-          params.customOrderNumber = orderSearch;
-        }
-      }
-      const data = await api.listWixOrders( params );
-      setOrders( data.orders );
-      setOrderCount( data.totalCount );
-    } catch ( e )
-    {
-      console.error( 'Failed to fetch orders:', e );
+    if (tab === 'meta') {
+      void run(async () => {
+        const result = await api.getMetaCatalogSyncPlan();
+        if (result.ok) setMetaPlan(result.data);
+        else throw new Error(result.failure.message);
+      });
     }
-    setLoading( false );
-  }, [ orderSearch, orderStatusFilter ] );
+  }, [tab, run]);
 
-  const fetchCollections = useCallback( async () => {
-    setLoading( true );
-    try
-    {
-      const data = await api.listWixCollections( 100 );
-      setCollections( data.collections );
-      setCollectionCount( data.totalCount );
-    } catch ( e )
-    {
-      console.error( 'Failed to fetch categories:', e );
-    }
-    setLoading( false );
-  }, [] );
-
-  const fetchSites = useCallback( async () => {
-    setLoading( true );
-    try
-    {
-      const data = await api.listWixSites();
-      setSites( data );
-    } catch ( e )
-    {
-      console.error( 'Failed to fetch sites:', e );
-    }
-    setLoading( false );
-  }, [] );
-
-  const fetchSamples = useCallback( async () => {
-    try
-    {
-      const data = await api.getWixSampleProducts();
-      setSampleProducts( data.products || [] );
-    } catch ( e )
-    {
-      console.error( 'Failed to fetch samples:', e );
-    }
-  }, [] );
-
-  const refreshMetaCatalogPlan = async () => {
-    setMetaCatalogBusy( true );
-    setMetaCatalogMessage( '' );
-    const result = await api.getMetaCatalogSyncPlan();
-    if ( result.ok )
-    {
-      setMetaCatalog( result.data );
-    } else
-    {
-      setMetaCatalogMessage( result.failure.message );
-    }
-    setMetaCatalogBusy( false );
+  const updateProduct = () => {
+    if (!selected) return;
+    void run(async () => {
+      const data = await nativeCall('/' + encodeURIComponent(selected.id), {
+        method: 'PATCH',
+        body: JSON.stringify({
+          expectedUpdatedAt: selected.updatedAt,
+          title: editTitle,
+          tagline: editTagline,
+          descriptionHtml: editDescription,
+          status: editStatus,
+        }),
+      });
+      showProduct(data.product);
+      await reloadProducts();
+      setMessage('Saved to AWS ProductsTable. The public shop updates after the next catalog publish.');
+    });
   };
 
-  useEffect( () => {
-    if ( activeTab === 'products' ) fetchProducts();
-    else if ( activeTab === 'orders' ) fetchOrders();
-    else if ( activeTab === 'collections' ) fetchCollections();
-    else if ( activeTab === 'settings' ) fetchSites();
-    else if ( activeTab === 'manage' ) fetchSamples();
-    else if ( activeTab === 'admin' ) refreshMetaCatalogPlan();
-  // refreshMetaCatalogPlan intentionally excluded: it is a one-shot tab load, not a render loop.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ activeTab, fetchProducts, fetchOrders, fetchCollections, fetchSites, fetchSamples ] );
-
-  const runMetaCatalogAction = async ( action: 'propose' | 'approve' | 'apply' | 'readback' ) => {
-    const planHash = metaCatalog?.planHash || metaCatalog?.currentPlanHash || '';
-    if ( action !== 'propose' && !planHash )
-    {
-      setMetaCatalogMessage( 'Refresh the live plan before continuing.' );
-      return;
-    }
-    setMetaCatalogBusy( true );
-    setMetaCatalogMessage( '' );
-    const result = await api.controlMetaCatalogSync( action, action === 'propose' ? undefined : planHash );
-    if ( result.ok )
-    {
-      setMetaCatalog( prev => ( { ...( prev || {} as api.MetaCatalogSyncControl ), ...result.data } ) );
-      setMetaCatalogMessage(
-        action === 'propose' ? 'Proposal recorded against this exact plan.' :
-          action === 'approve' ? 'Exact plan approved. Release gates remain unchanged.' :
-            action === 'apply' ? 'Apply submitted. Use Readback to verify provider state.' :
-              'Provider readback refreshed.'
+  const updateVariant = (v: NativeVariant) => {
+    if (!selected) return;
+    const draft = drafts[v.sku];
+    if (!draft) return;
+    void run(async () => {
+      const delta = Number(draft.stockDelta);
+      if (!Number.isSafeInteger(delta) || Math.abs(delta) > 1_000_000) {
+        throw new Error('Stock change must be a whole number (maximum 1,000,000).');
+      }
+      const data = await nativeCall(
+        '/' + encodeURIComponent(selected.id) + '/variants/' + encodeURIComponent(v.sku), {
+          method: 'PATCH',
+          body: JSON.stringify({
+            expectedUpdatedAt: selected.updatedAt,
+            priceMinor: parsePaise(draft.price),
+            label: draft.label,
+            stockDelta: delta,
+          }),
+        },
       );
-    } else
-    {
-      setMetaCatalogMessage( result.failure.message );
-      // A 409 may carry useful server state, but apiCallResult deliberately normalises failures.
-      // Refresh immediately so the operator sees the current plan rather than acting on stale UI.
-      const fresh = await api.getMetaCatalogSyncPlan();
-      if ( fresh.ok ) setMetaCatalog( fresh.data );
-    }
-    setMetaCatalogBusy( false );
+      showProduct(data.product);
+      await reloadProducts();
+      setMessage('Variant price and stock adjustment saved. Checkout reads AWS prices directly.');
+    });
   };
 
-  const handleSync = async ( type: 'products' | 'orders' ) => {
-    setSyncing( true );
-    try
-    {
-      if ( type === 'products' )
-      {
-        await api.syncWixProducts();
-        await fetchProducts();
-      } else
-      {
-        await api.syncWixOrders();
-        await fetchOrders();
-      }
-    } catch ( e )
-    {
-      console.error( 'Sync failed:', e );
-    }
-    setSyncing( false );
+  const createProduct = () => {
+    void run(async () => {
+      const result = await nativeCall('', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: newTitle, slug: newSlug,
+          descriptionHtml: newDescription, currency: 'INR',
+          variants: [{
+            label: 'Standard', priceMinor: parsePaise(newPrice), inventory: 0,
+          }],
+        }),
+      });
+      await reloadProducts();
+      showProduct(result.product);
+      setNewTitle(''); setNewSlug(''); setNewPrice(''); setNewDescription('');
+      setMessage('Created as a draft in AWS; it is not publicly for sale until approved.');
+    });
   };
 
-  const handleProductClick = async ( product: api.WixProduct ) => {
-    try
-    {
-      const full = await api.getWixProduct( product._id );
-      setSelectedProduct( full || product );
-    } catch
-    {
-      setSelectedProduct( product );
-    }
+  const archive = () => {
+    if (!selected || !window.confirm('Archive this product? Past order references will be retained.')) return;
+    void run(async () => {
+      const data = await nativeCall('/' + encodeURIComponent(selected.id), {
+        method: 'DELETE',
+        body: JSON.stringify({ expectedUpdatedAt: selected.updatedAt }),
+      });
+      showProduct(data.product);
+      await reloadProducts();
+      setMessage('Product archived in AWS; historical orders remain intact.');
+    });
   };
 
-  const handleCreateProduct = async () => {
-    if ( !newProduct.name || !newProduct.price ) return;
-    setCreating( true );
-    setCreateResult( null );
-    try
-    {
-      const productData: any = {
-        name: newProduct.name,
-        productType: newProduct.productType,
-        description: newProduct.description,
-        priceData: { currency: newProduct.currency, price: parseFloat( newProduct.price ) },
-        sku: newProduct.sku,
-        ribbon: newProduct.ribbon,
-        brand: newProduct.brand,
-      };
-      if ( newProduct.productType === 'physical' )
-      {
-        productData.weight = parseFloat( newProduct.weight ) || 0;
-      }
-      const result = await api.createWixProduct( productData );
-      setCreateResult( { success: true, ...result } );
-      setNewProduct( { name: '', productType: 'digital', description: '', price: '', currency: 'INR', sku: '', ribbon: 'BNB CLUB', brand: 'WECARE.DIGITAL', weight: '0' } );
-    } catch ( e: any )
-    {
-      setCreateResult( { success: false, error: e.message } );
-    }
-    setCreating( false );
-  };
+  const filtered = products.filter(p => {
+    const q = search.trim().toLowerCase();
+    return !q || (p.title + ' ' + p.slug + ' ' + p.id).toLowerCase().includes(q);
+  });
+  const totalVariants = products.reduce((count, p) => count + (p.variants || []).length, 0);
 
-  const handleBulkCreate = async () => {
-    setCreating( true );
-    setCreateResult( null );
-    try
-    {
-      const products = JSON.parse( bulkJson );
-      if ( !Array.isArray( products ) ) throw new Error( 'JSON must be an array of products' );
-      const result = await api.bulkCreateWixProducts( products );
-      setCreateResult( { success: true, bulk: true, ...result } );
-    } catch ( e: any )
-    {
-      setCreateResult( { success: false, error: e.message } );
-    }
-    setCreating( false );
-  };
-
-  const handleLoadSample = ( sample: any ) => {
-    if ( manageMode === 'single' )
-    {
-      setNewProduct( {
-        name: sample.name || '',
-        productType: sample.productType || 'digital',
-        description: sample.description || '',
-        price: String( sample.priceData?.price || sample.price || '' ),
-        currency: sample.priceData?.currency || 'INR',
-        sku: sample.sku || '',
-        ribbon: sample.ribbon || 'BNB CLUB',
-        brand: sample.brand || 'WECARE.DIGITAL',
-        weight: String( sample.weight || 0 ),
-      } );
-    } else
-    {
-      setBulkJson( JSON.stringify( [ sample ], null, 2 ) );
-    }
-  };
-
-  const handleLoadAllSamples = () => {
-    setBulkJson( JSON.stringify( sampleProducts, null, 2 ) );
-    setManageMode( 'bulk' );
-  };
-
-  const handleOrderClick = async ( order: api.WixOrder ) => {
-    try
-    {
-      const full = await api.getWixOrder( order._id );
-      setSelectedOrder( full || order );
-    } catch
-    {
-      setSelectedOrder( order );
-    }
-  };
-
-  // ---- Product columns ----
-  const productColumns = [
-    {
-      key: 'image', header: '', width: '50px',
-      render: ( p: api.WixProduct ) => (
-        <div style={ { width: 40, height: 40, borderRadius: 8, overflow: 'hidden', background: '#f3f4f6' } }>
-          { p.mainMedia?.url ? (
-            <img src={ p.mainMedia.url } alt={ p.name } style={ { width: '100%', height: '100%', objectFit: 'cover' } } />
-          ) : (
-            <div style={ { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 12 } }>—</div>
-          ) }
-        </div>
-      ),
-    },
-    {
-      key: 'name', header: 'Product', render: ( p: api.WixProduct ) => (
-        <div>
-          <div style={ { fontWeight: 500 } }>{ p.name }</div>
-          { p.sku && <div style={ { fontSize: 12, color: '#6b7280' } }>SKU: { p.sku }</div> }
-        </div>
-      )
-    },
-    {
-      key: 'price', header: 'Price', render: ( p: api.WixProduct ) => (
-        <span>{ p.formattedPrice || `${p.currency || '₹'}${p.price || 0}` }</span>
-      )
-    },
-    {
-      key: 'collections', header: 'Collections', render: ( p: api.WixProduct ) => (
-        <div style={ { display: 'flex', gap: 4, flexWrap: 'wrap' } }>
-          { ( p.collections || [] ).map( c => (
-            <span key={ c._id } style={ { background: '#f9fafb', color: '#1a3a2a', padding: '2px 8px', borderRadius: 12, fontSize: 11 } }>{ c.name }</span>
-          ) ) }
-        </div>
-      )
-    },
-    {
-      key: 'stock', header: 'Stock', render: ( p: api.WixProduct ) => (
-        <span style={ { color: p.inStock ? '#1a3a2a' : '#1a3a2a', fontWeight: 500, fontSize: 13 } }>
-          { p.inStock ? ( p.quantityInStock !== undefined ? `${p.quantityInStock} in stock` : 'In Stock' ) : 'Out of Stock' }
-        </span>
-      )
-    },
-    {
-      key: 'type', header: 'Type', render: ( p: api.WixProduct ) => (
-        <span style={ { textTransform: 'capitalize', fontSize: 13 } }>{ p.productType || 'physical' }</span>
-      )
-    },
-    {
-      key: 'actions', header: '', width: '80px', render: ( p: api.WixProduct ) => (
-        <button onClick={ () => handleProductClick( p ) } style={ { background: 'none', border: '1px solid #d1d5db', borderRadius: 8, padding: '4px 12px', cursor: 'pointer', fontSize: 12 } }>View</button>
-      )
-    },
-  ];
-
-  // ---- Order columns ----
-  const orderColumns = [
-    {
-      key: 'number', header: 'Order #', width: '100px', render: ( o: api.WixOrder ) => (
-        <div>
-          <div style={ { fontWeight: 600 } }>{ o.customOrderNumber || o._summary?.customOrderNumber || o.customField?.value || o._summary?.externalOrderId || `#${o.number || '—'}` }</div>
-        </div>
-      )
-    },
-    {
-      key: 'buyer', header: 'Buyer', render: ( o: api.WixOrder ) => {
-        const email = ( o as any ).buyerEmail || o.buyerInfo?.email || o._summary?.buyerEmail || '';
-        const name = ( o as any ).buyerName || o._summary?.billingName || '';
-        return (
-          <div>
-            { name && <div style={ { fontWeight: 500, fontSize: 13 } }>{ name }</div> }
-            <div style={ { fontSize: 12, color: '#6b7280' } }>{ email }</div>
-          </div>
-        );
-      }
-    },
-    {
-      key: 'items', header: 'Items', width: '60px', render: ( o: api.WixOrder ) => (
-        <span>{ ( o as any ).lineItemCount || o.lineItems?.length || o._summary?.lineItemCount || 0 }</span>
-      )
-    },
-    {
-      key: 'total', header: 'Total', render: ( o: api.WixOrder ) => {
-        const total = o.totals?.total || o._summary?.totalAmount || '0';
-        const currency = o.currency || o._summary?.currency || 'INR';
-        return <span style={ { fontWeight: 600 } }>{ currency === 'INR' ? '₹' : currency + ' ' }{ total }</span>;
-      }
-    },
-    {
-      key: 'payment', header: 'Payment', render: ( o: api.WixOrder ) => {
-        const status = o.paymentStatus || o._summary?.paymentStatus || '';
-        const color = status === 'PAID' ? '#1a3a2a' : status === 'NOT_PAID' ? '#1a3a2a' : '#1a3a2a';
-        return <span style={ { color, fontWeight: 500, fontSize: 12, textTransform: 'uppercase' } }>{ status.replace( /_/g, ' ' ) }</span>;
-      }
-    },
-    {
-      key: 'fulfillment', header: 'Fulfillment', render: ( o: api.WixOrder ) => {
-        const status = o.fulfillmentStatus || o._summary?.fulfillmentStatus || '';
-        const color = status === 'FULFILLED' ? '#1a3a2a' : status === 'NOT_FULFILLED' ? '#6b7280' : '#1a3a2a';
-        return <span style={ { color, fontWeight: 500, fontSize: 12, textTransform: 'uppercase' } }>{ status.replace( /_/g, ' ' ) || '—' }</span>;
-      }
-    },
-    {
-      key: 'date', header: 'Date', render: ( o: api.WixOrder ) => {
-        const d = o.dateCreated || ( o as any ).createdDate || o._summary?.createdDate || '';
-        return <span style={ { fontSize: 12, color: '#6b7280' } }>{ d ? new Date( d ).toLocaleDateString( 'en-IN', { day: '2-digit', month: 'short', year: 'numeric' } ) : '—' }</span>;
-      }
-    },
-    {
-      key: 'actions', header: '', width: '80px', render: ( o: api.WixOrder ) => (
-        <button onClick={ () => handleOrderClick( o ) } style={ { background: 'none', border: '1px solid #d1d5db', borderRadius: 8, padding: '4px 12px', cursor: 'pointer', fontSize: 12 } }>View</button>
-      )
-    },
-  ];
-
-  // ---- Render ----
   return (
-    <Layout user={ user } onSignOut={ signOut }>
-      <SEO title="Store" description="Wix Store — Products, Orders, Collections" />
-      <div className="store-page">
+    <Layout user={user} onSignOut={signOut}>
+      <SEO title="AWS Product Catalog" description="WECARE.DIGITAL AWS-native product management" />
+      <div style={{ paddingBottom: 40 }}>
         <PageHeader
-          title="Store"
-          subtitle={ `Wix Store Integration — ${productCount} products, ${orderCount} orders` }
+          title="Product Catalog"
+          subtitle={'AWS ProductsTable — ' + products.length + ' products, ' + totalVariants + ' variants'}
           icon="store"
-          actions={
-            <div style={ { display: 'flex', gap: 8 } }>
-              <button onClick={ () => handleSync( 'products' ) } disabled={ syncing } style={ { display: 'flex', alignItems: 'center', gap: 6 } }>
-                { syncing ? <Spinner size="sm" /> : null } Sync Products
-              </button>
-              <button onClick={ () => handleSync( 'orders' ) } disabled={ syncing } style={ { display: 'flex', alignItems: 'center', gap: 6 } }>
-                { syncing ? <Spinner size="sm" /> : null } Sync Orders
-              </button>
-            </div>
-          }
+          actions={<button onClick={() => void run(async () => { await reloadProducts(); })}
+            disabled={busy}>Refresh AWS</button>}
         />
 
-        <Tabs items={ TABS } activeTab={ activeTab } onChange={ ( id ) => setActiveTab( id as TabType ) } />
+        <nav aria-label="Commerce sections" style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          {(['products', 'orders', 'meta'] as Tab[]).map(id => (
+            <button type="button" key={id} onClick={() => setTab(id)}
+              aria-pressed={tab === id}
+              style={{
+                padding: '10px 14px', borderRadius: 8,
+                border: '1px solid #bdd0c7',
+                background: tab === id ? '#1b4837' : '#fff',
+                color: tab === id ? '#fff' : '#1b4837',
+              }}>{id === 'products' ? 'Products & variants' : id === 'orders' ? 'Order history' : 'Meta catalog'}</button>
+          ))}
+        </nav>
 
-        <div style={ { marginTop: 16 } }>
-          {/* ---- PRODUCTS TAB ---- */ }
-          { activeTab === 'products' && (
-            <div>
-              <div style={ { display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' } }>
-                <input
-                  type="text"
-                  placeholder="Search products..."
-                  value={ productSearch }
-                  onChange={ e => setProductSearch( e.target.value ) }
-                  onKeyDown={ e => e.key === 'Enter' && fetchProducts() }
-                  style={ { flex: 1, padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 12, fontSize: 14, outline: 'none' } }
-                />
-                <button onClick={ fetchProducts }>Search</button>
-                { selectedCollectionId && (
-                  <button
-                    onClick={ () => { setSelectedCollectionId( '' ); } }
-                    className="btn btn-sm btn-secondary"
-                  >
-                    Clear filter
+        {error && <div role="alert" style={{ color: '#a11', margin: '10px 0' }}>{error}</div>}
+        {message && <div role="status" style={{ color: '#176440', margin: '10px 0' }}>{message}</div>}
+        {busy && <div role="status" style={{ marginBottom: 12 }}><Spinner size="sm" /> Updating...</div>}
+
+        {tab === 'products' && (
+          <div style={{ display: 'grid', gap: 18, gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 350px), 1fr))' }}>
+            <section style={boxStyle} aria-label="Products">
+              <h2 style={{ fontSize: 18, marginTop: 0 }}>Products</h2>
+              <input style={fieldStyle} aria-label="Search products" placeholder="Search products"
+                value={search} onChange={e => setSearch(e.target.value)} />
+              <div style={{ maxHeight: 530, overflowY: 'auto', marginTop: 12 }}>
+                {filtered.map(p => (
+                  <button type="button" key={p.id} onClick={() => showProduct(p)}
+                    style={{ ...rowStyle, width: '100%', background: selected?.id === p.id ? '#e8f3ed' : '#fff',
+                      borderTop: 'none', borderLeft: 'none', borderRight: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                    {p.imageRefs?.[0] && <img src={p.imageRefs[0]} alt=""
+                      width={48} height={48} style={{ borderRadius: 6, objectFit: 'cover' }} />}
+                    <span style={{ flex: 1 }}>
+                      <strong style={{ display: 'block' }}>{p.title}</strong>
+                      <span style={muted}>/shop/{p.slug}/ · {p.status} · {(p.variants || []).length} variant(s)</span>
+                    </span>
+                    <strong>{formatINR(p.priceMinor)}</strong>
                   </button>
-                ) }
+                ))}
+                {filtered.length === 0 && <p>No matching AWS products.</p>}
               </div>
-              { loading ? (
-                <div style={ { textAlign: 'center', padding: 60 } }><Spinner size="lg" /></div>
-              ) : products.length === 0 ? (
-                <EmptyState icon="search" title="No Products Found" description="Connect your Wix Store and sync products to see them here." />
+            </section>
+
+            <section style={boxStyle} aria-label="Product editor">
+              {selected ? (
+                <>
+                  <h2 style={{ fontSize: 18, marginTop: 0 }}>Edit {selected.title}</h2>
+                  <p style={muted}>Product ID {selected.id} · Slug /{selected.slug}/ · Version {selected.updatedAt}</p>
+                  <label>Title
+                    <input style={fieldStyle} value={editTitle}
+                      onChange={e => setEditTitle(e.target.value)} />
+                  </label>
+                  <label>Summary
+                    <textarea style={{ ...fieldStyle, minHeight: 65 }} value={editTagline}
+                      onChange={e => setEditTagline(e.target.value)} />
+                  </label>
+                  <label>Description HTML
+                    <textarea style={{ ...fieldStyle, minHeight: 95 }} value={editDescription}
+                      onChange={e => setEditDescription(e.target.value)} />
+                  </label>
+                  <label>Visibility
+                    <select style={fieldStyle} value={editStatus}
+                      onChange={e => setEditStatus(e.target.value as NativeProduct['status'])}>
+                      <option value="draft">Draft</option>
+                      <option value="active">Active</option>
+                      <option value="archived">Archived</option>
+                    </select>
+                  </label>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                    <button disabled={busy} onClick={updateProduct}>Save product</button>
+                    <button disabled={busy} onClick={archive}>Archive</button>
+                  </div>
+                  <h3 style={{ marginTop: 25 }}>Variants ({selected.variants.length})</h3>
+                  <p style={muted}>SKU/variant ID stays immutable to protect carts and historical orders.
+                    Stock is adjusted by delta rather than overwritten while payments may reserve units.</p>
+                  {selected.variants.map(v => {
+                    const draft = drafts[v.sku];
+                    if (!draft) return null;
+                    return (
+                      <div style={{ ...boxStyle, background: '#f8faf8' }} key={v.sku}>
+                        <div style={muted}>{v.sku}</div>
+                        <label>Variant label
+                          <input style={fieldStyle} value={draft.label}
+                            onChange={e => setDrafts(prev => ({
+                              ...prev, [v.sku]: { ...prev[v.sku], label: e.target.value },
+                            }))} />
+                        </label>
+                        <label>Price (INR)
+                          <input style={fieldStyle} value={draft.price} inputMode="decimal"
+                            onChange={e => setDrafts(prev => ({
+                              ...prev, [v.sku]: { ...prev[v.sku], price: e.target.value },
+                            }))} />
+                        </label>
+                        <p style={muted}>Currently {v.inventory} units available</p>
+                        <label>Stock adjustment (+ to add, - to remove)
+                          <input style={fieldStyle} value={draft.stockDelta} inputMode="numeric"
+                            onChange={e => setDrafts(prev => ({
+                              ...prev, [v.sku]: { ...prev[v.sku], stockDelta: e.target.value },
+                            }))} />
+                        </label>
+                        <button onClick={() => updateVariant(v)} disabled={busy}
+                          style={{ marginTop: 12 }}>Save variant</button>
+                      </div>
+                    );
+                  })}
+                  <p style={muted}>Artwork is hosted under the media service. Upload replacement
+                    images using the controlled S3 catalog-media migration; do not paste untrusted external URLs.</p>
+                </>
               ) : (
-                <Table columns={ productColumns } data={ products } keyField="_id" />
-              ) }
-            </div>
-          ) }
+                <p>Select a product to edit its AWS source record.</p>
+              )}
+            </section>
 
-          {/* ---- ORDERS TAB ---- */ }
-          { activeTab === 'orders' && (
-            <div>
-              <div style={ { display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' } }>
-                <input
-                  type="text"
-                  placeholder="Search by WD order number or email..."
-                  value={ orderSearch }
-                  onChange={ e => setOrderSearch( e.target.value ) }
-                  onKeyDown={ e => e.key === 'Enter' && fetchOrders() }
-                  style={ { flex: 1, minWidth: 200, padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 12, fontSize: 14, outline: 'none' } }
-                />
-                <Select
-                  ariaLabel="Payment status"
-                  value={ orderStatusFilter }
-                  onChange={ v => setOrderStatusFilter( v ) }
-                  options={ ORDER_STATUS_FILTER_OPTIONS }
-                  style={ FILTER_STYLE }
-                />
-                <button onClick={ fetchOrders }>Search</button>
-              </div>
-              { loading ? (
-                <div style={ { textAlign: 'center', padding: 60 } }><Spinner size="lg" /></div>
-              ) : orders.length === 0 ? (
-                <EmptyState icon="order" title="No Orders Found" description="Orders from your Wix Store will appear here." />
-              ) : (
-                <Table columns={ orderColumns } data={ orders } keyField="_id" />
-              ) }
-            </div>
-          ) }
+            <section style={boxStyle} aria-label="Create draft product">
+              <h2 style={{ fontSize: 18, marginTop: 0 }}>Create draft</h2>
+              <p style={muted}>New products start unpublished with zero available stock.</p>
+              <label>Product name
+                <input style={fieldStyle} value={newTitle}
+                  onChange={e => setNewTitle(e.target.value)} />
+              </label>
+              <label>URL slug
+                <input style={fieldStyle} value={newSlug}
+                  onChange={e => setNewSlug(e.target.value.toLowerCase())} />
+              </label>
+              <label>Price (INR)
+                <input style={fieldStyle} inputMode="decimal" value={newPrice}
+                  onChange={e => setNewPrice(e.target.value)} />
+              </label>
+              <label>Description HTML
+                <textarea style={{ ...fieldStyle, minHeight: 90 }} value={newDescription}
+                  onChange={e => setNewDescription(e.target.value)} />
+              </label>
+              <button style={{ marginTop: 12 }} disabled={busy} onClick={createProduct}>
+                Create AWS draft
+              </button>
+            </section>
+          </div>
+        )}
 
-          {/* ---- COLLECTIONS TAB ---- */ }
-          { activeTab === 'collections' && (
-            <div>
-              { loading ? (
-                <div style={ { textAlign: 'center', padding: 60 } }><Spinner size="lg" /></div>
-              ) : collections.length === 0 ? (
-                <EmptyState icon="default" title="No Collections" description="Create collections in your Wix Store to organize products." />
-              ) : (
-                <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 } }>
-                  { collections.map( c => (
-                    <div key={ c._id } style={ { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 16, cursor: 'pointer' } }
-                      onClick={ () => { setProductSearch( '' ); setSelectedCollectionId( c._id ); setActiveTab( 'products' ); } }>
-                      { c.mainMedia?.url && (
-                        <img src={ c.mainMedia.url } alt={ c.name } style={ { width: '100%', height: 140, objectFit: 'cover', borderRadius: 8, marginBottom: 12 } } />
-                      ) }
-                      <h4 style={ { margin: 0, fontSize: 16, fontWeight: 600 } }>{ c.name }</h4>
-                      { c.description && <p style={ { margin: '4px 0 0', fontSize: 13, color: '#6b7280' } }>{ c.description }</p> }
-                    </div>
-                  ) ) }
-                </div>
-              ) }
-            </div>
-          ) }
+        {tab === 'orders' && (
+          <section style={boxStyle}>
+            <h2 style={{ fontSize: 18 }}>AWS order history</h2>
+            <p style={muted}>Orders are read from the existing native order service.
+              Previous Wix identifiers are retained only where needed to reconcile history.</p>
+            {orders.length ? (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead><tr>
+                  <th align="left">Order</th><th align="left">Status</th>
+                  <th align="left">Payment</th><th align="left">Date</th>
+                </tr></thead>
+                <tbody>{orders.map((o, index) => (
+                  <tr key={o.orderId || String(index)} style={{ borderTop: '1px solid #e3e9e6' }}>
+                    <td style={{ padding: '12px 8px' }}>{o.orderNumber || o.orderId}</td>
+                    <td>{o.orderStatus || o.status || '—'}</td>
+                    <td>{o.paymentStatus || '—'}</td>
+                    <td>{o.orderDate || (o.createdAt ? new Date(o.createdAt * 1000).toLocaleDateString('en-IN') : '—')}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            ) : <p>No orders returned by the AWS order service.</p>}
+            <Link href="/workspace/pay/records">Open invoice and payment records</Link>
+          </section>
+        )}
 
-          {/* ---- PRODUCT MANAGER TAB ---- */ }
-          { activeTab === 'manage' && (
-            <div style={ { maxWidth: 900 } }>
-              {/* Mode Toggle */ }
-              <div style={ { display: 'flex', gap: 8, marginBottom: 16 } }>
-                <button
-                  onClick={ () => setManageMode( 'single' ) }
-                  style={ { padding: '8px 20px', borderRadius: 8, border: manageMode === 'single' ? '2px solid #1a3a2a' : '1px solid #d1d5db', background: manageMode === 'single' ? '#f9fafb' : '#fff', cursor: 'pointer', fontWeight: manageMode === 'single' ? 600 : 400, fontSize: 13 } }
-                >
-                  Single Product
-                </button>
-                <button
-                  onClick={ () => setManageMode( 'bulk' ) }
-                  style={ { padding: '8px 20px', borderRadius: 8, border: manageMode === 'bulk' ? '2px solid #1a3a2a' : '1px solid #d1d5db', background: manageMode === 'bulk' ? '#f9fafb' : '#fff', cursor: 'pointer', fontWeight: manageMode === 'bulk' ? 600 : 400, fontSize: 13 } }
-                >
-                  Bulk Create (JSON)
-                </button>
-              </div>
-
-              {/* Sample Products */ }
-              { sampleProducts.length > 0 && (
-                <div style={ { background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 12, padding: 16, marginBottom: 16 } }>
-                  <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } }>
-                    <span style={ { fontWeight: 600, fontSize: 14 } }>BNB CLUB Templates</span>
-                    <button onClick={ handleLoadAllSamples } style={ { fontSize: 12, padding: '4px 12px', border: '1px solid #86efac', borderRadius: 6, background: '#fff', cursor: 'pointer', color: '#1a3a2a' } }>
-                      Load All → Bulk
-                    </button>
-                  </div>
-                  <div style={ { display: 'flex', gap: 8, flexWrap: 'wrap' } }>
-                    { sampleProducts.map( ( s: any, i: number ) => (
-                      <button key={ i } onClick={ () => handleLoadSample( s ) }
-                        style={ { padding: '6px 14px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontSize: 12, textAlign: 'left', maxWidth: 260 } }>
-                        <div style={ { fontWeight: 500 } }>{ s.name }</div>
-                        <div style={ { color: '#6b7280', fontSize: 11 } }>₹{ s.priceData?.price || s.price } · { s.sku }</div>
-                      </button>
-                    ) ) }
-                  </div>
-                </div>
-              ) }
-
-              {/* Single Product Form */ }
-              { manageMode === 'single' && (
-                <div style={ { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20 } }>
-                  <h3 style={ { margin: '0 0 16px', fontSize: 16, fontWeight: 600 } }>Create Product</h3>
-                  <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
-                    <div style={ { gridColumn: '1 / -1' } }>
-                      <label style={ { display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' } }>Product Name *</label>
-                      <input type="text" value={ newProduct.name } onChange={ e => setNewProduct( { ...newProduct, name: e.target.value } ) } placeholder="Visa Assistance — Tourist Visa"
-                        style={ { width: '100%', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 10, fontSize: 14, outline: 'none', boxSizing: 'border-box' } } />
-                    </div>
-                    <div>
-                      <label style={ { display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' } }>Price *</label>
-                      <input type="number" value={ newProduct.price } onChange={ e => setNewProduct( { ...newProduct, price: e.target.value } ) } placeholder="2999"
-                        style={ { width: '100%', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 10, fontSize: 14, outline: 'none', boxSizing: 'border-box' } } />
-                    </div>
-                    <div>
-                      { /* The caption is an UNASSOCIATED <label> - no `for`, no wrapped control -
-                           so it was never a name source. It stays, keeping its own type and
-                           spacing, and the control takes `ariaLabel`. The four currency values
-                           are unchanged: INR is the only one this store settles in, and the list
-                           is a Wix catalogue field rather than a payment decision. */ }
-                      <label style={ { display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' } }>Currency</label>
-                      <Select ariaLabel="Currency" value={ newProduct.currency }
-                        onChange={ v => setNewProduct( { ...newProduct, currency: v } ) }
-                        options={ CURRENCY_OPTIONS } style={ FULL_WIDTH } />
-                    </div>
-                    <div>
-                      <label style={ { display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' } }>SKU</label>
-                      <input type="text" value={ newProduct.sku } onChange={ e => setNewProduct( { ...newProduct, sku: e.target.value } ) } placeholder="BNB-VISA-SINGLE-001"
-                        style={ { width: '100%', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 10, fontSize: 14, outline: 'none', boxSizing: 'border-box' } } />
-                    </div>
-                    <div>
-                      <label style={ { display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' } }>Type</label>
-                      <Select ariaLabel="Product type" value={ newProduct.productType }
-                        onChange={ v => setNewProduct( { ...newProduct, productType: v as 'digital' | 'physical' } ) }
-                        options={ PRODUCT_TYPE_OPTIONS } style={ FULL_WIDTH } />
-                    </div>
-                    <div>
-                      <label style={ { display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' } }>Ribbon</label>
-                      <input type="text" value={ newProduct.ribbon } onChange={ e => setNewProduct( { ...newProduct, ribbon: e.target.value } ) } placeholder="BNB CLUB"
-                        style={ { width: '100%', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 10, fontSize: 14, outline: 'none', boxSizing: 'border-box' } } />
-                    </div>
-                    <div>
-                      <label style={ { display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' } }>Brand</label>
-                      <input type="text" value={ newProduct.brand } onChange={ e => setNewProduct( { ...newProduct, brand: e.target.value } ) } placeholder="WECARE.DIGITAL"
-                        style={ { width: '100%', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 10, fontSize: 14, outline: 'none', boxSizing: 'border-box' } } />
-                    </div>
-                    { newProduct.productType === 'physical' && (
-                      <div>
-                        <label style={ { display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' } }>Weight (kg)</label>
-                        <input type="number" value={ newProduct.weight } onChange={ e => setNewProduct( { ...newProduct, weight: e.target.value } ) } placeholder="0"
-                          style={ { width: '100%', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 10, fontSize: 14, outline: 'none', boxSizing: 'border-box' } } />
-                      </div>
-                    ) }
-                    <div style={ { gridColumn: '1 / -1' } }>
-                      <label style={ { display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' } }>Description (HTML)</label>
-                      <textarea value={ newProduct.description } onChange={ e => setNewProduct( { ...newProduct, description: e.target.value } ) } rows={ 5 } placeholder="<p>Product description...</p>"
-                        style={ { width: '100%', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 10, fontSize: 13, outline: 'none', fontFamily: 'monospace', resize: 'vertical', boxSizing: 'border-box' } } />
-                    </div>
-                  </div>
-                  <div style={ { marginTop: 16, display: 'flex', gap: 8, alignItems: 'center' } }>
-                    <button onClick={ handleCreateProduct } disabled={ creating || !newProduct.name || !newProduct.price }
-                      style={ { padding: '10px 24px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 600, fontSize: 14, opacity: creating || !newProduct.name || !newProduct.price ? 0.5 : 1 } }>
-                      { creating ? 'Creating...' : 'Create Product' }
-                    </button>
-                  </div>
-                </div>
-              ) }
-
-              {/* Bulk Create */ }
-              { manageMode === 'bulk' && (
-                <div style={ { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20 } }>
-                  <h3 style={ { margin: '0 0 16px', fontSize: 16, fontWeight: 600 } }>Bulk Create Products</h3>
-                  <label style={ { display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' } }>Products JSON Array</label>
-                  <textarea value={ bulkJson } onChange={ e => setBulkJson( e.target.value ) } rows={ 14 } placeholder='[{"name": "Product 1", "productType": "digital", "priceData": {"currency": "INR", "price": 999}, "sku": "SKU-001"}]'
-                    style={ { width: '100%', padding: '12px 14px', border: '1.5px solid #d1d5db', borderRadius: 10, fontSize: 12, outline: 'none', fontFamily: 'monospace', resize: 'vertical', boxSizing: 'border-box' } } />
-                  <div style={ { marginTop: 16, display: 'flex', gap: 8, alignItems: 'center' } }>
-                    <button onClick={ handleBulkCreate } disabled={ creating || !bulkJson.trim() }
-                      style={ { padding: '10px 24px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 600, fontSize: 14, opacity: creating || !bulkJson.trim() ? 0.5 : 1 } }>
-                      { creating ? 'Creating...' : 'Bulk Create' }
-                    </button>
-                  </div>
-                </div>
-              ) }
-
-              {/* Result */ }
-              { createResult && (
-                <div style={ { marginTop: 16, background: createResult.success ? '#f9fafb' : '#f3f4f6', border: `1px solid ${createResult.success ? '#e5e7eb' : '#e5e7eb'}`, borderRadius: 12, padding: 16 } }>
-                  <div style={ { fontWeight: 600, fontSize: 14, color: createResult.success ? '#1a3a2a' : '#6b7280', marginBottom: 8 } }>
-                    { createResult.success ? ( createResult.bulk ? `Bulk: ${createResult.succeeded}/${createResult.total} created` : 'Product Created' ) : 'Error' }
-                  </div>
-                  <pre style={ { fontSize: 12, margin: 0, whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto', color: '#374151' } }>
-                    { JSON.stringify( createResult, null, 2 ) }
-                  </pre>
-                </div>
-              ) }
-            </div>
-          ) }
-
-          {/* ---- STORE ADMIN TAB ---- */ }
-          { activeTab === 'admin' && (
-            <div style={ { maxWidth: 900 } }>
-              <div style={ { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20, marginBottom: 16 } }>
-                <div style={ { display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 } }>
-                  <div>
-                    <h3 style={ { margin: '0 0 4px', fontSize: 16, fontWeight: 600 } }>WhatsApp Catalog Approval</h3>
-                    <p style={ { margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.5 } }>
-                      The proposal is recomputed from live Wix and Meta state. Approval is bound to the exact hash below.
-                      Background sync cannot spend an approval; Apply also requires the server release gates.
-                    </p>
-                  </div>
-                  <button onClick={ refreshMetaCatalogPlan } disabled={ metaCatalogBusy }
-                    style={ { padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8, background: '#fff', cursor: metaCatalogBusy ? 'default' : 'pointer' } }>
-                    { metaCatalogBusy ? 'Checking…' : 'Refresh plan' }
-                  </button>
-                </div>
-
-                { metaCatalog ? (
-                  <>
-                    <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 12 } }>
-                      <div style={ statBox }><span style={ statLabel }>Catalog</span><span style={ statValue }>{ metaCatalog.catalogId }</span></div>
-                      <div style={ statBox }><span style={ statLabel }>Create</span><span style={ statValue }>{ metaCatalog.counts?.create ?? 0 }</span></div>
-                      <div style={ statBox }><span style={ statLabel }>Update</span><span style={ statValue }>{ metaCatalog.counts?.update ?? 0 }</span></div>
-                      <div style={ statBox }><span style={ statLabel }>Retire</span><span style={ statValue }>{ metaCatalog.counts?.retire ?? 0 }</span></div>
-                      <div style={ statBox }><span style={ statLabel }>Approval</span><span style={ statValue }>{ metaCatalog.approval?.status || 'Not proposed' }</span></div>
-                      <div style={ statBox }><span style={ statLabel }>Release gates</span><span style={ statValue }>{ metaCatalog.enabled && metaCatalog.dryRun === false ? 'Open' : 'Closed' }</span></div>
-                    </div>
-                    <div style={ { background: '#f9fafb', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 12 } }>
-                      <strong>Exact plan hash</strong><br />
-                      <code style={ { wordBreak: 'break-all' } }>{ metaCatalog.planHash || metaCatalog.currentPlanHash || '—' }</code>
-                      { ( metaCatalog.blocked?.length || 0 ) > 0 && (
-                        <div style={ { marginTop: 8, color: '#6b7280' } }>Blocked: { metaCatalog.blocked?.join( ', ' ) }</div>
-                      ) }
-                    </div>
-                    <div style={ { display: 'flex', flexWrap: 'wrap', gap: 8 } }>
-                      <button onClick={ () => runMetaCatalogAction( 'propose' ) } disabled={ metaCatalogBusy || ( metaCatalog.blocked?.length || 0 ) > 0 }>
-                        Record proposal
-                      </button>
-                      <button onClick={ () => runMetaCatalogAction( 'approve' ) }
-                        disabled={ metaCatalogBusy || metaCatalog.approval?.status !== 'PROPOSED' }>
-                        Approve exact plan
-                      </button>
-                      <button onClick={ () => runMetaCatalogAction( 'apply' ) }
-                        disabled={ metaCatalogBusy || metaCatalog.approval?.status !== 'APPROVED' || !metaCatalog.enabled || metaCatalog.dryRun !== false }>
-                        Apply approved plan
-                      </button>
-                      <button onClick={ () => runMetaCatalogAction( 'readback' ) }
-                        disabled={ metaCatalogBusy || ![ 'APPLYING', 'APPLY_SUBMITTED', 'APPLIED' ].includes( metaCatalog.approval?.status || '' ) }>
-                        Provider readback
-                      </button>
-                    </div>
-                    { ( !metaCatalog.enabled || metaCatalog.dryRun !== false ) && (
-                      <p style={ { margin: '10px 0 0', fontSize: 12, color: '#6b7280' } }>
-                        Apply is intentionally locked: production catalog writes are disabled / dry-run.
-                      </p>
-                    ) }
-                  </>
-                ) : (
-                  <p style={ { color: '#6b7280', fontSize: 13 } }>{ metaCatalogBusy ? 'Reading live Wix + Meta plan…' : 'No live plan loaded.' }</p>
-                ) }
-                { metaCatalogMessage && <p style={ { margin: '10px 0 0', fontSize: 12, color: '#374151' } }>{ metaCatalogMessage }</p> }
-              </div>
-
-              <div style={ { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20, marginBottom: 16 } }>
-                <h3 style={ { margin: '0 0 8px', fontSize: 16, fontWeight: 600 } }>Headless Commerce Architecture</h3>
-                <p style={ { fontSize: 13, color: '#6b7280', margin: 0, lineHeight: 1.6 } }>
-                  Amplify owns the storefront and checkout UI. Wix is a backend-only commerce service accessed through REST APIs.
-                  There is no Wix Editor or Velo runtime dependency in WECARE.DIGITAL.
-                </p>
-              </div>
-
-              <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12, marginBottom: 16 } }>
-                <div style={ adminCard }><span style={ adminLabel }>Products</span><span style={ adminVal }>Catalog V3</span></div>
-                <div style={ adminCard }><span style={ adminLabel }>Organization</span><span style={ adminVal }>Categories V3</span></div>
-                <div style={ adminCard }><span style={ adminLabel }>Stock</span><span style={ adminVal }>Inventory Items V3</span></div>
-                <div style={ adminCard }><span style={ adminLabel }>Orders</span><span style={ adminVal }>eCommerce Orders</span></div>
-                <div style={ adminCard }><span style={ adminLabel }>Cart / Checkout</span><span style={ adminVal }>Cart V2 + AWS UI</span></div>
-                <div style={ adminCard }><span style={ adminLabel }>Payment</span><span style={ adminVal }>Razorpay via AWS</span></div>
-              </div>
-
-              <div style={ { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20 } }>
-                <h3 style={ { margin: '0 0 12px', fontSize: 16, fontWeight: 600 } }>Commerce API</h3>
-                <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 } }>
-                  { [
-                    [ 'GET', '/wix-store/products', 'Catalog V3 products' ],
-                    [ 'GET', '/wix-store/products/{id}', 'Product + variants + inventory' ],
-                    [ 'GET', '/wix-store/collections', 'Categories V3 compatibility route' ],
-                    [ 'GET', '/wix-store/inventory', 'Inventory Items V3' ],
-                    [ 'GET', '/wix-store/orders', 'eCommerce orders' ],
-                    [ 'POST', '/wix-store/create-product', 'Create Catalog V3 product' ],
-                    [ 'POST', '/wix-store/update-product', 'Revision-safe product update' ],
-                    [ 'POST', '/wix-store/sync/products', 'Refresh AWS product cache' ],
-                  ].map( ( [ method, path, description ] ) => (
-                    <div key={ path } style={ { padding: 10, borderRadius: 8, background: '#f9fafb' } }>
-                      <div><strong>{ method }</strong> <code>{ path }</code></div>
-                      <div style={ { color: '#6b7280', marginTop: 3 } }>{ description }</div>
-                    </div>
-                  ) ) }
-                </div>
-              </div>
-            </div>
-          ) }
-
-          {/* ---- SETTINGS TAB ---- */ }
-          { activeTab === 'settings' && (
-            <div style={ { maxWidth: 700 } }>
-              <div style={ { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20, marginBottom: 16 } }>
-                <h3 style={ { margin: '0 0 12px', fontSize: 16, fontWeight: 600 } }>Connected Wix Sites</h3>
-                { loading ? (
-                  <Spinner size="md" />
-                ) : sites.length === 0 ? (
-                  <p style={ { color: '#6b7280', fontSize: 14 } }>No sites found. Check your WIX_API_KEY and WIX_ACCOUNT_ID configuration.</p>
-                ) : (
-                  <div style={ { display: 'flex', flexDirection: 'column', gap: 12 } }>
-                    { sites.map( ( s: any ) => (
-                      <div key={ s.id } style={ { display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: '#f9fafb', borderRadius: 8 } }>
-                        { s.thumbnail && <img src={ s.thumbnail } alt={ s.displayName } style={ { width: 48, height: 36, borderRadius: 6, objectFit: 'cover' } } /> }
-                        <div style={ { flex: 1 } }>
-                          <div style={ { fontWeight: 500 } }>{ s.displayName }</div>
-                          <div style={ { fontSize: 12, color: '#6b7280' } }>ID: { s.id }</div>
-                        </div>
-                        <span style={ { fontSize: 11, padding: '2px 8px', borderRadius: 12, background: s.published ? '#f3f4f6' : '#f9fafb', color: s.published ? '#1a3a2a' : '#1a3a2a' } }>
-                          { s.published ? 'Published' : 'Draft' }
-                        </span>
-                        { s.viewUrl && (
-                          <a href={ s.viewUrl } target="_blank" rel="noopener noreferrer" style={ { fontSize: 12, color: '#1a3a2a' } }>Visit →</a>
-                        ) }
-                      </div>
-                    ) ) }
-                  </div>
-                ) }
-              </div>
-              <div style={ { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20 } }>
-                <h3 style={ { margin: '0 0 8px', fontSize: 16, fontWeight: 600 } }>Integration Mode</h3>
-                <p style={ { fontSize: 13, color: '#6b7280', margin: '0 0 12px' } }>
-                  API-only self-managed headless. The Lambda reads credentials and project identity from AWS runtime configuration.
-                </p>
-                <div style={ { fontSize: 13, background: '#f9fafb', padding: 12, borderRadius: 8, fontFamily: 'monospace', lineHeight: 1.8 } }>
-                  Catalog = Wix Stores V3<br />
-                  Inventory = Inventory Items V3<br />
-                  Cart = eCommerce Cart V2<br />
-                  Frontend = AWS Amplify / Next.js
-                </div>
-              </div>
-            </div>
-          ) }
-        </div>
-
-        {/* ---- PRODUCT DETAIL MODAL ---- */ }
-        <Modal isOpen={ !!selectedProduct } onClose={ () => setSelectedProduct( null ) } title={ selectedProduct?.name || 'Product Detail' } size="lg">
-          { selectedProduct && (
-            <div style={ { display: 'flex', flexDirection: 'column', gap: 16 } }>
-              <div style={ { display: 'flex', gap: 16 } }>
-                { selectedProduct.mainMedia?.url && (
-                  <img src={ selectedProduct.mainMedia.url } alt={ selectedProduct.name } style={ { width: 160, height: 160, objectFit: 'cover', borderRadius: 12 } } />
-                ) }
-                <div style={ { flex: 1 } }>
-                  <h3 style={ { margin: 0 } }>{ selectedProduct.name }</h3>
-                  <p style={ { color: '#6b7280', fontSize: 14, margin: '4px 0' } }>{ selectedProduct.description }</p>
-                  <div style={ { display: 'flex', gap: 16, marginTop: 8 } }>
-                    <div><span style={ { fontSize: 12, color: '#6b7280' } }>Price</span><br /><span style={ { fontWeight: 600, fontSize: 18 } }>{ selectedProduct.formattedPrice || `₹${selectedProduct.price}` }</span></div>
-                    <div><span style={ { fontSize: 12, color: '#6b7280' } }>SKU</span><br /><span style={ { fontWeight: 500 } }>{ selectedProduct.sku || '—' }</span></div>
-                    <div><span style={ { fontSize: 12, color: '#6b7280' } }>Stock</span><br /><span style={ { fontWeight: 500, color: selectedProduct.inStock ? '#1a3a2a' : '#1a3a2a' } }>{ selectedProduct.inStock ? `${selectedProduct.quantityInStock ?? 'Yes'}` : 'Out' }</span></div>
-                    <div><span style={ { fontSize: 12, color: '#6b7280' } }>Type</span><br /><span style={ { fontWeight: 500, textTransform: 'capitalize' } }>{ selectedProduct.productType }</span></div>
-                  </div>
-                </div>
-              </div>
-              { selectedProduct.collections?.length > 0 && (
-                <div>
-                  <span style={ { fontSize: 12, color: '#6b7280' } }>Collections</span>
-                  <div style={ { display: 'flex', gap: 6, marginTop: 4 } }>
-                    { selectedProduct.collections.map( c => (
-                      <span key={ c._id } style={ { background: '#f9fafb', color: '#1a3a2a', padding: '3px 10px', borderRadius: 12, fontSize: 12 } }>{ c.name }</span>
-                    ) ) }
-                  </div>
-                </div>
-              ) }
-              { selectedProduct.productOptions?.length > 0 && (
-                <div>
-                  <span style={ { fontSize: 12, color: '#6b7280' } }>Options</span>
-                  <div style={ { marginTop: 4 } }>
-                    { selectedProduct.productOptions.map( ( opt: any, i: number ) => (
-                      <div key={ i } style={ { fontSize: 13 } }>{ opt.name }: { ( opt.choices || [] ).map( ( c: any ) => c.description || c.value ).join( ', ' ) }</div>
-                    ) ) }
-                  </div>
-                </div>
-              ) }
-              { selectedProduct.variants?.length > 1 && (
-                <div>
-                  <span style={ { fontSize: 12, color: '#6b7280' } }>Variants ({ selectedProduct.variants.length })</span>
-                  <div style={ { marginTop: 4, maxHeight: 200, overflowY: 'auto' } }>
-                    { selectedProduct.variants.map( ( v: any, i: number ) => (
-                      <div key={ i } style={ { display: 'flex', gap: 12, padding: '6px 0', borderBottom: '1px solid #f3f4f6', fontSize: 13 } }>
-                        <span style={ { flex: 1 } }>{ Object.values( v.choices || {} ).join( ' / ' ) || `Variant ${i + 1}` }</span>
-                        <span style={ { fontWeight: 500 } }>{ v.variant?.priceData?.formatted?.price || '—' }</span>
-                        <span style={ { color: '#6b7280' } }>SKU: { v.variant?.sku || '—' }</span>
-                      </div>
-                    ) ) }
-                  </div>
-                </div>
-              ) }
-            </div>
-          ) }
-        </Modal>
-
-        {/* ---- ORDER DETAIL MODAL ---- */ }
-        <Modal isOpen={ !!selectedOrder } onClose={ () => setSelectedOrder( null ) } title={ `Order ${selectedOrder?.customOrderNumber || selectedOrder?._summary?.customOrderNumber || selectedOrder?.customField?.value || selectedOrder?._summary?.externalOrderId || '#' + ( selectedOrder?.number || '—' )}` } size="lg">
-          { selectedOrder && ( () => {
-            const s = selectedOrder._summary || {};
-            const buyerEmail = ( selectedOrder as any ).buyerEmail || s.buyerEmail || selectedOrder.buyerInfo?.email || '';
-            const buyerName = ( selectedOrder as any ).buyerName || s.billingName || '';
-            const buyerPhone = ( selectedOrder as any ).buyerPhone || s.billingPhone || '';
-            const total = selectedOrder.totals?.total || s.totalAmount || '0';
-            const currency = selectedOrder.currency || s.currency || 'INR';
-            const customNum = selectedOrder.customOrderNumber || s.customOrderNumber || selectedOrder.customField?.value || s.externalOrderId || '';
-            const items = ( selectedOrder as any ).lineItemsSummary || s.lineItems || selectedOrder.lineItems || [];
-
-            return (
-              <div style={ { display: 'flex', flexDirection: 'column', gap: 16 } }>
-                {/* Order summary */ }
-                <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 } }>
-                  <div style={ statBox }><span style={ statLabel }>Order ID</span><span style={ statValue }>{ customNum || `#${selectedOrder.number || s.orderNumber || '—'}` }</span></div>
-                  <div style={ statBox }><span style={ statLabel }>Total</span><span style={ statValue }>{ currency === 'INR' ? '₹' : currency + ' ' }{ total }</span></div>
-                  <div style={ statBox }><span style={ statLabel }>Payment</span><span style={ { ...statValue, color: ( selectedOrder.paymentStatus || s.paymentStatus ) === 'PAID' ? '#1a3a2a' : '#1a3a2a' } }>{ ( selectedOrder.paymentStatus || s.paymentStatus || '' ).replace( /_/g, ' ' ) }</span></div>
-                  <div style={ statBox }><span style={ statLabel }>Fulfillment</span><span style={ statValue }>{ ( selectedOrder.fulfillmentStatus || s.fulfillmentStatus || '—' ).replace( /_/g, ' ' ) }</span></div>
-                  <div style={ statBox }><span style={ statLabel }>Date</span><span style={ statValue }>{ new Date( selectedOrder.dateCreated || ( selectedOrder as any ).createdDate || s.createdDate || '' ).toLocaleDateString( 'en-IN' ) }</span></div>
-                </div>
-
-                {/* Buyer info */ }
-                <div style={ { background: '#f9fafb', borderRadius: 8, padding: 12 } }>
-                  <span style={ { fontSize: 12, color: '#6b7280', fontWeight: 600 } }>Buyer</span>
-                  <div style={ { marginTop: 4, fontSize: 14 } }>
-                    { buyerName && <div>{ buyerName }</div> }
-                    { buyerEmail && <div style={ { color: '#6b7280' } }>{ buyerEmail }</div> }
-                    { buyerPhone && <div style={ { color: '#6b7280' } }>{ buyerPhone }</div> }
-                  </div>
-                  { selectedOrder.buyerNote && <div style={ { marginTop: 8, fontSize: 13, fontStyle: 'italic', color: '#6b7280' } }>Note: { selectedOrder.buyerNote }</div> }
-                </div>
-
-                {/* Line items */ }
-                <div>
-                  <span style={ { fontSize: 12, color: '#6b7280', fontWeight: 600 } }>Line Items ({ items.length })</span>
-                  <div style={ { marginTop: 8 } }>
-                    { items.map( ( item: any, i: number ) => (
-                      <div key={ i } style={ { display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid #f3f4f6' } }>
-                        { ( item.image?.url || item.mediaItem?.url ) && (
-                          <img src={ item.image?.url || item.mediaItem?.url } alt={ item.name } style={ { width: 36, height: 36, borderRadius: 6, objectFit: 'cover' } } />
-                        ) }
-                        <div style={ { flex: 1 } }>
-                          <div style={ { fontWeight: 500, fontSize: 14 } }>{ item.name || item.productName }</div>
-                          { item.sku && <div style={ { fontSize: 11, color: '#6b7280' } }>SKU: { item.sku }</div> }
-                        </div>
-                        <span style={ { fontSize: 13, color: '#6b7280' } }>×{ item.quantity }</span>
-                        <span style={ { fontWeight: 500, fontSize: 14 } }>{ currency === 'INR' ? '₹' : '' }{ item.price || item.totalPrice || '0' }</span>
-                      </div>
-                    ) ) }
-                  </div>
-                </div>
-
-                {/* Transactions & Fulfillments */ }
-                { selectedOrder._transactions && (
-                  <div>
-                    <span style={ { fontSize: 12, color: '#6b7280', fontWeight: 600 } }>Transactions</span>
-                    <pre style={ { background: '#f9fafb', padding: 12, borderRadius: 8, fontSize: 12, overflow: 'auto', maxHeight: 150 } }>
-                      { JSON.stringify( selectedOrder._transactions, null, 2 ) }
-                    </pre>
-                  </div>
-                ) }
-                { selectedOrder._fulfillments && Array.isArray( selectedOrder._fulfillments ) && selectedOrder._fulfillments.length > 0 && (
-                  <div>
-                    <span style={ { fontSize: 12, color: '#6b7280', fontWeight: 600 } }>Fulfillments</span>
-                    <pre style={ { background: '#f9fafb', padding: 12, borderRadius: 8, fontSize: 12, overflow: 'auto', maxHeight: 150 } }>
-                      { JSON.stringify( selectedOrder._fulfillments, null, 2 ) }
-                    </pre>
-                  </div>
-                ) }
-              </div>
-            );
-          } )() }
-        </Modal>
+        {tab === 'meta' && (
+          <section style={boxStyle}>
+            <h2 style={{ fontSize: 18 }}>Meta commerce synchronization</h2>
+            <p>Product prices come from AWS ProductsTable. Meta is a projected sales channel,
+              not the product database. Sync application and approvals stay owner-gated.</p>
+            {metaPlan ? (
+              <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, overflowX: 'auto',
+                background: '#f5f7f6', padding: 14, borderRadius: 8 }}>
+                {JSON.stringify({
+                  enabled: metaPlan.enabled,
+                  dryRun: metaPlan.dryRun,
+                  blocked: metaPlan.blocked,
+                  planHash: metaPlan.planHash,
+                  currentPlanHash: metaPlan.currentPlanHash,
+                }, null, 2)}
+              </pre>
+            ) : <p>Meta plan not loaded.</p>}
+            <p style={muted}>Use the existing Meta catalog authorization controls to
+              review and approve changes before enabling publishing.</p>
+          </section>
+        )}
       </div>
     </Layout>
   );
 };
 
-const statBox: React.CSSProperties = { background: '#f9fafb', borderRadius: 8, padding: '10px 12px' };
-const statLabel: React.CSSProperties = { fontSize: 11, color: '#6b7280', display: 'block' };
-const statValue: React.CSSProperties = { fontSize: 15, fontWeight: 600, display: 'block', marginTop: 2 };
-const adminCard: React.CSSProperties = { background: '#f9fafb', borderRadius: 8, padding: '10px 12px' };
-const adminLabel: React.CSSProperties = { fontSize: 11, color: '#6b7280', display: 'block' };
-const adminVal: React.CSSProperties = { fontSize: 14, fontWeight: 600, display: 'block', marginTop: 2 };
-const actionBtn: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: '#f9fafb', borderRadius: 10, textDecoration: 'none', color: 'inherit', border: '1px solid #e5e7eb', transition: 'background 0.15s' };
-
-export default StorePage;
+export default CatalogPage;

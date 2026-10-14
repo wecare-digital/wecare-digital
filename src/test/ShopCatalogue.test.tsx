@@ -19,7 +19,7 @@ import type { ShopProduct } from '../content/shop';
 // The RAW snapshot, so the assertions below can compare the projection against its own source
 // instead of against a literal copied out of it. A literal is a per-product hand edit, and
 // `.github/workflows/catalogue-sync.yml` rewrites this file on a schedule.
-import catalog from '../content/wix-catalog.json';
+import catalog from '../content/catalog-snapshot.json';
 import { SERVICES_PRODUCT_ID } from '../config/services';
 
 /**

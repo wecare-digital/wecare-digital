@@ -799,31 +799,68 @@ def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list
         # native_checkout.quote_native_cart; the convenience fee + GST, the snapshot shape, and
         # everything downstream (attempt, Razorpay, order, invoice, reconciliation) are identical.
         # The internal order is the authoritative artifact; no Wix order writeback is synthesised.
-        ephemeral_cart = {
-            "cartId": f"native:{identity.customer_id}:{now}",
-            "updatedAt": now,
-            "lineItems": [
-                {"productId": str(li.get("productId") or ""),
-                 "variantId": str(li.get("variantId") or ""),
-                 "quantity": int(li.get("quantity") or 1),
-                 "unitPricePaise": 0,  # re-resolved server-side below; client value ignored
-                 "requiresDelivery": bool(li.get("requiresDelivery", True))}
-                for li in line_items
-            ],
-        }
-        # Re-resolve each line's price from ProductsTable so a client-supplied figure never enters.
+        # The public website submits Wix-era catalogReference shapes. AWS-native
+        # pricing must translate their identifiers, NOT require new client keys
+        # that existing /cart and /shop pages do not send.
+        # Canonicalise the *reviewed basket* into a stable ID. The old
+        # cartId=f"native:{customer}:{now}" changed every second; the one-live-
+        # payment guard in website_checkout is keyed by cart ID, so two tabs
+        # could otherwise acquire independent payment claims for the SAME items.
+        # Aggregate duplicate variants before stock validation to prevent two
+        # individually valid lines overselling one stock unit.
+        import hashlib
+        from lambda_utils.ecommerce import native_cart
+        by_variant = {}
+        for li in line_items:
+            if not isinstance(li, dict):
+                raise ValueError("cart line must be an object")
+            ref = li.get("catalogReference")
+            ref = ref if isinstance(ref, dict) else {}
+            options = ref.get("options")
+            options = options if isinstance(options, dict) else {}
+            product_id = str(ref.get("catalogItemId") or li.get("productId") or "").strip()
+            variant_id = str(options.get("variantId") or li.get("variantId") or "").strip()
+            if not product_id or not variant_id:
+                raise ValueError("native cart line needs a product and variant identifier")
+            qty = li.get("quantity")
+            if type(qty) is not int or not 1 <= qty <= 100000:
+                raise ValueError("quantity must be an integer in 1..100000")
+            key = (product_id, variant_id)
+            by_variant[key] = by_variant.get(key, 0) + qty
+            if by_variant[key] > 100000:
+                raise ValueError("aggregate quantity exceeds line limit")
+        canonical = sorted(
+            (pid, vid, qty) for (pid, vid), qty in by_variant.items()
+        )
+        if not canonical or len(canonical) > 100:
+            raise ValueError("cart must contain 1..100 distinct variants")
+        stable_input = json.dumps(
+            [identity.customer_id, canonical],
+            separators=(",", ":"), ensure_ascii=True,
+        ).encode("utf-8")
+        cart_key = hashlib.sha256(stable_input).hexdigest()
         reader = _native_product_reader()
-        for ln in ephemeral_cart["lineItems"]:
-            row = reader(ln["productId"]) or {}
-            price = None
-            for v in row.get("variants", []) or []:
-                if str(v.get("sku") or v.get("id") or "") == ln["variantId"]:
-                    price = v.get("priceMinor", row.get("priceMinor"))
-                    break
-            else:
-                price = row.get("priceMinor")
-            from decimal import Decimal as _D
-            ln["unitPricePaise"] = int(price) if isinstance(price, (int, _D)) else 0
+        native_lines = []
+        for product_id, variant_id, qty in canonical:
+            # Product and variant must be ACTIVE and exist in ProductsTable.
+            # A name/price from the public browser is never pricing authority;
+            # unknown variant IDs never fall back to a product's base price.
+            price = native_cart._unit_price_paise(reader, product_id, variant_id)
+            native_lines.append({
+                "productId": product_id,
+                "variantId": variant_id,
+                "quantity": qty,
+                "unitPricePaise": price,
+                # Never let a browser claim a physical product needs no delivery.
+                # The native shipping policy currently charges zero, and actual
+                # shipping rules can be enforced by a trusted product policy.
+                "requiresDelivery": True,
+            })
+        ephemeral_cart = {
+            "cartId": "native:" + cart_key,
+            "updatedAt": 0,  # stable across retries of the exact same basket
+            "lineItems": native_lines,
+        }
         snapshot = native_checkout.quote_native_cart(
             ephemeral_cart,
             product_reader=reader,
@@ -1175,8 +1212,9 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         return cors_response(400, {"error": "REQUEST_KEY_REQUIRED"}, origin)
     # Phase O-1: a services basket is refused here, PURE, before the profile read, any Wix call
     # or any DynamoDB write -- Drop Docs/Vault, a bad quantity, a missing intent, or V1 pricing.
-    refusal = service_requests.checkout_preflight(line_items, body,
-                                                  v2_enabled=cart_v2.is_enabled())
+    refusal = service_requests.checkout_preflight(
+        line_items, body, v2_enabled=cart_v2.is_enabled(),
+        native_pricing_enabled=_supply_mode() == "AWS_NATIVE")
     if refusal is not None:
         return cors_response(refusal[0], refusal[1], origin)
 
@@ -1215,9 +1253,20 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         snapshot, calculated = _website_snapshot(
             identity, line_items, now, profile=profile,
             reset=body.get("resetCart") is True)
-        # AWS-native: `_website_snapshot` always returns `calculated=None`, and the internal
-        # order is the authoritative artifact — there is no Wix order to build a payload for.
+        # AWS-native: the internal order is the authoritative artifact — there is no Wix order to
+        # build a payload for. `calculated` is None under native, so no payload is synthesised.
         wix_order_payload = None
+
+        # Critical AWS-native service invariant: a payment reference MUST carry
+        # the price of the one service as frozen in the ProductsTable-backed
+        # snapshot. In native mode 'calculated' is intentionally None; passing
+        # that old Wix sentinel to payref_extra persisted paise=None, so even
+        # a successful Razorpay capture would leave PAID_SERVICE_UNMATCHED.
+        # Validate before attempting to create the gateway order.
+        native_service_paise = (
+            service_requests.native_service_line_paise(snapshot, line_items)
+            if calculated is None and _supply_mode() == "AWS_NATIVE" else None
+        )
 
         def _allocate_reference(attempt_id: str, leg_paise: int,
                                 gift_card_paise: int) -> str:
@@ -1263,7 +1312,7 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                     **service_requests.payref_extra(
                         line_items, body,
                         line_paise=(service_requests.observed_service_line_paise(calculated)
-                                    if calculated is not None else None)),
+                                    if calculated is not None else native_service_paise)),
                     # THE PUBLIC CUSTOMER ID, on this row as well as on the attempt, and that is
                     # not redundant: the webhook lineage reads attribution off the `PAYREF#` row
                     # (`razorpay-webhook._load_attempt`) while the finalisation lineage reads it
@@ -2503,11 +2552,13 @@ def _blocking_codes(adapter, cart_id: str) -> set:
 def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
                  *, profile: Optional[Dict[str, Any]] = None,
                  reconcile: bool = False, reset: bool = False):
-    """The website price authority. Returns `(snapshot, price_free_items, calculated)`.
+    """The Cart V2 price authority. Returns `(snapshot, price_free_items, calculated)`.
 
-    `calculated` is the calculation the snapshot was frozen from. Under AWS_NATIVE this is `None`
-    (the native supply engine produces the snapshot directly and there is no Wix order payload to
-    build); it is retained in the signature for the legacy shape only.
+    `calculated` is the `cart_v2.calculate` result the snapshot was frozen from, returned rather
+    than discarded so `wix_writeback.build_wix_order_payload` can be built from the SAME figures
+    the price was quoted from. A second `calculate` could drift from the charge by a paise, and
+    the frozen snapshot keeps `summary.lineItems` but not `cart.lineItems`, so it carries no
+    `catalogReference` to rebuild a payload from.
 
     This is the producer half of the chain `website_checkout` and `customer_receipt` already
     consume, and which nothing in production produced before. `QuoteSnapshot.quote`'s
@@ -3268,8 +3319,7 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
     if os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() != 'true':
         return {'outcome': 'NATIVE_SERVICE_ROLLOUT_DISABLED'}
     # AWS-native: the service checkout finalizes natively (purchasedSnapshot → accept_paid →
-    # ORDER_FINALIZED); there is no Wix writeback readiness to gate on. The rollout flag above is
-    # the only gate.
+    # ORDER_FINALIZED); there is no Wix writeback readiness to gate on.
     token = str(event.get('catalogToken') or '')
     import re
     if not re.fullmatch(r'[A-Za-z0-9_-]{20,80}', token):

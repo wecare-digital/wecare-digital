@@ -60,8 +60,8 @@ def _unit_price_paise(product_reader: ProductReader, product_id: str, variant_id
     row = product_reader(product_id)
     if not isinstance(row, Mapping):
         raise ValueError(f"product {product_id} not found")
-    if str(row.get("status") or "active") == "archived":
-        raise ValueError(f"product {product_id} is archived")
+    if str(row.get("status") or "active") != "active":
+        raise ValueError(f"product {product_id} is not active")
     price = None
     for v in row.get("variants", []) or []:
         if str(v.get("sku") or v.get("id") or "") == variant_id:

@@ -25,8 +25,8 @@ def spies(monkeypatch):
     monkeypatch.setattr(blog_source.wix, "get_blog_post_by_slug",
                         lambda s: calls.__setitem__("wix_slug", calls["wix_slug"] + 1) or {"src": "wix"})
     monkeypatch.setattr(blog_source.storage, "list_blog_posts",
-                        lambda published_only=False, include_content=True:
-                        calls.__setitem__("aws_list", (published_only, include_content)) or ["aws"])
+                        lambda published_only=False, limit=500, include_content=True:
+                        calls.__setitem__("aws_list", (published_only, limit, include_content)) or ["aws"])
     monkeypatch.setattr(blog_source.storage, "get_blog_post",
                         lambda s, published_only=False:
                         calls.__setitem__("aws_slug", (s, published_only)) or {"src": "aws"})
@@ -49,7 +49,7 @@ def test_aws_source_routes_to_storage_published_only(monkeypatch, spies, val):
     assert blog_source.list_blog_posts() == ["aws"]
     assert blog_source.get_blog_post_by_slug("my-slug") == {"src": "aws"}
     # public corpus = published only; list omits heavy content
-    assert spies["aws_list"] == (True, False)
+    assert spies["aws_list"] == (True, 0, False)
     assert spies["aws_slug"] == ("my-slug", True)
     assert spies["wix_list"] == 0 and spies["wix_slug"] == 0
 
@@ -59,3 +59,35 @@ def test_unknown_value_falls_back_to_wix(monkeypatch, spies):
     assert blog_source.source() == "wix"
     blog_source.list_blog_posts()
     assert spies["wix_list"] == 1 and spies["aws_list"] is None
+
+
+
+def test_complete_aws_corpus_is_not_truncated_at_500(monkeypatch):
+    """Regression: the public blog must see every imported published post."""
+    posts = [
+        {"id": f"blog_{i}", "recordType": "blogPost", "slug": f"post-{i}",
+         "title": f"Post {i}", "status": "published", "content": "Full article"}
+        for i in range(1421)
+    ]
+    posts.append({"id": "draft_1", "recordType": "blogPost", "slug": "secret-draft",
+                  "title": "Draft", "status": "draft", "content": "Hidden"})
+
+    def paginate(index_name, key_name, key_value, limit=0, newest_first=False):
+        assert (index_name, key_name, key_value) == (
+            "recordType-createdAt-index", "recordType", "blogPost")
+        assert limit == 0 and newest_first is True
+        return posts
+
+    monkeypatch.setattr(blog_source.storage, "query_index", paginate)
+    monkeypatch.setattr(
+        blog_source.storage, "list_records",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("public listing must not use 500-item log reader")))
+    monkeypatch.setenv("BLOG_SOURCE", "aws")
+
+    returned = blog_source.list_blog_posts()
+    assert len(returned) == 1421
+    assert returned[0]["slug"] == "post-0"
+    assert returned[-1]["slug"] == "post-1420"
+    assert all(post["slug"] != "secret-draft" for post in returned)
+    assert all("content" not in post for post in returned)

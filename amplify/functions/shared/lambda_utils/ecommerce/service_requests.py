@@ -331,13 +331,15 @@ def _intent_id(body: Any) -> str:
 
 
 def checkout_preflight(line_items: Any, body: Any, *,
-                       v2_enabled: bool) -> Optional[Tuple[int, Dict[str, str]]]:
+                       v2_enabled: bool, native_pricing_enabled: bool = False
+                       ) -> Optional[Tuple[int, Dict[str, str]]]:
     """``None`` to proceed, or ``(status, payload)`` to refuse. PURE: before profile, Wix or DynamoDB.
 
     * a non-service basket -> ``None`` (byte-identical behaviour for every other order);
     * a refused service line -> 409 with its code;
-    * Cart V2 off -> 503 ``SERVICE_UNAVAILABLE``: the V1 branch has no per-line price assertion,
-      so a service is never priced there unchecked;
+    * No approved server-side pricing engine -> 503 ``SERVICE_UNAVAILABLE``.
+      Either Wix V2 (legacy) or AWS-native pricing must be active; Wix V2 being
+      off does not make an AWS-native price untrustworthy;
     * no well-formed ``serviceIntentId`` -> 409 ``SERVICE_INTENT_REQUIRED``: a paid service with
       no intent would be a paid service with no request.
     """
@@ -347,13 +349,50 @@ def checkout_preflight(line_items: Any, body: Any, *,
         return 409, refusal(rejected.code)
     if line is None:
         return None
-    if not v2_enabled:
+    if not (v2_enabled or native_pricing_enabled):
         logger.warning(json.dumps({"event": "service_refused", "reason": SERVICE_UNAVAILABLE}))
         return 503, refusal(SERVICE_UNAVAILABLE)
     if not _intent_id(body):
         logger.info(json.dumps({"event": "service_refused", "reason": SERVICE_INTENT_REQUIRED}))
         return 409, refusal(SERVICE_INTENT_REQUIRED)
     return None
+
+
+def native_service_line_paise(snapshot: Any, line_items: Any) -> Optional[int]:
+    """Resolve one service's charged unit price from the frozen AWS-native quote.
+
+    Source of truth is *snapshot.frozen_data['items']*, already priced from the
+    ProductsTable by native_checkout. Never use client-supplied amounts, and
+    never permit a missing price to become a PAID_SERVICE_UNMATCHED ledger row.
+
+    Called before creating a Razorpay order so mismatch failures stay pre-payment.
+    Returns None only when the basket has no service line.
+    """
+    line = service_line(line_items)
+    if line is None:
+        return None
+    frozen = getattr(snapshot, "frozen_data", None)
+    if not isinstance(frozen, Mapping):
+        raise ServicePriceChanged("native service quote has no frozen line items")
+    items = frozen.get("items")
+    if not isinstance(items, (list, tuple)):
+        raise ServicePriceChanged("native service quote has no line items")
+    matches = [
+        item for item in items
+        if isinstance(item, Mapping)
+        and is_service_product(item.get("productId"))
+        and str(item.get("variantId") or "").strip().lower() == line.variant_id
+    ]
+    if len(matches) != 1:
+        raise ServicePriceChanged("native service quote does not identify one priced line")
+    item = matches[0]
+    unit = item.get("unitPricePaise")
+    if (type(unit) is not int
+            or type(item.get("quantity")) is not int
+            or item["quantity"] != 1
+            or not SERVICE_LINE_MIN_PAISE <= unit <= SERVICE_LINE_MAX_PAISE):
+        raise ServicePriceChanged("native service line lacks a valid authoritative price")
+    return unit
 
 
 def payref_extra(line_items: Any, body: Any, *,
@@ -511,6 +550,7 @@ __all__ = [
     "SUBMIT_REQUEST", "TARGET_REQUIRED_KINDS", "VAULT", "ServiceLine",
     "ServiceNotPayable", "ServicePriceChanged", "ServiceRejected", "assert_service_line_price",
     "checkout_preflight", "has_service_line", "intent_rebound", "is_service_product",
+    "native_service_line_paise",
     "observed_service_line_paise", "payref_extra", "refusal",
     "service_line",
 ]

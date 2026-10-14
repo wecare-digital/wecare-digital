@@ -241,7 +241,16 @@ def _blog_view(item: Dict[str, Any], include_content: bool = True) -> Dict[str, 
 
 
 def list_blog_posts(published_only: bool = False, limit: int = 500, include_content: bool = True) -> List[Dict[str, Any]]:
-    posts = list_records(BLOG_RECORD_TYPE, limit=limit)
+    """List blog posts; limit=0 fetches the whole corpus for public/static SEO reads.
+
+    The generic list_records helper deliberately caps at 500 records for admin logs.
+    Using it for the public blog silently omits posts once the corpus exceeds 500.
+    Keep the original bounded behavior for admin screens and use the paginated GSI
+    reader for the complete public corpus.
+    """
+    posts = (query_index('recordType-createdAt-index', 'recordType', BLOG_RECORD_TYPE,
+                         limit=0, newest_first=True)
+             if limit == 0 else list_records(BLOG_RECORD_TYPE, limit=limit))
     if published_only:
         posts = [post for post in posts if post.get('status') == 'published']
     return [_blog_view(post, include_content=include_content) for post in posts]
