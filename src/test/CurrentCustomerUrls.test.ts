@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import catalog from '../content/wix-catalog.json';
+import catalog from '../content/catalog-snapshot.json';
 
 describe( 'current customer product destinations', () => {
   it( 'every snapshot product points at its existing canonical product page', () => {
