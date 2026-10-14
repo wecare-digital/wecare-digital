@@ -11,7 +11,7 @@
 # it is scoped to RUNTIME code only and matches Wix HOSTS / credential names /
 # SDK imports, never the word "wix" in prose or historical data.
 #
-#   scanned:  amplify/functions/**  src/**
+#   scanned:  amplify/functions/**  src/** (excluding test-only source)
 #   ignored:  docs/**  .kiro/**  tests/**  scripts/**  *.md  node_modules .next out
 #
 # BASELINE TODAY: Wix is still the live backend, so this gate is EXPECTED TO FAIL
@@ -56,6 +56,8 @@ rule() {
   hits=$(grep -rIn --extended-regexp "$pattern" "${SCAN_DIRS[@]}" \
            --include='*.py' --include='*.ts' --include='*.tsx' --include='*.js' \
            --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=out \
+           --exclude-dir=test --exclude-dir=__tests__ \
+           --exclude='*.test.ts' --exclude='*.test.tsx' --exclude='*.spec.ts' --exclude='*.spec.tsx' \
            --exclude-dir=__pycache__ --exclude-dir=.venv 2>/dev/null || true)
   if [ -n "$exclude" ] && [ -n "$hits" ]; then
     hits=$(printf '%s\n' "$hits" | grep -vE "$exclude" || true)
