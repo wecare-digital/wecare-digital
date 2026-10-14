@@ -47,7 +47,7 @@ const FlowsPage: React.FC<PageProps> = ({ signOut, user, embedded = false }) => 
     setLoadError(null);
     try {
       const data = await api.listFlows(waba.id);
-      setFlows(data);
+      setFlows(data.filter(flow => flow.status !== 'DEPRECATED'));
     } catch (e: any) {
       const msg = e?.message || 'Failed to load flows';
       setLoadError(msg);
