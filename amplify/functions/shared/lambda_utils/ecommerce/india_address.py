@@ -3,7 +3,7 @@
 The India subdivision table, `india_subdivision`,
 `gst_state_code` and `UnmappableAddress` are NOT Wix-specific — they are the GST
 place-of-supply logic the AWS-native checkout pricing depends on, so they live here
-under a neutral name. `to_delivery_address` validates and normalizes the delivery shape used by the checkout adapter. `wix_address.py` is now a thin re-export shim pointing here.
+under a neutral name. `to_delivery_address` validates and normalizes the delivery shape used by the checkout adapter.
 
 WHY A BRIDGE AND NOT A PASSTHROUGH
 ----------------------------------

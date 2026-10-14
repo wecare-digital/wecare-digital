@@ -183,10 +183,12 @@ describe( 'Blog Production dashboard contract', () => {
     expect( publish ).toContain( 'releaseBlogArticle' );
   } );
 
-  it( 'the publish page warns when Wix writes are switched off before anything is pressed', () => {
+  it( 'the publish page exposes only the AWS-native publication path', () => {
     const publish = read( PAGES, 'publish', 'index.tsx' );
-    expect( publish ).toContain( 'wixWritesDisabled' );
-    expect( publish ).toContain( 'WIX_CREDENTIALS_DISABLED' );
+    expect( publish ).toContain( 'publishBlogArticle' );
+    expect( publish ).toContain( 'AWS-native' );
+    expect( publish ).not.toContain( 'wixWritesDisabled' );
+    expect( publish ).not.toContain( 'WIX_CREDENTIALS_DISABLED' );
   } );
 
   it( 'the review page is the only one recording the source reading', () => {
