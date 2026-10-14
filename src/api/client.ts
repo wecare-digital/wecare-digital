@@ -389,6 +389,13 @@ export interface CheckoutDeliveryAddress {
 export interface Contact {
   id: string;
   contactId: string;
+  /** Server-minted, immutable, workspace-scoped Subscriber ID. */
+  subscriberId?: string;
+  workspaceId?: string;
+  customerUuid?: string;
+  locked?: boolean;
+  lockedReason?: string;
+  lockedAt?: number;
   name: string;
   firstName?: string;
   lastName?: string;
@@ -547,6 +554,11 @@ export async function updateContact ( contactId: string, updates: Partial<Contac
   return result.ok ? result.data : null;
 }
 
+export async function unlockContact ( contactId: string ): Promise<boolean> {
+  const data = await apiCall<any>( `${API_BASE}/contacts/${contactId}/unlock`, { method: 'POST', body: '{}' } );
+  return data !== null && data.locked === false;
+}
+
 export async function deleteContact ( contactId: string ): Promise<boolean> {
   const data = await apiCall<any>( `${API_BASE}/contacts/${contactId}`, {
     method: 'DELETE',
@@ -559,6 +571,12 @@ function normalizeContact ( item: any ): Contact {
   return {
     id: item.id || item.contactId || '',
     contactId: item.contactId || item.id || '',
+    subscriberId: item.subscriberId || '',
+    workspaceId: item.workspaceId || '',
+    customerUuid: item.customerUuid || '',
+    locked: item.locked === true,
+    lockedReason: item.lockedReason || '',
+    lockedAt: normalizeEpochSeconds( item.lockedAt ),
     name: item.name || '',
     firstName: item.firstName || '',
     lastName: item.lastName || '',
