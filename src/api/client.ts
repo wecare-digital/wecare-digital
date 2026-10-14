@@ -5645,11 +5645,6 @@ export async function updateOrder ( orderId: string, updates: Partial<Order> ): 
   return !!data;
 }
 
-export async function syncOrders (): Promise<{ message: string; synced?: number }> {
-  const data = await apiCall<any>( `${ORDERS_BASE}/sync`, { method: 'POST' } );
-  return data || { message: 'Sync failed' };
-}
-
 export async function getOrderSubmissions ( orderId: string ): Promise<FlowSubmissionItem[]> {
   const data = await apiCall<any>( `${ORDERS_BASE}/${encodeURIComponent( orderId )}/submissions` );
   return data?.submissions || [];
