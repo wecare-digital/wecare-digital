@@ -56,7 +56,10 @@ SESSION_PHONE = "+918100640044"
 STORED_PHONE = customer_identity.normalize_phone_preserving_country(SESSION_PHONE)
 OWNED = {"addressLine1": "12 Dalhousie Square", "city": "Kolkata",
          "state": "West Bengal", "postalCode": "700001"}
-COLLECTION_PAISE = 2549900
+#: AWS-native single-unit collection (product price; native shipping free by default).
+COLLECTION_PAISE = 2499900
+CART_TABLE = "stack-wecare-digital-CartTable"
+PRODUCTS_TABLE = "stack-wecare-digital-ProductsTable"
 GATEWAY_ORDER_ID = "order_R7_4_fixture"
 GATEWAY_PAYMENT_ID = "pay_R7_4_fixture"
 
@@ -87,22 +90,11 @@ PERMITTED_RAZORPAY_CALLS = {
 #: reads this note.
 PERMITTED_BUT_UNREACHED = {"razorpay_orders.find_order_by_receipt"}
 
-#: Every Wix call the path is permitted to make, with cart and product ids normalised out so the
-#: list is about SHAPE. One Create Cart, one product readback per line, one Get Cart, the delivery
-#: address and method writes, and Calculate. No Create Order and no Create Checkout: a Wix order is
-#: written back after the money is proven, by a different function, not from here.
-#: `PATCH .../{id}` writes the owned delivery ADDRESS (the place of supply, loaded server-side and
-#: never from a request body); `set-delivery-method` selects the shipping option Wix then prices;
-#: `calculate` is the authoritative total. All three are reads-and-writes on a CART, none of them
-#: places an order or moves money.
-PERMITTED_WIX_CALLS = {
-    "POST /ecom/v2/carts",
-    "GET /ecom/v2/carts/{id}",
-    "PATCH /ecom/v2/carts/{id}",
-    "POST /ecom/v2/carts/{id}/set-delivery-method",
-    "POST /ecom/v2/carts/{id}/calculate",
-    "GET /stores/v3/products/{id}",
-}
+#: AWS-NATIVE: the path makes ZERO Wix calls. The cart lives in CartTable and is priced from
+#: ProductsTable by the native engine — there is no Wix cart, no Wix product readback, no Wix
+#: delivery/calculate call. This empty set is the strongest Wix-exit guarantee on the WhatsApp
+#: order path: a single Wix call reappearing fails the equality below.
+PERMITTED_WIX_CALLS = set()
 
 #: What must NEVER appear in the Wix set. A Wix ORDER is written back after the money is proven, by
 #: `wix_writeback` from the webhook leg - not from a checkout - and a Wix CHECKOUT is the V1 path
@@ -116,6 +108,18 @@ def delivery_complete():
 
 def fixture_reference():
     return delivery_complete()["cart"]["lineItems"][0]["source"]["catalogReference"]
+
+
+def _native_product_row():
+    """ProductsTable item the native engine prices from, using the fixture's product/variant
+    UUIDs so WhatsApp and website lines resolve to one native cart line."""
+    ref = fixture_reference()
+    return {"id": ref["catalogItemId"], "status": "active",
+            "variants": [{"sku": ref["options"]["variantId"],
+                          "priceMinor": COLLECTION_PAISE, "inventory": 50}]}
+
+
+NATIVE_PRODUCT_ROW = _native_product_row()
 
 
 def handoff_lines():
@@ -215,25 +219,29 @@ def env(monkeypatch):
     monkeypatch.setenv("CONTACTS_TABLE", CONTACTS_TABLE)
     monkeypatch.setenv("ORDERS_TABLE", ORDERS_TABLE)
     monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("WIX_CART_V2_ENABLED", "true")
-    monkeypatch.delenv("WIX_CART_V2_DISABLED", raising=False)
+    # AWS-NATIVE: claim-basket / customer-cart is backed by NativeCartAdapter (CartTable +
+    # ProductsTable), not the Wix Cart V2 adapter.
+    monkeypatch.setenv("CHECKOUT_MODE", "AWS_NATIVE")
+    monkeypatch.setenv("CART_TABLE", CART_TABLE)
+    monkeypatch.setenv("PRODUCTS_TABLE", PRODUCTS_TABLE)
 
     spec = importlib.util.spec_from_file_location("checkout_r74_under_test", HANDLER)
     h = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(h)
 
     fake = FakeDynamo(keys={ATTEMPTS_TABLE: "paymentAttemptId", KEYS_TABLE: "orderId",
-                            CONTACTS_TABLE: "id", ORDERS_TABLE: "orderId"},
+                            CONTACTS_TABLE: "id", ORDERS_TABLE: "orderId",
+                            CART_TABLE: "cartId", PRODUCTS_TABLE: "id"},
                       indexes={CONTACTS_TABLE: {"phone-index": ("phone", None)}})
     log = ProviderLog()
     wix = RecordingWix(log)
     monkeypatch.setattr(h, "_dynamodb", fake)
     monkeypatch.setattr(h, "_lambda_client", lambda: _TripwireLambda())
-    monkeypatch.setattr(h, "_wix_request", wix)
-    monkeypatch.setattr(h.wix_ecom, "_request", wix)
     monkeypatch.setattr(h, "INITIATION_ENABLED", True)
     monkeypatch.setattr(h.customer_auth, "authenticate", lambda event: _Identity())
     monkeypatch.setattr(h, "LOAD_OWNED_ADDRESS", lambda customer_id: dict(OWNED))
+    monkeypatch.setattr(h, "_native_product_reader",
+                        lambda: (lambda pid: dict(NATIVE_PRODUCT_ROW)))
 
     payable = compute_quote(COLLECTION_PAISE).total_payable_paise
 
