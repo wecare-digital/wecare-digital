@@ -37,8 +37,8 @@ class Writer:
 def sources(*, stock=3):
     products = {
         "product-1": {"id": "product-1", "status": "active", "variants": [
-            {"sku": "variant-1", "inventory": Decimal(stock)},
-            {"sku": "variant-2", "inventory": Decimal(stock)},
+            {"sku": "variant-1", "inventory": Decimal(stock), "trackInventory": True},
+            {"sku": "variant-2", "inventory": Decimal(stock), "trackInventory": True},
         ]}
     }
     keys = {}
@@ -174,3 +174,33 @@ def test_partial_release_refused_without_stock_credit():
             items=[item(), item(vid="variant-2")],
             payment_terminal_confirmed=True,
         )
+
+
+def test_untracked_service_variant_never_decrements_placeholder_inventory():
+    products, _, read_product, read_key = sources(stock=1)
+    products["product-1"]["variants"][0]["trackInventory"] = False
+    writer = Writer()
+    result = inventory.reserve_basket(
+        writer, read_product, read_key, products_table=PROD_TABLE,
+        keys_table=KEYS_TABLE, attempt_id=ATTEMPT, items=[item(qty=25)],
+    )
+    assert result["reserved"] is True
+    assert result["stockLines"] == 0
+    assert writer.calls == []
+
+
+def test_mixed_basket_reserves_only_tracked_variant():
+    products, _, read_product, read_key = sources(stock=3)
+    products["product-1"]["variants"][0]["trackInventory"] = False
+    writer = Writer()
+    inventory.reserve_basket(
+        writer, read_product, read_key, products_table=PROD_TABLE,
+        keys_table=KEYS_TABLE, attempt_id=ATTEMPT,
+        items=[item(qty=25), item(vid="variant-2", qty=2)],
+    )
+    actions = writer.calls[0]["TransactItems"]
+    assert sum("Put" in x for x in actions) == 1
+    assert sum("Update" in x for x in actions) == 1
+    update = actions[-1]["Update"]
+    assert "#variants[1].#inventory" in update["UpdateExpression"]
+    assert "#variants[0].#inventory" not in update["UpdateExpression"]
