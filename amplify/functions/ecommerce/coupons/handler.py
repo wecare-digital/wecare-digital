@@ -125,6 +125,21 @@ def _coupons_table():
     return _table(COUPONS_TABLE)
 
 
+def _wix_mirror_enabled() -> bool:
+    """Whether to mirror coupons into Wix at all.
+
+    After the AWS-native cutover (CATALOG_SOURCE=aws) the Wix coupon mirror is dead:
+    the admin key is gone, so every mirror attempt would fail into PENDING_WIX and
+    answer 202 instead of a clean 201 for a coupon that is already fully authoritative
+    in our table. This gate turns the mirror OFF in native mode, so a native coupon
+    create/deactivate/get is a pure AWS operation with no Wix call. Read at request
+    time. Defaults to ON (wix) so nothing changes until CATALOG_SOURCE flips.
+    """
+    import os
+    return str(os.environ.get("CATALOG_SOURCE", "wix")).strip().lower() not in (
+        "aws", "ddb", "dynamodb", "native")
+
+
 def _wix() -> wix_coupons.WixCoupons:
     """The Wix mirror adapter over the shared request callable.
 
@@ -227,6 +242,11 @@ def _create(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     logger.info(json.dumps({"event": "coupon_created", "code": definition["code"],
                             "couponId": definition["couponId"],
                             "discountKind": definition["discountKind"]}))
+    # AWS-native mode: no Wix mirror. The local row is already fully authoritative
+    # (coupon_store.discount_paise prices it on the native checkout path), so a native
+    # create is a clean 201 with no Wix call and no PENDING_WIX limbo.
+    if not _wix_mirror_enabled():
+        return cors_response(201, {"coupon": _public(definition)}, origin)
     try:
         wix_coupon_id = _wix().create(definition)
     except Exception as exc:  # noqa: BLE001 - every status leaves the row PENDING_WIX
@@ -254,7 +274,7 @@ def _get(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
         return error_response(404, "UNKNOWN_CODE", origin)
     mirror: Dict[str, Any] = {"state": definition.get("wixMirrorState")}
     wix_coupon_id = definition.get("wixCouponId")
-    if wix_coupon_id:
+    if wix_coupon_id and _wix_mirror_enabled():
         try:
             mirror["wix"] = _wix().assert_mirrors(wix_coupon_id=wix_coupon_id,
                                                   code=definition["code"])
@@ -298,7 +318,7 @@ def _deactivate(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     logger.info(json.dumps({"event": "coupon_deactivated",
                             "code": definition.get("code") or code}))
     wix_coupon_id = definition.get("wixCouponId")
-    if wix_coupon_id:
+    if wix_coupon_id and _wix_mirror_enabled():
         try:
             _wix().deactivate(wix_coupon_id)
         except Exception as exc:  # noqa: BLE001
