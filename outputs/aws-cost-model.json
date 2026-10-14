@@ -1,0 +1,81 @@
+{
+  "region": "us-east-1",
+  "source": "live",
+  "counts": {
+    "active_secrets": 22,
+    "scheduled_deletion_secrets": 13,
+    "wix_secrets": 3,
+    "lightsail_bundle": "micro_3_0",
+    "snapshot_gb": 40
+  },
+  "constants": {
+    "secret_storage_usd_per_month": 0.4,
+    "secret_api_usd_per_10k_calls": 0.05,
+    "lightsail_micro_usd": 7.0,
+    "lightsail_nano_usd": 5.0
+  },
+  "scenarios": [
+    {
+      "name": "baseline",
+      "label": "BASELINE",
+      "secrets_monthly": 11.3,
+      "lightsail_monthly": 7.0,
+      "notes": [
+        "22 active secrets x $0.4 = $8.80/mo storage",
+        "Secrets API calls: ~$2.50/mo (at 500,000 calls/mo)",
+        "13 scheduled-for-deletion secrets already stopped billing - NOT counted.",
+        "Lightsail micro_3_0: $7.00/mo"
+      ],
+      "total_monthly": 18.3
+    },
+    {
+      "name": "after_wix_removal",
+      "label": "POTENTIAL",
+      "secrets_monthly": 10.1,
+      "lightsail_monthly": 7.0,
+      "notes": [
+        "19 secrets after retiring 3 Wix secrets (22-3).",
+        "POTENTIAL saving: $1.20/mo - realised only after deletion window closes.",
+        "Lightsail unchanged in this workstream."
+      ],
+      "total_monthly": 17.1
+    },
+    {
+      "name": "after_safe_consolidation",
+      "label": "POTENTIAL",
+      "secrets_monthly": 9.3,
+      "lightsail_monthly": 7.0,
+      "notes": [
+        "Illustrative: 2 confirmed NON-secret config entries moved to Parameter Store Standard (free).",
+        "No security-sensitive secret grouped or moved. Grouping only where every consuming role already needs every field (task B4).",
+        "POTENTIAL saving over baseline: $2.00/mo.",
+        "Final count is an OUTPUT of the access matrix, not a target."
+      ],
+      "total_monthly": 16.3
+    },
+    {
+      "name": "after_lightsail_nano",
+      "label": "POTENTIAL",
+      "secrets_monthly": 9.3,
+      "lightsail_monthly": 5.0,
+      "notes": [
+        "Lightsail nano_3_0: $5.00/mo (gross delta $2.00/mo).",
+        "POTENTIAL only until the micro instance stops being billable AND the temporary dual-run overlap ends.",
+        "Dual-run overlap adds $5.00/mo while both run."
+      ],
+      "total_monthly": 14.3
+    },
+    {
+      "name": "after_lightsail_retire",
+      "label": "POTENTIAL",
+      "secrets_monthly": 9.3,
+      "lightsail_monthly": 0.0,
+      "notes": [
+        "Lightsail fully retired: $0/mo bundle.",
+        "ONLY valid after the voice/SIP workload is independently replaced or removed AND accepted (task C5/C8). Not authorised here.",
+        "Snapshot retention if kept: $2.00/mo (40GB x $0.05)."
+      ],
+      "total_monthly": 9.3
+    }
+  ]
+}
