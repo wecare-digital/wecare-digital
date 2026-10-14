@@ -260,7 +260,7 @@ Re-run `animcheck.js` after changing either word list: a word longer than `Whats
 - **`contactcheck.js` — 1 failure.** Three Google controls on the keyless map embed are
   reachable, not inert. See the long comment above `.cl-lock` in `ContactLocation.tsx`
   for the measurements and the three options.
-  **When `NEXT_PUBLIC_GOOGLE_MAPS_KEY` is set**, `ContactLocation` renders a Maps JS div
+  **When `NEXT_PUBLIC_GOOGLE_BROWSER_KEY` is set**, `ContactLocation` renders a Maps JS div
   instead of an iframe and `contactcheck.js` switches to its keyed branch, which asserts
   four different things: the div has a box, Maps JS actually painted into it, no controls
   survived `disableDefaultUI`, and Google's attribution is present. That branch exists so
