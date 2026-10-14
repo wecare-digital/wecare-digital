@@ -167,7 +167,7 @@ def test_accepted_checkout_modes_still_has_exactly_two_members():
     """Equality, not containment. A WhatsApp-origin order settles through the SAME mode as a
     website one, so this frozenset must not have grown."""
     assert finalization.ACCEPTED_CHECKOUT_MODES == frozenset(
-        {"WIX_HEADLESS", "WEBSITE_RAZORPAY_STANDARD"})
+        {"AWS_NATIVE", "WEBSITE_RAZORPAY_STANDARD"})
     assert len(finalization.ACCEPTED_CHECKOUT_MODES) == 2
     assert "whatsapp" not in finalization.ACCEPTED_CHECKOUT_MODES
     assert "WHATSAPP_RAZORPAY_STANDARD" not in finalization.ACCEPTED_CHECKOUT_MODES
