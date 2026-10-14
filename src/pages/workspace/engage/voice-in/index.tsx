@@ -4,6 +4,7 @@ import SEO from '../../../../components/SEO';
 import Button from '../../../../components/ui/Button';
 import Pagination from '../../../../components/ui/Pagination';
 import DateField from '../../../../components/ui/DateField';
+import { useConfirmDanger } from '../../../../components/wa';
 import * as api from '../../../../api/client';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
@@ -48,6 +49,7 @@ const CallHistoryPage: React.FC<PageProps> = ({ signOut, user, embedded = false 
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [page, setPage] = useState(1);
+  const confirmDanger = useConfirmDanger();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -89,7 +91,12 @@ const CallHistoryPage: React.FC<PageProps> = ({ signOut, user, embedded = false 
   const rows = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   const clearHistory = async () => {
-    if (!window.confirm('Clear all call history? This cannot be undone.')) return;
+    const ok = await confirmDanger('delete', 'This permanently clears all call history and cannot be undone.', {
+      title: 'Clear all call history?',
+      confirmInput: 'CLEAR',
+      confirmText: 'Clear all',
+    });
+    if (!ok) return;
     setClearing(true);
     try {
       const response = await api.authFetch(`${API_BASE}/voice-cdr-read`, {
