@@ -32,6 +32,11 @@ HANDLER = ROOT / "amplify/functions/ecommerce/checkout/handler.py"
 ATTEMPTS_TABLE = "stack-wecare-digital-PaymentAttemptsTable"
 KEYS_TABLE = "stack-wecare-digital-CommerceKeys"
 CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
+#: AWS-native supply tables. The checkout handler prices every basket off ProductsTable through
+#: `_native_quote`; the native cart engine writes CartTable rows. make_env stubs the product reader
+#: rather than seeding rows, so these only need to be named for the handler to resolve its tables.
+CART_TABLE = "stack-wecare-digital-CartTable"
+PRODUCTS_TABLE = "stack-wecare-digital-ProductsTable"
 CUSTOMER = "CUS_01J8Z9EXAMPLECUSTOMER"
 
 OWNED = {"addressLine1": "12 Dalhousie Square", "city": "Kolkata",
@@ -91,8 +96,11 @@ def _load_handler(monkeypatch, *, contribution_env=CONTRIBUTION_ID, committed=(C
     monkeypatch.setenv("EXPECTED_PROVIDER_MID", "acc_TESTMID")
     monkeypatch.setenv("PAYMENT_WABA_ID", "2094615664435155")
     monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("WIX_CART_V2_ENABLED", "true")
-    monkeypatch.delenv("WIX_CART_V2_DISABLED", raising=False)
+    # AWS-NATIVE: the handler prices every basket off ProductsTable through `_native_quote`, and
+    # the service preflight treats native pricing as an approved engine (native_pricing_enabled).
+    monkeypatch.setenv("CHECKOUT_MODE", "AWS_NATIVE")
+    monkeypatch.setenv("CART_TABLE", CART_TABLE)
+    monkeypatch.setenv("PRODUCTS_TABLE", PRODUCTS_TABLE)
     if contribution_env:
         monkeypatch.setenv("CONTRIBUTION_PRODUCT_ID", contribution_env)
     else:
@@ -145,7 +153,7 @@ def make_env(monkeypatch, *, wix=None, contribution_env=CONTRIBUTION_ID,
              catalog_leg=True):
     h = _load_handler(monkeypatch, contribution_env=contribution_env, committed=committed)
     fake = FakeDynamo(keys={ATTEMPTS_TABLE: "paymentAttemptId", KEYS_TABLE: "orderId",
-                            CONTACTS_TABLE: "id"},
+                            CONTACTS_TABLE: "id", CART_TABLE: "cartId", PRODUCTS_TABLE: "id"},
                       indexes={CONTACTS_TABLE: {"phone-index": ("phone", None)}})
     wix = wix if wix is not None else ContributionWix()
     monkeypatch.setattr(h, "_dynamodb", fake)
@@ -153,8 +161,10 @@ def make_env(monkeypatch, *, wix=None, contribution_env=CONTRIBUTION_ID,
     monkeypatch.setattr(h, "INITIATION_ENABLED", True)
     h.gateway_orders = []
     _stub_gateway(h, monkeypatch, h.gateway_orders)
-    monkeypatch.setattr(h, "_wix_request", wix)
-    monkeypatch.setattr(h.wix_ecom, "_request", wix)
+    # AWS-NATIVE pricing: the handler no longer has `_wix_request`/`wix_ecom`. It prices off
+    # ProductsTable through `_native_product_reader`, which this stubs to the catalogue the `wix`
+    # descriptor carries (contribution variants, kiosk, other, plus any product a test taught it).
+    monkeypatch.setattr(h, "_native_product_reader", wix.reader)
     monkeypatch.setattr(h.customer_auth, "authenticate", lambda event: _Identity())
     # The in-chat CART leg is refused at the top of `_create` — cart purchases are collected on
     # the website (requirements statement 8), and that refusal is pinned in

@@ -15,7 +15,7 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 
-from lambda_utils.ecommerce import cart_v2, checkout_pricing  # noqa: E402
+from lambda_utils.ecommerce import cart_contract, checkout_pricing  # noqa: E402
 from lambda_utils.ecommerce import service_requests as sr  # noqa: E402
 
 PRODUCT = "df976a0a-f582-4535-b2e1-d532f348bd27"
@@ -219,9 +219,18 @@ def test_a_missing_or_malformed_intent_is_refused(body):
     assert (status, payload["error"]) == (409, "SERVICE_INTENT_REQUIRED")
 
 
-def test_cart_v2_off_refuses_a_services_basket_with_503():
+def test_native_pricing_carries_a_services_basket_with_wix_v2_off():
+    """Wix V2 off no longer refuses a service: the AWS-native engine prices it.
+
+    The old behaviour (503 SERVICE_UNAVAILABLE) assumed Wix was the only pricing
+    authority. With native pricing active, a well-formed intent proceeds, and the
+    only remaining refusal is a basket with no engine at all.
+    """
+    assert sr.checkout_preflight([line()], {"serviceIntentId": INTENT},
+                                 v2_enabled=False, native_pricing_enabled=True) is None
+    # No engine at all is still a 503.
     status, payload = sr.checkout_preflight([line()], {"serviceIntentId": INTENT},
-                                            v2_enabled=False)
+                                            v2_enabled=False, native_pricing_enabled=False)
     assert (status, payload["error"]) == (503, "SERVICE_UNAVAILABLE")
 
 
@@ -349,8 +358,8 @@ def test_observed_service_line_paise_reads_the_same_figure_without_asserting():
 
 
 def test_the_assertion_is_a_cart_contract_error_so_create_answers_409_not_500():
-    assert issubclass(sr.ServicePriceChanged, cart_v2.CartContractError)
-    assert issubclass(sr.ServiceNotPayable, cart_v2.CartContractError)
+    assert issubclass(sr.ServicePriceChanged, cart_contract.CartContractError)
+    assert issubclass(sr.ServiceNotPayable, cart_contract.CartContractError)
     assert issubclass(sr.ServiceRejected, ValueError)
 
 

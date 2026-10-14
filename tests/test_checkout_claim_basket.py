@@ -29,7 +29,6 @@ from lambda_utils.ecommerce.checkout_pricing import compute_quote  # noqa: E402
 from lambda_utils.identity import customer as customer_identity  # noqa: E402
 
 HANDLER = ROOT / "amplify/functions/ecommerce/checkout/handler.py"
-FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 
 ATTEMPTS_TABLE = "stack-wecare-digital-PaymentAttemptsTable"
 KEYS_TABLE = "stack-wecare-digital-CommerceKeys"
@@ -63,8 +62,26 @@ CART_TABLE = "stack-wecare-digital-CartTable"
 PRODUCTS_TABLE = "stack-wecare-digital-ProductsTable"
 
 
+#: The product/variant/app and cart identifiers this file needs. Inlined rather than read from a
+#: Wix Cart V2 fixture: the claim-basket path is AWS-native now, so all this file consumes from the
+#: old fixture is one cart id and one catalogReference (product + variant + appId). Keeping them
+#: here removes the last dependency on the retired `wix_cart_v2_*.json` fixtures.
+HANDOFF_CART_ID = "de4d6a89-e575-4c51-b930-aec2adbd8b80"
+HANDOFF_CATALOG_REFERENCE = {
+    "catalogItemId": "00d4c72b-f694-441a-a192-e16f4b192440",
+    "appId": "215238eb-22a5-4c36-9e7b-e7c08025e04e",
+    "options": {"variantId": "2d072962-37c0-4821-9c02-2cc223448711"},
+}
+
+
 def delivery_complete():
-    return json.loads((FIXTURES / "wix_cart_v2_delivery_complete.json").read_text())
+    """The minimal cart shape this file reads: an id and a single line's catalogReference.
+
+    Native-shaped stand-in for the retired Wix Cart V2 fixture; only `['cart']['id']` and
+    `['cart']['lineItems'][0]['source']['catalogReference']` are ever consumed.
+    """
+    return {"cart": {"id": HANDOFF_CART_ID, "lineItems": [
+        {"source": {"catalogReference": copy.deepcopy(HANDOFF_CATALOG_REFERENCE)}}]}}
 
 
 def fixture_reference():
@@ -156,13 +173,6 @@ class RecordingWix:
 
     def paths(self):
         return [path for _method, path, _body in self.requests]
-
-    def creates(self):
-        """Every Create Cart call. `cart_v2.BASE` rather than a typed path, so a base change
-        cannot make this quietly count zero and pass."""
-        from lambda_utils.ecommerce import cart_v2
-        return [body for method, path, body in self.requests
-                if method == "POST" and path == cart_v2.BASE]
 
 
 @pytest.fixture

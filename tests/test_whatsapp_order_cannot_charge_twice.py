@@ -38,13 +38,12 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
 from crm_fake_dynamo import FakeDynamo  # noqa: E402
 from lambda_utils.ecommerce import (  # noqa: E402
-    cart_v2, contact_address, order_creation, whatsapp_basket as wb)
+    contact_address, order_creation, whatsapp_basket as wb)
 from lambda_utils.ecommerce.checkout_pricing import compute_quote  # noqa: E402
 from lambda_utils.identity import customer as customer_identity  # noqa: E402
 from lambda_utils.integrations import razorpay_orders  # noqa: E402
 
 HANDLER = ROOT / "amplify/functions/ecommerce/checkout/handler.py"
-FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 
 ATTEMPTS_TABLE = "stack-wecare-digital-PaymentAttemptsTable"
 KEYS_TABLE = "stack-wecare-digital-CommerceKeys"
@@ -102,12 +101,18 @@ PERMITTED_WIX_CALLS = set()
 FORBIDDEN_WIX_FRAGMENTS = ("create-order", "orders", "checkout", "payments", "/v1/")
 
 
-def delivery_complete():
-    return json.loads((FIXTURES / "wix_cart_v2_delivery_complete.json").read_text())
+#: The product/variant/app identifiers this file needs, inlined rather than read from the retired
+#: Wix Cart V2 fixture. The claim-basket path is AWS-native, so all that is consumed is one
+#: catalogReference (product + variant + appId) shared by the WhatsApp hand-off and website lines.
+HANDOFF_CATALOG_REFERENCE = {
+    "catalogItemId": "00d4c72b-f694-441a-a192-e16f4b192440",
+    "appId": "215238eb-22a5-4c36-9e7b-e7c08025e04e",
+    "options": {"variantId": "2d072962-37c0-4821-9c02-2cc223448711"},
+}
 
 
 def fixture_reference():
-    return delivery_complete()["cart"]["lineItems"][0]["source"]["catalogReference"]
+    return copy.deepcopy(HANDOFF_CATALOG_REFERENCE)
 
 
 def _native_product_row():
@@ -162,35 +167,6 @@ class ProviderLog:
         return dict(self.calls)
 
 
-class RecordingWix:
-    """The Wix transport, logging a NORMALISED path so the permitted list is about shape."""
-
-    def __init__(self, log: ProviderLog):
-        self.log = log
-        self.response = delivery_complete()
-
-    def __call__(self, endpoint, method="GET", body=None):
-        self.log.record(f"{method.upper()} {self._shape(endpoint)}")
-        if endpoint.startswith("/stores/v3/products/"):
-            reference = fixture_reference()
-            return {"product": {
-                "id": reference["catalogItemId"], "visible": True,
-                "variantsInfo": {"variants": [{
-                    "id": reference["options"]["variantId"], "visible": True,
-                    "inventoryStatus": {"inStock": True}}]}}}
-        return copy.deepcopy(self.response)
-
-    @staticmethod
-    def _shape(endpoint: str) -> str:
-        if endpoint.startswith("/stores/v3/products/"):
-            return "GET /stores/v3/products/{id}".split(" ", 1)[1]
-        if endpoint == cart_v2.BASE:
-            return cart_v2.BASE
-        rest = endpoint[len(cart_v2.BASE) + 1:] if endpoint.startswith(cart_v2.BASE + "/") else ""
-        tail = rest.split("/", 1)[1] if "/" in rest else ""
-        return f"{cart_v2.BASE}/{{id}}" + (f"/{tail}" if tail else "")
-
-
 class _Payload:
     def __init__(self, raw):
         self.raw = raw
@@ -234,7 +210,6 @@ def env(monkeypatch):
                             CART_TABLE: "cartId", PRODUCTS_TABLE: "id"},
                       indexes={CONTACTS_TABLE: {"phone-index": ("phone", None)}})
     log = ProviderLog()
-    wix = RecordingWix(log)
     monkeypatch.setattr(h, "_dynamodb", fake)
     monkeypatch.setattr(h, "_lambda_client", lambda: _TripwireLambda())
     monkeypatch.setattr(h, "INITIATION_ENABLED", True)

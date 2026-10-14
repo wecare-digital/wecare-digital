@@ -107,7 +107,12 @@ def _endpoint_shape(path: str) -> str:
     return re.sub(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "{id}", path)
 
 
-def test_b_the_prepare_path_makes_exactly_the_enumerated_calls(monkeypatch):
+def test_b_the_prepare_path_makes_no_provider_cart_call_and_one_gateway_order(monkeypatch):
+    """AWS-NATIVE: the prepare path prices off ProductsTable through `_native_quote`, so it makes
+    ZERO Wix cart calls — "no provider cart call" is structural now, not an enumerated set. What
+    still has to hold is the money shape it used to protect: exactly one Razorpay order is created,
+    and a second prepare on the SAME requestKey mints no second gateway order and no second attempt.
+    """
     wix = ContributionWix()
     monkeypatch.setitem(contribution_wix.UNIT_RUPEES, PRODUCT, 99)
     wix.variants[PRODUCT] = [SUBMIT]
@@ -116,17 +121,12 @@ def test_b_the_prepare_path_makes_exactly_the_enumerated_calls(monkeypatch):
                           serviceIntentId="01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f")
     response = h.handler(event, None)
     assert response["statusCode"] == 200, body_of(response)
-    assert {(method, _endpoint_shape(path)) for method, path in wix.calls} == {
-        ("GET", "/stores/v3/products/{id}"),        # resolve the line's variant
-        ("POST", "/ecom/v2/carts"),                 # CustomerCart.ensure (new cart)
-        ("POST", "/ecom/v2/carts/{id}/calculate"),  # delivery options + the price
-        ("POST", "/ecom/v2/carts/{id}/set-delivery-method"),  # the one Wix-resolved method
-    }
+    # No Wix cart transport exists on the native path: the descriptor records no calls.
+    assert wix.calls == []
     assert len(h.gateway_orders) == 1               # Razorpay orders.create x1
-    # A second prepare with the SAME requestKey creates NO second gateway order. Its answer is
-    # either a resume (200) or INTENT_CHANGED (409): the delivery-method write bumps Wix's cart
-    # revision, which `website_checkout` documents as the case its fingerprint refuses -- the
-    # same behaviour a contribution basket has. Either way nothing payable is minted.
+    # A second prepare with the SAME requestKey creates NO second gateway order. The native basket
+    # hashes to a stable cart id, so the one-live-payment guard resumes onto the same attempt
+    # (200) rather than minting a second. Nothing payable is created twice.
     again = h.handler(event, None)
     assert again["statusCode"] in (200, 409), body_of(again)
     assert body_of(again).get("reason") in (None, "INTENT_CHANGED")

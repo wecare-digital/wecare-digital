@@ -56,10 +56,8 @@ def test_native_snapshot_prices_from_products_table_without_wix(monkeypatch):
     h = _load()
     monkeypatch.setenv("CHECKOUT_MODE", "AWS_NATIVE")
 
-    # If the native branch ever called Wix, this would raise.
-    def _boom(*a, **k):
-        raise AssertionError("native mode must not call wix_ecom.create_checkout")
-    monkeypatch.setattr(h.wix_ecom, "create_checkout", _boom)
+    # The handler no longer imports wix_ecom at all: "native never calls Wix" is
+    # now structural, not a stub we have to defend.
 
     # Stub the ProductsTable reader to avoid any AWS call.
     monkeypatch.setattr(h, "_native_product_reader", lambda: (lambda pid: _product_row()))
@@ -78,8 +76,6 @@ def test_native_snapshot_prices_from_products_table_without_wix(monkeypatch):
 def test_native_mode_ignores_client_supplied_price(monkeypatch):
     h = _load()
     monkeypatch.setenv("CHECKOUT_MODE", "AWS_NATIVE")
-    monkeypatch.setattr(h.wix_ecom, "create_checkout",
-                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("no wix")))
     monkeypatch.setattr(h, "_native_product_reader", lambda: (lambda pid: _product_row()))
 
     # client tries to send a tiny price; server must price from ProductsTable (59900)
@@ -94,10 +90,6 @@ def test_native_quote_accepts_the_actual_storefront_catalog_reference(monkeypatc
     """The browser sends nested catalogReference, not top-level productId fields."""
     h = _load()
     monkeypatch.setenv("CHECKOUT_MODE", "AWS_NATIVE")
-    monkeypatch.setattr(
-        h.wix_ecom, "create_checkout",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("no Wix call")),
-    )
     monkeypatch.setattr(
         h, "_native_product_reader", lambda: (lambda pid: _product_row()),
     )
