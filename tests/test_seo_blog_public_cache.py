@@ -223,13 +223,20 @@ def get(path: str, *, query=None, headers=None):
 def stub_upstream(monkeypatch):
     """Replace the two public reads at the HTTP boundary.
 
-    DELIBERATELY NOT autouse. `handler_mod.wix` is the SAME module object as `wix`, so an
-    autouse version of this replaced `list_blog_posts` and `get_blog_post_by_slug` for the
-    cache tests above as well - which are precisely the tests that need the real, caching
-    implementations. Four of them passed for the wrong reason until this was scoped down.
+    PATCH THE SEAM THE HANDLER ACTUALLY CALLS. Since the blog_source split, the handler reads
+    through `blog_source.list_blog_posts()` / `blog_source.get_blog_post_by_slug()` (which
+    dispatch to Wix by default or AWS under BLOG_SOURCE), NOT through `wix.*` directly. Patching
+    `handler_mod.wix` here left the real `wix` fetch on the handler's path, so a warm suite - any
+    test that first imported `blog_source` under its own sys.path, e.g. test_blog_source_dispatch
+    - diverged `blog_source.wix` from `handler_mod.wix`, the stub missed, and the read hit the
+    network (blocked by conftest) and 503'd. Patching `blog_source` is the handler's true
+    dependency and is immune to that module-identity divergence.
+
+    DELIBERATELY NOT autouse. The TestUpstreamCaching / TestServeStaleOnFailure tests above need
+    the real caching `wix` implementation; an autouse stub would replace it for them too.
     """
-    monkeypatch.setattr(handler_mod.wix, "list_blog_posts", lambda: list(POSTS))
-    monkeypatch.setattr(handler_mod.wix, "get_blog_post_by_slug",
+    monkeypatch.setattr(handler_mod.blog_source, "list_blog_posts", lambda: list(POSTS))
+    monkeypatch.setattr(handler_mod.blog_source, "get_blog_post_by_slug",
                         lambda slug: next((dict(p) for p in POSTS if p["slug"] == slug), None))
     yield
 
@@ -320,7 +327,7 @@ class TestUpstreamFailureSurface:
         def boom():
             raise RuntimeError("Wix public Blog API request failed with status 503")
 
-        monkeypatch.setattr(handler_mod.wix, "list_blog_posts", boom)
+        monkeypatch.setattr(handler_mod.blog_source, "list_blog_posts", boom)
         response = get("/prod/seo-tools/blog-public")
         assert response["statusCode"] == 503
         assert json.loads(response["body"])["ok"] is False
@@ -331,7 +338,7 @@ class TestUpstreamFailureSurface:
         def boom():
             raise RuntimeError("upstream down")
 
-        monkeypatch.setattr(handler_mod.wix, "list_blog_posts", boom)
+        monkeypatch.setattr(handler_mod.blog_source, "list_blog_posts", boom)
         body = json.loads(get("/prod/seo-tools/blog-public")["body"])
         assert body.get("posts") is None
         assert body.get("total") is None
