@@ -22,8 +22,8 @@ from typing import Any, Dict, Optional
 import boto3
 from boto3.dynamodb.conditions import Key
 
-from lambda_utils import contact_key
-from lambda_utils.identity import subscriber_id, customer_session, otp_challenge, otp_throttle
+from lambda_utils import contact_key, customer_session, otp_challenge, otp_throttle
+from lambda_utils.identity import subscriber_id
 from lambda_utils.comms import verification_email
 from lambda_utils.identity import customer as identity
 from lambda_utils.logging import get_logger
