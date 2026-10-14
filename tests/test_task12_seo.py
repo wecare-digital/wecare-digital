@@ -255,14 +255,6 @@ def test_public_blog_detail_reads_native_by_slug(seo_handler):
     auth.assert_not_called()
 
 
-# Removed in the Wix exit: `test_wix_public_blog_never_uses_admin_request_path` pinned the
-# old Wix blog client's public-vs-admin request split. The SEO handler no longer reads the
-# blog through any Wix client — public reads go through `blog_source` -> `storage` (DynamoDB).
-# The surviving invariant ("the public blog never uses an admin/credentialed path") is now
-# structural: there is no Wix client in the read path at all, asserted by
-# tests/test_blog_source_dispatch.py::test_no_wix_module_imported.
-
-
 def test_blog_audit_reads_aws_post_not_wix(seo_handler):
     with patch.object(seo_handler, 'claim_admin_action', return_value=True), \
             patch.object(seo_handler, 'release_admin_audit'), \
