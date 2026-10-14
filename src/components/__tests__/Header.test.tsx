@@ -168,13 +168,13 @@ describe( 'Header', () => {
     const request = screen.getByText( 'Request' ).closest( '.nav-group' );
     expect( request?.textContent ).toContain( 'Shipments' );
 
-    // Order: Shipments sits immediately BEFORE Leave Review, and Leave Review is the final
-    // Request row now that Subscribe is a direct WhatsApp action in the common page-tail.
+    // Order: Shipments sits immediately before Leave Review, with Subscribe as the final
+    // direct-WhatsApp action in the Request group.
     const labels = Array.from( request?.querySelectorAll( '.nav-item' ) || [] )
       .map( node => node.textContent );
     expect( labels.indexOf( 'Shipments' ) ).toBe( labels.indexOf( 'Leave Review' ) - 1 );
-    expect( labels.indexOf( 'Leave Review' ) ).toBe( labels.length - 1 );
-    expect( labels ).not.toContain( 'Subscribe' );
+    expect( labels.indexOf( 'Subscribe' ) ).toBe( labels.length - 1 );
+    expect( labels.indexOf( 'Leave Review' ) ).toBe( labels.indexOf( 'Subscribe' ) - 1 );
     // Orders remains the first row in the group.
     expect( labels.indexOf( 'Orders' ) ).toBe( 0 );
   } );
@@ -187,13 +187,15 @@ describe( 'Header', () => {
     routerState.pathname = '/';
   } );
 
-  it( 'does not expose the retired Subscribe website route in navigation or search', () => {
+  it( 'exposes Subscribe as the verified direct WhatsApp action, never as a website route', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
-    expect( screen.queryByRole( 'link', { name: 'Subscribe' } ) ).toBeNull();
+    expect( screen.getByRole( 'link', { name: 'Subscribe' } ) )
+      .toHaveAttribute( 'href', 'https://wa.me/message/WUDPTMYSO6XII1' );
     expect( document.body.innerHTML ).not.toContain( '/subscribe/' );
     fireEvent.change( screen.getByLabelText( 'Search navigation' ), { target: { value: 'subscribe' } } );
-    expect( screen.queryByRole( 'link', { name: 'Subscribe' } ) ).toBeNull();
+    expect( screen.getByRole( 'link', { name: 'Subscribe' } ) )
+      .toHaveAttribute( 'href', 'https://wa.me/message/WUDPTMYSO6XII1' );
   } );
 
   it( 'adds an Extras group immediately above Legal Stuff', () => {
@@ -237,6 +239,35 @@ describe( 'Header', () => {
 
     // No third-party gift-card provider name may appear in the menu.
     expect( screen.queryByText( /Gift ?Up/i ) ).toBeNull();
+  } );
+
+  it( 'renders the approved catalog hierarchy in the public menu', () => {
+    render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+
+    const productsCol = screen.getByText( 'Products' ).closest( '.nav-col' );
+    expect( productsCol?.textContent ).toContain( 'Elsewhere' );
+    expect( productsCol?.textContent ).toContain( 'Visa Support' );
+    expect( productsCol?.textContent ).toContain( 'Travel Support' );
+    expect( productsCol?.textContent ).toContain( 'Dastavez' );
+    expect( productsCol?.textContent ).toContain( 'Drafting' );
+    expect( productsCol?.textContent ).toContain( 'Registration' );
+    expect( productsCol?.textContent ).toContain( 'Legal Reference' );
+    expect( productsCol?.textContent ).toContain( 'Clear Closure' );
+    expect( productsCol?.textContent ).toContain( 'Guided Resolution' );
+    expect( productsCol?.textContent ).toContain( 'Case Submission' );
+    expect( productsCol?.textContent ).toContain( 'Paperwork' );
+    expect( productsCol?.textContent ).toContain( 'Ritual Guru' );
+    expect( productsCol?.textContent ).toContain( 'DIY Puja Kit' );
+    expect( productsCol?.textContent ).toContain( 'Puja Guidance' );
+
+    const refer = screen.getByRole( 'link', { name: 'Refer & Earn' } ).closest( '.nav-group' );
+    expect( refer?.textContent ).toContain( 'Merchandise' );
+    expect( refer?.textContent ).toContain( 'Kiosk' );
+    expect( refer?.textContent ).toContain( 'Referral' );
+    expect( screen.getByRole( 'link', { name: 'Merchandise' } ) ).toHaveAttribute( 'href', '/shop/merchandise/' );
+    expect( screen.getByRole( 'link', { name: 'Kiosk' } ) ).toHaveAttribute( 'href', '/shop/kiosk/' );
+    expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toHaveAttribute( 'href', '/shop/referral-partner/' );
   } );
 
   it( 'uses the approved public header dimensions and brand navigation colors', () => {

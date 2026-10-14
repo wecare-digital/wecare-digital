@@ -488,3 +488,56 @@ def test_the_mapping_reports_batch_item_failures():
     assert "ReportBatchItemFailures" in source
     assert "ScalingConfig" in source
     assert "MaximumConcurrency" in source
+
+
+# ── Bulk publish fan-out on the same queue ─────────────────────────────────────
+
+def test_bulk_publish_enqueue_uses_same_queue_and_carries_actor(env):
+    env["sqs"].sent.clear()
+    result = env["bq"].enqueue_publish(["blogpub_a", "blogpub_b"], "operator")
+    assert result == {"queued": 2, "failed": 0, "configured": True}
+    bodies = [json.loads(item["body"]) for item in env["sqs"].sent]
+    assert bodies == [
+        {"action": "publish", "jobId": "blogpub_a", "actor": "operator",
+         "reason": "bulk-publish"},
+        {"action": "publish", "jobId": "blogpub_b", "actor": "operator",
+         "reason": "bulk-publish"},
+    ]
+
+
+def test_bulk_publish_rejects_more_than_1000_queue_items(env):
+    with pytest.raises(ValueError, match="at most 1000"):
+        env["bq"].enqueue_publish(
+            [f"blogpub_{index}" for index in range(1001)], "operator")
+
+
+def test_bulk_publish_consumer_calls_existing_publish_path(env, monkeypatch):
+    import blog_publish
+
+    calls = []
+    def fake_publish(job_id, actor):
+        calls.append((job_id, actor))
+        return {"jobId": job_id, "status": "PUBLISHED", "published": True}
+
+    monkeypatch.setattr(blog_publish, "publish", fake_publish)
+    result = env["bq"].consume({"Records": [
+        {"eventSource": "aws:sqs", "messageId": "p1",
+         "body": json.dumps({"action": "publish", "jobId": "blogpub_a",
+                             "actor": "operator"})},
+    ]})
+    assert result == {"batchItemFailures": []}
+    assert calls == [("blogpub_a", "operator")]
+
+
+def test_bulk_publish_deterministic_rejection_is_not_retried(env, monkeypatch):
+    import blog_publish
+
+    monkeypatch.setattr(blog_publish, "publish",
+                        lambda job_id, actor: (_ for _ in ()).throw(
+                            ValueError("sign-off was revoked")))
+    result = env["bq"].consume({"Records": [
+        {"eventSource": "aws:sqs", "messageId": "p1",
+         "body": json.dumps({"action": "publish", "jobId": "blogpub_a",
+                             "actor": "operator"})},
+    ]})
+    assert result == {"batchItemFailures": []}

@@ -56,6 +56,84 @@ def put_record(record: Dict[str, Any]) -> Dict[str, Any]:
     return record
 
 
+def put_records(records: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Write many records with DynamoDB's batch writer.
+
+    Blog intake may register production waves of up to 1,000 sources. Doing one PutItem
+    round-trip per source would spend most of API Gateway's request budget on latency.
+    batch_writer chunks to DynamoDB's 25-item BatchWriteItem limit and retries unprocessed
+    writes for us. The fallback keeps the lightweight in-process test table compatible.
+    """
+    rows = list(records)
+    required = {'id', 'recordType', 'createdAt', 'slug'}
+    for record in rows:
+        missing = required - set(record)
+        if missing:
+            raise ValueError(f"Missing storage fields: {', '.join(sorted(missing))}")
+    if not rows:
+        return []
+
+    current = table()
+    writer_factory = getattr(current, 'batch_writer', None)
+    if callable(writer_factory):
+        with current.batch_writer(overwrite_by_pkeys=['id']) as batch:
+            for record in rows:
+                batch.put_item(Item=_clean(record))
+    else:
+        for record in rows:
+            current.put_item(Item=_clean(record))
+    return rows
+
+
+def get_typed_many(record_ids: Iterable[Any], record_type: str) -> Dict[str, Dict[str, Any]]:
+    """Fetch many typed records with BatchGetItem.
+
+    DynamoDB accepts at most 100 keys per BatchGetItem call, so a 1,000-source wave becomes
+    ten bounded requests. Unprocessed keys are retried. On the test fake, which has no boto3
+    meta client, this falls back to get_typed so the semantics stay identical.
+    """
+    keys = []
+    seen = set()
+    for value in record_ids:
+        key = str(value or '').strip()
+        if key and key not in seen:
+            seen.add(key)
+            keys.append(key)
+    if not keys:
+        return {}
+
+    current = table()
+    meta = getattr(current, 'meta', None)
+    client = getattr(meta, 'client', None) if meta is not None else None
+    if client is None or not hasattr(client, 'batch_get_item'):
+        found = {}
+        for key in keys:
+            item = get_typed(key, record_type)
+            if item is not None:
+                found[key] = item
+        return found
+
+    table_name = getattr(current, 'name', TABLE_NAME)
+    found: Dict[str, Dict[str, Any]] = {}
+    for start in range(0, len(keys), 100):
+        pending = {'Keys': [{'id': key} for key in keys[start:start + 100]]}
+        attempts = 0
+        while pending and attempts < 8:
+            attempts += 1
+            response = client.batch_get_item(RequestItems={table_name: pending})
+            for item in response.get('Responses', {}).get(table_name, []):
+                if item.get('recordType') == record_type:
+                    found[str(item['id'])] = _json_safe(item)
+            pending = response.get('UnprocessedKeys', {}).get(table_name, {})
+
+        for key_record in pending.get('Keys', []) if pending else []:
+            key = str(key_record.get('id') or '')
+            item = get_typed(key, record_type)
+            if item is not None:
+                found[key] = item
+    return found
+
+
 def get_typed(record_id: Any, record_type: str) -> Optional[Dict[str, Any]]:
     """One record of an expected type, or None. Safe on an empty id.
 

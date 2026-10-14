@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import BrandLockup from './BrandLockup';
 import HeaderCart from './HeaderCart';
 import VoiceSearchMic from './VoiceSearchMic';
-import { PRODUCTS } from '../content/products';
+import { SUBSCRIBE_CTA_HREF } from '../content/subscribe';
 
 /**
  * No props.
@@ -124,22 +124,45 @@ const COLUMNS: NavColumn[] = [
         links: [
           { label: 'Grahak OS', href: '/grahak-os/', match: '/grahak-os' },
           { label: 'VayuLok', href: '/vayulok/', match: '/vayulok' },
-          // Bharat Rx moved here from Customer service: it is a product, not one of the
-          // request actions the Customer service column lists. It now has its own page, so it
-          // is a local route with `match` rather than a PENDING_HREF placeholder - a
-          // product listed beside Grahak OS and VayuLok that landed on a generic
-          // marketing page was worse than not listing it.
           { label: 'Bharat Rx', href: '/bharat-rx/', match: '/bharat-rx' },
-          // GENERATED FROM src/content/products.ts, not retyped. Eleven products across a
-          // menu, a sitemap allowlist, a structured-data map and eight route files is four
-          // places a name or a slug can disagree; mapping the same array means the menu
-          // cannot list a product that has no page, or miss one that does. Hunar was added
-          // by a single entry in that file and appeared here on its own.
-          ...PRODUCTS.map( p => ( {
-            label: p.name,
-            href: `/${p.slug}/`,
-            match: `/${p.slug}`,
-          } ) ),
+          { label: 'Expo Week', href: '/expo-week/', match: '/expo-week' },
+          { label: 'Anew', href: '/anew/', match: '/anew' },
+          { label: 'Hunar', href: '/hunar/', match: '/hunar' },
+          { label: 'Niji Setu', href: '/niji-setu/', match: '/niji-setu' },
+        ],
+      },
+      {
+        heading: 'Elsewhere',
+        headingHref: '/elsewhere/',
+        links: [
+          { label: 'Visa Support', href: '/elsewhere/', match: '/elsewhere' },
+          { label: 'Travel Support', href: '/elsewhere/', match: '/elsewhere' },
+        ],
+      },
+      {
+        heading: 'Dastavez',
+        headingHref: '/dastavez/',
+        links: [
+          { label: 'Drafting', href: '/dastavez/', match: '/dastavez' },
+          { label: 'Registration', href: '/dastavez/', match: '/dastavez' },
+          { label: 'Legal Reference', href: '/dastavez/', match: '/dastavez' },
+        ],
+      },
+      {
+        heading: 'Clear Closure',
+        headingHref: '/clear-closure/',
+        links: [
+          { label: 'Guided Resolution', href: '/shop/guided-resolution/' },
+          { label: 'Case Submission', href: '/shop/file-assist/' },
+          { label: 'Paperwork', href: '/shop/paperwork/' },
+        ],
+      },
+      {
+        heading: 'Ritual Guru',
+        headingHref: '/ritual-guru/',
+        links: [
+          { label: 'DIY Puja Kit', href: '/ritual-guru/', match: '/ritual-guru' },
+          { label: 'Puja Guidance', href: '/ritual-guru/', match: '/ritual-guru' },
         ],
       },
     ],
@@ -217,6 +240,7 @@ const COLUMNS: NavColumn[] = [
           // delivery-status) as a clearly non-transacting affordance.
           { label: 'Shipments', href: '/shipments/', match: '/shipments' },
           { label: 'Leave Review', href: '/leave-review/', match: '/leave-review' },
+          { label: 'Subscribe', href: SUBSCRIBE_CTA_HREF, external: true },
           // CONTACT MOVED OUT of Customer service into the third column (Work with us), on
           // owner instruction - the Customer service column is now the request ACTIONS only,
           // and Contact sits with Refer & Earn as a way to reach the company.
@@ -237,7 +261,15 @@ const COLUMNS: NavColumn[] = [
       // product page.
       // Now a LOCAL page rather than an external link, so it carries `match` and lights up
       // on its own route like every other row.
-      { heading: 'Work with us', links: [ { label: 'Refer & Earn', href: '/refer-and-earn/', match: '/refer-and-earn' } ] },
+      {
+        heading: 'Refer & Earn',
+        headingHref: '/refer-and-earn/',
+        links: [
+          { label: 'Merchandise', href: '/shop/merchandise/' },
+          { label: 'Kiosk', href: '/shop/kiosk/' },
+          { label: 'Referral', href: '/shop/referral-partner/' },
+        ],
+      },
       // CONTACT HAS ITS OWN HEADING now, on owner instruction, rather than sitting as a
       // second row under Work with us. It is its own thing - a way to reach us - so it
       // gets its own labelled group in this column. Local page, so it carries `match`
