@@ -64,12 +64,23 @@ Legend: `[x]` done · `[~]` implemented, not deployed · `[ ]` not started.
       identity, renders a Wix-shape that round-trips through
       `wix_ecom.authoritative_total_paise`). Unit-tested. NOT wired — the drop-in
       source for `compute_quote` when `CHECKOUT_MODE=AWS_NATIVE`. (A3)
-- [ ] 4.3 Native cart/discount/tax/shipping/inventory/reservation modules behind
-      `CHECKOUT_MODE` (default `WIX_HEADLESS`). (A3)
-- [ ] 4.4 `scripts/build-catalog-snapshot.py` → `src/content/catalog-snapshot.json`;
-      repoint `src/content/shop.ts`. (A2)
-- [ ] 4.5 `meta-catalog-sync` reads `ProductsTable` behind `CATALOG_SOURCE`;
-      DynamoDB-stream product-change event → EventBridge. (A4)
+- [~] 4.3 Native cart/discount modules: `CartTable` CDK (TTL-reaped) +
+      `catalog_pricing.price_cart`/`coupon_discount_paise` bridging the
+      AWS-authoritative `coupon_store.discount_paise` into the supply summary
+      (replaces Wix Calculate Cart for the coupon path). Unit-tested end-to-end
+      through `compute_quote`. Tax/shipping/inventory/reservation still to build;
+      not wired (CHECKOUT_MODE default WIX_HEADLESS). (A3)
+- [~] 4.4 `scripts/build-catalog-snapshot.py` writes `catalog-snapshot.json` in
+      the SAME envelope as `wix-catalog.json` (ShopProduct shape, display-only
+      prices, Indian grouping, archived excluded). Unit-tested. Repointing
+      `src/content/shop.ts` to it is the 🔒 flip (needs a seeded ProductsTable +
+      Amplify rebuild). (A2)
+- [~] 4.5 `meta-catalog-sync` reads `ProductsTable` behind `CATALOG_SOURCE`
+      (`_native_products` projects the exact slim shape `desired_items` consumes;
+      defaults to `wix`). Unit-tested; preserves diff/approval/dry-run/retailer-id.
+      DynamoDB-stream → EventBridge wiring + 🔂 flip still pending. Discovered
+      requirement: ProductsTable ids/variant-skus MUST be UUIDs (retailer-id
+      contract). (A4)
 - [ ] 4.6 Idempotency/signature/reconciliation tests on the native path reusing
       existing `order_keys`/`payment_attempt`. (A3, Gate 3)
 
