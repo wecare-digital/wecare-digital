@@ -39,9 +39,12 @@ Legend: `[x]` done · `[~]` implemented, not deployed · `[ ]` not started.
 ## Phase 3 — AWS-native blog store + read path (Gate 2)
 
 - [ ] 3.1 CDK `BlogPostsTable` (PAY_PER_REQUEST, PITR, RETAIN) + GSIs, mirroring
-      `seo-resources.ts`. (A1)
-- [ ] 3.2 Native blog read in `wecare-seo-tools` behind `BLOG_SOURCE` (default
-      `wix`). (A1)
+      `seo-resources.ts`. (A1) — NOTE: the native read currently reuses the
+      existing `SeoToolsTable` `blogPost` records via `storage._blog_view`; a
+      dedicated table is only needed if the published corpus outgrows that store.
+- [x] 3.2 Native blog read in `wecare-seo-tools` behind `BLOG_SOURCE` (default
+      `wix`): `blog_source.py` seam + handler wired + unit tests. IMPLEMENTED,
+      NOT DEPLOYED (flag defaults to wix; flip is Phase 6). (A1)
 - [ ] 3.3 Native Blog Studio write/publish/schedule/approve routes. (A1)
 - [ ] 3.4 Build-time fail-safe snapshot (`src/content/blog-snapshot.json`). (A5)
 - [ ] 3.5 Seed `BlogPostsTable` from the Phase-2 export; reconcile. (A1, Gate 2)
@@ -94,7 +97,11 @@ Legend: `[x]` done · `[~]` implemented, not deployed · `[ ]` not started.
 ## Phase 9 — Lightsail (independent release)
 
 - [ ] 9.1 Capacity audit (needs host access; else mark INCOMPLETE → NO-GO). (C1)
-- [x] 9.2 `scripts/lightsail-nano-migration/` scripts (dry-run, no secrets). (C2)
+- [~] 9.1 Capacity audit: SSH (22) unreachable from here → in-guest audit NOT
+      collected → verdict INCOMPLETE / default NO-GO. CPU avg ≈0.94% (measured).
+      SIP/TLS 5061 OPEN (measured). (C1)
+- [x] 9.2 `scripts/lightsail-nano-migration/` scripts (dry-run, no secrets,
+      account/region verified, checksums, approval gates). (C2)
 - [ ] 9.3 🔒 Provision fresh nano; migrate; verify; (gated) move static IP. (C3)
 
 ## Phase 10 — Final cost audit (Gate 7)
