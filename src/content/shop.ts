@@ -188,11 +188,11 @@ const isServicesRow = ( raw: RawProduct ): boolean =>
  * EXCLUDED BY PRODUCT ID FIRST, SLUG SECOND, for the same reason `isContributionRow` is: the id is
  * the identity the catalogue keys on and cannot be edited in the Wix dashboard, while the slug can.
  *
- * REVERSIBLE AND NON-DESTRUCTIVE, deliberately. Nothing is deleted from Wix and nothing is removed
- * from the snapshot - the rows stay committed in src/content/wix-catalog.json, so a product the
- * owner decides to sell is published by deleting its line here (or by giving it real copy in Wix
- * and deleting its line here). Checkout is untouched: it reads the live Wix catalogue, not
- * `SHOP_PRODUCTS`, so a demo product remains purchasable by direct cart reference if one ever is.
+ * REVERSIBLE AND NON-DESTRUCTIVE, deliberately. Nothing is deleted from the catalogue: this list
+ * only keeps the template's sample rows off `/shop/` if they ever reappear in the snapshot, so a
+ * product the owner decides to sell is published by deleting its line here (after giving it real
+ * copy in ProductsTable). Checkout is untouched: it prices from ProductsTable, not
+ * `SHOP_PRODUCTS`, so a demo product would remain purchasable by direct cart reference.
  */
 export const WIX_TEMPLATE_SAMPLE_PRODUCT_IDS: readonly string[] = [
   '618dcfe4-8d85-40a9-87c6-0dea57abe644', // Baseball Cap
