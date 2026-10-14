@@ -1119,7 +1119,7 @@ const SupportWidget: React.FC = () => {
             rather than assumed.
             What it buys: the destination becomes editable without a deploy, and the hop is
             counted. It also makes this button agree with what the voice handlers already read
-            out to callers - plivo-answer and voice-in/c2c both say
+            out to callers - the current voice path says
             "send us a message / voice note on WhatsApp: https://wecare.digital/r/wa" - so a
             caller who hears the link and a visitor who clicks the button now follow one URL
             instead of two that happen to coincide.

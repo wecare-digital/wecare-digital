@@ -287,7 +287,7 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/engage/push', label: 'Push' },
       // Call CONFIGURATION. The call RECORDS are [retired public path]/inbox?channel=voice.
       { path: '/workspace/engage/voice', label: 'Voice (outbound)' },
-      { path: '/workspace/engage/voice-in', label: 'Voice In (IVR)' },
+      { path: '/workspace/engage/voice-in', label: 'Call History' },
     ],
   },
   {
