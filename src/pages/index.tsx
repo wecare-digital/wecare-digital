@@ -66,6 +66,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import WorkflowTerminal from '../components/WorkflowTerminal';
 import PublicShare from '../components/PublicShare';
+import RotatingPill from '../components/RotatingPill';
 
 /* The SUITE array that used to live here - the three original products plus the seven from
    src/content/products.ts - went with the service-directory grid it fed. See the comment on
@@ -155,9 +156,6 @@ const CYCLE_WORDS = [
 ];
 
 const HomePage: React.FC = () => {
-  const [ cycleIndex, setCycleIndex ] = useState( 0 );
-  const [ cycleW, setCycleW ] = useState<number | null>( null );
-  const wordRefs = useRef<( HTMLSpanElement | null )[]>( [] );
   const [ shown, setShown ] = useState( false );
 
   // The closing band reveals when it scrolls into view. Unlike the hero's one-shot
@@ -205,15 +203,6 @@ const HomePage: React.FC = () => {
   }, [] );
 
   useEffect( () => {
-    if ( window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ) return;
-    const id = window.setInterval(
-      () => setCycleIndex( i => ( i + 1 ) % CYCLE_WORDS.length ),
-      2400
-    );
-    return () => window.clearInterval( id );
-  }, [] );
-
-  useEffect( () => {
     const el = closeRef.current;
     if ( !el ) return;
 
@@ -256,35 +245,10 @@ const HomePage: React.FC = () => {
     return () => io.disconnect();
   }, [] );
 
-  useEffect( () => {
-    // Measured, not guessed: the widest word is nearly a third wider than the narrowest,
-    // and animating to a measured px value is what makes the pill glide instead of snap.
-    //
-    // RE-MEASURED ON RESIZE, AND THAT IS NOT BELT-AND-BRACES. This effect used to run only
-    // when cycleIndex changed, which left the px width stale on every other input:
-    //   - font-size is clamp(36px,4.3vw,60px), so a word's width is a function of viewport
-    //     width. During rotation a stale value self-heals at the next 2400ms tick - but
-    //     under prefers-reduced-motion the interval never starts, so nothing ever
-    //     re-measures. Measured 480 -> 1280: the pill held 182px for a word needing 278px
-    //     and overflow:hidden ate 96px, 35% of it, permanently.
-    //   - WCAG 1.4.12 requires a page to survive a reader's own letter-spacing and
-    //     word-spacing. With those applied the word needs 356.8px against a 278px pill:
-    //     22% clipped. That is a Level AA failure, not a cosmetic one.
-    //   - a webfont swap changes metrics after first paint too.
-    //
-    // OBSERVING THE WORD, NOT THE PILL. The pill's width is what this effect sets, so
-    // observing it would either never fire or feed itself. The word's content box is the
-    // thing that actually changes, so that is what is watched.
-    const el = wordRefs.current[ cycleIndex ];
-    if ( !el ) return;
-    const measure = () => setCycleW( el.offsetWidth );
-    measure();
-    // Guarded because this also runs in jsdom, where ResizeObserver does not exist.
-    if ( typeof ResizeObserver === 'undefined' ) return;
-    const ro = new ResizeObserver( measure );
-    ro.observe( el );
-    return () => ro.disconnect();
-  }, [ cycleIndex ] );
+  // The hero's rotation, its width re-measure and all the pill CSS now live in
+  // RotatingPill. This page keeps only the one-shot `shown` flag (armed via layoutRef in
+  // the entrance effect above) that drives the shared pill's reveal through its `phase`
+  // prop, and the SEPARATE closing-band IntersectionObserver effect.
 
   return (
     <>
@@ -350,33 +314,7 @@ const HomePage: React.FC = () => {
                 width, so the glide is free to be as wide as it likes. */}
             <h1 className="home-head">
               <span className="home-head-line">Everyday AI, built for</span>
-              <span
-                className="home-mark"
-                style={ { background: CYCLE_WORDS[ cycleIndex ].tint } }
-              >
-                <i
-                  className="home-mark-dot"
-                  style={ { background: CYCLE_WORDS[ cycleIndex ].dot } }
-                  aria-hidden="true"
-                />
-                <span
-                  className="home-cycle"
-                  style={ cycleW ? { width: `${cycleW}px` } : undefined }
-                >
-                  {/* The rotation is visual only, so screen readers get the full list
-                      once and every animated copy is hidden from them. */}
-                  <span className="home-sr-only">{ CYCLE_WORDS.map( c => c.word ).join( ', ' ) }</span>
-                  { CYCLE_WORDS.map( ( c, i ) => (
-                    <span
-                      key={ c.word }
-                      ref={ el => { wordRefs.current[ i ] = el; } }
-                      className={ `home-cyc-word ${i === cycleIndex ? 'on' : ''}`.trim() }
-                      data-wc-translate="true"
-                      aria-hidden="true"
-                    >{ c.word }</span>
-                  ) ) }
-                </span>
-              </span>
+              <RotatingPill words={ CYCLE_WORDS } phase={ shown ? 'shown' : 'armed' } />
             </h1>
 
             {/* The one body level the contract allows: 20px/400/1.4/-.125px at
@@ -1102,106 +1040,13 @@ const HomePage: React.FC = () => {
           text-wrap:balance;
         }
 
-        /* Rotating pill. Same geometry, easing and timings as .hero-mark on Grahak OS
-           and .vl-mark on VayuLok - em-based so it tracks the clamp() headline at
-           every width. */
         /* Blocks, so the frame and the pill never share a line. See the note in the
-           markup: this is what stops the h1's height depending on which word is
-           active. margin-top is the optical gap between the two lines - line-height
-           1.04 leaves almost no leading, so without it the pill crowds the text. */
+           markup: this is what stops the h1's height depending on which word is active.
+           The pill itself - its lozenge, dot, width glide, word fade and one-shot entrance
+           - now lives in RotatingPill, which self-scopes its own rp-* CSS and is driven by
+           the phase prop (armed -> shown via the shown flag). styled-jsx here cannot
+           reach a child component's markup, which is why the pill owns its own styles. */
         .home-head-line{display:block}
-        .home-mark{
-          position:relative;display:inline-block;white-space:nowrap;margin-top:.08em;
-          padding:.02em .3em .02em .22em;
-          border-radius:9999px;
-          background:#e0f7c8;
-          transition:background-color .52s cubic-bezier(.16,1,.3,1);
-        }
-        /* White shutter that wipes off to the left on entrance, so the tint appears
-           to fill in rather than simply switching on.
-
-           THE DEFAULT IS THE FINISHED STATE - scaleX(0), shutter gone - AND THAT INVERSION
-           IS THE FIX. It used to default to scaleX(1): a white panel covering the tint, with
-           .home-layout.show removing it once JavaScript had run. So the entrance was OPT-OUT,
-           and anything that stopped the class arriving left the pill permanently blank - no
-           JS, a failed bundle, a hydration error. Measured with scripting disabled: the
-           headline read "Everyday AI, built for" followed by a white lozenge.
-           The closing band already does this the right way round and says so at length; this
-           is the same pattern. CSS ships what the visitor should end up with, and JavaScript
-           adds .is-armed only once it has confirmed it can animate - which is what hides the
-           start state. The effect is purely additive, so no JS means no animation rather than
-           no content. */
-        .home-mark::before{
-          content:'';position:absolute;inset:0;
-          background:#fff;border-radius:9999px;
-          transform:scaleX(0);transform-origin:right center;
-          transition:transform .78s cubic-bezier(.16,1,.3,1) .18s;
-          z-index:0;
-        }
-        .home-layout.is-armed .home-mark::before{transform:scaleX(1)}
-        .home-layout.is-armed.show .home-mark::before{transform:scaleX(0)}
-        /* .33em matches the dot-to-headline ratio measured on notion.com; the tight
-           .18em gap keeps it reading as attached to the word. */
-        .home-mark-dot{
-          position:relative;z-index:1;
-          display:inline-block;width:.33em;height:.33em;
-          background:#3da35a;border-radius:50%;
-          /* margin-inline-end: the dot precedes the word, so the gap has to be on the side
-             the word is on. margin-right put the gap behind the dot in Arabic and let the
-             dot touch the glyph it is meant to be spaced from. */
-          margin-inline-end:.18em;vertical-align:.14em;
-          /* scale(1) BY DEFAULT, for the same reason as the shutter above: scale(0) was the
-             start state, so without JavaScript the dot never appeared at all. */
-          transform:scale(1);
-          transition:transform .5s cubic-bezier(.34,1.56,.64,1) .72s;
-        }
-        .home-layout.is-armed .home-mark-dot{transform:scale(0)}
-        .home-layout.is-armed.show .home-mark-dot{transform:scale(1)}
-        /* Width is animated from the measured word so the pill glides between
-           "Service" and "Intelligence" instead of snapping. overflow:hidden is what
-           clips the outgoing word as it slides. */
-        /* width:max-content IS THE RESTING WIDTH, and it is what stops the pill shipping
-           empty. cycleW starts null, so the first render writes no inline width - and with
-           every word absolutely positioned this box had NO intrinsic width at all. It
-           computed to 0px and overflow:hidden clipped the word away completely, so the
-           headline read "Everyday AI, built for" with nothing after it: for ~200ms on every
-           single load (4 painted frames, measured), and permanently with no JavaScript.
-           JavaScript still writes an explicit px width over this, which is what animates, so
-           the glide is unchanged. */
-        .home-cycle{
-          position:relative;z-index:1;
-          display:inline-block;
-          width:max-content;
-          height:1.06em;line-height:1.06em;
-          vertical-align:baseline;
-          overflow:hidden;
-          transition:width .52s cubic-bezier(.16,1,.3,1);
-          will-change:width;
-        }
-        .home-cyc-word{
-          /* inset-inline-start:0 pins each rotating word to the pill's starting edge. With
-             left:0 an Arabic word shorter than the measured pill width floated away from the
-             edge the reader begins at, leaving the gap on the wrong side. */
-          position:absolute;inset-inline-start:0;top:0;
-          white-space:nowrap;
-          opacity:0;
-          transform:translateY(.42em);
-          transition:opacity .42s cubic-bezier(.16,1,.3,1),transform .42s cubic-bezier(.16,1,.3,1);
-        }
-        /* THE ACTIVE WORD RETURNS TO FLOW, which is what gives .home-cycle a real
-           intrinsic width above. The inactive words stay absolute and keep stacking in
-           the same place, so nothing about the cross-fade changes.
-
-           display:inline-block IS LOAD-BEARING. position:static alone makes this a
-           non-replaced INLINE box, and offsetWidth is 0 for those - so the measuring effect
-           would write width:0px over max-content and the pill would collapse on every load
-           WITH JavaScript, turning a 200ms flash into a permanent one. Caught by measuring
-           a mock, not by reading the diff. */
-        .home-cyc-word.on{opacity:1;transform:translateY(0);position:static;display:inline-block}
-        .home-sr-only{
-          position:absolute;width:1px;height:1px;padding:0;margin:-1px;
-          overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
-        }
 
         @media(max-width:767px){
           .home-shell{padding-top:96px}
@@ -1210,25 +1055,6 @@ const HomePage: React.FC = () => {
              tracking is now -0.04em, which scales itself, so restating it per breakpoint is
              what caused the 2.75x optical swing this replaced. */
           .home-head{line-height:1.1}
-        }
-
-        /* The rotation itself is already disabled in JS; this settles the pill into
-           its resting state so nothing is mid-transition. */
-        @media(prefers-reduced-motion:reduce){
-          .home-mark::before,.home-mark-dot{transition:none}
-          /* Belt and braces, and now SCOPED TO .is-armed so it can actually win.
-             These used to read .home-mark::before and .home-mark-dot unscoped, which scored
-             (0,1,1) against .home-layout.show .home-mark::before at (0,2,1) - so the correct
-             value won only by accident of what the .show rule happened to set, and any edit
-             to it would have handed every reduced-motion visitor a blank white pill.
-             Both resting states are now the CSS default, so this block no longer has to
-             establish them. What it still has to do is beat .home-layout.is-armed, for the
-             one case the JS cannot cover: the preference changing AFTER the class is on the
-             node. Matching the armed selector's specificity is what makes that work. */
-          .home-layout.is-armed .home-mark::before{transform:scaleX(0)}
-          .home-layout.is-armed .home-mark-dot{transform:scale(1)}
-          .home-cycle{transition:none}
-          .home-cyc-word{transition:none}
         }
       `}</style>
     </>

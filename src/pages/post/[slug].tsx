@@ -360,18 +360,25 @@ export default function BlogPostPage ( {
           <script type="application/ld+json" dangerouslySetInnerHTML={ ld( post.jsonLd?.faqSchema ) } />
         ) }
       </Head>
-      {/* UNIFIED HERO (owner 2026-10-13): the post carries the same frame + lime pill + sub as
-          every public page, via the shared RotatingHero - "Read [post title]" with the title in
-          the lime pill. A SINGLE word (the title) is passed, so the pill is static (no 2400ms
-          rotation). RotatingHero owns the <main> and the ONE <h1>, so the article's own title
-          below is demoted to <h2> - the page keeps exactly one h1 (htmlcheck's H1-MANY guard) and
-          the hero is that h1. This is a single dynamic template, so every post - today's and any
-          added tomorrow - gets the hero automatically. `noShare` is passed because the post keeps
-          its OWN PublicShare at a specific mid-content spot (the .post-share reveal sentinel,
-          before the post-nav and related cards), so the hero must NOT auto-mount a second dock. */}
+      {/* UNIFIED HERO (owner 2026-10-13): the post carries the same frame + ROTATING lime pill +
+          one-shot entrance as every other hero, via the shared RotatingHero. Frame is "Read" and
+          the pill cycles a short set of reading verbs - reflect, consider, revisit, return - each
+          on its own tint/dot from the house palette, so the post hero animates like the home,
+          Grahak OS and VayuLok heroes rather than sitting static. A post has one subject (its
+          title), so the title is NOT the pill - it stays the article's own h2 below; the pill
+          carries the quiet "what you do with a piece" verb instead. RotatingHero owns the <main>
+          and the ONE h1 (the hero), so the page keeps exactly one h1 (htmlcheck H1-MANY). Single
+          dynamic template, so every post - today's and any added tomorrow - gets it automatically.
+          noShare is set because the post keeps its own PublicShare at the .post-share reveal
+          sentinel (mid-content), so the hero must not auto-mount a second dock. */}
       <RotatingHero
-        frame="Read"
-        words={ [ { word: post.title, tint: '#e0f7c8', dot: '#3da35a' } ] }
+        frame="Read and"
+        words={ [
+          { word: 'reflect', tint: '#e0f7c8', dot: '#3da35a' },
+          { word: 'consider', tint: '#dbeafe', dot: '#2563eb' },
+          { word: 'revisit', tint: '#ede9fe', dot: '#9849e8' },
+          { word: 'return', tint: '#fef9c3', dot: '#ca8a04' },
+        ] }
         ariaLabel={ post.title }
         noShare
       >

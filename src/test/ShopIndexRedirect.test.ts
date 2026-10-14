@@ -190,7 +190,7 @@ describe( 'the product pages are untouched by it (ITEM 2)', () => {
     // words copy and the visible word, so assert the two parts rather than the whole string:
     // the frame reads "Explore" and the pill word is the product name.
     expect( container.querySelector( '.rh-head-line' )?.textContent ).toBe( 'Explore' );
-    expect( container.querySelector( '.rh-cyc-word.on' )?.textContent ).toBe( product.name );
+    expect( container.querySelector( '.rp-cyc-word.on' )?.textContent ).toBe( product.name );
 
     // file-assist reports variantCount 1, so the variant gate cannot disable the button. The
     // merchandise case - 10 variants, button disabled until one is chosen - is covered in

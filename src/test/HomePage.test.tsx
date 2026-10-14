@@ -34,7 +34,7 @@ describe( 'WECARE.DIGITAL Home', () => {
 
   it( 'keeps the rotating words within a narrow length band', () => {
     const { container } = render( <HomePage /> );
-    const words = Array.from( container.querySelectorAll( '.home-cyc-word' ) )
+    const words = Array.from( container.querySelectorAll( '.rp-cyc-word' ) )
       .map( w => ( w.textContent || '' ) );
 
     // The pill animates to each word's measured width, so the spread between the
@@ -64,7 +64,7 @@ describe( 'WECARE.DIGITAL Home', () => {
     const { container } = render( <HomePage /> );
 
     // One readable copy of the full list...
-    const srOnly = container.querySelector( '.home-sr-only' );
+    const srOnly = container.querySelector( '.rp-sr-only' );
     expect( srOnly ).toBeInTheDocument();
     expect( srOnly?.textContent ).toBe( 'consumers, enterprises, climate tech, frontier tech' );
 
@@ -78,13 +78,13 @@ describe( 'WECARE.DIGITAL Home', () => {
     // read aloud cannot drift apart. If a word is added to one and not the other,
     // this fails, which is the actual accessibility bug worth catching.
     const expectedWords = ( srOnly?.textContent || '' ).split( ', ' ).length;
-    const words = Array.from( container.querySelectorAll( '.home-cyc-word' ) );
+    const words = Array.from( container.querySelectorAll( '.rp-cyc-word' ) );
     expect( words ).toHaveLength( expectedWords );
     expect( words.map( w => w.textContent ) ).toEqual( ( srOnly?.textContent || '' ).split( ', ' ) );
     words.forEach( word => expect( word ).toHaveAttribute( 'aria-hidden', 'true' ) );
 
     // Exactly one is active at a time.
-    expect( container.querySelectorAll( '.home-cyc-word.on' ) ).toHaveLength( 1 );
+    expect( container.querySelectorAll( '.rp-cyc-word.on' ) ).toHaveLength( 1 );
   } );
 
   it( 'keeps the eyebrow 20px from the headline, not on the 96px section gap', () => {
@@ -283,7 +283,9 @@ describe( 'WECARE.DIGITAL Home', () => {
      * `@media(prefers-reduced-motion:reduce)` block on the page - which belongs to
      * WorkflowTerminal, since this page renders it too. The assertion then failed against the
      * wrong component's CSS. A brace walk collects every block and the one carrying
-     * `.home-mark` is the hero's.
+     * `.rp-mark` is the shared pill's (RotatingPill, which the home hero now renders instead
+     * of its own inline .home-mark). The pill's own <style jsx> is in the rendered DOM, so
+     * its CSS is part of cssOf(container).
      */
     const blocks: string[] = [];
     for ( let at = css.indexOf( '@media(prefers-reduced-motion:reduce)' ); at !== -1;
@@ -298,11 +300,12 @@ describe( 'WECARE.DIGITAL Home', () => {
       blocks.push( css.slice( open + 1, end ) );
     }
     expect( blocks.length, 'no reduced-motion blocks parsed' ).toBeGreaterThan( 0 );
-    const body = blocks.find( b => b.includes( '.home-mark' ) );
-    expect( body, 'no reduced-motion block mentions .home-mark' ).toBeDefined();
-    expect( body! ).toContain( '.home-mark::before{transform:scaleX(0)}' );
+    const body = blocks.find( b => b.includes( '.rp-mark' ) );
+    expect( body, 'no reduced-motion block mentions .rp-mark' ).toBeDefined();
+    // RotatingPill scopes the settle to .is-armed so it wins over the armed start state.
+    expect( body! ).toContain( '.rp-mark.is-armed::before{transform:scaleX(0)}' );
     expect(
-      /\.home-mark::before\{transform:scaleX\(1\)\}/.test( body! ),
+      /\.rp-mark(\.is-armed)?::before\{transform:scaleX\(1\)\}/.test( body! ),
       'scaleX(1) is the start state - a white shutter covering the tint - not the resting one'
     ).toBe( false );
   } );

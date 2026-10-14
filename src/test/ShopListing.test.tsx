@@ -146,7 +146,7 @@ describe( 'the listing page', () => {
     expect( container.querySelectorAll( 'main' ) ).toHaveLength( 1 );
     expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
     expect( container.querySelector( 'h1' )!.textContent ).toContain( 'A shop for' );
-    const words = Array.from( container.querySelectorAll( '.rh-cyc-word' ) ).map( w => w.textContent );
+    const words = Array.from( container.querySelectorAll( '.rp-cyc-word' ) ).map( w => w.textContent );
     expect( words ).toEqual( [ 'services', 'documents', 'products', 'journeys' ] );
     // The pill animates to each word's measured width, so keep the set close in length.
     for ( const word of words ) expect( ( word || '' ).length ).toBeLessThanOrEqual( 18 );

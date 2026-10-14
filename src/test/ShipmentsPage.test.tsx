@@ -52,7 +52,7 @@ describe( 'Shipments page', () => {
     expect( screen.getByText( 'Track it. Arrange it. Keep it moving.' ) ).toBeInTheDocument();
     // The rotation words the content file sets, in order. The screen-reader copy lists them once;
     // the animated copies are aria-hidden.
-    const words = Array.from( container.querySelectorAll( '.rh-cyc-word' ) ).map( w => w.textContent );
+    const words = Array.from( container.querySelectorAll( '.rp-cyc-word' ) ).map( w => w.textContent );
     expect( words ).toEqual( [ 'order', 'request', 'pickup', 'parcel' ] );
     for ( const word of words ) expect( ( word || '' ).length ).toBeLessThanOrEqual( 18 );
   } );

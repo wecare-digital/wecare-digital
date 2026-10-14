@@ -56,10 +56,11 @@
  * names, and styled-jsx does not shield a page from those.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import PageMeta from '../../components/PageMeta';
 import BrandBadge from '../../components/BrandBadge';
 import PublicShare from '../../components/PublicShare';
+import RotatingPill from '../../components/RotatingPill';
 import VayuLokApprovedGlobe from '../../components/VayuLokApprovedGlobe';
 import VayuLokLive from '../../components/VayuLokLive';
 
@@ -138,48 +139,16 @@ const VayuLokPage: React.FC = () => {
     { word: 'History', tint: '#fef9c3', dot: '#ca8a04' },
     { word: 'Heatmap', tint: '#fbe6d4', dot: '#c2591b' },
   ];
-  const [ cycleIndex, setCycleIndex ] = useState( 0 );
-  const [ cycleW, setCycleW ] = useState<number | null>( null );
-  const wordRefs = useRef<( HTMLSpanElement | null )[]>( [] );
   const [ shown, setShown ] = useState( false );
 
   useEffect( () => {
     // The entrance wipe and the dot pop are one-shot, so this does not need an
-    // observer the way the Grahak OS page's multiple sections do.
+    // observer the way the Grahak OS page's multiple sections do. The rotation, the
+    // width re-measure and all the pill CSS now live in RotatingPill; this page keeps
+    // only the one-shot `shown` flag that drives the pill's entrance via `phase`.
     const id = window.setTimeout( () => setShown( true ), 60 );
     return () => window.clearTimeout( id );
   }, [] );
-
-  useEffect( () => {
-    if ( window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ) return;
-    const id = window.setInterval(
-      () => setCycleIndex( i => ( i + 1 ) % cycleWords.length ),
-      2400
-    );
-    return () => window.clearInterval( id );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [] );
-
-  useEffect( () => {
-    // RE-MEASURE ON RESIZE AND FONT-LOAD, not only when the word changes - the same fix
-    // index.tsx, RotatingHero.tsx and grahak-os carry. Running on [ cycleIndex ] alone left the
-    // pill's px width stale: the hero font-size is a clamp(...vw...), so each word's rendered
-    // width depends on the viewport, and the Inter webfont swaps in after first paint and widens
-    // every word. With overflow:hidden on .vl-cycle a stale, too-narrow width clips the tail of
-    // the word ("Air" -> "Ai", "Forecast" -> "Foreca"). Under prefers-reduced-motion the interval
-    // never starts, so nothing self-heals. Observe the active word (not the pill this effect sets).
-    const el = wordRefs.current[ cycleIndex ];
-    if ( !el ) return undefined;
-    const measure = () => setCycleW( el.offsetWidth );
-    measure();
-    if ( typeof document !== 'undefined' && ( document as any ).fonts?.ready?.then ) {
-      ( document as any ).fonts.ready.then( () => measure() );
-    }
-    if ( typeof ResizeObserver === 'undefined' ) return undefined;
-    const ro = new ResizeObserver( measure );
-    ro.observe( el );
-    return () => ro.disconnect();
-  }, [ cycleIndex ] );
 
   return (
     <>
@@ -227,31 +196,7 @@ const VayuLokPage: React.FC = () => {
               <h1 className="vl-head">
                 <span className="vl-head-line vl-head-line-one">
                   <span>Bharat</span>{ ' ' }
-                  <span
-                    className="vl-mark"
-                    style={ { background: cycleWords[ cycleIndex ].tint } }
-                  >
-                    <i
-                      className="vl-mark-dot"
-                      style={ { background: cycleWords[ cycleIndex ].dot } }
-                      aria-hidden="true"
-                    />
-                    <span
-                      className="vl-cycle"
-                      style={ cycleW ? { width: `${cycleW}px` } : undefined }
-                    >
-                      <span className="vl-sr-only">{ cycleWords.map( c => c.word ).join( ', ' ) }</span>
-                      { cycleWords.map( ( c, i ) => (
-                        <span
-                          key={ c.word }
-                          ref={ el => { wordRefs.current[ i ] = el; } }
-                          className={ `vl-cyc-word ${i === cycleIndex ? 'on' : ''}`.trim() }
-                          data-wc-translate="true"
-                          aria-hidden="true"
-                        >{ c.word }</span>
-                      ) ) }
-                    </span>
-                  </span>
+                  <RotatingPill words={ cycleWords } phase={ shown ? 'shown' : 'armed' } />
                 </span>
                 <span className="vl-head-line vl-head-line-two">
                   <span className="vl-head-tail">Intelligence</span>
@@ -365,76 +310,11 @@ const VayuLokPage: React.FC = () => {
            animated pill's descender without crowding it. */
         .vl-sub{margin:22px 0 0;max-width:430px;font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898)}
 
-        /* Rotating pill. Same geometry, easing and timings as .hero-mark on the
-           Grahak OS page - em-based so it tracks the clamp() headline at every width. */
-        .vl-mark{
-          position:relative;display:inline-block;white-space:nowrap;
-          padding:.02em .3em .02em .22em;
-          border-radius:9999px;
-          background:#e0f7c8;
-          transition:background-color .52s cubic-bezier(.16,1,.3,1);
-        }
-        /* White shutter that wipes off to the left on entrance, so the tint appears
-           to fill in rather than simply switching on. */
-        .vl-mark::before{
-          content:'';position:absolute;inset:0;
-          background:#fff;border-radius:9999px;
-          transform:scaleX(1);transform-origin:right center;
-          transition:transform .78s cubic-bezier(.16,1,.3,1) .18s;
-          z-index:0;
-        }
-        .vl-layout.show .vl-mark::before{transform:scaleX(0)}
-        /* .33em matches the dot-to-headline ratio measured on notion.com; the tight
-           .18em gap keeps it reading as attached to the word. */
-        .vl-mark-dot{
-          position:relative;z-index:1;
-          display:inline-block;width:.33em;height:.33em;
-          background:#3da35a;border-radius:50%;
-          margin-right:.18em;vertical-align:.14em;
-          transform:scale(0);
-          transition:transform .5s cubic-bezier(.34,1.56,.64,1) .72s;
-        }
-        .vl-layout.show .vl-mark-dot{transform:scale(1)}
-        /* Width is animated from the measured word so the pill glides between "Air"
-           and "Forecast" instead of snapping. overflow:hidden is what clips the
-           outgoing word as it slides. */
-        /* PORTED FROM THE HOME BAND. Four implementations of this hero exist and every one
-           carried the same defects; see docs/home-design-audit-20260926.md.
-
-           width:max-content is the RESTING width. cycleW starts null, so the first render
-           writes no inline width - and with every word absolutely positioned this box had no
-           intrinsic width at all. It computed to 0px and overflow:hidden clipped the word
-           away: ~200ms on every load, permanently with no JavaScript. JS still writes an
-           explicit px width over this, which is what animates, so the glide is unchanged. */
-        .vl-cycle{
-          width:max-content;
-          position:relative;z-index:1;
-          display:inline-block;
-          height:1.06em;line-height:1.06em;
-          vertical-align:baseline;
-          overflow:hidden;
-          transition:width .52s cubic-bezier(.16,1,.3,1);
-          will-change:width;
-        }
-        .vl-cyc-word{
-          position:absolute;left:0;top:0;
-          white-space:nowrap;
-          opacity:0;
-          transform:translateY(.42em);
-          transition:opacity .42s cubic-bezier(.16,1,.3,1),transform .42s cubic-bezier(.16,1,.3,1);
-        }
-        /* The ACTIVE word returns to flow, which is what gives the box above a real
-           intrinsic width. The inactive words stay absolute and keep stacking.
-
-           display:inline-block IS LOAD-BEARING: position:static alone makes this a
-           non-replaced inline box whose offsetWidth is 0, so the measuring effect would
-           write width:0px over max-content and the pill would collapse on every load WITH
-           JavaScript - a 200ms flash turned permanent. */
-        .vl-cyc-word.on{opacity:1;transform:translateY(0);position:static;display:inline-block}
-        .vl-sr-only{
-          position:absolute;width:1px;height:1px;padding:0;margin:-1px;
-          overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
-        }
+        /* The rotating pill - its lozenge, dot, width glide, word fade and one-shot
+           entrance - now lives in RotatingPill, which self-scopes its own rp-* CSS. The
+           host drives the entrance by passing phase (armed -> shown via the shown flag),
+           exactly as the Grahak OS and home heroes do. styled-jsx here cannot reach a child
+           component's markup, which is why the pill owns its own styles. */
 
         @media(max-width:1024px){
           .vl-hero-grid{grid-template-columns:minmax(0,.96fr) minmax(0,1.04fr);gap:36px}
@@ -455,20 +335,6 @@ const VayuLokPage: React.FC = () => {
         @media(max-width:359px){
           .vl-head{font-size:clamp(31px,9vw,36px)}
           .vl-head-line-one{gap:.1em;transform-origin:left center}
-          .vl-mark{padding-inline:.18em .24em}
-        }
-
-        /* The rotation itself is already disabled in JS; this settles the pill into
-           its resting state so nothing is mid-transition. */
-        @media(prefers-reduced-motion:reduce){
-          .vl-mark::before,.vl-mark-dot{transition:none}
-          /* scaleX(0) is the RESTING state. scaleX(1) is the START state - a white
-             shutter covering the tint - which is what this used to set. It never bit only
-             because .vl-layout.show out-specifies it (0,2,1 vs 0,1,1). */
-          .vl-mark::before{transform:scaleX(0)}
-          .vl-mark-dot{transform:scale(1)}
-          .vl-cycle{transition:none}
-          .vl-cyc-word{transition:none}
         }
       `}</style>
     </>

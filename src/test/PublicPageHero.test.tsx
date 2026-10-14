@@ -87,7 +87,7 @@ describe( 'every page that moved onto the band kept exactly one h1 and one main'
     // these pages passes a single-element words array, so the pill does not rotate - a cart or a
     // checkout screen is a task surface, so the house look without indefinite motion keeps WCAG
     // 2.2.2). The h1's textContent concatenates the frame, the sr-only words copy and the visible
-    // word, so assert the frame line (.rh-head-line) and the visible pill word (.rh-cyc-word.on)
+    // word, so assert the frame line (.rh-head-line) and the visible pill word (.rp-cyc-word.on)
     // separately rather than the joined h1 string.
     const cases: { name: string; element: React.ReactElement; frame: string; word: string }[] = [
       { name: 'cart', element: <Cart />, frame: 'Your', word: 'cart' },
@@ -107,7 +107,7 @@ describe( 'every page that moved onto the band kept exactly one h1 and one main'
       expect( h1s, entry.name ).toHaveLength( 1 );
       expect( container.querySelector( '.rh-head-line' )!.textContent, entry.name )
         .toBe( entry.frame );
-      expect( container.querySelector( '.rh-cyc-word.on' )!.textContent, entry.name )
+      expect( container.querySelector( '.rp-cyc-word.on' )!.textContent, entry.name )
         .toBe( entry.word );
       unmount();
     }
@@ -551,7 +551,7 @@ describe( 'the cart keeps its own top band, and every Phase-2 addition lands BEL
     // The h1 is RotatingHero's: the frame line "Your" plus the static pill word "cart". Assert
     // the two parts separately - the h1 textContent also carries an sr-only words copy.
     expect( container.querySelector( '.rh-head-line' )!.textContent ).toBe( 'Your' );
-    expect( container.querySelector( '.rh-cyc-word.on' )!.textContent ).toBe( 'cart' );
+    expect( container.querySelector( '.rp-cyc-word.on' )!.textContent ).toBe( 'cart' );
     // Inside the band, not merely on the page.
     expect( container.querySelector( '.rh-hero h1' ) ).not.toBeNull();
     // Its own sub, page-specific rather than generic. Still accurate for a contribution basket:

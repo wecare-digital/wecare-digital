@@ -135,7 +135,7 @@ describe( '/cart/ keeps the hero once a customer is signed in', () => {
     const out = render( <Cart /> );
     await screen.findByText( 'Kiosk' );
     expectBand( out.container, 'Your', 'signed out' );
-    expect( out.container.querySelector( '.rh-cyc-word.on' )!.textContent ).toBe( 'cart' );
+    expect( out.container.querySelector( '.rp-cyc-word.on' )!.textContent ).toBe( 'cart' );
     out.unmount();
     vi.restoreAllMocks();
 
@@ -151,7 +151,7 @@ describe( '/cart/ keeps the hero once a customer is signed in', () => {
     // is mounted rather than the loading or empty one.
     expect( await screen.findByText( 'asha@example.com' ) ).toBeInTheDocument();
     expectBand( container, 'Your', 'signed in' );
-    expect( container.querySelector( '.rh-cyc-word.on' )!.textContent ).toBe( 'cart' );
+    expect( container.querySelector( '.rp-cyc-word.on' )!.textContent ).toBe( 'cart' );
     expect( container.textContent )
       .toContain( 'Review what you have added before you check out.' );
   } );

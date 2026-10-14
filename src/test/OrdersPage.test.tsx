@@ -206,7 +206,7 @@ describe( '/orders/ — structure and the top band', () => {
     // concatenates the frame, the sr-only words copy and the visible word, so assert the two
     // parts separately rather than the joined string.
     expect( container.querySelector( '.rh-head-line' )!.textContent ).toBe( 'Your' );
-    expect( container.querySelector( '.rh-cyc-word.on' )!.textContent ).toBe( 'orders' );
+    expect( container.querySelector( '.rp-cyc-word.on' )!.textContent ).toBe( 'orders' );
   } );
 
   it( 'puts nothing conversion-shaped inside the band block itself', () => {
@@ -265,7 +265,7 @@ describe( '/orders/ — structure and the top band', () => {
     await screen.findByText( 'WD-1042' );
     expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
     expect( container.querySelector( '.rh-head-line' )!.textContent ).toBe( 'Your' );
-    expect( container.querySelector( '.rh-cyc-word.on' )!.textContent ).toBe( 'orders' );
+    expect( container.querySelector( '.rp-cyc-word.on' )!.textContent ).toBe( 'orders' );
     expect( container.querySelectorAll( 'main' ) ).toHaveLength( 1 );
     const top = container.querySelectorAll( '.rh-hero' );
     expect( top ).toHaveLength( 1 );
