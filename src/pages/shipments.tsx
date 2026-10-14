@@ -5,7 +5,7 @@ import { SHIPMENTS } from '../content/shipments';
 /**
  * /shipments — the Shipments page.
  *
- * DELIBERATELY THIN, like /drop-docs/ and /subscribe/. All copy lives in
+ * DELIBERATELY THIN, like /drop-docs/. All copy lives in
  * src/content/shipments.ts and the layout in ProductPage.tsx, so this page cannot drift from
  * its siblings. This file exists only to own the route.
  *
@@ -14,9 +14,9 @@ import { SHIPMENTS } from '../content/shipments';
  * why those live as data — and why the pickup href bypasses whatsappServiceLink() — is in
  * src/content/shipments.ts.
  *
- * NOT A SEVENTH CUSTOMERSERVICE ENTRY: the copy is its own module (src/content/shipments.ts),
- * following the src/content/subscribe.ts precedent, because both CTAs are wa.me links (which a
- * CUSTOMERSERVICE guard forbids) and /shipments is already filed in the `start` catalogue group.
+ * NOT A SEVENTH CUSTOMERSERVICE ENTRY: the copy is its own module (src/content/shipments.ts)
+ * because both CTAs are wa.me links (which a CUSTOMERSERVICE guard forbids) and /shipments is
+ * already filed in the `start` catalogue group.
  *
  * THE PAGE WAS CALLED "ZIP" AND THE NAME IS GONE, on owner instruction (2026-10-02). It must not
  * reappear anywhere, including in schema output.

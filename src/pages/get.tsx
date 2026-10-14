@@ -41,7 +41,6 @@ import PhoneField from '../components/PhoneField';
 import PillButton from '../components/PillButton';
 import RotatingHero from '../components/RotatingHero';
 import type { CycleWord } from '../components/RotatingHero';
-import PublicShare from '../components/PublicShare';
 import { addItem } from '../lib/cart';
 import type { ShopProduct } from '../content/shop';
 import { PLACEHOLDER_LINE } from '../config/productCheckout';
@@ -550,8 +549,6 @@ export default function FilesPage () {
                     ) }
                 </div>
 
-                {/* The Share block at the foot of this page's content, inside the hero's measure. */}
-                <PublicShare />
             </RotatingHero>
 
             <style jsx>{ `

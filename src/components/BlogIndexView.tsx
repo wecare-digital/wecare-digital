@@ -5,8 +5,8 @@ import { topicSlug } from '../lib/blog-index-props';
 import RotatingHero, { CycleWord } from './RotatingHero';
 import Breadcrumbs from './Breadcrumbs';
 import Pager from './Pager';
-import BlogFooterCTA from './BlogFooterCTA';
 import RssIcon from './RssIcon';
+import VoiceSearchMic from './VoiceSearchMic';
 
 /**
  * The blog index, one page of it.
@@ -88,10 +88,6 @@ export const HERO_WORDS: CycleWord[] = [
   { word: 'meaning', tint: '#e0f7c8', dot: '#3da35a' },
   { word: 'change', tint: '#ede9fe', dot: '#9849e8' },
 ];
-
-/** The canonical origin, for building absolute share URLs for the footer CTA's Share row. The
- *  same origin BlogIndexHead uses for canonicals. */
-const ORIGIN = 'https://wecare.digital';
 
 /** Where the full post list lives. Written post-build, beside the page it serves. Fetched once
  *  on mount now that "show every post" is the default rather than a search action. The name is
@@ -210,39 +206,21 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
   }, [] );
 
   /**
-   * True once the full corpus is in hand AND it actually contains this category's posts.
-   *
-   * An EMPTY successful response does not expand. A transient empty index must not blank a blog
-   * that prerendered cards perfectly well - the same non-fatal-on-empty rule the feed and the
-   * index generators follow - so when the fetch comes back with nothing for this category the
-   * prerendered slice is left exactly as it shipped rather than being replaced by "no posts".
-   */
-  const expanded =
-    indexState === 'ready' &&
-    allCards !== null &&
-    ( activeCategory
-      ? allCards.some( post => post.category === activeCategory )
-      : allCards.length > 0 );
-
-  /**
-   * EVERY POST IN THIS CATEGORY, or the prerendered slice until the fetch lands / if it fails.
-   *
-   * The index covers the whole corpus, so it is narrowed to activeCategory here - /blog/ must
-   * not grow 240 Gastronomy posts once the fetch resolves, and a topic stream must not grow the
-   * rest of the site. Before expansion this is exactly the server-sent slice, so the first paint
-   * and the no-JS render are identical to what shipped.
+   * (The `expanded` flag was retired on 2026-10-13: the blog stays PAGINATED and no longer grows
+   * to the whole category once the full index loads. allCards is still fetched, but only to power
+   * search - the listing itself is always the prerendered paged slice.)
    */
   /**
-   * WHAT THE READER SEES, IN THREE CASES.
+   * WHAT THE READER SEES, IN TWO CASES.
    *
    *   A query is typed - filter the WHOLE corpus (scoped to this category) across
    *     title + excerpt + category + tags, and show every match. This needs allCards, so it only
    *     narrows once the fetch has landed; before that there is nothing to search and the normal
    *     list shows. All matches, no slice: the point of the box is to find a post, not to page to it.
-   *   No query, expanded - every post in the active category, the show-every-post default.
-   *   No query, not expanded - the prerendered slice, which is the first paint and the no-JS path.
+   *   No query - the prerendered paged slice, which is the first paint, the no-JS path, AND the
+   *     steady state now that the list no longer expands. The pager turns the pages.
    *
-   * The category scope is the same in all three: /blog/ is the default category, each topic
+   * The category scope is the same in both: /blog/ is the default category, each topic
    * stream is its own, so a search on Conversations never surfaces a Gastronomy post.
    */
   const trimmedQuery = query.trim().toLowerCase();
@@ -263,11 +241,13 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
         return hay.includes( trimmedQuery );
       } );
     }
-    if ( !expanded ) return posts;
-    return activeCategory
-      ? allCards!.filter( post => post.category === activeCategory )
-      : allCards!;
-  }, [ searching, trimmedQuery, expanded, allCards, posts, activeCategory ] );
+    // ALWAYS the prerendered paged slice when not searching (owner 2026-10-13): the blog stays
+    // PAGINATED rather than expanding to the whole category once the full index loads. The
+    // `expanded` behaviour (grow the list to every post and drop the pager) is retired - the
+    // full index (allCards) is still fetched, but only to power search; the listing itself is the
+    // page's own paginated slice at every moment, so the pager never disappears.
+    return posts;
+  }, [ searching, trimmedQuery, allCards, posts, activeCategory ] );
 
   /* WHICH STREAM THIS VIEW IS PAGING. Derived here rather than passed in, because the component
    * already holds both halves of the answer and the pills two hundred lines below compute the
@@ -290,8 +270,8 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
             : [ { label: 'Home', href: '/' }, { label: 'Blog' } ] }
         />
         {/* BORDERLESS LIVE SEARCH over the WHOLE corpus - the same field as the /anew/ panel
-            (ProductBlogPanel .pbp-search): no inner border, one quiet bottom hairline, no icon,
-            no submit button, filtering as you type. A real sr-only label gives it an accessible
+            (ProductBlogPanel .pbp-search): no inner border, one quiet bottom hairline, the shared
+            lime voice mic, and no submit button, filtering as you type. A real sr-only label gives it an accessible
             name. The old top toolbar - the "N posts" count and the text RSS pill - is gone; the
             count went on owner instruction and the RSS affordance moved to an icon at the bottom.
             It filters the full corpus (scoped to this category) and seeds from ?q= on first
@@ -306,6 +286,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
             value={ query }
             onChange={ e => setQuery( e.target.value ) }
           />
+          <VoiceSearchMic onTranscript={ setQuery } />
         </div>
 
         { totalPosts > 0 ? (
@@ -375,14 +356,13 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
               </div>
             ) }
 
-            {/* THE PAGINATOR IS THE NO-JAVASCRIPT PATH, SO IT HIDES ONCE THE FULL LIST IS IN -
-                AND WHILE A SEARCH IS ACTIVE. When the on-mount fetch succeeds, every post in this
-                category is already on screen and there are no more pages to turn; and when a query
-                is typed, all matches are shown at once, so paging them would put two narrowings
-                between a reader and one post. Until then (first paint, a failed fetch, or scripts
-                off) the prerendered slice is paginated exactly as it shipped, which keeps the
-                whole blog reachable without JavaScript. */}
-            { !searching && !expanded && totalPages > 1 && (
+            {/* THE PAGINATOR IS ALWAYS SHOWN when there is more than one page and no search is
+                active (owner 2026-10-13). The blog no longer expands to the whole category once the
+                full index loads, so the pager stays - the listing is the prerendered paged slice at
+                every moment, and the pager turns the pages. It still hides WHILE A SEARCH IS ACTIVE,
+                because a query shows all matches at once and paging them would put two narrowings
+                between a reader and one post. */}
+            { !searching && totalPages > 1 && (
               /* components/Pager.tsx, which is this exact control moved out whole so /shop/
                  renders one declaration of it rather than a second copy. No prevLabel or
                  nextLabel: they default to Newer / Older, which is this listing's own copy. */
@@ -393,17 +373,14 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
                 ariaLabel="Blog pages"
               />
             ) }
-
-            {/* THE SUBSCRIBE / CONTRIBUTE / SHARE BAND - the same block the post page carries at
-                its foot, on owner instruction, so the blog index tail reads as the same object.
-                The shared component (components/BlogFooterCTA.tsx) renders the WhatsApp Subscribe
-                pill, the Contribute block and the Share row. shareUrl is this listing's own
-                canonical page URL, built from the same streamBase/page the pager uses so a shared
-                link points at the page the reader is on. */}
-            <BlogFooterCTA
-              shareUrl={ `${ORIGIN}${blogPageHref( page, streamBase )}` }
-              shareTitle="WECARE.DIGITAL Blog"
-            />
+            {/* THE SUBSCRIBE + SHARE BLOCK IS THE GLOBAL ONE NOW. The owner unified the blog
+                surfaces onto components/PublicShare, auto-mounted by RotatingHero at the end of
+                this hero's own content measure (RotatingHero no longer gates it on `subordinate`,
+                and this view no longer passes `noShare`). The old three-part BlogFooterCTA band -
+                its own Subscribe pill and Share row - is removed so the index carries exactly ONE
+                Subscribe+Share, the same block every other public page carries. PublicShare
+                resolves this page's own canonical URL and title itself, so there is no shareUrl to
+                pass. */}
 
             {/* THE RSS SUBSCRIBE AFFORDANCE, ICON-ONLY, AT THE BOTTOM. It replaces the old text
                 pill that sat in a toolbar at the top; on owner instruction it is now a compact
@@ -548,7 +525,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
 
         /* BORDERLESS LIVE SEARCH - the /anew/ panel's field (ProductBlogPanel .pbp-search),
            so every search a visitor meets on the site reads as one control: no inner border, one
-           quiet bottom hairline, no icon, no button. The hairline darkens and a lime underline
+           quiet bottom hairline, the shared lime mic, no submit button. The hairline darkens and a lime underline
            grows on focus. 52px is the site's field height (BlogSearch's own), 17px the base body
            size that keeps iOS from zooming the field on focus. */
         .blog-search{position:relative;margin:0 0 32px;max-width:520px}
@@ -558,7 +535,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
         .blog-search input{
-          width:100%;box-sizing:border-box;height:52px;padding:0 2px;
+          width:100%;box-sizing:border-box;height:52px;padding:0 44px 0 2px;
           font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
           border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;

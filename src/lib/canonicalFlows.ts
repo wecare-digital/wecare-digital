@@ -72,9 +72,8 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
     flowId: null, status: 'NONE', metaName: null,
   },
   // Subscribe has NO production Flow. The historical 02.WD_Profile ids (1262971692700761 /
-  // 951987930811295) are DEPRECATED and must not be resurrected — profile/account screens
-  // belong in the retained Orders draft. Entry stays a /subscribe/ CTA until a verified
-  // profile backend exists.
+  // 951987930811295) are DEPRECATED and must not be resurrected. Public Subscribe actions open
+  // the dedicated WhatsApp Meta short link directly; there is no /subscribe website page.
   subscribe: {
     capability: 'subscribe', label: 'Subscribe',
     flowId: null, status: 'NONE', metaName: null,

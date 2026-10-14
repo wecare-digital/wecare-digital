@@ -2577,3 +2577,52 @@
     transform: none !important;
   }
 }
+
+/* ========================================
+   ONE PAGE-HEADER DESIGN LANGUAGE (workspace)
+   ----------------------------------------
+   Three heading conventions coexisted across ~100 admin pages:
+     - PageHeader   -> .page-title / .page-subtitle   (26-34px canonical)
+     - PageShell    -> .ps-title   / .ps-subtitle      (22px, lighter)
+     - bespoke      -> .inner-page-title               (var token, no subtitle rung)
+   They rendered at different sizes/weights/colours, so a hub page's heading
+   did not match a leaf page's. This block makes .ps-title and .inner-page-title
+   resolve to the SAME treatment as .page-title (and .ps-subtitle to .page-subtitle)
+   at every breakpoint, WITHOUT touching any page markup, component API or test.
+   Scoped under .layout .main-content to match the winning specificity in this file.
+   Values are copied verbatim from the .page-title / .page-subtitle rules above so
+   the three selectors stay in step by construction.
+   ======================================== */
+.layout .main-content .ps-title,
+.layout .main-content .inner-page-title {
+  font-size: 34px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.5px !important;
+  color: #000 !important;
+  margin: 0 !important;
+}
+.layout .main-content .ps-subtitle,
+.layout .main-content .inner-page-subtitle {
+  font-size: 17px !important;
+  color: #6b7280 !important;
+  margin: 4px 0 0 0 !important;
+}
+
+@media (max-width: 1024px) and (min-width: 769px) {
+  .layout .main-content .ps-title,
+  .layout .main-content .inner-page-title { font-size: 30px !important; }
+}
+
+@media (max-width: 768px) {
+  .layout .main-content .ps-title,
+  .layout .main-content .inner-page-title { font-size: 28px !important; }
+  .layout .main-content .ps-subtitle,
+  .layout .main-content .inner-page-subtitle { font-size: 16px !important; }
+}
+
+@media (max-width: 480px) {
+  .layout .main-content .ps-title,
+  .layout .main-content .inner-page-title { font-size: 26px !important; }
+  .layout .main-content .ps-subtitle,
+  .layout .main-content .inner-page-subtitle { font-size: 15px !important; }
+}

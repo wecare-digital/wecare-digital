@@ -33,13 +33,13 @@ import { type ShopListing } from '../content/shopProducts';
  * crawler with no JavaScript reaches every product through real links and the sitemap is unchanged
  * (SEO rule). The single-rail-of-everything is the rendered experience; the paginated HTML remains
  * the crawl surface. Moving off PageTopBand is free:
- * src/test/PublicPageTopBand.test.tsx lists src/pages/shop/[slug].tsx in BAND_PAGE_FILES and
+ * src/test/PublicPageHero.test.tsx lists src/pages/shop/[slug].tsx in BAND_PAGE_FILES and
  * never this listing.
  *
  * NO NEW COLOUR ENTERS THE SITE. The hero rotates the four cycle() pairs from
  * src/content/products.ts and the card spines rotate the three accent hues .home-flow-list
  * already uses. The home page's fifth pair (#fee2e2/#dc2626) is NOT used: red is retired from
- * these surfaces and PublicPageTopBand.test.tsx enforces its absence on the neighbouring shop
+ * these surfaces and PublicPageHero.test.tsx enforces its absence on the neighbouring shop
  * files.
  *
  * SEARCH FILTERS THE WHOLE SHELF, NOT THIS PAGE'S SIX, and it needs no fetched index to do it.

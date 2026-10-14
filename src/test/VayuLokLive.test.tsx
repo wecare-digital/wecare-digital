@@ -365,6 +365,8 @@ afterEach( () => {
   clearGoogleMaps();
   document.body.innerHTML = '';
   try { window.localStorage?.clear(); } catch { /* storage may be unavailable */ }
+  document.documentElement.lang = 'en';
+  document.documentElement.dir = 'ltr';
   vi.useRealTimers();
 } );
 
@@ -612,6 +614,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const { container } = render( <VayuLokLive /> );
 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    // First-paint performance contract: only the maps library is required before construction;
+    // the other libraries are allowed to continue in the background.
+    expect( rec.importedLibraries[ 0 ] ).toBe( 'maps' );
     expect( rec.mapOpts?.restriction ).toBeUndefined();
     expect( rec.mapOpts?.center ).toEqual( { lat: 25, lng: 86 } );
     expect( rec.mapOpts?.zoom ).toBe( 4 );
@@ -630,6 +635,21 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( container.querySelector( '.vl-live-map-locate' ) ).toBeNull();
     expect( screen.queryByText( 'Search India to see live weather and air.' ) ).toBeNull();
     await waitFor( () => expect( fetchSpy ).toHaveBeenCalled() );
+  } );
+
+  it( 'reveals the map canvas immediately after construction without waiting for tilesloaded', async () => {
+    rec = installGoogleMaps( { paintMap: false } );
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await waitFor( () => {
+      expect( container.querySelector( '.vl-live-map-canvas' )?.classList.contains( 'is-ready' ) ).toBe( true );
+    } );
+    expect( container.querySelector( '.vl-live-map-fallback' ) ).toBeNull();
+    // No tilesloaded event was fired, so tile-dependent atmosphere stays gated.
+    expect( container.querySelector( '.vl-live-atmosphere' ) ).toBeNull();
   } );
 
   it( 'search selection recenters the map and keeps only the map marker, not a bottom pill', async () => {
@@ -811,6 +831,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     // NO RED anywhere in the rendered card markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
+  
 
     // Toggle to Weather: aria-selected flips and an inert placeholder panel appears,
     // with no invented weather data.
@@ -832,6 +853,39 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( weatherPanel?.textContent ).not.toMatch( /coming soon/i );
     // The Air panel is no longer shown while Weather is selected.
     expect( container.querySelector( '[aria-label="Air details"]' ) ).toBeNull();
+  } );
+
+  it( 'uses Google currentTime for Weather freshness instead of the browser fetch-completion time', async () => {
+    const realNow = Date.now();
+    const providerTime = new Date( realNow - 12 * 60 * 1000 ).toISOString();
+    const baseFetch = environmentFetch();
+    const fetchSpy = vi.fn( async ( input: RequestInfo | URL, init?: RequestInit ) => {
+      if ( requestIs( input, 'weather.googleapis.com', '/v1/currentConditions' ) ) {
+        return {
+          ok: true,
+          json: async () => ( {
+            currentTime: providerTime,
+            temperature: { degrees: 26 },
+            feelsLikeTemperature: { degrees: 27 },
+            relativeHumidity: 68,
+            weatherCondition: { description: { text: 'Mostly sunny' } },
+          } ),
+        } as Response;
+      }
+      return baseFetch( input, init );
+    } );
+    vi.stubGlobal( 'fetch', fetchSpy );
+
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+    fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
+
+    await waitFor( () => {
+      const freshness = container.querySelector( '.vl-live-wx-freshness' )?.textContent || '';
+      expect( freshness ).toMatch( /Current · updated 1[12] min ago/ );
+    } );
   } );
 
   it( 'renders the full Weather dashboard (metrics grid, hourly, 10-day, 24h history, neutral alerts)', async () => {
@@ -862,6 +916,18 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const dailyCall = fetchSpy.mock.calls.find( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/forecast/days' ) );
     expect( String( dailyCall?.[ 0 ] ) ).toContain( 'days=10' );
     expect( String( dailyCall?.[ 0 ] ) ).toContain( 'pageSize=10' );
+    const googleDataCalls = fetchSpy.mock.calls.filter( call => {
+      const url = requestUrl( call[ 0 ] as RequestInfo | URL );
+      return Boolean( url && (
+        url.hostname === 'weather.googleapis.com'
+        || url.hostname === 'airquality.googleapis.com'
+        || ( url.hostname === 'maps.googleapis.com' && url.pathname.startsWith( '/maps/api/timezone/' ) )
+      ) );
+    } );
+    expect( googleDataCalls.length ).toBeGreaterThan( 0 );
+    googleDataCalls.forEach( call => {
+      expect( ( call[ 1 ] as RequestInit | undefined )?.cache ).toBe( 'no-store' );
+    } );
     // 24h history with a metric toggle.
     expect( within( panel ).getByRole( 'group', { name: 'Weather history metric' } ) ).toBeTruthy();
     expect( panel.querySelector( '.vl-live-wx-daily-icon' ) ).not.toBeNull();
@@ -877,8 +943,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( detail?.textContent ).toContain( 'Wind' );
       expect( detail?.textContent ).toContain( 'Cloud' );
     } );
-    // Alerts: India has no coverage, so the neutral line shows (not an empty noisy panel).
-    expect( panel.textContent ).toContain( 'Weather alerts are not supported by Google for this region.' );
+    // Alerts: India has no coverage, so the neutral customer-facing line avoids provider/internal wording.
+    expect( panel.textContent ).toContain( 'Weather alerts aren’t available for this location.' );
     // Unsupported is a distinct state, not the same as a successful "no alerts" response.
     // No publicAlerts request was made for India.
     expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
@@ -1601,6 +1667,65 @@ describe( 'VayuLokLive v8 approved design contract', () => {
   } );
 
 
+  it( 'uses the active site language for voice search and sends the transcript through the existing place search', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    let speech: FakeSpeechRecognition | null = null;
+
+    class FakeSpeechRecognition {
+      lang = '';
+      continuous = true;
+      interimResults = true;
+      maxAlternatives = 0;
+      onstart: ( () => void ) | null = null;
+      onend: ( () => void ) | null = null;
+      onerror: ( () => void ) | null = null;
+      onresult: ( ( event: { results: Array<Array<{ transcript: string }>> } ) => void ) | null = null;
+      constructor() { speech = this; }
+      start() { this.onstart?.(); }
+      stop() { this.onend?.(); }
+      abort() { /* cleanup only */ }
+    }
+
+    vi.stubGlobal( 'SpeechRecognition', FakeSpeechRecognition );
+    document.documentElement.lang = 'bn';
+
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const mic = await screen.findByRole( 'button', { name: 'Search by voice' } );
+    fireEvent.click( mic );
+    expect( speech ).not.toBeNull();
+    expect( speech!.lang ).toBe( 'bn-IN' );
+    expect( mic.getAttribute( 'aria-pressed' ) ).toBe( 'true' );
+    const micPath = mic.querySelector( 'path' );
+    expect( micPath?.getAttribute( 'd' ) ).toBe(
+      'M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z',
+    );
+    const voiceCss = Array.from( document.querySelectorAll( 'style' ) )
+      .map( s => s.textContent || '' )
+      .find( css => css.includes( '.voice-search-mic-glyph{fill:currentColor}' ) ) || '';
+    expect( voiceCss ).toContain( 'background:transparent;color:#3da35a' );
+    expect( voiceCss ).toContain( 'border-radius:0' );
+    expect( voiceCss ).toContain( 'width:23px;height:23px' );
+    expect( voiceCss ).toContain( '.voice-search-mic-glyph{fill:currentColor}' );
+    expect( voiceCss ).not.toContain( 'stroke:#1a3a2a' );
+    expect( voiceCss ).not.toContain( 'paint-order:stroke fill' );
+    expect( voiceCss ).not.toContain( 'border-radius:50%;background:#1a3a2a' );
+    expect( voiceCss ).toContain( '@keyframes voice-search-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}' );
+
+    act( () => {
+      speech!.onresult?.( { results: [ [ { transcript: 'কলকাতা' } ] ] } );
+      speech!.onend?.();
+    } );
+
+    const input = screen.getByRole( 'combobox' ) as HTMLInputElement;
+    await waitFor( () => expect( input.value ).toBe( 'কলকাতা' ) );
+    await waitFor( () => expect(
+      rec.autocompleteCalls.some( req => req.input === 'কলকাতা' ),
+    ).toBe( true ) );
+  } );
+
   it( 'reopens typed autocomplete on focus and selects suggestions with pointer input', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
@@ -1802,14 +1927,15 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( css ).not.toContain( '.vl-live-air-card-wrap::after{' );
 
     // GLOBAL SEARCH FIELD: the outer wrapper is visually absent. The input itself reuses
-    // Header .nav-search / ProductBlogPanel .pbp-search: transparent, bottom hairline only.
-    expect( container.querySelector( '.vl-live-search-field svg' ) ).toBeNull();
+    // Header .nav-search / ProductBlogPanel .pbp-search; an optional voice action floats inside
+    // the right edge only in browsers that expose SpeechRecognition.
     const inputRule = css.match( /\.vl-live-search-field input\{[^}]*\}/ )?.[ 0 ] || '';
     expect( inputRule ).toContain( 'border-bottom:1px solid #e5e7eb' );
     expect( inputRule ).toContain( 'border:0' );
     expect( inputRule ).toContain( 'font-size:16px' );
     expect( inputRule ).toContain( 'font-weight:400' );
     expect( inputRule ).toContain( 'background:transparent' );
+    expect( inputRule ).toContain( 'padding:0 44px 0 2px' );
     // LIGHT focus treatment: a thin dark-green bottom border + a subtle lime accent line, NOT a
     // heavy rectangular outline around the whole field.
     const inputFocus = css.match( /\.vl-live-search-field input:focus-visible\{[^}]*\}/ )?.[ 0 ] || '';
@@ -1819,6 +1945,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( inputFocus ).not.toContain( 'outline:3px' );
     const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
     expect( fieldRule ).toContain( 'border-radius:0' );
+    expect( fieldRule ).toContain( 'position:relative' );
     // DECOUPLED FROM mapReady: the search box now renders on EVERY path (it no longer waits for
     // the map to paint), so a user can search for a city/pincode even on the keyless path or if
     // the map fails. The live #vl-live-search input is therefore present here.

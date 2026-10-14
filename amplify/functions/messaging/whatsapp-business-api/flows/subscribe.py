@@ -12,6 +12,7 @@ import time
 import uuid
 import logging
 from decimal import Decimal
+from lambda_utils.identity import subscriber_id as subscriber_identity
 from typing import Dict
 
 from flows.common import (
@@ -122,7 +123,7 @@ def handle_review(data: Dict, flow_token: str, request_id: str) -> Dict:
             reference_prefix='WD-SUB', requires_payment=False, payment_amount=0,
             status='completed',
         )
-        subscriber_id = existing_sub_id or result.reference
+        subscriber_id = _canonical_subscriber_id(contact_id) or existing_sub_id or result.reference
         return {'screen': 'COMPLETE', 'data': {
             'subscriber_id': subscriber_id,
             'message': 'Your profile and contact preferences are saved.'
@@ -188,9 +189,10 @@ def handle_review(data: Dict, flow_token: str, request_id: str) -> Dict:
     # A returning subscriber keeps the id they already have; a new one gets the derived
     # reference. Note that the claim id is per *completion* (per flow token), not per
     # subscriber - otherwise a subscriber could never update their details a second time.
-    subscriber_id = existing_sub_id or result.reference
+    subscriber_id = _canonical_subscriber_id(contact_id) or existing_sub_id or result.reference
     is_resubscribe = bool(existing_sub_id)
 
+    # A new flow-created row will mint the canonical ID in _save_contact below.
     # ── SET COMPLETE RESPONSE ──
     welcome_msg = (
         f'Welcome back to WECARE.DIGITAL! Your details have been updated.\nSubscriber ID: {subscriber_id}'
@@ -245,6 +247,11 @@ def handle_review(data: Dict, flow_token: str, request_id: str) -> Dict:
         )
         if not contact_id:
             contact_id = subscriber_uuid
+        subscriber_id = _canonical_subscriber_id(contact_id) or subscriber_id
+        response_payload['data']['subscriber_id'] = subscriber_id
+        response_payload['data']['message'] = (
+            f'Welcome to WECARE.DIGITAL! Your subscriber ID is {subscriber_id}.'
+        )
     except Exception as e:
         logger.warning(f'Subscribe contact save failed: {e}')
 
@@ -278,6 +285,17 @@ def handle_review(data: Dict, flow_token: str, request_id: str) -> Dict:
 
 
 # ── Private helpers ──
+
+def _canonical_subscriber_id(contact_id: str) -> str:
+    if not contact_id:
+        return ''
+    try:
+        row = dynamodb.Table(CONTACTS_TABLE).get_item(
+            Key={'id': contact_id}, ConsistentRead=True).get('Item') or {}
+        return str(row.get(subscriber_identity.SUBSCRIBER_ID_ATTRIBUTE) or '')
+    except Exception:
+        return ''
+
 
 def _find_existing_subscriber_id(phone: str) -> str:
     """Find existing subscriber ID by phone number.
@@ -364,6 +382,7 @@ def _save_contact(contact_id, subscriber_uuid, subscriber_id, phone,
             norm_phone = f'+{norm_phone}'
         ct.put_item(Item={
             'id': subscriber_uuid, 'contactId': subscriber_uuid,
+            **subscriber_identity.new_contact_fields(now=now_ts),
             'name': full_name, 'phone': norm_phone, 'email': email,
             'contactBookName': company, 'companyName': company,
             'username': username, 'designation': designation,
@@ -375,4 +394,4 @@ def _save_contact(contact_id, subscriber_uuid, subscriber_id, phone,
             'optInWhatsApp': True, 'optInSms': True, 'optInEmail': True,
             'tags': tags,
             'createdAt': now_ts, 'updatedAt': now_ts,
-        })
+        }, ConditionExpression='attribute_not_exists(id)')

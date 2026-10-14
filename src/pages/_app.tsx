@@ -463,7 +463,7 @@ const serviceSchema = {
  * organisation.
  *
  * IT IS NOT SET ON THE REQUESTS PAGES, deliberately. /submit-request, /drop-docs, /vault,
- * /request-pickup, /leave-review, /refer-and-earn, /request-amendment and /subscribe are ways to
+ * /request-pickup, /leave-review, /refer-and-earn and /request-amendment are ways to
  * interact with us, not
  * services we sell - "Leave Review" is not an offering, and typing it as a Service to get a
  * richer graph would be describing the site we wish we had. Nor on /terms, /privacy, /contact
@@ -566,11 +566,6 @@ const PUBLIC_PAGE_META: Record<string, {
   // refuse. Drift from src/content/shipments.ts is instead guarded by an equality assertion in
   // src/test/ShipmentsPage.test.tsx, the same shape the CTA-1 href already uses.
   '/shipments': { name: 'Shipments', type: 'WebPage', description: 'Everything about your request, delivery or pickup in one place. Track what you already have with WECARE.DIGITAL, or ask us to arrange a pickup, on WhatsApp.' },
-  // Subscribe sits after Leave Review in the Request menu, on owner instruction. Its CTA goes to
-  // /contact/ until a subscription backend exists, and the page stores nothing, so the sentence
-  // says that subscribing is handled through the contact page rather than promising a sign-up.
-  // No serviceType: it is a way to contact us, not something we sell.
-  '/subscribe': { name: 'Subscribe', type: 'WebPage', description: 'Ask to subscribe to WECARE.DIGITAL updates. For now, subscribing is handled through the contact page.' },
   // Perks is a home-styled landing page for the small thank-yous we send customers, and the
   // repaired destination for the gift-card links that used to point at a 404. The owner removed
   // the former gift-card / offers / rewards sections, so the page is now a calm, honest landing

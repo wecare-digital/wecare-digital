@@ -645,13 +645,26 @@ class TestContactLock:
         assert resp["statusCode"] == 409
         assert json.loads(resp["body"])["error"] == contacts.DELETE_REFUSED_LOCKED
 
-    def test_an_unlocked_contact_still_deletes_or_archives_normally(self, monkeypatch):
+    def test_an_unlocked_contact_passes_the_lock_gate_then_meets_the_hard_delete_kill_switch(self, monkeypatch):
+        """This test owns the LOCK gate, not the delete outcome: an unlocked contact must not be
+        refused with CONTACT_LOCKED. It now passes that gate and reaches `_hard_delete`, which is
+        fail-closed - 409 HARD_DELETE_DISABLED for every hard delete until an atomic retention
+        lease exists. The point under test is that the refusal is NOT the lock error, and that a
+        soft delete (archive) of the same unlocked row still succeeds."""
         table = FakeContactsTable()
         contacts = _contacts_module(monkeypatch, table)
         table.items.append({"id": "c1", "name": "Asha", "locked": False})
-        # No payment links on this fake row, so a hard delete may proceed.
-        resp = contacts._delete("c1", True, "req-del")
-        assert resp["statusCode"] in (200, 204), json.loads(resp["body"]) if resp.get("body") else resp
+
+        # Hard delete: past the lock gate, but hard delete itself is disabled.
+        hard = contacts._delete("c1", True, "req-del")
+        assert hard["statusCode"] == 409
+        payload = json.loads(hard["body"])
+        assert payload["error"] == "HARD_DELETE_DISABLED"
+        assert payload["error"] != contacts.DELETE_REFUSED_LOCKED
+
+        # Soft delete (what Archive is) of an unlocked, payment-free row still works.
+        soft = contacts._delete("c1", False, "req-arch")
+        assert soft["statusCode"] in (200, 204), json.loads(soft["body"]) if soft.get("body") else soft
 
     def test_locked_is_not_in_allowed_update_fields(self):
         """The dedicated endpoints are the ONLY way to flip lock; a generic update cannot."""

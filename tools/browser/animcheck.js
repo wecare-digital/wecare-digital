@@ -19,13 +19,20 @@
  *    fails if it is not constant within a surface. This is the real gate; the character
  *    -band check in HomePage.test.tsx is only a proxy and a unit test cannot see reflow.
  *
- * 2. ONE ANIMATION FAMILY. There are FOUR implementations of this hero, not three:
- *    three inline copies (home-, hero- on /grahak-os/, vl- on /vayulok/) plus the
- *    shared RotatingHero component (rh-, used by /contact/, /terms/, /privacy/,
- *    /bharat-rx/, /orders/). They are meant to animate identically, so this compares
- *    the COMPUTED transition of the pill, the word, the tint and the dot across all of
- *    them and fails on drift. Four copies of a constant cannot be kept in step by
- *    intention alone.
+ * 2. ONE ANIMATION FAMILY. The pill used to be FOUR hand-rolled copies (home-, hero- on
+ *    /grahak-os/, vl- on /vayulok/, rh- in the shared RotatingHero). They were extracted
+ *    into ONE shared component, src/components/RotatingPill.tsx, which self-scopes a single
+ *    rp-* class set and is mounted by all four surfaces (and by /terms/, /privacy/,
+ *    /bharat-rx/, /orders/ through RotatingHero). This still compares the COMPUTED
+ *    transition of the pill, the word, the tint and the dot across all four surfaces: with
+ *    one shared implementation they MUST be identical, so any drift now means a page has
+ *    shadowed rp-* CSS or failed to mount the shared pill - which is exactly the regression
+ *    worth catching after the consolidation.
+ *
+ *    NOTE: the HEADLINE around the pill is still per-page (home-head, vl-head, rh-head, and
+ *    a bare <h1> on /grahak-os/), because styled-jsx scopes the h1's clamp to its own file.
+ *    So each surface carries a `head` prefix (for the reflow measurement) distinct from the
+ *    shared `pill` prefix `rp` (for the animation family).
  *
  * 3. TAIL TRAVEL. Reports each word's rendered width and the shortest-to-longest
  *    spread, which is how far the headline's tail moves each tick. Not a failure -
@@ -60,14 +67,18 @@ const { launch, gotoStable } = require( './lib/browser' );
 const { target } = require( './lib/serve' );
 
 /**
- * The four rotating surfaces. `prefix` is the class stem; they differ because three
- * pages carry inline copies whose own tests pin their class names.
+ * The four rotating surfaces. Two stems per surface since the consolidation:
+ *   - `head` is the per-page headline class, still unique because styled-jsx scopes each
+ *     page's h1 clamp to its own file (grahak-os renders a bare <h1>, so `head` is null and
+ *     the measurement falls back to q('h1')).
+ *   - `pill` is the SHARED RotatingPill class stem, now `rp` on every surface.
  */
+const SHARED_PILL = 'rp';
 const SURFACES = [
-  { route: '/', prefix: 'home', label: 'Home' },
-  { route: '/grahak-os/', prefix: 'hero', label: 'Grahak OS' },
-  { route: '/vayulok/', prefix: 'vl', label: 'VayuLok' },
-  { route: '/contact/', prefix: 'rh', label: 'Contact (RotatingHero)' },
+  { route: '/', head: 'home', pill: SHARED_PILL, label: 'Home' },
+  { route: '/grahak-os/', head: null, pill: SHARED_PILL, label: 'Grahak OS' },
+  { route: '/vayulok/', head: 'vl', pill: SHARED_PILL, label: 'VayuLok' },
+  { route: '/contact/', head: 'rh', pill: SHARED_PILL, label: 'Contact (RotatingHero)' },
 ];
 
 /**
@@ -179,17 +190,19 @@ function record( ok, name, detail ) {
  * Read the computed transitions that define the animation family, plus each word's
  * rendered width, plus the h1 height for every word width.
  */
-async function measureSurface( page, prefix ) {
-  return page.evaluate( p => {
+async function measureSurface( page, headPrefix, pillPrefix ) {
+  return page.evaluate( ( { hp, pp } ) => {
     const q = s => document.querySelector( s );
-    const head = q( `.${p}-head` ) || q( 'h1' );
-    const cycle = q( `.${p}-cycle` );
-    const words = Array.from( document.querySelectorAll( `.${p}-cyc-word` ) );
-    const mark = q( `.${p}-mark` );
-    const dot = q( `.${p}-mark-dot` );
+    // The headline is per-page (hp); a null prefix (grahak-os' bare <h1>) falls back to q('h1').
+    const head = ( hp && q( `.${hp}-head` ) ) || q( 'h1' );
+    // The pill is the shared RotatingPill (pp = 'rp' on every surface).
+    const cycle = q( `.${pp}-cycle` );
+    const words = Array.from( document.querySelectorAll( `.${pp}-cyc-word` ) );
+    const mark = q( `.${pp}-mark` );
+    const dot = q( `.${pp}-mark-dot` );
 
     if ( !head || !cycle || !words.length ) {
-      return { error: `missing nodes for prefix "${p}" (head=${!!head} cycle=${!!cycle} words=${words.length})` };
+      return { error: `missing nodes (head=${!!head} cycle=${!!cycle} words=${words.length})` };
     }
 
     const cs = el => ( el ? getComputedStyle( el ) : null );
@@ -231,18 +244,18 @@ async function measureSurface( page, prefix ) {
         dot: dotCs ? dotCs.transition : '(no dot)',
       },
     };
-  }, prefix );
+  }, { hp: headPrefix, pp: pillPrefix } );
 }
 
 /** Sample the h1 height through a real rotation, untouched, for N ticks. */
-async function sampleLiveRotation( page, prefix, ticks ) {
+async function sampleLiveRotation( page, headPrefix, pillPrefix, ticks ) {
   const samples = [];
   for ( let i = 0; i < ticks; i++ ) {
-    const s = await page.evaluate( p => {
-      const head = document.querySelector( `.${p}-head` ) || document.querySelector( 'h1' );
-      const on = document.querySelector( `.${p}-cyc-word.on` );
+    const s = await page.evaluate( ( { hp, pp } ) => {
+      const head = ( hp && document.querySelector( `.${hp}-head` ) ) || document.querySelector( 'h1' );
+      const on = document.querySelector( `.${pp}-cyc-word.on` );
       return { h1: head.offsetHeight, word: on ? on.textContent : null };
-    }, prefix );
+    }, { hp: headPrefix, pp: pillPrefix } );
     samples.push( s );
     // Slightly longer than the 2400ms interval so each sample lands on a settled
     // pill rather than during the 520ms width glide.
@@ -283,9 +296,9 @@ async function main() {
       // The pill is client-rendered on some surfaces, so wait for it rather than
       // assuming it is in the served HTML.
       try {
-        await page.waitForSelector( `.${surface.prefix}-cyc-word`, { timeout: 15000 } );
+        await page.waitForSelector( `.${surface.pill}-cyc-word`, { timeout: 15000 } );
       } catch {
-        record( false, `${surface.route} renders a rotating pill`, `no .${surface.prefix}-cyc-word appeared` );
+        record( false, `${surface.route} renders a rotating pill`, `no .${surface.pill}-cyc-word appeared` );
         await context.close();
         continue;
       }
@@ -295,7 +308,7 @@ async function main() {
 
       for ( const width of VIEWPORTS ) {
         await page.setViewportSize( { width, height: 900 } );
-        const m = await measureSurface( page, surface.prefix );
+        const m = await measureSurface( page, surface.head, surface.pill );
         if ( m.error ) { record( false, `${surface.route} @${width}`, m.error ); allConstant = false; continue; }
 
         const uniq = [ ...new Set( m.heights.map( h => h.h1 ) ) ];
@@ -329,8 +342,8 @@ async function main() {
         // added nothing here except one more place for a CI run to time out. See the note
         // on gotoStable in lib/browser.js.
         await page.reload( { waitUntil: 'load', timeout: 60000 } );
-        await page.waitForSelector( `.${surface.prefix}-cyc-word.on`, { timeout: 15000 } );
-        const live = await sampleLiveRotation( page, surface.prefix, 6 );
+        await page.waitForSelector( `.${surface.pill}-cyc-word.on`, { timeout: 15000 } );
+        const live = await sampleLiveRotation( page, surface.head, surface.pill, 6 );
         const liveH = [ ...new Set( live.map( s => s.h1 ) ) ];
         record( liveH.length === 1,
           `/ h1 height constant through a live rotation @${LIVE_SAMPLE_VIEWPORT}px`,

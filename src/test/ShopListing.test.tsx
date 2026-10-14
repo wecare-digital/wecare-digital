@@ -146,7 +146,7 @@ describe( 'the listing page', () => {
     expect( container.querySelectorAll( 'main' ) ).toHaveLength( 1 );
     expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
     expect( container.querySelector( 'h1' )!.textContent ).toContain( 'A shop for' );
-    const words = Array.from( container.querySelectorAll( '.rh-cyc-word' ) ).map( w => w.textContent );
+    const words = Array.from( container.querySelectorAll( '.rp-cyc-word' ) ).map( w => w.textContent );
     expect( words ).toEqual( [ 'services', 'documents', 'products', 'journeys' ] );
     // The pill animates to each word's measured width, so keep the set close in length.
     for ( const word of words ) expect( ( word || '' ).length ).toBeLessThanOrEqual( 18 );
@@ -427,7 +427,7 @@ describe( 'the house rules this listing has to hold', () => {
   it( 'reuses the hero rotation rather than introducing a colour', () => {
     const { container } = render( <ShopListingView { ...propsFor( 1 ) } /> );
     const css = declarationsOnly( cssOf( container ) );
-    // Red is retired from these surfaces, and PublicPageTopBand.test.tsx enforces its absence
+    // Red is retired from these surfaces, and PublicPageHero.test.tsx enforces its absence
     // on the neighbouring shop files.
     expect( css ).not.toContain( '#dc2626' );
     expect( css ).not.toContain( '#fee2e2' );

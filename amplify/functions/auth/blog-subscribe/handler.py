@@ -23,6 +23,7 @@ import boto3
 from boto3.dynamodb.conditions import Key
 
 from lambda_utils import contact_key, customer_session, otp_challenge, otp_throttle
+from lambda_utils.identity import subscriber_id
 from lambda_utils.comms import verification_email
 from lambda_utils.identity import customer as identity
 from lambda_utils.logging import get_logger
@@ -357,6 +358,7 @@ def _upsert_contact(first: str, last: str, phone: str, email: str) -> str:
     contact_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"wecare:blog:{phone}|{email}"))
     item = {
         **contact_key.contact_item_keys(contact_id),
+        **subscriber_id.new_contact_fields(now=now),
         "name": name,
         "firstName": first,
         "lastName": last,

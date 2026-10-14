@@ -16,28 +16,41 @@ const ruleFor = ( source: string, selector: string ) => {
 };
 
 describe( 'WhatsApp subscribe CTA design', () => {
-  it( 'keeps the blog-post WhatsApp CTA on the home-page button contract', () => {
-    const source = read( 'src/pages/post/[slug].tsx' );
-    const rule = ruleFor( source, '.blog-wa-subscribe{' );
+  /**
+   * THE POST PAGE NO LONGER OWNS A SUBSCRIBE PILL - the owner unified every public surface onto
+   * the ONE global PublicShare block. So the old inline `.blog-wa-subscribe` anchor and its CSS
+   * are gone from src/pages/post/[slug].tsx, and the page renders <PublicShare> instead. This
+   * case therefore asserts the removal on the page AND holds the home-page button contract on the
+   * component that now carries the Subscribe pill (PublicShare's `.ps-subscribe`).
+   */
+  it( 'removes the post page own Subscribe pill and keeps the contract on the global PublicShare', () => {
+    const page = read( 'src/pages/post/[slug].tsx' );
 
-    expect( source ).toContain( 'aria-label="Subscribe on WhatsApp"' );
-    expect( source ).toContain( '<span>Subscribe</span>' );
-    expect( source ).not.toContain( '<span>Subscribe on WhatsApp</span>' );
+    // The old inline Subscribe pill is gone, markup and CSS both.
+    expect( page ).not.toContain( 'className="blog-wa-subscribe"' );
+    expect( page ).not.toContain( '.blog-wa-subscribe{' );
+    expect( page ).not.toContain( '<span>Subscribe</span>' );
+    // The page renders the global block instead.
+    expect( page ).toContain( '<PublicShare' );
 
-    expect( rule ).toContain( 'min-height:52px' );
-    expect( rule ).toContain( 'padding:028px' );
-    expect( rule ).toContain( 'border:2pxsolid#1a3a2a' );
-    expect( rule ).toContain( 'border-radius:50px' );
-    expect( rule ).toContain( 'background:#d1f470' );
-    expect( rule ).toContain( 'color:#1a3a2a' );
-    expect( rule ).toContain( 'font-size:17px' );
-    expect( rule ).toContain( 'font-weight:600' );
+    // Subscribe now shares the compact 48px circular action contract with Contribute and Share.
+    const share = read( 'src/components/PublicShare.tsx' );
+    const action = ruleFor( share, '.ps-action{' );
+    const subscribe = ruleFor( share, '.ps-subscribe{' );
+    expect( share ).toContain( 'aria-label="Subscribe on WhatsApp"' );
 
-    expect( source ).toContain(
-      '.blog-wa-subscribe:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}'
-    );
-    expect( source ).toContain(
-      '.blog-wa-subscribe:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}'
+    expect( action ).toContain( 'width:48px' );
+    expect( action ).toContain( 'height:48px' );
+    expect( action ).toContain( 'border-radius:50%' );
+    expect( action ).toContain( 'display:inline-flex' );
+    expect( action ).toContain( 'align-items:center' );
+    expect( action ).toContain( 'justify-content:center' );
+
+    expect( subscribe ).toContain( 'background:#d1f470' );
+    expect( subscribe ).toContain( 'border-color:#1a3a2a' );
+    expect( share ).toContain( '.ps-subscribe:hover{background:#fff}' );
+    expect( share ).toContain(
+      '.ps-action:focus-visible,.ps-menu-item:focus-visible{'
     );
   } );
 

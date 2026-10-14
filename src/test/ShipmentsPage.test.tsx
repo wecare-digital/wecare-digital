@@ -16,7 +16,7 @@ import { whatsappServiceLink } from '../config/whatsappServiceEntries';
  * user-visible "Zip" survives. The retired-name assertion below guards that it cannot creep back.
  *
  * WHAT THIS GUARDS. Shipments now follows the SAME thin shape as every other request page
- * (/drop-docs/, /subscribe/): a route file that renders the shared ProductPage over a ProductDef,
+ * (for example /drop-docs/): a route file that renders the shared ProductPage over a ProductDef,
  * so the hero is the shared RotatingHero and the page cannot drift from its siblings. The one
  * thing it adds is a SECOND CTA, so these assertions pin:
  *   - one <h1> and one <main>, both from the shared hero (htmlcheck's H1-MANY / MANY-MAIN);
@@ -52,7 +52,7 @@ describe( 'Shipments page', () => {
     expect( screen.getByText( 'Track it. Arrange it. Keep it moving.' ) ).toBeInTheDocument();
     // The rotation words the content file sets, in order. The screen-reader copy lists them once;
     // the animated copies are aria-hidden.
-    const words = Array.from( container.querySelectorAll( '.rh-cyc-word' ) ).map( w => w.textContent );
+    const words = Array.from( container.querySelectorAll( '.rp-cyc-word' ) ).map( w => w.textContent );
     expect( words ).toEqual( [ 'order', 'request', 'pickup', 'parcel' ] );
     for ( const word of words ) expect( ( word || '' ).length ).toBeLessThanOrEqual( 18 );
   } );
@@ -90,6 +90,9 @@ describe( 'Shipments page', () => {
 
   it( 'carries exactly two wa.me anchors and no form, field or button', () => {
     const { container } = render( <ShipmentsPage /> );
+    // Drop the shared sitewide action dock before counting. It contains Subscribe/Share controls
+    // and the Contribute actions; those are sitewide furniture, not the shipments page's controls.
+    container.querySelector( '.public-share' )?.remove();
     const waLinks = Array.from( container.querySelectorAll( 'a[href*="wa.me"]' ) );
     expect( waLinks ).toHaveLength( 2 );
     // In document order: tracking first, pickup second.
@@ -102,6 +105,9 @@ describe( 'Shipments page', () => {
 
   it( 'surfaces no transacting control or price', () => {
     const { container } = render( <ShipmentsPage /> );
+    // The common page-tail carries the contribution amount and checkout action; remove the whole
+    // dock before asserting the Shipments page itself surfaces no price or buy control.
+    container.querySelector( '.public-share' )?.remove();
     const text = ( container.textContent || '' ).toLowerCase();
     expect( text ).not.toContain( 'add to cart' );
     expect( text ).not.toContain( 'pay now' );

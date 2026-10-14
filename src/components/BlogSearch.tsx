@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useRef } from 'react';
+import VoiceSearchMic from './VoiceSearchMic';
 
 interface BlogSearchProps {
   /**
@@ -85,23 +86,39 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
   const live = typeof value === 'string' && typeof onChange === 'function';
   // Announce only when a query is actually narrowing something.
   const announce = live && value && typeof resultCount === 'number';
+  const formRef = useRef<HTMLFormElement | null>( null );
+  const inputRef = useRef<HTMLInputElement | null>( null );
+  const onVoiceTranscript = ( transcript: string ) => {
+    if ( live ) {
+      onChange!( transcript );
+      return;
+    }
+    if ( !inputRef.current ) return;
+    inputRef.current.value = transcript;
+    if ( formRef.current?.requestSubmit ) formRef.current.requestSubmit();
+    else formRef.current?.submit();
+  };
 
   return (
     <div className="bs">
       {/* action and method are set in BOTH modes on purpose: they are what the no-JS path
           falls back to, and what makes Enter meaningful before hydration. */}
-      <form className="bs-form" role="search" action={ action } method="get">
+      <form ref={ formRef } className="bs-form" role="search" action={ action } method="get">
         <label className="bs-label" htmlFor={ inputId }>{ label }</label>
-        <input
-          id={ inputId }
-          type="search"
-          name="q"
-          placeholder={ placeholder }
-          autoComplete="off"
-          { ...( live
-            ? { value, onChange: ( e: React.ChangeEvent<HTMLInputElement> ) => onChange!( e.target.value ) }
-            : {} ) }
-        />
+        <div className="bs-field">
+          <input
+            ref={ inputRef }
+            id={ inputId }
+            type="search"
+            name="q"
+            placeholder={ placeholder }
+            autoComplete="off"
+            { ...( live
+              ? { value, onChange: ( e: React.ChangeEvent<HTMLInputElement> ) => onChange!( e.target.value ) }
+              : {} ) }
+          />
+          <VoiceSearchMic onTranscript={ onVoiceTranscript } />
+        </div>
         <button type="submit">Search</button>
       </form>
 
@@ -119,6 +136,7 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
            hard-coded number. max-width keeps the field a sensible target rather than letting
            it run the full 1300px measure. */
         .bs-form{display:flex;gap:10px;align-items:stretch;max-width:520px}
+        .bs-field{position:relative;flex:1;min-width:0}
         /* The site's sr-only pattern, same declaration as .home-sr-only. */
         .bs-label{
           position:absolute;width:1px;height:1px;padding:0;margin:-1px;
@@ -136,12 +154,12 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
            The focus rule below is unchanged and still supplies the indicator, so dropping the
            resting border from 2px to 1px costs nothing: at rest this is a container edge, and
            the thing that has to clear WCAG 1.4.11 is the focused state. */
-        /* THE SITE-WIDE SEARCH LOOK: borderless, bottom hairline only, no box, no icon - the
+        /* THE SITE-WIDE SEARCH LOOK: borderless, bottom hairline only, plus the shared lime mic - the
            same field as the menu search (Header .nav-search) and the Anew blog panel
            (ProductBlogPanel), so every search a visitor meets reads as one control. Transparent
            fill, 1px bottom hairline; on focus the hairline darkens with a lime underline. */
         .bs-form input{
-          flex:1;min-width:0;height:52px;padding:0 2px;
+          width:100%;min-width:0;height:52px;padding:0 44px 0 2px;
           font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
           border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;

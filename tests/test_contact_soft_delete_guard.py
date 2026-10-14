@@ -214,9 +214,12 @@ def test_no_refusal_payload_carries_the_phone(monkeypatch):
 
 # ── still allowed: a clean contact ────────────────────────────────────────────────────────
 
-def test_a_contact_with_zero_payments_is_still_hard_deletable(monkeypatch):
-    """The guard narrows the delete, it does not remove it. A CRM row that never transacted
-    must still be destroyable, messages and media included, exactly as before."""
+def test_a_clean_contact_hard_delete_is_now_disabled_and_destroys_nothing(monkeypatch):
+    """HARD DELETE IS NOW FAIL-CLOSED. `_hard_delete` returns 409 HARD_DELETE_DISABLED
+    unconditionally - no destructive message/media cleanup is permitted without an atomic
+    retention lease. So even a CRM row that never transacted is no longer destroyable this
+    way; the operator is told to archive instead (archiveInstead: True). The guard that used
+    to let a zero-payment contact through now never runs, so NOTHING is deleted."""
     wiring = Wiring(messages=[{"id": "msg-1", "contactId": CONTACT_ID, "s3Key": "o/x.jpg"}])
     contacts = contacts_module(monkeypatch, wiring)
     deleted_keys = []
@@ -224,38 +227,41 @@ def test_a_contact_with_zero_payments_is_still_hard_deletable(monkeypatch):
 
     response = contacts._delete(CONTACT_ID, True, "req-9")
 
-    assert response["statusCode"] == 200
+    assert response["statusCode"] == 409
     payload = body(response)
-    assert payload["success"] is True
-    assert payload["deleteType"] == "hard"
-    assert payload["messagesDeleted"] == 1
-    assert payload["mediaDeleted"] == 1
-    assert deleted_keys == ["o/x.jpg"]
-    assert wiring.contacts.deletes == [{"id": CONTACT_ID}]
-    assert wiring.inbound.deletes == [{"id": "msg-1"}]
+    assert payload["error"] == "HARD_DELETE_DISABLED"
+    assert payload["archiveInstead"] is True
+    assert deleted_keys == [], "the disabled hard delete must touch no S3 object"
+    assert not wiring.deleted_anything, "the disabled hard delete must delete no row"
 
 
-def test_a_pending_invoice_does_not_make_an_abandoned_cart_undeletable(monkeypatch):
+def test_a_pending_invoice_contact_hard_delete_is_also_disabled(monkeypatch):
+    """A pending (uncaptured) invoice does not refuse on payment grounds, so this reaches
+    `_hard_delete` - which is now the fail-closed 409 for every hard delete alike."""
     wiring = Wiring(invoices=[{"contactId": CONTACT_ID,
                                "paymentStatus": payment_status.PENDING}])
     contacts = contacts_module(monkeypatch, wiring)
 
     response = contacts._delete(CONTACT_ID, True, "req-10")
 
-    assert response["statusCode"] == 200
-    assert wiring.contacts.deletes == [{"id": CONTACT_ID}]
+    assert response["statusCode"] == 409
+    assert body(response)["error"] == "HARD_DELETE_DISABLED"
+    assert not wiring.deleted_anything
 
 
-def test_a_missing_contact_still_answers_404_and_not_409(monkeypatch):
-    """`_hard_delete` owns the not-found answer. The guard returning 409 here would turn a
-    plain 404 into an operator chasing a payment that does not exist."""
+def test_a_missing_contact_hard_delete_is_refused_before_the_existence_check(monkeypatch):
+    """Hard delete is disabled AHEAD of `_hard_delete`'s own not-found answer, so a missing
+    contact now gets the 409 fail-closed response rather than a 404. The row never existed and
+    nothing is destroyed either way, so answering 409 here leaks nothing and keeps the one
+    kill-switch answer for every hard-delete request."""
     wiring = Wiring()
     wiring.contacts.items = []
     contacts = contacts_module(monkeypatch, wiring)
 
     response = contacts._delete("nobody", True, "req-11")
 
-    assert response["statusCode"] == 404
+    assert response["statusCode"] == 409
+    assert body(response)["error"] == "HARD_DELETE_DISABLED"
 
 
 # ── the soft delete, which is what Archive actually is ────────────────────────────────────

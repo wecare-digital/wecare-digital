@@ -378,7 +378,12 @@ describe( 'the product page', () => {
     const { container } = render( <ShopProductPage product={ kiosk } /> );
     const h1s = container.querySelectorAll( 'h1' );
     expect( h1s ).toHaveLength( 1 );
-    expect( h1s[ 0 ].textContent ).toBe( 'Kiosk' );
+    // The product page's h1 is the shared RotatingHero: a fixed "Explore" frame line plus a
+    // static pill holding the product name (a single-element words array, so no rotation). The
+    // h1's textContent concatenates the frame, the sr-only words copy and the visible word, so
+    // assert the frame and the pill word separately rather than the joined string.
+    expect( container.querySelector( '.rh-head-line' )?.textContent ).toBe( 'Explore' );
+    expect( container.querySelector( '.rp-cyc-word.on' )?.textContent ).toBe( 'Kiosk' );
     expect( screen.getByText( kiosk.tagline ) ).toBeTruthy();
     expect( container.querySelectorAll( 'p.shopd-p' ) ).toHaveLength( kiosk.body.length );
   } );

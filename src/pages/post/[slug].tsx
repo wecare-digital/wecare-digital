@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 import { Fragment, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import ShareLinks from '../../components/ShareLinks';
-import BlogContribution from '../../components/BlogContribution';
+import PublicShare from '../../components/PublicShare';
+import RotatingHero from '../../components/RotatingHero';
 import {
   SOCIAL_CARD_URL, SOCIAL_CARD_W, SOCIAL_CARD_H, SOCIAL_CARD_TYPE, SOCIAL_CARD_ALT, SHARE_CARD_TYPE,
 } from '../../config/share';
@@ -15,6 +15,7 @@ import { postContext, type PostLink } from '../../lib/post-neighbours';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import BlogTags from '../../components/BlogTags';
 import RssIcon from '../../components/RssIcon';
+import VoiceSearchMic from '../../components/VoiceSearchMic';
 
 /**
  * EVERY FIELD BELOW `post` IS OPTIONAL, and that is not defensiveness - it is what keeps
@@ -149,6 +150,8 @@ export default function BlogPostPage ( {
    * hit and scrolling back up does not replay it.
    */
   const shareRef = useRef<HTMLDivElement | null>( null );
+  const postSearchFormRef = useRef<HTMLFormElement | null>( null );
+  const postSearchInputRef = useRef<HTMLInputElement | null>( null );
   useEffect( () => {
     const el = shareRef.current;
     const article = el?.closest( 'article' );
@@ -357,8 +360,29 @@ export default function BlogPostPage ( {
           <script type="application/ld+json" dangerouslySetInnerHTML={ ld( post.jsonLd?.faqSchema ) } />
         ) }
       </Head>
-      <main className="article-shell">
-        <article>
+      {/* UNIFIED HERO (owner 2026-10-13): the post carries the same frame + ROTATING lime pill +
+          one-shot entrance as every other hero, via the shared RotatingHero. Frame is "Read" and
+          the pill cycles a short set of reading verbs - reflect, consider, revisit, return - each
+          on its own tint/dot from the house palette, so the post hero animates like the home,
+          Grahak OS and VayuLok heroes rather than sitting static. A post has one subject (its
+          title), so the title is NOT the pill - it stays the article's own h2 below; the pill
+          carries the quiet "what you do with a piece" verb instead. RotatingHero owns the <main>
+          and the ONE h1 (the hero), so the page keeps exactly one h1 (htmlcheck H1-MANY). Single
+          dynamic template, so every post - today's and any added tomorrow - gets it automatically.
+          noShare is set because the post keeps its own PublicShare at the .post-share reveal
+          sentinel (mid-content), so the hero must not auto-mount a second dock. */}
+      <RotatingHero
+        frame="Read and"
+        words={ [
+          { word: 'reflect', tint: '#e0f7c8', dot: '#3da35a' },
+          { word: 'consider', tint: '#dbeafe', dot: '#2563eb' },
+          { word: 'revisit', tint: '#ede9fe', dot: '#9849e8' },
+          { word: 'return', tint: '#fef9c3', dot: '#ca8a04' },
+        ] }
+        ariaLabel={ post.title }
+        noShare
+      >
+        <article className="article-shell">
           {/* A REAL TRAIL, replacing a single "← Blog" back link at 13px/650 - the only
               control on this page below the site's 12px/700 smallest UI rung. The page's own
               JSON-LD has always declared a BreadcrumbList; now the page shows one. */}
@@ -371,15 +395,26 @@ export default function BlogPostPage ( {
               panel, so a reader meets one search control across the blog. On a POST page there is
               no post list in the page to filter live, so this is a real GET form to /blog/: typing
               a term and pressing Enter navigates to /blog/?q=<term>, where the index reads ?q= and
-              filters the full corpus. name="q" is the param /blog/ reads. No submit button and no
-              icon, matching the borderless field on the other surfaces; the form still submits on
+              filters the full corpus. name="q" is the param /blog/ reads. There is still no visible
+              submit button; the shared lime mic is the one icon on this borderless field. The form submits on
               Enter, and the sr-only label gives it an accessible name. */}
-          <form className="post-search" role="search" action="/blog/" method="get">
+          <form ref={ postSearchFormRef } className="post-search" role="search" action="/blog/" method="get">
             <label className="post-search-sr" htmlFor="post-q">Search the blog</label>
-            <input id="post-q" name="q" type="search" autoComplete="off" placeholder="Search posts" />
+            <input ref={ postSearchInputRef } id="post-q" name="q" type="search" autoComplete="off" placeholder="Search posts" />
+            <VoiceSearchMic
+              onTranscript={ transcript => {
+                if ( !postSearchInputRef.current ) return;
+                postSearchInputRef.current.value = transcript;
+                if ( postSearchFormRef.current?.requestSubmit ) postSearchFormRef.current.requestSubmit();
+                else postSearchFormRef.current?.submit();
+              } }
+            />
           </form>
           { post.category && <div className="category">{ post.category }</div> }
-          <h1>{ post.title }</h1>
+          {/* The article title is an h2 now: the RotatingHero pill above is the page's single h1,
+              so the title steps down one level to keep exactly one h1. .post-title class carries
+              the old h1 styling so the visible treatment is unchanged. */}
+          <h2 className="post-title">{ post.title }</h2>
           {/* NO PUBLISHED DATE IN THE BYLINE, on owner instruction. It rendered beside the
               author as a formatted en-IN date and is gone from every blog and post surface.
               WHAT DELIBERATELY STAYS: datePublished and dateModified in the BlogPosting
@@ -421,58 +456,29 @@ export default function BlogPostPage ( {
               typecheck.js would hold to the 40px/700 section-h2 rung. */}
           <BlogTags tags={ post.tags || [] } className="tags" ariaLabel="Tags on this post" />
 
-          {/* SUBSCRIBE ON WHATSAPP - the in-page signup box was removed in favour of a single
-              button that opens a WhatsApp conversation at this subscribe deep link. A real
-              anchor, not a button+onClick: it leaves the site, so it must be middle-clickable,
-              long-pressable and copyable.
-              TEXT ONLY, no glyph: the WhatsApp logo inside the filled pill read as too busy, so
-              the destination moves to the quiet `.blog-wa-note` microcopy below. This is the
-              matched twin of the Contribute pill in BlogContribution.tsx - same lime object, same
-              one-word label, same microcopy line. */}
-          <a
-            className="blog-wa-subscribe"
-            href="https://wa.me/message/WUDPTMYSO6XII1"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Subscribe on WhatsApp"
-          >
-            <span>Subscribe</span>
-          </a>
-          {/* MICROCOPY: three words and a trailing arrow naming where the button goes. aria-hidden
-              because the anchor's accessible name already carries "on WhatsApp". */}
-          <p className="wc-sweep-note" aria-hidden="true">Continue on WhatsApp →</p>
-
-          {/* CONTRIBUTE - the voluntary-contribution block, placed AFTER Subscribe and BEFORE the
-              share row so the reading order is content -> Tags -> Subscribe -> Contribute ->
-              Share -> pager/related.
-              IT IS THE SUBSCRIBE ANCHOR'S TWIN: one lime pill, the same WhatsApp glyph, one word,
-              opening a DIFFERENT Meta message link (BYFLCAAMSZBXD1, not the WUDPTMYSO6XII1 above).
-              There is no amount to choose, no form and no cart write - the block was a
-              central-config amount pill with an honest-degradation seam until the owner replaced
-              both of its button-looking controls with this single link; see the component's
-              docblock for what was removed and why.
-              It stays a component (components/BlogContribution.tsx) so the pill and its unit cases
-              live in one place rather than inlined here. postId AND slug are still passed so the
-              block is attributable (data-post-id); the component's heading is an h2, never an h1,
-              so the page keeps its single h1 and htmlcheck's H1-MANY guard is satisfied. It does
-              NOT take the shareRef - that stays on .post-share below, which is the
-              IntersectionObserver reveal sentinel. */}
-          <BlogContribution postId={ post.id } slug={ post.slug } />
-
-          {/* SHARE, AT THE END OF THE READING RATHER THAN THE START.
-              A share control above the article asks a reader to recommend something they have not
-              read yet; the end of the piece is where the intent actually exists, and it is where
-              the page already puts its other outbound controls - the pager and the related cards
-              follow immediately below. One row, one place: a second copy under the title would be
-              two controls competing to do one job.
-              canonical, NOT router.asPath: what gets shared has to be the address the page
-              declares as its own, without a utm string or a #hash the reader happened to arrive
-              with. post.title rather than the seoTitle, because the seoTitle carries the
-              " | WECARE.DIGITAL" suffix that belongs in a browser tab, not in a WhatsApp message
-              where og:site_name already says whose link it is.
-              This div is also the sentinel the reveal effect observes - see the note above. */}
+          {/* THE OLD INLINE SUBSCRIBE PILL IS GONE. The post page used to carry its own
+              `.blog-wa-subscribe` WhatsApp pill and a `.wc-sweep-note` "Continue on WhatsApp →"
+              microcopy line here, plus its own `.post-share` ShareLinks row below Contribution.
+              The owner unified every public surface onto the ONE global Contribute+Subscribe+Share block
+              (components/PublicShare), so both the old Subscribe pill and the page's own Share row
+              are removed and PublicShare below provides Contribute, Subscribe and Share in one block.
+              There is exactly ONE Subscribe+Share on the page now. */}
+          {/* THE GLOBAL CONTRIBUTE + SUBSCRIBE + SHARE BLOCK, AT THE END OF THE READING.
+              The page no longer renders its own ShareLinks row; PublicShare is the ONE
+              Contribute+Subscribe+Share block every public surface carries - the compact Contribute menu,
+              Subscribe, then Share (the icon row for THIS page's own URL + title) in one block.
+              canonical + post.title are passed as the share target, NOT router.asPath or the
+              seoTitle: what gets shared has to be the address the page declares as its own
+              (no utm string, no #hash) and the title without the " | WECARE.DIGITAL" tab suffix,
+              because og:site_name already says whose link it is. PublicShare would resolve these
+              from location/document itself, but passing them keeps the static export correct and
+              avoids a stale value pre-hydration.
+              The .post-share wrapper stays as the IntersectionObserver reveal sentinel - shareRef
+              still names it, so the staged entrance of this block, the pager and the related cards
+              is unchanged. Its own hairline border is dropped (see the CSS note) because
+              PublicShare carries its own full-width separator. */}
           <div className="post-share" ref={ shareRef }>
-            <ShareLinks url={ canonical } title={ post.title } />
+            <PublicShare url={ canonical } title={ post.title } />
           </div>
 
           {/* WALKING THE STREAM, ONE POST AT A TIME.
@@ -558,13 +564,16 @@ export default function BlogPostPage ( {
             <RssIcon />
           </div>
         </article>
-      </main>
+      </RotatingHero>
       <style jsx>{`
-        /* Clear the fixed site header so readers land directly on the article. */
-        .article-shell{max-width:1300px;margin:0 auto;padding:140px 24px 96px;color:#1a1a1a;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+        /* NO HEADER CLEARANCE HERE ANY MORE: RotatingHero owns the <main>, the 108px/96px header
+           clearance, the measure and the gutter. .article-shell is now a plain <article> inside
+           .rh-layout, so it only needs its own 700px reading measure and font - the top padding
+           moved out with the <main>. */
+        .article-shell{max-width:700px;margin:0 auto;color:#1a1a1a;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
         article{max-width:700px;margin:0 auto}
         /* THE GLOBAL BORDERLESS SEARCH FIELD, matching /blog/ (.blog-search) and the /anew/ panel
-           (.pbp-search): transparent fill, one quiet bottom hairline, no icon, no button. On focus
+           (.pbp-search): transparent fill, one quiet bottom hairline, the shared lime mic, no submit button. On focus
            the hairline darkens and a lime underline grows. A GET form, so it works with no JS. */
         .post-search{position:relative;margin:0 0 24px;max-width:520px}
         .post-search-sr{
@@ -572,7 +581,7 @@ export default function BlogPostPage ( {
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
         .post-search input{
-          width:100%;box-sizing:border-box;height:52px;padding:0 2px;
+          width:100%;box-sizing:border-box;height:52px;padding:0 44px 0 2px;
           font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
           border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
@@ -593,7 +602,10 @@ export default function BlogPostPage ( {
            .category in BlogIndexView.tsx for why identity takes the fill and not the .22
            tint - the short version is that .22 composites to a barely-not-white wash. */
         .category{display:inline-block;background:#d1f470;color:#1a3a2a;border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;letter-spacing:-.125px;margin-bottom:18px}
-        h1{font-size:clamp(36px,4.3vw,60px);line-height:1.04;letter-spacing:-0.04em;color:rgba(0,0,0,.95);margin:0 0 20px;font-weight:600;text-wrap:balance;max-width:20ch}
+        /* .post-title carries the article title's old h1 treatment unchanged - it is an <h2> now
+           (RotatingHero's pill is the page's one h1), but the visible size/weight is identical so
+           the article still opens on its title at full weight. */
+        .post-title{font-size:clamp(36px,4.3vw,60px);line-height:1.04;letter-spacing:-0.04em;color:rgba(0,0,0,.95);margin:0 0 20px;font-weight:600;text-wrap:balance;max-width:20ch}
         /* AUTHOR ONLY NOW, so the row is no longer a row. The flex, the gap and the wrap all
            existed to lay out two children - the author and the date - and with the date gone
            they described a layout that cannot happen.
@@ -623,28 +635,16 @@ export default function BlogPostPage ( {
            layout rule, the .tags :global(a) pill, the four .tag-h0..3 dots and the hover/focus
            and reduced-motion handling all live there now, so the one component styles itself on
            every surface it renders. Nothing was dropped; it is the same block, in one place. */
-        /* SUBSCRIBE ON WHATSAPP BUTTON. Same object as the home-page CTA: 52px minimum
-           height, 28px inline padding, a 2px dark-green edge, 50px pill radius, 17px/600
-           label, and the same white hover inversion. TEXT ONLY now - the glyph was dropped,
-           so the destination lives in the .blog-wa-note microcopy below rather than on the
-           button. The visible label is Subscribe; the full WhatsApp context stays in the
-           accessible name. This mirrors the Contribute pill (.bc-cta) exactly. */
-        .blog-wa-subscribe{
-          display:inline-flex;align-items:center;justify-content:center;margin-top:44px;
-          min-height:52px;padding:0 28px;border:2px solid #1a3a2a;border-radius:50px;
-          background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;
-          text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s;
-        }
-        .blog-wa-subscribe:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-        .blog-wa-subscribe:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-        /* MICROCOPY under the Subscribe pill now uses the shared global .wc-sweep-note class
-           (src/styles/inner-ux.css) - the footer-tagline lime sweep on hover - so there is no
-           per-page copy here. The element carries className="wc-sweep-note". */
-        /* The share row sits in the same hairline rhythm as the tags above it and the pager below
-           - 24px of air under a 1px e5e7eb rule - so the tail of the page reads as three bands of
-           one object rather than three unrelated blocks. The controls style themselves; see
-           components/ShareLinks.tsx. */
-        .post-share{margin-top:44px;padding-top:24px;border-top:1px solid #e5e7eb}
+        /* THE OLD .blog-wa-subscribe PILL CSS IS GONE, with the markup it styled. The post page
+           no longer carries its own Subscribe pill (or the .wc-sweep-note microcopy that named
+           its destination); the global PublicShare block below provides Subscribe + Share, and
+           it styles its own .ps-subscribe pill. */
+        /* THE .post-share WRAPPER IS NOW JUST THE REVEAL SENTINEL. It wraps the global
+           PublicShare, which carries its OWN full-width hairline separator and its own top
+           spacing, so this wrapper must not add a second 1px rule and extra padding on top of
+           PublicShare's - that would read as a double divider. The margin-top keeps the block off
+           the Contribution above it; the border and padding move into PublicShare itself. */
+        .post-share{margin-top:4px}
 
         /* THE ENTRANCE, AND THE FINISHED STATE IS THE DEFAULT.
            Everything below is scoped to article.is-armed, a class the page adds only after
@@ -794,7 +794,8 @@ export default function BlogPostPage ( {
         }
         .post-related :global(.post-related-all:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px}
         @media(max-width:680px){
-          .article-shell{padding:120px 16px 64px}
+          /* No header clearance here on mobile either - RotatingHero's .rh-layout owns it. */
+          .article-shell{padding:0}
           h1{max-width:none}
           .byline{margin-bottom:34px}
           .content :global(p),.content :global(li){font-size:18px;line-height:1.6}

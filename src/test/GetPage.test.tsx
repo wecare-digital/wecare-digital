@@ -69,7 +69,7 @@ describe( 'Get page', () => {
     // The top section is the SHARED RotatingHero, not a bespoke lookalike: these are its own
     // class names, so a hand-rolled hero would not produce them.
     expect( container.querySelector( '.rh-head-line' ) ).toBeTruthy();
-    expect( container.querySelectorAll( '.rh-cyc-word' ).length ).toBeGreaterThan( 0 );
+    expect( container.querySelectorAll( '.rp-cyc-word' ).length ).toBeGreaterThan( 0 );
   } );
 
   it( 'renders the hero frame line and words that are true of this page', async () => {
@@ -81,7 +81,7 @@ describe( 'Get page', () => {
 
     // The rotation names what arrives here, rather than borrowing the home page's marketing
     // audiences. The screen-reader copy lists the words once; the animated copies are aria-hidden.
-    const words = Array.from( container.querySelectorAll( '.rh-cyc-word' ) ).map( w => w.textContent );
+    const words = Array.from( container.querySelectorAll( '.rp-cyc-word' ) ).map( w => w.textContent );
     expect( words ).toEqual( [ 'files', 'documents', 'records', 'papers' ] );
   } );
 
