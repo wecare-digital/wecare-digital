@@ -606,11 +606,17 @@ def test_1_an_unknown_coupon_code_is_refused(engine):
     _refused(engine, 400, "UNKNOWN_CODE", couponCode="NOSUCHCODE")
 
 
-def test_2a_an_unmirrored_coupon_is_refused(engine):
-    """Fail closed. The same code on the website would be rejected by Wix's `Add Coupon`, so
-    honouring it here would make the two surfaces disagree about what the customer was promised."""
+def test_2a_an_active_coupon_applies_regardless_of_legacy_mirror_state(engine):
+    """AWS-native: the local row is the sole authority, so an active coupon applies whether or not
+    it ever carried a Wix mirror. The former fail-closed-on-unmirrored behaviour is gone with the
+    Wix coupon mirror; refusing an unmirrored coupon would reject EVERY natively-created one.
+
+    So an unmirrored active coupon is now ACCEPTED and the invoice issues (contrast test_1, where
+    an unknown code is still refused)."""
     _issue_coupon(engine, mirrored=False)
-    _refused(engine, 400, "COUPON_INELIGIBLE", couponCode=COUPON_CODE)
+    status, payload = _create(engine, couponCode=COUPON_CODE)
+    assert status in (200, 201), payload
+    assert engine.tables.sequence.advances == 1, "an accepted coupon must still issue the invoice"
 
 
 def test_2b_an_expired_coupon_is_refused(engine):

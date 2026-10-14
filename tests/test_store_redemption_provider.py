@@ -11,10 +11,9 @@ Three of them are the ones worth reading twice:
   provider. The emptiness of that class IS the "one coupon system" guarantee - a provider that
   computes is a second discount engine wearing the Protocol's clothes, and prose would not stop
   someone adding one.
-* `test_an_unmirrored_coupon_is_refused_and_yields_no_discount` pins the fail-closed direction.
-  A coupon Wix does not know about must not discount an invoice, because the same code applied on
-  the website would be rejected by `Add Coupon` and the two surfaces would disagree about what the
-  customer was promised.
+* `test_an_unmirrored_coupon_applies_on_its_own_authority` pins the AWS-native direction: the
+  local DynamoDB row is the sole authority, so an active coupon applies regardless of any legacy
+  Wix mirror state. The Wix coupon mirror is retired, so there is no second surface to disagree.
 * `test_the_composed_order_is_coupon_then_fee_then_gift_card` asserts D1 and M6 together: the
   convenience fee is computed on the DISCOUNTED collection, the gift card is subtracted from the
   FINAL total, and `redemption_paise + razorpay_payable_paise == authoritative_total_paise`
@@ -174,17 +173,18 @@ def test_a_percent_off_coupon_is_priced_with_the_same_rounding_as_the_convenienc
     assert authority.discount_paise == cp.round_half_up(12345, 1500)
 
 
-def test_an_unmirrored_coupon_is_refused_and_yields_no_discount():
-    """Fail closed. The same code on the website would be rejected by Wix's `Add Coupon`, so
-    honouring it on an invoice would make the two surfaces disagree about what was promised."""
+def test_an_unmirrored_coupon_applies_on_its_own_authority():
+    """AWS-native: the local row is the sole authority. A legacy `PENDING_WIX` mirror state is
+    irrelevant — an active coupon prices and applies. (The former fail-closed-on-unmirrored
+    behaviour went with the Wix coupon mirror; it would otherwise refuse every native coupon.)"""
     coupons, cards = coupons_table(), gift_cards_table()
     issue_coupon(coupons, mirrored=False)
     assert cs.get_definition(coupons, "SAVE1000")["wixMirrorState"] == cs.MIRROR_PENDING
     authority = provider(coupons, cards).validate_coupon(
         code="SAVE1000", collection_before_discount_paise=COLLECTION_PAISE, cart_ref=CART_REF)
-    assert authority.valid is False
-    assert authority.reason == redemption.COUPON_INELIGIBLE
-    assert authority.discount_paise == 0
+    assert authority.valid is True
+    assert authority.reason == redemption.COUPON_APPLIED
+    assert authority.discount_paise == 100000
 
 
 def test_an_unknown_code_and_a_malformed_code_answer_alike():

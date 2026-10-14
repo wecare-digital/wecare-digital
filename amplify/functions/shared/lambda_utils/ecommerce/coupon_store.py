@@ -16,11 +16,10 @@ validate endpoint that returned a discount would be a number a browser could quo
 
 **One narrowing, added deliberately: `discount_paise`.** An earlier revision of this paragraph said
 nothing here returns or computes a discount amount, full stop. That is no longer true, and the
-exception is the invoice surface, which has no Wix cart and therefore no `Calculate Cart` to defer
-to. `discount_paise` answers that one question, from the definition this module already owns, and it
-reads exactly the `KIND_AMOUNT_ATTRIBUTE` attributes `wix_coupons.specification` sends - so it is a
-second RENDERING of one definition, not a second engine. Its own docstring carries the reasoning
-and the alternative that was rejected. `evaluate` is unchanged and still returns no figure.
+`discount_paise` is the single native discount function: it answers "what does this coupon take
+off?" from the `KIND_AMOUNT_ATTRIBUTE` attributes on the definition this module already owns, and
+`catalog_pricing.coupon_discount_paise` prices it into the native checkout. One definition, one
+reading, not two discount engines. `evaluate` returns a verdict and never a figure.
 
 One partition attribute, four row types
 ---------------------------------------
@@ -162,9 +161,12 @@ EXPIRED = "EXPIRED"
 USAGE_LIMIT_REACHED = "USAGE_LIMIT_REACHED"
 CUSTOMER_LIMIT_REACHED = "CUSTOMER_LIMIT_REACHED"
 HELD_BY_ANOTHER_CART = "HELD_BY_ANOTHER_CART"
+#: DEPRECATED. The Wix coupon mirror is retired, so this verdict is never produced any more. The
+#: constant is retained only so an older serialized reference does not NameError; it is NOT in
+#: VERDICTS and `eligibility` can no longer return it.
 WIX_MIRROR_INCOMPLETE = "WIX_MIRROR_INCOMPLETE"
 VERDICTS = (ELIGIBLE, UNKNOWN_CODE, NOT_ACTIVE, NOT_STARTED, EXPIRED, USAGE_LIMIT_REACHED,
-            CUSTOMER_LIMIT_REACHED, HELD_BY_ANOTHER_CART, WIX_MIRROR_INCOMPLETE)
+            CUSTOMER_LIMIT_REACHED, HELD_BY_ANOTHER_CART)
 
 #: DECISION 5. The existence of a hold lives on the row whose key is already known, so the
 #: check is a `GetItem`/`UpdateItem` rather than a search. These two attributes and this one
@@ -175,9 +177,9 @@ HOLD_CONDITION = ("attribute_not_exists(activeHoldCartId) "
                   "OR activeHoldCartId = :me "
                   "OR activeHoldExpiresAtMs < :now")
 
-#: Every attribute a definition row may carry, per coupons section 4.2. Enumerated because
-#: `wix_coupons` reads from this shape and a test discriminates our own attribute names from
-#: Wix's response keys by comparing against this set.
+#: Every attribute a definition row may carry. The `wixCouponId`/`wixMirrorState` entries remain
+#: in the shape for historical rows written before the Wix mirror was retired; they are no longer
+#: written or read against Wix.
 DEFINITION_ATTRIBUTES = (
     KEY_ATTRIBUTE, "couponId", "code", "wixCouponId", "wixMirrorState", "name", STATUS_ATTRIBUTE,
     "discountKind", "moneyOffPaise", "percentOffBps", "fixedPricePaise", "buyX", "buyY",
@@ -880,17 +882,16 @@ def evaluate(definition: Optional[Dict[str, Any]], *, cart_id: Any = None,
     Keeping it pure is what lets the handler answer without a second round trip and what lets a
     test enumerate every refusal without a table at all.
 
-    Order matters for the answer a customer sees. `WIX_MIRROR_INCOMPLETE` comes before the
-    time checks because a coupon Wix does not know about would be accepted by us and refused by
-    `Add Coupon`, and the customer would watch a discount appear and then vanish. Refusing it
-    here is the fail-closed answer.
+    AWS-native: the local DynamoDB row is the sole authority. There is no Wix mirror to
+    reconcile against, so eligibility is decided entirely from our own row — status, then the
+    time window, then the usage limits. (The former `WIX_MIRROR_INCOMPLETE` gate, which refused
+    any coupon not confirmed in Wix, is gone with the mirror; it would otherwise refuse EVERY
+    natively-created coupon.)
     """
     if not definition:
         return UNKNOWN_CODE
     if definition.get(STATUS_ATTRIBUTE) != STATUS_ACTIVE:
         return NOT_ACTIVE
-    if definition.get("wixMirrorState") != MIRROR_DONE:
-        return WIX_MIRROR_INCOMPLETE
 
     now_ms = _now_seconds(clock) * 1000
     start = definition.get("startTimeMs")
@@ -968,9 +969,8 @@ def discount_paise(definition: Optional[Dict[str, Any]], *, collection_paise: An
 
     So the amount is computed here, from the definition this module already owns, and NOWHERE
     else. That is the point of the location: the attributes read below are exactly
-    `KIND_AMOUNT_ATTRIBUTE`'s values, the same ones `wix_coupons.specification` sends, and
-    `tests/test_wix_coupons_contract.py` pins the two to the same attributes kind for kind. One
-    coupon definition, one reading of it, two renderings - not two discount engines.
+    `KIND_AMOUNT_ATTRIBUTE`'s values. One coupon definition, one reading of it - not two
+    discount engines.
 
     What it refuses, and why refusing is the correct answer
     ------------------------------------------------------
