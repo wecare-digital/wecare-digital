@@ -206,6 +206,16 @@ UNDECLARED_ALLOWED: dict[str, str] = {
         "contact can hold two independent threads (the same person talks to both WABA "
         "numbers). A contact-keyed GraphQL model cannot express that, which is the reason "
         "it is a table of its own rather than attributes on Contact.",
+    "WixOrdersCache":
+        "Retired Wix cache table; pending physical deletion in AWS, see Wix exit. The "
+        "commerce code is now AWS-native and no longer reads or writes this cache, and its "
+        "declaration was removed from amplify/data/resource.ts. It stays live only until an "
+        "owner deletes it in the console, so it is allow-listed rather than re-declared.",
+    "WixProductsCache":
+        "Retired Wix cache table; pending physical deletion in AWS, see Wix exit. The "
+        "commerce code is now AWS-native and no longer reads or writes this cache, and its "
+        "declaration was removed from amplify/data/resource.ts. It stays live only until an "
+        "owner deletes it in the console, so it is allow-listed rather than re-declared.",
 }
 
 
