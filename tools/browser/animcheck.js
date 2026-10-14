@@ -170,6 +170,24 @@ const ALLOWED = [
       /Failed to load resource/.test( text )
       && /\b(airquality|weather)\.googleapis\.com\//.test( url || '' ),
   },
+  {
+    // THIRD-PARTY ANALYTICS, GOOGLE-SIDE, scoped exactly like the entries above. The live GTM
+    // container GTM-TXZ8JT78 (loaded in _document.tsx) fires GA4 measurement id G-GNRPFFBXMF, and
+    // Google's own googletagmanager.com returns 404 for /gtag/js?id=G-GNRPFFBXMF and
+    // /gtag/destination?id=... - the id is retired/unprovisioned on Google's end, which this repo
+    // already documents in system-architecture.tsx (NEXT_PUBLIC_GA_MEASUREMENT_ID is unset; GA4 is
+    // fired by the container). Nothing in our markup, style or script can change what Google serves
+    // for that id, and the 404 appears on every public page because the container loads site-wide.
+    // Scoped to this ONE id on googletagmanager.com's gtag paths, matched on the REQUEST URL (the
+    // generic "Failed to load resource" line carries no identifying text) - so a 404 of any OTHER
+    // analytics resource, or a real app asset, still fails this gate. The real fix is owner-side:
+    // correct or retire G-GNRPFFBXMF in the GTM container; until then this is a known external 404.
+    why: 'third party: Google returns 404 for the GTM container\'s GA4 id G-GNRPFFBXMF on '
+      + 'googletagmanager.com/gtag - a retired/unprovisioned id, fixable only in the GTM container',
+    test: ( text, url ) =>
+      /googletagmanager\.com\/gtag\/.*G-GNRPFFBXMF/.test( url || '' )
+      || ( /Failed to load resource/.test( text ) && /googletagmanager\.com\/gtag\/.*G-GNRPFFBXMF/.test( url || '' ) ),
+  },
 ];
 
 function isAllowed( text, url ) {
