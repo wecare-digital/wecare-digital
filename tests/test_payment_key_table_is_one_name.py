@@ -9,8 +9,8 @@ resolving those same rows. They only join if both address the same physical tabl
 They did not. `razorpay-webhook` grew a module constant defaulting to
 `stack-wecare-digital-CommerceKeys` while `order_keys.commerce_keys_table_name()` -- the single
 documented resolver, and what `invoice-engine` uses -- falls back to
-`stack-wecare-digital-WixOrderIds`. `CommerceKeys` is **not a provisioned table in this
-account**; only `WixOrderIds` and `PaymentAttemptsTable` exist. With `COMMERCE_KEYS_TABLE` absent,
+`stack-wecare-digital-CommerceKeys`. `CommerceKeys` is **not a provisioned table in this
+account**; only `CommerceKeys` and `PaymentAttemptsTable` exist. With `COMMERCE_KEYS_TABLE` absent,
 which is its live state, one handler read the reservation from the real table at one call site and
 addressed a non-existent table at two others.
 
@@ -90,7 +90,7 @@ def test_the_resolver_names_a_table_the_account_actually_provisions():
     merely untidy: the wrong branch does not read stale rows, it raises
     `ResourceNotFoundException` on a money path. Pinned against the names this repo provisions,
     so a rename has to come here."""
-    assert PROVISIONED == 'stack-wecare-digital-WixOrderIds'
+    assert PROVISIONED == 'stack-wecare-digital-CommerceKeys'
     assert 'CommerceKeys' not in PROVISIONED
 
 
@@ -129,7 +129,7 @@ def test_no_payment_handler_carries_a_second_spelling_of_the_keys_table(label):
 def test_only_the_resolver_names_a_fallback():
     """One home for the default. `order_keys` may name it; a handler may not.
 
-    The resolver's fallback is itself a nested `os.environ.get("WIX_ORDER_IDS_TABLE", ...)`, so
+    The resolver's fallback is itself a nested `os.environ.get("COMMERCE_KEYS_TABLE", ...)`, so
     it is asserted by presence-and-reachability rather than by a literal second argument -- which
     is also the reason a handler cannot reproduce it correctly by hand and should not try.
     """
@@ -150,7 +150,7 @@ def test_only_the_resolver_names_a_fallback():
 def test_every_manifest_entry_names_the_one_provisioned_table():
     """The manifest is the thing that gets PUSHED, so a wrong value here is worse than a wrong
     code default: it overrides the correct resolver on every function at once. Both payment
-    entries once read `CommerceKeys` while the four pre-existing entries read `WixOrderIds` --
+    entries once read `CommerceKeys` while the four pre-existing entries read `CommerceKeys` --
     four against two is not a convention, it is a typo."""
     declared = _manifest_functions()
     assert declared, 'no function declares the keys table; the assertion below would be vacuous'
