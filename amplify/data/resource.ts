@@ -45,7 +45,7 @@ import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
  *     python scripts/audit_data_model_drift.py --gate   table names in code vs live tables
  *
  * The first is the one that guards this file. Six models declaring tables that do
- * not exist were removed on 2026-09-24 (SmsAws, AirtelSMS, AirtelC2C,
+ * obsolete declarations for stores that do not exist were removed on 2026-09-24.
  * RcsMessages, AdminActionLog, ProviderDriftSnapshot) and every remaining
  * disagreement is recorded with its reason in that script rather than left to be
  * rediscovered.
