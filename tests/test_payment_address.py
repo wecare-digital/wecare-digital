@@ -52,7 +52,7 @@ def test_india_unmappable_state_raises_naming_state():
 
 
 def test_non_india_iso_state_passes_website():
-    # A full ISO 3166-2 code (country-prefixed) is what to_india_address requires for non-India.
+    # A full ISO 3166-2 code (country-prefixed) is what to_delivery_address requires for non-India.
     pa.assert_payable(_non_india(state="US-CA"), channel=pa.WEBSITE_RAZORPAY)
 
 
