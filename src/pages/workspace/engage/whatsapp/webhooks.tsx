@@ -56,7 +56,6 @@ const EXISTING_WEBHOOKS = [
   // outright. A webhook inventory that reports a deleted endpoint as active is worse
   // than an incomplete one, because someone will go looking for why it stopped
   // delivering.
-  { name: 'Wix Store', url: 'https://wecare.digital/api/wix-store/*', fields: [ 'orders', 'products', 'inventory', 'collections' ], lambda: 'wecare-wix-store', status: 'active', verification: 'Server-side' },
 ];
 
 const META_WEBHOOK_CONFIG = {
