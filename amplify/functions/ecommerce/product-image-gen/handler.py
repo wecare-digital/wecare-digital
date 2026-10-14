@@ -119,9 +119,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # ── Authenticate API Gateway callers ──
         # All three routes were public with no handler check, and image generation
         # costs money per call, so an anonymous caller could run up spend. Note the
-        # WIX_API_KEY in this module is an OUTBOUND credential for calling Wix - it
-        # authenticates us to them, not them to us - and it was precisely the
-        # marker that made the route audit read this handler as authenticated.
+        # Retired provider credentials are not route credentials. This native endpoint
+        # authenticates the caller directly before any image-generation work.
         auth_failure = require_auth(event)
         if auth_failure is not None:
             return auth_failure
