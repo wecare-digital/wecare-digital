@@ -64,12 +64,17 @@ Legend: `[x]` done · `[~]` implemented, not deployed · `[ ]` not started.
       identity, renders a Wix-shape that round-trips through
       `wix_ecom.authoritative_total_paise`). Unit-tested. NOT wired — the drop-in
       source for `compute_quote` when `CHECKOUT_MODE=AWS_NATIVE`. (A3)
-- [~] 4.3 Native cart/discount modules: `CartTable` CDK (TTL-reaped) +
-      `catalog_pricing.price_cart`/`coupon_discount_paise` bridging the
-      AWS-authoritative `coupon_store.discount_paise` into the supply summary
-      (replaces Wix Calculate Cart for the coupon path). Unit-tested end-to-end
-      through `compute_quote`. Tax/shipping/inventory/reservation still to build;
-      not wired (CHECKOUT_MODE default WIX_HEADLESS). (A3)
+- [~] 4.3 Native cart/discount/tax modules: `CartTable` CDK (TTL-reaped);
+      `catalog_pricing.price_cart`/`coupon_discount_paise` (coupon discount from
+      `coupon_store`, replaces Wix Calculate Cart); `supply_tax_paise`/`SupplyTax`
+      (place-of-supply GST reusing `split_gst`); `service_pricing_native`
+      (service-page prices from ProductsTable, same contract). All unit-tested
+      end-to-end through `compute_quote`; not wired (CHECKOUT_MODE default
+      WIX_HEADLESS). Still to build: shipping/delivery resolver, inventory
+      validation + stock reservation, native CartTable CRUD ops. (A3)
+- [x] 4.3b Gift-card `code_pepper` de-Wix migration: `resolve_pepper_secret_id`
+      + `PEPPER_SECRET_ENV_KEY`, config-flip with no re-keying; handlers +
+      redemption provider follow it; store imports no `os`. Unit-tested. (B4 de-risk)
 - [~] 4.4 `scripts/build-catalog-snapshot.py` writes `catalog-snapshot.json` in
       the SAME envelope as `wix-catalog.json` (ShopProduct shape, display-only
       prices, Indian grouping, archived excluded). Unit-tested. Repointing

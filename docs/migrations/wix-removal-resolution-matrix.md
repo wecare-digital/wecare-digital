@@ -34,14 +34,27 @@ Remaining blog write path: `blog_publish.py` + `conversations-publish.yml`
 | `product-image-gen` | — | `WIX_CREDENTIALS_DISABLED=true` hardcoded | ⚙ Wix writes already off |
 | `provider_adapters.py` (MCP) | — | thin adapter | 🔁 verify + repoint |
 
-## The native supply total (keystone) — status ✅ partial
+## The native supply total (keystone) — status ✅ mostly built
 `catalog_pricing.build_price_summary`/`price_cart` produce the Wix `priceSummary`
 identity and feed the unchanged `checkout_pricing.compute_quote`. Built + tested.
+- ✅ **tax** — `supply_tax_paise`/`SupplyTax` (place-of-supply GST, CGST/SGST vs
+  IGST), reusing `checkout_pricing.round_half_up`+`split_gst`; zero-bps path for
+  GST-inclusive catalog prices (no double-tax). Built + tested.
+- ✅ **service-page pricing** — `service_pricing_native.resolve_all` reads
+  `ProductsTable` with the identical `{currency, prices{slug}}` contract,
+  fail-closed per slug. Built + tested.
 Still needed to fully replace `cart_v2.calculate`:
-- 🔁 **tax** (place-of-supply GST: CGST/SGST vs IGST on the supply),
 - 🔁 **shipping/delivery** resolver,
 - 🔁 **inventory validation + stock reservation**,
 - 🔁 native **CartTable** operations (create/add/update/remove) — table CDK ✅ built.
+
+## Gift-card pepper migration — ✅ built (de-risks SPI retirement)
+`gift_card_store.resolve_pepper_secret_id(env)` + `PEPPER_SECRET_ENV_KEY` let the
+HMAC pepper move to `wecare/prod/security/giftcard-pepper` by CONFIG FLIP, with no
+re-keying (identical value → identical `code_hash`). Handlers
+(`invoice-engine`, `gift-cards`) + the redemption provider now follow it. The
+store still imports no `os` (structural rule preserved). Built + tested. The 🔒
+ops step is copying the pepper value to the new secret and setting the env.
 
 ## Gift-card SPI (inbound) — the one true hazard
 - `GiftCardsTable` balances are AWS-authoritative; removing Wix loses no money.
