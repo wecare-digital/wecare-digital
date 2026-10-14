@@ -229,7 +229,7 @@ def create_event(line_items, **over):
 def seed_cart_pointer(h, fake, *, cart_id=CART_ID, version=1, busy=False, now=None):
     """A `CUSTOMERCART#` pointer exactly as `customer_cart.execute` leaves one."""
     item = {"orderId": "CUSTOMERCART#" + STORED_PHONE, "customerId": CUSTOMER,
-            "version": version, "wixCartId": cart_id,
+            "version": version, "cartId": cart_id,
             "expiresAt": (now or 2_000_000_000) + 60}
     if busy:
         item["busy"] = True
