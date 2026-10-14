@@ -4330,7 +4330,7 @@ def _tool_create_contact(params: Dict, request_id: str) -> Dict:
             'updatedAt': now
         }
         
-        contacts_table.put_item(Item=contact)
+        contacts_table.put_item(Item=contact, ConditionExpression='attribute_not_exists(id)')
         
         return {
             'success': True,
