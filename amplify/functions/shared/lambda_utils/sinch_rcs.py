@@ -359,8 +359,8 @@ def send_rcs_card(phone: str, title: str, description: str,
 #: hardcoded `'rcsmenu'` in four places and never read the variable. Those are two
 #: different senders for the same notification, so setting `NOTIF_RCS_TEMPLATE_NAME`
 #: switched one and silently left the other — a half-applied migration that looks
-#: applied. `send_rcs_ivr_notification` is the path the three live callers use
-#: (voice-in/c2c, voice-in/obd, whatsapp-calling, all with `SINCH_RCS_ENABLED=true`),
+#: applied. `send_rcs_ivr_notification` is the shared current notification seam used by
+#: voice operations and WhatsApp calling when RCS is enabled,
 #: so it was the half that mattered.
 #:
 #: WHY IT MATTERS NOW. `rcsmenu`'s approved body and its Get Started button point at
