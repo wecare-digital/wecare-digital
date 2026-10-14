@@ -31,7 +31,7 @@ import faq
 import seo_freshness
 import seo_refresh
 import storage
-import wix
+import page_catalog
 
 #: The two categories the live site actually has. Imported from the quality gate so the
 #: Lambda, the CLI and the admin page cannot disagree about what is acceptable -
@@ -375,14 +375,14 @@ def _page_audit(body: Dict[str, Any], actor: str, origin: str):
     slug = _slug(body.get('path'))
     page_type = str(body.get('pageType') or 'page').strip().lower()
     stored_type = page_type if page_type in {'product', 'system'} else 'page'
-    current = wix.page_seo(slug)
+    current = page_catalog.page_seo(slug)
     page = {
         **body,
         **current,
         'slug': slug,
         'name': str(body.get('name') or slug.lstrip('/').replace('-', ' ')),
         'title': current.get('title') or body.get('name') or slug,
-        'url': wix.SITE_BASE + slug,
+        'url': page_catalog.SITE_BASE + slug,
         'currentSeoTitle': current.get('title', ''),
     }
     return _guarded_audit(page, stored_type, body, actor, origin)
@@ -394,7 +394,7 @@ def _page_clean(body: Dict[str, Any], actor: str, origin: str):
     if duplicate:
         return duplicate
     removed = storage.delete_slug_audits(slug)
-    current = wix.page_seo(slug)
+    current = page_catalog.page_seo(slug)
     message = (
         f'Removed {removed} previous audit(s) for {slug}. Page is now clean for fresh audit.'
         if removed else f'No previous audits found for {slug}. Page is already clean.'
@@ -470,20 +470,6 @@ def _review(body: Dict[str, Any], actor: str, origin: str):
             'applied': True,
         }, origin)
     return _response(200, {'ok': True, 'audit': updated, 'applied': True}, origin)
-
-
-def _wix_writes_disabled() -> bool:
-    """Read through `wix_guard` rather than the env var directly.
-
-    There must be ONE definition of "are Wix credentials switched off" - the defect that module
-    exists to close was a flag read in some places and not others, which produced a switch that
-    disabled the store and left blog publishing running.
-    """
-    try:
-        from lambda_utils.wix_guard import credentials_disabled
-        return credentials_disabled()
-    except ImportError:  # pragma: no cover - wix_guard ships in every package
-        return False
 
 
 def _route_get(path: str, event: Dict[str, Any], origin: str):
@@ -565,7 +551,7 @@ def _route_get(path: str, event: Dict[str, Any], origin: str):
                                         limit=int(_query(event, 'limit', '0') or 0)),
             # Whether a publish would be refused before it is attempted. An operator looking at
             # a queue needs to know the writes are switched off without pressing anything.
-            'wixWritesDisabled': _wix_writes_disabled(),
+            'providerWritesRetired': True,
         }
         if batch_ref:
             payload['batchState'] = blog_publish.batch_publish_state(batch_ref)
@@ -696,10 +682,10 @@ def _route_get(path: str, event: Dict[str, Any], origin: str):
                 batch_id=_query(event, 'batchId')),
         }, origin)
     if path.endswith('/site-pages'):
-        pages = wix.list_site_pages()
+        pages = page_catalog.list_site_pages()
         return _response(200, {'ok': True, 'pages': pages, 'total': len(pages)}, origin)
     if path.endswith('/product-pages'):
-        products = wix.list_products()
+        products = page_catalog.list_products()
         return _response(200, {'ok': True, 'products': products, 'total': len(products)}, origin)
     return _response(404, {'ok': False, 'error': 'SEO route not found'}, origin)
 
@@ -920,23 +906,13 @@ def _route_post(path: str, body: Dict[str, Any], actor: str, origin: str):
     if path.endswith('/seo-approve'):
         return _review(body, actor, origin)
     if path.endswith('/cache-purge'):
-        # A CACHE WITH NO PURGE IS AN OPERATIONAL TRAP, which is the whole reason this
-        # route exists rather than the TTL standing alone. Blog content is authored in
-        # Wix, OUTSIDE this system, so the person who just published a post has no other
-        # way to make it appear before the 5-minute TTL expires - and the first thing they
-        # would do is report the new post as missing.
-        #
-        # Admin-only and idempotent. It clears a per-sandbox dict, so the worst case is
-        # that the next request to each warm sandbox re-fetches; there is nothing to
-        # corrupt and nothing to roll back. No idempotency claim for the same reason -
-        # purging twice is purging once.
-        wix.clear_blog_cache()
-        logger.info(json.dumps({'event': 'seo_blog_cache_purged', 'actor': actor}))
+        # Compatibility route retained for existing Admin callers. The native blog source
+        # reads DynamoDB directly and has no provider-side per-sandbox cache to purge.
+        logger.info(json.dumps({'event': 'seo_native_cache_purge_noop', 'actor': actor}))
         return _response(200, {
             'ok': True,
-            'purged': True,
-            'note': ('Cleared in this execution environment. Other warm sandboxes expire '
-                     'on their own TTL, so allow a few minutes for full consistency.'),
+            'purged': False,
+            'note': 'Native blog reads have no provider cache to purge.',
         }, origin)
     return _response(404, {'ok': False, 'error': 'SEO route not found'}, origin)
 
@@ -1020,18 +996,14 @@ def handler(event: Dict[str, Any], context: Optional[Any]):
     if method == 'OPTIONS':
         return options_response(origin)
 
-    # Public read surface for the headless site. Wix Blog is the source of truth;
+    # Public read surface for the headless site. The AWS blog store is authoritative;
     # drafts, audits, logs and Admin mutation routes remain protected.
     if method == 'GET' and (path.endswith('/blog-public') or '/blog-public/' in path):
-        # A FAILED UPSTREAM IS A 503, NOT A 500, and it says so in a Retry-After-able
-        # shape. wix.py retries the retryable statuses once and serves a stale corpus
-        # when it has one, so reaching this branch means the upstream is genuinely down
-        # with nothing cached. generate-sitemap.js reads that distinction: it refuses to
-        # write a sitemap rather than publishing one with the blog missing.
+        # A failed native read is surfaced rather than publishing an incomplete static build.
         try:
             if '/blog-public/' in path:
                 slug = path.split('/blog-public/', 1)[1].strip('/')
-                # Source-of-truth is chosen by BLOG_SOURCE (default wix). See blog_source.py.
+                # AWS is the sole source of truth; see blog_source.py.
                 post = blog_source.get_blog_post_by_slug(slug)
                 if not post:
                     return _response(404, {'ok': False, 'error': 'Blog post not found'}, origin)
