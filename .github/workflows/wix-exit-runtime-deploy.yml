@@ -35,14 +35,10 @@ jobs:
         with:
           python-version: '3.12'
 
-      - run: python -m pip install --disable-pip-version-check boto3==1.43.98
+      - name: Install deploy dependency
+        run: python -m pip install --disable-pip-version-check boto3==1.43.98
 
-      - name: Package validation
-        run: |
-          python -m py_compile             amplify/functions/ai/ai-generate-response/handler.py             amplify/functions/core/service-api/handler.py             amplify/functions/messaging/whatsapp-business-api/handler.py             amplify/functions/messaging/whatsapp-business-api/service_api.py             amplify/functions/messaging/whatsapp-business-api/flows/orders.py             amplify/functions/ecommerce/product-image-gen/handler.py
-          python scripts/deploy_all_lambdas.py --dry-run             wecare-ai-generate-response             wecare-service-api             wecare-whatsapp-business-api             wecare-product-image-gen
-
-      - name: Assume four-function deployment role
+      - name: Assume exact-scope deployment role
         uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::775261844268:role/GitHubActions-wecare-wix-exit-runtime-deploy
@@ -52,9 +48,28 @@ jobs:
       - name: Require production account
         run: test "$(aws sts get-caller-identity --query Account --output text)" = "775261844268"
 
+      - name: Package validation against live configuration
+        run: |
+          python -m py_compile \
+            amplify/functions/ai/ai-generate-response/handler.py \
+            amplify/functions/core/service-api/handler.py \
+            amplify/functions/messaging/whatsapp-business-api/handler.py \
+            amplify/functions/messaging/whatsapp-business-api/service_api.py \
+            amplify/functions/messaging/whatsapp-business-api/flows/orders.py \
+            amplify/functions/ecommerce/product-image-gen/handler.py
+          python scripts/deploy_all_lambdas.py --dry-run \
+            wecare-ai-generate-response \
+            wecare-service-api \
+            wecare-whatsapp-business-api \
+            wecare-product-image-gen
+
       - name: Deploy only Wix-exit runtime functions
         run: |
-          python scripts/deploy_all_lambdas.py             wecare-ai-generate-response             wecare-service-api             wecare-whatsapp-business-api             wecare-product-image-gen
+          python scripts/deploy_all_lambdas.py \
+            wecare-ai-generate-response \
+            wecare-service-api \
+            wecare-whatsapp-business-api \
+            wecare-product-image-gen
 
       - name: Verify live aliases serve latest code
         run: |
