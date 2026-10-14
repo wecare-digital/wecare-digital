@@ -80,6 +80,16 @@ Surface size: **~65 runtime files**, **203 Wix references** (`check-wix-policy.s
   trigger with a DynamoDB-stream product-change event. Preserve catalog id,
   approvals, dry-run, retailer-id contract (all in the pure
   `lambda_utils/ecommerce/meta_catalog_sync.py`).
+- **BUILT:** `_native_products()` + `CATALOG_SOURCE` gate in the sync handler
+  project `ProductsTable` onto the exact slim shape `desired_items` consumes
+  (defaults to `wix`). Unit-tested.
+- **HARD REQUIREMENT discovered:** `desired_items` enforces the retailer-id
+  contract `wix:<productUUID>:<variantUUID>` (RetailerIdError otherwise) — it is
+  the Meta↔catalog join key. So **`ProductsTable` MUST mint RFC-4122 UUIDs for
+  product ids AND variant skus/ids**. The Wix export preserves the existing Wix
+  UUIDs as `sourceId`/`id`, so seeded products satisfy this; net-new native
+  products must generate UUIDs. (A product/variant id that is not a UUID fails
+  closed at sync time, which is the correct, visible failure.)
 
 ## 5. Blog (outbound reads)
 - Covered in `aws-native-wix-exit.md`; the `BLOG_SOURCE` seam
