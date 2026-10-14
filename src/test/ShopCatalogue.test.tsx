@@ -383,7 +383,7 @@ describe( 'the product page', () => {
     // h1's textContent concatenates the frame, the sr-only words copy and the visible word, so
     // assert the frame and the pill word separately rather than the joined string.
     expect( container.querySelector( '.rh-head-line' )?.textContent ).toBe( 'Explore' );
-    expect( container.querySelector( '.rh-cyc-word.on' )?.textContent ).toBe( 'Kiosk' );
+    expect( container.querySelector( '.rp-cyc-word.on' )?.textContent ).toBe( 'Kiosk' );
     expect( screen.getByText( kiosk.tagline ) ).toBeTruthy();
     expect( container.querySelectorAll( 'p.shopd-p' ) ).toHaveLength( kiosk.body.length );
   } );

@@ -3,11 +3,12 @@
  * Customer engagement platform by WECARE.DIGITAL
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import PageMeta from '../../components/PageMeta';
 import BrandBadge from '../../components/BrandBadge';
 import PublicShare from '../../components/PublicShare';
+import RotatingPill from '../../components/RotatingPill';
 
 const GrahakOsPage: React.FC = () => {
   const [visible, setVisible] = useState<Set<string>>(new Set());
@@ -29,46 +30,10 @@ const GrahakOsPage: React.FC = () => {
     { word: 'Email', tint: '#fef3c7', dot: '#f0a818' },
     { word: 'Voice', tint: '#ede9fe', dot: '#9849e8' },
   ];
-  const [cycleIndex, setCycleIndex] = useState(0);
-  const [heroWidth, setHeroWidth] = useState<number | null>(null);
-  const heroRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  // The rotation, the width re-measure and all the pill CSS now live in RotatingPill.
+  // This page keeps only the entrance machinery (armed + show('hero')) that drives the
+  // shared pill's one-shot reveal via its `phase` prop.
 
-  useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const id = window.setInterval(
-      () => setCycleIndex(i => (i + 1) % cycleWords.length),
-      2400
-    );
-    return () => window.clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    // RE-MEASURE ON RESIZE AND FONT-LOAD, not only when the word changes - the same fix
-    // index.tsx and RotatingHero.tsx carry. Running on [cycleIndex] alone left the pill's px
-    // width stale: hero font-size is a clamp(...vw...), so each word's rendered width depends on
-    // the viewport, and the Inter webfont swaps in after first paint and widens every word. With
-    // overflow:hidden on .hero-cycle a stale, too-narrow width clips the tail of the word
-    // ("WhatsApp" -> "WhatsAp"). Under prefers-reduced-motion the interval never starts, so it
-    // never self-heals. Observe the active word (not the pill, which this effect sets).
-    const el = heroRefs.current[cycleIndex];
-    if (!el) return undefined;
-    const measure = () => setHeroWidth(el.offsetWidth);
-    measure();
-    if (typeof document !== 'undefined' && (document as any).fonts?.ready?.then) {
-      (document as any).fonts.ready.then(() => measure());
-    }
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [cycleIndex]);
-
-  // NOTE: the rotating pill markup must be written INLINE in the returned JSX.
-  // styled-jsx only attaches its scoping class to elements it can statically see
-  // in the return tree - extracting this into a variable silently drops every
-  // style, which renders the words stacked inline with no pill.
-  
   // ARM ONLY AFTER CONFIRMING WE CAN ANIMATE, AND SEED WHATEVER IS ALREADY ON SCREEN.
   //
   // Two things have to happen in ONE render here, or the no-JS fix trades a blank page
@@ -286,31 +251,11 @@ response = requests.post(
               </div>
               <h1>
                 Reach customers<br />across{ ' ' }
-                <span
-                  className="hero-mark"
-                  style={ { background: cycleWords[cycleIndex].tint } }
-                >
-                  <i
-                    className="hero-mark-dot"
-                    style={ { background: cycleWords[cycleIndex].dot } }
-                    aria-hidden="true"
-                  />
-                  <span
-                    className="hero-cycle"
-                    style={ heroWidth ? { width: `${heroWidth}px` } : undefined }
-                  >
-                    <span className="sr-only">{ cycleWords.map(c => c.word).join(', ') }</span>
-                    { cycleWords.map((c, i) => (
-                      <span
-                        key={ c.word }
-                        ref={ el => { heroRefs.current[i] = el; } }
-                        className={ `hero-cyc-word ${i === cycleIndex ? 'on' : ''}`.trim() }
-                      data-wc-translate="true"
-                        aria-hidden="true"
-                      >{ c.word }</span>
-                    )) }
-                  </span>
-                </span>
+                <RotatingPill
+                  words={ cycleWords }
+                  phase={ show( 'hero' ) ? 'shown' : ( armed ? 'armed' : 'final' ) }
+                  blockBelow={ 375 }
+                />
               </h1>
               {/* The channel list came out. The headline directly above this cycles
                   WhatsApp, SMS, Email and Voice one at a time, so naming all four again in
@@ -728,112 +673,23 @@ response = requests.post(
           .hero-left p{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0 0 18px;max-width:400px}
           .hero-left p.hero-sub{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0;max-width:400px}
 
-          /* Rotating channel pill in the hero headline (Notion-style). The lime
-             tint is a pseudo-element so it can wipe in from the left without
-             reflowing the sentence, and each word is absolutely stacked so
-             swapping causes no reflow - the measured width animates instead. */
-          /* Fully-rounded pill whose tint transitions with the word, matching the
-             notion.com treatment (radius 9999px, transition on the colour). The
-             tint itself is set inline per word; the reveal wipe lives on ::before. */
-          .hero-mark{
-            position:relative;display:inline-block;white-space:nowrap;
-            padding:.02em .3em .02em .22em;
-            border-radius:9999px;
-            background:#e0f7c8;
-            transition:background-color .52s cubic-bezier(.16,1,.3,1);
-          }
-          .hero-mark::before{
-            content:'';position:absolute;inset:0;
-            background:#fff;border-radius:9999px;
-            transform:scaleX(1);transform-origin:right center;
-            transition:transform .78s cubic-bezier(.16,1,.3,1) .18s;
-            z-index:0;
-          }
-          .hero.show .hero-mark::before{transform:scaleX(0)}
-          .hero-mark-dot{
-            position:relative;z-index:1;
-            /* 0.33em matches notion.com's ratio (32px dot against a 96px h1).
-               Tight 0.1em gap - at 0.2em the dot read as detached from the word. */
-            display:inline-block;width:.33em;height:.33em;
-            background:#d1f470;border-radius:50%;
-            margin-right:.18em;vertical-align:.14em;
-            transform:scale(0);
-            transition:transform .5s cubic-bezier(.34,1.56,.64,1) .72s;
-          }
-          .hero.show .hero-mark-dot{transform:scale(1)}
-          /* PORTED FROM THE HOME BAND. Four implementations of this hero exist and every one
-           carried the same defects; see docs/home-design-audit-20260926.md.
+          /* The rotating channel pill - its lozenge, dot, width glide, word fade,
+             entrance and the narrow-width "drop to its own line below 375px" fix - now
+             lives in RotatingPill, which self-scopes its own rp-* CSS and takes the
+             blockBelow={375} prop in place of the old @media(max-width:374px) rule here.
+             styled-jsx cannot reach a child component's markup, which is why the pill owns
+             its own styles; this page keeps only the headline around it and drives the
+             entrance through the phase prop. */
 
-           width:max-content is the RESTING width. cycleW starts null, so the first render
-           writes no inline width - and with every word absolutely positioned this box had no
-           intrinsic width at all. It computed to 0px and overflow:hidden clipped the word
-           away: ~200ms on every load, permanently with no JavaScript. JS still writes an
-           explicit px width over this, which is what animates, so the glide is unchanged. */
-        .hero-cycle{
-          width:max-content;
-            position:relative;z-index:1;
-            display:inline-block;
-            height:1.06em;line-height:1.06em;
-            vertical-align:baseline;
-            overflow:hidden;
-            transition:width .52s cubic-bezier(.16,1,.3,1);
-            will-change:width;
-          }
-          .hero-cyc-word{
-            position:absolute;left:0;top:0;
-            white-space:nowrap;
-            opacity:0;
-            transform:translateY(.42em);
-            transition:opacity .42s cubic-bezier(.16,1,.3,1),transform .42s cubic-bezier(.16,1,.3,1);
-          }
-          /* The ACTIVE word returns to flow, which is what gives the box above a real
-           intrinsic width. The inactive words stay absolute and keep stacking.
-
-           display:inline-block IS LOAD-BEARING: position:static alone makes this a
-           non-replaced inline box whose offsetWidth is 0, so the measuring effect would
-           write width:0px over max-content and the pill would collapse on every load WITH
-           JavaScript - a 200ms flash turned permanent. */
-        .hero-cyc-word.on{opacity:1;transform:translateY(0);position:static;display:inline-block}
-          .sr-only{
-            position:absolute;width:1px;height:1px;padding:0;margin:-1px;
-            overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
-          }
-          @media(prefers-reduced-motion:reduce){
-            .hero-mark::before,.hero-mark-dot{transition:none}
-            /* scaleX(0) is the RESTING state. scaleX(1) is the START state - a white
-             shutter covering the tint - which is what this used to set. It never bit only
-             because .hero-layout.show out-specifies it (0,2,1 vs 0,1,1). */
-          .hero-mark::before{transform:scaleX(0)}
-            .hero-mark-dot{transform:scale(1)}
-            .hero-cycle{transition:none}
-            .hero-cyc-word{transition:none}
-          }
-
-          /* THE HEADLINE MUST NOT CHANGE HEIGHT WHEN THE PILL CHANGES WORD.
-             The h1 reads "Reach customers / across <pill>", and the pill animates to each
-             word's measured width. Those words run from "SMS" to "WhatsApp" - 116px to
-             262px at 1280, a 146px spread - so on a narrow screen the pill no longer fits
-             beside "across", the line breaks somewhere new, and the h1 grows. Everything
-             below it on the page then jumps by that much on every rotation, every 2.4s.
-             Measured across 18 viewports, the h1 had two different heights at:
-               320px      128 / 168px  (delta 40px)
-               340-360px   87 / 128px  (delta 41px)
-             and one stable height at 375px and above.
-             Giving the pill its own line below 374px fixes it: the text above can no longer
-             be pushed around by the pill's width, so the line count is the same for every
-             word. width:fit-content is required with display:block - a plain block would
-             stretch the tinted pill to the full column width.
-             DELIBERATELY NOT APPLIED ABOVE 374px. From 375px up the headline already
-             measures a constant height for every word, and forcing the break there would
-             turn a correct two-line headline into three lines on every desktop.
-             Re-measure with node tools/browser/animcheck.js if the word list changes - a
-             word longer than "WhatsApp" can push the threshold above 374px.
-             (No backticks in this comment on purpose - it sits inside a style jsx template
-             literal, where one stray backtick ends the literal and fails the build with a
-             misleading "Expected '</', got 'ident'" pointing at the JSX below.) */
-          @media(max-width:374px){
-            .hero-mark{display:block;width:fit-content}
-          }
+          /* THE HEADLINE MUST NOT CHANGE HEIGHT WHEN THE PILL CHANGES WORD. The h1 reads
+             "Reach customers / across <pill>" and the pill animates to each word's measured
+             width ("SMS" to "WhatsApp" is a ~146px spread), so on a narrow screen the pill
+             stops fitting beside "across", the line re-breaks and the h1 grows - which jumps
+             everything below it on every rotation. The fix is to give the pill its own line
+             below 375px; that now lives in RotatingPill, driven by blockBelow={375} on the
+             <RotatingPill> above, which adds .is-block-narrow and its own
+             @media(max-width:374px) rule inside the component's self-scoped CSS. Nothing to
+             do here. */
           
           /* Trusted by Meta section */
           /* 60/60, same as touchpoint / api / the strip. It was 20px top and 0 bottom
