@@ -100,7 +100,7 @@ const PUBLIC_EXACT = new Set( [
 // listing their posts - /blog/ paginates the default category only - so leaving them out would
 // advertise 824 posts and hide 40.
 // '/shop/' is the seven catalogue pages. A prefix rather than seven exact entries because the set
-// is enumerated from src/content/wix-catalog.json by getStaticPaths - it changes when the snapshot
+// is enumerated from src/content/catalog.json by getStaticPaths - it changes when the snapshot
 // is refreshed, which is a content change, and listing the slugs here would mean a sitemap that
 // goes stale on a data refresh instead of on a code change.
 //
