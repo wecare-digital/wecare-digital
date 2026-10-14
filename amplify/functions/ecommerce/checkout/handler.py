@@ -1177,8 +1177,9 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         return cors_response(400, {"error": "REQUEST_KEY_REQUIRED"}, origin)
     # Phase O-1: a services basket is refused here, PURE, before the profile read, any Wix call
     # or any DynamoDB write -- Drop Docs/Vault, a bad quantity, a missing intent, or V1 pricing.
-    refusal = service_requests.checkout_preflight(line_items, body,
-                                                  v2_enabled=cart_v2.is_enabled())
+    refusal = service_requests.checkout_preflight(
+        line_items, body, v2_enabled=cart_v2.is_enabled(),
+        native_pricing_enabled=_supply_mode() == "AWS_NATIVE")
     if refusal is not None:
         return cors_response(refusal[0], refusal[1], origin)
 
@@ -1226,6 +1227,17 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             wix_order_payload = wix_writeback.build_wix_order_payload(
                 cart=calculated, quote=snapshot.quote)
 
+        # Critical AWS-native service invariant: a payment reference MUST carry
+        # the price of the one service as frozen in the ProductsTable-backed
+        # snapshot. In native mode 'calculated' is intentionally None; passing
+        # that old Wix sentinel to payref_extra persisted paise=None, so even
+        # a successful Razorpay capture would leave PAID_SERVICE_UNMATCHED.
+        # Validate before attempting to create the gateway order.
+        native_service_paise = (
+            service_requests.native_service_line_paise(snapshot, line_items)
+            if calculated is None and _supply_mode() == "AWS_NATIVE" else None
+        )
+
         def _allocate_reference(attempt_id: str, leg_paise: int,
                                 gift_card_paise: int) -> str:
             """Mint and durably reserve the `PAYREF#` row the webhook reconciles on.
@@ -1270,7 +1282,7 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                     **service_requests.payref_extra(
                         line_items, body,
                         line_paise=(service_requests.observed_service_line_paise(calculated)
-                                    if calculated is not None else None)),
+                                    if calculated is not None else native_service_paise)),
                     # THE PUBLIC CUSTOMER ID, on this row as well as on the attempt, and that is
                     # not redundant: the webhook lineage reads attribution off the `PAYREF#` row
                     # (`razorpay-webhook._load_attempt`) while the finalisation lineage reads it
