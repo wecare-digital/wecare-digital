@@ -57,9 +57,9 @@ def _opener():
 
 
 def _image_type(data: bytes) -> tuple[str, str]:
-    if data.startswith(b"\x89PNG\r\n\\x1a\n"):
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
         return "image/png", ".png"
-    if data.startswith(b"\xff\\xd8\\xff"):
+    if data.startswith(b"\xff\xd8\xff"):
         return "image/jpeg", ".jpg"
     if data.startswith((b"GIF87a", b"GIF89a")):
         return "image/gif", ".gif"
