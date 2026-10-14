@@ -128,12 +128,9 @@ const AWS_RESOURCES: Record<string, { arn: string; accountId: string; details?: 
       'stack-wecare-digital-BulkRecipientsTable',
       'stack-wecare-digital-DLQMessagesTable',
       'stack-wecare-digital-SmsAwsTable (Pinpoint SMS)',
-      'stack-wecare-digital-AirtelSMSTable (legacy SMS history — read-only)',
       'stack-wecare-digital-DLTTemplates (TRAI DLT registry — live)',
       'stack-wecare-digital-VoiceAwsTable (Pinpoint Voice)',
-      'stack-wecare-digital-AirtelC2CTable (legacy C2C history — read-only)',
       'stack-wecare-digital-VoiceCDRTable (voice CDR — live, shared with Plivo)',
-      'stack-wecare-digital-OBDCampaigns (legacy OBD history — read-only)',
       'stack-wecare-digital-ScheduledMessagesTable',
       'stack-wecare-digital-TemplateAnalyticsTable',
       'stack-wecare-digital-InvoicesTable',
@@ -154,7 +151,7 @@ const AWS_RESOURCES: Record<string, { arn: string; accountId: string; details?: 
       'stack-wecare-digital-EmailTable',
       'stack-wecare-digital-AuditLog',
       'stack-wecare-digital-RateLimitTracker',
-      'stack-wecare-digital-WixOrderIds',
+      'stack-wecare-digital-CommerceKeys',
       'stack-wecare-digital-UsersTable',
     ]
   },
@@ -224,7 +221,7 @@ const AWS_RESOURCES: Record<string, { arn: string; accountId: string; details?: 
   'Amazon API Gateway': {
     arn: `arn:aws:apigateway:${AWS_REGION}::/restapis/*`,
     accountId: AWS_ACCOUNT_ID,
-    details: [ 'wecare.digital/api - HTTP API (prod stage, auto-deploy)', 'Routes: /contacts, /messages, /whatsapp/*, /sms-aws/*, /voice-aws/*, /voice-in/*, /voice-cdr-webhook, /sms-in/*, /billing, /ai/*, /templates/*, /waba/*, /wix-store/*' ]
+    details: [ 'wecare.digital/api - HTTP API (prod stage, auto-deploy)', 'Routes: /contacts, /messages, /whatsapp/*, /sms-aws/*, /voice-aws/*, /voice-in/*, /voice-cdr-webhook, /sms-in/*, /billing, /ai/*, /templates/*, /waba/*' ]
   },
   'AWS AppSync': {
     arn: `arn:aws:appsync:${AWS_REGION}:${AWS_ACCOUNT_ID}:*`,
@@ -738,10 +735,7 @@ const Dashboard: React.FC<PageProps> = ( { signOut, user } ) => {
     { id: 'voice_calls', label: 'Voice Calls (legacy)', category: 'Voice', type: 'dynamodb', table: 'VoiceCalls', count: -1 },
     { id: 'voice_aws', label: 'Voice AWS (Pinpoint)', category: 'Voice', type: 'dynamodb', table: 'VoiceAwsTable', count: -1 },
     { id: 'whatsapp_voice_log', label: 'WhatsApp Voice (TTS) Log', category: 'Voice', type: 'dynamodb', table: 'WhatsAppVoiceTable', count: -1 },
-    { id: 'obd_campaigns', label: 'OBD Campaigns', category: 'Voice', type: 'dynamodb', table: 'OBDCampaigns', count: -1 },
-    { id: 'legacy_c2c', label: 'C2C Records (legacy)', category: 'Voice', type: 'dynamodb', table: 'AirtelC2CTable', count: -1 },
     { id: 'sms_aws', label: 'SMS AWS (Pinpoint)', category: 'SMS', type: 'dynamodb', table: 'SmsAwsTable', count: -1 },
-    { id: 'legacy_sms', label: 'SMS Messages (legacy providers)', category: 'SMS', type: 'dynamodb', table: 'AirtelSMSTable', count: -1 },
     { id: 'invoices', label: 'Invoices', category: 'Invoices & Payments', type: 'dynamodb', table: 'InvoicesTable', count: -1 },
     { id: 'invoice_items', label: 'Invoice Line Items', category: 'Invoices & Payments', type: 'dynamodb', table: 'InvoiceItemsTable', count: -1 },
     { id: 'invoice_assets', label: 'Invoice Assets (PDFs)', category: 'Invoices & Payments', type: 'dynamodb', table: 'InvoiceAssetsTable', count: -1 },
@@ -1009,19 +1003,15 @@ const Dashboard: React.FC<PageProps> = ( { signOut, user } ) => {
         } else if ( id === 'whatsapp_calling' )
         {
           deleted = await bulkClear( `${API_BASE}/whatsapp` );
-        } else if ( id === 'obd_campaigns' )
         {
           deleted = await bulkClear( `${API_BASE}/voice-in/obd`, 'POST', { clearAll: true } );
-        } else if ( id === 'legacy_sms' )
         {
           // Legacy history purge requires the table name as a typed confirmation
           // server-side, because these rows are DLT audit evidence.
-          const bulk = await tryBulkClear( `${API_BASE}/sms-aws/legacy-history`, 'DELETE', { confirmTable: 'stack-wecare-digital-AirtelSMSTable' } );
           if ( bulk >= 0 ) { deleted = bulk; } else
           {
             results.push( { id, label, deleted: 0, error: 'Legacy history purge refused or route unavailable' } ); continue;
           }
-        } else if ( id === 'legacy_c2c' )
         {
           const bulk = await tryBulkClear( `${API_BASE}/voice-in/c2c`, 'DELETE', { clearAll: true } );
           if ( bulk >= 0 ) { deleted = bulk; } else
@@ -2622,45 +2612,6 @@ expected = hmac.new(webhook_secret, request_body, sha256).hexdigest()
                       style={ { padding: '0.5rem 1rem', background: '#1877F2', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500, textDecoration: 'none', display: 'inline-block' } }>
                       Open Meta App Dashboard
                     </a>
-                  </div>
-                </div>
-
-                {/* Wix Headless Commerce Section */ }
-                <div className="section" style={ { background: '#ffffff', padding: '1.5rem', borderRadius: '0.75rem', marginBottom: '1.5rem', color: '#1a1a1a', border: '1px solid #1a3a2a' } }>
-                  <div style={ { display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' } }>
-                    <div style={ { width: '40px', height: '40px', background: '#f9fafb', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #d1d5db' } }>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="#1a3a2a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /><line x1="3" y1="6" x2="21" y2="6" stroke="#1a3a2a" strokeWidth="2" /><path d="M16 10a4 4 0 01-8 0" stroke="#1a3a2a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    </div>
-                    <div>
-                      <h3 style={ { margin: 0, fontSize: '1.25rem', color: '#1a1a1a' } }>Wix Headless Commerce</h3>
-                      <span className="badge" style={ { background: '#f9fafb', color: '#1a3a2a', marginTop: '4px' } }>API-only | Catalog V3</span>
-                    </div>
-                  </div>
-
-                  <p style={ { fontSize: '0.85rem', color: '#6b7280', lineHeight: 1.6, margin: '0 0 1rem' } }>
-                    WECARE.DIGITAL is the only codebase and Amplify is the public frontend. Wix is used as a clean commerce backend for
-                    catalog, inventory, cart and orders. The deleted Wix Editor/Velo repository is not part of the target architecture.
-                  </p>
-
-                  <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem', fontSize: '0.8rem' } }>
-                    { [
-                      [ 'Products', 'Catalog V3' ],
-                      [ 'Categories', 'Categories V3' ],
-                      [ 'Inventory', 'Inventory Items V3' ],
-                      [ 'Cart', 'eCommerce Cart V2' ],
-                      [ 'Orders', 'eCommerce Orders' ],
-                      [ 'Payment UI', 'AWS + Razorpay' ],
-                    ].map( ( [ label, value ] ) => (
-                      <div key={ label } style={ { background: '#f9fafb', padding: '0.6rem', borderRadius: '0.5rem', border: '1px solid #e5e7eb' } }>
-                        <div style={ { color: '#6b7280', fontSize: '0.7rem' } }>{ label }</div>
-                        <div style={ { fontWeight: 600, color: '#1a3a2a', marginTop: 2 } }>{ value }</div>
-                      </div>
-                    ) ) }
-                  </div>
-
-                  <div style={ { marginTop: '1rem', background: '#f9fafb', padding: '0.75rem', borderRadius: '0.5rem', fontSize: '0.8rem', color: '#374151' } }>
-                    Runtime adapter: <code>amplify/functions/ecommerce/wix-store/handler.py</code>. Product prices and SKUs are variant-level;
-                    product updates use Wix revisions; inventory is queried separately.
                   </div>
                 </div>
 
