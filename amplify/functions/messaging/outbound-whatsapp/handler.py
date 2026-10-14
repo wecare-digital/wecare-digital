@@ -33,7 +33,8 @@ from lambda_utils.message_store import put_message  # unified MessagesTable dual
 from lambda_utils import graph_errors  # Meta error subcode + transient classification
 from lambda_utils import live_smoke  # WA_LIVE_SMOKE_TEST recipient lockdown
 from lambda_utils import direct_send  # Direct Send flag + WABA map, fails closed
-from lambda_utils import contact_key  # `id` is the physical key; `contactId` is its alias
+from lambda_utils import contact_key
+from lambda_utils.identity import subscriber_id  # `id` is the physical key; `contactId` is its alias
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 # One source for Meta's reference_id contract, so the send path and the minter cannot disagree.
 from lambda_utils.ecommerce import order_keys
@@ -4369,6 +4370,7 @@ def _get_or_create_contact_by_phone(phone: str) -> Dict[str, Any]:
     now = int(time.time())
     contact = {
         **contact_key.contact_item_keys(contact_id),
+        **subscriber_id.new_contact_fields(now=now),
         'name': '',
         'phone': with_plus,
         'optInWhatsApp': True,
