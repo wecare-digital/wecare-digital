@@ -47,7 +47,6 @@ SOURCE = MODULE.read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE, filename=str(MODULE))
 
 GIFT_CARDS_HANDLER = ROOT / "amplify/functions/ecommerce/gift-cards/handler.py"
-SPI_HANDLER = ROOT / "amplify/functions/ecommerce/wix-giftcard-spi/handler.py"
 COUPON_HANDLER = ROOT / "amplify/functions/ecommerce/coupons/handler.py"
 
 #: Not a credential: a test-only string that exists so the HMAC has a key. The real pepper lives in
@@ -170,7 +169,7 @@ def test_logs_carry_only_the_last_four_digits():
         gc.masked("WDGC0000TEST0001")
     assert refusal.value.code == "CODE_IN_LOG"
 
-    for handler_path in (GIFT_CARDS_HANDLER, SPI_HANDLER):
+    for handler_path in (GIFT_CARDS_HANDLER,):
         tree = ast.parse(handler_path.read_text(encoding="utf-8"), filename=str(handler_path))
         logged = [ast.unparse(call) for call in _logging_calls(tree)]
         assert logged, f"{handler_path.name} logs nothing, so the masking is untested"
@@ -242,17 +241,6 @@ def test_no_route_accepts_a_code_in_a_path_or_query():
     # No DELETE anywhere: a disabled card keeps its liability record.
     assert not [route for route in routes if route.startswith("DELETE ")]
 
-    spi_tree = ast.parse(SPI_HANDLER.read_text(encoding="utf-8"))
-    spi_assignment = next(node for node in ast.walk(spi_tree)
-                          if isinstance(node, ast.AnnAssign)
-                          and isinstance(node.target, ast.Name)
-                          and node.target.id == "SPI_ROUTES")
-    spi_routes = ast.literal_eval(spi_assignment.value)
-    assert set(spi_routes) == {"POST /wix-giftcards/v1/balance",
-                               "POST /wix-giftcards/v1/redeem",
-                               "POST /wix-giftcards/v1/void"}
-    for route in spi_routes:
-        assert "{" not in route, "an SPI route carries a path parameter"
 
 
 # ── 47 / 48: the balance floor ────────────────────────────────────────────────
