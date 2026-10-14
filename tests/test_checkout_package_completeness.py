@@ -57,7 +57,6 @@ REQUIRED = (
     "lambda_utils/customer_session.py",
     "lambda_utils/payment_readiness.py",
     "lambda_utils/payment_status.py",
-    "lambda_utils/wix_ecom.py",
     "lambda_utils/response.py",
     "lambda_utils/logging.py",
     "lambda_utils/media_paths.py",
@@ -402,10 +401,12 @@ def test_no_float_arithmetic_on_the_money_path(packaged_members):
     evidence document calls out for `git archive` run from a subdirectory. A money module that is
     not in the package is the more serious defect, not the excuse to skip the check.
     """
+    # `wix_ecom.py` was retired with the Wix exit; the AWS-native money path adds
+    # `catalog_pricing.py` (coupon/tax/supply pricing). R6.1 holds over the native modules.
     money = ("lambda_utils/ecommerce/checkout_pricing.py",
              "lambda_utils/ecommerce/money.py",
-             "lambda_utils/integrations/razorpay_orders.py",
-             "lambda_utils/wix_ecom.py")
+             "lambda_utils/ecommerce/catalog_pricing.py",
+             "lambda_utils/integrations/razorpay_orders.py")
     missing = [name for name in money if name not in packaged_members]
     assert not missing, ("money module(s) absent from the package, so R6.1 could not be checked "
                          "over them:\n  " + "\n  ".join(missing))

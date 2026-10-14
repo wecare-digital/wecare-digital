@@ -113,3 +113,84 @@ expecting automated product editing to update static pages.
   browser SEO or media accessibility.
 
 **No destructive infrastructure cleanup belongs in this branch.**
+
+---
+
+## Supplement — second live audit, 2026-10-14 (later same day)
+
+Scope unchanged: read-only AWS metadata + source + public reads, no writes, no
+deletes. This supplement CORRECTS several claims in the body above that had
+drifted from live reality. Where this supplement and the body disagree, this
+supplement is the measured state.
+
+### Corrections to the body
+
+| Body claim | Measured now | Note |
+| --- | --- | --- |
+| Checkout Lambda `wecare-checkout:live` v48 | **v49** (desc "Native catalog prices and storefront checkout fixes; rollback v48") | PR #438 fixes ARE published; alias moved. Item 2 DONE. |
+| CartTable "not found in live us-east-1" | `stack-wecare-digital-CartTable` **present** | Source + live both have it. |
+| Shop imports committed `wix-catalog.json` | `src/content/shop.ts` imports `catalog-snapshot.json` (AWS) | Storefront source already cut over. |
+| Nine product rows refer to `static.wixstatic.com` | **ProductsTable imageRefs → CloudFront** (`d1kf2rchz7yras.cloudfront.net/o/catalog/...`) | Live table images already migrated. Committed snapshot was stale; regenerated this session → 0 wixstatic / 9 CloudFront. Item 4 effectively DONE (snapshot commit pending). |
+| Blog served from Wix via visitor token | **`BLOG_SOURCE=aws` LIVE on `wecare-seo-tools`**; served from SeoToolsTable | The blog no longer depends on Wix at runtime. `wix.py` blog client is dormant rollback only. |
+
+### Blog count (resolves the body's open question and the status-log 1,421 vs 967)
+
+- `SeoToolsTable` `recordType=blogPost`: **1,421 records, all 1,421 `status=published`.**
+- Live blog API (`/seo-tools/blog-public`): **total 1,421.** Backend matches the table exactly.
+- The "967" figure is a STALE STATIC EXPORT of `/blog/`, not a backend gap. Fix is a
+  rebuild/publish of the static site, not a data reconciliation.
+
+### Wix exit policy gate
+
+- `scripts/check-wix-policy.sh` → **132 findings** across 4 rules (not 149). Exit 1.
+- Top sources: `seo-tools/wix.py` (25, dormant blog client), `product-image-gen/handler.py`
+  (12), `payment_address.py`/`india_address.py` (9 each), `wix_ecom.py` (8),
+  `checkout/handler.py` (8). These are code paths, not comments.
+- Because `BLOG_SOURCE=aws` is already live, the single largest apparent blocker
+  (`wix.py` blog reads) is removable without a risky blog rewrite — gate the removal
+  on neutralising the `blog_source.py` Wix fallback.
+
+### Item 10 reconciliation (read-only counts)
+
+| Table | Count | Reading |
+| --- | --- | --- |
+| OrderTable | **0** | No real customer orders. No historical order liability at migration risk. |
+| PaymentsTable | 1 | Test-level. |
+| PaymentAttemptsTable | 0 | — |
+| InvoicesTable / InvoiceItems / InvoiceSequence | 1 / 3 / 1 | Test-level sequence. |
+| WixOrderIds | 5 | NOT customer orders: 4 × `SERVICEPRICECART#…` mappings + 1 × `NATIVECATALOG#ACTIVE` (the live native-catalog cache row, reusing this legacy table name). The cache row still carries `static.wixstatic.com` images — inconsistent with ProductsTable's CloudFront refs. |
+| WixOrdersCache / WixProductsCache | 0 / 0 | Empty. Safe to retire with item 7. |
+| MediaFilesTable | 6 | — |
+| (Gift cards) | no table | No dedicated gift-card table; `CouponsTable` is the native coupon system. No gift-card liability surfaced — owner to confirm. |
+
+### Item 12 — credential backups
+
+- Bucket `wecare-credential-backups-775261844268`, versioning **Enabled**.
+- One object `credential-backups/current/wecare-secrets-backup.txt.enc`, **2 versions**:
+  current 2026-09-26 (51,933 B) and prior 2026-09-25 (51,706 B). Encrypted at rest.
+- No action taken. Expiring the prior version is an owner retention decision.
+
+### Item 13 — Lightsail
+
+- One instance `wecare-voice-bot`, bundle `micro_3_0`, **1.0 GB RAM, 2 vCPU, running**.
+- In-guest RAM/swap/OOM history NOT obtainable from the control-plane API; needs the
+  CloudWatch agent or SSH. **Downsizing remains NO-GO until measured in-guest.**
+
+### Still live, still Wix (cloud side, item 7)
+
+- API routes `GET/POST /wix-store/{proxy+}` and `POST /wix-catalog-webhook` remain.
+- 3 Wix secrets scheduled for deletion 2026-10-14: `wecare/wix/headless-api-key`,
+  `wecare/wix/catalog-webhook`, `wecare/wix/app-oauth`.
+- Live checkout env already has `WIX_CART_V2_ENABLED=false` and `WIX_WRITEBACK_ENABLED=false`,
+  but `config/lambda-env-manifest.json` still records both as `true` — the manifest is a
+  mirror of live and is now STALE/wrong. Correct order: strip WIX env from the live
+  Lambdas, then `scripts/env_manifest.py --export`. Hand-editing the manifest alone makes
+  the drift check fail.
+
+### Net
+
+Items 2 and 9 are done (verified). Item 4 is done bar committing the regenerated
+snapshot. Blog has no runtime Wix dependency. Remaining Wix presence is dormant source
+(item 8) + idle cloud infra and stale config (items 7, 11) + an owner retention call
+(item 12). Item 3 (23 variants all `inventory=1`) is blocked on real stock quantities
+from the owner. No writes or deletes were performed in this session.

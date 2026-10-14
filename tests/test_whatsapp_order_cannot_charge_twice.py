@@ -38,13 +38,12 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
 from crm_fake_dynamo import FakeDynamo  # noqa: E402
 from lambda_utils.ecommerce import (  # noqa: E402
-    cart_v2, contact_address, order_creation, whatsapp_basket as wb)
+    contact_address, order_creation, whatsapp_basket as wb)
 from lambda_utils.ecommerce.checkout_pricing import compute_quote  # noqa: E402
 from lambda_utils.identity import customer as customer_identity  # noqa: E402
 from lambda_utils.integrations import razorpay_orders  # noqa: E402
 
 HANDLER = ROOT / "amplify/functions/ecommerce/checkout/handler.py"
-FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 
 ATTEMPTS_TABLE = "stack-wecare-digital-PaymentAttemptsTable"
 KEYS_TABLE = "stack-wecare-digital-CommerceKeys"
@@ -56,7 +55,10 @@ SESSION_PHONE = "+918100640044"
 STORED_PHONE = customer_identity.normalize_phone_preserving_country(SESSION_PHONE)
 OWNED = {"addressLine1": "12 Dalhousie Square", "city": "Kolkata",
          "state": "West Bengal", "postalCode": "700001"}
-COLLECTION_PAISE = 2549900
+#: AWS-native single-unit collection (product price; native shipping free by default).
+COLLECTION_PAISE = 2499900
+CART_TABLE = "stack-wecare-digital-CartTable"
+PRODUCTS_TABLE = "stack-wecare-digital-ProductsTable"
 GATEWAY_ORDER_ID = "order_R7_4_fixture"
 GATEWAY_PAYMENT_ID = "pay_R7_4_fixture"
 
@@ -87,22 +89,11 @@ PERMITTED_RAZORPAY_CALLS = {
 #: reads this note.
 PERMITTED_BUT_UNREACHED = {"razorpay_orders.find_order_by_receipt"}
 
-#: Every Wix call the path is permitted to make, with cart and product ids normalised out so the
-#: list is about SHAPE. One Create Cart, one product readback per line, one Get Cart, the delivery
-#: address and method writes, and Calculate. No Create Order and no Create Checkout: a Wix order is
-#: written back after the money is proven, by a different function, not from here.
-#: `PATCH .../{id}` writes the owned delivery ADDRESS (the place of supply, loaded server-side and
-#: never from a request body); `set-delivery-method` selects the shipping option Wix then prices;
-#: `calculate` is the authoritative total. All three are reads-and-writes on a CART, none of them
-#: places an order or moves money.
-PERMITTED_WIX_CALLS = {
-    "POST /ecom/v2/carts",
-    "GET /ecom/v2/carts/{id}",
-    "PATCH /ecom/v2/carts/{id}",
-    "POST /ecom/v2/carts/{id}/set-delivery-method",
-    "POST /ecom/v2/carts/{id}/calculate",
-    "GET /stores/v3/products/{id}",
-}
+#: AWS-NATIVE: the path makes ZERO Wix calls. The cart lives in CartTable and is priced from
+#: ProductsTable by the native engine — there is no Wix cart, no Wix product readback, no Wix
+#: delivery/calculate call. This empty set is the strongest Wix-exit guarantee on the WhatsApp
+#: order path: a single Wix call reappearing fails the equality below.
+PERMITTED_WIX_CALLS = set()
 
 #: What must NEVER appear in the Wix set. A Wix ORDER is written back after the money is proven, by
 #: `wix_writeback` from the webhook leg - not from a checkout - and a Wix CHECKOUT is the V1 path
@@ -110,12 +101,30 @@ PERMITTED_WIX_CALLS = {
 FORBIDDEN_WIX_FRAGMENTS = ("create-order", "orders", "checkout", "payments", "/v1/")
 
 
-def delivery_complete():
-    return json.loads((FIXTURES / "wix_cart_v2_delivery_complete.json").read_text())
+#: The product/variant/app identifiers this file needs, inlined rather than read from the retired
+#: Wix Cart V2 fixture. The claim-basket path is AWS-native, so all that is consumed is one
+#: catalogReference (product + variant + appId) shared by the WhatsApp hand-off and website lines.
+HANDOFF_CATALOG_REFERENCE = {
+    "catalogItemId": "00d4c72b-f694-441a-a192-e16f4b192440",
+    "appId": "215238eb-22a5-4c36-9e7b-e7c08025e04e",
+    "options": {"variantId": "2d072962-37c0-4821-9c02-2cc223448711"},
+}
 
 
 def fixture_reference():
-    return delivery_complete()["cart"]["lineItems"][0]["source"]["catalogReference"]
+    return copy.deepcopy(HANDOFF_CATALOG_REFERENCE)
+
+
+def _native_product_row():
+    """ProductsTable item the native engine prices from, using the fixture's product/variant
+    UUIDs so WhatsApp and website lines resolve to one native cart line."""
+    ref = fixture_reference()
+    return {"id": ref["catalogItemId"], "status": "active",
+            "variants": [{"sku": ref["options"]["variantId"],
+                          "priceMinor": COLLECTION_PAISE, "inventory": 50}]}
+
+
+NATIVE_PRODUCT_ROW = _native_product_row()
 
 
 def handoff_lines():
@@ -158,35 +167,6 @@ class ProviderLog:
         return dict(self.calls)
 
 
-class RecordingWix:
-    """The Wix transport, logging a NORMALISED path so the permitted list is about shape."""
-
-    def __init__(self, log: ProviderLog):
-        self.log = log
-        self.response = delivery_complete()
-
-    def __call__(self, endpoint, method="GET", body=None):
-        self.log.record(f"{method.upper()} {self._shape(endpoint)}")
-        if endpoint.startswith("/stores/v3/products/"):
-            reference = fixture_reference()
-            return {"product": {
-                "id": reference["catalogItemId"], "visible": True,
-                "variantsInfo": {"variants": [{
-                    "id": reference["options"]["variantId"], "visible": True,
-                    "inventoryStatus": {"inStock": True}}]}}}
-        return copy.deepcopy(self.response)
-
-    @staticmethod
-    def _shape(endpoint: str) -> str:
-        if endpoint.startswith("/stores/v3/products/"):
-            return "GET /stores/v3/products/{id}".split(" ", 1)[1]
-        if endpoint == cart_v2.BASE:
-            return cart_v2.BASE
-        rest = endpoint[len(cart_v2.BASE) + 1:] if endpoint.startswith(cart_v2.BASE + "/") else ""
-        tail = rest.split("/", 1)[1] if "/" in rest else ""
-        return f"{cart_v2.BASE}/{{id}}" + (f"/{tail}" if tail else "")
-
-
 class _Payload:
     def __init__(self, raw):
         self.raw = raw
@@ -215,25 +195,28 @@ def env(monkeypatch):
     monkeypatch.setenv("CONTACTS_TABLE", CONTACTS_TABLE)
     monkeypatch.setenv("ORDERS_TABLE", ORDERS_TABLE)
     monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("WIX_CART_V2_ENABLED", "true")
-    monkeypatch.delenv("WIX_CART_V2_DISABLED", raising=False)
+    # AWS-NATIVE: claim-basket / customer-cart is backed by NativeCartAdapter (CartTable +
+    # ProductsTable), not the Wix Cart V2 adapter.
+    monkeypatch.setenv("CHECKOUT_MODE", "AWS_NATIVE")
+    monkeypatch.setenv("CART_TABLE", CART_TABLE)
+    monkeypatch.setenv("PRODUCTS_TABLE", PRODUCTS_TABLE)
 
     spec = importlib.util.spec_from_file_location("checkout_r74_under_test", HANDLER)
     h = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(h)
 
     fake = FakeDynamo(keys={ATTEMPTS_TABLE: "paymentAttemptId", KEYS_TABLE: "orderId",
-                            CONTACTS_TABLE: "id", ORDERS_TABLE: "orderId"},
+                            CONTACTS_TABLE: "id", ORDERS_TABLE: "orderId",
+                            CART_TABLE: "cartId", PRODUCTS_TABLE: "id"},
                       indexes={CONTACTS_TABLE: {"phone-index": ("phone", None)}})
     log = ProviderLog()
-    wix = RecordingWix(log)
     monkeypatch.setattr(h, "_dynamodb", fake)
     monkeypatch.setattr(h, "_lambda_client", lambda: _TripwireLambda())
-    monkeypatch.setattr(h, "_wix_request", wix)
-    monkeypatch.setattr(h.wix_ecom, "_request", wix)
     monkeypatch.setattr(h, "INITIATION_ENABLED", True)
     monkeypatch.setattr(h.customer_auth, "authenticate", lambda event: _Identity())
     monkeypatch.setattr(h, "LOAD_OWNED_ADDRESS", lambda customer_id: dict(OWNED))
+    monkeypatch.setattr(h, "_native_product_reader",
+                        lambda: (lambda pid: dict(NATIVE_PRODUCT_ROW)))
 
     payable = compute_quote(COLLECTION_PAISE).total_payable_paise
 

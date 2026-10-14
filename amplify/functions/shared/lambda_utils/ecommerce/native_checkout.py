@@ -97,7 +97,13 @@ def quote_native_cart(
         created_at=created_at,
         ttl_seconds=ttl_seconds,
         site=SITE_TAG,
-        items=[{"productId": ln.product_id, "variantId": ln.variant_id,
+        # `lineItemId` is the STABLE line identity the paid-basket narrow guard keys on
+        # (checkout_pricing.narrow_basket_hash returns "" and the guard is DISABLED for a line
+        # without one). Natively the variant id IS that identity — the same choice NativeCartAdapter
+        # makes — so the duplicate-payment narrow guard works on the native path exactly as it did
+        # on the Wix cart.
+        items=[{"lineItemId": ln.variant_id,
+                "productId": ln.product_id, "variantId": ln.variant_id,
                 "quantity": ln.quantity, "unitPricePaise": ln.unit_price_paise}
                for ln in lines],
         address=None,

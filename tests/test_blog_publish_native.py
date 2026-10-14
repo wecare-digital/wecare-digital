@@ -14,14 +14,16 @@ import blog_publish  # noqa: E402
 import storage  # noqa: E402
 
 
-def test_blog_source_flag_resolution(monkeypatch):
+def test_blog_source_is_unconditionally_aws(monkeypatch):
+    # WIX EXIT COMPLETE: the Wix publish path and its credential/kill-switch handling
+    # were removed with the Wix Lambdas, so the blog WRITE always goes to the AWS-native
+    # store. _blog_source_is_aws() is True regardless of any legacy BLOG_SOURCE value —
+    # there is no Wix target left to route to.
     monkeypatch.delenv("BLOG_SOURCE", raising=False)
-    assert blog_publish._blog_source_is_aws() is False
-    for val in ("aws", "AWS", "dynamodb", "native"):
+    assert blog_publish._blog_source_is_aws() is True
+    for val in ("aws", "AWS", "dynamodb", "native", "wix", "WIX", "anything"):
         monkeypatch.setenv("BLOG_SOURCE", val)
         assert blog_publish._blog_source_is_aws() is True
-    monkeypatch.setenv("BLOG_SOURCE", "wix")
-    assert blog_publish._blog_source_is_aws() is False
 
 
 def test_write_native_persists_published_post_and_returns_shape(monkeypatch):

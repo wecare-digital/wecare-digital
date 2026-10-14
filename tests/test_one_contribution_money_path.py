@@ -64,8 +64,12 @@ CHARGING_FRAGMENTS = (
 #: adding one to the path means adding it here and having the enumeration apply to it.
 PREPARE_PATH_MODULES = (
     "amplify/functions/ecommerce/checkout/handler.py",
-    "amplify/functions/shared/lambda_utils/wix_ecom.py",
-    "amplify/functions/shared/lambda_utils/ecommerce/cart_v2.py",
+    # The AWS-native supply modules the prepare path now reaches instead of the retired Wix client
+    # (wix_ecom.py) and Wix cart (cart_v2.py): `_native_quote` prices off ProductsTable through
+    # native_cart + native_checkout, with native_shipping as the (free) delivery policy.
+    "amplify/functions/shared/lambda_utils/ecommerce/native_cart.py",
+    "amplify/functions/shared/lambda_utils/ecommerce/native_checkout.py",
+    "amplify/functions/shared/lambda_utils/ecommerce/native_shipping.py",
     "amplify/functions/shared/lambda_utils/ecommerce/customer_cart.py",
     "amplify/functions/shared/lambda_utils/ecommerce/purchase_intent.py",
     "amplify/functions/shared/lambda_utils/ecommerce/checkout_pricing.py",

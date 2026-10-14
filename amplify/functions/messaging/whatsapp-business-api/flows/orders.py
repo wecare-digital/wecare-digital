@@ -29,7 +29,7 @@ except ImportError:  # pragma: no cover - lambda_utils is always present in the 
 logger = logging.getLogger(__name__)
 
 dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+
 
 ORDERS_TABLE = os.environ.get('ORDERS_TABLE', 'stack-wecare-digital-OrderTable')
 FLOW_SUBMISSIONS_TABLE = os.environ.get('FLOW_SUBMISSIONS_TABLE', 'stack-wecare-digital-FlowSubmissionTable')
@@ -88,100 +88,6 @@ def format_order_dropdown(wd_id: str, created_date: str = '', total: str = '',
         except Exception:
             pass
     return short
-
-
-def sync_wix_order_to_orders_table(order: dict, phone: str) -> str:
-    """Sync a Wix order into the central OrdersTable. Returns orderId or ''."""
-    try:
-        summary = order.get('_summary', {})
-        wd_id = order.get('customOrderNumber', '') or summary.get('customOrderNumber', '')
-        if not wd_id or not wd_id.startswith('WD-ORD'):
-            return ''
-        short = extract_short_id(wd_id)
-        created = summary.get('createdDate', '')
-        order_date_ist = ''
-        order_date = ''
-        order_time = ''
-        if created:
-            try:
-                from datetime import datetime, timezone, timedelta
-                dt = datetime.fromisoformat(created.replace('Z', '+00:00'))
-                ist = dt.astimezone(timezone(timedelta(hours=5, minutes=30)))
-                order_date_ist = ist.strftime('%d %b %Y, %I:%M %p')
-                order_date = ist.strftime('%Y-%m-%d')
-                order_time = ist.strftime('%H:%M:%S')
-            except Exception:
-                pass
-        items = summary.get('lineItems', [])
-        items_summary = ', '.join(f"{i.get('name', '')} × {i.get('quantity', 1)}" for i in items[:5])
-        total = float(summary.get('totalAmount', 0) or 0)
-        table = dynamodb.Table(ORDERS_TABLE)
-        now = int(time.time())
-        table.put_item(Item={
-            k: v for k, v in {
-                'orderId': wd_id,
-                'shortId': short,
-                'source': 'wix',
-                'sourceOrderId': order.get('id', ''),
-                'sourceOrderNumber': str(summary.get('orderNumber', '')),
-                'customerPhone': phone or summary.get('billingPhone', ''),
-                'customerName': summary.get('billingName', ''),
-                'customerEmail': summary.get('buyerEmail', ''),
-                'orderDate': order_date,
-                'orderTime': order_time,
-                'orderDateIST': order_date_ist,
-                'itemsSummary': items_summary,
-                'itemsJson': json.dumps(items),
-                'itemCount': summary.get('lineItemCount', len(items)),
-                'totalAmount': Decimal(str(total)) if total else Decimal('0'),
-                'currency': 'INR',
-                'orderStatus': (summary.get('status', 'active') or 'active').lower(),
-                'paymentStatus': (summary.get('paymentStatus', 'pending') or 'pending').lower(),
-                'fulfillmentStatus': summary.get('fulfillmentStatus', ''),
-                'createdAt': now,
-                'updatedAt': now,
-                'syncedAt': now,
-            }.items() if v is not None and v != ''
-        })
-
-        # Upsert buyer into Contacts table (so WhatsApp Flow can find them)
-        buyer_phone = phone or summary.get('billingPhone', '')
-        buyer_email = summary.get('buyerEmail', '')
-        buyer_name = summary.get('billingName', '')
-        if buyer_phone:
-            try:
-                contacts_table_name = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')
-                ct = dynamodb.Table(contacts_table_name)
-                clean_phone = buyer_phone.replace(' ', '').replace('-', '')
-                if not clean_phone.startswith('+'):
-                    clean_phone = f'+{clean_phone}' if clean_phone.startswith('91') else f'+91{clean_phone}'
-                # Check if contact exists
-                resp = ct.query(
-                    IndexName='phone-index',
-                    KeyConditionExpression='phone = :p',
-                    ExpressionAttributeValues={':p': clean_phone},
-                    Limit=1, ProjectionExpression='contactId',
-                )
-                if not resp.get('Items'):
-                    ct.put_item(Item={
-                        'contactId': str(uuid.uuid4()),
-                        'name': buyer_name or '',
-                        'phone': clean_phone,
-                        'email': buyer_email or '',
-                        'country': 'IN',
-                        'optInWhatsApp': False,
-                        'allowlistWhatsApp': False,
-                        'createdAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-                        'updatedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-                    })
-                    logger.info(f'Contact created for {mask_phone(clean_phone or "")} from Wix order sync')
-            except Exception as ce:
-                logger.debug(f'Contact upsert skipped: {ce}')
-
-        return wd_id
-    except Exception as e:
-        logger.debug(f'Order sync to OrdersTable failed: {e}')
-        return ''
 
 
 def create_manual_order(customer_phone: str, customer_name: str = '',
@@ -302,8 +208,8 @@ def fetch_orders_for_flow(phone: str, email: str) -> list:
     except Exception as e:
         logger.debug(f'OrdersTable query skipped: {e}')
 
-    # AWS-native cutover: OrderTable above is authoritative. There is no provider
-    # fallback here; a miss remains a miss instead of reviving the retired Wix
-    # store integration or mutating local order history as a side effect of read.
-
+    # Wix Store fallback removed in the Wix exit: OrdersTable (AWS-native checkout)
+    # is the sole source of truth. The `wecare-wix-store` Lambda this used to invoke
+    # as "Source 2" was deleted, so there is nothing to fall back to — a miss remains
+    # a miss rather than reviving the retired Wix store integration.
     return results

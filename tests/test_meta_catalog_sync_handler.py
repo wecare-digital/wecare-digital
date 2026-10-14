@@ -277,11 +277,20 @@ class FakeApprovalStore:
 
 
 def run(wix, graph, reader=None, event=None, approval_store=None):
-    return receiver.handler(
-        event if event is not None else {"source": "wix-webhook", "entityId": "prod-1"},
-        None, wix_requester=wix, graph_requester=graph,
-        secret_reader=reader or reader_for(),
-        approval_store=approval_store or FakeApprovalStore())
+    # AWS-NATIVE: the handler reads products from ProductsTable via `_native_products`, not from a
+    # Wix requester. The `wix` fake now serves only as the products carrier — its `.products` are
+    # injected as the native read. `_native_products` returns the slim shape the committed
+    # snapshot fixture already uses, so no shape rebuild is needed.
+    original_native = receiver._native_products
+    receiver._native_products = lambda scanner=None: [dict(p) for p in getattr(wix, "products", [])]
+    try:
+        return receiver.handler(
+            event if event is not None else {"source": "wix-webhook", "entityId": "prod-1"},
+            None, graph_requester=graph,
+            secret_reader=reader or reader_for(),
+            approval_store=approval_store or FakeApprovalStore())
+    finally:
+        receiver._native_products = original_native
 
 
 # ── 1. the gates ─────────────────────────────────────────────────────────────
@@ -603,9 +612,8 @@ def test_a_webhook_invoke_and_a_schedule_are_treated_identically(snapshot_produc
         wix, graph = FakeWix(snapshot_products), FakeGraph()
         answer = run(wix, graph, event=event)
         outcomes.append(answer["counts"])
-        # The entity id must not reach the Wix request as a filter.
-        search = next(c for c in wix.calls if c["endpoint"] == receiver.WIX_SEARCH_ENDPOINT)
-        assert "prod-1" not in json.dumps(search["body"])
+        # AWS-native: the catalogue is read in full from ProductsTable regardless of the trigger;
+        # the entity id on a stream/webhook event is correlation only and never narrows the read.
     assert outcomes == [outcomes[0]] * len(outcomes)
 
 
@@ -628,18 +636,28 @@ def test_the_native_ddb_stream_is_classified_and_carries_the_changed_id():
 
 
 def test_a_wix_failure_does_not_become_a_write(snapshot_products, monkeypatch):
+    # AWS-native: a ProductsTable read failure must refuse rather than write a partial plan to
+    # Meta — the same fail-closed guarantee the Wix read had.
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
 
-    def boom(endpoint, body):
-        raise OSError("connection reset")
-
     graph = FakeGraph()
-    answer = run(boom, graph)
+    original = receiver._native_products
+    receiver._native_products = _raise_native_read
+    try:
+        answer = receiver.handler(
+            {"source": "schedule"}, None, graph_requester=graph,
+            secret_reader=reader_for(), approval_store=FakeApprovalStore())
+    finally:
+        receiver._native_products = original
     assert answer["ok"] is False
     assert answer["reason"] == "read_failed"
     assert answer["dryRun"] is True
     assert graph.writes == []
+
+
+def _raise_native_read(scanner=None):
+    raise OSError("connection reset")
 
 
 def test_a_META_read_failure_does_not_become_a_write(snapshot_products, monkeypatch):
@@ -667,16 +685,24 @@ def test_a_variant_without_a_price_refuses_rather_than_publishing_the_products(
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
 
-    class Priceless(FakeWix):
-        def __call__(self, endpoint, body):
-            result = super().__call__(endpoint, body)
-            if endpoint == receiver.WIX_VARIANTS_ENDPOINT:
-                for row in result["variants"]:
-                    row.pop("price", None)
-            return result
+    # AWS-native: strip `pricePaise` from every variant of the slim products the native read
+    # returns. `desired_items(require_variant_price=True)` must then refuse rather than publish a
+    # product-level price for a variant that has none.
+    priceless = copy.deepcopy(snapshot_products)
+    for product in priceless:
+        for variant in product.get("variants") or []:
+            variant.pop("pricePaise", None)
+            variant.pop("price", None)
 
     graph = FakeGraph()
-    answer = run(Priceless(snapshot_products), graph)
+    original = receiver._native_products
+    receiver._native_products = lambda scanner=None: [dict(p) for p in priceless]
+    try:
+        answer = receiver.handler(
+            {"source": "schedule"}, None, graph_requester=graph,
+            secret_reader=reader_for(), approval_store=FakeApprovalStore())
+    finally:
+        receiver._native_products = original
     assert answer["ok"] is False
     assert answer["reason"] == "read_failed"
     assert graph.writes == []
@@ -895,9 +921,14 @@ def test_inspection_does_not_write_when_sync_is_enabled(snapshot_products, monke
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
     graph = FakeGraph()
-    answer = receiver.handler({"inspect": True}, None, wix_requester=FakeWix(snapshot_products),
-                              graph_requester=graph, secret_reader=lambda name: {"access_token": FAKE_TOKEN},
-        approval_store=FakeApprovalStore())
+    original = receiver._native_products
+    receiver._native_products = lambda scanner=None: [dict(p) for p in snapshot_products]
+    try:
+        answer = receiver.handler({"inspect": True}, None,
+                                  graph_requester=graph, secret_reader=lambda name: {"access_token": FAKE_TOKEN},
+            approval_store=FakeApprovalStore())
+    finally:
+        receiver._native_products = original
     assert answer["readOnly"] is True
     assert len(answer["desiredItems"]) == 22
     assert graph.writes == []

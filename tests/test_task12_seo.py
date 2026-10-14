@@ -202,7 +202,9 @@ def test_failed_blog_apply_restores_approved_state(seo_handler):
     )
     assert payload(response)['error'] == 'Blog SEO apply failed; audit remains approved'
 
-def test_public_blog_endpoint_returns_wix_posts_without_auth(seo_handler):
+def test_public_blog_endpoint_returns_native_posts_without_auth(seo_handler):
+    # Wix exit complete: the public blog reads from the AWS SeoToolsTable via the
+    # blog_source seam, not from an anonymous Wix visitor-token request.
     event = {
         'requestContext': {
             'apiId': 'api-1',
@@ -214,7 +216,7 @@ def test_public_blog_endpoint_returns_wix_posts_without_auth(seo_handler):
         'id': 'blog-1', 'slug': 'hello', 'title': 'Hello',
         'url': 'https://wecare.digital/post/hello/',
     }]
-    with patch.object(seo_handler.wix, 'list_blog_posts', return_value=published) as posts, \
+    with patch.object(seo_handler.blog_source, 'list_blog_posts', return_value=published) as posts, \
             patch.object(seo_handler, 'require_auth') as auth:
         response = seo_handler.handler(event, None)
     assert response['statusCode'] == 200
@@ -223,7 +225,7 @@ def test_public_blog_endpoint_returns_wix_posts_without_auth(seo_handler):
     auth.assert_not_called()
 
 
-def test_public_blog_detail_reads_wix_by_slug(seo_handler):
+def test_public_blog_detail_reads_native_by_slug(seo_handler):
     event = {
         'requestContext': {
             'apiId': 'api-1',
@@ -242,8 +244,10 @@ def test_public_blog_detail_reads_wix_by_slug(seo_handler):
         'coverImage': '',
     }
     with patch.object(
-        seo_handler.wix, 'get_blog_post_by_slug', return_value=post
-    ) as get_post, patch.object(seo_handler, 'require_auth') as auth:
+        seo_handler.blog_source, 'get_blog_post_by_slug', return_value=post
+    ) as get_post, \
+            patch.object(seo_handler.storage, 'list_slug_records', return_value=[]), \
+            patch.object(seo_handler, 'require_auth') as auth:
         response = seo_handler.handler(event, None)
     assert response['statusCode'] == 200
     assert payload(response)['post'] == post

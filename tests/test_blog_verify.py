@@ -2,10 +2,10 @@
 
 WHY THIS FILE EXISTS AT ALL, GIVEN THE PUBLISH REPORTED SUCCESS.
 
-A successful write is not evidence of a correct post. Wix appends a numeric suffix to a colliding
-slug, drops rich-content nodes it does not recognise, and accepts a category id that no longer
-exists without applying it. Each of those leaves a live article a reader sees and no record
-mentions.
+A successful write is not evidence of a correct post. A slug collision, a dropped node, or a
+category that no longer exists would each leave a live article a reader sees and no record
+mentions. Reading the post back from the public path and checking it against what was approved is
+the only thing that catches that.
 
 THE TWO TESTS THAT CARRY THE FILE.
 
@@ -15,6 +15,14 @@ than none, because the report keeps saying "verified".
 `test_the_expectation_comes_from_the_signoff_not_the_current_draft`. The draft can be edited after
 publication, and verifying against it would report a failure for an article that went live exactly
 as approved.
+
+WIX EXIT: publishing writes to the AWS-native store via `storage.create_blog_post`, so a live post
+now carries a native `blog_<hex>` id (under `id`) and only markdown `content` - there is no Wix
+rich-content node tree. The live-post fixture mirrors the native read shape (`storage._blog_view`).
+`blog_verify.run()` reads the live post back through the native public seam
+`blog_source.get_blog_post_by_slug` - the same source the live site serves, filtered to published
+only. These tests patch that call and feed it the native shape so the expectations align with the
+native contract.
 """
 from __future__ import annotations
 
@@ -35,7 +43,12 @@ import blog_quality_v2 as q  # noqa: E402
 from blog_pdf_fixture import make_pdf, wrap  # noqa: E402
 from test_blog_sources import FakeLambda, FakeS3, FakeTable, _pdf_entry  # noqa: E402
 from test_blog_qa import GOOD_BODY, PROSE, DISTINCTION, STATEMENT  # noqa: E402
-from test_blog_publish import FakeWix  # noqa: E402
+from test_blog_publish import FakeStore  # noqa: E402
+
+#: The native post id `storage.create_blog_post` returns for a published post. The live-post
+#: fixture puts this under `id` (the native read shape), which is what POST_ID_MATCHES compares
+#: the recorded publish `postId` against.
+POST_ID = "blog_test1"
 
 
 @pytest.fixture()
@@ -45,22 +58,26 @@ def env(monkeypatch):
     import blog_gate as bg
     import blog_publish as bp
     import blog_qa as bq
+    import blog_source
     import blog_sources as bs
     import blog_verify as bv
     import storage
-    import wix
 
     table = FakeTable()
     s3 = FakeS3()
     lam = FakeLambda()
-    fake_wix = FakeWix()
+    store = FakeStore()
     live: Dict[str, Dict[str, Any]] = {}
     monkeypatch.setattr(storage, "table", lambda: table)
+    monkeypatch.setattr(storage, "create_blog_post", store.create_blog_post)
     monkeypatch.setattr(bs, "s3_client", lambda: s3)
     monkeypatch.setattr(bs, "lambda_client", lambda: lam)
     monkeypatch.setattr(bs, "BUCKET", "wecare-digital-get")
-    monkeypatch.setattr(wix, "request", fake_wix.request)
-    monkeypatch.setattr(wix, "get_blog_post_by_slug", lambda slug: live.get(slug))
+    #: `blog_verify.run()` reads the live post back through the native public seam
+    #: `blog_source.get_blog_post_by_slug` (the same source the live site serves). Patch exactly
+    #: that call and return the native read shape so the thirteen are checked against the native
+    #: contract.
+    monkeypatch.setattr(blog_source, "get_blog_post_by_slug", lambda slug: live.get(slug))
     monkeypatch.setenv("WIX_BLOG_AUTHOR_NAME", q.AUTHOR)
     bg.reset_corpus_cache()
     index = q.CorpusIndex()
@@ -72,7 +89,7 @@ def env(monkeypatch):
     monkeypatch.setattr(bg, "_corpus", index)
     monkeypatch.setattr(bg, "_corpus_state", {"loaded": 1, "present": True, "path": "test",
                                               "packaged": True, "builtAt": "", "note": ""})
-    yield {"table": table, "s3": s3, "wix": fake_wix, "live": live, "ba": ba, "bb": bb,
+    yield {"table": table, "s3": s3, "store": store, "live": live, "ba": ba, "bb": bb,
            "bg": bg, "bp": bp, "bq": bq, "bs": bs, "bv": bv, "storage": storage}
     bg.reset_corpus_cache()
 
@@ -130,26 +147,42 @@ def _published(env, batch_id: str = "", header: str = "THE GIVEN WORD") -> Dict[
         "declarations": {name: expected for name, expected in blog_qa.DECLARATIONS},
         "statement": STATEMENT}, "editor")
     job = env["bp"].release(source_id, "operator")
-    env["bp"].publish(job["jobId"], "operator")
+    published = env["bp"].publish(job["jobId"], "operator")
 
-    env["live"][slug] = _live_post(slug, draft)
-    return {"sourceId": source_id, "slug": slug, "draft": draft, "jobId": job["jobId"]}
+    #: The live post's id is the id the NATIVE publish actually recorded, not a fixed
+    #: "post-1". `_write_native` -> `storage.create_blog_post` mints `blog_<uuid>` and the
+    #: job records it, and the native read seam returns that same id for this slug - so
+    #: POST_ID_MATCHES compares the recorded id against the id the read returns, which is the
+    #: honest invariant. Seeding "post-1" here was the stale Wix response shape and is what
+    #: made the assertion mismatch under native publish.
+    env["live"][slug] = _live_post(slug, draft, id=str(published["postId"]))
+    return {"sourceId": source_id, "slug": slug, "draft": draft, "jobId": job["jobId"],
+            "postId": str(published["postId"])}
 
 
 def _live_post(slug: str, draft: Dict[str, Any], **overrides: Any) -> Dict[str, Any]:
-    """What `wix.get_blog_post_by_slug` returns for a correctly published post."""
-    import wix_blog_migrate as migrate
+    """The native public read shape for a correctly published post, mirroring
+    `storage._blog_view`.
+
+    The id defaults to the native `blog_<hex>` shape but is overridden by `_published` with the id
+    the publish actually recorded, so a correct post matches on POST_ID_MATCHES. The body is
+    markdown under `content`/`contentText`; the native store has no Wix rich-content node tree, so
+    `richContent` is empty - `verify_post` reads the body from `content`, and NO_MEDIA_NODES /
+    NO_LEGACY_MARKUP see an empty tree exactly as the native store serves it.
+    """
+    body = q.strip_markdown(str(draft["contentMarkdown"]))
     post = {
-        "id": "post-1",
+        "id": "blog_native",
         "title": str(draft["title"]),
         "slug": slug,
-        "url": f"https://wecare.digital/post/{slug}/",
+        "url": f"https://wecare.digital/post/{slug}",
         "seoTitle": str(draft["seoTitle"]),
         "metaDescription": str(draft["metaDescription"]),
         "category": "Conversations",
         "authorName": q.AUTHOR,
-        "content": q.strip_markdown(str(draft["contentMarkdown"])),
-        "richContent": migrate.markdown_to_rich_content(str(draft["contentMarkdown"])),
+        "content": body,
+        "contentText": body,
+        "richContent": {},
     }
     post.update(overrides)
     return post
@@ -399,29 +432,53 @@ def test_an_article_with_no_signoff_reference_still_verifies(env):
 
 # ── The read path ───────────────────────────────────────────────────────────────
 
-def test_verification_reads_the_public_post_not_the_authenticated_one(env, monkeypatch):
-    """Two reasons. It proves the article is actually PUBLIC rather than merely created - an
-    authenticated read would happily return a draft. And it works while the kill switch is on,
-    because that switch covers the API key and not the visitor token; an incident control that
-    also disabled checking what is live would be the wrong shape."""
+def test_verification_reads_the_native_published_only_view(env):
+    """It proves the article is actually PUBLIC rather than merely created.
+
+    WIX EXIT COMPLETE: there is no longer a public-vs-authenticated token distinction - there is
+    one AWS-native store. The invariant that mattered survives: verification reads through the
+    PUBLISHED-only view (`storage.get_blog_post(slug, published_only=True)`, which the public read
+    seam `blog_source.get_blog_post_by_slug` serves), so an article that exists only as a draft is
+    invisible to verification exactly as it is to a reader. A draft read would otherwise report
+    "verified" on a post nobody can reach.
+
+    The old test drove a Wix public-vs-authenticated token distinction and asserted verification
+    still worked while the kill switch was on. Both the second token and the kill switch are gone,
+    so this asserts the one native fact underneath: the read seam filters to published only.
+    """
+    import storage
+
+    #: The normal run still verifies through the fixture's live map.
     published = _published(env)
-    monkeypatch.setenv("WIX_CREDENTIALS_DISABLED", "true")
-    env["wix"].disabled = True  # every authenticated call now raises
-    result = env["bv"].run(published["sourceId"], "operator")
-    assert result["failed"] == 0, result["failedAssertions"]
-    assert result["status"] == "VERIFIED"
+    assert env["bv"].run(published["sourceId"], "operator")["status"] == "VERIFIED"
+
+    #: And the native read seam the verifier calls is the PUBLISHED-only one. Write a published and
+    #: a draft blogPost record straight into the store and assert the filter: the published slug
+    #: resolves, the draft slug does not - which is why a verification run cannot certify a draft.
+    env["table"].items["blog_pub"] = storage._clean({
+        "id": "blog_pub", "recordType": storage.BLOG_RECORD_TYPE, "createdAt": storage.now_iso(),
+        "slug": "a-published-post", "title": "Published", "status": "published",
+        "content": "Body."})
+    env["table"].items["blog_dft"] = storage._clean({
+        "id": "blog_dft", "recordType": storage.BLOG_RECORD_TYPE, "createdAt": storage.now_iso(),
+        "slug": "a-draft-post", "title": "Draft", "status": "draft", "content": "Body."})
+    #: The env fixture monkeypatches blog_source.get_blog_post_by_slug to drive the verifier off
+    #: the fixture's live map, so call the real published-only filter directly through storage —
+    #: the exact delegate blog_source.get_blog_post_by_slug wraps.
+    assert storage.get_blog_post("a-published-post", published_only=True)["id"] == "blog_pub"
+    assert storage.get_blog_post("a-draft-post", published_only=True) is None
 
 
-def test_an_unreachable_wix_is_an_outcome_not_an_exception(env, monkeypatch):
-    """"Wix is unreachable" and "the post is not there" are different facts, and the report has
-    to say which."""
-    import wix
+def test_an_unreachable_store_is_an_outcome_not_an_exception(env, monkeypatch):
+    """"the store is unreachable" and "the post is not there" are different facts, and the report
+    has to say which."""
+    import blog_source
     published = _published(env)
 
     def exploding(slug):
         raise RuntimeError("connection reset")
 
-    monkeypatch.setattr(wix, "get_blog_post_by_slug", exploding)
+    monkeypatch.setattr(blog_source, "get_blog_post_by_slug", exploding)
     result = env["bv"].run(published["sourceId"], "operator")
     assert result["readError"] == "RuntimeError"
     assert result["failedAssertions"] == ["POST_IS_LIVE"]
@@ -537,13 +594,17 @@ def test_a_verification_run_does_not_count_as_a_source(env):
 
 # ── The boundary ────────────────────────────────────────────────────────────────
 
-def test_verification_makes_no_wix_mutation(env):
+def test_verification_makes_no_post_mutation(env):
+    """Verification reads the live post and records its own run; it must never write a post.
+
+    WIX EXIT: this used to assert no Wix `draft-posts` mutation was issued. Natively the only way
+    to write a post is `storage.create_blog_post` (the publish writer), so the native form of the
+    invariant is that a verification run never calls it.
+    """
     published = _published(env)
-    env["wix"].calls.clear()
+    env["store"].calls.clear()
     env["bv"].run(published["sourceId"], "operator")
-    mutations = [call for call in env["wix"].calls
-                 if "draft-posts" in call["path"] or call["method"] == "PUT"]
-    assert mutations == []
+    assert env["store"].calls == []
 
 
 def test_verification_is_not_a_model_writable_field(env):

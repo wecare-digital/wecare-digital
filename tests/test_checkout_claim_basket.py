@@ -29,7 +29,6 @@ from lambda_utils.ecommerce.checkout_pricing import compute_quote  # noqa: E402
 from lambda_utils.identity import customer as customer_identity  # noqa: E402
 
 HANDLER = ROOT / "amplify/functions/ecommerce/checkout/handler.py"
-FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 
 ATTEMPTS_TABLE = "stack-wecare-digital-PaymentAttemptsTable"
 KEYS_TABLE = "stack-wecare-digital-CommerceKeys"
@@ -54,17 +53,53 @@ OTHER_PHONE = "+919812345678"
 OWNED = {"addressLine1": "12 Dalhousie Square", "city": "Kolkata",
          "state": "West Bengal", "postalCode": "700001"}
 
-#: Wix collection 25499.00 = items 24999.00 + delivery 500.00, from the shared fixture. Stated
-#: here and re-derived through `compute_quote` below rather than copied from the implementation.
-COLLECTION_PAISE = 2549900
+#: AWS-native collection for a single-unit basket: the product's own price, with native shipping
+#: FREE by default (the Wix fixture carried a 500 delivery; the native policy is free). Derived
+#: through `compute_quote` below rather than copied from the implementation.
+COLLECTION_PAISE = 2499900
+
+CART_TABLE = "stack-wecare-digital-CartTable"
+PRODUCTS_TABLE = "stack-wecare-digital-ProductsTable"
+
+
+#: The product/variant/app and cart identifiers this file needs. Inlined rather than read from a
+#: Wix Cart V2 fixture: the claim-basket path is AWS-native now, so all this file consumes from the
+#: old fixture is one cart id and one catalogReference (product + variant + appId). Keeping them
+#: here removes the last dependency on the retired `wix_cart_v2_*.json` fixtures.
+HANDOFF_CART_ID = "de4d6a89-e575-4c51-b930-aec2adbd8b80"
+HANDOFF_CATALOG_REFERENCE = {
+    "catalogItemId": "00d4c72b-f694-441a-a192-e16f4b192440",
+    "appId": "215238eb-22a5-4c36-9e7b-e7c08025e04e",
+    "options": {"variantId": "2d072962-37c0-4821-9c02-2cc223448711"},
+}
 
 
 def delivery_complete():
-    return json.loads((FIXTURES / "wix_cart_v2_delivery_complete.json").read_text())
+    """The minimal cart shape this file reads: an id and a single line's catalogReference.
+
+    Native-shaped stand-in for the retired Wix Cart V2 fixture; only `['cart']['id']` and
+    `['cart']['lineItems'][0]['source']['catalogReference']` are ever consumed.
+    """
+    return {"cart": {"id": HANDOFF_CART_ID, "lineItems": [
+        {"source": {"catalogReference": copy.deepcopy(HANDOFF_CATALOG_REFERENCE)}}]}}
 
 
 def fixture_reference():
     return delivery_complete()["cart"]["lineItems"][0]["source"]["catalogReference"]
+
+
+def _native_product_row():
+    """The ProductsTable item the native supply engine prices from, using the SAME product and
+    variant UUIDs the shared fixture's catalogReference carries — so a WhatsApp hand-off line and
+    a website line resolve to the one native cart line, exactly as the retailer-id contract
+    requires. Priced at the native single-unit collection (free shipping)."""
+    ref = fixture_reference()
+    return {"id": ref["catalogItemId"], "status": "active",
+            "variants": [{"sku": ref["options"]["variantId"],
+                          "priceMinor": COLLECTION_PAISE, "inventory": 50}]}
+
+
+NATIVE_PRODUCT_ROW = _native_product_row()
 
 
 def handoff_lines(quantity=1):
@@ -139,13 +174,6 @@ class RecordingWix:
     def paths(self):
         return [path for _method, path, _body in self.requests]
 
-    def creates(self):
-        """Every Create Cart call. `cart_v2.BASE` rather than a typed path, so a base change
-        cannot make this quietly count zero and pass."""
-        from lambda_utils.ecommerce import cart_v2
-        return [body for method, path, body in self.requests
-                if method == "POST" and path == cart_v2.BASE]
-
 
 @pytest.fixture
 def env(monkeypatch):
@@ -157,24 +185,30 @@ def env(monkeypatch):
     monkeypatch.setenv("EXPECTED_PROVIDER_MID", "acc_TESTMID")
     monkeypatch.setenv("PAYMENT_WABA_ID", "2094615664435155")
     monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("WIX_CART_V2_ENABLED", "true")
-    monkeypatch.delenv("WIX_CART_V2_DISABLED", raising=False)
+    # AWS-NATIVE: the claim-basket / customer-cart path is backed by NativeCartAdapter (CartTable
+    # + ProductsTable), not the Wix Cart V2 adapter.
+    monkeypatch.setenv("CHECKOUT_MODE", "AWS_NATIVE")
+    monkeypatch.setenv("CART_TABLE", CART_TABLE)
+    monkeypatch.setenv("PRODUCTS_TABLE", PRODUCTS_TABLE)
 
     spec = importlib.util.spec_from_file_location("checkout_claim_basket_under_test", HANDLER)
     h = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(h)
 
     fake = FakeDynamo(keys={ATTEMPTS_TABLE: "paymentAttemptId", KEYS_TABLE: "orderId",
-                            CONTACTS_TABLE: "id", ORDERS_TABLE: "orderId"},
+                            CONTACTS_TABLE: "id", ORDERS_TABLE: "orderId",
+                            CART_TABLE: "cartId", PRODUCTS_TABLE: "id"},
                       indexes={CONTACTS_TABLE: {"phone-index": ("phone", None)}})
     wix = RecordingWix()
     monkeypatch.setattr(h, "_dynamodb", fake)
     monkeypatch.setattr(h, "_lambda_client", lambda: _FakeLambda())
-    monkeypatch.setattr(h, "_wix_request", wix)
-    monkeypatch.setattr(h.wix_ecom, "_request", wix)
     monkeypatch.setattr(h, "INITIATION_ENABLED", False)
     monkeypatch.setattr(h.customer_auth, "authenticate", lambda event: _Identity())
     monkeypatch.setattr(h, "LOAD_OWNED_ADDRESS", lambda customer_id: dict(OWNED))
+    # The native supply engine prices from ProductsTable. Stub the reader to the one fixture
+    # product/variant the hand-off and website lines reference, priced at the native collection.
+    monkeypatch.setattr(h, "_native_product_reader",
+                        lambda: (lambda pid: dict(NATIVE_PRODUCT_ROW)))
     seed_contact(fake)
     return h, fake, wix, monkeypatch
 
@@ -217,6 +251,12 @@ def event(action, **body):
 def carts_in(fake):
     return [row for row in fake.all_rows(KEYS_TABLE)
             if str(row.get("orderId", "")).startswith("CUSTOMERCART#")]
+
+
+def carts_created(fake):
+    """Every native cart row created in the CartTable. The AWS-native replacement for counting
+    Wix `POST /ecom/v2/carts` calls — a native cart create writes one CartTable row."""
+    return [row for row in fake.all_rows(CART_TABLE) if row.get("cartId")]
 
 
 def handoff_row(fake, token="tok-claim-1"):
@@ -268,13 +308,13 @@ def test_a_claim_by_the_owning_phone_merges_the_lines_and_marks_the_row_claimed(
     assert not [key for key in body if "paise" in key.lower() or "amount" in key.lower()
                 or "total" in key.lower()]
 
-    # The lines reached Wix, as a catalog reference rather than as anything of ours.
-    created = wix.creates()
+    # The lines reached the native cart, by product/variant id (the native line shape).
+    created = carts_created(fake)
     assert len(created) == 1
-    reference = created[0]["catalogItems"][0]["catalogReference"]
-    assert reference["catalogItemId"] == fixture_reference()["catalogItemId"]
-    assert reference["options"]["variantId"] == fixture_reference()["options"]["variantId"]
-    assert created[0]["catalogItems"][0]["quantity"] == 1
+    line = created[0]["lineItems"][0]
+    assert line["productId"] == fixture_reference()["catalogItemId"]
+    assert line["variantId"] == fixture_reference()["options"]["variantId"]
+    assert int(line["quantity"]) == 1
 
     row = handoff_row(fake)
     assert row["claimedAt"] > 0
@@ -338,7 +378,7 @@ def test_a_claim_by_a_different_phone_merges_nothing_and_is_refused(env):
     response = h.handler(event("claim-basket", basket="tok-claim-1"), None)
     assert response["statusCode"] == 404
     assert json.loads(response["body"])["status"] == "BASKET_UNAVAILABLE"
-    assert wix.creates() == []
+    assert carts_created(fake) == []
     assert carts_in(fake) == []
     assert "claimedAt" not in handoff_row(fake)
 
@@ -380,7 +420,7 @@ def test_a_second_claim_of_the_same_row_is_refused_and_leaves_one_cart(env):
     assert second["statusCode"] == 404
     assert json.loads(second["body"])["status"] == "BASKET_UNAVAILABLE"
     assert len(carts_in(fake)) == 1
-    assert len(wix.creates()) == 1, "a second claim must not mint a second Wix cart"
+    assert len(carts_created(fake)) == 1, "a second claim must not mint a second Wix cart"
 
 
 def test_a_token_naming_a_row_of_another_kind_is_refused(env):
@@ -409,7 +449,7 @@ def test_an_unauthenticated_call_is_refused_before_any_read(env):
 
     response = h.handler(event("claim-basket", basket="tok-claim-1"), None)
     assert response["statusCode"] == 401
-    assert wix.creates() == []
+    assert carts_created(fake) == []
 
 
 # ── the website cart already in use ───────────────────────────────────────────
@@ -434,7 +474,7 @@ def test_an_existing_website_cart_is_reported_and_the_basket_stays_claimable(env
     body = json.loads(response["body"])
     assert body["status"] == "BASKET_CART_IN_USE"
     assert body["handoffLines"] == 1
-    assert wix.creates() == [], "no second Wix cart"
+    assert carts_created(fake) == [], "no second Wix cart"
     assert "claimedAt" not in handoff_row(fake), "the basket must stay claimable"
     assert h._claimed_handoff(_Identity(), {}) is None, "an unclaimed basket is not an attribution"
 
@@ -461,13 +501,13 @@ def test_a_stale_saved_cart_is_released_by_the_one_retry_rather_than_dead_ending
 
     first = json.loads(h.handler(event("claim-basket", basket="tok-claim-1"), None)["body"])
     assert first["status"] == "BASKET_CART_IN_USE"
-    assert wix.creates() == []
+    assert carts_created(fake) == []
 
     retried = json.loads(h.handler(
         event("claim-basket", basket="tok-claim-1", resetCart=True), None)["body"])
     assert retried["status"] == "BASKET_CLAIMED"
     assert retried["lines"] == handoff_lines()
-    assert len(wix.creates()) == 1, "the released pointer let a fresh cart be created"
+    assert len(carts_created(fake)) == 1, "the released pointer let a fresh cart be created"
     assert handoff_row(fake)["claimedAt"] > 0
     # And the pointer names the NEW cart, so attribution follows the basket that was claimed.
     assert claim_pointer(fake)["wixCartId"] == saved_cart(fake)["wixCartId"]
@@ -486,7 +526,7 @@ def test_reset_cart_is_an_identity_comparison_so_a_truthy_string_does_not_releas
         body = json.loads(h.handler(
             event("claim-basket", basket="tok-claim-1", resetCart=value), None)["body"])
         assert body["status"] == "BASKET_CART_IN_USE", value
-    assert wix.creates() == []
+    assert carts_created(fake) == []
     assert "claimedAt" not in handoff_row(fake)
 
 

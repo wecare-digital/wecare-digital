@@ -237,14 +237,21 @@ def test_the_verification_failure_event_is_the_one_the_filter_counts():
     assert f'"{event}"' in source
 
 
-def test_the_publish_failure_event_is_emitted_and_the_refusal_is_not_counted():
+def test_the_publish_failure_event_is_emitted_and_the_refusal_is_gone():
+    """The failure event the alarm counts is emitted, and the refusal event no longer exists.
+
+    WIX EXIT COMPLETE: native publishing has no Wix credential and no kill switch, so a publish is
+    never REFUSED - a write either PUBLISHED or FAILED. The alarm still counts `blog_publish_failed`
+    (a write that did not succeed), but `blog_publish_refused` is not emitted anywhere any more, so
+    there is no refusal event for a filter to accidentally count. This used to assert both events
+    coexisted; it now guards that the refusal event stays gone rather than quietly returning.
+    """
     module = deploy_module()
     events = { name: ev for name, ev, *_ in module.LOG_ALARMS }
     source = ( ROOT / "amplify" / "functions" / "operations" / "seo-tools"
                / "blog_publish.py" ).read_text(encoding="utf-8")
     assert f'"{events["wecare-blog-publish-failures"]}"' in source
-    #: Both events exist in the module, and only one of them is counted.
-    assert '"blog_publish_refused"' in source
+    assert '"blog_publish_refused"' not in source
 
 
 def test_a_refusal_never_pages_anybody():
@@ -262,14 +269,14 @@ def test_a_refusal_never_pages_anybody():
     assert "blog_publish_refused" not in source.split("def provision_alarms", 1)[1]
 
 
-def test_the_refusal_and_the_failure_are_genuinely_different_paths(monkeypatch):
-    """Not just differently named. The refusal is decided by a STATE CHECK before any attempt, so
-    it cannot be reached by the exception handler that records a failure."""
-    source = ( ROOT / "amplify" / "functions" / "operations" / "seo-tools"
-               / "blog_publish.py" ).read_text(encoding="utf-8")
-    body = source.split("def publish(", 1)[1]
-    #: `writes_disabled()` is consulted before `_claim`, so a refusal makes no attempt at all.
-    assert body.index("writes_disabled()") < body.index("_claim(job_ref)")
+# WIX EXIT: test_the_refusal_and_the_failure_are_genuinely_different_paths was removed. It asserted
+# that `publish()` consults the Wix kill switch (`writes_disabled()`) before the `_claim`, so a
+# refusal makes no attempt at all and cannot be reached by the exception handler that records a
+# failure. Native publishing has no Wix credential and no kill switch: there is no `writes_disabled`
+# check and no REFUSED state, so a write either PUBLISHED or FAILED. The behaviour this test
+# protected no longer exists. The surviving half - that a refusal event is never counted or emitted
+# - is covered by test_a_refusal_never_pages_anybody and
+# test_the_publish_failure_event_is_emitted_and_the_refusal_is_gone above.
 
 
 # ── Naming stays in the house convention ────────────────────────────────────────

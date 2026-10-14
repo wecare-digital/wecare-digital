@@ -89,7 +89,9 @@ def create(table: Any, product_reader: ProductReader, items: Sequence[Mapping[st
         raise ValueError("create requires 1 to 100 items")
     now = clock()
     cart = {
-        "cartId": uuid.uuid4().hex,
+        # Canonical dashed UUID (not .hex): the CustomerCart lock layer validates a stored cart
+        # id through cart_contract.identifier(), which requires the canonical form.
+        "cartId": str(uuid.uuid4()),
         "customerId": customer_id or "",
         "status": "open",
         "lineItems": [],

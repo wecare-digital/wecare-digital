@@ -92,15 +92,15 @@ from boto3.dynamodb.conditions import Key
 
 from lambda_utils import contact_key, customer_auth, customer_session, payment_readiness
 from lambda_utils.ecommerce import (
-    blog_contribution, cart_v2, catalog_analytics, checkout_pricing, contact_address, customer_cart, finalization,
-    gift_card_settlement, order_channel, order_creation, order_keys, payment_address,
-    payment_attempt, purchase_intent, wa_payment_request, website_checkout, whatsapp_basket,
-    wix_address)
+    blog_contribution, cart_contract, catalog_analytics, checkout_pricing, contact_address, customer_cart, finalization,
+    gift_card_settlement, india_address, order_channel, order_creation, order_keys, payment_address,
+    payment_attempt, purchase_intent, wa_payment_request, website_checkout, whatsapp_basket)
 # AWS-native supply engine, reached ONLY when CHECKOUT_MODE=AWS_NATIVE (default WIX_HEADLESS).
 # These compute the collection total from ProductsTable with no Wix call; the payment/order/
 # invoice paths downstream are unchanged. Imported unconditionally (cheap, pure) so the native
 # branch is a flag check rather than a lazy import that could fail at the worst moment.
-from lambda_utils.ecommerce import native_checkout, native_shipping
+from lambda_utils.ecommerce import (
+    catalog_pricing, native_checkout, native_inventory, native_shipping)
 # The committed recognition set and the three allowed contributions live in `blog_contribution`
 # and are IMPORTED rather than re-declared, so they are stated once and the TS<->Python drift test
 # that pins them stays meaningful. Its own payment surface (`prepare_contribution` and friends) is
@@ -113,11 +113,11 @@ from lambda_utils.ecommerce.blog_contribution import (
 # per-line price assertion. All logic lives in the module; this file only calls it.
 from lambda_utils.ecommerce import service_requests
 from lambda_utils.ecommerce.service_requests import ServiceNotPayable, ServicePriceChanged
-# Public service prices use the authoritative AWS product catalog.
+# Public service prices use the authoritative AWS product catalog (service_pricing_native).
+# native_inventory_txn backs fail-closed native stock reservation (stack's inventory work).
 from lambda_utils.ecommerce import service_pricing_native
 from lambda_utils.ecommerce import native_inventory_txn
 from lambda_utils.integrations import razorpay_orders, razorpay_verify
-from lambda_utils import wix_ecom
 # Aliased `customer_identity`, NEVER `identity`: `identity` is a parameter name in nearly every
 # function in this file (`_checkout_profile(identity)`, `_website_snapshot(identity, ...)`,
 # `_profile_status(identity, ...)`), so that alias would be shadowed locally and
@@ -144,6 +144,9 @@ CONTACTS_TABLE = os.environ.get("CONTACTS_TABLE", "stack-wecare-digital-Contacts
 ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "stack-wecare-digital-OrderTable")
 #: AWS-native product catalog, read ONLY on the CHECKOUT_MODE=AWS_NATIVE branch.
 PRODUCTS_TABLE = os.environ.get("PRODUCTS_TABLE", "stack-wecare-digital-ProductsTable")
+#: AWS-native working cart (CartTable), the backing store for the WhatsApp claim-basket /
+#: customer-cart adapter that replaced the Wix Cart V2 adapter.
+CART_TABLE = os.environ.get("CART_TABLE", "stack-wecare-digital-CartTable")
 WEBSITE_SNAPSHOT_TTL_SECONDS = 15 * 60
 
 #: Reasons that mean "we refuse", as opposed to "we do not know". 409 for the first; 200 for the
@@ -322,6 +325,17 @@ def _products_table():
     return _table(PRODUCTS_TABLE)
 
 
+def _cart_table():
+    return _table(CART_TABLE)
+
+
+def _native_cart_adapter(customer_id: str = ""):
+    """The AWS-native cart adapter `CustomerCart` drives, replacing `cart_v2.CartV2(_wix_request)`.
+    Backed by CartTable + the ProductsTable reader; no Wix."""
+    from lambda_utils.ecommerce.native_cart_adapter import NativeCartAdapter
+    return NativeCartAdapter(_cart_table(), _native_product_reader(), customer_id=customer_id)
+
+
 def _native_product_reader():
     """A ProductsTable reader `product_id -> item | None` for the native supply engine.
     Only called on the CHECKOUT_MODE=AWS_NATIVE branch, so the table need not exist until
@@ -453,11 +467,23 @@ SERVICE_PRICES_UNAVAILABLE = "SERVICE_PRICES_UNAVAILABLE"
 
 
 def _service_prices(origin: str) -> Dict[str, Any]:
-    """Serve integer service prices from ProductsTable, failing closed per slug."""
+    """`GET /ecommerce/service-prices` -> every service's price, in integer paise, from the
+    AWS-native ProductsTable (the Wix cart pricing path is retired).
+
+    FAILS CLOSED. If the native catalog prices nothing, this answers 503 rather than an empty
+    payload a browser might read as "free". A PARTIAL result is served at 200: the slugs that
+    resolved carry their price and the rest carry `{"available": false}` with no `paise` key,
+    because one service the catalog cannot price is no reason to take the other three off sale.
+
+    Reads ProductsTable (a cheap point/scan on an on-demand table); the edge still caches the
+    response (max-age), and the route keeps its own throttle (`scripts/provision_checkout.py`).
+
+    Logs counts only. No credential, no provider message.
+    """
     try:
         payload = service_pricing_native.resolve_all(_native_variant_reader())
-    except Exception as exc:  # noqa: BLE001 - log error class only
-        logger.error(json.dumps({"event": "service_prices_native_failed",
+    except Exception as exc:  # noqa: BLE001 -- `type(exc).__name__` only, never provider text
+        logger.error(json.dumps({"event": "service_prices_failed",
                                  "error": type(exc).__name__}))
         return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
     priced = sum(1 for price in payload["prices"].values() if price.get("available"))
@@ -465,10 +491,43 @@ def _service_prices(origin: str) -> Dict[str, Any]:
         logger.error(json.dumps({"event": "service_prices_none_resolved_native",
                                  "slugs": len(payload["prices"])}))
         return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
-    response = cors_response(200, {"currency": payload["currency"],
-                                   "prices": payload["prices"]}, origin)
+    logger.info(json.dumps({"event": "service_prices_served", "priced": priced,
+                            "slugs": len(payload["prices"])}))
+    response = cors_response(200, payload, origin)
+    # Post-processed because `cors_response` takes no header argument.
+    #
+    # THE EDGE DOES CACHE THIS, AND THAT IS MEASURED RATHER THAN ASSERTED. An earlier version of
+    # this comment claimed the `/api/*` edge "absorbs the anonymous traffic" with nothing behind
+    # the claim, while `docs/execution/change-authority-matrix.md` row 297 recorded three
+    # requests through that same rewrite all answering `Miss from cloudfront`. Measured on
+    # 2026-10-08 against `wecare.digital/api/seo-tools/blog-public` -- the one other PUBLIC
+    # `max-age` response behind the same rewrite -- four identical requests answered
+    # `Miss`, then `Hit (age 2)`, `Hit (age 4)`, `Hit (age 7)`. Row 297 does not contradict that:
+    # it states the API was sending `cache-control: no-store`, which nothing is allowed to cache.
+    # The variable was the header, not the edge.
+    #
+    # `Access-Control-Allow-Origin: *`, NOT the origin `cors_headers` reflects, and the
+    # measurement is what forces it rather than a preference. In the same run the origin's
+    # `Vary: Origin` was STRIPPED (`vary: Accept-Encoding` is what reached the client), and a
+    # request carrying `Origin: https://www.wecare.digital` was served the cached apex
+    # `Access-Control-Allow-Origin: https://wecare.digital`. A browser rejects that, so
+    # `fetchServicePrices` would fail closed and every `www` visitor would read "temporarily
+    # unavailable" with no way to buy. A shared cache cannot hand the wrong origin a response
+    # that names every origin. Safe HERE and nowhere else in this handler, for reasons specific
+    # to this one body: a public price list, no customer data, no credential, no cookie, and the
+    # browser client fetches it without credentials (so `*` is even a legal answer).
+    #
+    # `Vary: Origin` is sent anyway, for an intermediary that does honour it and so that a future
+    # change back to a reflected origin is not silently poisoned.
+    #
+    # The edge is the FIRST of two bounds on Wix reads, not the only one: the route carries its
+    # own throttle (`scripts/provision_checkout.py`, ROUTE_THROTTLE_*), because an anonymous
+    # route whose cache misses cost 8 Wix calls shares an API key with the live checkout's
+    # `calculate`, and concurrency rather than the per-sandbox minute is the multiplier on a miss.
     response["headers"]["Cache-Control"] = "public, max-age=60"
-    return _hardened(response)
+    response["headers"]["Access-Control-Allow-Origin"] = "*"
+    response["headers"]["Vary"] = "Origin"
+    return response
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -630,8 +689,8 @@ def _owned_for_supply(owned: Optional[Dict[str, Any]],
     """
     if owned and not requires_delivery:
         try:
-            wix_address.gst_state_code(owned)
-        except wix_address.UnmappableAddress:
+            india_address.gst_state_code(owned)
+        except india_address.UnmappableAddress:
             return None
     return owned or None
 
@@ -688,6 +747,90 @@ def _profile_status(identity: customer_auth.CustomerIdentity, origin: str) -> Di
     }, origin))
 
 
+class DeliveryMethodUnavailable(purchase_intent.DeliveryDetailsRequired):
+    """A chosen delivery method cannot be offered for this basket — DISTINCT from "no address or
+    method chosen yet" (`DeliveryDetailsRequired`), which it subclasses so the base arm still
+    catches it if a caller does not special-case it. `src/pages/cart.tsx` branches on the
+    `DELIVERY_METHOD_UNAVAILABLE` code separately, so the two must not collapse. Native shipping
+    currently exposes a single free option, so nothing raises this today; it is retained as the
+    seam for a future shipping policy with real, selectable methods.
+    """
+
+
+def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, now: int):
+    """Price a basket of Wix-era `catalogReference` line items into a native QuoteSnapshot.
+
+    This is the ONE native pricing seam shared by every route that used to call Wix: the website
+    `prepare` path and the WhatsApp catalog-service `_create` path both canonicalise the browser's
+    basket the same way and quote it off ProductsTable via `native_checkout.quote_native_cart`.
+    No Wix call, no client-supplied price: identifiers in, server-authoritative snapshot out.
+
+    The cart id is a content hash of (customer, sorted variants+quantities), so retrying the exact
+    same basket mints the SAME id -- the one-live-payment guard in `website_checkout` keys on it,
+    and two tabs for the same items cannot acquire independent payment claims.
+    """
+    import hashlib
+    from lambda_utils.ecommerce import native_cart
+    by_variant: Dict[tuple, int] = {}
+    for li in line_items:
+        if not isinstance(li, dict):
+            raise ValueError("cart line must be an object")
+        ref = li.get("catalogReference")
+        ref = ref if isinstance(ref, dict) else {}
+        options = ref.get("options")
+        options = options if isinstance(options, dict) else {}
+        product_id = str(ref.get("catalogItemId") or li.get("productId") or "").strip()
+        variant_id = str(options.get("variantId") or li.get("variantId") or "").strip()
+        if not product_id or not variant_id:
+            raise ValueError("native cart line needs a product and variant identifier")
+        qty = li.get("quantity")
+        if type(qty) is not int or not 1 <= qty <= 100000:
+            raise ValueError("quantity must be an integer in 1..100000")
+        key = (product_id, variant_id)
+        by_variant[key] = by_variant.get(key, 0) + qty
+        if by_variant[key] > 100000:
+            raise ValueError("aggregate quantity exceeds line limit")
+    canonical = sorted((pid, vid, qty) for (pid, vid), qty in by_variant.items())
+    if not canonical or len(canonical) > 100:
+        raise ValueError("cart must contain 1..100 distinct variants")
+    stable_input = json.dumps(
+        [identity.customer_id, canonical],
+        separators=(",", ":"), ensure_ascii=True,
+    ).encode("utf-8")
+    cart_key = hashlib.sha256(stable_input).hexdigest()
+    reader = _native_product_reader()
+    native_lines = []
+    for product_id, variant_id, qty in canonical:
+        # Product and variant must be ACTIVE and exist in ProductsTable. A name/price from the
+        # public browser is never pricing authority; unknown variant IDs never fall back to a
+        # product's base price.
+        price = native_cart._unit_price_paise(reader, product_id, variant_id)
+        native_lines.append({
+            "productId": product_id,
+            "variantId": variant_id,
+            "quantity": qty,
+            "unitPricePaise": price,
+            # Never let a browser claim a physical product needs no delivery. The native shipping
+            # policy currently charges zero, and actual shipping rules can be enforced by a
+            # trusted product policy.
+            "requiresDelivery": True,
+        })
+    ephemeral_cart = {
+        "cartId": "native:" + cart_key,
+        "updatedAt": 0,  # stable across retries of the exact same basket
+        "lineItems": native_lines,
+    }
+    return native_checkout.quote_native_cart(
+        ephemeral_cart,
+        product_reader=reader,
+        customer_id=identity.customer_id,
+        created_at=now,
+        ttl_seconds=WEBSITE_SNAPSHOT_TTL_SECONDS,
+        shipping_policy=native_shipping.ShippingPolicy(),  # free by default; policy via config
+        gst_bps=0,  # catalog prices are GST-inclusive today; no double-tax
+    )
+
+
 def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
                       now: int, *, profile: Optional[Dict[str, Any]] = None,
                       reset: bool = False):
@@ -710,127 +853,14 @@ def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list
     them to review it" carried out. The WhatsApp `_create` path has no such surface, so it keeps
     refusing a mismatched saved cart, unchanged.
     """
-    if _supply_mode() == "AWS_NATIVE":
-        # AWS-NATIVE SUPPLY TOTAL — no Wix call. The collection comes from ProductsTable via
-        # native_checkout.quote_native_cart; the convenience fee + GST, the snapshot shape, and
-        # everything downstream (attempt, Razorpay, order, invoice, reconciliation) are identical.
-        # The internal order is the authoritative artifact; no Wix order writeback is synthesised.
-        # The public website submits Wix-era catalogReference shapes. AWS-native
-        # pricing must translate their identifiers, NOT require new client keys
-        # that existing /cart and /shop pages do not send.
-        # Canonicalise the *reviewed basket* into a stable ID. The old
-        # cartId=f"native:{customer}:{now}" changed every second; the one-live-
-        # payment guard in website_checkout is keyed by cart ID, so two tabs
-        # could otherwise acquire independent payment claims for the SAME items.
-        # Aggregate duplicate variants before stock validation to prevent two
-        # individually valid lines overselling one stock unit.
-        import hashlib
-        from lambda_utils.ecommerce import native_cart
-        by_variant = {}
-        for li in line_items:
-            if not isinstance(li, dict):
-                raise ValueError("cart line must be an object")
-            ref = li.get("catalogReference")
-            ref = ref if isinstance(ref, dict) else {}
-            options = ref.get("options")
-            options = options if isinstance(options, dict) else {}
-            product_id = str(ref.get("catalogItemId") or li.get("productId") or "").strip()
-            variant_id = str(options.get("variantId") or li.get("variantId") or "").strip()
-            if not product_id or not variant_id:
-                raise ValueError("native cart line needs a product and variant identifier")
-            qty = li.get("quantity")
-            if type(qty) is not int or not 1 <= qty <= 100000:
-                raise ValueError("quantity must be an integer in 1..100000")
-            key = (product_id, variant_id)
-            by_variant[key] = by_variant.get(key, 0) + qty
-            if by_variant[key] > 100000:
-                raise ValueError("aggregate quantity exceeds line limit")
-        canonical = sorted(
-            (pid, vid, qty) for (pid, vid), qty in by_variant.items()
-        )
-        if not canonical or len(canonical) > 100:
-            raise ValueError("cart must contain 1..100 distinct variants")
-        stable_input = json.dumps(
-            [identity.customer_id, canonical],
-            separators=(",", ":"), ensure_ascii=True,
-        ).encode("utf-8")
-        cart_key = hashlib.sha256(stable_input).hexdigest()
-        reader = _native_product_reader()
-        native_lines = []
-        for product_id, variant_id, qty in canonical:
-            # Product and variant must be ACTIVE and exist in ProductsTable.
-            # A name/price from the public browser is never pricing authority;
-            # unknown variant IDs never fall back to a product's base price.
-            price = native_cart._unit_price_paise(reader, product_id, variant_id)
-            native_lines.append({
-                "productId": product_id,
-                "variantId": variant_id,
-                "quantity": qty,
-                "unitPricePaise": price,
-                # Never let a browser claim a physical product needs no delivery.
-                # The native shipping policy currently charges zero, and actual
-                # shipping rules can be enforced by a trusted product policy.
-                "requiresDelivery": True,
-            })
-        ephemeral_cart = {
-            "cartId": "native:" + cart_key,
-            "updatedAt": 0,  # stable across retries of the exact same basket
-            "lineItems": native_lines,
-        }
-        snapshot = native_checkout.quote_native_cart(
-            ephemeral_cart,
-            product_reader=reader,
-            customer_id=identity.customer_id,
-            created_at=now,
-            ttl_seconds=WEBSITE_SNAPSHOT_TTL_SECONDS,
-            shipping_policy=native_shipping.ShippingPolicy(),  # free by default; policy via config
-            gst_bps=0,  # catalog prices are GST-inclusive today; no double-tax
-        )
-        return snapshot, None
-
-    if cart_v2.is_enabled():
-        snapshot, _items, calculated = _v2_snapshot(
-            identity, line_items, profile=profile, reconcile=True, reset=reset)
-        return snapshot, calculated
-
-    if INITIATION_ENABLED:
-        # V1 mints a NEW Wix checkout id on every prepare -- `wix_ecom.create_checkout` is a
-        # create, not a resolve -- so there is no stable cart identity for the one-live-payment
-        # guard to key on and no `CUSTOMERCART#` row behind it. The guard cannot run, which means
-        # a second prepare on the same basket would be indistinguishable from the first. Refused
-        # BEFORE any Wix checkout is minted, so nothing is created and nothing is written.
-        #
-        # With the gate OFF this branch is not reached and the V1 body below stays byte-identical,
-        # still answering 200 PAYMENT_INITIATION_DISABLED. That is what every existing test
-        # exercises, and `WIX_CART_V2_ENABLED` is set on the live function anyway, so V2 is the
-        # serving path.
-        logger.warning(json.dumps({"event": "website_checkout_v1_refused_when_enabled"}))
-        raise website_checkout.CheckoutRejected(website_checkout.CART_V2_REQUIRED)
-
-    checkout = wix_ecom.create_checkout(line_items)
-    currency = wix_ecom.checkout_currency(checkout)
-    if currency != "INR":
-        raise checkout_pricing.PricingError("only INR is supported")
-    collection_paise = wix_ecom.authoritative_total_paise(checkout)
-    quote = checkout_pricing.compute_quote(collection_paise, currency="INR")
-    checkout_id = str(checkout.get("id") or "")
-    if not checkout_id:
-        raise checkout_pricing.PricingError("Wix checkout id missing")
-    built = checkout_pricing.build_snapshot(
-        customer_id=identity.customer_id,
-        cart_id=checkout_id,
-        cart_revision=0,
-        quote=quote,
-        created_at=now,
-        ttl_seconds=WEBSITE_SNAPSHOT_TTL_SECONDS,
-        site=wix_ecom.WIX_SITE_ID,
-        items=wix_ecom.line_item_summary(checkout),
-        address=None,
-        delivery=None,
-    )
-    # No Wix order payload is synthesised for V1: it has no `summary.lineItems` with the fields
-    # `build_wix_order_payload` relays, and guessing them is how a Wix order gets the wrong total.
-    return built, None
+    # AWS-NATIVE SUPPLY TOTAL — no Wix call. The collection comes from ProductsTable via
+    # `_native_quote` (native_checkout.quote_native_cart); the convenience fee + GST, the snapshot
+    # shape, and everything downstream (attempt, Razorpay, order, invoice, reconciliation) are
+    # identical. The internal order is the authoritative artifact; no Wix order writeback is
+    # synthesised. The public website submits Wix-era catalogReference shapes, which `_native_quote`
+    # translates to ProductsTable identifiers — NOT new client keys the existing /cart and /shop
+    # pages do not send. `calculated` is `None`: there is no Wix calculation to carry.
+    return _native_quote(identity, line_items, now), None
 
 
 def _reserve_website_attempt(attempt: Dict[str, Any]) -> None:
@@ -934,7 +964,7 @@ def _claimed_handoff(identity: customer_auth.CustomerIdentity,
         return None
     try:
         current_cart = customer_cart.CustomerCart(
-            _keys_table(), cart_v2.CartV2(_wix_request)).resolve(identity)
+            _keys_table(), _native_cart_adapter(identity.customer_id)).resolve(identity)
     except Exception as exc:  # noqa: BLE001 - a label never fails a prepare; see the docstring
         logger.info(json.dumps({"event": "checkout_channel_cart_unresolved",
                                 "error": type(exc).__name__}))
@@ -1032,7 +1062,7 @@ def _claim_basket(identity: customer_auth.CustomerIdentity, body: Dict[str, Any]
     if not items:
         return cors_response(404, _BASKET_REFUSED, origin)
 
-    carts = customer_cart.CustomerCart(_keys_table(), cart_v2.CartV2(_wix_request))
+    carts = customer_cart.CustomerCart(_keys_table(), _native_cart_adapter(identity.customer_id))
     try:
         if body.get("resetCart") is True:
             # BEFORE `ensure`, so the create below is reached rather than the existing cart being
@@ -1164,7 +1194,7 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
     # Phase O-1: a services basket is refused here, PURE, before the profile read, any Wix call
     # or any DynamoDB write -- Drop Docs/Vault, a bad quantity, a missing intent, or V1 pricing.
     refusal = service_requests.checkout_preflight(
-        line_items, body, v2_enabled=cart_v2.is_enabled(),
+        line_items, body, v2_enabled=False,
         native_pricing_enabled=_supply_mode() == "AWS_NATIVE")
     if refusal is not None:
         return cors_response(refusal[0], refusal[1], origin)
@@ -1328,7 +1358,7 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         # bound its reference between the check above and the reservation. Options are never
         # handed out for an attempt bound to another intent.
         _refuse_rebound_service_intent(identity, request_key, body, keys)
-    # ── EVERY `cart_v2.CartContractError` SUBCLASS MUST PRECEDE ITS PARENT ARM BELOW, or it is
+    # ── EVERY `cart_contract.CartContractError` SUBCLASS MUST PRECEDE ITS PARENT ARM BELOW, or it is
     # ── swallowed and its named code never fires. The parent is the `CART_NOT_PAYABLE` arm.
     except ContributionRejected as rejected:
         # First, because it is the narrowest. Now a `ValueError`, so it must also stay above the
@@ -1347,38 +1377,11 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                                    for paise in sorted(CONTRIBUTION_CHOICES_PAISE.values()))
                        + ".",
         }, origin)
-    except ContributionNotAlone:
-        # THE COPY MOVED WITH THE RULE. It used to read "a contribution is paid on its own",
-        # which stopped being true when a contribution beside a product became payable; this
-        # exception now names only the basket holding TWO contributions. Word for word the
-        # browser's `CONTRIBUTION_ALONE_MESSAGE`, so the two refusals still read identically
-        # whichever side produced them.
-        return cors_response(409, {
-            "error": "CONTRIBUTION_NOT_ALONE",
-            "message": "Only one contribution can be paid at a time. Remove the extra "
-                       "contribution, then check out.",
-        }, origin)
-    except ContributionUnavailable:
-        return cors_response(409, {
-            "error": "CONTRIBUTION_UNAVAILABLE",
-            "message": "Contributions are not available right now.",
-        }, origin)
-    except ContributionRedemptionNotAllowed:
-        return cors_response(409, {
-            "error": "CONTRIBUTION_REDEMPTION_NOT_ALLOWED",
-            "message": "A contribution takes no coupon or gift card. Remove it, then check out.",
-        }, origin)
-    except ContributionNotPayable:
-        # NOT `CART_NOT_PAYABLE`, and not "please review your cart": the basket is one donation,
-        # so there is nothing in it to review and the customer has no move to make. Says what is
-        # true -- it cannot be taken right now -- and says nothing was charged, because a refusal
-        # arriving after the Checkout press reads like a failed payment otherwise. Nothing is
-        # reserved, attempted or ordered on this path.
-        logger.error(json.dumps({"event": "contribution_not_payable"}))
-        return cors_response(409, {
-            "error": "CONTRIBUTION_NOT_PAYABLE",
-            "message": "Contributions cannot be taken right now. Nothing has been charged.",
-        }, origin)
+    # The former ContributionNotAlone/Unavailable/RedemptionNotAllowed/NotPayable arms were
+    # removed with the Wix cart region: those exceptions were raised only inside the deleted
+    # `_v2_snapshot` (Wix-cart contribution pricing) and their classes went with it. A
+    # contribution basket now prices through the native path; any residual contract violation is
+    # a `cart_contract.CartContractError` and is handled by the parent arm below.
     # Phase O-1 services. Both are `CartContractError`s, so both MUST stay above that arm.
     except ServicePriceChanged:
         return cors_response(409, service_requests.refusal(
@@ -1388,15 +1391,18 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         return cors_response(409, service_requests.refusal(
             service_requests.SERVICE_NOT_PAYABLE), origin)
     except DeliveryMethodUnavailable:
-        # MUST stay ABOVE the parent arm below, or the subclass is swallowed by it and
-        # DELIVERY_METHOD_UNAVAILABLE never fires.
+        # MUST stay ABOVE the `DeliveryDetailsRequired` arm below, or the subclass is swallowed by
+        # it and DELIVERY_METHOD_UNAVAILABLE never fires. The distinction (a chosen method that
+        # cannot be offered, versus no address/method chosen at all) is a customer-facing refusal
+        # `src/pages/cart.tsx` still branches on; native shipping yields a single free option
+        # today, so this is dormant, but the contract and the ordering are kept intact.
         return cors_response(409, {"error": "DELIVERY_METHOD_UNAVAILABLE"}, origin)
     except purchase_intent.DeliveryDetailsRequired:
         return cors_response(409, {"error": "DELIVERY_DETAILS_REQUIRED"}, origin)
-    except wix_address.UnmappableAddress:
+    except india_address.UnmappableAddress:
         # Belt and braces. `from_contact` re-validates, so the normal answer for a stored address
-        # Wix cannot map is already this 409 via the arm above; without this arm an unmappable
-        # address reaching `to_wix_address` would fall through the generic `except Exception` to
+        # that cannot be mapped is already this 409 via the arm above; without this arm an
+        # unmappable address would fall through the generic `except Exception` to
         # `503 TEMPORARILY_UNAVAILABLE` -- a dead end, because no retry fixes it. No delivery
         # detail in the log line: every component of one is PII, and the event name is spelled
         # `..._delivery_unmappable` rather than the design's `..._address_unmappable` for the
@@ -1409,14 +1415,14 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
     # ── cart must not read as two different problems on two routes. Without these, every one of
     # ── them fell to the generic arm below and answered 503 TEMPORARILY_UNAVAILABLE -- a code the
     # ── browser treats as transient, for conditions no retry can clear.
-    except cart_v2.CartItemUnavailable as unavailable:
+    except cart_contract.CartItemUnavailable as unavailable:
         logger.info(json.dumps({"event": "checkout_item_unavailable",
                                 "count": len(unavailable.items)}))
         return cors_response(409, {
             "error": "ITEMS_UNAVAILABLE", "items": unavailable.items,
             "message": "Some items are no longer available. Please review your cart.",
         }, origin)
-    except cart_v2.CartQuantityReduced as reduced:
+    except cart_contract.CartQuantityReduced as reduced:
         logger.info(json.dumps({"event": "checkout_quantity_reduced",
                                 "count": len(reduced.items)}))
         return cors_response(409, {
@@ -1424,17 +1430,7 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             "message": "Some items are available in smaller quantities than you asked for. "
                        "Please confirm the new amounts.",
         }, origin)
-    except CartResetRequired:
-        # The deliberate exception to the copy-the-vocabulary rule, and it does not break it:
-        # reconciliation exists only on this route, so `_create` cannot produce the condition.
-        # The excess lines are on the SERVER cart, which no browser affordance touches, so
-        # "review your cart" would name an action the customer cannot take. Starting a new cart
-        # is the one that works, and it is one click.
-        return cors_response(409, {
-            "error": "CART_RESET_REQUIRED",
-            "message": "Your saved cart has too many items to update. Start a new cart.",
-        }, origin)
-    except cart_v2.CartGone:
+    except cart_contract.CartGone:
         # PERSISTENT only. `_v2_snapshot` already discarded the dead pointer and minted a fresh
         # cart; reaching here means the NEW cart 404'd too, which is a Wix fault rather than a
         # stale pointer, and `logger.error` is the level that says so. Deliberately NOT
@@ -1443,9 +1439,9 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         logger.error(json.dumps({"event": "website_checkout_cart_gone_unrecoverable"}))
         return cors_response(409, {"error": "CART_NOT_PAYABLE",
                                    "message": "Please review your cart and try again."}, origin)
-    except cart_v2.CartContractError:
-        # The parent of the five contribution arms above, the two item arms and CartResetRequired,
-        # so it is LAST among them.
+    except cart_contract.CartContractError:
+        # The parent of the item arms and CartResetRequired above (and the catch-all for any
+        # residual contribution/contract violation), so it is LAST among them.
         return cors_response(409, {"error": "CART_NOT_PAYABLE",
                                    "message": "Please review your cart and try again."}, origin)
     except customer_cart.CartBusy:
@@ -1465,34 +1461,19 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         # answered this way by accident; this makes it intentional and testable.
         logger.error(json.dumps({"event": "website_checkout_identity_unavailable"}))
         return cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE"}, origin)
-    except (checkout_pricing.PricingError, wix_ecom.AmountNotWhole):
-        return cors_response(409, {"error": "AMOUNT_NOT_SETTLED"}, origin)
-    except wix_ecom.WixEcomError as error:
-        # A cart line's product/variant is retired, invisible, or out of stock in Wix, so the
-        # catalogue lookup raises. This is a PERMANENT, caller-fixable condition (remove the item),
-        # not a transient outage, so answer 409 CART_ITEM_UNAVAILABLE rather than a 502 the customer
-        # reads as "we failed".
-        #
-        # THE `detail` FIELD IS WHAT MAKES THIS ARM DIAGNOSABLE. It logged nothing but a status for
-        # long enough to cost a live diagnosis: a failed checkout in production named none of the
-        # FIFTEEN places `wix_ecom` raises `WixEcomError` -- "product unavailable", "choose an
-        # available product option", an HTTP code from `_request`, a non-JSON body -- and
-        # `wix_ecom` itself never logs, so the only evidence was the customer's sentence on screen.
-        # `type(error).__name__` alone cannot distinguish the fifteen sites, which is the whole
-        # reason this field exists.
-        #
-        # THE MESSAGE IS SAFE TO LOG, and that is a decision rather than an oversight. Every
-        # `WixEcomError` message in that module is built by OUR code out of known-safe parts: a
-        # literal, or an f-string of the HTTP method, the endpoint and the status code. No
-        # provider body, no credential and no customer field reaches it. The secret-handling rule
-        # permits an exception's text on exactly that condition -- our own message from known-safe
-        # parts. An endpoint can carry a product or cart GUID; those are resource ids, not PII.
-        #
-        # `logger.error`, not `info`: a basket that cannot be priced is a failed checkout, and it
-        # should be visible at the level an alarm reads.
+    except native_inventory.OutOfStock as error:
+        # A cart line's variant is short on stock in ProductsTable. A PERMANENT, caller-fixable
+        # condition (remove or reduce the item), not a transient outage, so answer 409
+        # CART_ITEM_UNAVAILABLE rather than a 502 the customer reads as "we failed". The variant id
+        # is a resource id, not PII, so it is safe to log at the level an alarm reads. Caught
+        # before the broad PricingError arm because OutOfStock is itself a ValueError subclass.
         logger.error(json.dumps({"event": "website_checkout_catalogue_unavailable",
-                                 "error": type(error).__name__, "detail": str(error)}))
+                                 "error": type(error).__name__, "variantId": error.variant_id}))
         return cors_response(409, {"error": "CART_ITEM_UNAVAILABLE"}, origin)
+    except (checkout_pricing.PricingError, catalog_pricing.CatalogPricingError):
+        # The native quote could not settle an amount (empty cart, unreadable price). 409 so the
+        # customer reviews rather than a 502 they read as our failure.
+        return cors_response(409, {"error": "AMOUNT_NOT_SETTLED"}, origin)
     except Exception as error:  # noqa: BLE001
         logger.error(json.dumps({"event": "website_checkout_prepare_failed",
                                  "error": type(error).__name__}))
@@ -1959,838 +1940,6 @@ def _website_verify(identity: customer_auth.CustomerIdentity, body: Dict[str, An
     }, origin)
 
 
-def _wix_request(endpoint: str, method: str = "GET",
-                 body: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Transport for the Cart V2 adapter, delegating to `wix_ecom`'s authenticated client.
-
-    `wix_ecom._request` already owns the credential (read by reference from Secrets Manager,
-    lazily, at request time) and the site header. Reusing it keeps one authenticated client in
-    this package rather than giving Cart V2 a second one that would need its own lazy-read
-    discipline to stay rotation-safe.
-    """
-    return wix_ecom._request(endpoint, method=method, body=body)
-
-
-def _v2_catalog_items(line_items: list) -> tuple:
-    """Bridge the browser's `{catalogReference, quantity}` shape to Cart V2's catalog items.
-
-    `cart_v2.catalog_item` demands exactly `{productId, variantId, quantity}` with both ids as
-    UUIDs, while the browser sends a nested `catalogReference` and may omit the variant.
-    Resolving a product's single visible, in-stock variant against the live catalogue -- and
-    refusing to guess when there is more than one -- is work `wix_ecom.normalized_catalog_items`
-    already does correctly, so this reuses it rather than growing a second copy that could
-    disagree about which variant a cart line means.
-
-    Returns `(requested, requires_delivery)`, and a basket requires delivery when ANY line does.
-    The strip to exactly `{productId, variantId, quantity}` is mandatory rather than tidy:
-    `cart_v2.catalog_item` refuses any dict whose key set is not exactly those three.
-
-    THE DELIVERY FACT IS IDENTITY FIRST, `productType` SECOND, AND THE ORDER MATTERS.
-    `wix_ecom.resolved_catalog_lines` reads Wix's own `productType` on a `GET` that already
-    happens, and fails closed to "needs an address" for anything that is not `DIGITAL`. That is
-    the right default for a catalogue product and the wrong answer for a contribution: the live
-    `Contribute` product is **PHYSICAL** (measured, 2026-10-04), because a Wix digital product with
-    no downloadable file attached is not purchasable. Keyed on `productType` alone, every
-    no-delivery branch downstream inverts -- a donation is refused for want of a stored address, a
-    postal address is written onto its Wix cart, and the stale-address abandon never runs -- while
-    the browser's `cartRequiresDelivery()` keys on identity and disagrees about the same basket.
-
-    So a recognised contribution line contributes NO delivery requirement, whatever Wix says its
-    `productType` is. The override is per LINE rather than per basket on purpose: it leaves
-    `resolved_catalog_lines` and its fail-closed default untouched for every ordinary line, so a
-    real physical product still needs an address even if a contribution is ever allowed beside one.
-    """
-    lines = wix_ecom.resolved_catalog_lines(line_items)
-    requested = [{"productId": line["productId"], "variantId": line["variantId"],
-                  "quantity": line["quantity"]} for line in lines]
-    # A Phase O-1 service line ships nothing either (the Wix product is PHYSICAL), so it gets the
-    # same per-line identity override as a contribution.
-    return requested, any(line["requiresDelivery"] and not _is_contribution_id(line["productId"])
-                          and not service_requests.is_service_product(line["productId"])
-                          for line in lines)
-
-
-def _require_same_basket(cart: Dict[str, Any], requested: list) -> None:
-    """Refuse when the customer's saved cart is not the basket this request asked to price.
-
-    Reusing the saved cart is what keeps one purchase to one cart, but the cart is maintained by
-    the `/wix-store/cart` route, so it can legitimately hold something else by the time checkout
-    is pressed -- a second tab, another device, an edit made after this page loaded. Pricing it
-    anyway would charge for a basket the customer is not looking at, which is worse than asking
-    them to review it.
-
-    Quantities are compared on `requestedQuantity`, never `confirmedQuantity`: Wix reduces the
-    confirmed figure to available stock, and reporting that reduction is `CartQuantityReduced`'s
-    job. Reading it here would turn an out-of-stock item into "your cart changed".
-
-    On the website path `_reconcile_saved_cart` runs first and this is the backstop rather than
-    the first answer. The *request's* basket wins there, and that is consistent with the rationale
-    above rather than opposed to it: the request comes from the cart page the customer is looking
-    at, so making the Wix cart match it is "asking them to review it" carried out, not bypassed.
-    On the WhatsApp `_create` path there is no such surface, so the refusal stands as written.
-    """
-    asked: Dict[tuple, int] = {}
-    for item in requested:
-        key = (str(item["productId"]).lower(), str(item["variantId"]).lower())
-        asked[key] = asked.get(key, 0) + int(item["quantity"])
-    saved: Dict[tuple, int] = {}
-    for line in cart.get("lineItems") or []:
-        reference = (line.get("source") or {}).get("catalogReference") or {}
-        quantities = line.get("quantityInfo") or {}
-        key = (str(reference.get("catalogItemId") or "").lower(),
-               str((reference.get("options") or {}).get("variantId") or "").lower())
-        quantity = quantities.get("requestedQuantity")
-        if quantity is None:
-            quantity = quantities.get("confirmedQuantity")
-        saved[key] = saved.get(key, 0) + int(quantity or 0)
-    if saved != asked:
-        logger.info(json.dumps({"event": "checkout_cart_basket_mismatch",
-                                "savedLines": len(saved), "requestedLines": len(asked)}))
-        raise cart_v2.CartContractError("the saved cart is not the basket that was requested")
-
-
-def _saved_basket_index(cart: Dict[str, Any]) -> Dict[tuple, Dict[str, Any]]:
-    """`{(catalogItemId.lower(), variantId.lower()): {lineItemId, quantity}}` for a Wix cart.
-
-    Keyed exactly as `_require_same_basket` keys, so the reconcile and the backstop that follows
-    it cannot disagree about what "the same line" means. Two saved lines sharing one key is
-    degenerate: `_require_same_basket` *sums* them for comparison, which is fine, but there is no
-    single line to edit, so this refuses rather than guessing which one to change.
-    """
-    index: Dict[tuple, Dict[str, Any]] = {}
-    for line in cart.get("lineItems") or []:
-        reference = (line.get("source") or {}).get("catalogReference") or {}
-        quantities = line.get("quantityInfo") or {}
-        key = (str(reference.get("catalogItemId") or "").lower(),
-               str((reference.get("options") or {}).get("variantId") or "").lower())
-        if key in index:
-            raise cart_v2.CartContractError(
-                "the saved cart holds two lines for one catalogue item")
-        quantity = quantities.get("requestedQuantity")
-        if quantity is None:
-            quantity = quantities.get("confirmedQuantity")
-        index[key] = {"lineItemId": line.get("id"), "quantity": int(quantity or 0)}
-    return index
-
-
-def _reconcile_saved_cart(carts, identity: customer_auth.CustomerIdentity,
-                          cart_id: str, requested: list) -> None:
-    """Bring the saved Wix cart to the requested basket, then re-assert equality.
-
-    `carts` is the CustomerCart instance `_v2_snapshot` already built for `ensure`. Taking it
-    rather than re-constructing one means ONE `self.now` governs `expiresAt = now +
-    CART_LIFETIME`, the QUOTE_LIFETIME expiry check and every command here; a second instance
-    would carry a second clock through the same lock protocol. It also means `ensure`, `abandon`
-    and this function share one lock holder.
-
-    Reuses `carts.execute`'s existing `remove` / `quantity` / `add` commands, which already own
-    the lock protocol, the duplicate-request fingerprint and the persistence. Nothing about price
-    authority moves: Wix still prices whatever is in the cart, and the cart is now provably the
-    basket that was asked for.
-
-    A LINE IN BOTH BASKETS GETS A `quantity` COMMAND, NEVER `remove` THEN `add`, and that is not a
-    performance choice. `lineItemId` is part of basket identity: `basket_hash` hashes the frozen
-    payload including Wix's raw items (each carrying `id`), and `narrow_basket_hash` enumerates
-    `{lineItemId: quantity}` explicitly. A remove-then-add of the same key mints a new
-    `lineItemId`, changes both hashes, makes the `CARTBASKET#` and `CARTNARROW#` paid-basket rows
-    miss by key, and drops `_live_cart_payment` from TIER 1 `CART_ALREADY_PAID` to the TIER 2
-    in-flight window.
-
-    THE ORDER IS `quantity` -> `add` -> `remove`. `CartV2.remove` routes its response through
-    `_cart()`, which raises unless Wix returns a cart object, and whether Wix returns one when the
-    LAST line is removed is unverified. Remove-first would empty the cart on the very first
-    command for any one-line-to-one-line diff, putting that unverified behaviour directly in the
-    hot path, and a raise there lands AFTER the lock claim. With this order the cart can never be
-    transiently empty: a reconcile only runs when `requested` is non-empty, and every requested
-    key is either already present or added before any removal.
-
-    IDEMPOTENT IN EFFECT, because it is a diff against live state rather than a replay of a
-    command log. A mid-way `CartBusy` or deadline refusal leaves a partially reconciled cart, and
-    the next prepare re-reads and re-diffs from its CURRENT state -- so an `add` that already
-    landed is seen as present and not repeated. Commands are deliberately NOT rolled back: a
-    rollback would be a second mutation on a cart whose state is already uncertain, and the
-    mutation cannot reach money anyway (the refusal writes no reservation, no attempt and no
-    gateway order, and `finalization.accept_paid` builds the order from the frozen snapshot and
-    the attested payload rather than from the live cart).
-    """
-    saved = _saved_basket_index(carts.adapter.get(cart_id))
-    asked: Dict[tuple, int] = {}
-    for item in requested:
-        key = (str(item["productId"]).lower(), str(item["variantId"]).lower())
-        asked[key] = asked.get(key, 0) + int(item["quantity"])
-
-    quantities, additions, removals = [], [], []
-    for key, quantity in asked.items():
-        if key in saved:
-            if saved[key]["quantity"] != quantity:
-                quantities.append({"action": "quantity", "requestId": str(uuid4()),
-                                   "lineItemId": saved[key]["lineItemId"],
-                                   "quantity": quantity})
-        else:
-            additions.append({"action": "add", "requestId": str(uuid4()),
-                              "item": {"productId": key[0], "variantId": key[1],
-                                       "quantity": quantity}})
-    for key, line in saved.items():
-        if key not in asked:
-            removals.append({"action": "remove", "requestId": str(uuid4()),
-                             "lineItemId": line["lineItemId"]})
-
-    commands = quantities + additions + removals
-    if not commands:
-        return
-
-    # BOTH PRE-CHECKS REFUSE HAVING ISSUED NOTHING, and both raise `CartResetRequired` rather than
-    # the generic refusal, because the excess lines are on the server cart and the only action the
-    # customer can take is to start a new one.
-    if len(commands) > MAX_RECONCILE_COMMANDS or len(set(saved) | set(asked)) > CART_LINE_CEILING:
-        logger.info(json.dumps({"event": "checkout_cart_reset_required",
-                                "commandCount": len(commands),
-                                "unionSize": len(set(saved) | set(asked))}))
-        raise CartResetRequired("the saved cart is too far from the requested basket")
-
-    for command in commands:
-        # BEFORE the execute, never after. A command already in flight when the invocation is
-        # killed is the failure this margin exists to avoid, because `execute`'s own comment says
-        # "Any exception after the claim retains the lock" and a timeout is not an exception.
-        if _seconds_left() < RECONCILE_DEADLINE_MARGIN_SECONDS:
-            logger.info(json.dumps({"event": "checkout_cart_reconcile_deadline",
-                                    "issued": commands.index(command)}))
-            raise cart_v2.CartContractError("not enough time to reconcile this cart safely")
-        carts.execute(identity, command)
-
-    logger.info(json.dumps({"event": "checkout_cart_reconciled",
-                            "commandCount": len(commands)}))
-    # The fail-closed backstop stays; it stops being the first answer.
-    _require_same_basket(carts.adapter.get(cart_id), requested)
-
-
-def _settle_saved_cart(carts, adapter, identity: customer_auth.CustomerIdentity,
-                       cart_id: str, created: bool, requested: list, *,
-                       requires_delivery: bool, reconcile: bool) -> tuple:
-    """Make a REUSED Wix cart safe to price. Returns `(cart_id, created)`.
-
-    Extracted from `_v2_snapshot` unchanged, because it is exactly the set of calls that address
-    the saved cart BY ID -- the stale-delivery read, the reconcile diff and the basket-equality
-    backstop. That makes it the whole surface on which a cart Wix no longer has can answer 404,
-    so the caller can recover from `cart_v2.CartGone` in ONE place instead of three call sites
-    each needing their own recovery.
-
-    A freshly `created` cart was built from `requested` by definition, so there is nothing to
-    settle and this returns immediately.
-    """
-    if created:
-        return cart_id, created
-
-    # A NO-DELIVERY BASKET MUST NOT INHERIT A PLACE OF SUPPLY. `ensure` reuses one Wix cart per
-    # identity for 30 days, and every physical attempt writes `deliveryInfo.address` onto it.
-    # There is no Cart V2 call that clears that field and no `execute` command that could issue
-    # one, so the only way to get a clean cart is to stop using this one.
-    if not requires_delivery and (
-            ((adapter.get(cart_id).get("deliveryInfo") or {}).get("address")) or {}):
-        abandoned = cart_id
-        carts.abandon(identity)                 # refuses while `busy` is set
-        cart_id, created = carts.ensure(identity, requested)
-        # The DURABLE record of the abandon: the `abandonedCartId` written onto the row does not
-        # survive the next `ensure`'s full `put_item`. A Wix cart id is a resource id, not PII.
-        logger.info(json.dumps({"event": "checkout_cart_delivery_reset",
-                                "abandonedCartId": str(abandoned)}))
-
-    if not created:
-        if reconcile:
-            _reconcile_saved_cart(carts, identity, cart_id, requested)
-        else:
-            _require_same_basket(adapter.get(cart_id), requested)
-    return cart_id, created
-
-
-class DeliveryMethodUnavailable(purchase_intent.DeliveryDetailsRequired):
-    """Wix priced nothing because it offered no delivery METHOD for a known-good address.
-
-    The base class is load-bearing. `_v2_snapshot`'s other caller is `_create`, the retained
-    in-WhatsApp path, whose existing first arm then still answers
-    `409 DELIVERY_DETAILS_REQUIRED` -- not `500 INTERNAL_ERROR` (a plain `Exception`) and not
-    `409 AMOUNT_NOT_SETTLED` (a plain `ValueError`, via its trailing `except ValueError`).
-    """
-
-
-class ContributionUnavailable(cart_v2.CartContractError):
-    """A recognised contribution product with CONTRIBUTION_PRODUCT_ID unset.
-
-    The base class is load-bearing, and it follows `DeliveryMethodUnavailable`'s precedent above:
-    `_v2_snapshot`'s other caller is `_create`, whose `except cart_v2.CartContractError` arm
-    answers `409 CART_NOT_PAYABLE`. Derived from bare `Exception` this would instead reach
-    `handler`'s outer handler and answer `500 INTERNAL_ERROR` on the dispatch-default route --
-    `_action` returns `"create"` for any unrecognised action or path.
-    """
-
-
-class ContributionNotAlone(cart_v2.CartContractError):
-    """TWO contribution lines in one basket. No longer "a contribution beside a product".
-
-    NARROWED BY OWNER DECISION, 2026-10-06. A contribution beside an ordinary product used to
-    raise this and now does not: a mixed basket is priced as an ordinary basket, fee and all. What
-    survives is the case no single figure can describe -- two contribution lines, which is two
-    contributions in one payment, while `_contribution_request` returns ONE expected collection.
-    A Rs.100 line and a Rs.250 line have no sum that either of them promised.
-
-    The REASON the mix was refused is still true and is why the mixed path deliberately does not
-    assert a contribution total: in a mixed basket `componentsPaise` carries one tax, one
-    delivery, one fee and one discount figure across every line and there is no per-line tax
-    field, so "the contribution's share of the total" has no exact formulation. The mix is now
-    allowed BECAUSE it stops being a contribution basket at all, not because that problem was
-    solved. See `_contribution_request`.
-
-    THE WIRE CODE IS STILL `CONTRIBUTION_NOT_ALONE`, deliberately. The copy says what it now
-    means; the code is a client/server contract that the browser and this function do not deploy
-    atomically (Amplify on push, Lambda on alias move), so renaming it would make one of them
-    answer `UNRECOGNISED` for the length of the gap. Reachable only from a crafted request:
-    `setContribution` replaces the line rather than adding to it, so the browser cannot build it.
-
-    Base class is load-bearing, as above.
-    """
-
-
-class ContributionNotPayable(cart_v2.CartContractError):
-    """Wix will not price a contribution basket, so no contribution can be taken right now.
-
-    Raised when Wix answers a contribution-only cart with a delivery requirement. The cart holds
-    one donation and no delivery address is ever written onto it (`_v2_snapshot` skips
-    `prepare_delivery` deliberately -- a payment with no delivery has no place of supply), so
-    there is no address the customer can save that would satisfy it.
-
-    SEPARATE FROM `CART_NOT_PAYABLE`, for the same reason `CartResetRequired` is: the generic code
-    carries "Please review your cart and try again", and a basket that is one donation has nothing
-    to review. It also makes the condition distinguishable in the logs and on the wire from the
-    OTHER two ways a Wix dashboard setting can make a contribution unpayable -- a shipping rate or
-    a tax class landing on the product, which `_assert_contribution_total` refuses -- which a
-    single shared code cannot be.
-
-    THE PREMISE IS NOW MEASURED, AND IT WAS WRONG IN THE DIRECTION THAT MATTERED. This docstring
-    used to say that whether Wix prices a `PHYSICAL` line with no `deliveryInfo` address had not
-    been measured, and that if it did not, this would be the arm EVERY contribution took. It was.
-    The probe on 2026-10-05, against the live `Contribute` product with no address written:
-
-        summary.violations  = [{"scope": "DELIVERY", "code": "MISSING_DELIVERY_METHOD",
-                                "severity": "ERROR"}]
-        summary.priceSummary = subtotal 100.00, discount 0, delivery 0.00, additionalFees 0,
-                               tax 0.00, total 100.00
-
-    So Wix prices it exactly right and blocks only on the unselected delivery METHOD -- and it
-    populates `deliveryInfo.address` itself, from the site's own location, on Create Cart. The fix
-    is therefore the method and not an address: `_v2_snapshot`'s no-delivery branch now calls
-    `purchase_intent.select_offered_delivery_method`, which selects the single ₹0 option Wix
-    already resolved and writes nothing. All three choices then price to exactly the contributed
-    paise (10000 / 25000 / 50000) with delivery, tax, fees and discount all zero, which
-    `_assert_contribution_total` re-checks on every request.
-
-    THIS ARM IS THEREFORE NO LONGER THE EXPECTED PATH; it is the dashboard fault it was always
-    meant to describe -- a Wix delivery region that offers a contribution no option at all, which
-    `select_offered_delivery_method` reports by returning `None` and leaving the cart unpriceable.
-    Fail-closed either way: nothing is reserved, no attempt is written and no gateway order is
-    created, so no money moves.
-
-    Base class is load-bearing and follows `DeliveryMethodUnavailable`: `_v2_snapshot`'s other
-    caller is `_create`, whose `except cart_v2.CartContractError` arm answers
-    `409 CART_NOT_PAYABLE`, not `500 INTERNAL_ERROR`.
-    """
-
-
-class ContributionRedemptionNotAllowed(cart_v2.CartContractError):
-    """A coupon or a Wix gift card is applied to a contribution cart.
-
-    A SEPARATE state from the misconfiguration `_assert_contribution_total` refuses, because the
-    customer can clear this and a misconfiguration they cannot. Base class is deliberate and
-    follows `DeliveryMethodUnavailable`: `_v2_snapshot`'s other caller is `_create`, whose
-    `except cart_v2.CartContractError` arm then answers 409 CART_NOT_PAYABLE rather than letting
-    this reach `handler`'s 500.
-    """
-
-
-class CartResetRequired(cart_v2.CartContractError):
-    """The saved cart is too far from the requested basket to reconcile inside one invocation.
-
-    SEPARATE FROM `CART_NOT_PAYABLE` because the recovery is different and the generic code
-    pointed at an action the customer cannot take: the excess lines are on the SERVER cart, and
-    `/wix-store/*` appears nowhere in src/pages/cart.tsx, so "remove some lines" names lines they
-    cannot see. Starting a fresh cart is the one action that works, it is one click, and
-    `CustomerCart.abandon` is what performs it.
-
-    Base class is load-bearing, as above. On `_create` it is unreachable -- `reconcile=False`
-    there -- and would answer `CART_NOT_PAYABLE` through the parent arm if it ever did arrive,
-    which is the right answer for a route that refuses a mismatched saved cart by design.
-    """
-
-
-def _contribution_ids() -> set:
-    """Every product id this function will treat as a contribution.
-
-    The COMMITTED set plus the env id, union rather than either alone: the committed set is what
-    makes "env unset" a refusal rather than an ordinary product, and the env id is what makes the
-    live product recognised before the next deploy. Recomputed per call rather than at import,
-    for the same reason every other config read here is lazy.
-    """
-    known = set(CONTRIBUTION_PRODUCT_IDS)
-    if CONTRIBUTION_PRODUCT_ID:
-        known.add(CONTRIBUTION_PRODUCT_ID)
-    return known
-
-
-def _is_contribution_id(product_id: Any) -> bool:
-    """Takes the ID, NOT the line, deliberately.
-
-    A request line and a Wix cart line both carry a `catalogReference` and they carry it at
-    DIFFERENT levels (top level vs under `source`). A helper that took the line would be applied
-    to both and silently answer False for one of them -- no exception, no log, and the only
-    symptom a quantity on a customer's WhatsApp message. Making the parameter an id forces each
-    call site to read its own shape, where the shape is visible in the same expression.
-    """
-    return str(product_id or "").strip().lower() in _contribution_ids()
-
-
-def _contribution_request(line_items: Any) -> Optional[int]:
-    """The contribution's expected collection in integer paise, or None when this is not one.
-
-    PURE. No I/O, so every refusal below costs no Wix call, no DynamoDB write and no cart -- which
-    is what keeps `_v2_snapshot`'s leave-nothing-behind invariant true for a refused contribution.
-    It must also run BEFORE `resolved_catalog_lines`, because a bad *variant* is refused there as a
-    `WixEcomError` which maps to 502 CATALOGUE_UNAVAILABLE -- a catalogue-outage answer for what is
-    really "that is not one of the three contributions".
-
-    THREE FIXED PRICES, CHOSEN AT QUANTITY 1 (owner model change, 2026-10-04). The amount is NOT
-    carried by the quantity and is not derived from anything the browser sends: the browser names a
-    VARIANT, and the paise figure is looked up in the committed `CONTRIBUTION_CHOICES_PAISE`. So
-    there is no arithmetic on a customer-supplied number anywhere in this function, and no bounds
-    to widen -- an unrecognised variant is simply not one of the three.
-
-    The returned figure is an EXPECTED COLLECTION, not a price. `cart_v2.calculate` remains the
-    sole price authority; `_assert_contribution_total` compares its answer against this and fails
-    closed on any disagreement, so a Wix price edit refuses the contribution rather than charging a
-    figure the browser's button did not promise.
-
-    `None` THEREFORE MEANS "PRICE THIS AS AN ORDINARY BASKET", and since 2026-10-06 that includes
-    a basket holding a contribution BESIDE a product. Every caller keys the whole contribution
-    treatment -- the fee exemption, the address-free delivery handling, the exact-total assertion
-    -- on `is not None`, so one return value switches a mixed basket onto the path every other
-    order takes. See the mixed-basket block below.
-
-    Deliberately tolerant of a malformed `line_items`: anything whose shape it cannot read is
-    simply not recognised as a contribution and falls through to `resolved_catalog_lines`, which
-    already owns the strict shape refusals and must stay the single place they live.
-    """
-    known = _contribution_ids()
-    if not known or not isinstance(line_items, list):
-        return None
-
-    chosen: list = []
-    others = 0
-    for line in line_items:
-        reference = (line or {}).get("catalogReference") or {} if isinstance(line, dict) else {}
-        if not isinstance(reference, dict):
-            reference = {}
-        product_id = str(reference.get("catalogItemId") or "").strip().lower()
-        if not product_id or product_id not in known:
-            others += 1
-            continue
-        options = reference.get("options")
-        variant_id = str((options or {}).get("variantId") or "").strip().lower() \
-            if isinstance(options, dict) else ""
-        quantity = line.get("quantity")
-        # `type(...) is not int` rather than `isinstance`, deliberately: `isinstance(True, int)` is
-        # True, so an isinstance check would accept `quantity: true` as 1. A contribution is one
-        # fixed-price line, so the only acceptable quantity is exactly 1 -- two of them is two
-        # contributions, which is a basket this path does not price.
-        if type(quantity) is not int or quantity != 1:
-            logger.info(json.dumps({"event": "contribution_amount_rejected",
-                                    "reason": "INVALID_QUANTITY"}))
-            raise ContributionRejected("INVALID_QUANTITY")
-        if variant_id not in CONTRIBUTION_CHOICES_PAISE:
-            logger.info(json.dumps({"event": "contribution_amount_rejected",
-                                    "reason": "UNKNOWN_CHOICE"}))
-            raise ContributionRejected("UNKNOWN_CHOICE")
-        chosen.append(variant_id)
-    if not chosen:
-        return None
-    if not CONTRIBUTION_PRODUCT_ID:
-        logger.warning(json.dumps({"event": "contribution_unavailable"}))
-        raise ContributionUnavailable("contribution is not configured on this version")
-    # A MIXED BASKET IS NOT A CONTRIBUTION BASKET, AND IT IS NO LONGER REFUSED.
-    #
-    # OWNER DECISION, 2026-10-06: a product and a contribution may be paid together, and the mixed
-    # total is priced "the same way as a single order" -- Wix prices every line, then
-    # `checkout_pricing.compute_quote` adds 2.5% convenience plus 18% GST on that fee over the
-    # whole collection. `checkout_pricing` needed no change for this: it operates on one total and
-    # has never known what kind of lines produced it.
-    #
-    # RETURNING `None` IS THE WHOLE MECHANISM, and it is a redirection rather than a de-guard.
-    # `None` means "this is not a contribution basket", so the ORDINARY path runs end to end: the
-    # fee-bearing `compute_quote` instead of `exempt_quote`, `prepare_delivery` with the owned
-    # address instead of the address-free method selection, and no `_assert_contribution_total`.
-    # That last one is deliberate and unavoidable rather than overlooked -- `componentsPaise`
-    # carries ONE tax, delivery, fee and discount figure across the whole basket and there is no
-    # per-line tax field, so "the contribution's share of the mixed total" has no exact
-    # formulation to fail closed against. See `ContributionNotAlone`, which still holds that
-    # reasoning for the basket it still refuses.
-    #
-    # WHAT THE MIX DOES *NOT* RELAX, because all three run earlier in this function: the kill
-    # switch above (an unconfigured contribution is still refused rather than priced as an
-    # ordinary product), the quantity-exactly-1 check and the variant allow-list. A mixed basket's
-    # contribution line must still be one of the three committed choices at quantity 1.
-    if others:
-        logger.info(json.dumps({"event": "contribution_in_mixed_basket",
-                                "otherLines": others, "contributionLines": len(chosen)}))
-        return None
-    # Two contribution lines and nothing else is STILL refused: it is two contributions in one
-    # payment, and the ONE expected collection this function returns could not describe it.
-    if len(chosen) != 1:
-        logger.info(json.dumps({"event": "contribution_not_alone",
-                                "otherLines": others, "contributionLines": len(chosen)}))
-        raise ContributionNotAlone("one contribution at a time")
-    return CONTRIBUTION_CHOICES_PAISE[chosen[0]]
-
-
-def _assert_contribution_total(calculated: Dict[str, Any], contributed_paise: int) -> None:
-    """The payable collection for a contribution basket IS the chosen amount, to the paise.
-
-    `contributed_paise` is the committed figure for the chosen variant
-    (`CONTRIBUTION_CHOICES_PAISE`), and this is where that figure earns its keep: `cart_v2` is
-    still the sole price authority, and this asserts its answer against what the browser's button
-    promised. A Wix price edit therefore REFUSES the contribution instead of charging a different
-    amount than the one the customer was offered -- fail-closed, which for money is the only
-    defensible direction.
-
-    Asserted on `componentsPaise["total"]` rather than on the per-line `totalPrice`, because the
-    line figure sums to `subtotal` and is pre-tax -- so a taxable Contribute product passes a line
-    check and still over-charges. Every other component must be zero: there is nothing to deliver
-    (and the `delivery` term is what catches a Wix shipping rule matching this PHYSICAL product),
-    no coupon is accepted on a contribution, and a gift card would make the customer pay less than
-    the amount the order records as contributed.
-    """
-    components = calculated["componentsPaise"]
-    redeem = int(calculated.get("wixGiftCardRedeemPaise") or 0)
-    applied = bool((calculated.get("cart") or {}).get("coupons")) or bool(
-        calculated.get("wixGiftCard")) or redeem
-
-    # A redemption the customer applied is RECOVERABLE and names its own action.
-    if applied:
-        logger.info(json.dumps({"event": "contribution_redemption_refused",
-                                "hasCoupon": bool((calculated.get("cart") or {}).get("coupons")),
-                                "hasGiftCard": bool(calculated.get("wixGiftCard"))}))
-        raise ContributionRedemptionNotAllowed("a contribution takes no coupon or gift card")
-
-    if (components["total"] != contributed_paise
-            or components["subtotal"] != contributed_paise
-            or components["tax"] or components["delivery"]
-            or components["additionalFees"] or components["discount"]):
-        logger.error(json.dumps({"event": "contribution_total_mismatch",
-                                 "expectedPaise": contributed_paise,
-                                 "totalPaise": components["total"]}))
-        raise cart_v2.CartContractError("contribution total is not the contributed amount")
-
-
-def _blocking_codes(adapter, cart_id: str) -> set:
-    """Wix's own blocking-violation codes for this cart, or an empty set.
-
-    Mirrors `purchase_intent._delivery_is_missing`'s evidence rule: a failed preview is NO
-    evidence, and no evidence must not be reported to a customer as "choose an address".
-    """
-    try:
-        preview = adapter.preview(cart_id)
-    except Exception:  # noqa: BLE001
-        return set()
-    return {str(v.get("code") or "") for v in preview.get("blockingViolations") or []}
-
-
-def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
-                 *, profile: Optional[Dict[str, Any]] = None,
-                 reconcile: bool = False, reset: bool = False):
-    """The website price authority. Returns `(snapshot, price_free_items, calculated)`.
-
-    `calculated` is the calculation the snapshot was frozen from. Under AWS_NATIVE this is `None`
-    (the native supply engine produces the snapshot directly and there is no Wix order payload to
-    build); it is retained in the signature for the legacy shape only.
-
-    This is the producer half of the chain `website_checkout` and `customer_receipt` already
-    consume, and which nothing in production produced before. `QuoteSnapshot.quote`'s
-    `collection_before_convenience_paise` is Wix's own `summary.priceSummary.total` -- items,
-    discounts, delivery and supply GST, all computed by Wix from the catalogue and the delivery
-    address. This handler adds nothing to that figure; `compute_quote` adds only our convenience
-    fee and the GST on that fee, and `total_payable_paise` is what a customer pays.
-
-    ORDERING IS LOAD-BEARING, NOT STYLE. The owned address is resolved BEFORE any call that can
-    write to Wix. A cart created and then refused is a real cart abandoned on the live site, one
-    per attempt, and nothing deletes it; an earlier revision created the cart first and then
-    discovered there was no address, so every attempt leaked one. A request that cannot be priced
-    must be refused before it leaves anything behind.
-
-    The cart itself is resolved before it is generated. `customer_cart` already owns identity-keyed
-    cart persistence and its lock protocol, so this asks it for the customer's existing cart and
-    lets it create one only when there is none -- a retried checkout then reuses the same Wix cart
-    instead of minting another.
-
-    Raises `purchase_intent.DeliveryDetailsRequired` when no owned address is on file, and the
-    narrower `DeliveryMethodUnavailable` when Wix has a known-good address but offers no delivery
-    METHOD for it -- both recoverable steps in the purchase flow rather than errors.
-
-    `profile` is the already-loaded contact row, so the happy path adds no DynamoDB read. The
-    `loader is _load_owned_address` identity check keeps the test seam authoritative: a
-    monkeypatched loader is ALWAYS called, so no test silently bypasses its own stub.
-
-    `reconcile` and `reset` are keyword-only with `False` defaults, and ONLY `_website_snapshot`
-    passes them. Reconciling unconditionally would silently change the WhatsApp payment path,
-    which has no contribution entry point and gains nothing from it; `reset` arrives from a
-    request field read in `_website_prepare` alone, so the `action:"create"` default is not a way
-    into abandoning a customer's saved cart.
-
-    THE ADDRESS REQUIREMENT IS NOW CONDITIONAL ON THE BASKET, not removed. A contribution-only
-    basket has no place of supply to state, so demanding one would be asking for a delivery
-    destination that does not exist. That decision keys on contribution product IDENTITY, not on
-    Wix's `productType` -- see `_v2_catalog_items`, where the live `Contribute` product being
-    PHYSICAL is what makes the distinction load-bearing. A basket with any ordinary physical line
-    still refuses before any Wix write, exactly as before -- the requirement moved below
-    `_v2_catalog_items`,
-    which performs `GET /stores/v3/products/{id}` only and already ran before
-    `CustomerCart.ensure` on every request, so the leave-nothing-behind invariant is preserved.
-    """
-    # 1. PURE PRE-CHECK, BEFORE ANY I/O AT ALL. Recognition, enablement, alone-ness and amount
-    #    bounds are decided from the request alone, so a refusable contribution costs no Wix call,
-    #    no DynamoDB write and no cart.
-    contribution_paise = _contribution_request(line_items)      # None when not a contribution
-
-    loader = LOAD_OWNED_ADDRESS
-    owned = (contact_address.from_contact(profile)
-             if profile is not None and loader is _load_owned_address
-             else (loader(identity) if callable(loader) else None))
-
-    adapter = cart_v2.CartV2(_wix_request)
-    requested, requires_delivery = _v2_catalog_items(line_items)   # GET only, writes nothing
-    if requires_delivery and not owned:
-        raise purchase_intent.DeliveryDetailsRequired("no owned delivery address on file")
-
-    # FEAT-003: storage is international; the India place-of-supply / Wix-mappability rule now
-    # runs HERE, at pay time, through the shared gate -- but ONLY when the basket REQUIRES
-    # delivery. A fee-exempt contribution or any no-delivery basket must not be refused for an
-    # unmappable stored address it never ships to. For a delivery basket, an address the CRM
-    # accepted that cannot price a Razorpay/Wix cart (e.g. a legacy unmappable Indian state)
-    # becomes the recoverable 409 DELIVERY_DETAILS_REQUIRED rather than a 503 or a wrong tax
-    # split. A caller-supplied loader (tests) returning an already-Wix-shaped dict is left alone.
-    if requires_delivery and owned and loader is _load_owned_address:
-        try:
-            payment_address.for_wix(owned)
-        except payment_address.UnpayableAddress:
-            raise purchase_intent.DeliveryDetailsRequired(
-                "stored address is not payable on the website channel") from None
-
-    # ONE CustomerCart, so ONE `now` and one lock protocol own `ensure`, `abandon` and the
-    # reconcile. `self.now` drives both `expiresAt = now + CART_LIFETIME` and the QUOTE_LIFETIME
-    # expiry check, so a second instance would carry a second clock.
-    carts = customer_cart.CustomerCart(_keys_table(), adapter)
-
-    # `resetCart`. BEFORE `ensure`, so the next `ensure` mints a fresh cart rather than
-    # reconciling onto the one being discarded. `CartBusy` propagates unchanged: a locked cart is
-    # not reset, it is reported.
-    if reset:
-        carts.abandon(identity)
-
-    cart_id, created = carts.ensure(identity, requested)
-
-    # A CART WIX NO LONGER HAS IS DISCARDED AND REMINTED, NOT REPORTED AS AN ITEM PROBLEM.
-    #
-    # `ensure` keeps one Wix cart id per identity for thirty days, so a pointer written before the
-    # catalogue moved to site `c993128b` outlives the site it was minted against -- and
-    # `GET /ecom/v2/carts/{id}` answers 404 for it. On 2026-10-05 that reached a live customer as
-    # "An item in your cart is no longer available. Remove it and try again", on a basket whose
-    # only line (the ₹1 test product) was visible and in stock: the single `WixEcomError` arm in
-    # `_website_prepare` cannot tell a dead CART from a missing ITEM, and removing a line from a
-    # cart that does not exist is not an action anybody can take. Every attempt dead-ended.
-    #
-    # A 404 on the cart resource says the CART is gone and says nothing about the catalogue, so
-    # the pointer is abandoned and a fresh cart is minted from `requested` -- the same basket,
-    # re-priced from scratch by `calculate` below. Nothing about price authority moves: the new
-    # cart carries no total of ours, the amount still comes from Wix's own `summary.priceSummary`
-    # in integer paise, and `_assert_contribution_total`'s exact comparison still runs.
-    #
-    # EXACTLY ONCE. A cart created in this invocation that is itself 404 is a Wix outage, not a
-    # stale pointer, so the second `CartGone` propagates to the caller's refusal arm rather than
-    # looping -- `ensure` would otherwise create a cart per attempt, abandoning each on the live
-    # site with nothing to clean them up.
-    try:
-        cart_id, created = _settle_saved_cart(
-            carts, adapter, identity, cart_id, created, requested,
-            requires_delivery=requires_delivery, reconcile=reconcile)
-    except cart_v2.CartGone as gone:
-        logger.info(json.dumps({"event": "checkout_cart_gone_recreated",
-                                "goneCartId": str(gone.cart_id or cart_id)}))
-        carts.abandon(identity)                 # refuses while `busy` is set
-        cart_id, created = carts.ensure(identity, requested)
-        cart_id, created = _settle_saved_cart(
-            carts, adapter, identity, cart_id, created, requested,
-            requires_delivery=requires_delivery, reconcile=reconcile)
-
-    # Initialised BEFORE the try, because neither branch below is guaranteed to assign and the
-    # except arm logs the revision. A `NameError` inside an `except` arm would be swallowed by
-    # `_website_prepare`'s generic `except Exception` and surface as the 503 dead end the new arms
-    # exist to remove. It stays empty when Wix offers no delivery option at all, which the arm
-    # disambiguates with `requiresDelivery` and Wix's own violation codes.
-    prepared_revision = ""
-    prepared: Dict[str, Any] = {}
-
-    try:
-        if requires_delivery:
-            # INSIDE THE TRY, deliberately. `prepare_delivery` now selects a method, so it can
-            # raise `DeliveryDetailsRequired` itself when Wix offers no option for the address.
-            # Left above the try that would escape to `_website_prepare`'s generic
-            # `except Exception` and become the 503 dead end; inside it, the existing arm below
-            # reads Wix's own violation codes and answers 409 like every other delivery refusal.
-            prepared = purchase_intent.prepare_delivery(adapter, cart_id, owned) or {}
-        elif contribution_paise is not None or service_requests.has_service_line(line_items):
-            # (Phase O-1: a services-only basket takes this same address-free branch -- a request
-            # has nothing to ship, and its Wix product is PHYSICAL exactly like `Contribute`.)
-            #
-            # THE ADDRESS IS STILL NEVER WRITTEN HERE. `prepare_delivery` is not called and
-            # `owned` is not passed: a contribution must not have a postal address written onto
-            # its Wix cart, because a payment with no delivery has no place of supply and writing
-            # one would be a claim about a destination that does not exist.
-            #
-            # THE METHOD, HOWEVER, IS NOW SELECTED, AND THAT IS A MEASURED CORRECTION rather than
-            # a relaxation. Skipping both halves made every contribution unpayable: the live
-            # `Contribute` product is PHYSICAL, so Cart V2 answers a contribution-only cart with
-            # an ERROR-severity `MISSING_DELIVERY_METHOD`, `cart_v2.calculate` refuses a cart
-            # carrying a blocking violation, and `build_intent_with_calculation` converts that
-            # into `DeliveryDetailsRequired` -- which the arm below then turned into
-            # `ContributionNotPayable` on EVERY attempt. That was the unverified premise in
-            # `ContributionNotPayable`'s docstring; the probe on 2026-10-05 resolved it. Wix
-            # prices the no-address line correctly (subtotal 100.00, delivery 0.00, tax 0.00,
-            # fees 0, total 100.00) and blocks only on the unselected method, and it populates
-            # `deliveryInfo.address` itself from the site's own location on Create Cart -- so the
-            # missing piece was never an address of ours.
-            #
-            # SCOPED TO A CONTRIBUTION, NOT TO EVERY NO-DELIVERY BASKET. The ordinary all-digital
-            # basket (today unreachable: all seven shop products are PHYSICAL) needs no method,
-            # Wix does not demand one for it, and selecting whatever Wix happened to resolve would
-            # be adding a shipping decision to a cart that has nothing to ship. Its behaviour is
-            # deliberately left exactly as it was.
-            #
-            # `select_offered_delivery_method` is NON-RAISING, so "Wix named no option at all" --
-            # a genuine delivery-region gap in the dashboard -- still arrives at the arm below
-            # through `calculate` and still answers `ContributionNotPayable`, which is the
-            # dashboard fault that exception was always meant to name.
-            prepared = purchase_intent.select_offered_delivery_method(adapter, cart_id) or {}
-        prepared_revision = str(prepared.get("revision") or "")
-
-        snapshot, calculated = purchase_intent.build_intent_with_calculation(
-            adapter, customer_id=identity.customer_id, cart_id=cart_id,
-            # `owned or None` so an EMPTY stored address reaches `purchase_intent` as an explicit
-            # `None` rather than a falsy dict. `purchase_intent` tests `is not None`, because `{}`
-            # is a placeholder address that must still raise `UnmappableAddress` rather than be
-            # laundered into a price; only a true `None` means "no place of supply to resolve".
-            #
-            # FEAT-003: for a DELIVERY basket, `owned` is already proven payable by the `for_wix`
-            # gate above, so it resolves here. For a NO-DELIVERY basket (a contribution), storage
-            # is now international and `from_contact` returns a structurally-valid but possibly
-            # GST-unresolvable address (e.g. a legacy "Nowhere Pradesh"); a payment with no
-            # delivery has no place of supply, so such an address is passed as `None` rather than
-            # raising `UnmappableAddress` inside the quote. This preserves the pre-FEAT-003
-            # behaviour exactly (the intra-state default) now that `from_contact` no longer
-            # returns None for it. The laundering guard for delivery baskets is unchanged.
-            owned_address=(_owned_for_supply(owned, requires_delivery)),
-            now=int(time.time()), site=wix_ecom.WIX_SITE_ID,
-            # The fee-exempt calculator, substituted at an EXISTING seam rather than branching
-            # inside the calculator every other basket shares. OWNER DECISION [PHASE2-FEE-001]:
-            # a contribution collects exactly the amount chosen. `build_intent_with_calculation`
-            # re-validates the returned quote's `policy_version` and refuses one that altered the
-            # collection total, and `exempt_quote` stamps the same shared constant, so the
-            # substitution is checked at the seam rather than trusted.
-            **({"quote_fn": checkout_pricing.exempt_quote}
-               if contribution_paise is not None else {}))
-    except purchase_intent.DeliveryDetailsRequired:
-        # `purchase_intent` collapses MISSING_DELIVERY_ADDRESS and MISSING_DELIVERY_METHOD into
-        # one refusal, and a method problem reported as a missing address tells a customer to
-        # enter an address they already saved, forever. Distinguish on Wix's own violation codes
-        # rather than inferring: a successful `set_delivery_address` does NOT rule out
-        # MISSING_DELIVERY_ADDRESS, because an address outside every shipping region still
-        # reports it.
-        #
-        # `revision` is logged as `str(...)` rather than through a numeric coercion -- Wix sends
-        # it as a decimal string, so a string needs no helper and cannot throw inside an `except`
-        # arm. A `NameError` here would be swallowed by `_website_prepare`'s generic
-        # `except Exception` and surface as the 503 dead end this work exists to prevent.
-        codes = _blocking_codes(adapter, cart_id)
-        logger.info(json.dumps({"event": "website_checkout_delivery_blocked",
-                                "cartRevision": str(prepared_revision),
-                                "requiresDelivery": requires_delivery,
-                                "violations": sorted(codes)}))
-        if not requires_delivery:
-            # Wix wants a delivery destination for a basket that has nothing to deliver. No
-            # address the customer can save will satisfy it, because none is ever written to this
-            # cart. Non-recoverable by the customer, and loud.
-            #
-            # This branch is only defensible because the abandon above removed the OTHER way in:
-            # a reused cart carrying a stale `deliveryInfo.address` with no method chosen makes
-            # Wix answer MISSING_DELIVERY_METHOD, which is a stale-data condition rather than a
-            # dashboard fault. The abandon runs BEFORE this call, so by the time this can fire the
-            # cart is provably addressless.
-            #
-            # A CONTRIBUTION GETS ITS OWN CODE, and the split is not cosmetic. The live
-            # `Contribute` product is PHYSICAL, so this is the arm that fires if Wix requires a
-            # shipping destination for physical goods -- ordinary Wix behaviour, unmeasured here,
-            # and therefore possibly the path EVERY contribution takes rather than a rare
-            # dashboard fault. `CART_NOT_PAYABLE` answers "Please review your cart and try
-            # again", which names the one action a single-donation basket cannot take. The
-            # ordinary (today unreachable: all seven shop products are PHYSICAL) all-digital
-            # basket keeps the generic code, because "review your cart" is at least not false for
-            # a basket with lines in it.
-            if contribution_paise is not None:
-                raise ContributionNotPayable(
-                    "wix requires delivery for a contribution basket") from None
-            if service_requests.has_service_line(line_items):
-                raise ServiceNotPayable("wix requires delivery for a services basket") from None
-            raise cart_v2.CartContractError(
-                "wix requires delivery for a no-delivery basket") from None
-        if not codes or "MISSING_DELIVERY_ADDRESS" in codes:
-            raise                       # unchanged meaning, and fail-closed on no evidence
-        raise DeliveryMethodUnavailable("wix offered no usable delivery method") from None
-    if contribution_paise is not None:
-        _assert_contribution_total(calculated, contribution_paise)
-    if service_requests.has_service_line(line_items):
-        # Phase O-1: per LINE, so it holds in a mixed basket and under a coupon. Fail-closed.
-        #
-        # THE RETURN VALUE IS DISCARDED HERE ON PURPOSE, and the redundancy is deliberate rather
-        # than an oversight. The figure is needed when the `PAYREF#` row is written, four frames
-        # away in `_allocate_reference`, so it is re-derived there with the pure
-        # `observed_service_line_paise(calculated)` instead of being threaded through three
-        # signatures that have no other use for it. The two cannot disagree: same `calculated`,
-        # same single-service-line selection, and `assert_service_line_price` has already refused
-        # the basket if that selection is not unique. The assertion runs for its REFUSAL, which
-        # is the only thing this call site wants from it.
-        service_requests.assert_service_line_price(
-            calculated, line_items, delivery_required=requires_delivery)
-    # Names and quantities only, for the payment request and the receipt. Line money never
-    # travels with the item list: the authoritative amount is the one computed once, above, and
-    # the snapshot hash already covers the per-line figures Wix calculated.
-    #
-    # Read off `calculated["cart"]["lineItems"]` on BOTH branches: `calculate` sends
-    # `{"refreshCart": True}` and returns a deepcopy of the cart, so this is the post-refresh
-    # list, already in hand. It also deletes a branch-dependent `adapter.get`.
-    # NO CONTRIBUTION SPECIAL CASE HERE ANY MORE, and its removal is the point rather than a
-    # tidy-up. Under the retired amount-as-quantity model a Rs.400 contribution was quantity 400,
-    # so reporting the figure verbatim rendered "Contribution x 400" in a WhatsApp message -- a
-    # count that was really money. A contribution is now a fixed-price variant at quantity 1, so
-    # the confirmed quantity IS an honest count and the projection needs no exception.
-    items = [{"name": _translatable(line.get("name")),
-              "quantity": int((line.get("quantityInfo") or {}).get("confirmedQuantity") or 1)}
-             for line in (calculated["cart"].get("lineItems") or [])]
-    return snapshot, items, calculated
-
-
-def _translatable(value: Any) -> str:
-    """Cart V2 renamed `lineItems[].productName` to `name` and changed it to a translatable
-    string, so a plain `str()` would render a dict. Original preferred over translated, matching
-    `wix_ecom.line_item_summary`'s existing behaviour on the V1 shape."""
-    if isinstance(value, dict):
-        return str(value.get("original") or value.get("translated") or "")
-    return str(value or "")
-
-
 def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             origin: str, *, catalog_session: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Resolve authoritative totals, gate on readiness, reserve an attempt, hand off to WhatsApp."""
@@ -2849,110 +1998,55 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     #    absence would keep V1. Both are
     #    the SAME checkout mode -- website Razorpay Standard Checkout -- differing only in which
     #    Wix API prices the cart. Neither routes a customer to a Wix-hosted checkout surface.
+    # AWS-NATIVE pricing — no Wix call. `catalog_session is None` already returned above
+    # (`CART_PAYMENT_IS_WEBSITE_ONLY`), so the only basket that reaches here is the WhatsApp
+    # catalog-service leg, priced off ProductsTable by `_native_quote` exactly as the website
+    # `prepare` path is. The amount a customer pays is the CALCULATOR total — the native collection
+    # total plus the convenience fee plus the GST on that fee — read off the frozen snapshot.
+    # There is no `wixCheckoutId` and no Wix order payload: the internal order is authoritative.
     wix_checkout_id = ""
-    snapshot = None
-    if cart_v2.is_enabled():
-        try:
-            # `_calculated` is deliberately discarded here: this is the retained in-WhatsApp
-            # path, which never reaches `accept_paid` and so needs no Wix order payload.
-            snapshot, item_summary, _calculated = _v2_snapshot(identity, line_items)
-            # The amount a customer pays is the CALCULATOR total -- Wix's collection total plus
-            # our convenience fee plus the GST on that fee -- not the raw Wix total. That is the
-            # contract section 8 of this module's docstring states for the website path, and
-            # before the Cart V2 producer existed there was no code path that honoured it.
-            amount_paise = snapshot.quote.total_payable_paise
-        except purchase_intent.DeliveryDetailsRequired:
-            # Not an error. The customer has not chosen where this is going, and Cart V2 is right
-            # to refuse a price for an unknown destination: delivery is a component of the total
-            # and the address is the place of supply. Never substitute a default address.
-            logger.info(json.dumps({"event": "checkout_delivery_details_required"}))
-            return cors_response(409, {
-                "error": "DELIVERY_DETAILS_REQUIRED",
-                "message": "Choose a delivery address and method to see your final total.",
-            }, origin)
-        except cart_v2.CartItemUnavailable as unavailable:
-            # Checkout V1 dropped a missing item and priced what was left, so a cart could shrink
-            # silently between review and payment. Named per line so the customer can act, and the
-            # line ids and statuses are safe to return: they are opaque and carry no personal data.
-            logger.info(json.dumps({"event": "checkout_item_unavailable",
-                                    "count": len(unavailable.items)}))
-            return cors_response(409, {
-                "error": "ITEMS_UNAVAILABLE", "items": unavailable.items,
-                "message": "Some items are no longer available. Please review your cart.",
-            }, origin)
-        except cart_v2.CartQuantityReduced as reduced:
-            # Wix still auto-reduces `confirmedQuantity` to available stock in V2, and it prices the
-            # reduced amount -- so the money reconciles perfectly while being the total for goods
-            # the customer did not agree to buy. Refused and shown, never silently accepted.
-            logger.info(json.dumps({"event": "checkout_quantity_reduced",
-                                    "count": len(reduced.items)}))
-            return cors_response(409, {
-                "error": "QUANTITY_REDUCED", "items": reduced.items,
-                "message": "Some items are available in smaller quantities than you asked for. "
-                           "Please confirm the new amounts.",
-            }, origin)
-        except cart_v2.CartContractError:
-            return cors_response(409, {"error": "CART_NOT_PAYABLE",
-                                       "message": "Please review your cart and try again."},
-                                 origin)
-        except customer_cart.CartBusy:
-            # A cart whose last Wix outcome is unknown. Never priced and never reused until it is
-            # reconciled -- the same answer `/wix-store/cart` gives, in the same vocabulary, so a
-            # locked cart does not read as two different problems on two routes.
-            logger.info(json.dumps({"event": "checkout_cart_reconciliation_required"}))
-            return cors_response(409, {
-                "error": "CART_RECONCILIATION_REQUIRED",
-                "message": "Your cart is being updated. Please try again shortly.",
-            }, origin)
-        except wix_ecom.WixEcomError:
-            return cors_response(502, {"error": "CATALOGUE_UNAVAILABLE",
-                                       "message": "The store is temporarily unavailable."}, origin)
-        except ValueError:
-            return cors_response(409, {"error": "AMOUNT_NOT_SETTLED",
-                                       "message": "We could not price this cart. Please try "
-                                                  "again."}, origin)
-    else:
-        try:
-            checkout = wix_ecom.create_checkout(line_items)
-            currency = wix_ecom.checkout_currency(checkout)
-            if currency != "INR":
-                logger.warning(json.dumps({"event": "checkout_non_inr", "currency": currency}))
-                return cors_response(409, {"error": "UNSUPPORTED_CURRENCY"}, origin)
-            amount_paise = wix_ecom.authoritative_total_paise(checkout)
-        except wix_ecom.AmountNotWhole:
-            return cors_response(409, {"error": "AMOUNT_NOT_SETTLED",
-                                       "message": "We could not price this cart. Please try "
-                                                  "again."},
-                                 origin)
-        except wix_ecom.WixEcomError:
-            return cors_response(502, {"error": "CATALOGUE_UNAVAILABLE",
-                                       "message": "The store is temporarily unavailable."}, origin)
-        # Retained only on the V1 branch. In Cart V2 the cart id IS the checkout id, so a
-        # separate `wixCheckoutId` has nothing to identify.
-        wix_checkout_id = str(checkout.get("id") or "")
-        item_summary = wix_ecom.line_item_summary(checkout)
+    native_service_paise: Optional[int] = None
+    try:
+        snapshot = _native_quote(identity, line_items, int(time.time()))
+        amount_paise = snapshot.quote.total_payable_paise
+        item_summary = [{"name": it.get("variantId"), "quantity": it.get("quantity")}
+                        for it in snapshot.frozen_data.get("items", [])]
+    except catalog_pricing.CatalogPricingError:
+        return cors_response(502, {"error": "CATALOGUE_UNAVAILABLE",
+                                   "message": "The store is temporarily unavailable."}, origin)
+    except native_inventory.OutOfStock as unavailable:
+        # A variant priced from ProductsTable but short on stock. Named so the customer can act;
+        # the variant id is opaque and carries no personal data.
+        logger.info(json.dumps({"event": "checkout_item_unavailable",
+                                "variantId": unavailable.variant_id}))
+        return cors_response(409, {
+            "error": "ITEMS_UNAVAILABLE",
+            "items": [{"variantId": unavailable.variant_id, "available": unavailable.available}],
+            "message": "Some items are no longer available. Please review your cart.",
+        }, origin)
+    except ValueError:
+        return cors_response(409, {"error": "AMOUNT_NOT_SETTLED",
+                                   "message": "We could not price this cart. Please try "
+                                              "again."}, origin)
 
     if catalog_session is not None:
-        # The native leg REQUIRES Cart V2, refused explicitly rather than crashed into.
-        #
-        # Everything below this point reads `snapshot` and `_calculated`, and both are produced
-        # only by the V2 branch above — so on V1 this function previously raised
-        # `UnboundLocalError` on the per-line assertion and would have raised `AttributeError` on
-        # `snapshot.snapshot_hash` a few frames later. In production the crash was unreachable,
-        # because a catalog basket always carries a service line and `checkout_preflight` refuses
-        # a service line with V2 off; this makes the precondition structural instead of argued.
-        # 503 and the same vocabulary `checkout_preflight` uses, so a V2-off deployment reads as
-        # one condition rather than two.
-        if not cart_v2.is_enabled():
+        # Native services require the same authoritative per-line guard as website services.
+        # `native_pricing_enabled=True` because the snapshot above is a ProductsTable-backed
+        # price; Wix Cart V2 is no longer involved on any leg.
+        guard = service_requests.checkout_preflight(
+            line_items, body, v2_enabled=False, native_pricing_enabled=True)
+        if guard is not None:
+            return cors_response(guard[0], guard[1], origin)
+        # The authoritative per-line price, read from the FROZEN native quote (never a client
+        # amount). This is the native counterpart of the old `assert_service_line_price` on the
+        # Wix `_calculated`, and it fails closed on any disagreement before a reference is minted.
+        try:
+            native_service_paise = service_requests.native_service_line_paise(snapshot, line_items)
+        except service_requests.ServicePriceChanged:
             logger.warning(json.dumps({"event": "service_refused",
                                        "reason": service_requests.SERVICE_UNAVAILABLE}))
             return cors_response(503, service_requests.refusal(
                 service_requests.SERVICE_UNAVAILABLE), origin)
-        # Native services require the same authoritative per-line guard as website services.
-        guard = service_requests.checkout_preflight(line_items, body, v2_enabled=True)
-        if guard is not None:
-            return cors_response(guard[0], guard[1], origin)
-        service_requests.assert_service_line_price(_calculated, line_items, delivery_required=False)
 
     # 2. Readiness gate. A live provider readback must confirm PAYMENT_READY, or the CTA is refused
     #    with the blocking state. No local constant makes this pass.
@@ -2988,10 +2082,14 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                          quoteExpiresAt=snapshot.expires_at,
                          policyVersion=snapshot.policy_version)
         if catalog_session is not None:
+            # `native_service_paise` is the service line's price read from the FROZEN native quote
+            # (ProductsTable-authoritative), the native counterpart of the old
+            # `observed_service_line_paise(_calculated)` Wix reading. It is already validated by
+            # `native_service_line_paise` above, so an unpriced row can never be minted here.
             extra.update(channel='whatsapp', nativeCatalogService=True,
                 customerPhone=_profile_phone(identity),
                 **service_requests.payref_extra(line_items, body,
-                    line_paise=service_requests.observed_service_line_paise(_calculated)))
+                    line_paise=native_service_paise))
         reference_id = order_keys.allocate_payment_reference(
             _keys_table(), payment_attempt_id=attempt_id, extra=extra,
         )
@@ -3321,7 +2419,7 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
     if response.get('FunctionError') or not catalog.meta_ready(readiness, row['kind']):
         return {'outcome': 'NATIVE_SERVICE_META_NOT_READY'}
     lines = [{'catalogReference': {'catalogItemId': row['productId'],
-              'options': {'variantId': row['variantId']}, 'appId': cart_v2.STORES_APP_ID}, 'quantity': 1}]
+              'options': {'variantId': row['variantId']}, 'appId': cart_contract.STORES_APP_ID}, 'quantity': 1}]
     catalog.service_from_lines([{'productId': row['productId'], 'variantId': row['variantId'], 'quantity': 1}])
     # Claim before pricing/provider calls. A timed-out preparation cannot be charged again blindly.
     try:

@@ -2,9 +2,8 @@
 
 Proves the AWS-native supply total reproduces the Wix priceSummary contract: the
 identity subtotal - discount + delivery + additionalFees + tax == total, the
-per-line sum == subtotal, integer-paise discipline (no float), and that the
-rendered Wix shape round-trips through wix_ecom.authoritative_total_paise so the
-native path is a drop-in for the Wix one.
+per-line sum == subtotal, and integer-paise discipline (no float). The native
+authoritative_total_paise reader is the drop-in replacement for the Wix one.
 """
 import sys
 from pathlib import Path
@@ -67,23 +66,6 @@ def test_float_bool_negative_and_string_prices_rejected(bad):
 def test_quantity_bounds(qty):
     with pytest.raises(CatalogPricingError):
         CatalogLine(product_id="p", variant_id="v", quantity=qty, unit_price_paise=100)
-
-
-def test_wix_shape_roundtrips_through_wix_ecom():
-    """The native priceSummary, rendered as Wix's shape, must be readable by the
-    existing Wix total reader — proving drop-in compatibility."""
-    from lambda_utils import wix_ecom
-    s = build_price_summary([_line(qty=2, price=59900)], tax_paise=0)
-    checkout = {"priceSummary": s.as_wix_shape()}
-    assert wix_ecom.authoritative_total_paise(checkout) == s.total_paise == 119800
-
-
-def test_wix_shape_total_matches_identity_with_adjustments():
-    from lambda_utils import wix_ecom
-    s = build_price_summary([_line(qty=1, price=100000)],
-                            discount_paise=10000, delivery_paise=5000, tax_paise=1700)
-    checkout = {"priceSummary": s.as_wix_shape()}
-    assert wix_ecom.authoritative_total_paise(checkout) == 96700
 
 
 # ── native coupon pricing (replaces Wix Calculate Cart for the website) ──────

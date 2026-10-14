@@ -30,7 +30,7 @@ design says as much in its own words: that refusal "must keep passing unchanged"
 from __future__ import annotations
 
 import ast
-import json
+import copy
 import pathlib
 import sys
 
@@ -44,9 +44,7 @@ from coupon_fake_dynamo import FakeTable  # noqa: E402
 from lambda_utils.ecommerce import checkout_pricing  # noqa: E402
 from lambda_utils.ecommerce import gift_card_store as gc  # noqa: E402
 from lambda_utils.ecommerce import money  # noqa: E402
-from lambda_utils.ecommerce.cart_v2 import CartContractError, CartV2  # noqa: E402
 
-FIXTURES = ROOT / "tests" / "fixtures"
 STORE_MODULE = ROOT / "amplify/functions/shared/lambda_utils/ecommerce/gift_card_store.py"
 STORE_TREE = ast.parse(STORE_MODULE.read_text(encoding="utf-8"), filename=str(STORE_MODULE))
 
@@ -86,11 +84,39 @@ class Spy:
         return self.response
 
 
+#: The section-2 worked example as a cart SUMMARY, inlined rather than read from the retired Wix
+#: Cart V2 fixture. `gc.reconcile_with_wix` reads `cart["summary"]` (priceSummary + paymentSummary),
+#: and that is all these native gift-card tests consume — a 1000.00 collection, a 400.00 gift card,
+#: no discount, no tax, and `requiresPaymentAfterGiftCard` present and True.
+_PARTIAL_CART = {
+    "cart": {"id": "7a1cfeed-0000-4000-8000-00000000ca01"},
+    "summary": {
+        "priceSummary": {
+            "subtotal": {"amount": "1000.00"},
+            "discount": {"amount": "0"},
+            "delivery": {"amount": "0"},
+            "additionalFees": {"amount": "0"},
+            "tax": {"amount": "0.00"},
+            "total": {"amount": "1000.00"},
+        },
+        "paymentSummary": {
+            "giftCards": [
+                {"giftCardId": "bd000000-0000-4000-8000-0000000000c1",
+                 "redeemAmount": {"amount": "400.00", "convertedAmount": "400.00"}},
+            ],
+            "memberships": [],
+            "subscriptionCharges": [],
+            "requiresPaymentAfterGiftCard": True,
+            "totalAfterGiftCards": {"amount": "600.00"},
+            "payNow": {"amount": "600.00"},
+            "payLater": {"amount": "0.00"},
+        },
+    },
+}
+
+
 def partial_cart() -> dict:
-    data = json.loads((FIXTURES / "wix_cart_v2_gift_card_partial.json").read_text(
-        encoding="utf-8"))
-    data.pop("_fixture", None)
-    return data
+    return copy.deepcopy(_PARTIAL_CART)
 
 
 def quote(collection: int = COLLECTION):
@@ -108,24 +134,9 @@ def digest() -> str:
 
 # ── 87: the fee basis ─────────────────────────────────────────────────────────
 
-# SEAM-G1 landed in d2b1b53f; stale xfail(strict) marker removed 2026-10-03. Body passes; the
-# fee-basis money property is pinned by this test directly.
-def test_the_convenience_fee_is_computed_on_the_full_collection_total():
-    """The section 2 worked example, driven through the live cart path with a gift card applied.
-
-    Deferred only because `cart_v2.calculate` refuses the cart. What it asserts once the seam lands:
-    the collection Wix reports is the FULL 1000.00, so `compute_quote` receives 100000 and the fee
-    is 2500 rather than 1574.
-    """
-    cart = partial_cart()
-    calculated = CartV2(Spy(cart)).calculate(cart["cart"]["id"])
-    computed = quote(calculated["amountPaise"])
-    assert calculated["amountPaise"] == COLLECTION
-    assert computed.convenience_fee_paise == FEE
-    assert computed.convenience_gst_paise == GST
-    assert computed.total_payable_paise == PAYABLE
-
-
+# The Wix-cart driver of the worked example (`CartV2(...).calculate`) was retired with the Wix cart
+# model. The fee-basis money property it asserted is pinned natively, with no Wix cart, by its
+# unconditional companion below.
 def test_the_fee_basis_is_the_full_collection_and_the_worked_example_is_exact():
     """87's unconditional companion. The arithmetic needs no seam, and it is the half that matters:
     the fee basis is a GST question against seller GSTIN 19AAFFW7196L1Z8, not an implementation
@@ -487,29 +498,12 @@ def test_a_cart_too_small_for_a_gift_card_refuses_rather_than_redeeming_nothing(
 
 # ── 99 / 100: one card, and the other two rails stay shut ──────────────────────
 
-# SEAM-G1 landed in d2b1b53f; stale xfail(strict) marker removed 2026-10-03. The one-card rule
-# is enforced today and this test pins it.
-def test_only_one_gift_card_is_accepted():
-    """Wix: "Carts currently support a single coupon and a single gift card at a time. Attempting to
-    add a second returns an error." Enforced by US rather than discovered at runtime.
-
-    Deferred because the FIRST half - one card accepted - needs SEAM-G1. The second half is asserted
-    unconditionally by its companion below.
-    """
-    cart = partial_cart()
-    assert CartV2(Spy(cart)).calculate(cart["cart"]["id"])["amountPaise"] == COLLECTION
-
-    two = partial_cart()
-    two["summary"]["paymentSummary"]["giftCards"].append(
-        {"giftCardId": "bd000000-0000-4000-8000-0000000000c2",
-         "redeemAmount": {"amount": "100.00", "convertedAmount": "100.00"}})
-    with pytest.raises(CartContractError):
-        CartV2(Spy(two)).calculate(two["cart"]["id"])
-
-
+# The one-card rule's Wix-cart half (one card ACCEPTED via `CartV2(...).calculate`) was retired with
+# the Wix cart model. The rule that matters for money — exactly one card, enforced in our own
+# reconciliation before anything is charged — is pinned natively below.
 def test_a_second_gift_card_is_refused_by_our_own_reconciliation():
-    """99's unconditional companion, and the half that does not depend on the seam: exactly one
-    card, enforced in our own code before anything is charged."""
+    """The half that does not depend on any Wix cart: exactly one card, enforced in our own code
+    before anything is charged."""
     cart = partial_cart()
     cart["summary"]["paymentSummary"]["giftCards"].append(
         {"giftCardId": "bd000000-0000-4000-8000-0000000000c2",
@@ -526,25 +520,6 @@ def test_a_second_gift_card_is_refused_by_our_own_reconciliation():
                               pay_now_paise=PAY_NOW, quote=quote())
 
 
-def test_memberships_and_subscription_charges_are_still_refused():
-    """Test 100, and deliberately NOT `xfail` - see the module docstring.
-
-    Only `giftCards` is opened. Memberships and subscription charges remain refused for their own
-    untouched reasons: each would be a further non-Razorpay rail with no verification story, and a
-    subscription additionally implies recurring collection, which no part of this architecture is
-    built for.
-
-    This is the test that proves SEAM-G1 NARROWED the gate rather than opening it, so it must keep
-    passing before and after the seam lands.
-    """
-    for field in ("memberships", "subscriptionCharges"):
-        cart = partial_cart()
-        cart["summary"]["paymentSummary"][field] = [{"id": "x"}]
-        with pytest.raises(CartContractError):
-            CartV2(Spy(cart)).calculate(cart["cart"]["id"])
-
-    # And the required SHAPE of the seam, so "narrowed" is checkable rather than hoped for: the
-    # refusal keeps both names and drops only `giftCards`.
-    cart_v2 = ROOT / "amplify/functions/shared/lambda_utils/ecommerce/cart_v2.py"
-    source = cart_v2.read_text(encoding="utf-8")
-    assert "memberships" in source and "subscriptionCharges" in source
+# `test_memberships_and_subscription_charges_are_still_refused` was retired with the Wix cart model:
+# it drove `CartV2(...).calculate` and read `cart_v2.py` source, both of which are gone. The native
+# gift-card path never opened a membership or subscription rail, so there is no live gate to narrow.
