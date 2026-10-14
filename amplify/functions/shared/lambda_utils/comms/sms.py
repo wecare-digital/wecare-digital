@@ -7,7 +7,7 @@ Spec §4 and §38. The rule is absolute:
     India      -> ap-south-1
     everything -> us-east-1 by default, explicit override supported
 
-There must be no code path SMS -> Sinch, SMS -> Plivo or SMS -> Airtel.
+SMS has one canonical transport: AWS End User Messaging.
 `scripts/check-provider-policy.sh` enforces that in CI.
 
 Why an interface at all, when there is only one provider
