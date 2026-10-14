@@ -638,15 +638,14 @@ def test_the_store_reuses_money_and_identifiers_rather_than_reimplementing_them(
 
 def test_the_store_exposes_no_function_that_returns_a_discount_amount():
     """Our table records what was PROMISED; on the WEBSITE it never computes what was DEDUCTED,
-    because there the amount is Wix's answer to Calculate Cart.
+    because the single native discount function is `coupon_store.discount_paise`.
 
-    `discount_paise` is the one deliberate narrowing of that rule and it is why this test checks
-    NAMES rather than counting functions: the invoice surface has no Wix cart to ask, so one
-    reading of our own definition is unavoidable there. What must stay absent is a general
-    discount ENGINE - a `compute_*` / `calculate_*` / `*discount_amount*` entry point that
-    invites a second arithmetic to grow beside Wix's. `discount_paise` is named for what it
-    returns, takes no cart and no network, and is pinned attribute-for-attribute against
-    `wix_coupons.specification` by `tests/test_wix_coupons_contract.py`."""
+    `discount_paise` is the one permitted coupon-amount function and this test checks NAMES
+    rather than counting: what must stay absent is a SECOND discount ENGINE - a `compute_*` /
+    `calculate_*` / `*discount_amount*` entry point that invites a competing arithmetic.
+    `discount_paise` is named for what it returns, takes no cart and no network, and is the only
+    coupon-amount authority (priced into the native checkout via
+    `catalog_pricing.coupon_discount_paise`)."""
     public = [name for name in dir(cs) if not name.startswith("_") and callable(getattr(cs, name))]
     for name in public:
         assert "discount_amount" not in name
@@ -655,21 +654,23 @@ def test_the_store_exposes_no_function_that_returns_a_discount_amount():
 
 
 def test_the_verdict_vocabulary_is_closed_and_carries_no_amount():
+    # Post Wix-exit: WIX_MIRROR_INCOMPLETE is no longer a producible verdict (the mirror is gone).
     assert set(cs.VERDICTS) == {
         "ELIGIBLE", "UNKNOWN_CODE", "NOT_ACTIVE", "NOT_STARTED", "EXPIRED",
-        "USAGE_LIMIT_REACHED", "CUSTOMER_LIMIT_REACHED", "HELD_BY_ANOTHER_CART",
-        "WIX_MIRROR_INCOMPLETE"}
+        "USAGE_LIMIT_REACHED", "CUSTOMER_LIMIT_REACHED", "HELD_BY_ANOTHER_CART"}
 
 
 @pytest.mark.parametrize("definition,expected", [
     (None, cs.UNKNOWN_CODE),
     ({cs.STATUS_ATTRIBUTE: cs.STATUS_INACTIVE}, cs.NOT_ACTIVE),
+    # AWS-native: an ACTIVE coupon is ELIGIBLE on its own authority — a (legacy) PENDING_WIX
+    # mirror state is irrelevant now that the local row is the sole authority.
     ({cs.STATUS_ATTRIBUTE: cs.STATUS_ACTIVE, "wixMirrorState": cs.MIRROR_PENDING},
-     cs.WIX_MIRROR_INCOMPLETE),
+     cs.ELIGIBLE),
 ])
-def test_evaluate_fails_closed_on_every_incomplete_state(definition, expected):
-    """A `PENDING_WIX` coupon is refused rather than attempted: Wix would reject `Add Coupon`
-    and the customer would watch a discount appear and then vanish."""
+def test_evaluate_decides_eligibility_from_our_own_row(definition, expected):
+    """Eligibility is decided entirely from the local row: UNKNOWN when absent, NOT_ACTIVE when
+    not active, otherwise ELIGIBLE (subject to the time/limit checks). No Wix mirror gate."""
     assert cs.evaluate(definition, clock=clock()) == expected
 
 

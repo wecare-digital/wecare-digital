@@ -3,7 +3,11 @@ name: VayuLok live HTTP diagnostics
 on:
   push:
     branches:
-      - fix/vayulok-live-recovery-20261014
+      - stack
+    paths:
+      - .github/workflows/vayulok-live-http-diagnostics.yml
+      - src/components/VayuLokLive.tsx
+      - src/pages/vayulok/index.tsx
   workflow_dispatch:
 
 permissions:
@@ -134,7 +138,7 @@ jobs:
                   failed.push({status:response.status(),host:u.hostname,path:u.pathname});
                 }
               });
-              page.on('pageerror',error=>consoleErrors.push(String(error?.message||error).slice(0,240)));
+              page.on('pageerror',error=>consoleErrors.push(String(error?.message||error).slice(0,240));
               page.on('console',msg=>{
                 if (msg.type()==='error') {
                   const message=msg.text().replace(/AIza[0-9A-Za-z_-]{20,}/g,'[REDACTED_KEY]');

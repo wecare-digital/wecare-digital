@@ -1,7 +1,7 @@
 """AWS-native shipping/delivery resolver — the last native supply component.
 
-Replaces the Wix delivery path (`cart_v2.delivery_options` /
-`set_delivery_method`, whose charge Wix put in `priceSummary.delivery`). Shipping
+Replaces the former Wix delivery path (its delivery-options /
+set-delivery-method calls, whose charge Wix put in `priceSummary.delivery`). Shipping
 is a BUSINESS POLICY, not something Wix uniquely owns: it is a rule over the cart
 subtotal, the delivery address (place of supply), and whether any line requires
 physical delivery. This module makes that policy explicit and server-authoritative,

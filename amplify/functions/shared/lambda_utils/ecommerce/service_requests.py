@@ -82,7 +82,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Dict, FrozenSet, Mapping, Optional, Tuple
 
-from lambda_utils.ecommerce import cart_v2
+from lambda_utils.ecommerce import cart_contract
 from lambda_utils.ecommerce.money import Money, positive_paise
 
 logger = logging.getLogger(__name__)
@@ -218,11 +218,11 @@ class ServiceRejected(ValueError):
         self.code = code
 
 
-class ServicePriceChanged(cart_v2.CartContractError):
+class ServicePriceChanged(cart_contract.CartContractError):
     """Wix priced the service line at something other than its committed paise figure."""
 
 
-class ServiceNotPayable(cart_v2.CartContractError):
+class ServiceNotPayable(cart_contract.CartContractError):
     """Wix will not price a no-delivery services basket (it demands a delivery destination)."""
 
 

@@ -437,7 +437,7 @@ def basket_hash(frozen_payload: Mapping[str, Any]) -> str:
     `snapshot_hash` cannot answer "is this the same basket?", and the reason is measured rather
     than theoretical. `_snapshot_payload` hashes `"cart": {"id": cart_id, "revision":
     cart_revision}`, and the website prepare path WRITES TO THE WIX CART on every call:
-    `purchase_intent.prepare_delivery` PATCHes the cart, then `cart_v2.calculate` refreshes it and
+    `purchase_intent.prepare_delivery` PATCHes the cart, then the former Wix cart calculation refreshes it and
     asserts the returned `summary.cartRevision` equals the cart's own `revision`. Wix's `revision`
     is the optimistic-concurrency counter on that resource, so a second prepare of an UNEDITED
     basket can present a different `snapshot_hash` — and a guard keyed on a value that may always
@@ -470,7 +470,7 @@ def narrow_basket_hash(frozen_payload: Mapping[str, Any]) -> str:
 
     Deliberately POSITIVE where `basket_hash` is subtractive. `basket_hash` cannot prove that
     `items` / `address` / `delivery` carry no per-calculation field, because those are Wix's raw
-    shapes straight out of `cart_v2.calculate`. Everything enumerated HERE is contract-checked by
+    shapes straight out of the former Wix cart calculation. Everything enumerated HERE is contract-checked by
     us on every calculate:
 
       * `{lineItemId: quantity}` — `calculate` raises unless it equals the cart's own
