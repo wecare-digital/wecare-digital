@@ -85,7 +85,7 @@
                       "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-PaymentAttemptsTable"
                     },
                     {
-                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-WixOrderIds"
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-CommerceKeys"
                     }
                   ]
                 },
@@ -205,7 +205,7 @@
                   ],
                   "Resource": [
                     "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-ProductsTable",
-                    "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-WixOrderIds"
+                    "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-CommerceKeys"
                   ]
                 }
               ]
@@ -262,7 +262,7 @@
         "Environment": {
           "Variables": {
             "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",
-            "COMMERCE_KEYS_TABLE": "stack-wecare-digital-WixOrderIds",
+            "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys",
             "RAZORPAY_SECRET_ID": "wecare/razorpay/api",
             "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
             "ORDERS_TABLE": "stack-wecare-digital-OrderTable",
