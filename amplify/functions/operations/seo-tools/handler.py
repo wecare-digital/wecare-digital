@@ -17,6 +17,7 @@ from lambda_utils.response import (
 import ai
 import blog_analysis
 import blog_batches
+import blog_catalog
 import blog_draft
 import blog_gate
 import blog_publish
@@ -492,6 +493,15 @@ def _route_get(path: str, event: Dict[str, Any], origin: str):
         return _response(200, {
             'ok': True, 'batch': blog_batches.detail(batch_id, source_limit=limit),
         }, origin)
+    if path.endswith('/blog-catalog'):
+        return _response(200, {
+            'ok': True,
+            'bucket': blog_sources.BUCKET,
+            'catalogIndexKey': blog_catalog.CATALOG_INDEX_KEY,
+            'productionMasterKey': blog_catalog.PRODUCTION_MASTER_KEY,
+            'governedCategories': list(blog_catalog.GOVERNED_CATEGORIES),
+            'maxBulkItems': blog_catalog.MAX_BULK_ITEMS,
+        }, origin)
     if path.endswith('/blog-batches'):
         # `?rollup=none` skips the per-batch source count, which is a real cost switch: each
         # rollup pages that batch's sources, so 50 batches with rollups is 50 index queries.
@@ -714,6 +724,36 @@ def _route_post(path: str, body: Dict[str, Any], actor: str, origin: str):
             tuple(_quality.ARTICLE_CLASSES) if _quality else ('ARCHIVE_DERIVED',),
         )}, origin)
 
+    if path.endswith('/blog-catalog/sync'):
+        # Rebuildable projections only. DynamoDB remains authoritative and the production
+        # master stays under secure/, while the public catalog contains public post fields.
+        return _response(200, {'ok': True, **blog_catalog.sync()}, origin)
+
+    if path.endswith('/blog-publish/bulk'):
+        job_ids = body.get('jobIds')
+        if not isinstance(job_ids, list) or not job_ids:
+            raise ValueError('jobIds must be a non-empty array')
+        if len(job_ids) > blog_catalog.MAX_BULK_ITEMS:
+            raise ValueError(f'at most {blog_catalog.MAX_BULK_ITEMS} publish jobs per request')
+        wanted = [str(value or '').strip() for value in job_ids if str(value or '').strip()]
+        jobs = storage.get_typed_many(wanted, blog_publish.RECORD_TYPE)
+        queued_ids = []
+        skipped = []
+        for job_id in wanted:
+            job = jobs.get(job_id)
+            if not job:
+                skipped.append({'jobId': job_id, 'reason': 'UNKNOWN_JOB'})
+            elif str(job.get('status') or '') != blog_publish.QUEUED:
+                skipped.append({'jobId': job_id, 'reason': str(job.get('status') or 'NOT_QUEUED')})
+            else:
+                queued_ids.append(job_id)
+        result = blog_queue.enqueue_publish(queued_ids, actor)
+        return _response(200, {
+            'ok': True, **result, 'requested': len(wanted),
+            'accepted': len(queued_ids), 'skipped': skipped,
+            'note': ('Only jobs already released and still QUEUED were accepted. '
+                     'Bulk publishing never releases or approves articles.'),
+        }, origin)
     if path.endswith('/blog-verify'):
         source_id = str(body.get('sourceId') or '').strip()
         if not source_id:
