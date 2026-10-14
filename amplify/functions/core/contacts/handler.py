@@ -773,13 +773,19 @@ def _soft_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str
         return cors_response(404, {'error': 'Contact already deleted'}, origin)
 
     now = Decimal(str(int(time.time())))
-    table.update_item(
+    try:
+        table.update_item(
         Key={'id': contact_id},
         UpdateExpression='SET #d = :d, #u = :u',
         ConditionExpression='attribute_exists(id) AND (attribute_not_exists(#locked) OR #locked = :false)',
         ExpressionAttributeNames={'#d': 'deletedAt', '#u': 'updatedAt', '#locked': 'locked'},
         ExpressionAttributeValues={':d': now, ':u': now, ':false': False},
-    )
+        )
+    except Exception as exc:
+        if 'ConditionalCheckFailedException' in str(exc):
+            return cors_response(409, {'error': DELETE_REFUSED_LOCKED,
+                                       'archiveInstead': False}, origin)
+        raise
 
     log_event(logger, 'contact_soft_deleted', contactId=contact_id, requestId=request_id)
     return cors_response(200, {'success': True, 'contactId': contact_id, 'deleteType': 'soft'}, origin)
