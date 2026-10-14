@@ -39,7 +39,7 @@
  *     "invalid catalogue reference". It does. Pinned by a test, because the two are separate
  *     declarations in two languages.
  *   * `catalogItemId` is the V3 PRODUCT id, never the slug and never a variant id. A variant id
- *     here would 404 at `GET /stores/v3/products/{id}`.
+ *     here would 404 at `the catalog lookup`.
  *   * `options.variantId` is present only when the line carries one, which is the correct V3
  *     shape: a no-option product's reference carries no `options`.
  *
@@ -199,7 +199,7 @@ function droppableUnknown ( item: CartItem ): boolean {
  * AN ID FROM THE PREVIOUS SITE IS NOW DROPPED RATHER THAN CARRIED. `/shop/` moved to Wix site
  * `c993128b` on 2026-10-05 and every product id was re-minted, so a returning visitor's
  * localStorage can hold a product id (e.g. the old ₹1 test product) that exists nowhere in the new
- * catalogue. Carried into `toLineItems()` it reaches `GET /stores/v3/products/{id}`, 404s, and the
+ * catalogue. Carried into `toLineItems()` it reaches `the catalog lookup`, 404s, and the
  * customer is told "An item in your cart is no longer available" only AFTER pressing Checkout.
  * Dropping it on read means they see the cart they can actually buy, and `readCart` persists the
  * pruned list because `changed` moves with the length.

@@ -22,7 +22,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 
-from lambda_utils.ecommerce import contact_address, wix_address  # noqa: E402
+from lambda_utils.ecommerce import contact_address, india_address  # noqa: E402
 
 VALID = {
     "addressLine1": "12 MG Road",
@@ -173,7 +173,7 @@ def test_storage_accepts_an_unresolvable_indian_state_now():
 
 def test_a_state_alias_the_tax_table_knows_is_still_wix_mappable():
     out = contact_address.normalize_for_storage(address(state="Orissa", postalCode="751001"))
-    assert wix_address.to_wix_address(out)["subdivision"] == "IN-OR"
+    assert india_address.to_delivery_address(out)["subdivision"] == "IN-OR"
 
 
 def test_storage_accepts_a_non_india_address_without_an_iso_subdivision_now():
@@ -234,9 +234,9 @@ def test_the_stored_shape_is_exactly_what_normalize_address_emits():
 
 # -- the round trip into the shape that prices the cart -----------------------------------
 
-def test_a_stored_address_converts_into_exactly_the_six_wix_keys():
-    wix = wix_address.to_wix_address(contact_address.normalize_for_storage(address()))
-    assert wix == {
+def test_a_stored_address_converts_into_exactly_the_six_delivery_keys():
+    delivery = india_address.to_delivery_address(contact_address.normalize_for_storage(address()))
+    assert delivery == {
         "country": "IN",
         "subdivision": "IN-KA",
         "city": "Bengaluru",
@@ -284,4 +284,4 @@ def test_from_contact_returns_a_structurally_valid_legacy_row_but_payable_for_re
 def test_whatever_from_contact_returns_is_something_to_wix_address_accepts():
     row = {"id": "contact-1", contact_address.ATTRIBUTE: address()}
     loaded = contact_address.from_contact(row)
-    assert wix_address.to_wix_address(loaded)["subdivision"] == "IN-KA"
+    assert india_address.to_delivery_address(loaded)["subdivision"] == "IN-KA"

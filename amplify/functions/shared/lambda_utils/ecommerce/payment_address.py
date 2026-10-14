@@ -10,8 +10,8 @@ Storage is international — any valid address is accepted and kept.
 Whether that stored address can actually take money is a *channel* question, answered here,
 at the moment a payment is attempted:
 
-- **Website / Razorpay** (`WEBSITE_RAZORPAY`): the address must map to a Wix delivery address
-  (`wix_address.to_wix_address`), which for India requires a resolvable subdivision and for
+- **Website / Razorpay** (`WEBSITE_RAZORPAY`): the address must map to the normalized delivery shape
+  (`india_address.to_india_address`), which for India requires a resolvable subdivision and for
   every other country requires an ISO 3166-2 state. India additionally requires a six-digit
   PIN, because the delivery address is the place of supply and decides the CGST/SGST split on
   an invoice carrying a real GSTIN — a wrong split is a silently-wrong total, not a loud error.
@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional, Tuple
 
-from lambda_utils.ecommerce import india_address as wix_address  # neutral home; alias keeps call sites
+from lambda_utils.ecommerce import india_address as india_address  # neutral home; alias keeps call sites
 from lambda_utils.identity import address as owned_address
 
 #: The website Razorpay checkout surface.
@@ -83,8 +83,8 @@ def assert_payable(address: Dict[str, Any], *, channel: str) -> None:
         if not _INDIA_PIN_RE.match(str(address.get("postalCode") or "")):
             raise UnpayableAddress("INVALID_PIN", "postalCode")
         try:
-            wix_address.india_subdivision(address.get("state"))
-        except wix_address.UnmappableAddress:
+            india_address.india_subdivision(address.get("state"))
+        except india_address.UnmappableAddress:
             raise UnpayableAddress("UNMAPPABLE_STATE", "state") from None
         return
 
@@ -98,8 +98,8 @@ def assert_payable(address: Dict[str, Any], *, channel: str) -> None:
         # Website: a non-India address must still map to a Wix delivery address, which demands
         # an ISO 3166-2 state. Re-raise Wix's refusal as the one caller-facing type.
         try:
-            wix_address.to_wix_address(address)
-        except wix_address.UnmappableAddress:
+            india_address.to_india_address(address)
+        except india_address.UnmappableAddress:
             raise UnpayableAddress("UNMAPPABLE_STATE", "state") from None
         return
 
@@ -111,9 +111,9 @@ def for_wix(address: Dict[str, Any]) -> Dict[str, Any]:
     """Assert website-payability, then return the Wix delivery address. Raises `UnpayableAddress`."""
     assert_payable(address, channel=WEBSITE_RAZORPAY)
     try:
-        return wix_address.to_wix_address(address)
-    except wix_address.UnmappableAddress:
-        # assert_payable already ran to_wix_address for non-India; India can still fail the
+        return india_address.to_india_address(address)
+    except india_address.UnmappableAddress:
+        # assert_payable already ran to_india_address for non-India; India can still fail the
         # mapping here if the subdivision resolved but the owned shape is otherwise unusable.
         raise UnpayableAddress("UNMAPPABLE_STATE", "state") from None
 

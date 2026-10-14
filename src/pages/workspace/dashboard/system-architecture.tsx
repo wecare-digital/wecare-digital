@@ -114,7 +114,7 @@ const DB_TABLES: TableDef[] = [
   { name: 'TemplateAnalytics', purpose: 'WhatsApp template send/delivery tracking', keyFields: 'id', indexes: 'templateName', usedBy: 'template-analytics', category: 'WhatsApp' },
   { name: 'SubmitRequest', purpose: 'WhatsApp Flow submit request submissions', keyFields: 'id', indexes: 'phone, orderId, paymentStatus, paymentReferenceId', usedBy: 'inbound-whatsapp-handler', category: 'Payments' },
   { name: 'ConversationHistory', purpose: 'AI conversation context per phone hash', keyFields: 'phoneHash', indexes: '-', usedBy: 'ai-generate-response', category: 'AI' },
-  { name: 'WixOrderId', purpose: 'Wix order ID to WD-ORD number mapping', keyFields: 'wixOrderId', indexes: 'wdOrderNumber', usedBy: 'wix-store', category: 'Ecommerce' },
+  { name: 'WixOrderIds', purpose: 'Legacy-named native commerce key namespace', keyFields: 'orderId', indexes: '-', usedBy: 'checkout', category: 'Ecommerce' },
   { name: 'FlowRegistry', purpose: 'WhatsApp Flow config registry (type, payment, screens, A/B)', keyFields: 'flowId', indexes: 'flowCode, wabaId, category, status', usedBy: 'inbound-whatsapp-handler', category: 'Flows' },
   { name: 'FlowSubmission', purpose: 'All flow submissions (generic, all flow types)', keyFields: 'submissionId', indexes: 'phone, flowCode, paymentStatus, paymentRefId, submissionNumber, status, orderId, flowId', usedBy: 'inbound-whatsapp-handler', category: 'Flows' },
   { name: 'FlowLog', purpose: 'Audit trail for every flow screen interaction', keyFields: 'logId', ttl: '90d', indexes: 'phone, flowId, flowCode', usedBy: 'inbound-whatsapp-handler', category: 'Flows' },
@@ -124,7 +124,6 @@ const DB_TABLES: TableDef[] = [
   { name: 'InvoiceDeliveryLog', purpose: 'Invoice delivery tracking (WhatsApp/email)', keyFields: 'id', indexes: 'invoiceId', usedBy: 'invoice-engine', category: 'Payments' },
   { name: 'InvoiceSequence', purpose: 'Auto-increment invoice number per FY', keyFields: 'fy', indexes: '-', usedBy: 'invoice-engine', category: 'Payments' },
   { name: 'InvoicePayment', purpose: 'Invoice payment tracking', keyFields: 'id', indexes: 'invoiceId', usedBy: 'invoice-engine, razorpay-webhook', category: 'Payments' },
-  { name: 'WixOrderMapping', purpose: 'Wix order to contact mapping', keyFields: 'id', indexes: '-', usedBy: 'wix-store', category: 'Ecommerce' },
   { name: 'AdClickAttribution', purpose: 'Click-to-WhatsApp ad tracking', keyFields: 'id', ttl: '180d', indexes: 'adId, contactId', usedBy: 'ad-attribution', category: 'Analytics' },
   { name: 'MetaAnalyticsLog', purpose: 'Meta conversation analytics logs', keyFields: 'id', indexes: '-', usedBy: 'meta-analytics', category: 'Analytics' },
   { name: 'RazorpayWebhookLog', purpose: 'Razorpay webhook event log', keyFields: 'id', ttl: '180d', indexes: 'paymentId, eventType', usedBy: 'razorpay-webhook', category: 'Payments' },
@@ -226,7 +225,6 @@ const RISKS: RiskItem[] = [
   { id: 'R8', title: 'No staging or dev environment', description: 'Only production environment detected. All development and testing happens against live production data.', priority: 'Critical', category: 'Infrastructure' },
   { id: 'R9', title: 'No CI/CD pipeline', description: 'No GitHub Actions or CodePipeline found. Amplify builds 85-88 all fail with "Artifacts base directory not found." Deployments are manual.', priority: 'Critical', category: 'DevOps' },
   { id: 'R10', title: 'PEM private key files in workspace root', description: 'lightsail_default_key.pem and lightsail_key.pem exist in the workspace root. While .gitignore excludes *.pem, these files are a risk.', priority: 'Critical', category: 'Security' },
-  { id: 'R11', title: '✅ FIXED — Wix Account ID fallback removed', description: 'Removed hardcoded WIX_ACCOUNT_ID fallback from wix-store/resource.ts and shared/config.ts. Also redacted from dashboard/index.tsx UI display.', priority: 'Critical', category: 'Security' },
   { id: 'R12', title: '✅ FIXED — CORS wildcard replaced with specific origins', description: 'Replaced allowOrigins: ["*"] with 4 specific origins in amplify/link-resources.ts.', priority: 'Critical', category: 'Security' },
 
   // ── IMPORTANT (18) ──
@@ -395,7 +393,6 @@ const ENV_VARS: EnvVar[] = [
   { key: 'Razorpay UPI VPA (env RAZORPAY_UPI_ID)', value: 'wecaredigitalbh511413.rzp@rxairtel', sensitive: false, category: 'Payments — Identifier', risk: 'Non-secret UPI payee address (public in deep links/QR)' },
   { key: 'Airtel API Key (in comment)', value: '(visible in c2c/handler.py comment)', sensitive: true, category: 'Voice — Hardcoded', risk: 'CRITICAL: Airtel HMAC key in code comment' },
   { key: 'Airtel App ID (hardcoded)', value: '(in c2c handler + data schema)', sensitive: true, category: 'Voice — Hardcoded', risk: 'Airtel App ID in multiple files' },
-  { key: 'WIX_ACCOUNT_ID (current Headless account)', value: '478bf907-96cc-4cab-9220-bb96f1d35cbb', sensitive: false, category: 'Ecommerce — Identifier', risk: 'Current non-secret Wix Headless account identifier' },
   // Secrets Manager entries (server-side, properly stored)
   { key: 'wecare/meta-system-user-token', value: '(Secrets Manager — 7 keys)', sensitive: true, category: 'Secrets Manager ✓' },
   { key: 'wecare/flow-private-key', value: '(Secrets Manager — 1 key)', sensitive: true, category: 'Secrets Manager ✓' },
@@ -495,7 +492,7 @@ const CODE_MAP: CodeFolder[] = [
   { path: 'amplify/functions/messaging/', purpose: 'Messaging Lambda functions (22)', files: '22 dirs', linkedTo: 'DynamoDB, S3, SQS, SES, Pinpoint' },
   { path: 'amplify/functions/payments/', purpose: 'Payment Lambda functions (3)', files: '3 dirs', linkedTo: 'DynamoDB, Razorpay' },
   { path: 'amplify/functions/operations/', purpose: 'Operations Lambda functions (6)', files: '6 dirs', linkedTo: 'DynamoDB, SQS, EventBridge' },
-  { path: 'amplify/functions/ecommerce/', purpose: 'Ecommerce Lambda functions (3)', files: '3 dirs', linkedTo: 'DynamoDB, S3, Wix API' },
+  { path: 'amplify/functions/ecommerce/', purpose: 'Ecommerce Lambda functions (3)', files: '3 dirs', linkedTo: 'DynamoDB, S3' },
   { path: 'amplify/functions/shared/', purpose: 'Shared utilities and config', files: '3 files', linkedTo: 'All Lambda functions' },
 ];
 
@@ -589,7 +586,7 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'p-pay', category: 'Frontend Pages', name: 'Payments', description: 'Payment dashboard — Razorpay transactions.', path: 'src/pages/workspace/pay/index.tsx', type: 'Page' },
   { id: 'p-pay-flow', category: 'Frontend Pages', name: 'Pay Flow', description: 'WhatsApp payment flow — invoice + collect via chat.', path: 'src/pages/workspace/pay/flow/index.tsx', type: 'Page' },
   { id: 'p-contacts', category: 'Frontend Pages', name: 'Contacts', description: 'Contact management with opt-in, addresses, BSUID.', path: 'src/pages/workspace/contacts/index.tsx', type: 'Page' },
-  { id: 'p-store', category: 'Frontend Pages', name: 'Store', description: 'Wix store integration — products, orders, catalog.', path: 'src/pages/store/index.tsx', type: 'Page' },
+  { id: 'p-store', category: 'Frontend Pages', name: 'Store', description: 'AWS-native store catalog and order administration.', path: 'src/pages/store/index.tsx', type: 'Page' },
   // Core Lambdas
   { id: 'l-auth', category: 'Core Lambdas', name: 'Auth Middleware', description: 'Cognito JWT validation, API Gateway authorizer.', path: 'amplify/functions/core/auth-middleware/handler.py', type: 'Lambda' },
   { id: 'l-contacts', category: 'Core Lambdas', name: 'Contacts', description: 'CRUD for contacts with structured addresses.', path: 'amplify/functions/core/contacts/handler.py', type: 'Lambda' },
@@ -973,7 +970,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user } ) => {
           { title: 'AI / ML', count: 4, items: [ 'ai-generate-response', 'ai-query-kb', 'ai-config-management', 'agent-action-group' ], color: '#7c3aed' },
           { title: 'Payments', count: 3, items: [ 'razorpay-webhook', 'payments-read', 'invoice-engine' ], color: C.amber },
           { title: 'Operations', count: 6, items: [ 'bulk-job-create', 'bulk-job-control', 'bulk-worker', 'dlq-replay', 'system-cleanup', 'billing' ], color: '#ec4899' },
-          { title: 'Ecommerce', count: 3, items: [ 'wix-store', 'catalog-management', 'product-image-gen' ], color: '#06b6d4' },
+          { title: 'Ecommerce', count: 3, items: [ 'native-catalog-admin', 'catalog-management', 'product-image-gen' ], color: '#06b6d4' },
         ].map( cat => (
           <div key={ cat.title } style={ card() }>
             <div style={ { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 } }>
@@ -1180,7 +1177,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user } ) => {
               { name: 'AI (4): generate-response, query-kb, config, agent' },
               { name: 'Payments (3): razorpay, payments-read, invoice' },
               { name: 'Operations (6): bulk-jobs, dlq, cleanup, billing' },
-              { name: 'Ecommerce (3): wix-store, catalog, image-gen' },
+              { name: 'Ecommerce (3): native-catalog-admin, catalog, image-gen' },
             ]
           },
           {
