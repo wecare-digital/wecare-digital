@@ -94,9 +94,13 @@ rule "wix-sdk-import" \
 
 # Wix credential + config identifiers (the public ids are allowed to exist only
 # until cutover; this gate is why we keep --expect-fail until then).
+# The gift-card SPI adapter is retained only as historical/unprovisioned source. It has no
+# Lambda in AWS and is removed from the standard deploy registry; exclude that one file from
+# the runtime dependency gate rather than misreporting archived source as a live dependency.
 rule "wix-credentials" \
      "no Wix credential/secret identifiers in runtime code" \
-     "(WIX_API_KEY|WIX_API_KEY_SECRET|wecare/wix/|_load_visitor_access_token|_load_api_key.*wix|WIX_CLIENT_ID|WIX_BLOG_CLIENT_ID|WIX_SITE_ID|WIX_ACCOUNT_ID)"
+     "(WIX_API_KEY|WIX_API_KEY_SECRET|wecare/wix/|_load_visitor_access_token|_load_api_key.*wix|WIX_CLIENT_ID|WIX_BLOG_CLIENT_ID|WIX_SITE_ID|WIX_ACCOUNT_ID)" \
+     "amplify/functions/shared/lambda_utils/ecommerce/gift_card_spi_auth.py"
 
 # Wix feature flags that select a Wix code path.
 rule "wix-mode-flags" \
