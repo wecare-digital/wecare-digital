@@ -37,8 +37,8 @@ class Writer:
 def sources(*, stock=3):
     products = {
         "product-1": {"id": "product-1", "status": "active", "variants": [
-            {"sku": "variant-1", "inventory": Decimal(stock), "trackInventory": True},
-            {"sku": "variant-2", "inventory": Decimal(stock), "trackInventory": True},
+            {"sku": "variant-1", "inventory": Decimal(stock), "trackInventory": True, "inventoryVerified": True},
+            {"sku": "variant-2", "inventory": Decimal(stock), "trackInventory": True, "inventoryVerified": True},
         ]}
     }
     keys = {}
@@ -204,3 +204,15 @@ def test_mixed_basket_reserves_only_tracked_variant():
     update = actions[-1]["Update"]
     assert "#variants[1].#inventory" in update["UpdateExpression"]
     assert "#variants[0].#inventory" not in update["UpdateExpression"]
+
+
+def test_unverified_physical_stock_fails_closed_before_transaction():
+    products, _, read_product, read_key = sources(stock=3)
+    products["product-1"]["variants"][0]["inventoryVerified"] = False
+    writer = Writer()
+    with pytest.raises(inventory.ReservationConflict, match="not verified"):
+        inventory.reserve_basket(
+            writer, read_product, read_key, products_table=PROD_TABLE,
+            keys_table=KEYS_TABLE, attempt_id=ATTEMPT, items=[item()],
+        )
+    assert writer.calls == []
