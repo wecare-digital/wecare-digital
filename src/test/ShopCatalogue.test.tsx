@@ -132,11 +132,6 @@ describe( 'the Wix snapshot is read correctly', () => {
       // The services product (Phase O-1) is a payment vehicle bought from /submit-request/ and
       // /request-amendment/, excluded from /shop/ by id like the contribution.
       .filter( r => ( r as { id?: string } ).id !== SERVICES_PRODUCT_ID )
-      // The Wix template's twelve sample products, excluded by owner decision 2026-10-05. Derived
-      // from the exported list rather than named here, so this stays the prefix-based check the
-      // comment above argues for: a product the owner decides to sell is published by deleting one
-      // line in shop.ts, with no edit to this test.
-      .filter( r => !WIX_TEMPLATE_SAMPLE_SLUGS.includes( String( r.slug ) ) )
       // The ₹1 test product, excluded for the same reason as the template samples (a visible
       // catalogue test row that is not this storefront). Derived from the exported list, same
       // as the samples above, so selling it is a one-line delete in shop.ts with no test edit.
