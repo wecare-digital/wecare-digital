@@ -240,22 +240,17 @@ def _get_order_submissions(order_id: str) -> Dict:
 
 
 def _sync_orders() -> Dict:
-    # Trigger Wix order sync via existing wix-store Lambda
-    try:
-        lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-        lambda_client.invoke(
-            # `wecare-wix-store`, not `stack-wecare-digital-wix-store`: the stack
-            # prefix is the DynamoDB table convention and matches no Lambda. See
-            # the same correction in core/service-api/handler.py - neither caller
-            # sets WIX_STORE_FUNCTION in its live config, so this default is what
-            # actually ran.
-            FunctionName=os.environ.get('WIX_STORE_FUNCTION', 'wecare-wix-store'),
-            InvocationType='Event',
-            Payload=json.dumps({'action': 'sync_orders'}),
-        )
-        return _resp(200, {'message': 'Sync triggered', 'synced': 0})
-    except Exception as e:
-        return _resp(500, {'error': str(e)})
+    """Compatibility endpoint for the retired provider sync action.
+
+    OrderTable is authoritative after the AWS-native commerce cutover. Existing
+    callers may continue invoking this action, but no provider synchronization
+    or retired Wix Lambda invocation occurs.
+    """
+    return _resp(200, {
+        'message': 'AWS-native orders are already authoritative',
+        'synced': 0,
+        'source': 'orders_table',
+    })
 
 
 # ============================================================================
