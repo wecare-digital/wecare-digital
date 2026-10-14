@@ -1942,7 +1942,6 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
 
     # Phase O-1: A SERVICE IS NEVER BOUGHT ON THIS ROUTE, refused first and before any I/O.
     #
-    # The reason is measured from the call graph, not the price. WIX_CART_V2_ENABLED=true on
     # wecare-checkout (measured 2026-10-06), so `_v2_snapshot` below WOULD apply the service
     # pre-check and the per-line price assertion here too -- the price would be honest. What this
     # route cannot do is create the REQUEST: it reads no `serviceIntentId` and never runs
@@ -1985,8 +1984,6 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     # 1. Authoritative total, from Wix. The browser sent catalogue references and quantities;
     #    Wix computes the price. A non-INR or non-whole-paise total fails closed.
     #
-    #    Cart V2 is opt-in behind `WIX_CART_V2_ENABLED` (`cart_v2.is_enabled`), and
-    #    WIX_CART_V2_ENABLED=true on wecare-checkout (measured 2026-10-06), so V2 serves here;
     #    absence would keep V1. Both are
     #    the SAME checkout mode -- website Razorpay Standard Checkout -- differing only in which
     #    Wix API prices the cart. Neither routes a customer to a Wix-hosted checkout surface.
