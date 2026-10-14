@@ -169,60 +169,6 @@ const isServicesRow = ( raw: RawProduct ): boolean =>
   String( raw.id || '' ).trim().toLowerCase() === SERVICES_PRODUCT_ID;
 
 /**
- * THE WIX TEMPLATE'S OWN SAMPLE PRODUCTS, which are not this storefront. Owner decision,
- * 2026-10-05, on migrating the catalogue to site `c993128b-26be-41cd-9fcd-904abe23462f`.
- *
- * The new site was created from a Wix store template, so it shipped with twelve demo products
- * already in its catalogue. They are `visible: true` and real catalogue rows, so
- * `scripts/fetch-wix-catalog.js` collects them and the snapshot went from 9 products to 21 - and
- * every one of them would otherwise get a `/shop/<slug>/` page and a sitemap entry on the next
- * build.
- *
- * WHY THEY ARE EXCLUDED RATHER THAN RE-COPIED. Ten of the twelve carry Wix's placeholder text
- * verbatim ("I'm a product description. I'm a great place to add more details about...") and share
- * it word for word, so publishing them lands ten public pages with the same meta description and
- * one title past the 75-character bound `tools/browser/seocheck.js` enforces. The two bounds tests
- * in src/test/ShopCatalogue.test.tsx catch exactly that, and they are left intact: the fix is to
- * not publish a template's sample data, not to loosen the guard that noticed it.
- *
- * EXCLUDED BY PRODUCT ID FIRST, SLUG SECOND, for the same reason `isContributionRow` is: the id is
- * the identity the catalogue keys on and cannot be edited in the Wix dashboard, while the slug can.
- *
- * REVERSIBLE AND NON-DESTRUCTIVE, deliberately. Nothing is deleted from Wix and nothing is removed
- * from the snapshot - the rows stay committed in src/content/catalog.json, so a product the
- * owner decides to sell is published by deleting its line here (or by giving it real copy in Wix
- * and deleting its line here). Checkout is untouched: it reads the live catalogue, not
- * `SHOP_PRODUCTS`, so a demo product remains purchasable by direct cart reference if one ever is.
- */
-export const WIX_TEMPLATE_SAMPLE_PRODUCT_IDS: readonly string[] = [
-  '618dcfe4-8d85-40a9-87c6-0dea57abe644', // Baseball Cap
-  'af654225-662f-42e5-ac51-fbebc88f63ed', // Ceramic Flower Vase
-  'df8ae122-9a06-4fa2-96bb-4b058db5959f', // Crew T-Shirt
-  'f68519fb-2095-4dfc-8684-ec55d60c2adc', // Essential Oil Diffuser
-  '96ff5295-1660-40d1-89e4-d1f1a34309be', // Foaming Facial Cleanser
-  'ca71fee6-1fc9-4a57-8fa7-967c8edcaabb', // Hydrating Eye Serum - Pre Order
-  '99684dfe-d36a-4869-858a-dba67af9b993', // Knitted Golf Sweater
-  'fedfcb20-1ad2-405b-950b-e65112bb6222', // Minimalist Tote Bag
-  'd86d7bea-fe19-4654-a597-bfe8dd449407', // Round Eyeglasses
-  '42941ee7-1707-4b5d-a7d7-41e12da6ab9e', // Solid Wood Chair
-  '1190303d-1fb5-40ca-bb60-2d5c1af3ae97', // Stainless Steel Water Bottle
-  'd2dc8bef-0a26-414a-b1dc-7bbba867bc6a', // Textured Loop Earrings
-] as const;
-
-/** The same twelve by slug, so the exclusion survives a product being re-created in Wix. */
-export const WIX_TEMPLATE_SAMPLE_SLUGS: readonly string[] = [
-  'baseball-cap', 'ceramic-flower-vase', 'crew-t-shirt', 'essential-oil-diffuser',
-  'foaming-facial-cleanser', 'hydrating-eye-serum', 'knitted-golf-sweater',
-  'minimalist-tote-bag', 'round-eyeglasses', 'solid-wood-chair',
-  'stainless-steel-water-bottle', 'textured-loop-earrings',
-] as const;
-
-/** Is this raw snapshot row one of the Wix template's sample products? */
-const isTemplateSampleRow = ( raw: RawProduct ): boolean =>
-  WIX_TEMPLATE_SAMPLE_PRODUCT_IDS.includes( String( raw.id || '' ).trim().toLowerCase() )
-  || WIX_TEMPLATE_SAMPLE_SLUGS.includes( String( raw.slug || '' ).trim().toLowerCase() );
-
-/**
  * THE ₹1 TEST PRODUCT, which is not this storefront. It is a catalogue test row left `visible: true`
  * in Wix ("₹1 test product", id 121c9d57…, slug `1-test-product`, price ₹1.00), so
  * `scripts/fetch-wix-catalog.js` collects it and it would otherwise get a public `/shop/1-test-product/`
@@ -285,7 +231,7 @@ const VISIBLE = ( ( catalog as { products?: RawProduct[] } ).products || [] )
 
 export const SHOP_PRODUCTS: ShopProduct[] = VISIBLE
   .filter( raw => !isContributionRow( raw ) && !isServicesRow( raw )
-    && !isTemplateSampleRow( raw ) && !isTestProductRow( raw ) )
+    && !isTestProductRow( raw ) )
   .map( project )
   .sort( ( a, b ) => a.name.localeCompare( b.name ) );
 
@@ -293,10 +239,9 @@ export const SHOP_PRODUCTS: ShopProduct[] = VISIBLE
  * EVERY product id this deployed snapshot knows about, lowercased. Not just `SHOP_PRODUCTS`.
  *
  * Read from the raw rows rather than from the projection on purpose, because the projection
- * EXCLUDES ids that are still perfectly real catalogue products: the contribution vehicle and the
- * twelve Wix template samples are filtered out of `/shop/` and remain purchasable by direct cart
- * reference. A "do I know this id?" test built on `SHOP_PRODUCTS` would answer no for thirteen
- * live products and throw their cart lines away.
+ * EXCLUDES ids that are still perfectly real catalogue products: the contribution and services payment vehicles plus the explicit test product are filtered
+ * out of `/shop/` while remaining valid catalogue identities. A `SHOP_PRODUCTS`-only lookup would
+ * therefore under-count valid catalog ids and throw their cart lines away.
  *
  * What this exists for is the other direction: a `wecare.cart.v1` row written before the catalogue
  * moved to site `c993128b` names a product id that does not exist anywhere on the new site. Sent
