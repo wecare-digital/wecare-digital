@@ -31,15 +31,6 @@ export const TABLES = {
   // reads its own os.environ defaults - so it functions as documentation, which
   // is exactly why a wrong value in it is worth correcting rather than ignoring.
   VOICE_AWS: process.env.VOICE_AWS_TABLE || 'stack-wecare-digital-VoiceAwsTable',
-  WIX_PRODUCTS_CACHE: process.env.WIX_PRODUCTS_CACHE_TABLE || 'stack-wecare-digital-WixProductsCache',
-  WIX_ORDERS_CACHE: process.env.WIX_ORDERS_CACHE_TABLE || 'stack-wecare-digital-WixOrdersCache',
-};
-
-// Wix Store Configuration
-export const WIX_CONFIG = {
-  API_BASE_URL: 'https://www.wixapis.com',
-  SITE_ID: process.env.WIX_SITE_ID || '',
-  ACCOUNT_ID: process.env.WIX_ACCOUNT_ID || '',
 };
 
 // S3 Buckets
