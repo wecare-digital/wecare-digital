@@ -236,8 +236,8 @@ export async function claimBasket ( accessToken: string, token: string,
 /**
  * A claim succeeded and this build could place NONE of its lines in the visible cart.
  *
- * Reachable for a product that exists in the live Wix catalogue - and therefore in the WhatsApp
- * catalogue the sync projects from it - but not in `src/content/wix-catalog.json`, the snapshot
+ * Reachable for a product that exists in the live catalogue - and therefore in the WhatsApp
+ * catalogue the sync projects from it - but not in `src/content/catalog.json`, the snapshot
  * committed with this deployment. A product added in Wix since the last catalogue sync is exactly
  * that case. Saying nothing here would reproduce the failure the returned lines exist to fix:
  * a successful claim that looks identical to a refusal.
