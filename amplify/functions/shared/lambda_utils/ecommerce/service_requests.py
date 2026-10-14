@@ -331,13 +331,15 @@ def _intent_id(body: Any) -> str:
 
 
 def checkout_preflight(line_items: Any, body: Any, *,
-                       v2_enabled: bool) -> Optional[Tuple[int, Dict[str, str]]]:
+                       v2_enabled: bool, native_pricing_enabled: bool = False
+                       ) -> Optional[Tuple[int, Dict[str, str]]]:
     """``None`` to proceed, or ``(status, payload)`` to refuse. PURE: before profile, Wix or DynamoDB.
 
     * a non-service basket -> ``None`` (byte-identical behaviour for every other order);
     * a refused service line -> 409 with its code;
-    * Cart V2 off -> 503 ``SERVICE_UNAVAILABLE``: the V1 branch has no per-line price assertion,
-      so a service is never priced there unchecked;
+    * No approved server-side pricing engine -> 503 ``SERVICE_UNAVAILABLE``.
+      Either Wix V2 (legacy) or AWS-native pricing must be active; Wix V2 being
+      off does not make an AWS-native price untrustworthy;
     * no well-formed ``serviceIntentId`` -> 409 ``SERVICE_INTENT_REQUIRED``: a paid service with
       no intent would be a paid service with no request.
     """
@@ -347,7 +349,7 @@ def checkout_preflight(line_items: Any, body: Any, *,
         return 409, refusal(rejected.code)
     if line is None:
         return None
-    if not v2_enabled:
+    if not (v2_enabled or native_pricing_enabled):
         logger.warning(json.dumps({"event": "service_refused", "reason": SERVICE_UNAVAILABLE}))
         return 503, refusal(SERVICE_UNAVAILABLE)
     if not _intent_id(body):
