@@ -403,9 +403,9 @@ describe( '/orders/ — the signed-out gate', () => {
 
   it( 'links into the existing sign-in flow carrying the return path', () => {
     render( <OrdersPage /> );
-    const link = screen.getByRole( 'link', { name: /Sign in here/ } );
+    const link = screen.getByRole( 'link', { name: /Sign in on WhatsApp/ } );
     expect( link ).toHaveAttribute( 'href', '/account/sign-in/?return=/orders/' );
-    expect( link.textContent ).toBe( 'Sign in here' );
+    expect( link.textContent ).toBe( 'Sign in on WhatsApp' );
   } );
 
   it( 'says nothing about OTP anywhere a customer can read it', () => {
@@ -856,7 +856,7 @@ describe( '/orders/ — failure handling', () => {
     await renderSignedIn( answer( 401, {} ) );
     expect( await screen.findByText( /sign-in has expired/ ) ).toBeInTheDocument();
     expect( clearSession ).toHaveBeenCalledTimes( 1 );
-    expect( screen.getByRole( 'link', { name: /Sign in here/ } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'link', { name: /Sign in on WhatsApp/ } ) ).toBeInTheDocument();
     expect( screen.queryByText( /could not load your orders/ ) ).toBeNull();
   } );
 
@@ -885,7 +885,7 @@ describe( '/orders/ — failure handling', () => {
     restoreSession.mockRejectedValueOnce( new Error( 'no' ) );
     render( <OrdersPage /> );
     await waitFor( () => expect( restoreSession ).toHaveBeenCalled() );
-    expect( screen.getByRole( 'link', { name: /Sign in here/ } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'link', { name: /Sign in on WhatsApp/ } ) ).toBeInTheDocument();
     expect( fetchMock ).not.toHaveBeenCalled();
   } );
 } );
@@ -1810,7 +1810,7 @@ describe( '/orders/ — the invoice control', () => {
     fireEvent.click( invoiceButton( container ) );
     expect( await screen.findByText( /sign-in has expired/ ) ).toBeInTheDocument();
     expect( clearSession ).toHaveBeenCalledTimes( 1 );
-    expect( screen.getByRole( 'link', { name: /Sign in here/ } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'link', { name: /Sign in on WhatsApp/ } ) ).toBeInTheDocument();
   } );
 
   it( 'names the rate limit and keeps the original label', async () => {
