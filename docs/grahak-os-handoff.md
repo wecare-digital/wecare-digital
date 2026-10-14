@@ -287,7 +287,7 @@ misled every reader so far. Re-verify with the harness, not with this table.
    change the map. They cannot be safely patched with geometry, because the attribution
    links sit in the same strip at coordinates Google does not document — a pixel-tuned
    cut-out risks covering attribution, which is a licence breach worse than the defect.
-   Three options, all needing a decision: set `NEXT_PUBLIC_GOOGLE_MAPS_KEY` (the keyed
+   Three options, all needing a decision: set `NEXT_PUBLIC_GOOGLE_BROWSER_KEY` (the keyed
    Maps JS path already passes `disableDefaultUI` and removes them outright), move to
    Static Maps, or set `pointer-events:none` on the iframe and render our own attribution
    links outside it. Full measurements are in the comment above `.cl-lock`.

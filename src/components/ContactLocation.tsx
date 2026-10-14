@@ -17,7 +17,7 @@ import React, { useEffect, useRef, useState } from 'react';
  * followed by the address, and that is what this is.
  *
  * NO API KEY, AND THEREFORE NO KEY IN THE PAGE SOURCE. This used to build a Maps Embed
- * API url (maps/embed/v1/place) from NEXT_PUBLIC_GOOGLE_MAPS_KEY, which had two problems.
+ * API url (maps/embed/v1/place) from NEXT_PUBLIC_GOOGLE_BROWSER_KEY, which had two problems.
  * The owner asked for the map to render INLINE with no redirection out to Google, and the
  * keyed version could not: with no key configured it rendered a panel that linked to
  * Google instead of a map, because an Embed API iframe without a key paints a Google
@@ -153,7 +153,7 @@ const EMBED_URL = `https://maps.google.com/maps?q=${LAT},${LNG}&z=18&output=embe
 /**
  * TWO RENDER PATHS, and the key decides which.
  *
- * With NEXT_PUBLIC_GOOGLE_MAPS_KEY set, this uses the Maps JavaScript API, which is
+ * With NEXT_PUBLIC_GOOGLE_BROWSER_KEY set, this uses the Maps JavaScript API, which is
  * the only way to get what was actually asked for: satellite imagery, and Google's
  * pan / zoom / fullscreen / Street View controls GONE rather than merely blocked.
  * Those controls live inside a cross-origin iframe on the keyless path, so no CSS,
@@ -180,7 +180,7 @@ const EMBED_URL = `https://maps.google.com/maps?q=${LAT},${LNG}&z=18&output=embe
  * and must not be made to: it is a licence condition of Maps Platform, not a
  * control. Do not try to cover it.
  */
-const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
+const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_BROWSER_KEY || '';
 
 const ADDRESS_LINES = [
   'The W.B.S.I.D.C. Building',
@@ -415,7 +415,7 @@ const ContactLocation: React.FC = () => {
               the defect being fixed. So this is deliberately NOT patched geometrically.
 
               THE THREE REAL OPTIONS, all owner calls:
-                1. Set NEXT_PUBLIC_GOOGLE_MAPS_KEY. The keyed Maps JS path below already
+                1. Set NEXT_PUBLIC_GOOGLE_BROWSER_KEY. The keyed Maps JS path below already
                    passes disableDefaultUI, which removes these controls outright rather than
                    covering them. This is the fix the code is already written for.
                 2. Static Maps - a flat image has no controls at all. Also keyed.
