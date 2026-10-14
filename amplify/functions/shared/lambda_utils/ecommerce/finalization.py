@@ -287,6 +287,10 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
     # writeback sequence (create Wix order / record external payment / mark Wix cart completed):
     # native inventory was already reserved at checkout and the order carries the full line detail,
     # so nothing external needs confirming for the order to be complete.
+    # The attempt row is the AUTHORITATIVE finalization record (what status polls read); staging
+    # it is what makes the order final and idempotent on re-entry. The order row's own
+    # `finalizationStage` is mirrored to ORDER_FINALIZED, conditional on THIS attempt so a
+    # concurrent re-entry cannot rebind it.
     _stage(attempts, attempt['paymentAttemptId'], 'ORDER_FINALIZED')
     orders.update_item(Key={'orderId': order['orderId']},
         UpdateExpression='SET finalizationStage=:stage',
