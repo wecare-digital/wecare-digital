@@ -17,8 +17,12 @@ Every public blog read goes through the single `/seo-tools/blog-public` API:
 - `scripts/blog_corpus_index.py`.
 **None call Wix directly.** `blog_source.py` (`BLOG_SOURCE`) is the one switch;
 flipping it to `aws` takes the entire blog surface off Wix. ✅ built.
-Remaining blog write path: `blog_publish.py` + `conversations-publish.yml`
-(publishes to Wix) 🔁 — must write to `BlogPostsTable`/`SeoToolsTable` instead.
+Blog write path: ✅ `blog_publish.py` now has a `BLOG_SOURCE=aws` branch
+(`_write_native` → `storage.create_blog_post`) that writes a published `blogPost`
+record — the same record the native read path serves — and never calls Wix. The
+Wix kill switch is correctly bypassed in native mode. Defaults to `wix`;
+unit-tested. (`conversations-publish.yml` just invokes publish, so no workflow
+change is needed for the native path.)
 
 ## Catalog / commerce — classified by importer count
 | File | Importers | Role | Status |
@@ -43,10 +47,27 @@ identity and feed the unchanged `checkout_pricing.compute_quote`. Built + tested
 - ✅ **service-page pricing** — `service_pricing_native.resolve_all` reads
   `ProductsTable` with the identical `{currency, prices{slug}}` contract,
   fail-closed per slug. Built + tested.
-Still needed to fully replace `cart_v2.calculate`:
-- 🔁 **shipping/delivery** resolver,
-- 🔁 **inventory validation + stock reservation**,
-- 🔁 native **CartTable** operations (create/add/update/remove) — table CDK ✅ built.
+Replacing `cart_v2.calculate`:
+- ✅ **inventory validation + atomic stock reservation** — `native_inventory`
+  (conditional-decrement reserve, idempotent per attempt, release/rollback,
+  oversell-proof). Built + tested.
+- ✅ native **CartTable CRUD** — `native_cart` (create/add/set_quantity/remove/get,
+  server-authoritative prices, merges lines, quotes through `price_cart`). Built +
+  tested. Table CDK ✅.
+- ✅ **shipping/delivery** resolver — `native_shipping` (policy-driven options +
+  authoritative charge, digital-free, free-above-threshold, client can't pick a
+  cheaper option). Built + tested.
+
+**The native supply total is COMPLETE and WIRED behind the flag.** `native_cart`
+(lines) + `native_inventory` (stock) + `coupon_discount_paise` (discount) +
+`native_shipping` (delivery) + `supply_tax_paise` (GST) → `price_cart` → the exact
+`collection_before_convenience_paise` the unchanged `checkout_pricing.compute_quote`
+consumes. `native_checkout.quote_native_cart` packages this into the exact
+`QuoteSnapshot` the live handler produces, and `checkout/handler.py` now calls it
+when `CHECKOUT_MODE=AWS_NATIVE` (defaults to `WIX_HEADLESS`). Native blog publish
+is also wired (`BLOG_SOURCE=aws`). All that remains is the owner-gated CUTOVER:
+provision tables, seed from a live Wix export, shadow-run, flip the flags, then
+delete the Wix modules and retire secrets/IAM/routes.
 
 ## Gift-card pepper migration — ✅ built (de-risks SPI retirement)
 `gift_card_store.resolve_pepper_secret_id(env)` + `PEPPER_SECRET_ENV_KEY` let the
