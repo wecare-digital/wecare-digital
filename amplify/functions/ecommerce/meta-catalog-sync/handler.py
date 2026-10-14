@@ -832,7 +832,6 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
     test meant to simulate a missing credential to read the live one instead.
     """
     reader = secret_reader or _read_secret
-    wix = wix_requester or _wix_request
     graph = graph_requester or _graph_request
 
     trigger = _trigger(event)
@@ -859,12 +858,10 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
         return {"readOnly": True, "batchStatus": status}
 
     try:
-        # The catalogue SOURCE is the only Wix-coupled read here; everything downstream
-        # (desired_items, diff, approval, dry-run, Meta write) is source-agnostic.
-        if _catalog_source() == "aws":
-            products = _native_products()
-        else:
-            products = _wix_products(wix)
+        # AWS-NATIVE is the only catalogue source — the products are read from ProductsTable.
+        # Everything downstream (desired_items, diff, approval, dry-run, Meta write) is
+        # source-agnostic and unchanged. The Wix read path is retired.
+        products = _native_products()
         desired = catalog.desired_items(products, require_variant_price=True)
         existing = _existing_items(graph, token=token, app_secret=app_secret,
                                    catalog_id=catalog_id)
