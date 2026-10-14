@@ -553,14 +553,12 @@ def _native_products(scanner=None) -> List[Dict[str, Any]]:
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 
 
-def _wix_request(endpoint: str, body: Mapping[str, Any]) -> Dict[str, Any]:
-    """One authenticated Wix call, through the existing shared eCom client.
-
-    `lambda_utils.wix_ecom` already owns the base URL, the site-id header and the lazily-read,
-    by-reference API key. Imported INSIDE so this module stays importable without an AWS client.
-    """
-    from lambda_utils import wix_ecom
-    return wix_ecom._request(endpoint, method="POST", body=dict(body))
+# `_wix_request` (one authenticated Wix call through `lambda_utils.wix_ecom`) was the dead Wix
+# PUSH branch: the handler reads the catalogue from ProductsTable via `_native_products` under
+# CATALOG_SOURCE=aws, and `wix_ecom` has been deleted. It is removed so this module imports no
+# retired Wix client. `_wix_products`/`_wix_variants` below keep taking an injected `requester`
+# (they project the slim catalogue shape the native reader also produces) and never reach a Wix
+# transport of their own.
 
 
 def _wix_products(requester) -> List[Dict[str, Any]]:
