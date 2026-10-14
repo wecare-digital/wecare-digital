@@ -89,6 +89,8 @@ CONVERSATION_TABLE = os.environ.get('CONVERSATION_TABLE', 'stack-wecare-digital-
 CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')
 SYSTEM_CONFIG_TABLE = os.environ.get('SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable')
 MESSAGES_TABLE = os.environ.get('MESSAGES_TABLE', 'stack-wecare-digital-WhatsAppInboundTable')
+PRODUCTS_TABLE = os.environ.get('PRODUCTS_TABLE', 'stack-wecare-digital-ProductsTable')
+ORDERS_TABLE = os.environ.get('ORDERS_TABLE', 'stack-wecare-digital-OrderTable')
 
 # No agent or knowledge-base identifiers are read here. See the retirement
 # note lower in this file for what was measured and why they are gone.
@@ -5417,90 +5419,84 @@ def _tool_create_invoice(params: Dict, request_id: str) -> Dict:
 
 
 def _tool_get_wix_products(params: Dict, request_id: str) -> Dict:
-    """List Wix store products."""
+    """Compatibility name: list products from the AWS-native ProductsTable."""
     try:
-        query_params = {}
-        if params.get('query'):
-            query_params['search'] = params['query']
-        query_params['limit'] = str(params.get('limit', 20))
-        
-        payload = {
-            'httpMethod': 'GET',
-            'path': '/products',
-            'queryStringParameters': query_params,
-            'headers': {'origin': 'https://wecare.digital'}
-        }
-        
-        response = lambda_client.invoke(
-            FunctionName='wecare-wix-store',
-            InvocationType='RequestResponse',
-            Payload=json.dumps(payload)
-        )
-        
-        result = json.loads(response['Payload'].read().decode('utf-8'))
-        body = json.loads(result.get('body', '{}'))
-        
-        products = body.get('products', [])
-        summary = []
-        for p in products[:20]:
-            summary.append({
-                'name': p.get('name'),
-                'price': p.get('price', {}).get('formatted', 'N/A'),
-                'status': p.get('status', 'N/A'),
-                'id': p.get('id')
-            })
-        
-        return {
-            'success': True,
-            'count': len(products),
-            'products': summary
-        }
+        limit = max(1, min(int(params.get('limit', 20)), 100))
+        query = str(params.get('query') or '').strip().lower()
+        table = dynamodb.Table(PRODUCTS_TABLE)
+        rows = []
+        scan_kwargs = {'Limit': 100}
+        while len(rows) < limit:
+            response = table.scan(**scan_kwargs)
+            for product in response.get('Items', []):
+                title = str(product.get('title') or product.get('name') or product.get('slug') or '')
+                slug = str(product.get('slug') or '')
+                if query and query not in title.lower() and query not in slug.lower():
+                    continue
+                price_minor = product.get('priceMinor')
+                if price_minor is None:
+                    variants = product.get('variants') or []
+                    if variants and isinstance(variants[0], dict):
+                        price_minor = variants[0].get('priceMinor')
+                try:
+                    formatted = f"INR {int(price_minor) / 100:.2f}" if price_minor is not None else 'N/A'
+                except (TypeError, ValueError):
+                    formatted = 'N/A'
+                rows.append({
+                    'name': title,
+                    'price': formatted,
+                    'status': product.get('status', 'active'),
+                    'id': product.get('id'),
+                })
+                if len(rows) >= limit:
+                    break
+            last = response.get('LastEvaluatedKey')
+            if not last or len(rows) >= limit:
+                break
+            scan_kwargs['ExclusiveStartKey'] = last
+        return {'success': True, 'count': len(rows), 'products': rows}
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        logger.error(json.dumps({'event': 'native_product_tool_failed',
+                                 'error': type(e).__name__, 'requestId': request_id}))
+        return {'success': False, 'error': 'PRODUCT_LOOKUP_FAILED'}
 
 
 def _tool_get_wix_orders(params: Dict, request_id: str) -> Dict:
-    """List Wix store orders."""
+    """Compatibility name: list orders from the AWS-native OrderTable."""
     try:
-        query_params = {}
-        if params.get('status'):
-            query_params['status'] = params['status']
-        query_params['limit'] = str(params.get('limit', 20))
-        
-        payload = {
-            'httpMethod': 'GET',
-            'path': '/orders',
-            'queryStringParameters': query_params,
-            'headers': {'origin': 'https://wecare.digital'}
-        }
-        
-        response = lambda_client.invoke(
-            FunctionName='wecare-wix-store',
-            InvocationType='RequestResponse',
-            Payload=json.dumps(payload)
-        )
-        
-        result = json.loads(response['Payload'].read().decode('utf-8'))
-        body = json.loads(result.get('body', '{}'))
-        
-        orders = body.get('orders', [])
-        summary = []
-        for o in orders[:20]:
-            summary.append({
-                'orderId': o.get('number') or o.get('id'),
-                'status': o.get('status', 'N/A'),
-                'total': o.get('totals', {}).get('total', 'N/A'),
-                'date': o.get('dateCreated', '')[:10],
-                'buyer': o.get('buyerInfo', {}).get('firstName', 'N/A')
-            })
-        
-        return {
-            'success': True,
-            'count': len(orders),
-            'orders': summary
-        }
+        limit = max(1, min(int(params.get('limit', 20)), 100))
+        wanted_status = str(params.get('status') or '').strip().lower()
+        table = dynamodb.Table(ORDERS_TABLE)
+        rows = []
+        scan_kwargs = {'Limit': 100}
+        while len(rows) < limit:
+            response = table.scan(**scan_kwargs)
+            for order in response.get('Items', []):
+                status = str(order.get('orderStatus') or order.get('status') or '')
+                if wanted_status and status.lower() != wanted_status:
+                    continue
+                total = order.get('totalAmount')
+                if total is None:
+                    total = order.get('totalPaise')
+                date = str(order.get('orderDateIST') or order.get('createdAt') or '')
+                rows.append({
+                    'orderId': order.get('orderNumber') or order.get('orderId') or order.get('id'),
+                    'status': status or 'N/A',
+                    'total': str(total) if total is not None else 'N/A',
+                    'date': date[:10],
+                    'buyer': order.get('customerName') or order.get('buyerName') or 'N/A',
+                })
+                if len(rows) >= limit:
+                    break
+            last = response.get('LastEvaluatedKey')
+            if not last or len(rows) >= limit:
+                break
+            scan_kwargs['ExclusiveStartKey'] = last
+        return {'success': True, 'count': len(rows), 'orders': rows}
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        logger.error(json.dumps({'event': 'native_order_tool_failed',
+                                 'error': type(e).__name__, 'requestId': request_id}))
+        return {'success': False, 'error': 'ORDER_LOOKUP_FAILED'}
 
 
 def _tool_send_whatsapp_flow(params: Dict, request_id: str) -> Dict:
