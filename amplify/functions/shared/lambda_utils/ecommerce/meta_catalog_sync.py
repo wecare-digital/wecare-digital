@@ -381,8 +381,8 @@ def _variant_price_paise(product: Mapping[str, Any], variant: Mapping[str, Any],
 
     THE FALLBACK IS AN OFFLINE-ONLY CONVENIENCE AND THE LIVE PATH REFUSES IT.
     `src/content/wix-catalog.json`'s variant rows now carry `pricePaise` alongside `id`, `label`,
-    `inStock`, `sku`, `choiceId` and `optionId`: `scripts/fetch-wix-catalog.js` reads
-    `/stores/v3/products/query-variants` and projects the variant's own price (2026-10-10 - before
+    `inStock`, `sku`, `choiceId` and `optionId`: the catalogue fetch script reads the upstream
+    variant-query endpoint and projects the variant's own price (2026-10-10 - before
     that the snapshot carried no per-variant price at all and this fallback was the only answer).
     The fallback stays because a row can still arrive without one - a product whose variants Wix
     did not price, or a hand-built fixture - and for a product with a price RANGE (Contribute is

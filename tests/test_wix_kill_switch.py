@@ -46,13 +46,13 @@ for path in (str(SHARED), str(SEO_TOOLS), str(ROOT / "scripts")):
 
 from lambda_utils import wix_guard  # noqa: E402
 
-STORE = ROOT / "amplify/functions/ecommerce/wix-store/handler.py"
+# (STORE path removed — the wecare-wix-store handler was deleted in the Wix exit.)
 SEO_WIX = SEO_TOOLS / "wix.py"
 MIGRATE = ROOT / "scripts/wix_blog_migrate.py"
 
 #: Every function that resolves a Wix API key. Each must refuse before reading a secret.
 CREDENTIAL_LOADERS = (
-    (STORE, "_load_wix_api_key"),
+    # (ecommerce/wix-store _load_wix_api_key removed with the wecare-wix-store Lambda in the Wix exit)
     (SEO_WIX, "_load_api_key"),
     (MIGRATE, "load_api_key"),
 )
@@ -210,11 +210,7 @@ def test_the_public_blog_reads_do_not_route_through_the_api_key():
 
 # ── No drift between the implementations ───────────────────────────────────────
 
-def test_the_store_handler_accepts_the_same_spellings():
-    """Two loaders disagreeing about what "on" means is how a switch half-works."""
-    source = STORE.read_text(encoding="utf-8")
-    for spelling in ("1", "true", "yes", "on"):
-        assert f"'{spelling}'" in source or f'"{spelling}"' in source, spelling
+# (test_the_store_handler_accepts_the_same_spellings removed with the wecare-wix-store Lambda.)
 
 
 def test_cost_flags_agrees_on_truthiness():

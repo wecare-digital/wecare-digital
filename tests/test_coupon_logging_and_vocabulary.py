@@ -29,7 +29,6 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 
 HANDLER = ROOT / "amplify/functions/ecommerce/coupons/handler.py"
-ADAPTER = ROOT / "amplify/functions/shared/lambda_utils/ecommerce/wix_coupons.py"
 STORE = ROOT / "amplify/functions/shared/lambda_utils/ecommerce/coupon_store.py"
 VOCABULARY_GATE = ROOT / "tests/test_payment_vocabulary_at_decision_points.py"
 
@@ -102,20 +101,20 @@ def test_no_logging_expression_mentions_the_wix_api_key():
         "secret. Reducing it to a bool does not launder it.")
 
 
-def test_the_handler_never_reads_the_wix_key_at_all_so_there_is_nothing_to_leak():
-    """The structural version of test 59, and the stronger statement.
-
-    The key is read lazily inside `wix_ecom._request`, which this handler only passes as a
-    callable. So the handler holds the secret NAME and never the value - a property that cannot
-    be undone by a careless log line, only by a deliberate new read.
+def test_the_handler_holds_no_wix_reference_at_all_so_there_is_nothing_to_leak():
+    """Stronger than before, post Wix-exit: the coupons handler is AWS-native and holds NO Wix
+    reference of any kind — not the admin-key secret name, not a Wix import, not a secret read.
+    The local DynamoDB row is the sole authority, so there is nothing provider-side to leak.
     """
-    assert "WIX_API_KEY_SECRET" in SOURCE          # the name, by reference
+    assert "WIX_API_KEY_SECRET" not in SOURCE      # the mirror and its key are gone
+    assert "wix_coupons" not in SOURCE
+    assert "wix_ecom" not in SOURCE
     assert "get_secret_value" not in SOURCE
     assert "secretsmanager" not in SOURCE
-    for module in (ADAPTER, STORE):
-        text = module.read_text(encoding="utf-8")
-        assert "get_secret_value" not in text
-        assert "secretsmanager" not in text
+    # The coupon store also reads no secret directly.
+    store_text = STORE.read_text(encoding="utf-8")
+    assert "get_secret_value" not in store_text
+    assert "secretsmanager" not in store_text
 
 
 def test_an_exception_contributes_only_its_type_name_to_a_log_line():

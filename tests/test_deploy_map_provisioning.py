@@ -135,7 +135,8 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
                        "wecare-customer-orders", "wecare-service-requests",
                        "wecare-customer-invoice",
                        "wecare-coupons", "wecare-gift-cards", "wecare-wix-giftcard-spi",
-                       "wecare-wix-catalog-webhook", "wecare-meta-catalog-sync"]
+                       "wecare-meta-catalog-sync"]
+                       # wecare-wix-catalog-webhook removed in the Wix exit (catalogue source is AWS).
 
 
 def test_the_summary_line_reports_the_new_state(deploy_module):

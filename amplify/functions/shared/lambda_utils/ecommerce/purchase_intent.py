@@ -85,7 +85,7 @@ from .checkout_pricing import (
     build_snapshot,
     compute_quote,
 )
-from .wix_address import UnmappableAddress, gst_state_code, to_wix_address
+from .india_address import UnmappableAddress, gst_state_code, to_wix_address
 
 logger = logging.getLogger(__name__)
 

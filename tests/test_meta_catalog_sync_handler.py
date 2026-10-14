@@ -586,6 +586,9 @@ def test_a_webhook_invoke_and_a_schedule_are_treated_identically(snapshot_produc
     for event in [
         {"source": "wix-webhook", "entityId": "prod-1"},
         {"source": "aws.events", "detail-type": "Scheduled Event", "detail": {}},
+        # The AWS-native ProductsTable DynamoDB stream — the replacement for the Wix webhook.
+        {"Records": [{"eventSource": "aws:dynamodb", "eventName": "MODIFY",
+                      "dynamodb": {"Keys": {"id": {"S": "prod-1"}}}}]},
         {},
         None,
         {"source": "wix-webhook"},
@@ -597,6 +600,24 @@ def test_a_webhook_invoke_and_a_schedule_are_treated_identically(snapshot_produc
         search = next(c for c in wix.calls if c["endpoint"] == receiver.WIX_SEARCH_ENDPOINT)
         assert "prod-1" not in json.dumps(search["body"])
     assert outcomes == [outcomes[0]] * len(outcomes)
+
+
+def test_the_native_ddb_stream_is_classified_and_carries_the_changed_id():
+    """The AWS-native ProductsTable stream replaces the Wix catalog webhook. `_trigger` names it
+    `ddb-stream` and lifts the changed item's `id` for correlation only (never used to narrow the
+    read), while a schedule and the legacy wix-webhook invoke keep their own labels."""
+    ddb = receiver._trigger({
+        "Records": [{"eventSource": "aws:dynamodb", "eventName": "INSERT",
+                     "dynamodb": {"Keys": {"id": {"S": "prod-42"}}}}],
+    })
+    assert ddb == {"source": "ddb-stream", "entityId": "prod-42"}
+    # A stream record without a readable id key still classifies as ddb-stream (empty entity),
+    # because the correct response is the same full re-read.
+    assert receiver._trigger({"Records": [{"eventSource": "aws:dynamodb", "dynamodb": {}}]}) == {
+        "source": "ddb-stream", "entityId": ""}
+    assert receiver._trigger({"source": "aws.events"})["source"] == "schedule"
+    assert receiver._trigger({"source": "wix-webhook", "entityId": "p"}) == {
+        "source": "wix-webhook", "entityId": "p"}
 
 
 def test_a_wix_failure_does_not_become_a_write(snapshot_products, monkeypatch):

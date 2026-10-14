@@ -40,7 +40,7 @@ import Select from './ui/Select';
  * STATE IS A SELECT, NOT FREE TEXT, AND THAT IS A CORRECTNESS DECISION NOT A STYLING ONE
  * -------------------------------------------------------------------------------------
  * The subdivision is the place of supply, so it decides the CGST/SGST versus IGST split. A typed
- * state that `wix_address.india_subdivision` cannot resolve saves fine and then refuses at pay
+ * state that `india_address.india_subdivision` cannot resolve saves fine and then refuses at pay
  * time with nothing on screen to say which spelling was wanted. The options come from
  * `src/config/indiaSubdivisions.ts`, which a drift test holds equal to the Python table.
  *

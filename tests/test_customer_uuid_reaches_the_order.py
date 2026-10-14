@@ -171,6 +171,12 @@ class _FakeOrders:
         self.items.append(dict(Item or {}))
         return {}
 
+    def update_item(self, **_):
+        # The native finalizer mirrors the order's finalizationStage to ORDER_FINALIZED. These
+        # tests assert the order ROW shape at creation and the money fields, not the terminal
+        # bookkeeping update, so recording the call is enough.
+        return {}
+
     def get_item(self, **_):
         return {}
 

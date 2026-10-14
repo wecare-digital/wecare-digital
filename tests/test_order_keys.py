@@ -128,8 +128,8 @@ def test_a_current_order_number_is_meta_valid_and_still_must_not_be_a_reference(
     check. An order number is not a payment reference regardless of whether Meta would take
     the bytes.
     """
-    from lambda_utils.ecommerce.wix_domain import _generate_wd_order_number
-    number = _generate_wd_order_number('2026-02-22T18:00:00Z')
+    from lambda_utils.ecommerce.order_keys import mint_public_order_number
+    number = mint_public_order_number()
     assert order_keys.is_valid_meta_reference_id(number)
     assert not number.startswith(order_keys.REFERENCE_ID_PREFIX)
     assert order_keys.is_wd_order_number(number)
@@ -550,8 +550,8 @@ def test_is_wd_order_number_matches_the_format_actually_generated():
     being matched is now the prefixed one - and a hex-only tail pattern would have missed it,
     which is the second half of the same defect pointing the other way.
     """
-    from lambda_utils.ecommerce.wix_domain import _generate_wd_order_number
-    number = _generate_wd_order_number('2026-02-22T18:00:00Z')
+    from lambda_utils.ecommerce.order_keys import mint_public_order_number
+    number = mint_public_order_number()
     assert order_keys.is_current_public_order_number(number), \
         'format changed; this test is now stale'
     assert order_keys.is_wd_order_number(number)

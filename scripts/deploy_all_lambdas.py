@@ -299,23 +299,9 @@ SPECS: List[Spec] = [
         provisioned_by="python scripts/provision_gift_cards_roles.py && "
                        "python scripts/provision_gift_card_routes.py",
     ),
-    # The Wix CATALOGUE webhook receiver. Wix calls this one too, with the same kind of signed
-    # JWT as the request body and no API Gateway authorizer, so signature verification in
-    # lambda_utils/ecommerce/wix_webhook.py is the only control -- see
-    # .agents/tasks/wix-catalog-auto-sync-b2.md step 3 and docs/wix-catalogue-auto-sync.md.
-    # It fires a GitHub repository_dispatch and does nothing else: no table, no Wix read.
-    # Needs the cryptography layer attached; provision_wix_catalog_webhook.py does it, along
-    # with the role, the route and the integration.
-    #
-    # THE SCHEDULED JOB IS THE BACKSTOP, so this function being absent or failing closed does
-    # not break catalogue auto-sync. .github/workflows/catalogue-sync.yml re-reads Wix on a
-    # six-hourly cron with no credential at all; this receiver only makes it near-instant.
-    Spec(
-        "wecare-wix-catalog-webhook",
-        "ecommerce/wix-catalog-webhook",
-        provisioned_by="python scripts/provision_wix_catalog_webhook.py --apply",
-    ),
-    # The Wix -> Meta catalogue projection (PHASE W, FEAT-001). Invoked asynchronously by the
+    # (wecare-wix-catalog-webhook removed in the Wix exit: catalogue source is AWS ProductsTable
+    # and a DynamoDB stream drives meta-catalog-sync; the Wix webhook receiver is retired.)
+    # The AWS-native catalogue -> Meta projection (formerly PHASE W). Invoked asynchronously by the
     # webhook above after its verification, with a six-hourly EventBridge schedule as the
     # backstop. No HTTP API route and no function URL: it has no public surface at all.
     #
@@ -449,7 +435,7 @@ SPECS: List[Spec] = [
     Spec("wecare-invoice-engine", "payments/invoice-engine", extra_dirs=("fonts",),
          extra_files=("receipt_layout.py",)),
     # --- ecommerce ---
-    Spec("wecare-wix-store", "ecommerce/wix-store"),
+    # (wecare-wix-store removed in the Wix exit: the storefront catalogue is AWS-native.)
     Spec("wecare-product-image-gen", "ecommerce/product-image-gen"),
     Spec("wecare-catalog-management", "ecommerce/catalog-management"),
 ]

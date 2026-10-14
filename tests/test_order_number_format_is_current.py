@@ -48,7 +48,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 from crm_fake_dynamo import FakeDynamo  # noqa: E402
 from lambda_utils.ecommerce import order_creation as oc  # noqa: E402
 from lambda_utils.ecommerce import order_keys, payment_attempt  # noqa: E402
-from lambda_utils.ecommerce.wix_domain import _generate_wd_order_number  # noqa: E402
+from lambda_utils.ecommerce import order_keys  # noqa: E402
+
+# Order-number generation moved from the removed Wix-named wix_domain module to order_keys.
+# The date arg is kept for signature compatibility but, as before, is NOT encoded into the
+# number (a public number must not leak the order date — see mint_public_order_number).
+def _generate_wd_order_number(_order_date):  # noqa: E302
+    return order_keys.mint_public_order_number()
 
 TABLE = 'stack-wecare-digital-WixOrderIds'
 CUSTOMER = 'CUS_01J0000000000000000000000'

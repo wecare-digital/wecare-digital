@@ -20,7 +20,7 @@ import time
 from copy import deepcopy
 from decimal import Decimal, InvalidOperation
 
-from . import order_channel, payment_attempt, wix_writeback
+from . import order_channel, payment_attempt
 
 #: Modes whose attempts may become an internal order. 'WEBSITE_RAZORPAY_STANDARD' mirrors
 #: `website_checkout.CHECKOUT_MODE_WEBSITE`; the literal avoids an import cycle between two
@@ -281,77 +281,19 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
         _stage(attempts, attempt['paymentAttemptId'], 'NEEDS_RECONCILIATION',
                finalizationReason='TENDER_SUM_MISMATCH')
         return
-    # Retain paid state even when the site-bound write contract is unavailable.
-    # The payload must come from an attested mapping; never guess Wix stock effects.
-    wix_payload = attempt.get('wixOrderPayload')
-    if not wix_writeback.is_enabled() or not wix_payload:
-        _stage(attempts, attempt['paymentAttemptId'], 'NEEDS_RECONCILIATION',
-               finalizationReason='WIX_WRITE_CONTRACT_REQUIRED')
-        return
-    if isinstance(wix_payload, dict) and wix_payload.get(wix_writeback.PAYLOAD_REDUCED_FLAG):
-        # A payload trimmed to fit the attempt row has lost its catalog references. Sending it
-        # would create a Wix order that names no products, so it fails closed.
-        _stage(attempts, attempt['paymentAttemptId'], 'NEEDS_RECONCILIATION',
-               finalizationReason='WIX_PAYLOAD_REDUCED')
-        return
-    from lambda_utils import wix_ecom
-    try:
-        wix = wix_writeback.create_wix_order(keys, wix_ecom._request,
-            order_id=order['orderId'], order_payload=wix_payload)
-        from .order_links import bind_wix_order
-        bind_wix_order(orders, keys, order_id=order['orderId'],
-                       order_number=order['orderNumber'], wix_order_id=wix['wixOrderId'])
-        _stage(attempts, attempt['paymentAttemptId'], 'WIX_ORDER_CREATED', wixOrderId=wix['wixOrderId'])
-        if razorpay_paise:
-            wix_writeback.record_external_payment(keys, wix_ecom._request,
-                order_id=order['orderId'], wix_order_id=wix['wixOrderId'],
-                provider_transaction_id=provider_id,
-                # THE RAZORPAY LEG, not the order total. Under split tender these differ, and
-                # recording the total here over-reports the capture to Wix.
-                amount_paise=razorpay_paise)
-            _stage(attempts, attempt['paymentAttemptId'], 'EXTERNAL_PAYMENT_RECORDED')
-        else:
-            # A fully gift-card-funded order has no Razorpay leg. `money.positive_paise` refuses
-            # zero, so calling the writeback would raise INSIDE it rather than record nothing;
-            # the other tender's own writer records its leg.
-            _stage(attempts, attempt['paymentAttemptId'], 'EXTERNAL_PAYMENT_NOT_APPLICABLE')
-        # ── GRAFT 5, INSIDE the outer try, so `wix` is provably bound ──────────────────
-        # The THIRD step of the external-order sequence, which this repo did the first two of and
-        # not the third - so a paid cart was never closed and stayed live for the customer.
-        # `mark_cart_completed` cannot charge: it sets `orderPlaced` and attaches the order id.
-        #
-        # INSIDE, and the placement is load-bearing rather than stylistic. At function-body level
-        # - i.e. after the outer `except`, which stages and does not return - a
-        # `WixWritebackPending` from `create_wix_order` leaves `wix` UNBOUND, so the first call
-        # here raises `UnboundLocalError`. That is a `NameError`, so the nested except tuple below
-        # would NOT catch it: it would escape `accept_paid`, the handler's wrapper would alarm
-        # PAID_BUT_NO_ORDER_RECORD, and a correct recoverable WIX_READBACK_REQUIRED stage would
-        # become an alarm. Nesting puts the step where its precondition is provable by reading
-        # upward.
-        cart_id = wix_cart_id(attempt, snapshot)
-        if not cart_id:
-            _stage(attempts, attempt['paymentAttemptId'], 'NEEDS_RECONCILIATION',
-                   finalizationReason='WIX_CART_ID_REQUIRED')
-            return
-        try:
-            wix_writeback.mark_cart_completed(keys, wix_ecom._request,
-                order_id=order['orderId'], cart_id=cart_id, wix_order_id=wix['wixOrderId'])
-            _stage(attempts, attempt['paymentAttemptId'], 'WIX_CART_COMPLETED')
-            orders.update_item(Key={'orderId': order['orderId']},
-                UpdateExpression='SET finalizationStage=:stage',
-                ConditionExpression='paymentAttemptId=:attempt',
-                ExpressionAttributeValues={':stage': 'WIX_CART_COMPLETED',
-                                           ':attempt': attempt['paymentAttemptId']})
-        except (wix_writeback.WixWritebackPending, wix_writeback.WixWritebackDisabled,
-                ValueError):
-            # Its OWN nested try, deliberately. The order and the external payment record have
-            # already committed, and a failure to close the cart must not look like a failure to
-            # record the payment. `ValueError` is in the tuple because `mark_cart_completed`
-            # refuses a cart id it cannot parse as a UUID. An unclosed cart is recoverable by
-            # readback; it is never a reason to repeat the order or the payment record above it.
-            _stage(attempts, attempt['paymentAttemptId'], 'NEEDS_RECONCILIATION',
-                   finalizationReason='WIX_CART_READBACK_REQUIRED')
-    except (wix_writeback.WixWritebackPending, wix_writeback.WixWritebackDisabled):
-        # UNCHANGED, and it still does not need a `return`: it is the last statement either way.
-        _stage(attempts, attempt['paymentAttemptId'], 'NEEDS_RECONCILIATION',
-               finalizationReason='WIX_READBACK_REQUIRED')
+    # AWS-NATIVE TERMINAL. The internal order IS the authoritative artifact — there is no second
+    # provider ledger to write back to. The order record committed above (INTERNAL_ORDER_CREATED)
+    # and the tenders reconciled, so the order is now FINALIZED. This replaces the retired Wix
+    # writeback sequence (create Wix order / record external payment / mark Wix cart completed):
+    # native inventory was already reserved at checkout and the order carries the full line detail,
+    # so nothing external needs confirming for the order to be complete.
+    # The attempt row is the AUTHORITATIVE finalization record (what status polls read); staging
+    # it is what makes the order final and idempotent on re-entry. The order row's own
+    # `finalizationStage` is mirrored to ORDER_FINALIZED, conditional on THIS attempt so a
+    # concurrent re-entry cannot rebind it.
+    _stage(attempts, attempt['paymentAttemptId'], 'ORDER_FINALIZED')
+    orders.update_item(Key={'orderId': order['orderId']},
+        UpdateExpression='SET finalizationStage=:stage',
+        ConditionExpression='paymentAttemptId=:attempt',
+        ExpressionAttributeValues={':stage': 'ORDER_FINALIZED',
+                                   ':attempt': attempt['paymentAttemptId']})

@@ -213,9 +213,7 @@ def env(monkeypatch):
                            catalog_session=catalog_session or dict(CATALOG_SESSION))
 
     monkeypatch.setattr(h, "_create", _create_on_the_catalog_leg)
-    monkeypatch.setattr(h.wix_writeback, "is_enabled", lambda: True)
-    monkeypatch.setattr(h.wix_writeback, "build_wix_order_payload",
-                        lambda **kw: {"channelInfo": {}, "lineItems": []})
+    # Native catalog-service path: no Wix writeback gate or payload builder to stub.
     seed_contact(fake)
     fake.Table(KEYS_TABLE).put_item(Item={"orderId": CATALOG_SESSION["orderId"],
                                           "serviceIntentId": CATALOG_INTENT,

@@ -64,35 +64,6 @@ def test_ordinary_wix_order_has_no_canonical_checkout_link():
     assert canonical_order_for_wix(orders, keys, 'other-wix-order') is None
 
 
-def test_wix_sync_does_not_mint_another_workspace_order(monkeypatch):
-    import boto3
-    import importlib.util
-    from contextlib import nullcontext
-    root = Path(__file__).resolve().parents[1]
-    key_name = 'stack-wecare-digital-WixOrderIds'
-    order_name = 'stack-wecare-digital-OrderTable'
-    cache_name = 'stack-wecare-digital-WixOrdersCache'
-    db = FakeDynamo({key_name: 'orderId', order_name: 'orderId', cache_name: 'orderId'})
-    orders, keys = db.Table(order_name), db.Table(key_name)
-    orders.put_item(Item={'orderId': 'internal-1', 'orderNumber': 'ABC23456789D',
-                          'customerId': 'permanent-customer', 'channel': 'whatsapp'})
-    bind(orders, keys)
-    cache = db.Table(cache_name)
-    cache.batch_writer = lambda: nullcontext(cache)
-    original_table = db.Table
-    db.Table = lambda name: cache if name == cache_name else original_table(name)
-    monkeypatch.setattr(boto3, 'resource', lambda *a, **k: db)
-    monkeypatch.setattr(boto3, 'client', lambda *a, **k: object())
-    spec = importlib.util.spec_from_file_location('wix_sync_under_test',
-        root / 'amplify/functions/ecommerce/wix-store/handler.py')
-    handler = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(handler)
-    monkeypatch.setattr(handler, '_wix_request', lambda *a, **k: {
-        'orders': [{'id': 'wix-1', 'number': '1001', 'fulfillmentStatus': 'FULFILLED'}]})
-    monkeypatch.setattr(handler, '_get_or_create_wd_order_number',
-                        lambda *a, **k: pytest.fail('must not allocate another number'))
-    for _ in range(2):
-        result = handler._sync_orders('test')
-        assert result['statusCode'] == 200
-    assert len(db.tables[order_name]) == 1
-    assert orders.get_item(Key={'orderId': 'internal-1'})['Item']['fulfillmentStatus'] == 'FULFILLED'
+# (test_wix_sync_does_not_mint_another_workspace_order removed with the wecare-wix-store
+# Lambda in the Wix exit — it exercised the deleted Wix order-sync path. The internal
+# order-link binding it depended on is covered by the surviving tests in this file.)

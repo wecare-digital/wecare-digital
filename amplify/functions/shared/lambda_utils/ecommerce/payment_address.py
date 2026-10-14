@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional, Tuple
 
-from lambda_utils.ecommerce import wix_address
+from lambda_utils.ecommerce import india_address as wix_address  # neutral home; alias keeps call sites
 from lambda_utils.identity import address as owned_address
 
 #: The website Razorpay checkout surface.
