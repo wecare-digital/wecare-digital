@@ -55,6 +55,7 @@ SRC = ROOT / "src"
 COUPON_STORE = AMPLIFY / "functions/shared/lambda_utils/ecommerce/coupon_store.py"
 REDEMPTION = AMPLIFY / "functions/shared/lambda_utils/ecommerce/redemption.py"
 PROVIDER = AMPLIFY / "functions/shared/lambda_utils/ecommerce/store_redemption_provider.py"
+CATALOG_PRICING = AMPLIFY / "functions/shared/lambda_utils/ecommerce/catalog_pricing.py"
 CART_PAGE = SRC / "pages/cart.tsx"
 WA_BUSINESS = AMPLIFY / "functions/messaging/whatsapp-business-api/handler.py"
 
@@ -177,8 +178,19 @@ def test_the_provider_holds_no_discount_arithmetic_of_its_own():
 
 
 def test_the_coupon_amount_is_computed_in_exactly_one_place():
-    """Only the store computes coupon amounts; handlers must consume its verdict."""
-    known = {(COUPON_STORE.relative_to(ROOT).as_posix(), "discount_paise")}
+    """Only the store computes coupon amounts; handlers must consume its verdict.
+
+    `catalog_pricing.coupon_discount_paise` is in the allowlist because it is a DELEGATING
+    BRIDGE, not a second authority: for a None coupon it returns 0, and otherwise it calls
+    `coupon_store.discount_paise(...)` and returns that, applying only the defensive
+    `min(discount, subtotal)` clamp the store already enforces. It performs no coupon
+    arithmetic of its own - it is the single seam that lets the native checkout path render
+    the SAME store-decided discount against the native subtotal. The name-pattern scan below
+    cannot tell a delegating wrapper from a computation, so it is pinned here by name."""
+    known = {
+        (COUPON_STORE.relative_to(ROOT).as_posix(), "discount_paise"),
+        (CATALOG_PRICING.relative_to(ROOT).as_posix(), "coupon_discount_paise"),
+    }
     found = set()
     for path in _python_sources():
         try:
