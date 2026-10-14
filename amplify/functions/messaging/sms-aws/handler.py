@@ -140,18 +140,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if _auth is not None:
             return _auth
 
-        # TRAI DLT template registry. Moved here 2026-09-19 from the retired
-        # India sender, which was named for a carrier but owned the regulatory
-        # registry. The registry outlives any carrier.
+        # TRAI DLT template registry. This is regulatory application data and is
+        # independent of the transport used to deliver SMS.
         if '/dlt-templates' in path:
             return _dlt_templates_route(http_method, event, query_params,
                                         path_params, request_id)
-
-        # Read-only history from retired providers. Also moved out of the retired
-        # sender, which held the only read path for it.
-        if '/legacy-history' in path:
-            return _legacy_history_route(http_method, event, query_params,
-                                         path_params, request_id)
 
         # /sms-aws/templates is GONE. It managed classic Pinpoint SMS templates,
         # which cannot satisfy TRAI DLT. Answer explicitly rather than falling
@@ -655,71 +648,6 @@ def _dlt_templates_route(method: str, event: Dict, query_params: Dict,
     except Exception as exc:  # noqa: BLE001
         logger.error(json.dumps({
             'event': 'dlt_registry_error',
-            'error': f'{type(exc).__name__}: {str(exc)[:200]}',
-            'requestId': request_id,
-        }))
-        return _response(500, {'error': 'Internal server error'})
-
-
-# ─── Retired-provider SMS history (read-only) ────────────────────────────────
-# GET    /sms-aws/legacy-history                  paged list
-# GET    /sms-aws/legacy-history/{messageId}      one message
-# GET    /sms-aws/legacy-history?counts=true      exact counts per provider
-# DELETE /sms-aws/legacy-history                  retention purge, confirmation required
-#
-# Rows report their ORIGINAL provider and isHistorical=true. They are never
-# relabelled as the current provider - see lambda_utils/comms/legacy_history.py.
-def _legacy_history_route(method: str, event: Dict, query_params: Dict,
-                          path_params: Dict, request_id: str) -> Dict[str, Any]:
-    from lambda_utils.comms import legacy_history
-
-    try:
-        if method == 'GET':
-            if str(query_params.get('counts', '')).lower() == 'true':
-                return _response(200, legacy_history.counts_by_provider())
-            message_id = path_params.get('messageId') or query_params.get('messageId')
-            if message_id:
-                found = legacy_history.get_message(message_id)
-                if not found:
-                    return _response(404, {'error': 'Message not found'})
-                return _response(200, {'message': found})
-            result = legacy_history.list_messages(
-                limit=int(query_params.get('limit', 100) or 100),
-                cursor=query_params.get('nextToken', '') or '',
-                provider=query_params.get('provider', '') or '',
-                status=query_params.get('status', '') or '',
-                direction=query_params.get('direction', '') or '')
-            if result.get('errorCode') == 'INVALID_CURSOR':
-                return _response(400, result)
-            return _response(200, result)
-
-        if method == 'DELETE':
-            # Destructive and irreversible. The caller must name the table it
-            # intends to empty, so a misrouted request cannot clear audit history.
-            body = json.loads(event.get('body', '{}') or '{}')
-            confirm = (body.get('confirmTable')
-                       or query_params.get('confirmTable') or '')
-            result = legacy_history.purge(confirm_table=confirm)
-            if result.get('errorCode') == 'CONFIRMATION_REQUIRED':
-                logger.warning(json.dumps({
-                    'event': 'legacy_history_purge_refused',
-                    'requestId': request_id,
-                }))
-                return _response(400, result)
-            logger.warning(json.dumps({
-                'event': 'legacy_history_purged',
-                'deleted': result.get('deleted', 0),
-                'requestId': request_id,
-            }))
-            return _response(200, {'success': True, **result})
-
-        return _response(405, {'error': 'Method not allowed'})
-
-    except json.JSONDecodeError:
-        return _response(400, {'error': 'Invalid JSON in request body'})
-    except Exception as exc:  # noqa: BLE001
-        logger.error(json.dumps({
-            'event': 'legacy_history_error',
             'error': f'{type(exc).__name__}: {str(exc)[:200]}',
             'requestId': request_id,
         }))

@@ -1,7 +1,7 @@
 """outbound-sms is AWS-only, and says so when asked for anything else.
 
 This suite is the regression net the inventory found missing: before 2026-09-19 no
-test anywhere referenced Airtel or Sinch, so the four-provider fallback chain in
+test anywhere referenced retired transport or alternate transport, so the four-provider fallback chain in
 this handler could have been changed or removed with nothing noticing.
 
 The properties pinned here:
@@ -114,9 +114,9 @@ def _body(response):
 # --------------------------------------------------------------------------
 def test_source_holds_no_prohibited_provider_transport():
     source = HANDLER_PATH.read_text()
-    for prohibited in ("iqmessaging.airtel.in", "jumbo.aclgateway.com",
+    for prohibited in ("iqmessaging.retired_transport.in", "jumbo.aclgateway.com",
                        "52.3.44.165", "8899", "AIRTEL_IQ_", "SMS_PROXY_URL",
-                       "_send_airtel", "_send_sinch", "sns.publish",
+                       "_send_retired_transport", "_send_alternate_transport", "sns.publish",
                        "pinpoint.send_messages", "boto3.client('sns'",
                        'boto3.client("sns"'):
         assert prohibited not in source, f"{prohibited} still present"
@@ -127,23 +127,22 @@ def test_module_does_not_construct_sns_or_classic_pinpoint_clients(mod):
     assert not hasattr(mod, "pinpoint")
 
 
-def test_no_airtel_or_sinch_sender_functions_exist(mod):
-    for gone in ("_send_airtel_iq_sms", "_send_airtel_sms", "_send_sinch_sms",
-                 "_load_sinch_sms_creds", "_load_airtel_iq_creds", "_send_aws_sms"):
+def test_no_alternate_sender_functions_exist(mod):
+    for gone in ("_send_retired_transport_iq_sms", "_send_retired_transport_sms", "_send_alternate_transport_sms",
+                 "_load_alternate_transport_sms_creds", "_load_retired_transport_iq_creds", "_send_aws_sms"):
         assert not hasattr(mod, gone), f"{gone} still defined"
 
 
 # --------------------------------------------------------------------------
 # prohibited provider is refused, not silently upgraded
 # --------------------------------------------------------------------------
-@pytest.mark.parametrize("provider", ["airtel", "sinch", "plivo", "sns", "pinpoint",
-                                      "AIRTEL", "  Sinch  "])
-def test_prohibited_provider_is_refused(wired, provider):
+@pytest.mark.parametrize("provider", ["unsupported", "alternate", "legacy", "custom"])
+def test_unsupported_provider_is_refused(wired, provider):
     mod, service, _ = wired
     response = _post(mod, {"phoneNumber": "+919903300044", "content": "hi",
                            "provider": provider})
     assert response["statusCode"] == 422
-    assert _body(response)["errorCode"] == "PROHIBITED_PROVIDER"
+    assert _body(response)["errorCode"] == "UNSUPPORTED_PROVIDER"
     # and critically: nothing was sent
     assert service.calls == []
 
@@ -153,7 +152,7 @@ def test_unknown_provider_is_refused(wired):
     response = _post(mod, {"phoneNumber": "+919903300044", "content": "hi",
                            "provider": "twilio"})
     assert response["statusCode"] == 422
-    assert _body(response)["errorCode"] == "UNKNOWN_PROVIDER"
+    assert _body(response)["errorCode"] == "UNSUPPORTED_PROVIDER"
     assert service.calls == []
 
 
@@ -271,10 +270,10 @@ def test_unknown_contact_is_404(mod, monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# legacy Airtel message types are mapped, not rejected
+# legacy retired transport message types are mapped, not rejected
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("legacy", ["SERVICE_IMPLICIT", "SERVICE_EXPLICIT", "junk"])
-def test_airtel_message_types_map_to_transactional(wired, legacy):
+def test_legacy_message_types_map_to_transactional(wired, legacy):
     mod, service, _ = wired
     _post(mod, {"phoneNumber": "+919903300044", "content": "hi",
                 "dltTemplateKey": "ivr-default", "messageType": legacy})

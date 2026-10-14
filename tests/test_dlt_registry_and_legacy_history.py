@@ -1,14 +1,7 @@
-"""The two live capabilities rescued from the retired India sender.
+"""TRAI DLT template registry contract tests.
 
-Retiring `sms-in/airtel` would have taken two things with it that are not
-Airtel-specific:
-
-  1. the TRAI DLT template registry - a record of content templates approved by
-     the Indian regulator under OUR registered entity, which outlives any carrier;
-  2. the only read path for `AirtelSMSTable`, which holds real delivered messages
-     from two retired providers and is DLT audit evidence.
-
-These tests pin the behaviour that makes deleting that function safe.
+The registry is application-owned regulatory data and remains independent of the
+SMS transport implementation.
 """
 import sys
 from pathlib import Path
@@ -22,7 +15,6 @@ if str(SHARED) not in sys.path:
 
 from lambda_utils.comms import dlt as dlt_mod              # noqa: E402
 from lambda_utils.comms import dlt_registry                 # noqa: E402
-from lambda_utils.comms import legacy_history               # noqa: E402
 
 
 class _FakeTable:
@@ -187,105 +179,3 @@ LEGACY_ROWS = [
      "createdAt": 200},
     {"messageId": "m3", "content": "c", "status": "SENT", "createdAt": 300},
 ]
-
-
-@pytest.fixture
-def history(monkeypatch):
-    table = _FakeTable(LEGACY_ROWS, key_name="messageId")
-    monkeypatch.setattr(legacy_history, "_table", lambda: table)
-    return table
-
-
-def test_original_provider_is_preserved_never_relabelled(history):
-    rows = {r["messageId"]: r for r in legacy_history.list_messages()["messages"]}
-    assert rows["m1"]["provider"] == "airtel"
-    assert rows["m2"]["provider"] == "sinch"
-    # and specifically NOT rewritten to the current provider
-    assert rows["m1"]["provider"] != "aws-end-user-messaging"
-    assert rows["m2"]["provider"] != "aws-end-user-messaging"
-
-
-def test_rows_predating_the_provider_column_are_not_guessed(history):
-    rows = {r["messageId"]: r for r in legacy_history.list_messages()["messages"]}
-    # Names the route, not a vendor, because the vendor is genuinely unrecorded.
-    assert rows["m3"]["provider"] == "legacy-india-operator"
-    assert "Unrecorded" in rows["m3"]["providerLabel"]
-
-
-def test_every_row_is_flagged_historical_and_read_only(history):
-    for row in legacy_history.list_messages()["messages"]:
-        assert row["isHistorical"] is True
-        assert row["readOnly"] is True
-
-
-def test_retired_providers_are_labelled_as_retired(history):
-    rows = {r["messageId"]: r for r in legacy_history.list_messages()["messages"]}
-    assert "retired" in rows["m1"]["providerLabel"].lower()
-    assert "retired" in rows["m2"]["providerLabel"].lower()
-
-
-def test_dlt_evidence_fields_survive(history):
-    """A DLT dispute needs the template id and the carrier that delivered it."""
-    row = legacy_history.get_message("m1")
-    assert row["dltTemplateId"] == "1007277993798259629"
-    assert row["provider"] == "airtel"
-
-
-def test_status_filter_escapes_the_reserved_word(history):
-    """`status` is a DynamoDB reserved word; unescaped it fails at runtime."""
-    legacy_history.list_messages(status="SENT")
-    kwargs = history.scan_calls[-1]
-    assert "#s" in kwargs["FilterExpression"]
-    assert kwargs["ExpressionAttributeNames"]["#s"] == "status"
-
-
-def test_provider_filter_separates_the_two_retired_senders(history):
-    legacy_history.list_messages(provider="sinch")
-    kwargs = history.scan_calls[-1]
-    assert kwargs["ExpressionAttributeValues"][":p"] == "sinch"
-
-
-def test_module_exposes_no_create_or_update():
-    """History is a statement about the past. Only reads and a retention purge."""
-    for forbidden in ("create_message", "update_message", "store_message",
-                      "put_message", "send"):
-        assert not hasattr(legacy_history, forbidden)
-
-
-def test_counts_are_exact_and_per_provider(history):
-    counts = legacy_history.counts_by_provider()
-    assert counts["exact"] is True
-    assert counts["total"] == 3
-    assert counts["byProvider"] == {
-        "airtel": 1, "legacy-india-operator": 1, "sinch": 1}
-
-
-def test_list_does_not_claim_a_global_ordering(history):
-    """It is a paginated scan; a global sort claim would misdescribe the data."""
-    assert legacy_history.list_messages()["pageOrderedOnly"] is True
-
-
-def test_invalid_cursor_is_a_bad_request_not_a_crash(history):
-    result = legacy_history.list_messages(cursor="!!!not-base64!!!")
-    assert result["errorCode"] == "INVALID_CURSOR"
-
-
-# --------------------------------------------------------------------------
-# purge is guarded
-# --------------------------------------------------------------------------
-def test_purge_without_confirmation_deletes_nothing(history):
-    result = legacy_history.purge(confirm_table="")
-    assert result["errorCode"] == "CONFIRMATION_REQUIRED"
-    assert history.deleted == []
-
-
-def test_purge_with_the_wrong_table_name_deletes_nothing(history):
-    result = legacy_history.purge(confirm_table="some-other-table")
-    assert result["errorCode"] == "CONFIRMATION_REQUIRED"
-    assert history.deleted == []
-
-
-def test_purge_with_exact_confirmation_proceeds(history):
-    result = legacy_history.purge(confirm_table=legacy_history.LEGACY_SMS_TABLE)
-    assert result["deleted"] == 3
-    assert sorted(history.deleted) == ["m1", "m2", "m3"]

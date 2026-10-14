@@ -59,11 +59,8 @@ CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-Contacts
 # Values a caller may pass for `provider`. 'aws' is the only provider; '' means
 # "no preference". Anything else is a policy violation, not a routing hint.
 _ALLOWED_PROVIDERS = {'', 'aws', 'aws-end-user-messaging'}
-_PROHIBITED_PROVIDERS = {'airtel', 'sinch', 'plivo', 'sns', 'pinpoint'}
-
 PROVIDER_POLICY_MESSAGE = (
     'SMS is sent exclusively through AWS End User Messaging. '
-    'Airtel, Sinch, Plivo, SNS and classic Pinpoint are prohibited providers. '
     'Omit "provider" or pass "aws".'
 )
 
@@ -100,18 +97,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     try:
         requested_provider = str(body.get('provider', '') or '').strip().lower()
-        if requested_provider in _PROHIBITED_PROVIDERS:
-            log_event(logger, 'outbound_sms_prohibited_provider', level='warning',
+        if requested_provider not in _ALLOWED_PROVIDERS:
+            log_event(logger, 'outbound_sms_unsupported_provider', level='warning',
                       provider=requested_provider, requestId=request_id)
             return _response(422, {
                 'error': PROVIDER_POLICY_MESSAGE,
-                'errorCode': 'PROHIBITED_PROVIDER',
-                'requestedProvider': requested_provider,
-            })
-        if requested_provider not in _ALLOWED_PROVIDERS:
-            return _response(422, {
-                'error': PROVIDER_POLICY_MESSAGE,
-                'errorCode': 'UNKNOWN_PROVIDER',
+                'errorCode': 'UNSUPPORTED_PROVIDER',
                 'requestedProvider': requested_provider,
             })
 
@@ -140,9 +131,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         message_id = str(uuid.uuid4())
         message_type = str(body.get('messageType') or 'TRANSACTIONAL').strip().upper()
-        # SERVICE_IMPLICIT / SERVICE_EXPLICIT are Airtel IQ vocabulary, not AWS.
-        # EUM v2 accepts TRANSACTIONAL or PROMOTIONAL; map the legacy values
-        # rather than reject requests that still use them.
+        # EUM v2 accepts TRANSACTIONAL or PROMOTIONAL. Normalize any older
+        # caller vocabulary rather than letting it select a transport.
         if message_type not in ('TRANSACTIONAL', 'PROMOTIONAL'):
             message_type = 'TRANSACTIONAL'
 
