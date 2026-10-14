@@ -356,6 +356,43 @@ def checkout_preflight(line_items: Any, body: Any, *,
     return None
 
 
+def native_service_line_paise(snapshot: Any, line_items: Any) -> Optional[int]:
+    """Resolve one service's charged unit price from the frozen AWS-native quote.
+
+    Source of truth is *snapshot.frozen_data['items']*, already priced from the
+    ProductsTable by native_checkout. Never use client-supplied amounts, and
+    never permit a missing price to become a PAID_SERVICE_UNMATCHED ledger row.
+
+    Called before creating a Razorpay order so mismatch failures stay pre-payment.
+    Returns None only when the basket has no service line.
+    """
+    line = service_line(line_items)
+    if line is None:
+        return None
+    frozen = getattr(snapshot, "frozen_data", None)
+    if not isinstance(frozen, Mapping):
+        raise ServicePriceChanged("native service quote has no frozen line items")
+    items = frozen.get("items")
+    if not isinstance(items, (list, tuple)):
+        raise ServicePriceChanged("native service quote has no line items")
+    matches = [
+        item for item in items
+        if isinstance(item, Mapping)
+        and is_service_product(item.get("productId"))
+        and str(item.get("variantId") or "").strip().lower() == line.variant_id
+    ]
+    if len(matches) != 1:
+        raise ServicePriceChanged("native service quote does not identify one priced line")
+    item = matches[0]
+    unit = item.get("unitPricePaise")
+    if (type(unit) is not int
+            or type(item.get("quantity")) is not int
+            or item["quantity"] != 1
+            or not SERVICE_LINE_MIN_PAISE <= unit <= SERVICE_LINE_MAX_PAISE):
+        raise ServicePriceChanged("native service line lacks a valid authoritative price")
+    return unit
+
+
 def payref_extra(line_items: Any, body: Any, *,
                  line_paise: Optional[int]) -> Dict[str, Any]:
     """``{}`` for a non-service basket, else ``{"serviceLine": {kind, variantId, paise, intentId}}``.
@@ -511,6 +548,7 @@ __all__ = [
     "SUBMIT_REQUEST", "TARGET_REQUIRED_KINDS", "VAULT", "ServiceLine",
     "ServiceNotPayable", "ServicePriceChanged", "ServiceRejected", "assert_service_line_price",
     "checkout_preflight", "has_service_line", "intent_rebound", "is_service_product",
+    "native_service_line_paise",
     "observed_service_line_paise", "payref_extra", "refusal",
     "service_line",
 ]
