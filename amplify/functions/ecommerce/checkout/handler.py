@@ -2552,13 +2552,11 @@ def _blocking_codes(adapter, cart_id: str) -> set:
 def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
                  *, profile: Optional[Dict[str, Any]] = None,
                  reconcile: bool = False, reset: bool = False):
-    """The Cart V2 price authority. Returns `(snapshot, price_free_items, calculated)`.
+    """The website price authority. Returns `(snapshot, price_free_items, calculated)`.
 
-    `calculated` is the `cart_v2.calculate` result the snapshot was frozen from, returned rather
-    than discarded so `wix_writeback.build_wix_order_payload` can be built from the SAME figures
-    the price was quoted from. A second `calculate` could drift from the charge by a paise, and
-    the frozen snapshot keeps `summary.lineItems` but not `cart.lineItems`, so it carries no
-    `catalogReference` to rebuild a payload from.
+    `calculated` is the calculation the snapshot was frozen from. Under AWS_NATIVE this is `None`
+    (the native supply engine produces the snapshot directly and there is no Wix order payload to
+    build); it is retained in the signature for the legacy shape only.
 
     This is the producer half of the chain `website_checkout` and `customer_receipt` already
     consume, and which nothing in production produced before. `QuoteSnapshot.quote`'s

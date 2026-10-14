@@ -67,7 +67,13 @@ def _formatted_inr(paise: int) -> str:
 
 
 def to_shop_product(item: Dict[str, Any]) -> Dict[str, Any]:
-    """Project one ProductsTable item onto the ShopProduct shape shop.ts expects."""
+    """Project ProductsTable into the existing site's RawProduct snapshot contract.
+
+    The static Next.js shop still calls toParagraphs(descriptionHtml) and filters
+    explicit visible states. Keeping those fields is essential: emitting only
+    'body' and 'tagline' silently discards the merchant's product descriptions.
+    Product and variant IDs remain unchanged for cart/payment compatibility.
+    """
     price_minor = int(item.get("priceMinor", 0) or 0)
     body = item.get("body") or []
     if isinstance(body, str):
@@ -76,17 +82,20 @@ def to_shop_product(item: Dict[str, Any]) -> Dict[str, Any]:
     for v in item.get("variants", []) or []:
         variants.append({
             "id": str(v.get("sku") or v.get("id") or ""),
-            "label": str(v.get("label") or v.get("options") or ""),
+            "label": str(v.get("label") or "Standard"),
             "inStock": bool(v.get("inventory", 0)),
         })
+    description = str(item.get("descriptionHtml") or "")
     product: Dict[str, Any] = {
         "id": str(item.get("id", "")),
         "name": str(item.get("title") or item.get("name") or ""),
         "slug": str(item.get("slug", "")),
+        "visible": item.get("status", "active") == "active",
         "price": _paise_to_decimal_string(price_minor),
         "formattedPrice": _formatted_inr(price_minor),
         "currency": str(item.get("currency", "INR")),
         "inStock": bool(item.get("inventory", 0)) or any(x["inStock"] for x in variants),
+        "descriptionHtml": description,
         "tagline": str(item.get("tagline") or item.get("seoDescription") or ""),
         "body": [str(b) for b in body],
     }
@@ -98,19 +107,15 @@ def to_shop_product(item: Dict[str, Any]) -> Dict[str, Any]:
     return product
 
 
-def _utc_now_z() -> str:
-    """Canonical UTC timestamp: millisecond precision, trailing 'Z'
-    (e.g. '2026-10-14T06:52:56.535Z'). Provider-independent and byte-stable, so the
-    static build cannot render two different dates for the same instant and the shape
-    does not drift with the Python version's default isoformat()."""
-    now = datetime.now(timezone.utc)
-    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
-
-
 def build_snapshot(items: List[Dict[str, Any]]) -> Dict[str, Any]:
-    products = [to_shop_product(it) for it in items if it.get("status", "active") != "archived"]
+    products = [
+        to_shop_product(it) for it in items
+        if it.get("status", "active") != "archived"
+    ]
     products.sort(key=lambda p: p["slug"])
-    now = _utc_now_z()
+    # The static shop's CATALOG_FETCHED_AT contract requires a UTC timestamp
+    # ending in Z; +00:00 is parseable but its existing regression test rejects it.
+    now = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
     return {
         "source": "aws products-table (native catalog)",
         "catalogVersion": "AWS_NATIVE_V1",
