@@ -14,6 +14,9 @@ Legend: `[x]` done · `[~]` implemented, not deployed · `[ ]` not started.
 - [x] 0.5 Lightsail bundle/snapshot/static-IP facts + bundle prices. (C1)
 - [x] 0.6 Deterministic cost model script + run. (X2, B10, C8)
 - [x] 0.7 Write migration docs under `docs/migrations/`. (Section 8)
+- [x] 0.8 Deep per-subsystem Wix audit (checkout/cart/pricing, gift-card SPI,
+      coupons, meta-sync, blog) with the money-authority map and removal order:
+      `docs/migrations/wix-subsystem-deep-audit.md`.
 
 ## Phase 1 — CI guardrail (safe, non-mutating runtime)
 
@@ -26,12 +29,13 @@ Legend: `[x]` done · `[~]` implemented, not deployed · `[ ]` not started.
 
 ## Phase 2 — Wix data export & archive (read-only against Wix) (Gate 2)
 
-- [ ] 2.1 `scripts/wix_export/` idempotent exporter: blog (published+draft, rich
-      body, authors, categories, tags, media, slugs, SEO, canonical, redirects)
-      with pagination, immutable IDs, retries, checksums, reconciliation report.
-- [ ] 2.2 Same for store (products, variants, SKUs, prices, currency, inventory,
-      categories, images, metadata, coupons/gift-card obligations, shipping,
-      taxes, orders, refunds, customer refs, fulfillment). No cardholder data.
+- [x] 2.1 `scripts/wix_export/` idempotent exporter with pagination, immutable
+      IDs (sourceId), retries, per-item sha256 checksums, reconciliation report,
+      and a safe `--dry` default (no network/secrets). Blog + store queries wired;
+      live run is 🔒 (reads Wix, needs creds). Unit-tested.
+- [~] 2.2 Store export fields (variants, SKUs, prices, inventory, categories,
+      images, orders/refunds, fulfillment) — base products/blog queries done;
+      per-class field expansion + Hotels/Invoices usage check pending live run.
 - [ ] 2.3 🔒 Write encrypted, access-controlled export archive to existing S3
       (creating/populating a storage prefix is billable write → approval).
 - [ ] 2.4 Reconcile export counts vs fresh authoritative Wix counts.
@@ -51,8 +55,15 @@ Legend: `[x]` done · `[~]` implemented, not deployed · `[ ]` not started.
 
 ## Phase 4 — AWS-native catalog + commerce (Gate 3)
 
-- [ ] 4.1 CDK `ProductsTable` (+ GSIs) and `CartTable`. (A2)
-- [ ] 4.2 `catalog_pricing.authoritative_total_paise` (server-side, paise). (A3)
+- [~] 4.1 CDK `ProductsTable` (+ 3 GSIs + change stream) in
+      `amplify/catalog-resources.ts`, mirroring `seo-resources.ts`. IMPLEMENTED,
+      NOT WIRED into `backend.ts` (wiring creates a billable table → 🔒). `CartTable`
+      still to add. (A2)
+- [x] 4.2 `catalog_pricing.build_price_summary` + `authoritative_total_paise`
+      (pure, integer paise, reuses `money.py`, enforces the Wix priceSummary
+      identity, renders a Wix-shape that round-trips through
+      `wix_ecom.authoritative_total_paise`). Unit-tested. NOT wired — the drop-in
+      source for `compute_quote` when `CHECKOUT_MODE=AWS_NATIVE`. (A3)
 - [ ] 4.3 Native cart/discount/tax/shipping/inventory/reservation modules behind
       `CHECKOUT_MODE` (default `WIX_HEADLESS`). (A3)
 - [ ] 4.4 `scripts/build-catalog-snapshot.py` → `src/content/catalog-snapshot.json`;
