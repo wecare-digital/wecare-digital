@@ -121,7 +121,7 @@ const LIVE_SAMPLE_VIEWPORT = 1280;
  *   maps.mapsjs.v1.MapsJsInternalService/GetViewportInfo' from origin
  *   'https://www.google.com' has been blocked by CORS policy
  *
- * Read the origin: `https://www.google.com`, not our page. NEXT_PUBLIC_GOOGLE_MAPS_KEY
+ * Read the origin: `https://www.google.com`, not our page. NEXT_PUBLIC_GOOGLE_BROWSER_KEY
  * is unset in CI, so ContactLocation ships the KEYLESS path - a google.com/maps/embed
  * iframe - and this is Google's own bundle calling its own private RPC from inside that
  * iframe and being refused by Google's own CORS policy. No markup, style or script of
@@ -156,7 +156,7 @@ const ALLOWED = [
   },
   {
     // KEYLESS-CI ARTIFACT, scoped exactly like the two entries above. /vayulok/'s
-    // VayuLokLive reads NEXT_PUBLIC_GOOGLE_MAPS_KEY, which CI leaves unset (build-test.yml
+    // VayuLokLive reads NEXT_PUBLIC_GOOGLE_BROWSER_KEY, which CI leaves unset (build-test.yml
     // documents the key as owner-only, which is why contactcheck's keyed assertion is
     // reported-not-enforced). With an empty key its Air Quality and Weather calls to
     // *.googleapis.com are rejected 403, producing the generic "Failed to load resource"
