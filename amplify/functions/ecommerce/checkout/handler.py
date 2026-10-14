@@ -804,7 +804,15 @@ def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list
         # The public website submits Wix-era catalogReference shapes. AWS-native
         # pricing must translate their identifiers, NOT require new client keys
         # that existing /cart and /shop pages do not send.
-        native_lines = []
+        # Canonicalise the *reviewed basket* into a stable ID. The old
+        # cartId=f"native:{customer}:{now}" changed every second; the one-live-
+        # payment guard in website_checkout is keyed by cart ID, so two tabs
+        # could otherwise acquire independent payment claims for the SAME items.
+        # Aggregate duplicate variants before stock validation to prevent two
+        # individually valid lines overselling one stock unit.
+        import hashlib
+        from lambda_utils.ecommerce import native_cart
+        by_variant = {}
         for li in line_items:
             if not isinstance(li, dict):
                 raise ValueError("cart line must be an object")
@@ -816,31 +824,45 @@ def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list
             variant_id = str(options.get("variantId") or li.get("variantId") or "").strip()
             if not product_id or not variant_id:
                 raise ValueError("native cart line needs a product and variant identifier")
+            qty = li.get("quantity")
+            if type(qty) is not int or not 1 <= qty <= 100000:
+                raise ValueError("quantity must be an integer in 1..100000")
+            key = (product_id, variant_id)
+            by_variant[key] = by_variant.get(key, 0) + qty
+            if by_variant[key] > 100000:
+                raise ValueError("aggregate quantity exceeds line limit")
+        canonical = sorted(
+            (pid, vid, qty) for (pid, vid), qty in by_variant.items()
+        )
+        if not canonical or len(canonical) > 100:
+            raise ValueError("cart must contain 1..100 distinct variants")
+        stable_input = json.dumps(
+            [identity.customer_id, canonical],
+            separators=(",", ":"), ensure_ascii=True,
+        ).encode("utf-8")
+        cart_key = hashlib.sha256(stable_input).hexdigest()
+        reader = _native_product_reader()
+        native_lines = []
+        for product_id, variant_id, qty in canonical:
+            # Product and variant must be ACTIVE and exist in ProductsTable.
+            # A name/price from the public browser is never pricing authority;
+            # unknown variant IDs never fall back to a product's base price.
+            price = native_cart._unit_price_paise(reader, product_id, variant_id)
             native_lines.append({
                 "productId": product_id,
                 "variantId": variant_id,
-                "quantity": int(li.get("quantity") or 1),
-                "unitPricePaise": 0,  # authoritative price re-read from ProductsTable
-                "requiresDelivery": bool(li.get("requiresDelivery", True)),
+                "quantity": qty,
+                "unitPricePaise": price,
+                # Never let a browser claim a physical product needs no delivery.
+                # The native shipping policy currently charges zero, and actual
+                # shipping rules can be enforced by a trusted product policy.
+                "requiresDelivery": True,
             })
         ephemeral_cart = {
-            "cartId": f"native:{identity.customer_id}:{now}",
-            "updatedAt": now,
+            "cartId": "native:" + cart_key,
+            "updatedAt": 0,  # stable across retries of the exact same basket
             "lineItems": native_lines,
         }
-        # Re-resolve each line's price from ProductsTable so a client-supplied figure never enters.
-        reader = _native_product_reader()
-        for ln in ephemeral_cart["lineItems"]:
-            row = reader(ln["productId"]) or {}
-            price = None
-            for v in row.get("variants", []) or []:
-                if str(v.get("sku") or v.get("id") or "") == ln["variantId"]:
-                    price = v.get("priceMinor", row.get("priceMinor"))
-                    break
-            else:
-                price = row.get("priceMinor")
-            from decimal import Decimal as _D
-            ln["unitPricePaise"] = int(price) if isinstance(price, (int, _D)) else 0
         snapshot = native_checkout.quote_native_cart(
             ephemeral_cart,
             product_reader=reader,
