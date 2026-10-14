@@ -185,11 +185,10 @@ def test_the_new_handlers_are_in_the_raw_scan_list():
         None)
     assert assignment is not None, "RAW_SCAN_ONLY_FILES is not declared in the vocabulary gate"
     entries = ast.literal_eval(assignment.value)
-    # All three, because nothing else pins the two gift-card entries and the list is the only
-    # thing putting those handlers under the raw-'captured' scan at all. The SPI handler is the
-    # one that matters most: it is the new file touching money on an externally-triggered path.
-    for handler in ("ecommerce/coupons/handler.py", "ecommerce/gift-cards/handler.py",
-                    "ecommerce/wix-giftcard-spi/handler.py"):
+    # Both, because nothing else pins these entries and the list is the only thing putting
+    # those handlers under the raw-'captured' scan at all. (The Wix gift-card SPI handler was
+    # the third until #475 deleted it; a listed file that no longer exists fails the gate.)
+    for handler in ("ecommerce/coupons/handler.py", "ecommerce/gift-cards/handler.py"):
         assert (handler, None) in entries, f"{handler} is outside the raw-scan gate"
 
 
