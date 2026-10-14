@@ -1,4 +1,4 @@
-"""Phone-keyed backend cart using the existing WixOrderIds table (D4).
+"""Phone-keyed backend cart using the existing CommerceKeys table (D4).
 
 Keys have a namespace; immutable order keys must never acquire DynamoDB TTL.
 Cart expiry is enforced by this application. A lock with an uncertain Wix outcome
@@ -70,7 +70,7 @@ class CustomerCart:
             raise CartBusy("cart operation requires reconciliation")
         if int(row.get("expiresAt", 0)) <= self.now:
             return None
-        cart_id = row.get("wixCartId")
+        cart_id = row.get("cartId")
         return identifier(cart_id) if cart_id else None
 
     def ensure(self, identity, items, request_id=None):
@@ -111,7 +111,7 @@ class CustomerCart:
         `abandonedCartId` IS NOT A DURABLE TRAIL. It is written for a reader who gets to the row
         before the next `ensure`, and it does not survive one: `execute`'s claim is a full
         `put_item` that rebuilds the item from scratch -- `pending = {**key, customerId,
-        version+1, busy, expiresAt}` plus `wixCartId` only when `active`, and `finished` derives
+        version+1, busy, expiresAt}` plus `cartId` only when `active`, and `finished` derives
         from `pending` -- so neither carries `abandonedCartId`. On an abandoned row `active` is
         False, so `ensure` -> `resolve` -> None -> `execute("create")` always takes that branch,
         and BOTH call sites re-`ensure` in the same invocation. Lifetime: milliseconds. The field
@@ -147,7 +147,7 @@ class CustomerCart:
         try:
             self.table.put_item(
                 Item={**key, "customerId": identity.customer_id, "version": version + 1,
-                      "abandonedCartId": row.get("wixCartId"), "expiresAt": 0},
+                      "abandonedCartId": row.get("cartId"), "expiresAt": 0},
                 ConditionExpression="version = :version AND attribute_not_exists(busy)",
                 ExpressionAttributeValues={":version": version})
         except Exception as error:
@@ -223,7 +223,7 @@ class CustomerCart:
         pending = {**key, "customerId": identity.customer_id, "version": version + 1,
                    "busy": lock, "expiresAt": self.now + CART_LIFETIME}
         if active:
-            pending["wixCartId"] = row["wixCartId"]
+            pending["cartId"] = row["cartId"]
         try:
             args = {"Item": pending, "ConditionExpression": "attribute_not_exists(orderId)"}
             if row:
@@ -240,7 +240,7 @@ class CustomerCart:
             self.table.put_item(Item=operation, ConditionExpression="attribute_not_exists(orderId)")
         # Any exception after the claim retains the lock. Never replay a remote
         # mutation after a timeout, including create/add and auto-refreshing GET.
-        cart_id = pending.get("wixCartId")
+        cart_id = pending.get("cartId")
         snapshot = None
         if action == "create":
             cart = self.adapter.create(command["items"])
@@ -276,7 +276,7 @@ class CustomerCart:
             result.update(amountPaise=snapshot["amountPaise"], currency="INR",
                           expiresAt=snapshot["expiresAt"],
                           componentsPaise=snapshot["componentsPaise"])
-        finished = {**pending, "wixCartId": cart["id"], "cartRevision": cart["revision"],
+        finished = {**pending, "cartId": cart["id"], "cartRevision": cart["revision"],
                     "lastRequestId": request_id, "fingerprint": fingerprint, "result": result}
         del finished["busy"]
         if snapshot:

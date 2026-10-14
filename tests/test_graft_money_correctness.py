@@ -36,7 +36,7 @@ from lambda_utils.ecommerce import purchase_intent  # noqa: E402
 from lambda_utils.ecommerce import website_checkout  # noqa: E402
 # wix_writeback removed with the Wix order writeback; the native terminal creates no Wix order.
 
-KEYS_TABLE = "stack-wecare-digital-WixOrderIds"
+KEYS_TABLE = "stack-wecare-digital-CommerceKeys"
 ATTEMPTS_TABLE = "stack-wecare-digital-PaymentAttemptsTable"
 ORDERS_TABLE = "stack-wecare-digital-OrderTable"
 CUSTOMER = "CUS_graft_001"
@@ -94,19 +94,19 @@ def test_the_cart_pointer_upsert_cannot_erase_a_paid_basket():
     """
     table = _keys()
     b1, b2 = "hash_b1", "hash_b2"
-    order_keys.record_cart_payment(table, customer_id=CUSTOMER, wix_cart_id=CART,
+    order_keys.record_cart_payment(table, customer_id=CUSTOMER, cart_id=CART,
                                    payment_attempt_id="A1", basket_hash=b1)
-    order_keys.record_cart_basket(table, customer_id=CUSTOMER, wix_cart_id=CART,
+    order_keys.record_cart_basket(table, customer_id=CUSTOMER, cart_id=CART,
                                   basket_hash=b1, payment_attempt_id="A1")
     # A later, genuinely different basket takes the single slot.
-    order_keys.record_cart_payment(table, customer_id=CUSTOMER, wix_cart_id=CART,
+    order_keys.record_cart_payment(table, customer_id=CUSTOMER, cart_id=CART,
                                    payment_attempt_id="A2", basket_hash=b2)
-    order_keys.record_cart_basket(table, customer_id=CUSTOMER, wix_cart_id=CART,
+    order_keys.record_cart_basket(table, customer_id=CUSTOMER, cart_id=CART,
                                   basket_hash=b2, payment_attempt_id="A2")
 
-    pointer = order_keys.resolve_cart_payment(table, customer_id=CUSTOMER, wix_cart_id=CART)
+    pointer = order_keys.resolve_cart_payment(table, customer_id=CUSTOMER, cart_id=CART)
     assert pointer["paymentAttemptId"] == "A2", "the pointer is last-writer-wins, by design"
-    survived = order_keys.resolve_cart_basket(table, customer_id=CUSTOMER, wix_cart_id=CART,
+    survived = order_keys.resolve_cart_basket(table, customer_id=CUSTOMER, cart_id=CART,
                                               basket_hash=b1)
     assert survived is not None and survived["paymentAttemptId"] == "A1", (
         "the paid memory for B1 must survive a later attempt on the same cart")
@@ -115,17 +115,17 @@ def test_the_cart_pointer_upsert_cannot_erase_a_paid_basket():
 def test_the_narrow_paid_row_resolves_when_the_fine_one_cannot():
     """Keyed on two identities, so a `basket_hash` that moved is still refused by the narrow key."""
     table = _keys()
-    order_keys.record_cart_basket(table, customer_id=CUSTOMER, wix_cart_id=CART,
+    order_keys.record_cart_basket(table, customer_id=CUSTOMER, cart_id=CART,
                                   basket_hash="fine_v1", payment_attempt_id="A1",
                                   narrow_basket_hash="narrow_stable")
-    order_keys.record_cart_narrow_basket(table, customer_id=CUSTOMER, wix_cart_id=CART,
+    order_keys.record_cart_narrow_basket(table, customer_id=CUSTOMER, cart_id=CART,
                                          narrow_hash="narrow_stable", payment_attempt_id="A1",
                                          basket_hash="fine_v1")
     # Wix moved a non-enumerated field, so the fine identity composes a different key.
     assert order_keys.resolve_cart_basket(
-        table, customer_id=CUSTOMER, wix_cart_id=CART, basket_hash="fine_v2") is None
+        table, customer_id=CUSTOMER, cart_id=CART, basket_hash="fine_v2") is None
     found = order_keys.resolve_cart_narrow_basket(
-        table, customer_id=CUSTOMER, wix_cart_id=CART, narrow_hash="narrow_stable")
+        table, customer_id=CUSTOMER, cart_id=CART, narrow_hash="narrow_stable")
     assert found is not None and found["paymentAttemptId"] == "A1"
 
 
@@ -133,12 +133,12 @@ def test_a_recorded_basket_row_is_never_taken_over_by_a_stale_claim():
     """A RECORDED row cannot be claimed however old it is. Its failure mode is a second charge."""
     table = _keys()
     long_ago = int(time.time()) - 10 * 365 * 24 * 3600
-    order_keys.record_cart_basket(table, customer_id=CUSTOMER, wix_cart_id=CART,
+    order_keys.record_cart_basket(table, customer_id=CUSTOMER, cart_id=CART,
                                   basket_hash="b1", payment_attempt_id="A_PAID", now=long_ago)
-    won = order_keys.claim_cart_basket(table, customer_id=CUSTOMER, wix_cart_id=CART,
+    won = order_keys.claim_cart_basket(table, customer_id=CUSTOMER, cart_id=CART,
                                        basket_hash="b1", payment_attempt_id="A_NEW")
     assert won is False, "a recorded row has an attempt behind it and is never stale"
-    row = order_keys.resolve_cart_basket(table, customer_id=CUSTOMER, wix_cart_id=CART,
+    row = order_keys.resolve_cart_basket(table, customer_id=CUSTOMER, cart_id=CART,
                                          basket_hash="b1")
     assert row["paymentAttemptId"] == "A_PAID"
 
@@ -152,13 +152,13 @@ def test_a_stale_create_claim_releases_after_the_create_horizon(prefix):
              else order_keys.claim_cart_narrow_basket)
     kwargs = ({"basket_hash": "b1"} if prefix == "basket" else {"narrow_hash": "n1"})
 
-    assert claim(table, customer_id=CUSTOMER, wix_cart_id=CART,
+    assert claim(table, customer_id=CUSTOMER, cart_id=CART,
                  payment_attempt_id="A1", now=now, **kwargs) is True
     # Inside the horizon, with no CAS basis: the first claimer still holds it.
-    assert claim(table, customer_id=CUSTOMER, wix_cart_id=CART,
+    assert claim(table, customer_id=CUSTOMER, cart_id=CART,
                  payment_attempt_id="A2", now=now + 10, **kwargs) is False
     # Past it, a dead claimer's slot is available again.
-    assert claim(table, customer_id=CUSTOMER, wix_cart_id=CART, payment_attempt_id="A3",
+    assert claim(table, customer_id=CUSTOMER, cart_id=CART, payment_attempt_id="A3",
                  now=now + order_keys.CART_CREATE_CLAIM_STALE_SECONDS + 1,
                  **kwargs) is True
 
@@ -166,13 +166,13 @@ def test_a_stale_create_claim_releases_after_the_create_horizon(prefix):
 def test_a_claim_with_a_matching_cas_basis_repoints_a_failed_attempt():
     """The legitimate retry: the guard read A1 off the row, so A1 is the condition."""
     table = _keys()
-    assert order_keys.claim_cart_basket(table, customer_id=CUSTOMER, wix_cart_id=CART,
+    assert order_keys.claim_cart_basket(table, customer_id=CUSTOMER, cart_id=CART,
                                         basket_hash="b1", payment_attempt_id="A1") is True
     assert order_keys.claim_cart_basket(
-        table, customer_id=CUSTOMER, wix_cart_id=CART, basket_hash="b1",
+        table, customer_id=CUSTOMER, cart_id=CART, basket_hash="b1",
         payment_attempt_id="A2", prior_payment_attempt_id="A1") is True
     assert order_keys.claim_cart_basket(
-        table, customer_id=CUSTOMER, wix_cart_id=CART, basket_hash="b1",
+        table, customer_id=CUSTOMER, cart_id=CART, basket_hash="b1",
         payment_attempt_id="A3", prior_payment_attempt_id="A1") is False, (
         "the row moved, so the compare-and-swap must fail")
 
@@ -183,7 +183,7 @@ def test_a_claim_with_a_matching_cas_basis_repoints_a_failed_attempt():
 ])
 def test_an_empty_key_part_raises_rather_than_composing_a_colliding_key(builder, kwargs):
     with pytest.raises(ValueError):
-        builder(_keys(), customer_id=CUSTOMER, wix_cart_id=CART,
+        builder(_keys(), customer_id=CUSTOMER, cart_id=CART,
                 payment_attempt_id="A1", **kwargs)
 
 
@@ -194,13 +194,13 @@ def test_a_read_failure_is_never_reported_as_absence():
             raise FakeClientError("ProvisionedThroughputExceededException")
 
     with pytest.raises(order_keys.OrderIdentityUnavailable):
-        order_keys.resolve_cart_basket(Raising(), customer_id=CUSTOMER, wix_cart_id=CART,
+        order_keys.resolve_cart_basket(Raising(), customer_id=CUSTOMER, cart_id=CART,
                                        basket_hash="b1")
     with pytest.raises(order_keys.OrderIdentityUnavailable):
         order_keys.resolve_cart_narrow_basket(Raising(), customer_id=CUSTOMER,
-                                              wix_cart_id=CART, narrow_hash="n1")
+                                              cart_id=CART, narrow_hash="n1")
     with pytest.raises(order_keys.OrderIdentityUnavailable):
-        order_keys.resolve_cart_payment(Raising(), customer_id=CUSTOMER, wix_cart_id=CART)
+        order_keys.resolve_cart_payment(Raising(), customer_id=CUSTOMER, cart_id=CART)
 
 
 def test_a_throttled_claim_is_never_mistaken_for_a_free_slot():
@@ -209,7 +209,7 @@ def test_a_throttled_claim_is_never_mistaken_for_a_free_slot():
             raise FakeClientError("ThrottlingException")
 
     with pytest.raises(order_keys.OrderIdentityUnavailable):
-        order_keys.claim_cart_narrow_basket(Raising(), customer_id=CUSTOMER, wix_cart_id=CART,
+        order_keys.claim_cart_narrow_basket(Raising(), customer_id=CUSTOMER, cart_id=CART,
                                             narrow_hash="n1", payment_attempt_id="A1")
 
 
@@ -408,7 +408,7 @@ class _CountingAdapter:
         self.calls += 1
         calculated = _calculated()
         calculated.update({
-            "currency": "INR", "amountPaise": COLLECTION_PAISE, "wixCartId": CART,
+            "currency": "INR", "amountPaise": COLLECTION_PAISE, "cartId": CART,
             "cartRevision": 3, "deliveryAddress": {"city": "Kolkata"},
             "deliveryMethod": {"title": "Standard"},
             "wixGiftCard": None, "wixGiftCardRedeemPaise": 0,
@@ -1796,10 +1796,10 @@ def test_the_promoted_helpers_are_public_with_no_underscore_aliases():
     across modules for a `_`-prefixed function is how two readings of one question start to drift.
     """
     from lambda_utils.ecommerce import finalization
-    for name in ("integer_paise", "other_tender_paise", "wix_cart_id", "record_paid",
+    for name in ("integer_paise", "other_tender_paise", "cart_id", "record_paid",
                  "accept_paid"):
         assert hasattr(finalization, name), name
-    for alias in ("_integer_paise", "_wix_cart_id", "_other_tender_paise"):
+    for alias in ("_integer_paise", "_cart_id", "_other_tender_paise"):
         assert not hasattr(finalization, alias), (
             f"{alias} preserves a private surface with no consumer on this tree")
 

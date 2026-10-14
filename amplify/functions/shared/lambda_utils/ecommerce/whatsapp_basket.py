@@ -109,7 +109,7 @@ CLAIM_POINTER_PREFIX = "WABASKETCLAIM#"
 #: MATCHING THAT LIFETIME IS NOT WHAT MAKES IT SAFE, and assuming it did was a measured defect: the
 #: cart is consumed at payment while the pointer is not, so a website order placed days after a
 #: paid WhatsApp one was still inside these thirty days and inherited `whatsapp`. The binding that
-#: actually holds is `wixCartId` on the pointer, compared against the customer's current cart by
+#: actually holds is `cartId` on the pointer, compared against the customer's current cart by
 #: `active_claim`. This bound is the outer limit for a cart that is never consumed at all.
 CLAIM_POINTER_LIFETIME_SECONDS = 30 * 24 * 3600
 
@@ -490,7 +490,7 @@ def build_claim_pointer(row: Mapping[str, Any], customer_id: Any, *, now: int, c
         "channel": order_channel.canonical(row.get("channel")),
         "handoffId": str(row.get("orderId") or ""),
         "token": str(row.get("token") or ""),
-        "wixCartId": _cart_key(cart_id),
+        "cartId": _cart_key(cart_id),
         "claimedAt": int(now),
         "expiresAt": int(now) + int(lifetime),
     }
@@ -531,12 +531,12 @@ def active_claim(pointer: Optional[Mapping[str, Any]], now: int, *,
     if expires_at <= int(now):
         return None
     current = _cart_key(cart_id)
-    if not current or current != _cart_key(pointer.get("wixCartId")):
+    if not current or current != _cart_key(pointer.get("cartId")):
         return None
     return {"channel": order_channel.canonical(pointer.get("channel")),
             "handoffId": str(pointer.get("handoffId") or ""),
             "token": str(pointer.get("token") or ""),
-            "wixCartId": current}
+            "cartId": current}
 
 
 def catalog_items(row: Mapping[str, Any]) -> List[Dict[str, Any]]:

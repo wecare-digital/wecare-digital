@@ -4,7 +4,7 @@ WHY "BY CONSTRUCTION" IS THE WHOLE CLAIM
 ----------------------------------------
 Phase W adds no coupon code. After the hand-off is claimed, a WhatsApp catalogue order IS a Wix
 cart belonging to a signed-in customer - the same row, under the same `CUSTOMERCART#` key, holding
-the same `wixCartId` a website basket would have. Every coupon authority downstream keys on that
+the same `cartId` a website basket would have. Every coupon authority downstream keys on that
 cart id and on the customer, and NONE of them can see a channel:
 
   * `ecommerce/coupons` decides eligibility and holds the code, keyed on `cartId` + `customerId`;

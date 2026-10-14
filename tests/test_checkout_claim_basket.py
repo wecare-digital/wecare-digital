@@ -334,7 +334,7 @@ def test_the_claim_writes_the_channel_pointer_the_prepare_reads(env):
     assert pointer["handoffId"] == "WABASKET#tok-claim-1"
     # BOUND TO THE CART the lines were merged into, not just to the customer. See
     # `test_a_prepare_for_a_different_cart_than_the_claimed_one_is_attributed_website`.
-    assert pointer["wixCartId"] == saved_cart(fake)["wixCartId"]
+    assert pointer["cartId"] == saved_cart(fake)["cartId"]
     # And the seam itself answers with it.
     assert h._claimed_handoff(_Identity(), {})["channel"] == "whatsapp"
 
@@ -467,7 +467,7 @@ def test_an_existing_website_cart_is_reported_and_the_basket_stays_claimable(env
     # A live cart for this identity, exactly as the `/wix-store/cart` route leaves one.
     fake.Table(KEYS_TABLE).put_item(Item={
         "orderId": "CUSTOMERCART#" + SESSION_PHONE, "customerId": CUSTOMER, "version": 1,
-        "wixCartId": delivery_complete()["cart"]["id"], "expiresAt": 9_999_999_999})
+        "cartId": delivery_complete()["cart"]["id"], "expiresAt": 9_999_999_999})
 
     response = h.handler(event("claim-basket", basket="tok-claim-1"), None)
     assert response["statusCode"] == 200
@@ -497,7 +497,7 @@ def test_a_stale_saved_cart_is_released_by_the_one_retry_rather_than_dead_ending
     stale = delivery_complete()["cart"]["id"]
     fake.Table(KEYS_TABLE).put_item(Item={
         "orderId": "CUSTOMERCART#" + SESSION_PHONE, "customerId": CUSTOMER, "version": 1,
-        "wixCartId": stale, "expiresAt": 9_999_999_999})
+        "cartId": stale, "expiresAt": 9_999_999_999})
 
     first = json.loads(h.handler(event("claim-basket", basket="tok-claim-1"), None)["body"])
     assert first["status"] == "BASKET_CART_IN_USE"
@@ -510,7 +510,7 @@ def test_a_stale_saved_cart_is_released_by_the_one_retry_rather_than_dead_ending
     assert len(carts_created(fake)) == 1, "the released pointer let a fresh cart be created"
     assert handoff_row(fake)["claimedAt"] > 0
     # And the pointer names the NEW cart, so attribution follows the basket that was claimed.
-    assert claim_pointer(fake)["wixCartId"] == saved_cart(fake)["wixCartId"]
+    assert claim_pointer(fake)["cartId"] == saved_cart(fake)["cartId"]
     assert h._claimed_handoff(_Identity(), {})["channel"] == "whatsapp"
 
 
@@ -520,7 +520,7 @@ def test_reset_cart_is_an_identity_comparison_so_a_truthy_string_does_not_releas
     seed_handoff(fake)
     fake.Table(KEYS_TABLE).put_item(Item={
         "orderId": "CUSTOMERCART#" + SESSION_PHONE, "customerId": CUSTOMER, "version": 1,
-        "wixCartId": delivery_complete()["cart"]["id"], "expiresAt": 9_999_999_999})
+        "cartId": delivery_complete()["cart"]["id"], "expiresAt": 9_999_999_999})
 
     for value in ("true", 1, "yes", [], {}):
         body = json.loads(h.handler(
@@ -541,7 +541,7 @@ def test_the_cart_in_use_sentence_is_the_same_on_both_sides(env):
     seed_handoff(fake)
     fake.Table(KEYS_TABLE).put_item(Item={
         "orderId": "CUSTOMERCART#" + SESSION_PHONE, "customerId": CUSTOMER, "version": 1,
-        "wixCartId": delivery_complete()["cart"]["id"], "expiresAt": 9_999_999_999})
+        "cartId": delivery_complete()["cart"]["id"], "expiresAt": 9_999_999_999})
     served = json.loads(h.handler(
         event("claim-basket", basket="tok-claim-1"), None)["body"])["message"]
 
@@ -662,9 +662,9 @@ def test_a_prepare_for_a_different_cart_than_the_claimed_one_is_attributed_websi
     # runs against the fixture cart exactly as it does for any other basket.
     pointer = claim_pointer(fake)
     assert pointer["expiresAt"] > int(time.time()), "still inside the pointer lifetime"
-    assert pointer["wixCartId"] == saved_cart(fake)["wixCartId"]
+    assert pointer["cartId"] == saved_cart(fake)["cartId"]
     fake.Table(KEYS_TABLE).put_item(Item={**pointer,
-                                          "wixCartId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"})
+                                          "cartId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"})
 
     assert h._claimed_handoff(_Identity(), {}) is None
     body, _created = _prepare(h, monkeypatch, request_key="request-other-cart-1")
@@ -676,7 +676,7 @@ def test_no_cart_at_all_is_not_an_attribution_either(env):
     """An expired or absent `CUSTOMERCART#` row means there is no basket for the label to describe.
 
     `resolve` answers `None` for both, and `None` is a mismatch rather than a wildcard - the
-    fail-closed direction, and the one a pointer written before `wixCartId` existed also takes.
+    fail-closed direction, and the one a pointer written before `cartId` existed also takes.
     """
     h, fake, _wix, _ = env
     seed_handoff(fake)

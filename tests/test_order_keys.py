@@ -22,7 +22,7 @@ from crm_fake_dynamo import FakeClientError, FakeDynamo  # noqa: E402
 from lambda_utils import identifiers  # noqa: E402
 from lambda_utils.ecommerce import order_keys  # noqa: E402
 
-TABLE = 'stack-wecare-digital-WixOrderIds'
+TABLE = 'stack-wecare-digital-CommerceKeys'
 
 
 @pytest.fixture

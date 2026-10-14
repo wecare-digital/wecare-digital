@@ -68,7 +68,7 @@ def reserve(client, *, keys_name, attempts_name, identity, request_id, intent,
     attempt = payment_attempt.build(
         customer_id=identity.customer_id, reference_id=reference_id,
         amount_paise=int(snapshot['amountPaise']), configuration_name=configuration_name,
-        payment_attempt_id=attempt_id, cart_id=snapshot['wixCartId'],
+        payment_attempt_id=attempt_id, cart_id=snapshot['cartId'],
         customer_uuid=customer_uuid, now=now)
     attempt = payment_attempt.transition(attempt, payment_attempt.PAYMENT_READINESS_CHECKED, now=now)
     attempt.update(schemaVersion=intent_version, checkoutMode='AWS_NATIVE',

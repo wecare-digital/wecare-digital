@@ -288,7 +288,7 @@ CLEANUP_RESOURCES = {
         'label': 'Wix Order ID Mapping',
         'category': 'Ecommerce',
         'type': 'dynamodb',
-        'table': 'stack-wecare-digital-WixOrderIds',
+        'table': 'stack-wecare-digital-CommerceKeys',
     },
     'template_analytics': {
         'label': 'Template Analytics',
@@ -445,7 +445,7 @@ SQS_QUEUE_ALLOWLIST: set = set()
 # future careless allow-list edit. A name that matches any of these can never be selected,
 # even by an MFA'd Admin, even if someone adds it to CLEANUP_ALLOWLIST.
 #
-# `wixorder` is here because AUDIT-REPORT.md records `stack-wecare-digital-WixOrderIds`'
+# `wixorder` is here because AUDIT-REPORT.md records `stack-wecare-digital-CommerceKeys`'
 # `PAYREF#` / `PAYMENTATTEMPT#` / `INVOICECOLLECT#` rows as the canonical payment
 # idempotency anchors — losing them makes a replayed webhook charge twice.
 PROTECTED_NAME_KEYWORDS = (

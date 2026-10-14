@@ -44,7 +44,7 @@ def handle(event, client):
     if os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() != 'true':
         return {'outcome': 'NATIVE_SERVICE_ROLLOUT_DISABLED'}
     db = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-    keys = db.Table('stack-wecare-digital-WixOrderIds')
+    keys = db.Table('stack-wecare-digital-CommerceKeys')
     contacts = db.Table('stack-wecare-digital-ContactsTable')
     contact = contacts.get_item(Key={'id': event.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
     owner = contact.get('checkoutCustomerId')

@@ -100,7 +100,7 @@ def prepare(event):
     db = _db()
     _, identity = _verified(db, str(event.get('contactId') or ''), str(event.get('senderPhone') or ''))
     token = 'orders:' + secrets.token_urlsafe(32)
-    db.Table('stack-wecare-digital-WixOrderIds').put_item(
+    db.Table('stack-wecare-digital-CommerceKeys').put_item(
         Item={'orderId': PREFIX + hashlib.sha256(token.encode()).hexdigest(),
               'customerId': identity.customer_id, 'phone': identity.phone,
               'contactId': event['contactId'], 'createdAt': int(time.time()),
@@ -113,7 +113,7 @@ def _context(token):
     if not TOKEN_PATTERN.fullmatch(str(token or '')):
         raise customer_auth.CustomerNotAuthorized('account unavailable')
     db = _db()
-    session = db.Table('stack-wecare-digital-WixOrderIds').get_item(
+    session = db.Table('stack-wecare-digital-CommerceKeys').get_item(
         Key={'orderId': PREFIX + hashlib.sha256(token.encode()).hexdigest()}, ConsistentRead=True).get('Item') or {}
     if int(session.get('expiresAt') or 0) <= int(time.time()):
         raise customer_auth.CustomerNotAuthorized('account unavailable')
@@ -197,7 +197,7 @@ def order_page(db, identity, session, token, next_page=False):
     cursor = page.get('LastEvaluatedKey') or {}
     if cursor and cursor.get('customerId') != identity.customer_id:
         raise customer_auth.CustomerNotAuthorized('page unavailable')
-    db.Table('stack-wecare-digital-WixOrderIds').update_item(
+    db.Table('stack-wecare-digital-CommerceKeys').update_item(
         Key={'orderId': PREFIX + hashlib.sha256(token.encode()).hexdigest()},
         UpdateExpression='SET orderCursor=:cursor', ConditionExpression='customerId=:owner',
         ExpressionAttributeValues={':cursor': cursor, ':owner': identity.customer_id})

@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 def tables():
     db = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
     return (db.Table('stack-wecare-digital-ServiceRequestsTable'),
-            db.Table('stack-wecare-digital-WixOrderIds'),
+            db.Table('stack-wecare-digital-CommerceKeys'),
             db.Table('stack-wecare-digital-OrderTable'))
 
 

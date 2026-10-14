@@ -103,7 +103,7 @@ WABA2_IDS = set()
 
 # DynamoDB tables for order lookups (flow-data endpoint)
 dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-ORDER_IDS_TABLE = os.environ.get('WIX_ORDER_IDS_TABLE', 'stack-wecare-digital-WixOrderIds')
+ORDER_IDS_TABLE = os.environ.get('COMMERCE_KEYS_TABLE', 'stack-wecare-digital-CommerceKeys')
 
 # Lambda client for invoking outbound WhatsApp (payment after flow)
 lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))

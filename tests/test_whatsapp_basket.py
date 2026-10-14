@@ -309,7 +309,7 @@ def test_the_claim_pointer_carries_the_channel_and_the_cart_and_no_money(handoff
     pointer = wb.build_claim_pointer(handoff, "CUS_01J", now=5_000, cart_id=CLAIMED_CART)
     assert pointer == {"orderId": "WABASKETCLAIM#CUS_01J", "customerId": "CUS_01J",
                        "channel": "whatsapp", "handoffId": "WABASKET#tok-claim",
-                       "token": "tok-claim", "wixCartId": CLAIMED_CART, "claimedAt": 5_000,
+                       "token": "tok-claim", "cartId": CLAIMED_CART, "claimedAt": 5_000,
                        "expiresAt": 5_000 + wb.CLAIM_POINTER_LIFETIME_SECONDS}
 
 
@@ -340,8 +340,8 @@ def test_a_pointer_for_a_different_cart_is_not_an_attribution(handoff):
     # No cart at all - the pointer's own cart is gone and nothing replaced it yet.
     assert wb.active_claim(pointer, 5_001, cart_id=None) is None
     assert wb.active_claim(pointer, 5_001, cart_id="") is None
-    # A pointer written before `wixCartId` existed stops answering rather than answering wrongly.
-    legacy = {key: value for key, value in pointer.items() if key != "wixCartId"}
+    # A pointer written before `cartId` existed stops answering rather than answering wrongly.
+    legacy = {key: value for key, value in pointer.items() if key != "cartId"}
     assert wb.active_claim(legacy, 5_001, cart_id=CLAIMED_CART) is None
     # Case is not a difference: `identifier` lowercases, and both sides are reduced the same way.
     assert wb.active_claim(pointer, 5_001,
@@ -366,10 +366,10 @@ def test_a_malformed_pointer_degrades_to_no_claim_rather_than_raising():
     # A junk channel on a live pointer for the CURRENT cart degrades to `website`, never to an
     # exception.
     assert wb.active_claim({"expiresAt": 10, "channel": {"not": "a word"},
-                            "wixCartId": CLAIMED_CART}, 1,
+                            "cartId": CLAIMED_CART}, 1,
                            cart_id=CLAIMED_CART)["channel"] == "website"
     # And a junk CART id is a mismatch rather than a raise, for the same reason.
-    assert wb.active_claim({"expiresAt": 10, "wixCartId": ["not", "an", "id"]}, 1,
+    assert wb.active_claim({"expiresAt": 10, "cartId": ["not", "an", "id"]}, 1,
                            cart_id=CLAIMED_CART) is None
 
 
