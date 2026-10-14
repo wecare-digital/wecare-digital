@@ -49,7 +49,10 @@ Legend: `[x]` done · `[~]` implemented, not deployed · `[ ]` not started.
 - [x] 3.2 Native blog read in `wecare-seo-tools` behind `BLOG_SOURCE` (default
       `wix`): `blog_source.py` seam + handler wired + unit tests. IMPLEMENTED,
       NOT DEPLOYED (flag defaults to wix; flip is Phase 6). (A1)
-- [ ] 3.3 Native Blog Studio write/publish/schedule/approve routes. (A1)
+- [~] 3.3 Native Blog publish: `blog_publish.py` `BLOG_SOURCE=aws` branch writes
+      published `blogPost` records via `storage.create_blog_post` (no Wix, kill
+      switch bypassed in native mode). Unit-tested. (Schedule/approve routes
+      already exist in Blog Studio against the SEO store.) (A1)
 - [ ] 3.4 Build-time fail-safe snapshot (`src/content/blog-snapshot.json`). (A5)
 - [ ] 3.5 Seed `BlogPostsTable` from the Phase-2 export; reconcile. (A1, Gate 2)
 
@@ -70,8 +73,20 @@ Legend: `[x]` done · `[~]` implemented, not deployed · `[ ]` not started.
       (place-of-supply GST reusing `split_gst`); `service_pricing_native`
       (service-page prices from ProductsTable, same contract). All unit-tested
       end-to-end through `compute_quote`; not wired (CHECKOUT_MODE default
-      WIX_HEADLESS). Still to build: shipping/delivery resolver, inventory
-      validation + stock reservation, native CartTable CRUD ops. (A3)
+      WIX_HEADLESS). (A3)
+- [x] 4.3c `native_cart` (CartTable CRUD, server-authoritative prices) +
+      `native_inventory` (atomic reserve/release, oversell-proof, idempotent) +
+      `native_shipping` (policy-driven delivery). The native supply total is
+      COMPLETE: cart+stock+discount+shipping+GST → `price_cart` → `compute_quote`,
+      end-to-end tested with no Wix. IMPLEMENTED, NOT WIRED. (A3)
+- [x] 4.3d `native_checkout.quote_native_cart` — composition seam that turns a
+      native cart into the exact `QuoteSnapshot` the handler produces (stock
+      validate + shipping + coupon + GST + build_snapshot). Unit-tested with no Wix.
+- [x] 4.3e Flag-gated branch in `checkout/handler.py`: `_supply_mode()` →
+      `CHECKOUT_MODE=AWS_NATIVE` routes `_website_snapshot` through
+      `native_checkout.quote_native_cart` (prices from ProductsTable, no Wix,
+      ignores client prices). Defaults to WIX_HEADLESS. Unit-tested; existing
+      checkout suite unchanged. (A3)
 - [x] 4.3b Gift-card `code_pepper` de-Wix migration: `resolve_pepper_secret_id`
       + `PEPPER_SECRET_ENV_KEY`, config-flip with no re-keying; handlers +
       redemption provider follow it; store imports no `os`. Unit-tested. (B4 de-risk)
