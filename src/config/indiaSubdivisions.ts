@@ -10,11 +10,11 @@
  * only states on offer are the ones the tax table resolves.
  *
  * THESE ARE DISPLAY NAMES, NEVER ISO CODES. The server resolves a NAME through
- * lambda_utils.ecommerce.wix_address.india_subdivision, and the ISO 3166-2 code plus the GST
+ * lambda_utils.ecommerce.india_address.india_subdivision, and the ISO 3166-2 code plus the GST
  * state code it returns are a server-side tax concern. A browser that posted IN-KA would be
  * relying on a lookup branch that exists for legacy rows, not for this form.
  *
- * THE NAMES MUST BE THE EXACT TITLE-CASE OF THE 36 wix_address.INDIA_SUBDIVISIONS KEYS.
+ * THE NAMES MUST BE THE EXACT TITLE-CASE OF THE 36 india_address.INDIA_SUBDIVISIONS KEYS.
  * Specifically including "Dadra and Nagar Haveli and Daman and Diu" (one merged union territory
  * since 2020, not two) and "Delhi" - NOT "NCT of Delhi", which lives in the separate
  * INDIA_ALIASES table. That table is a lookup convenience for spellings seen in real data and in
