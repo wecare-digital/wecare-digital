@@ -196,15 +196,43 @@ def _variant_update(table, pid, sku, body):
     new_stock = int(existing_stock) + delta
     if not 0 <= new_stock <= 1_000_000_000:
         raise Refused(409, "INSUFFICIENT_STOCK")
-    new_variants = [dict(v) for v in variants]
-    new_variants[index]["inventory"] = new_stock
+    # Mutate only this variant's nested values: whole-list replacement can
+    # silently undo a simultaneous native_inventory reservation (whose write
+    # does not advance updatedAt). The conditional guard on CURRENT inventory
+    # closes that race while preserving other variants.
+    ts = _now()
+    if ts == version:
+        ts = datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    names = {"#id": "id", "#u": "updatedAt", "#v": "variants",
+             "#sku": "sku", "#inv": "inventory"}
+    values = {":old": version, ":next": ts, ":sku": sku,
+              ":stock": int(existing_stock), ":new_stock": new_stock}
+    parts = ["#u = :next", f"#v[{index}].#inv = :new_stock"]
     if "priceMinor" in body:
-        new_variants[index]["priceMinor"] = _price(body["priceMinor"])
+        names["#price"] = "priceMinor"
+        values[":price"] = _price(body["priceMinor"])
+        parts.append(f"#v[{index}].#price = :price")
     if "label" in body:
-        new_variants[index]["label"] = _text(body["label"], "VARIANT_LABEL", 120)
-    # Full-array replacement is guarded by the exact previous updatedAt. Concurrent
-    # reservations *must also update the product version* or a lost update is possible.
-    return _conditional_update(table, pid, version, {"variants": new_variants})
+        names["#label"] = "label"
+        values[":label"] = _text(body["label"], "VARIANT_LABEL", 120)
+        parts.append(f"#v[{index}].#label = :label")
+    try:
+        result = table.update_item(
+            Key={"id": pid},
+            UpdateExpression="SET " + ", ".join(parts),
+            ConditionExpression=(
+                "attribute_exists(#id) AND #u = :old AND "
+                f"#v[{index}].#sku = :sku AND #v[{index}].#inv = :stock"
+            ),
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values,
+            ReturnValues="ALL_NEW",
+        )
+        return result["Attributes"]
+    except Exception as error:
+        if getattr(error, "response", {}).get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            raise Refused(409, "STALE_PRODUCT_VERSION_OR_STOCK") from None
+        raise
 
 
 def _archive(table, pid, body):
