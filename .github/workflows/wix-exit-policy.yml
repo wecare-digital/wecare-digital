@@ -1,0 +1,54 @@
+name: Wix exit policy
+
+# Guards the AWS-native consolidation (spec .kiro/specs/aws-native-consolidation):
+# the approved end state is ZERO runtime Wix dependency — AWS is authoritative for
+# blog and commerce.
+#
+# MODE TODAY: --expect-fail (baseline). Wix is STILL the live backend, so runtime
+# Wix references are expected. In this mode the job PASSES while references remain
+# and FAILS once the count reaches zero — which is the signal that the migration
+# is complete and this gate should be flipped to a real blocking gate (drop
+# --expect-fail), exactly as provider-policy.yml was flipped on 2026-09-19.
+#
+# Measured baseline 2026-10-14: 203 findings across 4 rules.
+#
+# SCOPE: source only (amplify/functions, src). A clean tree is NOT a clean AWS
+# account — the same conflation bit the provider migration. The estate-level
+# assertion (live Lambdas still calling Wix, Wix secrets still read, Wix API
+# routes still wired) must be proven separately with AWS credentials before Gate 4
+# can be claimed. Historical data and docs legitimately name Wix and are not
+# scanned.
+
+on:
+  push:
+    branches: [stack]
+  pull_request:
+    branches: [stack]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wix-exit-policy:
+    name: Wix exit policy (baseline, expect-fail)
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check Wix exit policy (baseline mode)
+        run: ./scripts/check-wix-policy.sh --expect-fail --verbose
+
+      - name: Summarise
+        if: always()
+        run: |
+          echo "### Wix exit policy" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Mode: **baseline (--expect-fail)**. Passes while Wix is still live;' >> "$GITHUB_STEP_SUMMARY"
+          echo 'fails when runtime Wix references reach zero → flip to blocking gate.' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          ./scripts/check-wix-policy.sh 2>&1 \
+            | grep -E '^  (ok|FAIL)|^        [0-9]+ match|^WIX' \
+            >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

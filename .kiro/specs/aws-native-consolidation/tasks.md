@@ -17,10 +17,12 @@ Legend: `[x]` done · `[~]` implemented, not deployed · `[ ]` not started.
 
 ## Phase 1 — CI guardrail (safe, non-mutating runtime)
 
-- [~] 1.1 CI check that fails if a NEW active Wix runtime dependency is added to
+- [x] 1.1 CI check that fails if a NEW active Wix runtime dependency is added to
       `amplify/functions/**` or `src/**` (excluding docs/tests), modelled on the
-      existing provider-policy gate approach. (Gate 4 reintroduction guard)
-- [ ] 1.2 Wire 1.1 non-blocking first; flip to blocking after Gate 4.
+      existing provider-policy gate. `scripts/check-wix-policy.sh` (gate +
+      `--expect-fail` modes). Measured baseline: 203 findings / 4 rules. (Gate 4)
+- [x] 1.2 Wire 1.1 as `.github/workflows/wix-exit-policy.yml` in `--expect-fail`
+      baseline mode (passes today while Wix is live; flips to blocking at Gate 4).
 
 ## Phase 2 — Wix data export & archive (read-only against Wix) (Gate 2)
 
