@@ -33,13 +33,18 @@ def _load():
 receiver = _load()
 
 
-def test_catalog_source_defaults_to_wix(monkeypatch):
-    monkeypatch.delenv("CATALOG_SOURCE", raising=False)
-    assert receiver._catalog_source() == "wix"
-    monkeypatch.setenv("CATALOG_SOURCE", "aws")
-    assert receiver._catalog_source() == "aws"
-    monkeypatch.setenv("CATALOG_SOURCE", "banana")
-    assert receiver._catalog_source() == "wix"
+def test_catalog_source_is_unconditionally_native(monkeypatch):
+    """The Wix exit made the catalogue source UNCONDITIONAL: ProductsTable is the sole authority.
+
+    There is no `_catalog_source()` switch anymore (the old `wix`/`aws` selector is retired) and
+    the handler reads the native catalogue directly via `_native_products`, so CATALOG_SOURCE no
+    longer routes anything. This asserts the switch is gone and the native reader is the one path.
+    """
+    assert not hasattr(receiver, "_catalog_source")
+    assert hasattr(receiver, "_native_products")
+    source = HANDLER.read_text(encoding="utf-8")
+    # The handler computes its plan from the native products read, with no provider branch.
+    assert "products = _native_products()" in source
 
 
 def test_native_products_projects_slim_shape():
