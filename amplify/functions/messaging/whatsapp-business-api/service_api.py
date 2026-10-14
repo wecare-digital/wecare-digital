@@ -5,7 +5,6 @@ Routes:
   /orders                  GET (list), POST (create)
   /orders/{id}             GET, PATCH
   /orders/{id}/submissions GET
-  /orders/sync             POST
   /service/submit          POST
   /service/amend           POST
   /service/track/{orderId} GET
@@ -237,20 +236,6 @@ def _get_order_submissions(order_id: str) -> Dict:
     )
     items = sorted(resp.get('Items', []), key=lambda x: x.get('createdAt', 0), reverse=True)
     return _resp(200, {'submissions': items})
-
-
-def _sync_orders() -> Dict:
-    """Compatibility endpoint for the retired provider sync action.
-
-    OrderTable is authoritative after the AWS-native commerce cutover. Existing
-    callers may continue invoking this action, but no provider synchronization
-    or retired Wix Lambda invocation occurs.
-    """
-    return _resp(200, {
-        'message': 'AWS-native orders are already authoritative',
-        'synced': 0,
-        'source': 'orders_table',
-    })
 
 
 # ============================================================================
