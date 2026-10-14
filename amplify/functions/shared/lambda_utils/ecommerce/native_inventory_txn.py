@@ -97,6 +97,8 @@ def _parse(
         tracked = variant.get("trackInventory") is True
         if tracked:
             available = _integer(variant.get("inventory"), "inventory")
+            if require_stock and variant.get("inventoryVerified") is not True:
+                raise ReservationConflict("inventory not verified")
             if require_stock and available < qty:
                 raise ReservationConflict("insufficient stock")
         parsed.append((pid, vid, qty, idx, tracked))
