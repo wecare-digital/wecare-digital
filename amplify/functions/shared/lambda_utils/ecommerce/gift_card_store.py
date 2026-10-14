@@ -11,7 +11,7 @@ The code is BEARER VALUE, so it is never the key
 An HMAC with a pepper, not a bare SHA-256, and the reason is the measured contract: the SPI bounds
 a code at `minLength 8, maxLength 20`. An 8-character code over a small alphabet is inside
 brute-force range for a plain hash, so a leaked table would expose live balances. The pepper lives
-in Secrets Manager (`wecare/wix/giftcard-spi` -> `code_pepper`), is referenced by secret id, and is
+in Secrets Manager (the dedicated non-Wix pepper secret), is referenced by secret id, and is
 read LAZILY at request time through an INJECTED reader - never at module scope, because a
 module-scope read is cached for the life of the execution environment and a rotation would not take
 effect until every warm sandbox recycled.
@@ -106,9 +106,8 @@ from .. import identifiers
 DEFAULT_TABLE_NAME = "stack-wecare-digital-GiftCardsTable"
 TABLE_ENV_KEY = "GIFT_CARDS_TABLE"
 
-#: Secret NAME, never a value. Carries `public_key`, `app_id`, `instance_id` and `code_pepper`.
-SECRET_ID = "wecare/wix/giftcard-spi"
-SECRET_ENV_KEY = "WIX_GIFTCARD_SPI_SECRET"
+#: Secret NAME, never a value. Secret NAME, never a value; contains the gift-card HMAC pepper.
+SECRET_ID = "wecare/prod/security/giftcard-pepper"
 PEPPER_FIELD = "code_pepper"
 
 #: THE PEPPER IS NOT A WIX CREDENTIAL — it is the HMAC key for EVERY gift-card row
@@ -130,15 +129,13 @@ def resolve_pepper_secret_id(env: Mapping[str, str]) -> str:
     """Resolve the pepper's secret id from an INJECTED env mapping (never os.environ
     here — the store holds no ambient config). Preference order, so the migration is
     a config flip with no code change and no re-keying:
-      1. `GIFTCARD_PEPPER_SECRET` — the non-Wix home the pepper moves to.
-      2. `WIX_GIFTCARD_SPI_SECRET` — an explicit override of the Wix secret.
-      3. `SECRET_ID` — the original Wix SPI secret (current default).
-    The pepper VALUE under (1) must be byte-identical to (3) or existing cards stop
-    resolving — that identity is the whole point of copying rather than regenerating.
+      1. `GIFTCARD_PEPPER_SECRET` — explicit non-Wix secret id.
+      2. `SECRET_ID` — the non-Wix default `wecare/prod/security/giftcard-pepper`.
+
+    There is deliberately no fallback to a provider credential. Existing cards require the
+    restored pepper VALUE to be byte-identical to the historical value; otherwise lookup fails.
     """
-    return (env.get(PEPPER_SECRET_ENV_KEY)
-            or env.get(SECRET_ENV_KEY)
-            or SECRET_ID)
+    return env.get(PEPPER_SECRET_ENV_KEY) or SECRET_ID
 
 KEY_ATTRIBUTE = "giftCardKey"
 STATUS_ATTRIBUTE = "status"
