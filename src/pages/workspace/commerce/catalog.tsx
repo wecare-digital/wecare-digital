@@ -139,7 +139,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
     setEditDescription(p.descriptionHtml || '');
     setEditStatus(p.status);
     setDrafts(Object.fromEntries((p.variants || []).map(v => [v.sku, {
-      label: v.label,
+      label: v.label || 'Standard',
       price: (v.priceMinor / 100).toFixed(2),
       stockDelta: '0',
     }])));
@@ -431,7 +431,9 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
               <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, overflowX: 'auto',
                 background: '#f5f7f6', padding: 14, borderRadius: 8 }}>
                 {JSON.stringify({
-                  status: metaPlan.status,
+                  enabled: metaPlan.enabled,
+                  dryRun: metaPlan.dryRun,
+                  blocked: metaPlan.blocked,
                   planHash: metaPlan.planHash,
                   currentPlanHash: metaPlan.currentPlanHash,
                 }, null, 2)}
