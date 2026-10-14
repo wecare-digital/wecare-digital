@@ -7,7 +7,7 @@ visitor token. The Wix site is gone, so that path is dead, and its last output
 HTML, `body` was empty, and `variants` was []. Seeding the live (empty)
 ProductsTable from that would publish an SEO-degraded, variant-stripped /shop.
 
-THE REAL DATA WE ALREADY HAVE is `src/content/wix-catalog.json` — the last good
+THE REAL DATA WE ALREADY HAVE is `src/content/catalog.json` — the last good
 committed snapshot, with full `descriptionHtml`, real prices/formattedPrice,
 images, and the real per-variant rows (sku, id, label, inStock, pricePaise). This
 script projects THAT onto the exact `ProductsTable` item shape the native engine
@@ -37,7 +37,7 @@ bypasses that. See amplify/.../ecommerce/catalog_pricing.py.
 Usage:
     python scripts/reconcile_products_seed.py                     # -> outputs/products-seed.json
     python scripts/reconcile_products_seed.py --out /tmp/seed.json
-    python scripts/reconcile_products_seed.py --in src/content/wix-catalog.json
+    python scripts/reconcile_products_seed.py --in src/content/catalog.json
 """
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List
 
-DEFAULT_IN = Path("src/content/wix-catalog.json")
+DEFAULT_IN = Path("src/content/catalog.json")
 DEFAULT_OUT = Path("outputs/products-seed.json")
 
 _BREAK = "\u0001"
