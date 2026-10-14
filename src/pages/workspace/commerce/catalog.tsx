@@ -14,6 +14,7 @@ import PageHeader from '../../../components/PageHeader';
 import SEO from '../../../components/SEO';
 import Spinner from '../../../components/ui/Spinner';
 import * as api from '../../../api/client';
+import { useConfirm } from '../../../contexts/ConfirmContext';
 
 interface PageProps { signOut?: () => void; user?: any; }
 
@@ -104,6 +105,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const confirm = useConfirm();
   const [editTitle, setEditTitle] = useState('');
   const [editTagline, setEditTagline] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -230,16 +232,24 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
   };
 
   const archive = () => {
-    if (!selected || !window.confirm('Archive this product? Past order references will be retained.')) return;
-    void run(async () => {
-      const data = await nativeCall('/' + encodeURIComponent(selected.id), {
-        method: 'DELETE',
-        body: JSON.stringify({ expectedUpdatedAt: selected.updatedAt }),
+    if (!selected) return;
+    void (async () => {
+      const ok = await confirm({
+        title: 'Archive this product?',
+        message: 'Past order references will be retained.',
+        confirmText: 'Archive',
       });
-      showProduct(data.product);
-      await reloadProducts();
-      setMessage('Product archived in AWS; historical orders remain intact.');
-    });
+      if (!ok) return;
+      await run(async () => {
+        const data = await nativeCall('/' + encodeURIComponent(selected.id), {
+          method: 'DELETE',
+          body: JSON.stringify({ expectedUpdatedAt: selected.updatedAt }),
+        });
+        showProduct(data.product);
+        await reloadProducts();
+        setMessage('Product archived in AWS; historical orders remain intact.');
+      });
+    })();
   };
 
   const filtered = products.filter(p => {
