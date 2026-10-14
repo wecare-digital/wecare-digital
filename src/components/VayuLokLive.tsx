@@ -1364,10 +1364,14 @@ const VayuLokLive: React.FC = () => {
       for ( let i = 0; i < 50; i++ ) {
         if ( cancelled ) return null;
         const g = w.google?.maps;
-        if ( g ) return g;
+        // The global namespace can exist before the async loader has installed
+        // importLibrary or the Map constructor. Returning that partial namespace
+        // makes initialisation silently exit and leaves "Loading map…" visible.
+        if ( g && ( typeof g.importLibrary === 'function' || typeof g.Map === 'function' ) ) return g;
         await new Promise( r => setTimeout( r, 100 ) );
       }
-      return w.google?.maps || null;
+      const g = w.google?.maps;
+      return g && ( typeof g.importLibrary === 'function' || typeof g.Map === 'function' ) ? g : null;
     };
 
     const init = async () => {
