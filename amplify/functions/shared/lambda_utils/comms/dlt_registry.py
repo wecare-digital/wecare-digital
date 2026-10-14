@@ -10,9 +10,7 @@ send path means a bug in template administration cannot affect message sending.
 
 Why this moved
 --------------
-This logic used to live inside `messaging/sms-in/airtel/handler.py` - a function
-named for a retired provider, and the primary outbound India sender besides. The
-DLT registry is not Airtel-specific: it is a record of content templates approved
+The DLT registry is application-owned regulatory data: it is a record of content templates approved
 by the Indian regulator under our own registered entity, and it outlives any
 carrier. Deleting that Lambda without first moving this would have taken the live
 registry with it.
