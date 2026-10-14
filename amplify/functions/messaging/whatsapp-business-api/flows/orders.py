@@ -302,42 +302,8 @@ def fetch_orders_for_flow(phone: str, email: str) -> list:
     except Exception as e:
         logger.debug(f'OrdersTable query skipped: {e}')
 
-    # ── Source 2: Wix Store Lambda (sync to OrdersTable + return) ──
-    try:
-        params = {'limit': '20'}
-        if email:
-            params['email'] = email
-        # IAM authorizes this direct invocation; browser Origin is not authentication.
-        wix_resp = lambda_client.invoke(
-            FunctionName=os.environ.get('WIX_STORE_FUNCTION', 'wecare-wix-store'),
-            InvocationType='RequestResponse',
-            Payload=json.dumps({
-                'requestContext': {'http': {'method': 'GET'}},
-                'rawPath': '/wix-store/orders',
-                'queryStringParameters': params,
-            })
-        )
-        wix_body = json.loads(json.loads(wix_resp['Payload'].read()).get('body', '{}'))
-        for order in wix_body.get('orders', []):
-            summary = order.get('_summary', {})
-            wd_id = order.get('customOrderNumber', '') or summary.get('customOrderNumber', '')
-            if not wd_id or not wd_id.startswith('WD-ORD'):
-                continue
-            if not email and clean_phone:
-                bp = (summary.get('billingPhone', '') or '').replace('+', '').replace(' ', '').replace('-', '')
-                if clean_phone_short not in bp and clean_phone not in bp:
-                    continue
-            sync_wix_order_to_orders_table(order, phone)
-            title = format_order_dropdown(
-                wd_id, created_date=summary.get('createdDate', ''),
-                total=summary.get('totalAmount', '0'),
-                first_item=(summary.get('lineItems', [{}])[0].get('name', '') if summary.get('lineItems') else ''),
-            )
-            _add(wd_id, title)
-        if results:
-            logger.info(json.dumps({'action': 'fetch_orders', 'source': 'wix_lambda', 'count': len(results)}))
-            return results
-    except Exception as e:
-        logger.warning(json.dumps({'action': 'fetch_orders_wix_failed', 'error': str(e)}))
+    # AWS-native cutover: OrderTable above is authoritative. There is no provider
+    # fallback here; a miss remains a miss instead of reviving the retired Wix
+    # store integration or mutating local order history as a side effect of read.
 
     return results
