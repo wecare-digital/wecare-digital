@@ -717,6 +717,8 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
   // the button and "will be archived" in the body — one of those was wrong, and it was the
   // scary one. Nothing about the call changed; only the words an operator reads.
   const handleArchive = async (contactId: string, contactName?: string) => {
+    const current = contacts.find(c => c.contactId === contactId);
+    if (current?.locked) { toast.warning('This contact is protected. An administrator must unlock it before archiving.'); return; }
     const ok = await confirm({
       title: 'Archive Contact',
       message: `Archive ${contactName ? `"${contactName}"` : 'this contact'}? It will be hidden from the contacts list. The record, its messages and any payment links are kept, and an admin can restore it.`,
@@ -740,6 +742,8 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
   // Same soft call as `handleArchive`, so the same word.
   const handleBulkArchive = async () => {
     if (selectedIds.size === 0) return;
+    const protectedCount = contacts.filter(c => selectedIds.has(c.contactId) && c.locked).length;
+    if (protectedCount) { toast.warning(`${protectedCount} selected contacts are protected. Unlock them before archiving.`); return; }
     const count = selectedIds.size;
     if (!(await confirm(`Archive ${count} contact${count > 1 ? 's' : ''}? They will be hidden from the list and can be restored by an admin.`))) return;
     let archived = 0;
@@ -1326,7 +1330,7 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                         <td style={{ padding: '10px', borderBottom: '1px solid #f3f4f6', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                           <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
                             <button onClick={() => handleEdit(c)} title="Edit" style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}><EditIcon size={18} /></button>
-                            <button onClick={() => handleArchive(c.contactId, c.name)} title="Archive" style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}><DeleteIcon size={18} /></button>
+                            <button onClick={() => handleArchive(c.contactId, c.name)} disabled={c.locked} title={c.locked ? 'Protected contact — unlock required' : 'Archive'} style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}><DeleteIcon size={18} /></button>
                           </div>
                         </td>
                       </tr>
@@ -1376,7 +1380,7 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                       </div>
                       <div className="contact-card-actions" onClick={e => e.stopPropagation()}>
                         <button onClick={() => handleEdit(c)} title="Edit" style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer' }}><EditIcon size={20} /></button>
-                        <button onClick={() => handleArchive(c.contactId, c.name)} title="Archive" style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer' }}><DeleteIcon size={20} /></button>
+                        <button onClick={() => handleArchive(c.contactId, c.name)} disabled={c.locked} title={c.locked ? 'Protected contact — unlock required' : 'Archive'} style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer' }}><DeleteIcon size={20} /></button>
                       </div>
                     </div>
                     {((contactTags[c.contactId] || []).length > 0 || c.phoneVerifiedAt || c.emailVerifiedAt) && (
@@ -1414,7 +1418,9 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                   <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>{detailContact.phone}</p>
                 </div>
                 {[
-                  { label: 'Subscriber ID', value: (detailContact.tags || []).find((t: string) => t.startsWith('sub:'))?.replace('sub:', '') || '—' },
+                  { label: 'Subscriber ID', value: detailContact.subscriberId || (detailContact.tags || []).find((t: string) => t.startsWith('sub:'))?.replace('sub:', '') || '—' },
+                   { label: 'Workspace', value: detailContact.workspaceId || '—' },
+                   { label: 'Protection', value: detailContact.locked ? `Locked (${detailContact.lockedReason || 'protected'})` : 'Unlocked' },
                   { label: 'Email', value: detailContact.email },
                   { label: 'Organization', value: detailContact.companyName },
                   { label: 'Job Title', value: detailContact.designation },
