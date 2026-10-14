@@ -522,7 +522,6 @@
       "RAZORPAY_MID": "acc_TTFSyolquKEZEy",
       "RAZORPAY_UPI_ID": "wecaredigitalbh511413.rzp@rxairtel",
       "SUBMIT_REQUESTS_TABLE": "stack-wecare-digital-SubmitRequestsTable",
-      "WIX_ORDERS_CACHE_TABLE": "stack-wecare-digital-WixOrdersCache",
       "WIX_ORDER_IDS_TABLE": "stack-wecare-digital-WixOrderIds",
       "WIX_SITE_URL": "https://wecare.digital"
     },

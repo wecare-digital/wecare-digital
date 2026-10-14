@@ -3,6 +3,12 @@ name: AWS-native storefront catalog publish
 # Unlike the deleted Wix polling workflow, this reads only our ProductsTable.
 # The static Next.js export still needs a committed snapshot to build /shop/{slug}.
 on:
+  push:
+    branches: [stack]
+    paths:
+      - '.github/workflows/aws-native-catalog-publish.yml'
+      - 'scripts/build-catalog-snapshot.py'
+      - 'scripts/check_native_catalog_snapshot.py'
   schedule:
     - cron: '25 */6 * * *'
   workflow_dispatch:

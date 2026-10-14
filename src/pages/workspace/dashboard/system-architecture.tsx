@@ -111,8 +111,6 @@ const DB_TABLES: TableDef[] = [
   { name: 'WhatsAppGroup', purpose: 'WhatsApp Business group tracking', keyFields: 'id', indexes: 'groupId, wabaId', usedBy: 'waba-management', category: 'WhatsApp' },
   { name: 'WhatsAppInbound', purpose: 'Inbound WhatsApp messages', keyFields: 'id', ttl: '30d', indexes: 'contactId, whatsappMessageId', usedBy: 'inbound-whatsapp-handler', category: 'WhatsApp' },
   { name: 'WhatsAppOutbound', purpose: 'Outbound WhatsApp messages', keyFields: 'id', ttl: '30d', indexes: 'contactId, whatsappMessageId, templateName', usedBy: 'outbound-whatsapp', category: 'WhatsApp' },
-  { name: 'WixProductsCache', purpose: 'Cached Wix Store products', keyFields: 'productId', indexes: '-', usedBy: 'wix-store', category: 'Ecommerce' },
-  { name: 'WixOrdersCache', purpose: 'Cached Wix Store orders', keyFields: 'orderId', indexes: 'buyerEmail, paymentStatus, orderNumber', usedBy: 'wix-store', category: 'Ecommerce' },
   { name: 'TemplateAnalytics', purpose: 'WhatsApp template send/delivery tracking', keyFields: 'id', indexes: 'templateName', usedBy: 'template-analytics', category: 'WhatsApp' },
   { name: 'SubmitRequest', purpose: 'WhatsApp Flow submit request submissions', keyFields: 'id', indexes: 'phone, orderId, paymentStatus, paymentReferenceId', usedBy: 'inbound-whatsapp-handler', category: 'Payments' },
   { name: 'ConversationHistory', purpose: 'AI conversation context per phone hash', keyFields: 'phoneHash', indexes: '-', usedBy: 'ai-generate-response', category: 'AI' },
@@ -179,7 +177,6 @@ const LAMBDAS: LambdaDef[] = [
   { name: 'dlq-replay', category: 'Operations', trigger: 'API Gateway', tables: 'DLQMessage', description: 'Replay failed messages from DLQ', apiRoute: '/dlq/replay' },
   { name: 'system-cleanup', category: 'Operations', trigger: 'EventBridge Daily', tables: 'SystemEvent', description: 'TTL cleanup and maintenance', apiRoute: '-' },
   { name: 'billing', category: 'Operations', trigger: 'API GW, EventBridge', tables: '-', description: 'AWS billing and usage tracking', apiRoute: '/billing' },
-  { name: 'wix-store', category: 'Ecommerce', trigger: 'API Gateway', tables: 'WixProductsCache, WixOrdersCache, WixOrderMapping', description: 'Wix ecommerce integration', apiRoute: '/store/wix' },
   { name: 'catalog-management', category: 'Ecommerce', trigger: 'API Gateway', tables: 'CatalogCache', description: 'WhatsApp catalog sync', apiRoute: '/catalog' },
   { name: 'product-image-gen', category: 'Ecommerce', trigger: 'API Gateway', tables: '-', description: 'AI product image generation', apiRoute: '/store/image-gen' },
 ];
@@ -274,7 +271,6 @@ const IMPROVEMENTS: RiskItem[] = [
   // ── IMPORTANT (12) ──
   { id: 'I6', title: 'Add automated tests for critical paths', description: 'Priority test targets: (1) auth-middleware token validation, (2) razorpay-webhook signature verification, (3) inbound-whatsapp message processing, (4) payment flow end-to-end, (5) contact CRUD. Use pytest for Lambda, Vitest for frontend.', priority: 'Important', category: 'Quality' },
   { id: 'I7', title: 'Enable DynamoDB point-in-time recovery', description: 'Enable PITR on critical tables: Contact, Payment, Invoice, InvoicePayment, User, SystemConfig. Cost is minimal (~$0.20/GB/month) but provides 35-day recovery window.', priority: 'Important', category: 'Database' },
-  { id: 'I8', title: 'Add TTL to remaining temporal tables', description: 'Add expiresAt/ttl fields and TTL configuration to: TemplateAnalytics, AdClickAttribution, FlowSubmission, FlowLog, WixProductsCache, WixOrdersCache. Prevents unbounded table growth.', priority: 'Important', category: 'Database' },
   { id: 'I9', title: 'Generate OpenAPI spec for all endpoints', description: 'Document all 30+ API endpoints with OpenAPI 3.0. Include request/response schemas, auth requirements, error codes. Publish at /api/docs for developer customer-service.', priority: 'Important', category: 'Documentation' },
   { id: 'I10', title: '✅ DONE — Removed dangerouslySetInnerHTML from PageShell', description: 'Replaced dangerouslySetInnerHTML={{__html: tab.icon}} with safe React text rendering {tab.icon} in src/components/PageShell.tsx. XSS vector eliminated.', priority: 'Important', category: 'Security' },
   { id: 'I11', title: 'Add error handling to all empty catch blocks', description: 'Replace 15+ empty catch blocks with proper error logging. At minimum: console.error for dev, toast.error for user-facing, and structured logging for production monitoring. Files: whatsapp/scripts.tsx, auto-response.tsx, flow-responses.tsx, pay/flow/index.tsx, contacts/index.tsx, dashboard/index.tsx.', priority: 'Important', category: 'Frontend' },
@@ -450,7 +446,7 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
 
   // Other
   { path: '/workspace/contacts', label: 'Contacts', backend: 'contacts', tables: 'Contact' },
-  { path: '/workspace/commerce/catalog', label: 'Store', backend: 'wix-store, catalog-management, product-image-gen', tables: 'WixProductsCache, WixOrdersCache, CatalogCache, WixOrderId' },
+  { path: '/workspace/commerce/catalog', label: 'Store', backend: 'native-catalog-admin, catalog-management, product-image-gen', tables: 'ProductsTable, CatalogCache, WixOrderId' },
   { path: '/workspace/access', label: 'Access Control', backend: 'auth-middleware', tables: 'User' },
   { path: '/workspace/link', label: 'URL Shortener', backend: 'url-shortener', tables: '-' },
   // '/workspace/link/create' ("Create Link") was listed here. Removed 2026-09-25 with the page: a
@@ -523,7 +519,6 @@ const LAMBDA_DETAILED: LambdaDetailed[] = [
   { name: 'wecare-ai-generate-response', displayName: 'AI Generate Response', category: 'AI', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Generate AI responses via Bedrock', apiRoute: '/ai/generate', envVars: { BEDROCK_MODEL_ID: 'anthropic.claude-3-sonnet' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-razorpay-webhook', displayName: 'Razorpay Webhook', category: 'Payments', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Razorpay payment webhook handler', apiRoute: '/webhook/razorpay', envVars: { WEBHOOK_SECRET: '(env var)', PAYMENTS_TABLE: 'stack-wecare-digital-RazorpayWebhookLogTable' }, triggers: [ 'API Gateway (Webhook)' ], status: 'active' },
   { name: 'wecare-invoice-engine', displayName: 'Invoice Engine', category: 'Payments', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Invoice creation, PDF generation, payment links', apiRoute: '/invoices', envVars: { INVOICE_TABLE: 'stack-wecare-digital-InvoiceTable', MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-wix-store', displayName: 'Wix Store', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Wix ecommerce integration', apiRoute: '/store/wix', envVars: { WIX_API_KEY: '(env var)', WIX_SITE_ID: '(env var)' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-catalog-management', displayName: 'Catalog Management', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'WhatsApp Commerce catalog sync', apiRoute: '/catalog', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-product-image-gen', displayName: 'Product Image Gen', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'AI product image generation via Bedrock', apiRoute: '/store/image-gen', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-whatsapp-voice', displayName: 'WhatsApp Voice', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 256, description: 'TTS voice notes via Polly, audio processing', apiRoute: '/whatsapp-voice', envVars: { VOICE_TABLE: 'stack-wecare-digital-WhatsAppVoiceTable', MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'API Gateway' ], status: 'active' },
@@ -641,7 +636,6 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'l-cleanup', category: 'Operations', name: 'System Cleanup', description: 'TTL cleanup, maintenance, and health checks.', path: 'amplify/functions/operations/system-cleanup/handler.py', type: 'Lambda' },
   { id: 'l-billing', category: 'Operations', name: 'Billing', description: 'AWS billing and usage tracking.', path: 'amplify/functions/operations/billing/handler.py', type: 'Lambda' },
   // Ecommerce
-  { id: 'l-wix', category: 'Ecommerce', name: 'Wix Store', description: 'Wix ecommerce integration — order sync, product catalog.', path: 'amplify/functions/ecommerce/wix-store/handler.py', type: 'Lambda' },
   { id: 'l-catalog', category: 'Ecommerce', name: 'Catalog Management', description: 'WhatsApp Commerce catalog sync and product management.', path: 'amplify/functions/ecommerce/catalog-management/handler.py', type: 'Lambda' },
   { id: 'l-img-gen', category: 'Ecommerce', name: 'Product Image Gen', description: 'AI product image generation via Bedrock.', path: 'amplify/functions/ecommerce/product-image-gen/handler.py', type: 'Lambda' },
 ];
@@ -965,7 +959,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user } ) => {
 │  │ (AI/KB)  │  │ (Email)  │  │ (SMS)    │  │ (TTS)    │  │ (Cron)   │             │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘             │
 │                                                                                     │
-│  External: Meta WhatsApp API │ Razorpay │ Plivo Voice │ AWS SMS │ Wix Store       │
+│  External: Meta WhatsApp API │ Razorpay │ Plivo Voice │ AWS SMS                 │
 └─────────────────────────────────────────────────────────────────────────────────────┘
           `}</pre>
         </div>
@@ -1195,7 +1189,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user } ) => {
               { name: 'WhatsApp: WhatsAppInbound, WhatsAppOutbound, WhatsAppVoice, WhatsAppCalling, WhatsAppGroup, ...' },
               { name: 'SMS/Voice: SmsAws, AirtelSMS, VoiceCall, VoiceAws, AirtelC2C, VoiceCDR, OBDCampaign, DLTTemplates' },
               { name: 'Payments: Payment, Invoice, InvoiceItem, InvoiceAsset, InvoiceDeliveryLog, InvoiceSequence, RazorpayWebhookLog' },
-              { name: 'Ecommerce: WixProductsCache, WixOrdersCache, WixOrderId, WixOrderMapping, CatalogCache' },
+              { name: 'Ecommerce: ProductsTable, WixOrderId (legacy key namespace), CatalogCache' },
               { name: 'AI: AIInteraction, ConversationHistory' },
               { name: 'Flows: FlowRegistry, FlowSubmission, FlowLog' },
               { name: 'Operations: BulkJob, BulkRecipient, DLQMessage, ScheduledMessage, SystemEvent, ...' },
