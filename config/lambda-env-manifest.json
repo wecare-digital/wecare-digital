@@ -103,12 +103,10 @@
       "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",
       "PAYMENT_WABA_ID": "2094615664435155",
       "SENDER_FUNCTION": "wecare-whatsapp-business-api:live",
-      "WIX_API_KEY_SECRET": "wecare/wix/headless-api-key",
-      "WIX_CART_V2_ENABLED": "true",
-      "WIX_CART_V2_WRITE_CONTRACT": "cart-v2-external-v1",
-      "WIX_ECOM_WRITE_CONFIRMED": "true",
-      "WIX_SITE_ID": "c993128b-26be-41cd-9fcd-904abe23462f",
-      "WIX_WRITEBACK_ENABLED": "true"
+      "CHECKOUT_MODE": "AWS_NATIVE",
+      "CATALOG_SOURCE": "aws",
+      "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
+      "NATIVE_STOCK_RESERVATION_ENABLED": "true"
     },
     "wecare-cognito-custom-message": {
       "BRAND_NAME": "sha256:d185a0daa945",
@@ -564,19 +562,6 @@
       "MEDIA_BUCKET": "wecare-digital-get",
       "REGION": "us-east-1",
       "S3_BUCKET": "wecare-digital-get"
-    },
-    "wecare-wix-store": {
-      "ADMIN_MFA_REQUIRED": "true",
-      "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
-      "LOG_LEVEL": "INFO",
-      "WIX_ACCOUNT_ID": "sha256:19b6772e0eba",
-      "WIX_API_BASE_URL": "https://www.wixapis.com",
-      "WIX_API_KEY_SECRET": "wecare/wix/headless-api-key",
-      "WIX_CART_V2_ENABLED": "true",
-      "WIX_ORDERS_CACHE_TABLE": "stack-wecare-digital-WixOrdersCache",
-      "WIX_ORDER_IDS_TABLE": "stack-wecare-digital-WixOrderIds",
-      "WIX_PRODUCTS_CACHE_TABLE": "stack-wecare-digital-WixProductsCache",
-      "WIX_SITE_ID": "sha256:e86fbb159ac6"
     }
   }
 }
