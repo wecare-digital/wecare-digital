@@ -4,13 +4,8 @@ name: Wix exit policy
 # the approved end state is ZERO runtime Wix dependency — AWS is authoritative for
 # blog and commerce.
 #
-# MODE TODAY: --expect-fail (baseline). Wix is STILL the live backend, so runtime
-# Wix references are expected. In this mode the job PASSES while references remain
-# and FAILS once the count reaches zero — which is the signal that the migration
-# is complete and this gate should be flipped to a real blocking gate (drop
-# --expect-fail), exactly as provider-policy.yml was flipped on 2026-09-19.
-#
-# Measured baseline 2026-10-14: 203 findings across 4 rules.
+# MODE: blocking. The AWS-native cutover is complete; runtime Wix dependencies
+# must stay at zero. Historical data/docs are outside this source-only gate.
 #
 # SCOPE: source only (amplify/functions, src). A clean tree is NOT a clean AWS
 # account — the same conflation bit the provider migration. The estate-level
@@ -31,21 +26,20 @@ permissions:
 
 jobs:
   wix-exit-policy:
-    name: Wix exit policy (baseline, expect-fail)
+    name: Wix exit policy (blocking)
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 
-      - name: Check Wix exit policy (baseline mode)
-        run: ./scripts/check-wix-policy.sh --expect-fail --verbose
+      - name: Check Wix exit policy
+        run: ./scripts/check-wix-policy.sh --verbose
 
       - name: Summarise
         if: always()
         run: |
           echo "### Wix exit policy" >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Mode: **baseline (--expect-fail)**. Passes while Wix is still live;' >> "$GITHUB_STEP_SUMMARY"
-          echo 'fails when runtime Wix references reach zero → flip to blocking gate.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Mode: **blocking**. Runtime Wix dependencies must remain at zero.' >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           ./scripts/check-wix-policy.sh 2>&1 \

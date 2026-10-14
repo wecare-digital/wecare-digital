@@ -273,12 +273,6 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user } ) => {
               <Stat label="Refused" value={ publish.batchState.refused } tone={ publish.batchState.refused ? '#d97706' : undefined } />
               <Stat label="Failed" value={ publish.batchState.failed } tone={ publish.batchState.failed ? '#b91c1c' : undefined } />
             </div>
-            { publish.wixWritesDisabled && (
-              <p style={ { fontSize: 12, color: '#d97706', margin: '12px 0 0' } }>
-                Wix writes are switched off, so a publish will be recorded as REFUSED without
-                being attempted. Clear <code>WIX_CREDENTIALS_DISABLED</code> to enable it.
-              </p>
-            ) }
           </Panel>
         ) }
 

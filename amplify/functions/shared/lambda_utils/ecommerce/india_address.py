@@ -1,13 +1,11 @@
 """India address + GST place-of-supply resolution (provider-neutral).
 
-Formerly `wix_address.py`. The India subdivision table, `india_subdivision`,
+The India subdivision table, `india_subdivision`,
 `gst_state_code` and `UnmappableAddress` are NOT Wix-specific — they are the GST
 place-of-supply logic the AWS-native checkout pricing depends on, so they live here
-under a neutral name. `to_wix_address` (the one Wix-shaped converter) is retained
-only for the dead Cart V2 delivery path and will be dropped when that path is
-removed. `wix_address.py` is now a thin re-export shim pointing here.
+under a neutral name. `to_delivery_address` validates and normalizes the delivery shape used by the checkout adapter. `wix_address.py` is now a thin re-export shim pointing here.
 
-WHY A BRIDGE AND NOT A PASSTHROUGH (historical, for to_wix_address)
+WHY A BRIDGE AND NOT A PASSTHROUGH
 ----------------------------------
 This is a headless architecture. The customer, the authentication, the profile and the
 address all belong to us; Wix was a catalogue and a price engine reached over HTTP. So the
@@ -28,7 +26,7 @@ Bengal -- see `checkout_pricing.SELLER_GSTIN`.
 So a wrong or missing subdivision does not produce an error. It produces a *plausible total
 with the wrong tax split*, on an invoice carrying a real GSTIN, and that total is what gets
 charged. That is strictly worse than a failed checkout, which is why there is no default
-subdivision, no "unknown state" fallback and no partial address: `to_wix_address` either
+subdivision, no "unknown state" fallback and no partial address: `to_delivery_address` either
 produces a complete, resolvable address or raises.
 
 The India table below is therefore an exact lookup, not a fuzzy match. A state this table does
@@ -141,7 +139,7 @@ def india_subdivision(state: Any) -> tuple:
     return resolved
 
 
-def to_wix_address(owned: Dict[str, Any]) -> Dict[str, Any]:
+def to_delivery_address(owned: Dict[str, Any]) -> Dict[str, Any]:
     """Convert an owned structured address into the Cart V2 `deliveryInfo.address` shape.
 
     Field mapping, from the Cart V2 migration mapping's Checkout V1 -> Cart V2 table
@@ -194,7 +192,7 @@ def to_wix_address(owned: Dict[str, Any]) -> Dict[str, Any]:
 def gst_state_code(owned: Dict[str, Any]) -> Optional[str]:
     """The two-digit GST state code for an owned Indian address, or `None` outside India.
 
-    Separate from `to_wix_address` because it answers a different question: Wix computes the
+    Separate from `to_delivery_address` because it answers a different question: checkout computes the
     *supply* tax from the address it is given, while `checkout_pricing.compute_quote` needs
     `intra_state` for the GST on OUR convenience fee. Both derive from the same place of
     supply, so they are resolved from one table rather than two.
@@ -204,7 +202,7 @@ def gst_state_code(owned: Dict[str, Any]) -> Optional[str]:
     except owned_address.InvalidAddress as error:
         # Normalised to this module's own error. A caller at the Wix boundary should have one
         # exception type to handle: leaking `InvalidAddress` from here and `UnmappableAddress`
-        # from `to_wix_address` for the same bad input would mean two except clauses for one
+        # from `to_delivery_address` for the same bad input would mean two except clauses for one
         # failure, and whichever was forgotten would surface as a 500.
         raise UnmappableAddress(f"owned address is not usable: {error}") from None
     if (normalized.get("countryCode") or "").upper() != owned_address.DEFAULT_COUNTRY_CODE:
@@ -217,6 +215,6 @@ __all__ = [
     "INDIA_ALIASES",
     "UnmappableAddress",
     "india_subdivision",
-    "to_wix_address",
+    "to_delivery_address",
     "gst_state_code",
 ]

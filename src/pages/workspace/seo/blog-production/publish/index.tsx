@@ -17,9 +17,7 @@
  * job that already exists, and the QUEUED to PUBLISHING transition is a conditional write so two
  * operators pressing Publish at the same moment cannot both proceed.
  *
- * When Wix writes are switched off this page says so BEFORE anything is pressed, and a publish is
- * recorded as REFUSED without being attempted - a different state from FAILED, because "the
- * operator has writes off" and "Wix rejected the post" are different facts.
+ * Publication is AWS-native. Provider-side publication controls were retired with the cutover.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -98,7 +96,7 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user } ) => {
   const release = ( sourceId: string ) => act( `release-${ sourceId }`, async () => {
     const job = await seoApi.releaseBlogArticle( sourceId );
     return job.created
-      ? `Queued as ${ job.jobId }. Nothing has been written to Wix.`
+      ? `Queued as ${ job.jobId }. Nothing has been published yet.`
       : job.note;
   } );
 
@@ -152,17 +150,10 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user } ) => {
         </p>
         <h1 className="inner-page-title">Publish queue</h1>
         <p style={ { color: 'rgba(0,0,0,.54)', fontSize: 14, maxWidth: 780 } }>
-          Releasing records a decision and writes nothing. Publishing performs the one Wix mutation
-          in this system. Nothing upstream can reach either.
+          Releasing records a decision and writes nothing. Publishing writes the approved article
+          to the AWS-native blog store.
         </p>
 
-        { data?.wixWritesDisabled && (
-          <div role="status" style={ { background: '#fffbeb', color: '#b45309', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 14 } }>
-            <strong>Wix writes are switched off.</strong> A publish will be recorded as REFUSED
-            without being attempted. Clear <code>WIX_CREDENTIALS_DISABLED</code> on the function to
-            enable it; a refusal is deliberate and nothing retries past it.
-          </div>
-        ) }
         { error && (
           <div role="alert" style={ { background: '#fef2f2', color: '#b91c1c', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 14 } }>
             { error }
