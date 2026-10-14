@@ -223,9 +223,6 @@
   letter-spacing: 0.3px;
 }
 
-.layout .main-content .provider-badge.airtel {
-  background: #e60000;
-}
 
 .layout .main-content .region-badge {
   display: inline-flex;
