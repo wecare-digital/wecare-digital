@@ -23,10 +23,10 @@ from decimal import Decimal, InvalidOperation
 from . import order_channel, payment_attempt
 
 #: Modes whose attempts may become an internal order. 'WEBSITE_RAZORPAY_STANDARD' mirrors
-#: `website_checkout.CHECKOUT_MODE_WEBSITE`; the literal avoids an import cycle between two
+#: New native attempts use `AWS_NATIVE`; `WIX_HEADLESS` remains accepted only for historical
 #: sibling ecommerce modules and is pinned to that constant by a test. Membership rather than
 #: equality because the single-mode check refused every direct-Razorpay order.
-ACCEPTED_CHECKOUT_MODES = frozenset({'WIX_HEADLESS', 'WEBSITE_RAZORPAY_STANDARD'})
+ACCEPTED_CHECKOUT_MODES = frozenset({'AWS_NATIVE', 'WIX_HEADLESS', 'WEBSITE_RAZORPAY_STANDARD'})
 
 #: SEAM-G13: the amount Razorpay's own readback confirmed, written here and nowhere else.
 #: `gift_card_settlement` declares this obligation as `RAZORPAY_VERIFIED_PAISE_ATTR` and
