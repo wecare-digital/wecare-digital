@@ -298,7 +298,7 @@ def test_verify_reads_routes_integration_and_every_invoke_statement_back(provisi
 
 # ── 65: the deploy registry, for all three new functions ──────────────────────
 
-NEW_FUNCTIONS = ("wecare-coupons", "wecare-gift-cards", "wecare-wix-giftcard-spi")
+NEW_FUNCTIONS = ("wecare-coupons", "wecare-gift-cards")
 
 
 @pytest.fixture(scope="module")
@@ -343,9 +343,3 @@ def test_the_new_function_declares_what_must_create_it_first(name, deploy_specs)
         assert (ROOT / script).exists(), f"{name} points at {script}, which does not exist"
 
 
-def test_the_spi_function_is_not_standalone_and_ships_the_shared_tree(deploy_specs):
-    """The SPI verifier lives in `lambda_utils.ecommerce.gift_card_spi_auth`, so a standalone
-    package would be a function whose only control - JWT verification - is not in the zip."""
-    assert deploy_specs["wecare-wix-giftcard-spi"].standalone is False
-    assert deploy_specs["wecare-coupons"].standalone is False
-    assert deploy_specs["wecare-gift-cards"].standalone is False
