@@ -676,8 +676,13 @@ def reserve_order_number(table: Any,
     New orders created by our own checkout get `reserve_public_order_number` instead.
     """
     if generate is None:
-        from lambda_utils.ecommerce.wix_domain import _generate_wd_order_number
-        generate = _generate_wd_order_number
+        # Self-contained: the WD order number is minted by order_keys itself. This used to
+        # default to wix_domain._generate_wd_order_number, which only delegated back to
+        # mint_public_order_number — a circular dependency on a Wix-named module. With Wix
+        # retired, order numbering has one home: here. (order_date stays in the signature for
+        # the external `generate` contract but is not encoded into the number — see
+        # mint_public_order_number on why a public number must not leak the order date.)
+        generate = lambda _order_date: mint_public_order_number()  # noqa: E731
 
     now = int(time.time())
     for attempt in range(1, max(1, attempts) + 1):
