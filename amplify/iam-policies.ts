@@ -280,7 +280,7 @@ export const IAM_POLICIES = {
     ],
   },
 
-  // Secrets Manager permissions (for Airtel API credentials)
+  // Secrets Manager permissions for server-side integrations
   secrets: {
     Version: '2012-10-17',
     Statement: [
@@ -399,9 +399,8 @@ export const FUNCTION_POLICIES: Record<string, string[]> = {
   // to make visible.
   'wecare-plivo-answer': [ 'common', 'secrets', 'lambdaInvoke' ],
 
-  // === Voice (legacy provider — voice-in) ===
-  'wecare-voice-in-c2c': [ 'common', 's3' ],   // provider secret no longer read
-  'wecare-voice-in-obd': [ 'common', 's3' ],   // provider secret no longer read
+  // === Voice operations ===
+  'wecare-voice-in-obd': [ 'common', 's3' ]
   'wecare-voice-cdr-webhook': [ 'common', 's3' ],          // CDR webhook (primary route)
   'wecare-voice-cdr-read': [ 'common' ],
   'wecare-voice-calls-read': [ 'common' ],                  // alias of voice-cdr-read
