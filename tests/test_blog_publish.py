@@ -7,7 +7,7 @@ undone: a duplicate post gets indexed, linked and cited, and deleting it afterwa
 URL where a real one was. A second job is how that happens.
 
 `test_two_concurrent_publishers_cannot_both_write`. The conditional QUEUED -> PUBLISHING claim.
-Two operators pressing Publish at the same moment would otherwise both reach the Wix call.
+Two operators pressing Publish at the same moment would otherwise both reach the native write.
 
 `test_an_edit_after_release_blocks_the_publish`. Release time and publish time are different
 moments, and the queue is exactly where the gap lives.
@@ -15,6 +15,12 @@ moments, and the queue is exactly where the gap lives.
 `test_nothing_in_the_pipeline_can_release`. Section 38: processing completion must never
 automatically mean publishing. Enforced by grepping the modules, because that is the kind of
 convenience somebody adds later.
+
+WIX EXIT: publishing writes to the AWS-native store via `storage.create_blog_post`, not Wix.
+There is no Wix credential and no kill switch in native mode, so a publish is NEVER REFUSED - a
+write that does not succeed is always FAILED. The old `FakeWix` harness and the kill-switch /
+Ricos-compiler / draft-posts tests that asserted Wix-specific behaviour were removed or rewritten
+against the native fake below.
 """
 from __future__ import annotations
 
@@ -37,45 +43,72 @@ from test_blog_sources import FakeLambda, FakeS3, FakeTable, _pdf_entry  # noqa:
 from test_blog_qa import GOOD_BODY, PROSE, DISTINCTION, STATEMENT  # noqa: E402
 
 
-class FakeWix:
-    """The Wix surface `blog_publish` touches, plus a switch for the kill switch."""
+POST_ID = "blog_test1"
+
+
+class FakeStore:
+    """The native blog-store surface `blog_publish` touches: a stand-in for
+    `storage.create_blog_post`.
+
+    Records every write so a test can assert "written exactly once", and returns the native shape
+    (`postId` of the form `blog_<hex>`, a `url` under /post/<slug>). It also PERSISTS a published
+    `blogPost` record into the fake table the way the real `storage.create_blog_post` does, so a
+    test that drives the real native read seam (`storage.get_blog_post` /
+    `blog_source.get_blog_post_by_slug`) reads back the exact record this write produced.
+
+    `raise_on_write` models a native-store failure - the FAILED path - since there is no Wix
+    rejection to model any more.
+    """
 
     def __init__(self) -> None:
         self.calls: List[Dict[str, Any]] = []
-        self.disabled = False
-        self.reject = False
         self.raise_on_write = False
+        self.error = "the native blog store rejected the post"
+        self._seq = 0
 
-    def request(self, method, path, body=None):
-        if self.disabled:
-            #: EXACTLY what `wix._load_api_key` raises through `wix_guard.refuse_if_disabled` -
-            #: a RuntimeError, not a PermissionError. The first version of this fake invented a
-            #: PermissionError, `blog_publish` caught that type, and the whole kill-switch
-            #: classification passed here while recording FAILED in production. A fake that
-            #: raises a different exception than the real thing tests nothing.
-            raise RuntimeError(
-                "Wix credentials are disabled by WIX_CREDENTIALS_DISABLED (seo-tools "
-                "authenticated Wix client). This is deliberate; clear that variable.")
-        self.calls.append({"method": method, "path": path, "body": body})
-        if path.endswith("/members/v1/members/query"):
-            return {"members": [{"id": "member-1",
-                                 "profile": {"nickname": "Anew by WECARE.DIGITAL"}}]}
-        if path.endswith("/blog/v3/categories/query"):
-            return {"categories": [{"id": "cat-1", "label": "Conversations"},
-                                   {"id": "cat-2", "label": "Gastronomy"}]}
-        if path.endswith("/blog/v3/bulk/draft-posts/create"):
-            if self.raise_on_write:
-                raise RuntimeError("wix 503")
-            if self.reject:
-                return {"results": [{"itemMetadata": {"success": False,
-                                                      "error": "slug already exists"}}]}
-            posted = (body or {}).get("draftPosts", [{}])[0]
-            return {"results": [{
-                "itemMetadata": {"success": True, "id": "post-1"},
-                "item": {"draftPost": {"id": "post-1",
-                                       "seoSlug": posted.get("seoSlug", "")}},
-            }]}
-        return {}
+    def create_blog_post(self, body, actor):
+        self.calls.append({"body": body, "actor": actor})
+        if self.raise_on_write:
+            raise RuntimeError(self.error)
+        import storage
+        slug = str(body.get("slug") or "")
+        #: A stable id for the first post (so the single-publish tests can assert POST_ID) and a
+        #: unique id for any further posts, mirroring the native `blog_<hex>` shape.
+        post_id = POST_ID if self._seq == 0 else f"{POST_ID}_{self._seq}"
+        self._seq += 1
+        now = storage.now_iso()
+        status = str(body.get("status") or "published").strip().lower()
+        record = {
+            "id": post_id,
+            "recordType": "blogPost",
+            "createdAt": now,
+            "updatedAt": now,
+            "publishedAt": now if status == "published" else "",
+            "slug": slug,
+            "title": str(body.get("title") or ""),
+            "excerpt": str(body.get("excerpt") or ""),
+            "content": body.get("content") or "",
+            "status": status,
+            "category": str(body.get("category") or ""),
+            "tags": body.get("tags") or body.get("tagLabels") or [],
+            "hashtags": body.get("hashtags") or [],
+            "coverImage": str(body.get("coverImage") or ""),
+            "authorName": str(body.get("authorName") or actor or "WECARE.DIGITAL"),
+            "seoTitle": str(body.get("seoTitle") or ""),
+            "metaDescription": str(body.get("metaDescription") or ""),
+            "focusKeyword": str(body.get("focusKeyword") or ""),
+            "secondaryKeywords": body.get("secondaryKeywords") or [],
+            "jsonLd": body.get("jsonLd") or {},
+            "robots": "index, follow, max-image-preview:large",
+            "url": f"https://wecare.digital/post/{slug}",
+            "version": 1,
+            "createdBy": actor,
+            "updatedBy": actor,
+        }
+        storage.put_record(record)
+        return {"postId": post_id, "slug": slug, "title": record["title"],
+                "status": status, "url": record["url"],
+                "rebuildRequired": status == "published"}
 
 
 @pytest.fixture()
@@ -87,17 +120,16 @@ def env(monkeypatch):
     import blog_qa as bq
     import blog_sources as bs
     import storage
-    import wix
 
     table = FakeTable()
     s3 = FakeS3()
     lam = FakeLambda()
-    fake_wix = FakeWix()
+    store = FakeStore()
     monkeypatch.setattr(storage, "table", lambda: table)
+    monkeypatch.setattr(storage, "create_blog_post", store.create_blog_post)
     monkeypatch.setattr(bs, "s3_client", lambda: s3)
     monkeypatch.setattr(bs, "lambda_client", lambda: lam)
     monkeypatch.setattr(bs, "BUCKET", "wecare-digital-get")
-    monkeypatch.setattr(wix, "request", fake_wix.request)
     monkeypatch.setenv("WIX_BLOG_AUTHOR_NAME", "Anew by WECARE.DIGITAL")
     bg.reset_corpus_cache()
     index = q.CorpusIndex()
@@ -109,7 +141,7 @@ def env(monkeypatch):
     monkeypatch.setattr(bg, "_corpus", index)
     monkeypatch.setattr(bg, "_corpus_state", {"loaded": 1, "present": True, "path": "test",
                                               "packaged": True, "builtAt": "", "note": ""})
-    yield {"table": table, "s3": s3, "wix": fake_wix, "ba": ba, "bb": bb, "bg": bg,
+    yield {"table": table, "s3": s3, "store": store, "ba": ba, "bb": bb, "bg": bg,
            "bp": bp, "bq": bq, "bs": bs, "storage": storage}
     bg.reset_corpus_cache()
 
@@ -171,12 +203,12 @@ def _signed(env, batch_id: str = "", header: str = "THE GIVEN WORD") -> str:
 
 def test_releasing_queues_without_publishing(env):
     source_id = _signed(env)
-    env["wix"].calls.clear()
+    env["store"].calls.clear()
     job = env["bp"].release(source_id, "operator")
     assert job["status"] == env["bp"].QUEUED
     assert job["created"] is True
     assert job["postId"] == ""
-    assert env["wix"].calls == [], "release touched Wix"
+    assert env["store"].calls == [], "release wrote a post"
     assert env["bs"].get_source(source_id)["pipeline"]["publishStatus"] == "QUEUED"
 
 
@@ -277,39 +309,36 @@ def test_publishing_writes_once_and_records_the_post(env):
     job = env["bp"].release(source_id, "operator")
     result = env["bp"].publish(job["jobId"], "operator")
     assert result["published"] is True
-    assert result["postId"] == "post-1"
+    assert result["postId"] == POST_ID
     assert result["postUrl"].startswith("https://wecare.digital/post/")
-    writes = [call for call in env["wix"].calls if "bulk/draft-posts/create" in call["path"]]
-    assert len(writes) == 1
-    assert writes[0]["body"]["publish"] is True
-    assert len(writes[0]["body"]["draftPosts"]) == 1
+    #: WRITTEN EXACTLY ONCE. One `storage.create_blog_post` call is how "it cannot post twice"
+    #: is demonstrated rather than asserted.
+    assert len(env["store"].calls) == 1
+    assert env["store"].calls[0]["body"]["status"] == "published"
 
 
-def test_the_post_body_is_compiled_by_the_corpus_compiler(env):
-    """A second Ricos compiler would drift from the one behind the 1,165 live posts, and the
-    first symptom would be an article that renders differently from every article beside it."""
+def test_the_published_body_is_the_approved_markdown(env):
+    """Native: the approved draft markdown is written as-is to the store, and the native read
+    path renders it. The old Ricos compiler is gone, so what matters now is that the body that
+    goes to `storage.create_blog_post` is exactly the signed-off markdown - no second compiler
+    sits between the approval and the live post to drift from it.
+    """
     source_id = _signed(env)
     job = env["bp"].release(source_id, "operator")
     env["bp"].publish(job["jobId"], "operator")
-    posted = [c for c in env["wix"].calls if "bulk/draft-posts" in c["path"]][0]
-    post = posted["body"]["draftPosts"][0]
-    import wix_blog_migrate as migrate
-    expected = migrate.markdown_to_rich_content(GOOD_BODY)
-    assert post["richContent"] == expected
-    assert post["memberId"] == "member-1"
-    assert post["categoryIds"] == ["cat-1"]
-    assert post["seoSlug"] == job["articleSlug"]
+    body = env["store"].calls[0]["body"]
+    assert body["content"] == GOOD_BODY
+    assert body["slug"] == job["articleSlug"]
+    assert body["category"] == "Conversations"
+    assert body["status"] == "published"
 
 
-def test_no_image_node_reaches_the_post(env):
-    """Section 27, and the compiler is the thing that guarantees it."""
-    source_id = _signed(env)
-    job = env["bp"].release(source_id, "operator")
-    env["bp"].publish(job["jobId"], "operator")
-    posted = [c for c in env["wix"].calls if "bulk/draft-posts" in c["path"]][0]
-    rich = json.dumps(posted["body"]["draftPosts"][0]["richContent"])
-    for forbidden in ("IMAGE", "GALLERY", "VIDEO", "AUDIO", "EMBED"):
-        assert forbidden not in rich, forbidden
+# Section 27 "no image/gallery/video node reaches the post" was a Wix-rich-content (Ricos)
+# invariant: it inspected the compiled Wix draft-post node tree. The native store persists the
+# approved markdown directly with no rich-content compile, so there is no node tree to inspect
+# here. The surviving media/legacy-markup guarantee against the LIVE post is asserted natively in
+# test_blog_verify.py (NO_MEDIA_NODES / NO_LEGACY_MARKUP). The Ricos-compiler test was removed in
+# the Wix exit.
 
 
 def test_publishing_updates_the_pipeline_and_writes_the_record(env):
@@ -318,12 +347,12 @@ def test_publishing_updates_the_pipeline_and_writes_the_record(env):
     env["bp"].publish(job["jobId"], "operator")
     pipeline = env["bs"].get_source(source_id)["pipeline"]
     assert pipeline["publishStatus"] == env["bp"].PUBLISHED
-    assert pipeline["postId"] == "post-1"
+    assert pipeline["postId"] == POST_ID
     assert pipeline["publishedAt"]
     key = env["bp"].record_key(source_id)
     assert key in env["s3"].objects
     record = json.loads(env["s3"].objects[key].decode())
-    assert record["postId"] == "post-1"
+    assert record["postId"] == POST_ID
     assert record["signoffId"] == job["signoffId"]
     assert record["templateVersion"] == job["templateVersion"]
     assert record["originalSourceDate"] == "1987"
@@ -333,25 +362,25 @@ def test_publishing_twice_is_a_no_op_not_a_second_post(env):
     source_id = _signed(env)
     job = env["bp"].release(source_id, "operator")
     env["bp"].publish(job["jobId"], "operator")
-    env["wix"].calls.clear()
+    env["store"].calls.clear()
     again = env["bp"].publish(job["jobId"], "operator")
     assert again["published"] is False
     assert "already published" in again["note"]
-    assert env["wix"].calls == []
+    assert env["store"].calls == []
 
 
 def test_two_concurrent_publishers_cannot_both_write(env):
     """The conditional QUEUED -> PUBLISHING claim. Two operators pressing Publish at the same
-    moment would otherwise both reach the Wix call."""
+    moment would otherwise both reach the native write."""
     source_id = _signed(env)
     job = env["bp"].release(source_id, "operator")
     assert env["bp"]._claim(job["jobId"]) is True
     assert env["bp"]._claim(job["jobId"]) is False
-    env["wix"].calls.clear()
+    env["store"].calls.clear()
     #: The job is now PUBLISHING, so a publish attempt refuses rather than writing.
     with pytest.raises(ValueError, match="only a QUEUED job"):
         env["bp"].publish(job["jobId"], "operator")
-    assert env["wix"].calls == []
+    assert env["store"].calls == []
 
 
 def test_an_edit_after_release_blocks_the_publish(env):
@@ -361,10 +390,10 @@ def test_an_edit_after_release_blocks_the_publish(env):
     draft = dict(env["bs"].get_source(source_id)["draftRecord"])
     draft["contentMarkdown"] += "\n\nOne more paragraph arrives after the release."
     env["table"].items[source_id]["draftRecord"] = env["storage"]._clean(draft)
-    env["wix"].calls.clear()
+    env["store"].calls.clear()
     with pytest.raises(ValueError, match="no longer be published|changed after it was released"):
         env["bp"].publish(job["jobId"], "operator")
-    assert env["wix"].calls == []
+    assert env["store"].calls == []
     assert env["bp"].get(job["jobId"])["status"] == env["bp"].QUEUED
 
 
@@ -373,10 +402,10 @@ def test_a_revocation_after_release_blocks_the_publish(env):
     job = env["bp"].release(source_id, "operator")
     signoff = env["bq"].current_signoff(source_id)
     env["bq"].revoke(signoff["id"], "withdrawn before it went live", "editor")
-    env["wix"].calls.clear()
+    env["store"].calls.clear()
     with pytest.raises(ValueError, match="no longer be published"):
         env["bp"].publish(job["jobId"], "operator")
-    assert env["wix"].calls == []
+    assert env["store"].calls == []
 
 
 def test_an_unknown_job_is_refused(env):
@@ -384,103 +413,27 @@ def test_an_unknown_job_is_refused(env):
         env["bp"].publish("blogpub_nope", "operator")
 
 
-# ── The kill switch is a distinct state ─────────────────────────────────────────
+# ── A write that does not succeed is FAILED ─────────────────────────────────────
+#
+# WIX EXIT: the eight kill-switch / REFUSED tests that used to live here
+# (test_the_kill_switch_records_refused_not_failed, test_a_refusal_writes_no_publish_record,
+# test_a_refusal_is_not_retried_automatically, test_the_refusal_is_not_attempted_at_all,
+# test_a_switch_flipped_mid_flight_is_still_a_refusal,
+# test_a_genuine_wix_failure_is_not_reported_as_the_switch, test_a_wix_rejection_records_failed,
+# test_a_retry_after_a_refusal_is_not_blocked) asserted a concept that no longer exists: the Wix
+# `WIX_CREDENTIALS_DISABLED` kill switch and its distinct REFUSED state. Native publishing has no
+# Wix credential and no kill switch, so a publish is never REFUSED - a write either PUBLISHED or
+# FAILED. The REFUSED-specific tests were removed in the Wix exit; the surviving invariant - a
+# write that does not succeed is recorded as FAILED and not retried - is asserted natively below.
 
-def test_the_kill_switch_records_refused_not_failed(env, monkeypatch):
-    """"The operator has writes switched off" and "Wix rejected the post" must not look the
-    same on a dashboard.
 
-    Flips the REAL flag rather than a fake's exception type. That distinction is the whole point
-    of this test: the first version raised an invented PermissionError from the fake, matched it,
-    and passed - while production recorded FAILED, because `wix_guard` raises RuntimeError.
-    """
+def test_a_store_rejection_records_failed(env):
+    """A native-store write that raises is recorded as FAILED (never a refusal, which no longer
+    exists), carries the error, and is not retried."""
     source_id = _signed(env)
     job = env["bp"].release(source_id, "operator")
-    monkeypatch.setenv("WIX_CREDENTIALS_DISABLED", "true")
-    env["wix"].disabled = True
-    result = env["bp"].publish(job["jobId"], "operator")
-    assert result["published"] is False
-    assert result["refused"] is True
-    assert "WIX_CREDENTIALS_DISABLED" in result["error"]
-    stored = env["bp"].get(job["jobId"])
-    assert stored["status"] == env["bp"].REFUSED
-    assert env["bs"].get_source(source_id)["pipeline"]["publishStatus"] == "REFUSED"
-
-
-def test_a_refusal_writes_no_publish_record(env, monkeypatch):
-    source_id = _signed(env)
-    job = env["bp"].release(source_id, "operator")
-    monkeypatch.setenv("WIX_CREDENTIALS_DISABLED", "true")
-    env["wix"].disabled = True
-    env["bp"].publish(job["jobId"], "operator")
-    assert env["bp"].record_key(source_id) not in env["s3"].objects
-
-
-def test_a_refusal_is_not_retried_automatically(env, monkeypatch):
-    """Retrying past a deliberate operator state would defeat the switch."""
-    source_id = _signed(env)
-    job = env["bp"].release(source_id, "operator")
-    monkeypatch.setenv("WIX_CREDENTIALS_DISABLED", "true")
-    env["wix"].disabled = True
-    env["bp"].publish(job["jobId"], "operator")
-    monkeypatch.delenv("WIX_CREDENTIALS_DISABLED")
-    env["wix"].disabled = False
-    env["wix"].calls.clear()
-    #: Still REFUSED, and a publish attempt refuses because it is no longer QUEUED. An operator
-    #: has to release it again deliberately.
-    with pytest.raises(ValueError, match="only a QUEUED job"):
-        env["bp"].publish(job["jobId"], "operator")
-    assert env["wix"].calls == []
-
-
-def test_the_refusal_is_not_attempted_at_all(env, monkeypatch):
-    """Checked before the claim, so the attempt counter means REAL attempts and the log says
-    "not tried" rather than "tried and failed"."""
-    source_id = _signed(env)
-    job = env["bp"].release(source_id, "operator")
-    monkeypatch.setenv("WIX_CREDENTIALS_DISABLED", "true")
-    env["wix"].calls.clear()
-    result = env["bp"].publish(job["jobId"], "operator")
-    assert result["refused"] is True
-    assert "NOT attempted" in result["note"]
-    assert env["wix"].calls == [], "a refused publish reached Wix"
-    assert env["bp"].get(job["jobId"])["attempts"] == 0
-
-
-def test_a_switch_flipped_mid_flight_is_still_a_refusal(env, monkeypatch):
-    """Re-checked in the handler rather than matched on the exception, because the switch can be
-    flipped between the check and the call - and a state read answers that where a type match
-    cannot."""
-    source_id = _signed(env)
-    job = env["bp"].release(source_id, "operator")
-    env["wix"].disabled = True  # raises the guard's RuntimeError from inside the call
-
-    def flip(*args, **kwargs):
-        monkeypatch.setenv("WIX_CREDENTIALS_DISABLED", "true")
-        raise RuntimeError("Wix credentials are disabled by WIX_CREDENTIALS_DISABLED")
-
-    monkeypatch.setattr(env["bp"], "_write_to_wix", flip)
-    result = env["bp"].publish(job["jobId"], "operator")
-    assert result["refused"] is True
-    assert env["bp"].get(job["jobId"])["status"] == env["bp"].REFUSED
-
-
-def test_a_genuine_wix_failure_is_not_reported_as_the_switch(env):
-    """Broadening the catch to RuntimeError would have made a real Wix rejection read as
-    "writes are off" - the same mistake in the opposite direction."""
-    source_id = _signed(env)
-    job = env["bp"].release(source_id, "operator")
-    env["wix"].raise_on_write = True
-    result = env["bp"].publish(job["jobId"], "operator")
-    assert result.get("refused") is None
-    assert env["bp"].get(job["jobId"])["status"] == env["bp"].FAILED
-    assert "WIX_CREDENTIALS_DISABLED" not in env["bp"].get(job["jobId"])["error"]
-
-
-def test_a_wix_rejection_records_failed(env):
-    source_id = _signed(env)
-    job = env["bp"].release(source_id, "operator")
-    env["wix"].reject = True
+    env["store"].raise_on_write = True
+    env["store"].error = "slug already exists"
     result = env["bp"].publish(job["jobId"], "operator")
     assert result["published"] is False
     assert result.get("refused") is None
@@ -492,11 +445,28 @@ def test_a_wix_rejection_records_failed(env):
 def test_a_transport_failure_records_failed_and_does_not_retry(env):
     source_id = _signed(env)
     job = env["bp"].release(source_id, "operator")
-    env["wix"].raise_on_write = True
+    env["store"].raise_on_write = True
+    env["store"].error = "store 503"
     result = env["bp"].publish(job["jobId"], "operator")
     assert result["published"] is False
     assert env["bp"].get(job["jobId"])["status"] == env["bp"].FAILED
+    #: The claim incremented the counter before the write, so a single failed attempt reads as 1.
     assert env["bp"].get(job["jobId"])["attempts"] == 1
+
+
+def test_a_failed_publish_is_not_retried_automatically(env):
+    """A FAILED job is no longer QUEUED, so nothing re-attempts it on its own - the operator has
+    to fix the cause and release again. (The native equivalent of the old "a refusal is not
+    retried automatically" invariant.)"""
+    source_id = _signed(env)
+    job = env["bp"].release(source_id, "operator")
+    env["store"].raise_on_write = True
+    env["bp"].publish(job["jobId"], "operator")
+    env["store"].raise_on_write = False
+    env["store"].calls.clear()
+    with pytest.raises(ValueError, match="only a QUEUED job"):
+        env["bp"].publish(job["jobId"], "operator")
+    assert env["store"].calls == []
 
 
 def test_a_record_write_failure_does_not_report_a_failed_publish(env, monkeypatch):
@@ -569,36 +539,18 @@ def test_the_publish_route_is_not_idempotency_claimed(env):
             "after a refusal, and the conditional state claim already covers double-submit")
 
 
-def test_a_retry_after_a_refusal_is_not_blocked(env, monkeypatch):
-    """The behaviour the claim broke: refuse, fix, re-sign, release, publish."""
-    source_id = _signed(env)
-    job = env["bp"].release(source_id, "operator")
-    monkeypatch.setenv("WIX_CREDENTIALS_DISABLED", "true")
-    env["wix"].disabled = True
-    assert env["bp"].publish(job["jobId"], "operator")["refused"] is True
-    monkeypatch.delenv("WIX_CREDENTIALS_DISABLED")
-    env["wix"].disabled = False
+# WIX EXIT: test_a_retry_after_a_refusal_is_not_blocked was removed - it drove the Wix
+# `WIX_CREDENTIALS_DISABLED` kill switch to produce a REFUSED job and asserted a fresh release
+# could follow. There is no kill switch and no REFUSED state in native mode. The source-agnostic
+# half of that behaviour (a non-QUEUED job must be released again before it can publish) is
+# covered by test_a_failed_publish_is_not_retried_automatically above.
 
-    #: A REFUSED job is not QUEUED, so it has to be released again - deliberately, because
-    #: retrying past a refusal automatically would defeat the switch. That new release must work.
-    fresh = env["bp"].release(source_id, "operator")
-    assert fresh["created"] is True, "a refused job blocked a fresh release"
-    assert fresh["jobId"] != job["jobId"]
-    result = env["bp"].publish(fresh["jobId"], "operator")
-    assert result["published"] is True
-    assert result["postId"] == "post-1"
-
-
-def test_the_only_wix_mutation_is_in_the_publish_path(env):
-    """R7.4 wants the Wix calls the pipeline can make enumerated, so "it cannot post twice" is
-    demonstrated rather than asserted."""
-    source = ROOT / "amplify" / "functions" / "operations" / "seo-tools"
-    mutating = []
-    for path in sorted(source.glob("blog_*.py")):
-        text = path.read_text(encoding="utf-8")
-        if "bulk/draft-posts" in text or "draft-posts/create" in text:
-            mutating.append(path.name)
-    assert mutating == ["blog_publish.py"]
+# WIX EXIT: test_the_only_wix_mutation_is_in_the_publish_path was removed - it grepped the
+# `blog_*.py` modules for the Wix `bulk/draft-posts` mutation path and asserted only
+# blog_publish.py contained it. No file contains that string any more (the Wix writer was
+# deleted), so the invariant is purely about Wix and now meaningless. The native equivalent -
+# only the publish path writes a post - is demonstrated by the "written exactly once" assertion
+# in test_publishing_writes_once_and_records_the_post and by test_the_batch_worker_cannot_publish.
 
 
 def test_publishing_is_not_a_model_writable_field(env):
@@ -616,7 +568,7 @@ def test_the_batch_worker_cannot_publish(env):
     assert env["bb"].detail(batch_id)["status"] == env["bb"].READY
     assert env["bs"].get_source(source_id)["pipeline"]["publishStatus"] == ""
     assert env["bp"].queue() == []
-    assert env["wix"].calls == []
+    assert env["store"].calls == []
 
 
 # ── The queue surface ───────────────────────────────────────────────────────────
@@ -640,7 +592,7 @@ def test_the_detail_carries_the_publish_record(env):
     job = env["bp"].release(source_id, "operator")
     env["bp"].publish(job["jobId"], "operator")
     detail = env["bp"].detail(job["jobId"])
-    assert detail["record"]["postId"] == "post-1"
+    assert detail["record"]["postId"] == POST_ID
     for key in detail:
         assert "url" not in key.lower() or key == "postUrl"
 
@@ -697,15 +649,7 @@ def test_a_publish_job_does_not_count_as_a_source(env):
     assert env["bb"].rollup(batch_id)["sources"] == 1
 
 
-def test_the_ricos_compiler_is_packaged_for_the_lambda():
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "dep_seo_publish", ROOT / "scripts" / "deploy_seo_tools.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    import io
-    import zipfile
-    with zipfile.ZipFile(io.BytesIO(module.package())) as archive:
-        names = set(archive.namelist())
-    assert "wix_blog_migrate.py" in names
-    assert "operations/seo-tools/blog_publish.py" in names
+# WIX EXIT: test_the_ricos_compiler_is_packaged_for_the_lambda was removed - it asserted the
+# deploy package bundled `wix_blog_migrate.py` (the Ricos markdown->rich-content compiler). That
+# module was deleted in the Wix exit; the native publish path stores markdown directly and needs
+# no compiler packaged. The invariant is purely about Wix and is now meaningless.

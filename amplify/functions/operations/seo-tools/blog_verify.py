@@ -13,14 +13,14 @@ was approved is, and the result is recorded next to the publish record rather th
 
 ## It reads the PUBLIC post, not the authenticated one
 
-`wix.get_blog_post_by_slug` goes through the anonymous visitor token, which is the path that
-serves the live site. Two consequences, both deliberate:
+`blog_source.get_blog_post_by_slug` is the SAME seam the public site serves (native store,
+published-only). Two consequences, both deliberate:
 
-  - It proves the article is actually **public**, not merely created. An authenticated read would
-    happily return a draft and report success on a post no reader can reach.
-  - It works while `WIX_CREDENTIALS_DISABLED` is set, because that switch covers the API key and
-    not the visitor token. Verification is a read-only safety check, and an incident control that
-    also disabled the ability to check what is live would be the wrong shape.
+  - It proves the article is actually **public**, not merely created. A read that returned drafts
+    too would happily report success on a post no reader can reach — `blog_source` passes
+    `published_only=True`, so a draft slug reads back as absent.
+  - It is read-only and depends on no mutation credential, so verification stays a safety check
+    that works regardless of whether writes are enabled.
 
 ## A failure is recorded, never silently retried
 
@@ -255,9 +255,9 @@ def verify_post(live: Optional[Dict[str, Any]], expected: Dict[str, Any],
 def _same_url(left: str, right: str) -> bool:
     """A trailing slash is not a canonical difference.
 
-    `wix._blog_view` builds `/post/<slug>/` and `q.expected_canonical` builds `/post/<slug>`.
-    Both address the same page, and failing on that would make CANONICAL_MATCHES fail for every
-    correct post - which is the shape of a check that gets switched off.
+    The native post view may carry `/post/<slug>/` while `q.expected_canonical` builds
+    `/post/<slug>`. Both address the same page, and failing on that would make CANONICAL_MATCHES
+    fail for every correct post - which is the shape of a check that gets switched off.
     """
     return str(left or "").rstrip("/") == str(right or "").rstrip("/")
 
@@ -320,7 +320,7 @@ def expectation(source_id: str) -> Dict[str, Any]:
 def run(source_id: str, actor: str) -> Dict[str, Any]:
     """Read the post back and record the thirteen."""
     import blog_quality_v2 as q
-    import wix
+    import blog_source
 
     record = blog_sources.get_source(source_id)
     if not record:
@@ -335,12 +335,15 @@ def run(source_id: str, actor: str) -> Dict[str, Any]:
     if not wanted["slug"]:
         raise ValueError("no slug was recorded for this article, so it cannot be looked up")
 
-    #: A read failure is an OUTCOME, not an exception to propagate. "Wix is unreachable" and
-    #: "the post is not there" are different facts and the report has to say which.
+    #: A read failure is an OUTCOME, not an exception to propagate. "the store is unreachable"
+    #: and "the post is not there" are different facts and the report has to say which.
+    #: Reads back through the SAME native seam the public site serves (blog_source ->
+    #: storage, published-only), so verification checks what readers actually get — not a
+    #: decommissioned Wix path.
     live: Optional[Dict[str, Any]] = None
     read_error = ""
     try:
-        live = wix.get_blog_post_by_slug(wanted["slug"])
+        live = blog_source.get_blog_post_by_slug(wanted["slug"])
     except Exception as exc:  # noqa: BLE001
         read_error = f"{type(exc).__name__}"
         logger.warning(json.dumps({

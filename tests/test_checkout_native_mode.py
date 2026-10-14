@@ -106,6 +106,9 @@ def test_native_quote_accepts_the_actual_storefront_catalog_reference(monkeypatc
     assert calculated is None
     assert snapshot.quote.collection_before_convenience_paise == 119800
     assert snapshot.frozen_data["items"] == [{
+        # native line identity: lineItemId == variantId so the narrow
+        # paid-basket guard can hash the basket (empty lineItemId disables it)
+        "lineItemId": VARIANT_UUID,
         "productId": PRODUCT_UUID,
         "variantId": VARIANT_UUID,
         "quantity": 2,
@@ -153,6 +156,7 @@ def test_line_order_does_not_create_a_second_payment_identity(monkeypatch):
     assert a.cart_id == b.cart_id
     assert a.quote.collection_before_convenience_paise == 3 * 59900
     assert a.frozen_data["items"] == [{
+        "lineItemId": VARIANT_UUID,
         "productId": PRODUCT_UUID, "variantId": VARIANT_UUID,
         "quantity": 3, "unitPricePaise": 59900,
     }]

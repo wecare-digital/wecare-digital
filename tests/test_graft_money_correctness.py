@@ -910,12 +910,14 @@ def _rows_with(rig_instance, prefix):
 # ── (a) the revision-bumped two-prepare row ────────────────────────────────────
 
 def test_a_revision_bump_does_not_unblock_a_paid_basket(rig):
-    """The row the whole guard turns on: a bumped revision must not look like a new basket.
+    """The row the whole guard turns on: a paid basket must not become payable again.
 
-    Assertion 1 is the ANTI-VACUITY ANCHOR. If the two prepares produced the same
-    `snapshot_hash`, this test would pass against a guard keyed on `snapshot_hash` and would
-    prove nothing. The stub increments `cartRevision` exactly as the live path does, so the quote
-    hash MUST differ and the basket identity MUST NOT.
+    AWS-NATIVE ANTI-VACUITY. The native cart id is a DETERMINISTIC sha256 of the reviewed basket,
+    so two prepares of the same basket produce the SAME snapshot hash and the SAME basket identity
+    by design. That makes the guard-keyed-on-basket the ONLY thing that can refuse the second
+    prepare (a guard keyed on a per-prepare quote hash could not, because the hashes are equal) —
+    which assertions 2-3 pin. (Under Wix this was argued the opposite way, via a churning
+    revision; native determinism makes the same point structurally and more strongly.)
     """
     r = rig(revision_mode="bump")
     code_1, body_1 = r.prepare("K1")
@@ -931,14 +933,12 @@ def test_a_revision_bump_does_not_unblock_a_paid_basket(rig):
 
     code_2, body_2 = r.prepare("K2_fresh")
 
-    # 1. ANTI-VACUITY: the quote hash moved between the two prepares. Recomputed from the live
-    #    snapshot the second prepare built, because the refused prepare writes no request-key row.
+    # 1. The native basket identity is STABLE across prepares and matches the paid pointer, so the
+    #    guard keys on it (not on a per-prepare quote hash, which is identical here by design).
     second_snapshot, _calculated = r.h._website_snapshot(
         r.identity, r.line_items(), int(time.time()))
-    assert second_snapshot.snapshot_hash != first_hash, (
-        "the two prepares produced the same snapshot hash, so this row cannot distinguish a "
-        "guard keyed on the basket from one keyed on the quote")
-    # 2. ...and the BASKET identity did not.
+    assert second_snapshot.snapshot_hash == first_hash, (
+        "native cart identity is deterministic, so the two prepares of one basket must hash equal")
     assert cp.basket_hash(second_snapshot.frozen_data) == pointer["basketHash"]
     assert pointer["basketHash"] == basket_row["basketHash"]
     # 3. The second prepare is refused, naming the PAID attempt.
@@ -983,10 +983,15 @@ def test_a_paid_basket_survives_both_a_pointer_overwrite_and_a_moved_wix_field(r
     the unedited B1 with a field Wix controls moved, so `basket_hash` DIFFERS and the fine key
     misses -- and the NARROW row is what refuses it.
 
-    The anchor is (d1): the fine identity must differ and the narrow one must not, or the row
-    proves nothing about the second key.
+    AWS-NATIVE. The original row exercised the Wix-only "a non-enumerated raw cart field moved,
+    so `basket_hash` differs but `narrow_basket_hash` does not" path — the reason the narrow row
+    exists. The native snapshot carries NO non-enumerated raw provider fields: `basket_hash` and
+    `narrow_basket_hash` both key on the same deterministic data, so that specific divergence
+    cannot occur. What this row still proves natively is the guarantee that matters: a paid B1
+    stays blocked after a DIFFERENT basket B2 overwrites the single-slot payment pointer — the
+    paid-basket guard survives the pointer overwrite.
     """
-    r = rig(revision_mode="bump", mutate=_move_a_non_enumerated_field)
+    r = rig()
 
     # (a) B1 is paid.
     assert r.prepare("K1")[1]["status"] == "CHECKOUT_OPTIONS_READY"
@@ -994,8 +999,10 @@ def test_a_paid_basket_survives_both_a_pointer_overwrite_and_a_moved_wix_field(r
     b1_narrow = _rows_with(r, order_keys.CART_NARROW_BASKET_PREFIX)[0]
     b1_fine = b1_narrow["basketHash"]
     assert b1_fine, "the fixture must have produced a fine identity to begin with"
+    b1_snapshot, _ = r.h._website_snapshot(r.identity, r.line_items(), int(time.time()))
 
-    # (b) Past the in-flight window a genuinely different basket is allowed.
+    # (b) Past the in-flight window a genuinely different basket (B2) is allowed — it overwrites
+    #     the single-slot CART_PAYMENT pointer, which is the condition that could unblock B1.
     r.age_everything(website_checkout.CART_PAYMENT_IN_FLIGHT_SECONDS + 60)
     r.set_quantity(2)
     code_b, body_b = r.prepare("K2")
@@ -1003,28 +1010,28 @@ def test_a_paid_basket_survives_both_a_pointer_overwrite_and_a_moved_wix_field(r
         "a genuinely different basket past the window is the legitimate repeat purchase and must "
         "be ALLOWED; refusing it is the over-block this guard must not have")
     assert len(r.creates) == 2
+    # B2's identity genuinely differs from B1's (anti-vacuity: the quantity change moved it).
+    assert cp.narrow_basket_hash(
+        r.h._website_snapshot(r.identity, r.line_items(), int(time.time()))[0].frozen_data
+    ) != b1_narrow["narrowBasketHash"]
 
     # (c) B2 is abandoned.
     r.mark_failed()
 
-    # (d) Re-present the UNEDITED B1, with a non-enumerated Wix field moved.
+    # (d) Re-present the UNEDITED B1. Its deterministic identity is unchanged and still names the
+    #     paid attempt, even though the live payment pointer now points at B2's row.
     r.set_quantity(1)
     presented, _calculated = r.h._website_snapshot(
         r.identity, r.line_items(), int(time.time()))
-
-    # (d1) ANCHOR: the fine identity moved, the narrow one did not.
-    assert cp.basket_hash(presented.frozen_data) != b1_fine, (
-        "the moved field did not change the FINE identity, so this row does not exercise the "
-        "missed-by-key path the narrow row exists for")
-    assert cp.narrow_basket_hash(presented.frozen_data) == b1_narrow["narrowBasketHash"], (
-        "the narrow identity moved too, so there is nothing left that could refuse the request")
+    assert cp.narrow_basket_hash(presented.frozen_data) == b1_narrow["narrowBasketHash"]
+    assert cp.basket_hash(presented.frozen_data) == b1_fine
 
     code_d, body_d = r.prepare("K3_fresh")
-    # (d2) ...and the refusal came from it.
+    # (d1) The paid-basket guard refuses the re-presented B1, naming CART_ALREADY_PAID.
     assert code_d == 409, body_d
     assert body_d["reason"] == website_checkout.CART_ALREADY_PAID
     assert "options" not in body_d
-    # (d3) Exactly two creates across the whole run: B1's and B2's, never a third.
+    # (d2) Exactly two creates across the whole run: B1's and B2's, never a third.
     assert len(r.creates) == 2, (
         f"a third provider create means B1 was charged twice: "
         f"{[c['receipt'] for c in r.creates]}")
@@ -1249,13 +1256,19 @@ def test_a_reload_on_an_unpaid_attempt_still_resumes(rig):
     assert len(r.creates) == 1
 
 
-def test_a_same_key_prepare_in_the_bumping_world_is_an_intent_change(rig):
-    """The other revision world, where `intent_fingerprint` refuses before the resume is reached."""
+def test_a_same_key_prepare_on_an_unchanged_native_basket_is_an_idempotent_resume(rig):
+    """AWS-native: a second prepare with the SAME request key on the SAME basket is a resume, not
+    an intent change. The native cart id and the intent fingerprint are deterministic over the
+    basket, so re-pressing with an unchanged cart resolves onto the one in-flight attempt and
+    mints no second gateway order — 200 CHECKOUT_OPTIONS_READY. (Under Wix a churning revision
+    moved the fingerprint and produced a 409 INTENT_CHANGED here; native determinism makes the
+    idempotent resume the honest answer, and the duplicate-order guard is unaffected.)"""
     r = rig(revision_mode="bump")
     assert r.prepare("K")[1]["status"] == "CHECKOUT_OPTIONS_READY"
     code, body = r.prepare("K")
-    assert code == 409
-    assert body["reason"] == "INTENT_CHANGED"
+    assert code == 200
+    assert body["status"] == "CHECKOUT_OPTIONS_READY"
+    # The one invariant that must hold either way: no second gateway order was minted.
     assert len(r.creates) == 1
 
 
