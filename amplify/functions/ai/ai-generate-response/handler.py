@@ -5065,7 +5065,7 @@ def _tool_clear_all_contact_data(params: Dict, request_id: str) -> Dict:
     
     try:
         # Never erase message/media history before checking the contact retention lock.
-        existing = dynamodb.Table(CONTACTS_TABLE).get_item(Key={'id': contact_id}).get('Item')
+        existing = dynamodb.Table(CONTACTS_TABLE).get_item(Key={'id': contact_id}, ConsistentRead=True).get('Item')
         if not existing or existing.get('locked') is True:
             return {'success': False, 'error': 'CONTACT_LOCKED'}
         results = {
