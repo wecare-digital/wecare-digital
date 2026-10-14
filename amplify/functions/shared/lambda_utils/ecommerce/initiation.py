@@ -81,7 +81,7 @@ def reserve(client, *, keys_name, attempts_name, identity, request_id, intent,
     # PAYREF is an index only; all authoritative financial fields live on the attempt.
     reference = {'orderId': order_keys.PAYMENT_REFERENCE_PREFIX + reference_id,
                  'referenceId': reference_id, 'paymentAttemptId': attempt_id,
-                 'customerId': identity.customer_id, 'checkoutMode': 'WIX_HEADLESS', 'createdAt': now}
+                 'customerId': identity.customer_id, 'checkoutMode': 'AWS_NATIVE', 'createdAt': now}
     serializer = TypeSerializer()
     def item(row):
         return {key: serializer.serialize(value) for key, value in row.items()}
