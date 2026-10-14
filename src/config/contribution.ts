@@ -67,7 +67,7 @@ export const CONTRIBUTE_CTA_HREF = 'https://wa.me/message/BYFLCAAMSZBXD1';
  * visible in-stock variant at ₹250. It carried THREE variants - ₹100 / ₹250 / ₹500 - until the
  * owner removed two of them in catalog on 2026-10-10.
  *
- * MOVED TO THE NEW WIX SITE, 2026-10-05. The catalogue was migrated to site
+ * CATALOG ID MIGRATION, 2026-10-05. Product and variant identifiers changed together.
  * `c993128b-26be-41cd-9fcd-904abe23462f`, which re-minted every product and variant id, so the
  * product id and the variant ids below changed together in one release exactly as the
  * paragraph below requires. The amounts did NOT change in that move: ₹100 / ₹250 / ₹500, 10000 /
