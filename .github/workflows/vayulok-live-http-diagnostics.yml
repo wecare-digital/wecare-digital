@@ -97,3 +97,76 @@ jobs:
           else:
               print('RESULT: HTML route responds; verify client-side Maps and data API independently')
           PY
+
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install headless Chromium
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y chromium
+      - name: Install browser runner
+        run: npm install --no-save --no-audit --no-fund playwright-core@1.49.0
+      - name: Render production page and classify public failures
+        shell: bash
+        run: |
+          node <<'JS'
+          const { chromium } = require('playwright-core');
+          (async () => {
+            const browser = await chromium.launch({executablePath:'/usr/bin/chromium',
+              args:['--no-sandbox','--disable-dev-shm-usage'], headless:true});
+            for (const url of ['https://wecare.digital/vayulok/',
+              'https://www.wecare.digital/vayulok/']) {
+              const page = await browser.newPage({viewport:{width:1280,height:800}});
+              const failed=[];
+              const consoleErrors=[];
+              page.on('requestfailed',request=>{
+                const u=new URL(request.url());
+                failed.push({host:u.hostname,path:u.pathname,error:request.failure()?.errorText});
+              });
+              page.on('response',response=>{
+                if (response.status()>=400) {
+                  const u=new URL(response.url());
+                  failed.push({status:response.status(),host:u.hostname,path:u.pathname});
+                }
+              });
+              page.on('pageerror',error=>consoleErrors.push(String(error?.message||error).slice(0,240)));
+              page.on('console',msg=>{
+                if (msg.type()==='error') {
+                  const message=msg.text().replace(/AIza[0-9A-Za-z_-]{20,}/g,'[REDACTED_KEY]');
+                  consoleErrors.push(message.slice(0,240));
+                }
+              });
+              let nav=null;
+              try {nav=await page.goto(url,{waitUntil:'domcontentloaded',timeout:25000});
+                await page.waitForTimeout(11000);
+              }catch(e){consoleErrors.push('NAV '+String(e.message).slice(0,240));}
+              const state=await page.evaluate(()=>{
+                const txt=(s)=>document.querySelector(s)?.textContent?.trim()?.slice(0,140)||'';
+                return {title:document.title,path:location.pathname,
+                  h1:txt('h1'),hero:!!document.querySelector('.vl-shell'),
+                  live:!!document.querySelector('.vl-live-shell'),
+                  map:!!document.querySelector('.vl-live-map-canvas'),
+                  mapPlaceholder:txt('.vl-live-map-placeholder'),
+                  loading:txt('.vl-live-map-fallback'),
+                  airText:txt('.vl-live-air-empty'),
+                  mapFailed:!!document.querySelector('.vl-live-map-retry'),
+                  googleMapsLoaded:!!(window.google&&window.google.maps),
+                  iframeSrcHost:(()=>{
+                    const frame=document.querySelector('.vag-frame');
+                    if(!frame)return null;
+                    try{return new URL(frame.src).hostname}catch{return 'invalid'}
+                  })()}
+                };
+              });
+              console.log('BROWSER_RESULT',JSON.stringify({url,navStatus:nav?.status(),state,
+                failures:failed.slice(0,30),consoleErrors:consoleErrors.slice(0,20)}));
+              await page.close();
+            }
+            await browser.close();
+          })().catch(e=>{console.error(String(e.stack||e).replace(/AIza[0-9A-Za-z_-]{20,}/g,'[REDACTED_KEY]'));process.exitCode=1});
+          JS
