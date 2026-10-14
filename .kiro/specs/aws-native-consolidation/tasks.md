@@ -158,3 +158,52 @@ Legend: `[x]` done · `[~]` implemented, not deployed · `[ ]` not started.
   rotation, IAM change on deployed roles, Wix provider changes, Lightsail
   provisioning / static-IP move. Each is prepared as an exact runbook in the
   `docs/migrations/*` files and executed only on explicit owner approval.
+
+---
+
+## Session addendum — total Wix code removal (branch `feat/wix-cutover-live`)
+
+Context verified live this session: **production is ALREADY flipped to native**
+(`wecare-checkout`: CHECKOUT_MODE=AWS_NATIVE, CATALOG_SOURCE=aws; `wecare-seo-tools`:
+BLOG_SOURCE=aws, WIX_CREDENTIALS_DISABLED=true). The live `ProductsTable` exists
+but is **empty** (0 items) — seeding it is the main 🔒 deploy gate. The Wix site
+itself is gone, so Wix is no longer a working fallback — removal, not dual-run.
+
+Done (committed, tested, NOT deployed):
+- [x] Storefront off Wix: `src/content/shop.ts` reads `catalog-snapshot.json`
+      (native), slug set identical to Wix (no new 404s). ShopCatalogue 39 green.
+- [x] Production-quality seed: `scripts/reconcile_products_seed.py` (offline,
+      from committed `wix-catalog.json`) → 10 products, 23 real variants, 7 with
+      body copy. `outputs/products-seed.json` ready for the 🔒 ProductsTable load.
+- [x] Native catalog-change trigger REPLACES the Wix catalog webhook:
+      meta-sync `_trigger` classifies the ProductsTable DynamoDB stream
+      (`source=ddb-stream`); `catalog-resources.ts addCatalogStreamTrigger()`
+      wires the stream→`wecare-meta-catalog-sync:live`. Prepared, un-wired in
+      backend.ts (🔒 live event-source mapping = webhook-retirement cutover).
+- [x] Coupons: Wix mirror removed — handler imports no wix_coupons/wix_ecom; the
+      local DynamoDB row is the sole authority. 358 coupon tests green.
+- [x] Finalization: Wix order-writeback removed; native terminal is
+      `ORDER_FINALIZED` (internal order is authoritative). Split-tender money
+      anchors preserved; 1381 payment-surface tests green.
+
+Remaining Wix code (next, all local/reversible until the deploy gate):
+- [ ] `checkout/handler.py`: still produces `wixOrderPayload` via
+      `wix_writeback.build_wix_order_payload` on the native WhatsApp catalog-
+      service path (lines ~1226/3024/3281) — needs a provider-neutral payload
+      shaper before `wix_writeback.py` can be deleted.
+- [ ] `cart_v2.py` (7 importers): extract pure helpers (`identifier`,
+      `catalog_item`, `cheapest_delivery_option`, `STORES_APP_ID`) + the
+      `CartContractError` vocabulary to a provider-neutral module; migrate the
+      still-unconditional `_claim_basket`/`_claimed_handoff` CartV2 instantiation
+      to native cart ops; then delete.
+- [ ] `wix_ecom.py` (2 importers), `wix_guard.py` (3, SEO kill-switch — remove
+      LAST with `seo-tools/wix.py`), `wix_webhook.py` + the webhook Lambda.
+- [ ] Delete orphaned modules `wix_coupons.py`, `wix_writeback.py` once their last
+      non-test references (coupon_store comments; checkout payload builder) are
+      gone, plus their pure-Wix test files.
+- Policy gate: 204 → **200** findings so far.
+
+Single 🔒 deploy gate (batched, owner approval): seed live ProductsTable from
+`outputs/products-seed.json`; wire `addCatalogResources`+`addCatalogStreamTrigger`
+into backend.ts and deploy; retire the Wix webhook Lambda; then schedule-retire
+the three Wix secrets.
