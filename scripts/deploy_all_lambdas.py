@@ -268,10 +268,10 @@ SPECS: List[Spec] = [
         "ecommerce/customer-invoice",
         provisioned_by="python scripts/provision_customer_invoice.py",
     ),
-    # Coupon issuance and eligibility. Owns stack-wecare-digital-CouponsTable; creates NO
-    # discount amount of its own -- the arithmetic is Wix's Calculate Cart. NOT standalone: it
-    # imports lambda_utils.customer_auth, response, logging, ecommerce.coupon_store and
-    # ecommerce.wix_coupons.
+    # Coupon issuance and eligibility. Owns stack-wecare-digital-CouponsTable. AWS-native: the
+    # local row is the sole authority and `coupon_store.discount_paise` prices the discount on
+    # the native checkout path. NOT standalone: it imports lambda_utils.customer_auth, response,
+    # logging and ecommerce.coupon_store (no Wix).
     Spec(
         "wecare-coupons",
         "ecommerce/coupons",

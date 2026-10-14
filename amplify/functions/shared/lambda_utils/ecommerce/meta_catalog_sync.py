@@ -275,7 +275,7 @@ def paise_from_major(value: Any) -> int:
     """A Wix decimal-string amount in major units (`"1199.00"`) -> integer paise.
 
     `Decimal(str(value))`, never float, and a value that is not an exact whole number of paise is
-    REFUSED rather than rounded - the same rule `lambda_utils/wix_ecom.to_paise` applies, for the
+    REFUSED rather than rounded - the same rule the former Wix eCom client's paise converter applies, for the
     same reason: a fractional paise in a catalogue price is a data error, and rounding it here
     would plant a one-paise mismatch for the checkout comparison to fail closed on later.
     """

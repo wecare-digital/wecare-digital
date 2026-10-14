@@ -2,20 +2,20 @@
 
 WHAT THIS REPLACES, EXACTLY.
 Today the checkout's "collection total" (subtotal − discount + delivery +
-additionalFees + supply tax) is computed by Wix: `cart_v2.calculate` returns a
-`priceSummary` and `wix_ecom.authoritative_total_paise` reads
-`priceSummary.total.amount`. That single integer, `collection_before_convenience
+additionalFees + supply tax) is computed by Wix: the former Wix cart calculation
+returns a `priceSummary` and the former Wix eCom client's authoritative-total reader
+reads `priceSummary.total.amount`. That single integer, `collection_before_convenience
 _paise`, is then handed to the ALREADY-NATIVE `checkout_pricing.compute_quote`,
 which adds the convenience fee + GST-on-fee and produces the amount Razorpay
 charges. So the only thing Wix still owns on the money path is the supply total.
 
 This module computes that supply total from an AWS product catalog, producing the
-SAME `priceSummary` shape and enforcing the SAME identity Wix's `calculate`
-asserts, so the output is a drop-in for `authoritative_total_paise` and nothing
+SAME `priceSummary` shape and enforcing the SAME identity the former Wix cart
+calculation asserts, so the output is a drop-in for `authoritative_total_paise` and nothing
 downstream (`compute_quote`, `website_checkout`, `order_creation`, `finalization`)
 has to change.
 
-INVARIANTS (identical to the Wix contract cart_v2.calculate re-validates):
+INVARIANTS (identical to the Wix contract the former Wix cart calculation re-validates):
     sum(line.total_paise)            == subtotal_paise
     subtotal - discount + delivery + additional_fees + tax == total
     every amount is a nonnegative integer number of paise (never float)
@@ -64,7 +64,7 @@ def _nonneg_paise(value: Any, what: str) -> int:
 class CatalogLine:
     """One resolved, authoritative line. `unit_price_paise` comes from the
     ProductsTable read, NEVER from the client. `quantity` is 1..100000, matching
-    the bound `cart_v2.resolved_catalog_lines` enforces."""
+    the bound the former Wix cart's resolved-catalog-lines check enforces."""
 
     product_id: str
     variant_id: str
@@ -110,8 +110,8 @@ class PriceSummary:
                 + self.additional_fees_paise + self.tax_paise)
 
     def as_wix_shape(self) -> Dict[str, Dict[str, str]]:
-        """Render as Wix's `priceSummary` so `wix_ecom.authoritative_total_paise`
-        and any `priceSummary`-shaped consumer accept it unchanged."""
+        """Render as Wix's `priceSummary` so the former Wix eCom client's
+        authoritative-total reader and any `priceSummary`-shaped consumer accept it unchanged."""
         def amt(p: int) -> Dict[str, str]:
             return {"amount": Money(p).to_wix()}
         return {
@@ -264,7 +264,7 @@ def price_cart(
     """End-to-end native cart pricing: subtotal from lines, discount from the AWS
     coupon definition, plus delivery/fees/tax → the authoritative supply summary.
 
-    This is the native equivalent of a full `cart_v2.calculate`, minus the Wix
+    This is the native equivalent of a full former-Wix cart calculation, minus the Wix
     round-trip. The resulting `total_paise` is the exact integer
     `checkout_pricing.compute_quote` expects, so the native checkout path is:
 
@@ -284,7 +284,7 @@ def price_cart(
 
 
 def authoritative_total_paise(summary: PriceSummary) -> int:
-    """The native counterpart of `wix_ecom.authoritative_total_paise`: the single
+    """The native counterpart of the former Wix eCom client's authoritative-total reader: the single
     integer `checkout_pricing.compute_quote` consumes as
     `collection_before_convenience_paise`. Validated as a clean whole paise, same
     as the Wix path refuses a fractional-paise total."""

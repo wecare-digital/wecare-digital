@@ -77,7 +77,7 @@ import json
 import logging
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from .cart_v2 import cheapest_delivery_option
+from .cart_contract import cheapest_delivery_option
 from .checkout_pricing import (
     CALCULATION_POLICY_VERSION,
     PricingError,

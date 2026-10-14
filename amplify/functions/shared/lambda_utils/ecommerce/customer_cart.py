@@ -12,7 +12,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 from lambda_utils.customer_auth import authorize_resource
-from .cart_v2 import catalog_item, identifier
+from .cart_contract import catalog_item, identifier
 
 CART_LIFETIME = 30 * 24 * 3600
 QUOTE_LIFETIME = 300

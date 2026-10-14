@@ -1,6 +1,6 @@
 """AWS-native inventory validation and atomic stock reservation.
 
-Replaces the inventory half of Wix Cart V2 (`cart_v2.calculate` validates stock
+Replaces the inventory half of the former Wix cart (whose calculation validated stock
 against Wix) with a server-authoritative check against `ProductsTable` and an
 atomic reservation on the commerce-keys table, mirroring `order_keys`' idioms
 (conditional writes, idempotency, release/rollback).
