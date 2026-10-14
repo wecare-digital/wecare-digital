@@ -1,10 +1,10 @@
 """
 Product Image Generator — WECARE.DIGITAL
 
-Auto-generates branded 3000x3000 PNG product card images for the Wix Store.
+Auto-generates branded 3000x3000 PNG product card images for the AWS-native catalog.
 Uses Pillow (PIL) for high-quality raster image generation.
 
-Wix product image specs:
+Product image specs:
   - 1:1 square ratio, 3000x3000px for zoom quality
   - PNG format
   - Max 8MB
@@ -17,7 +17,7 @@ Design:
   - WECARE.DIGITAL branding + BNB CLUB ribbon
 
 Routes:
-  POST /generate-product-image   — Generate PNG, upload to S3, optionally attach to Wix product
+  POST /generate-product-image   — Generate PNG, upload to S3, optionally attach to native product
   GET  /preview-product-image    — Return SVG preview (lightweight browser preview)
 
 Lambda Layer: Klayers-p312-Pillow:10 (Pillow 12.1.1)
@@ -31,6 +31,7 @@ import urllib.request
 import urllib.error
 import io
 import base64
+from datetime import datetime, timezone
 from typing import Dict, Any, Tuple
 
 import boto3
@@ -56,32 +57,7 @@ S3_BUCKET = os.environ.get('S3_BUCKET', media_paths.BUCKET)
 # bucket was named app.wecare.digital and so doubled as a hostname.
 CDN_DOMAIN = os.environ.get('CDN_DOMAIN', media_paths.CDN_DOMAIN)
 
-# Wix credentials are intentionally unconfigured until the fresh Headless
-# project is provisioned. No legacy secret name is used as a default.
-_secrets_client = boto3.client('secretsmanager', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-WIX_API_KEY_SECRET = os.environ.get('WIX_API_KEY_SECRET', '').strip()
-_wix_key_cache = {}
-
-
-def _load_wix_api_key() -> str:
-    if 'key' in _wix_key_cache:
-        return _wix_key_cache['key']
-    key = ''
-    if WIX_API_KEY_SECRET:
-        try:
-            raw = _secrets_client.get_secret_value(SecretId=WIX_API_KEY_SECRET).get('SecretString', '') or ''
-            try:
-                data = json.loads(raw)
-                key = (data.get('api_key') or data.get('apiKey') or data.get('WIX_API_KEY')
-                       or data.get('key') or data.get('value') or '').strip()
-            except (ValueError, TypeError):
-                key = raw.strip()
-        except Exception as e:
-            logger.warning(f'Wix API key: explicit Secrets Manager load failed: {e}')
-    if not key:
-        raise RuntimeError('Wix Headless API credentials are not configured')
-    _wix_key_cache['key'] = key
-    return key
+PRODUCTS_TABLE = os.environ.get('PRODUCTS_TABLE', 'stack-wecare-digital-ProductsTable')
 S3_PREFIX = media_paths.public('stack/store/products')
 
 # Image dimensions (Wix ideal: 3000x3000 for zoom)
@@ -385,7 +361,8 @@ def _generate_and_upload(body: dict, request_id: str) -> Dict[str, Any]:
       tagline: custom tagline (optional)
       countryName: override country name (optional)
       category: S3 subfolder (default: 'bnb-club')
-      productId: if provided, also attaches image to Wix product
+      productId: optional native ProductsTable id to attach image
+      expectedUpdatedAt: required with productId for optimistic concurrency
     """
     country = body.get('country', '')
     visa_type = body.get('visaType', '')
@@ -429,78 +406,59 @@ def _generate_and_upload(body: dict, request_id: str) -> Dict[str, Any]:
             'requestId': request_id,
         }
 
-        # Optionally attach to Wix product via Media Manager import flow
-        pid = body.get('productId', '')
+        # Optionally attach to the AWS-native product row. This is guarded by
+        # expectedUpdatedAt so image generation can never overwrite a concurrent
+        # staff catalog edit. The S3 object remains valid even if the attach loses
+        # the optimistic-lock race.
+        pid = str(body.get('productId') or '').strip()
         if pid:
-            try:
-                WIX_API_KEY = _load_wix_api_key()
-                WIX_SITE_ID = os.environ.get('WIX_SITE_ID', '')
-                WIX_API_BASE = 'https://www.wixapis.com'
-                headers = {
-                    'Authorization': WIX_API_KEY,
-                    'Content-Type': 'application/json',
-                    'wix-site-id': WIX_SITE_ID,
-                }
-
-                # Step 1: Import image into Wix Media Manager
-                import_body = json.dumps({
-                    'url': public_url,
-                    'displayName': file_name,
-                    'mediaType': 'IMAGE',
-                    'mimeType': 'image/png',
-                }).encode('utf-8')
-                import_req = urllib.request.Request(
-                    f'{WIX_API_BASE}/site-media/v1/files/import',
-                    data=import_body, headers=headers, method='POST'
-                )
-                with urllib.request.urlopen(import_req, timeout=30) as resp:
-                    wix_file = json.loads(resp.read().decode('utf-8')).get('file', {})
-                wix_media_url = wix_file.get('url', '')
-
-                # Step 2: Attach through Catalog V3. Product updates require
-                # the current revision, and media is updated on the product.
-                if wix_media_url:
-                    get_req = urllib.request.Request(
-                        f'{WIX_API_BASE}/stores/v3/products/{pid}?fields=MEDIA_ITEMS_INFO',
-                        headers=headers,
-                        method='GET'
-                    )
-                    with urllib.request.urlopen(get_req, timeout=30) as resp:
-                        current = json.loads(resp.read().decode('utf-8')).get('product', {})
-
-                    revision = current.get('revision')
-                    if revision is None:
-                        raise RuntimeError('Catalog V3 product revision unavailable')
-
-                    media = current.get('media') or {}
-                    items = list(((media.get('itemsInfo') or {}).get('items') or []))
-                    if not any(isinstance(item, dict) and item.get('url') == wix_media_url for item in items):
-                        items.append({'url': wix_media_url})
-                    main = media.get('main') or {'url': wix_media_url}
-
-                    media_body = json.dumps({
-                        'product': {
-                            'id': pid,
-                            'revision': revision,
-                            'media': {
-                                'main': main,
-                                'itemsInfo': {'items': items},
+            expected = str(body.get('expectedUpdatedAt') or '').strip()
+            if not expected:
+                result['productAttached'] = False
+                result['productAttachError'] = 'EXPECTED_UPDATED_AT_REQUIRED'
+            else:
+                try:
+                    table = boto3.resource(
+                        'dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1')
+                    ).Table(PRODUCTS_TABLE)
+                    current = table.get_item(
+                        Key={'id': pid}, ConsistentRead=True
+                    ).get('Item')
+                    if not current:
+                        result['productAttached'] = False
+                        result['productAttachError'] = 'PRODUCT_NOT_FOUND'
+                    elif str(current.get('updatedAt') or '') != expected:
+                        result['productAttached'] = False
+                        result['productAttachError'] = 'PRODUCT_VERSION_CONFLICT'
+                    else:
+                        refs = [str(x) for x in (current.get('imageRefs') or [])
+                                if isinstance(x, str) and x]
+                        if public_url not in refs:
+                            refs.append(public_url)
+                        now = datetime.now(timezone.utc).isoformat(
+                            timespec='milliseconds').replace('+00:00', 'Z')
+                        table.update_item(
+                            Key={'id': pid},
+                            UpdateExpression='SET #images = :images, #updated = :now',
+                            ConditionExpression='#updated = :expected',
+                            ExpressionAttributeNames={
+                                '#images': 'imageRefs', '#updated': 'updatedAt',
                             },
-                        },
-                        'fields': ['MEDIA_ITEMS_INFO'],
-                    }).encode('utf-8')
-                    media_req = urllib.request.Request(
-                        f'{WIX_API_BASE}/stores/v3/products/{pid}',
-                        data=media_body, headers=headers, method='PATCH'
+                            ExpressionAttributeValues={
+                                ':images': refs, ':now': now, ':expected': expected,
+                            },
+                        )
+                        result['productAttached'] = True
+                        result['productId'] = pid
+                        result['updatedAt'] = now
+                except Exception as e:
+                    code = getattr(e, 'response', {}).get('Error', {}).get('Code')
+                    result['productAttached'] = False
+                    result['productAttachError'] = (
+                        'PRODUCT_VERSION_CONFLICT'
+                        if code == 'ConditionalCheckFailedException'
+                        else 'NATIVE_PRODUCT_ATTACH_FAILED'
                     )
-                    with urllib.request.urlopen(media_req, timeout=30) as resp:
-                        resp.read()
-
-                result['productAttached'] = True
-                result['productId'] = pid
-                result['wixMediaUrl'] = wix_media_url
-            except Exception as e:
-                result['productAttachError'] = str(e)
 
         return _resp(200, result)
     except Exception as e:
