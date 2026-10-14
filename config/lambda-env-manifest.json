@@ -105,7 +105,8 @@
       "SENDER_FUNCTION": "wecare-whatsapp-business-api:live",
       "CHECKOUT_MODE": "AWS_NATIVE",
       "CATALOG_SOURCE": "aws",
-      "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable"
+      "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
+      "NATIVE_STOCK_RESERVATION_ENABLED": "true"
     },
     "wecare-cognito-custom-message": {
       "BRAND_NAME": "sha256:d185a0daa945",
