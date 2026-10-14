@@ -12,6 +12,13 @@ SPEC.loader.exec_module(ADAPTERS)
 class Refusal(Exception): pass
 
 
+def test_retired_provider_never_reads_credentials_or_network():
+    def forbidden(*args, **kwargs):
+        pytest.fail("retired provider performed an external operation")
+    with pytest.raises(Refusal, match="not enabled"):
+        ADAPTERS.verify('wix', 'owner', forbidden, forbidden, forbidden, Refusal, {})
+
+
 def verify(provider, response, calls):
     def http(url, payload=None, headers=None):
         calls.append((url, payload, headers))

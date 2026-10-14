@@ -75,7 +75,7 @@ def role_policy():
                  "dynamodb:UpdateItem",
              ], "Resource": [table]},
             {"Sid": "ReadStaffGroupMembership", "Effect": "Allow",
-             "Action": ["cognito-idp:AdminListGroupsForUser"],
+             "Action": ["cognito-idp:AdminListGroupsForUser", "cognito-idp:AdminGetUser"],
              "Resource": [pool]},
             {"Sid": "OwnLogs", "Effect": "Allow",
              "Action": ["logs:CreateLogGroup", "logs:CreateLogStream",
