@@ -830,7 +830,7 @@ def _hard_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str
         except Exception as e:
             logger.warning(f"Error scanning {tbl_name}: {e}")
 
-    # Delete contact
+    # Delete contact only when the lock is still absent. Never claim success if refused.
     try:
         dynamodb.Table(CONTACTS_TABLE).delete_item(
             Key={'id': contact_id},
@@ -839,7 +839,10 @@ def _hard_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str
             ExpressionAttributeValues={':false': False},
         )
     except Exception as e:
-        logger.warning(f"Failed to delete contact {contact_id}: {e}")
+        if 'ConditionalCheckFailedException' in str(e):
+            return cors_response(409, {'error': DELETE_REFUSED_LOCKED,
+                                       'archiveInstead': False}, origin)
+        raise
 
     log_event(logger, 'contact_hard_deleted', contactId=contact_id, msgs=msgs_deleted, media=media_deleted, requestId=request_id)
     return cors_response(200, {
