@@ -520,6 +520,25 @@ def confirm(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
         pending.append((record_id, record))
 
     table_ref = storage.table()
+    table_meta = getattr(table_ref, "meta", None)
+    table_client = getattr(table_meta, "client", None) if table_meta is not None else None
+    table_name = getattr(table_ref, "name", storage.TABLE_NAME)
+
+    def update_uploaded(record_id: str, content_length: int) -> None:
+        kwargs = {
+            "Key": {"id": record_id},
+            "UpdateExpression": "SET #s = :uploaded, sourceBytes = :b, updatedAt = :u, #e = :e",
+            "ConditionExpression": "#s = :pending",
+            "ExpressionAttributeNames": {"#s": "status", "#e": "error"},
+            "ExpressionAttributeValues": {
+                ":uploaded": UPLOADED, ":pending": PENDING_UPLOAD,
+                ":b": int(content_length), ":u": storage.now_iso(), ":e": "",
+            },
+        }
+        if table_client is not None:
+            table_client.update_item(TableName=table_name, **kwargs)
+        else:
+            table_ref.update_item(**kwargs)
 
     def check_upload(item: Tuple[str, Dict[str, Any]]) -> Tuple[str, str]:
         record_id, record = item
@@ -529,16 +548,7 @@ def confirm(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
         except ClientError:
             return record_id, "missing"
         try:
-            table_ref.update_item(
-                Key={"id": record_id},
-                UpdateExpression="SET #s = :uploaded, sourceBytes = :b, updatedAt = :u, #e = :e",
-                ConditionExpression="#s = :pending",
-                ExpressionAttributeNames={"#s": "status", "#e": "error"},
-                ExpressionAttributeValues={
-                    ":uploaded": UPLOADED, ":pending": PENDING_UPLOAD,
-                    ":b": int(head["ContentLength"]), ":u": storage.now_iso(), ":e": "",
-                },
-            )
+            update_uploaded(record_id, int(head["ContentLength"]))
         except ClientError as error:
             if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
                 raise
