@@ -403,10 +403,37 @@ def test_a_viewer_cannot_mutate_contacts(handlers, monkeypatch, row):
     assert resp["statusCode"] == 403, (row[0], resp)
 
 
-@pytest.mark.parametrize("row", CONTACT_MUTATIONS, ids=[row[0] for row in CONTACT_MUTATIONS])
+# Unlock is NOT an Operator capability: the handler re-gates POST .../{id}/unlock at Admin
+# ("Unlocking retention is an Admin + MFA capability, not a generic Operator edit."), so it is
+# excluded from the Operator-can-attempt list and pinned separately below. Lock stays Operator.
+OPERATOR_CONTACT_MUTATIONS = [row for row in CONTACT_MUTATIONS if row[0] != "contacts-unlock"]
+
+
+@pytest.mark.parametrize("row", OPERATOR_CONTACT_MUTATIONS,
+                         ids=[row[0] for row in OPERATOR_CONTACT_MUTATIONS])
 def test_an_operator_can_attempt_each_contact_mutation(handlers, monkeypatch, row):
     resp = _invoke(handlers, row, as_staff(monkeypatch, groups=("Operator",)))
     assert resp["statusCode"] not in (401, 403), (row[0], resp)
+
+
+UNLOCK = ("contacts-unlock", "contacts", "POST", "/prod/contacts/c-1/unlock", {"contactId": "c-1"})
+
+
+def test_an_operator_cannot_unlock_a_retained_contact(handlers, monkeypatch):
+    """Unlock lifts a legal-retention hold, so it is Admin-only - an Operator is refused with
+    the Admin requirement, even though an Operator CAN lock and can do every other mutation."""
+    resp = _invoke(handlers, UNLOCK, as_staff(monkeypatch, groups=("Operator",)))
+    assert resp["statusCode"] == 403, resp
+    body = json.loads(resp["body"])
+    assert body["error"] == "Insufficient permissions"
+    assert body["requiredRole"] == "Admin"
+    assert body["currentRole"] == "Operator"
+
+
+def test_an_admin_can_attempt_the_unlock(handlers, monkeypatch):
+    """The Admin floor admits an Admin - the unlock is attempted (not stopped by the role gate)."""
+    resp = _invoke(handlers, UNLOCK, as_staff(monkeypatch, groups=("Admin",)))
+    assert resp["statusCode"] not in (401, 403), resp
 
 
 def test_a_viewer_can_read_contacts_and_cannot_delete_them(handlers, monkeypatch):
