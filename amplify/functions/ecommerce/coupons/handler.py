@@ -39,17 +39,13 @@ That is the security boundary, not a stylistic choice. The amount is Wix's answe
 `Calculate Cart`; a validate endpoint that returned a discount figure would become a number a
 browser could quote. Every answer is one word from `coupon_store.VERDICTS`.
 
-THE CREDENTIAL
---------------
-The Wix admin key is referenced only by its secret ID and is read LAZILY, at request time, by
-`wix_ecom._request` - never at module scope, because a module-scope read is frozen into a warm
-sandbox and a rotation would keep using the old value until every sandbox recycled. Nothing here
-reads the key at all, so no logging expression can touch it, not even reduced to a bool: CodeQL
-tracks taint across function boundaries and a ternary on a secret's truthiness is still a finding.
-
-A Wix error body is never surfaced or logged. `wix_ecom._request` already reduces an `HTTPError` to
-a status-only message for exactly that reason, and that behaviour is relied on rather than
-reimplemented. No branch here parses a status out of an exception's prose.
+AWS-NATIVE, NO WIX MIRROR
+-------------------------
+Coupons are AWS-native: the local DynamoDB row is the sole authority and
+`coupon_store.discount_paise` prices every coupon on the native checkout path. There is no Wix
+coupon mirror — the Wix admin key is retired and a mirror would only fail into PENDING_WIX. The
+`wixCouponId`/`wixMirrorState` attributes remain in the stored shape for historical rows but are
+never written or read against Wix any more.
 """
 from __future__ import annotations
 
@@ -58,16 +54,13 @@ import os
 from typing import Any, Dict, Optional, Tuple
 
 from lambda_utils import customer_session as sessions
-from lambda_utils import middleware, rate_limit, wix_ecom
+from lambda_utils import middleware, rate_limit
 from lambda_utils.customer_session_store import SessionStore
-from lambda_utils.ecommerce import coupon_store, wix_coupons
+from lambda_utils.ecommerce import coupon_store
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, error_response, extract_origin, options_response
 
 logger = get_logger(__name__)
-
-#: Secret NAME only. The value is read lazily inside `wix_ecom._request`, by reference.
-WIX_API_KEY_SECRET = os.environ.get("WIX_API_KEY_SECRET", "wecare/wix/headless-api-key")
 
 COUPONS_TABLE = os.environ.get(coupon_store.TABLE_ENV_KEY, coupon_store.DEFAULT_TABLE_NAME)
 CUSTOMER_SESSIONS_TABLE = os.environ.get(
@@ -123,30 +116,6 @@ def _table(name: str):
 
 def _coupons_table():
     return _table(COUPONS_TABLE)
-
-
-def _wix_mirror_enabled() -> bool:
-    """Whether to mirror coupons into Wix at all.
-
-    After the AWS-native cutover (CATALOG_SOURCE=aws) the Wix coupon mirror is dead:
-    the admin key is gone, so every mirror attempt would fail into PENDING_WIX and
-    answer 202 instead of a clean 201 for a coupon that is already fully authoritative
-    in our table. This gate turns the mirror OFF in native mode, so a native coupon
-    create/deactivate/get is a pure AWS operation with no Wix call. Read at request
-    time. Defaults to ON (wix) so nothing changes until CATALOG_SOURCE flips.
-    """
-    import os
-    return str(os.environ.get("CATALOG_SOURCE", "wix")).strip().lower() not in (
-        "aws", "ddb", "dynamodb", "native")
-
-
-def _wix() -> wix_coupons.WixCoupons:
-    """The Wix mirror adapter over the shared request callable.
-
-    `wix_ecom._request` reads the API key by reference from Secrets Manager, lazily, on its
-    first call. Nothing in this module sees the value.
-    """
-    return wix_coupons.WixCoupons(wix_ecom._request)
 
 
 # ── identity ──────────────────────────────────────────────────────────────────
@@ -220,16 +189,11 @@ def _route_key(event: Dict[str, Any]) -> str:
 # ── staff routes ──────────────────────────────────────────────────────────────
 
 def _create(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Create locally, then mirror into Wix. Local claim FIRST, deliberately.
+    """Create the coupon in our DynamoDB table. AWS-native: the local row is the sole authority.
 
-    The local conditional put is the cheap, reversible half. If the Wix call then fails we hold
-    a `PENDING_WIX` row that a retry resolves. The reverse order would create a Wix coupon our
-    table has no record of - an issued discount with no owner, which nothing would reconcile.
-
-    Every Wix failure of every status leaves the row `PENDING_WIX` and answers `202`. No status
-    is special-cased because `Create Coupon` documents none, and a `PENDING_WIX` coupon is
-    refused by `validate`, so the worst case is a coupon that does not work rather than one that
-    works differently from what was promised.
+    A conditional put claims the code; `coupon_store.discount_paise` prices the coupon on the
+    native checkout path. There is no Wix mirror, so a create is a clean `201` with no external
+    call and no `PENDING_WIX` limbo.
     """
     denied = _staff(event)
     if denied:
@@ -242,28 +206,15 @@ def _create(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     logger.info(json.dumps({"event": "coupon_created", "code": definition["code"],
                             "couponId": definition["couponId"],
                             "discountKind": definition["discountKind"]}))
-    # AWS-native mode: no Wix mirror. The local row is already fully authoritative
-    # (coupon_store.discount_paise prices it on the native checkout path), so a native
-    # create is a clean 201 with no Wix call and no PENDING_WIX limbo.
-    if not _wix_mirror_enabled():
-        return cors_response(201, {"coupon": _public(definition)}, origin)
-    try:
-        wix_coupon_id = _wix().create(definition)
-    except Exception as exc:  # noqa: BLE001 - every status leaves the row PENDING_WIX
-        logger.warning(json.dumps({"event": "coupon_mirror_pending",
-                                   "code": definition["code"],
-                                   "reason": type(exc).__name__}))
-        return cors_response(202, {"coupon": _public(definition)}, origin)
-    mirrored = coupon_store.mark_mirrored(table, definition["code"], wix_coupon_id)
-    return cors_response(201, {"coupon": _public(mirrored or definition)}, origin)
+    return cors_response(201, {"coupon": _public(definition)}, origin)
 
 
 def _get(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Our record plus the Wix mirror state, resolved code -> row -> `wixCouponId`.
+    """Our record, resolved code -> row. AWS-native: the local row is the authority, no Wix read.
 
-    The Wix call is by ID, never by code: `Get Coupon` takes an id, and composing a Wix URL out
-    of a customer-visible code is how a path-injection bug gets written. A Wix failure answers
-    `200` with `PENDING_WIX` rather than failing the read - our row is the authority.
+    `mirror.state` is still returned for shape stability (historical rows carry a
+    `wixMirrorState`), but no call is made to Wix — the field reflects only what the stored row
+    records.
     """
     denied = _staff(event)
     if denied:
@@ -273,20 +224,6 @@ def _get(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     if not definition:
         return error_response(404, "UNKNOWN_CODE", origin)
     mirror: Dict[str, Any] = {"state": definition.get("wixMirrorState")}
-    wix_coupon_id = definition.get("wixCouponId")
-    if wix_coupon_id and _wix_mirror_enabled():
-        try:
-            mirror["wix"] = _wix().assert_mirrors(wix_coupon_id=wix_coupon_id,
-                                                  code=definition["code"])
-        except wix_coupons.WixCouponConflict:
-            logger.error(json.dumps({"event": "coupon_wix_code_conflict",
-                                     "code": definition["code"]}))
-            return error_response(409, wix_coupons.WixCouponConflict.code, origin)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(json.dumps({"event": "coupon_mirror_unreadable",
-                                       "code": definition["code"],
-                                       "reason": type(exc).__name__}))
-            mirror["state"] = coupon_store.MIRROR_PENDING
     return cors_response(200, {"coupon": _public(definition), "mirror": mirror}, origin)
 
 
@@ -303,11 +240,9 @@ def _list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
 
 
 def _deactivate(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """`INACTIVE` locally FIRST, then ask Wix. Never a delete.
+    """Set the coupon `INACTIVE` in our table. AWS-native: no Wix call. Never a delete.
 
-    The local state binds: a coupon that is INACTIVE with us and still active in Wix is refused
-    by `validate` before `Add Coupon` is ever called. The reverse order would leave a window in
-    which we believe a coupon is live and Wix has already switched it off.
+    The local state binds: an INACTIVE coupon is refused by `validate` before it can be applied.
     """
     denied = _staff(event)
     if denied:
@@ -317,15 +252,6 @@ def _deactivate(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     definition = coupon_store.deactivate(table, code)
     logger.info(json.dumps({"event": "coupon_deactivated",
                             "code": definition.get("code") or code}))
-    wix_coupon_id = definition.get("wixCouponId")
-    if wix_coupon_id and _wix_mirror_enabled():
-        try:
-            _wix().deactivate(wix_coupon_id)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(json.dumps({"event": "coupon_mirror_deactivate_pending",
-                                       "code": definition.get("code") or code,
-                                       "reason": type(exc).__name__}))
-            return cors_response(202, {"coupon": _public(definition)}, origin)
     return cors_response(200, {"coupon": _public(definition)}, origin)
 
 
