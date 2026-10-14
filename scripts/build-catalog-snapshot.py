@@ -98,10 +98,19 @@ def to_shop_product(item: Dict[str, Any]) -> Dict[str, Any]:
     return product
 
 
+def _utc_now_z() -> str:
+    """Canonical UTC timestamp: millisecond precision, trailing 'Z'
+    (e.g. '2026-10-14T06:52:56.535Z'). Provider-independent and byte-stable, so the
+    static build cannot render two different dates for the same instant and the shape
+    does not drift with the Python version's default isoformat()."""
+    now = datetime.now(timezone.utc)
+    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
+
+
 def build_snapshot(items: List[Dict[str, Any]]) -> Dict[str, Any]:
     products = [to_shop_product(it) for it in items if it.get("status", "active") != "archived"]
     products.sort(key=lambda p: p["slug"])
-    now = datetime.now(timezone.utc).isoformat()
+    now = _utc_now_z()
     return {
         "source": "aws products-table (native catalog)",
         "catalogVersion": "AWS_NATIVE_V1",

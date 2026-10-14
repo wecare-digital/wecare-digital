@@ -1,7 +1,7 @@
 {
   "source": "aws products-table (native catalog)",
   "catalogVersion": "AWS_NATIVE_V1",
-  "fetchedAt": "2026-10-14T06:34:07.788265+00:00",
+  "fetchedAt": "2026-10-14T06:54:12.836Z",
   "productCount": 10,
   "products": [
     {
@@ -11,9 +11,16 @@
       "price": "1.00",
       "formattedPrice": "₹1.00",
       "currency": "INR",
-      "inStock": false,
+      "inStock": true,
       "tagline": "",
-      "body": []
+      "body": [],
+      "variants": [
+        {
+          "id": "c2edc783-c8fa-4b3e-a922-f7800889e56a",
+          "label": "Standard",
+          "inStock": true
+        }
+      ]
     },
     {
       "id": "abfdad33-b853-4aeb-b2f9-fa4051e75928",
@@ -22,10 +29,21 @@
       "price": "599.00",
       "formattedPrice": "₹599.00",
       "currency": "INR",
-      "inStock": false,
-      "tagline": "<p><span style=\"font-weight: 700\">Anew by WECARE.DIGITAL</span></p><p><span style=\"font-weight: 700\">Reflection into </span><em><span style=\"font-weight: 700\">clarity / action / direction / focus</spa",
-      "body": [],
-      "image": "https://static.wixstatic.com/media/478bf9_8c3222208f35439a8895fa10e928edb7~mv2.png"
+      "inStock": true,
+      "tagline": "Anew by WECARE.DIGITAL",
+      "body": [
+        "Reflection into clarity / action / direction / focus",
+        "A considered written reflection on a decision that matters — read in your own time, no calls.",
+        "Start a conversation"
+      ],
+      "image": "https://static.wixstatic.com/media/478bf9_8c3222208f35439a8895fa10e928edb7~mv2.png",
+      "variants": [
+        {
+          "id": "750a2d69-198d-42fa-ad80-f13a19ec6603",
+          "label": "Standard",
+          "inStock": true
+        }
+      ]
     },
     {
       "id": "8514c405-3971-4786-ad0d-15406ca23407",
@@ -34,10 +52,17 @@
       "price": "250.00",
       "formattedPrice": "₹250.00",
       "currency": "INR",
-      "inStock": false,
+      "inStock": true,
       "tagline": "",
       "body": [],
-      "image": "https://static.wixstatic.com/media/478bf9_2cd9cf9b4d864198b928c57a020cef1c~mv2.png"
+      "image": "https://static.wixstatic.com/media/478bf9_2cd9cf9b4d864198b928c57a020cef1c~mv2.png",
+      "variants": [
+        {
+          "id": "8ad6f376-a526-4631-b510-0e047b33a5b9",
+          "label": "₹250",
+          "inStock": true
+        }
+      ]
     },
     {
       "id": "518f58d4-f365-4cad-83ea-215a862f84f5",
@@ -46,10 +71,23 @@
       "price": "6999.00",
       "formattedPrice": "₹6,999.00",
       "currency": "INR",
-      "inStock": false,
-      "tagline": "<p><span style=\"font-weight: 700\">Documents prepared. Next steps coordinated.</span></p><p>You’ve already agreed on the important terms.</p><p>File Assist helps turn those decisions into organised doc",
-      "body": [],
-      "image": "https://static.wixstatic.com/media/478bf9_4200c3df23494a798aaa2998878af240~mv2.png"
+      "inStock": true,
+      "tagline": "Documents prepared. Next steps coordinated.",
+      "body": [
+        "You’ve already agreed on the important terms.",
+        "File Assist helps turn those decisions into organised documents — and gives you a dedicated coordinator to help keep the next steps moving.",
+        "Complete the guided questionnaire and tell us what both of you have agreed. CLEAR CLOSURE prepares the applicable documents for your review.",
+        "Your case coordinator then helps keep the practical side organised — from missing information and signatures to filing preparation and administrative follow-up.",
+        "File Assist helps coordinate what comes next, so you do not have to manage every practical step alone."
+      ],
+      "image": "https://static.wixstatic.com/media/478bf9_4200c3df23494a798aaa2998878af240~mv2.png",
+      "variants": [
+        {
+          "id": "1960aa09-7585-4813-91b5-13b30e64d342",
+          "label": "Standard",
+          "inStock": true
+        }
+      ]
     },
     {
       "id": "74f6771a-1ea8-429c-9a8b-0318dca67d25",
@@ -58,10 +96,23 @@
       "price": "13999.00",
       "formattedPrice": "₹13,999.00",
       "currency": "INR",
-      "inStock": false,
-      "tagline": "<p><span style=\"font-weight: 700\">Work through what is unresolved. Document what you agree.</span></p><p>You both want to move forward peacefully, but there are still a few important things to work th",
-      "body": [],
-      "image": "https://static.wixstatic.com/media/478bf9_907442afff3f45e3a7d2dfec7726c07b~mv2.png"
+      "inStock": true,
+      "tagline": "Work through what is unresolved. Document what you agree.",
+      "body": [
+        "You both want to move forward peacefully, but there are still a few important things to work through.",
+        "Guided Resolution gives you a structured way to discuss those issues, find common ground, and turn what you agree into clear documentation.",
+        "You receive the documentation and coordination included with File Assist, together with up to 4 guided-resolution sessions to help both of you work through unresolved terms.",
+        "If agreement is reached, CLEAR CLOSURE helps carry those agreed decisions forward into document preparation, review, signatures, and filing coordination.",
+        "The goal is to help you find a workable path forward — not to force either person to accept a settlement."
+      ],
+      "image": "https://static.wixstatic.com/media/478bf9_907442afff3f45e3a7d2dfec7726c07b~mv2.png",
+      "variants": [
+        {
+          "id": "9a108efe-e3b9-42f2-b465-0e8470a293e4",
+          "label": "Standard",
+          "inStock": true
+        }
+      ]
     },
     {
       "id": "a12e9e74-e109-4136-a12e-ab49ea6f98c3",
@@ -70,10 +121,25 @@
       "price": "24999.00",
       "formattedPrice": "₹24,999.00",
       "currency": "INR",
-      "inStock": false,
-      "tagline": "<p><span style=\"font-weight: 700\">Put your location to work.</span></p><p>You already have the place.</p><p>A shop. An office. A store. A reception. Somewhere people already walk in, wait, ask questio",
-      "body": [],
-      "image": "https://static.wixstatic.com/media/478bf9_30c2b36f1fad43ad95f29302286fdf33~mv2.png"
+      "inStock": true,
+      "tagline": "Put your location to work.",
+      "body": [
+        "You already have the place.",
+        "A shop. An office. A store. A reception. Somewhere people already walk in, wait, ask questions, or look for something useful.",
+        "Kiosk turns that location into a WECARE.DIGITAL digital touchpoint.",
+        "Install the Android kiosk where visitors can comfortably use it to explore available WECARE.DIGITAL products and services.",
+        "When genuine eligible business is generated through your Kiosk and qualifies under the applicable Kiosk terms, you can earn commission.",
+        "You do not need to personally make every introduction.",
+        "Your location stays there. Your Kiosk can too."
+      ],
+      "image": "https://static.wixstatic.com/media/478bf9_30c2b36f1fad43ad95f29302286fdf33~mv2.png",
+      "variants": [
+        {
+          "id": "4d3e2b31-7888-4250-8f5a-0587344431db",
+          "label": "Standard",
+          "inStock": true
+        }
+      ]
     },
     {
       "id": "eca1540e-0a0e-478d-9aa7-e366be277617",
@@ -82,10 +148,68 @@
       "price": "1199.00",
       "formattedPrice": "₹1,199.00",
       "currency": "INR",
-      "inStock": false,
-      "tagline": "<p><span style=\"font-weight: 700\">Show up. Stay remembered.</span></p><p>Some connections begin online. The good ones often continue in the real world.</p><p>At work, at a meeting, at an event, or dur",
-      "body": [],
-      "image": "https://static.wixstatic.com/media/478bf9_72706e7bee784f898f4de15b87dc5850~mv2.png"
+      "inStock": true,
+      "tagline": "Show up. Stay remembered.",
+      "body": [
+        "Some connections begin online. The good ones often continue in the real world.",
+        "At work, at a meeting, at an event, or during a conversation with someone who wants to know more about WECARE.DIGITAL, this essentials set gives you practical things you can actually use.",
+        "You receive a WECARE.DIGITAL branded T-shirt, branded pen, and 50 standard company business cards.",
+        "Wear the brand. Keep the pen close. Leave the right company details behind when a conversation should continue.",
+        "Simple, practical, and made to be used."
+      ],
+      "image": "https://static.wixstatic.com/media/478bf9_72706e7bee784f898f4de15b87dc5850~mv2.png",
+      "variants": [
+        {
+          "id": "3788a657-9af2-4ecf-8c9b-f218669d753c",
+          "label": "Men’s / XL",
+          "inStock": true
+        },
+        {
+          "id": "3879304e-f924-430e-991a-bd9592c1d8f7",
+          "label": "Men’s / S",
+          "inStock": true
+        },
+        {
+          "id": "4a691fd4-549d-4698-bff6-2df7c094ccf9",
+          "label": "Men’s / L",
+          "inStock": true
+        },
+        {
+          "id": "973e32ca-6272-43d9-b9ea-9dc1dd9ac2af",
+          "label": "Men’s / M",
+          "inStock": true
+        },
+        {
+          "id": "997508d6-1f2a-4d33-80df-83e992b4910a",
+          "label": "Women’s / 2XL",
+          "inStock": true
+        },
+        {
+          "id": "9a3ac454-45b6-44ed-9d4a-7b4106e45556",
+          "label": "Men’s / 2XL",
+          "inStock": true
+        },
+        {
+          "id": "a3559cf9-ced8-47d4-be89-ba6267af0b83",
+          "label": "Women’s / M",
+          "inStock": true
+        },
+        {
+          "id": "b2dc278c-1653-4012-acd8-feb0cf871899",
+          "label": "Women’s / S",
+          "inStock": true
+        },
+        {
+          "id": "b6aeb636-d3d8-4765-a63c-751c440d9a32",
+          "label": "Women’s / L",
+          "inStock": true
+        },
+        {
+          "id": "da9a27b8-d781-49c2-954a-66d8020861df",
+          "label": "Women’s / XL",
+          "inStock": true
+        }
+      ]
     },
     {
       "id": "31ac32e7-9571-41c0-8fbf-32d2ae886da5",
@@ -94,10 +218,22 @@
       "price": "3499.00",
       "formattedPrice": "₹3,499.00",
       "currency": "INR",
-      "inStock": false,
-      "tagline": "<p><span style=\"font-weight: 700\">Turn what you’ve agreed into clear, organised documentation.</span></p><p>When the important decisions are already substantially agreed, Paperwork helps you turn thos",
-      "body": [],
-      "image": "https://static.wixstatic.com/media/478bf9_51d20f04d7db4c0b83a0188373400b1e~mv2.png"
+      "inStock": true,
+      "tagline": "Turn what you’ve agreed into clear, organised documentation.",
+      "body": [
+        "When the important decisions are already substantially agreed, Paperwork helps you turn those decisions into clear, organised divorce documentation — one step at a time.",
+        "Answer a guided set of questions and tell us what both of you have agreed.",
+        "CLEAR CLOSURE prepares the applicable documents for your review. You check the details carefully, complete the required signatures, and then manage filing yourself or through an independent advocate.",
+        "Paperwork helps with documentation. It does not negotiate disagreements or represent you in court."
+      ],
+      "image": "https://static.wixstatic.com/media/478bf9_51d20f04d7db4c0b83a0188373400b1e~mv2.png",
+      "variants": [
+        {
+          "id": "ac5cee5d-0dd1-4a1e-ac13-c3767d3fd8dd",
+          "label": "Standard",
+          "inStock": true
+        }
+      ]
     },
     {
       "id": "7f3bbc75-02a4-4e4e-a023-e7074e87585f",
@@ -106,10 +242,27 @@
       "price": "999.00",
       "formattedPrice": "₹999.00",
       "currency": "INR",
-      "inStock": false,
-      "tagline": "<p><span style=\"font-weight: 700\">Make the introductions you already make count.</span></p><p>Someone asks you:</p><p><span style=\"font-weight: 700\">“Do you know someone who can help with this?”</span",
-      "body": [],
-      "image": "https://static.wixstatic.com/media/478bf9_7cb916e01cfc48c19f76c90f890d6bb3~mv2.png"
+      "inStock": true,
+      "tagline": "Make the introductions you already make count.",
+      "body": [
+        "Someone asks you:",
+        "“Do you know someone who can help with this?”",
+        "You probably already have these conversations with clients, customers, businesses, friends, or people in your network.",
+        "Usually, you make the introduction and your part ends there.",
+        "Referral Partner gives the right introductions a way to create value for you too.",
+        "Join for a one-time ₹999 enrollment. We activate your Referral Partner account and send your unique referral code and getting-started details to you on WhatsApp.",
+        "When you meet someone who could genuinely benefit from a WECARE.DIGITAL product or service, introduce them to us.",
+        "If that referral becomes qualifying business, you earn according to the applicable Referral Partner terms.",
+        "You bring the customer. WECARE.DIGITAL takes it from there."
+      ],
+      "image": "https://static.wixstatic.com/media/478bf9_7cb916e01cfc48c19f76c90f890d6bb3~mv2.png",
+      "variants": [
+        {
+          "id": "081aa95d-82e4-451c-80f2-bc076d1cdb4d",
+          "label": "Standard",
+          "inStock": true
+        }
+      ]
     },
     {
       "id": "df976a0a-f582-4535-b2e1-d532f348bd27",
@@ -118,11 +271,38 @@
       "price": "49.00",
       "formattedPrice": "₹49.00",
       "currency": "INR",
-      "inStock": false,
-      "tagline": "<p>Get help with your order, upload documents or access your Vault.</p>",
+      "inStock": true,
+      "tagline": "Get help with your order, upload documents or access your Vault.",
       "body": [],
-      "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png"
+      "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png",
+      "variants": [
+        {
+          "id": "SERVICE-REQUEST-AMENDMENT",
+          "label": "Request Amendment",
+          "inStock": true
+        },
+        {
+          "id": "SERVICE-REQUEST-PICKUP",
+          "label": "Request Pickup",
+          "inStock": true
+        },
+        {
+          "id": "SERVICE-DROP-DOCS",
+          "label": "Drop Docs",
+          "inStock": true
+        },
+        {
+          "id": "SERVICE-VAULT",
+          "label": "Vault",
+          "inStock": true
+        },
+        {
+          "id": "SERVICE-SUBMIT-REQUEST",
+          "label": "Submit Request",
+          "inStock": true
+        }
+      ]
     }
   ],
-  "variantVerifiedAt": "2026-10-14T06:34:07.788265+00:00"
+  "variantVerifiedAt": "2026-10-14T06:54:12.836Z"
 }

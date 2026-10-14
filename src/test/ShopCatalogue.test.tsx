@@ -681,25 +681,17 @@ describe( 'the contribution product is a payment vehicle, not a shop listing', (
   it.skipIf( CONTRIBUTION_RAW === null )(
     'carries the invariant fields the checkout depends on', () => {
       const raw = CONTRIBUTION_RAW as Record<string, unknown>;
-      expect( raw.visible ).toBe( true );
-      // THE DELIVERY SKIP DOES NOT COME FROM `productType`, and this is where that is pinned.
-      // The live product is PHYSICAL; what makes the checkout skip the address is the line's
-      // product id being in the recognised contribution set. So the identity is asserted and the
-      // Wix type deliberately is not - the server is free to see either one.
+      // IDENTITY is what the checkout keys on: a line whose product id is in the recognised
+      // contribution set skips the delivery address. The id is the immutable UUID, asserted here;
+      // the native catalog carries no provider-specific `productType`/`visible`/count fields, and
+      // the server does not need them. The variant ids and the per-choice amounts are committed
+      // constants in src/config/contribution.ts (CONTRIBUTION_CHOICES), not read from the catalog
+      // row, so they are asserted there rather than from a provider's dashboard counts.
       expect( String( raw.id ).toLowerCase() ).toBe( CONTRIBUTION_PRODUCT_ID );
-      // ONE variant, one option, no modifiers: an invariant of THIS product, not of the
-      // catalogue, and it is read from the committed snapshot rather than asserted as a literal
-      // count so the two cannot disagree. The option is the "Amount" chooser; it offered three
-      // choices until the owner deleted the ₹100 and ₹500 variants in Wix on 2026-10-10, and a
-      // contribution line still carries an explicit variantId rather than leaning on the
-      // single-variant fallback that reduction made reachable.
-      expect( [ raw.variantCount, raw.optionCount, raw.modifierCount ] )
-        .toEqual( [ CONTRIBUTION_CHOICES.length, 1, 0 ] );
-      // The cheapest and dearest choices, so a changed price in Wix is caught here rather than by
-      // a customer. `price` is the minimum of the range and `priceMax` the maximum.
-      expect( raw.price ).toBe( `${ CONTRIBUTION_CHOICES[ 0 ].rupees }.00` );
-      expect( raw.priceMax ).toBe(
-        `${ CONTRIBUTION_CHOICES[ CONTRIBUTION_CHOICES.length - 1 ].rupees }.00` );
+      // The native row is active and NOT in /shop (excluded as a payment vehicle). Its identity
+      // and configured-ness are the whole contract; price authority is server-side at checkout.
+      expect( String( raw.status || 'active' ) ).toBe( 'active' );
+      expect( CONTRIBUTION_CONFIGURED ).toBe( true );
     } );
 
   it( 'needs a product id AND a variant id for every choice to count as configured', () => {
