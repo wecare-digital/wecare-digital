@@ -33,21 +33,6 @@ FUNCTIONS_DIR = ROOT / "amplify" / "functions"
 FUNCTION_NAME = "wecare-seo-tools"
 TABLE_NAME = "stack-wecare-digital-SeoToolsTable"
 DEDUP_TABLE = "stack-wecare-digital-WebhookDedup"
-WIX_SITE_ID = "c993128b-26be-41cd-9fcd-904abe23462f"
-WIX_ACCOUNT_ID = "478bf907-96cc-4cab-9220-bb96f1d35cbb"
-WIX_CLIENT_ID = "42b3cdbf-d90e-4138-a06c-ddda4fb8da01"
-# WHICH SITE THE BLOG IS READ FROM. Migration COMPLETE 2026-10-05: the Blog app
-# (14bcded7-0066-7c35-14d7-466cb3f09103) is now installed on the new site c993128b and
-# /blog/v3/posts/query measures 200 with total=1323 under the storefront client, so this
-# points at the new site and currently equals WIX_CLIENT_ID above.
-# It remains its own variable, because "where we sell" and "where we publish" are different
-# questions that only happen to share an answer. While they shared one variable the blog
-# 503'd and three Amplify builds died at /blog/page/[page] - the new site had no Blog app, Wix
-# returned 401 "UNAUTHENTICATED: No blog instanceId found", and both clients minted a valid
-# anonymous token throughout, which is why it presented as an outage rather than a
-# misconfiguration. Pinned by tests/test_wix_blog_client_separation.py; the full history is at
-# the declaration in operations/seo-tools/wix.py.
-WIX_BLOG_CLIENT_ID = "42b3cdbf-d90e-4138-a06c-ddda4fb8da01"
 ROLE_NAME = "wecare-digital-lambda-role"
 ROLE_ARN = f"arn:aws:iam::{ACCOUNT}:role/{ROLE_NAME}"
 
@@ -86,11 +71,6 @@ ENV_VARS = {
     "LOG_LEVEL": "INFO",
     "SEO_TOOLS_TABLE": TABLE_NAME,
     "WEBHOOK_DEDUP_TABLE": DEDUP_TABLE,
-    "WIX_SITE_ID": WIX_SITE_ID,
-    "WIX_ACCOUNT_ID": WIX_ACCOUNT_ID,
-    "WIX_CLIENT_ID": WIX_CLIENT_ID,
-    "WIX_BLOG_CLIENT_ID": WIX_BLOG_CLIENT_ID,
-    "WIX_BLOG_AUTHOR_NAME": "Anew by WECARE.DIGITAL",
     "BEDROCK_MODEL_ID": "global.anthropic.claude-sonnet-4-6",
     "COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",
     # Blog Production storage, into the existing bucket under o/blog-production/. See
