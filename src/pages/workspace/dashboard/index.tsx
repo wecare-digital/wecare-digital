@@ -92,7 +92,6 @@ const AWS_RESOURCES: Record<string, { arn: string; accountId: string; details?: 
       'wecare-waba-management',
       'wecare-ai-config-management',
       'wecare-ai-agent-action-group',
-      'wecare-wix-store (Wix Stores + Velo bridge)',
       'wecare-product-image-gen (Product image generator)'
     ]
   },
