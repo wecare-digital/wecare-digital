@@ -96,6 +96,11 @@ from lambda_utils.ecommerce import (
     gift_card_settlement, order_channel, order_creation, order_keys, payment_address,
     payment_attempt, purchase_intent, wa_payment_request, website_checkout, whatsapp_basket,
     wix_address, wix_writeback)
+# AWS-native supply engine, reached ONLY when CHECKOUT_MODE=AWS_NATIVE (default WIX_HEADLESS).
+# These compute the collection total from ProductsTable with no Wix call; the payment/order/
+# invoice paths downstream are unchanged. Imported unconditionally (cheap, pure) so the native
+# branch is a flag check rather than a lazy import that could fail at the worst moment.
+from lambda_utils.ecommerce import native_checkout, native_shipping
 # The committed recognition set and the three allowed contributions live in `blog_contribution`
 # and are IMPORTED rather than re-declared, so they are stated once and the TS<->Python drift test
 # that pins them stays meaningful. Its own payment surface (`prepare_contribution` and friends) is
@@ -137,6 +142,8 @@ CONTACTS_TABLE = os.environ.get("CONTACTS_TABLE", "stack-wecare-digital-Contacts
 #: where that record lands. Granted `GetItem`/`PutItem`/`UpdateItem` and explicitly NOT
 #: `DeleteItem`: an order record is evidence that money moved.
 ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "stack-wecare-digital-OrderTable")
+#: AWS-native product catalog, read ONLY on the CHECKOUT_MODE=AWS_NATIVE branch.
+PRODUCTS_TABLE = os.environ.get("PRODUCTS_TABLE", "stack-wecare-digital-ProductsTable")
 WEBSITE_SNAPSHOT_TTL_SECONDS = 15 * 60
 
 #: Reasons that mean "we refuse", as opposed to "we do not know". 409 for the first; 200 for the
@@ -147,6 +154,22 @@ _CART_BLOCKED = (website_checkout.CART_ALREADY_PAID,
 #: Checkout mode marker on the attempt, so this path is distinguishable from any other and a test
 #: can assert which flow created it. Headless WhatsApp/Razorpay, not the (set-aside) Velo provider.
 CHECKOUT_MODE = "WIX_HEADLESS"
+
+#: Which engine computes the authoritative SUPPLY total. `WIX_HEADLESS` (default) reads it from
+#: Wix (cart_v2.calculate / wix_ecom); `AWS_NATIVE` computes it from ProductsTable via
+#: native_checkout.quote_native_cart with NO Wix call. Read at request time (never module scope),
+#: so an operator flip takes effect without waiting for warm sandboxes to recycle — the same
+#: incident-control discipline as wix_guard / blog_source. Flipping this is the commerce half of
+#: the Wix cutover (spec Phase 6, owner-gated). The payment, order, invoice and reconciliation
+#: paths downstream are byte-identical in either mode: only the SOURCE of the collection total
+#: changes, and both modes produce the same immutable QuoteSnapshot shape.
+CHECKOUT_MODE_ENV = "CHECKOUT_MODE"
+
+
+def _supply_mode() -> str:
+    import os
+    value = str(os.environ.get(CHECKOUT_MODE_ENV, "WIX_HEADLESS")).strip().upper()
+    return "AWS_NATIVE" if value in ("AWS_NATIVE", "AWS", "NATIVE") else "WIX_HEADLESS"
 
 #: The business-API Lambda, which holds the Meta token and answers the readiness readback. It is
 #: NOT a payment sender and has not been one since the in-chat send moved to
@@ -293,6 +316,22 @@ def _keys_table():
 
 def _orders_table():
     return _table(ORDERS_TABLE)
+
+
+def _products_table():
+    return _table(PRODUCTS_TABLE)
+
+
+def _native_product_reader():
+    """A ProductsTable reader `product_id -> item | None` for the native supply engine.
+    Only called on the CHECKOUT_MODE=AWS_NATIVE branch, so the table need not exist until
+    the owner provisions it for the cutover."""
+    table = _products_table()
+
+    def read(product_id):
+        return table.get_item(Key={"id": str(product_id)}).get("Item")
+
+    return read
 
 
 def _lambda_client():
@@ -701,6 +740,49 @@ def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list
     them to review it" carried out. The WhatsApp `_create` path has no such surface, so it keeps
     refusing a mismatched saved cart, unchanged.
     """
+    if _supply_mode() == "AWS_NATIVE":
+        # AWS-NATIVE SUPPLY TOTAL — no Wix call. The collection comes from ProductsTable via
+        # native_checkout.quote_native_cart; the convenience fee + GST, the snapshot shape, and
+        # everything downstream (attempt, Razorpay, order, invoice, reconciliation) are identical
+        # to the Wix path. Default is WIX_HEADLESS, so this branch is unreachable until the owner
+        # flips CHECKOUT_MODE at cutover. No Wix order writeback is synthesised here (wix_writeback
+        # is gated off in native mode), exactly as the V1 branch synthesises none.
+        ephemeral_cart = {
+            "cartId": f"native:{identity.customer_id}:{now}",
+            "updatedAt": now,
+            "lineItems": [
+                {"productId": str(li.get("productId") or ""),
+                 "variantId": str(li.get("variantId") or ""),
+                 "quantity": int(li.get("quantity") or 1),
+                 "unitPricePaise": 0,  # re-resolved server-side below; client value ignored
+                 "requiresDelivery": bool(li.get("requiresDelivery", True))}
+                for li in line_items
+            ],
+        }
+        # Re-resolve each line's price from ProductsTable so a client-supplied figure never enters.
+        reader = _native_product_reader()
+        for ln in ephemeral_cart["lineItems"]:
+            row = reader(ln["productId"]) or {}
+            price = None
+            for v in row.get("variants", []) or []:
+                if str(v.get("sku") or v.get("id") or "") == ln["variantId"]:
+                    price = v.get("priceMinor", row.get("priceMinor"))
+                    break
+            else:
+                price = row.get("priceMinor")
+            from decimal import Decimal as _D
+            ln["unitPricePaise"] = int(price) if isinstance(price, (int, _D)) else 0
+        snapshot = native_checkout.quote_native_cart(
+            ephemeral_cart,
+            product_reader=reader,
+            customer_id=identity.customer_id,
+            created_at=now,
+            ttl_seconds=WEBSITE_SNAPSHOT_TTL_SECONDS,
+            shipping_policy=native_shipping.ShippingPolicy(),  # free by default; policy via config
+            gst_bps=0,  # catalog prices are GST-inclusive today; no double-tax
+        )
+        return snapshot, None
+
     if cart_v2.is_enabled():
         snapshot, _items, calculated = _v2_snapshot(
             identity, line_items, profile=profile, reconcile=True, reset=reset)
