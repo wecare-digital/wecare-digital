@@ -27,7 +27,7 @@
 2. **Audit remaining direct writers and cleanup APIs** before claiming global enforcement. In particular, AI agent data-clear functions and other message/media deletion paths must share the retention gate.
 3. **Review historical IDs:** backfill does not rewrite `customerUuid`, `contactId` or `WD-SUB` flow references. A deliberate mapping strategy is needed for historical subscription references.
 4. **Workspace isolation:** a static `WORKSPACE_ID` does not implement true tenant isolation. Do not treat it as authorization; a tenant registry and per-request ownership checks are required for multi-workspace support.
-5. **Concurrent hard delete:** rechecking `locked` before cleanup and conditional final delete narrows, but does not eliminate, the race between message deletion and a concurrent lock. For strict no-loss retention, remove hard-delete access or implement a transactional delete lease before deleting media.
+5. **Concurrent hard delete:** this branch disables hard deletion with `HARD_DELETE_DISABLED` until a transactional delete lease can protect messages/media from concurrent retention locks. Existing tests expecting hard deletion must be updated intentionally after policy review.
 6. **No production backfill by default.** Review the dry-run summary and retention policy with the owner before `--apply`.
 7. **Deployment:** create API routes only after backend release is verified; Lambda `live` alias must be advanced deliberately. No production action is performed by this branch.
 
