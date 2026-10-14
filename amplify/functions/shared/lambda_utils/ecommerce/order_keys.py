@@ -650,7 +650,7 @@ def commerce_keys_table_name() -> str:
     """
     return os.environ.get(
         "COMMERCE_KEYS_TABLE",
-        os.environ.get("WIX_ORDER_IDS_TABLE", "stack-wecare-digital-WixOrderIds"),
+        os.environ.get("COMMERCE_KEYS_TABLE", "stack-wecare-digital-CommerceKeys"),
     )
 
 
@@ -1424,15 +1424,15 @@ CART_CREATE_CLAIM_STALE_SECONDS = 120
 CART_CLAIM_STAGE_CREATED = "CREATE_CLAIMED"
 
 
-def _cart_payment_key(customer_id: str, wix_cart_id: str) -> str:
+def _cart_payment_key(customer_id: str, cart_id: str) -> str:
     if not customer_id:
         raise ValueError("customer_id is required")
-    if not wix_cart_id:
-        raise ValueError("wix_cart_id is required")
-    return CART_PAYMENT_PREFIX + customer_id + "#" + wix_cart_id
+    if not cart_id:
+        raise ValueError("cart_id is required")
+    return CART_PAYMENT_PREFIX + customer_id + "#" + cart_id
 
 
-def _cart_basket_key(customer_id: str, wix_cart_id: str, basket_hash: str) -> str:
+def _cart_basket_key(customer_id: str, cart_id: str, basket_hash: str) -> str:
     """`CARTBASKET#<customer>#<cart>#<basketHash>`. ValueError on ANY empty part.
 
     Mirrors `_cart_payment_key`'s refusal rather than silently composing a key with an empty
@@ -1440,25 +1440,25 @@ def _cart_basket_key(customer_id: str, wix_cart_id: str, basket_hash: str) -> st
     """
     if not customer_id:
         raise ValueError("customer_id is required")
-    if not wix_cart_id:
-        raise ValueError("wix_cart_id is required")
+    if not cart_id:
+        raise ValueError("cart_id is required")
     if not basket_hash:
         raise ValueError("basket_hash is required")
-    return CART_BASKET_PREFIX + customer_id + "#" + wix_cart_id + "#" + basket_hash
+    return CART_BASKET_PREFIX + customer_id + "#" + cart_id + "#" + basket_hash
 
 
-def _cart_narrow_basket_key(customer_id: str, wix_cart_id: str, narrow_hash: str) -> str:
+def _cart_narrow_basket_key(customer_id: str, cart_id: str, narrow_hash: str) -> str:
     """`CARTNARROW#<customer>#<cart>#<narrowBasketHash>`. ValueError on ANY empty part."""
     if not customer_id:
         raise ValueError("customer_id is required")
-    if not wix_cart_id:
-        raise ValueError("wix_cart_id is required")
+    if not cart_id:
+        raise ValueError("cart_id is required")
     if not narrow_hash:
         raise ValueError("narrow_hash is required")
-    return CART_NARROW_BASKET_PREFIX + customer_id + "#" + wix_cart_id + "#" + narrow_hash
+    return CART_NARROW_BASKET_PREFIX + customer_id + "#" + cart_id + "#" + narrow_hash
 
 
-def resolve_cart_payment(table: Any, *, customer_id: str, wix_cart_id: str,
+def resolve_cart_payment(table: Any, *, customer_id: str, cart_id: str,
                          key_attr: str = "orderId") -> Optional[Dict[str, Any]]:
     """The last payable attempt recorded for this customer's cart, or None. Consistent read.
 
@@ -1466,25 +1466,25 @@ def resolve_cart_payment(table: Any, *, customer_id: str, wix_cart_id: str,
     reason in this module and a sharper one here: the caller acts on absence by creating a NEW
     payable gateway order, so a throttle answering "no attempt" is how one basket acquires two.
     """
-    return _read_row(table, key_attr, _cart_payment_key(customer_id, wix_cart_id))
+    return _read_row(table, key_attr, _cart_payment_key(customer_id, cart_id))
 
 
-def resolve_cart_basket(table: Any, *, customer_id: str, wix_cart_id: str, basket_hash: str,
+def resolve_cart_basket(table: Any, *, customer_id: str, cart_id: str, basket_hash: str,
                         key_attr: str = "orderId") -> Optional[Dict[str, Any]]:
     """The attempt recorded against THIS BASKET on this cart, or None. Consistent read.
 
     Absence is the dangerous answer, so a read failure raises rather than returning None.
     """
     return _read_row(table, key_attr,
-                     _cart_basket_key(customer_id, wix_cart_id, basket_hash))
+                     _cart_basket_key(customer_id, cart_id, basket_hash))
 
 
-def resolve_cart_narrow_basket(table: Any, *, customer_id: str, wix_cart_id: str,
+def resolve_cart_narrow_basket(table: Any, *, customer_id: str, cart_id: str,
                                narrow_hash: str,
                                key_attr: str = "orderId") -> Optional[Dict[str, Any]]:
     """The same question as `resolve_cart_basket`, keyed on the narrow identity."""
     return _read_row(table, key_attr,
-                     _cart_narrow_basket_key(customer_id, wix_cart_id, narrow_hash))
+                     _cart_narrow_basket_key(customer_id, cart_id, narrow_hash))
 
 
 def _write_cart_row(table: Any, item: Dict[str, Any], what: str) -> Dict[str, Any]:
@@ -1504,7 +1504,7 @@ def _write_cart_row(table: Any, item: Dict[str, Any], what: str) -> Dict[str, An
 def record_cart_payment(table: Any,
                         *,
                         customer_id: str,
-                        wix_cart_id: str,
+                        cart_id: str,
                         payment_attempt_id: str,
                         request_key: str = "",
                         basket_hash: str = "",
@@ -1531,10 +1531,10 @@ def record_cart_payment(table: Any,
         raise ValueError("payment_attempt_id is required")
     moment = int(time.time()) if now is None else int(now)
     item: Dict[str, Any] = {
-        key_attr: _cart_payment_key(customer_id, wix_cart_id),
+        key_attr: _cart_payment_key(customer_id, cart_id),
         "kind": CART_PAYMENT_KIND,
         "customerId": customer_id,
-        "wixCartId": wix_cart_id,
+        "cartId": cart_id,
         "paymentAttemptId": payment_attempt_id,
         "requestKey": str(request_key or ""),
         "basketHash": str(basket_hash or ""),
@@ -1548,7 +1548,7 @@ def record_cart_payment(table: Any,
 def record_cart_basket(table: Any,
                        *,
                        customer_id: str,
-                       wix_cart_id: str,
+                       cart_id: str,
                        basket_hash: str,
                        payment_attempt_id: str,
                        request_key: str = "",
@@ -1572,10 +1572,10 @@ def record_cart_basket(table: Any,
         raise ValueError("payment_attempt_id is required")
     moment = int(time.time()) if now is None else int(now)
     item: Dict[str, Any] = {
-        key_attr: _cart_basket_key(customer_id, wix_cart_id, basket_hash),
+        key_attr: _cart_basket_key(customer_id, cart_id, basket_hash),
         "kind": CART_BASKET_KIND,
         "customerId": customer_id,
-        "wixCartId": wix_cart_id,
+        "cartId": cart_id,
         "basketHash": basket_hash,
         "narrowBasketHash": str(narrow_basket_hash or ""),
         "snapshotHash": str(snapshot_hash or ""),
@@ -1589,7 +1589,7 @@ def record_cart_basket(table: Any,
 def record_cart_narrow_basket(table: Any,
                               *,
                               customer_id: str,
-                              wix_cart_id: str,
+                              cart_id: str,
                               narrow_hash: str,
                               payment_attempt_id: str,
                               request_key: str = "",
@@ -1603,10 +1603,10 @@ def record_cart_narrow_basket(table: Any,
         raise ValueError("payment_attempt_id is required")
     moment = int(time.time()) if now is None else int(now)
     item: Dict[str, Any] = {
-        key_attr: _cart_narrow_basket_key(customer_id, wix_cart_id, narrow_hash),
+        key_attr: _cart_narrow_basket_key(customer_id, cart_id, narrow_hash),
         "kind": CART_NARROW_BASKET_KIND,
         "customerId": customer_id,
-        "wixCartId": wix_cart_id,
+        "cartId": cart_id,
         "narrowBasketHash": narrow_hash,
         "basketHash": str(basket_hash or ""),
         "snapshotHash": str(snapshot_hash or ""),
@@ -1618,7 +1618,7 @@ def record_cart_narrow_basket(table: Any,
 
 
 def _claim_basket_slot(table: Any, key_attr: str, key: str, kind: str, *,
-                       customer_id: str, wix_cart_id: str, payment_attempt_id: str,
+                       customer_id: str, cart_id: str, payment_attempt_id: str,
                        prior_payment_attempt_id: str, request_key: str,
                        now: Optional[int]) -> bool:
     """Take the per-basket create slot BEFORE the provider create. True if won.
@@ -1655,7 +1655,7 @@ def _claim_basket_slot(table: Any, key_attr: str, key: str, kind: str, *,
         key_attr: key,
         "kind": kind,
         "customerId": customer_id,
-        "wixCartId": wix_cart_id,
+        "cartId": cart_id,
         "paymentAttemptId": payment_attempt_id,
         # Carried so the guard's same-request-key resume exemption can recognise the claimer's
         # OWN later click. Without it a retry on the same key reads its own claim as a foreign
@@ -1685,26 +1685,26 @@ def _claim_basket_slot(table: Any, key_attr: str, key: str, kind: str, *,
             "could not claim the basket slot %r: %s" % (key, type(error).__name__)) from error
 
 
-def claim_cart_basket(table: Any, *, customer_id: str, wix_cart_id: str, basket_hash: str,
+def claim_cart_basket(table: Any, *, customer_id: str, cart_id: str, basket_hash: str,
                       payment_attempt_id: str, prior_payment_attempt_id: str = "",
                       request_key: str = "", now: Optional[int] = None,
                       key_attr: str = "orderId") -> bool:
     """Take the fine per-basket create slot. True if won. See `_claim_basket_slot`."""
     return _claim_basket_slot(
-        table, key_attr, _cart_basket_key(customer_id, wix_cart_id, basket_hash),
-        CART_BASKET_KIND, customer_id=customer_id, wix_cart_id=wix_cart_id,
+        table, key_attr, _cart_basket_key(customer_id, cart_id, basket_hash),
+        CART_BASKET_KIND, customer_id=customer_id, cart_id=cart_id,
         payment_attempt_id=payment_attempt_id,
         prior_payment_attempt_id=prior_payment_attempt_id, request_key=request_key, now=now)
 
 
-def claim_cart_narrow_basket(table: Any, *, customer_id: str, wix_cart_id: str,
+def claim_cart_narrow_basket(table: Any, *, customer_id: str, cart_id: str,
                              narrow_hash: str, payment_attempt_id: str,
                              prior_payment_attempt_id: str = "", request_key: str = "",
                              now: Optional[int] = None, key_attr: str = "orderId") -> bool:
     """The same claim on the NARROW slot. Both delegate to one private `_claim_basket_slot`."""
     return _claim_basket_slot(
-        table, key_attr, _cart_narrow_basket_key(customer_id, wix_cart_id, narrow_hash),
-        CART_NARROW_BASKET_KIND, customer_id=customer_id, wix_cart_id=wix_cart_id,
+        table, key_attr, _cart_narrow_basket_key(customer_id, cart_id, narrow_hash),
+        CART_NARROW_BASKET_KIND, customer_id=customer_id, cart_id=cart_id,
         payment_attempt_id=payment_attempt_id,
         prior_payment_attempt_id=prior_payment_attempt_id, request_key=request_key, now=now)
 
