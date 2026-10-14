@@ -1,30 +1,7 @@
 """Every non-allowlisted HTTP route must authenticate its caller.
 
-Provenance
-----------
-The route audit reported "0 findings" for a long time because its marker set
-accepted `Authorization`, `api_key`, `verify_token` and `appsecret_proof` as
-evidence of authentication. On 2026-09-21 each of those was traced in the seven
-handlers below and every single match was either
-
-    "Access-Control-Allow-Headers: Content-Type,Authorization"
-
-or an OUTBOUND credential being sent to a provider. None of them checked the
-caller. `require_auth` appeared zero times across all seven.
-
-That left 30 routes anonymously reachable, including:
-
-    POST   /media/cleanup              deletes media from Meta
-    DELETE /voice-in/obd/clear-logs    wipes campaign logs
-    DELETE /voice-in/c2c/clear-logs    wipes call history
-    POST   /voice-in/obd/upload-csv    uploads a recipient list
-    POST   /ai/generate                spends model tokens, on BOTH HTTP APIs
-    POST   /links                      mints short links on a wecare.digital host
-    POST   /store/generate-product-image  spends on image generation
-
-These tests pin the guard at each entry point. They are structural on purpose:
-the failure mode is a future edit that moves or drops the check, which a
-behavioural test on a 5,661-line handler would not reliably catch.
+This structural gate covers the current HTTP handlers. Deleted routes are not kept
+as permanent fixtures: removing a handler must remove its auth fixture too.
 """
 
 import ast
@@ -43,12 +20,6 @@ if str(SHARED) not in sys.path:
 # handler path -> the side-effecting marker the guard must precede
 GUARDED = {
     "core/url-shortener": "create_link(",
-    "messaging/voice-in/c2c": "json.loads(event.get('body'",
-    # Was `_is_cdr_callback(body)` until 2026-09-25. That branch was the Airtel CDR
-    # write path and has been removed, so the marker had to move to a side effect
-    # that still exists. `_text_to_audio` is a good one: it synthesises speech, which
-    # costs money, so an anonymous caller reaching it would be a real finding.
-    "messaging/voice-in/obd": "_text_to_audio(body, request_id)",
     "ecommerce/product-image-gen": "_generate_and_upload(",
     "messaging/media-cleanup": "cutoff =",
     "operations/bulk-worker": "'status': 'bulk-worker-active'",
