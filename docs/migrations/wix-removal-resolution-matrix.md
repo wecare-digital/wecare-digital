@@ -59,9 +59,12 @@ Replacing `cart_v2.calculate`:
 (delivery) + `supply_tax_paise` (GST) → `price_cart` → the exact
 `collection_before_convenience_paise` that the unchanged `checkout_pricing.
 compute_quote` consumes. A full end-to-end test prices a cart to a Razorpay
-payable with **no Wix call anywhere**. What remains is WIRING this behind
-`CHECKOUT_MODE=AWS_NATIVE` in the checkout handler (replacing the `cart_v2`/
-`wix_ecom` branch) + native blog publish — then the gated cutover.
+payable with **no Wix call anywhere**. The composition is also packaged: `native_checkout.quote_native_cart` turns a
+native cart into the exact `QuoteSnapshot` the live handler produces (validates
+stock, resolves shipping, applies coupon + GST, builds the snapshot) — a drop-in
+for the Wix snapshot branch, tested end-to-end. What remains is the small,
+flag-gated WIRING of that call into `checkout/handler.py` behind
+`CHECKOUT_MODE=AWS_NATIVE`, plus native blog publish — then the gated cutover.
 
 ## Gift-card pepper migration — ✅ built (de-risks SPI retirement)
 `gift_card_store.resolve_pepper_secret_id(env)` + `PEPPER_SECRET_ENV_KEY` let the

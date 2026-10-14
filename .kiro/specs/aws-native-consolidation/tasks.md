@@ -76,8 +76,12 @@ Legend: `[x]` done · `[~]` implemented, not deployed · `[ ]` not started.
       `native_shipping` (policy-driven delivery). The native supply total is
       COMPLETE: cart+stock+discount+shipping+GST → `price_cart` → `compute_quote`,
       end-to-end tested with no Wix. IMPLEMENTED, NOT WIRED. (A3)
-- [ ] 4.3d Wire the native supply chain into `checkout/handler.py` behind
-      `CHECKOUT_MODE=AWS_NATIVE` (replace the cart_v2/wix_ecom branch). (A3) 🔒
+- [x] 4.3d `native_checkout.quote_native_cart` — composition seam that turns a
+      native cart into the exact `QuoteSnapshot` the handler produces (stock
+      validate + shipping + coupon + GST + build_snapshot). Unit-tested with no Wix.
+- [ ] 4.3e Flag-gated branch in `checkout/handler.py` calling `quote_native_cart`
+      when `CHECKOUT_MODE=AWS_NATIVE` (replace the cart_v2/wix_ecom snapshot branch);
+      reserve stock around initiation. 🔒 touches the live payment Lambda.
 - [x] 4.3b Gift-card `code_pepper` de-Wix migration: `resolve_pepper_secret_id`
       + `PEPPER_SECRET_ENV_KEY`, config-flip with no re-keying; handlers +
       redemption provider follow it; store imports no `os`. Unit-tested. (B4 de-risk)
