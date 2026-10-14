@@ -832,7 +832,12 @@ def _hard_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str
 
     # Delete contact
     try:
-        dynamodb.Table(CONTACTS_TABLE).delete_item(Key={'id': contact_id})
+        dynamodb.Table(CONTACTS_TABLE).delete_item(
+            Key={'id': contact_id},
+            ConditionExpression='attribute_exists(id) AND (attribute_not_exists(#locked) OR #locked = :false)',
+            ExpressionAttributeNames={'#locked': 'locked'},
+            ExpressionAttributeValues={':false': False},
+        )
     except Exception as e:
         logger.warning(f"Failed to delete contact {contact_id}: {e}")
 
