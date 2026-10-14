@@ -4,18 +4,18 @@
  * `src/content/catalog-snapshot.json` is generated from the AWS ProductsTable and committed.
  * next.config.js sets `output: 'export'`, so these pages are built once and served as static HTML -
  * there is no server to make a live call from, and a client-side fetch would put an unauthenticated
- * Wix read in the browser. Refreshing the catalogue is a deliberate act: re-run the script and
+ * catalog read in the browser. Refreshing the catalogue is a deliberate act: re-run the script and
  * commit. The snapshot is credential-free by construction; it is generated from our AWS catalog
  * and records its data provenance in its own `source` field.
  *
  * THE PRICES HERE ARE FOR DISPLAY AND MUST NEVER REACH A PAYMENT. The amount in a payment request
  * comes from a live checkout read, compared in integer paise, and any mismatch fails closed - see
- * amplify/functions/shared/order_creation.py. `formattedPrice` is passed through from Wix rather
- * than reformatted locally, so a page cannot invent a different number from the one Wix would quote.
+ * amplify/functions/shared/order_creation.py. `formattedPrice` is passed through from catalog rather
+ * than reformatted locally, so a page cannot invent a different number from the one catalog would quote.
  * `inStock` labels a card and never promises availability at payment time.
  *
  * Three fields in the snapshot are deliberately not exposed on the interface:
- *   productType  reads "PHYSICAL" on all seven, which is Wix's default for a product with no
+ *   productType  reads "PHYSICAL" on all seven, which is the catalog's default for a product with no
  *                shipping profile. Five of the seven are documents and coordination, so surfacing
  *                it would put a false statement on five pages.
  *   mediaCount   zero on all seven, so there is no image URL. The pages ship no product image and
@@ -35,10 +35,10 @@ export interface ShopProduct {
   id: string;
   name: string;
   slug: string;
-  /** Wix's own formatted string, e.g. "₹6,999.00". Passed through, never rebuilt. */
+  /** the catalog's formatted string, e.g. "₹6,999.00". Passed through, never rebuilt. */
   formattedPrice: string;
   /**
-   * The decimal string Wix returns, e.g. "6999.00". Used for sorting and for the `price` in the
+   * The decimal string catalog returns, e.g. "6999.00". Used for sorting and for the `price` in the
    * Product schema, where schema.org wants a bare number. NEVER used to charge anyone.
    */
   price: string;
@@ -47,11 +47,11 @@ export interface ShopProduct {
   /**
    * Absolute URL of the product's primary image, when one exists. Absent on all seven today, and
    * that absence gates the Product structured data - see ShopProductHead.tsx. Populating it needs
-   * images uploaded in Wix and scripts/fetch-wix-catalog.js extended to capture the URL.
+   * images uploaded in catalog and scripts/build-catalog-snapshot.py extended to capture the URL.
    */
   image?: string;
   /**
-   * The bold opening line of the Wix description - the product's own one-line statement of what it
+   * The bold opening line of the catalog description - the product's own one-line statement of what it
    * does, which is what a card in a grid needs and what a meta description should open with.
    */
   tagline: string;
@@ -73,7 +73,7 @@ interface RawProduct {
   image?: string;
 }
 
-/** U+0001, which cannot appear in Wix rich text and is not whitespace, so \s+ leaves it alone. */
+/** U+0001, which cannot appear in catalog rich text and is not whitespace, so \s+ leaves it alone. */
 const BREAK = '\u0001';
 
 /**
@@ -97,7 +97,7 @@ const stripTags = ( value: string ): string => {
 };
 
 /**
- * Wix description HTML reduced to plain paragraph strings.
+ * catalog description HTML reduced to plain paragraph strings.
  *
  * NOT an HTML sanitiser, and its result must never reach dangerouslySetInnerHTML: the safety
  * property is that the output is rendered as React children, which escape on render. `<p>` and
@@ -132,23 +132,23 @@ export function toParagraphs ( html: string ): string[] {
 }
 
 /**
- * Only visible products. `visible: false` in Wix means the merchant has taken the product off the
+ * Only visible products. `visible: false` in catalog means the merchant has taken the product off the
  * storefront; a product with no slug is dropped because the slug IS the route.
  *
- * Sorted by name, which is the only ordering the snapshot supports - Wix returns no sort weight and
+ * Sorted by name, which is the only ordering the snapshot supports - catalog returns no sort weight and
  * all seven carry the same mainCategoryId, so any other order would be the order the API happened
  * to answer in.
  */
 /**
  * The contribution product is a payment VEHICLE, not a shop listing.
  *
- * It has to be visible in Wix, because the checkout refuses `product.visible === false` - so
- * `scripts/fetch-wix-catalog.js` picks it up and it would otherwise appear at `/shop/` with its own
+ * It has to be visible in the catalog, because the checkout refuses `product.visible === false` - so
+ * `scripts/build-catalog-snapshot.py` picks it up and it would otherwise appear at `/shop/` with its own
  * `/shop/contribute/` page and a sitemap entry. The place to choose a contribution is the
  * "Contribute" block at the foot of a blog post, not a product page with an "Amount" dropdown.
  *
  * EXCLUDED BY PRODUCT ID FIRST, SLUG SECOND. The id is the identity the server, the cart and this
- * file all key on, and it cannot be edited in the Wix dashboard; the slug can. The slug is still
+ * file all key on, and it cannot be edited in the catalog dashboard; the slug can. The slug is still
  * checked so the exclusion survives a product id override via `NEXT_PUBLIC_*`.
  */
 export const CONTRIBUTION_SLUG = 'contribute';
@@ -160,7 +160,7 @@ const isContributionRow = ( raw: RawProduct ): boolean =>
 
 /**
  * The services product (Submit Request / Request Amendment, Phase O-1) is a payment VEHICLE too,
- * excluded from `/shop/` by product id for the same reason as the contribution: its Wix product
+ * excluded from `/shop/` by product id for the same reason as the contribution: its catalog product
  * carries four variants, two of which (Drop Docs, Vault) are not offered yet, and a shop page
  * would add a line with no service intent - which checkout refuses. The services are bought from
  * /submit-request/ and /request-amendment/. It stays in KNOWN_CATALOGUE_PRODUCT_IDS.
@@ -170,14 +170,14 @@ const isServicesRow = ( raw: RawProduct ): boolean =>
 
 /**
  * THE ₹1 TEST PRODUCT, which is not this storefront. It is a catalogue test row left `visible: true`
- * in Wix ("₹1 test product", id 121c9d57…, slug `1-test-product`, price ₹1.00), so
- * `scripts/fetch-wix-catalog.js` collects it and it would otherwise get a public `/shop/1-test-product/`
+ * in catalog ("₹1 test product", id 121c9d57…, slug `1-test-product`, price ₹1.00), so
+ * `scripts/build-catalog-snapshot.py` collects it and it would otherwise get a public `/shop/1-test-product/`
  * page, a sitemap entry, and a ₹1 card in the grid — which reads as a broken storefront.
  *
  * Excluded by the SAME rule as the template samples (id first, slug second) and for the same
- * reasons: NON-DESTRUCTIVE (the row stays in the committed snapshot and in Wix), REVERSIBLE (delete
+ * reasons: NON-DESTRUCTIVE (the row stays in the committed snapshot and in catalog), REVERSIBLE (delete
  * this line to sell it), and checkout is untouched (it reads the live catalogue, not SHOP_PRODUCTS),
- * so a ₹1 smoke-test cart by direct reference still works. The id cannot be edited in the Wix
+ * so a ₹1 smoke-test cart by direct reference still works. The id cannot be edited in the catalog
  * dashboard; the slug can, hence both.
  */
 export const TEST_PRODUCT_IDS: readonly string[] = [
@@ -197,11 +197,11 @@ const isTestProductRow = ( raw: RawProduct ): boolean =>
 const project = ( raw: RawProduct ): ShopProduct => {
   const paragraphs = toParagraphs( String( raw.descriptionHtml || '' ) );
   const name = String( raw.name || '' );
-  // A product authored in Wix without a description must still render a complete page and a valid
+  // A product authored in catalog without a description must still render a complete page and a valid
   // meta description, or the build invariants reject a real live product (which is exactly how a
-  // newly-added product first appears: no copy yet). When Wix carries no description we synthesise
+  // newly-added product first appears: no copy yet). When catalog carries no description we synthesise
   // a safe, name-based tagline and one body line from the product name alone — never inventing a
-  // claim, just stating the product's own name. The owner can add real copy in Wix at any time and
+  // claim, just stating the product's own name. The owner can add real copy in catalog at any time and
   // it replaces this automatically on the next catalogue sync.
   const fallbackTagline = name ? `${name} from WECARE.DIGITAL.` : 'A product from WECARE.DIGITAL.';
   const fallbackBody = name
@@ -267,7 +267,7 @@ export const CONTRIBUTION_PRODUCT: ShopProduct | null =
  * a false statement on five pages. They are read here rather than by widening the interface every
  * product page consumes.
  *
- * Null until `scripts/fetch-wix-catalog.js` is re-run, which is NOT a configuration problem: the
+ * Null until `scripts/build-catalog-snapshot.py` is re-run, which is NOT a configuration problem: the
  * ids a contribution line needs are committed in src/config/contribution.ts, so the feature works
  * with this row absent. All it costs is the `/shop/` exclusion, which only matters once the row
  * exists in the first place.
@@ -281,7 +281,7 @@ export const CONTRIBUTION_RAW: Record<string, unknown> | null =
  *
  * The ids used to be derived from the committed catalogue snapshot, with `NEXT_PUBLIC_*` as a
  * bridge. They are now committed constants in src/config/contribution.ts, because the snapshot
- * cannot supply them: `slim()` in scripts/fetch-wix-catalog.js emits no `variants` array at all,
+ * cannot supply them: `slim()` in scripts/build-catalog-snapshot.py emits no `variants` array at all,
  * so a refresh gives the product id and never the three variant ids a choice needs.
  */
 export { CONTRIBUTION_PRODUCT_ID };
@@ -302,7 +302,7 @@ export const CONTRIBUTION_CONFIGURED: boolean =
  * The projection, exposed so a test can drive it from an injected row.
  *
  * The contribution entry does not exist in the committed snapshot until the owner creates the
- * product in Wix, so asserting the projection against `CONTRIBUTION_PRODUCT` would be asserting
+ * product in the catalog, so asserting the projection against `CONTRIBUTION_PRODUCT` would be asserting
  * against `null` - and re-implementing the projection inside the test would be testing a copy of
  * the thing rather than the thing. Named `projectForTest` rather than `project` so nothing in a
  * page is tempted to call it: a page gets a projected product from `SHOP_PRODUCTS`.
