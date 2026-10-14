@@ -1,5 +1,5 @@
 name: Wix exit runtime deploy
-# scoped deployment trigger
+# scoped deployment trigger via merged PR
 
 on:
   push:
