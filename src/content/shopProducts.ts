@@ -4,7 +4,7 @@ import { SHOP_PRODUCTS, shopProductPath } from './shop';
 /**
  * Everything WECARE.DIGITAL sells, as ONE list for ONE listing page.
  *
- * WHY THIS FILE EXISTS. /shop/ used to list the eight visible Wix catalogue rows and nothing
+ * WHY THIS FILE EXISTS. /shop/ used to list the eight visible catalogue rows and nothing
  * else, so the eight ProductDef pages - Elsewhere, Expo Week, Dastavez, Clear Closure, Ritual
  * Guru, Anew, Hunar, Niji Setu - were sold by the site and absent from its shop. This merges the
  * two halves so the listing is the whole shelf.
@@ -23,7 +23,7 @@ import { SHOP_PRODUCTS, shopProductPath } from './shop';
  * FRESHNESS COMES FROM THE EXISTING MECHANISM, not from a new fetch. next.config.js sets
  * output: 'export', so there is no server of ours at runtime and a client-side storefront read
  * would be an unauthenticated Wix call in the browser. .github/workflows/catalogue-sync.yml
- * re-reads Wix every six hours and commits src/content/wix-catalog.json, and the ProductDef half
+ * re-reads Wix every six hours and commits src/content/catalog.json, and the ProductDef half
  * is source code. The listing prints `catalogReadOn()` so a reader can see how fresh the Wix half
  * is rather than being asked to assume.
  *
