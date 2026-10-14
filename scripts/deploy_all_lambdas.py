@@ -368,7 +368,6 @@ SPECS: List[Spec] = [
     # docs/provider-retirement-inventory.md.
     # --- messaging / voice ---
     Spec("wecare-voice-aws", "messaging/voice-aws"),
-    Spec("wecare-voice-in-obd", "messaging/voice-in/obd"),
     Spec("wecare-voice-cdr-read", "messaging/voice-cdr-read"),
     # Removed 2026-09-19: wecare-outbound-voice. It was a pure dialler for a
     # retired India voice provider (click-to-call + outbound dialler) with no
