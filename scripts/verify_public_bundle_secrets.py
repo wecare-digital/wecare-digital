@@ -14,7 +14,7 @@ specific trap: ``docs/provider-inventory.md`` records that `wecare/google/cloud`
 `wecare/google-api-key` and `wecare/google-maps` **all hold the same unified key**,
 fingerprint ``sha256:0bd4beb6496a``. `wecare-whatsapp-templates` reads it
 server-side for the Places proxy, under a comment saying it is "never exposed to
-the browser". Pasting that one value into ``NEXT_PUBLIC_GOOGLE_MAPS_KEY`` would
+the browser". Pasting that one value into ``NEXT_PUBLIC_GOOGLE_BROWSER_KEY`` would
 publish the credential that authorizes Places, Geocoding and PageSpeed to every
 visitor - and it is already one of the four historically exposed credentials
 awaiting rotation (``.kiro/steering/secret-handling.md``).
@@ -42,7 +42,7 @@ the metadata set sanctioned by ``.kiro/steering/plaintext-source-policy.md``.
 WHERE THIS HAS TO RUN, AND WHY CI IS NOT ENOUGH
 -----------------------------------------------
 Scanning ``out/`` only catches the key if the build that produced ``out/`` had the
-variable set. GitHub Actions does **not** set ``NEXT_PUBLIC_GOOGLE_MAPS_KEY``, so
+variable set. GitHub Actions does **not** set ``NEXT_PUBLIC_GOOGLE_BROWSER_KEY``, so
 the CI copy of this check scans an export that never contained a key and passes
 trivially. The build that matters is **Amplify's**, because that is where the
 branch environment variables exist.
