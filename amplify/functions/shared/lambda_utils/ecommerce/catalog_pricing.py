@@ -158,6 +158,61 @@ def build_price_summary(
     return summary
 
 
+def supply_tax_paise(
+    taxable_paise: int,
+    *,
+    gst_bps: int,
+    intra_state: bool,
+) -> "SupplyTax":
+    """Compute supply GST on a GST-EXCLUSIVE taxable base, split CGST/SGST or IGST.
+
+    REUSES the existing `checkout_pricing` primitives — `round_half_up` for the
+    exact integer-paise GST and `split_gst` for the CGST/SGST-vs-IGST
+    reconciliation — so the supply tax and the fee tax share one arithmetic and
+    one rounding rule. No float.
+
+    THE TAX BASIS IS EXPLICIT AND MATTERS. The current Wix catalog prices are
+    GST-INCLUSIVE (shop.ts documents `formattedPrice` as Wix's own inclusive
+    string). So the native path must NOT add GST on top of an inclusive price —
+    that is the double-tax defect `checkout_pricing` already refuses for the fee.
+    This helper assumes a GST-EXCLUSIVE `taxable_paise`; a caller holding
+    inclusive prices passes `gst_bps=0` (tax already in the line price) and the
+    result is a zero tax line. Choosing the basis is a deliberate wiring decision,
+    not a default, which is why `price_cart` defaults `tax_paise=0`.
+    """
+    from lambda_utils.ecommerce import checkout_pricing
+    base = _nonneg_paise(taxable_paise, "taxable_paise")
+    if type(gst_bps) is not int or not 0 <= gst_bps <= 10000:
+        raise CatalogPricingError("gst_bps must be an integer in 0..10000 basis points")
+    gst = checkout_pricing.round_half_up(base, gst_bps)
+    split = checkout_pricing.split_gst(gst, intra_state=intra_state)
+    return SupplyTax(
+        gst_paise=gst,
+        cgst_paise=split.cgst_paise,
+        sgst_paise=split.sgst_paise,
+        igst_paise=split.igst_paise,
+        intra_state=intra_state,
+    )
+
+
+@dataclass(frozen=True)
+class SupplyTax:
+    """Supply GST split, reconciling exactly to gst_paise (reuses checkout_pricing.TaxSplit's
+    invariant). Separate from the convenience-fee GST, which stays in checkout_pricing."""
+
+    gst_paise: int
+    cgst_paise: int
+    sgst_paise: int
+    igst_paise: int
+    intra_state: bool
+
+    def __post_init__(self) -> None:
+        for name in ("gst_paise", "cgst_paise", "sgst_paise", "igst_paise"):
+            _nonneg_paise(getattr(self, name), name)
+        if self.cgst_paise + self.sgst_paise + self.igst_paise != self.gst_paise:
+            raise CatalogPricingError("supply GST split does not reconcile to gst_paise")
+
+
 def coupon_discount_paise(
     coupon_definition: Optional[Mapping[str, Any]],
     *,

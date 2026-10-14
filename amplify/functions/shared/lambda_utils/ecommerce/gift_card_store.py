@@ -111,6 +111,35 @@ SECRET_ID = "wecare/wix/giftcard-spi"
 SECRET_ENV_KEY = "WIX_GIFTCARD_SPI_SECRET"
 PEPPER_FIELD = "code_pepper"
 
+#: THE PEPPER IS NOT A WIX CREDENTIAL — it is the HMAC key for EVERY gift-card row
+#: lookup, and it must OUTLIVE the Wix integration. During the Wix exit the pepper
+#: VALUE is copied verbatim into a non-Wix secret (`wecare/prod/security/giftcard-pepper`)
+#: and the handlers' secret-id resolution (where env reads legitimately live) is
+#: pointed at it via PEPPER_SECRET_ENV_KEY. Because the value is identical, every
+#: existing card key still recomputes — nothing is re-keyed. Only AFTER that flip is
+#: the Wix SPI secret safe to retire.
+#:
+#: This name is DEFINED here (one place) but READ by the handlers, never by this
+#: module: `test_gift_card_store.py` forbids an `os` import here, because an env read
+#: in the store would be ambient configuration. The store takes the resolved secret
+#: id by injection (`read_pepper(..., secret_id=...)`); the handlers resolve it.
+PEPPER_SECRET_ENV_KEY = "GIFTCARD_PEPPER_SECRET"
+
+
+def resolve_pepper_secret_id(env: Mapping[str, str]) -> str:
+    """Resolve the pepper's secret id from an INJECTED env mapping (never os.environ
+    here — the store holds no ambient config). Preference order, so the migration is
+    a config flip with no code change and no re-keying:
+      1. `GIFTCARD_PEPPER_SECRET` — the non-Wix home the pepper moves to.
+      2. `WIX_GIFTCARD_SPI_SECRET` — an explicit override of the Wix secret.
+      3. `SECRET_ID` — the original Wix SPI secret (current default).
+    The pepper VALUE under (1) must be byte-identical to (3) or existing cards stop
+    resolving — that identity is the whole point of copying rather than regenerating.
+    """
+    return (env.get(PEPPER_SECRET_ENV_KEY)
+            or env.get(SECRET_ENV_KEY)
+            or SECRET_ID)
+
 KEY_ATTRIBUTE = "giftCardKey"
 STATUS_ATTRIBUTE = "status"
 STATUS_INDEX = "status-index"
@@ -494,6 +523,10 @@ def read_pepper(reader: SecretReader, *, secret_id: str = SECRET_ID) -> str:
     `reader` is a callable taking a secret ID and returning the parsed secret mapping. This module
     holds no boto3 client, so it cannot read a secret at import even by accident - which is the
     structural version of the lazy-read rule rather than a promise to remember it.
+
+    `secret_id` is resolved by the CALLER (via `resolve_pepper_secret_id(os.environ)`),
+    which is where env reads legitimately live; this module takes it by injection so
+    the pepper can migrate out of the Wix SPI secret by configuration alone.
 
     The returned value is never logged, never put in an exception message, and never appears in a
     logging expression - not even reduced to a bool. CodeQL's
@@ -1640,7 +1673,8 @@ __all__ = [
     "HOLD_EXPIRY_ATTRIBUTE", "HOLD_PAISE_ATTRIBUTE", "HOLD_TTL_SECONDS", "InsufficientFunds",
     "KEY_ATTRIBUTE", "KIND_REDEEM", "KIND_VOID", "MAX_CODE_LENGTH", "MAX_PIN_LENGTH",
     "MAX_VALUE_PAISE", "MIN_CODE_LENGTH", "MissingCurrency", "MONEY_CEILING_PAISE",
-    "PEPPER_FIELD", "POLICY_VERSION", "PREFIX_CARD", "PREFIX_CARD_ID", "PREFIX_CLAIM",
+    "PEPPER_FIELD", "PEPPER_SECRET_ENV_KEY", "resolve_pepper_secret_id",
+    "POLICY_VERSION", "PREFIX_CARD", "PREFIX_CARD_ID", "PREFIX_CLAIM",
     "PREFIX_HOLD", "PREFIX_TRANSACTION", "PREFIX_TRANSACTION_ID", "PREFIX_WIX_ORDER",
     "RAZORPAY_MIN_LEG_PAISE", "SECRET_ENV_KEY", "SECRET_ID", "SOURCES", "SOURCE_OURS",
     "SOURCE_WIX_SPI", "SPI_ERRORS", "STATUSES", "STATUS_ACTIVE", "STATUS_ATTRIBUTE",

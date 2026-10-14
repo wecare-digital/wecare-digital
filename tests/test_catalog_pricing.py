@@ -135,3 +135,48 @@ def test_unsupported_coupon_kind_raises():
     coupon = {"discountKind": "FREE_SHIPPING"}
     with pytest.raises(Exception):
         coupon_discount_paise(coupon, subtotal_paise=50000)
+
+
+# ── native supply tax (reuses checkout_pricing.round_half_up + split_gst) ────
+
+from lambda_utils.ecommerce.catalog_pricing import supply_tax_paise, SupplyTax  # noqa: E402
+
+
+def test_supply_tax_intra_state_splits_cgst_sgst():
+    # 18% GST on 100000 paise = 18000; intra-state -> 9000 + 9000
+    t = supply_tax_paise(100000, gst_bps=1800, intra_state=True)
+    assert t.gst_paise == 18000
+    assert t.cgst_paise == 9000 and t.sgst_paise == 9000 and t.igst_paise == 0
+
+
+def test_supply_tax_inter_state_is_igst():
+    t = supply_tax_paise(100000, gst_bps=1800, intra_state=False)
+    assert t.igst_paise == 18000 and t.cgst_paise == 0 and t.sgst_paise == 0
+
+
+def test_supply_tax_odd_paise_reconciles():
+    # a GST that is odd must still split to the exact total
+    t = supply_tax_paise(5, gst_bps=1800, intra_state=True)  # round_half_up(5*1800/10000)=1
+    assert t.gst_paise == t.cgst_paise + t.sgst_paise + t.igst_paise
+
+
+def test_zero_gst_bps_is_zero_tax_inclusive_price_case():
+    # GST-inclusive catalog prices -> pass gst_bps=0 so no tax is added (no double-tax)
+    t = supply_tax_paise(100000, gst_bps=0, intra_state=True)
+    assert t.gst_paise == 0
+
+
+def test_supply_tax_feeds_price_cart_total():
+    from lambda_utils.ecommerce import checkout_pricing
+    lines = [_line(qty=1, price=100000)]
+    tax = supply_tax_paise(100000, gst_bps=1800, intra_state=True)
+    summary = price_cart(lines, tax_paise=tax.gst_paise)
+    assert summary.total_paise == 100000 + 18000 == 118000
+    quote = checkout_pricing.compute_quote(summary.total_paise)
+    assert quote.total_payable_paise > 118000  # fee + fee-GST added on the taxed collection
+
+
+@pytest.mark.parametrize("bad_bps", [-1, 10001, 1.5, True])
+def test_supply_tax_rejects_bad_bps(bad_bps):
+    with pytest.raises(Exception):
+        supply_tax_paise(100000, gst_bps=bad_bps, intra_state=True)

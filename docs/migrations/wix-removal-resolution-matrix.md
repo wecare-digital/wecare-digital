@@ -1,0 +1,70 @@
+# Wix removal — item-by-item resolution matrix
+
+Re-audited against the branch head (post native-source build). The gate still
+reports **203 runtime findings / 4 rules** because every native source is
+additive and defaults to Wix — nothing is removed until cutover. This matrix is
+the definitive "resolve each item" checklist to reach **zero Wix**.
+
+Legend: ✅ native built · 🔁 needs native build · 🗑 dead/removable · ⚙ config ·
+🔒 gated production step.
+
+## Blog — ONE chokepoint, already seamed ✅
+Every public blog read goes through the single `/seo-tools/blog-public` API:
+- frontend pages `/blog`, `/blog/page/[page]`, `/blog/topic/[topic]`,
+  `/blog/topic/[topic]/page/[page]`, `/post/[slug]` (via `src/lib/public-blog.ts`),
+- build generators `generate-sitemap.js`, `generate-blog-rss.js`,
+  `generate-blog-search-index.js`, `generate-llms-txt.js`,
+- `scripts/blog_corpus_index.py`.
+**None call Wix directly.** `blog_source.py` (`BLOG_SOURCE`) is the one switch;
+flipping it to `aws` takes the entire blog surface off Wix. ✅ built.
+Remaining blog write path: `blog_publish.py` + `conversations-publish.yml`
+(publishes to Wix) 🔁 — must write to `BlogPostsTable`/`SeoToolsTable` instead.
+
+## Catalog / commerce — classified by importer count
+| File | Importers | Role | Status |
+|---|---|---|---|
+| `wix_gift_cards.py` | **0** | outbound Wix gift-card REST | 🗑 dead — delete in final cleanup (has demo+tests) |
+| `wix_ecom.py` | 10 | customer Wix cart/checkout + `authoritative_total_paise` | ✅ native equivalent built (`catalog_pricing`) — callers still to switch |
+| `cart_v2.py` | 17 | Wix Cart V2 (the deepest knot) | 🔁 native cart ops behind `CHECKOUT_MODE` |
+| `wix_writeback.py` | 3 | Wix order writeback | ⚙ already gated off-able (4 ANDed flags); disable at cutover |
+| `wix_coupons.py` | 3 | outbound coupon mirror | ✅ native discount built (`coupon_discount_paise`); mirror removed after |
+| `service_pricing.py` | 2 | 4 service-page prices via Wix cart | 🔁 native service pricing |
+| `blog_contribution.py` | 3 | contribution product via Wix | 🔁 native contribution pricing |
+| `meta_catalog_sync` read | 1 | catalogue read | ✅ `CATALOG_SOURCE=aws` built |
+| `product-image-gen` | — | `WIX_CREDENTIALS_DISABLED=true` hardcoded | ⚙ Wix writes already off |
+| `provider_adapters.py` (MCP) | — | thin adapter | 🔁 verify + repoint |
+
+## The native supply total (keystone) — status ✅ partial
+`catalog_pricing.build_price_summary`/`price_cart` produce the Wix `priceSummary`
+identity and feed the unchanged `checkout_pricing.compute_quote`. Built + tested.
+Still needed to fully replace `cart_v2.calculate`:
+- 🔁 **tax** (place-of-supply GST: CGST/SGST vs IGST on the supply),
+- 🔁 **shipping/delivery** resolver,
+- 🔁 **inventory validation + stock reservation**,
+- 🔁 native **CartTable** operations (create/add/update/remove) — table CDK ✅ built.
+
+## Gift-card SPI (inbound) — the one true hazard
+- `GiftCardsTable` balances are AWS-authoritative; removing Wix loses no money.
+- `wix-giftcard-spi` is INBOUND (Wix calls us), auth `wecare/wix/giftcard-spi`.
+- 🔁 **`code_pepper` migration FIRST**: the pepper is the HMAC key for every card
+  lookup and lives inside the Wix SPI secret. Migrate it to a non-Wix secret
+  (`wecare/prod/security/giftcard-pepper`) and repoint `read_pepper` BEFORE
+  retiring the SPI, or every card becomes unlookupable.
+- 🔒 confirm Wix no longer calls the SPI (metric), then decommission.
+
+## Frontend ⚙
+`src/config/wix.ts` (public ids), `src/content/shop.ts` (imports `wix-catalog.json`),
+`src/lib/cart.ts`, `src/api/client.ts`, dashboard architecture page. Switch
+`shop.ts` to `catalog-snapshot.json` ✅ (generator built); remove `wix.ts` at the end.
+
+## Resolution order (to zero Wix)
+1. ✅ Native sources for all reads (blog, catalog, meta-sync) — DONE.
+2. 🔁 Native supply tax/shipping/inventory + CartTable ops.
+3. 🔁 Native service-page + contribution pricing (drop their `cart_v2` use).
+4. 🔁 `code_pepper` migration out of the Wix SPI secret.
+5. 🔁 Native blog publish (replace `blog_publish.py` Wix writes).
+6. 🔒 Seed `ProductsTable`/`BlogPostsTable` from live Wix export; shadow-run.
+7. 🔒 Flip `BLOG_SOURCE`/`CATALOG_SOURCE`/`CHECKOUT_MODE`; disable writeback.
+8. 🗑 Delete dead `wix_gift_cards.py`, coupon mirror, `cart_v2`, `wix_ecom`,
+   `wix_writeback`, `src/config/wix.ts`; retire Wix secrets/IAM/routes/workflows.
+9. ✅ Gate flips to blocking (0 findings).

@@ -66,7 +66,7 @@ from lambda_utils.response import cors_response, error_response, extract_origin,
 logger = get_logger(__name__)
 
 #: Secret NAME only. The pepper is read by reference, lazily, inside the request.
-SPI_SECRET_ID = os.environ.get(store.SECRET_ENV_KEY, store.SECRET_ID)
+SPI_SECRET_ID = store.resolve_pepper_secret_id(os.environ)
 
 GIFT_CARDS_TABLE = os.environ.get(store.TABLE_ENV_KEY, store.DEFAULT_TABLE_NAME)
 CUSTOMER_SESSIONS_TABLE = os.environ.get(
