@@ -56,7 +56,7 @@ def list_blog_posts() -> List[Dict[str, Any]]:
     """Public blog list. AWS branch returns ONLY published posts (the public
     corpus); the Wix branch is the pre-existing visitor-token read."""
     if using_aws():
-        return storage.list_blog_posts(published_only=True, include_content=False)
+        return storage.list_blog_posts(published_only=True, limit=0, include_content=False)
     return wix.list_blog_posts()
 
 
