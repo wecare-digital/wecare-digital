@@ -2010,12 +2010,11 @@ def _stage_of(r):
 # ── the baseline: the wiring reaches finalization at all ───────────────────────
 
 def test_a_website_attempt_can_be_finalized_at_all(rig):
-    """The row whose absence made every other finalization claim a reading rather than a test.
+    """A paid website attempt runs `accept_paid` to its native terminal.
 
-    With write-back enabled, `accept_paid` runs to its LAST stage, so the three external calls
-    this path may make are all executed: create the Wix order, record the already-collected
-    payment, close the cart. Before this row the flow stopped at `WIX_WRITE_CONTRACT_REQUIRED`
-    and every line after that gate was unexecuted.
+    AWS-native: the internal order record IS the authoritative artifact — there is no Wix
+    writeback. After the order commits and the tenders reconcile, `accept_paid` stages
+    `ORDER_FINALIZED`. No external Wix order / payment / cart-completion call is made.
     """
     r = rig()
     leg, options = _paid_flow(r, request_key="K_fin_1")
@@ -2024,26 +2023,25 @@ def test_a_website_attempt_can_be_finalized_at_all(rig):
     assert code == 200 and body["status"] == "VERIFIED_PAID", body
     assert body["orderNumber"], "a finalized order must return its public number"
 
-    # ONE internal order record, and the stage ladder ran to the end.
+    # ONE internal order record, and the stage ladder ran to its native terminal.
     assert len(r.db.rows(ORDERS_TABLE)) == 1
     stage, reason = _stage_of(r)
-    assert (stage, reason) == ("WIX_CART_COMPLETED", ""), (stage, reason)
-    # The three calls, and only those three.
-    assert len(r.wix.wix_orders) == 1
-    assert len(r.wix.wix_payments) == 1
-    assert r.wix.cart_completions == [r.attempt_row()["cartId"]]
+    assert (stage, reason) == ("ORDER_FINALIZED", ""), (stage, reason)
+    # No Wix writeback happens any more.
+    assert r.wix.wix_orders == []
+    assert r.wix.wix_payments == []
+    assert r.wix.cart_completions == []
     # The attempt carries the provider's own confirmed figure, not a derived one.
     assert r.attempt_row()[finalization_module().VERIFIED_CAPTURED_PAISE_ATTR] == leg
 
 
-def test_only_the_verified_razorpay_leg_reaches_wix(rig):
-    """Under split tender the RECORDED payment is the provider's leg, never the order total.
+def test_the_verified_razorpay_leg_is_recorded_not_the_order_total(rig):
+    """Under split tender the recorded verified capture is the provider's leg, never the total.
 
-    This is the defect the graft exists for: `record_external_payment` used to be handed
-    `attempt['amountPaise']`, which on a gift-card-funded basket over-reports the capture to Wix
-    and breaks its payment reconciliation. The anti-vacuity anchor is the second assertion --
-    the leg and the payable must be DIFFERENT numbers, or this row would pass against the old
-    code.
+    The money correctness this pins outlives Wix: `verified_captured_paise` is the Razorpay
+    leg's own confirmed figure, and recording the full payable instead would over-report the
+    capture. The anti-vacuity anchor is that the leg and the payable are DIFFERENT numbers. There
+    is no Wix writeback now, so the evidence lives on the attempt row, not in a Wix payment.
     """
     r = rig()
     redeem = 40000
@@ -2054,13 +2052,13 @@ def test_only_the_verified_razorpay_leg_reaches_wix(rig):
     code, body = r.verify(order_id=options["orderId"], payment_id="pay_final_1")
     assert code == 200 and body["status"] == "VERIFIED_PAID", body
 
-    recorded = r.wix.wix_payments[0]["payments"][0]["amount"]["amount"]
-    assert recorded == wix_writeback._paise_to_decimal_string(leg)
-    assert recorded != wix_writeback._paise_to_decimal_string(payable)
-    # And the order total Wix is given is still the full payable the customer agreed to.
-    assert (r.wix.wix_orders[0]["order"]["priceSummary"]["total"]["amount"]
-            == wix_writeback._paise_to_decimal_string(payable))
-    assert _stage_of(r)[0] == "WIX_CART_COMPLETED"
+    # The provider's confirmed capture is stored as SEAM-G13 evidence — the leg, not the payable.
+    recorded = int(r.attempt_row()[finalization_module().VERIFIED_CAPTURED_PAISE_ATTR])
+    assert recorded == leg
+    assert recorded != payable
+    # Native terminal; nothing written to Wix.
+    assert _stage_of(r)[0] == "ORDER_FINALIZED"
+    assert r.wix.wix_orders == [] and r.wix.wix_payments == []
 
 
 def test_a_one_paise_tender_disagreement_fails_closed(rig):
@@ -2098,7 +2096,7 @@ def test_a_wix_funded_split_tender_order_reaches_accept_paid(rig):
     code, body = r.verify(order_id=options["orderId"], payment_id="pay_final_1")
     assert code == 200 and body["status"] == "VERIFIED_PAID", body
     assert len(r.db.rows(ORDERS_TABLE)) == 1
-    assert _stage_of(r)[0] == "WIX_CART_COMPLETED"
+    assert _stage_of(r)[0] == "ORDER_FINALIZED"
 
 
 def test_an_ordinary_card_free_order_with_a_zero_leg_is_not_refused(rig):
@@ -2116,7 +2114,7 @@ def test_an_ordinary_card_free_order_with_a_zero_leg_is_not_refused(rig):
     code, body = r.verify(order_id=options["orderId"], payment_id="pay_final_1")
     assert code == 200 and body["status"] == "VERIFIED_PAID", body
     assert len(r.db.rows(ORDERS_TABLE)) == 1
-    assert _stage_of(r)[0] == "WIX_CART_COMPLETED"
+    assert _stage_of(r)[0] == "ORDER_FINALIZED"
 
 
 def test_an_unreadable_tender_leg_is_refused(rig, caplog):
@@ -2187,9 +2185,9 @@ def test_a_settled_wecare_gift_card_is_not_refused_by_the_ladder_gate(rig):
     code, body = r.verify(order_id=options["orderId"], payment_id="pay_final_1")
     assert code == 200 and body["status"] == "VERIFIED_PAID", body
     assert len(r.db.rows(ORDERS_TABLE)) == 1, "a settled card must not be refused by the ladder gate"
-    # The leg that reached Wix is the Razorpay one, not the payable and not the card's.
-    assert (r.wix.wix_payments[0]["payments"][0]["amount"]["amount"]
-            == wix_writeback._paise_to_decimal_string(leg - redeem))
+    # The verified capture recorded is the Razorpay leg, not the payable and not the card's.
+    assert int(r.attempt_row()[finalization_module().VERIFIED_CAPTURED_PAISE_ATTR]) == leg - redeem
+    assert _stage_of(r)[0] == "ORDER_FINALIZED"
 
 
 # ── convergence, the loader, and the paths where identity is missing ───────────
@@ -2413,14 +2411,14 @@ def test_the_closed_tab_poll_writes_exactly_one_order_record(rig):
     code, body = r.status(options["paymentAttemptId"])
     assert code == 200, body
     assert len(r.db.rows(ORDERS_TABLE)) == 1
-    assert _stage_of(r)[0] == "WIX_CART_COMPLETED"
+    assert _stage_of(r)[0] == "ORDER_FINALIZED"
     assert r.attempt_row()[finalization_module().VERIFIED_CAPTURED_PAISE_ATTR] == leg
 
     # A second poll finds `finalizationStage` set and does not run again.
     code_again, _ = r.status(options["paymentAttemptId"])
     assert code_again == 200
     assert len(r.db.rows(ORDERS_TABLE)) == 1
-    assert len(r.wix.wix_orders) == 1
+    assert r.wix.wix_orders == []  # native terminal, no Wix writeback
     assert r.db.count_prefix(order_keys.ORDER_NUMBER_PREFIX) == 1
 
 
@@ -2694,26 +2692,8 @@ def test_an_ordinary_prepare_stores_a_row_far_inside_the_item_limit(rig):
     assert not r.attempt_row()["wixOrderPayload"].get(wix_writeback.PAYLOAD_REDUCED_FLAG)
 
 
-def test_a_reduced_wix_payload_is_refused_rather_than_sent(rig):
-    """A payload trimmed to fit the row has lost its catalog references, so it fails closed.
-
-    Sending it would create a Wix order that names no products. The refusal is keyed on the flag
-    the TRIMMER sets, which is why `_WIX_PAYLOAD_REDUCED_FLAG` and
-    `wix_writeback.PAYLOAD_REDUCED_FLAG` are pinned equal elsewhere: a divergence would silently
-    disable this.
-    """
-    r = rig()
-    leg, options = _paid_flow(r, request_key="K_blob_2")
-    payload = dict(r.attempt_row()["wixOrderPayload"])
-    payload[wix_writeback.PAYLOAD_REDUCED_FLAG] = True
-    r.patch_attempt(wixOrderPayload=payload)
-
-    code, body = r.verify(order_id=options["orderId"], payment_id="pay_final_1")
-    assert code == 200 and body["status"] == "VERIFIED_PAID", body
-    # The internal order record still exists -- money moved -- but nothing reached Wix.
-    assert len(r.db.rows(ORDERS_TABLE)) == 1
-    assert _stage_of(r) == ("NEEDS_RECONCILIATION", "WIX_PAYLOAD_REDUCED")
-    assert r.wix.wix_orders == [] and r.wix.wix_payments == []
+# The former test_a_reduced_wix_payload_is_refused_rather_than_sent was removed with the Wix
+# writeback: in AWS-native mode there is no outbound Wix order to protect from a trimmed payload.
 
 
 # ══ the two residues the review named, each now pinned ═════════════════════════
