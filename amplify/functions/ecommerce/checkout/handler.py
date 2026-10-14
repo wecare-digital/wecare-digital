@@ -95,7 +95,7 @@ from lambda_utils.ecommerce import (
     blog_contribution, cart_contract, catalog_analytics, checkout_pricing, contact_address, customer_cart, finalization,
     gift_card_settlement, india_address, order_channel, order_creation, order_keys, payment_address,
     payment_attempt, purchase_intent, wa_payment_request, website_checkout, whatsapp_basket)
-# AWS-native supply engine, reached ONLY when CHECKOUT_MODE=AWS_NATIVE (default WIX_HEADLESS).
+# AWS-native supply engine; ProductsTable is the only pricing authority.
 # These compute the collection total from ProductsTable with no Wix call; the payment/order/
 # invoice paths downstream are unchanged. Imported unconditionally (cheap, pure) so the native
 # branch is a flag check rather than a lazy import that could fail at the worst moment.
@@ -142,7 +142,7 @@ CONTACTS_TABLE = os.environ.get("CONTACTS_TABLE", "stack-wecare-digital-Contacts
 #: where that record lands. Granted `GetItem`/`PutItem`/`UpdateItem` and explicitly NOT
 #: `DeleteItem`: an order record is evidence that money moved.
 ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "stack-wecare-digital-OrderTable")
-#: AWS-native product catalog, read ONLY on the CHECKOUT_MODE=AWS_NATIVE branch.
+#: AWS-native product catalog; the only checkout product authority.
 PRODUCTS_TABLE = os.environ.get("PRODUCTS_TABLE", "stack-wecare-digital-ProductsTable")
 #: AWS-native working cart (CartTable), the backing store for the WhatsApp claim-basket /
 #: customer-cart adapter that replaced the Wix Cart V2 adapter.
@@ -156,23 +156,15 @@ _CART_BLOCKED = (website_checkout.CART_ALREADY_PAID,
 
 #: Checkout mode marker on the attempt, so this path is distinguishable from any other and a test
 #: can assert which flow created it. Headless WhatsApp/Razorpay, not the (set-aside) Velo provider.
-CHECKOUT_MODE = "WIX_HEADLESS"
+CHECKOUT_MODE = "AWS_NATIVE"
 
-#: Which engine computes the authoritative SUPPLY total. `WIX_HEADLESS` (default) reads it from
-#: Wix (cart_v2.calculate / wix_ecom); `AWS_NATIVE` computes it from ProductsTable via
-#: native_checkout.quote_native_cart with NO Wix call. Read at request time (never module scope),
-#: so an operator flip takes effect without waiting for warm sandboxes to recycle — the same
-#: incident-control discipline as wix_guard / blog_source. Flipping this is the commerce half of
-#: the Wix cutover (spec Phase 6, owner-gated). The payment, order, invoice and reconciliation
-#: paths downstream are byte-identical in either mode: only the SOURCE of the collection total
-#: changes, and both modes produce the same immutable QuoteSnapshot shape.
+#: ProductsTable is the sole supply/pricing authority. The environment key is retained only as
+#: a deployment/readback invariant; there is no provider fallback path.
 CHECKOUT_MODE_ENV = "CHECKOUT_MODE"
 
 
 def _supply_mode() -> str:
-    import os
-    value = str(os.environ.get(CHECKOUT_MODE_ENV, "WIX_HEADLESS")).strip().upper()
-    return "AWS_NATIVE" if value in ("AWS_NATIVE", "AWS", "NATIVE") else "WIX_HEADLESS"
+    return "AWS_NATIVE"
 
 #: The business-API Lambda, which holds the Meta token and answers the readiness readback. It is
 #: NOT a payment sender and has not been one since the in-chat send moved to
@@ -338,7 +330,7 @@ def _native_cart_adapter(customer_id: str = ""):
 
 def _native_product_reader():
     """A ProductsTable reader `product_id -> item | None` for the native supply engine.
-    Only called on the CHECKOUT_MODE=AWS_NATIVE branch, so the table need not exist until
+    Called by the AWS-native checkout path; the table must exist before
     the owner provisions it for the cutover."""
     table = _products_table()
 
