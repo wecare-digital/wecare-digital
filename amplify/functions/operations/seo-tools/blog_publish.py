@@ -324,7 +324,14 @@ def publish(job_ref: str, actor: str) -> Dict[str, Any]:
     #: catch to RuntimeError would have been worse - `_write_to_wix` raises RuntimeError for a
     #: genuine Wix rejection, so a real failure would have been reported as "writes are off".
     #: Asking the switch is a state check, not an exception-classification problem.
-    if writes_disabled():
+    # BLOG_SOURCE=aws routes the publish WRITE to the AWS-native store (SeoToolsTable
+    # blogPost records), which the native public read path (blog_source.py) serves. In
+    # native mode there is no Wix credential, so the Wix kill switch does not apply — a
+    # native publish is never REFUSED for `WIX_CREDENTIALS_DISABLED`. Default is `wix`,
+    # so this branch is unreachable until the owner flips BLOG_SOURCE at cutover.
+    native_blog = _blog_source_is_aws()
+
+    if not native_blog and writes_disabled():
         return _refuse(job_ref, source_id, actor, job)
 
     if not _claim(job_ref):
@@ -332,12 +339,14 @@ def publish(job_ref: str, actor: str) -> Dict[str, Any]:
                 "note": "another publisher holds this job"}
 
     try:
-        result = _write_to_wix(record, draft, job)
+        result = _write_native(record, draft, actor) if native_blog \
+            else _write_to_wix(record, draft, job)
     except Exception as exc:  # noqa: BLE001
         #: Re-check the switch rather than inspecting the exception. It can be flipped between
         #: the check above and this call, and a state read answers that correctly where matching
-        #: on a message or a type cannot.
-        if writes_disabled():
+        #: on a message or a type cannot. The Wix kill switch is irrelevant in native mode (no
+        #: Wix credential), so a native-publish failure is always a real FAILED, never a refusal.
+        if not native_blog and writes_disabled():
             return _refuse(job_ref, source_id, actor, job)
         logger.exception("blog publish failed")
         #: A DISTINCT EVENT FROM THE REFUSAL, and the alarms depend on that.
@@ -390,6 +399,46 @@ def _refuse(job_ref: str, source_id: str, actor: str,
             "error": reason,
             "note": ("Recorded as REFUSED and NOT attempted. Clear "
                      "WIX_CREDENTIALS_DISABLED, then release and publish again.")}
+
+
+def _blog_source_is_aws() -> bool:
+    """Whether the blog WRITE goes to the AWS-native store. Shares the one BLOG_SOURCE
+    flag with the public READ path (blog_source.py), read at call time so a flip takes
+    effect immediately. Keeping read and write on one flag means the blog can never be
+    half-migrated — reads and publishes always agree on the source of truth."""
+    import os
+    value = str(os.environ.get("BLOG_SOURCE", "wix")).strip().lower()
+    return value in ("aws", "ddb", "dynamodb", "native")
+
+
+def _write_native(record: Dict[str, Any], draft: Dict[str, Any], actor: str) -> Dict[str, Any]:
+    """Publish to the AWS-native blog store, returning the SAME `{postId, postUrl}` shape
+    as `_write_to_wix` so `publish` is source-agnostic.
+
+    Maps the approved draft to `storage.create_blog_post`'s body and writes it as a
+    PUBLISHED `blogPost` record — the exact record type `blog_source`/`storage` serve to
+    the public blog. Markdown is stored as-is (the native read path renders it); no Ricos
+    compile is needed because there is no Wix to satisfy.
+    """
+    body = {
+        "title": str(draft.get("title") or "").strip(),
+        "slug": str(draft.get("slug") or "").strip(),
+        "content": draft.get("contentMarkdown") or "",
+        "status": "published",
+        "category": str(record.get("category") or draft.get("category") or "").strip(),
+        "tags": draft.get("tagLabels") or draft.get("tags") or [],
+        "hashtags": draft.get("hashtags") or [],
+        "excerpt": str(draft.get("excerpt") or "").strip(),
+        "coverImage": str(draft.get("coverImage") or "").strip(),
+        "authorName": str(draft.get("authorName") or "").strip(),
+        "seoTitle": str(draft.get("seoTitle") or "").strip(),
+        "metaDescription": str(draft.get("metaDescription") or "").strip(),
+        "focusKeyword": str(draft.get("focusKeyword") or "").strip(),
+        "secondaryKeywords": draft.get("secondaryKeywords") or [],
+        "jsonLd": draft.get("jsonLd") or {},
+    }
+    result = storage.create_blog_post(body, actor)
+    return {"postId": result["postId"], "postUrl": result["url"]}
 
 
 def _write_to_wix(record: Dict[str, Any], draft: Dict[str, Any],
