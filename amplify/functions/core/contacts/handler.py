@@ -175,7 +175,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _auth
 
     # Unlocking retention is an Admin + MFA capability, not a generic Operator edit.
-    if method == 'POST' and str(event.get('rawPath') or event.get('resource') or '').rstrip('/').endswith('/unlock'):
+    if method == 'POST' and (str(event.get('rawPath') or '').rstrip('/').endswith('/unlock')
+                             or str(event.get('resource') or '').rstrip('/').endswith('/unlock')):
         denied = require_auth(event, required_role='Admin')
         if denied is not None:
             return denied
