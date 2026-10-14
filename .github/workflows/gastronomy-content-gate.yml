@@ -60,7 +60,10 @@ jobs:
           done
 
   publish:
-    if: github.event_name == 'workflow_dispatch' && inputs.publish == true
+    # WIX WRITE PATH DISABLED (Wix site retired). This job is the only route by which this
+    # workflow can WRITE to Wix; held unreachable behind the repository variable
+    # `WIX_PUBLISH_ENABLED`, which is intentionally NOT set. Validation is unaffected.
+    if: vars.WIX_PUBLISH_ENABLED == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish == true
     needs: validate
     runs-on: ubuntu-26.04
     permissions:

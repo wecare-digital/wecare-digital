@@ -126,7 +126,11 @@ jobs:
   publish:
     # Mutation happens only on an explicit dispatch with the boolean flipped. A push to
     # conversations-publishing reaches `validate` and stops there.
-    if: github.event_name == 'workflow_dispatch' && inputs.publish == true
+    #
+    # WIX WRITE PATH DISABLED (Wix site retired). This job is the only route by which GitHub
+    # Actions can WRITE to Wix; held unreachable behind the repository variable
+    # `WIX_PUBLISH_ENABLED`, which is intentionally NOT set. Validation/audit are unaffected.
+    if: vars.WIX_PUBLISH_ENABLED == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish == true
     needs: validate
     runs-on: ubuntu-26.04
     permissions:
