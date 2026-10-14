@@ -2689,7 +2689,8 @@ def test_an_ordinary_prepare_stores_a_row_far_inside_the_item_limit(rig):
     row_bytes = len(json.dumps(r.attempt_row(), default=str))
     assert row_bytes <= _DYNAMODB_ITEM_LIMIT_BYTES
     assert not r.attempt_row()["purchasedSnapshot"].get("purchasedSnapshotReduced")
-    assert not r.attempt_row()["wixOrderPayload"].get(wix_writeback.PAYLOAD_REDUCED_FLAG)
+    # Native: there is no wixOrderPayload on the row at all, so nothing to trim.
+    assert "wixOrderPayload" not in r.attempt_row()
 
 
 # The former test_a_reduced_wix_payload_is_refused_rather_than_sent was removed with the Wix

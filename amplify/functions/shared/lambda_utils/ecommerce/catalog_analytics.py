@@ -26,31 +26,35 @@ def _integer(value):
 
 
 def purchase_facts(attempt):
+    """Catalog analytics facts from a paid attempt, provider-neutral.
+
+    Reads a small `catalogContents` list — `[{productId, variantId, quantity}, ...]` — which a
+    native checkout may attach to the attempt. The content id is emitted as
+    `wix:<productId>:<variantId>` because the native catalog PRESERVES the original product and
+    variant UUIDs (the Meta retailer-id contract), so the id a downstream pixel/CAPI event keys
+    on is unchanged by the Wix exit.
+
+    Returns None when the attempt is not a clean paid INR order, when no `catalogContents` is
+    present (nothing to attribute), or when any line fails the known product/variant allowlist —
+    a mixed basket must not attribute the whole payment to one service.
+    """
     if (attempt.get('status') != payment_attempt.PAYMENT_PAID
             or not attempt.get('orderNumber') or attempt.get('currency') != 'INR'):
         return None
     amount = _integer(attempt.get('amountPaise'))
-    payload = attempt.get('wixOrderPayload')
-    if not amount or not isinstance(payload, Mapping):
-        return None
-    lines = payload.get('lineItems')
-    if not isinstance(lines, list) or not lines:
+    lines = attempt.get('catalogContents')
+    if not amount or not isinstance(lines, list) or not lines:
         return None
     contents = []
     for line in lines:
         if not isinstance(line, Mapping):
             return None
-        ref = line.get('catalogReference') or {}
-        if not isinstance(ref, Mapping):
-            return None
-        options = ref.get('options') or {}
-        if not isinstance(options, Mapping):
-            return None
-        variant = options.get('variantId')
+        product = line.get('productId')
+        variant = line.get('variantId')
         quantity = _integer(line.get('quantity'))
         # A mixed basket must not attribute the entire payment to one service.
-        if (ref.get('appId') != STORES_APP_ID or ref.get('catalogItemId') != PRODUCT_ID
-                or not isinstance(variant, str) or variant not in VARIANTS or not quantity):
+        if (product != PRODUCT_ID or not isinstance(variant, str)
+                or variant not in VARIANTS or not quantity):
             return None
         contents.append({'id': f'wix:{PRODUCT_ID}:{variant}', 'quantity': quantity})
     return {'contents': contents, 'amountPaise': amount, 'currency': 'INR'}

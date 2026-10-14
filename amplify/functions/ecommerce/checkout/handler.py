@@ -95,7 +95,7 @@ from lambda_utils.ecommerce import (
     blog_contribution, cart_v2, catalog_analytics, checkout_pricing, contact_address, customer_cart, finalization,
     gift_card_settlement, order_channel, order_creation, order_keys, payment_address,
     payment_attempt, purchase_intent, wa_payment_request, website_checkout, whatsapp_basket,
-    wix_address, wix_writeback)
+    wix_address)
 # AWS-native supply engine, reached ONLY when CHECKOUT_MODE=AWS_NATIVE (default WIX_HEADLESS).
 # These compute the collection total from ProductsTable with no Wix call; the payment/order/
 # invoice paths downstream are unchanged. Imported unconditionally (cheap, pure) so the native
@@ -797,10 +797,8 @@ def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list
     if _supply_mode() == "AWS_NATIVE":
         # AWS-NATIVE SUPPLY TOTAL — no Wix call. The collection comes from ProductsTable via
         # native_checkout.quote_native_cart; the convenience fee + GST, the snapshot shape, and
-        # everything downstream (attempt, Razorpay, order, invoice, reconciliation) are identical
-        # to the Wix path. Default is WIX_HEADLESS, so this branch is unreachable until the owner
-        # flips CHECKOUT_MODE at cutover. No Wix order writeback is synthesised here (wix_writeback
-        # is gated off in native mode), exactly as the V1 branch synthesises none.
+        # everything downstream (attempt, Razorpay, order, invoice, reconciliation) are identical.
+        # The internal order is the authoritative artifact; no Wix order writeback is synthesised.
         ephemeral_cart = {
             "cartId": f"native:{identity.customer_id}:{now}",
             "updatedAt": now,
@@ -1217,14 +1215,9 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         snapshot, calculated = _website_snapshot(
             identity, line_items, now, profile=profile,
             reset=body.get("resetCart") is True)
+        # AWS-native: `_website_snapshot` always returns `calculated=None`, and the internal
+        # order is the authoritative artifact — there is no Wix order to build a payload for.
         wix_order_payload = None
-        if calculated is not None:
-            # Built from the SAME frozen calculation the price was quoted from, at the same
-            # instant. Deriving it later from the stored projection would reintroduce the
-            # recompute this exists to prevent, and the projection has no `catalogReference` to
-            # derive it from.
-            wix_order_payload = wix_writeback.build_wix_order_payload(
-                cart=calculated, quote=snapshot.quote)
 
         def _allocate_reference(attempt_id: str, leg_paise: int,
                                 gift_card_paise: int) -> str:
@@ -2510,13 +2503,11 @@ def _blocking_codes(adapter, cart_id: str) -> set:
 def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
                  *, profile: Optional[Dict[str, Any]] = None,
                  reconcile: bool = False, reset: bool = False):
-    """The Cart V2 price authority. Returns `(snapshot, price_free_items, calculated)`.
+    """The website price authority. Returns `(snapshot, price_free_items, calculated)`.
 
-    `calculated` is the `cart_v2.calculate` result the snapshot was frozen from, returned rather
-    than discarded so `wix_writeback.build_wix_order_payload` can be built from the SAME figures
-    the price was quoted from. A second `calculate` could drift from the charge by a paise, and
-    the frozen snapshot keeps `summary.lineItems` but not `cart.lineItems`, so it carries no
-    `catalogReference` to rebuild a payload from.
+    `calculated` is the calculation the snapshot was frozen from. Under AWS_NATIVE this is `None`
+    (the native supply engine produces the snapshot directly and there is no Wix order payload to
+    build); it is retained in the signature for the legacy shape only.
 
     This is the producer half of the chain `website_checkout` and `customer_receipt` already
     consume, and which nothing in production produced before. `QuoteSnapshot.quote`'s
@@ -3018,14 +3009,12 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     )
     attempt["checkoutMode"] = CHECKOUT_MODE
     if catalog_session is not None:
+        # AWS-native WhatsApp catalog-service attempt. The authoritative record is the frozen
+        # `purchasedSnapshot` + `snapshotHash` (what `finalization.accept_paid` reads); there is
+        # no Wix order payload — the order is finalized natively.
         attempt.update(nativeCatalogService=True, channel='whatsapp',
             customerPhone=_profile_phone(identity), catalogServiceSession=catalog_session['orderId'],
             snapshotHash=snapshot.snapshot_hash, purchasedSnapshot=dict(snapshot.frozen_data))
-        attempt['wixOrderPayload'] = wix_writeback.build_wix_order_payload(
-            cart=_calculated, quote=snapshot.quote, buyer={'phone': identity.phone})
-        attempt['wixOrderPayload']['channelInfo']['externalOrderId'] = reference_id
-        for line in attempt['wixOrderPayload']['lineItems']:
-            line['itemType'] = {'preset': 'SERVICE'}
         if len(json.dumps(attempt, default=str).encode()) > 350000:
             return cors_response(409, {'error': 'CATALOG_SERVICE_SNAPSHOT_TOO_LARGE'}, origin)
 
@@ -3278,8 +3267,9 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
         return {'outcome' : 'NATIVE_SERVICE_FINALIZED' if done else 'NATIVE_SERVICE_FINALIZATION_PENDING'}
     if os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() != 'true':
         return {'outcome': 'NATIVE_SERVICE_ROLLOUT_DISABLED'}
-    if not wix_writeback.is_enabled():
-        return {'outcome': 'NATIVE_SERVICE_WRITEBACK_NOT_READY'}
+    # AWS-native: the service checkout finalizes natively (purchasedSnapshot → accept_paid →
+    # ORDER_FINALIZED); there is no Wix writeback readiness to gate on. The rollout flag above is
+    # the only gate.
     token = str(event.get('catalogToken') or '')
     import re
     if not re.fullmatch(r'[A-Za-z0-9_-]{20,80}', token):

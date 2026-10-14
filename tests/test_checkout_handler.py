@@ -214,9 +214,7 @@ def _enable_catalog_leg(h, monkeypatch, *, quote=None):
     monkeypatch.setattr(h, '_v2_snapshot',
                         lambda identity, line_items: (snapshot, ['Viveka x1'],
                                                       {'cart': {'lineItems': []}}))
-    monkeypatch.setattr(h.wix_writeback, 'build_wix_order_payload',
-                        lambda **kw: {'channelInfo': {}, 'lineItems': []})
-    monkeypatch.setattr(h.wix_writeback, 'is_enabled', lambda: True)
+    # Native catalog-service path: no Wix writeback payload builder or gate to stub.
     return snapshot
 
 
@@ -655,7 +653,6 @@ def test_waba2_cannot_prepare_a_native_service_payment_and_leaves_no_claim(env):
     """
     h, fake, lam, monkeypatch = env
     monkeypatch.setenv('WHATSAPP_CATALOG_SERVICES_ENABLED', 'true')
-    monkeypatch.setattr(h.wix_writeback, 'is_enabled', lambda: True)
     _seed_preparing_session(fake, phone_number_id=WABA2_SENDER)
     # The sender refusal intentionally follows VERIFIED_CUSTOMER_REQUIRED, so seed
     # the owned contact needed to reach that exact gate without any provider calls.

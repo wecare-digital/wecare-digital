@@ -178,9 +178,8 @@ def make_env(monkeypatch, *, wix=None, contribution_env=CONTRIBUTION_ID,
                                catalog_session=catalog_session or dict(CATALOG_SESSION))
 
         monkeypatch.setattr(h, "_create", _create_on_the_catalog_leg)
-        monkeypatch.setattr(h.wix_writeback, "is_enabled", lambda: True)
-        monkeypatch.setattr(h.wix_writeback, "build_wix_order_payload",
-                            lambda **kw: {"channelInfo": {}, "lineItems": []})
+        # The native catalog-service path no longer builds a Wix order payload or gates on a Wix
+        # writeback flag; the internal order is finalized natively. No wix_writeback setup needed.
         fake.Table(KEYS_TABLE).put_item(Item={"orderId": CATALOG_SESSION["orderId"],
                                               "serviceIntentId": CATALOG_INTENT,
                                               "status": "PREPARING_PAYMENT"})
