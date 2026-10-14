@@ -265,6 +265,8 @@ def _update_variant(table, product_id: str, sku: str,
         return 400, {"error": "IMMUTABLE_VARIANT_FIELD"}
     if not any(k in body for k in ("priceMinor", "label", "stockDelta", "stockCount")):
         return 400, {"error": "NO_EDITABLE_FIELDS"}
+    if "stockDelta" in body and "stockCount" in body:
+        return 400, {"error": "AMBIGUOUS_STOCK_UPDATE"}
 
     vals: dict[str, Any] = {":expected": expected, ":sku": sku}
     names = {"#id": "id", "#updated": "updatedAt",
