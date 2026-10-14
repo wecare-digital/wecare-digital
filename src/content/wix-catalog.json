@@ -5,6 +5,44 @@
   "productCount": 10,
   "products": [
     {
+      "id": "121c9d57-2cc9-490b-8eed-66bf7b9c172a",
+      "name": "₹1 test product",
+      "slug": "1-test-product",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": "",
+      "price": "1.00",
+      "priceMax": "1.00",
+      "currency": "INR",
+      "formattedPrice": "₹1.00",
+      "compareAtPrice": null,
+      "inStock": true,
+      "descriptionHtml": "",
+      "categoryIds": [
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
+      ],
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
+      "optionCount": 0,
+      "modifierCount": 0,
+      "variantCount": 1,
+      "mediaCount": 0,
+      "infoSectionCount": 0,
+      "productUrl": "https://wecare.digital/shop/1-test-product/",
+      "image": "",
+      "variants": [
+        {
+          "id": "c2edc783-c8fa-4b3e-a922-f7800889e56a",
+          "label": "Standard",
+          "inStock": true,
+          "sku": "",
+          "choiceId": "",
+          "optionId": "",
+          "image": "",
+          "pricePaise": 100
+        }
+      ]
+    },
+    {
       "id": "abfdad33-b853-4aeb-b2f9-fa4051e75928",
       "name": "Anew",
       "slug": "anew",
