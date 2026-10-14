@@ -60,4 +60,4 @@ def test_admin_unlock_and_conditional_archive():
 def test_ai_cannot_clear_locked_contact_history():
     source = (ROOT / "amplify/functions/ai/ai-generate-response/handler.py").read_text()
     body = source.split("def _tool_clear_all_contact_data(", 1)[1].split("\ndef ", 1)[0]
-    assert body.index("existing.get('locked') is True") < body.index("_tool_delete_messages(")
+    assert "CONTACT_RETENTION_PROTECTION" in body[:250]
