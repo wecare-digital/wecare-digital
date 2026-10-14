@@ -1,10 +1,10 @@
 /**
- * BLOG CONTRIBUTION CHOICES, IN ONE PLACE - the "Contribute" amounts and the Wix variant each one
+ * BLOG CONTRIBUTION CHOICES, IN ONE PLACE - the "Contribute" amounts and the catalog variant each one
  * buys, with a single definition so no amount or GUID is re-typed.
  *
- * ONE AMOUNT TODAY, 2026-10-10. The owner reduced `Contribute` in Wix to a SINGLE visible
+ * ONE AMOUNT TODAY, 2026-10-10. The owner reduced `Contribute` in catalog to a SINGLE visible
  * in-stock variant at ₹250; the ₹100 and ₹500 variants were deleted there, so they are deleted
- * here. Wix is the source of truth and this file follows it - a choice that no longer exists in
+ * here. catalog is the source of truth and this file follows it - a choice that no longer exists in
  * the catalogue cannot be priced by `cart_v2.calculate`, so leaving it declared would only offer
  * a button that fails at checkout. The LIST SHAPE is kept rather than collapsed to one constant,
  * because the shape is what makes restoring a second amount a one-line change in two files.
@@ -36,11 +36,11 @@
  * THE SERVER IS THE AUTHORITY - this is the load-bearing security note.
  * ---------------------------------------------------------------------
  * Nothing declared here is ever treated as approved to charge. The browser names a CHOICE; the
- * server decides what that choice collects and Wix prices the line. `POST
+ * server decides what that choice collects and catalog prices the line. `POST
  * /api/ecommerce/contribution` does not exist and is never built: a contribution is a product line
  * in the existing cart, paid on `POST /ecommerce/prepare-checkout`, and
  * `amplify/functions/ecommerce/checkout/handler.py:_contribution_request` re-derives the expected
- * collection from its OWN committed copy of the choices before any Wix call or DynamoDB
+ * collection from its OWN committed copy of the choices before any catalog call or DynamoDB
  * write. `cart_v2.calculate` remains the sole price authority; no price, amount or currency is ever
  * sent from the browser.
  *
@@ -65,14 +65,14 @@ export const CONTRIBUTE_CTA_HREF = 'https://wa.me/message/BYFLCAAMSZBXD1';
  * ONE product with ONE fixed-price variant, measured against the live catalogue on 2026-10-10:
  * `PHYSICAL`, `visible: true`, one option named "Amount" rendered as text choices, a single
  * visible in-stock variant at ₹250. It carried THREE variants - ₹100 / ₹250 / ₹500 - until the
- * owner removed two of them in Wix on 2026-10-10.
+ * owner removed two of them in catalog on 2026-10-10.
  *
  * MOVED TO THE NEW WIX SITE, 2026-10-05. The catalogue was migrated to site
  * `c993128b-26be-41cd-9fcd-904abe23462f`, which re-minted every product and variant id, so the
  * product id and the variant ids below changed together in one release exactly as the
  * paragraph below requires. The amounts did NOT change in that move: ₹100 / ₹250 / ₹500, 10000 /
  * 25000 / 50000 paise, before and after. The replacements were read live from the new site's
- * query-variants response and cross-checked against the refreshed `src/content/catalog.json`,
+ * query-variants response and cross-checked against the refreshed `src/content/catalog-snapshot.json`,
  * whose "Amount" option labels confirm which variant carries which rupee figure.
  *
  * THERE IS NO `NEXT_PUBLIC_*` OVERRIDE, and its removal is deliberate rather than an omission.
@@ -103,7 +103,7 @@ export const CONTRIBUTION_PRODUCT_ID: string = '8514c405-3971-4786-ad0d-15406ca2
 
 /** One choice: the variant that is added to the cart, and the amount it collects. */
 export interface ContributionChoice {
-  /** The Wix variant id. This is what travels in the cart line's `catalogReference.options`. */
+  /** The catalog variant id. This is what travels in the cart line's `catalogReference.options`. */
   readonly variantId: string;
   /** Whole rupees, for the button face and the cart row. */
   readonly rupees: number;
@@ -113,10 +113,10 @@ export interface ContributionChoice {
 
 /**
  * THE ONLY CONTRIBUTION THAT CAN BE MADE - one choice, ₹250. Owner model change, 2026-10-04;
- * reduced from three choices to one on 2026-10-10 to match live Wix, which now carries a single
+ * reduced from three choices to one on 2026-10-10 to match live the catalog, which now carries a single
  * visible in-stock variant of this product. The ₹100 (`ab4ee1a2-…`) and ₹500 (`19283bd8-…`)
  * variants are GONE from the catalogue, so they are gone from here and from the server's mirror
- * in the same change: a variant Wix has deleted cannot be priced, and a button offering one would
+ * in the same change: a variant catalog has deleted cannot be priced, and a button offering one would
  * fail at `cart_v2.calculate` instead of collecting anything.
  *
  * What this replaced, because the shape of the change is the point: a contribution used to be one
@@ -134,7 +134,7 @@ export interface ContributionChoice {
  *
  * `paise` IS NOT A PRICE THE BROWSER SENDS. No amount, price or currency ever leaves the browser;
  * `cart_v2.calculate` prices the line. The figure is here so the button can say what it is about
- * to collect, and the server asserts Wix's computed total against its own copy of it - so a Wix
+ * to collect, and the server asserts the catalog's computed total against its own copy of it - so a catalog
  * price edit refuses the contribution rather than charging a figure the button did not promise.
  */
 export const CONTRIBUTION_CHOICES: readonly ContributionChoice[] = [
