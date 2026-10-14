@@ -121,7 +121,7 @@ source configuration contract, not proof that the current stored key is valid or
 Browser and server calls need distinct credentials. A referrer-restricted browser key cannot
 be used server-side at all. Use a separate server key with restrictions appropriate to its
 server-side APIs; do not remove browser restrictions to make a backend call succeed. Server
-credentials must never ship in a public JavaScript bundle. `NEXT_PUBLIC_GOOGLE_MAPS_KEY` is
+credentials must never ship in a public JavaScript bundle. `NEXT_PUBLIC_GOOGLE_BROWSER_KEY` is
 reserved for a restricted browser Maps key, not the canonical server credential. Consolidating
 secret identifiers does not remove this browser/server separation.
 
