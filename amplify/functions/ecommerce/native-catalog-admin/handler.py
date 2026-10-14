@@ -60,7 +60,8 @@ def _parse_body(event: Mapping[str, Any]) -> dict[str, Any]:
     body = json.loads(raw) if isinstance(raw, str) else raw
     if not isinstance(body, dict):
         raise ValueError("JSON object required")
-    if len(raw) > 64000 if isinstance(raw, str) else len(json.dumps(raw)) > 64000:
+    size = len(raw) if isinstance(raw, str) else len(json.dumps(raw))
+    if size > 64000:
         raise ValueError("product update too large")
     return body
 
@@ -205,8 +206,11 @@ def _update(table, product_id: str, body: dict[str, Any], who: str
     if not updates:
         return 400, {"error": "NO_EDITABLE_FIELDS"}
     new_updated = _now()
-    if new_updated == expected:
-        new_updated = expected[:-1] + "1Z"  # millisecond counterclock fallback
+    if new_updated <= expected:
+        from datetime import timedelta
+        previous = datetime.fromisoformat(expected.replace("Z", "+00:00"))
+        new_updated = (previous + timedelta(milliseconds=1)).isoformat(
+            timespec="milliseconds").replace("+00:00", "Z")
     updates.update({"updatedAt": new_updated, "lastEditedBy": who})
     names = {"#id": "id", "#updated": "updatedAt"}
     values = {":expected": expected}
@@ -233,6 +237,87 @@ def _update(table, product_id: str, body: dict[str, Any], who: str
     return 200, {"product": _public_row(fresh or {**old, **updates})}
 
 
+def _update_variant(table, product_id: str, sku: str,
+                    body: dict[str, Any], who: str
+                    ) -> tuple[int, dict[str, Any]]:
+    """Update only one existing variant via a conditioned atomic DynamoDB update.
+
+    The SKU and product ID never change, preserving all historical retailer IDs.
+    Inventory is adjusted by a *delta* against current stock (never overwritten),
+    with a nonnegative guard so a stock reservation cannot be wiped out.
+    """
+    old = _get(table, product_id)
+    if not old:
+        return 404, {"error": "PRODUCT_NOT_FOUND"}
+    expected = body.get("expectedUpdatedAt")
+    if not isinstance(expected, str) or expected != old.get("updatedAt"):
+        return 409, {"error": "PRODUCT_VERSION_CONFLICT"}
+    variants = old.get("variants") or []
+    matches = [(i, v) for i, v in enumerate(variants)
+               if str(v.get("sku") or v.get("id") or "") == sku]
+    if len(matches) != 1:
+        return 404, {"error": "VARIANT_NOT_FOUND"}
+    index, prior = matches[0]
+    if any(x not in {"expectedUpdatedAt", "priceMinor", "label", "stockDelta"}
+           for x in body):
+        return 400, {"error": "IMMUTABLE_VARIANT_FIELD"}
+    if not any(k in body for k in ("priceMinor", "label", "stockDelta")):
+        return 400, {"error": "NO_EDITABLE_FIELDS"}
+
+    vals: dict[str, Any] = {":expected": expected, ":sku": sku}
+    names = {"#id": "id", "#updated": "updatedAt",
+             "#vs": "variants", "#sku": "sku",
+             "#status": "status", "#editor": "lastEditedBy"}
+    setters = ["#updated = :now", "#editor = :editor"]
+    vals[":now"] = _now()
+    vals[":editor"] = who
+    condition = ("attribute_exists(#id) AND #updated = :expected "
+                 f"AND #vs[{index}].#sku = :sku")
+    if "priceMinor" in body:
+        price = _minor(body["priceMinor"])
+        vals[":price"] = price
+        names["#price"] = "priceMinor"
+        setters.append(f"#vs[{index}].#price = :price")
+        # Product-level price is the displayed floor, not the authority for
+        # multi-variant checkout. Re-evaluate against the other variant prices.
+        all_prices = [
+            price if i == index else int(v.get("priceMinor", old.get("priceMinor", 0)))
+            for i, v in enumerate(variants)
+        ]
+        vals[":floor"] = min(all_prices)
+        setters.append("#price = :floor")
+    if "label" in body:
+        vals[":label"] = _text(body["label"], "label", 100)
+        names["#label"] = "label"
+        setters.append(f"#vs[{index}].#label = :label")
+    delta = body.get("stockDelta", 0)
+    if "stockDelta" in body:
+        if type(delta) is not int or not -1_000_000 <= delta <= 1_000_000:
+            raise ValueError("stockDelta must be an integer between -1000000 and 1000000")
+        if delta:
+            names["#inventory"] = "inventory"
+            vals[":delta"] = delta
+            setters.append(f"#vs[{index}].#inventory = #vs[{index}].#inventory + :delta")
+            if delta < 0:
+                vals[":min"] = -delta
+                condition += f" AND #vs[{index}].#inventory >= :min"
+    try:
+        table.update_item(
+            Key={"id": product_id},
+            UpdateExpression="SET " + ", ".join(setters),
+            ConditionExpression=condition,
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=vals,
+        )
+    except Exception as error:
+        if (getattr(error, "response", {}).get("Error", {}).get("Code") ==
+                "ConditionalCheckFailedException"):
+            return 409, {"error": "VARIANT_VERSION_OR_STOCK_CONFLICT"}
+        raise
+    new = _get(table, product_id)
+    return 200, {"product": _public_row(new or old)}
+
+
 def handle_request(event: dict[str, Any], table) -> dict[str, Any]:
     origin = extract_origin(event)
     rc = event.get("requestContext", {})
@@ -250,12 +335,18 @@ def handle_request(event: dict[str, Any], table) -> dict[str, Any]:
     if "/native-catalog/products" not in path:
         return _resp(404, {"error": "NOT_FOUND"}, origin)
     suffix = path.split("/native-catalog/products", 1)[1].strip("/")
-    if suffix and "/" in suffix:
+    from urllib.parse import unquote
+    segments = [unquote(s) for s in suffix.split("/") if s]
+    if len(segments) > 3 or (len(segments) > 1 and
+        not (len(segments) == 3 and segments[1] == "variants")):
         return _resp(404, {"error": "NOT_FOUND"}, origin)
+    product_id = segments[0] if segments else ""
     try:
         if method == "GET":
-            if suffix:
-                row = _get(table, suffix)
+            if len(segments) > 1:
+                return _resp(404, {"error": "NOT_FOUND"}, origin)
+            if product_id:
+                row = _get(table, product_id)
                 return _resp(200 if row else 404,
                              {"product": _public_row(row)} if row else {"error": "PRODUCT_NOT_FOUND"},
                              origin)
@@ -266,13 +357,15 @@ def handle_request(event: dict[str, Any], table) -> dict[str, Any]:
                 "total": len(rows), "source": "AWS_PRODUCTS_TABLE",
             }, origin)
         body = _parse_body(event)
-        if method == "POST" and not suffix:
+        if method == "POST" and not product_id:
             status, data = _create(table, body, who)
-        elif method == "PATCH" and suffix:
-            status, data = _update(table, suffix, body, who)
-        elif method == "DELETE" and suffix:
+        elif method == "PATCH" and len(segments) == 3:
+            status, data = _update_variant(table, product_id, segments[2], body, who)
+        elif method == "PATCH" and len(segments) == 1:
+            status, data = _update(table, product_id, body, who)
+        elif method == "DELETE" and len(segments) == 1:
             # Soft archive with the same version lock; never delete an order's product.
-            status, data = _update(table, suffix, {
+            status, data = _update(table, product_id, {
                 "status": "archived",
                 "expectedUpdatedAt": body.get("expectedUpdatedAt"),
             }, who)
