@@ -87,3 +87,35 @@ def test_native_mode_ignores_client_supplied_price(monkeypatch):
                    "quantity": 1, "unitPricePaise": 1, "requiresDelivery": True}]
     snapshot, _ = h._website_snapshot(_Identity(), line_items, now=1000)
     assert snapshot.quote.collection_before_convenience_paise == 59900
+
+
+
+def test_native_quote_accepts_the_actual_storefront_catalog_reference(monkeypatch):
+    """The browser sends nested catalogReference, not top-level productId fields."""
+    h = _load()
+    monkeypatch.setenv("CHECKOUT_MODE", "AWS_NATIVE")
+    monkeypatch.setattr(
+        h.wix_ecom, "create_checkout",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("no Wix call")),
+    )
+    monkeypatch.setattr(
+        h, "_native_product_reader", lambda: (lambda pid: _product_row()),
+    )
+    items = [{
+        "catalogReference": {
+            "catalogItemId": PRODUCT_UUID,
+            "appId": "storefront-compatibility-identifier",
+            "options": {"variantId": VARIANT_UUID},
+        },
+        "quantity": 2,
+        "unitPricePaise": 1,  # client tampering must be ignored
+    }]
+    snapshot, calculated = h._website_snapshot(_Identity(), items, now=1000)
+    assert calculated is None
+    assert snapshot.quote.collection_before_convenience_paise == 119800
+    assert snapshot.frozen_data["items"] == [{
+        "productId": PRODUCT_UUID,
+        "variantId": VARIANT_UUID,
+        "quantity": 2,
+        "unitPricePaise": 59900,
+    }]

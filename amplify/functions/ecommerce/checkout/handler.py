@@ -801,17 +801,32 @@ def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list
         # to the Wix path. Default is WIX_HEADLESS, so this branch is unreachable until the owner
         # flips CHECKOUT_MODE at cutover. No Wix order writeback is synthesised here (wix_writeback
         # is gated off in native mode), exactly as the V1 branch synthesises none.
+        # The public website submits Wix-era catalogReference shapes. AWS-native
+        # pricing must translate their identifiers, NOT require new client keys
+        # that existing /cart and /shop pages do not send.
+        native_lines = []
+        for li in line_items:
+            if not isinstance(li, dict):
+                raise ValueError("cart line must be an object")
+            ref = li.get("catalogReference")
+            ref = ref if isinstance(ref, dict) else {}
+            options = ref.get("options")
+            options = options if isinstance(options, dict) else {}
+            product_id = str(ref.get("catalogItemId") or li.get("productId") or "").strip()
+            variant_id = str(options.get("variantId") or li.get("variantId") or "").strip()
+            if not product_id or not variant_id:
+                raise ValueError("native cart line needs a product and variant identifier")
+            native_lines.append({
+                "productId": product_id,
+                "variantId": variant_id,
+                "quantity": int(li.get("quantity") or 1),
+                "unitPricePaise": 0,  # authoritative price re-read from ProductsTable
+                "requiresDelivery": bool(li.get("requiresDelivery", True)),
+            })
         ephemeral_cart = {
             "cartId": f"native:{identity.customer_id}:{now}",
             "updatedAt": now,
-            "lineItems": [
-                {"productId": str(li.get("productId") or ""),
-                 "variantId": str(li.get("variantId") or ""),
-                 "quantity": int(li.get("quantity") or 1),
-                 "unitPricePaise": 0,  # re-resolved server-side below; client value ignored
-                 "requiresDelivery": bool(li.get("requiresDelivery", True))}
-                for li in line_items
-            ],
+            "lineItems": native_lines,
         }
         # Re-resolve each line's price from ProductsTable so a client-supplied figure never enters.
         reader = _native_product_reader()
@@ -1177,8 +1192,9 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         return cors_response(400, {"error": "REQUEST_KEY_REQUIRED"}, origin)
     # Phase O-1: a services basket is refused here, PURE, before the profile read, any Wix call
     # or any DynamoDB write -- Drop Docs/Vault, a bad quantity, a missing intent, or V1 pricing.
-    refusal = service_requests.checkout_preflight(line_items, body,
-                                                  v2_enabled=cart_v2.is_enabled())
+    refusal = service_requests.checkout_preflight(
+        line_items, body, v2_enabled=cart_v2.is_enabled(),
+        native_pricing_enabled=_supply_mode() == "AWS_NATIVE")
     if refusal is not None:
         return cors_response(refusal[0], refusal[1], origin)
 
@@ -1226,6 +1242,17 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             wix_order_payload = wix_writeback.build_wix_order_payload(
                 cart=calculated, quote=snapshot.quote)
 
+        # Critical AWS-native service invariant: a payment reference MUST carry
+        # the price of the one service as frozen in the ProductsTable-backed
+        # snapshot. In native mode 'calculated' is intentionally None; passing
+        # that old Wix sentinel to payref_extra persisted paise=None, so even
+        # a successful Razorpay capture would leave PAID_SERVICE_UNMATCHED.
+        # Validate before attempting to create the gateway order.
+        native_service_paise = (
+            service_requests.native_service_line_paise(snapshot, line_items)
+            if calculated is None and _supply_mode() == "AWS_NATIVE" else None
+        )
+
         def _allocate_reference(attempt_id: str, leg_paise: int,
                                 gift_card_paise: int) -> str:
             """Mint and durably reserve the `PAYREF#` row the webhook reconciles on.
@@ -1270,7 +1297,7 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                     **service_requests.payref_extra(
                         line_items, body,
                         line_paise=(service_requests.observed_service_line_paise(calculated)
-                                    if calculated is not None else None)),
+                                    if calculated is not None else native_service_paise)),
                     # THE PUBLIC CUSTOMER ID, on this row as well as on the attempt, and that is
                     # not redundant: the webhook lineage reads attribution off the `PAYREF#` row
                     # (`razorpay-webhook._load_attempt`) while the finalisation lineage reads it
