@@ -60,7 +60,7 @@ export const CONTRIBUTION_CURRENCY = 'INR' as const;
 export const CONTRIBUTE_CTA_HREF = 'https://wa.me/message/BYFLCAAMSZBXD1';
 
 /**
- * The Wix catalogue product id of the live `Contribute` product.
+ * The catalogue product id of the live `Contribute` product.
  *
  * ONE product with ONE fixed-price variant, measured against the live catalogue on 2026-10-10:
  * `PHYSICAL`, `visible: true`, one option named "Amount" rendered as text choices, a single
@@ -72,7 +72,7 @@ export const CONTRIBUTE_CTA_HREF = 'https://wa.me/message/BYFLCAAMSZBXD1';
  * product id and the variant ids below changed together in one release exactly as the
  * paragraph below requires. The amounts did NOT change in that move: ₹100 / ₹250 / ₹500, 10000 /
  * 25000 / 50000 paise, before and after. The replacements were read live from the new site's
- * query-variants response and cross-checked against the refreshed `src/content/wix-catalog.json`,
+ * query-variants response and cross-checked against the refreshed `src/content/catalog.json`,
  * whose "Amount" option labels confirm which variant carries which rupee figure.
  *
  * THERE IS NO `NEXT_PUBLIC_*` OVERRIDE, and its removal is deliberate rather than an omission.
