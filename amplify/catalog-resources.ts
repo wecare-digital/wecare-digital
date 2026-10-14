@@ -1,5 +1,7 @@
-import { RemovalPolicy, Stack } from 'aws-cdk-lib';
+import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 
 /**
  * AWS-native product catalog table — the authoritative replacement for the Wix
@@ -110,4 +112,59 @@ export function addCartResources ( stack: Stack ) {
     } );
 
     return { table };
+}
+
+/**
+ * NATIVE CATALOG-CHANGE TRIGGER — the AWS-native replacement for the Wix catalog webhook.
+ *
+ * WHAT IT REPLACES. The retired flow was: a Wix Stores product edit -> Wix POSTs an RS256 webhook
+ * to the `wecare-wix-catalog-webhook` Lambda -> that Lambda async-invokes `wecare-meta-catalog-sync`
+ * (and fires a GitHub `repository_dispatch`). The trigger originated OUTSIDE our account, at Wix.
+ *
+ * THE NATIVE FLOW. A write to our own authoritative `ProductsTable` emits a DynamoDB stream record
+ * (the table is declared with `stream: NEW_AND_OLD_IMAGES`). This event source mapping delivers that
+ * record straight to `wecare-meta-catalog-sync`, whose `_trigger` classifies it as `ddb-stream` and
+ * re-reads the catalogue — identical downstream behaviour to the old webhook invoke, with NO Wix
+ * involved and no inbound internet trigger to verify. The six-hourly EventBridge schedule remains the
+ * backstop exactly as before.
+ *
+ * WHY `bisectBatchOnError` + a DLQ-less retry bound. The sync is idempotent (a full re-read + diff +
+ * gated write), so re-delivery is safe; a poison record must not wedge the shard, hence a bounded
+ * `retryAttempts` and `bisectBatchOnError`. The meta-sync Lambda is addressed by its `live` ALIAS,
+ * because an unqualified invoke would run unpublished code (see backend.ts / the lambda-snapstart
+ * steering).
+ *
+ * NOT YET WIRED. Like addCatalogResources, this is a prepared, reviewable artifact. Calling
+ * addCatalogStreamTrigger() from backend.ts creates a live event source mapping on a billable table
+ * and must be deployed with owner approval, as the single Wix-webhook-retirement cutover step. Until
+ * then the Wix webhook Lambda and the six-hourly schedule keep the catalogue in sync.
+ */
+export const META_CATALOG_SYNC_FUNCTION_NAME =
+    process.env.META_CATALOG_SYNC_FUNCTION_NAME ?? 'wecare-meta-catalog-sync';
+
+export function addCatalogStreamTrigger (
+    stack: Stack,
+    productsTable: dynamodb.ITable,
+) {
+    // The deployed, separately-managed meta-sync Lambda, addressed by its `live` alias so the
+    // mapping invokes published code rather than $LATEST.
+    const metaSync = lambda.Function.fromFunctionAttributes( stack, 'MetaCatalogSyncRef', {
+        functionArn:
+            `arn:aws:lambda:${stack.region}:${stack.account}:function:${META_CATALOG_SYNC_FUNCTION_NAME}:live`,
+        sameEnvironment: true,
+    } );
+
+    metaSync.addEventSource( new DynamoEventSource( productsTable, {
+        startingPosition: lambda.StartingPosition.LATEST,
+        batchSize: 10,
+        maxBatchingWindow: Duration.seconds( 10 ),
+        retryAttempts: 3,
+        bisectBatchOnError: true,
+        reportBatchItemFailures: true,
+        // Only a product write should fan out; a key-only projection is enough since the sync
+        // re-reads the whole catalogue and uses the record only for correlation.
+        enabled: true,
+    } ) );
+
+    return { metaSync };
 }

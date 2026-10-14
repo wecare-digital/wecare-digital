@@ -792,13 +792,30 @@ def _apply(plan: catalog.SyncPlan, requester, *, token: str, app_secret: str,
 def _trigger(event: Any) -> Dict[str, str]:
     """What invoked us, for the log line only. Never used to narrow the read.
 
-    Covers the async invoke payload `wix-catalog-webhook` sends and an EventBridge scheduled
-    event, and falls back to `unknown` for anything else rather than refusing: the correct
-    response to any trigger is the same full re-read, so an unrecognised envelope must not become
-    a missed sync.
+    Covers four envelopes, treated IDENTICALLY downstream (a full catalogue re-read):
+      1. the AWS-NATIVE ProductsTable DynamoDB stream — `{"Records": [{"eventSource":
+         "aws:dynamodb", ...}]}`. This is the replacement for the retired Wix catalog webhook:
+         a product insert/modify/remove in our own table fans out to Meta, with no Wix involved.
+         `entityId` is the changed item's `id` key, for correlation only.
+      2. the legacy async invoke `wix-catalog-webhook` sent (`{"source": "wix-webhook",
+         "entityId": ...}`) — kept only while that Lambda is still deployed.
+      3. an EventBridge scheduled event (the backstop cron).
+      4. anything else -> `unknown`, which still triggers the same full re-read rather than
+         refusing: an unrecognised envelope must never become a missed sync.
     """
     if not isinstance(event, Mapping):
         return {"source": "unknown", "entityId": ""}
+    records = event.get("Records")
+    if isinstance(records, list) and records:
+        first = records[0] if isinstance(records[0], Mapping) else {}
+        if str(first.get("eventSource") or "") == "aws:dynamodb":
+            keys = (((first.get("dynamodb") or {}) if isinstance(first.get("dynamodb"), Mapping)
+                     else {}).get("Keys") or {})
+            entity = ""
+            id_key = keys.get("id") if isinstance(keys, Mapping) else None
+            if isinstance(id_key, Mapping):
+                entity = str(id_key.get("S") or "")
+            return {"source": "ddb-stream", "entityId": entity}
     if event.get("source") == "aws.events" or event.get("detail-type"):
         return {"source": "schedule", "entityId": ""}
     return {"source": str(event.get("source") or "unknown"),
