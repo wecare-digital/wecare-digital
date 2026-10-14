@@ -189,9 +189,9 @@ const isServicesRow = ( raw: RawProduct ): boolean =>
  * the identity the catalogue keys on and cannot be edited in the Wix dashboard, while the slug can.
  *
  * REVERSIBLE AND NON-DESTRUCTIVE, deliberately. Nothing is deleted from Wix and nothing is removed
- * from the snapshot - the rows stay committed in src/content/wix-catalog.json, so a product the
+ * from the snapshot - the rows stay committed in src/content/catalog.json, so a product the
  * owner decides to sell is published by deleting its line here (or by giving it real copy in Wix
- * and deleting its line here). Checkout is untouched: it reads the live Wix catalogue, not
+ * and deleting its line here). Checkout is untouched: it reads the live catalogue, not
  * `SHOP_PRODUCTS`, so a demo product remains purchasable by direct cart reference if one ever is.
  */
 export const WIX_TEMPLATE_SAMPLE_PRODUCT_IDS: readonly string[] = [
