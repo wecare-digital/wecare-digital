@@ -400,7 +400,6 @@ export const FUNCTION_POLICIES: Record<string, string[]> = {
   'wecare-plivo-answer': [ 'common', 'secrets', 'lambdaInvoke' ],
 
   // === Voice operations ===
-  'wecare-voice-in-obd': [ 'common', 's3' ]
   'wecare-voice-cdr-webhook': [ 'common', 's3' ],          // CDR webhook (primary route)
   'wecare-voice-cdr-read': [ 'common' ],
   'wecare-voice-calls-read': [ 'common' ],                  // alias of voice-cdr-read
