@@ -793,11 +793,6 @@ def _soft_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str
 
 
 def _hard_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str, Any]:
-    # Hard deletion is disabled until a transactional delete lease protects media/history
-    # from a concurrent retention lock. Archiving an unlocked contact remains supported.
-    return cors_response(409, {'error': 'HARD_DELETE_DISABLED',
-                               'archiveInstead': True}, origin)
-
     # Verify contact exists before scanning message tables
     table = dynamodb.Table(CONTACTS_TABLE)
     resp = table.get_item(Key={'id': contact_id})
