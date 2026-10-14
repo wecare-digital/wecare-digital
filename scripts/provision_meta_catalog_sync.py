@@ -1,4 +1,4 @@
-"""Provision `wecare-meta-catalog-sync`: the Wix -> Meta catalogue projection.
+"""Provision `wecare-meta-catalog-sync`: the AWS ProductsTable -> Meta catalogue projection.
 
 PHASE W, FEAT-001. Design reference: decision D3 in
 `.agents/tasks/phase-w-whatsapp-commerce-20261006/plan.md`.
@@ -104,15 +104,8 @@ SCHEDULE_RULE = f"{FUNCTION}-schedule"
 #: Six-hourly at minute 25, matching `.github/workflows/catalogue-sync.yml`'s `25 */6 * * *`.
 SCHEDULE_EXPRESSION = "cron(25 */6 * * ? *)"
 
-#: The function that invokes this one, and the role whose policy gains that permission. Named here
-#: so the grant lands on the WEBHOOK's own least-privilege role rather than on the shared one.
-WEBHOOK_FUNCTION = "wecare-wix-catalog-webhook"
-WEBHOOK_ROLE = f"{WEBHOOK_FUNCTION}-role"
-WEBHOOK_INVOKE_POLICY = f"{WEBHOOK_FUNCTION}-invokes-catalog-sync"
-
 #: Secret NAMES, never values. Neither is read by this script.
 META_TOKEN_SECRET = "wecare/meta-system-user-token"
-WIX_API_KEY_SECRET = "wecare/wix/headless-api-key"
 CATALOG_APPROVALS_TABLE = "stack-wecare-digital-AgentApprovalsTable"
 
 #: No secret value, by construction - only NAMES and public identifiers. The catalog id is the ONE
@@ -181,7 +174,7 @@ def trust_policy() -> dict:
 
 
 def expected_role_policy(account: str = ACCOUNT_ID) -> dict:
-    """Three exact statements: logs, two named secrets, and one approval table.
+    """Four exact statements: logs, Meta token, approval table, and ProductsTable read.
 
     Pinned by EQUALITY in `tests/test_meta_catalog_sync_iam.py`. The DynamoDB grant is deliberately
     limited to the existing AgentApprovals table and only GetItem/PutItem/UpdateItem: proposal,
@@ -205,15 +198,10 @@ def expected_role_policy(account: str = ACCOUNT_ID) -> dict:
                 ],
             },
             {
-                # Both ends of the sync, named INDIVIDUALLY. `wecare/*` would include every
-                # provider credential in the account; see the module docstring for why the Wix
-                # key is here and not omitted.
-                "Sid": "ReadTheTwoSecretsItNeeds",
+                "Sid": "ReadMetaToken",
                 "Effect": "Allow",
                 "Action": "secretsmanager:GetSecretValue",
-                "Resource": [
-                    secret_arn(META_TOKEN_SECRET, account),
-                ],
+                "Resource": [secret_arn(META_TOKEN_SECRET, account)],
             },
             {
                 "Sid": "CatalogProposalApprovalRecords",
@@ -227,29 +215,21 @@ def expected_role_policy(account: str = ACCOUNT_ID) -> dict:
                     f"arn:aws:dynamodb:{REGION}:{account}:table/{CATALOG_APPROVALS_TABLE}"
                 ],
             },
+            {
+                "Sid": "ReadNativeProductCatalog",
+                "Effect": "Allow",
+                "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:Query",
+                    "dynamodb:Scan",
+                    "dynamodb:BatchGetItem",
+                ],
+                "Resource": [
+                    f"arn:aws:dynamodb:{REGION}:{account}:table/stack-wecare-digital-ProductsTable",
+                    f"arn:aws:dynamodb:{REGION}:{account}:table/stack-wecare-digital-ProductsTable/index/*",
+                ],
+            },
         ],
-    }
-
-
-def webhook_invoke_policy(account: str = ACCOUNT_ID) -> dict:
-    """One statement on the WEBHOOK's role: invoke this function's `live` alias.
-
-    ALIAS-QUALIFIED. A grant on the unqualified function ARN does not authorise an alias invoke,
-    and the failure mode is an AccessDenied the caller swallows - so the sync would simply never
-    run and the webhook would still answer 200.
-
-    On `wecare-wix-catalog-webhook-role`, NOT on `wecare-digital-lambda-role`: the shared role is
-    attached to most of the fleet, so putting an invoke grant there would let ~60 unrelated
-    functions start catalogue syncs.
-    """
-    return {
-        "Version": "2012-10-17",
-        "Statement": [{
-            "Sid": "InvokeMetaCatalogSync",
-            "Effect": "Allow",
-            "Action": "lambda:InvokeFunction",
-            "Resource": [f"arn:aws:lambda:{REGION}:{account}:function:{FUNCTION}:{LIVE_ALIAS}"],
-        }],
     }
 
 
@@ -279,13 +259,13 @@ def ensure_role(apply: bool) -> str:
 
     if not apply:
         return (f"would put {POLICY} on existing {ROLE}" if existing
-                else f"would create {ROLE} with {POLICY} (3 statements)")
+                else f"would create {ROLE} with {POLICY} (4 statements)")
 
     if not existing:
         iam().create_role(
             RoleName=ROLE,
             AssumeRolePolicyDocument=json.dumps(trust_policy()),
-            Description="Wix to Meta catalogue sync with exact-plan durable owner approval",
+            Description="AWS ProductsTable to Meta catalogue sync with exact-plan durable owner approval",
             Tags=[{"Key": "domain", "Value": "ecommerce"},
                   {"Key": "purpose", "Value": "meta-catalog-sync"}],
         )
@@ -293,22 +273,6 @@ def ensure_role(apply: bool) -> str:
     iam().put_role_policy(RoleName=ROLE, PolicyName=POLICY,
                           PolicyDocument=json.dumps(expected_role_policy()))
     return f"{'updated' if existing else 'created'} {ROLE} + {POLICY}"
-
-
-def ensure_webhook_invoke_grant(apply: bool) -> str:
-    """Let the webhook invoke this function. On the webhook's OWN role."""
-    try:
-        iam().get_role(RoleName=WEBHOOK_ROLE)
-    except ClientError as exc:
-        if exc.response.get("Error", {}).get("Code") != "NoSuchEntity":
-            raise
-        return (f"{WEBHOOK_ROLE} does not exist; run "
-                "scripts/provision_wix_catalog_webhook.py --apply first")
-    if not apply:
-        return f"would put {WEBHOOK_INVOKE_POLICY} on {WEBHOOK_ROLE}"
-    iam().put_role_policy(RoleName=WEBHOOK_ROLE, PolicyName=WEBHOOK_INVOKE_POLICY,
-                          PolicyDocument=json.dumps(webhook_invoke_policy()))
-    return f"put {WEBHOOK_INVOKE_POLICY} on {WEBHOOK_ROLE}"
 
 
 def ensure_log_group(apply: bool) -> str:
@@ -405,8 +369,7 @@ def ensure_schedule(apply: bool) -> str:
         Name=SCHEDULE_RULE,
         ScheduleExpression=SCHEDULE_EXPRESSION,
         State="ENABLED",
-        Description="Six-hourly backstop for the Wix to Meta catalogue sync. The webhook invoke "
-                    "makes it prompt; this makes it eventually correct.")
+        Description="Six-hourly backstop for the AWS ProductsTable to Meta catalogue sync.")
     events().put_targets(Rule=SCHEDULE_RULE,
                          Targets=[{"Id": "live-alias", "Arn": function_arn()}])
     return f"{note} {SCHEDULE_RULE} {SCHEDULE_EXPRESSION}"
@@ -490,12 +453,6 @@ def verify() -> int:
         problems.append(f"{LIVE_ALIAS} has no invoke statement {sid}; the schedule would fire "
                         "and nothing would run")
 
-    try:
-        iam().get_role_policy(RoleName=WEBHOOK_ROLE, PolicyName=WEBHOOK_INVOKE_POLICY)
-    except ClientError:
-        problems.append(f"{WEBHOOK_ROLE} cannot invoke {FUNCTION}; the webhook's fan-out would "
-                        "fail closed and only the schedule would run")
-
     print(f"verify {FUNCTION}")
     for problem in problems:
         print(f"  PROBLEM: {problem}")
@@ -525,10 +482,9 @@ def main(argv=None) -> int:
     print(f"  alias             : {ensure_alias(apply)}")
     print(f"  schedule          : {ensure_schedule(apply)}")
     print(f"  schedule invoke   : {ensure_schedule_permission(apply)}")
-    print(f"  webhook can invoke: {ensure_webhook_invoke_grant(apply)}")
     print()
     print("  no HTTP API route and no function URL are created: this function has no public")
-    print("  surface. Its callers are the webhook's async invoke and the schedule above.")
+    print("  surface. Its callers are the ProductsTable stream and the schedule above.")
     print("  Owner rollout: five paid service variants; all remain out of stock for QA.")
     if not apply:
         print()
