@@ -1,0 +1,82 @@
+name: Wix exit runtime deploy
+
+on:
+  push:
+    branches: [stack]
+    paths:
+      - 'amplify/functions/ai/ai-generate-response/**'
+      - 'amplify/functions/core/service-api/**'
+      - 'amplify/functions/messaging/whatsapp-business-api/**'
+      - 'amplify/functions/ecommerce/product-image-gen/**'
+      - 'amplify/functions/shared/lambda_utils/**'
+      - 'scripts/deploy_all_lambdas.py'
+      - 'scripts/snapstart_publish.py'
+      - '.github/workflows/wix-exit-runtime-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wix-exit-runtime-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - run: python -m pip install --disable-pip-version-check boto3==1.43.98
+
+      - name: Package validation
+        run: |
+          python -m py_compile             amplify/functions/ai/ai-generate-response/handler.py             amplify/functions/core/service-api/handler.py             amplify/functions/messaging/whatsapp-business-api/handler.py             amplify/functions/messaging/whatsapp-business-api/service_api.py             amplify/functions/messaging/whatsapp-business-api/flows/orders.py             amplify/functions/ecommerce/product-image-gen/handler.py
+          python scripts/deploy_all_lambdas.py --dry-run             wecare-ai-generate-response             wecare-service-api             wecare-whatsapp-business-api             wecare-product-image-gen
+
+      - name: Assume four-function deployment role
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::775261844268:role/GitHubActions-wecare-wix-exit-runtime-deploy
+          role-session-name: wix-exit-runtime-deploy
+          aws-region: us-east-1
+
+      - name: Require production account
+        run: test "$(aws sts get-caller-identity --query Account --output text)" = "775261844268"
+
+      - name: Deploy only Wix-exit runtime functions
+        run: |
+          python scripts/deploy_all_lambdas.py             wecare-ai-generate-response             wecare-service-api             wecare-whatsapp-business-api             wecare-product-image-gen
+
+      - name: Verify live aliases serve latest code
+        run: |
+          python - <<'PY'
+          import boto3
+          lam = boto3.client("lambda", region_name="us-east-1")
+          names = [
+              "wecare-ai-generate-response",
+              "wecare-service-api",
+              "wecare-whatsapp-business-api",
+              "wecare-product-image-gen",
+          ]
+          bad = []
+          for name in names:
+              latest = lam.get_function_configuration(FunctionName=name)["CodeSha256"]
+              alias = lam.get_alias(FunctionName=name, Name="live")["FunctionVersion"]
+              served = lam.get_function_configuration(
+                  FunctionName=f"{name}:{alias}"
+              )["CodeSha256"]
+              print(f"{name}: live=v{alias} current={served == latest}")
+              if served != latest:
+                  bad.append(name)
+          if bad:
+              raise SystemExit("live alias mismatch: " + ", ".join(bad))
+          PY
