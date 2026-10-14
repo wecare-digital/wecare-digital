@@ -1,5 +1,5 @@
 name: Wix exit runtime deploy
-# scoped deployment trigger via merged PR
+# scoped deployment trigger after pinned layer permission
 
 on:
   push:
