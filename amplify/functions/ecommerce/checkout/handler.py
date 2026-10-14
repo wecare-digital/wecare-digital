@@ -801,17 +801,32 @@ def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list
         # to the Wix path. Default is WIX_HEADLESS, so this branch is unreachable until the owner
         # flips CHECKOUT_MODE at cutover. No Wix order writeback is synthesised here (wix_writeback
         # is gated off in native mode), exactly as the V1 branch synthesises none.
+        # The public website submits Wix-era catalogReference shapes. AWS-native
+        # pricing must translate their identifiers, NOT require new client keys
+        # that existing /cart and /shop pages do not send.
+        native_lines = []
+        for li in line_items:
+            if not isinstance(li, dict):
+                raise ValueError("cart line must be an object")
+            ref = li.get("catalogReference")
+            ref = ref if isinstance(ref, dict) else {}
+            options = ref.get("options")
+            options = options if isinstance(options, dict) else {}
+            product_id = str(ref.get("catalogItemId") or li.get("productId") or "").strip()
+            variant_id = str(options.get("variantId") or li.get("variantId") or "").strip()
+            if not product_id or not variant_id:
+                raise ValueError("native cart line needs a product and variant identifier")
+            native_lines.append({
+                "productId": product_id,
+                "variantId": variant_id,
+                "quantity": int(li.get("quantity") or 1),
+                "unitPricePaise": 0,  # authoritative price re-read from ProductsTable
+                "requiresDelivery": bool(li.get("requiresDelivery", True)),
+            })
         ephemeral_cart = {
             "cartId": f"native:{identity.customer_id}:{now}",
             "updatedAt": now,
-            "lineItems": [
-                {"productId": str(li.get("productId") or ""),
-                 "variantId": str(li.get("variantId") or ""),
-                 "quantity": int(li.get("quantity") or 1),
-                 "unitPricePaise": 0,  # re-resolved server-side below; client value ignored
-                 "requiresDelivery": bool(li.get("requiresDelivery", True))}
-                for li in line_items
-            ],
+            "lineItems": native_lines,
         }
         # Re-resolve each line's price from ProductsTable so a client-supplied figure never enters.
         reader = _native_product_reader()
