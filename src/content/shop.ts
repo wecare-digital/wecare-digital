@@ -1,12 +1,12 @@
 /**
- * The shop catalogue, read from the committed Wix snapshot.
+ * The shop catalogue, read from the AWS ProductsTable-derived static snapshot.
  *
- * `src/content/wix-catalog.json` is produced by `scripts/fetch-wix-catalog.js` and committed.
+ * `src/content/catalog-snapshot.json` is generated from the AWS ProductsTable and committed.
  * next.config.js sets `output: 'export'`, so these pages are built once and served as static HTML -
  * there is no server to make a live call from, and a client-side fetch would put an unauthenticated
  * Wix read in the browser. Refreshing the catalogue is a deliberate act: re-run the script and
- * commit. The snapshot is credential-free by construction; it was taken with an anonymous visitor
- * token, recorded in its own `source` field.
+ * commit. The snapshot is credential-free by construction; it is generated from our AWS catalog
+ * and records its data provenance in its own `source` field.
  *
  * THE PRICES HERE ARE FOR DISPLAY AND MUST NEVER REACH A PAYMENT. The amount in a payment request
  * comes from a live checkout read, compared in integer paise, and any mismatch fails closed - see
@@ -22,7 +22,7 @@
  *                no placeholder frame, and the Product schema emits no `image`.
  *   productUrl   points at the current canonical product page.
  */
-import catalog from './wix-catalog.json';
+import catalog from './catalog-snapshot.json';
 // The contribution vehicle's identity, so the shop exclusion and the cart line read ONE
 // declaration. src/config/contribution.ts imports nothing from here, so there is no cycle.
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../config/contribution';
