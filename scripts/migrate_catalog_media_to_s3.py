@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 import boto3
+from botocore.exceptions import ClientError
 
 REGION = "us-east-1"
 TABLE = "stack-wecare-digital-ProductsTable"
@@ -101,7 +102,7 @@ def _upload_image(s3, url: str) -> str:
         metadata = s3.head_object(Bucket=BUCKET, Key=key)
         if metadata.get("ContentLength") != len(blob):
             raise RuntimeError("existing hash-key image has wrong length")
-    except s3.exceptions.ClientError as ex:
+    except ClientError as ex:
         if ex.response.get("ResponseMetadata", {}).get("HTTPStatusCode") != 404:
             raise
         s3.put_object(
