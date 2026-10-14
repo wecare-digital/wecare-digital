@@ -73,18 +73,6 @@
               "Version": "2012-10-17",
               "Statement": [
                 {
-                  "Sid": "ReadWixApiKey",
-                  "Effect": "Allow",
-                  "Action": [
-                    "secretsmanager:GetSecretValue"
-                  ],
-                  "Resource": [
-                    {
-                      "Fn::Sub": "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:wecare/wix/headless-api-key-*"
-                    }
-                  ]
-                },
-                {
                   "Sid": "PaymentAttemptAndCommerceKeys",
                   "Effect": "Allow",
                   "Action": [
@@ -215,7 +203,6 @@
           "Variables": {
             "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",
             "COMMERCE_KEYS_TABLE": "stack-wecare-digital-WixOrderIds",
-            "WIX_API_KEY_SECRET": "wecare/wix/headless-api-key",
             "RAZORPAY_SECRET_ID": "wecare/razorpay/api",
             "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
             "ORDERS_TABLE": "stack-wecare-digital-OrderTable",
@@ -482,7 +469,7 @@
       "Type": "AWS::Lambda::Permission",
       "Metadata": {
         "WECARE::WhySeparate": "One statement per route, with an EXACT SourceArn and no wildcard. The METHOD in the ARN is load-bearing here: it is what keeps the anonymous exemption to GET.",
-        "WECARE::NoNewIam": "The arm needs nothing the role does not already hold - it reads the Wix key (ReadWixApiKey) and the commerce-keys table (PaymentAttemptAndCommerceKeys) that the checkout path already uses, so no policy statement changes."
+        "WECARE::NoNewIam": "The arm needs nothing the role does not already hold - it reads the commerce-keys table (PaymentAttemptAndCommerceKeys) that the checkout path already uses, so no policy statement changes. The Wix API key grant was dropped when checkout went AWS-native (CHECKOUT_MODE=AWS_NATIVE); the role no longer reads any Wix secret."
       },
       "Properties": {
         "FunctionName": {

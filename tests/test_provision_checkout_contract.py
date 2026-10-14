@@ -65,7 +65,7 @@ def test_both_readiness_inputs_are_empty(provisioner):
 def test_no_environment_value_looks_like_a_credential(provisioner):
     """Secret NAMES only. The manifest this feeds is committed to the repository."""
     env = provisioner.expected_environment()
-    assert env["WIX_API_KEY_SECRET"] == "wecare/wix/headless-api-key"
+    assert env["RAZORPAY_SECRET_ID"] == "wecare/razorpay/api"
     issuer_shapes = ("rzp_live_", "rzp_test_", "sk-", "AIza", "ghp_", "xoxb-",
                      "AKIA", "ASIA", "sk_live_", "-----BEGIN")
     for key, value in env.items():
@@ -100,14 +100,14 @@ def test_exactly_five_route_keys_and_no_proxy(provisioner):
 
 
 def test_the_one_anonymous_route_carries_its_own_throttle(provisioner):
-    """The bound on Wix reads that does not depend on the edge continuing to cache.
+    """The bound on the anonymous price read that does not depend on the edge continuing to cache.
 
-    A cache MISS on the anonymous price read costs eight Wix calls (`get` + `estimate` per
-    variant) on the SAME API key the live checkout prices real baskets with, so anonymous traffic
-    here can induce provider throttling that reaches the payment path. The `/api/*` edge WAS
-    measured caching a `public, max-age` response on 2026-10-08, which keeps origin volume to
-    roughly one fill per PoP per minute -- but that is someone else's configuration and an
-    Amplify rewrite edit would remove it with nothing in this repo noticing.
+    Since checkout went AWS-native, this read is served by `service_pricing_native` from
+    ProductsTable (no Wix call), but it is still the one UNAUTHENTICATED route on this function, so
+    anonymous traffic can drive origin/DynamoDB load and share capacity with the payment legs. The
+    `/api/*` edge WAS measured caching a `public, max-age` response on 2026-10-08, which keeps
+    origin volume to roughly one fill per PoP per minute -- but that is someone else's
+    configuration and an Amplify rewrite edit would remove it with nothing in this repo noticing.
 
     Pinned as exact numbers rather than "a throttle exists", because the interesting regression is
     a loosened cap, and pinned on the PRICE route specifically: the other four require a session.
@@ -304,17 +304,21 @@ def _policy(provisioner) -> dict:
 
 
 def test_the_role_reads_only_the_two_canonical_provider_secrets(provisioner):
-    """Website checkout now reaches razorpay_orders, so the API secret read is intentional.
+    """ONE provider secret since checkout went AWS-native: Razorpay only.
 
-    The webhook signing secret is deliberately absent: checkout creates/verifies API payments,
-    while the webhook Lambda alone verifies webhook signatures.
+    Website checkout reaches razorpay_orders, so the API secret read is intentional. The Wix
+    headless API key is NO LONGER read - CHECKOUT_MODE=AWS_NATIVE prices baskets from ProductsTable
+    with no Wix call, so the ReadWixApiKey grant was dropped from both homes of the role (this
+    provisioner and amplify/infra/checkout.json). The webhook signing secret is deliberately
+    absent too: checkout creates/verifies API payments, while the webhook Lambda alone verifies
+    webhook signatures.
     """
     secrets = [r for s in _policy(provisioner)["Statement"]
                if "secretsmanager:GetSecretValue" in s["Action"] for r in s["Resource"]]
     assert sorted(secrets) == sorted([
-        "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/wix/headless-api-key-*",
         "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/razorpay/api-*",
     ])
+    assert "wecare/wix/headless-api-key" not in json.dumps(_policy(provisioner))
     assert "wecare/razorpay-webhook" not in json.dumps(_policy(provisioner))
 
 
@@ -421,7 +425,9 @@ def test_the_two_homes_agree_on_every_statement(provisioner):
 def test_the_environment_holds_secret_names_not_values(provisioner):
     env = provisioner.expected_environment()
     assert env["RAZORPAY_SECRET_ID"] == "wecare/razorpay/api"
-    assert env["WIX_API_KEY_SECRET"] == "wecare/wix/headless-api-key"
+    # No WIX_API_KEY_SECRET: checkout went AWS-native (CHECKOUT_MODE=AWS_NATIVE), so the role
+    # reads no Wix secret and the env no longer carries its name.
+    assert "WIX_API_KEY_SECRET" not in env
     assert env["CONTACTS_TABLE"] == "stack-wecare-digital-ContactsTable"
     assert env["ORDERS_TABLE"] == "stack-wecare-digital-OrderTable"
 
@@ -1044,7 +1050,8 @@ def test_the_manifest_records_the_function_without_the_gate():
     assert "CHECKOUT_INITIATION_ENABLED" not in entry
     assert entry["EXPECTED_CONFIGURATION_NAME"] == "WECAREDIGITAL"
     assert entry["EXPECTED_PROVIDER_MID"] == "acc_TTFSyolquKEZEy"
-    assert entry["WIX_API_KEY_SECRET"] == "wecare/wix/headless-api-key"
+    # No Wix API key: checkout is AWS-native, so the manifest entry carries no Wix secret name.
+    assert "WIX_API_KEY_SECRET" not in entry
     assert manifest["_functions"] == len(manifest["functions"])
     assert manifest["_variables"] == sum(len(v) for v in manifest["functions"].values())
 
