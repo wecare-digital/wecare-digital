@@ -747,6 +747,16 @@ def _profile_status(identity: customer_auth.CustomerIdentity, origin: str) -> Di
     }, origin))
 
 
+class DeliveryMethodUnavailable(purchase_intent.DeliveryDetailsRequired):
+    """A chosen delivery method cannot be offered for this basket — DISTINCT from "no address or
+    method chosen yet" (`DeliveryDetailsRequired`), which it subclasses so the base arm still
+    catches it if a caller does not special-case it. `src/pages/cart.tsx` branches on the
+    `DELIVERY_METHOD_UNAVAILABLE` code separately, so the two must not collapse. Native shipping
+    currently exposes a single free option, so nothing raises this today; it is retained as the
+    seam for a future shipping policy with real, selectable methods.
+    """
+
+
 def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, now: int):
     """Price a basket of Wix-era `catalogReference` line items into a native QuoteSnapshot.
 
@@ -1345,6 +1355,13 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         logger.error(json.dumps({"event": "service_not_payable"}))
         return cors_response(409, service_requests.refusal(
             service_requests.SERVICE_NOT_PAYABLE), origin)
+    except DeliveryMethodUnavailable:
+        # MUST stay ABOVE the `DeliveryDetailsRequired` arm below, or the subclass is swallowed by
+        # it and DELIVERY_METHOD_UNAVAILABLE never fires. The distinction (a chosen method that
+        # cannot be offered, versus no address/method chosen at all) is a customer-facing refusal
+        # `src/pages/cart.tsx` still branches on; native shipping yields a single free option
+        # today, so this is dormant, but the contract and the ordering are kept intact.
+        return cors_response(409, {"error": "DELIVERY_METHOD_UNAVAILABLE"}, origin)
     except purchase_intent.DeliveryDetailsRequired:
         return cors_response(409, {"error": "DELIVERY_DETAILS_REQUIRED"}, origin)
     except india_address.UnmappableAddress:
