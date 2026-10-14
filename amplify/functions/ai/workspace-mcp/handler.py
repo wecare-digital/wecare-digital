@@ -216,7 +216,7 @@ def provider_config(name):
 
 def secret_json(name):
     if name not in {'wecare/seo/google-oauth', 'wecare/google/ads', 'wecare/razorpay/api',
-                    'wecare/wix/headless-api-key', 'wecare/meta-system-user-token'}:
+                    'wecare/meta-system-user-token'}:
         raise Refusal('Credential is outside the adapter policy')
     return json.loads(client('secretsmanager').get_secret_value(SecretId=name)['SecretString'])
 

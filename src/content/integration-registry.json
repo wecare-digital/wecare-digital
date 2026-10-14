@@ -124,21 +124,18 @@
       "key": "search_console"
     },
     {
-      "displayName": "Wix storefront",
-      "owner": "WECARE.DIGITAL Wix site (owner-held, live)",
-      "secretName": "wecare/wix/headless-api-key",
-      "credentialPresent": true,
-      "access": "SCOPE_UNVERIFIED",
-      "readScopes": [
-        "wix-stores.read-products",
-        "wix-stores.read-orders"
-      ],
+      "displayName": "Retired Wix storefront",
+      "owner": "WECARE.DIGITAL retired provider",
+      "secretName": null,
+      "credentialPresent": false,
+      "access": "CREDENTIAL_ABSENT",
+      "readScopes": [],
       "writeCapableScopes": [],
       "writeScopeMitigation": null,
       "maxAgeSeconds": 3600,
-      "adapterBuilt": true,
-      "unblock": "The secret exists; the function cannot reach it. `wecare-wix-store` has no WIX_API_KEY_SECRET naming wecare/wix/headless-api-key, and WIX_CREDENTIALS_DISABLED=true. Both must change together, and only on owner authorisation: the storefront is LIVE, so enabling reads against it is a deliberate act rather than a deploy. Then record a successful read to move this to VERIFIED.",
-      "notes": "Credential present in Secrets Manager but not wired: the env var that names it is absent and the disable flag is on, so the loader fails closed. The storefront is LIVE and must not be recreated or republished.",
+      "adapterBuilt": false,
+      "unblock": "Use the AWS-native product and blog APIs; this provider is retired.",
+      "notes": "The site was deleted and its credentials are scheduled for retirement. Historical references are retained for reconciliation only.",
       "key": "wix"
     }
   ]

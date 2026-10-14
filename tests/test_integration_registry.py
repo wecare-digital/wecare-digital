@@ -152,33 +152,13 @@ def test_the_providers_with_a_credential_name_a_real_secret():
         assert reg.resolve(key).secret_name == secret
 
 
-def test_wix_names_the_secret_that_now_exists():
-    """Updated 2026-09-24. This used to assert `secret_name == ""`.
-
-    It was correct when written: on 2026-09-23 no `wecare/wix*` secret existed and Wix was
-    reading env fallbacks. `wecare/wix/headless-api-key` was then created at
-    **2026-09-24 05:43** by the credential work, and neither the registry nor this test
-    noticed — so the registry's unblock still read "move the Wix credential into Secrets
-    Manager", which would have sent somebody to create a secret that was already there.
-
-    Verified before changing it, with `DescribeSecret` (metadata only, never a value):
-    the secret exists and `DeletedDate` is null. The stale entry was caught by the new
-    contract test asserting that an empty `secret_name` has to line up with
-    `CREDENTIAL_ABSENT` — this entry claimed `SCOPE_UNVERIFIED`, which means a credential
-    exists, while naming none.
-
-    The credential still is not reachable by the function, and that is a different
-    problem from it not existing. That distinction is the entire point of the
-    three-state design.
-    """
+def test_retired_provider_has_no_runtime_credential_or_scope():
     provider = reg.resolve("wix")
-    assert provider.secret_name == "wecare/wix/headless-api-key"
-    # Present but not wired: the env var naming it is absent and the disable flag is on.
-    assert "not wired" in provider.notes.lower()
-    assert "WIX_API_KEY_SECRET" in provider.unblock
-    assert "live" in provider.notes.lower(), (
-        "the storefront being LIVE is the reason enabling reads is an owner decision; "
-        "that must not drop out of the note")
+    assert provider.secret_name == ""
+    assert provider.access == reg.ACCESS_CREDENTIAL_ABSENT
+    assert provider.read_scopes == ()
+    assert provider.adapter_built is False
+    assert "retired" in provider.unblock
 
 
 def test_an_unknown_provider_is_refused_not_defaulted():

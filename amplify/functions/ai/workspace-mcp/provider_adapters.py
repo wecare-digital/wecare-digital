@@ -10,15 +10,6 @@ def verify(provider, owner, secret, http, token, refuse, config):
         if result.get('entity') != 'collection' or not isinstance(result.get('items'), list):
             raise refuse('Razorpay did not confirm orders read access')
         return {'mode': 'read-only', 'resource': result.get('entity'), 'returnedCount': result.get('count')}
-    if provider == 'wix':
-        credentials = secret('wecare/wix/headless-api-key')
-        if not credentials.get('api_key') or not credentials.get('site_id'):
-            raise refuse('Wix server credential is incomplete')
-        result, _ = http('https://www.wixapis.com/site-properties/v4/properties',
-            headers={'Authorization': credentials['api_key'], 'wix-site-id': credentials['site_id']})
-        if not isinstance(result.get('properties'), dict):
-            raise refuse('Wix did not confirm site properties access')
-        return {'siteId': credentials['site_id'], 'mode': 'read-only', 'sitePropertiesReadable': True}
     if provider == 'google-cloud':
         result, _ = http('https://cloudresourcemanager.googleapis.com/v3/projects/wecaredigitalbw',
             headers={'Authorization': 'Bearer ' + token(owner, provider)})

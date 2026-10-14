@@ -113,8 +113,9 @@ from lambda_utils.ecommerce.blog_contribution import (
 # per-line price assertion. All logic lives in the module; this file only calls it.
 from lambda_utils.ecommerce import service_requests
 from lambda_utils.ecommerce.service_requests import ServiceNotPayable, ServicePriceChanged
-# The LIVE Wix price of each service, for the four public service pages. Same adapter, same cart,
-# same figure the checkout charges -- see `_service_prices` below for why this arm lives here.
+# Public service prices use the authoritative AWS product catalog.
+from lambda_utils.ecommerce import service_pricing_native
+from lambda_utils.ecommerce import native_inventory_txn
 from lambda_utils.integrations import razorpay_orders, razorpay_verify
 from lambda_utils import wix_ecom
 # Aliased `customer_identity`, NEVER `identity`: `identity` is a parameter name in nearly every
@@ -452,37 +453,22 @@ SERVICE_PRICES_UNAVAILABLE = "SERVICE_PRICES_UNAVAILABLE"
 
 
 def _service_prices(origin: str) -> Dict[str, Any]:
-    """Return a public AWS-native service price list from ProductsTable.
-
-    Price authority is the live product variant reader; never fall back to
-    a deleted Wix site or treat an unavailable price as zero.
-    """
-    # AWS-NATIVE service pricing (CATALOG_SOURCE=aws): resolve each service variant's
-    # price from ProductsTable instead of a live Wix cart estimate. Same payload shape,
-    # same fail-closed-per-slug contract. This is what keeps the 4 service pages priced
-    # after the Wix admin key is gone.
-    if _supply_mode() == "AWS_NATIVE" or str(os.environ.get("CATALOG_SOURCE", "")).lower() == "aws":
-        try:
-            from lambda_utils.ecommerce import service_pricing_native
-            payload = service_pricing_native.resolve_all(_native_variant_reader())
-        except Exception as exc:  # noqa: BLE001
-            logger.error(json.dumps({"event": "service_prices_native_failed",
-                                     "error": type(exc).__name__}))
-            return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
-        priced = sum(1 for price in payload["prices"].values() if price.get("available"))
-        if not priced:
-            logger.error(json.dumps({"event": "service_prices_none_resolved_native",
-                                     "slugs": len(payload["prices"])}))
-            return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
-        response = cors_response(200, {"currency": payload["currency"],
-                                       "prices": payload["prices"]}, origin)
-        response["headers"]["Cache-Control"] = "public, max-age=60"
-        return _hardened(response)
-
-    # This mode has been retired. Explicitly fail closed rather than silently
-    # running Wix CartV2 or another provider-backed estimate.
-    logger.warning(json.dumps({"event": "service_prices_legacy_disabled"}))
-    return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
+    """Serve integer service prices from ProductsTable, failing closed per slug."""
+    try:
+        payload = service_pricing_native.resolve_all(_native_variant_reader())
+    except Exception as exc:  # noqa: BLE001 - log error class only
+        logger.error(json.dumps({"event": "service_prices_native_failed",
+                                 "error": type(exc).__name__}))
+        return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
+    priced = sum(1 for price in payload["prices"].values() if price.get("available"))
+    if not priced:
+        logger.error(json.dumps({"event": "service_prices_none_resolved_native",
+                                 "slugs": len(payload["prices"])}))
+        return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
+    response = cors_response(200, {"currency": payload["currency"],
+                                   "prices": payload["prices"]}, origin)
+    response["headers"]["Cache-Control"] = "public, max-age=60"
+    return _hardened(response)
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -852,6 +838,41 @@ def _reserve_website_attempt(attempt: Dict[str, Any]) -> None:
         Item=attempt,
         ConditionExpression="attribute_not_exists(paymentAttemptId)",
     )
+
+
+def _website_order_creator(snapshot):
+    """Reserve frozen native stock before the existing gateway create call.
+
+    Activation requires reconciled stock and the approved product-write IAM grant.
+    An ambiguous provider result keeps the reservation: an unpaid or timed-out
+    order can still accept a later payment, so it is not a safe release signal.
+    """
+    if str(os.environ.get("NATIVE_STOCK_RESERVATION_ENABLED", "false")).lower() != "true":
+        return razorpay_orders.create_order
+    if _supply_mode() != "AWS_NATIVE":
+        raise ValueError("native stock reservation requires AWS-native pricing")
+    items = snapshot.frozen_data.get("items")
+    if not isinstance(items, list) or not items:
+        raise ValueError("native stock reservation requires a frozen basket")
+
+    def create(*, amount_paise, receipt, notes):
+        attempt_id = notes.get("paymentAttemptId")
+        if not isinstance(attempt_id, str) or not attempt_id:
+            raise ValueError("stock reservation requires a payment attempt")
+        keys = _keys_table()
+        native_inventory_txn.reserve_basket(
+            boto3.client("dynamodb", region_name=REGION),
+            _native_product_reader(),
+            lambda key: keys.get_item(
+                Key={"orderId": key}, ConsistentRead=True).get("Item"),
+            products_table=PRODUCTS_TABLE,
+            keys_table=COMMERCE_KEYS_TABLE or order_keys.commerce_keys_table_name(),
+            attempt_id=attempt_id, items=items,
+        )
+        return razorpay_orders.create_order(
+            amount_paise=amount_paise, receipt=receipt, notes=notes)
+
+    return create
 
 
 def _claimed_handoff(identity: customer_auth.CustomerIdentity,
@@ -1267,7 +1288,7 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             request_key=request_key,
             now=now,
             keys_table=keys,
-            create_order=razorpay_orders.create_order,
+            create_order=_website_order_creator(snapshot),
             find_order_by_receipt=razorpay_orders.find_order_by_receipt,
             account_mode_of=razorpay_orders.account_mode,
             initiation_enabled=INITIATION_ENABLED,

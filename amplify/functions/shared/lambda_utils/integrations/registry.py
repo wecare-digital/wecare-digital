@@ -231,30 +231,13 @@ REGISTRY: Dict[str, Provider] = {
                "why scope changes here are not free."),
     ),
     "wix": _p(
-        key="wix", display_name="Wix storefront",
-        owner="WECARE.DIGITAL Wix site (owner-held, live)",
-        # Corrected 2026-09-24. This said `secret_name=""` and its unblock told the
-        # reader to "move the Wix credential into Secrets Manager", on a measurement
-        # taken 2026-09-23. `wecare/wix/headless-api-key` **exists** in the account, so
-        # that unblock would have sent somebody to create a secret that is already
-        # there. Caught by the contract test asserting that an empty `secret_name` must
-        # line up with `CREDENTIAL_ABSENT` - the entry claimed SCOPE_UNVERIFIED, which
-        # means a credential exists, while naming none.
-        secret_name="wecare/wix/headless-api-key",
-        access=ACCESS_SCOPE_UNVERIFIED,
-        read_scopes=("wix-stores.read-products", "wix-stores.read-orders"),
-        max_age_seconds=1 * 3600,
-        adapter_built=True,
-        unblock=("The secret exists; the function cannot reach it. "
-                 "`wecare-wix-store` has no WIX_API_KEY_SECRET naming "
-                 "wecare/wix/headless-api-key, and WIX_CREDENTIALS_DISABLED=true. Both "
-                 "must change together, and only on owner authorisation: the storefront "
-                 "is LIVE, so enabling reads against it is a deliberate act rather than "
-                 "a deploy. Then record a successful read to move this to VERIFIED."),
-        notes=("Credential present in Secrets Manager but not wired: the env var that "
-               "names it is absent and the disable flag is on, so the loader fails "
-               "closed. The storefront is LIVE and must not be recreated or "
-               "republished."),
+        key="wix", display_name="Retired Wix storefront",
+        owner="WECARE.DIGITAL retired provider",
+        secret_name="", access=ACCESS_CREDENTIAL_ABSENT,
+        read_scopes=(), max_age_seconds=3600, adapter_built=False,
+        unblock="Use the AWS-native product and blog APIs; this provider is retired.",
+        notes="The site was deleted and its credentials are scheduled for retirement. "
+              "Historical references are retained for reconciliation only.",
     ),
 }
 

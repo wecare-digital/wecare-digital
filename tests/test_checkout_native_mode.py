@@ -5,6 +5,7 @@ The handler is loaded BY PATH under a unique module name (the repo has dozens of
 handler.py files).
 """
 import importlib.util
+import json
 import pathlib
 import sys
 
@@ -43,6 +44,37 @@ def test_default_mode_is_wix_headless(monkeypatch):
     h = _load()
     monkeypatch.delenv("CHECKOUT_MODE", raising=False)
     assert h._supply_mode() == "WIX_HEADLESS"
+
+
+def test_service_prices_use_native_catalog_even_without_cutover_flags(monkeypatch):
+    h = _load()
+    monkeypatch.delenv("CHECKOUT_MODE", raising=False)
+    monkeypatch.delenv("CATALOG_SOURCE", raising=False)
+    monkeypatch.setattr(h, "_native_variant_reader", lambda: lambda _id: {
+        "priceMinor": 9900, "currency": "INR", "status": "active",
+    })
+    monkeypatch.setattr(h, "_wix_request", lambda *a, **k: pytest.fail("Wix called"))
+    response = h._service_prices("https://wecare.digital")
+    assert response["statusCode"] == 200
+    assert all(p["paise"] == 9900 for p in json.loads(response["body"])["prices"].values())
+
+
+def test_service_prices_fail_closed_when_native_catalog_has_no_prices(monkeypatch):
+    h = _load()
+    monkeypatch.setattr(h, "_native_variant_reader", lambda: lambda _id: None)
+    response = h._service_prices("https://wecare.digital")
+    assert response["statusCode"] == 503
+    assert json.loads(response["body"])["error"] == h.SERVICE_PRICES_UNAVAILABLE
+
+
+def test_service_prices_do_not_expose_catalog_failure_details(monkeypatch):
+    h = _load()
+    def unavailable():
+        raise RuntimeError("synthetic-private-diagnostic")
+    monkeypatch.setattr(h, "_native_variant_reader", unavailable)
+    response = h._service_prices("https://wecare.digital")
+    assert response["statusCode"] == 503
+    assert "synthetic-private-diagnostic" not in response["body"]
 
 
 @pytest.mark.parametrize("val", ["AWS_NATIVE", "aws", "native"])
