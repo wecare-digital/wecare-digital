@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compare } from '../../scripts/catalogue-diff.js';
-import catalog from '../content/wix-catalog.json';
+import catalog from '../content/catalog-snapshot.json';
 
 /**
  * The gate between "Wix changed" and "rebuild production".

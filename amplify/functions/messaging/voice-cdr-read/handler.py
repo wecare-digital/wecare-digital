@@ -1,8 +1,8 @@
 """
 Voice CDR Read Lambda Function
 
-Purpose: Read Airtel Call Detail Records from DynamoDB for dashboard display
-         Aligned with Airtel CDR spec Sections 2-6 (UI display, status matrix, dashboard)
+Purpose: Read call detail records from DynamoDB for dashboard display
+         Aligned with call-detail contract Sections 2-6 (UI display, status matrix, dashboard)
 
 Inbound Number: +91 9319767034 (Mobile · Delhi · Outbound/Inbound)
 Email: voice@wecare.digital
@@ -21,7 +21,7 @@ Query Parameters:
 - circleNameCaller: Filter by caller circle/state
 - search: Search by clientCorrelationId or vmSessionId
 
-Dashboard Stats (per Airtel spec Section 6):
+Dashboard Stats (per the call-detail contract Section 6):
 - Call trend (answered vs missed over time)
 - Demographic view by circle/state
 - Destination number status breakdown
@@ -70,7 +70,7 @@ class DecimalEncoder(json.JSONEncoder):
 
 
 def _ms_to_mmss(ms_val) -> str:
-    """Convert milliseconds to mm:ss format for UI display (per Airtel CDR spec)."""
+    """Convert milliseconds to mm:ss format for UI display (per call-detail contract)."""
     try:
         total_sec = int(float(ms_val)) // 1000 if ms_val else 0
         minutes = total_sec // 60
@@ -91,7 +91,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Returns:
     - records: List of CDR records with UI display fields
     - count: Number of records returned
-    - stats: Aggregated statistics (per Airtel dashboard spec)
+    - stats: Aggregated statistics (per dashboard contract)
     - dashboard: Dashboard-specific aggregations
     - inboundNumber: Configured inbound number
     - email: Contact email
@@ -267,7 +267,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
 def _format_record_for_ui(item: Dict) -> Dict:
     """
-    Format CDR record for UI display per Airtel CDR spec Section 2.
+    Format CDR record for UI display per call-detail contract Section 2.
     
     Standard 16 fields:
     1. Date (dd/mm/yy)
@@ -294,7 +294,7 @@ def _format_record_for_ui(item: Dict) -> Dict:
     ist_timestamp = ''
     if ts:
         try:
-            # Parse raw timestamp (assumed UTC from Airtel: "2026-04-26 07:25:56")
+            # Parse raw timestamp (assumed UTC from the voice network: "2026-04-26 07:25:56")
             parts = ts.split(' ')
             if len(parts) >= 2:
                 # Try to parse as datetime and convert to IST
@@ -370,7 +370,7 @@ def _format_record_for_ui(item: Dict) -> Dict:
         'fromWaitingTimeSec': float(item.get('fromWaitingTimeSec', 0)),
         'callerDurationSec': float(item.get('callerDurationSec', 0)),
         
-        # Duration display (mm:ss per Airtel spec Section 2)
+        # Duration display (mm:ss per the call-detail contract Section 2)
         'billableDurationDisplay': _ms_to_mmss(item.get('billableDurationMs', 0)),
         'callerDurationDisplay': _ms_to_mmss(item.get('callerDuration', 0)),
         'durationDisplay': _ms_to_mmss(item.get('durationMs', 0)),
@@ -417,7 +417,7 @@ def _format_record_for_ui(item: Dict) -> Dict:
         'callSetupTimeCaller': int(float(item.get('callSetupTimeCaller', 0))),
         
         # Metadata
-        'source': item.get('source', 'airtel_cdr_webhook'),
+        'source': item.get('source', 'voice_cdr'),
         'participantsCount': int(float(item.get('participantsCount', 0))),
         'timestamp': ts,
         'istTimestamp': ist_timestamp,
@@ -446,7 +446,7 @@ def _calculate_stats(records: List[Dict]) -> Dict:
     """
     Calculate statistics from CDR records.
     
-    Per Airtel CDR spec Section 3 (Overall Call Status matrix) and Section 6 (Dashboard).
+    Per call-detail contract Section 3 (Overall Call Status matrix) and Section 6 (Dashboard).
     """
     total = len(records)
     if total == 0:
@@ -462,13 +462,13 @@ def _calculate_stats(records: List[Dict]) -> Dict:
     inbound = sum(1 for r in records if r.get('callType') == 'INBOUND')
     outbound = sum(1 for r in records if r.get('callType') == 'OUTBOUND')
     
-    # Status counts per Airtel spec Section 3
+    # Status counts per the call-detail contract Section 3
     answered = sum(1 for r in records if r.get('overallCallStatus') == 'Answered')
     missed = sum(1 for r in records if r.get('overallCallStatus') == 'Missed')
     busy = sum(1 for r in records if r.get('overallCallStatus') == 'Busy')
     disconnected = sum(1 for r in records if r.get('overallCallStatus') == 'Disconnected')
     
-    # Average durations (per Airtel dashboard spec Section 6)
+    # Average durations (per dashboard contract Section 6)
     conv_durations = [float(r.get('conversationDurationSec', 0)) for r in records if r.get('conversationDurationSec')]
     wait_times = [float(r.get('fromWaitingTimeSec', 0)) for r in records if r.get('fromWaitingTimeSec')]
     billable = sum(float(r.get('billableDurationSec', 0)) for r in records)
@@ -527,7 +527,7 @@ def _calculate_stats(records: List[Dict]) -> Dict:
 
 def _calculate_dashboard(records: List[Dict]) -> Dict:
     """
-    Calculate dashboard-specific aggregations per Airtel CDR spec Section 6.
+    Calculate dashboard-specific aggregations per call-detail contract Section 6.
     
     Returns:
     - callTrend: Answered vs Missed by date

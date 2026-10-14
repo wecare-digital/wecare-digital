@@ -4,7 +4,7 @@ Before this module the same regulatory facts were duplicated in five places, and
 keeping them in step was manual:
 
   1. a code map in messaging/sms-aws/handler.py:77-82
-  2. constants in outbound-sms, sms-in/airtel and whatsapp-calling
+  2. constants used by SMS and calling paths
   3. the DynamoDB registry stack-wecare-digital-DLTTemplates
   4. model defaults in amplify/data/resource.ts
   5. a UI mirror in src/pages/dm/sms/index.tsx

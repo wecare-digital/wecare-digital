@@ -5884,7 +5884,7 @@ try:
     from service_api import (
         _list_orders as _svc_list_orders, _get_order as _svc_get_order,
         _create_order as _svc_create_order, _update_order as _svc_update_order,
-        _get_order_submissions as _svc_get_order_submissions, _sync_orders as _svc_sync_orders,
+        _get_order_submissions as _svc_get_order_submissions,
         _submit_request as _svc_submit_request, _amend_request as _svc_amend_request,
         _track_order as _svc_track_order, _get_status_history as _svc_get_status_history,
         _save_draft as _svc_save_draft, _get_draft as _svc_get_draft, _delete_draft as _svc_delete_draft,
@@ -6662,8 +6662,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # ══════════════════════════════════════════════════════════════
 
         # ── ORDERS ──
-        elif '/orders/sync' in path and method == 'POST':
-            return _svc_sync_orders()
         elif '/orders/' in path and '/submissions' in path:
             oid = _svc_path_param(path, 'orders')
             return _svc_get_order_submissions(oid)

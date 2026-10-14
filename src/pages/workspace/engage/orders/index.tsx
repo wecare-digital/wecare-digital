@@ -2,7 +2,7 @@
  * Order Management Dashboard — [retired public path]/orders
  * ORDER-CENTRIC: Order ID is the central key across the system.
  * Shows all orders with linked submissions, payments, status history.
- * Supports: search, filter, detail panel, manual creation, Wix sync, status updates.
+ * Supports search, filtering, detail panels, manual creation, and status updates.
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import MaybeLayout from '../../../../components/MaybeLayout';
@@ -20,7 +20,7 @@ import ErrorState from '../../../../components/ErrorState';
 const PAGE_SIZE = 20;
 const ORDER_STATUSES = [ 'active', 'fulfilled', 'cancelled' ];
 const PAYMENT_STATUSES = [ 'pending', 'captured', 'failed', 'refunded' ];
-const SOURCES = [ 'wix', 'manual', 'shopify', 'flow' ];
+const SOURCES = [ 'manual', 'flow', 'catalog', 'integration' ];
 const SUBMISSION_STATUSES = [ 'open', 'in_progress', 'resolved', 'closed', 'cancelled' ];
 
 /*
@@ -57,14 +57,7 @@ const DETAIL_SELECT_STYLE: React.CSSProperties = { flex: '0 0 200px' };
 
 // ── Helpers ──
 
-// Both order-number shapes, because the Wix sync now mints the current one:
-//
-//   'WD-ORD - A1B2C3D4 - 22-02-2026 - 23:30:00 - IST'  → 'A1B2C3D4'  legacy spaced
-//   'WD-ORD-K4M7PQR9'                                  → 'K4M7PQR9'  current
-//
-// Without the prefix strip the current form has no ' - ' to split on and falls through to
-// the first 8 characters, rendering as 'WD-ORD — WD-ORD-K' - the prefix twice and the only
-// part that identifies the order cut off.
+// Support both legacy spaced and current compact WD order-number shapes.
 function extractShortId ( orderId: string ): string {
   if ( !orderId ) return '';
   const parts = orderId.split( ' - ' );
@@ -194,8 +187,6 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
     itemsSummary: '', totalAmount: '', notes: '',
   } );
 
-  // Sync
-  const [ syncing, setSyncing ] = useState( false );
 
   // ── Data loading ──
 
@@ -255,17 +246,6 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
     } else toast.error( 'Update failed' );
   };
 
-  const handleSync = async () => {
-    setSyncing( true );
-    try
-    {
-      const result = await api.syncOrders();
-      toast.success( result.message || 'Sync complete' );
-      loadOrders();
-    } catch { toast.error( 'Sync failed' ); }
-    setSyncing( false );
-  };
-
   const handleCreate = async () => {
     if ( !createForm.customerPhone ) { toast.error( 'Phone is required' ); return; }
     setCreating( true );
@@ -312,7 +292,6 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
             </p>
           </div>
           <div style={ { display: 'flex', gap: 8 } }>
-            <Button variant="secondary" icon="refresh" loading={ syncing } onClick={ handleSync }>Wix Sync</Button>
             <Button variant="primary" icon="create" onClick={ () => setShowCreate( true ) }>New Order</Button>
           </div>
         </div>
@@ -320,7 +299,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
         {/* ── Filters ── */ }
         <div style={ { display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' } }>
           <input
-            type="text" placeholder="Search order number, Wix ID, phone, or customer..."
+            type="text" placeholder="Search order number, source ID, phone, or customer..."
             value={ search } onChange={ e => { setSearch( e.target.value ); setPage( 1 ); } }
             style={ { flex: 1, minWidth: 220, padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 } }
           />
@@ -340,7 +319,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
           // A failed load shows WHY, with a retry — never a misleading "No orders found".
           <div role="alert"><ErrorState message="Could not load orders" detail={ failure.message } onRetry={ failure.retryable ? loadOrders : undefined } /></div>
         ) : filtered.length === 0 && !loading ? (
-          <EmptyState icon="order" title="No orders found" description="Create a manual order or sync from Wix to get started." action={ { label: 'New Order', onClick: () => setShowCreate( true ) } } />
+          <EmptyState icon="order" title="No orders found" description="Create a manual order to get started." action={ { label: 'New Order', onClick: () => setShowCreate( true ) } } />
         ) : (
           <div style={ { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' } }>
             <div style={ { overflowX: 'auto' } }>
@@ -405,7 +384,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
             <label style={ labelStyle }>Phone *<input type="text" value={ createForm.customerPhone } onChange={ e => setCreateForm( f => ( { ...f, customerPhone: e.target.value } ) ) } placeholder="+91..." style={ inputStyle } /></label>
             { /* SHAPE (a), design 5.2: the wrapping <label> is gone and Select owns the pair.
                  A <button> is a labelable element too, so leaving the wrapper would have
-                 computed the name by walking its subtree - "Source wix" - and a label
+                 computed the name by walking its subtree, and a label
                  forwards clicks to its control, which can double-activate a button. */ }
             <Select label="Source" value={ createForm.source }
               onChange={ v => setCreateForm( f => ( { ...f, source: v } ) ) }
@@ -449,7 +428,6 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
           <div><span style={ metaLabel }>Full Order ID</span><div style={ { fontSize: 12, fontFamily: 'monospace', wordBreak: 'break-all', color: '#374151' } }>{ order.orderId }</div></div>
           <div><span style={ metaLabel }>Customer</span><div style={ { fontWeight: 500 } }>{ order.customerName || '—' }</div></div>
           <div><span style={ metaLabel }>Phone</span><div style={ { fontFamily: 'monospace' } }>{ order.customerPhone || '—' }</div></div>
-          { order.wixOrderId && <div><span style={ metaLabel }>Wix Order ID</span><div style={ { fontSize: 12, fontFamily: 'monospace', overflowWrap: 'anywhere' } }>{ order.wixOrderId }</div></div> }
           { order.referenceId && <div><span style={ metaLabel }>Payment reference</span><div style={ { fontFamily: 'monospace' } }>{ order.referenceId }</div></div> }
           <div><span style={ metaLabel }>Source</span><div><Badge status={ order.source } /></div></div>
           <div><span style={ metaLabel }>Created</span><div>{ formatDateTime( order.createdAt ) }</div></div>

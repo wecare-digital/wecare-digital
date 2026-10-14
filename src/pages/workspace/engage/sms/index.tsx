@@ -1,12 +1,5 @@
 /**
- * SMS - AWS End User Messaging, campaigns, the TRAI DLT registry and read-only
- * history from retired providers.
- *
- * AWS End User Messaging is the only SMS provider. The Airtel, Sinch and classic
- * Pinpoint-template tabs were removed on 2026-09-19: the first two offered
- * sending through prohibited providers, and the third managed AWS templates that
- * cannot satisfy TRAI DLT. Their records remain reachable, read-only, under
- * "Legacy history".
+ * SMS workspace for AWS End User Messaging, campaigns, and the TRAI DLT registry.
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../../../../components/Layout';
@@ -27,13 +20,6 @@ interface SmsMessage {
   campaignId?: string; campaignName?: string; timestamp: string;
 }
 interface Campaign { id: string; name: string; recipients: number; sent: number; delivered: number; failed: number; createdAt: string; }
-/** A retained record from a retired provider. Read-only; `provider` is as stored. */
-interface LegacySmsMessage {
-  messageId: string; phoneNumber: string; content: string; status: string;
-  direction: string; dltTemplateId?: string; messageType?: string;
-  provider: string; providerLabel: string; isHistorical: boolean;
-  createdAt: number;
-}
 interface DLTTemplate { templateId: string; name: string; content: string; messageType: string; senderId: string; entityId: string; variables: string[]; status: string; createdAt: number; }
 
 /**
@@ -57,11 +43,6 @@ const DLT_TEMPLATE_OPTIONS: { key: string; id: string; label: string }[] = [
  * DLT_TEMPLATE_OPTIONS above so the two can never drift: the send request carries only the
  * KEY and the server resolves the template id, entity and sender.
  */
-const LEGACY_PROVIDER_OPTIONS: SelectOption[] = [
-  { value: '', label: 'All retired providers' },
-  { value: 'airtel', label: 'Airtel IQ (retired)' },
-  { value: 'sinch', label: 'Sinch SMS (retired)' },
-];
 const SEND_TYPE_OPTIONS: SelectOption[] = [
   { value: 'PROMOTIONAL', label: 'Promotional' },
   { value: 'TRANSACTIONAL', label: 'Transactional' },
@@ -73,8 +54,6 @@ const TPL_MESSAGE_TYPE_OPTIONS: SelectOption[] =
   [ 'SERVICE_EXPLICIT', 'SERVICE_IMPLICIT', 'TRANSACTIONAL', 'PROMOTIONAL' ]
     .map( t => ( { value: t, label: t } ) );
 
-/** LAYOUT ONLY - what `.sms-search`'s 200px/220px cap carried; the box is the trigger's. */
-const LEGACY_PROVIDER_STYLE: React.CSSProperties = { width: 200, maxWidth: '100%' };
 
 /** +91XXXXXXXXXX (12 digits incl. country code) routes via ap-south-1 + DLT. */
 const isIndianDestination = ( phone: string ): boolean => {
@@ -89,7 +68,6 @@ const TABS: ShellTab[] = [
   { id: 'aws', label: 'AWS SMS' },
   { id: 'campaign', label: 'Campaign' },
   { id: 'templates', label: 'DLT Templates' },
-  { id: 'legacy', label: 'Legacy history' },
 ];
 
 const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
@@ -136,12 +114,6 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
   const [ editTplSaving, setEditTplSaving ] = useState( false );
   const [ seeding, setSeeding ] = useState( false );
 
-  // Legacy history state (read-only view over retired-provider records)
-  const [ legacyMessages, setLegacyMessages ] = useState<LegacySmsMessage[]>( [] );
-  const [ legacyLoading, setLegacyLoading ] = useState( false );
-  const [ legacyError, setLegacyError ] = useState( '' );
-  const [ legacyProvider, setLegacyProvider ] = useState( '' );
-  const [ legacyNextToken, setLegacyNextToken ] = useState( '' );
 
   const toast = useToastContext();
   const confirm = useConfirm();
@@ -249,9 +221,7 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     } catch ( err ) { toast.error( 'Campaign failed' ); } finally { setCampaignSending( false ); }
   };
 
-  // Clears the AWS SMS log only. Legacy history is deliberately NOT clearable
-  // from here: it is audit and DLT evidence, and its purge requires a typed
-  // table-name confirmation server-side.
+  // Clears the current AWS SMS log.
   const handleClearLogs = async () => {
     if ( !( await confirm( 'Clear all AWS SMS logs?' ) ) ) return;
     setClearing( true );
@@ -338,31 +308,6 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     } catch ( err ) { toast.error( 'Failed to seed templates' ); } finally { setSeeding( false ); }
   };
 
-  // Legacy history (read-only) — retired-provider records.
-  const loadLegacyHistory = useCallback( async () => {
-    setLegacyLoading( true );
-    setLegacyError( '' );
-    try
-    {
-      const qs = legacyProvider ? `?provider=${encodeURIComponent( legacyProvider )}` : '';
-      const res = await api.authFetch( `${API_BASE}/sms-aws/legacy-history${qs}` );
-      if ( !res.ok ) throw new Error( `HTTP ${res.status}` );
-      const data = await res.json();
-      setLegacyMessages( data.messages || [] );
-      setLegacyNextToken( data.nextToken || '' );
-    } catch ( err: any )
-    {
-      console.error( 'Legacy history load error:', err );
-      setLegacyMessages( [] );
-      setLegacyError( err?.message || 'Request failed' );
-    } finally { setLegacyLoading( false ); }
-  }, [ legacyProvider ] );
-
-  // Load on mount and whenever the provider filter changes. The tab id lives
-  // inside PageShell's render prop, so there is no outer activeTab to key on;
-  // one small scan on mount is cheaper than threading tab state out.
-  useEffect( () => { loadLegacyHistory(); }, [ loadLegacyHistory ] );
-
   // AWS filtered
   const filteredMessages = messages.filter( msg => {
     if ( directionFilter === 'inbound' && msg.direction !== 'INBOUND' ) return false;
@@ -408,8 +353,6 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                 ) }</div>
               </div>
             ) }
-
-            {/* ===== AIRTEL IN TAB ===== */ }
             {/* ===== CAMPAIGN TAB ===== */ }
             { activeTab === 'campaign' && (
               <div className="sms-tab-content">
@@ -447,59 +390,6 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                 ) }</div>
                 <div style={ { padding: '12px', background: '#f9fafb', borderTop: '1px solid #f3f4f6', fontSize: '12px', color: '#6b7280' } }>
                   { dltTemplates.length } template(s) registered · PE ID: <code>1201161991108627443</code> · Sender: <code>WDBEEP</code> · Templates are managed in the DLT Templates tab
-                </div>
-              </div>
-            ) }
-
-            {/* ===== PINPOINT TEMPLATES TAB (ap-south-1) ===== */ }
-            {/* ===== LEGACY HISTORY (read-only) ===== */ }
-            { activeTab === 'legacy' && (
-              <div className="sms-tab-content">
-                <div className="tab-header">
-                  <div className="tab-header-left">
-                    <span className="provider-badge">Legacy history</span>
-                    <span className="region-badge">read-only</span>
-                  </div>
-                  <div className="tab-header-actions">
-                    { /* `.sms-search` is dropped rather than forwarded: it SKINNED the native
-                         control, and className on a Select lands on the wrapper, so it would
-                         paint a box around the whole field. Its width survives as layout. */ }
-                    <Select ariaLabel="Retired provider" value={ legacyProvider }
-                      onChange={ v => { setLegacyProvider( v ); } }
-                      options={ LEGACY_PROVIDER_OPTIONS } style={ LEGACY_PROVIDER_STYLE } />
-                    <Button variant="secondary" icon="refresh" onClick={ loadLegacyHistory } disabled={ legacyLoading } loading={ legacyLoading }>Refresh</Button>
-                  </div>
-                </div>
-                <div style={ { padding: '12px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', margin: '8px 0', fontSize: '13px', color: '#78350f' } }>
-                  <strong>Historical records from retired SMS providers.</strong> Retained as
-                  audit and TRAI DLT evidence. Each row keeps the provider that actually
-                  delivered it and is never relabelled. Sending is not possible from this
-                  view — all new SMS goes through AWS End User Messaging.
-                </div>
-                { legacyError ? (
-                  <div className="empty-row" style={ { padding: '24px', textAlign: 'center', color: '#b91c1c' } }>
-                    Could not load legacy history. { legacyError }
-                  </div>
-                ) : (
-                  <div className="table-area">{ legacyLoading ? <div className="loading-state">Loading...</div> : (
-                    <table><thead><tr><th>Time</th><th>Dir</th><th>Phone</th><th>Message</th><th className="hide-mobile">Provider</th><th className="hide-mobile">DLT template</th><th>Status</th></tr></thead><tbody>
-                      { legacyMessages.map( msg => (
-                        <tr key={ msg.messageId }>
-                          <td className="time-cell">{ msg.createdAt ? new Date( msg.createdAt * 1000 ).toLocaleString() : '-' }</td>
-                          <td><span className={ msg.direction === 'INBOUND' ? 'dir-in' : 'dir-out' }>{ msg.direction === 'INBOUND' ? '\u2193' : '\u2191' }</span></td>
-                          <td className="phone-cell">{ msg.phoneNumber || '-' }</td>
-                          <td className="content-cell" title={ msg.content }>{ msg.content?.substring( 0, 50 ) }{ msg.content && msg.content.length > 50 ? '...' : '' }</td>
-                          <td className="hide-mobile"><span className="st-badge" title={ msg.providerLabel }>{ msg.provider }</span></td>
-                          <td className="hide-mobile">{ msg.dltTemplateId || '-' }</td>
-                          <td><span className={ `st-badge ${msg.status?.toLowerCase()}` }>{ msg.status || '-' }</span></td>
-                        </tr>
-                      ) ) }
-                      { legacyMessages.length === 0 && <tr><td colSpan={ 7 } className="empty-row">No historical messages{ legacyProvider ? ` for ${legacyProvider}` : '' }.</td></tr> }
-                    </tbody></table>
-                  ) }</div>
-                ) }
-                <div style={ { padding: '12px', background: '#f9fafb', borderTop: '1px solid #f3f4f6', fontSize: '12px', color: '#6b7280' } }>
-                  { legacyMessages.length } record(s) shown{ legacyNextToken ? ' \u00b7 more available' : '' } \u00b7 ordering is within this page only
                 </div>
               </div>
             ) }

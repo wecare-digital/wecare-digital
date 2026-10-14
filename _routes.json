@@ -275,7 +275,6 @@
   "POST /wa-business/interactive-list",
   "POST /wa-business/marketing-message",
   "POST /wa-business/orders",
-  "POST /wa-business/orders/sync",
   "POST /wa-business/phone-settings",
   "POST /wa-business/profile",
   "POST /wa-business/reviews",

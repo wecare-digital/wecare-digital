@@ -3,7 +3,7 @@
  *
  * WHAT A CLAIM IS. A customer sends their cart in the WhatsApp catalogue; the inbound Lambda writes
  * a phone-bound hand-off row and replies with a link to `/cart/?basket=<token>`. Opening that link
- * while signed in merges the lines into the customer's own Wix cart. The token alone is not
+ * while signed in merges the lines into the customer's own catalog cart. The token alone is not
  * authority: the server additionally requires the session's verified phone to equal the phone the
  * hand-off was written for, so a leaked link cannot be redeemed by whoever holds it.
  *
@@ -50,7 +50,7 @@ export type ClaimOutcome =
 /**
  * One claimed line: a catalogue reference and a quantity, which is the whole of it.
  *
- * NO PRICE FIELD, AND NOTHING TO PUT IN ONE. The server merged these into the Wix cart and
+ * NO PRICE FIELD, AND NOTHING TO PUT IN ONE. The server merged these into the catalog cart and
  * returned them so the browser cart can hold the same basket; the amount still comes from
  * `checkout_pricing.compute_quote` on the prepare that follows, and the figure shown beside the
  * line comes from the committed catalogue snapshot every other cart line already reads.
@@ -236,9 +236,9 @@ export async function claimBasket ( accessToken: string, token: string,
 /**
  * A claim succeeded and this build could place NONE of its lines in the visible cart.
  *
- * Reachable for a product that exists in the live Wix catalogue - and therefore in the WhatsApp
- * catalogue the sync projects from it - but not in `src/content/wix-catalog.json`, the snapshot
- * committed with this deployment. A product added in Wix since the last catalogue sync is exactly
+ * Reachable for a product that exists in the live catalogue - and therefore in the WhatsApp
+ * catalogue the sync projects from it - but not in `src/content/catalog-snapshot.json`, the snapshot
+ * committed with this deployment. A product added in catalog since the last catalogue sync is exactly
  * that case. Saying nothing here would reproduce the failure the returned lines exist to fix:
  * a successful claim that looks identical to a refusal.
  *

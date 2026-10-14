@@ -99,11 +99,7 @@ const DB_TABLES: TableDef[] = [
   { name: 'VoiceCall', purpose: 'Voice call records', keyFields: 'callId', ttl: '90d', indexes: 'contactId, phoneNumber', usedBy: 'outbound-voice', category: 'Voice' },
   { name: 'SmsAws', purpose: 'AWS Pinpoint SMS messages', keyFields: 'messageId', ttl: '90d', indexes: 'contactId, phoneNumber', usedBy: 'sms-aws', category: 'SMS' },
   { name: 'VoiceAws', purpose: 'AWS Pinpoint voice calls', keyFields: 'callId', ttl: '90d', indexes: 'contactId, phoneNumber', usedBy: 'voice-aws', category: 'Voice' },
-  { name: 'AirtelSMS', purpose: 'Airtel SMS messages (Sender: WDBEEP)', keyFields: 'messageId', ttl: '90d', indexes: 'contactId, phoneNumber, status', usedBy: 'sms-in', category: 'SMS' },
   { name: 'DLTTemplates', purpose: 'TRAI DLT template registry (live)', keyFields: 'templateId', indexes: '-', usedBy: 'sms-aws', category: 'SMS' },
-  { name: 'AirtelC2C', purpose: 'Airtel Click-to-Call records', keyFields: 'callId', ttl: '90d', indexes: 'contactId, fromNumber, toNumber, status', usedBy: 'voice-in-c2c', category: 'Voice' },
-  { name: 'VoiceCDR', purpose: 'Airtel voice CDR records', keyFields: 'id', ttl: '90d', indexes: 'vmSessionId, callerNumber, callType', usedBy: 'voice-cdr-read', category: 'Voice' },
-  { name: 'OBDCampaign', purpose: 'Airtel OBD campaign records', keyFields: 'id', ttl: '90d', indexes: '-', usedBy: 'voice-in-obd', category: 'Voice' },
   { name: 'ScheduledMessage', purpose: 'Scheduled WhatsApp messages', keyFields: 'scheduledId', indexes: 'contactId, status', usedBy: 'scheduled-messages', category: 'WhatsApp' },
   { name: 'WhatsAppVoice', purpose: 'WhatsApp TTS/audio voice messages', keyFields: 'messageId', ttl: '90d', indexes: 'contactId', usedBy: 'whatsapp-voice', category: 'WhatsApp' },
   { name: 'Payment', purpose: 'Razorpay payment records', keyFields: 'id', indexes: 'paymentId, orderId', usedBy: 'razorpay-webhook, payments-read', category: 'Payments' },
@@ -114,7 +110,6 @@ const DB_TABLES: TableDef[] = [
   { name: 'TemplateAnalytics', purpose: 'WhatsApp template send/delivery tracking', keyFields: 'id', indexes: 'templateName', usedBy: 'template-analytics', category: 'WhatsApp' },
   { name: 'SubmitRequest', purpose: 'WhatsApp Flow submit request submissions', keyFields: 'id', indexes: 'phone, orderId, paymentStatus, paymentReferenceId', usedBy: 'inbound-whatsapp-handler', category: 'Payments' },
   { name: 'ConversationHistory', purpose: 'AI conversation context per phone hash', keyFields: 'phoneHash', indexes: '-', usedBy: 'ai-generate-response', category: 'AI' },
-  { name: 'WixOrderIds', purpose: 'Legacy-named native commerce key namespace', keyFields: 'orderId', indexes: '-', usedBy: 'checkout', category: 'Ecommerce' },
   { name: 'FlowRegistry', purpose: 'WhatsApp Flow config registry (type, payment, screens, A/B)', keyFields: 'flowId', indexes: 'flowCode, wabaId, category, status', usedBy: 'inbound-whatsapp-handler', category: 'Flows' },
   { name: 'FlowSubmission', purpose: 'All flow submissions (generic, all flow types)', keyFields: 'submissionId', indexes: 'phone, flowCode, paymentStatus, paymentRefId, submissionNumber, status, orderId, flowId', usedBy: 'inbound-whatsapp-handler', category: 'Flows' },
   { name: 'FlowLog', purpose: 'Audit trail for every flow screen interaction', keyFields: 'logId', ttl: '90d', indexes: 'phone, flowId, flowCode', usedBy: 'inbound-whatsapp-handler', category: 'Flows' },
@@ -147,9 +142,7 @@ const LAMBDAS: LambdaDef[] = [
   { name: 'outbound-email', category: 'Messaging', trigger: 'API Gateway', tables: '-', description: 'Send email via Amazon SES', apiRoute: '/email/send' },
   { name: 'outbound-voice', category: 'Messaging', trigger: 'API Gateway', tables: 'VoiceCall', description: 'Initiate voice calls', apiRoute: '/voice/call' },
   { name: 'sms-aws', category: 'Messaging', trigger: 'API GW, SNS', tables: 'SmsAws', description: 'AWS Pinpoint SMS handler', apiRoute: '/sms-aws' },
-  { name: 'sms-in', category: 'Messaging', trigger: 'API GW Webhook', tables: 'AirtelSMS', description: 'Airtel inbound SMS webhook', apiRoute: '/webhook/sms-in' },
   { name: 'voice-aws', category: 'Messaging', trigger: 'API Gateway', tables: 'VoiceAws', description: 'AWS voice call handler', apiRoute: '/voice-aws' },
-  { name: 'voice-in', category: 'Messaging', trigger: 'API GW Webhook', tables: 'AirtelC2C, VoiceCDR', description: 'Airtel voice webhooks (C2C + OBD + CDR)', apiRoute: '/webhook/voice-*' },
   { name: 'voice-cdr-read', category: 'Messaging', trigger: 'API Gateway', tables: 'VoiceCDR', description: 'Read voice CDR records', apiRoute: '/voice-cdr' },
   { name: 'whatsapp-calling', category: 'Messaging', trigger: 'API GW Webhook', tables: 'WhatsAppCalling', description: 'WhatsApp voice/video call handling', apiRoute: '/whatsapp-calling' },
   { name: 'whatsapp-voice', category: 'Messaging', trigger: 'API Gateway', tables: 'WhatsAppVoice', description: 'WhatsApp voice note processing', apiRoute: '/whatsapp-voice' },
@@ -216,7 +209,6 @@ const RISKS: RiskItem[] = [
   // ── CRITICAL (13) — 7 FIXED ──
   { id: 'R1', title: '✅ FIXED — Browser payment password removed', description: 'Payment UI now verifies the signed-in Cognito Admin role through the live auth API; owning payment mutations require server-side authorization.', priority: 'Critical', category: 'Security' },
   { id: 'R2', title: '✅ FIXED — PayU credentials removed from source', description: 'Removed hardcoded PAYU_CLIENT_ID, PAYU_CLIENT_SECRET, PAYU_MERCHANT_KEY, PAYU_MERCHANT_SALT from payu-webhook/resource.ts and handler.py. All now require env vars. STILL NEEDED: Rotate credentials since they were in git history.', priority: 'Critical', category: 'Security' },
-  { id: 'R3', title: '✅ FIXED — Airtel API key removed from comments', description: 'Removed literal Airtel HMAC signing key and app ID from c2c/handler.py comments. Now references Secrets Manager. STILL NEEDED: Rotate the key since it was in git history.', priority: 'Critical', category: 'Security' },
   { id: 'R3b', title: '✅ FIXED — PayU merchant key/salt removed', description: 'Removed PAYU_MERCHANT_KEY and PAYU_MERCHANT_SALT hardcoded defaults from payu-webhook/resource.ts. STILL NEEDED: Rotate credentials.', priority: 'Critical', category: 'Security' },
   { id: 'R4', title: '✅ FIXED — Razorpay/PayU IDs removed from source', description: 'Removed hardcoded Razorpay MID, UPI VPA, PayU MID, PayU UPI VPA from whatsapp-business-api/handler.py and outbound-whatsapp/handler.py. Also redacted from dashboard/index.tsx UI display.', priority: 'Critical', category: 'Security' },
   { id: 'R5', title: '✅ FIXED — AWS Account ID fallback removed', description: 'Removed hardcoded 775261844268 fallback from constants.ts. Now defaults to empty string if env var missing. Still exposed via NEXT_PUBLIC_ prefix — needs env var rename.', priority: 'Critical', category: 'Security' },
@@ -239,7 +231,6 @@ const RISKS: RiskItem[] = [
   { id: 'R21', title: '✅ FIXED — PayU MID removed from all files', description: 'Removed hardcoded PayU MID "8629516" from handler.py, resource.ts, dashboard/index.tsx, whatsapp-business-api/handler.py, outbound-whatsapp/handler.py. All now use env vars.', priority: 'Important', category: 'Configuration' },
   { id: 'R22', title: '✅ FIXED — Hardcoded GSTIN removed from constants.ts', description: 'Removed the hardcoded DEFAULT_GSTIN fallback. Now defaults to empty string if env var missing.', priority: 'Important', category: 'Security' },
   { id: 'R23', title: '✅ FIXED — Calling verification token server-side only', description: 'The browser export and all reveal/copy controls were removed. Meta verification remains in the calling Lambda.', priority: 'Important', category: 'Security' },
-  { id: 'R24', title: 'Secrets Manager references not validated at startup', description: 'Lambda functions reference 5 Secrets Manager entries (meta-system-user-token, flow-private-key, airtel/c2c, airtel/sms, airtel/obd) but there is no startup validation. If a secret is missing, the function fails at runtime.', priority: 'Important', category: 'Backend' },
   { id: 'R25', title: 'react-router-dom potentially unused', description: 'react-router-dom ^7.13.0 is installed but Next.js has built-in routing. This adds ~45KB to the bundle. Verify if it is actually used or can be removed.', priority: 'Important', category: 'Dependencies' },
   { id: 'R26', title: '✅ FIXED — @capacitor/cli moved out of production dependencies', description: 'Recorded here as cosmetic install weight, it turned out to have a security consequence: @capacitor/cli was the only path by which xcode@3.0.1 → uuid@7.0.3 entered the production tree, and a Dependabot security update for uuid then failed because no update path could reach the patched 14.0.0 (aws-amplify pins uuid ^11.1.1, xcode pins ^7.0.3). The CLI is now a devDependency, so the production tree resolves only uuid@11.1.1. The same move was applied to the --save list in deps-upgrade.yml, without which the next full-latest run would have reverted it. The advisory itself (GHSA-w5hq-g745-h8pq) is not reachable here: it affects only the v3/v5/v6 APIs with a caller-supplied buffer, and every consumer in this tree imports only v4.', priority: 'Important', category: 'Dependencies' },
   { id: 'R27', title: 'No input validation on frontend forms', description: 'Contact forms, payment forms, and GSTIN inputs have maxLength but no regex validation. Invalid data can reach the backend.', priority: 'Important', category: 'Frontend' },
@@ -260,8 +251,6 @@ const RISKS: RiskItem[] = [
 
 const IMPROVEMENTS: RiskItem[] = [
   // ── CRITICAL (5) ──
-  { id: 'I1', title: '✅ DONE — Removed all hardcoded secrets from source', description: 'Removed PayU client ID/secret/key/salt from payu-webhook. Removed Razorpay MID/UPI and PayU MID/UPI from whatsapp-business-api and outbound-whatsapp. Removed Airtel API key from c2c comments. Removed Wix Account ID fallback. Removed Razorpay live API key from dashboard UI. Removed all credential displays from dashboard/index.tsx. STILL NEEDED: Rotate all leaked credentials and audit git history.', priority: 'Critical', category: 'Security' },
-  { id: 'I2', title: '✅ DONE — Redacted all credentials from dashboard UI', description: 'Removed Razorpay live API key (server-side Razorpay key), key secret partial, PayU API key/salt/client ID/secret, PayU MID, and Wix Account ID from dashboard/index.tsx. All now show masked placeholders referencing env vars or Secrets Manager.', priority: 'Critical', category: 'Security' },
   { id: 'I3', title: 'Add staging environment', description: 'Create a separate staging stack with isolated DynamoDB tables (stack-staging-*), S3 prefix (staging/), and Lambda aliases. Use Amplify branch-based environments or a separate AWS account.', priority: 'Critical', category: 'Infrastructure' },
   { id: 'I4', title: 'Fix Amplify build pipeline', description: 'Build logs 85-88 all fail with "Artifacts base directory not found." Fix the buildSpec to point to the correct output directory (out/ for static export). This is blocking all automated deployments.', priority: 'Critical', category: 'DevOps' },
   { id: 'I5', title: 'Implement CI/CD pipeline', description: 'Set up GitHub Actions with: lint → type-check → test → build → deploy-staging → smoke-test → deploy-production. Add branch protection rules requiring passing checks before merge.', priority: 'Critical', category: 'DevOps' },
@@ -275,7 +264,6 @@ const IMPROVEMENTS: RiskItem[] = [
   { id: 'I12', title: '✅ DONE — Fixed CORS wildcard on URL shortener API', description: 'Replaced allowOrigins: ["*"] with an explicit origin list in amplify/link-resources.ts. Now ["https://wecare.digital", "https://www.wecare.digital"] — the subdomain in the original fix was dropped when that hostname was retired.', priority: 'Important', category: 'Security' },
   { id: 'I12b', title: '✅ DONE — Added security headers to next.config.js', description: 'Added X-Content-Type-Options: nosniff, X-Frame-Options: DENY, X-XSS-Protection, Referrer-Policy: strict-origin-when-cross-origin, and Permissions-Policy headers to next.config.js.', priority: 'Important', category: 'Security' },
   { id: 'I13', title: 'Add Lambda startup validation for Secrets Manager', description: 'Add a validate_secrets() function that runs on cold start to verify all required Secrets Manager entries exist and have expected keys. Fail fast with clear error messages.', priority: 'Important', category: 'Backend' },
-  { id: 'I14', title: 'Add health check endpoint', description: 'Create /health endpoint that validates: DynamoDB connectivity, S3 bucket access, Secrets Manager access, external API reachability (Meta, Razorpay, Airtel). Return structured status for monitoring.', priority: 'Important', category: 'Operations' },
   { id: 'I15', title: 'Remove or conditionally load analytics scripts', description: 'GA and FB scripts load on every page but IDs are empty. Either configure the IDs or remove the Script tags to save bandwidth and improve privacy compliance.', priority: 'Important', category: 'Frontend' },
   { id: 'I16', title: 'Add frontend input validation', description: 'Add regex validation for: phone numbers (E.164), email addresses, GSTIN (15-char alphanumeric), PIN codes (6 digits). Validate before API calls to reduce backend load.', priority: 'Important', category: 'Frontend' },
   { id: 'I17', title: 'Add request tracing with X-Ray', description: 'Enable AWS X-Ray on all Lambda functions and API Gateway. Add correlation IDs to requests for end-to-end tracing across the 42-function architecture.', priority: 'Important', category: 'Monitoring' },
@@ -340,7 +328,6 @@ const STORAGE_PATHS: StoragePath[] = [
   { path: 'o/stack/store/products/', purpose: 'Product images', readBy: 'catalog-management, Frontend', writtenBy: 'product-image-gen' },
   { path: 'o/stream/media/m/', purpose: 'Logos, branding images (static)', readBy: 'Frontend (CDN)', writtenBy: 'Manual upload' },
   { path: 'o/stream/media/fonts/', purpose: 'Invoice PDF fonts', readBy: 'invoice-engine', writtenBy: 'Manual upload' },
-  { path: 'o/stream/media/ivr/', purpose: 'IVR audio files', readBy: 'voice-in-obd', writtenBy: 'Manual upload' },
   { path: 'o/stream/docs/', purpose: 'Scraped documentation (Markdown)', readBy: 'Frontend, meta-business-agent', writtenBy: 'docs-scraper' },
   { path: 'o/public/wa-tpl/', purpose: 'Template media named by Meta-APPROVED templates — do not move or rename', readBy: 'Meta (refetch at send time)', writtenBy: 'whatsapp-template-management' },
   { path: 'o/whatsapp-media/whatsapp-calling/', purpose: 'IVR greeting audio (TTS)', readBy: 'whatsapp-calling', writtenBy: 'whatsapp-calling' },
@@ -390,9 +377,7 @@ const ENV_VARS: EnvVar[] = [
   // Authoritative values owner-confirmed 2026-09-30 against the live Meta config; the earlier
   // [retired Razorpay account] / @icici pair was stale and has been retired.
   { key: 'Razorpay MID (env RAZORPAY_MID)', value: 'acc_TTFSyolquKEZEy', sensitive: false, category: 'Payments — Identifier', risk: 'Non-secret merchant id; matched against Meta config by payment_readiness' },
-  { key: 'Razorpay UPI VPA (env RAZORPAY_UPI_ID)', value: 'wecaredigitalbh511413.rzp@rxairtel', sensitive: false, category: 'Payments — Identifier', risk: 'Non-secret UPI payee address (public in deep links/QR)' },
-  { key: 'Airtel API Key (in comment)', value: '(visible in c2c/handler.py comment)', sensitive: true, category: 'Voice — Hardcoded', risk: 'CRITICAL: Airtel HMAC key in code comment' },
-  { key: 'Airtel App ID (hardcoded)', value: '(in c2c handler + data schema)', sensitive: true, category: 'Voice — Hardcoded', risk: 'Airtel App ID in multiple files' },
+  { key: 'Razorpay UPI VPA', value: '(env RAZORPAY_UPI_ID)', sensitive: false, category: 'Payments — Identifier', risk: 'Configured server-side and used in payment deep links/QR' },
   // Secrets Manager entries (server-side, properly stored)
   { key: 'wecare/meta-system-user-token', value: '(Secrets Manager — 7 keys)', sensitive: true, category: 'Secrets Manager ✓' },
   { key: 'wecare/flow-private-key', value: '(Secrets Manager — 1 key)', sensitive: true, category: 'Secrets Manager ✓' },
@@ -428,10 +413,8 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
   { path: '/workspace/engage/logs', label: 'Message Logs (all channels)', backend: 'messages-read', tables: 'MessagesTable' },
   { path: '/workspace/engage/whatsapp/settings', label: 'WA Settings', backend: 'waba-management', tables: 'SystemConfig' },
   // SMS
-  { path: '/workspace/engage/sms', label: 'SMS', backend: 'outbound-sms, sms-aws', tables: 'SmsAws, DLTTemplates, AirtelSMS (read-only history)' },
   // Voice
   { path: '/workspace/engage/voice', label: 'Voice Out', backend: 'outbound-voice, voice-aws', tables: 'VoiceCall, VoiceAws' },
-  { path: '/workspace/engage/voice-in', label: 'Voice In', backend: 'voice-in, voice-cdr-read', tables: 'AirtelC2C, VoiceCDR, OBDCampaign' },
   // Email / RCS / Push
   { path: '/workspace/engage/ses', label: 'Email', backend: 'outbound-email', tables: '-' },
   { path: '/workspace/engage/rcs', label: 'RCS', backend: '(planned)', tables: '-' },
@@ -443,7 +426,6 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
 
   // Other
   { path: '/workspace/contacts', label: 'Contacts', backend: 'contacts', tables: 'Contact' },
-  { path: '/workspace/commerce/catalog', label: 'Store', backend: 'native-catalog-admin, catalog-management, product-image-gen', tables: 'ProductsTable, CatalogCache, WixOrderId' },
   { path: '/workspace/access', label: 'Access Control', backend: 'auth-middleware', tables: 'User' },
   { path: '/workspace/link', label: 'URL Shortener', backend: 'url-shortener', tables: '-' },
   // '/workspace/link/create' ("Create Link") was listed here. Removed 2026-09-25 with the page: a
@@ -526,11 +508,9 @@ const LAMBDA_DETAILED: LambdaDetailed[] = [
   { name: 'wecare-sms-aws', displayName: 'SMS AWS', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'AWS Pinpoint SMS handler', apiRoute: '/sms-aws', envVars: { SMS_TABLE: 'stack-wecare-digital-SmsAwsTable' }, triggers: [ 'API Gateway', 'SNS' ], status: 'active' },
   // `wecare-sms-in` REMOVED 2026-09-25. Listed with `status: 'active'` and route
   // `/webhook/sms-in`; measured against the account, neither the function nor the
-  // route exists, and Airtel is a retired provider. Inbound SMS is not received.
   { name: 'wecare-voice-aws', displayName: 'Voice AWS', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'AWS voice call handler', apiRoute: '/voice-aws', envVars: { VOICE_TABLE: 'stack-wecare-digital-VoiceAwsTable' }, triggers: [ 'API Gateway' ], status: 'active' },
   // `wecare-voice-in` REMOVED 2026-09-25. Listed with `status: 'active'` and route
   // `/webhook/voice-*`; no such function or route exists. The live functions are
-  // `wecare-voice-in-c2c` and `wecare-voice-in-obd`, and their Airtel CDR write path
   // was removed on 2026-09-25 — they serve the operations UI, not a provider webhook.
   { name: 'wecare-voice-cdr-read', displayName: 'Voice CDR Read', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Read voice CDR records', apiRoute: '/voice-cdr', envVars: { CDR_TABLE: 'stack-wecare-digital-VoiceCDRTable' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-template-analytics', displayName: 'Template Analytics', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Template performance metrics', apiRoute: '/whatsapp/template-analytics', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
@@ -612,8 +592,6 @@ const CODE_ASSETS: CodeAsset[] = [
   // `l-voice-in` REMOVED 2026-09-25: pointed at
   // `amplify/functions/messaging/voice-in/handler.py`, which does not exist. The real
   // sources are `voice-in/c2c/handler.py` and `voice-in/obd/handler.py`.
-  { id: 'l-voice-in-c2c', category: 'Messaging Lambdas', name: 'Voice In (C2C)', description: 'Click-to-call operations UI; historical call reads. Airtel CDR write path removed 2026-09-25.', path: 'amplify/functions/messaging/voice-in/c2c/handler.py', type: 'Lambda' },
-  { id: 'l-voice-in-obd', category: 'Messaging Lambdas', name: 'Voice In (OBD)', description: 'Outbound-campaign operations UI: text-to-speech and audio library. Campaign creation is retired and answers explicitly.', path: 'amplify/functions/messaging/voice-in/obd/handler.py', type: 'Lambda' },
   { id: 'l-scheduled', category: 'Messaging Lambdas', name: 'Scheduled Messages', description: 'Schedule and send messages at specific times.', path: 'amplify/functions/messaging/scheduled-messages/handler.py', type: 'Lambda' },
   { id: 'l-push', category: 'Messaging Lambdas', name: 'Push Notifications', description: 'Web push notification delivery.', path: 'amplify/functions/messaging/push-notifications/handler.py', type: 'Lambda' },
   // AI
@@ -1184,9 +1162,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user } ) => {
             name: '🗄️ Database — DynamoDB (' + DB_TABLES.length + ' tables)', children: [
               { name: 'Core: Contact, Message, User, MediaFile, AuditLog, SystemConfig, WebhookDedup, ...' },
               { name: 'WhatsApp: WhatsAppInbound, WhatsAppOutbound, WhatsAppVoice, WhatsAppCalling, WhatsAppGroup, ...' },
-              { name: 'SMS/Voice: SmsAws, AirtelSMS, VoiceCall, VoiceAws, AirtelC2C, VoiceCDR, OBDCampaign, DLTTemplates' },
               { name: 'Payments: Payment, Invoice, InvoiceItem, InvoiceAsset, InvoiceDeliveryLog, InvoiceSequence, RazorpayWebhookLog' },
-              { name: 'Ecommerce: ProductsTable, WixOrderId (legacy key namespace), CatalogCache' },
               { name: 'AI: AIInteraction, ConversationHistory' },
               { name: 'Flows: FlowRegistry, FlowSubmission, FlowLog' },
               { name: 'Operations: BulkJob, BulkRecipient, DLQMessage, ScheduledMessage, SystemEvent, ...' },

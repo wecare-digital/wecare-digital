@@ -753,7 +753,7 @@ export interface Message {
   revokesMessageId?: string;
   // Call breadcrumb fields (channel=voice, messageType=call)
   callId?: string;
-  callType?: string;            // plivo | aws | whatsapp; legacy rows may read 'airtel'
+  callType?: string;            // current voice implementation/category
   duration?: number;            // seconds
   recordingUrl?: string;
 }
@@ -1441,14 +1441,8 @@ export async function getSystemHealth (): Promise<SystemHealth> {
 // VOICE CALLS API
 // ============================================================================
 
-/**
- * Providers that may appear when READING a voice record.
- *
- * The retired entry is present because calls really were placed that way before
- * 2026-09-19 and the records are retained as audit evidence. Reading it must stay
- * possible; selecting it must not.
- */
-export type VoiceProviderRead = 'plivo' | 'aws' | 'airtel';
+/** Provider categories exposed by current voice APIs. */
+export type VoiceProviderRead = 'plivo' | 'aws' | 'legacy';
 
 /**
  * Providers that may be SELECTED for a new call. PSTN voice is Plivo; 'aws' is
@@ -5574,7 +5568,7 @@ export interface Order {
   orderDate?: string;
   orderTime?: string;
   orderDateIST?: string;
-  source: string; // wix, manual, shopify, flow
+  source: string; // native source/category
   sourceOrderId?: string;
   sourceOrderNumber?: string;
   customerPhone?: string;
@@ -5594,7 +5588,6 @@ export interface Order {
   requestCount?: number;
   notes?: string;
   adminNotes?: string;
-  wixOrderId?: string;
   invoiceId?: string;
   createdAt: number;
   updatedAt?: number;
@@ -5650,11 +5643,6 @@ export async function updateOrder ( orderId: string, updates: Partial<Order> ): 
     body: JSON.stringify( updates ),
   } );
   return !!data;
-}
-
-export async function syncOrders (): Promise<{ message: string; synced?: number }> {
-  const data = await apiCall<any>( `${ORDERS_BASE}/sync`, { method: 'POST' } );
-  return data || { message: 'Sync failed' };
 }
 
 export async function getOrderSubmissions ( orderId: string ): Promise<FlowSubmissionItem[]> {

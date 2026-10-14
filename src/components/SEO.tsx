@@ -95,7 +95,6 @@ export const PAGE_SEO = {
   // Public, indexed metadata. Deliberately vendor-neutral: naming the carrier
   // advertises an implementation detail, dates the page whenever routing
   // changes, and these entries had outlived two migrations - they still said
-  // "Airtel" (retired) and "Pinpoint" (replaced by AWS End User Messaging).
   sms: {
     title: 'SMS Messaging - Bulk, OTP & Transactional',
     description: 'Send SMS at scale with DLT-compliant templates. Bulk campaigns, OTP delivery, and transactional messages across India and international routes.',
@@ -138,8 +137,8 @@ export const PAGE_SEO = {
   },
   orders: {
     title: 'Orders - Order Management',
-    description: 'Manage all orders from WhatsApp, Wix, and manual sources. Track status, payments, and linked submissions.',
-    keywords: 'order management, WhatsApp orders, Wix orders, order tracking, payment status'
+    description: 'Manage orders from native commerce, WhatsApp, and manual sources. Track status, payments, and linked submissions.',
+    keywords: 'order management, WhatsApp orders, commerce orders, order tracking, payment status'
   },
   documents: {
     title: 'Drop Docs - Document Management',

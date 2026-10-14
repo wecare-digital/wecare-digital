@@ -74,7 +74,7 @@ MESSAGE_TTL_SECONDS = 90 * 24 * 60 * 60  # 90 days
 # Re-exported from lambda_utils.comms.dlt, which is the single source of truth.
 # These names are kept because callers and tests already reference them, but the
 # VALUES are no longer defined here. The identical map previously lived in five
-# places - this module, outbound-sms, sms-in/airtel, whatsapp-calling and the
+# places - this module, outbound-sms, whatsapp-calling and the
 # data model defaults - and five copies of a regulatory identifier is five
 # chances to send unregistered content under a registered sender.
 INDIA_ENTITY_ID = dlt_mod.ENTITY_ID

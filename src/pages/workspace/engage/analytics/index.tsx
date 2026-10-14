@@ -66,7 +66,7 @@ const AnalyticsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
         return { per, total };
     }, [ messages, now ] );
 
-    // ── Call analytics — computed from channel=voice breadcrumbs (AWS / Airtel / WhatsApp) ──
+    // ── Call analytics — computed from channel=voice breadcrumbs ──
     const callStats = useMemo( () => {
         const wk = now - 7 * 86400000;
         const calls = messages.filter( m => ( m.channel || '' ).toLowerCase() === 'voice' );
@@ -83,7 +83,8 @@ const AnalyticsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
             const ans = isAnswered( m );
             if ( ans ) { answered++; durSum += ( m.duration || 0 ); }
             if ( ( new Date( m.timestamp ).getTime() || 0 ) >= wk ) week++;
-            const prov = ( m.callType || 'other' ).toLowerCase();
+            const rawType = ( m.callType || 'other' ).toLowerCase();
+            const prov = rawType === 'aws' || rawType === 'whatsapp' ? rawType : 'legacy';
             if ( !byProv[ prov ] ) byProv[ prov ] = { total: 0, answered: 0, durSum: 0 };
             byProv[ prov ].total++;
             if ( ans ) { byProv[ prov ].answered++; byProv[ prov ].durSum += ( m.duration || 0 ); }
@@ -103,7 +104,7 @@ const AnalyticsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     };
     const PROV_META: Record<string, { label: string; fg: string }> = {
         aws: { label: 'AWS', fg: '#1d4ed8' },
-        airtel: { label: 'Airtel (historical)', fg: '#b91c1c' },
+        legacy: { label: 'Legacy calls', fg: '#6b7280' },
         whatsapp: { label: 'WhatsApp', fg: '#15803d' },
     };
 

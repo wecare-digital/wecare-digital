@@ -113,14 +113,6 @@ const HANDLERS: HandlerInfo[] = [
         // it is `wecare-voice-cdr-read`), the endpoint was `POST /webhook/voice-cdr`
         // (does not exist — only `GET`/`DELETE /voice-cdr-read`), the table was
         // `VoiceInCDRTable` (does not exist — it is `VoiceCDRTable`), and the
-        // description said it "Processes Airtel IQ CDR webhooks". Airtel is retired and
-        // its CDR write path was removed on 2026-09-25.
-        //
-        // The old `flow` also claimed this function sends SMS, WhatsApp and RCS
-        // notifications. It does not: connected-call notifications are owned by the
-        // notification domain and `PSTN_CONNECTED_NOTIFICATIONS_ENABLED` is absent, so
-        // nothing is dispatched. Listing sends that cannot happen is the same defect
-        // class as a hard-coded `status: 'active'`.
         name: 'wecare-voice-cdr-read',
         displayName: 'Call Records (read)',
         category: 'Voice',

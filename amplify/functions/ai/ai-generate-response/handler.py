@@ -885,7 +885,7 @@ RULES:
             {
                 'toolSpec': {
                     'name': 'make_voice_call',
-                    'description': 'Make a voice call using Airtel C2C with pre-recorded message or TTS.',
+                    'description': 'Make a voice call using the current voice service with pre-recorded message or TTS.',
                     'inputSchema': {
                         'json': {
                             'type': 'object',
@@ -1225,11 +1225,11 @@ RULES:
                 }
             },
             
-            # ===== ECOMMERCE (WIX STORE) =====
+            # ===== ECOMMERCE =====
             {
                 'toolSpec': {
-                    'name': 'get_wix_products',
-                    'description': 'List products from the Wix online store.',
+                    'name': 'get_products',
+                    'description': 'List products from the native catalog.',
                     'inputSchema': {
                         'json': {
                             'type': 'object',
@@ -1243,8 +1243,8 @@ RULES:
             },
             {
                 'toolSpec': {
-                    'name': 'get_wix_orders',
-                    'description': 'List orders from the Wix online store.',
+                    'name': 'get_orders',
+                    'description': 'List orders from the native order store.',
                     'inputSchema': {
                         'json': {
                             'type': 'object',
@@ -1962,10 +1962,10 @@ def _execute_internal_tool(tool_name: str, tool_input: Dict, request_id: str) ->
             return _tool_create_invoice(tool_input, request_id)
         
         # Ecommerce
-        elif tool_name == 'get_wix_products':
-            return _tool_get_wix_products(tool_input, request_id)
-        elif tool_name == 'get_wix_orders':
-            return _tool_get_wix_orders(tool_input, request_id)
+        elif tool_name == 'get_products':
+            return _tool_get_products(tool_input, request_id)
+        elif tool_name == 'get_orders':
+            return _tool_get_orders(tool_input, request_id)
         
         # WhatsApp Flows
         elif tool_name == 'send_whatsapp_flow':
@@ -5418,8 +5418,8 @@ def _tool_create_invoice(params: Dict, request_id: str) -> Dict:
         return {'success': False, 'error': str(e)}
 
 
-def _tool_get_wix_products(params: Dict, request_id: str) -> Dict:
-    """Compatibility name: list products from the AWS-native ProductsTable."""
+def _tool_get_products(params: Dict, request_id: str) -> Dict:
+    """List products from the AWS-native ProductsTable."""
     try:
         limit = max(1, min(int(params.get('limit', 20)), 100))
         query = str(params.get('query') or '').strip().lower()
@@ -5461,8 +5461,8 @@ def _tool_get_wix_products(params: Dict, request_id: str) -> Dict:
         return {'success': False, 'error': 'PRODUCT_LOOKUP_FAILED'}
 
 
-def _tool_get_wix_orders(params: Dict, request_id: str) -> Dict:
-    """Compatibility name: list orders from the AWS-native OrderTable."""
+def _tool_get_orders(params: Dict, request_id: str) -> Dict:
+    """List orders from the AWS-native OrderTable."""
     try:
         limit = max(1, min(int(params.get('limit', 20)), 100))
         wanted_status = str(params.get('status') or '').strip().lower()

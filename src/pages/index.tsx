@@ -496,7 +496,7 @@ const HomePage: React.FC = () => {
                     price appears anywhere on this page. Do not hardcode one here: the
                     catalog floor is ₹599 today (Viveka) and the owner expects ₹49 once
                     several thousand more products are loaded, so any number typed into this
-                    copy starts drifting immediately. Derive it from src/content/wix-catalog.json
+                    copy starts drifting immediately. Derive it from src/content/catalog.json
                     instead, then it cannot lie. */}
                 <li>Know the price before you commit.</li>
                 <li>Tell us once. We remember the context.</li>

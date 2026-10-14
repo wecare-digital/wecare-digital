@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Build a provider-independent catalog snapshot from the AWS ProductsTable.
 
-This is the AWS-native replacement for `scripts/fetch-wix-catalog.js`. It reads
+This is the AWS-native replacement for `scripts/build-catalog-snapshot.py`. It reads
 the authoritative `ProductsTable` and writes `src/content/catalog-snapshot.json`
-in the SAME envelope `src/content/wix-catalog.json` uses, so `src/content/shop.ts`
+in the SAME envelope `src/content/catalog-snapshot.json` uses, so `src/content/shop.ts`
 can switch its import with no interface change and the static `/shop` pages build
-from AWS instead of Wix (spec task 4.4).
+from AWS instead of catalog (spec task 4.4).
 
-Envelope (matches the committed Wix snapshot):
+Envelope (matches the committed catalog snapshot):
   { source, catalogVersion, fetchedAt, productCount, products[], variantVerifiedAt }
 Each product matches the `ShopProduct` interface in shop.ts: id, name, slug,
 formattedPrice, price (bare decimal string, DISPLAY ONLY — never charged),
@@ -15,7 +15,7 @@ currency, inStock, image?, tagline, body[], variants?.
 
 Prices here are DISPLAY ONLY. The amount actually charged comes from the native
 checkout pricing (`catalog_pricing`/`checkout_pricing`) compared in integer paise,
-never from this file — the same guarantee the Wix snapshot carried.
+never from this file — the same guarantee the catalog snapshot carried.
 
 READ-ONLY against AWS. `--dry` (default) uses a fixture and writes nothing, so CI
 and local verification need no AWS access. `--live` reads ProductsTable (needs

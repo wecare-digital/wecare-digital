@@ -3,21 +3,21 @@
  * Request Pickup, with a single definition so no amount or variant GUID is re-typed anywhere else.
  *
  * Mirrors src/config/contribution.ts's shape on purpose: a service is bought exactly the way a
- * contribution is - ONE fixed-price variant of ONE Wix product, added to the existing cart at
+ * contribution is - ONE fixed-price variant of ONE catalog product, added to the existing cart at
  * quantity 1 and paid on the one live checkout path (`POST /ecommerce/prepare-checkout`). There is
  * no second payment implementation for a service.
  *
  * NO PRICE IS DECLARED HERE, SINCE 2026-10-08. Owner decision: "price 49 or 99 can change any
- * time so make dynamic". Each page reads its own variant's LIVE Wix price from
- * `GET /ecommerce/service-prices` (src/lib/servicePricing.ts), so a price edited in Wix appears
+ * time so make dynamic". Each page reads its own variant's LIVE catalog price from
+ * `GET /ecommerce/service-prices` (src/lib/servicePricing.ts), so a price edited in catalog appears
  * on the page within about a minute with no deploy. What survives here is stable catalogue
  * IDENTITY — which variant each service buys — which is exactly the part that does not change
  * when a price does.
  *
- * THE SERVER IS STILL THE AUTHORITY, and now so is Wix. The browser names a CHOICE;
+ * THE SERVER IS STILL THE AUTHORITY, and now so is the catalog. The browser names a CHOICE;
  * `cart_v2.calculate` prices the line and
- * amplify/functions/shared/lambda_utils/ecommerce/service_requests.py asserts WIX'S OWN line
- * price inside a wide catastrophe rail rather than against a committed figure — so a Wix price
+ * amplify/functions/shared/lambda_utils/ecommerce/service_requests.py asserts THE CATALOG'S OWN line
+ * price inside a wide catastrophe rail rather than against a committed figure — so a catalog price
  * edit is CHARGED instead of refusing the purchase, which is what it used to do.
  * tests/test_service_requests.py fails if the two declarations drift.
  *
@@ -25,19 +25,19 @@
  * checkout adds the same convenience fee and GST on that fee as any order, which is why each page
  * says "a convenience fee is added at checkout" beside its amount.
  *
- * FIVE SERVICES ARE OFFERED, all five variants of the one Wix product. Request Pickup joined on
- * 2026-10-10, when the live Wix storefront began returning it visible and in stock and
- * src/content/wix-catalog.json was refreshed from that read.
+ * FIVE SERVICES ARE OFFERED, all five variants of the one catalog product. Request Pickup joined on
+ * 2026-10-10, when the live catalog storefront began returning it visible and in stock and
+ * src/content/catalog-snapshot.json was refreshed from that read.
  * NOT_OFFERED_SERVICE_VARIANT_IDS is therefore EMPTY - it is kept, with the cart guard and the
- * drift test that read it, so the NEXT variant added in Wix can be refused by name rather than
+ * drift test that read it, so the NEXT variant added in catalog can be refused by name rather than
  * sold as an ordinary product line.
  *
  * WHICH ID MEANS WHAT. `variantId` stays the primary cart reference - it is the value that travels
  * in `catalogReference.options` and the one the server's allow-list keys on. `choiceId` and `sku`
- * are REFERENCE METADATA ONLY: they are carried so this declaration matches the Wix snapshot
+ * are REFERENCE METADATA ONLY: they are carried so this declaration matches the catalog snapshot
  * without a second hand-typed copy of the catalogue, and nothing in the payment path reads them.
- * Every one of them is read out of src/content/wix-catalog.json, which `fetch-wix-catalog.js`
- * writes from Wix itself.
+ * Every one of them is read out of src/content/catalog-snapshot.json, which `build-catalog-snapshot.py`
+ * writes from catalog itself.
  *
  * FOUR OF THE FIVE NEED A TARGET REQUEST (`needsTarget`): an amendment amends one, Drop Docs
  * sends documents for a request already under way, Vault asks for a copy of a document held
@@ -53,8 +53,8 @@
 export const SERVICES_CURRENCY = 'INR' as const;
 
 /**
- * The Wix catalogue product `Request` (PHYSICAL in Wix, five variants). It was named
- * `WECARE.DIGITAL Services` until Wix renamed it on 2026-10-10; the slug is unchanged at
+ * The catalogue product `Request` (PHYSICAL in the catalog, five variants). It was named
+ * `WECARE.DIGITAL Services` until catalog renamed it on 2026-10-10; the slug is unchanged at
  * `wecaredigital-services`, so no URL moved with the rename. The `: string` annotation is
  * load-bearing for the same reason as CONTRIBUTION_PRODUCT_ID's.
  */
@@ -74,10 +74,10 @@ export type ServiceKind =
 export type ServiceSlug =
   'submit-request' | 'request-amendment' | 'drop-docs' | 'vault' | 'request-pickup';
 
-/** One purchasable service: its kind, the Wix variant it buys, its label and its page. NO PRICE. */
+/** One purchasable service: its kind, the catalog variant it buys, its label and its page. NO PRICE. */
 export interface ServiceChoice {
   readonly kind: ServiceKind;
-  /** The Wix variant id. This is what travels in the cart line's `catalogReference.options`. */
+  /** The catalog variant id. This is what travels in the cart line's `catalogReference.options`. */
   readonly variantId: string;
   /** The label on the page and the cart row. */
   readonly label: string;
@@ -92,11 +92,11 @@ export interface ServiceChoice {
   /** Does this service need a target Submit Request of the caller's own? */
   readonly needsTarget: boolean;
   /**
-   * The Wix option-choice id of this service within SERVICES_OPTION_ID. Additive metadata that
+   * The catalog option-choice id of this service within SERVICES_OPTION_ID. Additive metadata that
    * mirrors the snapshot; the cart still travels on `variantId`.
    */
   readonly choiceId: string;
-  /** The Wix variant SKU, as the snapshot reports it. Reference metadata, never a lookup key. */
+  /** The catalog variant SKU, as the snapshot reports it. Reference metadata, never a lookup key. */
   readonly sku: string;
 }
 
@@ -136,7 +136,7 @@ export const SERVICE_CHOICES: readonly ServiceChoice[] = [
 
 /**
  * Variants of the services product that are NOT offered. EMPTY: all five are offered. Referenced
- * only by the drift test and the cart guard, and kept so the next Wix variant can be named here
+ * only by the drift test and the cart guard, and kept so the next catalog variant can be named here
  * and refused rather than sold.
  */
 export const NOT_OFFERED_SERVICE_VARIANT_IDS: readonly string[] = [] as const;

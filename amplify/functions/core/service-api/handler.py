@@ -5,7 +5,6 @@ Routes:
   /orders                  GET (list), POST (create)
   /orders/{id}             GET, PATCH
   /orders/{id}/submissions GET
-  /orders/sync             POST
   /service/submit          POST
   /service/amend           POST
   /service/track/{orderId} GET
@@ -251,20 +250,6 @@ def _get_order_submissions(order_id: str) -> Dict:
     )
     items = sorted(resp.get('Items', []), key=lambda x: x.get('createdAt', 0), reverse=True)
     return _resp(200, {'submissions': items})
-
-
-def _sync_orders() -> Dict:
-    """Compatibility endpoint: orders are already native and require no provider sync.
-
-    OrderTable is the authoritative store after Wix retirement. Keep the action so
-    existing staff/automation callers do not break, but do not invoke any retired
-    provider Lambda or claim that an external synchronization occurred.
-    """
-    return _resp(200, {
-        'message': 'AWS-native orders are already authoritative',
-        'synced': 0,
-        'source': 'orders_table',
-    })
 
 
 # ============================================================================

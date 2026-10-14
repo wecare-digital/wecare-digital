@@ -179,7 +179,7 @@ const CallHistoryPage: React.FC<PageProps> = ({ signOut, user, embedded = false 
   );
 
   if (embedded) return content;
-  return <Layout signOut={signOut} user={user}><SEO title="Call History" description="Voice call history" />{content}</Layout>;
+  return <Layout onSignOut={signOut} user={user}><SEO title="Call History" description="Voice call history" />{content}</Layout>;
 };
 
 export default CallHistoryPage;

@@ -145,7 +145,7 @@ CLEANUP_RESOURCES = {
         'table': 'stack-wecare-digital-VoiceCDRTable',
     },
     'voice_calls': {
-        'label': 'Voice Calls (Airtel)',
+        'label': 'Voice Calls',
         'category': 'Voice',
         'type': 'dynamodb',
         'table': 'stack-wecare-digital-VoiceCalls',
@@ -156,15 +156,6 @@ CLEANUP_RESOURCES = {
         'type': 'dynamodb',
         'table': 'stack-wecare-digital-VoiceAwsTable',
     },
-    # sms_aws removed 2026-09-24, for the same reason airtel_sms / airtel_c2c were
-    # removed below: it named `stack-wecare-digital-SmsAwsTable`, which is not in
-    # the account. SMS rows now live in the canonical MessagesTable under
-    # channel='sms', which the `messages_legacy` entry already covers, so nothing
-    # became uncleanable - an entry that raises ResourceNotFound on every run just
-    # stopped doing that.
-    # airtel_sms / airtel_c2c removed 2026-09-20: both tables were deleted from
-    # the account with the Airtel retirement. A registry entry for a table that
-    # no longer exists makes every cleanup run raise ResourceNotFound.
     'invoices': {
         'label': 'Invoices',
         'category': 'Invoices & Payments',
@@ -279,13 +270,13 @@ CLEANUP_RESOURCES = {
         'table': 'stack-wecare-digital-MessagesTable',
     },
     'dlt_templates': {
-        'label': 'DLT Templates (Airtel SMS)',
+        'label': 'DLT Templates',
         'category': 'SMS',
         'type': 'dynamodb',
         'table': 'stack-wecare-digital-DLTTemplates',
     },
-    'wix_order_ids': {
-        'label': 'Wix Order ID Mapping',
+    'commerce_keys': {
+        'label': 'Commerce Key Mapping',
         'category': 'Ecommerce',
         'type': 'dynamodb',
         'table': 'stack-wecare-digital-CommerceKeys',
@@ -426,7 +417,7 @@ CLEANUP_ALLOWLIST = {
     'stack-wecare-digital-RateLimitTable',
     # derived analytics; re-fetchable from Meta's template insights API
     'stack-wecare-digital-TemplateAnalyticsTable',
-    # Airtel SMS DLT template cache; Airtel is retired
+    # DLT template registry is regulatory application data.
     'stack-wecare-digital-DLTTemplates',
 }
 
@@ -445,11 +436,9 @@ SQS_QUEUE_ALLOWLIST: set = set()
 # future careless allow-list edit. A name that matches any of these can never be selected,
 # even by an MFA'd Admin, even if someone adds it to CLEANUP_ALLOWLIST.
 #
-# `wixorder` is here because AUDIT-REPORT.md records `stack-wecare-digital-CommerceKeys`'
-# `PAYREF#` / `PAYMENTATTEMPT#` / `INVOICECOLLECT#` rows as the canonical payment
-# idempotency anchors — losing them makes a replayed webhook charge twice.
+# Commerce/order/payment key material is protected because it anchors idempotency.
 PROTECTED_NAME_KEYWORDS = (
-    'contact', 'customer', 'order', 'wixorder', 'invoice', 'payment', 'paymentattempt',
+    'contact', 'customer', 'order', 'commercekey', 'invoice', 'payment', 'paymentattempt',
     'servicerequest', 'document', 'securefile', 'downloadgrant', 'entitlement',
     'flowsubmission', 'submitrequest', 'message', 'inbound', 'outbound', 'audit',
     'conversation',

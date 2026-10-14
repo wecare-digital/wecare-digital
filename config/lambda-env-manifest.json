@@ -266,8 +266,6 @@
       "S3_BUCKET": "wecare-digital-get"
     },
     "wecare-outbound-sms": {
-      "AIRTEL_IQ_ENTITY_ID": "1201161991108627443",
-      "AIRTEL_IQ_SOURCE_ADDRESS": "WDBEEP",
       "AWS_ACCOUNT_ID": "775261844268",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
       "LOG_LEVEL": "INFO",
@@ -333,10 +331,7 @@
       "SMS_FUNCTION": "wecare-sms-aws:live"
     },
     "wecare-product-image-gen": {
-      "CREDENTIAL_PURGE_EPOCH": "2026-09-23T03:05:00Z",
-      "WIX_ACCOUNT_ID": "sha256:19b6772e0eba",
-      "WIX_CREDENTIALS_DISABLED": "true",
-      "WIX_SITE_ID": "sha256:e86fbb159ac6"
+      "CREDENTIAL_PURGE_EPOCH": "2026-09-23T03:05:00Z"
     },
     "wecare-pstn-softphone": {
       "PLIVO_API_SECRET_ID": "wecare/plivo/api",
@@ -417,8 +412,7 @@
       "CREDENTIAL_PURGE_EPOCH": "2026-09-23T03:05:00Z",
       "LOG_LEVEL": "INFO",
       "SEO_TOOLS_TABLE": "stack-wecare-digital-SeoToolsTable",
-      "WEBHOOK_DEDUP_TABLE": "stack-wecare-digital-WebhookDedup",
-      "WIX_CREDENTIALS_DISABLED": "true"
+      "WEBHOOK_DEDUP_TABLE": "stack-wecare-digital-WebhookDedup"
     },
     "wecare-service-api": {
       "DOCS_S3_BUCKET": "wecare-digital-get",
@@ -517,8 +511,7 @@
       "RAZORPAY_MID": "acc_TTFSyolquKEZEy",
       "RAZORPAY_UPI_ID": "wecaredigitalbh511413.rzp@rxairtel",
       "SUBMIT_REQUESTS_TABLE": "stack-wecare-digital-SubmitRequestsTable",
-      "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys",
-      "WIX_SITE_URL": "https://wecare.digital"
+      "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys"
     },
     "wecare-whatsapp-calling": {
       "ADMIN_MFA_REQUIRED": "true",
