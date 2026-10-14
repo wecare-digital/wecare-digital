@@ -113,8 +113,8 @@ from lambda_utils.ecommerce.blog_contribution import (
 # per-line price assertion. All logic lives in the module; this file only calls it.
 from lambda_utils.ecommerce import service_requests
 from lambda_utils.ecommerce.service_requests import ServiceNotPayable, ServicePriceChanged
-# The LIVE Wix price of each service, for the four public service pages. Same adapter, same cart,
-# same figure the checkout charges -- see `_service_prices` below for why this arm lives here.
+# Public service prices use the authoritative AWS product catalog.
+from lambda_utils.ecommerce import service_pricing_native
 from lambda_utils.integrations import razorpay_orders, razorpay_verify
 from lambda_utils import wix_ecom
 # Aliased `customer_identity`, NEVER `identity`: `identity` is a parameter name in nearly every
@@ -452,37 +452,22 @@ SERVICE_PRICES_UNAVAILABLE = "SERVICE_PRICES_UNAVAILABLE"
 
 
 def _service_prices(origin: str) -> Dict[str, Any]:
-    """Return a public AWS-native service price list from ProductsTable.
-
-    Price authority is the live product variant reader; never fall back to
-    a deleted Wix site or treat an unavailable price as zero.
-    """
-    # AWS-NATIVE service pricing (CATALOG_SOURCE=aws): resolve each service variant's
-    # price from ProductsTable instead of a live Wix cart estimate. Same payload shape,
-    # same fail-closed-per-slug contract. This is what keeps the 4 service pages priced
-    # after the Wix admin key is gone.
-    if _supply_mode() == "AWS_NATIVE" or str(os.environ.get("CATALOG_SOURCE", "")).lower() == "aws":
-        try:
-            from lambda_utils.ecommerce import service_pricing_native
-            payload = service_pricing_native.resolve_all(_native_variant_reader())
-        except Exception as exc:  # noqa: BLE001
-            logger.error(json.dumps({"event": "service_prices_native_failed",
-                                     "error": type(exc).__name__}))
-            return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
-        priced = sum(1 for price in payload["prices"].values() if price.get("available"))
-        if not priced:
-            logger.error(json.dumps({"event": "service_prices_none_resolved_native",
-                                     "slugs": len(payload["prices"])}))
-            return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
-        response = cors_response(200, {"currency": payload["currency"],
-                                       "prices": payload["prices"]}, origin)
-        response["headers"]["Cache-Control"] = "public, max-age=60"
-        return _hardened(response)
-
-    # This mode has been retired. Explicitly fail closed rather than silently
-    # running Wix CartV2 or another provider-backed estimate.
-    logger.warning(json.dumps({"event": "service_prices_legacy_disabled"}))
-    return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
+    """Serve integer service prices from ProductsTable, failing closed per slug."""
+    try:
+        payload = service_pricing_native.resolve_all(_native_variant_reader())
+    except Exception as exc:  # noqa: BLE001 - log error class only
+        logger.error(json.dumps({"event": "service_prices_native_failed",
+                                 "error": type(exc).__name__}))
+        return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
+    priced = sum(1 for price in payload["prices"].values() if price.get("available"))
+    if not priced:
+        logger.error(json.dumps({"event": "service_prices_none_resolved_native",
+                                 "slugs": len(payload["prices"])}))
+        return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
+    response = cors_response(200, {"currency": payload["currency"],
+                                   "prices": payload["prices"]}, origin)
+    response["headers"]["Cache-Control"] = "public, max-age=60"
+    return _hardened(response)
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
