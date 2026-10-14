@@ -1,0 +1,128 @@
+{
+  "source": "aws products-table (native catalog)",
+  "catalogVersion": "AWS_NATIVE_V1",
+  "fetchedAt": "2026-10-14T06:34:07.788265+00:00",
+  "productCount": 10,
+  "products": [
+    {
+      "id": "121c9d57-2cc9-490b-8eed-66bf7b9c172a",
+      "name": "₹1 test product",
+      "slug": "1-test-product",
+      "price": "1.00",
+      "formattedPrice": "₹1.00",
+      "currency": "INR",
+      "inStock": false,
+      "tagline": "",
+      "body": []
+    },
+    {
+      "id": "abfdad33-b853-4aeb-b2f9-fa4051e75928",
+      "name": "Anew",
+      "slug": "anew",
+      "price": "599.00",
+      "formattedPrice": "₹599.00",
+      "currency": "INR",
+      "inStock": false,
+      "tagline": "<p><span style=\"font-weight: 700\">Anew by WECARE.DIGITAL</span></p><p><span style=\"font-weight: 700\">Reflection into </span><em><span style=\"font-weight: 700\">clarity / action / direction / focus</spa",
+      "body": [],
+      "image": "https://static.wixstatic.com/media/478bf9_8c3222208f35439a8895fa10e928edb7~mv2.png"
+    },
+    {
+      "id": "8514c405-3971-4786-ad0d-15406ca23407",
+      "name": "Contribute",
+      "slug": "contribute",
+      "price": "250.00",
+      "formattedPrice": "₹250.00",
+      "currency": "INR",
+      "inStock": false,
+      "tagline": "",
+      "body": [],
+      "image": "https://static.wixstatic.com/media/478bf9_2cd9cf9b4d864198b928c57a020cef1c~mv2.png"
+    },
+    {
+      "id": "518f58d4-f365-4cad-83ea-215a862f84f5",
+      "name": "File Assist",
+      "slug": "file-assist",
+      "price": "6999.00",
+      "formattedPrice": "₹6,999.00",
+      "currency": "INR",
+      "inStock": false,
+      "tagline": "<p><span style=\"font-weight: 700\">Documents prepared. Next steps coordinated.</span></p><p>You’ve already agreed on the important terms.</p><p>File Assist helps turn those decisions into organised doc",
+      "body": [],
+      "image": "https://static.wixstatic.com/media/478bf9_4200c3df23494a798aaa2998878af240~mv2.png"
+    },
+    {
+      "id": "74f6771a-1ea8-429c-9a8b-0318dca67d25",
+      "name": "Guided Resolution",
+      "slug": "guided-resolution",
+      "price": "13999.00",
+      "formattedPrice": "₹13,999.00",
+      "currency": "INR",
+      "inStock": false,
+      "tagline": "<p><span style=\"font-weight: 700\">Work through what is unresolved. Document what you agree.</span></p><p>You both want to move forward peacefully, but there are still a few important things to work th",
+      "body": [],
+      "image": "https://static.wixstatic.com/media/478bf9_907442afff3f45e3a7d2dfec7726c07b~mv2.png"
+    },
+    {
+      "id": "a12e9e74-e109-4136-a12e-ab49ea6f98c3",
+      "name": "Kiosk",
+      "slug": "kiosk",
+      "price": "24999.00",
+      "formattedPrice": "₹24,999.00",
+      "currency": "INR",
+      "inStock": false,
+      "tagline": "<p><span style=\"font-weight: 700\">Put your location to work.</span></p><p>You already have the place.</p><p>A shop. An office. A store. A reception. Somewhere people already walk in, wait, ask questio",
+      "body": [],
+      "image": "https://static.wixstatic.com/media/478bf9_30c2b36f1fad43ad95f29302286fdf33~mv2.png"
+    },
+    {
+      "id": "eca1540e-0a0e-478d-9aa7-e366be277617",
+      "name": "Merchandise",
+      "slug": "merchandise",
+      "price": "1199.00",
+      "formattedPrice": "₹1,199.00",
+      "currency": "INR",
+      "inStock": false,
+      "tagline": "<p><span style=\"font-weight: 700\">Show up. Stay remembered.</span></p><p>Some connections begin online. The good ones often continue in the real world.</p><p>At work, at a meeting, at an event, or dur",
+      "body": [],
+      "image": "https://static.wixstatic.com/media/478bf9_72706e7bee784f898f4de15b87dc5850~mv2.png"
+    },
+    {
+      "id": "31ac32e7-9571-41c0-8fbf-32d2ae886da5",
+      "name": "Paperwork",
+      "slug": "paperwork",
+      "price": "3499.00",
+      "formattedPrice": "₹3,499.00",
+      "currency": "INR",
+      "inStock": false,
+      "tagline": "<p><span style=\"font-weight: 700\">Turn what you’ve agreed into clear, organised documentation.</span></p><p>When the important decisions are already substantially agreed, Paperwork helps you turn thos",
+      "body": [],
+      "image": "https://static.wixstatic.com/media/478bf9_51d20f04d7db4c0b83a0188373400b1e~mv2.png"
+    },
+    {
+      "id": "7f3bbc75-02a4-4e4e-a023-e7074e87585f",
+      "name": "Referral Partner",
+      "slug": "referral-partner",
+      "price": "999.00",
+      "formattedPrice": "₹999.00",
+      "currency": "INR",
+      "inStock": false,
+      "tagline": "<p><span style=\"font-weight: 700\">Make the introductions you already make count.</span></p><p>Someone asks you:</p><p><span style=\"font-weight: 700\">“Do you know someone who can help with this?”</span",
+      "body": [],
+      "image": "https://static.wixstatic.com/media/478bf9_7cb916e01cfc48c19f76c90f890d6bb3~mv2.png"
+    },
+    {
+      "id": "df976a0a-f582-4535-b2e1-d532f348bd27",
+      "name": "Request",
+      "slug": "wecaredigital-services",
+      "price": "49.00",
+      "formattedPrice": "₹49.00",
+      "currency": "INR",
+      "inStock": false,
+      "tagline": "<p>Get help with your order, upload documents or access your Vault.</p>",
+      "body": [],
+      "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png"
+    }
+  ],
+  "variantVerifiedAt": "2026-10-14T06:34:07.788265+00:00"
+}
