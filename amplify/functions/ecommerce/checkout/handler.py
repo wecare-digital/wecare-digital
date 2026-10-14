@@ -334,6 +334,38 @@ def _native_product_reader():
     return read
 
 
+def _native_variant_reader():
+    """A reader `variant_id -> {priceMinor, currency, status}` for native SERVICE pricing.
+
+    Service pages price by VARIANT id (e.g. the five variants of the services product),
+    so this scans ProductsTable once and indexes every variant sku -> a price row. The
+    catalog is tiny (10 products), so one scan is cheap and the result is cached in the
+    closure for the life of the warm sandbox. Mirrors service_pricing_native's expected
+    reader contract: returns None for an unknown variant (-> {"available": false}).
+    """
+    table = _products_table()
+    index = {}
+    kwargs = {}
+    while True:
+        resp = table.scan(**kwargs)
+        for p in resp.get("Items", []):
+            status = str(p.get("status") or "active")
+            for v in p.get("variants", []) or []:
+                sku = str(v.get("sku") or v.get("id") or "")
+                if sku:
+                    index[sku] = {"priceMinor": v.get("priceMinor"),
+                                  "currency": p.get("currency", "INR"),
+                                  "status": status}
+        if "LastEvaluatedKey" not in resp:
+            break
+        kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+
+    def read(variant_id):
+        return index.get(str(variant_id))
+
+    return read
+
+
 def _lambda_client():
     global _lambda
     if _lambda is None:
@@ -448,6 +480,28 @@ def _service_prices(origin: str) -> Dict[str, Any]:
 
     Logs counts only. No credential, no cart id, no provider message.
     """
+    # AWS-NATIVE service pricing (CATALOG_SOURCE=aws): resolve each service variant's
+    # price from ProductsTable instead of a live Wix cart estimate. Same payload shape,
+    # same fail-closed-per-slug contract. This is what keeps the 4 service pages priced
+    # after the Wix admin key is gone.
+    if _supply_mode() == "AWS_NATIVE" or str(os.environ.get("CATALOG_SOURCE", "")).lower() == "aws":
+        try:
+            from lambda_utils.ecommerce import service_pricing_native
+            payload = service_pricing_native.resolve_all(_native_variant_reader())
+        except Exception as exc:  # noqa: BLE001
+            logger.error(json.dumps({"event": "service_prices_native_failed",
+                                     "error": type(exc).__name__}))
+            return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
+        priced = sum(1 for price in payload["prices"].values() if price.get("available"))
+        if not priced:
+            logger.error(json.dumps({"event": "service_prices_none_resolved_native",
+                                     "slugs": len(payload["prices"])}))
+            return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
+        response = cors_response(200, {"currency": payload["currency"],
+                                       "prices": payload["prices"]}, origin)
+        response["headers"]["Cache-Control"] = "public, max-age=60"
+        return _hardened(response)
+
     if not cart_v2.is_enabled():
         logger.warning(json.dumps({"event": "service_prices_disabled"}))
         return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
