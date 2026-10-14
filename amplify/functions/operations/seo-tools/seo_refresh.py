@@ -5,13 +5,12 @@ pre-existing `seo_freshness.py` in this package is the Bedrock-cost dedup for th
 path (its `source_hash`/`decide`/`skip_log`). This one is the scheduled sweep that regenerates
 DERIVED SEO records for blog posts whose content changed. Two different jobs, two names.
 
-WHAT IT DOES. Reads the public blog corpus from `wix` (the source of truth, read-only), and for
+WHAT IT DOES. Reads the public blog corpus from the AWS-native blog source, and for
 each post asks `seo_engine.refresh` to recompute the derived SEO record IF its sourceHash
 changed. An unchanged post is skipped with zero writes. That is the entire cost story: the job
 reads a cached corpus and writes only the records that actually moved.
 
-WHY A SCHEDULED CHECK RATHER THAN AN EVENT. Blog content is authored in Wix, outside this
-system, so there is no reliable in-app event to hook. A low-frequency poll that skips unchanged
+WHY A SCHEDULED CHECK. A low-frequency sweep that skips unchanged
 records (via sourceHash) is the cheap, correct pattern the brief describes, and it never becomes
 a constant poller: it runs on an EventBridge schedule (daily by default) and does bounded work.
 
@@ -30,9 +29,9 @@ import logging
 import time
 from typing import Any, Dict, List
 
-import blog_source
 import seo_config
 import seo_engine
+import blog_source
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +65,7 @@ def run(event: Dict[str, Any] | None = None) -> Dict[str, Any]:
     max_refresh = int(event.get("maxRefresh") or _DEFAULT_MAX_REFRESH)
     force = bool(event.get("force"))
 
-    posts = blog_source.list_blog_posts()  # AWS-native (SeoToolsTable); read-only; raises if the store is down
+    posts = blog_source.list_blog_posts()
 
     refreshed = 0
     skipped = 0
