@@ -409,12 +409,6 @@ def expected_role_policy(acct: str | None = None) -> dict:
         "Version": "2012-10-17",
         "Statement": [
             {
-                "Sid": "ReadWixApiKey",
-                "Effect": "Allow",
-                "Action": ["secretsmanager:GetSecretValue"],
-                "Resource": [f"arn:aws:secretsmanager:{REGION}:{acct}:secret:{WIX_API_KEY_SECRET}-*"],
-            },
-            {
                 "Sid": "ReadRazorpayApiKey",
                 "Effect": "Allow",
                 "Action": ["secretsmanager:GetSecretValue"],
@@ -568,7 +562,6 @@ def expected_environment() -> dict:
     return {
         "PAYMENT_ATTEMPTS_TABLE": PAYMENT_ATTEMPTS_TABLE,
         "COMMERCE_KEYS_TABLE": COMMERCE_KEYS_TABLE,
-        "WIX_API_KEY_SECRET": WIX_API_KEY_SECRET,
         "RAZORPAY_SECRET_ID": RAZORPAY_API_SECRET,
         "CONTACTS_TABLE": CONTACTS_TABLE,
         "ORDERS_TABLE": ORDERS_TABLE,

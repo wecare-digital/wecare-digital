@@ -130,8 +130,8 @@ ENVIRONMENT = {
     "META_CATALOG_APPROVALS_TABLE": CATALOG_APPROVALS_TABLE,
     "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4,8ee7e325-d772-4452-a993-5c79e927d42b",
     "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
-    "WIX_API_KEY_SECRET": WIX_API_KEY_SECRET,
-    "WIX_SITE_ID": "c993128b-26be-41cd-9fcd-904abe23462f",
+    "CATALOG_SOURCE": "aws",
+    "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
     "LOG_LEVEL": "INFO",
 }
 
@@ -213,7 +213,6 @@ def expected_role_policy(account: str = ACCOUNT_ID) -> dict:
                 "Action": "secretsmanager:GetSecretValue",
                 "Resource": [
                     secret_arn(META_TOKEN_SECRET, account),
-                    secret_arn(WIX_API_KEY_SECRET, account),
                 ],
             },
             {
