@@ -305,6 +305,16 @@ def publish(job_ref: str, actor: str) -> Dict[str, Any]:
         postId=result["postId"], postUrl=result["postUrl"])
     _write_record(source_id, {**job, "status": PUBLISHED, "publishedAt": now, **result},
                   draft, actor)
+    try:
+        import blog_catalog
+        blog_catalog.write_published_post(record, draft, result, actor)
+    except Exception as exc:  # noqa: BLE001
+        # The native post is already live. S3 is a rebuildable mirror, so a mirror failure
+        # must never turn a successful publish into a retry that could create a duplicate.
+        logger.warning(json.dumps({
+            "event": "blog_s3_post_mirror_failed", "sourceId": source_id,
+            "postId": result.get("postId", ""), "error": type(exc).__name__,
+        }))
     logger.info(json.dumps({
         "event": "blog_published", "jobId": job_ref, "sourceId": source_id,
         "actor": actor, "postId": result["postId"], "slug": job.get("articleSlug", "")}))

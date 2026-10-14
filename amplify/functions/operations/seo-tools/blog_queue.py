@@ -69,6 +69,7 @@ DLQ_NAME = QUEUE_NAME + "-dlq"
 
 #: SQS's own hard limit on `SendMessageBatch`. Not a tuning choice.
 SEND_BATCH = 10
+MAX_BULK_ITEMS = 1000
 
 #: The event source mapping's batch size and concurrency cap. Small batches on purpose: a
 #: 40 MB PDF can take seconds, and a batch of ten of them risks the visibility timeout, at which
@@ -95,53 +96,70 @@ def configured() -> bool:
     return bool(QUEUE_URL)
 
 
-def enqueue(source_ids: Sequence[str], reason: str = "") -> Dict[str, Any]:
-    """One message per source. Never raises.
-
-    The records are already durable in DynamoDB before this is called, so a failed send costs a
-    delay rather than the work - the reconciliation sweep will find anything that never got a
-    message. Raising here would fail an HTTP request whose real work had already succeeded.
-
-    Failures are counted and logged rather than swallowed silently, because "the queue is
-    rejecting sends" and "there was nothing to send" must not look the same in a log.
-    """
-    ids = [str(value) for value in source_ids if str(value or "").strip()]
-    if not ids:
+def _send_payloads(payloads: Sequence[Dict[str, Any]], event_name: str) -> Dict[str, Any]:
+    if not payloads:
         return {"queued": 0, "failed": 0, "configured": configured()}
+    if len(payloads) > MAX_BULK_ITEMS:
+        raise ValueError(f"at most {MAX_BULK_ITEMS} queue items per request")
     if not configured():
         return {"queued": 0, "failed": 0, "configured": False}
 
     queued = failed = 0
     client = sqs_client()
-    for start in range(0, len(ids), SEND_BATCH):
-        chunk = ids[start:start + SEND_BATCH]
+    for start in range(0, len(payloads), SEND_BATCH):
+        chunk = payloads[start:start + SEND_BATCH]
         entries = [{
             "Id": str(index),
-            "MessageBody": json.dumps({"sourceId": source_id, "reason": reason}),
-        } for index, source_id in enumerate(chunk)]
+            "MessageBody": json.dumps(payload, separators=(",", ":")),
+        } for index, payload in enumerate(chunk)]
         try:
             response = client.send_message_batch(QueueUrl=QUEUE_URL, Entries=entries)
         except Exception as exc:  # noqa: BLE001
             failed += len(chunk)
             logger.warning(json.dumps({
-                "event": "blog_ingest_enqueue_failed", "count": len(chunk),
-                "error": type(exc).__name__}))
+                "event": event_name + "_failed", "count": len(chunk),
+                "error": type(exc).__name__,
+            }))
             continue
         queued += len(response.get("Successful") or [])
-        #: A PARTIAL failure is the case that quietly loses work: SendMessageBatch returns 200
-        #: with a `Failed` list, so a caller checking only for an exception counts ten sends when
-        #: three did not happen.
         for item in response.get("Failed") or []:
             failed += 1
             logger.warning(json.dumps({
-                "event": "blog_ingest_enqueue_rejected",
+                "event": event_name + "_rejected",
                 "code": str(item.get("Code") or ""),
                 "senderFault": bool(item.get("SenderFault")),
             }))
-    logger.info(json.dumps({
-        "event": "blog_ingest_enqueued", "queued": queued, "failed": failed,
-        "reason": reason}))
+    logger.info(json.dumps({"event": event_name, "queued": queued, "failed": failed}))
     return {"queued": queued, "failed": failed, "configured": True}
+
+
+def enqueue(source_ids: Sequence[str], reason: str = "") -> Dict[str, Any]:
+    """Fan out source extraction. Existing callers remain backwards-compatible."""
+    ids = [str(value) for value in source_ids if str(value or "").strip()]
+    return _send_payloads(
+        [{"action": "extract", "sourceId": source_id, "reason": reason}
+         for source_id in ids],
+        "blog_ingest_enqueued",
+    )
+
+
+def enqueue_publish(job_ids: Sequence[str], actor: str, reason: str = "bulk-publish") -> Dict[str, Any]:
+    """Fan out publish work for jobs that were already explicitly released.
+
+    This never releases an article and therefore cannot turn extraction/batch completion into
+    publication. It only scales the second phase of the existing two-phase release -> publish
+    contract. The worker re-runs blog_publish.publish, including its conditional claim and
+    publish-time sign-off/body-hash checks.
+    """
+    ids = [str(value) for value in job_ids if str(value or "").strip()]
+    who = str(actor or "").strip()
+    if not who:
+        raise ValueError("actor is required for bulk publish")
+    return _send_payloads(
+        [{"action": "publish", "jobId": job_id, "actor": who, "reason": reason}
+         for job_id in ids],
+        "blog_publish_bulk_enqueued",
+    )
 
 
 def is_queue_event(event: Dict[str, Any]) -> bool:
@@ -160,29 +178,21 @@ def is_queue_event(event: Dict[str, Any]) -> bool:
                for record in records)
 
 
-def _source_id_of(record: Dict[str, Any]) -> str:
+def _payload_of(record: Dict[str, Any]) -> Dict[str, Any]:
     try:
         body = json.loads(record.get("body") or "{}")
     except (TypeError, ValueError):
-        return ""
-    return str(body.get("sourceId") or "").strip() if isinstance(body, dict) else ""
+        return {}
+    return body if isinstance(body, dict) else {}
+
+
+def _source_id_of(record: Dict[str, Any]) -> str:
+    return str(_payload_of(record).get("sourceId") or "").strip()
 
 
 def consume(event: Dict[str, Any]) -> Dict[str, Any]:
-    """Extract every source named in the batch, reporting failures per message.
-
-    Returns the `batchItemFailures` shape Lambda expects. A message is reported as failed ONLY
-    when the work should be retried:
-
-      DONE, FAILED  the source reached a terminal state and the outcome is recorded on the
-                    record. Retrying would re-read a document to reach the same conclusion.
-      SKIPPED       another delivery or the sweep already holds the claim. Not a failure.
-      RAISED        an exception during extraction, which may be transient - a slow S3 read, a
-                    cold import. Retried, and dead-lettered after `MAX_RECEIVES`.
-
-      an unparseable or empty body is NOT retried. It cannot succeed on a second attempt, and
-      redelivering it three times before the DLQ only delays the visibility.
-    """
+    """Consume extraction and explicit publish jobs with per-message retry."""
+    import blog_publish
     import blog_sources
 
     records = event.get("Records") or []
@@ -192,7 +202,35 @@ def consume(event: Dict[str, Any]) -> Dict[str, Any]:
 
     for record in records:
         message_id = str(record.get("messageId") or "")
-        source_id = _source_id_of(record)
+        payload = _payload_of(record)
+        action = str(payload.get("action") or "extract").strip().lower()
+
+        if action == "publish":
+            job_id = str(payload.get("jobId") or "").strip()
+            actor = str(payload.get("actor") or "").strip()
+            if not job_id or not actor:
+                outcomes["MALFORMED_PUBLISH"] = outcomes.get("MALFORMED_PUBLISH", 0) + 1
+                continue
+            try:
+                result = blog_publish.publish(job_id, actor)
+                state = str(result.get("status") or "PUBLISHED")
+                outcomes["PUBLISH_" + state] = outcomes.get("PUBLISH_" + state, 0) + 1
+            except (LookupError, ValueError) as exc:
+                # Deterministic refusal: missing job, revoked sign-off, edited body, or a
+                # non-QUEUED state. Retrying the same message cannot change those facts.
+                outcomes["PUBLISH_REJECTED"] = outcomes.get("PUBLISH_REJECTED", 0) + 1
+                logger.warning(json.dumps({
+                    "event": "blog_publish_bulk_rejected", "jobId": job_id,
+                    "error": str(exc)[:300],
+                }))
+            except Exception as exc:  # noqa: BLE001
+                outcomes["PUBLISH_RAISED"] = outcomes.get("PUBLISH_RAISED", 0) + 1
+                logger.exception("bulk blog publish message failed")
+                if message_id:
+                    failures.append({"itemIdentifier": message_id})
+            continue
+
+        source_id = str(payload.get("sourceId") or "").strip()
         if not source_id:
             outcomes["MALFORMED"] = outcomes.get("MALFORMED", 0) + 1
             logger.warning(json.dumps({
@@ -203,7 +241,7 @@ def consume(event: Dict[str, Any]) -> Dict[str, Any]:
             touched.add(str(stored.get("batchId") or blog_sources.NO_BATCH))
         try:
             outcome = blog_sources.process_source(source_id)
-        except Exception as exc:  # noqa: BLE001 - one message must not fail the batch
+        except Exception as exc:  # noqa: BLE001
             logger.exception("blog ingest message failed")
             outcome = blog_sources.RAISED
             logger.warning(json.dumps({
@@ -215,7 +253,7 @@ def consume(event: Dict[str, Any]) -> Dict[str, Any]:
 
     blog_sources.refresh_batches(touched)
     logger.info(json.dumps({
-        "event": "blog_ingest_batch", "messages": len(records),
+        "event": "blog_queue_batch", "messages": len(records),
         "outcomes": dict(sorted(outcomes.items())), "retried": len(failures),
         "batches": sorted(touched),
     }))

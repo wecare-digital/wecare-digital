@@ -25,6 +25,7 @@ the one failure in this pipeline that cannot be undone after publication.
 """
 from __future__ import annotations
 
+import concurrent.futures
 import hashlib
 import json
 import logging
@@ -109,7 +110,7 @@ MAX_SOURCE_BYTES = int(os.environ.get("BLOG_SOURCE_MAX_BYTES", str(40 * 1024 * 1
 #: How many sources one worker invocation handles before chaining. Sized so the batch
 #: finishes well inside the 120s function timeout even when every PDF is large.
 WORKER_BATCH = int(os.environ.get("BLOG_WORKER_BATCH", "5"))
-MAX_REGISTER_BATCH = 200
+MAX_REGISTER_BATCH = 1000
 
 RECORD_TYPE = "blogSource"
 
@@ -357,16 +358,19 @@ def _view(item: Dict[str, Any]) -> Dict[str, Any]:
 # ── Phase 1: register and presign ───────────────────────────────────────────────
 
 def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> Dict[str, Any]:
-    """Create or resolve a source record per entry, and presign a PUT for each PDF."""
+    """Create or resolve up to 1,000 source records and presign each new PDF.
+
+    Validation and identity derivation happen before any write. Existing records are then
+    resolved with BatchGetItem and new/retryable rows are written through DynamoDB's batch
+    writer. That keeps a 1,000-source request bounded instead of doing 1,000 GetItem +
+    1,000 PutItem network round-trips inside one API request.
+    """
     entries = body.get("sources")
     if not isinstance(entries, list) or not entries:
         raise ValueError("sources must be a non-empty array")
     if len(entries) > MAX_REGISTER_BATCH:
         raise ValueError(f"at most {MAX_REGISTER_BATCH} sources per request")
 
-    #: A batch is optional, so the interactive single-source path still works without one.
-    #: When given it must exist and be open: adding sources to a closed batch would make its
-    #: rollup change after an operator deliberately finished with it.
     batch_id = str(body.get("batchId") or "").strip()
     batch: Dict[str, Any] = {}
     if batch_id:
@@ -377,7 +381,7 @@ def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> D
     default_class = str(body.get("articleClass") or batch.get("articleClass")
                         or "ARCHIVE_DERIVED").strip().upper()
 
-    registered: List[Dict[str, Any]] = []
+    prepared: List[Dict[str, Any]] = []
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict):
             raise ValueError(f"sources[{index}] must be an object")
@@ -401,8 +405,6 @@ def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> D
             if not ref:
                 raise ValueError(f"sources[{index}].fileName is required")
             record_id = source_id("pdf", ref, sha256)
-            # The key is derived from the CONTENT HASH, not from a uuid, so re-uploading the
-            # same bytes overwrites the same object instead of accumulating copies.
             key = PREFIX + sha256 + _safe_extension(ref)
         else:
             ref = normalize_url(entry.get("url") or entry.get("ref") or "")
@@ -411,10 +413,23 @@ def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> D
             sha256, size, key = "", 0, ""
             record_id = source_id("url", ref)
 
-        existing = get_source(record_id)
+        prepared.append({
+            "recordId": record_id, "sourceType": kind, "sourceRef": ref,
+            "sourceSha256": sha256, "sourceBytes": size, "s3Key": key,
+            "category": category, "articleClass": article_class,
+        })
+
+    existing_by_id = storage.get_typed_many(
+        [item["recordId"] for item in prepared], RECORD_TYPE)
+    registered: List[Dict[str, Any]] = []
+    writes: List[Dict[str, Any]] = []
+
+    for item in prepared:
+        record_id = item["recordId"]
+        kind = item["sourceType"]
+        ref = item["sourceRef"]
+        existing = existing_by_id.get(record_id)
         if existing and existing.get("status") in (UPLOADED, EXTRACTING, EXTRACTED):
-            # Resolve-before-generate: already known and already usable. Report it rather
-            # than re-presigning, so the caller can see the skip.
             registered.append({
                 "sourceId": record_id, "sourceRef": ref, "sourceType": kind,
                 "status": existing["status"], "alreadyKnown": True, "uploadUrl": "",
@@ -427,36 +442,28 @@ def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> D
             "recordType": RECORD_TYPE,
             "createdAt": (existing or {}).get("createdAt") or now,
             "updatedAt": now,
-            # `slug` is a required field on every record in this table because the GSI keys
-            # on it. A source has no article yet, so it carries its own id there.
             "slug": (existing or {}).get("slug") or record_id,
-            #: The partition key of `batchId-createdAt-index`. Sources with no batch keep
-            #: the sentinel below rather than an empty string, because DynamoDB will not
-            #: index an item whose GSI partition key is absent - and a source invisible to
-            #: every batch query is a source the worker cannot find.
             "batchId": batch_id or (existing or {}).get("batchId") or NO_BATCH,
             "sourceType": kind,
             "sourceRef": ref,
-            "sourceSha256": sha256,
-            "s3Key": key,
-            "sourceBytes": size,
-            "category": category,
-            "articleClass": article_class,
-            # A URL needs no upload, so it is immediately ready for the worker.
+            "sourceSha256": item["sourceSha256"],
+            "s3Key": item["s3Key"],
+            "sourceBytes": item["sourceBytes"],
+            "category": item["category"],
+            "articleClass": item["articleClass"],
             "status": PENDING_UPLOAD if kind == "pdf" else UPLOADED,
-            #: Initialised here so a re-registration does not reset a pipeline already in
-            #: flight, and so every source row has the attribute the batch index projects.
             "pipeline": (existing or {}).get("pipeline") or empty_pipeline(),
             "createdBy": actor,
             "error": "",
         }
-        storage.put_record(record)
+        writes.append(record)
 
         upload_url = ""
         if kind == "pdf":
             upload_url = s3_client().generate_presigned_url(
                 "put_object",
-                Params={"Bucket": BUCKET, "Key": key, "ContentType": "application/pdf"},
+                Params={"Bucket": BUCKET, "Key": item["s3Key"],
+                        "ContentType": "application/pdf"},
                 ExpiresIn=UPLOAD_URL_TTL,
             )
         registered.append({
@@ -465,66 +472,88 @@ def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> D
             "uploadUrl": upload_url, "expiresInSeconds": UPLOAD_URL_TTL if upload_url else 0,
         })
 
+    storage.put_records(writes)
     logger.info(json.dumps({
         "event": "blog_sources_registered", "actor": actor, "count": len(registered),
-        "new": sum(1 for r in registered if not r["alreadyKnown"]),
+        "new": sum(1 for row in registered if not row["alreadyKnown"]),
+        "maxBatch": MAX_REGISTER_BATCH,
     }))
-    return {"sources": registered, "bucket": BUCKET}
+    return {"sources": registered, "bucket": BUCKET, "maxBatch": MAX_REGISTER_BATCH}
 
 
 # ── Phase 2: confirm the bytes arrived, then hand off ────────────────────────────
 
 def confirm(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
-    """Verify each upload against S3, then start the worker.
+    """Verify up to 1,000 uploaded objects concurrently, then fan them out to SQS.
 
-    head_object rather than trusting the browser, for the same reason `secure-files` does
-    it: a PUT that failed halfway leaves a record claiming a file that is not there, and
-    the worker would then report an extraction failure for what is really a lost upload.
+    A serial ``head_object`` + DynamoDB update per source makes a 1,000-file wave exceed
+    API Gateway's request budget even though the expensive extraction itself is async.
+    Existing records are therefore batch-read once, and pending PDFs are checked in a
+    bounded thread pool. The status write is conditional on PENDING_UPLOAD, so a retried
+    confirm can never move an already-EXTRACTING source backwards to UPLOADED.
     """
     ids = body.get("sourceIds")
     if not isinstance(ids, list) or not ids:
         raise ValueError("sourceIds must be a non-empty array")
+    if len(ids) > MAX_REGISTER_BATCH:
+        raise ValueError(f"at most {MAX_REGISTER_BATCH} sourceIds per request")
 
-    confirmed, missing, unknown = [], [], []
-    for record_id in [str(value) for value in ids][:MAX_REGISTER_BATCH]:
-        record = get_source(record_id)
+    requested = [str(value).strip() for value in ids if str(value or "").strip()]
+    records = storage.get_typed_many(requested, RECORD_TYPE)
+    confirmed: List[str] = []
+    missing: List[str] = []
+    unknown: List[str] = []
+    pending: List[Tuple[str, Dict[str, Any]]] = []
+
+    for record_id in requested:
+        record = records.get(record_id)
         if not record:
             unknown.append(record_id)
             continue
         if record.get("status") in (UPLOADED, EXTRACTING, EXTRACTED):
             confirmed.append(record_id)
             continue
-        key = record.get("s3Key") or ""
+        key = str(record.get("s3Key") or "")
         if not key:
             confirmed.append(record_id)
             continue
+        pending.append((record_id, record))
+
+    table_ref = storage.table()
+
+    def check_upload(item: Tuple[str, Dict[str, Any]]) -> Tuple[str, str]:
+        record_id, record = item
+        key = str(record.get("s3Key") or "")
         try:
             head = s3_client().head_object(Bucket=BUCKET, Key=key)
         except ClientError:
-            missing.append(record_id)
-            continue
-        storage.table().update_item(
-            Key={"id": record_id},
-            UpdateExpression="SET #s = :s, sourceBytes = :b, updatedAt = :u, #e = :e",
-            ExpressionAttributeNames={"#s": "status", "#e": "error"},
-            ExpressionAttributeValues={
-                ":s": UPLOADED, ":b": int(head["ContentLength"]),
-                ":u": storage.now_iso(), ":e": "",
-            },
-        )
-        confirmed.append(record_id)
+            return record_id, "missing"
+        try:
+            table_ref.update_item(
+                Key={"id": record_id},
+                UpdateExpression="SET #s = :uploaded, sourceBytes = :b, updatedAt = :u, #e = :e",
+                ConditionExpression="#s = :pending",
+                ExpressionAttributeNames={"#s": "status", "#e": "error"},
+                ExpressionAttributeValues={
+                    ":uploaded": UPLOADED, ":pending": PENDING_UPLOAD,
+                    ":b": int(head["ContentLength"]), ":u": storage.now_iso(), ":e": "",
+                },
+            )
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+                raise
+            # Another confirm/worker already moved it forward. That is success for confirm.
+        return record_id, "confirmed"
 
-    #: FAN OUT TO THE QUEUE, one message per source, and fall back to the sweep when no queue
-    #: is configured.
-    #:
-    #: The fallback is not defensive padding. It is what keeps the unit tests and a
-    #: not-yet-provisioned environment working, and it is the same code path the reconciliation
-    #: route uses - so it stays exercised rather than rotting into a branch nobody has run.
-    #:
-    #: Neither is allowed to fail the request. The source records are already durable at this
-    #: point, so the worst case of a failed hand-off is that extraction waits for the next
-    #: confirm or a manual drain. Failing the HTTP call instead would tell an operator their
-    #: upload failed when it did not.
+    if pending:
+        workers = min(32, len(pending))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            for record_id, outcome in pool.map(check_upload, pending):
+                if outcome == "confirmed":
+                    confirmed.append(record_id)
+                else:
+                    missing.append(record_id)
+
     import blog_queue
     queued = blog_queue.enqueue(confirmed, reason="confirm") if confirmed else {
         "queued": 0, "failed": 0, "configured": False}
@@ -535,6 +564,7 @@ def confirm(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
         "event": "blog_sources_confirmed", "actor": actor, "confirmed": len(confirmed),
         "missing": len(missing), "unknown": len(unknown), "workerStarted": started,
         "queued": queued["queued"], "queueConfigured": queued["configured"],
+        "maxBatch": MAX_REGISTER_BATCH,
     }))
     return {
         "confirmed": confirmed, "missingUpload": missing, "unknownSourceId": unknown,
