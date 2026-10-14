@@ -289,16 +289,6 @@ SPECS: List[Spec] = [
                        "python scripts/provision_gift_cards_roles.py && "
                        "python scripts/provision_gift_card_routes.py",
     ),
-    # The Wix Gift Cards Service Plugin endpoint. Wix CALLS this one, with a signed JWT as the
-    # request body and no API Gateway authorizer, so JWT verification is the only control --
-    # see .agents/tasks/wix-coupons-giftcards-20261001/gift-cards-service-plugin-20261001.md
-    # section 5. Needs the cryptography layer attached; provision_gift_cards_roles.py does it.
-    Spec(
-        "wecare-wix-giftcard-spi",
-        "ecommerce/wix-giftcard-spi",
-        provisioned_by="python scripts/provision_gift_cards_roles.py && "
-                       "python scripts/provision_gift_card_routes.py",
-    ),
     # (wecare-wix-catalog-webhook removed in the Wix exit: catalogue source is AWS ProductsTable
     # and a DynamoDB stream drives meta-catalog-sync; the Wix webhook receiver is retired.)
     # The AWS-native catalogue -> Meta projection (formerly PHASE W). Invoked asynchronously by the
