@@ -115,7 +115,6 @@ from lambda_utils.ecommerce import service_requests
 from lambda_utils.ecommerce.service_requests import ServiceNotPayable, ServicePriceChanged
 # The LIVE Wix price of each service, for the four public service pages. Same adapter, same cart,
 # same figure the checkout charges -- see `_service_prices` below for why this arm lives here.
-from lambda_utils.ecommerce import service_pricing
 from lambda_utils.integrations import razorpay_orders, razorpay_verify
 from lambda_utils import wix_ecom
 # Aliased `customer_identity`, NEVER `identity`: `identity` is a parameter name in nearly every
@@ -453,32 +452,10 @@ SERVICE_PRICES_UNAVAILABLE = "SERVICE_PRICES_UNAVAILABLE"
 
 
 def _service_prices(origin: str) -> Dict[str, Any]:
-    """`GET /ecommerce/service-prices` -> every service's LIVE Wix price, in integer paise.
+    """Return a public AWS-native service price list from ProductsTable.
 
-    WHY THIS LIVES IN THE CHECKOUT LAMBDA. It is the only function carrying `WIX_API_KEY_SECRET`
-    *and* the live `WIX_SITE_ID` *and* `WIX_CART_V2_ENABLED`, and it already owns `_wix_request`
-    and the `cart_v2` adapter. `wecare-service-requests` is structurally barred from Wix (it
-    imports no Wix module and reads no secret, and `scripts/provision_service_requests.py`
-    enforces that in its role policy), so putting the call there would break a guarantee a test
-    enumerates. `wecare-wix-store`'s site id is fingerprinted rather than recorded in the
-    manifest, so which site it points at is UNVERIFIED -- and pricing against the wrong site is
-    precisely the drift this endpoint exists to remove.
-
-    FAILS CLOSED, TWICE OVER. With Cart V2 off there is no pricing path at all, so this answers
-    503 rather than an empty payload a browser might read as "free". If Wix prices nothing, it
-    answers 503 for the same reason. A PARTIAL result is served at 200: the slugs that resolved
-    carry their price and the rest carry `{"available": false}` with no `paise` key, because one
-    service Wix cannot price is no reason to take the other three off sale.
-
-    WIX READ VOLUME IS BOUNDED TWICE, because this is the one unauthenticated arm and a cache
-    miss costs 8 Wix calls on the same API key the live checkout prices with. The headers below
-    carry the measurement of the first bound (the edge really does cache); the second is a
-    per-route throttle on `GET /ecommerce/service-prices`, applied by
-    `scripts/provision_checkout.py` and read back by its `--verify`. Wix WRITES are bounded
-    structurally and permanently instead: four carts for the life of the site, by the pointer
-    rows `service_pricing` keeps.
-
-    Logs counts only. No credential, no cart id, no provider message.
+    Price authority is the live product variant reader; never fall back to
+    a deleted Wix site or treat an unavailable price as zero.
     """
     # AWS-NATIVE service pricing (CATALOG_SOURCE=aws): resolve each service variant's
     # price from ProductsTable instead of a live Wix cart estimate. Same payload shape,
@@ -502,57 +479,10 @@ def _service_prices(origin: str) -> Dict[str, Any]:
         response["headers"]["Cache-Control"] = "public, max-age=60"
         return _hardened(response)
 
-    if not cart_v2.is_enabled():
-        logger.warning(json.dumps({"event": "service_prices_disabled"}))
-        return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
-    try:
-        payload = service_pricing.resolve_all(cart_v2.CartV2(_wix_request), _keys_table())
-    except Exception as exc:  # noqa: BLE001 -- `type(exc).__name__` only, never provider text
-        logger.error(json.dumps({"event": "service_prices_failed",
-                                 "error": type(exc).__name__}))
-        return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
-    priced = sum(1 for price in payload["prices"].values() if price.get("available"))
-    if not priced:
-        logger.error(json.dumps({"event": "service_prices_none_resolved",
-                                 "slugs": len(payload["prices"])}))
-        return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
-    logger.info(json.dumps({"event": "service_prices_served", "priced": priced,
-                            "slugs": len(payload["prices"])}))
-    response = cors_response(200, payload, origin)
-    # Post-processed because `cors_response` takes no header argument.
-    #
-    # THE EDGE DOES CACHE THIS, AND THAT IS MEASURED RATHER THAN ASSERTED. An earlier version of
-    # this comment claimed the `/api/*` edge "absorbs the anonymous traffic" with nothing behind
-    # the claim, while `docs/execution/change-authority-matrix.md` row 297 recorded three
-    # requests through that same rewrite all answering `Miss from cloudfront`. Measured on
-    # 2026-10-08 against `wecare.digital/api/seo-tools/blog-public` -- the one other PUBLIC
-    # `max-age` response behind the same rewrite -- four identical requests answered
-    # `Miss`, then `Hit (age 2)`, `Hit (age 4)`, `Hit (age 7)`. Row 297 does not contradict that:
-    # it states the API was sending `cache-control: no-store`, which nothing is allowed to cache.
-    # The variable was the header, not the edge.
-    #
-    # `Access-Control-Allow-Origin: *`, NOT the origin `cors_headers` reflects, and the
-    # measurement is what forces it rather than a preference. In the same run the origin's
-    # `Vary: Origin` was STRIPPED (`vary: Accept-Encoding` is what reached the client), and a
-    # request carrying `Origin: https://www.wecare.digital` was served the cached apex
-    # `Access-Control-Allow-Origin: https://wecare.digital`. A browser rejects that, so
-    # `fetchServicePrices` would fail closed and every `www` visitor would read "temporarily
-    # unavailable" with no way to buy. A shared cache cannot hand the wrong origin a response
-    # that names every origin. Safe HERE and nowhere else in this handler, for reasons specific
-    # to this one body: a public price list, no customer data, no credential, no cookie, and the
-    # browser client fetches it without credentials (so `*` is even a legal answer).
-    #
-    # `Vary: Origin` is sent anyway, for an intermediary that does honour it and so that a future
-    # change back to a reflected origin is not silently poisoned.
-    #
-    # The edge is the FIRST of two bounds on Wix reads, not the only one: the route carries its
-    # own throttle (`scripts/provision_checkout.py`, ROUTE_THROTTLE_*), because an anonymous
-    # route whose cache misses cost 8 Wix calls shares an API key with the live checkout's
-    # `calculate`, and concurrency rather than the per-sandbox minute is the multiplier on a miss.
-    response["headers"]["Cache-Control"] = f"public, max-age={service_pricing.CACHE_SECONDS}"
-    response["headers"]["Access-Control-Allow-Origin"] = "*"
-    response["headers"]["Vary"] = "Origin"
-    return response
+    # This mode has been retired. Explicitly fail closed rather than silently
+    # running Wix CartV2 or another provider-backed estimate.
+    logger.warning(json.dumps({"event": "service_prices_legacy_disabled"}))
+    return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
