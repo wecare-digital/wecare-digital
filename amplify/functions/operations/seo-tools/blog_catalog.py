@@ -29,6 +29,39 @@ PRODUCTION_MASTER_KEY = SECURE_MASTER_PREFIX + "production-master.json"
 GOVERNED_CATEGORIES = ("Conversations", "Gastronomy")
 MAX_BULK_ITEMS = 1000
 
+# Category-specific governing constraints from the two Continuous Production Masters.
+# These are operational metadata, not a substitute for the executable quality gates.
+MASTER_POLICIES = {
+    "Conversations": {
+        "publicAuthor": "Anew by WECARE.DIGITAL",
+        "qualityOverSpeed": True,
+        "bulkAllowed": True,
+        "readCompleteRelevantSource": True,
+        "centralDistinctionRequired": True,
+        "distinctPurposeRequired": True,
+        "sourceProvenanceInternal": True,
+        "humanGateRequired": True,
+        "postPublishReadbackRequired": True,
+        "autoPublish": False,
+    },
+    "Gastronomy": {
+        "publicAuthor": "Anew by WECARE.DIGITAL",
+        "qualityOverSpeed": True,
+        "bulkAllowed": True,
+        "readCompleteRelevantSource": True,
+        "sourceProfileRequired": True,
+        "sourceProvenanceInternal": True,
+        "humanGateRequired": True,
+        "postPublishReadbackRequired": True,
+        "editorialManifestMaxArticles": 150,
+        "autoPublish": False,
+        "articleTypes": [
+            "RECIPE", "TECHNIQUE", "INGREDIENT", "CULINARY_ARTICLE",
+            "CULINARY_DISTINCTION", "MENU_PAIRING", "CULINARY_CULTURE_HISTORY",
+        ],
+    },
+}
+
 
 def _put_json(key: str, document: Dict[str, Any]) -> str:
     blog_sources.s3_client().put_object(
@@ -131,6 +164,7 @@ def production_master() -> Dict[str, Any]:
         "bucket": blog_sources.BUCKET,
         "maxBulkItems": MAX_BULK_ITEMS,
         "governedCategories": list(GOVERNED_CATEGORIES),
+        "masterPolicies": MASTER_POLICIES,
         "categories": categories,
         "totals": {
             "sources": len(sources),
