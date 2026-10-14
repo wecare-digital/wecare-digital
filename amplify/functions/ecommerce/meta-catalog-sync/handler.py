@@ -281,7 +281,7 @@ class MetaCatalogReadError(RuntimeError):
     """The Meta catalogue read failed. Carries the Graph status structurally, never a body.
 
     THE STATUS HAS TO BE READABLE WITHOUT PARSING THE MESSAGE, which is the whole reason this
-    class exists - `lambda_utils.wix_ecom.http_error` establishes the same pattern. A 403 means
+    class exists so transport failures carry structured status. A 403 means
     "ask the owner to re-grant the asset", a 429 means "back off and retry", and a log line
     carrying only `errorType` makes those indistinguishable from a 500 or a DNS failure.
 
@@ -593,15 +593,11 @@ def _apply(plan: catalog.SyncPlan, requester, *, token: str, app_secret: str,
 def _trigger(event: Any) -> Dict[str, str]:
     """What invoked us, for the log line only. Never used to narrow the read.
 
-    Covers four envelopes, treated IDENTICALLY downstream (a full catalogue re-read):
-      1. the AWS-NATIVE ProductsTable DynamoDB stream — `{"Records": [{"eventSource":
-         "aws:dynamodb", ...}]}`. This is the replacement for the retired Wix catalog webhook:
-         a product insert/modify/remove in our own table fans out to Meta, with no Wix involved.
-         `entityId` is the changed item's `id` key, for correlation only.
-      2. the legacy async invoke `wix-catalog-webhook` sent (`{"source": "wix-webhook",
-         "entityId": ...}`) — kept only while that Lambda is still deployed.
-      3. an EventBridge scheduled event (the backstop cron).
-      4. anything else -> `unknown`, which still triggers the same full re-read rather than
+    Covers three envelopes, treated IDENTICALLY downstream (a full catalogue re-read):
+      1. the ProductsTable DynamoDB stream. `entityId` is the changed item's `id` key,
+         for correlation only.
+      2. an EventBridge scheduled event (the backstop cron).
+      3. anything else -> `unknown`, which still triggers the same full re-read rather than
          refusing: an unrecognised envelope must never become a missed sync.
     """
     if not isinstance(event, Mapping):
@@ -625,15 +621,13 @@ def _trigger(event: Any) -> Dict[str, str]:
 
 def handler(event, context, *, wix_requester=None, graph_requester=None,
             secret_reader=None, approval_store=None):  # noqa: ARG001 - Lambda signature
-    """Compute the Wix -> Meta plan, log it, and write only if both gates are open.
+    """Compute the AWS ProductsTable -> Meta plan and write only if both gates are open.
 
-    The three injection points default to `None` and resolve INSIDE, never as parameter defaults.
-    A default argument is bound at definition time, so `reader=_read_secret` would make a patch of
-    the module attribute ineffective - and in `wix-catalog-webhook` that exact mistake caused a
-    test meant to simulate a missing credential to read the live one instead.
+    `wix_requester` remains an ignored compatibility keyword for older test/caller fixtures; no
+    provider-store request is possible from this handler. Active injection points resolve inside
+    the function so monkeypatches remain effective.
     """
     reader = secret_reader or _read_secret
-    wix = wix_requester or _wix_request
     graph = graph_requester or _graph_request
 
     trigger = _trigger(event)
