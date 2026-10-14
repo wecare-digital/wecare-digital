@@ -240,22 +240,10 @@ def _get_order_submissions(order_id: str) -> Dict:
 
 
 def _sync_orders() -> Dict:
-    # Trigger Wix order sync via existing wix-store Lambda
-    try:
-        lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-        lambda_client.invoke(
-            # `wecare-wix-store`, not `stack-wecare-digital-wix-store`: the stack
-            # prefix is the DynamoDB table convention and matches no Lambda. See
-            # the same correction in core/service-api/handler.py - neither caller
-            # sets WIX_STORE_FUNCTION in its live config, so this default is what
-            # actually ran.
-            FunctionName=os.environ.get('WIX_STORE_FUNCTION', 'wecare-wix-store'),
-            InvocationType='Event',
-            Payload=json.dumps({'action': 'sync_orders'}),
-        )
-        return _resp(200, {'message': 'Sync triggered', 'synced': 0})
-    except Exception as e:
-        return _resp(500, {'error': str(e)})
+    # NATIVE-ONLY: nothing to sync. Orders are authoritative in OrdersTable; the
+    # `wecare-wix-store` Lambda this used to trigger was deleted in the Wix exit.
+    # Kept as a 200 no-op so `/orders/sync` still answers for any legacy client.
+    return _resp(200, {'message': 'Orders are native; no external sync required', 'synced': 0})
 
 
 # ============================================================================

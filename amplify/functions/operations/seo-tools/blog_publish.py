@@ -16,28 +16,23 @@ structural decision in this module is about that:
 
 ## Releasing is not publishing, and that separation is the point
 
-`release` records an intent and enqueues nothing. `publish` performs the Wix write. Spec section
-38: processing completion must never automatically mean publishing. There is no path from
+`release` records an intent and enqueues nothing. `publish` performs the native write. Spec
+section 38: processing completion must never automatically mean publishing. There is no path from
 extraction, the SQS consumer, a QA run or a batch reaching READY to either function - a test
 asserts it by grepping, because that is the kind of convenience somebody adds later.
 
-## Wix writes are switched off, and a refusal is recorded rather than swallowed
+## The write goes to the AWS-native store, and a failure is recorded rather than swallowed
 
-`WIX_CREDENTIALS_DISABLED=true` is set on this function. `wix._load_api_key` calls
-`wix_guard.refuse_if_disabled` before reading the credential, so `publish` reaches the Wix call
-and is refused before any request is made. That is recorded on the job as REFUSED with the reason,
-which is a different state from FAILED - "the operator has writes switched off" and "Wix rejected
-the post" must not look the same on a dashboard.
+WIX EXIT COMPLETE: the publish write goes to the AWS-native blog store through
+`storage.create_blog_post`, which persists the PUBLISHED `blogPost` record the native public read
+path (`blog_source`/`storage`) serves. There is no Wix credential and no kill switch in native
+mode, so a native publish is NEVER REFUSED - a write that does not succeed is always recorded as
+FAILED. `wix_blog_migrate` and the Ricos compiler are gone: the native read path renders the
+stored markdown directly, so there is no rich-content compile to satisfy.
 
-A REFUSED job stays releasable: it is still QUEUED in intent, and re-running `publish` after the
-switch is cleared proceeds. Nothing retries it automatically, because a refusal is a deliberate
-operator state and retrying past it would defeat the switch.
-
-## The Ricos compiler is the one that produced the live corpus
-
-`wix_blog_migrate.markdown_to_rich_content` and `draft_post` are imported rather than
-reimplemented. A second compiler would drift from the one behind the 1,165 published posts, and
-the first symptom would be an article that renders differently from every article beside it.
+The duplicate-publish guarantees are source-agnostic and unchanged: the resolve-before-generate
+release, the conditional QUEUED -> PUBLISHING claim, the publish-time releasability and body-hash
+re-checks, and the "a record-write failure never reports a failed publish" rule all still hold.
 """
 from __future__ import annotations
 
@@ -53,7 +48,9 @@ logger = logging.getLogger(__name__)
 
 RECORD_TYPE = "blogPublishJob"
 
-#: A job's lifecycle. REFUSED and FAILED are separate on purpose - see the module docstring.
+#: A job's lifecycle. REFUSED is retained as a historical status constant (older jobs may still
+#: carry it, and `batch_publish_state` still rolls it up) but native publishing never produces it:
+#: there is no Wix credential to switch off, so a write either PUBLISHED or FAILED.
 QUEUED = "QUEUED"
 PUBLISHING = "PUBLISHING"
 PUBLISHED = "PUBLISHED"
@@ -101,7 +98,7 @@ def open_job(source_id: str) -> Optional[Dict[str, Any]]:
 
 
 def release(source_id: str, actor: str) -> Dict[str, Any]:
-    """Record an operator's decision to publish. Performs no Wix write.
+    """Record an operator's decision to publish. Performs no publish write.
 
     Refuses without a sign-off that still covers the current body - `blog_qa.releasable` owns
     that question so it cannot be answered two ways.
@@ -164,16 +161,16 @@ def release(source_id: str, actor: str) -> Dict[str, Any]:
         "event": "blog_publish_released", "sourceId": source_id, "jobId": stored["id"],
         "actor": actor, "slug": stored["articleSlug"]}))
     return {**_view(stored), "created": True,
-            "note": ("Queued. This records the decision and performs no Wix write; publishing "
-                     "is a separate call.")}
+            "note": ("Queued. This records the decision and performs no publish write; "
+                     "publishing is a separate call.")}
 
 
 def unrelease(job_ref: str, reason: str, actor: str) -> Dict[str, Any]:
     """Take a QUEUED job back out of the queue.
 
     Only from QUEUED. A PUBLISHING job is mid-flight and a PUBLISHED one is live, and pretending
-    either can be withdrawn here would be a lie - a live post comes down through Wix, which is
-    outside this module's authority.
+    either can be withdrawn here would be a lie - a live post comes down through the native blog
+    store, which is outside this module's authority.
     """
     job = get(job_ref)
     if not job:
@@ -199,26 +196,12 @@ def unrelease(job_ref: str, reason: str, actor: str) -> Dict[str, Any]:
 
 # ── Publish ─────────────────────────────────────────────────────────────────────
 
-def writes_disabled() -> bool:
-    """Whether the Wix kill switch is on, read through the module that owns the question.
-
-    ONE definition, never a second reading of the env var - `wix_guard` exists because the flag
-    was honoured in one of three credential paths, producing a switch that disabled the store and
-    left blog publishing running.
-    """
-    try:
-        from lambda_utils.wix_guard import credentials_disabled
-        return credentials_disabled()
-    except ImportError:  # pragma: no cover - wix_guard ships in every package
-        return False
-
-
 def _claim(job_ref: str) -> bool:
     """QUEUED -> PUBLISHING, atomically.
 
     The whole reason this is a conditional write: two operators pressing Publish at the same
-    moment, or a retried request arriving beside the original, would otherwise both reach the Wix
-    call and post the article twice.
+    moment, or a retried request arriving beside the original, would otherwise both reach the
+    native write and post the article twice.
     """
     from botocore.exceptions import ClientError
     try:
@@ -251,37 +234,8 @@ def _settle(job_ref: str, status: str, **fields: Any) -> None:
         ExpressionAttributeNames=names, ExpressionAttributeValues=values)
 
 
-def _wix_refs(category: str) -> Dict[str, Any]:
-    """The Wix member and category ids a draft post needs.
-
-    Authenticated reads, so the kill switch stops them too - which means `publish` refuses at this
-    point rather than halfway through building a post.
-    """
-    import os
-
-    import wix
-    member_id = ""
-    author = str(os.environ.get("WIX_BLOG_AUTHOR_NAME", "")).strip()
-    members = wix.request("POST", "/members/v1/members/query", {
-        "query": {"paging": {"limit": 100}}})
-    for member in members.get("members") or []:
-        nick = str((member.get("profile") or {}).get("nickname") or "")
-        if not author or nick == author:
-            member_id = str(member.get("id") or "")
-            if nick == author:
-                break
-    categories = wix.request("POST", "/blog/v3/categories/query",
-                             {"query": {"paging": {"limit": 100}}})
-    category_id = ""
-    for item in categories.get("categories") or []:
-        if str(item.get("label") or "").strip() == category:
-            category_id = str(item.get("id") or "")
-            break
-    return {"memberId": member_id, "categoryId": category_id}
-
-
 def publish(job_ref: str, actor: str) -> Dict[str, Any]:
-    """Perform the Wix write for a QUEUED job.
+    """Perform the native publish write for a QUEUED job.
 
     RE-CHECKS RELEASABILITY, because release time and publish time are different moments and the
     queue is exactly where the gap lives: the body can be edited or the sign-off revoked in
@@ -315,46 +269,25 @@ def publish(job_ref: str, actor: str) -> Dict[str, Any]:
             "the article changed after it was released, so the release does not cover what "
             "would go live; re-run QA, re-sign, and release again")
 
-    #: CHECKED BEFORE THE CLAIM, so a refused publish makes no attempt at all - the counter then
-    #: means real attempts, and the log says "not tried" rather than "tried and failed".
-    #:
-    #: It was originally an `except PermissionError` around the Wix call, and the first live run
-    #: proved that wrong: `wix_guard.refuse_if_disabled` raises RuntimeError, so the refusal was
-    #: recorded as FAILED and the distinction this module argues for was lost. Broadening the
-    #: catch to RuntimeError would have been worse - `_write_to_wix` raises RuntimeError for a
-    #: genuine Wix rejection, so a real failure would have been reported as "writes are off".
-    #: Asking the switch is a state check, not an exception-classification problem.
-    # BLOG_SOURCE=aws routes the publish WRITE to the AWS-native store (SeoToolsTable
-    # blogPost records), which the native public read path (blog_source.py) serves. In
-    # native mode there is no Wix credential, so the Wix kill switch does not apply — a
-    # native publish is never REFUSED for `WIX_CREDENTIALS_DISABLED`. Default is `wix`,
-    # so this branch is unreachable until the owner flips BLOG_SOURCE at cutover.
+    #: The publish WRITE goes to the AWS-native store (SeoToolsTable `blogPost` records), which
+    #: the native public read path (`blog_source.py`) serves. There is no Wix credential and no
+    #: kill switch in native mode, so a native publish is NEVER REFUSED - a write either PUBLISHED
+    #: or, on an exception, FAILED. `_blog_source_is_aws()` is unconditionally True; it is kept so
+    #: `publish` reads as a source-agnostic branch.
     native_blog = _blog_source_is_aws()
-
-    if not native_blog and writes_disabled():
-        return _refuse(job_ref, source_id, actor, job)
 
     if not _claim(job_ref):
         return {**_view(get(job_ref) or job), "published": False,
                 "note": "another publisher holds this job"}
 
     try:
-        result = _write_native(record, draft, actor) if native_blog \
-            else _write_to_wix(record, draft, job)
+        result = _write_native(record, draft, actor)
     except Exception as exc:  # noqa: BLE001
-        #: Re-check the switch rather than inspecting the exception. It can be flipped between
-        #: the check above and this call, and a state read answers that correctly where matching
-        #: on a message or a type cannot. The Wix kill switch is irrelevant in native mode (no
-        #: Wix credential), so a native-publish failure is always a real FAILED, never a refusal.
-        if not native_blog and writes_disabled():
-            return _refuse(job_ref, source_id, actor, job)
+        #: A native publish has no Wix credential and no kill switch, so a write that raises is
+        #: always a real failure - recorded as FAILED, never reclassified as a refusal.
         logger.exception("blog publish failed")
-        #: A DISTINCT EVENT FROM THE REFUSAL, and the alarms depend on that.
-        #:
-        #: `wecare-blog-publish-failures` counts this line and must NOT count
-        #: `blog_publish_refused`: a refusal is an operator deliberately switching writes off, and
-        #: paging somebody because the switch they threw is working would train them to ignore the
-        #: channel. A FAILED publish is Wix rejecting a post, which is a defect to look at.
+        #: `wecare-blog-publish-failures` counts this line. A FAILED publish is the native store
+        #: rejecting a post, which is a defect to look at.
         logger.warning(json.dumps({
             "event": "blog_publish_failed", "jobId": job_ref, "sourceId": source_id,
             "error": type(exc).__name__}))
@@ -379,41 +312,20 @@ def publish(job_ref: str, actor: str) -> Dict[str, Any]:
             "note": "Published. Run verification to confirm what actually went live."}
 
 
-def _refuse(job_ref: str, source_id: str, actor: str,
-            job: Dict[str, Any]) -> Dict[str, Any]:
-    """Record the kill switch as REFUSED, a state distinct from FAILED.
-
-    "The operator has writes switched off" and "Wix rejected the post" must not look the same on a
-    dashboard: the first is a deliberate state somebody chose and the second is a defect to
-    investigate. Nothing retries a REFUSED job automatically, because retrying past a deliberate
-    operator state is what defeating the switch looks like.
-    """
-    reason = (f"Wix credentials are disabled by WIX_CREDENTIALS_DISABLED, so no post was "
-              f"attempted. Clear that variable to re-enable rather than working around it.")
-    _settle(job_ref, REFUSED, error=reason)
-    blog_sources.update_pipeline(source_id, publishStatus=REFUSED)
-    logger.warning(json.dumps({
-        "event": "blog_publish_refused", "jobId": job_ref, "sourceId": source_id,
-        "actor": actor, "reason": "credentials disabled"}))
-    return {**_view(get(job_ref) or job), "published": False, "refused": True,
-            "error": reason,
-            "note": ("Recorded as REFUSED and NOT attempted. Clear "
-                     "WIX_CREDENTIALS_DISABLED, then release and publish again.")}
-
-
 def _blog_source_is_aws() -> bool:
     """Whether the blog WRITE goes to the AWS-native store. Shares the one BLOG_SOURCE
-    flag with the public READ path (blog_source.py), read at call time so a flip takes
-    effect immediately. Keeping read and write on one flag means the blog can never be
-    half-migrated — reads and publishes always agree on the source of truth."""
-    import os
-    value = str(os.environ.get("BLOG_SOURCE", "wix")).strip().lower()
-    return value in ("aws", "ddb", "dynamodb", "native")
+    flag with the public READ path (blog_source.py).
+
+    WIX EXIT COMPLETE: the blog WRITE always goes to the AWS-native store now. The Wix
+    publish path and its credential/kill-switch handling were removed with the Wix
+    Lambdas, so this is unconditionally True and kept only so `publish()` reads as a
+    source-agnostic branch."""
+    return True
 
 
 def _write_native(record: Dict[str, Any], draft: Dict[str, Any], actor: str) -> Dict[str, Any]:
-    """Publish to the AWS-native blog store, returning the SAME `{postId, postUrl}` shape
-    as `_write_to_wix` so `publish` is source-agnostic.
+    """Publish to the AWS-native blog store, returning a `{postId, postUrl}` shape so
+    `publish` stays source-agnostic.
 
     Maps the approved draft to `storage.create_blog_post`'s body and writes it as a
     PUBLISHED `blogPost` record — the exact record type `blog_source`/`storage` serve to
@@ -439,61 +351,6 @@ def _write_native(record: Dict[str, Any], draft: Dict[str, Any], actor: str) -> 
     }
     result = storage.create_blog_post(body, actor)
     return {"postId": result["postId"], "postUrl": result["url"]}
-
-
-def _write_to_wix(record: Dict[str, Any], draft: Dict[str, Any],
-                  job: Dict[str, Any]) -> Dict[str, Any]:
-    """The single Wix mutation in this system.
-
-    Uses the bulk endpoint with ONE post, which is what `wix_blog_migrate` used for the live
-    corpus, so the request shape is the one Wix has already accepted 1,165 times.
-    `returnFullEntity` is on because the response is where the post id and URL come from, and
-    verification needs both.
-    """
-    import wix
-    import wix_blog_migrate as migrate
-
-    body = draft.get("contentMarkdown") or ""
-    rich = migrate.markdown_to_rich_content(body)
-    refs = _wix_refs(str(record.get("category") or ""))
-    post = {
-        "title": str(draft.get("title") or "").strip(),
-        "excerpt": str(draft.get("metaDescription") or "").strip()[:500],
-        "featured": False,
-        "categoryIds": [refs["categoryId"]] if refs["categoryId"] else [],
-        "memberId": refs["memberId"],
-        "tagIds": [],
-        "hashtags": [],
-        "language": "en",
-        "richContent": rich,
-        "seoSlug": str(draft.get("slug") or "").strip(),
-        "seoData": migrate.seo_data({
-            "slug": str(draft.get("slug") or ""),
-            "title": str(draft.get("title") or ""),
-            "seoTitle": str(draft.get("seoTitle") or ""),
-            "metaDescription": str(draft.get("metaDescription") or ""),
-        }),
-    }
-    response = wix.request("POST", "/blog/v3/bulk/draft-posts/create", {
-        "draftPosts": [post],
-        #: Published in the same call. A two-step create-then-publish opens a window in which a
-        #: crash leaves an orphan draft that no record points at, and the next release would
-        #: create a second one.
-        "publish": True,
-        "returnFullEntity": True,
-    })
-    results = response.get("results") or []
-    if not results:
-        raise RuntimeError("Wix returned no result for the draft post")
-    first = results[0]
-    metadata = first.get("itemMetadata") or {}
-    if not metadata.get("success"):
-        raise RuntimeError(f"Wix rejected the post: {metadata.get('error')}")
-    entity = (first.get("item") or {}).get("draftPost") or first.get("item") or {}
-    post_id = str(entity.get("id") or metadata.get("id") or "")
-    slug = str(entity.get("seoSlug") or draft.get("slug") or "")
-    return {"postId": post_id,
-            "postUrl": f"https://wecare.digital/post/{slug}" if slug else ""}
 
 
 def _write_record(source_id: str, job: Dict[str, Any], draft: Dict[str, Any],

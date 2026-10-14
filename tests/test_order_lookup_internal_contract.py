@@ -1,28 +1,44 @@
-"""Order lookup must use IAM invocation context, never a browser Origin."""
+"""Order lookup must use IAM invocation context, never a browser Origin.
+
+Wix exit: `fetch_orders_for_flow` no longer falls back to the `wecare-wix-store`
+Lambda (deleted in the Wix exit) — OrdersTable is the sole source. The remaining
+contract this file guards is the invocation-auth rule: an internal (IAM) invoke
+has no API Gateway `apiId` and is accepted; a call carrying a gateway `apiId` is
+rejected 401. That rule is independent of where orders are read from, so it is
+asserted directly against a synthetic internal event rather than captured from a
+Wix invoke that no longer happens.
+"""
 import importlib.util
-import io
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_flow_lookup_without_origin_accepts_internal_context_and_rejects_gateway():
+def test_flow_lookup_reads_only_orders_table_no_wix_fallback():
+    """The Wix Store Lambda fallback is gone; lookup returns from OrdersTable alone."""
     path = ROOT / 'amplify/functions/messaging/whatsapp-business-api/flows/orders.py'
     spec = importlib.util.spec_from_file_location('order_lookup_contract', path)
     orders = importlib.util.module_from_spec(spec)
     with patch('boto3.client'), patch('boto3.resource'):
         spec.loader.exec_module(orders)
     orders.dynamodb.Table.return_value.query.return_value = {'Items': []}
-    orders.lambda_client = MagicMock()
-    orders.lambda_client.invoke.return_value = {
-        'Payload': io.BytesIO(json.dumps({'body': json.dumps({'orders': []})}).encode())
-    }
+    # No wix-store invoke path remains: an empty OrdersTable yields an empty result,
+    # with no external Lambda call to fall back to.
     assert orders.fetch_orders_for_flow('', 'customer@example.test') == []
-    event = json.loads(orders.lambda_client.invoke.call_args.kwargs['Payload'])
-    assert event['rawPath'] == '/wix-store/orders'
-    assert event['queryStringParameters']['email'] == 'customer@example.test'
+    assert not hasattr(orders, 'lambda_client'), (
+        'the wecare-wix-store invoke client must be gone after the Wix exit')
+
+
+def test_internal_context_accepted_gateway_rejected():
+    """IAM-internal invoke (no apiId) is accepted; a gateway apiId is rejected 401."""
+    event = {
+        'rawPath': '/service/orders',
+        'queryStringParameters': {'email': 'customer@example.test'},
+        'headers': {},
+        'requestContext': {'http': {'method': 'GET'}},
+    }
     assert 'origin' not in event.get('headers', {})
 
     from lambda_utils.middleware import require_auth
