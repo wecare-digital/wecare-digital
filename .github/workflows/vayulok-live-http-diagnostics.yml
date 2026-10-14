@@ -160,11 +160,7 @@ jobs:
                   airText:txt('.vl-live-air-empty'),
                   mapFailed:!!document.querySelector('.vl-live-map-retry'),
                   googleMapsLoaded:!!(window.google&&window.google.maps),
-                  iframeSrcHost:(()=>{
-                    const frame=document.querySelector('.vag-frame');
-                    if(!frame)return null;
-                    try{return new URL(frame.src).hostname}catch{return 'invalid'}
-                  })()}
+                  hasGlobeFrame:!!document.querySelector('.vag-frame')
                 };
               });
               console.log('BROWSER_RESULT',JSON.stringify({url,navStatus:nav?.status(),state,
