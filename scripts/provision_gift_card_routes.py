@@ -1,69 +1,8 @@
 #!/usr/bin/env python3
-"""Provision the gift-card HTTP API routes: three SPI paths and five of our own.
+"""Provision the AWS-native gift-card HTTP API routes.
 
-Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/gift-cards-service-plugin-20261001.md`
-sections 7.1 (the SPI routes), 7.2 (our own routes) and 5.2 (why the SPI route carries no
-authorizer).
-
-NAMED `provision_gift_card_routes.py`, NOT `..._spi_routes.py` (NIT-3)
----------------------------------------------------------------------
-It creates EIGHT routes across TWO functions, and only three of them are SPI. A file named
-`..._spi_routes.py` that also creates five non-SPI routes misleads the next reader about what it
-touches, which matters because one of the two integrations is internet-facing with no authorizer and
-the other is not.
-
-| | |
-|---|---|
-| API | HTTP API `zllr9lrg7j`, the account's only one |
-| Stage | `prod`. There is no `$default` stage, so the raw execute-api host needs the `/prod` segment |
-| Integrations | TWO `AWS_PROXY` payload-2.0 integrations, one per function, each onto `:live` |
-| Permission | one `lambda:InvokeFunction` statement per route, `SourceArn` scoped to its own path family |
-| Idempotence | an existing route is reported, never recreated or retargeted |
-
-THE SPI's `deploymentUri`
--------------------------
-Wix is registered with the base URI
-
-    https://zllr9lrg7j.execute-api.us-east-1.amazonaws.com/prod/wix-giftcards/
-
-and appends `v1/balance`, `v1/redeem`, `v1/void`. The account has no API Gateway custom domain, and
-the apex `wecare.digital/api/*` path is an Amplify-side rewrite serving browsers rather than a
-server-to-server front door - routing Wix's signed, non-idempotent calls through a CDN we do not
-control would add a hop and a cache layer in front of a payment endpoint. The cost is recorded: a
-later move to a custom domain means RE-REGISTERING with Wix, not editing a route.
-
-THE INTEGRATIONS TARGET THE ALIAS, NOT `$LATEST`
-------------------------------------------------
-`lambda-snapstart-deploy.md`: 58 of 65 functions are invoked through their `live` alias, and a
-`$LATEST` change does not reach production until a version is published and the alias moves. An
-integration pointed at `$LATEST` would serve whatever was last uploaded, which is the opposite of
-that control. The invoke permission is QUALIFIED to the alias for the same reason - a
-function-level statement does not authorise an alias invoke, and the failure mode is a 500 with no
-Lambda log line at all, because the function is never entered.
-
-AUTHORIZATION
--------------
-All eight routes are created with `AuthorizationType=NONE` and no authorizer, because this account
-has zero API Gateway authorizers across 361 routes and this change does not introduce the first one.
-For the five own routes, authentication is `middleware.require_auth` on the four staff routes and a
-customer-session check on `POST /gift-cards/balance`, inside the handler. For the three SPI routes
-there can BE no gateway authorizer: Wix presents its own JWT, not a Cognito token, and verification
-is the first thing that handler does - before the body is interpreted and before any table access.
-
-`00-current-owner-overrides.md` records why the gateway field cannot be read as the answer either
-way: it cannot distinguish an intentionally public signed webhook from an accidentally public API.
-With WAF removed by owner decision, handler-level verification plus `lambda_utils/rate_limit.py` plus
-stage/route throttling is the whole filter in front of these routes.
-
-ADDITIVE ONLY
--------------
-361 pre-existing routes belong to other functions. This script never calls `delete_route`,
-`delete_integration`, `update_route` or `update_integration`.
-
-Usage:
-    python scripts/provision_gift_card_routes.py              # dry run, the default
-    python scripts/provision_gift_card_routes.py --apply
-    python scripts/provision_gift_card_routes.py --verify
+The retired provider SPI routes are not created or verified here. Only the five
+WECARE.DIGITAL gift-card routes remain, all targeting `wecare-gift-cards:live`.
 """
 
 from __future__ import annotations
@@ -83,7 +22,6 @@ STAGE = "prod"
 LIVE_ALIAS = "live"
 
 GIFT_CARDS_FUNCTION = "wecare-gift-cards"
-SPI_FUNCTION = "wecare-wix-giftcard-spi"
 
 #: FIVE routes, not seven. `POST /gift-cards/hold` and `POST /gift-cards/release` are deliberately
 #: absent (MEDIUM-5): a customer session has no `paymentAttemptId`, and a hold taken outside the
@@ -103,19 +41,10 @@ OWN_ROUTE_KEYS = (
     "POST /gift-cards/balance",
 )
 
-#: Exactly the three documented SPI methods. Deliberately NOT a `{proxy+}`: the surface stays as wide
-#: as the design and no wider, so a fourth path cannot appear without a design change.
-SPI_ROUTE_KEYS = (
-    "POST /wix-giftcards/v1/balance",
-    "POST /wix-giftcards/v1/redeem",
-    "POST /wix-giftcards/v1/void",
-)
-
 #: function -> (its route keys, the source-ARN path family). Narrower than `{API_ID}/*/*`, which
 #: would authorise any method on any of the 361 routes.
 PLAN = (
     (GIFT_CARDS_FUNCTION, OWN_ROUTE_KEYS, "gift-cards*", "Gift-card issuance and balance"),
-    (SPI_FUNCTION, SPI_ROUTE_KEYS, "wix-giftcards*", "Wix Gift Cards Service Plugin"),
 )
 
 SOURCE_ARN_PREFIX = f"arn:aws:execute-api:{REGION}:{ACCOUNT_ID}:{API_ID}"
