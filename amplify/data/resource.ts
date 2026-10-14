@@ -332,7 +332,7 @@ const schema = a.schema( {
       callId: a.id().required(),
       contactId: a.string(),
       phoneNumber: a.string().required(),
-      provider: a.enum( [ 'AWS', 'AIRTEL' ] ),
+      provider: a.enum( [ 'AWS', 'PLIVO', 'WHATSAPP' ] ),
       callType: a.enum( [ 'TTS', 'AUDIO', 'IVR', 'CLICK_TO_CALL' ] ),
       direction: a.enum( [ 'INBOUND', 'OUTBOUND' ] ),
       status: a.enum( [ 'INITIATED', 'RINGING', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'NO_ANSWER', 'BUSY' ] ),
@@ -383,7 +383,7 @@ const schema = a.schema( {
     ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
-  // Table 15b: DLTTemplates - DLT Template Registry for Airtel SMS
+  // Table 15b: DLTTemplates - TRAI DLT template registry
   DLTTemplates: a
     .model( {
       templateId: a.id().required(),
@@ -405,31 +405,20 @@ const schema = a.schema( {
   // RCS_TABLE constants naming the absent table went on 2026-09-21. The name stays
   // in ACCEPTED_ABSENT in scripts/audit_data_model_drift.py so a reintroduction is
   // still reported.
-  // AirtelC2C and AirtelSMS REMOVED 2026-09-24. Both physical tables were deleted
-  // on 2026-09-20 with the Airtel retirement, so both models described storage that
-  // does not exist. The read paths that still name those tables are deliberate -
-  // they exist to keep retired-provider history reachable - and they now report the
-  // absence as 410 / storeAbsent through lambda_utils/retired_store rather than
-  // raising. See ACCEPTED_ABSENT in scripts/audit_data_model_drift.py.
-  //
-  // The DLT sender metadata that used to sit above AirtelSMS (Sender ID WDBEEP,
-  // Entity ID 1201161991108627443) is India DLT registration data, not provider
-  // configuration, and lives in the DLTTemplates model below - which has a real
-  // live table.
-  // Table 13: VoiceCDR - Airtel Voice CDR Records (TTL: 90 days)
+  // Table 13: VoiceCDR - Voice call detail records (TTL: 90 days)
   // Inbound Number: +91 9319767034 (Mobile · Delhi) | Email: voice@wecare.digital
   VoiceCDR: a
     .model( {
       id: a.id().required(),
-      vmSessionId: a.string().required(), // Airtel unique session ID
+      vmSessionId: a.string().required(), // voice session ID
       clientCorrelationId: a.string(), // Xchange ID for searching
-      customerId: a.string(), // Customer name in Airtel system
+      customerId: a.string(), // customer identifier/name from upstream
 
-      // Timestamps (epoch milliseconds from Airtel)
+      // Timestamps (epoch milliseconds from upstream)
       startTime: a.integer(),
       endTime: a.integer(),
       callAnswerTime: a.integer(),
-      timestamp: a.string(), // Airtel formatted timestamp
+      timestamp: a.string(), // upstream formatted timestamp
 
       // Duration fields (milliseconds)
       durationMs: a.integer(),
@@ -451,7 +440,7 @@ const schema = a.schema( {
       callerId: a.string(), // CLI number
       callerNumber: a.string(), // From number
       destinationNumber: a.string(), // To number
-      calledNumber: a.string(), // Airtel VN for inbound
+      calledNumber: a.string(), // inbound voice number
       displayCliDestination: a.string(),
 
       // Status details
@@ -463,7 +452,7 @@ const schema = a.schema( {
       // Circle and operator info
       circleNameCaller: a.string(), // State name
       circleNameDestination: a.string(),
-      operatorNameCaller: a.string(), // Bharti Airtel, Jio, etc.
+      operatorNameCaller: a.string(), // carrier/operator name
       operatorNameDestination: a.string(),
 
       // Recording
@@ -499,7 +488,7 @@ const schema = a.schema( {
       // OBD Campaign fields
       campaignId: a.string(),
       campaignName: a.string(),
-      pulseCount: a.integer(), // Pulse count per Airtel spec
+      pulseCount: a.integer(), // billing/voice pulse count
       dtmfCapture: a.string(), // DTMF capture
       missedDestinationNumber: a.string(), // Missed destination number
 
@@ -507,12 +496,12 @@ const schema = a.schema( {
       participantsJson: a.string(), // Full participants array
       eventsJson: a.string(), // Full events array
 
-      // Derived overall call status (per Airtel spec matrix)
+      // Derived overall call status
       derivedOverallStatus: a.string(), // Computed from caller + destination status
 
       // Metadata
       participantsCount: a.integer(),
-      source: a.string().default( 'airtel_cdr_webhook' ),
+      source: a.string().default( 'voice_cdr' ),
       inboundNumber: a.string().default( '+919319767034' ),
 
       createdAt: a.integer(), // Unix epoch seconds
@@ -524,24 +513,6 @@ const schema = a.schema( {
       index( 'callerNumber' ),
       index( 'callType' ),
     ] )
-    .authorization( ( allow ) => [ allow.authenticated() ] ),
-
-  // Table 16: OBDCampaigns - Airtel OBD Campaign Records (TTL: 90 days)
-  OBDCampaign: a
-    .model( {
-      id: a.id().required(),
-      campaignId: a.string(),
-      airtelCampaignId: a.string(), // Airtel-assigned campaign ID
-      campaignName: a.string().required(),
-      status: a.string().default( 'created' ), // created, running, completed, failed, DELETED
-      audioUrl: a.string(),
-      sheetFileNames: a.string(), // JSON array of uploaded CSV filenames
-      contactCount: a.integer().default( 0 ),
-      createdAt: a.integer(),
-      updatedAt: a.integer(),
-      ttl: a.integer(), // TTL: Unix epoch seconds (90 days)
-    } )
-    .identifier( [ 'id' ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
   // Table 18: ScheduledMessages - Scheduled WhatsApp messages
@@ -813,14 +784,15 @@ const schema = a.schema( {
     .identifier( [ 'phoneHash' ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
-  // Table 29: WixOrderIds - Mapping between Wix order IDs and WD-ORD numbers
-  WixOrderId: a
+  // Table 29: CommerceKeys - provider-neutral commerce/order key namespace
+  CommerceKey: a
     .model( {
-      wixOrderId: a.string().required(),
-      wdOrderNumber: a.string().required(),
+      orderId: a.string().required(),
+      cartId: a.string(),
+      wdOrderNumber: a.string(),
       createdAt: a.integer(),
     } )
-    .identifier( [ 'wixOrderId' ] )
+    .identifier( [ 'orderId' ] )
     .secondaryIndexes( ( index ) => [
       index( 'wdOrderNumber' ),
     ] )
@@ -1011,7 +983,7 @@ const schema = a.schema( {
       configurationName: a.string(), // the Meta payment configuration actually used
       provider: a.string().default( 'razorpay' ),
       cartId: a.string(),
-      wixCheckoutId: a.string(),
+      checkoutId: a.string(),
       // CREATED | PAYMENT_READINESS_CHECKED | PAYMENT_REQUEST_SENT | PAYMENT_PENDING
       // then exactly one of PAYMENT_PAID | PAYMENT_FAILED | PAYMENT_CANCELLED | PAYMENT_EXPIRED
       status: a.string().default( 'CREATED' ),
@@ -1178,14 +1150,14 @@ const schema = a.schema( {
   // ORDER MANAGEMENT TABLES
   // ============================================================
 
-  // Table: Order — Central order repository (all sources: Wix, manual, Shopify, future)
+  // Table: Order — Central native order repository
   Order: a
     .model( {
       orderId: a.string().required(), // "WD-ORD-A1B2C3D4" — canonical full ID
       shortId: a.string().required(), // "A1B2C3D4" — 8-char hex for display
       // Source
-      source: a.string().required(), // wix | manual | shopify | woocommerce | custom
-      sourceOrderId: a.string(), // native ID from source store (e.g. Wix UUID)
+      source: a.string().required(), // manual | flow | catalog | integration
+      sourceOrderId: a.string(), // optional upstream/source identifier
       sourceOrderNumber: a.string(), // native display number (e.g. "10042") — internal only
       sourceRawPayload: a.string(), // JSON of raw source data for audit
       // Customer
