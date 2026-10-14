@@ -254,24 +254,17 @@ def _get_order_submissions(order_id: str) -> Dict:
 
 
 def _sync_orders() -> Dict:
-    # Trigger Wix order sync via existing wix-store Lambda
-    try:
-        lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-        lambda_client.invoke(
-            # The deployed function is `wecare-wix-store`. The previous default,
-            # `stack-wecare-digital-wix-store`, named nothing in the account: that
-            # prefix belongs to DynamoDB tables, not Lambda functions. Confirmed
-            # against the live config on 2026-09-24 - neither this function nor
-            # wecare-whatsapp-business-api sets WIX_STORE_FUNCTION, so the default
-            # was always what ran, and every invoke raised
-            # ResourceNotFoundException.
-            FunctionName=os.environ.get('WIX_STORE_FUNCTION', 'wecare-wix-store'),
-            InvocationType='Event',
-            Payload=json.dumps({'action': 'sync_orders'}),
-        )
-        return _resp(200, {'message': 'Sync triggered', 'synced': 0})
-    except Exception as e:
-        return _resp(500, {'error': str(e)})
+    """Compatibility endpoint: orders are already native and require no provider sync.
+
+    OrderTable is the authoritative store after Wix retirement. Keep the action so
+    existing staff/automation callers do not break, but do not invoke any retired
+    provider Lambda or claim that an external synchronization occurred.
+    """
+    return _resp(200, {
+        'message': 'AWS-native orders are already authoritative',
+        'synced': 0,
+        'source': 'orders_table',
+    })
 
 
 # ============================================================================
