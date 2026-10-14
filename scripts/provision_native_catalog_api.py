@@ -114,22 +114,35 @@ def api_id():
 
 def apply():
     iam, lam, apigw = client("iam"), client("lambda"), client("apigatewayv2")
+    # Runtime IAM role was separately created and approved before this deployment.
+    # GitHub OIDC must never gain iam:PutRolePolicy or iam:CreateRole merely to
+    # ship a code update; ensure the present role matches exactly.
     role = existing(iam.get_role, RoleName=ROLE)
     if role is None:
-        trust = {"Version": "2012-10-17", "Statement": [{
-            "Effect": "Allow", "Principal": {"Service": "lambda.amazonaws.com"},
-            "Action": "sts:AssumeRole"}]}
-        role = iam.create_role(
-            RoleName=ROLE, AssumeRolePolicyDocument=json.dumps(trust),
-            Description="Dedicated, staff-only AWS-native catalog CRUD role",
+        raise RuntimeError(
+            "Dedicated Lambda IAM role missing. Provision the reviewed role "
+            "out of band before deploying code."
         )
-        role_arn = role["Role"]["Arn"]
-    else:
-        role_arn = role["Role"]["Arn"]
-    iam.put_role_policy(
-        RoleName=ROLE, PolicyName=POLICY,
-        PolicyDocument=json.dumps(role_policy()),
-    )
+    role_arn = role["Role"]["Arn"]
+    live_policy = existing(iam.get_role_policy, RoleName=ROLE, PolicyName=POLICY)
+    if live_policy is None:
+        raise RuntimeError("Dedicated native catalog IAM policy missing")
+    def _fingerprint(doc):
+        statements = doc.get("Statement", [])
+        if isinstance(statements, dict):
+            statements = [statements]
+        def _items(x):
+            return sorted([str(x)] if isinstance(x, str) else [str(v) for v in x])
+        return sorted(json.dumps({
+            "Effect": statement.get("Effect"),
+            "Action": _items(statement.get("Action", [])),
+            "Resource": _items(statement.get("Resource", [])),
+        }, sort_keys=True) for statement in statements)
+    if _fingerprint(live_policy["PolicyDocument"]) != _fingerprint(role_policy()):
+        raise RuntimeError(
+            "Native catalog IAM policy drift: stop rather than widening or "
+            "overwriting a production role from GitHub Actions"
+        )
     artifact = zip_code()
     env = {"Variables": {
         "PRODUCTS_TABLE": TABLE,
@@ -211,8 +224,15 @@ def verify():
     aid = api_id()
     all_routes = {v["RouteKey"]: v for v in apigw.get_routes(ApiId=aid)["Items"]}
     missing = sorted(set(ROUTES) - set(all_routes))
+    expected_arn = f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{FUNCTION}:live"
+    integrations = apigw.get_integrations(ApiId=aid).get("Items", [])
+    matches = [i["IntegrationId"] for i in integrations
+               if i.get("IntegrationUri") == expected_arn]
+    if len(matches) != 1:
+        raise RuntimeError("Expected exactly one catalog Lambda integration")
+    expected_target = "integrations/" + matches[0]
     wrong = [x for x in ROUTES if x in all_routes and
-             not all_routes[x].get("Target", "").startswith("integrations/")]
+             all_routes[x].get("Target") != expected_target]
     print(json.dumps({
         "function": FUNCTION, "version": cfg["Version"], "status": cfg["State"],
         "role": cfg["Role"], "api_id": aid,
