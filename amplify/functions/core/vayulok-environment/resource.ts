@@ -2,7 +2,7 @@
  * VayuLok environmental gateway — WECARE.DIGITAL
  *
  * Server-side proxy for Google Weather API + Air Quality API. The public
- * NEXT_PUBLIC_GOOGLE_MAPS_KEY remains a browser-only Maps JavaScript credential.
+ * NEXT_PUBLIC_GOOGLE_BROWSER_KEY remains a browser-only Maps JavaScript credential.
  *
  * Lambda: wecare-vayulok-environment
  * Runtime: Python 3.12
