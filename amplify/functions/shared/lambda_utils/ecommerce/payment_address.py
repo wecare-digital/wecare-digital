@@ -11,7 +11,7 @@ Whether that stored address can actually take money is a *channel* question, ans
 at the moment a payment is attempted:
 
 - **Website / Razorpay** (`WEBSITE_RAZORPAY`): the address must map to the normalized delivery shape
-  (`india_address.to_india_address`), which for India requires a resolvable subdivision and for
+  (`india_address.to_delivery_address`), which for India requires a resolvable subdivision and for
   every other country requires an ISO 3166-2 state. India additionally requires a six-digit
   PIN, because the delivery address is the place of supply and decides the CGST/SGST split on
   an invoice carrying a real GSTIN — a wrong split is a silently-wrong total, not a loud error.
@@ -95,10 +95,10 @@ def assert_payable(address: Dict[str, Any], *, channel: str) -> None:
         raise UnpayableAddress("COUNTRY_NOT_PAYABLE_ON_CHANNEL", "country")
 
     if channel == WEBSITE_RAZORPAY:
-        # Website: a non-India address must still map to a Wix delivery address, which demands
+        # Website: a non-India address must still map to the normalized delivery shape, which demands
         # an ISO 3166-2 state. Re-raise Wix's refusal as the one caller-facing type.
         try:
-            india_address.to_india_address(address)
+            india_address.to_delivery_address(address)
         except india_address.UnmappableAddress:
             raise UnpayableAddress("UNMAPPABLE_STATE", "state") from None
         return
@@ -108,10 +108,10 @@ def assert_payable(address: Dict[str, Any], *, channel: str) -> None:
 
 
 def for_wix(address: Dict[str, Any]) -> Dict[str, Any]:
-    """Assert website-payability, then return the Wix delivery address. Raises `UnpayableAddress`."""
+    """Assert website-payability, then return the normalized delivery address. Raises `UnpayableAddress`."""
     assert_payable(address, channel=WEBSITE_RAZORPAY)
     try:
-        return india_address.to_india_address(address)
+        return india_address.to_delivery_address(address)
     except india_address.UnmappableAddress:
         # assert_payable already ran to_india_address for non-India; India can still fail the
         # mapping here if the subdivision resolved but the owned shape is otherwise unusable.

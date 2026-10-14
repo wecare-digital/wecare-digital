@@ -1778,7 +1778,7 @@ def test_the_constants_match_the_modules_they_mirror():
         "the website producer no longer writes the attribute finalization reconciles against")
     # The checkout mode the finalizer accepts.
     assert website_checkout.CHECKOUT_MODE_WEBSITE in finalization.ACCEPTED_CHECKOUT_MODES
-    assert "WIX_HEADLESS" in finalization.ACCEPTED_CHECKOUT_MODES
+    assert "AWS_NATIVE" in finalization.ACCEPTED_CHECKOUT_MODES
     # The receipt length both sides slice/compare on. A divergence produces no error, only a
     # correlation that silently stops matching.
     assert (order_keys.RAZORPAY_RECEIPT_MAX_LENGTH
