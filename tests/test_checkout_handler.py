@@ -97,15 +97,6 @@ class _Identity:
         return bool(cid) and cid == self.customer_id
 
 
-def _fake_checkout(total='599.00', currency='INR'):
-    return {
-        'id': 'wix-checkout-1',
-        'currency': currency,
-        'priceSummary': {'total': {'amount': total}},
-        'lineItems': [{'productName': {'original': 'Viveka'}, 'quantity': 1}],
-    }
-
-
 @pytest.fixture
 def env(monkeypatch):
     monkeypatch.setenv('PAYMENT_ATTEMPTS_TABLE', ATTEMPTS_TABLE)
@@ -128,18 +119,11 @@ def env(monkeypatch):
 
     monkeypatch.setattr(h, '_dynamodb', fake)
     monkeypatch.setattr(h, '_lambda_client', lambda: lam)
-    # Default: initiation OFF (matches production default), a valid INR checkout, and an
-    # authenticated CUSTOMER identity. Individual tests override.
+    # Default: initiation OFF (matches production default) and an authenticated CUSTOMER identity.
+    # Pricing is AWS-native off ProductsTable; the catalog-leg tests stub `_native_quote` directly.
+    # Individual tests override.
     monkeypatch.setattr(h, 'INITIATION_ENABLED', False)
-    monkeypatch.setattr(h.wix_ecom, 'create_checkout', lambda items, **k: _fake_checkout())
     monkeypatch.setattr(h.customer_auth, 'authenticate', lambda event: _Identity(CUSTOMER))
-    # Every test in THIS file exercises the Checkout V1 price authority, which is what serves:
-    # Cart V2 is opt-in behind `WIX_CART_V2_ENABLED` and the key is absent on every function.
-    # Both keys are cleared rather than one being set, so this file reproduces the deployed
-    # configuration instead of pinning a gate. The Cart V2 branch of the same handler is covered
-    # by `tests/test_checkout_cart_v2_authority.py`.
-    monkeypatch.delenv('WIX_CART_V2_ENABLED', raising=False)
-    monkeypatch.delenv('WIX_CART_V2_DISABLED', raising=False)
     return h, fake, lam, monkeypatch
 
 
@@ -165,8 +149,8 @@ CATALOG_SESSION = {
     'contactId': 'contact-cat-1',
     'phoneNumberId': 'phone-number-id-waba1-direct-1016149501586345',
     'kind': 'SUBMIT_REQUEST',
-    'productId': 'service-product-1',
-    'variantId': 'service-variant-1',
+    'productId': 'df976a0a-f582-4535-b2e1-d532f348bd27',
+    'variantId': 'e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b',
 }
 
 
@@ -174,6 +158,14 @@ COLLECTION_PAISE = 59900
 FEE_PAISE = 1498
 FEE_GST_PAISE = 270
 TOTAL_PAYABLE_PAISE = COLLECTION_PAISE + FEE_PAISE + FEE_GST_PAISE
+
+#: A real SUBMIT_REQUEST service: product + variant from `service_requests.SERVICE_*`, so the
+#: native per-line price guard (`native_service_line_paise`, which reads `frozen_data['items']`)
+#: resolves exactly one in-bounds service line at quantity 1.
+SERVICE_PRODUCT_ID = 'df976a0a-f582-4535-b2e1-d532f348bd27'
+SERVICE_VARIANT_ID = 'e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b'
+#: A well-formed UUIDv7 service-intent id (service_requests.INTENT_ID_RE).
+SERVICE_INTENT_ID = '018f1a2b-3c4d-7e5f-8a9b-0c1d2e3f4a5b'
 
 
 class _Quote:
@@ -186,35 +178,35 @@ class _Quote:
 
 
 class _Snapshot:
-    """The frozen Cart V2 snapshot, with only the attributes `_create` reads."""
+    """The frozen native QuoteSnapshot, with only the attributes `_create` reads.
 
-    cart_id = 'wix-cart-1'
-    cart_revision = '3'
+    `frozen_data['items']` carries the one service line the native per-line price guard reads;
+    the `site` is the native tag, not a Wix site id.
+    """
+
+    cart_id = 'native:testcart'
+    cart_revision = 0
     snapshot_hash = 'sha256:testsnapshot'
     expires_at = 1770000900
     policy_version = 'v1'
-    frozen_data = {'cart': {'id': 'wix-cart-1'}}
+    frozen_data = {'items': [{'productId': SERVICE_PRODUCT_ID, 'variantId': SERVICE_VARIANT_ID,
+                              'quantity': 1, 'unitPricePaise': COLLECTION_PAISE}]}
     quote = _Quote()
 
 
 def _enable_catalog_leg(h, monkeypatch, *, quote=None):
-    """Put the handler on the catalog leg's required Cart V2 branch, with pricing stubbed.
+    """Put the handler on the catalog leg, with native pricing stubbed.
 
-    The catalog leg is V2-only by construction — `snapshot` and `_calculated` exist only on that
-    branch, and `_create` now refuses 503 `SERVICE_UNAVAILABLE` with V2 off rather than crashing.
-    `_v2_snapshot` is stubbed rather than driven through Wix because the subject here is
-    `_create`'s own contract: which figure it records, which refusals it makes, which rows it
-    writes and which envelope it sends. Wix PRICING is owned by
-    `tests/test_checkout_cart_v2_authority.py` and `tests/test_wix_cart_v2_*.py`.
+    `_native_quote` is stubbed rather than driven through ProductsTable because the subject here
+    is `_create`'s own contract: which figure it records, which refusals it makes, which rows it
+    writes and which envelope it sends. Native PRICING is owned by `tests/test_native_checkout.py`
+    and `tests/test_catalog_pricing.py`.
     """
-    monkeypatch.setenv('WIX_CART_V2_ENABLED', 'true')
     snapshot = _Snapshot()
     if quote is not None:
         snapshot.quote = quote
-    monkeypatch.setattr(h, '_v2_snapshot',
-                        lambda identity, line_items: (snapshot, ['Viveka x1'],
-                                                      {'cart': {'lineItems': []}}))
-    # Native catalog-service path: no Wix writeback payload builder or gate to stub.
+    monkeypatch.setattr(h, '_native_quote',
+                        lambda identity, line_items, now: snapshot)
     return snapshot
 
 
@@ -225,13 +217,15 @@ def _drive_catalog(h, **over):
     refused at the top of `_create` (cart purchases are collected on the website), so
     `catalog_session` is never None past that point and the only way to exercise everything below
     it is to supply one. Driving it through `handler` would instead mean satisfying all of
-    `_native_catalog_service`'s gates — the rollout flag, writeback, a token, a session row, a
-    contacts row, a Cognito `list_users` call, an intent row and a `catalogServiceReadiness`
-    invoke — and those gates are covered by `tests/test_native_catalog_orchestration.py`. The
-    subject here is `_create`'s own contract, not the catalog orchestration.
+    `_native_catalog_service`'s gates — the rollout flag, a token, a session row, a contacts row,
+    a Cognito `list_users` call, an intent row and a `catalogServiceReadiness` invoke — and those
+    gates are covered by `tests/test_native_catalog_orchestration.py`. The subject here is
+    `_create`'s own contract, not the catalog orchestration.
     """
-    body = {'lineItems': [{'catalogReference': {'catalogItemId': 'p1'}, 'quantity': 1}],
-            'serviceIntentId': 'INTENT-TEST'}
+    body = {'lineItems': [{'catalogReference': {
+                'catalogItemId': SERVICE_PRODUCT_ID,
+                'options': {'variantId': SERVICE_VARIANT_ID}}, 'quantity': 1}],
+            'serviceIntentId': SERVICE_INTENT_ID}
     body.update(over)
     return h._create(_Identity(CUSTOMER), body, 'http://localhost:3000',
                      catalog_session=dict(CATALOG_SESSION))
@@ -241,7 +235,7 @@ def _seed_catalog_session(fake):
     """The session row the post-attempt conditional update matches on."""
     fake.Table(KEYS_TABLE).put_item(Item={
         'orderId': CATALOG_SESSION['orderId'],
-        'serviceIntentId': 'INTENT-TEST',
+        'serviceIntentId': SERVICE_INTENT_ID,
         'status': 'PREPARING_PAYMENT',
     })
 
@@ -275,9 +269,8 @@ def test_no_session_is_refused(env):
 
 def test_the_in_chat_cart_leg_is_refused_before_any_io(env):
     h, fake, lam, monkeypatch = env
-    wix_calls = []
-    monkeypatch.setattr(h.wix_ecom, 'create_checkout',
-                        lambda items, **k: wix_calls.append(items) or _fake_checkout())
+    # Nothing is priced on the in-chat cart leg: it is refused before `_native_quote`, so a
+    # pricing stub would never be reached. Assert zero attempts/keys/invokes instead.
 
     resp = h.handler(_create_event(), None)
 
@@ -291,11 +284,10 @@ def test_the_in_chat_cart_leg_is_refused_before_any_io(env):
     # No `paymentAttemptId`, because no attempt exists.
     assert 'paymentAttemptId' not in body
 
-    # Zero rows in BOTH tables, no invoke, no Wix call.
+    # Zero rows in BOTH tables, no invoke.
     assert fake.count(ATTEMPTS_TABLE) == 0
     assert fake.count(KEYS_TABLE) == 0
     assert lam.invocations == []
-    assert wix_calls == []
 
 
 @pytest.mark.parametrize('override', [
@@ -310,19 +302,18 @@ def test_the_cart_refusal_does_not_depend_on_the_request_body(env, override):
     assert fake.count(ATTEMPTS_TABLE) == 0
 
 
-@pytest.mark.parametrize('checkout', [
-    _fake_checkout(currency='USD'),       # would have been UNSUPPORTED_CURRENCY
-    _fake_checkout(total='599.005'),      # would have been AMOUNT_NOT_SETTLED
+@pytest.mark.parametrize('override', [
+    {'currency': 'USD'},        # a currency claim the leg never reads
+    {'total': '599.005'},       # a sub-paise total the leg never reads
 ])
-def test_a_cart_wix_would_have_refused_is_refused_earlier_still(env, checkout):
+def test_a_cart_the_price_engine_would_have_refused_is_refused_earlier_still(env, override):
     """The money guards are not bypassed — they are unreachable, which is stronger.
 
-    A non-INR or sub-paise total used to be refused AFTER the live Wix call. Now the policy
-    refusal precedes the call, so there is no total to be wrong about on this leg.
+    A bad currency or total used to be refused AFTER pricing. Now the policy refusal precedes any
+    `_native_quote`, so there is no total to be wrong about on this leg.
     """
-    h, fake, _lam, monkeypatch = env
-    monkeypatch.setattr(h.wix_ecom, 'create_checkout', lambda items, **k: checkout)
-    resp = h.handler(_create_event(), None)
+    h, fake, _lam, _mp = env
+    resp = h.handler(_create_event(**override), None)
     assert json.loads(resp['body'])['status'] == 'CART_PAYMENT_IS_WEBSITE_ONLY'
     assert fake.count(ATTEMPTS_TABLE) == 0
     assert fake.count(KEYS_TABLE) == 0
@@ -330,13 +321,13 @@ def test_a_cart_wix_would_have_refused_is_refused_earlier_still(env, checkout):
 
 def test_the_cart_refusal_follows_the_service_refusal_in_source_order(env):
     """Structural. Both are pre-I/O policy refusals, and a service basket must keep answering with
-    its OWN code rather than being swallowed by the cart one."""
+    its OWN code rather than being swallowed by the cart one. Both still precede any pricing."""
     import inspect
     h, _fake, _lam, _mp = env
     source = inspect.getsource(h._create)
     assert (source.index('SERVICE_WEBSITE_ONLY')
             < source.index('CART_PAYMENT_IS_WEBSITE_ONLY')
-            < source.index('cart_v2.is_enabled()'))
+            < source.index('_native_quote('))
 
 
 def test_a_website_only_service_in_a_cart_still_answers_the_service_code(env):
@@ -395,17 +386,17 @@ def test_the_amount_recorded_is_the_quote_not_the_request(env):
     assert fake.all_rows(ATTEMPTS_TABLE)[0]['amountPaise'] == TOTAL_PAYABLE_PAISE
 
 
-def test_the_catalog_leg_requires_cart_v2_and_refuses_rather_than_crashing(env):
-    """`snapshot` and `_calculated` exist only on the V2 branch, so a V2-off deployment used to
-    raise `UnboundLocalError` here. Named 503 instead, with the vocabulary
-    `checkout_preflight` already uses for the same condition."""
-    h, fake, lam, _mp = env
-    from lambda_utils.ecommerce import service_requests as sr
+def test_the_catalog_leg_prices_natively_without_cart_v2(env, monkeypatch):
+    """The catalog-service leg no longer depends on Wix Cart V2: it prices off ProductsTable via
+    `_native_quote` and the per-line guard reads the frozen native quote. With native pricing in
+    place there is no 503 SERVICE_UNAVAILABLE and no crash — the attempt is prepared from the
+    calculator total. (The old V2-only branch that answered 503 with V2 off is gone.)"""
+    h, fake, _lam, _mp = env
+    _enable_catalog_leg(h, monkeypatch)
     resp = _drive_catalog(h)
-    assert resp['statusCode'] == 503
-    assert json.loads(resp['body'])['error'] == sr.SERVICE_UNAVAILABLE
-    assert fake.count(ATTEMPTS_TABLE) == 0
-    assert lam.invocations == []
+    assert resp['statusCode'] == 200, resp['body']
+    assert json.loads(resp['body'])['amountPaise'] == TOTAL_PAYABLE_PAISE
+    assert fake.count(ATTEMPTS_TABLE) == 1
 
 
 # ── fail-closed readiness ─────────────────────────────────────────────────────
