@@ -798,6 +798,12 @@ def _hard_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str
     if not resp.get('Item'):
         return cors_response(404, {'error': 'Contact not found'}, origin)
 
+    # Fail closed before touching any message or media when the lock changed.
+    current = table.get_item(Key={'id': contact_id}, ConsistentRead=True).get('Item')
+    if not current or contact_lock.is_locked(current):
+        return cors_response(409, {'error': DELETE_REFUSED_LOCKED,
+                                   'archiveInstead': False}, origin)
+
     msgs_deleted = 0
     media_deleted = 0
 
