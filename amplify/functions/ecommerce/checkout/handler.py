@@ -144,6 +144,9 @@ CONTACTS_TABLE = os.environ.get("CONTACTS_TABLE", "stack-wecare-digital-Contacts
 ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "stack-wecare-digital-OrderTable")
 #: AWS-native product catalog, read ONLY on the CHECKOUT_MODE=AWS_NATIVE branch.
 PRODUCTS_TABLE = os.environ.get("PRODUCTS_TABLE", "stack-wecare-digital-ProductsTable")
+#: AWS-native working cart (CartTable), the backing store for the WhatsApp claim-basket /
+#: customer-cart adapter that replaced the Wix Cart V2 adapter.
+CART_TABLE = os.environ.get("CART_TABLE", "stack-wecare-digital-CartTable")
 WEBSITE_SNAPSHOT_TTL_SECONDS = 15 * 60
 
 #: Reasons that mean "we refuse", as opposed to "we do not know". 409 for the first; 200 for the
@@ -320,6 +323,17 @@ def _orders_table():
 
 def _products_table():
     return _table(PRODUCTS_TABLE)
+
+
+def _cart_table():
+    return _table(CART_TABLE)
+
+
+def _native_cart_adapter(customer_id: str = ""):
+    """The AWS-native cart adapter `CustomerCart` drives, replacing `cart_v2.CartV2(_wix_request)`.
+    Backed by CartTable + the ProductsTable reader; no Wix."""
+    from lambda_utils.ecommerce.native_cart_adapter import NativeCartAdapter
+    return NativeCartAdapter(_cart_table(), _native_product_reader(), customer_id=customer_id)
 
 
 def _native_product_reader():
@@ -945,7 +959,7 @@ def _claimed_handoff(identity: customer_auth.CustomerIdentity,
         return None
     try:
         current_cart = customer_cart.CustomerCart(
-            _keys_table(), cart_v2.CartV2(_wix_request)).resolve(identity)
+            _keys_table(), _native_cart_adapter(identity.customer_id)).resolve(identity)
     except Exception as exc:  # noqa: BLE001 - a label never fails a prepare; see the docstring
         logger.info(json.dumps({"event": "checkout_channel_cart_unresolved",
                                 "error": type(exc).__name__}))
@@ -1043,7 +1057,7 @@ def _claim_basket(identity: customer_auth.CustomerIdentity, body: Dict[str, Any]
     if not items:
         return cors_response(404, _BASKET_REFUSED, origin)
 
-    carts = customer_cart.CustomerCart(_keys_table(), cart_v2.CartV2(_wix_request))
+    carts = customer_cart.CustomerCart(_keys_table(), _native_cart_adapter(identity.customer_id))
     try:
         if body.get("resetCart") is True:
             # BEFORE `ensure`, so the create below is reached rather than the existing cart being

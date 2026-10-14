@@ -34,7 +34,7 @@ from lambda_utils.ecommerce import order_keys  # noqa: E402
 from lambda_utils.ecommerce import payment_attempt  # noqa: E402
 from lambda_utils.ecommerce import purchase_intent  # noqa: E402
 from lambda_utils.ecommerce import website_checkout  # noqa: E402
-from lambda_utils.ecommerce import wix_writeback  # noqa: E402
+# wix_writeback removed with the Wix order writeback; the native terminal creates no Wix order.
 
 KEYS_TABLE = "stack-wecare-digital-WixOrderIds"
 ATTEMPTS_TABLE = "stack-wecare-digital-PaymentAttemptsTable"
@@ -390,35 +390,10 @@ def _calculated():
     }
 
 
-def test_the_wix_payload_relays_wix_money_and_adds_only_our_fee():
-    quote = cp.compute_quote(COLLECTION_PAISE)
-    payload = wix_writeback.build_wix_order_payload(cart=_calculated(), quote=quote)
-    assert payload["currency"] == "INR"
-    fees = [fee for fee in payload["additionalFees"]
-            if fee["code"] == wix_writeback.CONVENIENCE_FEE_CODE]
-    assert len(fees) == 1
-    assert fees[0]["priceBeforeTax"] == {"amount": "25.00"}, "2.5% of 1000.00, exact"
-    assert fees[0]["price"] == {"amount": "25.00"}, "tax is represented separately"
-    assert payload["priceSummary"]["subtotal"] == {"amount": "1000.00"}, "relayed verbatim"
-    assert payload["priceSummary"]["total"] == {"amount": "1029.50"}
-    assert payload["lineItems"][0]["catalogReference"] == {"catalogItemId": "prod-1"}
-    assert payload["lineItems"][0]["quantity"] == 2
-
-
-def test_the_wix_payload_compares_currency_explicitly():
-    class NotInr:
-        currency = "USD"
-
-    with pytest.raises(ValueError):
-        wix_writeback.build_wix_order_payload(cart=_calculated(), quote=NotInr())
-
-
-def test_the_wix_payload_refuses_a_float_money_component():
-    with pytest.raises(TypeError):
-        wix_writeback._paise_money(100.0)
-    with pytest.raises(TypeError):
-        wix_writeback._paise_money(True)
-    assert wix_writeback._paise_money(100) == {"amount": "1.00"}
+# (The three Wix-order-payload tests — build_wix_order_payload / _paise_money — were removed
+# with the Wix order writeback. The AWS-native terminal creates no Wix order, so there is no
+# payload to build; money-component typing is covered natively via money.positive_paise below
+# and in test_catalog_pricing.)
 
 
 # ── step 6: the calculation is exposed, not recomputed ─────────────────────────
@@ -790,21 +765,12 @@ class _Rig:
         self.mp.setattr(self.h.razorpay_verify, "verifier_for_event", verifier)
 
     def enable_writeback(self):
-        """Turn `wix_writeback.is_enabled()` true for THIS test only.
+        """No-op since the Wix order writeback was removed.
 
-        All four of its conditions, because it is an AND and a partial set reads as disabled.
-        This is a per-test `monkeypatch.setenv`, scoped and reverted by pytest -- it is NOT a
-        deployed flag: nothing in `amplify/infra/` or `scripts/provision_checkout.py` sets any of
-        these, and `tests/test_wix_writeback.py` has used the same four keys since before this
-        change. Without it `accept_paid` stops at `WIX_WRITE_CONTRACT_REQUIRED` and every line
-        after that gate is unexecuted, which is exactly the hole these rows close.
+        Kept as a method so callers (`_paid_flow(writeback=True)`) need no change; the AWS-native
+        terminal creates no Wix order regardless, which the `wix_orders == []` assertions verify.
         """
-        self.mp.setenv("WIX_WRITEBACK_ENABLED", "true")
-        self.mp.setenv("WIX_ECOM_WRITE_CONFIRMED", "true")
-        self.mp.setenv("WIX_SITE_ID", wix_writeback.CONFIRMED_SITE_ID)
-        self.mp.setenv("WIX_CART_V2_WRITE_CONTRACT", wix_writeback.WRITE_CONTRACT)
-        assert wix_writeback.is_enabled(), (
-            "the write-back gate did not open, so this row would assert against the dormant path")
+        return None
 
     # -- post-prepare row surgery, for shapes the fixtures cannot produce -----
     def attempt_row(self):
@@ -1636,7 +1602,7 @@ def test_the_browser_amount_and_the_attempt_amount_are_different_expressions():
 TOUCHED_PYTHON = (
     "amplify/functions/shared/lambda_utils/ecommerce/order_keys.py",
     "amplify/functions/shared/lambda_utils/ecommerce/checkout_pricing.py",
-    "amplify/functions/shared/lambda_utils/ecommerce/wix_writeback.py",
+    # (wix_writeback.py removed in the Wix exit — the native terminal creates no Wix order.)
     "amplify/functions/shared/lambda_utils/ecommerce/purchase_intent.py",
     "amplify/functions/shared/lambda_utils/ecommerce/website_checkout.py",
     "amplify/functions/shared/lambda_utils/ecommerce/finalization.py",
@@ -1805,9 +1771,8 @@ def test_the_constants_match_the_modules_they_mirror():
     from lambda_utils.ecommerce import gift_card_settlement
     from lambda_utils.integrations import razorpay_orders
 
-    # The one whose divergence silently DISABLES accept_paid's reduced-payload refusal.
-    assert (website_checkout._WIX_PAYLOAD_REDUCED_FLAG
-            == wix_writeback.PAYLOAD_REDUCED_FLAG)
+    # (The reduced-payload mirror check was removed with wix_writeback: there is no Wix order
+    # payload to reduce on the AWS-native terminal.)
     # The verified-capture attribute, declared as an obligation by the gift-card ladder and
     # written only by finalization.
     from lambda_utils.ecommerce import finalization
@@ -2569,10 +2534,11 @@ def test_a_float_amount_is_refused_at_every_money_boundary(value):
         payment_attempt.build(customer_id=CUSTOMER, reference_id="ref_money_1",
                               amount_paise=value, configuration_name="WEBSITE_RAZORPAY_STANDARD")
 
-    # 5. `wix_writeback._paise_money` -- the last boundary before a figure becomes a Wix money
-    #    object, and the one that decides what an order total says.
-    with pytest.raises(TypeError):
-        wix_writeback._paise_money(value)
+    # 5. `money.positive_paise` -- the native money boundary (the former Wix _paise_money is
+    #    gone with the writeback). A float or bool is refused rather than coerced.
+    from lambda_utils.ecommerce import money as _money
+    with pytest.raises((TypeError, ValueError)):
+        _money.positive_paise(value)
 
 
 @pytest.mark.parametrize("value", [100, Decimal("100"), "100"],
