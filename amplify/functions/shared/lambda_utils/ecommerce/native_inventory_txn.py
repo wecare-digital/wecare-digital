@@ -266,7 +266,10 @@ def release_basket(
     if len(tx) > 100:
         raise ReservationConflict("basket exceeds transaction operation limit")
     content_hash = hashlib.sha256(json.dumps(
-        [[pid, vid, qty] for pid, vid, qty, _ in parsed],
+        # `parsed` rows are 5-tuples (pid, vid, qty, idx, tracked) - see `_parse`. The release
+        # idempotency hash keys on item IDENTITY only (pid, vid, qty), so idx and tracked are
+        # discarded here, but the unpack must still name all five or it raises on every call.
+        [[pid, vid, qty] for pid, vid, qty, _idx, _tracked in parsed],
         separators=(",", ":"), sort_keys=True,
     ).encode()).hexdigest()
     token = hashlib.sha256((attempt_id + ":release:" + content_hash).encode()).hexdigest()[:36]
