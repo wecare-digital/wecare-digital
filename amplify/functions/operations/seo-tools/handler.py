@@ -31,7 +31,7 @@ import faq
 import seo_freshness
 import seo_refresh
 import storage
-import wix
+import seo_pages as wix  # native page/product SEO (Wix exit); kept the `wix` alias to minimise churn
 
 #: The two categories the live site actually has. Imported from the quality gate so the
 #: Lambda, the CLI and the admin page cannot disagree about what is acceptable -

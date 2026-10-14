@@ -255,44 +255,12 @@ def test_public_blog_detail_reads_native_by_slug(seo_handler):
     auth.assert_not_called()
 
 
-def test_wix_public_blog_never_uses_admin_request_path(seo_handler):
-    categories = {
-        'categories': [{'id': 'cat-1', 'label': 'Conversations'}],
-    }
-    tags = {
-        'tags': [{'id': 'tag-1', 'label': 'Integrity'}],
-    }
-
-    def public_call(method, path, body=None):
-        if path == '/blog/v3/categories/query':
-            return categories
-        if path == '/v3/tags/query':
-            return tags
-        if path == '/v3/posts/query':
-            return {
-                'posts': [{
-                    'id': 'post-1',
-                    'title': 'Integrity',
-                    'slug': 'integrity-and-balance',
-                    'categoryIds': ['cat-1'],
-                    'tagIds': ['tag-1'],
-                }],
-                'pagingMetadata': {'cursors': {}},
-            }
-        raise AssertionError(path)
-
-    with patch.object(
-        seo_handler.wix, 'public_blog_request', side_effect=public_call
-    ) as public_request, patch.object(
-        seo_handler.wix, 'request'
-    ) as admin_request:
-        posts = seo_handler.wix.list_blog_posts()
-
-    assert posts[0]['category'] == 'Conversations'
-    assert posts[0]['tags'] == ['Integrity']
-    assert posts[0]['authorName'] == 'Anew by WECARE.DIGITAL'
-    admin_request.assert_not_called()
-    assert public_request.call_count == 3
+# Removed in the Wix exit: `test_wix_public_blog_never_uses_admin_request_path` pinned the
+# old Wix blog client's public-vs-admin request split. The SEO handler no longer reads the
+# blog through any Wix client — public reads go through `blog_source` -> `storage` (DynamoDB).
+# The surviving invariant ("the public blog never uses an admin/credentialed path") is now
+# structural: there is no Wix client in the read path at all, asserted by
+# tests/test_blog_source_dispatch.py::test_no_wix_module_imported.
 
 
 def test_blog_audit_reads_aws_post_not_wix(seo_handler):

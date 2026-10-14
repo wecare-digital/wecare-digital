@@ -30,9 +30,9 @@ import logging
 import time
 from typing import Any, Dict, List
 
+import blog_source
 import seo_config
 import seo_engine
-import wix
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ def run(event: Dict[str, Any] | None = None) -> Dict[str, Any]:
     max_refresh = int(event.get("maxRefresh") or _DEFAULT_MAX_REFRESH)
     force = bool(event.get("force"))
 
-    posts = wix.list_blog_posts()  # cached per sandbox; read-only; raises if upstream is down
+    posts = blog_source.list_blog_posts()  # AWS-native (SeoToolsTable); read-only; raises if the store is down
 
     refreshed = 0
     skipped = 0

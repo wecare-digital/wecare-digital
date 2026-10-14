@@ -128,9 +128,9 @@ class TestSourceIsReadOnly:
     def test_the_freshness_sweep_never_writes_a_source_record(self, fake_table, monkeypatch):
         posts = [_source_post(slug="a", id="1"), _source_post(slug="b", id="2")]
         snapshot = copy.deepcopy(posts)
-        # Patch the wix reference the sweep module actually holds, not the test's own copy -
-        # `seo_refresh` did `import wix`, so its bound module is the one that matters.
-        monkeypatch.setattr(seo_refresh.wix, "list_blog_posts", lambda: posts)
+        # Patch the reference the sweep module actually holds, not the test's own copy -
+        # `seo_refresh` reads the blog through `blog_source` (AWS-native, Wix exit).
+        monkeypatch.setattr(seo_refresh.blog_source, "list_blog_posts", lambda: posts)
         seo_refresh.run({"seoFreshness": True})
         assert posts == snapshot, "the sweep mutated the source corpus"
         # Every id written is a derived seo record.
@@ -301,7 +301,7 @@ class TestFailSafe:
             _source_post(slug="", id="2"),          # no slug -> counted as an error, skipped
             _source_post(slug="good-2", id="3"),
         ]
-        monkeypatch.setattr(seo_refresh.wix, "list_blog_posts", lambda: posts)
+        monkeypatch.setattr(seo_refresh.blog_source, "list_blog_posts", lambda: posts)
         summary = seo_refresh.run({"seoFreshness": True})
         assert summary["refreshed"] == 2
         assert summary["errors"] == 1
@@ -316,7 +316,7 @@ class TestFailSafe:
 
     def test_sweep_bounds_the_changed_set(self, fake_table, monkeypatch):
         posts = [_source_post(slug=f"post-{i}", id=str(i)) for i in range(5)]
-        monkeypatch.setattr(seo_refresh.wix, "list_blog_posts", lambda: posts)
+        monkeypatch.setattr(seo_refresh.blog_source, "list_blog_posts", lambda: posts)
         summary = seo_refresh.run({"seoFreshness": True, "maxRefresh": 2})
         assert summary["refreshed"] == 2
         # The remaining three are reported as skipped rather than silently dropped.
