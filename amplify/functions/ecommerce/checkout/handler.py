@@ -115,6 +115,7 @@ from lambda_utils.ecommerce import service_requests
 from lambda_utils.ecommerce.service_requests import ServiceNotPayable, ServicePriceChanged
 # Public service prices use the authoritative AWS product catalog.
 from lambda_utils.ecommerce import service_pricing_native
+from lambda_utils.ecommerce import native_inventory_txn
 from lambda_utils.integrations import razorpay_orders, razorpay_verify
 from lambda_utils import wix_ecom
 # Aliased `customer_identity`, NEVER `identity`: `identity` is a parameter name in nearly every
@@ -839,6 +840,41 @@ def _reserve_website_attempt(attempt: Dict[str, Any]) -> None:
     )
 
 
+def _website_order_creator(snapshot):
+    """Reserve frozen native stock before the existing gateway create call.
+
+    Activation requires reconciled stock and the approved product-write IAM grant.
+    An ambiguous provider result keeps the reservation: an unpaid or timed-out
+    order can still accept a later payment, so it is not a safe release signal.
+    """
+    if str(os.environ.get("NATIVE_STOCK_RESERVATION_ENABLED", "false")).lower() != "true":
+        return razorpay_orders.create_order
+    if _supply_mode() != "AWS_NATIVE":
+        raise ValueError("native stock reservation requires AWS-native pricing")
+    items = snapshot.frozen_data.get("items")
+    if not isinstance(items, list) or not items:
+        raise ValueError("native stock reservation requires a frozen basket")
+
+    def create(*, amount_paise, receipt, notes):
+        attempt_id = notes.get("paymentAttemptId")
+        if not isinstance(attempt_id, str) or not attempt_id:
+            raise ValueError("stock reservation requires a payment attempt")
+        keys = _keys_table()
+        native_inventory_txn.reserve_basket(
+            boto3.client("dynamodb", region_name=REGION),
+            _native_product_reader(),
+            lambda key: keys.get_item(
+                Key={"orderId": key}, ConsistentRead=True).get("Item"),
+            products_table=PRODUCTS_TABLE,
+            keys_table=COMMERCE_KEYS_TABLE or order_keys.commerce_keys_table_name(),
+            attempt_id=attempt_id, items=items,
+        )
+        return razorpay_orders.create_order(
+            amount_paise=amount_paise, receipt=receipt, notes=notes)
+
+    return create
+
+
 def _claimed_handoff(identity: customer_auth.CustomerIdentity,
                      body: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """The WhatsApp hand-off row this prepare is settling, or `None` for a website basket.
@@ -1252,7 +1288,7 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             request_key=request_key,
             now=now,
             keys_table=keys,
-            create_order=razorpay_orders.create_order,
+            create_order=_website_order_creator(snapshot),
             find_order_by_receipt=razorpay_orders.find_order_by_receipt,
             account_mode_of=razorpay_orders.account_mode,
             initiation_enabled=INITIATION_ENABLED,
