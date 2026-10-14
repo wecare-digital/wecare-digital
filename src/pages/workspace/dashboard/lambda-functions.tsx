@@ -91,7 +91,6 @@ const LAMBDA_FUNCTIONS: LambdaFunction[] = [
   { name: 'wecare-billing', displayName: 'Billing', category: 'Operations', runtime: 'Python 3.12', timeout: 60, memory: 128, description: 'AWS billing and usage tracking', apiRoute: '/billing', envVars: {}, triggers: [ 'API Gateway', 'EventBridge' ], status: 'active' },
 
   // Ecommerce
-  { name: 'wecare-wix-store', displayName: 'Wix Store', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Wix Headless ecommerce integration — credentials pending fresh project configuration', apiRoute: '/store/wix', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-catalog-management', displayName: 'Catalog Management', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'WhatsApp catalog sync', apiRoute: '/catalog', envVars: { CATALOG_TABLE: 'stack-wecare-digital-CatalogCacheTable' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-product-image-gen', displayName: 'Product Image Gen', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 60, memory: 512, description: 'AI product image generation', apiRoute: '/store/image-gen', envVars: { MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'API Gateway' ], status: 'active' },
 ];
