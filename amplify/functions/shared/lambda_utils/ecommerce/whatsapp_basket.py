@@ -33,7 +33,7 @@ there being exactly one place a payable can come from.
 WHY THE RETAILER ID IS THE JOIN KEY
 -----------------------------------
 `meta_catalog_sync.retailer_id` publishes `wix:<productId>:<variantId>`, which is exactly the
-`catalogReference` pair (`catalogItemId` plus `options.variantId`) that `cart_v2.catalog_item`
+`catalogReference` pair (`catalogItemId` plus `options.variantId`) that the former Wix cart's catalog-item builder
 wants and that `src/lib/cart.ts` sends from the browser. So a line ordered in WhatsApp and the
 same line ordered on the website resolve to one Wix cart line with no mapping table in between.
 `parse_retailer_id` returning `None` is therefore the only "we cannot price this" answer this
@@ -117,7 +117,7 @@ HANDOFF_LIFETIME_SECONDS = 7 * 24 * 3600
 #: Quantity bounds. The floor is 1 because an absent, zero or negative quantity in a cart message
 #: still means the customer put the item in their cart - dropping the line would silently shorten
 #: their order, and asking Meta what it meant is not an option. The ceiling is 100, which is well
-#: inside `cart_v2.catalog_item`'s own 1..100000 and is a deliberate CLAMP rather than a refusal:
+#: inside the former Wix cart's catalog-item 1..100000 bound and is a deliberate CLAMP rather than a refusal:
 #: a chat basket asking for more than a hundred of one variant is far more likely a client defect
 #: than an order, and clamping keeps the rest of the basket claimable. The clamp is reported on
 #: the `Basket` so the handler can log that it happened.
@@ -125,7 +125,7 @@ QUANTITY_FLOOR = 1
 QUANTITY_CEILING = 100
 
 #: Wix's own cart line ceiling, mirrored so a 300-line message cannot produce a row that
-#: `cart_v2.CartV2.create` would then refuse ("create requires 1 to 100 catalog items"). Lines
+#: the former Wix cart's create would then refuse ("create requires 1 to 100 catalog items"). Lines
 #: beyond this are dropped and counted, never silently merged into the ones that fit.
 LINE_CEILING = 100
 
@@ -156,7 +156,7 @@ class Basket:
     resolved through `meta_catalog_sync.parse_retailer_id`, so nothing downstream re-checks.
 
     `lines` is a list of `{"productId", "variantId", "quantity"}` dicts - EXACTLY the key set
-    `cart_v2.catalog_item` accepts and refuses anything else for, so the claim action can pass
+    the former Wix cart's catalog-item builder accepts and refuses anything else for, so the claim action can pass
     them to `CustomerCart.ensure` unchanged rather than translating a third shape.
     """
 
@@ -431,7 +431,7 @@ def build_claim_pointer(row: Mapping[str, Any], customer_id: Any, *, now: int, c
     than one customer, so it stops answering the moment that cart is gone.
 
     The value is the cart id `CustomerCart.ensure` returned, which has already been through
-    `cart_v2.identifier` - so both sides of the comparison in `active_claim` are the same
+    the former Wix cart's identifier normaliser - so both sides of the comparison in `active_claim` are the same
     lowercased UUID rather than two spellings of one cart.
     """
     return {
@@ -449,7 +449,7 @@ def build_claim_pointer(row: Mapping[str, Any], customer_id: Any, *, now: int, c
 def _cart_key(cart_id: Any) -> str:
     """A cart id reduced to the one comparable form. `''` for anything that is not one.
 
-    Lowercased and stripped rather than validated through `cart_v2.identifier`, because that
+    Lowercased and stripped rather than validated through the former Wix cart's identifier normaliser, because that
     raises and `active_claim` must not - and because a value that is not a cart id at all simply
     fails to match, which is the answer either way.
     """
@@ -492,7 +492,7 @@ def active_claim(pointer: Optional[Mapping[str, Any]], now: int, *,
 def catalog_items(row: Mapping[str, Any]) -> List[Dict[str, Any]]:
     """`[{productId, variantId, quantity}]` from a stored row, re-validated on the way out.
 
-    DynamoDB hands integers back as `Decimal`, which `cart_v2.catalog_item` refuses outright
+    DynamoDB hands integers back as `Decimal`, which the former Wix cart's catalog-item builder refuses outright
     (`type(quantity) is not int`). So the quantity is re-made with `int()` here - `int(Decimal)`
     is exact for a whole number and raises for nothing a quantity can legitimately be - and the
     bounds are re-applied, because the row was written by a different Lambda and a reader that

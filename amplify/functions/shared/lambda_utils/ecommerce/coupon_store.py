@@ -9,7 +9,7 @@ This table owns **issuance**: what discount was promised, who may use it, how ma
 been used, and the audit trail. On the WEBSITE, Wix's `Calculate Cart` owns the **arithmetic**:
 what a given cart is actually reduced by. A coupon reaches a customer's total there only by being
 mirrored into Wix and applied to a Wix cart, where Wix reduces `summary.priceSummary.discount` and
-the smaller total arrives back through the existing `cart_v2.calculate` path.
+the smaller total arrives back through the existing (former) Wix cart calculation path.
 
 That is why `evaluate()` answers with a VERDICT from a closed vocabulary and never a figure. A
 validate endpoint that returned a discount would be a number a browser could quote.

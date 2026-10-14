@@ -34,9 +34,9 @@ section 7 ``checkout_pricing`` calculator (convenience fee + GST-on-fee), which 
     Every value is integer paise; a redemption is capped at the total (you cannot redeem more than
     is owed) and at the card's verified balance.
 
-The split against cart_v2's blanket rejection
----------------------------------------------
-``cart_v2.CartV2.calculate`` still RAISES ``CartContractError`` on any ``paymentSummary.giftCards``
+The split against the former Wix cart's blanket rejection
+---------------------------------------------------------
+The former Wix cart calculation still RAISES ``CartContractError`` on any ``paymentSummary.giftCards``
 / split / deferred payment and still requires ``payNow == totalAfterGiftCards == total``. That
 protection is RETAINED unchanged: the standalone cart contract keeps rejecting an UNVERIFIED
 gift-card payment that Wix's own ``paymentSummary`` reports, because the cart boundary has no way
@@ -44,7 +44,7 @@ to verify it. The secure replacement does NOT weaken that contract - it computes
 Wix total through the retained cart path, and only THEN, server-side and after an authoritative
 provider balance readback, subtracts a VERIFIED redemption to compute the Razorpay payable. Wix
 never collects a gift card for us; our server does the verified subtraction. The two never
-disagree because they answer different questions: cart_v2 rejects a gift card the cart tried to
+disagree because they answer different questions: the former Wix cart rejects a gift card the cart tried to
 self-apply; this module applies a gift card the SERVER verified.
 
 Reservation, rollback, concurrency and reconciliation
@@ -169,7 +169,7 @@ class RedemptionProvider(Protocol):
     binding resolves a coupon ``code`` against the cart/checkout and reads the applied discount
     amount; a Wix gift-cards binding resolves a card ``code``/``number`` to its remaining balance
     and currency. Both convert the provider's decimal amounts to integer paise via ``money.py``
-    (never float) at the boundary, exactly as ``cart_v2`` already converts Wix amounts.
+    (never float) at the boundary, exactly as the former Wix cart already converts Wix amounts.
     """
 
     def validate_coupon(self, *, code: str, collection_before_discount_paise: int,

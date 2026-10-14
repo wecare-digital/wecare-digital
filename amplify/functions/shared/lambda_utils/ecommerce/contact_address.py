@@ -31,11 +31,11 @@ no billing/shipping pair — `identity.address.build_addresses` is therefore not
 Razorpay collects nothing from us and a second address would be unused state that can disagree
 with the first.
 
-`recipientName` is derived and never stored: `wix_address.to_wix_address` emits exactly
-`{country, subdivision, city, postalCode, addressLine[, addressLine2]}` and
-`cart_v2.delivery_address` **refuses unknown fields** outright (`ADDRESS_FIELDS` at
-`cart_v2.py:57`, the `unknown = set(address) - set(ADDRESS_FIELDS)` check and its raise at
-`cart_v2.py:165-169`), so a `recipientName` could not reach Wix even if it were stored. The
+`recipientName` is derived and never stored: the former Wix address builder emits exactly
+`{country, subdivision, city, postalCode, addressLine[, addressLine2]}` and the former Wix
+cart's delivery-address check **refuses unknown fields** outright (its `ADDRESS_FIELDS`
+allow-list, the `unknown = set(address) - set(ADDRESS_FIELDS)` check and its raise),
+so a `recipientName` could not reach Wix even if it were stored. The
 recipient is `firstName + " " + lastName` off the same row.
 
 AUTOCOMPLETE METADATA IS DROPPED, BY CONSTRUCTION RATHER THAN BY A DELETION PASS
@@ -173,7 +173,7 @@ def from_contact(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
 
     FEAT-003 weakened this guarantee deliberately: a dict this returns is **structurally valid**
     (required fields present, lengths bounded, a real country code, a normalisable owned-address).
-    It is NO LONGER guaranteed to be `to_wix_address`-acceptable — storage is now international and
+    It is NO LONGER guaranteed to be acceptable to the former Wix address builder — storage is now international and
     the India/Wix place-of-supply question moved to `payment_address`. Ask *that* module whether a
     returned address can actually pay on a given channel; see `payable_for` below for a caller that
     wants one answer covering both "no address stored" and "stored but unpayable here".

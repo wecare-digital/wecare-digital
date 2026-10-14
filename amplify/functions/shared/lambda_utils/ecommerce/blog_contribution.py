@@ -58,7 +58,7 @@ is ever created.
 PHASE 2 (2026-10-03): THIS MODULE'S OWN MONEY PATH IS RETIRED, NOT DELETED
 --------------------------------------------------------------------------
 A contribution is now **one fixed-price Wix product line in the existing cart**, priced by
-``cart_v2.calculate`` on the one live checkout path. ``POST /api/ecommerce/contribution`` stays 404
+the former Wix cart calculation on the one live checkout path. ``POST /api/ecommerce/contribution`` stays 404
 and is never built, so ``prepare_contribution``, ``verify_contribution_callback`` and
 ``settle_contribution_capture`` have no production caller and gain none. They are retained rather
 than removed because the webhook still carries a keyed ``BLOG_CONTRIBUTION`` arm and because
@@ -75,7 +75,7 @@ than relocating it, which is why there is less money code after it than before.
 ONE AMOUNT SINCE 2026-10-10. The model change offered three -- Rs.100, Rs.250, Rs.500. The owner
 then removed two of the three variants in Wix, leaving a SINGLE visible in-stock variant at
 Rs.250, and the allow-list below follows the catalogue because Wix is the source of truth: a
-variant Wix has deleted cannot be priced by ``cart_v2.calculate``, so a basket naming one fails
+variant Wix has deleted cannot be priced by the former Wix cart calculation, so a basket naming one fails
 closed at Wix rather than collecting anything.
 
 What IS live in this module is the part the unified checkout imports rather than re-declares:
@@ -148,7 +148,7 @@ CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = (10000, 25000, 50000)
 #: (it carried three, Rs.100 / Rs.250 / Rs.500, until the owner removed two in Wix). Note the
 #: shape, because it is NOT what the owner's instruction said: the GUIDs supplied are VARIANT ids
 #: of ONE product, not product ids. A `catalogItemId` of a variant id would 404 at
-#: `GET /stores/v3/products/{id}`, so the distinction is load-bearing.
+#: the Wix storefront product-by-id endpoint, so the distinction is load-bearing.
 #:
 #: SITE MIGRATION, 2026-10-05: THE SET IS REPLACED, NOT EXTENDED, and that is a correction to what
 #: this comment used to claim. It said "an id is added here, never removed -- a retired vehicle must
@@ -157,7 +157,7 @@ CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = (10000, 25000, 50000)
 #: ``src/config/contribution.ts`` declares, so a second member fails the build. The old id
 #: ``af326b8c-f373-45ea-ad0d-b7a38b8ce0cc`` belonged to the retired Wix site and names a product
 #: that no longer exists, so keeping it recognisable buys nothing: a stale cart line carrying it
-#: cannot be priced at all -- ``cart_v2.calculate`` refuses an unknown ``catalogItemId`` -- so that
+#: cannot be priced at all -- the former Wix cart calculation refuses an unknown ``catalogItemId`` -- so that
 #: basket fails closed at Wix rather than being mistaken for an ordinary purchase and charged the
 #: convenience fee and GST.
 CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
@@ -172,7 +172,7 @@ CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
 #: is retired in favour of fixed-price variants chosen at quantity 1, which deletes the
 #: quantity arithmetic, the bounds and the custom-amount validation rather than adding to them.
 #:
-#: WHY THE SERVER HOLDS THE PAISE FIGURE AT ALL, given that ``cart_v2.calculate`` is the sole price
+#: WHY THE SERVER HOLDS THE PAISE FIGURE AT ALL, given that the former Wix cart calculation is the sole price
 #: authority: the browser's button says "Contribute Rs.250", and a Wix price edit would otherwise
 #: charge a different figure than the one the customer was promised. So this is not a second price
 #: -- it is the EXPECTED collection the Wix-computed total is asserted against, and a mismatch
@@ -199,7 +199,7 @@ CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
 #: ``src/content/wix-catalog.json`` reports the product with ``variantCount: 1``. They are REMOVED
 #: here rather than kept recognisable, for the reason ``CONTRIBUTION_PRODUCT_IDS`` above records
 #: about the retired site's id: a deleted variant cannot be priced, so a stale cart line naming
-#: one fails closed at ``cart_v2.calculate``, and the mirror guard holds this map equal to the
+#: one fails closed at the former Wix cart calculation, and the mirror guard holds this map equal to the
 #: single choice ``src/config/contribution.ts`` declares anyway.
 CONTRIBUTION_CHOICES_PAISE: Mapping[str, int] = MappingProxyType({
     "8ad6f376-a526-4631-b510-0e047b33a5b9": 25000,     # Rs.250
