@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import PageMeta from '../components/PageMeta';
-import PageTopBand from '../components/PageTopBand';
+import RotatingHero from '../components/RotatingHero';
 import PillButton from '../components/PillButton';
 import CheckoutIdentityCard from '../components/CheckoutIdentityCard';
 import RequestsPanel from '../components/orders/RequestsPanel';
@@ -653,8 +653,9 @@ export default function OrdersPage (): React.ReactElement {
         description="Sign in on WhatsApp to see what you have bought from WECARE.DIGITAL, each order's payment status, and the details we have on file."
         path="/orders/"
       />
-      <PageTopBand
-        heading="Your orders"
+      <RotatingHero
+        frame="Your"
+        words={ [ { word: 'orders', tint: '#e0f7c8', dot: '#3da35a' } ] }
         sub="What you have bought from us, and what each payment is doing."
         ariaLabel="Your orders"
       >
@@ -670,21 +671,22 @@ export default function OrdersPage (): React.ReactElement {
                 </p>
               ) }
               <p className="ord-p">Sign in on your WhatsApp number to see your orders.</p>
-              { /* A LINK, and the label says so. "Send OTP on WhatsApp" belongs on a control
-                   that sends a code; this one navigates, and a customer tapping it would
-                   otherwise be told a code was sent, receive none, and then be asked for their
-                   number on the next screen. /orders/ is in safeReturnPath's ALLOWED set, so the
+              { /* TWO WAYS IN, and each label says where it goes. "Sign in here" NAVIGATES to the
+                   on-site form (/account/sign-in/) where the shopper enters their number and the
+                   code is delivered over WhatsApp - it opens the form, it does not send a code, so
+                   "here" (on the site) is the honest label. The sibling "Sign in on WhatsApp" opens
+                   the WhatsApp chat instead. /orders/ is in safeReturnPath's ALLOWED set, so the
                    return survives rather than falling back to /cart/. PillButton renders ONLY
-                   `action`, so this string is both the visible text and the accessible name. */ }
+                   `action`, so each string is both the visible text and the accessible name. */ }
               <PillButton
                 as="a"
                 href="/account/sign-in/?return=/orders/"
-                action="Sign in on WhatsApp"
+                action="Sign in here"
               />
               <PillButton
                 as="a"
                 href={ whatsappServiceLink( 'orders' ) }
-                action="Open WhatsApp"
+                action="Sign in on WhatsApp"
               />
             </div>
           ) }
@@ -1233,6 +1235,9 @@ export default function OrdersPage (): React.ReactElement {
               </div>
             </div>
           ) }
+
+          {/* The page-tail dock is AUTO-MOUNTED by RotatingHero (in its .rh-tail), so the page
+              no longer renders its own <PublicShare /> here - that would show the dock twice. */}
         </div>
 
         <style jsx>{`
@@ -1474,7 +1479,7 @@ export default function OrdersPage (): React.ReactElement {
              remove an element from the tab order, and this page's children contain buttons, a
              link and a form. PageTopBand arms only its heading and sub-line, never children. */
         `}</style>
-      </PageTopBand>
+      </RotatingHero>
     </>
   );
 }

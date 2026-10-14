@@ -12,8 +12,12 @@ describe( 'missing pages use one home fallback', () => {
   it( 'is not indexed', () => {
     expect( SOURCE ).toContain( '<meta name="robots" content="noindex, follow" />' );
   } );
-  it( 'provides an explicit home link', () => {
-    expect( SOURCE ).toMatch( /<a[^>]*href="\/"/ );
-    expect( SOURCE ).toContain( 'This page is unavailable.' );
+  it( 'is a pure redirect to home - a no-JS meta refresh and no visible 404 content', () => {
+    // Owner 2026-10-13: the 404 is now a PURE redirect, no visible screen. The no-JavaScript
+    // path is a meta refresh to home (the static-export fallback the router.replace cannot
+    // cover), and the old "This page is unavailable." copy and the explicit home anchor are gone.
+    expect( SOURCE ).toMatch( /http-equiv="refresh"|httpEquiv="refresh"/ );
+    expect( SOURCE ).toMatch( /content="0;\s*url=\/"/ );
+    expect( SOURCE ).not.toContain( 'This page is unavailable.' );
   } );
 } );

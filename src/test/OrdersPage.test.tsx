@@ -7,7 +7,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 /**
  * ALL PAGE-LEVEL COVERAGE FOR /orders/ LANDS HERE, and the containment is deliberate.
  *
- * `src/test/PublicPageTopBand.test.tsx` is Phase 2's file by its own file map, and
+ * `src/test/PublicPageHero.test.tsx` is Phase 2's file by its own file map, and
  * `src/test/LogicalDirectionCss.test.tsx` reads only `src/styles/*.css` by design, so it cannot
  * see a styled-jsx rule. Three of the band gates are file-driven off lists in that Phase 2 file
  * (hand-rolled clearance, retired palette, the red sweep); rather than edit a file another
@@ -201,26 +201,31 @@ describe( '/orders/ — structure and the top band', () => {
     const { container } = render( <OrdersPage /> );
     expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
     expect( container.querySelectorAll( 'main' ) ).toHaveLength( 1 );
-    expect( container.querySelector( 'h1' )!.textContent ).toBe( 'Your orders' );
+    // The shared RotatingHero's h1 is a fixed "Your" frame line plus a static pill word
+    // ("orders") - a single-element words array, so no rotation. The h1's textContent therefore
+    // concatenates the frame, the sr-only words copy and the visible word, so assert the two
+    // parts separately rather than the joined string.
+    expect( container.querySelector( '.rh-head-line' )!.textContent ).toBe( 'Your' );
+    expect( container.querySelector( '.rp-cyc-word.on' )!.textContent ).toBe( 'orders' );
   } );
 
   it( 'puts nothing conversion-shaped inside the band block itself', () => {
-    // .ptb-top holds only the h1 and the sub-line; children render outside it. So this can only
+    // .rh-hero holds only the h1 and the sub-line; children render outside it. So this can only
     // fail on something passed through `sub`, which is a ReactNode - narrow, not vacuous.
     const { container } = render( <OrdersPage /> );
-    const top = container.querySelector( '.ptb-top' )!;
+    const top = container.querySelector( '.rh-hero' )!;
     expect( top.querySelectorAll( 'button, a' ) ).toHaveLength( 0 );
     expect( top.textContent ).not.toContain( '₹' );
   } );
 
-  it( 'mounts the static PageTopBand and hand-rolls no header clearance', () => {
-    expect( SOURCE ).toContain( '<PageTopBand' );
+  it( 'mounts the shared RotatingHero and hand-rolls no header clearance', () => {
+    expect( SOURCE ).toContain( '<RotatingHero' );
     // The two header heights, asserted as CLEARANCE rather than as the bare numbers: `96px` on
     // its own is also a legitimate grid track width in this file (.ord-facts), so banning the
     // string would fail on a column rather than on a duplicated header offset.
     expect( CODE ).not.toMatch( /(?:padding|margin)(?:-block)?-?(?:top|start)?\s*:\s*(?:108|96)px/ );
     expect( CODE ).not.toMatch( /calc\(\s*100(?:v|d)h\s*-/ );
-    expect( CODE ).not.toContain( 'RotatingHero' );
+    expect( CODE ).not.toContain( 'PageTopBand' );
   } );
 
   it( 'uses no retired red, in any notation', () => {
@@ -259,9 +264,10 @@ describe( '/orders/ — structure and the top band', () => {
     } ) );
     await screen.findByText( 'WD-1042' );
     expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
-    expect( container.querySelector( 'h1' )!.textContent ).toBe( 'Your orders' );
+    expect( container.querySelector( '.rh-head-line' )!.textContent ).toBe( 'Your' );
+    expect( container.querySelector( '.rp-cyc-word.on' )!.textContent ).toBe( 'orders' );
     expect( container.querySelectorAll( 'main' ) ).toHaveLength( 1 );
-    const top = container.querySelectorAll( '.ptb-top' );
+    const top = container.querySelectorAll( '.rh-hero' );
     expect( top ).toHaveLength( 1 );
     expect( screen.getByText(
       'What you have bought from us, and what each payment is doing.' ) ).toBeInTheDocument();
@@ -282,9 +288,13 @@ describe( '/orders/ — the two-column layout', () => {
     expect( panel.tagName ).toBe( 'ASIDE' );
     expect( panel.querySelector( 'h1, h2, h3, h4, h5, h6' )!.textContent )
       .toBe( 'What we have on file' );
-    // The card renders INSIDE it, and the h2 ladder is unchanged by the panel existing.
+    // The card renders INSIDE it, and the h2 ladder is unchanged by the panel existing. The
+    // sitewide ContributeBlock (section.contribute) adds its own "Contribute" h2 on every public
+    // page; it is furniture, not an orders-page rung, so exclude it from the ladder.
     expect( panel.textContent ).toContain( 'rahul@example.com' );
-    const h2 = Array.from( container.querySelectorAll( 'h2' ) ).map( h => h.textContent );
+    const h2 = Array.from( container.querySelectorAll( 'h2' ) )
+      .filter( h => !h.closest( '.contribute' ) )
+      .map( h => h.textContent );
     expect( h2 ).toEqual( [ 'What we have on file', 'Your requests', 'Order history' ] );
   } );
 
@@ -393,9 +403,9 @@ describe( '/orders/ — the signed-out gate', () => {
 
   it( 'links into the existing sign-in flow carrying the return path', () => {
     render( <OrdersPage /> );
-    const link = screen.getByRole( 'link', { name: /Sign in on WhatsApp/ } );
+    const link = screen.getByRole( 'link', { name: /Sign in here/ } );
     expect( link ).toHaveAttribute( 'href', '/account/sign-in/?return=/orders/' );
-    expect( link.textContent ).toBe( 'Sign in on WhatsApp' );
+    expect( link.textContent ).toBe( 'Sign in here' );
   } );
 
   it( 'says nothing about OTP anywhere a customer can read it', () => {
@@ -444,6 +454,9 @@ describe( '/orders/ — the order list', () => {
       orders: [ row( { amountPaise: null } ) ], profile: profile(),
     } ) );
     expect( await screen.findByText( 'Amount unavailable' ) ).toBeInTheDocument();
+    // The common page-tail contains the sitewide contribution amount; remove the whole dock before
+    // asserting that no rupee sign leaked from the order data itself.
+    container.querySelector( '.public-share' )?.remove();
     expect( container.textContent ).not.toContain( '₹' );
   } );
 
@@ -453,6 +466,7 @@ describe( '/orders/ — the order list', () => {
       orders: [ row( { currency: 'USD', currencyUnexpected: true } ) ], profile: profile(),
     } ) );
     expect( await screen.findByText( 'Amount unavailable' ) ).toBeInTheDocument();
+    container.querySelector( '.public-share' )?.remove();
     expect( container.textContent ).not.toContain( '₹' );
   } );
 
@@ -525,7 +539,11 @@ describe( '/orders/ — the order list', () => {
       orders: [ row() ], profile: profile(),
     } ) );
     await screen.findByText( 'WD-1042' );
-    const h2 = Array.from( container.querySelectorAll( 'h2' ) ).map( h => h.textContent );
+    // Exclude the sitewide ContributeBlock's own "Contribute" h2: it is furniture on every public
+    // page, not one of this page's rungs.
+    const h2 = Array.from( container.querySelectorAll( 'h2' ) )
+      .filter( h => !h.closest( '.contribute' ) )
+      .map( h => h.textContent );
     expect( h2 ).toEqual( [ 'What we have on file', 'Your requests', 'Order history' ] );
   } );
 } );
@@ -838,7 +856,7 @@ describe( '/orders/ — failure handling', () => {
     await renderSignedIn( answer( 401, {} ) );
     expect( await screen.findByText( /sign-in has expired/ ) ).toBeInTheDocument();
     expect( clearSession ).toHaveBeenCalledTimes( 1 );
-    expect( screen.getByRole( 'link', { name: /Sign in on WhatsApp/ } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'link', { name: /Sign in here/ } ) ).toBeInTheDocument();
     expect( screen.queryByText( /could not load your orders/ ) ).toBeNull();
   } );
 
@@ -867,7 +885,7 @@ describe( '/orders/ — failure handling', () => {
     restoreSession.mockRejectedValueOnce( new Error( 'no' ) );
     render( <OrdersPage /> );
     await waitFor( () => expect( restoreSession ).toHaveBeenCalled() );
-    expect( screen.getByRole( 'link', { name: /Sign in on WhatsApp/ } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'link', { name: /Sign in here/ } ) ).toBeInTheDocument();
     expect( fetchMock ).not.toHaveBeenCalled();
   } );
 } );
@@ -1200,7 +1218,10 @@ describe( '/orders/ — the order-source tag', () => {
     const { container } = await renderSignedIn( answer( 200, {
       orders: [ row( { channel: 'whatsapp' } ) ], profile: profile(),
     } ) );
-    await screen.findByText( 'WhatsApp' );
+    // Wait on the orders source tag specifically, not the bare text "WhatsApp": the public
+    // Subscribe+Share block at the foot of the page also renders a "WhatsApp" share control,
+    // so findByText( 'WhatsApp' ) now matches two nodes. .ord-src is the table's channel tag.
+    await waitFor( () => expect( container.querySelector( '.ord-src' )?.textContent ).toBe( 'WhatsApp' ) );
     const headers = Array.from( container.querySelectorAll( 'th[scope="col"]' ) )
       .map( node => node.textContent );
     expect( headers ).toEqual( [ 'Order #', 'Date', 'Amount', 'Status', 'Invoice' ] );
@@ -1221,7 +1242,8 @@ describe( '/orders/ — the order-source tag', () => {
     const { container } = await renderSignedIn( answer( 200, {
       orders: [ row( { channel: 'whatsapp' } ) ], profile: profile(),
     } ) );
-    const trigger = await screen.findByRole( 'button', { expanded: false } );
+    await waitFor( () => expect( container.querySelector( 'button.ord-ordbtn' ) ).not.toBeNull() );
+    const trigger = container.querySelector( 'button.ord-ordbtn[aria-expanded="false"]' ) as HTMLButtonElement;
     fireEvent.click( trigger );
     const terms = Array.from( container.querySelectorAll( '.ord-facts dt' ) )
       .map( node => node.textContent );
@@ -1238,7 +1260,9 @@ describe( '/orders/ — the order-source tag', () => {
     const { container } = await renderSignedIn( answer( 200, {
       orders: [ row( { channel: 'whatsapp' } ) ], profile: profile(),
     } ) );
-    await screen.findByText( 'WhatsApp' );
+    // Wait on .ord-src, not the bare text: the Subscribe+Share block also renders a "WhatsApp"
+    // share control, so findByText( 'WhatsApp' ) now matches two nodes.
+    await waitFor( () => expect( container.querySelector( '.ord-src' )?.textContent ).toBe( 'WhatsApp' ) );
     expect( container.querySelector( '.ord-src' ) )
       .not.toHaveAttribute( 'data-wc-no-translate' );
   } );
@@ -1592,7 +1616,7 @@ describe( '/orders/ — the copy control', () => {
     expect( rows[ 1 ].querySelectorAll( 'button.ord-copy' ) ).toHaveLength( 1 );
     expect( rows[ 1 ].querySelectorAll( '.ord-tip' ) ).toHaveLength( 1 );
     // Neither row loses its trigger.
-    expect( container.querySelectorAll( 'button[aria-expanded]' ) ).toHaveLength( 2 );
+    expect( container.querySelectorAll( 'button.ord-ordbtn[aria-expanded]' ) ).toHaveLength( 2 );
   } );
 
   it( 'keeps the hint redundant and reveals it with visibility, never opacity or display',
@@ -1631,7 +1655,7 @@ describe( '/orders/ — the copy control with no clipboard', () => {
       expect( container.querySelectorAll( 'button.ord-copy' ) ).toHaveLength( 0 );
       // The table is UNIFORM in this state: every row loses the line together.
       expect( container.querySelectorAll( '.ord-tip' ) ).toHaveLength( 0 );
-      expect( container.querySelectorAll( 'button[aria-expanded]' ) ).toHaveLength( 2 );
+      expect( container.querySelectorAll( 'button.ord-ordbtn[aria-expanded]' ) ).toHaveLength( 2 );
     }
     finally
     {
@@ -1786,7 +1810,7 @@ describe( '/orders/ — the invoice control', () => {
     fireEvent.click( invoiceButton( container ) );
     expect( await screen.findByText( /sign-in has expired/ ) ).toBeInTheDocument();
     expect( clearSession ).toHaveBeenCalledTimes( 1 );
-    expect( screen.getByRole( 'link', { name: /Sign in on WhatsApp/ } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'link', { name: /Sign in here/ } ) ).toBeInTheDocument();
   } );
 
   it( 'names the rate limit and keeps the original label', async () => {

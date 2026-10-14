@@ -31,9 +31,9 @@ import { SHOP_PRODUCTS, shopProductPath } from './shop';
  * one-liner - their only one is a string LITERAL inside PUBLIC_PAGE_META, which
  * renderAllowlist() in scripts/generate-public-pages.js and allRoutes() in
  * StructuredDataService.test.ts both parse as text and both require to stay a literal. The seven
- * CUSTOMERSERVICE entries, /shipments/ and /subscribe/ are request ACTIONS and front doors, which
- * is why StructuredDataService.test.ts lists all nine in NOT_OFFERINGS: none of them is a thing
- * we sell, and putting one on a shelf would misdescribe the site.
+ * CUSTOMERSERVICE entries and /shipments/ are request ACTIONS and front doors, which is why
+ * StructuredDataService.test.ts lists them in NOT_OFFERINGS: none is a thing we sell, and putting
+ * one on a shelf would misdescribe the site.
  */
 
 export interface ShopListing {

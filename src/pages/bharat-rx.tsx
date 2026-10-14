@@ -1,7 +1,6 @@
 import React from 'react';
 import PageMeta from '../components/PageMeta';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
-import PublicShare from '../components/PublicShare';
 import ProductBuyBox from '../components/ProductBuyBox';
 
 /**
@@ -183,8 +182,6 @@ const BharatRxPage: React.FC = () => (
         `}</style>
       </section>
 
-      {/* The Share block at the foot of this page's content, inside the hero's measure. */}
-      <PublicShare />
     </RotatingHero>
   </>
 );

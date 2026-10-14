@@ -8,7 +8,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 
-import PageTopBand from '../../components/PageTopBand';
+import RotatingHero from '../../components/RotatingHero';
 import { getSession, restoreSession } from '../../lib/customerAuth';
 import { isOrderNumber, isPaid } from '../../lib/paymentVocabulary';
 
@@ -54,8 +54,9 @@ export default function CheckoutSuccess (): React.ReactElement {
         <title>{heading} — WECARE.DIGITAL</title>
         <meta name="robots" content="noindex,nofollow" />
       </Head>
-      <PageTopBand
-        heading={ heading }
+      <RotatingHero
+        frame={ heading }
+        words={ [ { word: 'your order', tint: '#e0f7c8', dot: '#3da35a' } ] }
         sub={ verified ? 'Your payment is confirmed and your order is created.' : checking
           ? 'We are checking your order securely.'
           : 'We could not confirm this order. If you have paid, do not pay again.' }
@@ -82,6 +83,9 @@ export default function CheckoutSuccess (): React.ReactElement {
             <Link className="cs-btn cs-btn-quiet" href="/">Back to home</Link>
           </div>
         </section>
+
+        {/* The page-tail dock is AUTO-MOUNTED by RotatingHero (in its .rh-tail), so the page no
+            longer renders its own <PublicShare /> here - that would show the dock twice. */}
 
         <style jsx>{`
           /* No top padding, no measure, no font stack: PageTopBand owns all three. */
@@ -149,7 +153,7 @@ export default function CheckoutSuccess (): React.ReactElement {
             .cs-card :global(.cs-btn:hover){transform:none;box-shadow:none}
           }
         `}</style>
-      </PageTopBand>
+      </RotatingHero>
     </>
   );
 }

@@ -56,6 +56,9 @@
 /** The only currency contributions are taken in. */
 export const CONTRIBUTION_CURRENCY = 'INR' as const;
 
+/** Dedicated Meta conversation for voluntary contributions. */
+export const CONTRIBUTE_CTA_HREF = 'https://wa.me/message/BYFLCAAMSZBXD1';
+
 /**
  * The Wix catalogue product id of the live `Contribute` product.
  *
@@ -137,6 +140,10 @@ export interface ContributionChoice {
 export const CONTRIBUTION_CHOICES: readonly ContributionChoice[] = [
   { variantId: '8ad6f376-a526-4631-b510-0e047b33a5b9', rupees: 250, paise: 25000 },
 ] as const;
+
+/** Display-only label for the single contribution choice, e.g. "₹250". */
+export const CONTRIBUTION_AMOUNT_LABEL =
+  `${ CONTRIBUTION_CURRENCY === 'INR' ? '\u20B9' : '' }${ CONTRIBUTION_CHOICES[ 0 ].rupees }`;
 
 /** One hundred paise to the rupee. Named so no magic 100 appears in the conversion helpers. */
 export const PAISE_PER_RUPEE = 100;

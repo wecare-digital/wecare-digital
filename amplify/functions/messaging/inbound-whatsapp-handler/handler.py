@@ -38,7 +38,8 @@ from lambda_utils.automation import evaluate_rules  # cross-channel auto-reply r
 from lambda_utils import meta_signature  # raw-body X-Hub-Signature-256 on the public route
 from lambda_utils import wa_status  # monotonic status ordering (no backward transitions)
 from lambda_utils import wa_internal_event  # typed ingress -> worker contract
-from lambda_utils import contact_key  # `id` is the physical key; `contactId` is its alias
+from lambda_utils import contact_key
+from lambda_utils.identity import subscriber_id  # `id` is the physical key; `contactId` is its alias
 from lambda_utils import customer_ideas
 from lambda_utils.canonical_flows import canonical_flow_id  # one source of truth for WABA 1 flow ids
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
@@ -3262,6 +3263,7 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
 
     contact = {
         **contact_key.contact_item_keys(contact_id),
+        **subscriber_id.new_contact_fields(now=now),
         'name': sender_name or '',
         'phone': formatted_phone or None,
         'email': None,

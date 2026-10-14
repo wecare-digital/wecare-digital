@@ -12,12 +12,9 @@ export const WHATSAPP_SERVICE_ENTRIES = [
   { slug: 'request-pickup', label: 'Request Pickup', keyword: 'Request Pickup', messageLink: 'https://wa.me/message/NRWQFXOPGL7OO1', flowId: '', state: 'Public page live; shares the pickup Meta short link with /shipments CTA 2' },
   { slug: 'shipments', label: 'Shipments', keyword: 'Shipments', messageLink: 'https://wa.me/message/WGN4NMFLFSJVB1', flowId: '', state: 'Verified order history; carrier booking is separate' },
   { slug: 'leave-review', label: 'Leave Review', keyword: 'Leave Review', messageLink: REVIEW_ENTRY_URL, flowId: '1578178897413815', state: 'Published' },
-  // The dedicated Subscribe Meta short link, the same one the blog surfaces use
-  // (post/[slug].tsx, BlogFooterCTA.tsx). It must stay EQUAL to SUBSCRIBE_CTA_HREF in
-  // src/content/subscribe.ts and SUBSCRIBE_HREF in src/components/PublicShare.tsx —
-  // ProductPage renders the CTA as whatsappServiceLink(slug) || ctaHref, so a mismatch would
-  // show the entry link, not the content one.
-  { slug: 'subscribe', label: 'Subscribe', keyword: 'Subscribe', messageLink: 'https://wa.me/message/WUDPTMYSO6XII1', flowId: '', state: 'Dedicated Subscribe Meta short link; shared with the blog surfaces' },
+  // Subscribe has no website page. Customer-facing Subscribe actions go straight to this
+  // dedicated Meta conversation; keep it byte-equal to SUBSCRIBE_CTA_HREF.
+  { slug: 'subscribe', label: 'Subscribe', keyword: 'Subscribe', messageLink: 'https://wa.me/message/WUDPTMYSO6XII1', flowId: '', state: 'Direct Subscribe Meta short link; no public Subscribe page' },
   { slug: 'anew', label: 'Anew', keyword: 'Start a conversation', messageLink: 'https://wa.me/message/F2D7PVR5Q45MP1', flowId: '', state: 'Public Anew conversation entry' },
   // No Meta short link exists for this entry; the empty messageLink makes whatsappServiceLink
   // fall back to the keyword deep link (wa.me/919330994400?text=Customer%20ID), which opens

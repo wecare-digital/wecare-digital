@@ -5,7 +5,7 @@ import BlogIndex from '../pages/blog/index';
 import BlogIndexPage from '../pages/blog/page/[page]';
 import BlogPostPage from '../pages/post/[slug]';
 import ProductBlogPanel from '../components/ProductBlogPanel';
-import { CONTRIBUTE_AMOUNT_LABEL } from '../components/BlogContribution';
+import { CONTRIBUTION_AMOUNT_LABEL } from '../config/contribution';
 import { toBlogCard, blogPageCount, POSTS_PER_PAGE, type BlogCard, type PublicBlogPost } from '../lib/public-blog';
 import type { BlogIndexPageProps } from '../lib/blog-index-props';
 /* CONTRIBUTION_CHOICES was imported here to hold the rendered amount pills equal to the central
@@ -209,37 +209,38 @@ describe( 'Blog design alignment', () => {
   } );
 
   /**
-   * THE SUBSCRIBE / CONTRIBUTE / SHARE BAND IS ON THE INDEX TOO. Owner instruction, 2026-10-11:
-   * the same three-part CTA block the post page carries at its foot now also sits at the foot of
-   * /blog/, via the shared BlogFooterCTA. This pins that all three parts render and that the two
-   * WhatsApp links are the distinct ones (Subscribe WUDPTMYSO6XII1, Contribute its own link).
+   * THE GLOBAL SUBSCRIBE + SHARE BLOCK IS ON THE INDEX NOW. The owner unified every public
+   * surface onto the ONE PublicShare block (Subscribe followed by Share), so BlogIndexView no
+   * longer passes `noShare` to RotatingHero and no longer renders its own three-part BlogFooterCTA
+   * band. This pins that the index carries exactly ONE PublicShare (Subscribe pill at the
+   * subscribe deep link + the Share row) and NO old `.blog-cta` band.
    */
-  it( 'carries the Subscribe / Contribute / Share band at the foot of the index', () => {
+  it( 'carries exactly one global Subscribe + Share block at the foot of the index', () => {
     mockSearchIndex( [ firstCard, secondCard ] );
     const { container } = render( <BlogIndex { ...propsFor() } /> );
 
-    // Subscribe: a WhatsApp anchor at the subscribe deep link, text-only with the microcopy.
-    const subscribe = container.querySelector( 'a.blog-cta-subscribe' );
+    // Exactly ONE PublicShare block.
+    const shares = container.querySelectorAll( 'section.public-share' );
+    expect( shares ).toHaveLength( 1 );
+
+    // Subscribe is now the 48px notification action in the common dock. Its accessible name and
+    // destination are the contract; Material Symbols text is intentionally aria-hidden.
+    const subscribe = shares[ 0 ].querySelector( 'a.ps-subscribe' );
     expect( subscribe ).not.toBeNull();
     expect( subscribe!.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
-    expect( subscribe!.textContent ).toBe( 'Subscribe' );
+    expect( subscribe!.getAttribute( 'aria-label' ) ).toBe( 'Subscribe on WhatsApp' );
 
-    // Contribute: the shared block, embedded (no second top rule), with its own distinct link.
-    const contribution = container.querySelector( 'section.bc' );
-    expect( contribution ).not.toBeNull();
-    const contributeLink = contribution!.querySelector( 'a.bc-cta' )!;
-    expect( contributeLink.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/BYFLCAAMSZBXD1' );
-    // The two WhatsApp links must differ.
-    expect( subscribe!.getAttribute( 'href' ) ).not.toBe( contributeLink.getAttribute( 'href' ) );
+    // Share: the row follows Subscribe inside the same block.
+    expect( shares[ 0 ].querySelector( '.ps-row' ) ).not.toBeNull();
 
-    // Share: the shared row (its WhatsApp anchor renders in the static markup).
-    expect( container.querySelector( '.blog-cta-share' ) ).not.toBeNull();
+    // The OLD three-part band is gone, markup and all - no .blog-cta, no .blog-cta-subscribe.
+    expect( container.querySelector( '.blog-cta' ) ).toBeNull();
+    expect( container.querySelector( 'a.blog-cta-subscribe' ) ).toBeNull();
 
-    // Ordering: the band sits after the post grid.
+    // Ordering: the block sits after the post grid.
     const grid = container.querySelector( '.post-grid' );
-    const band = container.querySelector( '.blog-cta' )!;
     if ( grid ) {
-      expect( grid.compareDocumentPosition( band ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
+      expect( grid.compareDocumentPosition( shares[ 0 ] ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
     }
   } );
 
@@ -304,12 +305,10 @@ describe( 'Blog design alignment', () => {
 
   it( 'fetches the full list on mount and shows every post in the category', async () => {
     /*
-     * THE "SHOW EVERY POST" BEHAVIOUR (owner instruction, 2026-10-11). The page is prerendered
-     * with its slice, then the whole corpus arrives from /blog/search-index.json on mount and
-     * replaces it - scoped to the active category, so /blog/ grows to the default category's
-     * full list and never pulls in another stream's posts.
+     * THE INDEX IS FETCHED ON MOUNT, BUT ONLY TO POWER SEARCH (owner 2026-10-13). The listing
+     * stays the prerendered paged slice - it does NOT grow to the whole category. So the fetch
+     * fires, but the off-page post does not appear in the list; the reader turns the page for it.
      */
-    // Both posts are in the active category, so the fetched list expands the one-card slice.
     const secondConversations = { ...secondCard, category: 'Conversations' };
     const fetchMock = mockSearchIndex( [ firstCard, secondConversations ] );
     render( <BlogIndex { ...propsFor( {
@@ -320,14 +319,13 @@ describe( 'Blog design alignment', () => {
 
     // The slice is painted immediately.
     expect( screen.getByRole( 'heading', { name: samplePost.title } ) ).toBeInTheDocument();
-    // The full list is fetched once, on mount, with no interaction.
+    // The full list is fetched once, on mount, with no interaction (search needs it).
     await waitFor( () => {
       expect( fetchMock ).toHaveBeenCalledWith( '/blog/search-index.json', expect.anything() );
     } );
-    // And the second Conversations post, absent from the one-card slice, appears once it lands.
-    await waitFor( () => {
-      expect( screen.getByRole( 'heading', { name: secondPost.title } ) ).toBeInTheDocument();
-    } );
+    // But the second post, absent from the one-card slice, does NOT get injected - the list
+    // stays paginated.
+    expect( screen.queryByRole( 'heading', { name: secondPost.title } ) ).toBeNull();
   } );
 
   it( 'does not pull another category into the stream when the full list lands', async () => {
@@ -599,33 +597,33 @@ describe( 'Blog pagination', () => {
     expect( last.querySelector( '.pager-progress-track' )!.getAttribute( 'aria-valuetext' ) ).toBe( 'Page 3 of 3' );
   } );
 
-  it( 'paginates the prerendered slice until the full list arrives, then drops the pager', async () => {
-    // A fetch that resolves with the whole corpus.
+  it( 'keeps the pager and the prerendered slice - the list does NOT expand to the whole category', async () => {
+    // Owner 2026-10-13: the blog stays PAGINATED. The full index is still fetched (to power
+    // search), but the listing is always the prerendered paged slice and the pager never
+    // disappears - the "expand to every post / drop the pager" behaviour is retired.
     const fetchMock = mockSearchIndex( manyCards );
     const { container } = render( <BlogIndex { ...propsFor( {
       posts: manyCards.slice( 0, 2 ), page: 1, totalPages: 3, totalPosts: 5,
       categories: [ 'Conversations' ], categoryCounts: { Conversations: 5 },
     } ) } /> );
 
-    // Once the full list is in, the pager is gone and every post is listed.
+    // The index fetch still fires on mount (search needs it)...
     await waitFor( () => {
-      expect( container.querySelector( 'nav[aria-label="Blog pages"]' ) ).toBeNull();
+      expect( fetchMock ).toHaveBeenCalledWith( '/blog/search-index.json', expect.anything() );
     } );
-    expect( fetchMock ).toHaveBeenCalledWith( '/blog/search-index.json', expect.anything() );
-    expect( screen.getByRole( 'heading', { name: 'Post number 5' } ) ).toBeInTheDocument();
-    // Fetched exactly once, on mount.
+    // ...but the pager STAYS (totalPages > 1), and the off-page post does NOT get injected into
+    // the list - the reader turns the page to reach it.
+    expect( container.querySelector( 'nav[aria-label="Blog pages"]' ) ).not.toBeNull();
+    expect( screen.queryByRole( 'heading', { name: 'Post number 5' } ) ).toBeNull();
     expect( fetchMock ).toHaveBeenCalledTimes( 1 );
   } );
 
-  it( 'shows every published post, not just the page in front of the reader', async () => {
-    /**
-     * THE CASE "SHOW EVERY POST" EXISTS FOR. The page carries 2 cards; the corpus has 5. The
-     * three posts that are NOT on this prerendered page must appear once the on-mount fetch of
-     * /blog/search-index.json lands. Before this the reader had to turn pages or search; now the
-     * whole category is on one scroll.
-     */
+  it( 'shows only the page in front of the reader, with the pager to reach the rest', async () => {
+    // The page carries 2 cards (page 1 of 3); the corpus has 5. The three off-page posts are
+    // reached by turning the page via the pager, NOT by injecting them into this list - the blog
+    // is paginated, not a single-scroll of the whole category.
     const fetchMock = mockSearchIndex( manyCards );
-    render( <BlogIndex { ...propsFor( {
+    const { container } = render( <BlogIndex { ...propsFor( {
       posts: manyCards.slice( 0, 2 ), page: 1, totalPages: 3, totalPosts: 5,
       categories: [ 'Conversations' ], categoryCounts: { Conversations: 5 },
     } ) } /> );
@@ -633,12 +631,14 @@ describe( 'Blog pagination', () => {
     // The two prerendered cards are there from the first paint.
     expect( screen.getByRole( 'heading', { name: 'Post number 1' } ) ).toBeInTheDocument();
 
-    // The off-page posts arrive from the on-mount fetch.
+    // The on-mount index fetch still fires (for search), but off-page posts stay off this page.
     await waitFor( () => {
-      expect( screen.getByRole( 'heading', { name: 'Post number 5' } ) ).toBeInTheDocument();
+      expect( fetchMock ).toHaveBeenCalledWith( '/blog/search-index.json', expect.anything() );
     } );
-    expect( screen.getByRole( 'heading', { name: 'Post number 4' } ) ).toBeInTheDocument();
-    expect( fetchMock ).toHaveBeenCalledWith( '/blog/search-index.json', expect.anything() );
+    expect( screen.queryByRole( 'heading', { name: 'Post number 5' } ) ).toBeNull();
+    expect( screen.queryByRole( 'heading', { name: 'Post number 4' } ) ).toBeNull();
+    // The pager is present to reach them.
+    expect( container.querySelector( 'nav[aria-label="Blog pages"]' ) ).not.toBeNull();
   } );
 
   it( 'falls back to the paginated slice when the full list cannot be loaded', async () => {
@@ -702,9 +702,13 @@ describe( 'Blog post page', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
     const css = cssOf( container );
 
-    expect( css ).toContain( '.article-shell{max-width:1300px' );
+    // RotatingHero now owns the <main>, header clearance and 1300px measure, so .article-shell is
+    // a plain <article> that only carries the 700px reading measure. The article title is an <h2>
+    // (.post-title) because the hero pill is the page's single h1; its old h1 treatment is kept
+    // verbatim on .post-title.
+    expect( css ).toContain( '.article-shell{max-width:700px' );
     expect( css ).toContain( 'article{max-width:700px' );
-    expect( css ).toContain( 'h1{font-size:clamp(36px,4.3vw,60px);line-height:1.04;letter-spacing:-0.04em;color:rgba(0,0,0,.95)' );
+    expect( css ).toContain( '.post-title{font-size:clamp(36px,4.3vw,60px);line-height:1.04;letter-spacing:-0.04em;color:rgba(0,0,0,.95)' );
     expect( css ).toContain( 'text-wrap:balance;max-width:20ch' );
     expect( css ).toContain( 'font-size:20px;line-height:1.55;letter-spacing:-.125px' );
     expect( css ).toContain( '.content :global(p + p){margin-top:28px}' );
@@ -834,40 +838,35 @@ describe( 'Blog post page', () => {
   } );
 
   /**
-   * THE WHATSAPP SUBSCRIBE BUTTON AND CONTRIBUTION SIT BETWEEN TAGS AND SHARE, in that order.
+   * THE ONE COMMON ACTION DOCK SITS BETWEEN TAGS AND THE PAGER.
    *
-   * The in-page subscriber form was removed in favour of a single button that opens a WhatsApp
-   * conversation (a.blog-wa-subscribe, href wa.me/message/WUDPTMYSO6XII1). It sits where the box used to,
-   * so the end of the article is content -> Tags -> WhatsApp subscribe -> Contribution -> Share.
-   * Document position is asserted rather than mere presence so either block moving silently fails.
+   * Contribute, Subscribe and Share are now children of ONE PublicShare component. The post no
+   * longer renders a separate ContributeBlock or inline Subscribe/Share row.
    */
-  it( 'renders the WhatsApp subscribe button above Contribution, between Tags and Share', () => {
+  it( 'renders the unified Contribute + Subscribe + Share dock after Tags', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
 
     const tags = container.querySelector( 'nav.tags' );
-    const subscribe = container.querySelector( 'a.blog-wa-subscribe' );
-    const contribution = container.querySelector( 'section.bc' );
     const share = container.querySelector( '.post-share' );
+    const publicShare = container.querySelector( 'section.public-share' );
+    const contribution = publicShare?.querySelector( 'section.contribute' ) || null;
 
     expect( tags ).not.toBeNull();
-    expect( subscribe ).not.toBeNull();
-    expect( contribution ).not.toBeNull();
     expect( share ).not.toBeNull();
+    expect( publicShare ).not.toBeNull();
+    expect( contribution ).not.toBeNull();
 
-    // The in-page signup box is gone; nothing renders section.blog-subscribe any more.
+    expect( container.querySelector( 'a.blog-wa-subscribe' ) ).toBeNull();
     expect( container.querySelector( 'section.blog-subscribe' ) ).toBeNull();
+    expect( container.querySelectorAll( 'section.public-share' ) ).toHaveLength( 1 );
+    expect( share!.contains( publicShare! ) ).toBe( true );
+    expect( publicShare!.contains( contribution! ) ).toBe( true );
 
-    // The button points directly at the WhatsApp subscribe deep link.
-    expect( subscribe!.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
+    expect( publicShare!.querySelector( 'a.ps-subscribe' )!.getAttribute( 'href' ) )
+      .toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
 
-    expect( tags!.compareDocumentPosition( subscribe! ) & Node.DOCUMENT_POSITION_FOLLOWING )
+    expect( tags!.compareDocumentPosition( share! ) & Node.DOCUMENT_POSITION_FOLLOWING )
       .toBeTruthy();
-    expect( subscribe!.compareDocumentPosition( contribution! ) & Node.DOCUMENT_POSITION_FOLLOWING )
-      .toBeTruthy();
-    expect( contribution!.compareDocumentPosition( share! ) & Node.DOCUMENT_POSITION_FOLLOWING )
-      .toBeTruthy();
-
-    // The reveal sentinel is untouched: shareRef still names .post-share.
     expect( share!.classList.contains( 'post-share' ) ).toBe( true );
   } );
 
@@ -875,136 +874,94 @@ describe( 'Blog post page', () => {
    * THE MANDATED COPY, AND NO SECOND H1. The heading and primary message are fixed strings in the
    * brief; the heading must be an h2 so the post keeps exactly one h1 (htmlcheck guards H1-MANY).
    */
-  it( 'shows the Contribute heading and message, and adds no second h1', () => {
+  it( 'shows the Contribute heading and amount in the unified dock, and adds no second h1', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
 
-    const block = container.querySelector( 'section.bc' )!;
+    const dock = container.querySelector( 'section.public-share' )!;
+    const block = dock.querySelector( 'section.contribute' )!;
+    const menu = dock.querySelector( '#ps-contribute-menu' )!;
+
     expect( block.querySelector( 'h2' )?.textContent ).toBe( 'Contribute' );
-    expect( block.textContent ).toContain(
-      'If you found this useful, you\u2019re welcome to make a small voluntary contribution.'
-    );
-    // Still exactly one h1 on the whole page - the title - and the contribution added none.
+    expect( block.querySelector( 'button.ps-contribute' ) )
+      .toHaveAttribute( 'aria-label', `Contribute ${ CONTRIBUTION_AMOUNT_LABEL }` );
+    expect( menu.querySelector( '.contribute-label' )?.textContent )
+      .toBe( `Contribute ${ CONTRIBUTION_AMOUNT_LABEL }` );
+    expect( dock.textContent ).not.toContain( 'If this helped' );
+
     expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
     expect( block.querySelector( 'h1' ) ).toBeNull();
   } );
 
   /**
-   * THE CONTRIBUTION BLOCK IS A WHATSAPP LINK, NOT A FORM - owner instruction, 2026-10-10.
+   * THE CONTRIBUTION BLOCK IS ONE COMPACT LINE WITH BOTH PATHS - owner instruction, 2026-10-12.
    *
-   * THIS CASE USED TO ASSERT THE AMOUNT PILLS, reading them from src/config/contribution.ts so
-   * the markup could not drift from the one source. Both button-looking elements it measured -
-   * the ₹250 amount pill and the "Contribute ₹250" submit - were removed on owner instruction,
-   * so there are no faces left to compare and the config-derived assertion has nothing to hold
-   * the markup to. It is NOT weakened to make it pass: the new truth is narrower and checkable,
-   * which is one anchor at one exact URL and no transacting control. The config itself is
-   * untouched and still pinned by src/test/BlogContribution.test.tsx.
+   * The post page carries components/ContributeBlock. The two big pill buttons and the copy
+   * sentence are gone; the block is now the eyebrow + a single line: a ₹ glyph, a "Contribute
+   * ₹250" static label, then two inline TEXT links - "on WhatsApp" (a real anchor to the Contribute
+   * chat) and "on the website →" (a button that names the variant in the cart and goes to /cart/).
+   * The amount is a static label from src/config/contribution.ts, so the figure cannot drift. No
+   * radio group and no on-page form - the browser never sends a price; cart_v2 prices the variant.
    */
-  it( 'offers one WhatsApp anchor in the contribution block, and no amount or form', () => {
+  it( 'offers both contribution paths inside the unified Contribute menu', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
-    const block = container.querySelector( 'section.bc' )!;
+    const dock = container.querySelector( 'section.public-share' )!;
+    const menu = dock.querySelector( '#ps-contribute-menu' )!;
 
-    const links = Array.from( block.querySelectorAll( 'a' ) );
-    expect( links ).toHaveLength( 1 );
-    expect( links[ 0 ] ).toHaveAttribute( 'href', 'https://wa.me/message/BYFLCAAMSZBXD1' );
-    // The pill names the suggested amount (owner instruction 2026-10-11): "Contribute ₹250",
-    // read from the central config so the figure cannot drift.
-    expect( links[ 0 ].textContent ).toBe( `Contribute ${ CONTRIBUTE_AMOUNT_LABEL }` );
-    expect( links[ 0 ] ).toHaveAttribute( 'aria-label', `Contribute ${ CONTRIBUTE_AMOUNT_LABEL } on WhatsApp` );
-    // TEXT-ONLY pill (no glyph), with the destination in a short microcopy line below it.
-    // Recorded at .agents/tasks/contribute-whatsapp-cta/owner-decision.md: the glyph was dropped
-    // as too busy inside the filled pill, and the quiet line carries the destination instead.
-    expect( links[ 0 ].querySelector( 'svg' ) ).toBeNull();
-    // The destination microcopy now uses the shared global .wc-sweep-note class
-    // (src/styles/inner-ux.css), replacing the old per-component .bc-cta-note.
-    const note = block.querySelector( '.wc-sweep-note' )!;
-    expect( note.textContent ).toBe( 'Continue on WhatsApp \u2192' );
-    expect( note.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
-    expect( block.querySelector( '.bc-cta-note' ) ).toBeNull();
-    // No radio-era .bc-note remains.
-    expect( block.querySelector( '.bc-note' ) ).toBeNull();
+    const whatsapp = menu.querySelector( 'a.contribute-link' )!;
+    expect( whatsapp ).toHaveAttribute( 'href', 'https://wa.me/message/BYFLCAAMSZBXD1' );
+    expect( whatsapp.getAttribute( 'aria-label' ) ).toBe( 'Contribute on WhatsApp' );
+    expect( whatsapp.textContent ).toContain( 'Continue on WhatsApp' );
 
-    // Nothing to choose and nothing to submit: the amount pill, its radio and the submit button
-    // are all gone rather than hidden.
-    expect( block.querySelectorAll( 'form, input, button, fieldset' ) ).toHaveLength( 0 );
-    expect( block.querySelector( '[role="radiogroup"]' ) ).toBeNull();
-    expect( block.querySelector( '.bc-choice-face' ) ).toBeNull();
-    // The amount is NAMED on the pill, but it is a static label, not a chooseable control: the one
-    // rupee figure in the block sits on the single anchor.
-    expect( block.textContent || '' ).toContain( '\u20B9250' );
+    const website = menu.querySelector( 'button.contribute-link-btn' )!;
+    expect( website.getAttribute( 'aria-label' ) ).toContain( 'website' );
+    expect( website.textContent ).toContain( 'Continue to checkout' );
+
+    expect( menu.querySelector( '.contribute-label' )?.textContent )
+      .toBe( `Contribute ${ CONTRIBUTION_AMOUNT_LABEL }` );
+    expect( menu.querySelector( '[role="radiogroup"]' ) ).toBeNull();
+    expect( menu.querySelectorAll( 'form, input, fieldset' ) ).toHaveLength( 0 );
+    expect( menu.textContent || '' ).toContain( '₹250' );
   } );
 
   /**
-   * TWO WHATSAPP CTAS AT THE TAIL OF A POST: A MATCHED PAIR, TWO DISTINCT CONVERSATIONS.
+   * TWO WHATSAPP CTAS AT THE TAIL OF A POST, TWO DISTINCT CONVERSATIONS - BUT FROM TWO SOURCES.
    *
-   * Owner instruction, 2026-10-10: Subscribe and Contribute are the same object - lime pill,
-   * one word, text only, and a short "Continue on WhatsApp →" microcopy line below - and they
-   * open DIFFERENT Meta message links, WUDPTMYSO6XII1 and BYFLCAAMSZBXD1. Pointing one button at
-   * the other's link would look entirely correct on screen, which is why both hrefs are pinned
-   * here as literals AND asserted to differ.
-   *
-   * NEITHER button carries a glyph: the owner found the WhatsApp logo inside the filled pill too
-   * busy and dropped it, moving the destination into the microcopy. Both the glyph's absence and
-   * the microcopy's presence are asserted on each. Recorded at
-   * .agents/tasks/contribute-whatsapp-cta/owner-decision.md.
+   * The owner unified the Subscribe pill into the ONE global PublicShare block, so the post page
+   * no longer owns its inline Subscribe pill. The two WhatsApp links at the tail are now:
+   *   - Contribute, from ContributeBlock (`section.contribute a.contribute-link`), opening
+   *     BYFLCAAMSZBXD1; and
+   *   - Subscribe, from the global PublicShare (`section.public-share a.ps-subscribe`), opening
+   *     WUDPTMYSO6XII1.
+   * They are still DIFFERENT Meta message links - pointing one at the other's link would look
+   * entirely correct on screen, which is why both hrefs are pinned here as literals AND asserted
+   * to differ. The Contribute link is a quiet text link on the compact line; PublicShare's
+   * Subscribe is a lime pill.
    */
-  it( 'pairs Subscribe and Contribute as two distinct text-only WhatsApp links with twin microcopy', () => {
+  it( 'keeps Contribute and Subscribe on distinct WhatsApp destinations in the common dock', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
 
-    const subscribe = container.querySelector( 'a.blog-wa-subscribe' )!;
-    const contribute = container.querySelector( 'section.bc a' )!;
+    const dock = container.querySelector( 'section.public-share' )!;
+    const contribute = dock.querySelector( '#ps-contribute-menu a.contribute-link' )!;
+    const subscribe = dock.querySelector( 'a.ps-subscribe' )!;
 
+    expect( contribute ).not.toBeNull();
+    expect( subscribe ).not.toBeNull();
     expect( subscribe.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
     expect( contribute.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/BYFLCAAMSZBXD1' );
     expect( subscribe.getAttribute( 'href' ) ).not.toBe( contribute.getAttribute( 'href' ) );
-
-    // One word each, and the full WhatsApp context in the accessible name (WCAG 2.5.3).
-    expect( subscribe.querySelector( 'span' )?.textContent ).toBe( 'Subscribe' );
-    // Contribute names the suggested amount on its face (owner instruction 2026-10-11); Subscribe
-    // stays a single word. The pair is still a twin in shape - lime pill, text only, twin
-    // microcopy - the only difference is the amount Contribute now quotes.
-    expect( contribute.querySelector( 'span' )?.textContent ).toBe( `Contribute ${ CONTRIBUTE_AMOUNT_LABEL }` );
     expect( subscribe.getAttribute( 'aria-label' ) ).toBe( 'Subscribe on WhatsApp' );
-    expect( contribute.getAttribute( 'aria-label' ) ).toBe( `Contribute ${ CONTRIBUTE_AMOUNT_LABEL } on WhatsApp` );
+    expect( contribute.getAttribute( 'aria-label' ) ).toBe( 'Contribute on WhatsApp' );
 
-    // NEITHER carries a glyph any more.
-    expect( subscribe.querySelector( 'svg' ) ).toBeNull();
-    expect( contribute.querySelector( 'svg' ) ).toBeNull();
-
-    // TWIN MICROCOPY under each, identical text, both aria-hidden (the accessible name already
-    // carries "on WhatsApp"). This is the pair's shared "where it goes" line. Both the Subscribe
-    // note (post page) and the Contribute note (BlogContribution) now use the ONE shared global
-    // class .wc-sweep-note (src/styles/inner-ux.css) instead of the old per-page .blog-wa-note /
-    // .bc-cta-note, so there are exactly two .wc-sweep-note lines here, both identical.
-    const notes = Array.from( container.querySelectorAll( '.wc-sweep-note' ) );
-    expect( notes.length ).toBe( 2 );
-    for ( const note of notes ) {
-      expect( note.textContent ).toBe( 'Continue on WhatsApp \u2192' );
-      expect( note.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
-    }
-    // The old per-page classes are gone, folded into .wc-sweep-note.
+    expect( container.querySelector( 'a.blog-wa-subscribe' ) ).toBeNull();
     expect( container.querySelector( '.blog-wa-note' ) ).toBeNull();
     expect( container.querySelector( '.bc-cta-note' ) ).toBeNull();
-    // No radio-era .bc-note remains.
-    expect( container.querySelector( '.bc-note' ) ).toBeNull();
 
-    // And the same pill object: both carry the home CTA's values.
-    //
-    // THE RADIUS IS IN THIS LIST NOW, and it was not before. `.bc-cta` used to declare 999px
-    // against Subscribe's 50px - visually identical at a 52px height, so nothing on screen told
-    // you the two rules disagreed, and a comment claiming an exact match was wrong. `.bc-cta` is
-    // 50px now, which makes the twin claim a thing this loop can actually hold.
     const css = cssOf( container );
-    for ( const selector of [ '.blog-wa-subscribe{', '.bc-cta{' ] )
-    {
-      const rule = css.slice( css.indexOf( selector ), css.indexOf( '}', css.indexOf( selector ) ) );
-      expect( rule, selector ).toContain( 'min-height:52px' );
-      expect( rule, selector ).toContain( 'padding:0 28px' );
-      expect( rule, selector ).toContain( 'border:2px solid #1a3a2a' );
-      expect( rule, selector ).toContain( 'border-radius:50px' );
-      expect( rule, selector ).toContain( 'background:#d1f470' );
-      expect( rule, selector ).toContain( 'font-size:17px;font-weight:600' );
-      expect( rule, selector ).toContain( 'justify-content:center' );
-    }
+    const selector = '.ps-action{';
+    const rule = css.slice( css.indexOf( selector ), css.indexOf( '}', css.indexOf( selector ) ) );
+    expect( rule ).toContain( 'width:48px' );
+    expect( rule ).toContain( 'height:48px' );
+    expect( rule ).toContain( 'border-radius:50%' );
   } );
 } );
 

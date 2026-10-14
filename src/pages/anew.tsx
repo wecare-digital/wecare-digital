@@ -4,7 +4,6 @@ import ProductPage from '../components/ProductPage';
 import ProductBuyBox from '../components/ProductBuyBox';
 import { productBySlug } from '../content/products';
 import { listPublicBlogPosts, listBlogCards, type BlogCard } from '../lib/public-blog';
-import { SITE_ORIGIN } from '../config/share';
 
 /**
  * /anew — the Anew product page.
@@ -55,7 +54,6 @@ const AnewPage: React.FC<AnewPageProps> = ( { blogCards } ) => (
     blogHeading="Perspectives"
     price="₹599"
     priceUnit="· one decision · written reflection · usually 2–3 business days"
-    shareUrl={ `${SITE_ORIGIN}/anew/` }
     belowCta={ <ProductBuyBox slug="anew" showPrice={ false } /> }
   />
 );

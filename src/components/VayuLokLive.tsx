@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import VoiceSearchMic from './VoiceSearchMic';
 
 /**
  * VayuLok LIVE content, appended BELOW the rotating-word hero on /vayulok/.
@@ -43,10 +44,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
  * class to markup it can statically see, so every element stays INLINE in this component's
  * return tree. No bare html/body/* selectors; the mock's data-vl-preview-only block and
  * .vl-preview-shell are PREVIEW-ONLY and are NOT ported.
- *
- * ATTRIBUTION. There is no CSS targeting .gm-style-cc, a[href*="google"] or
- * img[alt="Google"], and every overlay stays inset from the map's bottom corners, where
- * Google paints its logo and legal notices (Maps Platform ToS).
  */
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
@@ -1029,6 +1026,7 @@ const VayuLokLive: React.FC = () => {
   const [ place, setPlace ] = useState<PlaceState>( DEFAULT_PLACE );
   const [ hasSelection, setHasSelection ] = useState( true );
   const [ detailTab, setDetailTab ] = useState<'air' | 'weather'>( 'air' );
+  const [ mapVisible, setMapVisible ] = useState( false );
   const [ mapReady, setMapReady ] = useState( false );
   const [ mapFailed, setMapFailed ] = useState( false );
   const [ searchStatus, setSearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable'>( 'idle' );
@@ -1182,7 +1180,7 @@ const VayuLokLive: React.FC = () => {
       key: MAPS_KEY,
     } );
 
-    void fetch( `https://maps.googleapis.com/maps/api/timezone/json?${params.toString()}`, { signal: ac.signal } )
+    void fetch( `https://maps.googleapis.com/maps/api/timezone/json?${params.toString()}`, { signal: ac.signal, cache: 'no-store' } )
       .then( async res => res.ok ? res.json() : null )
       .then( data => {
         if ( ac.signal.aborted || data?.status !== 'OK' || typeof data?.timeZoneId !== 'string' ) return;
@@ -1407,23 +1405,10 @@ const VayuLokLive: React.FC = () => {
       const MapCtor = ( mapsLib as { Map?: MapsCtors['Map'] } | null )?.Map || legacy.Map;
       if ( !MapCtor || !host ) return; // no map constructor -> degrade, no crash
 
-      const markerLib = await imp( 'marker' );
-      const placesLib = await imp( 'places' );
-      // Geocoder belongs to the 'geocoding' library under the modern loader; it is NOT
-      // on the raw namespace until importLibrary('geocoding') runs. Import it explicitly
-      // so reverse-geocode-on-map-click and the search geocoding fallback get a real
-      // Geocoder in a live browser, and only fall back to legacy.Geocoder for an older
-      // loader that already populated the namespace. imp() swallows failures -> null.
-      const geocodingLib = await imp( 'geocoding' );
-      const maps: MapsCtors = {
-        Map: MapCtor,
-        Marker: ( markerLib as { Marker?: MapsCtors['Marker'] } | null )?.Marker || legacy.Marker,
-        Geocoder: ( geocodingLib as { Geocoder?: MapsCtors['Geocoder'] } | null )?.Geocoder || legacy.Geocoder,
-        places: ( placesLib as unknown as MapsCtors['places'] ) || legacy.places,
-      };
-      if ( cancelled ) return;
-
-      const map = new maps.Map( host, {
+      // FIRST PAINT: only the maps library is allowed to block map construction.
+      // Marker, Places and Geocoding are optional for the initial canvas, so loading them
+      // serially here made "Loading map…" last for three unrelated network round trips.
+      const map = new MapCtor( host, {
         // Match the approved reference composition: India prominent, Himalaya/China above,
         // Arabian Sea + Bay of Bengal below. The map has worldwide data, but its camera is
         // destination-driven: only search/recent-place selection moves it.
@@ -1450,6 +1435,14 @@ const VayuLokLive: React.FC = () => {
         styles: MAP_STYLES,
       } );
       mapRef.current = map;
+
+      // Show the Google canvas as soon as the Map constructor succeeds. Google paints
+      // base tiles progressively, so keeping the canvas at opacity:0 until `tilesloaded`
+      // made a healthy map look stuck on "Loading map…". `mapReady` remains the stricter
+      // tile-confirmed signal used by overlays and the 12s bad-key watchdog.
+      requestAnimationFrame( () => {
+        if ( !cancelled ) setMapVisible( true );
+      } );
 
       const motionMap = map as {
         addListener?: ( eventName: string, handler: () => void ) => { remove?: () => void };
@@ -1492,20 +1485,25 @@ const VayuLokLive: React.FC = () => {
       window.addEventListener( 'orientationchange', onViewportResize );
       syncAtmosphere();
 
-      // No selected-place marker exists on load. Keep the constructor and create the
-      // branded marker lazily after the first real selection.
-      markerCtorRef.current = maps.Marker || null;
-
-      if ( maps.Geocoder ) geocoder.current = new maps.Geocoder();
-      placesLibRef.current = placesLib || maps.places || null;
+      // OPTIONAL LIBRARIES LOAD AFTER MAP CONSTRUCTION, IN PARALLEL. Search can still call
+      // ensurePlacesLibrary/ensureGeocoder if the user types before these finish; Google's
+      // importLibrary de-duplicates those requests. None of this delays the first map tiles.
+      void Promise.all( [ imp( 'marker' ), imp( 'places' ), imp( 'geocoding' ) ] ).then(
+        ( [ markerLib, placesLib, geocodingLib ] ) => {
+          if ( cancelled ) return;
+          markerCtorRef.current = ( markerLib as { Marker?: MapsCtors['Marker'] } | null )?.Marker || legacy.Marker || null;
+          placesLibRef.current = ( placesLib as unknown as MapsCtors['places'] ) || legacy.places || null;
+          const GeocoderCtor = ( geocodingLib as { Geocoder?: MapsCtors['Geocoder'] } | null )?.Geocoder || legacy.Geocoder;
+          if ( GeocoderCtor && !geocoder.current ) geocoder.current = new GeocoderCtor();
+        },
+      );
 
       // Intentionally no map click handler. Location changes are owned by the search/recent
       // place selector only, which keeps the map, AQI tiles and atmosphere visually aligned.
 
-      // A constructed Map is not the same thing as a painted map. With an invalid or
-      // refused browser key Google can still create the map object while its tiles never
-      // arrive, which previously hid the fallback and exposed a blank panel. Only reveal
-      // the Maps JS canvas after the first visible tile batch has loaded.
+      // `tilesloaded` is now a HEALTH/READINESS signal, not a visibility gate. A refused
+      // browser key can still construct a Map object while never delivering usable tiles;
+      // keeping mapReady tied to this event preserves the existing 12s fallback watchdog.
       const mapWithEvents = map as {
         addListener?: ( eventName: string, handler: () => void ) => { remove?: () => void };
       };
@@ -1560,8 +1558,8 @@ const VayuLokLive: React.FC = () => {
     const script = document.createElement( 'script' );
     script.id = ID;
     script.async = true;
-    // Places library requested so worldwide client-side autocomplete can run.
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent( MAPS_KEY )}&libraries=places&loading=async&v=beta`;
+    // Keep the bootstrap lean. Places/marker/geocoding are imported lazily after the map constructor.
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent( MAPS_KEY )}&loading=async&v=beta`;
     document.head.appendChild( script );
     // Start the same namespace-readiness path immediately; it will resolve once
     // the async loader exposes google.maps, without depending on a DOM load event.
@@ -1695,6 +1693,7 @@ const VayuLokLive: React.FC = () => {
           {
             method: 'POST',
             signal: ac.signal,
+            cache: 'no-store',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify( {
               location: { latitude: lat, longitude: lng },
@@ -1725,7 +1724,7 @@ const VayuLokLive: React.FC = () => {
       try {
         const res = await fetch(
           `https://weather.googleapis.com/v1/currentConditions:lookup?key=${encodeURIComponent( MAPS_KEY )}&location.latitude=${lat}&location.longitude=${lng}&unitsSystem=METRIC`,
-          { signal: ac.signal },
+          { signal: ac.signal, cache: 'no-store' },
         );
         if ( !res.ok ) return;
         const d = await res.json();
@@ -1849,7 +1848,7 @@ const VayuLokLive: React.FC = () => {
     } = { hourly: [], daily: [], alerts: [], alertStatus: 'loading', airForecast: [] };
 
     const getJson = async ( url: string ) => {
-      const res = await fetch( url, { signal: ac.signal } );
+      const res = await fetch( url, { signal: ac.signal, cache: 'no-store' } );
       if ( !res.ok ) return null;
       return res.json();
     };
@@ -2044,6 +2043,7 @@ const VayuLokLive: React.FC = () => {
         {
           method: 'POST',
           signal: ac.signal,
+          cache: 'no-store',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify( {
             location: { latitude: lat, longitude: lng },
@@ -2111,7 +2111,7 @@ const VayuLokLive: React.FC = () => {
     const WEATHER_HISTORY_TTL_MS = 6 * 60 * 60 * 1000;
     if ( cached && Date.now() - cached.ts < WEATHER_HISTORY_TTL_MS ) {
       setWeatherHistory( cached.rows );
-      setWeatherHistoryFetchedAt( cached.ts );
+      setWeatherHistoryFetchedAt( cached.rows[ cached.rows.length - 1 ]?.time || cached.ts );
       return () => ac.abort();
     }
 
@@ -2121,7 +2121,7 @@ const VayuLokLive: React.FC = () => {
         const url = 'https://weather.googleapis.com/v1/history/hours:lookup?key=' + encodeURIComponent( MAPS_KEY )
           + '&location.latitude=' + lat + '&location.longitude=' + lng
           + '&hours=24&pageSize=24&unitsSystem=METRIC&languageCode=en';
-        const res = await fetch( url, { signal: ac.signal } );
+        const res = await fetch( url, { signal: ac.signal, cache: 'no-store' } );
         if ( !res.ok || ac.signal.aborted ) return;
         const data = await res.json();
         const rows = ( Array.isArray( data.historyHours ) ? data.historyHours : [] )
@@ -2133,7 +2133,7 @@ const VayuLokLive: React.FC = () => {
           const fetchedAt = Date.now();
           weatherHistoryCache.current[ historyKey ] = { ts: fetchedAt, rows: latest };
           setWeatherHistory( latest );
-          setWeatherHistoryFetchedAt( fetchedAt );
+          setWeatherHistoryFetchedAt( latest[ latest.length - 1 ]?.time || fetchedAt );
         }
       } catch { /* historical weather is optional */ }
     };
@@ -2184,6 +2184,7 @@ const VayuLokLive: React.FC = () => {
           {
             method: 'POST',
             signal: ac.signal,
+            cache: 'no-store',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify( body ),
           },
@@ -2444,6 +2445,7 @@ const VayuLokLive: React.FC = () => {
     );
   }, [ ensurePlacesLibrary, ensureGeocoder ] );
 
+
   const onQueryChange = ( e: React.ChangeEvent<HTMLInputElement> ) => {
     const v = e.target.value;
     setQuery( v );
@@ -2611,6 +2613,14 @@ const VayuLokLive: React.FC = () => {
                 setResults( recent ); setActive( recent.length ? 0 : -1 ); setOpen( recent.length > 0 ); setSearchStatus( 'idle' );
               } }
               onKeyDown={ onKeyDown }
+            />
+            <VoiceSearchMic
+              onTranscript={ transcript => {
+                if ( searchTimer.current ) clearTimeout( searchTimer.current );
+                autocompleteTokenRef.current = null;
+                setQuery( transcript );
+                void runSearch( transcript );
+              } }
             />
           </div>
           <ul className="vl-live-search-results" id="vl-live-search-results" role="listbox" aria-label="Matching places" hidden={ !open || !results.length }>
@@ -3181,12 +3191,9 @@ const VayuLokLive: React.FC = () => {
                             { Number.isFinite( weather.temperatureChange ) && weather.temperatureChange !== 0 && (
                               <span data-wc-no-translate="true">{ ( weather.temperatureChange as number ) > 0 ? '↑' : '↓' } { Math.abs( weather.temperatureChange as number ) }° / 24h</span>
                             ) }
-                            { Number.isFinite( weather.dayMin ) && Number.isFinite( weather.dayMax ) && (
-                              <span>Today <span data-wc-no-translate="true">{ weather.dayMin }°–{ weather.dayMax }°</span></span>
-                            ) }
                           </div>
                         </div>
-                        { coreFetchedAt && <div className="vl-live-wx-freshness">Current · { relativeAgeLabel( coreFetchedAt ).label.replace( /^Updated\s*/i, 'updated ' ) }</div> }
+                        { ( weather.currentTime || coreFetchedAt ) && <div className="vl-live-wx-freshness">Current · { relativeAgeLabel( weather.currentTime || coreFetchedAt || undefined ).label.replace( /^Updated\s*/i, 'updated ' ) }</div> }
 
                         {/* CURRENT METRICS - compact grid, only fields Google returned. */}
                         <ul className="vl-live-wx-grid">
@@ -3221,7 +3228,7 @@ const VayuLokLive: React.FC = () => {
                           { weatherAlertStatus === 'loading' ? (
                             <p className="vl-live-air-history-empty" role="status">Checking weather alerts…</p>
                           ) : weatherAlertStatus === 'unsupported' ? (
-                            <p className="vl-live-air-history-empty">Weather alerts are not supported by Google for this region.</p>
+                            <p className="vl-live-air-history-empty">Weather alerts aren’t available for this location.</p>
                           ) : weatherAlertStatus === 'error' ? (
                             <p className="vl-live-air-history-empty" role="status">Weather alerts are temporarily unavailable.</p>
                           ) : weatherAlertStatus === 'active' && weatherAlerts.length ? weatherAlerts.map( alert => (
@@ -3321,7 +3328,7 @@ const VayuLokLive: React.FC = () => {
                             ) }
                           </div>
                         ) }
-                        { forecastFetchedAt && <div className="vl-live-wx-freshness">Forecast · { relativeAgeLabel( forecastFetchedAt ).label.replace( /^Updated\s*/i, 'updated ' ) }</div> }
+                        { forecastFetchedAt && <div className="vl-live-wx-freshness">Forecast · { relativeAgeLabel( forecastFetchedAt ).label.replace( /^Updated\s*/i, 'fetched ' ) }</div> }
 
                         {/* 10-DAY FORECAST - compact vertical rows, detail on selection. */}
                         { weatherDaily.length > 0 && (
@@ -3458,7 +3465,7 @@ const VayuLokLive: React.FC = () => {
                             ) }
                           </div>
                         ) }
-                        { weatherHistoryFetchedAt && <div className="vl-live-wx-freshness">History · { relativeAgeLabel( weatherHistoryFetchedAt ).label.replace( /^Updated\s*/i, 'updated ' ) }</div> }
+                        { weatherHistoryFetchedAt && <div className="vl-live-wx-freshness">History · { relativeAgeLabel( weatherHistoryFetchedAt ).label.replace( /^Updated\s*/i, 'latest ' ) }</div> }
 
                         { weather.currentTime && <span className="vl-live-sr-only">Weather updated for the selected place.</span> }
                       </>
@@ -3488,7 +3495,7 @@ const VayuLokLive: React.FC = () => {
                     <button
                       type="button"
                       className="vl-live-map-retry"
-                      onClick={ () => { setMapFailed( false ); setMapReady( false ); setMapInitNonce( n => n + 1 ); } }
+                      onClick={ () => { setMapFailed( false ); setMapVisible( false ); setMapReady( false ); setMapInitNonce( n => n + 1 ); } }
                     >
                       Try again
                     </button>
@@ -3496,12 +3503,12 @@ const VayuLokLive: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  { !mapReady && (
+                  { !mapVisible && (
                     <div className="vl-live-map-fallback" role="status">
                       <span>Loading map…</span>
                     </div>
                   ) }
-                  <div className={ `vl-live-map-canvas ${mapReady ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ hasSelection ? `Map of ${place.name}` : 'Interactive world map' } />
+                  <div className={ `vl-live-map-canvas ${mapVisible ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ hasSelection ? `Map of ${place.name}` : 'Interactive world map' } />
                   { mapReady && (
                     <div ref={ atmosphereRef } className="vl-live-atmosphere" style={ atmosphereStyle } aria-hidden="true">
                       <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
@@ -3928,7 +3935,6 @@ const VayuLokLive: React.FC = () => {
         .vl-live :global(.gm-style-cc),
         .vl-live :global(a[aria-label="Google Maps"]),
         .vl-live :global(img[alt="Google"]){display:none!important}
-
         /* REFERENCE-MATCHED ATMOSPHERE. This is code-rendered, not a background image.
            Clouds are soft translucent SVG masses; wind is a field of animated dashed
            streamlines; the lower-left vortex gives the storm/cyclone read from the approved
@@ -3964,11 +3970,10 @@ const VayuLokLive: React.FC = () => {
            bottom hairline used by Header .nav-search and ProductBlogPanel .pbp-search. */
         .vl-live-map-search{position:relative;z-index:30;width:min(760px,calc(100% - 48px));margin:14px auto 20px;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none}
         .vl-live-search{position:relative}
-        /* Exact Header.tsx .nav-search field treatment: no icon, no input box/radius,
-           44px minimum row, transparent fill, 16px/400 type, one bottom hairline,
-           green + lime focus underline. */
-        .vl-live-search-field{display:block;min-height:44px;padding:0;background:transparent;border-radius:0}
-        .vl-live-search-field input{width:100%;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;padding:0 2px;font-size:16px;font-weight:400;line-height:1.3;color:rgba(0,0,0,.898);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+        /* Exact Header.tsx .nav-search INPUT treatment, with one optional voice action floated
+           inside the right edge. The mic does not change the hairline/search-box geometry. */
+        .vl-live-search-field{position:relative;display:block;min-height:44px;padding:0;background:transparent;border-radius:0}
+        .vl-live-search-field input{width:100%;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;padding:0 44px 0 2px;font-size:16px;font-weight:400;line-height:1.3;color:rgba(0,0,0,.898);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
         .vl-live-search-field input::placeholder{color:rgba(0,0,0,.42)}
         .vl-live-search-field input::-webkit-search-cancel-button,.vl-live-search-field input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .vl-live-search-field input::-ms-clear{display:none;width:0;height:0}

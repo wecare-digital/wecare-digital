@@ -40,7 +40,7 @@ from lambda_utils.identity import customer as customer_identity
 # The PUBLIC customer id. Deliberately not the row `id` - see the module docstring: that one is
 # uuid5 of the Cognito sub when `auth/customer-profile` writes it, so publishing it on an invoice
 # would publish a value derived from the Cognito subject.
-from lambda_utils.identity import customer_uuid
+from lambda_utils.identity import customer_uuid, subscriber_id
 # A contact tied to money is the provenance record for that money, so it may be ARCHIVED and
 # never hard-deleted. The policy lives in the shared module - two indexed queries, fail-closed -
 # so the word `captured` never has to be compared in this handler.
@@ -174,6 +174,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if _auth is not None:
         return _auth
 
+    # Unlocking retention is an Admin + MFA capability, not a generic Operator edit.
+    if method == 'POST' and (str(event.get('rawPath') or '').rstrip('/').endswith('/unlock')
+                             or str(event.get('resource') or '').rstrip('/').endswith('/unlock')):
+        denied = require_auth(event, required_role='Admin')
+        if denied is not None:
+            return denied
+
     # Reading customer data is a Viewer capability; changing customer identity is not.
     # Keep this as one method-level floor so create, update, lock, unlock, soft delete,
     # and hard delete cannot drift into different role policies as routes evolve.
@@ -294,6 +301,7 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
 
     contact = {
         **contact_key.contact_item_keys(contact_id),
+        **subscriber_id.new_contact_fields(now=now),
         # THE PUBLIC CUSTOMER ID, minted inline and never read back first. This IS the resolve
         # half of resolve-before-generate and it needs no extra read: `_check_duplicate` ran
         # above and returned `None`, so no live row exists on this phone or this email - there is
@@ -360,7 +368,7 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
         contact[contact_address.UPDATED_ATTRIBUTE] = now
 
     table = dynamodb.Table(CONTACTS_TABLE)
-    table.put_item(Item=_to_dynamo(contact))
+    table.put_item(Item=_to_dynamo(contact), ConditionExpression='attribute_not_exists(id)')
 
     # AFTER the row exists, and never before it: the login is an attachment to a contact that is
     # already stored, so a dispatch that fires and then a failed write cannot leave a Cognito user
@@ -766,23 +774,40 @@ def _soft_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str
         return cors_response(404, {'error': 'Contact already deleted'}, origin)
 
     now = Decimal(str(int(time.time())))
-    table.update_item(
+    try:
+        table.update_item(
         Key={'id': contact_id},
         UpdateExpression='SET #d = :d, #u = :u',
-        ExpressionAttributeNames={'#d': 'deletedAt', '#u': 'updatedAt'},
-        ExpressionAttributeValues={':d': now, ':u': now},
-    )
+        ConditionExpression='attribute_exists(id) AND (attribute_not_exists(#locked) OR #locked = :false)',
+        ExpressionAttributeNames={'#d': 'deletedAt', '#u': 'updatedAt', '#locked': 'locked'},
+        ExpressionAttributeValues={':d': now, ':u': now, ':false': False},
+        )
+    except Exception as exc:
+        if 'ConditionalCheckFailedException' in str(exc):
+            return cors_response(409, {'error': DELETE_REFUSED_LOCKED,
+                                       'archiveInstead': False}, origin)
+        raise
 
     log_event(logger, 'contact_soft_deleted', contactId=contact_id, requestId=request_id)
     return cors_response(200, {'success': True, 'contactId': contact_id, 'deleteType': 'soft'}, origin)
 
 
 def _hard_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str, Any]:
+    # Fail closed: no destructive message/media cleanup without an atomic retention lease.
+    return cors_response(409, {'error': 'HARD_DELETE_DISABLED',
+                               'archiveInstead': True}, origin)
+
     # Verify contact exists before scanning message tables
     table = dynamodb.Table(CONTACTS_TABLE)
     resp = table.get_item(Key={'id': contact_id})
     if not resp.get('Item'):
         return cors_response(404, {'error': 'Contact not found'}, origin)
+
+    # Fail closed before touching any message or media when the lock changed.
+    current = table.get_item(Key={'id': contact_id}, ConsistentRead=True).get('Item')
+    if not current or contact_lock.is_locked(current):
+        return cors_response(409, {'error': DELETE_REFUSED_LOCKED,
+                                   'archiveInstead': False}, origin)
 
     msgs_deleted = 0
     media_deleted = 0
@@ -816,11 +841,19 @@ def _hard_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str
         except Exception as e:
             logger.warning(f"Error scanning {tbl_name}: {e}")
 
-    # Delete contact
+    # Delete contact only when the lock is still absent. Never claim success if refused.
     try:
-        dynamodb.Table(CONTACTS_TABLE).delete_item(Key={'id': contact_id})
+        dynamodb.Table(CONTACTS_TABLE).delete_item(
+            Key={'id': contact_id},
+            ConditionExpression='attribute_exists(id) AND (attribute_not_exists(#locked) OR #locked = :false)',
+            ExpressionAttributeNames={'#locked': 'locked'},
+            ExpressionAttributeValues={':false': False},
+        )
     except Exception as e:
-        logger.warning(f"Failed to delete contact {contact_id}: {e}")
+        if 'ConditionalCheckFailedException' in str(e):
+            return cors_response(409, {'error': DELETE_REFUSED_LOCKED,
+                                       'archiveInstead': False}, origin)
+        raise
 
     log_event(logger, 'contact_hard_deleted', contactId=contact_id, msgs=msgs_deleted, media=media_deleted, requestId=request_id)
     return cors_response(200, {

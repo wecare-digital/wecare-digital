@@ -50,7 +50,8 @@ from lambda_utils.agent import governance as gov
 from lambda_utils.agent import approvals as approval_module
 from lambda_utils.agent import drafts as draft_module
 from lambda_utils.middleware import require_auth
-from lambda_utils import contact_key  # `id` is the physical key; `contactId` is its alias
+from lambda_utils import contact_key
+from lambda_utils.identity import subscriber_id  # `id` is the physical key; `contactId` is its alias
 from lambda_utils.meta_version import META_API_VERSION  # one source; validated at import
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 
@@ -3737,6 +3738,7 @@ def _update_contact_with_customer_info(sender_phone: str, profile: Dict, request
                 # invisible to them and its RCS messages were stored with an empty
                 # contact id, silently.
                 **contact_key.contact_item_keys(contact_id),
+                **subscriber_id.new_contact_fields(now=now),
                 'phone': clean_phone,
                 'channel': 'whatsapp',
                 'source': 'payment_flow',
@@ -3849,6 +3851,7 @@ def _save_subscriber(data: Dict, phone_hash: str, request_id: str) -> None:
             contacts_table.put_item(Item={
                 # See the payment_flow writer above: `id` alone is not enough.
                 **contact_key.contact_item_keys(contact_id),
+                **subscriber_id.new_contact_fields(now=now),
                 'name': data.get('name', ''),
                 'email': data.get('email', ''),
                 'phone': clean_phone,
@@ -4316,6 +4319,7 @@ def _tool_create_contact(params: Dict, request_id: str) -> Dict:
         
         contact = {
             **contact_key.contact_item_keys(contact_id),
+            **subscriber_id.new_contact_fields(now=now),
             'name': name,
             'phone': phone,
             'email': email,
@@ -4326,7 +4330,7 @@ def _tool_create_contact(params: Dict, request_id: str) -> Dict:
             'updatedAt': now
         }
         
-        contacts_table.put_item(Item=contact)
+        contacts_table.put_item(Item=contact, ConditionExpression='attribute_not_exists(id)')
         
         return {
             'success': True,
@@ -4866,7 +4870,7 @@ def _tool_add_contact_email(params: Dict, request_id: str) -> Dict:
             UpdateExpression='SET email = :email, updatedAt = :now',
             ExpressionAttributeValues={
                 ':email': email,
-                ':now': int(time.time())
+                ':now': int(time.time()), ':false': False
             },
             ReturnValues='ALL_NEW'
         )
@@ -4907,10 +4911,13 @@ def _tool_delete_contact(params: Dict, request_id: str) -> Dict:
 
         if existing.get('deletedAt'):
             return {'success': False, 'error': 'Contact is already deleted'}
+        if existing.get('locked') is True:
+            return {'success': False, 'error': 'CONTACT_LOCKED'}
 
         contacts_table.update_item(
             Key={'id': contact_id},
             UpdateExpression='SET deletedAt = :now, updatedAt = :now',
+            ConditionExpression='attribute_exists(id) AND (attribute_not_exists(locked) OR locked = :false)',
             ExpressionAttributeValues={
                 ':now': int(time.time())
             },
@@ -5043,7 +5050,10 @@ def _tool_delete_media_files(params: Dict, request_id: str) -> Dict:
 
 
 def _tool_clear_all_contact_data(params: Dict, request_id: str) -> Dict:
-    """DANGEROUS: Clear ALL data for a contact."""
+    """Disabled: destructive cross-table cleanup has no atomic retention lease."""
+    return {'success': False, 'error': 'CONTACT_RETENTION_PROTECTION'}
+
+    # Legacy implementation retained below pending an audited removal.
     contact_id = params.get('contactId')
     confirm = params.get('confirm', False)
     
@@ -5057,6 +5067,10 @@ def _tool_clear_all_contact_data(params: Dict, request_id: str) -> Dict:
         }
     
     try:
+        # Never erase message/media history before checking the contact retention lock.
+        existing = dynamodb.Table(CONTACTS_TABLE).get_item(Key={'id': contact_id}, ConsistentRead=True).get('Item')
+        if not existing or existing.get('locked') is True:
+            return {'success': False, 'error': 'CONTACT_LOCKED'}
         results = {
             'messages_deleted': 0,
             'media_files_deleted': 0,
