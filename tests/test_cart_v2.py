@@ -333,55 +333,9 @@ def test_cart_methods_cannot_place_or_charge_an_order():
         ('POST', '/ecom/v2/carts/{id}/calculate')]
 
 
-@pytest.fixture
-def handler_module(monkeypatch):
-    import importlib.util
-    from unittest.mock import MagicMock
-    import boto3
-    monkeypatch.setattr(boto3, 'client', MagicMock())
-    monkeypatch.setattr(boto3, 'resource', MagicMock())
-    path = pathlib.Path(__file__).resolve().parents[1] / 'amplify/functions/ecommerce/wix-store/handler.py'
-    spec = importlib.util.spec_from_file_location('cart_v2_handler_test', path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-def test_cart_route_rejects_missing_customer_session_before_any_wix_call(handler_module, monkeypatch):
-    monkeypatch.setattr(handler_module, '_wix_request', lambda *a, **k: pytest.fail('unauthorized call'))
-    response = handler_module.handler({'httpMethod': 'POST', 'path': '/wix-store/cart',
-                                       'headers': {}, 'body': '{}'}, None)
-    assert response['statusCode'] == 401
-
-
-def test_an_authenticated_cart_request_is_refused_while_the_gate_is_unset(handler_module, monkeypatch):
-    """Cart V2 is opt-in, and absence is off — asserted through the route, not just `is_enabled`.
-
-    `/wix-store/cart` performs real Create Cart and Add Line Items writes against the live site for
-    any authenticated customer. With no gate key set, which is how every function in the fleet is
-    configured, not one of those writes may happen. The `_wix_request` stub fails the test if it is
-    ever called, so this measures the absence of the call rather than the status code alone.
-    """
-    from lambda_utils import customer_auth
-    identity = CustomerIdentity(customer_id='a', phone='+919330994400', subject='a')
-    monkeypatch.setattr(customer_auth, 'require_customer', lambda _: (identity, None))
-    monkeypatch.delenv('WIX_CART_V2_ENABLED', raising=False)
-    monkeypatch.delenv('WIX_CART_V2_DISABLED', raising=False)
-    monkeypatch.setattr(handler_module, '_wix_request', lambda *a, **k: pytest.fail('gated call'))
-    response = handler_module.handler({'httpMethod': 'GET', 'path': '/wix-store/cart', 'headers': {}}, None)
-    assert response['statusCode'] == 503
-
-
-def test_the_disable_key_overrides_a_deployed_opt_in_on_the_route(handler_module, monkeypatch):
-    """The rollback lever: one environment variable, even where the opt-in is already deployed."""
-    from lambda_utils import customer_auth
-    identity = CustomerIdentity(customer_id='a', phone='+919330994400', subject='a')
-    monkeypatch.setattr(customer_auth, 'require_customer', lambda _: (identity, None))
-    monkeypatch.setenv('WIX_CART_V2_ENABLED', 'true')
-    monkeypatch.setenv('WIX_CART_V2_DISABLED', 'true')
-    monkeypatch.setattr(handler_module, '_wix_request', lambda *a, **k: pytest.fail('disabled call'))
-    response = handler_module.handler({'httpMethod': 'GET', 'path': '/wix-store/cart', 'headers': {}}, None)
-    assert response['statusCode'] == 503
+# NOTE: the `/wix-store/cart` route tests were removed with the wecare-wix-store Lambda
+# in the Wix exit. The cart_v2 MODULE tests below remain — cart_v2 is still imported by
+# the commerce library and will be removed in a later, dedicated refactor PR.
 
 
 def test_quote_replay_keeps_json_money_an_integer_after_dynamodb_roundtrip(cart_store):

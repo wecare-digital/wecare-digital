@@ -677,7 +677,7 @@ def reserve_order_number(table: Any,
     """
     if generate is None:
         # Self-contained: the WD order number is minted by order_keys itself. This used to
-        # default to wix_domain._generate_wd_order_number, which only delegated back to
+        # default to a Wix-named helper that only delegated back to
         # mint_public_order_number — a circular dependency on a Wix-named module. With Wix
         # retired, order numbering has one home: here. (order_date stays in the signature for
         # the external `generate` contract but is not encoded into the number — see
