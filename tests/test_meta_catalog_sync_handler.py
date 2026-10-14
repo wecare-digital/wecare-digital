@@ -305,7 +305,7 @@ def test_with_the_enable_flag_ABSENT_nothing_is_written(snapshot_products):
     assert answer["enabled"] is False
     assert answer["dryRun"] is True
     assert answer["applied"] == 0
-    assert answer["counts"] == {"create": 23, "update": 0, "retire": 0, "foreign": 0}
+    assert answer["counts"] == {"create": 22, "update": 0, "retire": 0, "foreign": 0}
     assert graph.writes == []
 
 
@@ -421,8 +421,15 @@ def test_wrong_or_stale_approval_refuses_without_constructing_a_write(serviced_p
 def test_blockers_refuse_before_proposal_or_apply(snapshot_products, monkeypatch):
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
+    from copy import deepcopy
+    products = deepcopy(snapshot_products)
+    for product in products:
+        product.pop("image", None)
+        product["mediaCount"] = 0
+        for variant in product.get("variants", []):
+            variant.pop("image", None)
     graph, store = FakeGraph(), FakeApprovalStore()
-    proposal = run(FakeWix(snapshot_products), graph,
+    proposal = run(FakeWix(products), graph,
         event={"catalogAction": "propose"}, approval_store=store)
     assert proposal["reason"] == "blocked"
     assert store.rows == {}
@@ -719,11 +726,11 @@ def test_the_plan_log_line_carries_the_counts_and_no_credential(snapshot_product
     assert planned["catalogId"] == "1457045652952851"
     assert planned["source"] == "wix-webhook"
     assert planned["entityId"] == "prod-1"
-    assert planned["create"] == 23
+    assert planned["create"] == 22
     # The current Wix snapshot carries media for nine of ten syncable products.
     # Only the ₹1 test product remains imageless, so it is the sole catalogue blocker.
-    assert planned["blocked"] == 1
-    assert planned["blockedProducts"] == ["₹1 test product"]
+    assert planned["blocked"] == 0
+    assert planned["blockedProducts"] == []
     assert planned["enabled"] is False
     assert planned["dryRun"] is True
     assert planned["planHash"]
@@ -923,7 +930,7 @@ def test_inspection_does_not_write_when_sync_is_enabled(snapshot_products, monke
     finally:
         receiver._native_products = original
     assert answer["readOnly"] is True
-    assert len(answer["desiredItems"]) == 23
+    assert len(answer["desiredItems"]) == 22
     assert graph.writes == []
 
 

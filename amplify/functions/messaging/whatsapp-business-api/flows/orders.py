@@ -210,5 +210,6 @@ def fetch_orders_for_flow(phone: str, email: str) -> list:
 
     # Wix Store fallback removed in the Wix exit: OrdersTable (AWS-native checkout)
     # is the sole source of truth. The `wecare-wix-store` Lambda this used to invoke
-    # as "Source 2" was deleted, so there is nothing to fall back to.
+    # as "Source 2" was deleted, so there is nothing to fall back to — a miss remains
+    # a miss rather than reviving the retired Wix store integration.
     return results

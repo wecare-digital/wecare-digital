@@ -1,7 +1,7 @@
 {
   "source": "aws products-table (native catalog)",
   "catalogVersion": "AWS_NATIVE_V1",
-  "fetchedAt": "2026-10-14T10:44:28.566Z",
+  "fetchedAt": "2026-10-14T10:38:49.765Z",
   "productCount": 10,
   "products": [
     {
@@ -279,5 +279,5 @@
       ]
     }
   ],
-  "variantVerifiedAt": "2026-10-14T10:44:28.566Z"
+  "variantVerifiedAt": "2026-10-14T10:38:49.765Z"
 }

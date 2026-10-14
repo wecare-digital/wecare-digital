@@ -76,6 +76,15 @@ REQUIRED_SECRET_IDS = [
     "wecare/agent-connector-token",
 ]
 
+# Retired provider credentials must never re-enter a newly generated archive,
+# including after a recovery-window restoration of an old secret.
+RETIRED_SECRET_PREFIXES = ("wecare/wix/",)
+
+
+def backup_secret_ids(discovered: set[str], required: list[str]) -> list[str]:
+    return sorted(name for name in discovered | set(required)
+                  if not name.startswith(RETIRED_SECRET_PREFIXES))
+
 
 def fp(v: object) -> str:
     """Identify a value without disclosing any part of it.
@@ -147,7 +156,7 @@ def gather() -> tuple[dict, list[str]]:
         for entry in page.get("SecretList", []):
             discovered.add(entry["Name"])
     missing_required = sorted(set(REQUIRED_SECRET_IDS) - discovered)
-    secret_ids = sorted(discovered | set(REQUIRED_SECRET_IDS))
+    secret_ids = backup_secret_ids(discovered, REQUIRED_SECRET_IDS)
     summary.append(f"  discovered {len(discovered)} secret(s) in {ACCOUNT}; "
                    f"backing up {len(secret_ids)}")
     if missing_required:

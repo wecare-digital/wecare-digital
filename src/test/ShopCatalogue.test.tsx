@@ -13,6 +13,7 @@ import {
   CONTRIBUTION_CONFIGURED, CONTRIBUTION_PRODUCT, CONTRIBUTION_PRODUCT_ID, CONTRIBUTION_RAW,
   CONTRIBUTION_SLUG, projectForTest,
   WIX_TEMPLATE_SAMPLE_PRODUCT_IDS, WIX_TEMPLATE_SAMPLE_SLUGS,
+  TEST_PRODUCT_IDS, TEST_PRODUCT_SLUGS,
 } from '../content/shop';
 import { getStaticPaths } from '../pages/shop/[slug]';
 import type { ShopProduct } from '../content/shop';
@@ -137,6 +138,10 @@ describe( 'the Wix snapshot is read correctly', () => {
       // comment above argues for: a product the owner decides to sell is published by deleting one
       // line in shop.ts, with no edit to this test.
       .filter( r => !WIX_TEMPLATE_SAMPLE_SLUGS.includes( String( r.slug ) ) )
+      // The ₹1 test product, excluded for the same reason as the template samples (a visible
+      // catalogue test row that is not this storefront). Derived from the exported list, same
+      // as the samples above, so selling it is a one-line delete in shop.ts with no test edit.
+      .filter( r => !TEST_PRODUCT_SLUGS.includes( String( r.slug ) ) )
       .map( r => r.slug as string )
       .sort();
     expect( SHOP_PRODUCTS.length ).toBeGreaterThanOrEqual( FLOOR );
@@ -780,7 +785,13 @@ describe( "the Wix template's own sample products are not this storefront", () =
       WIX_TEMPLATE_SAMPLE_SLUGS.includes( String( row.slug ).toLowerCase() )
       || WIX_TEMPLATE_SAMPLE_PRODUCT_IDS.includes( String( row.id ).toLowerCase() ) ).length;
     expect( samplesStillInSnapshot ).toBe( 0 );
-    expect( SHOP_PRODUCTS.length ).toBe( visible.length - 2 - samplesStillInSnapshot );
+    // The ₹1 test product, excluded like the samples. Derived from the snapshot so it drops out of
+    // the count automatically if the row is ever removed in Wix.
+    const testProductsStillInSnapshot = visible.filter( row =>
+      TEST_PRODUCT_SLUGS.includes( String( row.slug ).toLowerCase() )
+      || TEST_PRODUCT_IDS.includes( String( row.id ).toLowerCase() ) ).length;
+    expect( SHOP_PRODUCTS.length ).toBe(
+      visible.length - 2 - samplesStillInSnapshot - testProductsStillInSnapshot );
     expect( SHOP_PRODUCTS.some( product => product.id === SERVICES_PRODUCT_ID ) ).toBe( false );
     expect( SHOP_PRODUCTS.some( product => product.slug === CONTRIBUTION_SLUG ) ).toBe( false );
     expect( CONTRIBUTION_PRODUCT?.slug ).toBe( CONTRIBUTION_SLUG );

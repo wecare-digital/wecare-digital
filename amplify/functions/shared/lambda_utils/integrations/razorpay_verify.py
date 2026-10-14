@@ -62,7 +62,9 @@ TIMEOUT_SECONDS = 10
 CAPTURED = "captured"
 
 _secrets_client = None
-_cached: Optional[Dict[str, str]] = None
+from lambda_utils.secrets_access import JsonSecretCache, SecretAccessError
+
+_credential_cache = JsonSecretCache(ttl_seconds=120)
 
 
 class RazorpayUnavailable(RuntimeError):
@@ -83,20 +85,14 @@ def _client():
 
 
 def _credentials() -> Dict[str, str]:
-    """`key_id` and `key_secret`, cached per sandbox. Never logged, never returned to a caller."""
-    global _cached
-    if _cached is None:
-        raw = _client().get_secret_value(SecretId=RAZORPAY_SECRET_ID)
-        parsed = json.loads(raw.get("SecretString") or "{}")
-        _cached = {
-            "key_id": (parsed.get("key_id") or "").strip(),
-            "key_secret": (parsed.get("key_secret") or "").strip(),
-        }
-    if not _cached["key_id"] or not _cached["key_secret"]:
-        # Names the secret to look at and nothing about its contents.
-        raise RazorpayUnavailable(
-            f"key_id/key_secret missing from {RAZORPAY_SECRET_ID}")
-    return _cached
+    """Resolve required API credentials with a bounded, rotation-aware cache."""
+    try:
+        return _credential_cache.read(
+            _client(), RAZORPAY_SECRET_ID, required=("key_id", "key_secret"),
+            generation=os.environ.get("SECRETS_REFRESHED_AT", ""),
+        )
+    except SecretAccessError:
+        raise RazorpayUnavailable("required payment credentials unavailable") from None
 
 
 def _get(path: str) -> Dict:

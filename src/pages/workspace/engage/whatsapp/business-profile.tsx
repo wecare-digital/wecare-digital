@@ -168,7 +168,7 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
               </div>
               <div>
                 <label style={ { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 } }>Websites (comma-separated)</label>
-                <input value={ form.websites } onChange={ e => setForm( { ...form, websites: e.target.value } ) } placeholder="https://wecare.digital, https://www.wecare.digital"
+                <input value={ form.websites } onChange={ e => setForm( { ...form, websites: e.target.value } ) } placeholder="https://wecare.digital"
                   style={ { width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 } } />
               </div>
               <button onClick={ handleSave } disabled={ saving }

@@ -64,10 +64,6 @@
         "code_job_status"
       ]
     },
-    "wix": {
-      "kind": "sdk",
-      "endpoint": "https://mcp.wix.com/mcp"
-    },
     "razorpay": {
       "kind": "sdk",
       "mode": "read-only"

@@ -157,16 +157,14 @@ DEPLOY_SOURCE_ROOT = ROOT / ".scratch" / "deploy-checkout"
 
 PAYMENT_ATTEMPTS_TABLE = "stack-wecare-digital-PaymentAttemptsTable"
 COMMERCE_KEYS_TABLE = "stack-wecare-digital-WixOrderIds"
-#: Website checkout keeps coupons and gift cards Wix-authoritative. The legacy custom coupon and
-#: gift-card stores have their own functions/roles and are deliberately NOT granted to checkout.
-WIX_API_KEY_SECRET = "wecare/wix/headless-api-key"
+#: Checkout pricing and inventory authority is the AWS-native ProductsTable.
+PRODUCTS_TABLE = "stack-wecare-digital-ProductsTable"
 RAZORPAY_API_SECRET = "wecare/razorpay/api"
 CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
 #: The internal order record. An order exists ONLY after an authoritative capture, and
 #: `finalization.accept_paid` is what writes it. Granted GetItem/PutItem/UpdateItem and
 #: explicitly NOT DeleteItem or Scan: an order record is evidence that money moved.
 ORDERS_TABLE = "stack-wecare-digital-OrderTable"
-WIX_SITE_ID = "c993128b-26be-41cd-9fcd-904abe23462f"
 #: The business-API Lambda. Holds the Meta token; answers the readiness readback.
 SENDER_FUNCTION = "wecare-whatsapp-business-api"
 #: The in-chat payment sender — the only function that composes a Meta `review_and_pay` message.
@@ -409,12 +407,6 @@ def expected_role_policy(acct: str | None = None) -> dict:
         "Version": "2012-10-17",
         "Statement": [
             {
-                "Sid": "ReadWixApiKey",
-                "Effect": "Allow",
-                "Action": ["secretsmanager:GetSecretValue"],
-                "Resource": [f"arn:aws:secretsmanager:{REGION}:{acct}:secret:{WIX_API_KEY_SECRET}-*"],
-            },
-            {
                 "Sid": "ReadRazorpayApiKey",
                 "Effect": "Allow",
                 "Action": ["secretsmanager:GetSecretValue"],
@@ -528,68 +520,25 @@ def ensure_log_group(dry_run: bool) -> str:
 #: read. `--verify` checks them for PRESENCE only; every other key in `expected_environment()` is
 #: checked for an exact value.
 READINESS_KEYS = ("EXPECTED_CONFIGURATION_NAME", "EXPECTED_PROVIDER_MID")
-
-#: The two deliberate switches that turn the Wix order write-back on. Both default to EMPTY here,
-#: for the same reason `READINESS_KEYS` do: a key that exists is a key an owner flips with one
-#: `update-function-configuration`, and seeding it empty means enabling Wix writes is a deliberate
-#: two-value edit rather than something a routine provisioner run can do by accident.
-#:
-#: `lambda_utils/ecommerce/wix_writeback.is_enabled()` is the gate they feed, and it is AND of
-#: four conditions:
-#:   WIX_WRITEBACK_ENABLED (truthy)   — this script seeds it empty
-#:   WIX_ECOM_WRITE_CONFIRMED (truthy)— this script seeds it empty
-#:   WIX_SITE_ID == the confirmed id  — already set below and reconciled
-#:   WIX_CART_V2_WRITE_CONTRACT == "cart-v2-external-v1" — a fixed contract string, set below
-#:
-#: So `--verify` checks these two for PRESENCE only (an owner may legitimately set either to a
-#: truthy value), exactly like the readiness inputs. The contract string, by contrast, is a fixed
-#: constant checked for its EXACT value — it alone cannot enable anything, so pinning it is safe.
-#:
-#: WHY THE SWITCHES STAY EMPTY FOR NOW. The live Wix headless API key answers the eCommerce Orders
-#: API with 403 READ_ORDER_FORBIDDEN (verified by `scripts/probe_wix_capabilities.py`). The write
-#: scope is not provisioned, so a POST /ecom/v1/orders would be rejected and every paid order would
-#: stall at the WIX_READBACK_REQUIRED reconciliation stage instead of landing cleanly in DynamoDB.
-#: Deploying the keys declared-but-empty makes the switch READY on the function; turning it on is
-#: the follow-up `WIX_WRITEBACK_ENABLED=true WIX_ECOM_WRITE_CONFIRMED=true` edit, to be made only
-#: after the Wix key is granted the eCommerce write scope and one real order is validated.
-WIX_WRITEBACK_SWITCH_KEYS = ("WIX_WRITEBACK_ENABLED", "WIX_ECOM_WRITE_CONFIRMED")
-
-#: Presence-only keys = readiness inputs + the two write-back switches. Every OTHER key in
-#: `expected_environment()` is checked for an exact value by `--verify` and repaired by
-#: `reconcile_environment`.
-PRESENCE_ONLY_KEYS = READINESS_KEYS + WIX_WRITEBACK_SWITCH_KEYS
-
-#: The fixed Cart V2 external-order write contract string `wix_writeback.is_enabled()` requires.
-#: A constant, not a switch: on its own it enables nothing, so it is set and value-checked.
-WIX_CART_V2_WRITE_CONTRACT = "cart-v2-external-v1"
-
+PRESENCE_ONLY_KEYS = READINESS_KEYS
 
 def expected_environment() -> dict:
     return {
         "PAYMENT_ATTEMPTS_TABLE": PAYMENT_ATTEMPTS_TABLE,
         "COMMERCE_KEYS_TABLE": COMMERCE_KEYS_TABLE,
-        "WIX_API_KEY_SECRET": WIX_API_KEY_SECRET,
         "RAZORPAY_SECRET_ID": RAZORPAY_API_SECRET,
         "CONTACTS_TABLE": CONTACTS_TABLE,
         "ORDERS_TABLE": ORDERS_TABLE,
-        "WIX_SITE_ID": WIX_SITE_ID,
+        "PRODUCTS_TABLE": PRODUCTS_TABLE,
+        "CHECKOUT_MODE": "AWS_NATIVE",
+        "CATALOG_SOURCE": "aws",
+        "NATIVE_STOCK_RESERVATION_ENABLED": "true",
         "SENDER_FUNCTION": f"{SENDER_FUNCTION}:{LIVE_ALIAS}",
         "PAYMENT_WABA_ID": PAYMENT_WABA_ID,
-        # Deliberately empty: payment_readiness returns CONFIGURATION_UNVERIFIED until an owner sets
-        # these from a live Meta/Razorpay read. No value here can enable a payment.
+        # Deliberately empty: payment_readiness remains independently owner-gated.
         "EXPECTED_CONFIGURATION_NAME": "",
         "EXPECTED_PROVIDER_MID": "",
         # CHECKOUT_INITIATION_ENABLED intentionally omitted -> initiation OFF.
-        # ── Wix order write-back (headless Wix -> real Wix Orders list) ──────────────────
-        # `finalization.accept_paid` runs on the verify-callback leg of THIS function and is the
-        # single place a paid order is pushed to Wix. The payload is already built on the attempt
-        # (`website_checkout`/`handler` call `wix_writeback.build_wix_order_payload`); the only
-        # thing standing between a paid order and the Wix Orders list is `wix_writeback.is_enabled`,
-        # which these four keys feed. The contract string is set to its one required value; the two
-        # switches stay empty so turning writes on is a deliberate edit — see WIX_WRITEBACK_* notes.
-        "WIX_CART_V2_WRITE_CONTRACT": WIX_CART_V2_WRITE_CONTRACT,
-        "WIX_WRITEBACK_ENABLED": "",
-        "WIX_ECOM_WRITE_CONFIRMED": "",
     }
 
 
@@ -608,8 +557,8 @@ def ensure_function(dry_run: bool, zip_bytes: bytes) -> str:
                 Role=role_arn,
                 Handler="handler.handler",
                 Code={"ZipFile": zip_bytes},
-                Description="Customer checkout: authoritative Wix total, readiness gate, "
-                            "PaymentAttempt, in-chat handoff. Initiation off by default.",
+                Description="Customer checkout: AWS-native catalog total, readiness gate, "
+                            "PaymentAttempt, stock reservation and handoff.",
                 Timeout=20,
                 MemorySize=256,
                 Environment={"Variables": expected_environment()},
@@ -631,10 +580,7 @@ def reconcile_environment(dry_run: bool) -> str:
     current = dict((config.get("Environment") or {}).get("Variables") or {})
     wanted = expected_environment()
     # Only ADD/repair the keys this script owns; never clobber an operator-set
-    # CHECKOUT_INITIATION_ENABLED, a live-read EXPECTED_* value, or a deliberately-flipped
-    # WIX_WRITEBACK_ENABLED / WIX_ECOM_WRITE_CONFIRMED switch. Those are seeded here only when
-    # ABSENT, so a reconcile run makes the switch available without ever turning Wix writes on or
-    # off against an owner's decision.
+    # CHECKOUT_INITIATION_ENABLED or live-read EXPECTED_* readiness values.
     drifted = {k: v for k, v in wanted.items()
                if k not in PRESENCE_ONLY_KEYS and current.get(k) != v}
     for k in PRESENCE_ONLY_KEYS:
@@ -1143,17 +1089,12 @@ def verify(members: dict | None = None, source_note: str = "") -> int:
         FunctionName=FUNCTION_NAME, Qualifier=alias["FunctionVersion"])
     live_env = (live_config.get("Environment") or {}).get("Variables") or {}
 
-    # Derived from `expected_environment()`, never restated. A hand-enumerated list omitted
-    # WIX_SITE_ID — a key this script sets and `reconcile_environment` repairs — so a wrong Wix
-    # site id on live passed verification. Any key added to `expected_environment` is now checked
-    # by construction, which is the only version of this check that cannot drift out of date.
+    # Derived from `expected_environment()`, never restated. Any key added there is checked by
+    # construction so the verifier cannot drift from the provisioner.
     for key, want in sorted(expected_environment().items()):
         if key in PRESENCE_ONLY_KEYS:
-            # Deliberately presence-only. For READINESS_KEYS these are values an owner fills in
-            # from a live Meta/Razorpay read; for WIX_WRITEBACK_SWITCH_KEYS they are the two
-            # switches an owner flips to truthy once the Wix write scope is confirmed. In both
-            # cases a non-empty value is legitimate owner drift from the empty seed this script
-            # writes, so only ABSENCE is a fault.
+            # Deliberately presence-only: an owner fills these from live Meta/Razorpay readback,
+            # so a non-empty value is legitimate operator state and only ABSENCE is a fault.
             if key not in live_env:
                 problems.append(f"env {key} absent on live (v{alias['FunctionVersion']})")
             continue
@@ -1169,38 +1110,14 @@ def verify(members: dict | None = None, source_note: str = "") -> int:
     readiness_empty = not (live_env.get("EXPECTED_CONFIGURATION_NAME")
                            or live_env.get("EXPECTED_PROVIDER_MID"))
 
-    # Wix order write-back readout. `is_enabled()` is AND of all four, so report ON only when both
-    # switches are truthy AND the contract/site id are the required constants — i.e. exactly the
-    # condition under which a paid order would be pushed to the Wix Orders list.
-    def _truthy(name: str) -> bool:
-        return str(live_env.get(name, "")).strip().lower() in ("1", "true", "yes", "on")
-    writeback_on = (_truthy("WIX_WRITEBACK_ENABLED") and _truthy("WIX_ECOM_WRITE_CONFIRMED")
-                    and live_env.get("WIX_SITE_ID") == WIX_SITE_ID
-                    and live_env.get("WIX_CART_V2_WRITE_CONTRACT") == WIX_CART_V2_WRITE_CONTRACT)
-
     print(f"function: present (live v{alias['FunctionVersion']})")
     print(f"initiation: {'ON' if initiation in ('1','true','yes','on') else 'OFF (expected)'}")
-    print(f"wix order write-back: {'ON — paid orders are pushed to the Wix Orders list' if writeback_on else 'OFF (keys present, switches empty)'}")
     print(f"readiness inputs: {'empty — blocks regardless of the gate' if readiness_empty else 'SET by an operator'}")
     print(f"sender: {SENDER_FUNCTION}:{LIVE_ALIAS}; WABA {PAYMENT_WABA_ID}")
 
-    # Gate off is NOT the same as nothing happens, and this used to be a print that exited 0.
-    # The gate is the LAST check in `handler._create`; the measured order is
-    #   wix_ecom.create_checkout (a live Wix write) -> currency compare -> payment_readiness
-    #   -> order_keys.allocate_payment_reference -> put_item on PaymentAttemptsTable
-    #   -> `if not INITIATION_ENABLED: refuse`.
-    # So while readiness is empty it refuses early and the table stays at 0 rows. The moment an
-    # owner supplies both readiness values with the flag still off, every authenticated
-    # action=create performs a live Wix write and writes an attempt row before refusing. No money
-    # moves and no gateway order is created, but "the gate is off" stops meaning "inert" — and an
-    # operator who set those values expecting inertness deserves a non-zero exit, not a note.
-    if not readiness_empty and initiation not in ("1", "true", "yes", "on"):
-        problems.append(
-            "readiness inputs are SET while CHECKOUT_INITIATION_ENABLED is off: every "
-            "authenticated action=create now reaches wix_ecom.create_checkout (a live Wix write) "
-            "and writes a PaymentAttempt row BEFORE the gate refuses. Either enable initiation "
-            "deliberately or clear EXPECTED_CONFIGURATION_NAME/EXPECTED_PROVIDER_MID to keep the "
-            "endpoint inert")
+    # Pricing and stock authority remain AWS-native regardless of readiness state. Payment
+    # initiation is still independently controlled by CHECKOUT_INITIATION_ENABLED and provider
+    # readiness; this provisioner never seeds the initiation flag.
 
     # Routes + integration: the half that turns a deployed function into a reachable endpoint.
     want_uri = function_arn(qualified=True)

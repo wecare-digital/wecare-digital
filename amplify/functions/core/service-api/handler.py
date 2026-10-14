@@ -254,12 +254,17 @@ def _get_order_submissions(order_id: str) -> Dict:
 
 
 def _sync_orders() -> Dict:
-    # NATIVE-ONLY: there is nothing to sync. Orders are authoritative in OrdersTable
-    # (AWS-native checkout writes them directly). This endpoint used to trigger an
-    # async pull from the `wecare-wix-store` Lambda; that Lambda was deleted in the
-    # Wix exit, so the trigger is now a no-op kept only so `/orders/sync` still
-    # answers 200 for any client that still POSTs it.
-    return _resp(200, {'message': 'Orders are native; no external sync required', 'synced': 0})
+    """Compatibility endpoint: orders are already native and require no provider sync.
+
+    OrderTable is the authoritative store after Wix retirement. Keep the action so
+    existing staff/automation callers do not break, but do not invoke any retired
+    provider Lambda or claim that an external synchronization occurred.
+    """
+    return _resp(200, {
+        'message': 'AWS-native orders are already authoritative',
+        'synced': 0,
+        'source': 'orders_table',
+    })
 
 
 # ============================================================================

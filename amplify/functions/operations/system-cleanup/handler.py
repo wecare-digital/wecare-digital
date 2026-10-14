@@ -284,18 +284,6 @@ CLEANUP_RESOURCES = {
         'type': 'dynamodb',
         'table': 'stack-wecare-digital-DLTTemplates',
     },
-    'wix_products_cache': {
-        'label': 'Wix Products Cache',
-        'category': 'Ecommerce',
-        'type': 'dynamodb',
-        'table': 'stack-wecare-digital-WixProductsCache',
-    },
-    'wix_orders_cache': {
-        'label': 'Wix Orders Cache',
-        'category': 'Ecommerce',
-        'type': 'dynamodb',
-        'table': 'stack-wecare-digital-WixOrdersCache',
-    },
     'wix_order_ids': {
         'label': 'Wix Order ID Mapping',
         'category': 'Ecommerce',
@@ -438,8 +426,6 @@ CLEANUP_ALLOWLIST = {
     'stack-wecare-digital-RateLimitTable',
     # derived analytics; re-fetchable from Meta's template insights API
     'stack-wecare-digital-TemplateAnalyticsTable',
-    # pure cache, rebuilt by the catalogue sync
-    'stack-wecare-digital-WixProductsCache',
     # Airtel SMS DLT template cache; Airtel is retired
     'stack-wecare-digital-DLTTemplates',
 }

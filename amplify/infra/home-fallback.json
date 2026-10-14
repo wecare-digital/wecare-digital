@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Owner-approved unused subdomains redirect to WECARE home using the existing certificate.",
+  "Description": "Unused subdomains redirect to WECARE home; www preserves paths when canonicalising to apex.",
   "Resources": {
     "RedirectFunction": {
       "Type": "AWS::CloudFront::Function",
@@ -8,10 +8,10 @@
         "Name": "wecare-home-fallback",
         "AutoPublish": true,
         "FunctionConfig": {
-          "Comment": "Unused website hostnames go to https://wecare.digital/",
+          "Comment": "Only www host canonicalises with full path/query; unused subdomains redirect home",
           "Runtime": "cloudfront-js-2.0"
         },
-        "FunctionCode": "function handler(event) {\n  return {statusCode: 302, statusDescription: 'Found', headers: {location: {value: 'https://wecare.digital/'}, 'cache-control': {value: 'no-store'}, 'x-content-type-options': {value: 'nosniff'}, 'referrer-policy': {value: 'no-referrer'}, 'content-security-policy': {value: \"default-src 'none'; frame-ancestors 'none'\"}}};\n}\n"
+        "FunctionCode": "function handler(event) {\n  var request = event.request;\n  var host = (request.headers.host && request.headers.host.value || '').toLowerCase();\n  var destination = 'https://wecare.digital/';\n  var status = 302;\n  if (host === 'www.wecare.digital') {\n    destination = 'https://wecare.digital' + (request.uri || '/');\n    var qs = request.querystring || {};\n    var parts = [];\n    Object.keys(qs).forEach(function (name) {\n      var entry = qs[name];\n      var vals = entry && entry.multiValue && entry.multiValue.length ? entry.multiValue : [entry];\n      vals.forEach(function (val) {\n        if (!val) return;\n        parts.push(encodeURIComponent(name) + (val.value === '' ? '' : '=' + encodeURIComponent(val.value)));\n      });\n    });\n    if (parts.length) destination += '?' + parts.join('&');\n    status = 301;\n  }\n  return {\n    statusCode: status,\n    statusDescription: status === 301 ? 'Moved Permanently' : 'Found',\n    headers: {\n      location: {value: destination},\n      'cache-control': {value: 'no-store'},\n      'x-content-type-options': {value: 'nosniff'},\n      'referrer-policy': {value: 'no-referrer'},\n      'content-security-policy': {value: \"default-src 'none'; frame-ancestors 'none'\"}\n    }\n  };\n}\n"
       }
     },
     "LogBucket": {

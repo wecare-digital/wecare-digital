@@ -240,10 +240,17 @@ def _get_order_submissions(order_id: str) -> Dict:
 
 
 def _sync_orders() -> Dict:
-    # NATIVE-ONLY: nothing to sync. Orders are authoritative in OrdersTable; the
-    # `wecare-wix-store` Lambda this used to trigger was deleted in the Wix exit.
-    # Kept as a 200 no-op so `/orders/sync` still answers for any legacy client.
-    return _resp(200, {'message': 'Orders are native; no external sync required', 'synced': 0})
+    """Compatibility endpoint for the retired provider sync action.
+
+    OrderTable is authoritative after the AWS-native commerce cutover. Existing
+    callers may continue invoking this action, but no provider synchronization
+    or retired Wix Lambda invocation occurs.
+    """
+    return _resp(200, {
+        'message': 'AWS-native orders are already authoritative',
+        'synced': 0,
+        'source': 'orders_table',
+    })
 
 
 # ============================================================================

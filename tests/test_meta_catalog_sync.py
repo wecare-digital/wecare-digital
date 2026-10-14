@@ -66,10 +66,9 @@ EXPECTED_ITEMS_BY_SLUG = {
     "file-assist": 1,
     "paperwork": 1,
     "anew": 1,
-    "1-test-product": 1,
 }
 
-EXPECTED_ITEM_COUNT = 23
+EXPECTED_ITEM_COUNT = 22
 
 
 @pytest.fixture(scope="module")
@@ -358,7 +357,7 @@ def test_a_price_is_composed_from_integer_paise_by_slicing(paise, text):
 def test_the_snapshot_prices_survive_the_round_trip(desired):
     """The three figures a reader can check by eye against the snapshot."""
     prices = {item["item_group_id"]: item["price"] for item in desired}
-    assert prices["121c9d57-2cc9-490b-8eed-66bf7b9c172a"] == "1.00"      # Rs1 test product
+    assert "121c9d57-2cc9-490b-8eed-66bf7b9c172a" not in prices      # Rs1 test product
     assert prices["a12e9e74-e109-4136-a12e-ab49ea6f98c3"] == "24999.00"  # Kiosk
     assert prices["abfdad33-b853-4aeb-b2f9-fa4051e75928"] == "599.00"    # Anew
 
@@ -507,9 +506,7 @@ def test_the_plan_fingerprint_is_stable_under_reordering(desired):
 
 #: MEASURED from the 2026-10-11 snapshot: nine of the ten syncable products carry
 #: Wix media. Only the ₹1 test product is still imageless, so it is the sole Meta blocker.
-EXPECTED_BLOCKED = [
-    "₹1 test product",
-]
+EXPECTED_BLOCKED = []
 
 
 def test_remaining_imageless_product_is_blocked_and_every_service_item_has_a_picture(
@@ -522,10 +519,10 @@ def test_remaining_imageless_product_is_blocked_and_every_service_item_has_a_pic
     change is reviewed rather than silently changing publish eligibility.
     """
     assert sync.blockers(desired) == EXPECTED_BLOCKED
-    assert len(EXPECTED_BLOCKED) == 1
+    assert len(EXPECTED_BLOCKED) == 0
 
     syncable = [p for p in products if sync.is_syncable(p)]
-    assert len(syncable) == 10
+    assert len(syncable) == 9
 
     imageless = sorted(
         p["name"] for p in syncable

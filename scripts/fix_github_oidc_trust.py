@@ -131,10 +131,13 @@ ROLES = [
     "GitHubActions-wecare-digital-public-surface",
     "GitHubActions-wecare-digital-public-surface-read",
     "GitHubActions-wecare-digital-plivo-drift",
-    # Reads ProductsTable to publish the AWS-native storefront catalog snapshot
-    # (.github/workflows/aws-native-catalog-publish.yml), the native replacement for the retired
-    # Wix catalogue-sync workflow.
+    # The AWS-native catalog deploy/publish/media roles, declared by the catalogue-cutover
+    # workflows (native-catalog-admin-deploy.yml, aws-native-catalog-publish.yml,
+    # catalog-media-migrate.yml). Registered here so they get the SAME repo-pinned OIDC trust
+    # document as every other role rather than whatever their creator hand-wrote.
+    "GitHubActions-wecare-native-catalog-deploy",
     "GitHubActions-wecare-native-catalog-reader",
+    "GitHubActions-wecare-product-media-migration",
 ]
 
 # Any IAM role whose name starts with this is assumed to be a GitHub Actions OIDC role

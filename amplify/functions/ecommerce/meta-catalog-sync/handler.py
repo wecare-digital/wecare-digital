@@ -1,9 +1,9 @@
-"""`wecare-meta-catalog-sync` - project the Wix catalogue onto the Meta Commerce catalog.
+"""`wecare-meta-catalog-sync` - project the AWS ProductsTable onto the Meta Commerce catalog.
 
 PHASE W, FEAT-001. Plan decision D3 in
 `.agents/tasks/phase-w-whatsapp-commerce-20261006/plan.md`; the retailer-id contract, the item
 shape and the diff all live in `lambda_utils/ecommerce/meta_catalog_sync.py`, which is pure. This
-file is wiring: Wix in, Meta in, a plan out, and two gates in front of the only thing that writes.
+file is wiring: AWS catalog in, Meta in, a plan out, and two gates in front of the only write.
 
 OWNER-AUTHORIZED SCOPED ROLLOUT, 2026-10-08
 ------------------------------------------
@@ -14,12 +14,9 @@ fields; catalog reads use Graph product fields. A response without handles is no
 
 THE TRIGGER CARRIES NO INFORMATION THIS FUNCTION USES
 -----------------------------------------------------
-It accepts an async invoke from `wecare-wix-catalog-webhook` (`{"source": "wix-webhook",
-"entityId": ...}`) and a scheduled EventBridge event, and treats both identically: re-read the
-whole catalogue. The entity id is logged for correlation and NEVER used to narrow the read, for
-the same reason `wix-catalog-webhook` ignores it - a verified event means "the catalogue moved",
-and re-reading is the right answer whatever the envelope said. So a change in Wix's event shape
-can cost a log field and can never cost a missed item.
+It accepts ProductsTable DynamoDB stream events and the scheduled EventBridge backstop, and treats
+both as signals to re-read the authoritative AWS catalogue. Stream record identity is correlation
+only; the full ProductsTable is re-read so a partial event can never produce a partial Meta plan.
 
 THE TOKEN IS READ LAZILY, AT REQUEST TIME, INSIDE THE FUNCTION
 --------------------------------------------------------------
@@ -79,33 +76,8 @@ META_PRODUCT_FIELDS = ("id,name,retailer_id,price,currency,availability,image_ur
                        "description")
 META_PAGE_LIMIT = "100"
 
-#: Wix Catalog V3. The site is on V3, confirmed by Wix rather than inferred - a V1 call returns
-#: HTTP 428 `CATALOG_V3_CALLING_CATALOG_V1_API` (see `scripts/fetch-wix-catalog.js`).
-WIX_SEARCH_ENDPOINT = "/stores/v3/products/search"
-WIX_VARIANTS_ENDPOINT = "/stores/v3/products/query-variants"
-
-#: V3 omits description, currency, media and category info unless asked, so a search without
-#: these returns products with no price currency and no description and reads as an empty
-#: catalogue. Mirrors `CATALOG_PRODUCT_FIELDS` in `ecommerce/wix-store/handler.py` and `FIELDS`
-#: in `scripts/fetch-wix-catalog.js`, so all three consumers ask for the same shape.
-WIX_PRODUCT_FIELDS = ("URL", "CURRENCY", "MEDIA_ITEMS_INFO", "PLAIN_DESCRIPTION",
-                      "DIRECT_CATEGORIES_INFO", "VARIANT_OPTION_CHOICE_NAMES", "INFO_SECTION")
-
-WIX_PAGE_SIZE = 100
-WIX_VARIANT_PAGE_SIZE = 1000
-
-#: Where the catalogue is READ from. `wix` (default) keeps the current live Wix read; `aws` reads
-#: the AWS-native ProductsTable, projecting it onto the SAME slim shape `catalog.desired_items`
-#: consumes, so the diff/approval/dry-run machinery is untouched. Flipping this to `aws` is the
-#: catalog half of the Wix cutover (spec Phase 6, owner-gated). Read at request time, never module
-#: scope, so an operator flip takes effect without waiting for sandboxes to recycle.
-CATALOG_SOURCE_ENV = "CATALOG_SOURCE"
+#: AWS-native product authority.
 PRODUCTS_TABLE = os.environ.get("PRODUCTS_TABLE", "stack-wecare-digital-ProductsTable")
-
-
-def _catalog_source() -> str:
-    value = str(os.environ.get(CATALOG_SOURCE_ENV, "wix")).strip().lower()
-    return "aws" if value in ("aws", "ddb", "dynamodb", "native") else "wix"
 
 #: A cursor that never empties would otherwise spin until the Lambda timed out. Same guard, and
 #: the same value, as both existing cursor loops.
@@ -309,7 +281,7 @@ class MetaCatalogReadError(RuntimeError):
     """The Meta catalogue read failed. Carries the Graph status structurally, never a body.
 
     THE STATUS HAS TO BE READABLE WITHOUT PARSING THE MESSAGE, which is the whole reason this
-    class exists - `lambda_utils.wix_ecom.http_error` establishes the same pattern. A 403 means
+    class exists so transport failures carry structured status. A 403 means
     "ask the owner to re-grant the asset", a 429 means "back off and retry", and a log line
     carrying only `errorType` makes those indistinguishable from a 500 or a DNS failure.
 
@@ -472,8 +444,7 @@ def _existing_items(requester, *, token: str, app_secret: str,
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 
 def _native_products(scanner=None) -> List[Dict[str, Any]]:
-    """Read the AWS ProductsTable and project onto the SAME slim shape `_wix_products`
-    returns, so `catalog.desired_items(..., require_variant_price=True)` and the entire
+    """Read the AWS ProductsTable and project onto the slim catalog shape consumed by `catalog.desired_items(..., require_variant_price=True)` and the entire
     diff/approval/dry-run pipeline downstream are byte-for-byte source-agnostic.
 
     `scanner` is injected for tests (a callable returning the list of ProductsTable
@@ -546,174 +517,6 @@ def _native_products(scanner=None) -> List[Dict[str, Any]]:
             row["image"] = str(images[0])
         rows.append(row)
     return rows
-
-
-# ─────────────────────────────────────────────────────────────────────────────────────────────
-# Wix
-# ─────────────────────────────────────────────────────────────────────────────────────────────
-
-
-# `_wix_request` (one authenticated Wix call through `lambda_utils.wix_ecom`) was the dead Wix
-# PUSH branch: the handler reads the catalogue from ProductsTable via `_native_products` under
-# CATALOG_SOURCE=aws, and `wix_ecom` has been deleted. It is removed so this module imports no
-# retired Wix client. `_wix_products`/`_wix_variants` below keep taking an injected `requester`
-# (they project the slim catalogue shape the native reader also produces) and never reach a Wix
-# transport of their own.
-
-
-def _wix_products(requester) -> List[Dict[str, Any]]:
-    """Read every Wix product, then hydrate per-variant prices and stock from a second endpoint.
-
-    TWO CALLS, NOT ONE, AND THE ENVELOPES DIFFER. `/products/search` takes
-    `{search: {cursorPaging}, fields}`; `/products/query-variants` takes `{fields, query}` with
-    the paging INSIDE `query`. Sending one shape to the other endpoint is a 400 rather than an
-    empty result - recorded in `scripts/fetch-wix-catalog.js:109-114`, which mirrors the working
-    call in `ecommerce/wix-store/handler.py`.
-
-    The second call is not optional here, and for a reason beyond the snapshot's: it is the ONLY
-    source of per-variant price. `Contribute` is 100-500 and `WECARE.DIGITAL Services` 49-350, so
-    a product-level price would be the minimum and wrong for most of their variants. That is why
-    `desired_items` is called with `require_variant_price=True` - a variant whose price did not
-    arrive refuses rather than publishing the product's.
-    """
-    products: List[Dict[str, Any]] = []
-    cursor = ""
-    for _ in range(MAX_PAGES):
-        paging = {"limit": WIX_PAGE_SIZE}
-        if cursor:
-            paging["cursor"] = cursor
-        result = requester(WIX_SEARCH_ENDPOINT,
-                           {"search": {"cursorPaging": paging},
-                            "fields": list(WIX_PRODUCT_FIELDS)})
-        page = result.get("products") or []
-        products.extend(row for row in page if isinstance(row, Mapping))
-        cursor = (((result.get("pagingMetadata") or {}).get("cursors") or {}).get("next") or "")
-        if not page or not cursor:
-            break
-
-    rows = [_slim_product(product) for product in products]
-    identifiers = [row["id"] for row in rows if row.get("id")]
-    if identifiers:
-        variants = _wix_variants(requester, identifiers)
-        for row in rows:
-            row["variants"] = variants.get(row["id"], [])
-            # The variant search index can lag behind a product update. Resolve
-            # explicit option-choice artwork from the product read first.
-            for variant in row["variants"]:
-                images = {row["choiceImages"][key] for key in variant.get("choiceIds", [])
-                          if key in row["choiceImages"]}
-                if len(images) == 1:
-                    variant["image"] = images.pop()
-    return rows
-
-
-def _slim_product(product: Mapping[str, Any]) -> Dict[str, Any]:
-    """The live V3 payload reduced to the fields `meta_catalog_sync` reads.
-
-    The same projection `scripts/fetch-wix-catalog.js` `slim()` writes into
-    `src/content/wix-catalog.json`, so the pure module sees one shape whether its input came from
-    the live API or from the committed snapshot - which is what lets the committed snapshot be a
-    valid test fixture rather than an approximation of one.
-
-    `price` stays the DECIMAL STRING Wix sends. No coercion to a float, here or anywhere.
-    """
-    price_range = product.get("actualPriceRange") or {}
-    minimum = price_range.get("minValue") or {}
-    media_items = (((product.get("media") or {}).get("itemsInfo") or {}).get("items") or [])
-    image = ""
-    for entry in media_items:
-        if isinstance(entry, Mapping):
-            candidate = str(((entry.get("image") or {}).get("url")
-                             if isinstance(entry.get("image"), Mapping)
-                             else entry.get("url")) or "").strip()
-            if candidate:
-                image = candidate
-                break
-    row: Dict[str, Any] = {
-        "id": str(product.get("id") or ""),
-        "name": str(product.get("name") or ""),
-        "slug": str(product.get("slug") or ""),
-        "visible": product.get("visible") is not False,
-        "price": minimum.get("amount"),
-        "currency": str(product.get("currency") or catalog.CURRENCY),
-        # V3's `description` is Ricos rich-content NODES; `plainDescription` is the HTML string.
-        "descriptionHtml": str(product.get("plainDescription") or ""),
-        "mediaCount": len(media_items),
-        "variants": [],
-        "choiceImages": {},
-    }
-    for option in product.get("options") or []:
-        for choice in (option.get("choicesSettings") or {}).get("choices") or []:
-            for entry in choice.get("linkedMedia") or []:
-                choice_image = str((entry.get("image") or {}).get("url")
-                                   or entry.get("url") or "").strip()
-                if choice_image:
-                    key = f"{option.get('id')}:{choice.get('choiceId')}"
-                    row["choiceImages"][key] = choice_image
-                    break
-    if image:
-        row["image"] = image
-    return row
-
-
-def _wix_variants(requester, product_ids: Sequence[str]) -> Dict[str, List[Dict[str, Any]]]:
-    """`productId -> [{id, label, inStock, pricePaise}]` from `query-variants`.
-
-    `pricePaise` is integer paise through `meta_catalog_sync.paise_from_major`, which uses
-    `Decimal(str(value))` and refuses an amount that is not a whole number of paise. A variant
-    whose price is missing or unreadable is emitted WITHOUT the key, so `desired_items` refuses it
-    in strict mode rather than silently falling back to the product's price.
-
-    `visible is False` rows are dropped, and an absent `visible` counts as visible - the same
-    reading `slim()` and `is_syncable` use.
-    """
-    by_product: Dict[str, List[Dict[str, Any]]] = {identifier: [] for identifier in product_ids}
-    cursor = ""
-    for _ in range(MAX_PAGES):
-        if cursor:
-            query: Dict[str, Any] = {"cursorPaging": {"limit": WIX_VARIANT_PAGE_SIZE,
-                                                      "cursor": cursor}}
-        else:
-            query = {"filter": {"productData.productId": {"$in": list(product_ids)}},
-                     "cursorPaging": {"limit": WIX_VARIANT_PAGE_SIZE}}
-        result = requester(WIX_VARIANTS_ENDPOINT, {"fields": ["CURRENCY"], "query": query})
-        rows = result.get("variants") or []
-        for row in rows:
-            if not isinstance(row, Mapping) or row.get("visible") is False:
-                continue
-            product_id = str((row.get("productData") or {}).get("productId") or "")
-            if product_id not in by_product:
-                continue
-            label = " / ".join(
-                str((choice.get("optionChoiceNames") or {}).get("choiceName") or "")
-                for choice in (row.get("optionChoices") or [])
-                if isinstance(choice, Mapping)
-                and (choice.get("optionChoiceNames") or {}).get("choiceName")) or "Standard"
-            variant: Dict[str, Any] = {
-                "id": str(row.get("variantId") or row.get("id") or ""),
-                "label": label,
-                "inStock": (row.get("inventoryStatus") or {}).get("inStock") is True,
-                "choiceIds": [
-                    f"{(choice.get('optionChoiceIds') or {}).get('optionId')}:{(choice.get('optionChoiceIds') or {}).get('choiceId')}"
-                    for choice in (row.get("optionChoices") or [])
-                    if isinstance(choice, Mapping)
-                ],
-            }
-            media = row.get("media") or {}
-            image = media.get("image") or {}
-            image_url = str(image.get("url") or media.get("url") or "").strip()
-            if image_url:
-                variant["image"] = image_url
-            amount = ((row.get("price") or {}).get("actualPrice") or {}).get("amount")
-            try:
-                variant["pricePaise"] = catalog.paise_from_major(amount)
-            except (ValueError, ArithmeticError):
-                pass
-            by_product[product_id].append(variant)
-        cursor = (((result.get("pagingMetadata") or {}).get("cursors") or {}).get("next") or "")
-        if not rows or not cursor:
-            break
-    return by_product
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -790,15 +593,11 @@ def _apply(plan: catalog.SyncPlan, requester, *, token: str, app_secret: str,
 def _trigger(event: Any) -> Dict[str, str]:
     """What invoked us, for the log line only. Never used to narrow the read.
 
-    Covers four envelopes, treated IDENTICALLY downstream (a full catalogue re-read):
-      1. the AWS-NATIVE ProductsTable DynamoDB stream — `{"Records": [{"eventSource":
-         "aws:dynamodb", ...}]}`. This is the replacement for the retired Wix catalog webhook:
-         a product insert/modify/remove in our own table fans out to Meta, with no Wix involved.
-         `entityId` is the changed item's `id` key, for correlation only.
-      2. the legacy async invoke `wix-catalog-webhook` sent (`{"source": "wix-webhook",
-         "entityId": ...}`) — kept only while that Lambda is still deployed.
-      3. an EventBridge scheduled event (the backstop cron).
-      4. anything else -> `unknown`, which still triggers the same full re-read rather than
+    Covers three envelopes, treated IDENTICALLY downstream (a full catalogue re-read):
+      1. the ProductsTable DynamoDB stream. `entityId` is the changed item's `id` key,
+         for correlation only.
+      2. an EventBridge scheduled event (the backstop cron).
+      3. anything else -> `unknown`, which still triggers the same full re-read rather than
          refusing: an unrecognised envelope must never become a missed sync.
     """
     if not isinstance(event, Mapping):
@@ -822,12 +621,11 @@ def _trigger(event: Any) -> Dict[str, str]:
 
 def handler(event, context, *, wix_requester=None, graph_requester=None,
             secret_reader=None, approval_store=None):  # noqa: ARG001 - Lambda signature
-    """Compute the Wix -> Meta plan, log it, and write only if both gates are open.
+    """Compute the AWS ProductsTable -> Meta plan and write only if both gates are open.
 
-    The three injection points default to `None` and resolve INSIDE, never as parameter defaults.
-    A default argument is bound at definition time, so `reader=_read_secret` would make a patch of
-    the module attribute ineffective - and in `wix-catalog-webhook` that exact mistake caused a
-    test meant to simulate a missing credential to read the live one instead.
+    `wix_requester` remains an ignored compatibility keyword for older test/caller fixtures; no
+    provider-store request is possible from this handler. Active injection points resolve inside
+    the function so monkeypatches remain effective.
     """
     reader = secret_reader or _read_secret
     graph = graph_requester or _graph_request
@@ -856,9 +654,8 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
         return {"readOnly": True, "batchStatus": status}
 
     try:
-        # AWS-NATIVE is the only catalogue source — the products are read from ProductsTable.
-        # Everything downstream (desired_items, diff, approval, dry-run, Meta write) is
-        # source-agnostic and unchanged. The Wix read path is retired.
+        # ProductsTable is the sole catalogue authority. Everything downstream
+        # (desired_items, diff, approval, dry-run, Meta write) remains unchanged.
         products = _native_products()
         desired = catalog.desired_items(products, require_variant_price=True)
         existing = _existing_items(graph, token=token, app_secret=app_secret,
@@ -877,7 +674,7 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
                 item["availability"] = catalog.OUT_OF_STOCK
     except Exception as error:  # noqa: BLE001 - a read failure must not become a write attempt
         # The STATUS and the exception class name, and nothing more. `getattr` rather than an
-        # isinstance branch because a Wix failure reaches this arm too and carries neither.
+        # isinstance branch because non-Graph read failures carry neither.
         logger.error(json.dumps({"event": "meta_catalog_sync_read_failed",
                                  "errorType": type(error).__name__,
                                  "graphStatus": getattr(error, "status", None),

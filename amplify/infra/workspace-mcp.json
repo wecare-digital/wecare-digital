@@ -171,7 +171,6 @@
                     "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/seo/google-oauth-XnSVlc",
                     "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/google/ads-HuIYKY",
                     "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/razorpay/api-vaHEaM",
-                    "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/wix/headless-api-key-UTWQel",
                     "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/meta-system-user-token-*"
                   ]
                 },

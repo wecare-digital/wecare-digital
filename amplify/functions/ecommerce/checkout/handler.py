@@ -113,9 +113,10 @@ from lambda_utils.ecommerce.blog_contribution import (
 # per-line price assertion. All logic lives in the module; this file only calls it.
 from lambda_utils.ecommerce import service_requests
 from lambda_utils.ecommerce.service_requests import ServiceNotPayable, ServicePriceChanged
-# The LIVE Wix price of each service, for the four public service pages. Same adapter, same cart,
-# Service-page pricing is AWS-native (service_pricing_native, imported where used); the Wix
-# cart-estimate module service_pricing is retired.
+# Public service prices use the authoritative AWS product catalog (service_pricing_native).
+# native_inventory_txn backs fail-closed native stock reservation (stack's inventory work).
+from lambda_utils.ecommerce import service_pricing_native
+from lambda_utils.ecommerce import native_inventory_txn
 from lambda_utils.integrations import razorpay_orders, razorpay_verify
 # Aliased `customer_identity`, NEVER `identity`: `identity` is a parameter name in nearly every
 # function in this file (`_checkout_profile(identity)`, `_website_snapshot(identity, ...)`,
@@ -480,7 +481,6 @@ def _service_prices(origin: str) -> Dict[str, Any]:
     Logs counts only. No credential, no provider message.
     """
     try:
-        from lambda_utils.ecommerce import service_pricing_native
         payload = service_pricing_native.resolve_all(_native_variant_reader())
     except Exception as exc:  # noqa: BLE001 -- `type(exc).__name__` only, never provider text
         logger.error(json.dumps({"event": "service_prices_failed",
@@ -488,7 +488,7 @@ def _service_prices(origin: str) -> Dict[str, Any]:
         return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
     priced = sum(1 for price in payload["prices"].values() if price.get("available"))
     if not priced:
-        logger.error(json.dumps({"event": "service_prices_none_resolved",
+        logger.error(json.dumps({"event": "service_prices_none_resolved_native",
                                  "slugs": len(payload["prices"])}))
         return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
     logger.info(json.dumps({"event": "service_prices_served", "priced": priced,
@@ -868,6 +868,41 @@ def _reserve_website_attempt(attempt: Dict[str, Any]) -> None:
         Item=attempt,
         ConditionExpression="attribute_not_exists(paymentAttemptId)",
     )
+
+
+def _website_order_creator(snapshot):
+    """Reserve frozen native stock before the existing gateway create call.
+
+    Activation requires reconciled stock and the approved product-write IAM grant.
+    An ambiguous provider result keeps the reservation: an unpaid or timed-out
+    order can still accept a later payment, so it is not a safe release signal.
+    """
+    if str(os.environ.get("NATIVE_STOCK_RESERVATION_ENABLED", "false")).lower() != "true":
+        return razorpay_orders.create_order
+    if _supply_mode() != "AWS_NATIVE":
+        raise ValueError("native stock reservation requires AWS-native pricing")
+    items = snapshot.frozen_data.get("items")
+    if not isinstance(items, list) or not items:
+        raise ValueError("native stock reservation requires a frozen basket")
+
+    def create(*, amount_paise, receipt, notes):
+        attempt_id = notes.get("paymentAttemptId")
+        if not isinstance(attempt_id, str) or not attempt_id:
+            raise ValueError("stock reservation requires a payment attempt")
+        keys = _keys_table()
+        native_inventory_txn.reserve_basket(
+            boto3.client("dynamodb", region_name=REGION),
+            _native_product_reader(),
+            lambda key: keys.get_item(
+                Key={"orderId": key}, ConsistentRead=True).get("Item"),
+            products_table=PRODUCTS_TABLE,
+            keys_table=COMMERCE_KEYS_TABLE or order_keys.commerce_keys_table_name(),
+            attempt_id=attempt_id, items=items,
+        )
+        return razorpay_orders.create_order(
+            amount_paise=amount_paise, receipt=receipt, notes=notes)
+
+    return create
 
 
 def _claimed_handoff(identity: customer_auth.CustomerIdentity,
@@ -1283,7 +1318,7 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             request_key=request_key,
             now=now,
             keys_table=keys,
-            create_order=razorpay_orders.create_order,
+            create_order=_website_order_creator(snapshot),
             find_order_by_receipt=razorpay_orders.find_order_by_receipt,
             account_mode_of=razorpay_orders.account_mode,
             initiation_enabled=INITIATION_ENABLED,

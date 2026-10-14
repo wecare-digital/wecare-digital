@@ -101,8 +101,6 @@ EXPLICIT_TABLE: dict[str, str] = {
     "SystemConfig": "SystemConfigTable",
     "SystemEvent": "SystemEventTable",
     "CatalogCache": "CatalogCacheTable",
-    "WixProductsCache": "WixProductsCache",
-    "WixOrdersCache": "WixOrdersCache",
     "WixOrderId": "WixOrderIds",
     "ConversationHistory": "ConversationHistoryTable",
     "TemplateAnalytics": "TemplateAnalyticsTable",

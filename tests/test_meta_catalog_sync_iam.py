@@ -80,8 +80,6 @@ def test_the_policy_is_exactly_the_three_required_statements(provisioner):
                 "Resource": [
                     f"arn:aws:secretsmanager:{REGION}:{ACCOUNT}:secret:"
                     "wecare/meta-system-user-token-*",
-                    f"arn:aws:secretsmanager:{REGION}:{ACCOUNT}:secret:"
-                    "wecare/wix/headless-api-key-*",
                 ],
             },
             {
@@ -144,7 +142,7 @@ def test_the_secret_arns_are_suffix_wildcarded_and_nothing_more(provisioner):
     `-*` is the only way to name a secret without reading it first. It matches one secret, not a
     family: no other secret in this account shares either prefix."""
     secrets = provisioner.expected_role_policy(ACCOUNT)["Statement"][1]["Resource"]
-    assert len(secrets) == 2
+    assert len(secrets) == 1
     for arn in secrets:
         assert arn.endswith("-*")
         assert arn.count("*") == 1
@@ -268,7 +266,7 @@ def test_the_environment_carries_secret_NAMES_and_no_value(provisioner):
     file that the hook asserts about the command line."""
     rendered = json.dumps(provisioner.ENVIRONMENT)
     assert "wecare/meta-system-user-token" in rendered
-    assert "wecare/wix/headless-api-key" in rendered
+    assert "wecare/wix/headless-api-key" not in rendered
     for issuer_shape in ("rzp_live_", "sk-", "AIza", "ghp_", "xoxb-", "AKIA", "ASIA"):
         assert issuer_shape not in rendered
 

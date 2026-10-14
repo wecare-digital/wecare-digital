@@ -429,7 +429,6 @@ export const FUNCTION_POLICIES: Record<string, string[]> = {
   'wecare-invoice-engine': [ 'common', 'whatsapp', 'lambdaInvoke' ],
 
   // === Ecommerce ===
-  'wecare-wix-store': [ 'common' ],
   'wecare-product-image-gen': [ 'common', 's3' ],
 
   // === Operations (additional) ===

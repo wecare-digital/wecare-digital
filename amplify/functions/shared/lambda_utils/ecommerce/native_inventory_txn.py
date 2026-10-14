@@ -94,10 +94,14 @@ def _parse(
         if len(matches) != 1:
             raise ReservationConflict("variant missing or duplicated")
         idx, variant = matches[0]
-        available = _integer(variant.get("inventory"), "inventory")
-        if require_stock and available < qty:
-            raise ReservationConflict("insufficient stock")
-        parsed.append((pid, vid, qty, idx))
+        tracked = variant.get("trackInventory") is True
+        if tracked:
+            available = _integer(variant.get("inventory"), "inventory")
+            if require_stock and variant.get("inventoryVerified") is not True:
+                raise ReservationConflict("inventory not verified")
+            if require_stock and available < qty:
+                raise ReservationConflict("insufficient stock")
+        parsed.append((pid, vid, qty, idx, tracked))
     return parsed
 
 
@@ -118,15 +122,17 @@ def _state(read_key, attempt_id, parsed, expected):
         isinstance((row := read_key(key_of(attempt_id, vid))), Mapping)
         and all(row.get(k) == v for k, v in
                 _claim(attempt_id, pid, vid, qty, expected).items())
-        for pid, vid, qty, _ in parsed
+        for pid, vid, qty, _, tracked in parsed
+        if tracked
     )
 
 
 def _product_updates(parsed, *, products_table: str, operation: str,
                      require_active: bool):
     grouped = defaultdict(list)
-    for pid, vid, qty, index in parsed:
-        grouped[pid].append((vid, qty, index))
+    for pid, vid, qty, index, tracked in parsed:
+        if tracked:
+            grouped[pid].append((vid, qty, index))
     updates = []
     for pid, group in grouped.items():
         names = {
@@ -179,11 +185,18 @@ def reserve_basket(
     # available stock: successful reservation itself reduced availability.
     # A retry with the same attempt must not look sold out after its own debit.
     parsed = _parse(items, read_product, require_stock=False)
+    if not any(row[4] for row in parsed):
+        # Service/digital capacity is controlled by product status, not a fake
+        # unit counter. Re-parse with require_stock=True to enforce active state.
+        _parse(items, read_product, require_stock=True)
+        return {"reserved": True, "existing": True, "lines": len(parsed), "stockLines": 0}
     if _state(read_key, attempt_id, parsed, "RESERVED"):
         return {"reserved": True, "existing": True, "lines": len(parsed)}
     parsed = _parse(items, read_product, require_stock=True)
     tx = []
-    for pid, vid, qty, _idx in parsed:
+    for pid, vid, qty, _idx, tracked in parsed:
+        if not tracked:
+            continue
         tx.append({"Put": {
             "TableName": keys_table,
             "Item": _map(_claim(attempt_id, pid, vid, qty, "RESERVED")),
@@ -194,7 +207,7 @@ def reserve_basket(
     if len(tx) > 100:
         raise ReservationConflict("basket exceeds transaction operation limit")
     content_hash = hashlib.sha256(json.dumps(
-        [[pid, vid, qty] for pid, vid, qty, _ in parsed],
+        [[pid, vid, qty, tracked] for pid, vid, qty, _, tracked in parsed],
         separators=(",", ":"), sort_keys=True,
     ).encode()).hexdigest()
     token = hashlib.sha256((attempt_id + ":reserve:" + content_hash).encode()).hexdigest()[:36]
@@ -225,12 +238,16 @@ def release_basket(
     if payment_terminal_confirmed is not True:
         raise ReservationConflict("terminal payment failure not verified")
     parsed = _parse(items, read_product, require_stock=False)
+    if not any(row[4] for row in parsed):
+        return {"released": True, "existing": True, "lines": len(parsed), "stockLines": 0}
     if _state(read_key, attempt_id, parsed, "RELEASED"):
         return {"released": True, "existing": True, "lines": len(parsed)}
     if not _state(read_key, attempt_id, parsed, "RESERVED"):
         raise ReservationConflict("stock reservation state is not fully RESERVED")
     tx = []
-    for pid, vid, qty, _idx in parsed:
+    for pid, vid, qty, _idx, tracked in parsed:
+        if not tracked:
+            continue
         tx.append({"Update": {
             "TableName": keys_table,
             "Key": _map({"orderId": key_of(attempt_id, vid)}),
