@@ -3,7 +3,7 @@
 
 This is the AWS-native replacement for `scripts/fetch-wix-catalog.js`. It reads
 the authoritative `ProductsTable` and writes `src/content/catalog-snapshot.json`
-in the SAME envelope `src/content/wix-catalog.json` uses, so `src/content/shop.ts`
+in the SAME envelope `src/content/catalog.json` uses, so `src/content/shop.ts`
 can switch its import with no interface change and the static `/shop` pages build
 from AWS instead of Wix (spec task 4.4).
 
