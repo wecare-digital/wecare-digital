@@ -249,16 +249,41 @@ def test_token_from_key_refuses_a_key_of_another_kind():
 # ── idempotency index ─────────────────────────────────────────────────────────
 
 
-def test_the_wamid_index_points_at_the_handoff_and_is_absent_without_a_wamid():
+def test_the_wamid_index_points_at_the_handoff():
     basket = wb.parse_order_message(order_message(
         [item(retailer(PRODUCT_A, VARIANT_A), 1)], message_id="wamid.ABC"))
-    index = wb.build_message_index(basket, "tok-9", 500)
+    index = wb.build_message_index(basket, "tok-9", 500, phone="+919330994400")
     assert index == {"orderId": "WABASKETMSG#wamid.ABC", "token": "tok-9",
-                     "handoffId": "WABASKET#tok-9", "createdAt": 500}
+                     "handoffId": "WABASKET#tok-9", "indexType": "wamid", "createdAt": 500}
 
+
+def test_a_wamidless_order_falls_back_to_a_deterministic_content_key():
+    """The duplicate-order guard: a cart with NO wamid still gets a resolve-before-generate index,
+    keyed deterministically on the phone + lines, so a redelivery collides on it instead of
+    minting a second basket."""
     no_id = wb.parse_order_message(order_message(
         [item(retailer(PRODUCT_A, VARIANT_A), 1)], message_id=""))
-    assert wb.build_message_index(no_id, "tok-9", 500) is None
+    phone = "+919330994400"
+    index = wb.build_message_index(no_id, "tok-9", 500, phone=phone)
+    assert index is not None
+    assert index["orderId"].startswith("WABASKETCONTENT#")
+    assert index["indexType"] == "content"
+    assert index["handoffId"] == "WABASKET#tok-9"
+
+    # SAME cart + SAME phone, DIFFERENT token (a redelivery) -> SAME dedup key, so the second
+    # conditional write loses and no second basket is created.
+    again = wb.build_message_index(no_id, "tok-DIFFERENT", 999, phone=phone)
+    assert again["orderId"] == index["orderId"]
+
+    # A DIFFERENT basket (extra line) -> a DIFFERENT key (two genuine carts are two baskets).
+    other = wb.parse_order_message(order_message(
+        [item(retailer(PRODUCT_A, VARIANT_A), 1), item(retailer(PRODUCT_B, VARIANT_B), 2)],
+        message_id=""))
+    assert wb.build_message_index(other, "tok-9", 500, phone=phone)["orderId"] != index["orderId"]
+
+    # A DIFFERENT phone, same lines -> a different key (one customer's replay is not another's).
+    assert wb.build_message_index(no_id, "tok-9", 500,
+                                  phone="+919903300044")["orderId"] != index["orderId"]
 
 
 def test_a_token_is_unguessable_and_comes_from_secrets():

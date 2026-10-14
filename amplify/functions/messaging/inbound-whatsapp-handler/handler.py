@@ -6690,27 +6690,30 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
         # written FIRST and conditionally, so whichever delivery wins that write owns the token and
         # every later delivery reads it back instead of minting another.
         token = whatsapp_basket.new_token()
-        index = whatsapp_basket.build_message_index(basket, token, now)
-        if index is not None:
-            try:
-                keys.put_item(Item=index, ConditionExpression='attribute_not_exists(orderId)')
-            except ClientError as error:
-                if error.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
-                    raise
-                # A redelivery. The basket already exists and the link already went out on the
-                # delivery that won: Meta re-sends when OUR ack was lost, not when our reply was,
-                # so replying again would be a second message to the customer for one cart.
-                existing = keys.get_item(
-                    Key={'orderId': whatsapp_basket.message_key(basket.message_id)}
-                ).get('Item') or {}
-                logger.info(json.dumps({
-                    'event': 'cart_order_handoff_replayed',
-                    'sourceMessageId': basket.message_id,
-                    'resolvedHandoff': str(existing.get('handoffId') or ''),
-                    'phone_suffix': _phone_suffix(sender_phone),
-                    'requestId': request_id,
-                }))
-                return
+        # ALWAYS a row now: wamid-keyed when Meta sent an id, else a deterministic content+phone
+        # key, so a redelivered cart WITH OR WITHOUT a wamid loses this conditional write and
+        # cannot mint a second basket (hence cannot become a duplicate order). `phone` feeds the
+        # content fallback.
+        index = whatsapp_basket.build_message_index(basket, token, now, phone=phone)
+        try:
+            keys.put_item(Item=index, ConditionExpression='attribute_not_exists(orderId)')
+        except ClientError as error:
+            if error.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+                raise
+            # A redelivery. The basket already exists and the link already went out on the
+            # delivery that won: Meta re-sends when OUR ack was lost, not when our reply was,
+            # so replying again would be a second message to the customer for one cart. Read the
+            # winner back by the SAME key this delivery computed (wamid or content hash).
+            existing = keys.get_item(Key={'orderId': index['orderId']}).get('Item') or {}
+            logger.info(json.dumps({
+                'event': 'cart_order_handoff_replayed',
+                'indexType': str(index.get('indexType') or ''),
+                'sourceMessageId': basket.message_id,
+                'resolvedHandoff': str(existing.get('handoffId') or ''),
+                'phone_suffix': _phone_suffix(sender_phone),
+                'requestId': request_id,
+            }))
+            return
 
         row = whatsapp_basket.build_handoff(basket, phone, token=token, now=now)
         keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')

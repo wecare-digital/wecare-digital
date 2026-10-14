@@ -47,6 +47,7 @@ claiming it, which is the part worth testing exhaustively.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 import secrets
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -68,6 +69,20 @@ TOKEN_PREFIX = "WABASKET#"
 #: `REFERENCE#<metaReferenceId>` applies to a replayed Meta payment event: resolve before you
 #: generate, so a replay lands on the row that already exists.
 MESSAGE_INDEX_PREFIX = "WABASKETMSG#"
+
+#: The DETERMINISTIC fallback index used when Meta delivered an `order` message with no `wamid`.
+#:
+#: WHY A SECOND PREFIX. The wamid index closes the common replay, but a message with an EMPTY id
+#: used to skip the dedup entirely and mint a fresh random token every delivery — so a redelivered
+#: no-wamid cart created a SECOND basket, a second CTA link, and a second payable checkout: a
+#: duplicate order. There is no wamid to key on, so the key is derived from what the basket
+#: actually is — the claiming phone plus the sorted (variant, quantity) lines — hashed. Two
+#: deliveries of the SAME cart from the SAME customer therefore collide on this key and the second
+#: loses the `attribute_not_exists(orderId)` write, exactly as a wamid replay does. The hash is
+#: over values this module already holds and never a secret: a phone (the claim key) and public
+#: catalogue variant ids. Content-scoped rather than time-scoped, so the collision window is the
+#: basket's own lifetime, not a clock.
+CONTENT_INDEX_PREFIX = "WABASKETCONTENT#"
 
 #: The claimed-channel pointer: one row per customer, naming the hand-off they most recently
 #: claimed.
@@ -306,6 +321,25 @@ def message_key(message_id: str) -> str:
     return MESSAGE_INDEX_PREFIX + str(message_id or "")
 
 
+def content_key(phone: Any, lines: Sequence[Mapping[str, Any]]) -> str:
+    """The deterministic fallback dedup key for a wamid-less `order` message.
+
+    `WABASKETCONTENT#<sha256(e164 phone + sorted variant:quantity lines)>`. Two deliveries of the
+    SAME cart by the SAME customer produce the SAME key, so the conditional write collapses the
+    replay even when Meta sent no message id. Lines are sorted so client reordering is the same
+    basket; quantity is included so a genuinely different cart is a different key. Hashed over a
+    phone and public catalogue ids only — no secret, no price (there is none here).
+    """
+    normalized = e164(phone)
+    pairs = sorted(
+        (str(line.get("productId") or ""), str(line.get("variantId") or ""),
+         int(_quantity(line.get("quantity"))[0]))
+        for line in (lines or []) if isinstance(line, Mapping))
+    material = normalized + "|" + "|".join(f"{p}:{v}:{q}" for p, v, q in pairs)
+    digest = hashlib.sha256(material.encode("utf-8")).hexdigest()
+    return CONTENT_INDEX_PREFIX + digest
+
+
 def token_from_key(key: Any) -> str:
     """The token inside a `WABASKET#...` key, or `''`. Used by the claim action, which receives a
     token from a URL and must not be able to address any other row in a shared-partition table."""
@@ -355,19 +389,35 @@ def build_handoff(basket: Basket, phone: str, *, token: str, now: int,
     }
 
 
-def build_message_index(basket: Basket, token: str, now: int) -> Optional[Dict[str, Any]]:
-    """The wamid -> token index row, or `None` when Meta sent no message id.
+def build_message_index(basket: Basket, token: str, now: int, *,
+                        phone: Any = None) -> Dict[str, Any]:
+    """The resolve-before-generate index row for this delivery. ALWAYS returns a row.
 
-    `None` is not a failure: without a wamid there is nothing to be idempotent ON, and the caller
-    writes the hand-off anyway rather than refusing a real order over a missing field. A webhook
-    with no message id is also one Meta will not redeliver under that id, so the replay this index
-    defends against cannot occur for it.
+    Keyed on Meta's `wamid` when present (`WABASKETMSG#<wamid>`), the strongest and cheapest
+    replay key. When the message carried NO wamid it falls back to a DETERMINISTIC content key
+    (`WABASKETCONTENT#<hash of phone + lines>`, see `content_key`), so the caller's conditional
+    `attribute_not_exists(orderId)` write is the single dedup guard for EVERY delivery — closing
+    the former hole where a wamid-less redelivery minted a second basket (hence a duplicate order).
+
+    `indexType` records which key was used, for the log line. `phone` is required for the content
+    fallback; when it is absent AND there is no wamid, there is nothing to key on and the function
+    returns a row keyed on the random token itself (never collides) — but that only happens for a
+    basket with neither a wamid nor a resolvable phone, which `build_handoff` already refuses, so
+    in practice one of the two deterministic keys is always used.
     """
-    if not basket.message_id:
-        return None
-    return {"orderId": message_key(basket.message_id),
+    if basket.message_id:
+        key, index_type = message_key(basket.message_id), "wamid"
+    elif e164(phone):
+        key, index_type = content_key(phone, basket.lines), "content"
+    else:
+        # No wamid and no usable phone: nothing deterministic to key on. Fall back to the random
+        # token so the row is well-formed; dedup degrades to none, but build_handoff refuses a
+        # phone-less basket downstream, so this row is never actually written for a real order.
+        key, index_type = message_key(token), "token"
+    return {"orderId": key,
             "token": str(token),
             "handoffId": handoff_key(token),
+            "indexType": index_type,
             "createdAt": int(now)}
 
 
