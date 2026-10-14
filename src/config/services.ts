@@ -27,7 +27,7 @@
  *
  * FIVE SERVICES ARE OFFERED, all five variants of the one Wix product. Request Pickup joined on
  * 2026-10-10, when the live Wix storefront began returning it visible and in stock and
- * src/content/wix-catalog.json was refreshed from that read.
+ * src/content/catalog.json was refreshed from that read.
  * NOT_OFFERED_SERVICE_VARIANT_IDS is therefore EMPTY - it is kept, with the cart guard and the
  * drift test that read it, so the NEXT variant added in Wix can be refused by name rather than
  * sold as an ordinary product line.
@@ -36,7 +36,7 @@
  * in `catalogReference.options` and the one the server's allow-list keys on. `choiceId` and `sku`
  * are REFERENCE METADATA ONLY: they are carried so this declaration matches the Wix snapshot
  * without a second hand-typed copy of the catalogue, and nothing in the payment path reads them.
- * Every one of them is read out of src/content/wix-catalog.json, which `fetch-wix-catalog.js`
+ * Every one of them is read out of src/content/catalog.json, which `fetch-wix-catalog.js`
  * writes from Wix itself.
  *
  * FOUR OF THE FIVE NEED A TARGET REQUEST (`needsTarget`): an amendment amends one, Drop Docs
@@ -53,7 +53,7 @@
 export const SERVICES_CURRENCY = 'INR' as const;
 
 /**
- * The Wix catalogue product `Request` (PHYSICAL in Wix, five variants). It was named
+ * The catalogue product `Request` (PHYSICAL in Wix, five variants). It was named
  * `WECARE.DIGITAL Services` until Wix renamed it on 2026-10-10; the slug is unchanged at
  * `wecaredigital-services`, so no URL moved with the rename. The `: string` annotation is
  * load-bearing for the same reason as CONTRIBUTION_PRODUCT_ID's.
