@@ -158,6 +158,76 @@ def build_price_summary(
     return summary
 
 
+def coupon_discount_paise(
+    coupon_definition: Optional[Mapping[str, Any]],
+    *,
+    subtotal_paise: int,
+) -> int:
+    """Native coupon discount for a cart, from the AWS-authoritative definition.
+
+    THIS REPLACES WIX CALCULATE CART for the website coupon path. Today the
+    discount a customer actually receives on the website is computed by Wix (the
+    coupon is mirrored into Wix and Wix reduces `priceSummary.discount`). The
+    AWS-authoritative *definition* already lives in `coupon_store`, and
+    `coupon_store.discount_paise` already renders a discount from it (used today
+    for invoices, which have no Wix cart). This function is the single bridge that
+    lets the native checkout path render the SAME discount against the native
+    subtotal — so the discount is decided by the AWS definition, never by the
+    browser, preserving the "validate returns a verdict, pricing is server-side"
+    boundary.
+
+    `coupon_definition` is the already-loaded, already-ELIGIBLE definition row
+    (eligibility is `coupon_store.evaluate`'s separate job; this is arithmetic
+    only). A None definition means no coupon → zero discount. The discount is
+    clamped at the subtotal by `coupon_store.discount_paise` itself, so it can
+    never make the collection negative.
+
+    Imported lazily so this pure pricing module carries no hard dependency on the
+    coupon store for callers that never apply a coupon, and so the two modules do
+    not form an import cycle.
+    """
+    _nonneg_paise(subtotal_paise, "subtotal_paise")
+    if coupon_definition is None:
+        return 0
+    from lambda_utils.ecommerce import coupon_store
+    discount = coupon_store.discount_paise(
+        dict(coupon_definition), collection_paise=subtotal_paise
+    )
+    # Defensive: coupon_store already clamps, but the pricing identity depends on
+    # discount <= subtotal, so assert it here too rather than trust the caller.
+    return _nonneg_paise(min(int(discount), subtotal_paise), "coupon_discount_paise")
+
+
+def price_cart(
+    lines: Sequence[CatalogLine],
+    *,
+    coupon_definition: Optional[Mapping[str, Any]] = None,
+    delivery_paise: int = 0,
+    additional_fees_paise: int = 0,
+    tax_paise: int = 0,
+) -> PriceSummary:
+    """End-to-end native cart pricing: subtotal from lines, discount from the AWS
+    coupon definition, plus delivery/fees/tax → the authoritative supply summary.
+
+    This is the native equivalent of a full `cart_v2.calculate`, minus the Wix
+    round-trip. The resulting `total_paise` is the exact integer
+    `checkout_pricing.compute_quote` expects, so the native checkout path is:
+
+        summary = price_cart(lines, coupon_definition=..., delivery_paise=...)
+        collection = authoritative_total_paise(summary)
+        quote = checkout_pricing.compute_quote(collection)   # fee + GST unchanged
+    """
+    subtotal = sum(line.total_paise for line in lines) if lines else 0
+    discount = coupon_discount_paise(coupon_definition, subtotal_paise=subtotal)
+    return build_price_summary(
+        lines,
+        discount_paise=discount,
+        delivery_paise=delivery_paise,
+        additional_fees_paise=additional_fees_paise,
+        tax_paise=tax_paise,
+    )
+
+
 def authoritative_total_paise(summary: PriceSummary) -> int:
     """The native counterpart of `wix_ecom.authoritative_total_paise`: the single
     integer `checkout_pricing.compute_quote` consumes as

@@ -69,3 +69,45 @@ export function addCatalogResources ( stack: Stack ) {
 
     return { table };
 }
+
+/**
+ * AWS-native cart table — the authoritative replacement for the Wix Cart V2
+ * record (`cart_v2.py`) when CHECKOUT_MODE=AWS_NATIVE.
+ *
+ * A cart is a short-lived working document, so unlike ProductsTable it carries a
+ * TTL (expiresTtl) to reap abandoned carts automatically — a cart is NOT a
+ * liability ledger (contrast gift_card_store, where TTL is deliberately off). The
+ * ORDER record, not the cart, is the durable artifact; a reaped cart loses only
+ * an in-progress session, never a paid order.
+ *
+ *   PK cartId
+ *   GSI customerId-updatedAt-index  -> resume a customer's open cart
+ * Item attributes: lineItems[] (productId, variantId, quantity, unitPricePaise
+ * resolved server-side from ProductsTable at add-time), couponCode, status
+ * (open|reserved|converted|expired), deliveryAddressRef, createdAt, updatedAt,
+ * expiresTtl.
+ *
+ * NOT YET WIRED, same as ProductsTable: calling addCartResources() from
+ * backend.ts creates a billable table — an owner-approval-gated Phase-4 step.
+ */
+export const CART_TABLE_NAME = 'stack-wecare-digital-CartTable';
+
+export function addCartResources ( stack: Stack ) {
+    const table = new dynamodb.Table( stack, 'CartTable', {
+        tableName: CART_TABLE_NAME,
+        partitionKey: { name: 'cartId', type: dynamodb.AttributeType.STRING },
+        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+        pointInTimeRecovery: true,
+        removalPolicy: RemovalPolicy.RETAIN,
+        timeToLiveAttribute: 'expiresTtl',
+    } );
+
+    table.addGlobalSecondaryIndex( {
+        indexName: 'customerId-updatedAt-index',
+        partitionKey: { name: 'customerId', type: dynamodb.AttributeType.STRING },
+        sortKey: { name: 'updatedAt', type: dynamodb.AttributeType.STRING },
+        projectionType: dynamodb.ProjectionType.ALL,
+    } );
+
+    return { table };
+}

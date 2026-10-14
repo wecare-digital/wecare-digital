@@ -84,3 +84,54 @@ def test_wix_shape_total_matches_identity_with_adjustments():
                             discount_paise=10000, delivery_paise=5000, tax_paise=1700)
     checkout = {"priceSummary": s.as_wix_shape()}
     assert wix_ecom.authoritative_total_paise(checkout) == 96700
+
+
+# ── native coupon pricing (replaces Wix Calculate Cart for the website) ──────
+
+from lambda_utils.ecommerce.catalog_pricing import coupon_discount_paise, price_cart  # noqa: E402
+
+
+def test_no_coupon_is_zero_discount():
+    assert coupon_discount_paise(None, subtotal_paise=50000) == 0
+
+
+def test_money_off_coupon_discount():
+    coupon = {"discountKind": "MONEY_OFF", "moneyOffPaise": 10000}
+    assert coupon_discount_paise(coupon, subtotal_paise=50000) == 10000
+
+
+def test_percent_off_coupon_discount():
+    coupon = {"discountKind": "PERCENT_OFF", "percentOffBps": 1000}  # 10%
+    assert coupon_discount_paise(coupon, subtotal_paise=50000) == 5000
+
+
+def test_money_off_clamped_at_subtotal():
+    coupon = {"discountKind": "MONEY_OFF", "moneyOffPaise": 90000}
+    # cannot discount more than the cart is worth -> no negative total
+    assert coupon_discount_paise(coupon, subtotal_paise=50000) == 50000
+
+
+def test_price_cart_end_to_end_feeds_compute_quote():
+    """price_cart -> authoritative_total_paise -> checkout_pricing.compute_quote.
+    This is the full native checkout chain the Wix path currently owns."""
+    from lambda_utils.ecommerce import checkout_pricing
+    lines = [_line(qty=2, price=50000)]  # subtotal 100000
+    coupon = {"discountKind": "PERCENT_OFF", "percentOffBps": 1000}  # 10% -> 10000 off
+    summary = price_cart(lines, coupon_definition=coupon, delivery_paise=4000, tax_paise=0)
+    assert summary.subtotal_paise == 100000
+    assert summary.discount_paise == 10000
+    assert summary.total_paise == 100000 - 10000 + 4000 == 94000
+    collection = __import__(
+        "lambda_utils.ecommerce.catalog_pricing", fromlist=["authoritative_total_paise"]
+    ).authoritative_total_paise(summary)
+    quote = checkout_pricing.compute_quote(collection)
+    # fee = round_half_up(94000 * 250/10000) = 2350; gst = round_half_up(2350*1800/10000)=423
+    assert quote.convenience_fee_paise == 2350
+    assert quote.convenience_gst_paise == 423
+    assert quote.total_payable_paise == 94000 + 2350 + 423 == 96773
+
+
+def test_unsupported_coupon_kind_raises():
+    coupon = {"discountKind": "FREE_SHIPPING"}
+    with pytest.raises(Exception):
+        coupon_discount_paise(coupon, subtotal_paise=50000)
