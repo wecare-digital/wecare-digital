@@ -52,7 +52,7 @@ logger = get_logger(__name__)
 
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 SERVICE_REQUESTS_TABLE = os.environ.get("SERVICE_REQUESTS_TABLE", store.DEFAULT_TABLE_NAME)
-COMMERCE_KEYS_TABLE = os.environ.get("COMMERCE_KEYS_TABLE", "stack-wecare-digital-WixOrderIds")
+COMMERCE_KEYS_TABLE = os.environ.get("COMMERCE_KEYS_TABLE", "stack-wecare-digital-CommerceKeys")
 ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "stack-wecare-digital-OrderTable")
 RATE_LIMIT_TABLE = os.environ.get("RATE_LIMIT_TABLE", "stack-wecare-digital-RateLimitTable")
 
