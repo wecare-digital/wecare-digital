@@ -1003,21 +1003,6 @@ const Dashboard: React.FC<PageProps> = ( { signOut, user } ) => {
         } else if ( id === 'whatsapp_calling' )
         {
           deleted = await bulkClear( `${API_BASE}/whatsapp` );
-        {
-          deleted = await bulkClear( `${API_BASE}/voice-in/obd`, 'POST', { clearAll: true } );
-        {
-          // Legacy history purge requires the table name as a typed confirmation
-          // server-side, because these rows are DLT audit evidence.
-          if ( bulk >= 0 ) { deleted = bulk; } else
-          {
-            results.push( { id, label, deleted: 0, error: 'Legacy history purge refused or route unavailable' } ); continue;
-          }
-        {
-          const bulk = await tryBulkClear( `${API_BASE}/voice-in/c2c`, 'DELETE', { clearAll: true } );
-          if ( bulk >= 0 ) { deleted = bulk; } else
-          {
-            results.push( { id, label, deleted: 0, error: 'API route not deployed — redeploy voice-in/c2c Lambda' } ); continue;
-          }
         } else if ( id === 'voice_cdr' || id === 'voice_calls' )
         {
           // Try voice-in/cdr first (POST with clearAll works), then voice-cdr-webhook
