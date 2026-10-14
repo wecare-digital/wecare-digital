@@ -39,24 +39,6 @@ export function addSeoResources ( stack: Stack ) {
             LOG_LEVEL: 'INFO',
             SEO_TOOLS_TABLE: SEO_TOOLS_TABLE_NAME,
             WEBHOOK_DEDUP_TABLE: 'stack-wecare-digital-WebhookDedup',
-            WIX_SITE_ID: 'c993128b-26be-41cd-9fcd-904abe23462f',
-            WIX_ACCOUNT_ID: '478bf907-96cc-4cab-9220-bb96f1d35cbb',
-            WIX_CLIENT_ID: '42b3cdbf-d90e-4138-a06c-ddda4fb8da01',
-            /* WHICH SITE WE READ THE BLOG FROM. Migration COMPLETE 2026-10-05: the Blog app
-               (14bcded7-0066-7c35-14d7-466cb3f09103) is installed on the new site c993128b
-               and posts/query measures total=1323 under the storefront client, so this now
-               points at the new site and matches WIX_CLIENT_ID above.
-               It stays a SEPARATE variable anyway. While the blog was still on the old site
-               these two diverged, and the only reason anyone found out is that three Amplify
-               builds died at /blog/page/[page]: the blog minted its visitor token from
-               WIX_CLIENT_ID, the new site had no Blog app, Wix answered 401 "No blog
-               instanceId found", and the Lambda turned that into a 503. Both clients minted a
-               VALID token throughout, which is why it looked like an outage rather than a
-               misconfiguration. Collapsing them back into one literal would let the next
-               storefront move do it again, silently. Full history at the declaration in
-               amplify/functions/operations/seo-tools/wix.py. Both ids are public. */
-            WIX_BLOG_CLIENT_ID: '42b3cdbf-d90e-4138-a06c-ddda4fb8da01',
-            WIX_BLOG_AUTHOR_NAME: 'Anew by WECARE.DIGITAL',
             BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID || 'global.anthropic.claude-sonnet-4-6',
             // Derived-SEO cost/AI posture. FREE + AI off is the fail-safe default the brief
             // mandates: the deterministic engine and the scheduled freshness check need none of
