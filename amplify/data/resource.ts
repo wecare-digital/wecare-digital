@@ -753,49 +753,6 @@ const schema = a.schema( {
     ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
-  // Table 25: WixProductsCache - Cached Wix Store products
-  WixProductsCache: a
-    .model( {
-      productId: a.id().required(),
-      name: a.string(),
-      slug: a.string(),
-      price: a.string(),
-      currency: a.string(),
-      inStock: a.boolean(),
-      productType: a.string(),
-      mediaUrl: a.string(),
-      rawData: a.string(), // Full Wix product JSON
-      syncedAt: a.datetime(),
-    } )
-    .identifier( [ 'productId' ] )
-    .authorization( ( allow ) => [ allow.authenticated() ] ),
-
-  // Table 26: WixOrdersCache - Cached Wix Store orders
-  WixOrdersCache: a
-    .model( {
-      orderId: a.id().required(),
-      orderNumber: a.string(),
-      externalOrderId: a.string(), // Custom order number from external channel
-      buyerEmail: a.string(),
-      buyerPhone: a.string(),
-      totalPrice: a.string(),
-      currency: a.string(),
-      paymentStatus: a.string(),
-      fulfillmentStatus: a.string(),
-      status: a.string(), // APPROVED, CANCELED, etc.
-      lineItemCount: a.integer(),
-      createdDate: a.string(),
-      rawData: a.string(), // Full Wix order JSON
-      syncedAt: a.datetime(),
-    } )
-    .identifier( [ 'orderId' ] )
-    .secondaryIndexes( ( index ) => [
-      index( 'buyerEmail' ),
-      index( 'paymentStatus' ),
-      index( 'orderNumber' ),
-    ] )
-    .authorization( ( allow ) => [ allow.authenticated() ] ),
-
   // Table 24: TemplateAnalytics - WhatsApp template send/delivery tracking
   TemplateAnalytics: a
     .model( {
