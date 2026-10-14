@@ -67,12 +67,7 @@ const TTL_CONFIG: Record<string, string> = {
   AuditLog: 'expiresAt',
   VoiceCall: 'expiresAt',
   VoiceAws: 'expiresAt',
-  // SmsAws, AirtelSMS, RcsMessages and AirtelC2C removed 2026-09-24 with their
-  // model declarations. None had a table, so the `if ( table )` guard below made
-  // every one of these four a no-op - the block read as if it were configuring
-  // eight retention policies and was configuring four.
   VoiceCDR: 'expiresAt',
-  OBDCampaign: 'ttl',
   WhatsAppVoice: 'expiresAt',
   WhatsAppInbound: 'expiresAt',
   WhatsAppOutbound: 'expiresAt',
@@ -103,11 +98,6 @@ const TTL_CONFIG: Record<string, string> = {
   // sending. Removed 2026-09-21 rather than materialised (NOTIF-STORE-001);
   // the replacement tables are provisioned and read back by
   // scripts/provision_notification_domain.py, which sets their own TTL.
-  // ProviderDriftSnapshot had no table and no writer - the Plivo drift check in
-  // .github/workflows/plivo-drift.yml compares and reports, it does not persist
-  // snapshots. It was left declared pending a single retired-provider sweep
-  // (item 9.2 in .kiro/work/phases-5-10/plan.md); removed 2026-09-24 with that
-  // sweep, along with its model in data/resource.ts.
   //
   // PstnFlowVersion and PstnRecordingAudit were listed here as deliberately
   // TTL-free - immutable routing history, and an audit record that must outlive
