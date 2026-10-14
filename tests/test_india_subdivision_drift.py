@@ -3,7 +3,7 @@
 Why this gate exists
 --------------------
 `src/config/indiaSubdivisions.ts` is a second copy of the keys of
-`lambda_utils.ecommerce.wix_address.INDIA_SUBDIVISIONS`, and a copy of a table that decides
+`lambda_utils.ecommerce.india_address.INDIA_SUBDIVISIONS`, and a copy of a table that decides
 money is exactly the kind of duplicate that goes stale quietly. The subdivision is the place of
 supply, so it decides the CGST/SGST versus IGST split.
 
@@ -44,7 +44,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 
-from lambda_utils.ecommerce import wix_address  # noqa: E402
+from lambda_utils.ecommerce import india_address  # noqa: E402
 
 TS_SOURCE = ROOT / "src/config/indiaSubdivisions.ts"
 
@@ -56,14 +56,14 @@ def _ts_names() -> list:
 
 def test_the_form_offers_exactly_what_the_tax_table_can_map():
     names = _ts_names()
-    assert {n.lower() for n in names} == set(wix_address.INDIA_SUBDIVISIONS)
+    assert {n.lower() for n in names} == set(india_address.INDIA_SUBDIVISIONS)
 
 
 def test_all_thirty_six_are_present_and_none_is_duplicated():
     names = _ts_names()
     assert len(names) == 36
     assert len(set(names)) == 36
-    assert len(wix_address.INDIA_SUBDIVISIONS) == 36
+    assert len(india_address.INDIA_SUBDIVISIONS) == 36
 
 
 def test_the_two_names_that_are_easy_to_get_wrong():
@@ -83,5 +83,5 @@ def test_no_iso_code_leaked_into_the_display_table():
 
 def test_no_alias_is_offered_as_if_it_were_canonical():
     offered = {n.lower() for n in _ts_names()}
-    aliases = set(wix_address.INDIA_ALIASES) - set(wix_address.INDIA_SUBDIVISIONS)
+    aliases = set(india_address.INDIA_ALIASES) - set(india_address.INDIA_SUBDIVISIONS)
     assert offered & aliases == set()

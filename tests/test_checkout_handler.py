@@ -355,11 +355,13 @@ def test_create_disabled_prepares_attempt_but_sends_nothing_and_makes_no_order(e
     assert body['amountPaise'] == TOTAL_PAYABLE_PAISE
     assert body['currency'] == 'INR'
 
-    # An attempt exists, in the readiness-checked state, marked WIX_HEADLESS, bound to the customer.
+    # An attempt exists, in the readiness-checked state, marked AWS_NATIVE, bound to the customer.
+    # (The Wix exit made checkout native and unconditional; the attempt's checkoutMode is the
+    # handler's CHECKOUT_MODE constant, now AWS_NATIVE rather than the retired WIX_HEADLESS.)
     attempts = fake.all_rows(ATTEMPTS_TABLE)
     assert len(attempts) == 1
     assert attempts[0]['customerId'] == CUSTOMER
-    assert attempts[0]['checkoutMode'] == 'WIX_HEADLESS'
+    assert attempts[0]['checkoutMode'] == 'AWS_NATIVE'
     assert attempts[0]['amountPaise'] == TOTAL_PAYABLE_PAISE
     assert attempts[0]['status'] == 'PAYMENT_READINESS_CHECKED'
 

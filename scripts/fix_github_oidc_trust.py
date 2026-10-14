@@ -138,6 +138,10 @@ ROLES = [
     "GitHubActions-wecare-native-catalog-deploy",
     "GitHubActions-wecare-native-catalog-reader",
     "GitHubActions-wecare-product-media-migration",
+    # The Wix-exit runtime-deploy role, declared by wix-exit-runtime-deploy.yml. Registered
+    # here so it gets the SAME repo-pinned OIDC trust document as every other role rather than
+    # whatever its creator hand-wrote.
+    "GitHubActions-wecare-wix-exit-runtime-deploy",
 ]
 
 # Any IAM role whose name starts with this is assumed to be a GitHub Actions OIDC role

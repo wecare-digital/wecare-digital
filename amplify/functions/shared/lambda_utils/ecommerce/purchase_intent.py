@@ -85,7 +85,7 @@ from .checkout_pricing import (
     build_snapshot,
     compute_quote,
 )
-from .india_address import UnmappableAddress, gst_state_code, to_wix_address
+from .india_address import UnmappableAddress, gst_state_code, to_delivery_address
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +166,7 @@ def prepare_delivery(adapter, cart_id: str, owned: Dict[str, Any],
 
     Returns the updated cart.
     """
-    cart = adapter.set_delivery_address(cart_id, to_wix_address(owned))
+    cart = adapter.set_delivery_address(cart_id, to_delivery_address(owned))
     if delivery_option_id is not None:
         return adapter.set_delivery_method(cart_id, delivery_option_id)
     updated = select_offered_delivery_method(adapter, cart_id)

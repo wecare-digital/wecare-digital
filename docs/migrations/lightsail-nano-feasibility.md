@@ -12,14 +12,16 @@ Bundle prices (live `get-bundles`): micro_3_0 **$7/mo**, nano_3_0 **$5/mo**
 |---|---|---|
 | SIP/TLS port 5061 | **OPEN** — voice service live | `nc -z 52.3.44.165 5061` |
 | SSH port 22 | **closed/filtered, times out** | `nc`/`ssh` BatchMode |
-| CPU utilization 24h | avg ≈ **0.94%**, max ≈ **1.6%** | `lightsail get-instance-metric-data CPUUtilization` |
+| CPU utilization 14d | avg ≈ **0.94%**, max ≈ **5.36%** | `lightsail get-instance-metric-data CPUUtilization` |
 | Memory utilization | **UNKNOWN** — no CloudWatch mem metric, no host access | — |
 | Disk utilization | **UNKNOWN** — same | — |
-| Swap / OOM history | **UNKNOWN** — needs in-guest access | — |
+| Swap / OOM history | **UNKNOWN** — no SSM agent, no CWAgent metrics, needs in-guest access | — |
 
-## Verdict: CONDITIONAL GO — but defaults to NO-GO until memory/disk measured
+## Final operational verdict: NO-GO TO DOWNSIZE — KEEP MICRO
 
 Reasoning:
+- **This is a closed operational decision, not a pending resize.** The existing Micro stays in
+  service. A future Nano proposal is a new change and must first collect the guest evidence below.
 - CPU head-room is enormous (sub-2%), so vCPU is not the constraint (nano keeps 2
   vCPU anyway).
 - **The decisive unknown is RAM.** Nano halves memory to **512MB**. Asterisk with
@@ -30,8 +32,9 @@ Reasoning:
   (`free -m`, `df -h`, `lsblk`, `vmstat`, `ps`, `systemctl`, `ss`, Asterisk
   status, swap/OOM, cert-renewal config) **could not be collected**. Per task C3,
   the feasibility assessment is **INCOMPLETE** and therefore the safe default is
-  **keep Micro** until a human runs `scripts/lightsail-nano-migration/preflight.sh`
-  on the box.
+  **keep Micro**. No SSH key/private access material was fetched during this audit. A future
+  downsizing proposal can run `scripts/lightsail-nano-migration/preflight.sh` through an approved
+  host-access session before opening a new migration.
 
 ## What would upgrade this to GO
 Run `preflight.sh` on `wecare-voice-bot` (via the Lightsail browser SSH console,

@@ -1,8 +1,8 @@
 {
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
-  "_functions": 69,
-  "_variables": 442,
+  "_functions": 68,
+  "_variables": 423,
   "_fingerprinted": 15,
   "functions": {
     "stack-wecare-url-shortener": {
@@ -418,12 +418,7 @@
       "LOG_LEVEL": "INFO",
       "SEO_TOOLS_TABLE": "stack-wecare-digital-SeoToolsTable",
       "WEBHOOK_DEDUP_TABLE": "stack-wecare-digital-WebhookDedup",
-      "WIX_ACCOUNT_ID": "sha256:19b6772e0eba",
-      "WIX_BLOG_AUTHOR_NAME": "Anew by WECARE.DIGITAL",
-      "WIX_BLOG_CLIENT_ID": "sha256:0574aa89fc37",
-      "WIX_CLIENT_ID": "sha256:0574aa89fc37",
-      "WIX_CREDENTIALS_DISABLED": "true",
-      "WIX_SITE_ID": "sha256:e86fbb159ac6"
+      "WIX_CREDENTIALS_DISABLED": "true"
     },
     "wecare-service-api": {
       "DOCS_S3_BUCKET": "wecare-digital-get",

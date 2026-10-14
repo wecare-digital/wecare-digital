@@ -71,7 +71,7 @@ def reserve(client, *, keys_name, attempts_name, identity, request_id, intent,
         payment_attempt_id=attempt_id, cart_id=snapshot['wixCartId'],
         customer_uuid=customer_uuid, now=now)
     attempt = payment_attempt.transition(attempt, payment_attempt.PAYMENT_READINESS_CHECKED, now=now)
-    attempt.update(schemaVersion=intent_version, checkoutMode='WIX_HEADLESS',
+    attempt.update(schemaVersion=intent_version, checkoutMode='AWS_NATIVE',
                    purchasedSnapshot=snapshot, snapshotHash=fingerprint(snapshot),
                    providerMid=provider_mid, phoneId=phone_id, wabaId=waba_id,
                    sendStatus='NOT_STARTED', finalizationStage='NOT_STARTED')
@@ -81,7 +81,7 @@ def reserve(client, *, keys_name, attempts_name, identity, request_id, intent,
     # PAYREF is an index only; all authoritative financial fields live on the attempt.
     reference = {'orderId': order_keys.PAYMENT_REFERENCE_PREFIX + reference_id,
                  'referenceId': reference_id, 'paymentAttemptId': attempt_id,
-                 'customerId': identity.customer_id, 'checkoutMode': 'WIX_HEADLESS', 'createdAt': now}
+                 'customerId': identity.customer_id, 'checkoutMode': 'AWS_NATIVE', 'createdAt': now}
     serializer = TypeSerializer()
     def item(row):
         return {key: serializer.serialize(value) for key, value in row.items()}

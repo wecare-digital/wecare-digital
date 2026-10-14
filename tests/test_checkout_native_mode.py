@@ -1,5 +1,6 @@
-"""CHECKOUT_MODE=AWS_NATIVE routes _website_snapshot through the native supply
-engine (ProductsTable), with NO Wix call. Default (WIX_HEADLESS) is unchanged.
+"""_website_snapshot is routed through the native supply engine (ProductsTable),
+with NO Wix call. Native is now UNCONDITIONAL: `_supply_mode()` returns AWS_NATIVE
+regardless of CHECKOUT_MODE, and the handler imports no Wix client at all.
 
 The handler is loaded BY PATH under a unique module name (the repo has dozens of
 handler.py files).
@@ -40,10 +41,12 @@ def _product_row():
             "variants": [{"sku": VARIANT_UUID, "priceMinor": 59900, "inventory": 5}]}
 
 
-def test_default_mode_is_wix_headless(monkeypatch):
+def test_default_mode_is_aws_native(monkeypatch):
+    """The Wix exit made native UNCONDITIONAL: `_supply_mode()` returns AWS_NATIVE even with
+    CHECKOUT_MODE unset. There is no WIX_HEADLESS default anymore."""
     h = _load()
     monkeypatch.delenv("CHECKOUT_MODE", raising=False)
-    assert h._supply_mode() == "WIX_HEADLESS"
+    assert h._supply_mode() == "AWS_NATIVE"
 
 
 def test_service_prices_use_native_catalog_even_without_cutover_flags(monkeypatch):
@@ -53,7 +56,8 @@ def test_service_prices_use_native_catalog_even_without_cutover_flags(monkeypatc
     monkeypatch.setattr(h, "_native_variant_reader", lambda: lambda _id: {
         "priceMinor": 9900, "currency": "INR", "status": "active",
     })
-    monkeypatch.setattr(h, "_wix_request", lambda *a, **k: pytest.fail("Wix called"))
+    # No `_wix_request` stub: the handler no longer imports or calls Wix at all, so "native
+    # makes no Wix call" is structural rather than something a stub has to defend.
     response = h._service_prices("https://wecare.digital")
     assert response["statusCode"] == 200
     assert all(p["paise"] == 9900 for p in json.loads(response["body"])["prices"].values())

@@ -42,8 +42,8 @@ jobs:
       - name: Assume exact-scope deployment role
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: arn:aws:iam::775261844268:role/GitHubActions-wecare-wix-exit-runtime-deploy
-          role-session-name: wix-exit-runtime-deploy
+          role-to-assume: arn:aws:iam::775261844268:role/GitHubActions-wecare-runtime-deploy
+          role-session-name: selected-runtime-deploy
           aws-region: us-east-1
 
       - name: Require production account

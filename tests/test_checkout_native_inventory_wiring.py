@@ -75,7 +75,15 @@ def test_stock_activation_is_explicit(native):
 
 
 def test_stock_gate_refuses_legacy_pricing(native):
+    """The reservation guard still refuses to run against anything but AWS-native pricing.
+
+    Native is now UNCONDITIONAL: `_supply_mode()` returns AWS_NATIVE regardless of CHECKOUT_MODE,
+    so setting the legacy CHECKOUT_MODE=WIX_HEADLESS env no longer flips the mode. The money
+    invariant the test guards — reserving stock only under native pricing — is kept by exercising
+    the guard directly: if `_supply_mode()` were ever non-native, `_website_order_creator` must
+    raise rather than reserve against a price it did not compute.
+    """
     h, patch = native
-    patch.setenv("CHECKOUT_MODE", "WIX_HEADLESS")
+    patch.setattr(h, "_supply_mode", lambda: "WIX_HEADLESS")
     with pytest.raises(ValueError, match="AWS-native"):
         h._website_order_creator(snapshot())

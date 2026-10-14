@@ -300,7 +300,7 @@ export const SHOP_PRODUCTS: ShopProduct[] = VISIBLE
  *
  * What this exists for is the other direction: a `wecare.cart.v1` row written before the catalogue
  * moved to site `c993128b` names a product id that does not exist anywhere on the new site. Sent
- * to checkout it 404s at `GET /stores/v3/products/{id}` and the customer is told to remove an item
+ * to checkout it 404s at `the catalog lookup` and the customer is told to remove an item
  * — which they can at least do, but only after a failed payment attempt tells them to. Dropping it
  * at read time is the cheaper failure. See `reconcileStoredCart` in src/lib/cart.ts.
  */

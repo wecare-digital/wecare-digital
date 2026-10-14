@@ -8,7 +8,7 @@
  * WHAT MUST NEVER BE HERE: the Google Ads developer token, the OAuth client secret, the
  * Unified API key, refresh tokens, the Bing API key. Those are credentials. They live in
  * Secrets Manager (wecare/google/ads, wecare/bing/api) and are read server-side by
- * Lambdas, exactly as wecare/wix/headless-api-key and wecare/google/translate already are. A
+ * Lambdas, exactly as other provider credentials already are. A
  * credential in this file would be bundled into the client JavaScript and served to
  * every visitor.
  *

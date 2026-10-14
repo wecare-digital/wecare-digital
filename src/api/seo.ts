@@ -614,8 +614,8 @@ export interface BlogPublishResponse {
   ok: boolean;
   jobStatuses: string[];
   queue: BlogPublishJobView[];
-  /** True when a publish would be REFUSED before it is attempted. */
-  wixWritesDisabled: boolean;
+  /** Native publishing is the only supported publication path. */
+  providerWritesRetired: boolean;
   batchState?: {
     sources: number; byStatus: Record<string, number>; published: number;
     queued: number; refused: number; failed: number; unreleased: number; jobs: number;

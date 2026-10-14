@@ -63,9 +63,13 @@ def test_both_readiness_inputs_are_empty(provisioner):
 
 
 def test_no_environment_value_looks_like_a_credential(provisioner):
-    """Secret NAMES only. The manifest this feeds is committed to the repository."""
+    """Secret NAMES only. The manifest this feeds is committed to the repository.
+
+    Native: the only secret the environment references by name is the Razorpay API secret id;
+    the Wix headless-api-key secret is gone with the Wix exit.
+    """
     env = provisioner.expected_environment()
-    assert env["WIX_API_KEY_SECRET"] == "wecare/wix/headless-api-key"
+    assert env["RAZORPAY_SECRET_ID"] == "wecare/razorpay/api"
     issuer_shapes = ("rzp_live_", "rzp_test_", "sk-", "AIza", "ghp_", "xoxb-",
                      "AKIA", "ASIA", "sk_live_", "-----BEGIN")
     for key, value in env.items():
@@ -303,19 +307,22 @@ def _policy(provisioner) -> dict:
     return provisioner.expected_role_policy("775261844268")
 
 
-def test_the_role_reads_only_the_two_canonical_provider_secrets(provisioner):
-    """Website checkout now reaches razorpay_orders, so the API secret read is intentional.
+def test_the_role_reads_only_the_razorpay_api_secret(provisioner):
+    """Native checkout reaches razorpay_orders, so the Razorpay API secret read is intentional —
+    and it is the ONLY secret the role reads.
 
-    The webhook signing secret is deliberately absent: checkout creates/verifies API payments,
-    while the webhook Lambda alone verifies webhook signatures.
+    The Wix headless-api-key secret is gone with the Wix exit (checkout is AWS-native and makes no
+    Wix call), and the webhook signing secret is deliberately absent: checkout creates/verifies
+    API payments, while the webhook Lambda alone verifies webhook signatures.
     """
     secrets = [r for s in _policy(provisioner)["Statement"]
                if "secretsmanager:GetSecretValue" in s["Action"] for r in s["Resource"]]
     assert sorted(secrets) == sorted([
-        "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/wix/headless-api-key-*",
         "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/razorpay/api-*",
     ])
     assert "wecare/razorpay-webhook" not in json.dumps(_policy(provisioner))
+    # The Wix headless-api-key secret is retired, not merely unlisted here.
+    assert "wecare/wix/headless-api-key" not in json.dumps(_policy(provisioner))
 
 
 # ── A2.4: the invoke grant, in BOTH of its homes ──────────────────────────────
@@ -421,49 +428,46 @@ def test_the_two_homes_agree_on_every_statement(provisioner):
 def test_the_environment_holds_secret_names_not_values(provisioner):
     env = provisioner.expected_environment()
     assert env["RAZORPAY_SECRET_ID"] == "wecare/razorpay/api"
-    assert env["WIX_API_KEY_SECRET"] == "wecare/wix/headless-api-key"
+    # WIX_API_KEY_SECRET is retired: native checkout references no Wix secret.
+    assert "WIX_API_KEY_SECRET" not in env
     assert env["CONTACTS_TABLE"] == "stack-wecare-digital-ContactsTable"
     assert env["ORDERS_TABLE"] == "stack-wecare-digital-OrderTable"
 
 
-# ── the Wix order write-back switch ───────────────────────────────────────────
+# ── the Wix order write-back switch is RETIRED ────────────────────────────────
 #
-# `finalization.accept_paid` runs on this function's verify-callback leg and is the single place a
-# paid order is pushed to the Wix Orders list. Whether it writes is decided by
-# `lambda_utils/ecommerce/wix_writeback.is_enabled()`, which is AND of four env conditions. The
-# provisioner's job is to make the switch DEPLOYED-AND-INERT: the keys exist, but turning writes on
-# is a deliberate two-value edit, not something a routine provisioner run can do. These assertions
-# pin that posture so a later edit that flips it has to be intentional.
+# The Wix exit made checkout AWS-native and unconditional. There is no longer a Wix Orders
+# write-back leg (`wix_writeback`, the `WIX_WRITEBACK_ENABLED` / `WIX_ECOM_WRITE_CONFIRMED`
+# switches, the `WIX_CART_V2_WRITE_CONTRACT` constant and `WIX_SITE_ID` are all gone), so the
+# provisioner seeds none of those keys. The remaining presence-only posture is the readiness
+# inputs alone. These assertions pin that the Wix write-back machinery stays gone.
 
-def test_the_writeback_switches_are_present_but_empty(provisioner):
-    """Empty, not absent, and not truthy. Present so enabling is an edit of a known key; empty so
-    `is_enabled()` returns False and no paid order reaches Wix until an owner flips them."""
+def test_the_writeback_switches_are_retired(provisioner):
+    """Retired, not merely inert. Native checkout performs no Wix write-back, so the provisioner
+    seeds no `WIX_WRITEBACK_*` switch at all and declares no `WIX_WRITEBACK_SWITCH_KEYS`."""
     env = provisioner.expected_environment()
     for key in ("WIX_WRITEBACK_ENABLED", "WIX_ECOM_WRITE_CONFIRMED"):
-        assert key in env, f"{key} must be declared so enabling it is a value edit"
-        assert env[key] == "", f"{key} must seed empty — a non-empty seed turns Wix writes on"
-    assert provisioner.WIX_WRITEBACK_SWITCH_KEYS == (
-        "WIX_WRITEBACK_ENABLED", "WIX_ECOM_WRITE_CONFIRMED")
+        assert key not in env, f"{key} is retired with the Wix exit — it must not be seeded"
+    assert not hasattr(provisioner, "WIX_WRITEBACK_SWITCH_KEYS")
 
 
-def test_the_writeback_switches_are_presence_only_for_verify(provisioner):
-    """The two switches join the readiness inputs as presence-only keys, so an owner who flips one
-    to a truthy value is legitimate drift that `--verify` tolerates and `reconcile_environment`
-    never clobbers."""
-    assert provisioner.PRESENCE_ONLY_KEYS == (
-        provisioner.READINESS_KEYS + provisioner.WIX_WRITEBACK_SWITCH_KEYS)
-    for key in provisioner.WIX_WRITEBACK_SWITCH_KEYS:
-        assert key in provisioner.PRESENCE_ONLY_KEYS
+def test_presence_only_keys_are_exactly_the_readiness_inputs(provisioner):
+    """With the Wix write-back switches retired, the only presence-only keys are the two readiness
+    inputs — an owner fills them from a live Meta/Razorpay read, so `--verify` tolerates any value
+    and `reconcile_environment` never clobbers them."""
+    assert provisioner.PRESENCE_ONLY_KEYS == provisioner.READINESS_KEYS
+    assert provisioner.READINESS_KEYS == (
+        "EXPECTED_CONFIGURATION_NAME", "EXPECTED_PROVIDER_MID")
 
 
-def test_the_write_contract_is_the_fixed_required_constant(provisioner):
-    """The contract string is a constant, not a switch: on its own it enables nothing, so it is
-    set to the exact value `wix_writeback.is_enabled()` requires and value-checked by `--verify`.
-    Pinned equal to the module's own `WRITE_CONTRACT` so the two cannot drift apart."""
+def test_the_write_contract_and_site_id_are_retired(provisioner):
+    """`WIX_CART_V2_WRITE_CONTRACT` and `WIX_SITE_ID` only mattered to the Wix write-back leg,
+    which is gone. The native environment seeds neither, and the module declares no such
+    constant."""
     env = provisioner.expected_environment()
-    assert env["WIX_CART_V2_WRITE_CONTRACT"] == "cart-v2-external-v1"
-    assert provisioner.WIX_CART_V2_WRITE_CONTRACT == "cart-v2-external-v1"
-    assert env["WIX_SITE_ID"] == "c993128b-26be-41cd-9fcd-904abe23462f"
+    assert "WIX_CART_V2_WRITE_CONTRACT" not in env
+    assert "WIX_SITE_ID" not in env
+    assert not hasattr(provisioner, "WIX_CART_V2_WRITE_CONTRACT")
 
 
 def test_reconcile_seeds_the_switches_only_when_absent(provisioner):
@@ -476,10 +480,19 @@ def test_reconcile_seeds_the_switches_only_when_absent(provisioner):
     assert "if k not in current:" in body
 
 
-def test_readiness_set_message_is_only_for_gate_off(provisioner):
-    """Do not report the gate as OFF when CHECKOUT_INITIATION_ENABLED is actually truthy."""
+def test_readiness_inputs_are_reported_but_not_a_gate_off_problem(provisioner):
+    """Native: readiness-set-with-gate-off is no longer a `--verify` failure.
+
+    The old refusal existed because an owner filling the readiness values in with the gate off
+    turned every `action=create` into a live Wix write before refusing. Native checkout performs
+    no Wix write, so setting readiness while the gate is off is harmless operator state and
+    `verify()` only REPORTS it — it computes `readiness_empty` for the printed status line and
+    appends no problem for it. The gate itself being ON is still a problem (asserted elsewhere).
+    """
     body = SCRIPT.read_text(encoding="utf-8").split("def verify(")[1].split("\ndef ")[0]
-    assert 'if not readiness_empty and initiation not in ("1", "true", "yes", "on"):' in body
+    assert "readiness_empty" in body, "verify no longer reports readiness state at all"
+    # The retired Wix-era refusal must not have come back.
+    assert 'if not readiness_empty and initiation not in' not in body
 
 
 def test_the_role_cannot_delete_checkout_evidence(provisioner):
@@ -1044,7 +1057,8 @@ def test_the_manifest_records_the_function_without_the_gate():
     assert "CHECKOUT_INITIATION_ENABLED" not in entry
     assert entry["EXPECTED_CONFIGURATION_NAME"] == "WECAREDIGITAL"
     assert entry["EXPECTED_PROVIDER_MID"] == "acc_TTFSyolquKEZEy"
-    assert entry["WIX_API_KEY_SECRET"] == "wecare/wix/headless-api-key"
+    # WIX_API_KEY_SECRET is retired: the native manifest records no Wix secret for checkout.
+    assert "WIX_API_KEY_SECRET" not in entry
     assert manifest["_functions"] == len(manifest["functions"])
     assert manifest["_variables"] == sum(len(v) for v in manifest["functions"].values())
 
@@ -1277,11 +1291,15 @@ def test_verify_fails_when_the_anonymous_route_is_not_capped(verify_run, setting
     assert verify_run(route_settings=settings) == 1
 
 
-def test_verify_fails_on_a_wrong_wix_site_id(verify_run):
-    """The hand-enumerated key list omitted WIX_SITE_ID, so a wrong Wix site id on live passed
-    verification. The list is now derived from `expected_environment()`, which is the only version
-    of this check that cannot drift out of date as keys are added."""
-    assert verify_run({"WIX_SITE_ID": "00000000-0000-0000-0000-000000000000"}) == 1
+def test_verify_fails_on_a_wrong_native_catalog_source(verify_run):
+    """A wrong value on a value-checked native key fails verification.
+
+    The verified-key list is derived from `expected_environment()`, not hand-enumerated, so every
+    non-presence-only key is checked the day it is added and the check cannot drift out of date.
+    `CATALOG_SOURCE` is the native authority switch (`aws`); a wrong value on live is a real
+    finding. (The old form of this test pinned the retired `WIX_SITE_ID`.)
+    """
+    assert verify_run({"CATALOG_SOURCE": "wix"}) == 1
 
 
 def test_every_non_readiness_key_is_actually_checked(provisioner, verify_run):
@@ -1314,21 +1332,19 @@ def test_the_gate_being_on_is_a_problem(verify_run):
     assert verify_run({"CHECKOUT_INITIATION_ENABLED": "true"}) == 1
 
 
-def test_readiness_set_with_the_gate_off_is_a_problem(verify_run):
-    """The state the evidence document singles out and the verifier used to PRINT.
+def test_readiness_set_with_the_gate_off_is_tolerated(verify_run):
+    """Native: readiness set with the gate OFF is clean operator state, not a `--verify` failure.
 
-    The gate is the LAST check in `handler._create`. The measured order is
-    `wix_ecom.create_checkout` (a live Wix write) -> currency compare -> `payment_readiness`
-    -> `allocate_payment_reference` -> `put_item` on PaymentAttemptsTable -> `if not
-    INITIATION_ENABLED`. While readiness is empty it refuses early and the table stays at 0 rows.
-    The moment an owner fills the readiness values in with the flag still off, every authenticated
-    `action=create` performs a live Wix write and writes an attempt row before refusing. No money
-    moves, but "gate off" has stopped meaning "inert", and an operator who set those values
-    expecting inertness deserves a non-zero exit rather than a note.
+    The old refusal existed because the Wix-era create path performed a live `wix_ecom.create_checkout`
+    write and wrote a PaymentAttempt row before the gate refused, so "gate off" stopped meaning
+    "inert" the moment an owner filled the readiness values in. Native checkout makes no Wix call
+    and the create path is AWS-native, so filling readiness in while the gate stays off moves no
+    money and writes nothing surprising — `verify()` reports it and exits 0. The gate being ON is
+    still caught (see `test_readiness_set_with_the_gate_on_is_still_a_problem`).
     """
-    assert verify_run({"EXPECTED_CONFIGURATION_NAME": "some-config"}) == 1
-    assert verify_run({"EXPECTED_PROVIDER_MID": "some-mid"}) == 1
-    assert verify_run({"EXPECTED_CONFIGURATION_NAME": "c", "EXPECTED_PROVIDER_MID": "m"}) == 1
+    assert verify_run({"EXPECTED_CONFIGURATION_NAME": "some-config"}) == 0
+    assert verify_run({"EXPECTED_PROVIDER_MID": "some-mid"}) == 0
+    assert verify_run({"EXPECTED_CONFIGURATION_NAME": "c", "EXPECTED_PROVIDER_MID": "m"}) == 0
 
 
 def test_readiness_set_with_the_gate_on_is_still_a_problem(verify_run):

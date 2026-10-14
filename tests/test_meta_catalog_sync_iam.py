@@ -1,4 +1,4 @@
-"""`wecare-meta-catalog-sync-role` is three exact statements, and the shared fleet role is untouched.
+"""`wecare-meta-catalog-sync-role` is four exact statements, and the shared fleet role is untouched.
 
 PHASE W, FEAT-001. Every assertion here is EQUALITY rather than containment. A test that checks
 the policy *contains* the statements it wants passes just as happily when a third is added, which
@@ -57,8 +57,13 @@ def provisioner():
 # ── 1. the document, exactly ─────────────────────────────────────────────────
 
 
-def test_the_policy_is_exactly_the_three_required_statements(provisioner):
-    """Logs + two exact secrets + the single existing approvals table."""
+def test_the_policy_is_exactly_the_four_required_statements(provisioner):
+    """Native: logs + ONE Meta token secret + the approvals table + the native ProductsTable read.
+
+    The Wix exit made the catalog source AWS-native: the function reads the ProductsTable instead
+    of the Wix headless API, so the Wix headless-api-key secret is gone (one secret, not two) and a
+    fourth statement grants the read-only ProductsTable access the native projection needs.
+    """
     assert provisioner.expected_role_policy(ACCOUNT) == {
         "Version": "2012-10-17",
         "Statement": [
@@ -74,7 +79,7 @@ def test_the_policy_is_exactly_the_three_required_statements(provisioner):
                 ],
             },
             {
-                "Sid": "ReadTheTwoSecretsItNeeds",
+                "Sid": "ReadMetaToken",
                 "Effect": "Allow",
                 "Action": "secretsmanager:GetSecretValue",
                 "Resource": [
@@ -91,21 +96,39 @@ def test_the_policy_is_exactly_the_three_required_statements(provisioner):
                     "stack-wecare-digital-AgentApprovalsTable"
                 ],
             },
+            {
+                "Sid": "ReadNativeProductCatalog",
+                "Effect": "Allow",
+                "Action": [
+                    "dynamodb:GetItem", "dynamodb:Query",
+                    "dynamodb:Scan", "dynamodb:BatchGetItem",
+                ],
+                "Resource": [
+                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-ProductsTable",
+                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/"
+                    "stack-wecare-digital-ProductsTable/index/*",
+                ],
+            },
         ],
     }
 
 
-def test_the_policy_has_no_statement_beyond_the_three_required(provisioner):
+def test_the_policy_has_no_statement_beyond_the_four_required(provisioner):
     statements = provisioner.expected_role_policy(ACCOUNT)["Statement"]
-    assert len(statements) == 3
+    assert len(statements) == 4
     assert [s["Sid"] for s in statements] == [
-        "OwnLogs", "ReadTheTwoSecretsItNeeds", "CatalogProposalApprovalRecords"]
+        "OwnLogs", "ReadMetaToken", "CatalogProposalApprovalRecords",
+        "ReadNativeProductCatalog"]
     assert all(s["Effect"] == "Allow" for s in statements)
 
 
 def test_no_forbidden_action_appears_anywhere_in_the_policy(provisioner):
     """`lambda:` is in the forbidden list on purpose: this function is INVOKED, it does not
-    invoke. `events:` likewise - the schedule invokes it; it does not manage the schedule."""
+    invoke. `events:` likewise - the schedule invokes it; it does not manage the schedule.
+
+    Native: the ProductsTable read adds Query/Scan/BatchGetItem alongside GetItem — all read-only
+    DynamoDB actions, none forbidden, no Delete/Put/Update on the catalog table.
+    """
     actions: list[str] = []
     for statement in provisioner.expected_role_policy(ACCOUNT)["Statement"]:
         action = statement["Action"]
@@ -114,7 +137,10 @@ def test_no_forbidden_action_appears_anywhere_in_the_policy(provisioner):
         for forbidden in FORBIDDEN_ACTION_PREFIXES:
             assert not action.startswith(forbidden), f"{action} is not least privilege here"
     assert sorted(actions) == [
-        "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem",
+        "dynamodb:BatchGetItem",
+        "dynamodb:GetItem", "dynamodb:GetItem",
+        "dynamodb:PutItem", "dynamodb:Query", "dynamodb:Scan",
+        "dynamodb:UpdateItem",
         "logs:CreateLogStream", "logs:PutLogEvents", "secretsmanager:GetSecretValue"]
 
 
@@ -178,25 +204,15 @@ def test_the_role_this_script_creates_is_its_own(provisioner):
     assert provisioner.ROLE != SHARED_FLEET_ROLE
 
 
-def test_the_invoke_grant_lands_on_the_WEBHOOKS_role_and_is_alias_qualified(provisioner):
-    """Equality again. One statement, one action, one alias-qualified resource.
-
-    Alias-qualified because a grant on the unqualified function ARN does not authorise an alias
-    invoke - and the failure is an AccessDenied the webhook swallows, so the sync would silently
-    never run while the webhook kept answering 200.
-    """
-    assert provisioner.WEBHOOK_ROLE == "wecare-wix-catalog-webhook-role"
-    assert provisioner.WEBHOOK_ROLE != SHARED_FLEET_ROLE
-    assert provisioner.webhook_invoke_policy(ACCOUNT) == {
-        "Version": "2012-10-17",
-        "Statement": [{
-            "Sid": "InvokeMetaCatalogSync",
-            "Effect": "Allow",
-            "Action": "lambda:InvokeFunction",
-            "Resource": [f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:"
-                         "wecare-meta-catalog-sync:live"],
-        }],
-    }
+# The Wix catalog webhook invoke grant is retired with the Wix exit: there is no
+# `wecare-wix-catalog-webhook` caller anymore (the native projection is driven by the schedule
+# backstop and the ProductsTable), so the provisioner declares no WEBHOOK_ROLE and no
+# webhook_invoke_policy. The former `test_the_invoke_grant_lands_on_the_WEBHOOKS_role...` is
+# removed because the behaviour it pinned is intentionally gone.
+def test_the_retired_wix_webhook_invoke_grant_is_gone(provisioner):
+    """The Wix catalog webhook caller is retired, so no cross-role invoke grant is provisioned."""
+    assert not hasattr(provisioner, "WEBHOOK_ROLE")
+    assert not hasattr(provisioner, "webhook_invoke_policy")
 
 
 # ── 3. no public surface ─────────────────────────────────────────────────────
