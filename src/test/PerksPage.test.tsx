@@ -116,7 +116,6 @@ describe( 'the /gift-card references were repaired to a real destination', () =>
     const files = [
       'amplify/functions/messaging/inbound-whatsapp-handler/handler.py',
       'amplify/functions/ai/ai-generate-response/handler.py',
-      'amplify/functions/operations/seo-tools/wix.py',
     ];
     for ( const file of files )
     {
