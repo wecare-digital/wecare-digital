@@ -181,7 +181,7 @@ export function addBackendResources ( stack: Stack ) {
     'wecare-dlq-replay', 'wecare-contacts', 'wecare-meta-analytics', 'wecare-catalog-management',
     'wecare-ad-attribution', 'wecare-outbound-sms', 'wecare-outbound-email',
     'wecare-sms-aws', 'wecare-voice-aws',
-    'wecare-voice-in-obd', 'wecare-voice-cdr-read', 'wecare-billing',
+    'wecare-voice-cdr-read', 'wecare-billing',
     'wecare-system-cleanup', 'wecare-product-image-gen', 'wecare-auth-middleware',
     'wecare-faq-handler', 'wecare-messages-read', 'wecare-messages-delete', 'wecare-waba-management',
     'wecare-push-notifications', 'wecare-media-cleanup', 'wecare-template-analytics',
