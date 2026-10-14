@@ -25,8 +25,8 @@ def spies(monkeypatch):
     monkeypatch.setattr(blog_source.wix, "get_blog_post_by_slug",
                         lambda s: calls.__setitem__("wix_slug", calls["wix_slug"] + 1) or {"src": "wix"})
     monkeypatch.setattr(blog_source.storage, "list_blog_posts",
-                        lambda published_only=False, include_content=True:
-                        calls.__setitem__("aws_list", (published_only, include_content)) or ["aws"])
+                        lambda published_only=False, limit=500, include_content=True:
+                        calls.__setitem__("aws_list", (published_only, limit, include_content)) or ["aws"])
     monkeypatch.setattr(blog_source.storage, "get_blog_post",
                         lambda s, published_only=False:
                         calls.__setitem__("aws_slug", (s, published_only)) or {"src": "aws"})
@@ -49,7 +49,7 @@ def test_aws_source_routes_to_storage_published_only(monkeypatch, spies, val):
     assert blog_source.list_blog_posts() == ["aws"]
     assert blog_source.get_blog_post_by_slug("my-slug") == {"src": "aws"}
     # public corpus = published only; list omits heavy content
-    assert spies["aws_list"] == (True, False)
+    assert spies["aws_list"] == (True, 0, False)
     assert spies["aws_slug"] == ("my-slug", True)
     assert spies["wix_list"] == 0 and spies["wix_slug"] == 0
 
