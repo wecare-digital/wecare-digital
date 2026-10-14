@@ -182,7 +182,7 @@ export function addBackendResources ( stack: Stack ) {
     'wecare-ad-attribution', 'wecare-outbound-sms', 'wecare-outbound-email',
     'wecare-sms-aws', 'wecare-voice-aws', 'wecare-voice-in-c2c',
     'wecare-voice-in-obd', 'wecare-voice-cdr-read', 'wecare-billing',
-    'wecare-system-cleanup', 'wecare-wix-store', 'wecare-product-image-gen', 'wecare-auth-middleware',
+    'wecare-system-cleanup', 'wecare-product-image-gen', 'wecare-auth-middleware',
     'wecare-faq-handler', 'wecare-messages-read', 'wecare-messages-delete', 'wecare-waba-management',
     'wecare-push-notifications', 'wecare-media-cleanup', 'wecare-template-analytics',
     'wecare-rcs-send', 'wecare-rcs-dlr',
@@ -211,7 +211,7 @@ export function addBackendResources ( stack: Stack ) {
     'wecare-invoice-engine', 'wecare-scheduled-messages', 'wecare-bulk-worker',
     'wecare-contacts', 'wecare-ai-generate-response', 'wecare-service-api',
     'wecare-waba-management', 'wecare-sms-aws', 'wecare-voice-aws',
-    'wecare-sla-engine', 'wecare-wix-store',
+    'wecare-sla-engine',
   ];
 
   const perLambdaAlarms: cloudwatch.Alarm[] = [];
