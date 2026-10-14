@@ -109,7 +109,7 @@ MAX_SOURCE_BYTES = int(os.environ.get("BLOG_SOURCE_MAX_BYTES", str(40 * 1024 * 1
 #: How many sources one worker invocation handles before chaining. Sized so the batch
 #: finishes well inside the 120s function timeout even when every PDF is large.
 WORKER_BATCH = int(os.environ.get("BLOG_WORKER_BATCH", "5"))
-MAX_REGISTER_BATCH = 200
+MAX_REGISTER_BATCH = 1000
 
 RECORD_TYPE = "blogSource"
 
@@ -357,16 +357,19 @@ def _view(item: Dict[str, Any]) -> Dict[str, Any]:
 # ── Phase 1: register and presign ───────────────────────────────────────────────
 
 def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> Dict[str, Any]:
-    """Create or resolve a source record per entry, and presign a PUT for each PDF."""
+    """Create or resolve up to 1,000 source records and presign each new PDF.
+
+    Validation and identity derivation happen before any write. Existing records are then
+    resolved with BatchGetItem and new/retryable rows are written through DynamoDB's batch
+    writer. That keeps a 1,000-source request bounded instead of doing 1,000 GetItem +
+    1,000 PutItem network round-trips inside one API request.
+    """
     entries = body.get("sources")
     if not isinstance(entries, list) or not entries:
         raise ValueError("sources must be a non-empty array")
     if len(entries) > MAX_REGISTER_BATCH:
         raise ValueError(f"at most {MAX_REGISTER_BATCH} sources per request")
 
-    #: A batch is optional, so the interactive single-source path still works without one.
-    #: When given it must exist and be open: adding sources to a closed batch would make its
-    #: rollup change after an operator deliberately finished with it.
     batch_id = str(body.get("batchId") or "").strip()
     batch: Dict[str, Any] = {}
     if batch_id:
@@ -377,7 +380,7 @@ def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> D
     default_class = str(body.get("articleClass") or batch.get("articleClass")
                         or "ARCHIVE_DERIVED").strip().upper()
 
-    registered: List[Dict[str, Any]] = []
+    prepared: List[Dict[str, Any]] = []
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict):
             raise ValueError(f"sources[{index}] must be an object")
@@ -401,8 +404,6 @@ def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> D
             if not ref:
                 raise ValueError(f"sources[{index}].fileName is required")
             record_id = source_id("pdf", ref, sha256)
-            # The key is derived from the CONTENT HASH, not from a uuid, so re-uploading the
-            # same bytes overwrites the same object instead of accumulating copies.
             key = PREFIX + sha256 + _safe_extension(ref)
         else:
             ref = normalize_url(entry.get("url") or entry.get("ref") or "")
@@ -411,10 +412,23 @@ def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> D
             sha256, size, key = "", 0, ""
             record_id = source_id("url", ref)
 
-        existing = get_source(record_id)
+        prepared.append({
+            "recordId": record_id, "sourceType": kind, "sourceRef": ref,
+            "sourceSha256": sha256, "sourceBytes": size, "s3Key": key,
+            "category": category, "articleClass": article_class,
+        })
+
+    existing_by_id = storage.get_typed_many(
+        [item["recordId"] for item in prepared], RECORD_TYPE)
+    registered: List[Dict[str, Any]] = []
+    writes: List[Dict[str, Any]] = []
+
+    for item in prepared:
+        record_id = item["recordId"]
+        kind = item["sourceType"]
+        ref = item["sourceRef"]
+        existing = existing_by_id.get(record_id)
         if existing and existing.get("status") in (UPLOADED, EXTRACTING, EXTRACTED):
-            # Resolve-before-generate: already known and already usable. Report it rather
-            # than re-presigning, so the caller can see the skip.
             registered.append({
                 "sourceId": record_id, "sourceRef": ref, "sourceType": kind,
                 "status": existing["status"], "alreadyKnown": True, "uploadUrl": "",
@@ -427,36 +441,28 @@ def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> D
             "recordType": RECORD_TYPE,
             "createdAt": (existing or {}).get("createdAt") or now,
             "updatedAt": now,
-            # `slug` is a required field on every record in this table because the GSI keys
-            # on it. A source has no article yet, so it carries its own id there.
             "slug": (existing or {}).get("slug") or record_id,
-            #: The partition key of `batchId-createdAt-index`. Sources with no batch keep
-            #: the sentinel below rather than an empty string, because DynamoDB will not
-            #: index an item whose GSI partition key is absent - and a source invisible to
-            #: every batch query is a source the worker cannot find.
             "batchId": batch_id or (existing or {}).get("batchId") or NO_BATCH,
             "sourceType": kind,
             "sourceRef": ref,
-            "sourceSha256": sha256,
-            "s3Key": key,
-            "sourceBytes": size,
-            "category": category,
-            "articleClass": article_class,
-            # A URL needs no upload, so it is immediately ready for the worker.
+            "sourceSha256": item["sourceSha256"],
+            "s3Key": item["s3Key"],
+            "sourceBytes": item["sourceBytes"],
+            "category": item["category"],
+            "articleClass": item["articleClass"],
             "status": PENDING_UPLOAD if kind == "pdf" else UPLOADED,
-            #: Initialised here so a re-registration does not reset a pipeline already in
-            #: flight, and so every source row has the attribute the batch index projects.
             "pipeline": (existing or {}).get("pipeline") or empty_pipeline(),
             "createdBy": actor,
             "error": "",
         }
-        storage.put_record(record)
+        writes.append(record)
 
         upload_url = ""
         if kind == "pdf":
             upload_url = s3_client().generate_presigned_url(
                 "put_object",
-                Params={"Bucket": BUCKET, "Key": key, "ContentType": "application/pdf"},
+                Params={"Bucket": BUCKET, "Key": item["s3Key"],
+                        "ContentType": "application/pdf"},
                 ExpiresIn=UPLOAD_URL_TTL,
             )
         registered.append({
@@ -465,11 +471,13 @@ def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> D
             "uploadUrl": upload_url, "expiresInSeconds": UPLOAD_URL_TTL if upload_url else 0,
         })
 
+    storage.put_records(writes)
     logger.info(json.dumps({
         "event": "blog_sources_registered", "actor": actor, "count": len(registered),
-        "new": sum(1 for r in registered if not r["alreadyKnown"]),
+        "new": sum(1 for row in registered if not row["alreadyKnown"]),
+        "maxBatch": MAX_REGISTER_BATCH,
     }))
-    return {"sources": registered, "bucket": BUCKET}
+    return {"sources": registered, "bucket": BUCKET, "maxBatch": MAX_REGISTER_BATCH}
 
 
 # ── Phase 2: confirm the bytes arrived, then hand off ────────────────────────────
