@@ -63,7 +63,7 @@ def _send_once(requests, row, key, lambda_client, body, *, record_key=None):
 def prepare_and_send(event, lambda_client):
     db = boto3.resource('dynamodb')
     requests = db.Table('stack-wecare-digital-ServiceRequestsTable')
-    result = vault_access.grant_access(requests, db.Table('stack-wecare-digital-WixOrderIds'),
+    result = vault_access.grant_access(requests, db.Table('stack-wecare-digital-CommerceKeys'),
         db.Table(vault_access.FILES_TABLE), db.Table(vault_access.GRANTS_TABLE), event)
     if not result:
         return {'outcome': 'VAULT_ACCESS_UNAVAILABLE'}
