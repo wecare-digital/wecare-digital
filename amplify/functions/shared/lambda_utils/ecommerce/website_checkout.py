@@ -474,7 +474,7 @@ def _paid_basket_refusal(row, attempts_table, customer_id, now,
     return "", ""
 
 
-def _live_cart_payment(*, keys_table, attempts_table, customer_id, wix_cart_id,
+def _live_cart_payment(*, keys_table, attempts_table, customer_id, cart_id,
                        presented_basket_hash, presented_narrow_hash,
                        request_key, now) -> _CartGuard:
     """A `_CartGuard` whose `reason` is empty when a payable order may be created for this basket.
@@ -496,7 +496,7 @@ def _live_cart_payment(*, keys_table, attempts_table, customer_id, wix_cart_id,
     None of them is `snapshot_hash`. A guard whose identifiers change on every call answers
     "no live payment" to every double-submit.
     """
-    if not wix_cart_id:
+    if not cart_id:
         # Nothing to key on, and nothing is guessed. The request-key reservation and the
         # reference claim remain, so this is a lost backstop rather than an open door.
         return _CartGuard()
@@ -520,11 +520,11 @@ def _live_cart_payment(*, keys_table, attempts_table, customer_id, wix_cart_id,
     paid_narrow = {}
     if presented_basket_hash:
         paid_basket = order_keys.resolve_cart_basket(
-            keys_table, customer_id=customer_id, wix_cart_id=wix_cart_id,
+            keys_table, customer_id=customer_id, cart_id=cart_id,
             basket_hash=presented_basket_hash) or {}
     if presented_narrow_hash:
         paid_narrow = order_keys.resolve_cart_narrow_basket(
-            keys_table, customer_id=customer_id, wix_cart_id=wix_cart_id,
+            keys_table, customer_id=customer_id, cart_id=cart_id,
             narrow_hash=presented_narrow_hash) or {}
     prior_basket_attempt = str(paid_basket.get("paymentAttemptId") or "")
     prior_narrow_attempt = str(paid_narrow.get("paymentAttemptId") or "")
@@ -542,7 +542,7 @@ def _live_cart_payment(*, keys_table, attempts_table, customer_id, wix_cart_id,
                           prior_narrow_attempt=prior_narrow_attempt)
 
     pointer = order_keys.resolve_cart_payment(
-        keys_table, customer_id=customer_id, wix_cart_id=wix_cart_id) or {}
+        keys_table, customer_id=customer_id, cart_id=cart_id) or {}
     attempt_id = str(pointer.get("paymentAttemptId") or "")
     if not attempt_id:
         return _pass()
@@ -573,8 +573,8 @@ def _live_cart_payment(*, keys_table, attempts_table, customer_id, wix_cart_id,
         # and must not be trusted.
         logger.warning(json.dumps({"event": "website_checkout_cart_pointer_foreign"}))
         return _pass()
-    recorded_cart = finalization.wix_cart_id(stored, stored.get("purchasedSnapshot"))
-    if recorded_cart and recorded_cart != wix_cart_id:
+    recorded_cart = finalization.cart_id(stored, stored.get("purchasedSnapshot"))
+    if recorded_cart and recorded_cart != cart_id:
         # The pointer is stale against its own attempt. Trust the attempt.
         return _pass()
     if payment_attempt.may_create_order(stored):
@@ -585,7 +585,7 @@ def _live_cart_payment(*, keys_table, attempts_table, customer_id, wix_cart_id,
         # CHECKOUT_OPTIONS_READY — a payable Razorpay modal on a basket that is already paid.
         #
         # TIER 1 — same basket, already captured. No window makes a second order safe. But "the
-        # same cart id" is NOT "the same basket": one persisted wixCartId serves a customer for
+        # same cart id" is NOT "the same basket": one persisted cartId serves a customer for
         # 30 days, so a windowless block on the cart ALONE would refuse every repeat purchase for
         # a month. The identity compared here is therefore the BASKET, and specifically one that
         # EXCLUDES `cart.revision`.
@@ -664,8 +664,8 @@ def _record_cart_pointer(keys_table, *, customer_id, snapshot, attempt_id,
     Passing `attempt["purchasedSnapshot"]` instead would hash a payload `_bounded_snapshot` may
     have trimmed, and a trimmed payload has a different identity.
     """
-    wix_cart_id = snapshot.cart_id
-    if not customer_id or not wix_cart_id:
+    cart_id = snapshot.cart_id
+    if not customer_id or not cart_id:
         # A REFUSAL, not a silent pass. Either identity empty means the three keys cannot be
         # composed, so there is no basket to guard and the modal must not open.
         #
@@ -688,7 +688,7 @@ def _record_cart_pointer(keys_table, *, customer_id, snapshot, attempt_id,
         presented_basket = basket_hash(snapshot.frozen_data)
         presented_narrow = narrow_basket_hash(snapshot.frozen_data)
         order_keys.record_cart_payment(
-            keys_table, customer_id=customer_id, wix_cart_id=wix_cart_id,
+            keys_table, customer_id=customer_id, cart_id=cart_id,
             payment_attempt_id=attempt_id, request_key=request_key,
             basket_hash=presented_basket, narrow_basket_hash=presented_narrow,
             snapshot_hash=snapshot.snapshot_hash)
@@ -697,13 +697,13 @@ def _record_cart_pointer(keys_table, *, customer_id, snapshot, attempt_id,
         # partial outcome answers CART_POINTER_SAVE_FAILED and exposes no options, so none is a
         # state the browser can pay from.
         order_keys.record_cart_basket(
-            keys_table, customer_id=customer_id, wix_cart_id=wix_cart_id,
+            keys_table, customer_id=customer_id, cart_id=cart_id,
             basket_hash=presented_basket, payment_attempt_id=attempt_id,
             request_key=request_key, narrow_basket_hash=presented_narrow,
             snapshot_hash=snapshot.snapshot_hash)
         if presented_narrow:
             order_keys.record_cart_narrow_basket(
-                keys_table, customer_id=customer_id, wix_cart_id=wix_cart_id,
+                keys_table, customer_id=customer_id, cart_id=cart_id,
                 narrow_hash=presented_narrow, payment_attempt_id=attempt_id,
                 request_key=request_key, basket_hash=presented_basket,
                 snapshot_hash=snapshot.snapshot_hash)
@@ -875,7 +875,7 @@ def prepare_checkout(*,
         raise CheckoutRejected(BASKET_IDENTITY_REQUIRED) from None
     cart_guard = _live_cart_payment(
         keys_table=keys_table, attempts_table=attempts_table,
-        customer_id=customer_id, wix_cart_id=snapshot.cart_id,
+        customer_id=customer_id, cart_id=snapshot.cart_id,
         # The BASKET identity, not the quote hash. See `_live_cart_payment`'s paid arm.
         presented_basket_hash=presented_basket,
         presented_narrow_hash=presented_narrow,
@@ -946,7 +946,7 @@ def prepare_checkout(*,
     if snapshot.cart_id and (presented_narrow or presented_basket):
         if presented_narrow:
             won_basket = order_keys.claim_cart_narrow_basket(
-                keys_table, customer_id=customer_id, wix_cart_id=snapshot.cart_id,
+                keys_table, customer_id=customer_id, cart_id=snapshot.cart_id,
                 narrow_hash=presented_narrow, payment_attempt_id=attempt_id,
                 prior_payment_attempt_id=cart_guard.prior_narrow_attempt,
                 request_key=request_key, now=now)
@@ -954,7 +954,7 @@ def prepare_checkout(*,
             # No narrow identity available. Fall back to the fine slot rather than skipping the
             # claim: a weaker exclusion is still an exclusion.
             won_basket = order_keys.claim_cart_basket(
-                keys_table, customer_id=customer_id, wix_cart_id=snapshot.cart_id,
+                keys_table, customer_id=customer_id, cart_id=snapshot.cart_id,
                 basket_hash=presented_basket, payment_attempt_id=attempt_id,
                 prior_payment_attempt_id=cart_guard.prior_basket_attempt,
                 request_key=request_key, now=now)
