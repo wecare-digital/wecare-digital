@@ -165,7 +165,6 @@ const COLUMNS: NavColumn[] = [
           { label: 'Puja Guidance', href: '/ritual-guru/', match: '/ritual-guru' },
         ],
       },
-      },
     ],
   },
   {
