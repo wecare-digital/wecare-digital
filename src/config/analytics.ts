@@ -102,8 +102,8 @@ export const META = {
 } as const;
 
 export const BING = {
-  /** Site registered in Bing Webmaster Tools. Note it is the www apex, not stack.*. */
-  siteUrl: 'https://www.wecare.digital/',
+  /** Canonical apex site; legacy www property should be retired in Bing settings. */
+  siteUrl: 'https://wecare.digital/',
 } as const;
 
 /**

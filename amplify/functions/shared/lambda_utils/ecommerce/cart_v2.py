@@ -39,32 +39,27 @@ charge must not exist on the adapter a customer-facing route holds, so the guara
 code is absent", which a test can enumerate, instead of "the code is guarded".
 """
 from copy import deepcopy
-from uuid import UUID
 
 from .money import Money, positive_paise
+# The provider-neutral cart contract lives in cart_contract.py so native code can depend on it
+# without importing this Wix adapter. Re-exported here for backward compatibility with existing
+# `cart_v2.<name>` importers.
+from .cart_contract import (  # noqa: F401
+    ADDRESS_FIELDS,
+    CartContractError,
+    CartGone,
+    CartItemUnavailable,
+    CartQuantityReduced,
+    REQUIRED_ADDRESS_FIELDS,
+    STORES_APP_ID,
+    available_delivery_options,
+    catalog_item,
+    cheapest_delivery_option,
+    delivery_address,
+    identifier,
+)
 
-STORES_APP_ID = "215238eb-22a5-4c36-9e7b-e7c08025e04e"
 BASE = "/ecom/v2/carts"
-
-#: ISO 3166-1 alpha-2, two uppercase letters. Wix address fields are free-form strings, so
-#: the country is the one field worth constraining here: it selects the delivery options and
-#: the tax treatment, and a typo yields a silently different quote rather than an error.
-_COUNTRY_LENGTH = 2
-
-#: Every address field this module will forward, and nothing else. An allowlist rather than a
-#: passthrough: an unrecognised key is a caller mistake or an attempt to reach a field that
-#: is not an address, and both should fail before the call rather than after it.
-ADDRESS_FIELDS = ("country", "subdivision", "city", "postalCode",
-                  "streetAddress", "addressLine", "addressLine2")
-
-#: The minimum that makes an address a DESTINATION rather than a region.
-#:
-#: `subdivision` is in here for a tax reason, not a postal one: in India it is the place of
-#: supply, so an address without it still prices -- just with the wrong CGST/SGST-versus-IGST
-#: split. A partial address is the failure mode worth refusing, because Wix answers it with a
-#: number rather than an error and that number would be charged.
-REQUIRED_ADDRESS_FIELDS = ("country", "subdivision", "city", "postalCode")
-
 
 #: Truthy spellings accepted for either gate key, matching the rest of the fleet.
 _TRUTHY = ("1", "true", "yes", "on")
@@ -75,65 +70,6 @@ ENABLE_KEY = "WIX_CART_V2_ENABLED"
 #: A kill switch layered ON TOP of the opt-in, never instead of it. Set it to turn V2 off
 #: without having to find and unset `WIX_CART_V2_ENABLED` on every function that carries it.
 DISABLE_KEY = "WIX_CART_V2_DISABLED"
-
-
-class CartContractError(ValueError):
-    """Wix returned a cart that is not safe to offer for payment."""
-
-
-class CartItemUnavailable(CartContractError):
-    """A line item is out of stock, partially available, or gone from the catalogue.
-
-    Its own type, carrying `.items`, because the customer can act on this and the caller needs to
-    say WHICH item and WHY. Checkout V1 handled it by dropping a missing item from the checkout
-    and pricing what was left, so a cart could silently shrink between review and payment. V2
-    surfaces it as a violation and as a line `status`, and this refuses rather than inheriting
-    V1's behaviour.
-
-    V2 status values, renamed from V1's `availability.status`: `AVAILABLE` -> `IN_STOCK`,
-    `PARTIALLY_AVAILABLE` -> `PARTIALLY_IN_STOCK`, `NOT_AVAILABLE` -> `OUT_OF_STOCK`,
-    `NOT_FOUND` -> `REMOVED_FROM_CATALOG`.
-    https://dev.wix.com/docs/api-reference/business-solutions/e-commerce/purchase-flow/cart-v2/migration-mapping
-    """
-
-    def __init__(self, message, items=None):
-        super().__init__(message)
-        self.items = list(items or ())
-
-
-class CartGone(CartContractError):
-    """The CART RESOURCE itself is absent: Wix answered 404 on the cart id we are holding.
-
-    THIS IS NOT `CartItemUnavailable`, AND CONFLATING THE TWO WAS A LIVE DEAD END. On 2026-10-05
-    a customer could not pay: their browser's checkout resolved a Wix cart id persisted from
-    BEFORE the catalogue was migrated to the new site, `GET /ecom/v2/carts/{id}` answered 404 on
-    the new site, the transport raised, and the checkout handler's one WixEcomError arm reported
-    `CART_ITEM_UNAVAILABLE` -- "An item in your cart is no longer available. Remove it and try
-    again". The item was fine; the ₹1 test product was visible and in stock on the new site. The
-    CART was gone, and removing items from a cart that does not exist is not an action a customer
-    can take, so the answer was a dead end for every attempt.
-
-    The distinction is therefore load-bearing:
-
-    * **404 on the cart resource** -> the cart is gone (expired, deleted, or minted against a
-      different site). The pointer we hold is worthless, so DISCARD it and create a fresh cart
-      from the current line items. Recoverable without the customer doing anything.
-    * **a catalogue item/variant genuinely missing** -> `CartItemUnavailable`, or a
-      `WixEcomError` from the `GET /stores/v3/products/{id}` resolution. That is the only
-      condition that may surface as "no longer available", because removing the line is a real
-      action and it is the only one that works.
-
-    Derived from `CartContractError` deliberately. A caller that does NOT implement the recovery
-    (or whose recovery fails twice) answers its existing `409 CART_NOT_PAYABLE` rather than a 500
-    or a transient 503 that invites a retry which cannot help.
-
-    `.cart_id` carries the dead id so the recovery can log exactly which pointer was dropped. A
-    Wix cart id is a resource id, not PII, and it is the only correlation available here.
-    """
-
-    def __init__(self, message, cart_id=""):
-        super().__init__(message)
-        self.cart_id = str(cart_id or "")
 
 
 def is_not_found(error):
@@ -152,33 +88,6 @@ def is_not_found(error):
         if isinstance(value, int) and value == 404:
             return True
     return False
-
-
-class CartQuantityReduced(CartContractError):
-    """Wix confirmed fewer units than were requested, so the cart no longer means what was asked.
-
-    THIS ONE IS NOT FIXED BY THE MIGRATION, AND THE MIGRATION GUIDE'S WORDING INVITES THE OPPOSITE
-    CONCLUSION. The guide says V1 silently reduced an over-ordered quantity and that V2 "fails with
-    explicit errors" instead. Cart V2's own introduction is more specific, and it still reduces:
-
-        "When inventory drops below the requested quantity, confirmedQuantity automatically
-        decreases to match available stock."
-        -- https://dev.wix.com/docs/api-reference/business-solutions/e-commerce/purchase-flow/cart-v2/introduction
-
-    So V2 does not refuse an under-stocked cart. What it adds is `quantityInfo.requestedQuantity`
-    beside `confirmedQuantity` -- V1 had only the one number -- which makes the reduction
-    *detectable*. `CartV2.calculate` comparing the two is what turns a detectable silent change
-    into a refusal, and it is the only thing doing so. A reduced quantity on a priced cart is a
-    wrong amount charged for the wrong goods, which is a correctness failure rather than an
-    inconvenience, so this must never be relaxed into a warning.
-
-    Carries `.items` with the requested and confirmed figures so the customer can be told exactly
-    what changed and re-confirm it deliberately.
-    """
-
-    def __init__(self, message, items=None):
-        super().__init__(message)
-        self.items = list(items or ())
 
 
 def is_enabled(env=None):
@@ -205,106 +114,6 @@ def is_enabled(env=None):
     if str(environ.get(DISABLE_KEY, "")).strip().lower() in _TRUTHY:
         return False
     return str(environ.get(ENABLE_KEY, "")).strip().lower() in _TRUTHY
-
-
-def delivery_address(address):
-    """Validate a delivery address for `deliveryInfo.address`, or raise.
-
-    Checkout V1's `shippingInfo.shippingDestination.address` maps to `deliveryInfo.address`
-    in V2, written through Update Cart. Nothing financial is accepted: a caller cannot
-    smuggle a price, a currency or a delivery charge in through an address field, which is
-    the same rule `catalog_item` enforces for line items.
-    """
-    if not isinstance(address, dict) or not address:
-        raise ValueError("a delivery address object is required")
-    unknown = set(address) - set(ADDRESS_FIELDS)
-    if unknown:
-        raise ValueError("unsupported delivery address fields")
-    country = address.get("country")
-    if (not isinstance(country, str) or len(country) != _COUNTRY_LENGTH
-            or not country.isalpha() or country != country.upper()):
-        raise ValueError("country must be an uppercase ISO 3166-1 alpha-2 code")
-    out = {}
-    for field in ADDRESS_FIELDS:
-        if field not in address:
-            continue
-        value = address[field]
-        if field == "streetAddress":
-            # Wix models this one as an object (name/number/apt), not a string.
-            if not isinstance(value, dict) or not value or not all(
-                    isinstance(part, str) and part.strip() for part in value.values()):
-                raise ValueError("streetAddress must be an object of non-empty strings")
-            out[field] = dict(value)
-            continue
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError(f"{field} must be a non-empty string")
-        out[field] = value.strip()
-    missing = [field for field in REQUIRED_ADDRESS_FIELDS if field not in out]
-    if missing:
-        raise ValueError(f"delivery address is missing {', '.join(missing)}")
-    if not (out.get("addressLine") or out.get("streetAddress")):
-        raise ValueError("delivery address needs a street line")
-    return out
-
-
-def available_delivery_options(summary):
-    """The delivery options a Calculate/Estimate `summary` offers, cheapest first.
-
-    `[{"id", "title", "pricePaise"}]`, or `[]` when Wix named no option for the address on the
-    cart. See `CartV2.delivery_options` for where the field name comes from and why this returns
-    a list for what Wix currently reports as a single resolved method.
-
-    `pricePaise` is integer paise through `Money.from_wix`, never a float, and it is `None` when
-    Wix sent no parseable amount -- unknown rather than zero, because a missing price silently
-    read as free is the one reading that could pick the wrong option. An unpriced option sorts
-    LAST for the same reason.
-
-    The sort is stable, so Wix's own order survives a tie. That is what makes "the cheapest, ties
-    to the first" a deterministic rule rather than a preference.
-    """
-    delivery = (summary or {}).get("deliverySummary") or {}
-    method = delivery.get("method") or {}
-    code = str(method.get("code") or "").strip()
-    if not code:
-        return []
-    try:
-        price = Money.from_wix((delivery.get("price") or {}).get("amount")).paise
-    except ValueError:
-        price = None
-    title = method.get("title")
-    if isinstance(title, dict):
-        title = title.get("original") or title.get("translated") or ""
-    return [{"id": code, "title": str(title or ""), "pricePaise": price}]
-
-
-def cheapest_delivery_option(options):
-    """The option to select when nobody chose one: lowest price, ties to Wix's own first.
-
-    Pulled out as a named function because it is a DECISION about someone's money, and a
-    decision worth naming is worth testing on its own. `None` for an empty list, so the caller
-    decides what "Wix offered nothing" means rather than inheriting a fabricated default.
-    """
-    ordered = sorted(options or [],
-                     key=lambda option: (option.get("pricePaise") is None,
-                                         option.get("pricePaise") or 0))
-    return ordered[0] if ordered else None
-
-
-def identifier(value):
-    if not isinstance(value, str) or str(UUID(value)) != value.lower():
-        raise ValueError("invalid cart/catalog identifier")
-    return value.lower()
-
-
-def catalog_item(item):
-    if not isinstance(item, dict) or set(item) != {"productId", "variantId", "quantity"}:
-        raise ValueError("only productId, variantId and quantity are accepted")
-    quantity = item["quantity"]
-    if type(quantity) is not int or not 1 <= quantity <= 100000:
-        raise ValueError("quantity must be a positive integer")
-    return {"catalogReference": {
-        "appId": STORES_APP_ID, "catalogItemId": identifier(item["productId"]),
-        "options": {"variantId": identifier(item["variantId"])}}, "quantity": quantity}
 
 
 class CartV2:

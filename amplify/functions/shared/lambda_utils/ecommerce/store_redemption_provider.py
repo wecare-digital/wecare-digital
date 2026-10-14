@@ -91,7 +91,6 @@ COUPON_REASON_BY_VERDICT: Dict[str, str] = {
     coupon_store.USAGE_LIMIT_REACHED: redemption.COUPON_INELIGIBLE,
     coupon_store.CUSTOMER_LIMIT_REACHED: redemption.COUPON_INELIGIBLE,
     coupon_store.HELD_BY_ANOTHER_CART: redemption.COUPON_INELIGIBLE,
-    coupon_store.WIX_MIRROR_INCOMPLETE: redemption.COUPON_INELIGIBLE,
 }
 
 #: Which gift-card refusal is which typed reason. `GiftCardDisabled` is `INELIGIBLE` rather than

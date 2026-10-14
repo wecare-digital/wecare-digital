@@ -115,7 +115,9 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
   const [newSlug, setNewSlug] = useState('');
   const [newPrice, setNewPrice] = useState('');
   const [newDescription, setNewDescription] = useState('');
-  const [metaPlan, setMetaPlan] = useState<api.MetaCatalogSyncControl | null>(null);
+  const [metaCatalog, setMetaCatalog] = useState<api.MetaCatalogSyncControl | null>(null);
+  const [metaCatalogBusy, setMetaCatalogBusy] = useState(false);
+  const [metaCatalogMessage, setMetaCatalogMessage] = useState('');
 
   const reloadProducts = useCallback(async () => {
     const data = await nativeCall('');
@@ -161,11 +163,41 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
     if (tab === 'meta') {
       void run(async () => {
         const result = await api.getMetaCatalogSyncPlan();
-        if (result.ok) setMetaPlan(result.data);
+        if (result.ok) setMetaCatalog(result.data);
         else throw new Error(result.failure.message);
       });
     }
   }, [tab, run]);
+
+  // THE META CATALOG APPROVAL GATE. Publishing to Meta is owner-gated by an EXACT-PLAN approval:
+  // a plan is proposed against its hash, approved against that same hash, and only then can Apply
+  // run - and even then only when the release gates (enabled + not dry-run) are open. This mirrors
+  // the server contract in meta_catalog_sync.py; the browser never supplies an approver identity.
+  const runMetaCatalogAction = async (action: 'propose' | 'approve' | 'apply' | 'readback') => {
+    const planHash = metaCatalog?.planHash || metaCatalog?.currentPlanHash || '';
+    if (action !== 'propose' && !planHash) {
+      setMetaCatalogMessage('Refresh the live plan before continuing.');
+      return;
+    }
+    setMetaCatalogBusy(true);
+    setMetaCatalogMessage('');
+    const result = await api.controlMetaCatalogSync(action, action === 'propose' ? undefined : planHash);
+    if (result.ok) {
+      setMetaCatalog(prev => ({ ...(prev || {} as api.MetaCatalogSyncControl), ...result.data }));
+      setMetaCatalogMessage(
+        action === 'propose' ? 'Proposal recorded against this exact plan.' :
+          action === 'approve' ? 'Exact plan approved. Release gates remain unchanged.' :
+            action === 'apply' ? 'Apply submitted. Use Readback to verify provider state.' :
+              'Provider readback refreshed.');
+    } else {
+      setMetaCatalogMessage(result.failure.message);
+      // A 409 may carry useful server state, but apiCallResult normalises failures. Refresh so the
+      // operator sees the current plan rather than acting on stale UI.
+      const fresh = await api.getMetaCatalogSyncPlan();
+      if (fresh.ok) setMetaCatalog(fresh.data);
+    }
+    setMetaCatalogBusy(false);
+  };
 
   const updateProduct = () => {
     if (!selected) return;
@@ -437,20 +469,52 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
             <h2 style={{ fontSize: 18 }}>Meta commerce synchronization</h2>
             <p>Product prices come from AWS ProductsTable. Meta is a projected sales channel,
               not the product database. Sync application and approvals stay owner-gated.</p>
-            {metaPlan ? (
-              <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, overflowX: 'auto',
-                background: '#f5f7f6', padding: 14, borderRadius: 8 }}>
-                {JSON.stringify({
-                  enabled: metaPlan.enabled,
-                  dryRun: metaPlan.dryRun,
-                  blocked: metaPlan.blocked,
-                  planHash: metaPlan.planHash,
-                  currentPlanHash: metaPlan.currentPlanHash,
-                }, null, 2)}
-              </pre>
-            ) : <p>Meta plan not loaded.</p>}
-            <p style={muted}>Use the existing Meta catalog authorization controls to
-              review and approve changes before enabling publishing.</p>
+            {!metaCatalog ? <p>Meta plan not loaded.</p> : (
+              <div style={{ marginTop: 12 }}>
+                <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 600 }}>WhatsApp Catalog Approval</h3>
+                <p style={muted}>Changes are published to Meta only after this exact plan is approved
+                  AND the release gates are open. Apply writes to the live catalog; everything before
+                  it is reversible.</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '12px 0' }}>
+                  {([
+                    ['Catalog', metaCatalog.catalogId],
+                    ['Create', metaCatalog.counts?.create ?? 0],
+                    ['Update', metaCatalog.counts?.update ?? 0],
+                    ['Retire', metaCatalog.counts?.retire ?? 0],
+                    ['Approval', metaCatalog.approval?.status || 'Not proposed'],
+                    ['Release gates', metaCatalog.enabled && metaCatalog.dryRun === false ? 'Open' : 'Closed'],
+                  ] as [string, React.ReactNode][]).map(([label, value]) => (
+                    <div key={label} style={{ ...boxStyle, background: '#f8faf8', minWidth: 110, padding: '8px 12px' }}>
+                      <span style={muted}>{label}</span><br />
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+                <p style={{ fontSize: 12 }}>
+                  <strong>Exact plan hash</strong><br />
+                  <code style={{ wordBreak: 'break-all' }}>{metaCatalog.planHash || metaCatalog.currentPlanHash || '—'}</code>
+                  {(metaCatalog.blocked?.length || 0) > 0 && (
+                    <span style={{ display: 'block', marginTop: 8, color: '#6b7280' }}>Blocked: {metaCatalog.blocked?.join(', ')}</span>
+                  )}
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                  <button type="button" onClick={() => runMetaCatalogAction('propose')}
+                    disabled={metaCatalogBusy || (metaCatalog.blocked?.length || 0) > 0}>Propose this plan</button>
+                  <button type="button" onClick={() => runMetaCatalogAction('approve')}
+                    disabled={metaCatalogBusy || metaCatalog.approval?.status !== 'PROPOSED'}>Approve exact plan</button>
+                  <button type="button" onClick={() => runMetaCatalogAction('apply')}
+                    disabled={metaCatalogBusy || metaCatalog.approval?.status !== 'APPROVED' || !metaCatalog.enabled || metaCatalog.dryRun !== false}>Apply to Meta</button>
+                  <button type="button" onClick={() => runMetaCatalogAction('readback')}
+                    disabled={metaCatalogBusy || !['APPLYING', 'APPLY_SUBMITTED', 'APPLIED'].includes(metaCatalog.approval?.status || '')}>Readback provider</button>
+                </div>
+                {(!metaCatalog.enabled || metaCatalog.dryRun !== false) && (
+                  <p style={{ marginTop: 10, color: '#92400e', fontSize: 12 }}>
+                    Apply is intentionally locked: production catalog writes are disabled / dry-run.
+                    Open the release gates (enabled + dry-run off) before Apply can run.</p>
+                )}
+                {metaCatalogMessage && <p style={{ marginTop: 10, fontSize: 12 }} role="status">{metaCatalogMessage}</p>}
+              </div>
+            )}
           </section>
         )}
       </div>
