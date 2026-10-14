@@ -394,4 +394,4 @@ def _save_contact(contact_id, subscriber_uuid, subscriber_id, phone,
             'optInWhatsApp': True, 'optInSms': True, 'optInEmail': True,
             'tags': tags,
             'createdAt': now_ts, 'updatedAt': now_ts,
-        })
+        }, ConditionExpression='attribute_not_exists(id)')
