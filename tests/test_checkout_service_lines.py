@@ -308,7 +308,8 @@ def test_the_service_arms_precede_the_cart_contract_parent_arm():
                       and n.name == "_website_prepare")
     handlers = [ast.unparse(h.type) for n in ast.walk(prepare_fn) if isinstance(n, ast.Try)
                 for h in n.handlers if h.type is not None]
-    parent = handlers.index("cart_v2.CartContractError")
+    # The cart contract vocabulary moved to the provider-neutral cart_contract module.
+    parent = handlers.index("cart_contract.CartContractError")
     assert handlers.index("ServicePriceChanged") < parent
     assert handlers.index("ServiceNotPayable") < parent
 
