@@ -100,7 +100,7 @@ ATTRIBUTES: dict[str, str] = {
 
 #: The two least-privilege roles that need to use the key. Named here so the key policy and
 #: `provision_gift_cards_roles.py` cannot disagree about who may decrypt.
-CONSUMER_ROLES = ("wecare-gift-cards-role", "wecare-wix-giftcard-spi-role")
+CONSUMER_ROLES = ("wecare-gift-cards-role",)
 
 
 def ddb():
@@ -119,8 +119,8 @@ def key_policy() -> dict:
 
     * the account root keeps administrative control, which is required - a key policy that locks out
       the account is unrecoverable;
-    * the two consumer roles may `Decrypt` and `GenerateDataKey` ONLY through DynamoDB, enforced by
-      `kms:ViaService`. Without that condition the grant would let either function decrypt arbitrary
+    * the native consumer role may `Decrypt` and `GenerateDataKey` ONLY through DynamoDB, enforced by
+      `kms:ViaService`. Without that condition the grant would let the function decrypt arbitrary
       ciphertext under this key, which is a wider capability than reading the table;
     * nothing is granted to `*`, to the shared fleet role, or to any other principal.
     """
