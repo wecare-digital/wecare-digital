@@ -1332,38 +1332,11 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                                    for paise in sorted(CONTRIBUTION_CHOICES_PAISE.values()))
                        + ".",
         }, origin)
-    except ContributionNotAlone:
-        # THE COPY MOVED WITH THE RULE. It used to read "a contribution is paid on its own",
-        # which stopped being true when a contribution beside a product became payable; this
-        # exception now names only the basket holding TWO contributions. Word for word the
-        # browser's `CONTRIBUTION_ALONE_MESSAGE`, so the two refusals still read identically
-        # whichever side produced them.
-        return cors_response(409, {
-            "error": "CONTRIBUTION_NOT_ALONE",
-            "message": "Only one contribution can be paid at a time. Remove the extra "
-                       "contribution, then check out.",
-        }, origin)
-    except ContributionUnavailable:
-        return cors_response(409, {
-            "error": "CONTRIBUTION_UNAVAILABLE",
-            "message": "Contributions are not available right now.",
-        }, origin)
-    except ContributionRedemptionNotAllowed:
-        return cors_response(409, {
-            "error": "CONTRIBUTION_REDEMPTION_NOT_ALLOWED",
-            "message": "A contribution takes no coupon or gift card. Remove it, then check out.",
-        }, origin)
-    except ContributionNotPayable:
-        # NOT `CART_NOT_PAYABLE`, and not "please review your cart": the basket is one donation,
-        # so there is nothing in it to review and the customer has no move to make. Says what is
-        # true -- it cannot be taken right now -- and says nothing was charged, because a refusal
-        # arriving after the Checkout press reads like a failed payment otherwise. Nothing is
-        # reserved, attempted or ordered on this path.
-        logger.error(json.dumps({"event": "contribution_not_payable"}))
-        return cors_response(409, {
-            "error": "CONTRIBUTION_NOT_PAYABLE",
-            "message": "Contributions cannot be taken right now. Nothing has been charged.",
-        }, origin)
+    # The former ContributionNotAlone/Unavailable/RedemptionNotAllowed/NotPayable arms were
+    # removed with the Wix cart region: those exceptions were raised only inside the deleted
+    # `_v2_snapshot` (Wix-cart contribution pricing) and their classes went with it. A
+    # contribution basket now prices through the native path; any residual contract violation is
+    # a `cart_contract.CartContractError` and is handled by the parent arm below.
     # Phase O-1 services. Both are `CartContractError`s, so both MUST stay above that arm.
     except ServicePriceChanged:
         return cors_response(409, service_requests.refusal(
@@ -1372,10 +1345,6 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         logger.error(json.dumps({"event": "service_not_payable"}))
         return cors_response(409, service_requests.refusal(
             service_requests.SERVICE_NOT_PAYABLE), origin)
-    except DeliveryMethodUnavailable:
-        # MUST stay ABOVE the parent arm below, or the subclass is swallowed by it and
-        # DELIVERY_METHOD_UNAVAILABLE never fires.
-        return cors_response(409, {"error": "DELIVERY_METHOD_UNAVAILABLE"}, origin)
     except purchase_intent.DeliveryDetailsRequired:
         return cors_response(409, {"error": "DELIVERY_DETAILS_REQUIRED"}, origin)
     except india_address.UnmappableAddress:
@@ -1409,16 +1378,6 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             "message": "Some items are available in smaller quantities than you asked for. "
                        "Please confirm the new amounts.",
         }, origin)
-    except CartResetRequired:
-        # The deliberate exception to the copy-the-vocabulary rule, and it does not break it:
-        # reconciliation exists only on this route, so `_create` cannot produce the condition.
-        # The excess lines are on the SERVER cart, which no browser affordance touches, so
-        # "review your cart" would name an action the customer cannot take. Starting a new cart
-        # is the one that works, and it is one click.
-        return cors_response(409, {
-            "error": "CART_RESET_REQUIRED",
-            "message": "Your saved cart has too many items to update. Start a new cart.",
-        }, origin)
     except cart_contract.CartGone:
         # PERSISTENT only. `_v2_snapshot` already discarded the dead pointer and minted a fresh
         # cart; reaching here means the NEW cart 404'd too, which is a Wix fault rather than a
@@ -1429,8 +1388,8 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         return cors_response(409, {"error": "CART_NOT_PAYABLE",
                                    "message": "Please review your cart and try again."}, origin)
     except cart_contract.CartContractError:
-        # The parent of the five contribution arms above, the two item arms and CartResetRequired,
-        # so it is LAST among them.
+        # The parent of the item arms and CartResetRequired above (and the catch-all for any
+        # residual contribution/contract violation), so it is LAST among them.
         return cors_response(409, {"error": "CART_NOT_PAYABLE",
                                    "message": "Please review your cart and try again."}, origin)
     except customer_cart.CartBusy:

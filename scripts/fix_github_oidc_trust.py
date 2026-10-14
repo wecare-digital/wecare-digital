@@ -131,6 +131,10 @@ ROLES = [
     "GitHubActions-wecare-digital-public-surface",
     "GitHubActions-wecare-digital-public-surface-read",
     "GitHubActions-wecare-digital-plivo-drift",
+    # Reads ProductsTable to publish the AWS-native storefront catalog snapshot
+    # (.github/workflows/aws-native-catalog-publish.yml), the native replacement for the retired
+    # Wix catalogue-sync workflow.
+    "GitHubActions-wecare-native-catalog-reader",
 ]
 
 # Any IAM role whose name starts with this is assumed to be a GitHub Actions OIDC role

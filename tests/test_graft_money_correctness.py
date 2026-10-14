@@ -454,9 +454,13 @@ import importlib.util  # noqa: E402
 HANDLER_PATH = ROOT / "amplify/functions/ecommerce/checkout/handler.py"
 FIXTURES = ROOT / "tests/fixtures"
 CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
+CART_TABLE = "stack-wecare-digital-CartTable"
+PRODUCTS_TABLE = "stack-wecare-digital-ProductsTable"
 PHONE = "+919330994400"
-#: Wix collection 25499.00 = items 24999.00 + delivery 500.00, from the shared fixture.
-V2_COLLECTION_PAISE = 2549900
+#: AWS-native single-unit collection: the product price (native shipping is FREE by default; the
+#: old Wix fixture carried a 500 delivery). The money assertions derive the payable through
+#: `compute_quote(V2_COLLECTION_PAISE)`, a relationship that holds at the native value.
+V2_COLLECTION_PAISE = 2499900
 OWNED_ADDRESS = {"addressLine1": "12 Dalhousie Square", "city": "Kolkata",
                  "state": "West Bengal", "postalCode": "700001"}
 
@@ -474,6 +478,19 @@ FIXTURE_SECRET_SENTINEL = "SECRET-HALF-MUST-NEVER-APPEAR"
 
 def _delivery_complete():
     return json.loads((FIXTURES / "wix_cart_v2_delivery_complete.json").read_text())
+
+
+def _native_product_row():
+    """ProductsTable item the native engine prices from, using the fixture's product/variant
+    UUIDs so `line_items()` resolves to one native cart line. Priced at the native single-unit
+    collection (free shipping)."""
+    ref = _delivery_complete()["cart"]["lineItems"][0]["source"]["catalogReference"]
+    return {"id": ref["catalogItemId"], "status": "active",
+            "variants": [{"sku": ref["options"]["variantId"],
+                          "priceMinor": V2_COLLECTION_PAISE, "inventory": 50}]}
+
+
+NATIVE_PRODUCT_ROW = _native_product_row()
 
 
 class _Identity:
@@ -603,11 +620,11 @@ class _Rig:
         monkeypatch.setenv("CONTACTS_TABLE", CONTACTS_TABLE)
         monkeypatch.setenv("ORDERS_TABLE", ORDERS_TABLE)
         monkeypatch.setenv("APP_ENV", "development")
-        monkeypatch.setenv("WIX_CART_V2_ENABLED", "true")
-        monkeypatch.delenv("WIX_CART_V2_DISABLED", raising=False)
-        # The gate is NEVER read from the environment here: `CHECKOUT_INITIATION_ENABLED` stays
-        # absent, and `INITIATION_ENABLED` is injected as a module attribute instead. Setting the
-        # env key in a test would be indistinguishable from enabling the flag.
+        # AWS-NATIVE is the only supply path. The website prepare prices from ProductsTable via
+        # native_checkout; there is no Wix cart (cart_v2) or Wix client (wix_ecom) any more.
+        monkeypatch.setenv("CHECKOUT_MODE", "AWS_NATIVE")
+        monkeypatch.setenv("CART_TABLE", CART_TABLE)
+        monkeypatch.setenv("PRODUCTS_TABLE", PRODUCTS_TABLE)
         monkeypatch.delenv("CHECKOUT_INITIATION_ENABLED", raising=False)
 
         spec = importlib.util.spec_from_file_location(
@@ -616,26 +633,30 @@ class _Rig:
         spec.loader.exec_module(self.h)
 
         self.db = _MultiTable({ATTEMPTS_TABLE: "paymentAttemptId", KEYS_TABLE: "orderId",
-                               CONTACTS_TABLE: "id", ORDERS_TABLE: "orderId"})
+                               CONTACTS_TABLE: "id", ORDERS_TABLE: "orderId",
+                               CART_TABLE: "cartId", PRODUCTS_TABLE: "id"})
         if keys_table is not None:
             self.db.tables[KEYS_TABLE] = keys_table
+        # `self.wix` is retained ONLY as the source of the fixture catalogReference UUIDs that
+        # `line_items()` sends and for the no-writeback assertions (`r.wix.wix_orders == []`); no
+        # Wix transport is wired into the handler.
         self.wix = _Wix(revision_mode=revision_mode, mutate=mutate)
         self.creates = []
         self.checkouts = []
         self.identity = _Identity()
         self.quantity = 1
-        #: Kept so `enable_writeback` can scope its env to this test without a second fixture.
         self.mp = monkeypatch
 
         monkeypatch.setattr(self.h, "_dynamodb", self.db)
         monkeypatch.setattr(self.h, "INITIATION_ENABLED", initiation_enabled)
-        monkeypatch.setattr(self.h, "_wix_request", self.wix)
-        monkeypatch.setattr(self.h.wix_ecom, "_request", self.wix)
+        # The native supply engine prices from ProductsTable. Stub the reader to the fixture
+        # product/variant, priced at the native single-unit collection (free shipping).
+        monkeypatch.setattr(self.h, "_native_product_reader",
+                            lambda: (lambda pid: dict(NATIVE_PRODUCT_ROW)))
         monkeypatch.setattr(self.h, "LOAD_OWNED_ADDRESS",
                             lambda customer_id: dict(OWNED_ADDRESS))
         monkeypatch.setattr(self.h.customer_auth, "require_customer",
                             lambda event: (self.identity, None))
-        monkeypatch.setattr(self.h.wix_ecom, "create_checkout", self._create_checkout)
         monkeypatch.setattr(self.h.razorpay_orders, "create_order", self._create_order)
         monkeypatch.setattr(self.h.razorpay_orders, "find_order_by_receipt",
                             lambda receipt: None)
@@ -1449,45 +1470,6 @@ def test_the_in_flight_horizon_outlasts_every_quote_ttl():
             == order_keys.CART_CREATE_CLAIM_STALE_SECONDS)
 
 
-def test_v1_is_refused_when_the_gate_is_on(rig, monkeypatch):
-    """V1 has no stable cart identity, so the guard cannot run and the branch is refused."""
-    monkeypatch.delenv("WIX_CART_V2_ENABLED", raising=False)
-    r = rig(initiation_enabled=True)
-    monkeypatch.delenv("WIX_CART_V2_ENABLED", raising=False)
-    code, body = r.prepare("K1")
-    assert code == 409
-    assert body["status"] == website_checkout.CHECKOUT_REJECTED
-    assert body["reason"] == website_checkout.CART_V2_REQUIRED
-    assert r.creates == [], "nothing may be created"
-    assert r.checkouts == [], "and no Wix checkout may be minted either"
-    for prefix in (order_keys.CART_PAYMENT_PREFIX, order_keys.CART_BASKET_PREFIX,
-                   order_keys.CART_NARROW_BASKET_PREFIX, order_keys.PAYMENT_REFERENCE_PREFIX,
-                   order_keys.GATEWAY_ORDER_PREFIX, order_keys.REQUEST_KEY_PREFIX):
-        assert r.db.count_prefix(prefix) == 0, prefix
-
-
-def test_v1_still_serves_when_the_gate_is_off(rig, monkeypatch):
-    """The gate-off V1 body stays byte-identical in behaviour: 200 PAYMENT_INITIATION_DISABLED."""
-    monkeypatch.delenv("WIX_CART_V2_ENABLED", raising=False)
-    r = rig(initiation_enabled=False)
-    monkeypatch.delenv("WIX_CART_V2_ENABLED", raising=False)
-    code, body = r.prepare("K1")
-    assert code == 200
-    assert body["status"] == website_checkout.PAYMENT_INITIATION_DISABLED
-    assert len(r.checkouts) == 1, "V1 mints its Wix checkout, exactly as before"
-
-
-def test_two_v1_prepares_mint_two_checkout_ids(rig, monkeypatch):
-    """The measurement the V1 refusal rests on: `create_checkout` is a create, not a resolve."""
-    monkeypatch.delenv("WIX_CART_V2_ENABLED", raising=False)
-    r = rig(initiation_enabled=False)
-    monkeypatch.delenv("WIX_CART_V2_ENABLED", raising=False)
-    r.prepare("K1")
-    r.prepare("K2")
-    assert len(r.checkouts) == 2
-    # Two different cart ids for one basket is exactly why the cart-keyed guard cannot run here.
-    assert r.wix is not None
-
 
 # ── the module-wide invariant, by AST ──────────────────────────────────────────
 
@@ -1607,18 +1589,14 @@ TOUCHED_PYTHON = (
     "amplify/functions/shared/lambda_utils/ecommerce/website_checkout.py",
     "amplify/functions/shared/lambda_utils/ecommerce/finalization.py",
     "amplify/functions/ecommerce/checkout/handler.py",
-    # Phase 2 (contribution as a product) widens the change set by three files, per this tuple's
-    # own instruction. `wix_ecom` gains `resolved_catalog_lines`, `blog_contribution` gains the
-    # committed recognition set and a re-based exception, `customer_cart` gains `abandon`.
-    # `customer_receipt.py` is deliberately NOT here: the phase leaves it untouched.
-    "amplify/functions/shared/lambda_utils/wix_ecom.py",
+    # Contribution as a product. `blog_contribution` carries the committed recognition set and a
+    # re-based exception; `customer_cart` carries `abandon`. (wix_ecom.py removed in the Wix exit.)
     "amplify/functions/shared/lambda_utils/ecommerce/blog_contribution.py",
     "amplify/functions/shared/lambda_utils/ecommerce/customer_cart.py",
-    # The delivery auto-selection adds `available_delivery_options`,
-    # `cheapest_delivery_option` and `CartV2.delivery_options`, and corrects the Set Delivery
-    # Method body. `available_delivery_options` converts a Wix amount to paise, so the no-float
-    # and no-PII gates below have to cover it.
-    "amplify/functions/shared/lambda_utils/ecommerce/cart_v2.py",
+    # The provider-neutral cart contract: delivery option helpers + the exception vocabulary the
+    # native path reuses. `available_delivery_options` converts an amount to paise, so the
+    # no-float and no-PII gates below cover it. (cart_v2.py removed in the Wix exit.)
+    "amplify/functions/shared/lambda_utils/ecommerce/cart_contract.py",
 )
 
 
