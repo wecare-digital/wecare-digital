@@ -5050,7 +5050,10 @@ def _tool_delete_media_files(params: Dict, request_id: str) -> Dict:
 
 
 def _tool_clear_all_contact_data(params: Dict, request_id: str) -> Dict:
-    """DANGEROUS: Clear ALL data for a contact."""
+    """Disabled: destructive cross-table cleanup has no atomic retention lease."""
+    return {'success': False, 'error': 'CONTACT_RETENTION_PROTECTION'}
+
+    # Legacy implementation retained below pending an audited removal.
     contact_id = params.get('contactId')
     confirm = params.get('confirm', False)
     
