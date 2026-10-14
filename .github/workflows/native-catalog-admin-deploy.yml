@@ -1,0 +1,130 @@
+name: Native catalog admin API deploy
+
+on:
+  pull_request:
+    branches: [stack]
+    paths:
+      - 'amplify/functions/ecommerce/native-catalog-admin/**'
+      - 'scripts/provision_native_catalog_api.py'
+      - 'tests/test_native_catalog_admin.py'
+      - '.github/workflows/native-catalog-admin-deploy.yml'
+  push:
+    branches: [stack]
+    paths:
+      - 'amplify/functions/ecommerce/native-catalog-admin/**'
+      - 'scripts/provision_native_catalog_api.py'
+      - '.github/workflows/native-catalog-admin-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      action:
+        required: true
+        default: verify
+        type: choice
+        options: [verify, apply]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-catalog-admin-production
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check pytest boto3==1.43.98
+      - name: Unit tests and syntax
+        run: |
+          python -m py_compile scripts/provision_native_catalog_api.py amplify/functions/ecommerce/native-catalog-admin/handler.py
+          python -m pytest -q tests/test_native_catalog_admin.py
+          python scripts/provision_native_catalog_api.py
+
+  deploy:
+    needs: test
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/stack') || (github.event_name == 'workflow_dispatch' && inputs.action == 'apply' && github.ref == 'refs/heads/stack')
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check boto3==1.43.98
+      - name: Assume catalog-scoped GitHub OIDC deployment role
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::775261844268:role/GitHubActions-wecare-native-catalog-deploy
+          role-session-name: native-catalog-admin-deploy
+          aws-region: us-east-1
+      - name: Require correct AWS account
+        run: test "$(aws sts get-caller-identity --query Account --output text)" = "775261844268"
+      - name: Deploy only native catalog editor Lambda and routes
+        run: python scripts/provision_native_catalog_api.py --apply
+      - name: Confirm live alias and exact API Gateway targets
+        run: python scripts/provision_native_catalog_api.py --verify
+      - name: Anonymous access must be rejected
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import subprocess
+          import tempfile
+          from pathlib import Path
+          event = {
+              "version": "2.0",
+              "requestContext": {
+                  "apiId": "zllr9lrg7j",
+                  "http": {
+                      "method": "GET",
+                      "path": "/native-catalog/products",
+                      "sourceIp": "127.0.0.1",
+                  },
+              },
+              "rawPath": "/native-catalog/products",
+              "headers": {},
+          }
+          with tempfile.TemporaryDirectory() as folder:
+              root = Path(folder)
+              (root / "input.json").write_text(json.dumps(event))
+              subprocess.run([
+                  "aws", "lambda", "invoke",
+                  "--function-name", "wecare-native-catalog-admin:live",
+                  "--cli-binary-format", "raw-in-base64-out",
+                  "--payload", f"fileb://{root / 'input.json'}",
+                  "--region", "us-east-1",
+                  str(root / "response.json"),
+              ], check=True, stdout=subprocess.DEVNULL)
+              result = json.loads((root / "response.json").read_text())
+              if result.get("statusCode") != 401:
+                  raise SystemExit(f"Anonymous staff API returned {result.get('statusCode')}, expected 401")
+          print("PASS: unauthenticated catalog access denied")
+          PY
+
+  verify:
+    needs: test
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'verify'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check boto3==1.43.98
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::775261844268:role/GitHubActions-wecare-native-catalog-deploy
+          aws-region: us-east-1
+      - run: python scripts/provision_native_catalog_api.py --verify
