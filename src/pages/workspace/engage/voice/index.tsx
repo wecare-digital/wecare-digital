@@ -1,5 +1,5 @@
 /**
- * Voice Mega Page - AWS Pinpoint + Airtel IN (C2C/OBD/CDR)
+ * Voice workspace - current supported voice capabilities
  * Uses PageShell for section header + scrollable tab bar
  */
 import React, { useState, useEffect, useCallback } from 'react';
@@ -27,7 +27,6 @@ interface Campaign { id: string; name: string; recipients: number; connected: nu
 const ITEMS_PER_PAGE = 25;
 const TABS: ShellTab[] = [
   { id: 'aws', label: 'AWS' },
-  { id: 'airtel', label: 'Airtel (historical)' },
   { id: 'campaign', label: 'Campaign' },
 ];
 
@@ -204,11 +203,6 @@ const VoicePage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                   </tbody></table>
                 ) }</div>
               </div>
-            ) }
-
-            {/* ===== AIRTEL IN TAB (embedded voice-in page) ===== */ }
-            { activeTab === 'airtel' && (
-              <VoiceInPage signOut={ signOut } user={ user } embedded />
             ) }
 
             {/* ===== CAMPAIGN TAB ===== */ }
