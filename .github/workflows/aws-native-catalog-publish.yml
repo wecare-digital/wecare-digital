@@ -9,6 +9,12 @@ on:
       - '.github/workflows/aws-native-catalog-publish.yml'
       - 'scripts/build-catalog-snapshot.py'
       - 'scripts/check_native_catalog_snapshot.py'
+  pull_request:
+    branches: [stack]
+    paths:
+      - '.github/workflows/aws-native-catalog-publish.yml'
+      - 'scripts/build-catalog-snapshot.py'
+      - 'scripts/check_native_catalog_snapshot.py'
   schedule:
     - cron: '25 */6 * * *'
   workflow_dispatch:
@@ -28,6 +34,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  acceptance:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: stack
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install the pinned AWS SDK
+        run: python -m pip install --disable-pip-version-check boto3==1.43.98
+
+      - name: Obtain short-lived read-only AWS catalog credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::775261844268:role/GitHubActions-wecare-native-catalog-reader
+          role-session-name: native-catalog-publisher-acceptance
+          aws-region: us-east-1
+
+      - name: Build live snapshot and verify publisher guard
+        run: |
+          python scripts/build-catalog-snapshot.py --live
+          python scripts/check_native_catalog_snapshot.py --restore-if-unchanged
+          git diff --exit-code -- src/content/catalog-snapshot.json
+
   snapshot:
     if: github.ref == 'refs/heads/stack'
     runs-on: ubuntu-26.04
