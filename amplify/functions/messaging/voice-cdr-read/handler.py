@@ -21,7 +21,7 @@ Query Parameters:
 - circleNameCaller: Filter by caller circle/state
 - search: Search by clientCorrelationId or vmSessionId
 
-Dashboard Stats (per Airtel spec Section 6):
+Dashboard Stats (per the call-detail contract Section 6):
 - Call trend (answered vs missed over time)
 - Demographic view by circle/state
 - Destination number status breakdown
@@ -370,7 +370,7 @@ def _format_record_for_ui(item: Dict) -> Dict:
         'fromWaitingTimeSec': float(item.get('fromWaitingTimeSec', 0)),
         'callerDurationSec': float(item.get('callerDurationSec', 0)),
         
-        # Duration display (mm:ss per Airtel spec Section 2)
+        # Duration display (mm:ss per the call-detail contract Section 2)
         'billableDurationDisplay': _ms_to_mmss(item.get('billableDurationMs', 0)),
         'callerDurationDisplay': _ms_to_mmss(item.get('callerDuration', 0)),
         'durationDisplay': _ms_to_mmss(item.get('durationMs', 0)),
@@ -462,7 +462,7 @@ def _calculate_stats(records: List[Dict]) -> Dict:
     inbound = sum(1 for r in records if r.get('callType') == 'INBOUND')
     outbound = sum(1 for r in records if r.get('callType') == 'OUTBOUND')
     
-    # Status counts per Airtel spec Section 3
+    # Status counts per the call-detail contract Section 3
     answered = sum(1 for r in records if r.get('overallCallStatus') == 'Answered')
     missed = sum(1 for r in records if r.get('overallCallStatus') == 'Missed')
     busy = sum(1 for r in records if r.get('overallCallStatus') == 'Busy')
