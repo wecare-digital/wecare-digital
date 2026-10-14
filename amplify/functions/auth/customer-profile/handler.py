@@ -40,7 +40,7 @@ from lambda_utils import contact_key, customer_auth, customer_session
 from lambda_utils.audit import record_audit
 from lambda_utils.ecommerce import contact_address
 from lambda_utils.identity import customer as identity
-from lambda_utils.identity import customer_uuid
+from lambda_utils.identity import customer_uuid, subscriber_id
 from lambda_utils.identity import provenance
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, extract_origin, options_response
@@ -666,6 +666,7 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
     contact_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"wecare:checkout-customer:{customer_id}"))
     item = {
         **contact_key.contact_item_keys(contact_id),
+        **subscriber_id.new_contact_fields(now=now),
         # Minted on the create branch for the same reason `_create` in `core/contacts` does: this
         # branch runs only when neither the phone index nor the email index resolved a row, so
         # there is no existing id to preserve. Site (3) below - the race on the deterministic id -
