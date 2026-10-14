@@ -16,7 +16,6 @@ Provider rules this layer exists to make unbreakable:
     RCS non-India (eligible)   -> AWS RCS    -> fallback AWS SMS
     PSTN voice / SIP / IVR    -> Plivo
     WhatsApp                  -> Meta
-    Airtel                    -> prohibited entirely
 
 Import the facade, not the SDK:
 
