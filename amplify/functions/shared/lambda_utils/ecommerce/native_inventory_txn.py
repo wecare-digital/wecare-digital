@@ -175,9 +175,13 @@ def reserve_basket(
     attempt_id: str,
     items: Sequence[Mapping[str, Any]],
 ):
-    parsed = _parse(items, read_product, require_stock=True)
+    # Check an already-established reservation BEFORE checking currently
+    # available stock: successful reservation itself reduced availability.
+    # A retry with the same attempt must not look sold out after its own debit.
+    parsed = _parse(items, read_product, require_stock=False)
     if _state(read_key, attempt_id, parsed, "RESERVED"):
         return {"reserved": True, "existing": True, "lines": len(parsed)}
+    parsed = _parse(items, read_product, require_stock=True)
     tx = []
     for pid, vid, qty, _idx in parsed:
         tx.append({"Put": {
