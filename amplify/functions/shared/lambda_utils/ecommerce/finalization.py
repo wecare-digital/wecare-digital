@@ -181,16 +181,16 @@ def _tenders_reconcile(attempt, razorpay_paise):
     return razorpay_paise + other == payable
 
 
-def wix_cart_id(attempt, snapshot):
+def cart_id(attempt, snapshot):
     """The Cart V2 cart behind this attempt, or `''`.
 
-    MEASURED: the attempt row does NOT carry `wixCartId` - `payment_attempt.build` writes
+    MEASURED: the attempt row does NOT carry `cartId` - `payment_attempt.build` writes
     `cartId` only when a caller supplies one, and the direct-Razorpay create does not. The cart id
     IS on the frozen snapshot as `cart.id`, which `website_checkout._bounded_snapshot` retains
     even in its reduced projection. Both are read, in that order; neither is guessed, and an
     absent id stages for reconciliation rather than inventing a cart to close.
     """
-    direct = str(attempt.get('wixCartId') or attempt.get('cartId') or '')
+    direct = str(attempt.get('cartId') or attempt.get('cartId') or '')
     if direct:
         return direct
     cart = snapshot.get('cart') if isinstance(snapshot, dict) else None
