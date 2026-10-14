@@ -49,7 +49,10 @@ Legend: `[x]` done · `[~]` implemented, not deployed · `[ ]` not started.
 - [x] 3.2 Native blog read in `wecare-seo-tools` behind `BLOG_SOURCE` (default
       `wix`): `blog_source.py` seam + handler wired + unit tests. IMPLEMENTED,
       NOT DEPLOYED (flag defaults to wix; flip is Phase 6). (A1)
-- [ ] 3.3 Native Blog Studio write/publish/schedule/approve routes. (A1)
+- [~] 3.3 Native Blog publish: `blog_publish.py` `BLOG_SOURCE=aws` branch writes
+      published `blogPost` records via `storage.create_blog_post` (no Wix, kill
+      switch bypassed in native mode). Unit-tested. (Schedule/approve routes
+      already exist in Blog Studio against the SEO store.) (A1)
 - [ ] 3.4 Build-time fail-safe snapshot (`src/content/blog-snapshot.json`). (A5)
 - [ ] 3.5 Seed `BlogPostsTable` from the Phase-2 export; reconcile. (A1, Gate 2)
 
@@ -79,9 +82,11 @@ Legend: `[x]` done · `[~]` implemented, not deployed · `[ ]` not started.
 - [x] 4.3d `native_checkout.quote_native_cart` — composition seam that turns a
       native cart into the exact `QuoteSnapshot` the handler produces (stock
       validate + shipping + coupon + GST + build_snapshot). Unit-tested with no Wix.
-- [ ] 4.3e Flag-gated branch in `checkout/handler.py` calling `quote_native_cart`
-      when `CHECKOUT_MODE=AWS_NATIVE` (replace the cart_v2/wix_ecom snapshot branch);
-      reserve stock around initiation. 🔒 touches the live payment Lambda.
+- [x] 4.3e Flag-gated branch in `checkout/handler.py`: `_supply_mode()` →
+      `CHECKOUT_MODE=AWS_NATIVE` routes `_website_snapshot` through
+      `native_checkout.quote_native_cart` (prices from ProductsTable, no Wix,
+      ignores client prices). Defaults to WIX_HEADLESS. Unit-tested; existing
+      checkout suite unchanged. (A3)
 - [x] 4.3b Gift-card `code_pepper` de-Wix migration: `resolve_pepper_secret_id`
       + `PEPPER_SECRET_ENV_KEY`, config-flip with no re-keying; handlers +
       redemption provider follow it; store imports no `os`. Unit-tested. (B4 de-risk)

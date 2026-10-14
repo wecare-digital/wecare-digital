@@ -17,8 +17,12 @@ Every public blog read goes through the single `/seo-tools/blog-public` API:
 - `scripts/blog_corpus_index.py`.
 **None call Wix directly.** `blog_source.py` (`BLOG_SOURCE`) is the one switch;
 flipping it to `aws` takes the entire blog surface off Wix. ✅ built.
-Remaining blog write path: `blog_publish.py` + `conversations-publish.yml`
-(publishes to Wix) 🔁 — must write to `BlogPostsTable`/`SeoToolsTable` instead.
+Blog write path: ✅ `blog_publish.py` now has a `BLOG_SOURCE=aws` branch
+(`_write_native` → `storage.create_blog_post`) that writes a published `blogPost`
+record — the same record the native read path serves — and never calls Wix. The
+Wix kill switch is correctly bypassed in native mode. Defaults to `wix`;
+unit-tested. (`conversations-publish.yml` just invokes publish, so no workflow
+change is needed for the native path.)
 
 ## Catalog / commerce — classified by importer count
 | File | Importers | Role | Status |
