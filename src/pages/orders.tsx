@@ -671,21 +671,22 @@ export default function OrdersPage (): React.ReactElement {
                 </p>
               ) }
               <p className="ord-p">Sign in on your WhatsApp number to see your orders.</p>
-              { /* A LINK, and the label says so. "Send OTP on WhatsApp" belongs on a control
-                   that sends a code; this one navigates, and a customer tapping it would
-                   otherwise be told a code was sent, receive none, and then be asked for their
-                   number on the next screen. /orders/ is in safeReturnPath's ALLOWED set, so the
+              { /* TWO WAYS IN, and each label says where it goes. "Sign in here" NAVIGATES to the
+                   on-site form (/account/sign-in/) where the shopper enters their number and the
+                   code is delivered over WhatsApp - it opens the form, it does not send a code, so
+                   "here" (on the site) is the honest label. The sibling "Sign in on WhatsApp" opens
+                   the WhatsApp chat instead. /orders/ is in safeReturnPath's ALLOWED set, so the
                    return survives rather than falling back to /cart/. PillButton renders ONLY
-                   `action`, so this string is both the visible text and the accessible name. */ }
+                   `action`, so each string is both the visible text and the accessible name. */ }
               <PillButton
                 as="a"
                 href="/account/sign-in/?return=/orders/"
-                action="Sign in on WhatsApp"
+                action="Sign in here"
               />
               <PillButton
                 as="a"
                 href={ whatsappServiceLink( 'orders' ) }
-                action="Open WhatsApp"
+                action="Sign in on WhatsApp"
               />
             </div>
           ) }
