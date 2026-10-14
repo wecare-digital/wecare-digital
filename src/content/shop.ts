@@ -222,6 +222,31 @@ const isTemplateSampleRow = ( raw: RawProduct ): boolean =>
   WIX_TEMPLATE_SAMPLE_PRODUCT_IDS.includes( String( raw.id || '' ).trim().toLowerCase() )
   || WIX_TEMPLATE_SAMPLE_SLUGS.includes( String( raw.slug || '' ).trim().toLowerCase() );
 
+/**
+ * THE ₹1 TEST PRODUCT, which is not this storefront. It is a catalogue test row left `visible: true`
+ * in Wix ("₹1 test product", id 121c9d57…, slug `1-test-product`, price ₹1.00), so
+ * `scripts/fetch-wix-catalog.js` collects it and it would otherwise get a public `/shop/1-test-product/`
+ * page, a sitemap entry, and a ₹1 card in the grid — which reads as a broken storefront.
+ *
+ * Excluded by the SAME rule as the template samples (id first, slug second) and for the same
+ * reasons: NON-DESTRUCTIVE (the row stays in the committed snapshot and in Wix), REVERSIBLE (delete
+ * this line to sell it), and checkout is untouched (it reads the live catalogue, not SHOP_PRODUCTS),
+ * so a ₹1 smoke-test cart by direct reference still works. The id cannot be edited in the Wix
+ * dashboard; the slug can, hence both.
+ */
+export const TEST_PRODUCT_IDS: readonly string[] = [
+  '121c9d57-2cc9-490b-8eed-66bf7b9c172a', // ₹1 test product
+] as const;
+
+export const TEST_PRODUCT_SLUGS: readonly string[] = [
+  '1-test-product',
+] as const;
+
+/** Is this raw snapshot row a non-storefront test product? */
+const isTestProductRow = ( raw: RawProduct ): boolean =>
+  TEST_PRODUCT_IDS.includes( String( raw.id || '' ).trim().toLowerCase() )
+  || TEST_PRODUCT_SLUGS.includes( String( raw.slug || '' ).trim().toLowerCase() );
+
 /** The one projection, so the excluded entry is a real `ShopProduct` and not a raw snapshot row. */
 const project = ( raw: RawProduct ): ShopProduct => {
   const paragraphs = toParagraphs( String( raw.descriptionHtml || '' ) );
@@ -259,7 +284,8 @@ const VISIBLE = ( ( catalog as { products?: RawProduct[] } ).products || [] )
   .filter( raw => raw.visible !== false && !!raw.slug && !!raw.name );
 
 export const SHOP_PRODUCTS: ShopProduct[] = VISIBLE
-  .filter( raw => !isContributionRow( raw ) && !isServicesRow( raw ) && !isTemplateSampleRow( raw ) )
+  .filter( raw => !isContributionRow( raw ) && !isServicesRow( raw )
+    && !isTemplateSampleRow( raw ) && !isTestProductRow( raw ) )
   .map( project )
   .sort( ( a, b ) => a.name.localeCompare( b.name ) );
 
