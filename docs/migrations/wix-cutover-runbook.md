@@ -83,6 +83,27 @@ Only after a stable period on the native path:
 5. Rebuild backups excluding retired creds; review old S3 versions.
 6. Cancel the Wix subscription (off-AWS) only after all the above is verified.
 
+## Operational tools (read-only, safe to run anytime)
+- `scripts/backup_blog_posts.py` — full off-DynamoDB backup of all `blogPost`
+  records with per-record sha256 + manifest; `--verify <file>` re-checks integrity.
+  Run before any Wix deletion. (2026-10-14: 1421 posts, 0 dup, 0 empty, INTACT.)
+- `scripts/verify_blog_source.py` — hits the public `/blog-public` API and asserts
+  a non-empty list, a slug resolves, and (with `EXPECT_BLOG_SOURCE=aws`) that no
+  Wix host leaks. Run immediately before and after flipping `BLOG_SOURCE`.
+- `scripts/verify_wix_blog_drafts.py` — admin-key draft count. **BLOCKED**: the
+  admin key currently cannot reach site `c993128b…` (404 "meta-site not found");
+  the visitor token proves the 1421 PUBLISHED match but cannot see drafts. Fix the
+  admin key's Blog-app/site binding in the Wix console before this can confirm
+  "no drafts". Published completeness is already proven; only drafts are open.
+
+## Blog-side readiness (narrower than full site deletion)
+Published blog content is fully in AWS (DynamoDB `SeoToolsTable`, 1421 posts,
+reconciled 1:1 with Wix, backed up + checksum-INTACT, zero Wix media dependency).
+The blog needs only: (1) flip `BLOG_SOURCE=aws` + verify, and (2) resolve the
+admin-key binding to confirm no drafts (or accept published-only). Deleting the
+Wix *site*, however, also removes Stores/eCom — so the commerce cutover (steps
+1–6) must complete first regardless of blog readiness.
+
 ## Why the order cannot change
 Seed before flip (an empty ProductsTable + `CHECKOUT_MODE=AWS_NATIVE` = every
 checkout refused). Shadow before flip (prove totals match while Wix is still the
