@@ -172,8 +172,20 @@ WIX_TEMPLATE_SAMPLE_SLUGS: Tuple[str, ...] = (
 #: it. Its three variants remain subject to checkout's own variant allow-list and quantity-1 rule.
 CONTRIBUTION_PRODUCT_ID = "8514c405-3971-4786-ad0d-15406ca23407"
 
+#: The ₹1 test product - a visible:true catalogue test row that is not this storefront and must
+#: never reach a customer-facing WhatsApp catalogue (it is also hidden from /shop/ by
+#: `isTestProductRow` in shop.ts). Excluded BY SLUG ONLY (`1-test-product`), deliberately NOT by
+#: id: the projection unit tests reuse this product's real id as a throwaway fixture under neutral
+#: slugs ("x", "imageless", "wecaredigital-services"), and those fixtures must stay syncable. The
+#: real snapshot row carries slug `1-test-product`, which the id-reuse fixtures never do, so a
+#: slug gate drops exactly the real row and nothing else. It stays in the committed snapshot (the
+#: generator owns that artifact); this keeps it out of the Meta projection, so the syncable set is
+#: 9 products / 22 items with no blocker.
+TEST_PRODUCT_SLUGS: Tuple[str, ...] = ("1-test-product",)
+
 _SAMPLE_IDS = frozenset(WIX_TEMPLATE_SAMPLE_PRODUCT_IDS)
 _SAMPLE_SLUGS = frozenset(WIX_TEMPLATE_SAMPLE_SLUGS)
+_TEST_PRODUCT_SLUGS = frozenset(TEST_PRODUCT_SLUGS)
 
 #: Stripped from `descriptionHtml`. Wix stores description as HTML; Meta wants plain text.
 _TAG_RE = re.compile(r"<[^>]+>")
@@ -247,11 +259,13 @@ def parse_retailer_id(value: Any) -> Optional[Tuple[str, str]]:
 def is_syncable(product: Mapping[str, Any]) -> bool:
     """Should this Wix snapshot row be projected into the Meta catalogue?
 
-    Two exclusions and no more. Id first, slug second, both `.strip().lower()`, mirroring
-    `isTemplateSampleRow` in `src/content/shop.ts`:
+    Three exclusions and no more. Id first, slug second, both `.strip().lower()`, mirroring
+    `isTemplateSampleRow`/`isTestProductRow` in `src/content/shop.ts`:
 
     1. a Wix template sample row - see the list above;
-    2. `visible is False` - identity against `False`, not truthiness, so an ABSENT `visible` key
+    2. the ₹1 test product, BY SLUG ONLY (`1-test-product`) - not by id, because the projection
+       unit tests reuse its id as a fixture under neutral slugs that must stay syncable;
+    3. `visible is False` - identity against `False`, not truthiness, so an ABSENT `visible` key
        means visible. Wix omits the field on some reads and treating absence as hidden would empty
        the catalogue on a shape change.
     """
@@ -260,6 +274,8 @@ def is_syncable(product: Mapping[str, Any]) -> bool:
     identifier = str(product.get("id") or "").strip().lower()
     slug = str(product.get("slug") or "").strip().lower()
     if identifier in _SAMPLE_IDS or slug in _SAMPLE_SLUGS:
+        return False
+    if slug in _TEST_PRODUCT_SLUGS:
         return False
     if product.get("visible") is False:
         return False
