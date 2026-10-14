@@ -2,12 +2,9 @@ name: Conversations publish
 # The production orchestrator for Conversations publication, replacing an external
 # scheduler that nobody in this repository could see, resume or audit.
 #
-# ONE ROUTE TO WIX, NOT TWO. `conversations-content-gate.yml` is deliberately validate-only
-# and says why: a second route to the same mutation becomes the one nobody reviews. This
-# workflow does not open one. `scripts/conversations_batch.py` performs no Wix write of its
-# own - every write goes through `scripts/wix_blog_migrate.py`, including its
-# WIX_CREDENTIALS_DISABLED kill switch, so there is still exactly one publisher and this is
-# the orchestrator in front of it.
+# VALIDATION AND AUDIT ONLY. Provider publication has moved to AWS-native Blog Studio.
+# The legacy publish input is retained only so old dispatch callers fail explicitly instead of
+# silently doing nothing or reviving a retired provider path.
 #
 # MUTATION REQUIRES AN EXPLICIT DISPATCH. A push or a pull request can only validate. The
 # publish job additionally requires the `publish` input to be flipped to true, which is the
@@ -50,7 +47,7 @@ on:
         default: ''
         type: string
       publish:
-        description: 'Publish the READY_TO_PUBLISH records in that manifest to Wix'
+        description: 'Retired compatibility input; publication now belongs to AWS Blog Studio'
         required: true
         default: false
         type: boolean
@@ -123,100 +120,15 @@ jobs:
           python scripts/conversations_batch.py validate \
             --manifest "${{ inputs.manifest }}"
 
-  publish:
-    # Mutation happens only on an explicit dispatch with the boolean flipped. A push to
-    # conversations-publishing reaches `validate` and stops there.
-    #
-    # WIX WRITE PATH DISABLED (Wix site retired). This job is the only route by which GitHub
-    # Actions can WRITE to Wix; held unreachable behind the repository variable
-    # `WIX_PUBLISH_ENABLED`, which is intentionally NOT set. Validation/audit are unaffected.
-    if: vars.WIX_PUBLISH_ENABLED == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish == true
+  publish-request-retired:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish == true
     needs: validate
     runs-on: ubuntu-26.04
-    permissions:
-      id-token: write
-      contents: write
-    env:
-      AWS_REGION: us-east-1
-      WIX_API_KEY_SECRET: wecare/wix/headless-api-key
-      WIX_SITE_ID: c993128b-26be-41cd-9fcd-904abe23462f
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
-
-      - name: Install publish dependencies
-        run: python -m pip install --disable-pip-version-check boto3==1.43.98
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: arn:aws:iam::775261844268:role/GitHubActions-bharat-stack-seo-tools
-          role-session-name: conversations-publisher
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: A publish needs a manifest
-        # Refused rather than defaulted. Guessing which batch an operator meant to publish
-        # is the one place a helpful default would be actively dangerous.
-        if: inputs.manifest == ''
+      - name: Refuse retired provider publication
         run: |
-          echo "::error::publish was requested with no manifest; name the batch to publish"
+          echo "::error::Wix publication is retired. Publish approved content through AWS-native Blog Studio."
           exit 1
-
-      - name: Re-validate the manifest against the live corpus
-        run: |
-          python scripts/conversations_batch.py validate \
-            --manifest "${{ inputs.manifest }}"
-
-      - name: Mark the start of this run
-        id: mark
-        # The audit's freshness check compares the live publication date against this
-        # instant. `wix_blog_migrate.draft_post` omits firstPublishedDate so Wix stamps a
-        # new one; a post dated before this step means that omission was defeated and the
-        # source's own date was reused.
-        run: echo "since=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-
-      - name: Publish only the missing READY_TO_PUBLISH posts
-        run: |
-          python scripts/conversations_batch.py publish \
-            --manifest "${{ inputs.manifest }}"
-
-      - name: Audit the live posts and record VERIFIED
-        if: inputs.audit == true
-        run: |
-          python scripts/conversations_batch.py audit \
-            --manifest "${{ inputs.manifest }}" \
-            --published-since "${{ steps.mark.outputs.since }}"
-
-      - name: Keep the ledger even if a step above failed
-        # Uploaded unconditionally. The ledger is the record of what was already done, and
-        # the run that most needs it is the one that failed part-way through.
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: conversations-ledger-${{ github.run_id }}
-          path: content/conversations/ledger.json
-          if-no-files-found: warn
-
-      - name: Commit the ledger checkpoint
-        # Only ever onto conversations-publishing. That branch accumulates batch state
-        # without triggering the production Amplify build, which is why the Gastronomy
-        # equivalent exists; committing to `stack` from here would rebuild the site once
-        # per publish and race whoever else is pushing.
-        if: always() && inputs.commit_ledger == true && github.ref_name == 'conversations-publishing'
-        shell: bash
-        run: |
-          if git diff --quiet -- content/conversations/ledger.json; then
-            echo "Ledger unchanged."
-            exit 0
-          fi
-          git config user.name  'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          # Staged and committed in one step, by explicit path: never `git add -A`.
-          git add content/conversations/ledger.json \
-            && git commit -m "Conversations ledger: checkpoint run ${{ github.run_id }}"
-          git push origin HEAD:conversations-publishing
 
   audit-only:
     # An audit with no publish, for re-verifying a batch or rebuilding a lost VERIFIED
@@ -229,8 +141,6 @@ jobs:
       contents: read
     env:
       AWS_REGION: us-east-1
-      WIX_API_KEY_SECRET: wecare/wix/headless-api-key
-      WIX_SITE_ID: c993128b-26be-41cd-9fcd-904abe23462f
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
