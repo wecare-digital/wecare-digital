@@ -229,21 +229,6 @@ const HANDLERS: HandlerInfo[] = [
         config: [],
     },
     {
-        name: 'wecare-wix-store',
-        displayName: 'Wix Store Webhook',
-        category: 'Commerce',
-        endpoint: 'POST /webhook/wix',
-        description: 'Processes Wix store events (orders, payments, fulfillment)',
-        flow: [
-            'Receive Wix webhook (order.paid, order.fulfilled)',
-            'Lookup/create contact by customer phone',
-            'Send WhatsApp wd_order template + SMS + RCS',
-            'Store order → OrdersTable',
-        ],
-        tables: [ 'OrdersTable', 'ContactsTable', 'WhatsAppOutboundTable' ],
-        config: [],
-    },
-    {
         name: 'wecare-razorpay-webhook',
         displayName: 'Razorpay Webhook',
         category: 'Payments',
