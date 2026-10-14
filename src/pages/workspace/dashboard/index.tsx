@@ -154,8 +154,6 @@ const AWS_RESOURCES: Record<string, { arn: string; accountId: string; details?: 
       'stack-wecare-digital-EmailTable',
       'stack-wecare-digital-AuditLog',
       'stack-wecare-digital-RateLimitTracker',
-      'stack-wecare-digital-WixProductsCache',
-      'stack-wecare-digital-WixOrdersCache',
       'stack-wecare-digital-WixOrderIds',
       'stack-wecare-digital-UsersTable',
     ]
