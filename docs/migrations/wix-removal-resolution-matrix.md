@@ -43,10 +43,25 @@ identity and feed the unchanged `checkout_pricing.compute_quote`. Built + tested
 - ✅ **service-page pricing** — `service_pricing_native.resolve_all` reads
   `ProductsTable` with the identical `{currency, prices{slug}}` contract,
   fail-closed per slug. Built + tested.
-Still needed to fully replace `cart_v2.calculate`:
-- 🔁 **shipping/delivery** resolver,
-- 🔁 **inventory validation + stock reservation**,
-- 🔁 native **CartTable** operations (create/add/update/remove) — table CDK ✅ built.
+Replacing `cart_v2.calculate`:
+- ✅ **inventory validation + atomic stock reservation** — `native_inventory`
+  (conditional-decrement reserve, idempotent per attempt, release/rollback,
+  oversell-proof). Built + tested.
+- ✅ native **CartTable CRUD** — `native_cart` (create/add/set_quantity/remove/get,
+  server-authoritative prices, merges lines, quotes through `price_cart`). Built +
+  tested. Table CDK ✅.
+- ✅ **shipping/delivery** resolver — `native_shipping` (policy-driven options +
+  authoritative charge, digital-free, free-above-threshold, client can't pick a
+  cheaper option). Built + tested.
+
+**The native supply total is now COMPLETE.** `native_cart` (lines) +
+`native_inventory` (stock) + `coupon_discount_paise` (discount) + `native_shipping`
+(delivery) + `supply_tax_paise` (GST) → `price_cart` → the exact
+`collection_before_convenience_paise` that the unchanged `checkout_pricing.
+compute_quote` consumes. A full end-to-end test prices a cart to a Razorpay
+payable with **no Wix call anywhere**. What remains is WIRING this behind
+`CHECKOUT_MODE=AWS_NATIVE` in the checkout handler (replacing the `cart_v2`/
+`wix_ecom` branch) + native blog publish — then the gated cutover.
 
 ## Gift-card pepper migration — ✅ built (de-risks SPI retirement)
 `gift_card_store.resolve_pepper_secret_id(env)` + `PEPPER_SECRET_ENV_KEY` let the

@@ -70,8 +70,14 @@ Legend: `[x]` done · `[~]` implemented, not deployed · `[ ]` not started.
       (place-of-supply GST reusing `split_gst`); `service_pricing_native`
       (service-page prices from ProductsTable, same contract). All unit-tested
       end-to-end through `compute_quote`; not wired (CHECKOUT_MODE default
-      WIX_HEADLESS). Still to build: shipping/delivery resolver, inventory
-      validation + stock reservation, native CartTable CRUD ops. (A3)
+      WIX_HEADLESS). (A3)
+- [x] 4.3c `native_cart` (CartTable CRUD, server-authoritative prices) +
+      `native_inventory` (atomic reserve/release, oversell-proof, idempotent) +
+      `native_shipping` (policy-driven delivery). The native supply total is
+      COMPLETE: cart+stock+discount+shipping+GST → `price_cart` → `compute_quote`,
+      end-to-end tested with no Wix. IMPLEMENTED, NOT WIRED. (A3)
+- [ ] 4.3d Wire the native supply chain into `checkout/handler.py` behind
+      `CHECKOUT_MODE=AWS_NATIVE` (replace the cart_v2/wix_ecom branch). (A3) 🔒
 - [x] 4.3b Gift-card `code_pepper` de-Wix migration: `resolve_pepper_secret_id`
       + `PEPPER_SECRET_ENV_KEY`, config-flip with no re-keying; handlers +
       redemption provider follow it; store imports no `os`. Unit-tested. (B4 de-risk)
