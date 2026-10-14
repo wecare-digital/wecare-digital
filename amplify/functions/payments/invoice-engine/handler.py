@@ -109,7 +109,7 @@ CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-Contacts
 COUPONS_TABLE = os.environ.get(coupon_store.TABLE_ENV_KEY, coupon_store.DEFAULT_TABLE_NAME)
 GIFT_CARDS_TABLE = os.environ.get(gift_card_store.TABLE_ENV_KEY,
                                   gift_card_store.DEFAULT_TABLE_NAME)
-GIFT_CARD_SECRET_ID = os.environ.get(gift_card_store.SECRET_ENV_KEY, gift_card_store.SECRET_ID)
+GIFT_CARD_SECRET_ID = gift_card_store.resolve_pepper_secret_id(os.environ)
 SYSTEM_CONFIG_TABLE = os.environ.get('SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 
@@ -743,6 +743,7 @@ def _redemption_provider(customer_id: str = ''):
         gift_cards_table=dynamodb.Table(GIFT_CARDS_TABLE),
         secret_reader=lambda secret_id: _read_gift_card_secret(secret_id),
         customer_id=customer_id or None,
+        pepper_secret_id=GIFT_CARD_SECRET_ID,
     )
 
 

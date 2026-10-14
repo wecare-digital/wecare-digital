@@ -146,12 +146,17 @@ class StoreRedemptionProvider:
 
     def __init__(self, *, coupons_table: Any, gift_cards_table: Any,
                  secret_reader: SecretReader, customer_id: Optional[str] = None,
-                 clock: Clock = _default_clock) -> None:
+                 clock: Clock = _default_clock,
+                 pepper_secret_id: Optional[str] = None) -> None:
         self._coupons_table = coupons_table
         self._gift_cards_table = gift_cards_table
         self._secret_reader = secret_reader
         self._customer_id = customer_id
         self._clock = clock
+        # Resolved by the CALLER (handler) via gift_card_store.resolve_pepper_secret_id(os.environ),
+        # so the redemption path follows the pepper when it migrates out of the Wix SPI secret.
+        # None preserves read_pepper's default (the Wix SPI secret) until migration.
+        self._pepper_secret_id = pepper_secret_id
 
     # ── coupon: a verdict from our store, an amount from the module that owns it ──
     def validate_coupon(self, *, code: str, collection_before_discount_paise: int,
@@ -224,7 +229,11 @@ class StoreRedemptionProvider:
             # read. `normalise_code` raises `GiftCardNotFound` rather than a validation error,
             # which is what makes a bad shape and an unknown card answer identically.
             normalised = gift_card_store.normalise_code(code)
-            pepper = gift_card_store.read_pepper(self._secret_reader)
+            if self._pepper_secret_id is not None:
+                pepper = gift_card_store.read_pepper(
+                    self._secret_reader, secret_id=self._pepper_secret_id)
+            else:
+                pepper = gift_card_store.read_pepper(self._secret_reader)
             digest = gift_card_store.code_hash(normalised, pepper=pepper)
             card = gift_card_store.get_card(self._gift_cards_table, code_hash=digest)
             spendable = gift_card_store.assert_spendable(card, now_ms=self._clock() * 1000)

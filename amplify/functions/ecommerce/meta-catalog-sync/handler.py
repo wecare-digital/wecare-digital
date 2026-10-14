@@ -94,6 +94,19 @@ WIX_PRODUCT_FIELDS = ("URL", "CURRENCY", "MEDIA_ITEMS_INFO", "PLAIN_DESCRIPTION"
 WIX_PAGE_SIZE = 100
 WIX_VARIANT_PAGE_SIZE = 1000
 
+#: Where the catalogue is READ from. `wix` (default) keeps the current live Wix read; `aws` reads
+#: the AWS-native ProductsTable, projecting it onto the SAME slim shape `catalog.desired_items`
+#: consumes, so the diff/approval/dry-run machinery is untouched. Flipping this to `aws` is the
+#: catalog half of the Wix cutover (spec Phase 6, owner-gated). Read at request time, never module
+#: scope, so an operator flip takes effect without waiting for sandboxes to recycle.
+CATALOG_SOURCE_ENV = "CATALOG_SOURCE"
+PRODUCTS_TABLE = os.environ.get("PRODUCTS_TABLE", "stack-wecare-digital-ProductsTable")
+
+
+def _catalog_source() -> str:
+    value = str(os.environ.get(CATALOG_SOURCE_ENV, "wix")).strip().lower()
+    return "aws" if value in ("aws", "ddb", "dynamodb", "native") else "wix"
+
 #: A cursor that never empties would otherwise spin until the Lambda timed out. Same guard, and
 #: the same value, as both existing cursor loops.
 MAX_PAGES = 50
@@ -455,6 +468,87 @@ def _existing_items(requester, *, token: str, app_secret: str,
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────────────
+# AWS-native catalogue source (CATALOG_SOURCE=aws)
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+
+def _native_products(scanner=None) -> List[Dict[str, Any]]:
+    """Read the AWS ProductsTable and project onto the SAME slim shape `_wix_products`
+    returns, so `catalog.desired_items(..., require_variant_price=True)` and the entire
+    diff/approval/dry-run pipeline downstream are byte-for-byte source-agnostic.
+
+    `scanner` is injected for tests (a callable returning the list of ProductsTable
+    items); production resolves a DynamoDB scan lazily. The catalogue is small, so a
+    scan is acceptable here, matching `scripts/build-catalog-snapshot.py`.
+
+    Per-variant `pricePaise` is emitted as integer paise directly from the native
+    `priceMinor`, which is exactly what `require_variant_price=True` needs — so a
+    native product with priced variants is accepted, and one missing a variant price
+    is refused, identically to the Wix path.
+    """
+    from decimal import Decimal
+
+    def _default_scan() -> List[Mapping[str, Any]]:
+        import boto3
+        table = boto3.resource(
+            "dynamodb", region_name=os.environ.get("AWS_REGION", "us-east-1")
+        ).Table(PRODUCTS_TABLE)
+        items: List[Mapping[str, Any]] = []
+        kwargs: Dict[str, Any] = {}
+        while True:
+            resp = table.scan(**kwargs)
+            items.extend(resp.get("Items", []))
+            if "LastEvaluatedKey" not in resp:
+                break
+            kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+        return items
+
+    def _paise(value: Any) -> int:
+        if isinstance(value, Decimal):
+            value = int(value)
+        return int(value or 0)
+
+    def _major(paise: int) -> str:
+        return f"{Decimal(paise) / Decimal(100):.2f}"
+
+    raw = (scanner or _default_scan)()
+    rows: List[Dict[str, Any]] = []
+    for item in raw:
+        if str(item.get("status") or "active") == "archived":
+            continue
+        price_minor = _paise(item.get("priceMinor"))
+        variants = []
+        for v in item.get("variants", []) or []:
+            variant: Dict[str, Any] = {
+                "id": str(v.get("sku") or v.get("id") or ""),
+                "label": str(v.get("label") or ""),
+                "inStock": bool(_paise(v.get("inventory"))),
+            }
+            # A priced variant carries pricePaise; an unpriced one omits it, so
+            # desired_items(require_variant_price=True) refuses it exactly as the Wix path does.
+            vp = v.get("priceMinor")
+            if vp is not None:
+                variant["pricePaise"] = _paise(vp)
+            variants.append(variant)
+        row: Dict[str, Any] = {
+            "id": str(item.get("id") or ""),
+            "name": str(item.get("title") or item.get("name") or ""),
+            "slug": str(item.get("slug") or ""),
+            "visible": str(item.get("status") or "active") == "active",
+            "price": _major(price_minor),
+            "currency": str(item.get("currency") or catalog.CURRENCY),
+            "descriptionHtml": str(item.get("descriptionHtml") or item.get("tagline") or ""),
+            "mediaCount": len(item.get("imageRefs") or []),
+            "variants": variants,
+            "choiceImages": {},
+        }
+        images = item.get("imageRefs") or []
+        if images:
+            row["image"] = str(images[0])
+        rows.append(row)
+    return rows
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────
 # Wix
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -748,7 +842,12 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
         return {"readOnly": True, "batchStatus": status}
 
     try:
-        products = _wix_products(wix)
+        # The catalogue SOURCE is the only Wix-coupled read here; everything downstream
+        # (desired_items, diff, approval, dry-run, Meta write) is source-agnostic.
+        if _catalog_source() == "aws":
+            products = _native_products()
+        else:
+            products = _wix_products(wix)
         desired = catalog.desired_items(products, require_variant_price=True)
         existing = _existing_items(graph, token=token, app_secret=app_secret,
                                    catalog_id=catalog_id)

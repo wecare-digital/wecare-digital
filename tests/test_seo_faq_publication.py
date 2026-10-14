@@ -241,7 +241,9 @@ def test_the_single_post_route_attaches_and_guards_the_query():
     invisible; a 503 on a published article is not."""
     assert "faq.attach(post, storage.list_slug_records(slug))" in HANDLER
     body = HANDLER[HANDLER.index("if '/blog-public/' in path:"):]
-    body = body[:body.index("posts = wix.list_blog_posts()")]
+    # The public read source is chosen by blog_source (BLOG_SOURCE flag); the LIST
+    # call is the boundary between the single-post branch and the list branch.
+    body = body[:body.index("posts = blog_source.list_blog_posts()")]
     assert "try:" in body and "except Exception:" in body
 
 
@@ -249,7 +251,7 @@ def test_the_LIST_route_is_not_enriched():
     """faqSchema is read by the post page alone; the index renders cards from seven fields and
     never touches it. Enriching the list would add a DynamoDB query per post to a response that
     already carries 1279 of them, for output nothing consumes."""
-    listing = HANDLER[HANDLER.index("posts = wix.list_blog_posts()"):]
+    listing = HANDLER[HANDLER.index("posts = blog_source.list_blog_posts()"):]
     listing = listing[:listing.index("except RuntimeError:")]
     assert "faq." not in listing
 
