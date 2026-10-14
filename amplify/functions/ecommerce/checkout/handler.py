@@ -1266,7 +1266,7 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                     # attempt because the webhook reconciles on this row and a channel it cannot
                     # read is a channel a reconciliation cannot report.
                     "channel": channel,
-                    "wixCartId": snapshot.cart_id,
+                    "cartId": snapshot.cart_id,
                     "cartRevision": snapshot.cart_revision,
                     "quoteHash": snapshot.snapshot_hash,
                     "collectionPaise":
@@ -2060,12 +2060,12 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                  "amountPaise": amount_paise, "currency": "INR",
                  "wixCheckoutId": wix_checkout_id, "checkoutMode": CHECKOUT_MODE}
         if snapshot is not None:
-            # The Cart V2 join keys. `wixCartId` + `cartRevision` is what reconciliation matches
+            # The Cart V2 join keys. `cartId` + `cartRevision` is what reconciliation matches
             # on, and `quoteHash` is what proves the paid amount is the one the customer
             # reviewed -- a cart edit produces a different hash rather than mutating this one.
             # `collectionPaise` is recorded beside the payable amount so the convenience fee and
             # its GST stay auditable instead of being inferred from a difference.
-            extra.update(wixCartId=snapshot.cart_id, cartRevision=snapshot.cart_revision,
+            extra.update(cartId=snapshot.cart_id, cartRevision=snapshot.cart_revision,
                          quoteHash=snapshot.snapshot_hash,
                          collectionPaise=snapshot.quote.collection_before_convenience_paise,
                          quoteExpiresAt=snapshot.expires_at,
