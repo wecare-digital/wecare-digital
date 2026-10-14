@@ -3,7 +3,11 @@ name: VayuLok live HTTP diagnostics
 on:
   push:
     branches:
-      - fix/vayulok-live-recovery-20261014
+      - stack
+    paths:
+      - .github/workflows/vayulok-live-http-diagnostics.yml
+      - src/components/VayuLokLive.tsx
+      - src/pages/vayulok/index.tsx
   workflow_dispatch:
 
 permissions:
