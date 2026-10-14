@@ -1,10 +1,8 @@
 """send_notification_sms - the one way a Lambda triggers a customer SMS.
 
-Four functions used to each hand-roll this: whatsapp-calling, wix-store,
-voice-in/c2c and voice-in/obd. Every copy inlined its own Indian-number test, its
-own DLT template id, its own sender id and its own choice of target Lambda, and
-three of the four chose `wecare-sms-in-airtel` for `+91`. That is four places to
-get a regulatory identifier wrong and four places a prohibited provider could be
+Several call paths used to hand-roll this behavior. Each copy inlined its own
+Indian-number test, DLT template id, sender id and target selection. Centralizing
+the send removes transport selection from business code and gives DLT one source of truth.
 reintroduced.
 
 This module replaces all four with one call:
@@ -29,7 +27,7 @@ Asynchronous by default
 -----------------------
 `InvocationType='Event'`. A notification SMS is a side effect of a call or an
 order; it must never extend the latency of, or fail, the thing that triggered it.
-The previous Airtel path used `RequestResponse` with a 2-second sleep between two
+The previous synchronous path used `RequestResponse` with a 2-second sleep between two
 retries, so a slow provider stalled the caller for up to 4 seconds inside a
 webhook handler.
 
