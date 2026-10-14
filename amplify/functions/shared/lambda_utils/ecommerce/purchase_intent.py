@@ -175,7 +175,7 @@ def prepare_delivery(adapter, cart_id: str, owned: Dict[str, Any],
         # here, and not something the customer can fix by re-entering their address. The cart
         # id is a resource id and the option count is a count: no address, no PII.
         logger.warning(json.dumps({"event": "website_checkout_delivery_zero_options",
-                                   "wixCartId": str(cart_id),
+                                   "cartId": str(cart_id),
                                    "cartRevision": str(cart.get("revision") or ""),
                                    "optionCount": 0}))
         raise DeliveryDetailsRequired(
@@ -220,7 +220,7 @@ def select_offered_delivery_method(adapter, cart_id: str) -> Optional[Dict[str, 
     if chosen is None:
         return None
     logger.info(json.dumps({"event": "website_checkout_delivery_selected",
-                            "wixCartId": str(cart_id),
+                            "cartId": str(cart_id),
                             "optionCount": len(options),
                             # The charge itself still arrives from `calculate`; this is the
                             # figure the selection was made ON, logged so a surprising
@@ -333,7 +333,7 @@ def build_intent_with_calculation(adapter, *, customer_id: str, cart_id: str,
 
     snapshot = build_snapshot(
         customer_id=customer_id,
-        cart_id=calculated["wixCartId"],
+        cart_id=calculated["cartId"],
         cart_revision=_revision(calculated["cartRevision"]),
         quote=quote,
         created_at=now,
