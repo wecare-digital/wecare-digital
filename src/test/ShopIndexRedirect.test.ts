@@ -8,7 +8,7 @@ import { shopProductSchema } from '../components/ShopProductHead';
 import { readCart, toLineItems } from '../lib/cart';
 import { shopProductBySlug } from '../content/shop';
 import type { ShopProduct } from '../content/shop';
-import catalogue from '../content/wix-catalog.json';
+import catalogue from '../content/catalog-snapshot.json';
 
 /**
  * THE TWO HALVES OF THE /shop CATALOGUE DECISION, PINNED TOGETHER IN ONE FILE.
