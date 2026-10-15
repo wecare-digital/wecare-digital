@@ -101,6 +101,18 @@ describe( 'public page consolidation contracts', () => {
     expect( await screen.findByRole( 'link', { name: /Tail article/ } ) ).toBeInTheDocument();
   } );
 
+  it( 'preserves the seed and offers retry when the generated index is empty', async () => {
+    vi.mocked( loadBlogCardIndex ).mockResolvedValueOnce( [] ).mockResolvedValueOnce( [
+      { slug: 'tail', title: 'Recovered article', category: 'Conversations' },
+    ] );
+    render( <ProductBlogPanel cards={ [ { slug: 'seed', title: 'Seed article', category: 'Conversations' } ] }
+      categories={ [ 'Conversations' ] } /> );
+    await screen.findByRole( 'button', { name: 'Try again' } );
+    expect( screen.getByRole( 'link', { name: /Seed article/ } ) ).toBeInTheDocument();
+    fireEvent.click( screen.getByRole( 'button', { name: 'Try again' } ) );
+    expect( await screen.findByRole( 'link', { name: /Recovered article/ } ) ).toBeInTheDocument();
+  } );
+
   it( 'removes only redundant navigation entries', () => {
     const paths = getAllNavItems().map( item => item.path );
     for ( const path of [ '/workspace/access', '/workspace/docs', '/workspace/engage/whatsapp', '/workspace/dashboard/waba-usernames' ] ) {

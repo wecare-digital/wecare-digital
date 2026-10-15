@@ -79,6 +79,9 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
     if ( !initialCategories ) return;
     let active = true;
     loadBlogCardIndex().then( cards => {
+      // The generator emits an empty index when its API source is unavailable. Keep the
+      // prerendered seed and expose retry rather than replacing useful cards with nothing.
+      if ( !cards.length && initialCards.length ) throw new Error( 'Blog index unavailable' );
       if ( active ) { setAllCards( cards ); setFailed( false ); }
     } ).catch( () => { if ( active ) setFailed( true ); } );
     return () => { active = false; };
