@@ -1,60 +1,67 @@
-# AWS cost optimization
+# AWS cost optimization — measured baseline and levers
 
-All figures from the deterministic model `scripts/aws_cost_model.py` (run
-`--live`); none are hand-typed. POTENTIAL ≠ REALISED. Baselines to inspect are
-listed per area; where a number needs Cost Explorer it is marked INSPECT (a
-Cost Explorer API call is itself billable at $0.01/call, so run it deliberately).
+Source of every figure: `scripts/aws_cost_model.py` over
+[`evidence/cost-explorer-20261014.json`](evidence/cost-explorer-20261014.json) (four read-only
+Cost Explorer calls on 2026-10-14, $0.04 total). Labels: MEASURED, REALISED, POTENTIAL,
+HISTORICAL.
 
-## Verified recurring figures (us-east-1, 2026-10-14)
-- Secrets Manager: 22 active × $0.40 = **$8.80/mo** storage; request ≈ **$2.50/mo**
-  at an assumed 500k calls (confirm real call volume via CloudWatch). 13
-  scheduled-for-deletion secrets already stopped billing — NOT a future saving.
-- Lightsail: `micro_3_0` = **$7.00/mo**; `nano_3_0` = $5.00/mo (live `get-bundles`).
-- KMS: 4 secrets on a customer CMK (`9b5b…`); 18 on the AWS-managed key (free).
+## Measured (gross usage, credits excluded)
 
-## Scenario model (from the script, `outputs/aws-cost-model.json`)
-| scenario | label | secrets $/mo | lightsail $/mo | total $/mo | Δ vs base |
-|---|---|---|---|---|---|
-| baseline | BASELINE | 11.30 | 7.00 | 18.30 | 0.00 |
-| after Wix secret removal | POTENTIAL | 10.10 | 7.00 | 17.10 | −1.20 |
-| after safe consolidation | POTENTIAL | 9.30 | 7.00 | 16.30 | −2.00 |
-| after Lightsail nano | POTENTIAL | 9.30 | 5.00 | 14.30 | −4.00 |
-| after Lightsail retire | POTENTIAL | 9.30 | 0.00 | 9.30 | −9.00 |
+| Month | Gross | Credits | Net billed |
+| --- | --- | --- | --- |
+| 2026-08 | $61.72 | −$61.73 | $0.00 |
+| 2026-09 | $101.30 | −$101.30 | $0.00 |
+| 2026-10 (1–14, estimated) | $72.48 | −$72.49 | $0.00 |
 
-Every Δ is POTENTIAL. None is realised cash until the deletion window closes /
-the micro stops being billed. The nano Δ also carries a temporary +$5/mo dual-run
-overlap during migration.
+October run-rate: **$125.28/month** (Support as billed, usage scaled ×31/14).
 
-## Area baseline table (what to inspect)
-| Area | Baseline to inspect | Note |
-|---|---|---|
-| Wix subscription | INSPECT (provider billing, off-AWS) | The real prize — but only after full Workstream A + owner cancels. Not an AWS line item. |
-| Amplify | Hosting + build minutes (INSPECT Cost Explorer) | A known Sept driver. Avoid unnecessary rebuilds (A7); the 6-hourly Wix catalogue-sync triggers prod builds today. |
-| DynamoDB | PAY_PER_REQUEST, low | New `BlogPostsTable`/`ProductsTable`/`CartTable` add marginal on-demand cost. |
-| Lambda | invoke + duration, low | 77 functions; pay-per-invoke. |
-| API Gateway | request cost, low | Preserve routes until new consumers verified. |
-| S3 | 7 buckets; storage/requests/backups | Blog media/content move adds storage; add lifecycle rules. |
-| Secrets Manager | $8.80 storage + request (verified) | See scenarios above. |
-| Parameter Store | Standard tier = $0 | Target for non-secret config only. |
-| Lightsail | micro $7 vs nano $5 (verified) | See feasibility doc; feasibility INCOMPLETE (no host access). |
-| Support plan | Business Support+ (INSPECT) | Known Sept driver; a support-tier decision is an owner call, not in scope here. |
-| Cost Explorer | $0.01/call (INSPECT) | Was itself a Sept driver — query sparingly, cache results. |
-| Payment processing | Razorpay fees (off-AWS) | Preserved; AWS has no card acquiring. |
+**Cash reality:** credits covered 100% of gross usage for three months. Until they run out,
+every saving below extends the credit runway; none is a cash saving. The Cost Explorer API does
+not expose the credit balance or expiry; read them in the Billing console.
 
-## Honest trade-off (task requirement)
-The directly-controllable AWS recurring saving from these three workstreams is
-**small**: ≈$1.20/mo (Wix secrets) + ≈$0.80/mo (SSM move) + up to $2/mo
-(Lightsail nano, potential) ≈ **$4/mo**, with Lightsail retirement (a separate
-approved program) reaching ≈$9/mo. The Wix migration's main financial payoff is
-cancelling the **Wix subscription** (off-AWS) and removing the Amplify rebuild
-churn the catalogue-sync causes — both larger than the AWS line items but both
-behind the full migration. The engineering effort to exit 203 runtime Wix
-references across ~40 files is substantial; it is justified primarily by
-*independence, security, and the Wix subscription*, not by the sub-$10/mo AWS
-delta. Do not spend large migration effort chasing the AWS-side pennies alone.
+| Service (Sep 2026) | Gross | Driver |
+| --- | --- | --- |
+| AWS Business Support+ | $29.00 | fixed monthly plan |
+| AWS Amplify | $28.59 | 2,581 build minutes ($25.81); October pace 4,628 min ($46/mo) |
+| AWS Cost Explorer | $15.07 | API call storm, already fixed (Oct MTD $0.22) |
+| AWS Secrets Manager | $7.95 | 19.7 secret-months |
+| Amazon Lightsail | $7.03 | `micro_3_0` + 5.3 GB-month snapshot |
+| AWS End User Messaging | $4.24 | toll-free number + SMS |
+| Amazon CloudWatch | $3.51 | 44.6 alarm-months (73 alarms now) |
+| Other | $5.91 | WAF (since removed), KMS, API Gateway, Route 53, S3, DynamoDB, ECR |
 
-## Payback
-One-time cost is engineering time (export + native stores + commerce cutover) plus
-a brief Lightsail dual-run overlap. Against ~$4–9/mo AWS savings, the AWS-only
-payback is long; the real payback is the Wix subscription saving + reduced build
-minutes, which must be measured post-cutover with `--live` and Cost Explorer.
+## Levers
+
+| Lever | Label | $/month | Decision |
+| --- | --- | --- | --- |
+| Wix secrets deleted | REALISED | −1.20 | done 2026-10-14 (force-deleted) |
+| Support plan Business+ → Basic | POTENTIAL | −29.00 | owner: trade-off is losing Business-tier support |
+| Amplify build minutes −50% | POTENTIAL | −23.14 | batch merges to `stack`, skip docs-only builds |
+| Amplify egress back to September level | POTENTIAL | −15.61 | investigate 49.1 GB in Oct 1–14 vs 4.6 GB in Sep first |
+| Secrets: up to 3 retired/moved | POTENTIAL | −1.20 | owner confirms each in the access matrix |
+| Lightsail Micro → Nano | POTENTIAL | −2.00 | NO-GO today; +$5 one-time overlap |
+| Lightsail retirement | POTENTIAL | −7.00 | not authorised; needs an approved SIP replacement |
+| CloudWatch alarms (73 → $6.30/mo) | POTENTIAL | 0.00 | review only |
+| KMS customer keys (4 → $4/mo) | NOT A LEVER | 0.00 | keep |
+| Cost Explorer calls | HISTORICAL | 0.00 | fixed in September; not counted again |
+
+Sum of POTENTIAL levers excluding Lightsail retirement: **−$70.95/month**, 95% of it from
+three owner decisions (Support, Amplify builds, Amplify egress) that need no migration work.
+
+## Scenario comparison (monthly, gross)
+
+| Scenario | Change vs October run-rate |
+| --- | --- |
+| Current production | $125.28 |
+| After Wix migration | already included (Wix Lambdas, tables and secrets are deleted; the Wix subscription is outside AWS and must be checked in Wix billing) |
+| After safe secret consolidation | −$1.20 POTENTIAL |
+| After optional Lightsail downsizing | −$2.00 POTENTIAL, +$5 one-time, payback ≈ 2.5 months on overlap alone (engineering and call-test time excluded) |
+| After possible Lightsail retirement | −$7.00 POTENTIAL, not authorised |
+
+Recommendation: spend effort on the Support decision and the Amplify build cadence first.
+Do not spend migration effort on the $2/month Nano move until guest memory is measured.
+
+## Not visible from AWS
+
+- **Wix subscription:** the owner reports the site deleted; confirm no renewal in Wix billing.
+- **Razorpay fees:** per-transaction, billed by Razorpay; no AWS line.
