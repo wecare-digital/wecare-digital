@@ -430,7 +430,7 @@ const DEFAULT_LOCATION_TIME: LocationTimeState = {
   shortLabel: 'IST',
   source: 'default',
 };
-interface AirPoint {interface AirPoint {
+interface AirPoint {
   time: number;
   aqi: number;
   word: string;
@@ -500,7 +500,7 @@ function formatPollutantValue( value: number ): string {
   return parseFloat( value.toFixed( decimals ) ).toString();
 }
 
-function n(function n( value: unknown ): number {
+function n( value: unknown ): number {
   const out = Number( value );
   return Number.isFinite( out ) ? out : NaN;
 }
@@ -717,7 +717,7 @@ function relativeAgeLabel( value?: string | number ): { label: string; stale: bo
   return { label: `Updated ${hours} hr${hours === 1 ? '' : 's'} ago`, stale: true };
 }
 
-const RECENT_PLACES_KEYconst RECENT_PLACES_KEY = 'vayulok_recent_places_v2';
+const RECENT_PLACES_KEY = 'vayulok_recent_places_v2';
 
 function recentPlaces(): PlaceState[] {
   if ( typeof window === 'undefined' ) return [];
@@ -818,7 +818,7 @@ const VayuLokLive: React.FC = () => {
   // Cache the last fetched values per "lat,lng" so re-selecting a place bills nothing.
   const cache = useRef<Record<string, { ts: number; air: AirState | null }>>( {} );
   const forecastCache = useRef<Record<string, { ts: number; airForecast: AirPoint[] }>>( {} );
-  const historyCache =  const historyCache = useRef<Record<string, { ts: number; points: AirPoint[] }>>( {} );
+  const historyCache = useRef<Record<string, { ts: number; points: AirPoint[] }>>( {} );
   const timeZoneCache = useRef<Record<string, LocationTimeState>>( {} );
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
   // The google.maps.ImageMapType instance for the continuous AQI heatmap tile overlay
@@ -925,7 +925,6 @@ const VayuLokLive: React.FC = () => {
   }, [] );
 
   useEffect( () => {
-    if ( !pollutantTip  useEffect( () => {
     if ( !pollutantTip || typeof document === 'undefined' ) return;
 
     const onPointerDown = ( event: PointerEvent ) => {
@@ -1776,7 +1775,7 @@ const VayuLokLive: React.FC = () => {
     ? locationTime.shortLabel
     : 'IST default';
 
-  return (  return (
+  return (
     <section className="vl-live" aria-label="VayuLok conditions">
       {/* Search is ALWAYS rendered - it does not wait for the map to paint, so a user can look up
           a city or pincode while the map is still loading or if it fails entirely. The map is a
