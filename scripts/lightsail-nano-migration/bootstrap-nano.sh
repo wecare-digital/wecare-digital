@@ -25,11 +25,11 @@ run "create fresh nano instance" -- \
     --availability-zone "${EXPECTED_REGION}a" --blueprint-id "${BLUEPRINT}" \
     --bundle-id "${BUNDLE_NANO}" \
     --tags key=Project,value=WECARE.DIGITAL key=Purpose,value=voice-nano-candidate
-run "open SIP/TLS 5061 (tcp) on the nano firewall" -- \
-  awsr lightsail open-instance-public-ports --instance-name "${NANO_INSTANCE}" \
-    --port-info fromPort=5061,toPort=5061,protocol=TCP
-run "open RTP media range 10000-60000 (udp) on the nano firewall" -- \
-  awsr lightsail open-instance-public-ports --instance-name "${NANO_INSTANCE}" \
-    --port-info fromPort=10000,toPort=60000,protocol=UDP
-log "next: install the SAME Asterisk version as prod on the nano (preflight.sh prints it),"
-log "then run migrate-workload.sh. The static IP is NOT moved here."
+# put-instance-public-ports REPLACES the whole rule set, so the Lightsail defaults (22 and 80 open to
+# the internet) never linger. 80 is required: certbot renews sip.wecare.digital with the standalone
+# authenticator. SSH stays closed; maintenance opens 22 for one IP only and closes it afterwards.
+run "set the nano firewall to exactly 80/tcp, 5061/tcp and 10000-60000/udp (no SSH)" -- \
+  awsr lightsail put-instance-public-ports --instance-name "${NANO_INSTANCE}" \
+    --port-infos fromPort=80,toPort=80,protocol=TCP fromPort=5061,toPort=5061,protocol=TCP \
+    fromPort=10000,toPort=60000,protocol=UDP
+log "next: run migrate-workload.sh (copies the voice bot only). The static IP is NOT moved here."
