@@ -7,32 +7,11 @@
  * owner's call, and it is still the honest one: no MARKETING copy is invented here.
  * Nothing in this repository describes what VayuLok does beyond the capabilities the
  * rotating words name, so the section below the hero adds no new claims of its own -
- * it shows real fetched air and weather data, or nothing at all when it has none.
+ * it shows real fetched air-quality data, or nothing at all when it has none.
  *
- * THE ROTATING WORDS, AND WHICH OF THEM ARE BACKED TODAY.
- *
- * Air, Weather, Forecast and Solar name Google service capabilities. They are not
- * treated as live runtime integrations until corresponding AWS endpoints are
- * implemented:
- *
- *   Air       airquality.googleapis.com/v1/currentConditions:lookup
- *   Weather   weather.googleapis.com/v1/currentConditions:lookup
- *   Forecast  weather.googleapis.com/v1/forecast/days:lookup
- *   Solar     solar.googleapis.com/v1/buildingInsights:findClosest
- *
- * Heatmap and Pollen are ROADMAP, added at the owner's request. Both are real Google
- * APIs, neither is wired here yet:
- *
- *   Pollen    pollen.googleapis.com/v1/forecast:lookup                 (unused)
- *   Heatmap   airquality .../mapTypes/{type}/heatmapTiles/{z}/{x}/{y}  (unused)
- *
- * Heatmap is also the one word in the set that is a VIEW rather than a subject, so it
- * reads oddly in the slot - "Bharat Heatmap Intelligence" parses as intelligence
- * about heatmaps rather than a heatmap of intelligence. Kept because it was asked
- * for; "Pollution" or dropping it are the alternatives if that grates on screen.
- *
- * So the rotation is no longer a pure statement of what is built. When the two
- * endpoints land, delete this caveat.
+ * The hero now names only the Air-quality capabilities surfaced by this page: Air, AQI,
+ * Forecast, Conditions, History and Heatmap. Weather-only UI and runtime requests were removed
+ * from the live map surface to keep the page focused and lighter.
  *
  * The hero is the shared RotatingHero, as on Grahak OS, so the two pages animate identically:
  * measured width so the pill resizes instead of snapping, a pale tint with a
@@ -129,7 +108,7 @@ const VayuLokPage: React.FC = () => {
   // were removed: neither has a wired endpoint (Google Pollen has no India coverage; Solar is
   // unbuilt), so advertising them in the hero overstated the product. They are replaced by two
   // real, prominent features. "Conditions" replaces the unsupported Pollen promise while
-  // accurately covering the live Air + Weather current-condition experience.
+  // accurately covering the live Air current-condition experience.
   const cycleWords = [
     { word: 'Air', tint: '#e0f7c8', dot: '#3da35a' },
     { word: 'AQI', tint: '#dbeafe', dot: '#2563eb' },
