@@ -1193,7 +1193,6 @@ const VayuLokLive: React.FC = () => {
     // No layer active -> ensure the heatmap overlay is detached and the single-point air clears.
     if ( !layer ) {
       detachHeatmap();
-      requestAnimationFrame( () => { setDataLoading( false ); } );
       return;
     }
     if ( !map ) return;
@@ -1224,7 +1223,6 @@ const VayuLokLive: React.FC = () => {
         omt.push( imageMapType );
         heatmapOverlayRef.current = imageMapType;
       }
-      requestAnimationFrame( () => { setDataLoading( false ); } );
       return () => { detachHeatmap(); };
     }
 
@@ -1882,9 +1880,8 @@ const VayuLokLive: React.FC = () => {
                   <strong>Air quality</strong>
                 </div>
 
-
-                  air ? (
-                    <div className="vl-live-air-panel" role="tabpanel" id="vl-live-air-panel" aria-labelledby="vl-live-air-tab" aria-label="Air details">
+                { air ? (
+                    <div className="vl-live-air-panel" id="vl-live-air-panel" aria-label="Air details">
                       <div className="vl-live-air-gauge-row">
                         <span className="vl-live-air-aqi-spine" aria-hidden="true" />
                         <div
@@ -2339,10 +2336,10 @@ const VayuLokLive: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="vl-live-air-panel" role="tabpanel" id="vl-live-air-panel" aria-labelledby="vl-live-air-tab" aria-label="Air details">
+                    <div className="vl-live-air-panel" id="vl-live-air-panel" aria-label="Air details">
                       <p className="vl-live-air-empty">Live air quality appears here once a place is selected.</p>
                     </div>
-                  )
+                  ) }
               </aside>
               </div>
 
