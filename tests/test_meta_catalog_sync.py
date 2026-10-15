@@ -632,3 +632,49 @@ def test_variant_artwork_and_public_product_link_survive_meta_projection():
     assert sync.meta_payload(item)["url"] == "https://wecare.digital/shop/wecaredigital-services/"
     previous = {**item, "url": "https://wecare.digital/"}
     assert len(sync.diff([item], [previous]).update) == 1
+
+
+def test_native_meta_projection_respects_product_channel_flag_and_canonical_path():
+    import copy
+    import importlib.util
+    name = "wecare_meta_catalog_sync_handler_channel_test"
+    spec = importlib.util.spec_from_file_location(name, HANDLER)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    rows = [
+        {
+            "id": TEST_PRODUCT,
+            "title": "Published",
+            "slug": "published",
+            "status": "active",
+            "metaEnabled": True,
+            "canonicalPath": "/special/published/",
+            "currency": "INR",
+            "priceMinor": 50000,
+            "imageRefs": ["https://wecare.digital/get/o/stream/media/m/wd-catalog-live/kiosk-4096.png"],
+            "variants": [{
+                "sku": TEST_VARIANT, "label": "Standard", "priceMinor": 50000,
+                "inventory": 1,
+            }],
+        },
+        {
+            "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "title": "Website only",
+            "slug": "website-only",
+            "status": "active",
+            "metaEnabled": False,
+            "currency": "INR",
+            "priceMinor": 100,
+            "imageRefs": ["https://wecare.digital/get/o/stream/media/m/wd-catalog-live/anew-4096.png"],
+            "variants": [{
+                "sku": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                "label": "Standard", "priceMinor": 100, "inventory": 1,
+            }],
+        },
+    ]
+    projected = module._native_products(scanner=lambda: copy.deepcopy(rows))
+    assert [row["name"] for row in projected] == ["Published"]
+    desired = sync.desired_items(projected, require_variant_price=True)
+    assert len(desired) == 1
+    assert desired[0]["url"] == "https://wecare.digital/special/published/"
