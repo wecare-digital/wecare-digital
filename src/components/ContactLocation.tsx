@@ -226,7 +226,10 @@ const ContactLocation: React.FC = () => {
   //   clickableIcons false    no POI click opening Google's own info card over ours
   useEffect( () => {
     if ( !MAPS_KEY || typeof window === 'undefined' ) return;
-    const w = window as unknown as { google?: { maps?: Record<string, unknown> } };
+    const w = window as unknown as {
+      google?: { maps?: Record<string, unknown> };
+      __wecareContactMapReady?: () => void;
+    };
 
     const init = () => {
       const maps = w.google?.maps as undefined | {
@@ -284,14 +287,19 @@ const ContactLocation: React.FC = () => {
     // One script tag per document, reused across remounts. Appending a second copy makes
     // the API log a duplicate-loader warning and can re-run callbacks.
     const ID = 'gmaps-js';
+    const CALLBACK = '__wecareContactMapReady';
+    // Google explicitly documents that loading=async does not use the script element's
+    // load event for application readiness. Register the supported global callback before
+    // inserting (or reusing) the loader so initial loads and client-side remounts converge.
+    w.__wecareContactMapReady = init;
+
     const existing = document.getElementById( ID );
-    if ( existing ) { existing.addEventListener( 'load', init ); return; }
+    if ( existing ) return;
 
     const script = document.createElement( 'script' );
     script.id = ID;
     script.async = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent( MAPS_KEY )}&loading=async`;
-    script.addEventListener( 'load', init );
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent( MAPS_KEY )}&loading=async&callback=${CALLBACK}`;
     document.head.appendChild( script );
   }, [] );
 
