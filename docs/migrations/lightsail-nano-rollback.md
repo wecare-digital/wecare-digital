@@ -1,5 +1,8 @@
 # Lightsail Nano rollback
 
+> **Retired 2026-10-15.** The Micro and its 2026-10-07 snapshot are deleted, so no rollback
+> exists. This page describes the procedure that was available during the migration.
+
 The authoritative, step-by-step rollback runbook lives next to the scripts at
 `scripts/lightsail-nano-migration/ROLLBACK.md` so it travels with the tooling.
 

@@ -92,8 +92,11 @@ Legend: `[x]` done and verified · `[~]` implemented, not deployed · `[ ]` not 
       (old key kept for the Micro), certbot dry-run OK, IVR S3 moved to `wecare-digital-get`
       `secure/` with least-privilege IAM, post-call hook proven by loopback. Cost model reads all
       Lightsail instances. See `docs/migrations/lightsail-nano-cutover.md`.
-- [ ] C.8b Owner real WhatsApp call (audio both ways, IVR, call log, recording in S3).
-- [ ] C.9 🔒 After about a week clean: delete the Micro; delete the old `asterisk-ivr-service` key.
+- [x] C.8b Owner real WhatsApp calls 2026-10-15 10:21 UTC, one per business number: IVR played,
+      recordings complete, post-call text and SMS sent.
+- [x] C.9 🔒 Retired 2026-10-15 about 10:30 UTC (owner-approved, no new backup): Micro, its
+      2026-10-07 snapshot, the old IVR key and the 57 old recordings deleted. Call recording
+      stopped 11:24 UTC (owner decision). The Nano has no backup.
 
 ## Gate 7 — Cost
 
