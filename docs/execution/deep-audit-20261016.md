@@ -60,6 +60,13 @@ their compromise is total-account compromise.
 
 This is the one item worth doing first; everything else is lower blast-radius.
 
+**Step-by-step owner runbook (with verify + rollback):**
+`docs/migrations/b0-retire-root-access-keys.md`. Confirmed live 2026-10-16:
+`AccountAccessKeysPresent=1`; the `wecare-prod` profile authenticates as root;
+root login already has MFA. An IAM user (`wecare-admin`, AdministratorAccess)
+already exists, so the fix is "repoint the profile to a dedicated IAM user,
+verify, delete the root key" — not a from-scratch build.
+
 ---
 
 ## 3. Secrets — least privilege is the open theme (Workstream B)
