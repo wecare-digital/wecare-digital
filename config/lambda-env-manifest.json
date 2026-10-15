@@ -2,8 +2,8 @@
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
   "_functions": 68,
-  "_variables": 418,
-  "_fingerprinted": 15,
+  "_variables": 417,
+  "_fingerprinted": 7,
   "functions": {
     "stack-wecare-url-shortener": {
       "LINK_CLICKS_TABLE": "stack-wecare-digital-LinkClicksTable",
@@ -512,7 +512,6 @@
       "PAYMENT_WABA_ID": "2094615664435155",
       "RAZORPAY_MID": "acc_TTFSyolquKEZEy",
       "RAZORPAY_UPI_ID": "wecaredigitalbh511413.rzp@rxairtel",
-      "SUBMIT_REQUESTS_TABLE": "stack-wecare-digital-SubmitRequestsTable",
       "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys"
     },
     "wecare-whatsapp-calling": {
