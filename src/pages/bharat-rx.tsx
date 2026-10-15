@@ -2,6 +2,7 @@ import React from 'react';
 import PageMeta from '../components/PageMeta';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
 import ProductBuyBox from '../components/ProductBuyBox';
+import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
 
 /**
  * /bharat-rx — the Bharat Rx product page.
@@ -48,15 +49,16 @@ const CYCLE_WORDS: CycleWord[] = [
   { word: 'records', tint: '#ede9fe', dot: '#9849e8' },
 ];
 
-// Was '[retired public path]' until 2026-09-25: `www` 301s to the apex
-// and [retired public path] was deleted in commit 6bc44a35, so every button here ran
-// 301 -> 301 -> 404. /contact/ is a real 200 page on the canonical host.
-const CUSTOMERSERVICE = 'https://wecare.digital/contact/';
+// THE PILL READS "Continue on WhatsApp", SO IT OPENS WHATSAPP. It linked /contact/ until
+// 2026-10-16 - a fix for an older dead link, kept after the label became the WhatsApp one -
+// so the button promised a chat and opened a web page. It is now the keyword deep link every
+// other product page uses (src/content/products.ts), with this page's name pre-filled.
+const WHATSAPP_CTA = whatsappKeywordLink( 'Bharat Rx' );
 
 const BharatRxPage: React.FC = () => (
   <>
     <PageMeta
-      title="Bharat Rx — WECARE.DIGITAL"
+      title="Bharat Rx | WECARE.DIGITAL"
       description="Bharat Rx by WECARE.DIGITAL — book a consult or appointment with a qualified professional, with reminders and records kept in one place."
       path="/bharat-rx/"
     />
@@ -108,7 +110,7 @@ const BharatRxPage: React.FC = () => (
 
         {/* OPTION A: the WhatsApp pill names its channel ("Continue on WhatsApp →") to match the
             "Continue to checkout →" pill below, same as every ProductPage-based page. */}
-        <a className="brx-cta" href={ CUSTOMERSERVICE }>Continue on WhatsApp &rarr;</a>
+        <a className="brx-cta" href={ WHATSAPP_CTA }>Continue on WhatsApp &rarr;</a>
 
         {/* The "Continue to checkout →" pill and live price, beneath the WhatsApp CTA — the same
             ProductBuyBox the eight ProductPage-based product pages mount. Bharat Rx owns its own

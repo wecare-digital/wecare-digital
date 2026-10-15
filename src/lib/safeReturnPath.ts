@@ -79,11 +79,13 @@
  * not a free edit — the test above will fail first, which is the intended order.
  *
  * NARROWED AGAIN 2026-10-04, from five entries to four, for exactly the reason stated above.
- * `/shop/` LEFT the set because the owner withdrew the catalogue index that day: the page file is
- * deleted, so `output: 'export'` emits nothing for it and the edge 301s the URL to the home page.
- * Keeping it would make this function vouch for a destination that no longer resolves, which is
- * the one thing the contract above forbids — and the test took the prescribed route of INVERTING
- * rather than being deleted, so `/shop/` is now asserted to fall back to `/cart/`.
+ * `/shop/` LEFT the set on 2026-10-04, when the owner withdrew the catalogue index and the edge
+ * 301'd the URL to the home page; the test took the prescribed route of INVERTING rather than
+ * being deleted, so `/shop/` is asserted to fall back to `/cart/`. The index came back on
+ * 2026-10-10 (src/pages/shop/index.tsx, no 301), but `/shop/` was not re-added here, and it does
+ * not need to be while nothing asks for it: every producer of a `return` value (cart.tsx,
+ * ProductBuyBox, ServiceBuyBox, lib/serviceEntry, lib/whatsappBasket) sends `/cart/` or the
+ * service page itself. Re-adding it is one line plus the inverted test, if a flow ever does.
  *
  * WHAT THIS CHANGES FOR A VISITOR, stated rather than left to be discovered. No in-app flow is
  * affected: `src/pages/cart.tsx:117` is the ONLY producer of a `return` value in this codebase and

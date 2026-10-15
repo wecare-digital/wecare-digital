@@ -159,10 +159,11 @@ const validate = ( listings: ShopListing[] ): ShopListing[] => {
       throw new Error( `shopProducts: ${listing.slug} has no blurb, so its card would render a blank line.` );
     }
   }
-  // The floor is 8 because PRODUCTS alone supplies 8. Only a deliberate code deletion can cross
-  // it; a product added or removed in catalog cannot.
+  // The floor is 8, and only a deliberate code deletion can cross it: PRODUCTS supplies 7 and
+  // PRODUCT_CHILDREN 8 (Elsewhere left PRODUCTS when it became a category of three children),
+  // and both are code. A product added or removed in catalog cannot.
   if ( listings.length < 8 ) {
-    throw new Error( `shopProducts: only ${listings.length} listings, which is fewer than the 8 PRODUCTS alone supply.` );
+    throw new Error( `shopProducts: only ${listings.length} listings, which is fewer than the 8 the code-defined product pages alone supply.` );
   }
   return listings;
 };

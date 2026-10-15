@@ -19,8 +19,8 @@ import Select from '../../components/ui/Select';
  * The document head is owned by components/ShopProductHead, not by PageMeta and the sitewide block
  * in _app.tsx - see that component for why a dynamic route cannot use a pathname-keyed map.
  *
- * The top band is components/PageTopBand: the product name as the h1 and its tagline as the
- * sub-line. The PRICE IS NOT IN THE BAND, and that is the rule rather than a layout preference -
+ * The top band is components/RotatingHero (it replaced PageTopBand): "Explore" and the product
+ * name as the h1, and its tagline as the sub-line. The PRICE IS NOT IN THE BAND, and that is the rule rather than a layout preference -
  * the top section says what the page is and the conversion furniture belongs below it, so the price
  * sits with the button that acts on it.
  *

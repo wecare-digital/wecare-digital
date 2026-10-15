@@ -482,7 +482,7 @@ export default function CustomerSignIn (): React.ReactElement {
   return (
     <>
       <Head>
-        <title>Sign in — WECARE.DIGITAL</title>
+        <title>Sign in | WECARE.DIGITAL</title>
         {/* Customer-session, per-person, transactional: never indexed. */}
         <meta name="robots" content="noindex,nofollow" />
       </Head>

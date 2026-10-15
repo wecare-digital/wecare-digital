@@ -264,10 +264,20 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
       ariaLabel="WECARE.DIGITAL blog"
     >
       <div className="blog-shell">
+        {/* ITEM FOR ITEM WHAT BlogIndexHead's BreadcrumbList SAYS. A topic stream is Home / Blog /
+            <Topic>, with "Page N" a fourth crumb beyond it, and the topic crumb links the
+            stream's first page once it is not the current one. Until 2026-10-16 a topic page
+            rendered Home / Blog - marking Blog as the current page - while its JSON-LD named the
+            topic, which is the mismatch 30-seo.md rules out. /blog/ itself is unchanged. */}
         <Breadcrumbs
-          items={ page > 1
-            ? [ { label: 'Home', href: '/' }, { label: 'Blog', href: '/blog/' }, { label: `Page ${page}` } ]
-            : [ { label: 'Home', href: '/' }, { label: 'Blog' } ] }
+          items={ [
+            { label: 'Home', href: '/' },
+            ...( streamBase === '/blog/'
+              ? [ page > 1 ? { label: 'Blog', href: '/blog/' } : { label: 'Blog' } ]
+              : [ { label: 'Blog', href: '/blog/' },
+                page > 1 ? { label: activeCategory, href: streamBase } : { label: activeCategory } ] ),
+            ...( page > 1 ? [ { label: `Page ${page}` } ] : [] ),
+          ] }
         />
         {/* BORDERLESS LIVE SEARCH over the WHOLE corpus - the same field as the /anew/ panel
             (ProductBlogPanel .pbp-search): no inner border, one quiet bottom hairline, the shared

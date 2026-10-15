@@ -11,10 +11,12 @@
  * are retuned site-wide, retune this too; `node tools/browser/typecheck.js` reports
  * the gaps.
  *
- * Why this page is at /files and not under /get
- * ---------------------------------------------
- * `/get/<*>` is an Amplify 200-rewrite onto the CloudFront distribution in front of
- * the file bucket, so nothing under that path reaches Next.js at all.
+ * Why only /get/ itself reaches this page
+ * ---------------------------------------
+ * Amplify 200-rewrites `/get` and `/get/` to this page's /get/index.html, while
+ * `/get/<*>` is a 200-rewrite onto the CloudFront distribution in front of the file
+ * bucket - so this page owns exactly the bare path, and nothing below it reaches
+ * Next.js at all. A sub-route under src/pages/get/ would never be served.
  *
  * It also has to be in the public allowlist in `_app.tsx`. Without that entry it
  * renders the staff Authenticator at HTTP 200 - which is how it shipped the first
