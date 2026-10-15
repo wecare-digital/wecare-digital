@@ -241,7 +241,8 @@ response = requests.post(
           noShare
           ariaLabel="Grahak OS"
           badgeLabel="Grahak OS by WECARE.DIGITAL"
-          frame="Reach customers across"
+          frame="Reach customers"
+          pillPrefix="across"
           words={ cycleWords }
           sub={ <>One platform for customer data, messaging, automation and campaigns, so every conversation stays connected whichever channel it starts on. Turn your WhatsApp number into your #1 revenue channel with Grahak OS.</> }
         >
