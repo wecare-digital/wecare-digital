@@ -1104,13 +1104,18 @@ const VayuLokLive: React.FC = () => {
   const mapRef = useRef<unknown>( null );
   const atmosphereRef = useRef<HTMLDivElement | null>( null );
   const atmosphereFrameRef = useRef<number | null>( null );
-  const initialGlobalViewRef = useRef( true );
+  // The place the camera already frames, so the place->camera effect never moves the camera to
+  // it again. It starts as DEFAULT_PLACE, which the initial global view stands in for, and a
+  // place committed from the map center is framed by the visitor's own camera. Compared by
+  // identity rather than with consume-once flags: a mapReady re-run cannot snap the camera to
+  // zoom 14, and a flag left over from a map move cannot swallow the next search's camera move.
+  const framedPlaceRef = useRef<PlaceState>( DEFAULT_PLACE );
   // True only when the visitor directly manipulates the map canvas. Programmatic camera
   // changes (initial paint/search selection) must not rewrite the selected place.
   const mapInteractionRef = useRef( false );
-  // A place committed from the current map center must not immediately snap the camera to
-  // zoom 14 in the place->camera effect; the visitor's chosen camera is already correct.
-  const selectionFromMapRef = useRef( false );
+  // Bumped by every selection, map or search. A step that finishes later (a reverse geocode,
+  // Place details) applies its result only if no newer selection has started since.
+  const selectionSeqRef = useRef( 0 );
   const markerRef = useRef<unknown>( null );
   const markerCtorRef = useRef<( new ( opts: Record<string, unknown> ) => unknown ) | null>( null );
   const placesLibRef = useRef<Record<string, unknown> | null>( null );
@@ -1525,6 +1530,7 @@ const VayuLokLive: React.FC = () => {
         const lat = center?.lat?.();
         const lng = center?.lng?.();
         if ( !Number.isFinite( lat ) || !Number.isFinite( lng ) ) return;
+        const seq = ++selectionSeqRef.current;
 
         const base: PlaceState = {
           name: 'Selected location',
@@ -1534,7 +1540,10 @@ const VayuLokLive: React.FC = () => {
         };
 
         const apply = ( next: PlaceState ) => {
-          selectionFromMapRef.current = true;
+          // A later map move or search has started since this one, so its place wins.
+          if ( cancelled || seq !== selectionSeqRef.current ) return;
+          // The visitor's own camera already frames this place.
+          framedPlaceRef.current = next;
           rememberPlace( next );
           setPlace( next );
           setHasSelection( true );
@@ -2330,15 +2339,16 @@ const VayuLokLive: React.FC = () => {
       setTitle?: ( t: string ) => void;
       setMap?: ( m: unknown ) => void;
     } | null;
-    if ( initialGlobalViewRef.current ) {
-      initialGlobalViewRef.current = false;
-    } else if ( selectionFromMapRef.current ) {
-      // The map is already at the camera the visitor chose. Update marker/data only.
-      selectionFromMapRef.current = false;
-    } else if ( place.viewport && map.fitBounds ) map.fitBounds( place.viewport, 56 );
-    else {
-      map.setCenter?.( { lat: place.lat, lng: place.lng } );
-      map.setZoom?.( 14 );
+    if ( place !== framedPlaceRef.current ) {
+      // A programmatic move. Drop any pending gesture first: a tap that never moved the camera
+      // fires no idle, so its flag would turn this move's own idle into a map selection.
+      mapInteractionRef.current = false;
+      if ( place.viewport && map.fitBounds ) map.fitBounds( place.viewport, 56 );
+      else {
+        map.setCenter?.( { lat: place.lat, lng: place.lng } );
+        map.setZoom?.( 14 );
+      }
+      framedPlaceRef.current = place;
     }
     marker?.setMap?.( map );
     marker?.setPosition?.( { lat: place.lat, lng: place.lng } );
@@ -2427,10 +2437,11 @@ const VayuLokLive: React.FC = () => {
     };
 
     void describe();
-    return () => {
-      cancelled = true;
-      ( mapHost.current as ( HTMLDivElement & { __vlCleanup?: () => void } ) | null )?.__vlCleanup?.();
-    };
+    // Only `cancelled`. The map-init effect owns __vlCleanup. Calling it here as well (#335's
+    // find-and-replace of this return) removed the map's idle, pointer, wheel, keydown and resize
+    // listeners on the first place change, so map movement stopped selecting places and the
+    // atmosphere stopped tracking the camera after one selection.
+    return () => { cancelled = true; };
   }, [ place.lat, place.lng, place.placeId, hasSelection, mapReady, ensureGeocoder ] );
 
   const runSearch = useCallback( async ( text: string ) => {
@@ -2562,6 +2573,7 @@ const VayuLokLive: React.FC = () => {
   };
 
   const choose = useCallback( async ( r: SearchResult ) => {
+    const seq = ++selectionSeqRef.current;
     let next = r.place;
     if ( !next && r.prediction?.toPlace ) {
       try {
@@ -2588,7 +2600,8 @@ const VayuLokLive: React.FC = () => {
         autocompleteTokenRef.current = null;
       }
     }
-    if ( !next ) return;
+    // A map move or another pick made while Place details were loading is newer, so it wins.
+    if ( !next || seq !== selectionSeqRef.current ) return;
     rememberPlace( next );
     setPlace( next );
     setHasSelection( true );
