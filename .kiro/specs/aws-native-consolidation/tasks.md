@@ -86,7 +86,9 @@ Legend: `[x]` done and verified · `[~]` implemented, not deployed · `[ ]` not 
 - [x] C.7 🔒 Nano `wecare-voice-bot-nano` created and the voice bot copied (2026-10-15 03:25 UTC):
       3,235 files, identical SHA-256 digest, 0 missing libraries, Asterisk 22.8.2 running, TLS CN
       `sip.wecare.digital`, 171 MB used of 419 MB. See `docs/migrations/lightsail-nano-cutover.md`.
-- [ ] C.8 🔒 Cutover: move the static IP at 0 active calls, then a real WhatsApp call.
+- [x] C.8 🔒 Cutover done 2026-10-15 03:39 UTC: static IP on the Nano in 8 s, timers moved,
+      verify-nano.sh PASS, 0 calling errors. Micro on standby for rollback.
+- [ ] C.8b Owner real WhatsApp call (audio both ways, IVR, call log).
 - [ ] C.9 🔒 After about a week clean: delete the Micro; rotate the copied `asterisk-ivr-service` keys.
 
 ## Gate 7 — Cost
