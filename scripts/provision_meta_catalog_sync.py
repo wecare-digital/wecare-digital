@@ -121,7 +121,10 @@ ENVIRONMENT = {
     "META_CATALOG_SYNC_ENABLED": "false",
     "META_CATALOG_SYNC_DRY_RUN": "true",
     "META_CATALOG_APPROVALS_TABLE": CATALOG_APPROVALS_TABLE,
-    "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4,8ee7e325-d772-4452-a993-5c79e927d42b",
+    # Empty means the product-level metaEnabled flag owns scope. Existing legacy rows remain
+    # eligible until they are explicitly migrated; every newly-created native product starts
+    # metaEnabled=false, so it cannot appear in the plan accidentally.
+    "META_CATALOG_SYNC_VARIANT_IDS": "",
     "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
     "CATALOG_SOURCE": "aws",
     "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",

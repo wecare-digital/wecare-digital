@@ -33,6 +33,9 @@ SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SKU = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
 STAFF_ROLES = {"Viewer", "Operator", "Admin"}
 STATUS = {"draft", "active", "archived"}
+CATALOG_IMAGE_PREFIX = "o/stream/media/m/wd-catalog-live/"
+CATALOG_IMAGE_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*-4096[.]png$")
+PUBLIC_MEDIA_BASE = "https://wecare.digital/get/"
 
 
 def _table():
@@ -88,6 +91,37 @@ def _stock(value: Any) -> int:
     return value
 
 
+def _catalog_image_key(value: Any) -> str:
+    if not isinstance(value, str):
+        raise ValueError("catalogImageKey must be a string")
+    key = value.strip().lstrip("/")
+    if not key.startswith(CATALOG_IMAGE_PREFIX):
+        raise ValueError("catalogImageKey must use the approved live catalog prefix")
+    name = key[len(CATALOG_IMAGE_PREFIX):]
+    if "/" in name or not CATALOG_IMAGE_NAME.fullmatch(name):
+        raise ValueError("catalogImageKey must name an approved *-4096.png artwork")
+    return key
+
+
+def _catalog_image_url(key: str) -> str:
+    return PUBLIC_MEDIA_BASE + key
+
+
+def _channel_flag(value: Any, name: str) -> bool:
+    if type(value) is not bool:
+        raise ValueError(name + " must be a boolean")
+    return value
+
+
+def _canonical_path(value: Any) -> str:
+    if not isinstance(value, str):
+        raise ValueError("canonicalPath must be a string")
+    path = value.strip()
+    if not path.startswith("/") or "://" in path or len(path) > 220:
+        raise ValueError("canonicalPath must be a local absolute path")
+    return path if path.endswith("/") else path + "/"
+
+
 def _validate_variant(variant: Any) -> dict[str, Any]:
     if not isinstance(variant, dict):
         raise ValueError("variant must be an object")
@@ -109,7 +143,8 @@ def _public_row(row: Mapping[str, Any]) -> dict[str, Any]:
     return {k: row.get(k) for k in (
         "id", "title", "slug", "status", "currency", "priceMinor",
         "inventory", "variants", "descriptionHtml", "tagline",
-        "categories", "imageRefs", "createdAt", "updatedAt",
+        "categories", "imageRefs", "catalogImageKey", "canonicalPath",
+        "websiteEnabled", "metaEnabled", "createdAt", "updatedAt",
         "seoTitle", "seoDescription",
     ) if k in row}
 
@@ -149,6 +184,13 @@ def _create(table, body: dict[str, Any], who: str) -> tuple[int, dict[str, Any]]
     if any(r.get("slug") == slug for r in _scan(table)):
         return 409, {"error": "SLUG_EXISTS"}
     now = _now()
+    image_key = ""
+    if body.get("catalogImageKey") not in (None, ""):
+        image_key = _catalog_image_key(body.get("catalogImageKey"))
+    website_enabled = _channel_flag(body.get("websiteEnabled", False), "websiteEnabled")
+    meta_enabled = _channel_flag(body.get("metaEnabled", False), "metaEnabled")
+    if (website_enabled or meta_enabled) and not image_key:
+        raise ValueError("channel publication requires an approved catalogImageKey")
     row = {
         "id": "native:" + slug,
         "title": title,
@@ -161,7 +203,11 @@ def _create(table, body: dict[str, Any], who: str) -> tuple[int, dict[str, Any]]
         "descriptionHtml": str(body.get("descriptionHtml") or "")[:10000],
         "tagline": str(body.get("tagline") or "")[:600],
         "categories": [],
-        "imageRefs": [],
+        "imageRefs": [_catalog_image_url(image_key)] if image_key else [],
+        "catalogImageKey": image_key,
+        "canonicalPath": _canonical_path(body.get("canonicalPath") or ("/shop/" + slug + "/")),
+        "websiteEnabled": website_enabled,
+        "metaEnabled": meta_enabled,
         "createdAt": now,
         "updatedAt": now,
         "lastEditedBy": who,
@@ -205,6 +251,29 @@ def _update(table, product_id: str, body: dict[str, Any], who: str
         updates["seoTitle"] = _text(body["seoTitle"], "seoTitle", 180)
     if "seoDescription" in body:
         updates["seoDescription"] = _text(body["seoDescription"], "seoDescription", 600)
+    if "catalogImageKey" in body:
+        raw_key = body["catalogImageKey"]
+        if isinstance(raw_key, str) and not raw_key.strip():
+            updates["catalogImageKey"] = ""
+            updates["imageRefs"] = []
+        else:
+            key = _catalog_image_key(raw_key)
+            updates["catalogImageKey"] = key
+            updates["imageRefs"] = [_catalog_image_url(key)]
+    if "canonicalPath" in body:
+        updates["canonicalPath"] = _canonical_path(body["canonicalPath"])
+    if "websiteEnabled" in body:
+        updates["websiteEnabled"] = _channel_flag(body["websiteEnabled"], "websiteEnabled")
+    if "metaEnabled" in body:
+        updates["metaEnabled"] = _channel_flag(body["metaEnabled"], "metaEnabled")
+    target_status = str(updates.get("status", old.get("status") or "draft"))
+    target_image = str(updates.get("catalogImageKey", old.get("catalogImageKey") or ""))
+    target_website = bool(updates.get("websiteEnabled", old.get("websiteEnabled", False)))
+    target_meta = bool(updates.get("metaEnabled", old.get("metaEnabled", False)))
+    if (target_website or target_meta) and target_status != "active":
+        raise ValueError("channel publication requires status active")
+    if (target_website or target_meta) and not target_image:
+        raise ValueError("channel publication requires an approved catalogImageKey")
     if not updates:
         return 400, {"error": "NO_EDITABLE_FIELDS"}
     new_updated = _now()

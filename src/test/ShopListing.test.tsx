@@ -172,13 +172,20 @@ describe( 'the listing page', () => {
     // slice, so the row draws from allListings. The arrows scroll it; there is no page nav.
     const props = propsFor( 1 );
     const { container } = render( <ShopIndex { ...props } /> );
-    const cards = Array.from( container.querySelectorAll( 'a.shop-card' ) );
+    const cards = Array.from( container.querySelectorAll( 'article.shop-card' ) );
+    const links = Array.from( container.querySelectorAll( 'a.shop-card-action' ) );
     expect( cards ).toHaveLength( SHOP_LISTINGS.length );
+    expect( links ).toHaveLength( SHOP_LISTINGS.length );
     cards.forEach( ( card, i ) => {
-      expect( samePath( card.getAttribute( 'href' ) ) )
+      expect( samePath( links[ i ].getAttribute( 'href' ) ) )
         .toBe( samePath( SHOP_LISTINGS[ i ].href ) );
+      expect( links[ i ].textContent ).toBe( 'View details' );
       expect( card.textContent ).toContain( SHOP_LISTINGS[ i ].name );
       expect( card.textContent ).toContain( SHOP_LISTINGS[ i ].blurb );
+      if ( SHOP_LISTINGS[ i ].image ) {
+        expect( card.querySelector( 'img.shop-card-image' )?.getAttribute( 'src' ) )
+          .toBe( SHOP_LISTINGS[ i ].image );
+      }
     } );
   } );
 
@@ -187,8 +194,8 @@ describe( 'the listing page', () => {
     // prerendered /shop/page/N/ routes still exist for a no-JS crawler, but the interactive
     // surface no longer needs a page walk to see everything.
     const { container } = render( <ShopIndex { ...propsFor( 1 ) } /> );
-    const seen = Array.from( container.querySelectorAll( 'a.shop-card' ) )
-      .map( card => samePath( card.getAttribute( 'href' ) ) );
+    const seen = Array.from( container.querySelectorAll( 'a.shop-card-action' ) )
+      .map( link => samePath( link.getAttribute( 'href' ) ) );
     expect( seen.sort() ).toEqual( SHOP_LISTINGS.map( l => samePath( l.href ) ).sort() );
   } );
 
@@ -210,33 +217,20 @@ describe( 'the listing page', () => {
     expect( card ).toContain( 'scroll-snap-align:start' );
   } );
 
-  it( 'rotates three hues on the card spine, through :global(), and excludes amber', () => {
+  it( 'rotates three hues on the semantic card spine and excludes amber', () => {
     const { container } = render( <ShopIndex { ...propsFor( 1 ) } /> );
     const block = declarationsOnly( styleBlockWith( container, '.shop-card' ) );
     expect( block ).toContain( 'border-inline-start:3px solid #3da35a' );
-    expect( block ).toContain( ':global(.shop-card:nth-child(3n+2))' );
-    expect( block ).toContain( ':global(.shop-card:nth-child(3n+3))' );
+    expect( block ).toContain( '.shop-card:nth-child(3n+2)' );
+    expect( block ).toContain( '.shop-card:nth-child(3n+3)' );
     expect( block ).toContain( 'border-inline-start-color:#2563eb' );
     expect( block ).toContain( 'border-inline-start-color:#9849e8' );
     /*
-     * EVERY .shop-card RULE GOES THROUGH :global(), and this is the assertion that catches the
-     * form that compiles to nothing. .shop-card is on a capitalised <Link>, so styled-jsx never
-     * hashes it and a BARE .shop-card selector matches nothing - the cards would render as plain
-     * blue underlined links while a text search for the three spine declarations still passed.
-     * So the check is on the selector shape: no rule in this block may START with .shop-card.
+     * The card class now sits on a real <article>, so styled-jsx owns and scopes it directly.
+     * The explicit action stays a Next <Link>; the article must therefore remain a real DOM node
+     * rather than drifting back into an all-card link that would prevent future secondary actions.
      */
-    for ( const rule of block.split( '}' ) ) {
-      const brace = rule.indexOf( '{' );
-      if ( brace === -1 ) continue;
-      const selector = rule.slice( 0, brace ).trim();
-      if ( !selector || selector.startsWith( '@' ) ) continue;
-      for ( const part of selector.split( ',' ) ) {
-        expect(
-          part.trim().startsWith( '.shop-card' ),
-          `${part.trim()} is a bare .shop-card selector, which matches nothing because the class is on a <Link>`,
-        ).toBe( false );
-      }
-    }
+    expect( block ).not.toContain( ':global(.shop-card' );
     // Amber was measured at 2.04:1 on a 3px stroke and rejected; the spine set is three hues.
     expect( block ).not.toContain( '#f0a818' );
     expect( block ).not.toContain( '#fef3c7' );
@@ -308,7 +302,7 @@ describe( 'searching the shelf', () => {
     const field = screen.getByLabelText( 'Search the shop' );
 
     fireEvent.change( field, { target: { value: 'kiosk' } } );
-    const byName = Array.from( container.querySelectorAll( 'a.shop-card' ) );
+    const byName = Array.from( container.querySelectorAll( 'article.shop-card' ) );
     expect( byName.length ).toBeGreaterThan( 0 );
     for ( const card of byName ) {
       expect( `${card.textContent}`.toLowerCase() ).toContain( 'kiosk' );
@@ -316,8 +310,8 @@ describe( 'searching the shelf', () => {
 
     // A blurb word that is in no product NAME, so this can only pass through the blurb.
     fireEvent.change( field, { target: { value: 'visas' } } );
-    const byBlurb = Array.from( container.querySelectorAll( 'a.shop-card' ) );
-    expect( byBlurb.map( card => card.getAttribute( 'href' ) ).map( samePath ) )
+    const byBlurb = Array.from( container.querySelectorAll( 'a.shop-card-action' ) );
+    expect( byBlurb.map( link => link.getAttribute( 'href' ) ).map( samePath ) )
       .toContain( '/elsewhere' );
 
     /*
@@ -326,7 +320,7 @@ describe( 'searching the shelf', () => {
      * "Elsewhere" + "Travel, visas..." gives "elsewhere travel", which no product says.
      */
     fireEvent.change( field, { target: { value: 'elsewhere travel' } } );
-    expect( container.querySelectorAll( 'a.shop-card' ) ).toHaveLength( 0 );
+    expect( container.querySelectorAll( 'article.shop-card' ) ).toHaveLength( 0 );
     expect( container.querySelector( '.shop-empty' )!.textContent )
       .toBe( 'No products match that search.' );
   } );
@@ -335,7 +329,7 @@ describe( 'searching the shelf', () => {
     const { container } = render( <ShopIndex { ...propsFor( 1 ) } /> );
     // The rail is the whole shelf, so an unfiltered page already holds every product and the
     // Perspectives pager (arrows + bar) is present rather than a numbered paginator.
-    expect( container.querySelectorAll( 'a.shop-card' ) ).toHaveLength( SHOP_LISTINGS.length );
+    expect( container.querySelectorAll( 'article.shop-card' ) ).toHaveLength( SHOP_LISTINGS.length );
     expect( container.querySelector( '.shop-pager' ) ).not.toBeNull();
 
     // Searching narrows the rail to the matches across the whole shelf.
@@ -343,11 +337,11 @@ describe( 'searching the shelf', () => {
     const matching = SHOP_LISTINGS.filter( listing => (
       [ listing.name, listing.blurb ].join( '\n' ).toLowerCase().includes( 'a' )
     ) );
-    expect( container.querySelectorAll( 'a.shop-card' ) ).toHaveLength( matching.length );
+    expect( container.querySelectorAll( 'article.shop-card' ) ).toHaveLength( matching.length );
 
     // Clearing restores the whole shelf.
     fireEvent.change( screen.getByLabelText( 'Search the shop' ), { target: { value: '' } } );
-    expect( container.querySelectorAll( 'a.shop-card' ) ).toHaveLength( SHOP_LISTINGS.length );
+    expect( container.querySelectorAll( 'article.shop-card' ) ).toHaveLength( SHOP_LISTINGS.length );
   } );
 
   it( 'reads ?q= on the first paint, and truncates an over-long value instead of throwing', () => {
@@ -362,7 +356,7 @@ describe( 'searching the shelf', () => {
     set( '?q=kiosk' );
     const { container } = render( <ShopIndex { ...propsFor( 1 ) } /> );
     // Already filtered, not six cards and then a narrowing.
-    const cards = Array.from( container.querySelectorAll( 'a.shop-card' ) );
+    const cards = Array.from( container.querySelectorAll( 'article.shop-card' ) );
     expect( cards.length ).toBeGreaterThan( 0 );
     for ( const card of cards ) expect( `${card.textContent}`.toLowerCase() ).toContain( 'kiosk' );
 

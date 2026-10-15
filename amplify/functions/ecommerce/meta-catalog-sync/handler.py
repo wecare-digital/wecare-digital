@@ -486,6 +486,10 @@ def _native_products(scanner=None) -> List[Dict[str, Any]]:
     for item in raw:
         if str(item.get("status") or "active") == "archived":
             continue
+        # Backward compatible migration: legacy rows without the flag remain eligible;
+        # every new native product is created with metaEnabled=false and stays out until approved.
+        if item.get("metaEnabled") is False:
+            continue
         price_minor = _paise(item.get("priceMinor"))
         variants = []
         for v in item.get("variants", []) or []:
@@ -511,6 +515,7 @@ def _native_products(scanner=None) -> List[Dict[str, Any]]:
             "mediaCount": len(item.get("imageRefs") or []),
             "variants": variants,
             "choiceImages": {},
+            "canonicalPath": str(item.get("canonicalPath") or ""),
         }
         images = item.get("imageRefs") or []
         if images:
