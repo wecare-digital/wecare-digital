@@ -155,9 +155,9 @@ const COLUMNS: NavColumn[] = [
             label: 'Partner',
             searchTerms: [ 'refer', 'earn' ],
             children: [
+              { label: 'Referral', href: '/shop/referral-partner/', searchTerms: [ 'partner', 'refer', 'earn' ] },
               { label: 'Merchandise', href: '/shop/merchandise/', searchTerms: [ 'partner', 'refer', 'earn' ] },
               { label: 'Kiosk', href: '/shop/kiosk/', searchTerms: [ 'partner', 'refer', 'earn' ] },
-              { label: 'Referral', href: '/shop/referral-partner/', searchTerms: [ 'partner', 'refer', 'earn' ] },
             ],
           },
         ],
@@ -316,6 +316,38 @@ const Header: React.FC = () => {
     return link.match ? router.pathname === link.match : destination === currentPath;
   };
 
+  // When the current page is low in the capped desktop Products rail, opening the menu now
+  // reveals it immediately. Mobile deliberately has one outer scroll surface, so this is a
+  // desktop/tablet-only adjustment of the inner Products scrollTop.
+  useEffect( () => {
+    if ( !open || searching || typeof window === 'undefined' ) return;
+    if ( !window.matchMedia( '(min-width: 768px)' ).matches ) return;
+    const scroller = rootRef.current?.querySelector<HTMLElement>( '.nav-products-scroll' );
+    const active = scroller?.querySelector<HTMLElement>( '.nav-item.active' );
+    if ( !scroller || !active ) return;
+    const box = scroller.getBoundingClientRect();
+    const row = active.getBoundingClientRect();
+    if ( row.top < box.top ) scroller.scrollTop -= box.top - row.top;
+    else if ( row.bottom > box.bottom ) scroller.scrollTop += row.bottom - box.bottom;
+  }, [ currentPath, open, searching ] );
+
+  // Internal destinations stay inside the site/WebView. In a Capacitor shell an external
+  // destination is handed to the native browser instead of being trapped inside the WebView.
+  const handleNavClick = useCallback( ( event: React.MouseEvent<HTMLAnchorElement>, link: NavLink ) => {
+    const capacitor = typeof window !== 'undefined'
+      ? ( window as typeof window & { Capacitor?: { isNativePlatform?: () => boolean } } ).Capacitor
+      : undefined;
+    if ( link.external && link.href && capacitor?.isNativePlatform?.() ) {
+      event.preventDefault();
+      close();
+      void import( '@capacitor/browser' )
+        .then( ( { Browser } ) => Browser.open( { url: link.href! } ) )
+        .catch( () => { window.location.href = link.href!; } );
+      return;
+    }
+    close();
+  }, [ close ] );
+
   // NO renderLink() HELPER. The anchor markup is duplicated inline in both branches
   // below, on purpose, and it must stay that way.
   //
@@ -383,18 +415,23 @@ const Header: React.FC = () => {
                   describe categories that are no longer all present, which reads as
                   missing items rather than as a narrowed list. */}
               { searching && (
-                <div className="nav-results">
+                <>
+                  <p className="nav-search-status" role="status" aria-live="polite" aria-atomic="true">
+                    { filtered.length } menu { filtered.length === 1 ? 'result' : 'results' }.
+                  </p>
+                  <div className="nav-results">
                   { filtered.map( link => (
                     <a
                       key={ link.label + link.href }
                       href={ link.href }
                       className={ `nav-item ${isActive( link ) ? 'active' : ''}`.trim() }
                       aria-current={ isActive( link ) ? 'page' : undefined }
-                      onClick={ close }
+                      onClick={ event => handleNavClick( event, link ) }
                     >{ link.label }</a>
                   ) ) }
                   { !filtered.length && <p className="nav-empty">No matching page.</p> }
-                </div>
+                  </div>
+                </>
               ) }
 
               { !searching && (
@@ -430,7 +467,7 @@ const Header: React.FC = () => {
                                 href={ link.href }
                                 className={ `nav-item ${isActive( link ) ? 'active' : ''}`.trim() }
                                 aria-current={ isActive( link ) ? 'page' : undefined }
-                                onClick={ close }
+                                onClick={ event => handleNavClick( event, link ) }
                               >{ link.label }</a>
                             ) : (
                               <span className="nav-item nav-family-label">{ link.label }</span>
@@ -442,7 +479,7 @@ const Header: React.FC = () => {
                                 href={ child.href }
                                 className={ `nav-item nav-child ${isActive( child ) ? 'active' : ''}`.trim() }
                                 aria-current={ isActive( child ) ? 'page' : undefined }
-                                onClick={ close }
+                                onClick={ event => handleNavClick( event, child ) }
                               >{ child.label }</a>
                             ) ) }
                           </div>
@@ -682,7 +719,7 @@ const Header: React.FC = () => {
            NO BACKTICKS IN THIS COMMENT: it sits inside a styled-jsx template literal, and a
            single backtick closes it - turning the rest of the stylesheet into JSX and failing
            the build hundreds of lines later with an unrelated-looking "Unexpected token". */
-        .nav-menu{--nav-menu-inset:0px;position:absolute;top:calc(100% + 8px);left:var(--nav-menu-inset);right:auto;z-index:1002;width:min(760px,calc(100vw - 256px));max-height:calc(100dvh - 140px);overflow-y:auto;-webkit-overflow-scrolling:touch;background:#fcfdfb;border:1px solid #e5e7eb;border-top:3px solid #d1f470;border-radius:14px;padding:14px;opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .2s,transform .2s,visibility 0s linear .2s;box-shadow:0 8px 28px rgba(0,0,0,.10)}
+        .nav-menu{--nav-menu-inset:0px;position:absolute;top:calc(100% + 8px);left:var(--nav-menu-inset);right:auto;z-index:1002;width:min(760px,calc(100vw - 256px));max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - env(safe-area-inset-bottom, 0px));overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;background:#fcfdfb;border:1px solid #e5e7eb;border-top:3px solid #d1f470;border-radius:14px;padding:14px;opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .2s,transform .2s,visibility 0s linear .2s;box-shadow:0 8px 28px rgba(0,0,0,.10)}
         .nav-menu.open{opacity:1;visibility:visible;transform:translateY(0);transition:opacity .2s,transform .2s,visibility 0s}
 
         /* Search field. Sized off the language panel's input rather than a new set of
@@ -770,6 +807,7 @@ const Header: React.FC = () => {
         .nav-group-link:hover{background:rgba(209,244,112,.22)}
         .nav-group-link:focus-visible{background:rgba(209,244,112,.22);outline:3px solid #1a3a2a;outline-offset:1px}
         .nav-empty{margin:0;padding:10px 12px 12px;font-size:14px;color:rgba(0,0,0,.54)}
+        .nav-search-status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
         /* 15px/46px was undersized against a 108px header and a 24px brand lockup,
            and it sat below the 16-17px the global .nav-item rules use for the same
@@ -809,13 +847,13 @@ const Header: React.FC = () => {
            with scaleX from transform-origin, which has no logical keyword, so the rtl case is
            stated explicitly - otherwise the underline would wipe in from the end of the line
            a right-to-left reader finishes on, reading as a retreat rather than a reveal. */
-        .nav-item::after{content:'';position:absolute;inset-inline:12px;bottom:0;height:1px;background:#f1f3ec}
-        .nav-item::before{content:'';position:absolute;inset-inline:12px;bottom:0;height:2px;background:#d1f470;transform:scaleX(0);transform-origin:left center;transition:transform .2s cubic-bezier(.16,1,.3,1)}
+        .nav-item::after{content:'';position:absolute;inset-inline:12px;bottom:0;height:1px;background:linear-gradient(90deg,transparent 0,#e5eadc 12%,#e5eadc 88%,transparent 100%)}
+        .nav-item::before{content:'';position:absolute;inset-inline:12px;bottom:0;height:2px;background:#d1f470;opacity:0;transform:scaleX(.16);transform-origin:left center;transition:transform .22s cubic-bezier(.16,1,.3,1),opacity .14s ease}
         :global([dir='rtl']) .nav-item::before{transform-origin:right center}
         /* The desktop panel hangs off its trigger, so under rtl it has to hang off the other
            edge. Paired with the --nav-menu-inset base rule above. */
         :global([dir='rtl']) .nav-menu{left:auto;right:var(--nav-menu-inset)}
-        .nav-item:not(.active):hover::before,.nav-item:not(.active):focus-visible::before{transform:scaleX(1)}
+        .nav-item:not(.active):hover::before,.nav-item:not(.active):focus-visible::before{opacity:1;transform:scaleX(1)}
         /* The last row in a group has nothing after it, so no divider. */
         .nav-group > .nav-item:last-child::after,.nav-tree-item:last-child > .nav-item:last-child::after{display:none}
         @media(prefers-reduced-motion:reduce){.nav-item::before{transition:none}}
@@ -840,7 +878,7 @@ const Header: React.FC = () => {
            variable - symmetric, therefore direction-neutral, therefore no rtl override
            needed. It still has to beat the base rule's compiled :lang() selector, which the
            extra .hdr-in ancestor class does. */
-        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:16px;right:16px;width:auto;max-height:calc(100dvh - 140px)}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:19px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto;background:transparent;padding:0;border-radius:0}}
+        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - env(safe-area-inset-bottom,0px))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:19px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto;background:transparent;padding:0;border-radius:0}}
 
         /* ROOM FOR THE SHOPPING BAG ON THE NARROWEST DEVICE THAT SHIPS, derived rather than
            nudged. Measured on the built header at 280px (Galaxy Fold, folded) before the bag
