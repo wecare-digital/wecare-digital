@@ -14,55 +14,78 @@ describe( 'Header', () => {
     expect( screen.getByRole( 'link', { name: /WECARE.DIGITAL home/i } ) ).toHaveAttribute( 'href', '/' );
   } );
 
-  it( 'uses separate Home and Grahak OS routes', () => {
+  it( 'uses the logo for home and exposes Browse All under Shop', () => {
     routerState.pathname = '/';
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
-    expect( screen.getByRole( 'link', { name: 'Home' } ) ).toHaveAttribute( 'href', '/' );
-    expect( screen.getByRole( 'link', { name: 'Home' } ) ).toHaveAttribute( 'aria-current', 'page' );
-    expect( screen.getByRole( 'link', { name: 'Grahak OS' } ) ).toHaveAttribute( 'href', '/grahak-os/' );
-    expect( screen.getByRole( 'link', { name: 'Grahak OS' } ) ).not.toHaveAttribute( 'aria-current' );
+    expect( screen.queryByRole( 'link', { name: 'Home' } ) ).toBeNull();
+    expect( screen.getByRole( 'link', { name: /WECARE.DIGITAL home/i } ) ).toHaveAttribute( 'href', '/' );
+
+    const shop = screen.getByText( 'Shop' ).closest( '.nav-group' );
+    expect( shop ).not.toBeNull();
+    expect( screen.getByRole( 'link', { name: 'Browse All' } ) ).toHaveAttribute( 'href', '/shop/' );
+    expect( shop?.textContent ).toContain( 'Browse All' );
   } );
 
-  it( 'adds a Shop row to the top group, directly after Home', () => {
-    routerState.pathname = '/';
-    render( <Header /> );
-    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
-    // The trailing slash is load-bearing: trailingSlash is set, so /shop would 308 before
-    // resolving.
-    expect( screen.getByRole( 'link', { name: 'Shop' } ) ).toHaveAttribute( 'href', '/shop/' );
-    // THE TOP GROUP, with Home, because /shop/ lists every product and every service on one page
-    // - an index ACROSS the categories rather than a member of one, which is the rule that group
-    // already states for Home. Not the Request group, whose exact order is pinned above as an
-    // owner instruction, and not Products, which is a scrolling category list.
-    const home = screen.getByRole( 'link', { name: 'Home' } ).closest( '.nav-group' );
-    const labels = Array.from( home?.querySelectorAll( '.nav-item' ) || [] )
-      .map( node => node.textContent );
-    expect( labels ).toEqual( [ 'Home', 'Shop' ] );
-  } );
-  it( 'lights Shop up on /shop only, not on a product or a listing page', () => {
-    // isActive is strict equality against router.pathname, which is how every other row in this
-    // menu behaves: /shop/kiosk/ is '/shop/[slug]' and /shop/page/2/ is '/shop/page/[page]'.
+  it( 'lights Browse All up on /shop only, not on a product or listing page', () => {
     routerState.pathname = '/shop';
     const { unmount } = render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
-    expect( screen.getByRole( 'link', { name: 'Shop' } ) ).toHaveAttribute( 'aria-current', 'page' );
+    expect( screen.getByRole( 'link', { name: 'Browse All' } ) ).toHaveAttribute( 'aria-current', 'page' );
     unmount();
 
     for ( const pathname of [ '/shop/[slug]', '/shop/page/[page]' ] ) {
       routerState.pathname = pathname;
       const view = render( <Header /> );
       fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
-      expect( screen.getByRole( 'link', { name: 'Shop' } ) ).not.toHaveAttribute( 'aria-current' );
+      expect( screen.getByRole( 'link', { name: 'Browse All' } ) ).not.toHaveAttribute( 'aria-current' );
       view.unmount();
     }
     routerState.pathname = '/';
   } );
+
   it( 'marks Grahak OS active on its public route', () => {
     routerState.pathname = '/grahak-os';
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
     expect( screen.getByRole( 'link', { name: 'Grahak OS' } ) ).toHaveAttribute( 'aria-current', 'page' );
+  } );
+
+  it( 'matches the approved catalog menu hierarchy', () => {
+    render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+
+    const first = screen.getByText( 'Products 1 of 2' ).closest( '.nav-col' );
+    expect( first?.textContent ).toContain( 'Grahak OS' );
+    expect( first?.textContent ).toContain( 'VayuLok' );
+    expect( first?.textContent ).toContain( 'Bharat Rx' );
+    expect( first?.textContent ).toContain( 'Elsewhere' );
+    expect( first?.textContent ).toContain( 'Visa Support' );
+    expect( first?.textContent ).toContain( 'Travel Support' );
+    expect( first?.textContent ).toContain( 'Expo Week' );
+    expect( first?.textContent ).toContain( 'Dastavez' );
+    expect( first?.textContent ).toContain( 'Drafting' );
+    expect( first?.textContent ).toContain( 'Registration' );
+    expect( first?.textContent ).toContain( 'Legal Reference' );
+    expect( first?.textContent ).toContain( 'Products 2 of 2' );
+    expect( first?.textContent ).toContain( 'Clear Closure' );
+    expect( first?.textContent ).toContain( 'Guided Resolution' );
+    expect( first?.textContent ).toContain( 'Case Submission' );
+    expect( first?.textContent ).toContain( 'Paperwork' );
+    expect( first?.textContent ).toContain( 'Ritual Guru' );
+    expect( first?.textContent ).toContain( 'DIY Puja Kit' );
+    expect( first?.textContent ).toContain( 'Puja Guidance' );
+    expect( first?.textContent ).toContain( 'Anew' );
+    expect( first?.textContent ).toContain( 'Hunar' );
+    expect( first?.textContent ).toContain( 'Niji Setu' );
+
+    const request = screen.getByText( 'Request' ).closest( '.nav-group' );
+    expect( Array.from( request?.querySelectorAll( '.nav-item' ) || [] ).map( n => n.textContent ) )
+      .toEqual( [ 'Orders', 'Submit Request', 'Request Amendment', 'Drop Docs', 'Vault', 'Request Pickup', 'Shipments', 'Leave Review', 'Subscribe' ] );
+
+    const refer = screen.getByRole( 'link', { name: 'Refer & Earn' } ).closest( '.nav-group' );
+    expect( Array.from( refer?.querySelectorAll( '.nav-item' ) || [] ).map( n => n.textContent ) )
+      .toEqual( [ 'Merchandise', 'Kiosk', 'Referral' ] );
   } );
 
   it( 'removes internal Sign in, and removes retired pages', () => {
@@ -96,7 +119,7 @@ describe( 'Header', () => {
 
     // Bharat Rx is a product, not one of the request actions. Asserted by
     // column position, because the label alone would pass wherever it sat.
-    const products = screen.getByText( 'Products' ).closest( '.nav-group' );
+    const products = screen.getByText( 'Products 1 of 2' ).closest( '.nav-group' );
     expect( products ).not.toBeNull();
     expect( products?.textContent ).toContain( 'Bharat Rx' );
 
@@ -245,7 +268,7 @@ describe( 'Header', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
 
-    const productsCol = screen.getByText( 'Products' ).closest( '.nav-col' );
+    const productsCol = screen.getByText( 'Products 1 of 2' ).closest( '.nav-col' );
     expect( productsCol?.textContent ).toContain( 'Elsewhere' );
     expect( productsCol?.textContent ).toContain( 'Visa Support' );
     expect( productsCol?.textContent ).toContain( 'Travel Support' );
