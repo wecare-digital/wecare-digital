@@ -84,7 +84,6 @@ interface ProductPageProps {
 const CATALOG_ARTWORK_BASE = 'https://wecare.digital/get/o/stream/media/m/wd-catalog-live/';
 const PRODUCT_ARTWORK: Readonly<Record<string, string>> = {
   'expo-week': CATALOG_ARTWORK_BASE + 'expo-week-4096.png',
-  anew: CATALOG_ARTWORK_BASE + 'anew-4096.png',
   hunar: CATALOG_ARTWORK_BASE + 'hunar-4096.png',
   'niji-setu': CATALOG_ARTWORK_BASE + 'niji-setu-4096.png',
 };
