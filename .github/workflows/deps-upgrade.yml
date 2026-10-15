@@ -30,11 +30,15 @@ concurrency:
 jobs:
   upgrade:
     runs-on: ubuntu-26.04
+    # Pushes to `stack` with the stack-bot deploy key: the `stack: required checks` ruleset lets
+    # only that key bypass, and the key lives in an environment only `stack` jobs can read.
+    environment: stack-bot
     steps:
       - name: Checkout stack
         uses: actions/checkout@v7
         with:
           ref: stack
+          ssh-key: ${{ secrets.STACK_DEPLOY_KEY }}
 
       - name: Setup Node 24
         uses: actions/setup-node@v7
