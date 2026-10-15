@@ -566,6 +566,26 @@ describe( 'the product page', () => {
     expect( json ).not.toContain( '[slug]' );
   } );
 
+  it( 'keys page-scoped @ids on the route it renders on, even when the canonical is elsewhere', () => {
+    // /anew/ defines its own #webpage and #breadcrumb. If /shop/anew/ keyed its nodes off the
+    // canonical it would define the same two, and schemacheck fails a page-scoped @id on two routes.
+    const anew = shopProductBySlug( 'anew' ) as ShopProduct;
+    expect( shopProductPath( anew ) ).toBe( '/anew/' );
+    const graph = shopProductSchema( anew )[ '@graph' ];
+    const page = ld( graph.find( n => ld( n )[ '@type' ] === 'ItemPage' ) );
+    const crumbs = ld( graph.find( n => ld( n )[ '@type' ] === 'BreadcrumbList' ) );
+    expect( page[ '@id' ] ).toBe( 'https://wecare.digital/shop/anew/#webpage' );
+    expect( ld( page.breadcrumb )[ '@id' ] ).toBe( 'https://wecare.digital/shop/anew/#breadcrumb' );
+    expect( crumbs[ '@id' ] ).toBe( 'https://wecare.digital/shop/anew/#breadcrumb' );
+    // The URL fields still name the canonical, so search engines are pointed at /anew/.
+    expect( page.url ).toBe( 'https://wecare.digital/anew/' );
+    expect( JSON.stringify( graph ) ).not.toContain( 'https://wecare.digital/anew/#' );
+    // A product whose canonical IS its route is unchanged.
+    const kiosk = ld( shopProductSchema( shopProductBySlug( 'kiosk' ) as ShopProduct )[ '@graph' ][ 0 ] );
+    expect( kiosk[ '@id' ] ).toBe( 'https://wecare.digital/shop/kiosk/#webpage' );
+    expect( kiosk.url ).toBe( 'https://wecare.digital/shop/kiosk/' );
+  } );
+
   it( 'offers a way back to the listing through a three-item breadcrumb and an all-items link', () => {
     /*
      * REWRITTEN 2026-10-10, inverting the 2026-10-04 rewrite. The owner restored the catalogue

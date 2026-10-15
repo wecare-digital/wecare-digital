@@ -367,6 +367,12 @@ export const shopMetaDescription = ( product: ShopProduct ): string => {
 export const shopPageTitle = ( product: ShopProduct ): string =>
   product.name + ' — price and what it includes | WECARE.DIGITAL';
 
-/** '/shop/kiosk/' - trailingSlash is on, so the canonical form carries one. */
+/** The route a product renders on: '/shop/kiosk/'. trailingSlash is on, so it carries one. */
+export const shopRoutePath = ( product: ShopProduct ): string => '/shop/' + product.slug + '/';
+
+/**
+ * The product's canonical path. Usually its own route, but catalog v2 lets a product name a
+ * richer page instead (Anew's is '/anew/'), so this can differ from shopRoutePath.
+ */
 export const shopProductPath = ( product: ShopProduct ): string =>
-  product.canonicalPath || ( '/shop/' + product.slug + '/' );
+  product.canonicalPath || shopRoutePath( product );
