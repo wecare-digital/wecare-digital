@@ -168,12 +168,11 @@ def _mark_no_show_appointments(now: int) -> int:
             if updated:
                 count += 1
         except Exception as e:
-            # `type(e).__name__`, not `{e}`. This `except` wraps a DynamoDB UpdateItem on an
-            # appointment row, so the exception text can carry the item's own attribute values
-            # back out of the service's error message. The appointment id stays, as the
-            # correlation handle for a failed transition.
-            logger.warning(f'No-show check failed for '
-                           f'{item.get("appointmentId")}: {type(e).__name__}')
+            # Nothing from the row reaches this line - not the id, not `{e}`. The row is a
+            # customer's flow response (phone, name, answers), and CodeQL's
+            # py/clear-text-logging-sensitive-data tracks it here through flow_records. The
+            # exception class is enough to triage, and the next sweep retries the same row.
+            logger.warning(f'No-show check failed: {type(e).__name__}')
 
     return count
 
