@@ -67,7 +67,7 @@ def test_the_policy_is_exactly_the_five_required_statements(provisioner):
 
     #525 made a ProductsTable change trigger the sync through a stream event-source mapping. Lambda
     polls that stream with the function's own role, so the role needs the four stream-read
-    actions, scoped to that one table's streams and nothing else.
+    actions, scoped to the one stream that mapping reads and nothing else.
     """
     assert provisioner.expected_role_policy(ACCOUNT) == {
         "Version": "2012-10-17",
@@ -110,7 +110,7 @@ def test_the_policy_is_exactly_the_five_required_statements(provisioner):
                 ],
                 "Resource": [
                     f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/"
-                    "stack-wecare-digital-ProductsTable/stream/*"
+                    "stack-wecare-digital-ProductsTable/stream/2026-10-14T06:15:10.307"
                 ],
             },
             {
@@ -329,3 +329,16 @@ def test_the_handler_defaults_agree_with_the_provisioned_environment():
     assert '"META_CATALOG_ID", "1457045652952851"' in text
     assert '"META_TOKEN_SECRET", "wecare/meta-system-user-token"' in text
     assert '"META_TOKEN_FIELD", "access_token"' in text
+
+
+def test_the_stream_read_names_the_one_mapped_stream(provisioner):
+    """`stream/*` would follow any future stream on the table; a new stream is a new grant.
+
+    The live event-source mapping (c15e412f) reads exactly this stream, and the live grant on
+    the role names exactly this ARN.
+    """
+    statements = provisioner.expected_role_policy(ACCOUNT)["Statement"]
+    stream = [s for s in statements if "dynamodb:GetRecords" in s["Action"]]
+    assert len(stream) == 1
+    assert all("/stream/" in r and "*" not in r for r in stream[0]["Resource"])
+    assert stream[0]["Resource"][0].endswith("/stream/2026-10-14T06:15:10.307")
