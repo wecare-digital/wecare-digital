@@ -11,6 +11,7 @@ VayuLok is intentionally a browser-driven Google Maps experience.
 - Geocoding API
 - Time Zone API
 - Air Quality API
+- Weather API
 
 The key is expected to be a website/browser key restricted to WECARE.DIGITAL origins. VayuLok must not depend on a separate `/vayulok/environment` gateway to render its core Air or Weather experience.
 
@@ -25,8 +26,8 @@ The map is a static visualization surface.
 - Search/recent places are the only location-selection paths.
 - Search/recent-place selection recenters the camera to the chosen destination.
 - Direct drag, touch/pinch, wheel/zoom, double-click zoom and keyboard map movement are disabled.
-- Direct canvas gestures never trigger geocoding or Air Quality refreshes.
-- Air Quality refreshes for the selected search/recent-place destination.
+- Direct canvas gestures never trigger geocoding, Air Quality, or Weather refreshes.
+- Air Quality and Weather refresh for the selected search/recent-place destination.
 
 ## Failure behavior
 
@@ -42,12 +43,12 @@ Any Google Cloud key-policy change for this feature must keep the browser key en
 
 On a deployed `*.wecare.digital` origin:
 
-1. Load `/vayulok/` and confirm Shillong Air quality appears.
+1. Load `/vayulok/` and confirm Shillong Air quality and Weather appear.
 2. Confirm the map is non-interactive: drag/pinch/wheel/keyboard input does not move it or trigger location lookup.
-3. Search for a city and confirm the map recenters and refreshes Air Quality data.
-4. Confirm the Air Quality card shows AQI, pollutants, forecast and history for the selected place.
+3. Search for a city and confirm the map recenters and refreshes Air Quality and Weather data.
+4. Confirm the Air and Weather tabs show their live current conditions, forecasts and history for the selected place.
 
 
-## 2026-10-15 scope update
+## 2026-10-16 scope update
 
-The live map surface is Air-only. Weather UI, Weather API calls, weather history/forecast state, alerts, and the local weather/storm atmosphere layer were removed to reduce page weight. Search/recent-place selection remains the only camera movement path, and the initial camera is centered on India.
+Weather remains a first-class VayuLok section. Current Weather, hourly/daily forecast, recent history and public alerts are restored. The heavy local storm/cloud atmosphere overlay remains removed to keep the map lighter. Search/recent-place selection remains the only camera movement path, and the initial camera is centered on India.

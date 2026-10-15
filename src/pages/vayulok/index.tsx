@@ -1,17 +1,17 @@
 /**
  * VayuLok public product page
- * Bharat Air Intelligence, by WECARE.DIGITAL
+ * Bharat Air + Weather Intelligence, by WECARE.DIGITAL
  *
  * DELIBERATELY CLEAR. The page is the hero - the tag, the rotating line beneath it and
  * the approved globe beside them - followed by the live VayuLok section. That is the
  * owner's call, and it is still the honest one: no MARKETING copy is invented here.
  * Nothing in this repository describes what VayuLok does beyond the capabilities the
  * rotating words name, so the section below the hero adds no new claims of its own -
- * it shows real fetched air-quality data, or nothing at all when it has none.
+ * it shows real fetched air and weather data, or nothing at all when it has none.
  *
- * The hero now names only the Air-quality capabilities surfaced by this page: Air, AQI,
- * Forecast, Conditions, History and Heatmap. Weather-only UI and runtime requests were removed
- * from the live map surface to keep the page focused and lighter.
+ * The hero names the live capabilities surfaced by this page: Air, Weather, Forecast,
+ * Conditions, History and Heatmap. The page keeps the lighter hero presentation while Weather
+ * remains a first-class live section below.
  *
  * The hero is the shared RotatingHero, as on Grahak OS, so the two pages animate identically:
  * measured width so the pill resizes instead of snapping, a pale tint with a
@@ -52,7 +52,7 @@ import VayuLokLive from '../../components/VayuLokLive';
  */
 const VAYULOK_SOCIAL_CARD = {
   url: 'https://wecare.digital/get/o/stream/media/m/vayulok-social.png',
-  alt: 'VayuLok by WECARE.DIGITAL — Bharat air intelligence',
+  alt: 'VayuLok by WECARE.DIGITAL — Bharat air and weather intelligence',
   width: 1200,
   height: 630,
   card: 'summary_large_image' as const,
@@ -75,7 +75,7 @@ function vayulokJsonLd(): Record<string, unknown>[] {
       url: 'https://wecare.digital/vayulok/',
       applicationCategory: 'HealthApplication',
       operatingSystem: 'Web Browser',
-      description: 'Air intelligence for Bharat: live air quality, pollutant detail, a 96-hour air forecast, recent history and heatmap for a chosen location.',
+      description: 'Air and weather intelligence for Bharat: live air quality, weather, a 96-hour forecast and recent history for a chosen location.',
       inLanguage: 'en-IN',
       isAccessibleForFree: true,
       provider: { '@id': 'https://wecare.digital/#organization' },
@@ -111,7 +111,7 @@ const VayuLokPage: React.FC = () => {
   // accurately covering the live Air current-condition experience.
   const cycleWords = [
     { word: 'Air', tint: '#e0f7c8', dot: '#3da35a' },
-    { word: 'AQI', tint: '#dbeafe', dot: '#2563eb' },
+    { word: 'Weather', tint: '#dbeafe', dot: '#2563eb' },
     { word: 'Forecast', tint: '#ede9fe', dot: '#9849e8' },
     { word: 'Conditions', tint: '#e0f7c8', dot: '#3da35a' },
     { word: 'History', tint: '#fef9c3', dot: '#ca8a04' },
@@ -133,8 +133,8 @@ const VayuLokPage: React.FC = () => {
           description is the wrong place to promise an unbuilt feature. Solar is left out on
           the same caution. Add them here when they are real. */}
       <PageMeta
-        title="VayuLok — Bharat air intelligence | WECARE.DIGITAL"
-        description="VayuLok by WECARE.DIGITAL — live air quality, AQI, pollutant detail, air forecasts, history and heatmaps for a chosen location."
+        title="VayuLok — Bharat air and weather intelligence | WECARE.DIGITAL"
+        description="VayuLok by WECARE.DIGITAL — live air quality, weather, forecasts, history and heatmaps for a chosen location."
         path="/vayulok/"
         jsonLd={ vayulokJsonLd() }
         image={ VAYULOK_SOCIAL_CARD }
@@ -148,7 +148,7 @@ const VayuLokPage: React.FC = () => {
           badgeLabel="VayuLok by WECARE.DIGITAL"
           frame="Bharat intelligence"
           words={ cycleWords }
-          sub="VayuLok reads the air around your chosen place — live AQI, pollutants, forecast, history and heatmap."
+          sub="VayuLok reads your chosen place — live air quality and weather, with forecast, history and heatmap."
           visual={ (
           <div className="vl-hero-visual">
             <VayuLokApprovedGlobe />
