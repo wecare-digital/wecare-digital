@@ -37,7 +37,8 @@ import boto3
 from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 
-from lambda_utils import media_paths
+from lambda_utils import contact_store, flow_completion, flow_records, media_paths, shared_tables
+from lambda_utils.ecommerce import order_record
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -45,20 +46,19 @@ logger.setLevel(logging.INFO)
 dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 s3_client = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 
-# Table names
+# Table names. The shared stores (contacts, orders, flow responses, drafts, status history)
+# resolve through `lambda_utils.shared_tables`, so this API, the WhatsApp Flows, the inbox and
+# the website checkout read and write the same tables. Reviews, appointments, Rx slots,
+# enterprise cases and amendments are flow responses: see `lambda_utils.flow_records`.
 TABLE_PREFIX = os.environ.get('TABLE_PREFIX', 'stack-wecare-digital')
-ORDERS_TABLE = f'{TABLE_PREFIX}-OrderTable'
-FLOW_SUBMISSIONS_TABLE = f'{TABLE_PREFIX}-FlowSubmissionTable'
-FLOW_DRAFTS_TABLE = f'{TABLE_PREFIX}-FlowDraftTable'
-STATUS_HISTORY_TABLE = f'{TABLE_PREFIX}-RequestStatusHistoryTable'
+ORDERS_TABLE = order_record.table_name()
+CONTACTS_TABLE = shared_tables.contacts_table_name()
+FLOW_SUBMISSIONS_TABLE = shared_tables.flow_submissions_table_name()
+FLOW_DRAFTS_TABLE = shared_tables.flow_drafts_table_name()
+STATUS_HISTORY_TABLE = shared_tables.status_history_table_name()
 DOCUMENTS_TABLE = f'{TABLE_PREFIX}-DocumentTable'
 DOCUMENT_HISTORY_TABLE = f'{TABLE_PREFIX}-DocumentHistoryTable'
 FAQ_TABLE = f'{TABLE_PREFIX}-FaqTable'
-APPOINTMENTS_TABLE = f'{TABLE_PREFIX}-AppointmentTable'
-RX_SLOTS_TABLE = f'{TABLE_PREFIX}-RxSlotTable'
-ENTERPRISE_TABLE = f'{TABLE_PREFIX}-EnterpriseAssistTable'
-REVIEWS_TABLE = f'{TABLE_PREFIX}-ReviewTable'
-AMENDMENT_HISTORY_TABLE = f'{TABLE_PREFIX}-AmendmentHistoryTable'
 AUDIT_LOG_TABLE = f'{TABLE_PREFIX}-AuditLogsTable'
 
 # Documents ARE WhatsApp media: inbound-whatsapp writes the object and then records its
@@ -102,41 +102,53 @@ def _extract_origin(event: Dict) -> str:
 # ORDERS
 # ============================================================================
 
+def _drain_orders(table, kwargs: Dict[str, Any]) -> list:
+    """Every page of one order query (or a scan when `kwargs` is empty)."""
+    resp = table.query(**kwargs) if kwargs else table.scan()
+    items = resp.get('Items', [])
+    while resp.get('LastEvaluatedKey'):
+        query = dict(kwargs, ExclusiveStartKey=resp['LastEvaluatedKey'])
+        resp = table.query(**query) if kwargs else table.scan(**query)
+        items.extend(resp.get('Items', []))
+    return items
+
+
 def _list_orders(params: Dict) -> Dict:
+    """Website and WhatsApp orders from the one order table, in one shape.
+
+    A phone filter matches every stored spelling of the number (`+91...`, `91...`), because
+    website orders carry the session's E.164 phone and older rows carry what staff typed.
+    """
     table = dynamodb.Table(ORDERS_TABLE)
-    kwargs: Dict[str, Any] = {}
     status = params.get('status')
     source = params.get('source')
     phone = params.get('phone')
     search = params.get('search')
 
     if phone:
-        kwargs['IndexName'] = 'customerPhone'
-        kwargs['KeyConditionExpression'] = Key('customerPhone').eq(phone)
-        resp = table.query(**kwargs)
+        items, seen = [], set()
+        for variant in contact_store.phone_variants(phone) or [phone]:
+            for item in _drain_orders(table, {
+                    'IndexName': 'customerPhone',
+                    'KeyConditionExpression': Key('customerPhone').eq(variant)}):
+                if item.get('orderId') not in seen:
+                    seen.add(item.get('orderId'))
+                    items.append(item)
     elif status:
-        kwargs['IndexName'] = 'orderStatus'
-        kwargs['KeyConditionExpression'] = Key('orderStatus').eq(status)
-        resp = table.query(**kwargs)
+        items = _drain_orders(table, {'IndexName': 'orderStatus',
+                                      'KeyConditionExpression': Key('orderStatus').eq(status)})
     elif source:
-        kwargs['IndexName'] = 'source'
-        kwargs['KeyConditionExpression'] = Key('source').eq(source)
-        resp = table.query(**kwargs)
+        items = _drain_orders(table, {'IndexName': 'source',
+                                      'KeyConditionExpression': Key('source').eq(source)})
     else:
-        resp = table.scan()
+        items = _drain_orders(table, {})
 
-    items = resp.get('Items', [])
-    while resp.get('LastEvaluatedKey'):
-        query = dict(kwargs, ExclusiveStartKey=resp['LastEvaluatedKey'])
-        resp = table.query(**query) if kwargs else table.scan(**query)
-        items.extend(resp.get('Items', []))
-    for item in items:
-        if item.get('paymentStatus') == 'PAYMENT_PAID':
-            item['paymentStatus'] = 'paid'
-        item.setdefault('status', item.get('orderStatus', 'active'))
+    # One projection for every writer's rows: order number, channel, integer paise and the
+    # staff payment word (`PAYMENT_PAID` reads as `paid`).
+    items = [order_record.view(item) for item in items]
     if search:
         q = search.lower()
-        items = [i for i in items if q in (str(i.get('orderId', '')) + str(i.get('orderNumber', '')) + str(i.get('wixOrderId', '')) + str(i.get('customerName', '')) + str(i.get('customerPhone', ''))).lower()]
+        items = [i for i in items if q in (str(i.get('orderId', '')) + str(i.get('orderNumber', '')) + str(i.get('shortId', '')) + str(i.get('wixOrderId', '')) + str(i.get('customerName', '')) + str(i.get('customerPhone', ''))).lower()]
 
     items.sort(key=lambda x: x.get('createdAt', 0), reverse=True)
     limit = int(params.get('limit', 200))
@@ -164,12 +176,30 @@ def _get_order(order_id: str) -> Dict:
     item = resp.get('Item')
     if not item:
         return _resp(404, {'error': 'Order not found'})
-    return _resp(200, item)
+    return _resp(200, order_record.view(item))
+
+
+def _contact_id_for_phone(phone: str) -> str:
+    """The shared ContactsTable id for a phone, best-effort ('' when unknown or unreadable)."""
+    if not phone:
+        return ''
+    try:
+        return contact_store.lookup_id(dynamodb.Table(CONTACTS_TABLE), phone)
+    except Exception as exc:  # noqa: BLE001 - attribution must not block the write
+        logger.warning(f'Contact lookup skipped: {type(exc).__name__}')
+        return ''
 
 
 def _create_order(body: Dict) -> Dict:
+    """A staff-entered order, in the same shape the website and WhatsApp orders use.
+
+    Linked to the customer's ContactsTable row when one exists for the phone, so the order
+    shows up wherever that contact's orders are listed, whichever channel created it.
+    """
     table = dynamodb.Table(ORDERS_TABLE)
     now = _now()
+    phone = contact_store.canonical_phone(body.get('customerPhone'))
+    contact_id = str(body.get('contactId') or '').strip() or _contact_id_for_phone(phone)
 
     # Conditional, and retried on collision.
     #
@@ -182,28 +212,11 @@ def _create_order(body: Dict) -> Dict:
     # Same discipline as `lambda_utils/ecommerce/order_keys.py`: the database enforces
     # uniqueness, not the improbability of the generator.
     for attempt in range(5):
-        short = _gen_id()
-        order_id = f'WD-ORD-{short}'
-        item = {
-            'orderId': order_id,
-            'shortId': short,
-            'source': body.get('source', 'manual'),
-            'customerPhone': body.get('customerPhone', ''),
-            'customerName': body.get('customerName', ''),
-            'customerEmail': body.get('customerEmail', ''),
-            'itemsSummary': body.get('itemsSummary', ''),
-            'totalAmount': body.get('totalAmount'),
-            'currency': body.get('currency', 'INR'),
-            'orderStatus': body.get('status', 'active'),
-            'paymentStatus': body.get('paymentStatus', 'pending'),
-            'adminNotes': body.get('notes', ''),
-            'createdAt': now,
-            'updatedAt': now,
-        }
-        item = {k: v for k, v in item.items() if v is not None and v != ''}
+        item = order_record.staff_order(body, short=_gen_id(), now=now,
+                                        contact_id=contact_id, customer_phone=phone)
         try:
             table.put_item(Item=item, ConditionExpression='attribute_not_exists(orderId)')
-            return _resp(201, item)
+            return _resp(201, order_record.view(item))
         except ClientError as exc:
             if exc.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
                 raise
@@ -221,6 +234,9 @@ def _update_order(order_id: str, body: Dict) -> Dict:
         if field in body:
             key = 'orderStatus' if field == 'status' else ('adminNotes' if field == 'notes' else field)
             updates[key] = body[field]
+    if 'orderStatus' in updates:
+        # Both spellings are read; keep them equal so no reader sees a stale one.
+        updates['status'] = updates['orderStatus']
     updates['updatedAt'] = _now()
 
     expr_parts = []
@@ -233,12 +249,20 @@ def _update_order(order_id: str, body: Dict) -> Dict:
         expr_names[alias] = k
         expr_values[val_alias] = v
 
-    table.update_item(
-        Key={'orderId': order_id},
-        UpdateExpression='SET ' + ', '.join(expr_parts),
-        ExpressionAttributeNames=expr_names,
-        ExpressionAttributeValues=expr_values,
-    )
+    try:
+        table.update_item(
+            Key={'orderId': order_id},
+            UpdateExpression='SET ' + ', '.join(expr_parts),
+            # UpdateItem upserts: without this a PATCH to a mistyped id would create a phantom
+            # order row with only these fields on it.
+            ConditionExpression='attribute_exists(orderId)',
+            ExpressionAttributeNames=expr_names,
+            ExpressionAttributeValues=expr_values,
+        )
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            return _resp(404, {'error': 'Order not found'})
+        raise
     return _resp(200, {'updated': True, 'orderId': order_id})
 
 
@@ -256,68 +280,74 @@ def _get_order_submissions(order_id: str) -> Dict:
 # SERVICE: SUBMIT / AMEND / TRACK / DRAFTS
 # ============================================================================
 
+def _customer_of(table_name: str, key: Dict[str, str], phone_field: str) -> Dict[str, str]:
+    """`{phone, contactId}` copied off a linked order or submission. Best-effort."""
+    try:
+        row = dynamodb.Table(table_name).get_item(Key=key).get('Item') or {}
+    except Exception as exc:  # noqa: BLE001 - attribution must not block the write
+        logger.warning(f'Linked customer lookup skipped: {type(exc).__name__}')
+        return {'phone': '', 'contactId': ''}
+    return {'phone': str(row.get(phone_field) or ''), 'contactId': str(row.get('contactId') or '')}
+
+
 def _submit_request(body: Dict) -> Dict:
+    """A staff-entered service request, written by the one flow-response writer.
+
+    Same table, shape and idempotent claim as the WhatsApp Submit Request flow, marked
+    `channel=staff`, and linked to the order's customer so it appears on that contact's
+    timeline next to their WhatsApp submissions.
+    """
     order_id = body.get('orderId', '')
     if not order_id:
         return _resp(400, {'error': 'orderId required'})
 
-    table = dynamodb.Table(FLOW_SUBMISSIONS_TABLE)
-    sub_id = str(uuid.uuid4())
-    short = _gen_id('WD-SR-')
-    now = _now()
-
-    item = {
-        'submissionId': sub_id,
-        'flowId': 'web-submit',
-        'flowCode': '01.WD_SR',
-        'flowType': 'form_submit',
-        'orderId': order_id,
-        'requestType': body.get('requestType', ''),
-        'subject': body.get('subject', ''),
-        'description': body.get('description', ''),
-        'submissionNumber': short,
-        'status': 'open',
-        'paymentRequired': body.get('paymentRequired', False),
-        'paymentStatus': 'none',
-        'formData': json.dumps(body),
-        'createdAt': now,
-        'updatedAt': now,
-    }
-    item = {k: v for k, v in item.items() if v is not None}
-    table.put_item(Item=item)
-
-    # Log status history
-    _log_status_history(sub_id, order_id, '', 'open', 'system', 'Request submitted via web')
-
-    return _resp(201, {'submissionId': sub_id, 'submissionNumber': short})
+    customer = _customer_of(ORDERS_TABLE, {'orderId': order_id}, 'customerPhone')
+    contact_id = customer['contactId'] or _contact_id_for_phone(customer['phone'])
+    for _ in range(5):
+        short = _gen_id('WD-SR-')
+        result = flow_completion.claim_completion(
+            flow_token=short, screen='STAFF', flow_code='01.WD_SR', flow_type='form_submit',
+            phone=contact_store.digits(customer['phone']), contact_id=contact_id,
+            form_data=body if isinstance(body, dict) else {},
+            reference_prefix='WD-SR', submission_id=short, status='open',
+            extra={'flowId': flow_completion.WEB_SUBMIT_FLOW_ID, 'orderId': order_id,
+                   'requestType': body.get('requestType', ''),
+                   'subject': body.get('subject', ''),
+                   'description': body.get('description', ''),
+                   'paymentRequired': bool(body.get('paymentRequired', False))},
+            ttl_seconds=0, channel=flow_completion.CHANNEL_STAFF)
+        if result.created:
+            _log_status_history(short, order_id, '', 'open', 'system', 'Request submitted via web')
+            return _resp(201, {'submissionId': short, 'submissionNumber': short})
+        if result.status == 'error':
+            return _resp(503, {'error': 'Request could not be saved', 'retryable': True})
+    return _resp(503, {'error': 'Could not allocate a unique request number', 'retryable': True})
 
 
 def _amend_request(body: Dict) -> Dict:
+    """An amendment is a flow response too: one FlowSubmission row (flowCode WD_AMEND).
+
+    It points at the request it amends through `parentSubmissionId` and inherits that
+    request's customer, so the amendment, the request and the order share one contact.
+    """
     sub_id = body.get('submissionId', '')
     order_id = body.get('orderId', '')
     if not sub_id:
         return _resp(400, {'error': 'submissionId required'})
 
-    table = dynamodb.Table(AMENDMENT_HISTORY_TABLE)
-    amend_id = str(uuid.uuid4())
-    now = _now()
-
-    item = {
-        'amendmentId': amend_id,
-        'submissionId': sub_id,
-        'orderId': order_id,
-        'amendmentType': body.get('amendmentType', ''),
-        'description': body.get('description', ''),
-        'status': 'submitted',
-        'createdAt': now,
-        'updatedAt': now,
-    }
-    table.put_item(Item=item)
+    parent = _customer_of(FLOW_SUBMISSIONS_TABLE, {'submissionId': sub_id}, 'phone')
+    try:
+        record = flow_records.create_staff_row(
+            flow_records.AMENDMENT, fields=flow_records.amendment_fields(body),
+            phone=parent['phone'], contact_id=parent['contactId'],
+            form_data=body if isinstance(body, dict) else {})
+    except RuntimeError:
+        return _resp(503, {'error': 'Amendment could not be saved', 'retryable': True})
 
     # Log status history
     _log_status_history(sub_id, order_id, '', 'amendment_submitted', 'system', f'Amendment: {body.get("amendmentType", "")}')
 
-    return _resp(201, {'success': True, 'amendmentId': amend_id})
+    return _resp(201, {'success': True, 'amendmentId': record['amendmentId']})
 
 
 def _track_order(order_id: str) -> Dict:
@@ -344,7 +374,7 @@ def _track_order(order_id: str) -> Dict:
     documents = sorted(doc_resp.get('Items', []), key=lambda x: x.get('createdAt', 0), reverse=True)
 
     return _resp(200, {
-        'order': order,
+        'order': order_record.view(order),
         'submissions': submissions,
         'statusHistory': history,
         'documents': documents,
@@ -645,351 +675,101 @@ def _delete_faq(faq_id: str) -> Dict:
 
 
 # ============================================================================
-# APPOINTMENTS
+# APPOINTMENTS, RX SLOTS, ENTERPRISE ASSIST, REVIEWS
 # ============================================================================
+#
+# All four are flow responses and live in the one flow-response table, next to the WhatsApp
+# Flow submissions that create most of them, marked `channel=staff` when entered here. Routes,
+# request bodies and response shapes are unchanged. `lambda_utils.flow_records` owns the row
+# shape and the list filters, so this file and whatsapp-business-api/service_api.py cannot
+# drift on it.
+
+def _flow_table():
+    return dynamodb.Table(FLOW_SUBMISSIONS_TABLE)
+
+
+def _create_record(kind, body: Dict, fields: Dict, phone: str, view,
+                   status: Optional[str] = None) -> Dict:
+    contact_id = (str(body.get('contactId') or '').strip()
+                  or _contact_id_for_phone(contact_store.canonical_phone(phone)))
+    try:
+        record = flow_records.create_staff_row(
+            kind, fields=fields, phone=phone, contact_id=contact_id,
+            sender_name=str(fields.get('customerName') or fields.get('contactName') or ''),
+            status=status)
+    except RuntimeError:
+        return _resp(503, {'error': f'{kind.name} could not be saved', 'retryable': True})
+    return _resp(201, view(record))
+
+
+def _update_record(kind, record_id: str, updates: Dict) -> Dict:
+    if not flow_records.update_row(_flow_table(), kind, record_id, updates, _now()):
+        return _resp(404, {'error': 'Not found'})
+    return _resp(200, {'updated': True})
+
 
 def _list_appointments(params: Dict) -> Dict:
-    table = dynamodb.Table(APPOINTMENTS_TABLE)
-    status = params.get('status')
-    apt_type = params.get('type')
-
-    if status:
-        resp = table.query(IndexName='status', KeyConditionExpression=Key('status').eq(status))
-    else:
-        resp = table.scan()
-
-    items = resp.get('Items', [])
-    if apt_type:
-        items = [i for i in items if i.get('appointmentType') == apt_type]
-
-    # Normalize for frontend
-    for item in items:
-        item['type'] = item.pop('appointmentType', item.get('type', ''))
-        # Build scheduledAt from slotDate + slotTime
-        if 'slotDate' in item and not item.get('scheduledAt'):
-            try:
-                from datetime import datetime
-                dt_str = f"{item['slotDate']} {item.get('slotTime', '00:00')}"
-                for fmt in ['%Y-%m-%d %I:%M %p', '%Y-%m-%d %H:%M', '%Y-%m-%d %H:%M:%S']:
-                    try:
-                        dt = datetime.strptime(dt_str, fmt)
-                        item['scheduledAt'] = int(dt.timestamp())
-                        break
-                    except ValueError:
-                        continue
-            except Exception:
-                pass
-        item['provider'] = item.get('assignedTo', item.get('provider', ''))
-        item['location'] = item.get('location', '')
-
-    items.sort(key=lambda x: x.get('createdAt', 0), reverse=True)
+    items = flow_records.list_appointments(_flow_table(), params)
     return _resp(200, {'appointments': items, 'count': len(items)})
 
 
 def _create_appointment(body: Dict) -> Dict:
-    table = dynamodb.Table(APPOINTMENTS_TABLE)
-    apt_id = f'WD-APT-{_gen_id()}'
-    now = _now()
-    item = {
-        'appointmentId': apt_id,
-        'customerPhone': body.get('customerPhone', ''),
-        'customerName': body.get('customerName', ''),
-        'orderId': body.get('orderId'),
-        'appointmentType': body.get('type', body.get('appointmentType', 'consultation')),
-        'slotDate': body.get('slotDate', body.get('date', '')),
-        'slotTime': body.get('slotTime', body.get('time', '')),
-        'duration': body.get('duration', ''),
-        'location': body.get('location', ''),
-        'status': body.get('status', 'scheduled'),
-        'notes': body.get('notes', ''),
-        'createdAt': now,
-        'updatedAt': now,
-    }
-    item = {k: v for k, v in item.items() if v is not None and v != ''}
-    table.put_item(Item=item)
-    # Normalize for response
-    item['type'] = item.pop('appointmentType', '')
-    return _resp(201, item)
+    return _create_record(flow_records.APPOINTMENT, body, flow_records.appointment_fields(body),
+                          body.get('customerPhone', ''), flow_records.appointment_view,
+                          status=body.get('status') or 'scheduled')
 
 
 def _update_appointment(apt_id: str, body: Dict) -> Dict:
-    table = dynamodb.Table(APPOINTMENTS_TABLE)
-    now = _now()
-    updates = {'updatedAt': now}
-    for field in ['status', 'notes', 'adminNotes', 'assignedTo', 'location', 'slotDate', 'slotTime']:
-        if field in body:
-            updates[field] = body[field]
+    updates = {f: body[f] for f in flow_records.APPOINTMENT_UPDATE_FIELDS if f in body}
+    return _update_record(flow_records.APPOINTMENT, apt_id, updates)
 
-    expr_parts, expr_values, expr_names = [], {}, {}
-    for i, (k, v) in enumerate(updates.items()):
-        expr_parts.append(f'#f{i} = :v{i}')
-        expr_names[f'#f{i}'] = k
-        expr_values[f':v{i}'] = v
-
-    table.update_item(
-        Key={'appointmentId': apt_id},
-        UpdateExpression='SET ' + ', '.join(expr_parts),
-        ExpressionAttributeNames=expr_names,
-        ExpressionAttributeValues=expr_values,
-    )
-    return _resp(200, {'updated': True})
-
-
-# ============================================================================
-# RX SLOTS
-# ============================================================================
 
 def _list_rx_slots(params: Dict) -> Dict:
-    table = dynamodb.Table(RX_SLOTS_TABLE)
-    status = params.get('status')
-    date = params.get('date')
-
-    if status:
-        resp = table.query(IndexName='status', KeyConditionExpression=Key('status').eq(status))
-    elif date:
-        resp = table.query(IndexName='slotDate', KeyConditionExpression=Key('slotDate').eq(date))
-    else:
-        resp = table.scan()
-
-    items = resp.get('Items', [])
-    # Normalize for frontend
-    for item in items:
-        item['slotId'] = item.get('rxSlotId', item.get('slotId', ''))
-        item['date'] = item.get('slotDate', '')
-        item['time'] = item.get('slotTime', '')
-        item['provider'] = item.get('doctorName', item.get('facilityName', ''))
-        item['patientName'] = item.get('customerName', '')
-        item['patientPhone'] = item.get('customerPhone', '')
-
-    items.sort(key=lambda x: x.get('createdAt', 0), reverse=True)
+    items = flow_records.list_rx_slots(_flow_table(), params)
     return _resp(200, {'slots': items, 'count': len(items)})
 
 
 def _create_rx_slot(body: Dict) -> Dict:
-    table = dynamodb.Table(RX_SLOTS_TABLE)
-    slot_id = f'WD-RX-{_gen_id()}'
-    now = _now()
-    item = {
-        'rxSlotId': slot_id,
-        'customerPhone': body.get('patientPhone', body.get('customerPhone', '')),
-        'customerName': body.get('patientName', body.get('customerName', '')),
-        'orderId': body.get('orderId'),
-        'slotType': body.get('slotType', 'prescription'),
-        'slotDate': body.get('date', body.get('slotDate', '')),
-        'slotTime': body.get('time', body.get('slotTime', '')),
-        'facilityName': body.get('provider', body.get('facilityName', '')),
-        'status': body.get('status', 'available'),
-        'prescriptionNotes': body.get('notes', ''),
-        'createdAt': now,
-        'updatedAt': now,
-    }
-    item = {k: v for k, v in item.items() if v is not None and v != ''}
-    table.put_item(Item=item)
-    # Normalize for response
-    item['slotId'] = slot_id
-    item['date'] = item.get('slotDate', '')
-    item['time'] = item.get('slotTime', '')
-    return _resp(201, item)
+    fields = flow_records.rx_slot_fields(body)
+    return _create_record(flow_records.RX_SLOT, body, fields, fields['customerPhone'],
+                          flow_records.rx_slot_view, status=body.get('status') or 'available')
 
 
 def _update_rx_slot(slot_id: str, body: Dict) -> Dict:
-    table = dynamodb.Table(RX_SLOTS_TABLE)
-    now = _now()
-    updates = {'updatedAt': now}
-    for field in ['status', 'prescriptionNotes', 'adminNotes', 'customerName', 'customerPhone']:
-        if field in body:
-            updates[field] = body[field]
+    updates = {f: body[f] for f in flow_records.RX_SLOT_UPDATE_FIELDS if f in body}
+    return _update_record(flow_records.RX_SLOT, slot_id, updates)
 
-    expr_parts, expr_values, expr_names = [], {}, {}
-    for i, (k, v) in enumerate(updates.items()):
-        expr_parts.append(f'#f{i} = :v{i}')
-        expr_names[f'#f{i}'] = k
-        expr_values[f':v{i}'] = v
-
-    table.update_item(
-        Key={'rxSlotId': slot_id},
-        UpdateExpression='SET ' + ', '.join(expr_parts),
-        ExpressionAttributeNames=expr_names,
-        ExpressionAttributeValues=expr_values,
-    )
-    return _resp(200, {'updated': True})
-
-
-# ============================================================================
-# ENTERPRISE ASSIST
-# ============================================================================
 
 def _list_enterprise_cases(params: Dict) -> Dict:
-    table = dynamodb.Table(ENTERPRISE_TABLE)
-    status = params.get('status')
-    priority = params.get('priority')
-
-    if status:
-        resp = table.query(IndexName='status', KeyConditionExpression=Key('status').eq(status))
-    else:
-        resp = table.scan()
-
-    items = resp.get('Items', [])
-    if priority:
-        items = [i for i in items if i.get('priority') == priority]
-
-    # Normalize for frontend
-    for item in items:
-        item['customerName'] = item.get('contactName', item.get('customerName', ''))
-        item['customerPhone'] = item.get('contactPhone', item.get('customerPhone', ''))
-        item['category'] = item.get('category', '')
-
-    items.sort(key=lambda x: x.get('createdAt', 0), reverse=True)
+    items = flow_records.list_enterprise_cases(_flow_table(), params)
     return _resp(200, {'cases': items, 'count': len(items)})
 
 
 def _create_enterprise_case(body: Dict) -> Dict:
-    table = dynamodb.Table(ENTERPRISE_TABLE)
-    case_id = f'WD-ENT-{_gen_id()}'
-    now = _now()
-    item = {
-        'caseId': case_id,
-        'contactPhone': body.get('customerPhone', body.get('contactPhone', '')),
-        'contactName': body.get('customerName', body.get('contactName', '')),
-        'contactEmail': body.get('contactEmail', ''),
-        'accountName': body.get('accountName', ''),
-        'subject': body.get('subject', ''),
-        'description': body.get('description', ''),
-        'priority': body.get('priority', 'normal'),
-        'status': body.get('status', 'open'),
-        'assignedTo': body.get('assignedTo', ''),
-        'createdAt': now,
-        'updatedAt': now,
-    }
-    item = {k: v for k, v in item.items() if v is not None and v != ''}
-    table.put_item(Item=item)
-    item['customerName'] = item.get('contactName', '')
-    item['customerPhone'] = item.get('contactPhone', '')
-    return _resp(201, item)
+    fields = flow_records.enterprise_fields(body)
+    return _create_record(flow_records.ENTERPRISE_CASE, body, fields, fields['contactPhone'],
+                          flow_records.enterprise_view, status=body.get('status') or 'open')
 
 
 def _update_enterprise_case(case_id: str, body: Dict) -> Dict:
-    table = dynamodb.Table(ENTERPRISE_TABLE)
-    now = _now()
-    updates = {'updatedAt': now}
-    for field in ['status', 'priority', 'assignedTo', 'notes', 'resolution']:
-        if field in body:
-            updates[field] = body[field]
+    updates = {f: body[f] for f in flow_records.ENTERPRISE_UPDATE_FIELDS if f in body}
+    return _update_record(flow_records.ENTERPRISE_CASE, case_id, updates)
 
-    expr_parts, expr_values, expr_names = [], {}, {}
-    for i, (k, v) in enumerate(updates.items()):
-        expr_parts.append(f'#f{i} = :v{i}')
-        expr_names[f'#f{i}'] = k
-        expr_values[f':v{i}'] = v
-
-    table.update_item(
-        Key={'caseId': case_id},
-        UpdateExpression='SET ' + ', '.join(expr_parts),
-        ExpressionAttributeNames=expr_names,
-        ExpressionAttributeValues=expr_values,
-    )
-    return _resp(200, {'updated': True})
-
-
-# ============================================================================
-# REVIEWS
-# ============================================================================
 
 def _list_reviews(params: Dict) -> Dict:
-    table = dynamodb.Table(REVIEWS_TABLE)
-    status = params.get('status')
-    if status == 'pending':
-        status = 'submitted'
-    phone = params.get('customerPhone', '').replace('+', '').replace(' ', '')
-    contact_id = params.get('contactId')
-    if phone:
-        operation = table.query
-        kwargs = {'IndexName': 'customerPhone', 'KeyConditionExpression': Key('customerPhone').eq(phone)}
-    elif status:
-        operation = table.query
-        kwargs = {'IndexName': 'status', 'KeyConditionExpression': Key('status').eq(status)}
-    else:
-        operation = table.scan
-        kwargs = {}
-    items = []
-    while True:
-        page = operation(**kwargs)
-        items.extend(page.get('Items', []))
-        if not page.get('LastEvaluatedKey'):
-            break
-        kwargs['ExclusiveStartKey'] = page['LastEvaluatedKey']
-    if contact_id:
-        items = [i for i in items if i.get('contactId') == contact_id]
-    if status:
-        items = [i for i in items if i.get('status') == status]
-    source = params.get('source')
-    min_rating = params.get('minRating')
-    if source:
-        items = [i for i in items if i.get('source', i.get('category', '')) == source]
-    if min_rating:
-        items = [i for i in items if (i.get('rating', 0) or 0) >= int(min_rating)]
-
-    # Normalize for frontend
-    for item in items:
-        item['comment'] = item.get('reviewText', item.get('comment', ''))
-        item['source'] = item.get('source', item.get('category', 'web'))
-        item['status'] = item.get('status', 'submitted')
-        # Map submitted -> pending for frontend
-        if item['status'] == 'submitted':
-            item['status'] = 'pending'
-
-    items.sort(key=lambda x: x.get('createdAt', 0), reverse=True)
+    """Ratings (WD_REV) and private ideas (WD_IDEA), every channel, every page."""
+    items = flow_records.list_reviews(_flow_table(), params)
     return _resp(200, {'reviews': items, 'count': len(items)})
 
 
 def _create_review(body: Dict) -> Dict:
-    table = dynamodb.Table(REVIEWS_TABLE)
-    review_id = f'WD-REV-{_gen_id()}'
-    now = _now()
-    item = {
-        'reviewId': review_id,
-        'customerPhone': body.get('customerPhone', ''),
-        'customerName': body.get('customerName', ''),
-        'orderId': body.get('orderId'),
-        'rating': int(body.get('rating', 5)),
-        'reviewText': body.get('comment', body.get('reviewText', '')),
-        'category': body.get('source', body.get('category', 'web')),
-        'status': 'submitted',
-        'createdAt': now,
-        'updatedAt': now,
-    }
-    item = {k: v for k, v in item.items() if v is not None and v != ''}
-    table.put_item(Item=item)
-    return _resp(201, item)
+    return _create_record(flow_records.REVIEW, body, flow_records.review_fields(body),
+                          body.get('customerPhone', ''), flow_records.review_view)
 
 
 def _update_review(review_id: str, body: Dict) -> Dict:
-    table = dynamodb.Table(REVIEWS_TABLE)
-    now = _now()
-    updates = {'updatedAt': now}
-    for field in ['status', 'response', 'respondedAt']:
-        if field in body:
-            updates[field] = body[field]
-    if 'response' in body and 'respondedAt' not in body:
-        updates['respondedAt'] = now
-
-    # Map frontend status back to DB
-    if updates.get('status') == 'pending':
-        updates['status'] = 'submitted'
-
-    expr_parts, expr_values, expr_names = [], {}, {}
-    for i, (k, v) in enumerate(updates.items()):
-        expr_parts.append(f'#f{i} = :v{i}')
-        expr_names[f'#f{i}'] = k
-        expr_values[f':v{i}'] = v
-
-    table.update_item(
-        Key={'reviewId': review_id},
-        UpdateExpression='SET ' + ', '.join(expr_parts),
-        ExpressionAttributeNames=expr_names,
-        ExpressionAttributeValues=expr_values,
-    )
-    return _resp(200, {'updated': True})
+    return _update_record(flow_records.REVIEW, review_id,
+                          flow_records.review_updates(body, _now()))
 
 
 # ============================================================================

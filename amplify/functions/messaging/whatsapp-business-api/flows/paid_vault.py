@@ -4,7 +4,7 @@ import json
 import time
 from datetime import datetime
 import boto3
-from lambda_utils import customer_auth
+from lambda_utils import customer_auth, shared_tables
 from lambda_utils.ecommerce import vault_access
 from lambda_utils.logging import get_logger, log_event
 
@@ -79,7 +79,7 @@ def prepare_and_send(event, lambda_client):
     phone = attrs.get('phone_number', '')
     if attrs.get('phone_number_verified') != 'true' or phone != '+' + grant['ownerPhone']:
         return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
-    contacts = db.Table('stack-wecare-digital-ContactsTable')
+    contacts = db.Table(shared_tables.contacts_table_name())
     matches = contacts.query(IndexName='phone-index', KeyConditionExpression='phone=:p',
         ExpressionAttributeValues={':p': phone}).get('Items') or []
     valid = []
@@ -165,7 +165,7 @@ def send_review(event, lambda_client):
     if attrs.get('phone_number_verified') != 'true' or not phone:
         return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
 
-    contacts = db.Table('stack-wecare-digital-ContactsTable')
+    contacts = db.Table(shared_tables.contacts_table_name())
     matches = contacts.query(
         IndexName='phone-index', KeyConditionExpression='phone=:p',
         ExpressionAttributeValues={':p': phone}).get('Items') or []

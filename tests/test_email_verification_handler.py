@@ -31,7 +31,9 @@ _HANDLER_PATH = (Path(__file__).resolve().parents[1]
                  / "amplify/functions/auth/email-verification/handler.py")
 
 OTP_TABLE = 'stack-wecare-digital-DownloadGrantsTable'
-CUSTOMERS_TABLE = 'stack-wecare-digital-CustomersTable'
+#: The one person store. Declared in the fake so a stray write to it would be visible; the
+#: handler must never touch it (customer-profile stamps the verified email there).
+CONTACTS_TABLE = 'stack-wecare-digital-ContactsTable'
 PEPPER = 'test-pepper-not-a-real-secret'
 EMAIL = 'Asha@Example.com'          # deliberately mixed-case; handler normalises
 NORMALISED = 'asha@example.com'
@@ -52,7 +54,6 @@ class _FakeSes:
 @pytest.fixture
 def handler_env(monkeypatch):
     monkeypatch.setenv('OTP_TABLE', OTP_TABLE)
-    monkeypatch.setenv('CUSTOMERS_TABLE', CUSTOMERS_TABLE)
     monkeypatch.setenv('APP_ENV', 'development')  # allow localhost origin in tests
 
     spec = importlib.util.spec_from_file_location(
@@ -60,7 +61,7 @@ def handler_env(monkeypatch):
     h = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(h)
 
-    fake = FakeDynamo(keys={OTP_TABLE: 'grantId', CUSTOMERS_TABLE: 'customerId'})
+    fake = FakeDynamo(keys={OTP_TABLE: 'grantId', CONTACTS_TABLE: 'id'})
     ses = _FakeSes()
 
     monkeypatch.setattr(h, '_dynamodb', fake)
@@ -170,21 +171,22 @@ def test_verify_failures_are_all_one_opaque_outcome(handler_env):
 
 def test_verify_returns_email_bound_proof_and_never_stamps_body_selected_customer(handler_env):
     h, fake, ses = handler_env
-    from lambda_utils.identity import customer as identity
-    cid = identity.new_customer_id()
-    fake.Table(CUSTOMERS_TABLE).put_item(Item={'customerId': cid})
+    cid = 'wa919999900000'
+    fake.Table(CONTACTS_TABLE).put_item(Item={'id': cid, 'contactId': cid})
 
     code = _issue_and_capture_code(h, ses)
-    resp = h.handler(_event('verify', email=EMAIL, code=code, customerId=cid), None)
+    resp = h.handler(_event('verify', email=EMAIL, code=code, customerId=cid, contactId=cid), None)
     assert resp['statusCode'] == 200
     body = json.loads(resp['body'])
     assert body['status'] == 'VERIFIED'
     assert body['proof']
     assert body['expiresInSeconds'] == h.PROOF_TTL_SECONDS
 
-    # Public email verification proves the email only; it cannot mutate a browser-selected customer.
-    row = fake.Table(CUSTOMERS_TABLE).get_item(Key={'customerId': cid})['Item']
+    # Public email verification proves the email only; it cannot mutate a browser-selected
+    # customer. The contact row is untouched, and there is no second person store to write to.
+    row = fake.Table(CONTACTS_TABLE).get_item(Key={'id': cid})['Item']
     assert 'emailVerifiedAt' not in row
+    assert not hasattr(h, 'CUSTOMERS_TABLE')
 
     proof = fake.Table(OTP_TABLE).get_item(
         Key={'grantId': h.PROOF_PREFIX + body['proof']})['Item']

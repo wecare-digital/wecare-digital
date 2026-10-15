@@ -39,6 +39,8 @@ from lambda_utils import meta_signature  # raw-body X-Hub-Signature-256 on the p
 from lambda_utils import wa_status  # monotonic status ordering (no backward transitions)
 from lambda_utils import wa_internal_event  # typed ingress -> worker contract
 from lambda_utils import contact_key
+from lambda_utils import contact_store  # one contact row per person, whichever channel minted it
+from lambda_utils import shared_tables  # one name per shared store (contacts, orders, flows)
 from lambda_utils.identity import subscriber_id  # `id` is the physical key; `contactId` is its alias
 from lambda_utils import customer_ideas
 from lambda_utils.canonical_flows import canonical_flow_id  # one source of truth for WABA 1 flow ids
@@ -69,19 +71,21 @@ sqs = boto3.client('sqs', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 s3 = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 
-# Environment variables - use actual table names
-CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')
+# Environment variables - use actual table names. The shared stores (contacts, flow
+# responses, drafts) resolve through `lambda_utils.shared_tables`, so the inbox writes the same
+# contact and flow-response rows the WhatsApp Flows, catalog orders and website checkout use.
+CONTACTS_TABLE = shared_tables.contacts_table_name()
 MESSAGES_TABLE = os.environ.get('MESSAGES_TABLE', 'stack-wecare-digital-WhatsAppInboundTable')
 # Canonical unified message table (status mirror target).
 UNIFIED_MESSAGES_TABLE = os.environ.get('UNIFIED_MESSAGES_TABLE', 'stack-wecare-digital-MessagesTable')
 MEDIA_FILES_TABLE = os.environ.get('MEDIA_FILES_TABLE', 'stack-wecare-digital-MediaFilesTable')
 SYSTEM_CONFIG_TABLE = os.environ.get('SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable')
-FLOW_SUBMISSIONS_TABLE = os.environ.get('FLOW_SUBMISSIONS_TABLE', 'stack-wecare-digital-FlowSubmissionTable')
+FLOW_SUBMISSIONS_TABLE = shared_tables.flow_submissions_table_name()
 # Same table and same `{phone}#{flowCode}` key contract `flows/common.py` uses, named
 # identically there as DRAFTS_TABLE. Phase R parks a review's order reference here under
 # the Phase-R-only `WD_REV_REF` suffix so it survives the hop from this Lambda to the
 # Flow data-exchange callback in `wecare-whatsapp-business-api`.
-FLOW_DRAFTS_TABLE = os.environ.get('DRAFTS_TABLE', 'stack-wecare-digital-FlowDraftTable')
+FLOW_DRAFTS_TABLE = shared_tables.flow_drafts_table_name()
 AI_INTERACTIONS_TABLE = os.environ.get('AI_INTERACTIONS_TABLE', 'stack-wecare-digital-AIInteractionsTable')
 INVOICES_TABLE = os.environ.get('INVOICES_TABLE', 'stack-wecare-digital-InvoicesTable')
 INBOUND_DLQ_URL = os.environ.get('INBOUND_DLQ_URL', '')
@@ -94,7 +98,6 @@ MEDIA_CDN_DOMAIN = os.environ.get('MEDIA_CDN_DOMAIN', media_paths.CDN_DOMAIN)
 # remains readable through its persisted key; no migration or public fallback here.
 MEDIA_PREFIX = media_paths.secure('u/whatsapp/incoming/')
 SEND_MODE = os.environ.get('SEND_MODE', 'LIVE')
-SUBMIT_REQUESTS_TABLE = os.environ.get('SUBMIT_REQUESTS_TABLE', 'stack-wecare-digital-SubmitRequestsTable')
 
 # AI Lambda function names
 AI_QUERY_KB_FUNCTION = os.environ.get('AI_QUERY_KB_FUNCTION', 'wecare-ai-query-kb')
@@ -2368,9 +2371,13 @@ def _process_message(
                     ct = dynamodb.Table(CONTACTS_TABLE)
                     update_expr = 'SET bsuid = :b'
                     expr_vals = {':b': new_bsuid}
-                    if new_wa_id:
+                    # The canonical `+digits` spelling, the one every other writer stores:
+                    # Meta's bare `wa_id` here would make the website checkout's exact-match
+                    # phone lookup miss this contact and mint a second row for the person.
+                    new_phone = contact_store.canonical_phone(new_wa_id)
+                    if new_phone:
                         update_expr += ', phone = :p'
-                        expr_vals[':p'] = new_wa_id
+                        expr_vals[':p'] = new_phone
                     ct.update_item(
                         Key={'id': contact_id},
                         UpdateExpression=update_expr,
@@ -2395,7 +2402,10 @@ def _process_message(
             msg_contacts = message.get('contacts', [])
             for mc in msg_contacts:
                 phones = mc.get('phones', [])
-                shared_phone = phones[0].get('phone', '') if phones else ''
+                # Canonical `+digits`, not the vCard's display text ("+91 98765 43210"), so
+                # every channel's phone lookup resolves this same contact row.
+                shared_phone = contact_store.canonical_phone(
+                    phones[0].get('phone', '') if phones else '')
                 if shared_phone and contact_id:
                     try:
                         ct = dynamodb.Table(CONTACTS_TABLE)
@@ -5174,9 +5184,9 @@ def _store_payment_record(reference_id: str, recipient_id: str, payment_status: 
             except Exception as _ce:
                 logger.warning(f'payment record canonical mirror skipped: {_ce}')
         
-        # Link payment to SubmitRequest if reference_id starts with WD-PAY- or SR- (legacy)
+        # Link payment to the flow response it pays for (WD-PAY- or legacy SR- references)
         if reference_id and (reference_id.startswith('WD-PAY-') or reference_id.startswith('SR-')):
-            _update_submit_request_payment(reference_id, payment_status, transaction_id, request_id)
+            _update_flow_submission_payment(reference_id, payment_status, transaction_id, request_id)
         
         logger.info(json.dumps({
             'event': 'payment_record_stored',
@@ -5200,49 +5210,77 @@ def _store_payment_record(reference_id: str, recipient_id: str, payment_status: 
         }))
 
 
-def _update_submit_request_payment(reference_id: str, payment_status: str,
+def _update_flow_submission_payment(reference_id: str, payment_status: str,
                                     transaction_id: str, request_id: str) -> None:
-    """Update SubmitRequest record with payment status when payment webhook arrives."""
+    """Record a payment webhook on the flow response it pays for.
+
+    The submission lives in the one flow-response table, keyed for payments by its
+    `paymentRefId` GSI. (This used to update SubmitRequestsTable, which no live writer fills,
+    so the paid state never reached the submission.)
+
+    Monotonic: the status is written in the shared payment vocabulary and only when it is a
+    forward move, so a redelivered `pending` cannot overwrite a `captured`.
+    """
+    word = pay_status.canonical(payment_status)
+    if not word:
+        logger.info(json.dumps({
+            'event': 'flow_submission_payment_status_unmapped',
+            'referenceId': reference_id, 'requestId': request_id,
+        }))
+        return
     try:
-        table = dynamodb.Table(SUBMIT_REQUESTS_TABLE)
+        table = dynamodb.Table(FLOW_SUBMISSIONS_TABLE)
         now = int(time.time())
-        # Query by paymentReferenceId GSI
         resp = table.query(
-            IndexName='paymentReferenceId',
-            KeyConditionExpression='paymentReferenceId = :ref',
+            IndexName='paymentRefId',
+            KeyConditionExpression='paymentRefId = :ref',
             ExpressionAttributeValues={':ref': reference_id},
             Limit=1,
         )
         items = resp.get('Items', [])
-        if items:
-            submission_id = items[0]['id']
+        if not items:
+            logger.warning(json.dumps({
+                'event': 'flow_submission_not_found_for_payment',
+                'referenceId': reference_id,
+                'requestId': request_id,
+            }))
+            return
+        submission_id = items[0]['submissionId']
+        try:
             table.update_item(
-                Key={'id': submission_id},
-                UpdateExpression='SET paymentStatus = :s, transactionId = :t, updatedAt = :u',
+                Key={'submissionId': submission_id},
+                UpdateExpression=('SET paymentStatus = :s, transactionId = :t, updatedAt = :u, '
+                                  + pay_status.RANK_ATTRIBUTE + ' = :rank'),
+                ConditionExpression=('attribute_exists(submissionId) AND ('
+                                     + pay_status.condition_expression() + ')'),
                 ExpressionAttributeValues={
-                    ':s': payment_status,
+                    ':s': word,
                     ':t': transaction_id,
                     ':u': Decimal(str(now)),
+                    ':rank': pay_status.rank(word),
                 },
             )
+        except Exception as cond:
+            if 'ConditionalCheckFailedException' not in str(cond):
+                raise
             logger.info(json.dumps({
-                'event': 'submit_request_payment_linked',
-                'submissionId': submission_id,
-                'referenceId': reference_id,
-                'paymentStatus': payment_status,
+                'event': 'flow_submission_payment_not_forward',
+                'submissionId': submission_id, 'paymentStatus': word,
                 'requestId': request_id,
             }))
-        else:
-            logger.warning(json.dumps({
-                'event': 'submit_request_not_found_for_payment',
-                'referenceId': reference_id,
-                'requestId': request_id,
-            }))
+            return
+        logger.info(json.dumps({
+            'event': 'flow_submission_payment_linked',
+            'submissionId': submission_id,
+            'referenceId': reference_id,
+            'paymentStatus': word,
+            'requestId': request_id,
+        }))
     except Exception as e:
         logger.error(json.dumps({
-            'event': 'submit_request_payment_link_error',
+            'event': 'flow_submission_payment_link_error',
             'referenceId': reference_id,
-            'error': str(e),
+            'errorType': type(e).__name__,
             'requestId': request_id,
         }))
 
@@ -7645,6 +7683,7 @@ def _handle_postpay_submission(data: Dict, contact_id: str, sender_phone: str,
             'preferredTime': str(data.get('preferred_time', '')),
             'status': 'open',
             'paymentStatus': 'paid',
+            'channel': 'whatsapp',
             'createdAt': Decimal(str(now)),
             'updatedAt': Decimal(str(now)),
             'ttl': now + (365 * 86400),

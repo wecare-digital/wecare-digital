@@ -110,12 +110,48 @@ except ImportError:  # pragma: no cover - present in every Lambda runtime
     boto3 = None
     ClientError = Exception
 
+from lambda_utils import shared_tables
 from lambda_utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-FLOW_SUBMISSIONS_TABLE = os.environ.get(
-    'FLOW_SUBMISSIONS_TABLE', 'stack-wecare-digital-FlowSubmissionTable')
+#: The one flow-response table. Every channel's submissions land here; see
+#: `lambda_utils.shared_tables` for the tables that were folded into it.
+FLOW_SUBMISSIONS_TABLE = shared_tables.flow_submissions_table_name()
+
+#: WHERE a submission came from. One field on every row, so one query answers "every
+#: response from this customer" whatever surface they used.
+#:   whatsapp - a WhatsApp Flow or an in-chat reply (the default: it is every legacy row)
+#:   website  - a customer-facing website form
+#:   staff    - entered by a workspace operator on the customer's behalf
+CHANNEL_WHATSAPP = 'whatsapp'
+CHANNEL_WEBSITE = 'website'
+CHANNEL_STAFF = 'staff'
+CHANNELS = frozenset({CHANNEL_WHATSAPP, CHANNEL_WEBSITE, CHANNEL_STAFF})
+
+#: The `flowId` the workspace's web submit form has always written. Used to attribute legacy
+#: rows that predate the `channel` field.
+WEB_SUBMIT_FLOW_ID = 'web-submit'
+
+
+def channel_of(row: Optional[Mapping[str, Any]]) -> str:
+    """The channel of a stored submission, including rows written before `channel` existed.
+
+    Never raises. A stored value in the vocabulary wins; a legacy web-submit row is `staff`;
+    everything else is `whatsapp`, because before this field every writer but that one was a
+    WhatsApp Flow or an in-chat reply.
+    """
+    if not row:
+        return CHANNEL_WHATSAPP
+    try:
+        stored = str(row.get('channel') or '').strip().lower()
+    except Exception:  # noqa: BLE001 - a hostile __str__ is not a channel
+        stored = ''
+    if stored in CHANNELS:
+        return stored
+    if str(row.get('flowId') or '') == WEB_SUBMIT_FLOW_ID:
+        return CHANNEL_STAFF
+    return CHANNEL_WHATSAPP
 
 #: 128 bits of SHA-256, hex. Not a secret - a collision-resistant identifier.
 _DIGEST_CHARS = 32
@@ -126,6 +162,8 @@ _REFERENCE_CHARS = 8
 
 #: One year, matching what `save_flow_submission` already wrote. Long enough to answer a
 #: dispute, and it is the transport record - the CRM lead created alongside never expires.
+#: Pass `ttl_seconds=0` for a record that must never expire (a review, an appointment, an
+#: enterprise case): the row is then written with no `ttl` attribute at all.
 DEFAULT_TTL_SECONDS = 365 * 86400
 
 
@@ -254,7 +292,8 @@ def claim_completion(*, flow_token: str, screen: str = '',
                      status: str = 'open',
                      extra: Optional[Mapping[str, Any]] = None,
                      ttl_seconds: int = DEFAULT_TTL_SECONDS,
-                     request_id: str = '') -> CompletionResult:
+                     request_id: str = '',
+                     channel: str = CHANNEL_WHATSAPP) -> CompletionResult:
     """Claim a Flow completion exactly once, and report whether this caller won.
 
     `submission_id` overrides the derived id, for the two postpay paths that already have a
@@ -262,10 +301,16 @@ def claim_completion(*, flow_token: str, screen: str = '',
     precisely than the token does, and those keys are shared across transports. Passing one
     keeps this the single writer without discarding a stronger key.
 
+    `channel` must be one of `CHANNELS`. An unknown word raises before anything is written,
+    because a typo here would file a submission under a channel no reader queries.
+
     A write failure returns `status='error'`, and `should_fire_side_effects` is False for
     it. The old code swallowed the exception and returned `{}`, and every caller carried on
     to send a payment link against a submission that had not been recorded.
     """
+    if channel not in CHANNELS:
+        raise ValueError(f'unknown submission channel {channel!r}; expected one of '
+                         f'{sorted(CHANNELS)}')
     key, degraded = completion_key(flow_token, screen, form_data)
     reference = reference_for(key, reference_prefix)
     sub_id = (submission_id or '').strip() or reference
@@ -298,13 +343,16 @@ def claim_completion(*, flow_token: str, screen: str = '',
         'paymentAmount': payment_amount if requires_payment else 0,
         'paymentStatus': 'pending' if requires_payment else 'none',
         'paymentRefId': payment_ref_id if requires_payment else '',
+        'channel': channel,
         'createdAt': Decimal(str(now)),
         'updatedAt': Decimal(str(now)),
-        'ttl': now + int(ttl_seconds),
+        # Absent rather than "now" for a record that must not expire: a `ttl` of `now + 0`
+        # would mark the row for deletion the moment TTL is enabled on the table.
+        'ttl': now + int(ttl_seconds) if int(ttl_seconds or 0) > 0 else None,
     }
     if extra:
         for field_name, value in extra.items():
-            if field_name not in ('submissionId', 'completionKey'):
+            if field_name not in ('submissionId', 'completionKey', 'channel'):
                 item[field_name] = value
 
     # `!= ''` matches what the legacy writers did, so the stored shape does not change for
@@ -339,6 +387,7 @@ def claim_completion(*, flow_token: str, screen: str = '',
                             requires_payment=requires_payment, payment_amount=payment_amount,
                             payment_ref_id=payment_ref_id, status=status, extra=extra,
                             ttl_seconds=ttl_seconds, request_id=request_id,
+                            channel=channel,
                         )
                         collision.reference = collision_id
                         return collision
@@ -378,7 +427,7 @@ def claim_completion(*, flow_token: str, screen: str = '',
 
     logger.info(json.dumps({
         'event': 'flow_completion_claimed',
-        'submissionId': sub_id, 'flowCode': flow_code,
+        'submissionId': sub_id, 'flowCode': flow_code, 'channel': channel,
         'completionKey': key, 'requiresPayment': requires_payment,
         'paymentAmount': payment_amount, 'requestId': request_id,
     }))

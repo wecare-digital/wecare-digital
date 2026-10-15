@@ -1,18 +1,18 @@
 """
 Leave Review Flow — Customer feedback and ratings.
 Screens: REVIEW_FORM → CONFIRM (terminal)
-Saves to ReviewTable + FlowSubmissionTable.
+Saves ONE row to FlowSubmissionTable (flowCode WD_REV) carrying the review's own fields.
+ReviewTable was folded into the flow-response table; see `lambda_utils.flow_records`.
 """
-import json, os, time, uuid, logging
-from decimal import Decimal
+import os, time, logging
 from typing import Dict
 from flows.common import (
     dynamodb, get_phone_from_token, find_contact_by_phone,
     get_contact_name, record_completion, restore_draft, clear_draft,
+    FLOW_SUBMISSIONS_TABLE,
 )
 
 logger = logging.getLogger(__name__)
-REVIEWS_TABLE = 'stack-wecare-digital-ReviewTable'
 FLOW_CODE = 'WD_REV'
 
 #: Draft suffix the inbound handler parks the order reference under, as
@@ -64,18 +64,16 @@ def _attribution_enabled() -> bool:
 
 
 def _stored_order_id(review_id: str) -> str:
-    """The `orderId` already on this review row, or ''.
+    """The `orderId` already on this review's row, or ''.
 
-    THE RETRY PATH, and it is not optional. The draft is consumed by whichever call wins the
-    claim, so a Meta retry of that same completion finds NO draft - and because the domain
-    write is a `put_item`, which replaces the whole item rather than merging, the retry would
-    rewrite the row with `orderId` gone. Attribution would be lost on precisely the path the
-    derived `review_id` exists to make safe.
+    THE RETRY PATH. The draft is consumed by whichever call wins the claim, so a Meta retry
+    of that same completion finds NO draft. The write itself is conditional, so a retry can
+    no longer blank the stored `orderId` - but the retry still answers the customer, and the
+    reference it reports should be the one that was recorded, not an empty one.
 
-    Reading the row back closes that, and it is cheap: `review_id` is derived from the
-    completion key, so "is there already a row for this completion" is answerable before the
-    claim is attempted. This is consulted ONLY when the draft is absent, so the first-time
-    path costs no extra read.
+    Cheap: `review_id` is derived from the completion key, and it IS the row's
+    `submissionId`, so this is one `get_item`. Consulted ONLY when the draft is absent, so the
+    first-time path costs no extra read.
 
     Not solved by simply never clearing the draft: a stale reference would silently
     attribute a later, unrelated review to an old order.
@@ -83,8 +81,8 @@ def _stored_order_id(review_id: str) -> str:
     if not review_id:
         return ''
     try:
-        item = dynamodb.Table(REVIEWS_TABLE).get_item(
-            Key={'reviewId': review_id}).get('Item') or {}
+        item = dynamodb.Table(FLOW_SUBMISSIONS_TABLE).get_item(
+            Key={'submissionId': review_id}).get('Item') or {}
     except Exception:
         return ''
     stored = item.get('orderId', '')
@@ -175,14 +173,12 @@ def handle_review_form(data: Dict, flow_token: str, request_id: str) -> Dict:
     phone = get_phone_from_token(flow_token)
     contact_id = find_contact_by_phone(phone)
     name = get_contact_name(contact_id)
-    # Derived from the completion key rather than random. A Meta retry of
-    # this data_exchange recomputes the same id, so the domain write below
-    # overwrites an identical row instead of creating a second one, and the
-    # conditional put inside record_completion refuses the duplicate.
+    # Derived from the completion key rather than random. A Meta retry of this data_exchange
+    # recomputes the same id, and the conditional put inside record_completion refuses the
+    # duplicate, so one completion is one review row.
     from lambda_utils import flow_completion as _fc
     review_id = _fc.reference_for(
         _fc.completion_key(flow_token, 'REVIEW_FORM', data)[0], 'WD-REV')
-    now = int(time.time())
 
     # Clamped to the 1-5 the Review contract declares, not merely parsed. The Dropdown
     # only offers 1-5, but `data` arrives from the handset over the encrypted
@@ -210,51 +206,35 @@ def handle_review_form(data: Dict, flow_token: str, request_id: str) -> Dict:
     reference = (_pending_reference(phone) if _attribution_enabled() else '') \
         or _stored_order_id(review_id)
 
-    row_written = False
-    try:
-        table = dynamodb.Table(REVIEWS_TABLE)
-        table.put_item(Item={k: v for k, v in {
-            'reviewId': review_id,
-            'customerPhone': phone,
-            'customerName': name,
-            'contactId': contact_id,
-            'rating': rating,
-            'reviewText': data.get('review_text', ''),
-            'category': data.get('category', 'other'),
-            # The order being reviewed, when the customer came through the website door.
-            # `Review.orderId` already existed on the wire and the workspace detail modal
-            # already renders it; nothing wrote it until now.
-            'orderId': reference,
-            # WRITTEN FOR THE FIRST TIME HERE, and it fixes a real filter bug rather than
-            # filling in a blank. `service_api._list_reviews` reads
-            # `i.get('source', i.get('category', 'web'))`, so with no `source` a WhatsApp
-            # review borrowed its CATEGORY ('service', 'delivery', ...). The Source column
-            # therefore showed a category, and the workspace's `whatsapp` source filter -
-            # one of its four options - matched no WhatsApp review at all.
-            'source': 'whatsapp',
-            # LEFT AS `submitted` DELIBERATELY. `service_api` is the single translator for
-            # this field: `_list_reviews` maps `submitted` -> `pending` for the frontend and
-            # `_update_review` maps `pending` -> `submitted` back. Writing `pending` here
-            # would put two spellings of one state in a table two producers share, which is
-            # the vocabulary-fork hazard recorded for payment status. The staff page already
-            # renders this row as `pending`, so the moderation gate is satisfied as-is.
-            'status': 'submitted',
-            'createdAt': Decimal(str(now)),
-            'updatedAt': Decimal(str(now)),
-        }.items() if v is not None and v != ''})
-        row_written = True
-    except Exception as e:
-        logger.warning(f'Review save failed: {e}')
+    # ONE row: the flow response IS the review. The review's own fields ride on the same
+    # FlowSubmission row, written once by the conditional claim, so a retry can neither
+    # create a second review nor rewrite the first one's text, rating or moderation status.
+    review_fields = {k: v for k, v in {
+        'reviewId': review_id,
+        'customerPhone': phone,
+        'customerName': name,
+        'rating': rating,
+        'reviewText': data.get('review_text', ''),
+        'category': data.get('category', 'other'),
+        # The order being reviewed, when the customer came through the website door.
+        'orderId': reference,
+        # `source` is written explicitly: without it the review listing falls back to the
+        # CATEGORY, and the workspace's `whatsapp` source filter matched no WhatsApp review.
+        'source': 'whatsapp',
+    }.items() if v is not None and v != ''}
 
-    try:
-        result = record_completion(
-            flow_code=FLOW_CODE, flow_type='feedback', phone=phone,
-            contact_id=contact_id, sender_name=name,
-            form_data=data, flow_token=flow_token, request_id=request_id,
-            screen='REVIEW_FORM', submission_number=review_id, requires_payment=False, status='submitted',
-        )
-    except Exception as e:
-        logger.warning(f'Review submission save failed: {e}')
+    # `status='submitted'` DELIBERATELY: `flow_records.review_view` is the single translator
+    # that shows it as `pending` to the staff page and maps `pending` back on update.
+    result = record_completion(
+        flow_code=FLOW_CODE, flow_type='feedback', phone=phone,
+        contact_id=contact_id, sender_name=name,
+        form_data=data, flow_token=flow_token, request_id=request_id,
+        screen='REVIEW_FORM', submission_number=review_id, requires_payment=False,
+        status='submitted', extra=review_fields, ttl_seconds=0,
+    )
+    # A review only exists once its row is written. `record_completion` never raises; an
+    # `error` result means nothing was stored, so the draft must survive for the retry.
+    row_written = result.created
 
     # Only a fresh claim may message the customer. Without this guard a Meta
     # retry of the same completion sent a second confirmation for one submission.
@@ -271,12 +251,10 @@ def handle_review_form(data: Dict, flow_token: str, request_id: str) -> Dict:
         # A retry does not need the draft any more - `_stored_order_id` recovers the
         # reference from the row that the winner already wrote.
         #
-        # AND ONLY AFTER A CONFIRMED ROW WRITE. `row_written` is the point: if the
-        # ReviewTable `put_item` above raised, there is no row for `_stored_order_id` to
-        # recover from, so clearing the draft as well would leave a retry with NEITHER
-        # source and store the review permanently unattributed. Guarding on the claim alone
-        # would destroy the only remaining copy of the reference at exactly the moment the
-        # thing it protects failed to exist. Leaving the draft in place costs nothing: it
+        # AND ONLY AFTER A CONFIRMED ROW WRITE. `row_written` is the point: if the claim did
+        # not store the row, there is nothing for `_stored_order_id` to recover from, so
+        # clearing the draft as well would leave a retry with NEITHER source and store the
+        # review permanently unattributed. Leaving the draft in place costs nothing: it
         # carries its own short expiry, so a genuinely abandoned row still lapses.
         if reference and row_written:
             try:

@@ -52,8 +52,11 @@ SHARED_DIR = ROOT / "amplify/functions/shared"
 
 PEPPER_SECRET_ID = "wecare/otp/pepper"
 OTP_TABLE = "stack-wecare-digital-DownloadGrantsTable"
-CUSTOMERS_TABLE = "stack-wecare-digital-CustomersTable"
-CUSTOMERS_PHONE_INDEX = "normalizedPhone-index"
+#: The one person store. Registration resolves to (or creates) the customer's ContactsTable row,
+#: the same row the WhatsApp inbox and the website checkout use; there is no separate customer
+#: table. Reads go through the `phone-index` GSI only.
+CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
+CONTACTS_PHONE_INDEX = "phone-index"
 CUSTOMER_POOL_ID = "us-east-1_46ULYuukt"
 META_WABA_ID = "2094615664435155"
 META_PHONE_NUMBER_ID = "1016149501586345"
@@ -164,14 +167,14 @@ def ensure_role(dry_run: bool) -> str:
                 "Resource": [f"arn:aws:secretsmanager:{REGION}:{acct}:secret:{PEPPER_SECRET_ID}-*"],
             },
             {
-                "Sid": "OtpAndCustomerTables",
+                "Sid": "OtpAndContactTables",
                 "Effect": "Allow",
                 "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem",
                            "dynamodb:Query"],
                 "Resource": [
                     f"arn:aws:dynamodb:{REGION}:{acct}:table/{OTP_TABLE}",
-                    f"arn:aws:dynamodb:{REGION}:{acct}:table/{CUSTOMERS_TABLE}",
-                    f"arn:aws:dynamodb:{REGION}:{acct}:table/{CUSTOMERS_TABLE}/index/*",
+                    f"arn:aws:dynamodb:{REGION}:{acct}:table/{CONTACTS_TABLE}",
+                    f"arn:aws:dynamodb:{REGION}:{acct}:table/{CONTACTS_TABLE}/index/{CONTACTS_PHONE_INDEX}",
                 ],
             },
             {
@@ -228,8 +231,7 @@ def ensure_log_group(dry_run: bool) -> str:
 def expected_environment() -> dict:
     return {
         "OTP_TABLE": OTP_TABLE,
-        "CUSTOMERS_TABLE": CUSTOMERS_TABLE,
-        "CUSTOMERS_PHONE_INDEX": CUSTOMERS_PHONE_INDEX,
+        "CONTACTS_TABLE": CONTACTS_TABLE,
         "CUSTOMER_POOL_ID": CUSTOMER_POOL_ID,
         "OTP_PEPPER_SECRET_ID": PEPPER_SECRET_ID,
         "META_WABA_ID": META_WABA_ID,

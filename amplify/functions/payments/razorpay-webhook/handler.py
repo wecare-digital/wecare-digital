@@ -1750,8 +1750,12 @@ def _trigger_post_payment_flow(clean_phone: str, phone_id: str, reference_id: st
         within_window = True  # catalog path is in-window; assume yes unless we learn otherwise
         try:
             import time as _t
-            _ct = dynamodb.Table(os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable'))
-            _c = _ct.get_item(Key={'id': f'wa{clean_phone}'}).get('Item') or {}
+            from lambda_utils import contact_store
+            # The customer's ONE contact row, whichever channel minted it. A `get_item` on
+            # `wa{phone}` found only rows the inbox created, so a customer who first came in
+            # through the website checkout got an empty name and address here.
+            _ct = dynamodb.Table(contact_store.table_name())
+            _c = contact_store.lookup(_ct, clean_phone) or {}
             cust_name = _c.get('contactBookName') or _c.get('name') or ''
             addr = {
                 'line': _c.get('addressLine1') or '', 'city': _c.get('city') or '',

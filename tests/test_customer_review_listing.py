@@ -1,32 +1,57 @@
-"""Exercise the deployed review-list function with paginated records."""
+"""Reviews are listed from the one flow-response table, every page, both review codes."""
 import ast
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock
+
 import pytest
-from boto3.dynamodb.conditions import Key
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'amplify/functions/shared'))
+from lambda_utils import flow_records  # noqa: E402
 
-@pytest.mark.parametrize('path', [
- 'amplify/functions/core/service-api/handler.py',
- 'amplify/functions/messaging/whatsapp-business-api/service_api.py'])
-def test_contact_reviews_use_index_and_all_pages(path):
-    source = (ROOT/path).read_text()
-    node = next(n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef) and n.name == '_list_reviews')
+COPIES = [
+    'amplify/functions/core/service-api/handler.py',
+    'amplify/functions/messaging/whatsapp-business-api/service_api.py',
+]
+
+
+def test_contact_reviews_use_the_flow_code_index_and_all_pages():
     table = MagicMock()
-    table.query.side_effect = [
-      {'Items':[{'reviewId':'other','contactId':'another','createdAt':1}], 'LastEvaluatedKey':{'reviewId':'other'}},
-      {'Items':[{'reviewId':'mine','contactId':'mine','customerPhone':'123','createdAt':2,
-                 'reviewText':'A useful idea','source':'whatsapp','status':'submitted'}]}]
-    dynamo = MagicMock();dynamo.Table.return_value = table
-    scope = {'Dict':dict,'dynamodb':dynamo,'REVIEWS_TABLE':'reviews','Key':Key,
-             '_resp':lambda status,body:(status,body)}
-    exec(compile(ast.Module(body=[node],type_ignores=[]),path,'exec'),scope)
-    status, body = scope['_list_reviews']({'customerPhone':'+123','contactId':'mine','status':'pending'})
-    assert status == 200 and body['count'] == 1
-    assert body['reviews'][0]['comment'] == 'A useful idea'
-    assert body['reviews'][0]['status'] == 'pending'
-    assert table.query.call_count == 2
-    assert table.query.call_args_list[0].kwargs['IndexName'] == 'customerPhone'
-    assert table.query.call_args_list[1].kwargs['ExclusiveStartKey'] == {'reviewId':'other'}
+    pages = {
+        ('WD_REV', None): {'Items': [{'submissionId': 'other', 'flowCode': 'WD_REV',
+                                      'contactId': 'another', 'createdAt': 1}],
+                           'LastEvaluatedKey': {'submissionId': 'other'}},
+        ('WD_REV', 'other'): {'Items': [{'submissionId': 'mine', 'flowCode': 'WD_REV',
+                                         'contactId': 'mine', 'customerPhone': '123',
+                                         'createdAt': 2, 'reviewText': 'A useful idea',
+                                         'source': 'whatsapp', 'status': 'submitted'}]},
+        ('WD_IDEA', None): {'Items': []},
+    }
+
+    def query(**kwargs):
+        code = kwargs['KeyConditionExpression']._values[1]
+        start = (kwargs.get('ExclusiveStartKey') or {}).get('submissionId')
+        return pages[(code, start)]
+
+    table.query.side_effect = query
+    reviews = flow_records.list_reviews(
+        table, {'customerPhone': '+123', 'contactId': 'mine', 'status': 'pending'})
+
+    assert [r['reviewId'] for r in reviews] == ['mine']
+    assert reviews[0]['comment'] == 'A useful idea'
+    assert reviews[0]['status'] == 'pending'
+    assert table.query.call_count == 3
+    assert {c.kwargs['IndexName'] for c in table.query.call_args_list} == {'flowCode'}
     table.scan.assert_not_called()
+
+
+@pytest.mark.parametrize('path', COPIES)
+def test_both_service_api_copies_delegate_to_the_one_review_reader(path):
+    """The two near-identical service-api files must not each grow their own review query."""
+    tree = ast.parse((ROOT / path).read_text())
+    node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == '_list_reviews')
+    calls = {f'{c.func.value.id}.{c.func.attr}' for c in ast.walk(node)
+             if isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)
+             and isinstance(c.func.value, ast.Name)}
+    assert 'flow_records.list_reviews' in calls

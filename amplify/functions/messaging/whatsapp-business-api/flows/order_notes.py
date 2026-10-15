@@ -29,7 +29,8 @@ def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
 
 def handle_order_select(data: Dict, flow_token: str, request_id: str) -> Dict:
     order_id = data.get('order_id', '')
-    short = extract_short_id(order_id) if order_id and order_id != 'none' else '—'
+    from flows.orders import order_label
+    short = (order_label(order_id) or '—') if order_id and order_id != 'none' else '—'
     return {
         'screen': 'NOTES_FORM',
         'data': {
@@ -65,13 +66,15 @@ def handle_notes_form(data: Dict, flow_token: str, request_id: str) -> Dict:
             table.update_item(
                 Key={'orderId': order_id},
                 UpdateExpression='SET adminNotes = :n, updatedAt = :u',
+                # UpdateItem upserts; a note must never create a phantom order row.
+                ConditionExpression='attribute_exists(orderId)',
                 ExpressionAttributeValues={
                     ':n': new_notes[:2000],
                     ':u': Decimal(str(now)),
                 },
             )
         except Exception as e:
-            logger.warning(f'Order notes update failed: {e}')
+            logger.warning(f'Order notes update failed: {type(e).__name__}')
 
     # Save to FlowSubmissionTable
     try:

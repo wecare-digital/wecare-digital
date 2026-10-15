@@ -14,10 +14,11 @@ from flows.orders import (
     dynamodb, FLOW_SUBMISSIONS_TABLE,
 )
 from flows.common import get_phone_from_token, find_contact_by_phone
+from lambda_utils import shared_tables
 
 logger = logging.getLogger(__name__)
 
-HISTORY_TABLE = 'stack-wecare-digital-RequestStatusHistoryTable'
+HISTORY_TABLE = shared_tables.status_history_table_name()
 
 
 def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:

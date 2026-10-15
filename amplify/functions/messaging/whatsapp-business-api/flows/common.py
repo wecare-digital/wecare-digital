@@ -10,21 +10,30 @@ import uuid
 import boto3
 import logging
 from decimal import Decimal
-from typing import Dict, Optional
+from typing import Any, Dict, Mapping, Optional
+
+from lambda_utils import contact_store, shared_tables
 
 logger = logging.getLogger(__name__)
 
 dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 
-CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')
-SUBMIT_REQUESTS_TABLE = os.environ.get('SUBMIT_REQUESTS_TABLE', 'stack-wecare-digital-SubmitRequestsTable')
-FLOW_SUBMISSIONS_TABLE = os.environ.get('FLOW_SUBMISSIONS_TABLE', 'stack-wecare-digital-FlowSubmissionTable')
-FLOW_LOGS_TABLE = os.environ.get('FLOW_LOGS_TABLE', 'stack-wecare-digital-FlowLogTable')
+# The shared stores, resolved in one place (`lambda_utils.shared_tables`). Every flow writes
+# its contacts, responses, logs, drafts and status history to the same tables the inbox, the
+# catalog-order path and the website use.
+CONTACTS_TABLE = shared_tables.contacts_table_name()
+FLOW_SUBMISSIONS_TABLE = shared_tables.flow_submissions_table_name()
+FLOW_LOGS_TABLE = shared_tables.flow_logs_table_name()
 OUTBOUND_WHATSAPP_FUNCTION = os.environ.get('OUTBOUND_WHATSAPP_FUNCTION', 'wecare-outbound-whatsapp')
 INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-invoice-engine')
-DRAFTS_TABLE = os.environ.get('DRAFTS_TABLE', 'stack-wecare-digital-FlowDraftTable')
-STATUS_HISTORY_TABLE = os.environ.get('STATUS_HISTORY_TABLE', 'stack-wecare-digital-RequestStatusHistoryTable')
+DRAFTS_TABLE = shared_tables.flow_drafts_table_name()
+STATUS_HISTORY_TABLE = shared_tables.status_history_table_name()
+
+#: Flow interaction logs are transport records; FlowLogTable reaps them on `ttl`.
+FLOW_LOG_TTL_SECONDS = 90 * 86400
+#: Matches `_log_flow_interaction`: a log row is a breadcrumb, not a copy of the form.
+FLOW_LOG_SNAPSHOT_CHARS = 4000
 
 PHONE1_ID = os.environ.get('WHATSAPP_PHONE_NUMBER_ID_1', 'phone-number-id-waba1-direct-1016149501586345')
 PHONE2_ID = os.environ.get('WHATSAPP_PHONE_NUMBER_ID_2', 'phone-number-id-waba-t-direct-1055232054343117')
@@ -57,28 +66,18 @@ def get_phone_number_id_for_flow(flow_token: str) -> str:
 # ── Contact lookup ──
 
 def find_contact_by_phone(phone: str) -> str:
-    """Look up contactId from Contacts table by phone."""
+    """The ContactsTable id for this phone - the same row the inbox and checkout use.
+
+    Through `contact_store.lookup`, so a contact minted by the website or by staff is found
+    as reliably as one minted by an inbound message. `''` when there is none or the read
+    fails: a flow completion must not fail because enrichment could not run.
+    """
     if not phone:
         return ''
     try:
-        clean = phone.replace('+', '').replace(' ', '').replace('-', '')
-        with_plus = f'+{clean}'
-        table = dynamodb.Table(CONTACTS_TABLE)
-        for variant in [with_plus, clean]:
-            try:
-                resp = table.query(
-                    IndexName='phone-index',
-                    KeyConditionExpression='phone = :p',
-                    ExpressionAttributeValues={':p': variant},
-                    Limit=1, ProjectionExpression='id',
-                )
-                items = resp.get('Items', [])
-                if items:
-                    return items[0].get('id', '')
-            except Exception:
-                pass
+        return contact_store.lookup_id(dynamodb.Table(CONTACTS_TABLE), phone)
     except Exception as e:
-        logger.warning(f'Contact lookup failed: {e}')
+        logger.warning(f'Contact lookup failed: {type(e).__name__}')
     return ''
 
 
@@ -106,8 +105,16 @@ def record_completion(flow_code: str, flow_type: str, phone: str,
                       payment_amount: int = 0,
                       payment_ref_id: str = '',
                       status: str = 'open',
-                      reference_prefix: str = ''):
+                      reference_prefix: str = '',
+                      extra: Optional[Mapping[str, Any]] = None,
+                      ttl_seconds: Optional[int] = None,
+                      channel: str = 'whatsapp'):
     """Claim this completion once, and say whether THIS caller won.
+
+    `extra` carries a record kind's own fields (a review's rating, an appointment's slot) on
+    the same row, which is how reviews, appointments, Rx slots and enterprise cases live in
+    the one flow-response table instead of a table each. Pass `ttl_seconds=0` for such a
+    business record so it never expires; `None` keeps the transport-record default.
 
     The single writer, shared with the inbound Lambda:
     `lambda_utils.flow_completion.claim_completion`. Callers must branch on
@@ -134,7 +141,8 @@ def record_completion(flow_code: str, flow_type: str, phone: str,
             flow_token=flow_token, request_id=request_id, screen=screen,
             submission_number=submission_number, requires_payment=requires_payment,
             payment_amount=payment_amount, payment_ref_id=payment_ref_id,
-            status=status, reference_prefix=reference_prefix)
+            status=status, reference_prefix=reference_prefix, extra=extra,
+            ttl_seconds=ttl_seconds, channel=channel)
     except Exception as e:  # noqa: BLE001 - a claim failure must not become a NameError
         logger.error(json.dumps({
             'event': 'flow_completion_unexpected_error',
@@ -147,8 +155,14 @@ def record_completion(flow_code: str, flow_type: str, phone: str,
 def _record_completion(flow_completion, *, flow_code, flow_type, phone, contact_id,
                        sender_name, form_data, flow_token, request_id, screen,
                        submission_number, requires_payment, payment_amount,
-                       payment_ref_id, status, reference_prefix):
+                       payment_ref_id, status, reference_prefix, extra=None,
+                       ttl_seconds=None, channel='whatsapp'):
     """The body of `record_completion`. Split out so the wrapper above stays total."""
+    optional: Dict[str, Any] = {}
+    if extra:
+        optional['extra'] = extra
+    if ttl_seconds is not None:
+        optional['ttl_seconds'] = ttl_seconds
     result = flow_completion.claim_completion(
         flow_token=flow_token,
         screen=screen,
@@ -165,6 +179,8 @@ def _record_completion(flow_completion, *, flow_code, flow_type, phone, contact_
         payment_ref_id=payment_ref_id,
         status=status,
         request_id=request_id,
+        channel=channel,
+        **optional,
     )
 
     # Mirror a fresh completion into the CRM. Best-effort: the FlowSubmission row is the
@@ -401,12 +417,18 @@ def send_simple_confirmation(phone: str, flow_token: str, flow_name: str,
 
 def log_flow_event(flow_token: str, phone: str, action: str, screen: str,
                    data: dict, request_id: str):
-    """Log a flow interaction for audit trail."""
+    """Log a flow interaction to FlowLogTable, the one flow-log store.
+
+    These rows used to go to SubmitRequestsTable as `type=flow_log`, with no expiry and the
+    full form payload, while the customer-journey view read FlowLogTable and so always showed
+    no logs. One table now: the journey view and the flow-log list read what this writes,
+    and the table's TTL reaps the rows after `FLOW_LOG_TTL_SECONDS`.
+    """
     try:
         now = int(time.time())
-        table = dynamodb.Table(SUBMIT_REQUESTS_TABLE)
+        table = dynamodb.Table(FLOW_LOGS_TABLE)
         item = {
-            'id': f'flog-{uuid.uuid4().hex[:12]}',
+            'logId': f'flog-{uuid.uuid4().hex[:12]}',
             'type': 'flow_log',
             'flowToken': flow_token,
             'phone': phone,
@@ -415,15 +437,16 @@ def log_flow_event(flow_token: str, phone: str, action: str, screen: str,
             'dataKeys': list(data.keys()) if data else [],
             'requestId': request_id,
             'createdAt': Decimal(str(now)),
+            'ttl': now + FLOW_LOG_TTL_SECONDS,
         }
         if data:
             try:
-                item['flowData'] = json.dumps(data, default=str)
+                item['dataSnapshot'] = json.dumps(data, default=str)[:FLOW_LOG_SNAPSHOT_CHARS]
             except Exception:
                 pass
         table.put_item(Item={k: v for k, v in item.items() if v is not None and v != ''})
     except Exception as e:
-        logger.warning(f'Flow log write failed: {e}')
+        logger.warning(f'Flow log write failed: {type(e).__name__}')
 
 
 # ── Draft save / restore ──

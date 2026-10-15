@@ -24,16 +24,18 @@ from decimal import Decimal
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
 
+from lambda_utils import flow_records, shared_tables
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 
 TABLE_PREFIX = os.environ.get('TABLE_PREFIX', 'stack-wecare-digital')
-SUBMISSIONS_TABLE = f'{TABLE_PREFIX}-FlowSubmissionTable'
-APPOINTMENTS_TABLE = f'{TABLE_PREFIX}-AppointmentTable'
-ENTERPRISE_TABLE = f'{TABLE_PREFIX}-EnterpriseAssistTable'
-STATUS_HISTORY_TABLE = f'{TABLE_PREFIX}-RequestStatusHistoryTable'
+# One flow-response table holds requests, enterprise cases AND appointments, so every sweep
+# below reads the same rows the staff pages and the WhatsApp Flows write.
+SUBMISSIONS_TABLE = shared_tables.flow_submissions_table_name()
+STATUS_HISTORY_TABLE = shared_tables.status_history_table_name()
 
 SLA_ASSIGN_MINUTES = int(os.environ.get('SLA_ASSIGN_MINUTES', '30'))
 SLA_ESCALATE_MINUTES = int(os.environ.get('SLA_ESCALATE_MINUTES', '240'))
@@ -146,50 +148,31 @@ def _escalate_overdue(now: int) -> int:
 
 
 def _mark_no_show_appointments(now: int) -> int:
-    """Mark appointments as no_show if they're past the slot time + buffer."""
-    table = dynamodb.Table(APPOINTMENTS_TABLE)
+    """Mark appointments as no_show if they're past the slot time + buffer.
+
+    Appointments are flow responses (flowCode WD_APPT) in the shared table. WhatsApp
+    bookings are stored `booked` and staff bookings `scheduled`; both are still pending, so
+    both are swept - before the tables were merged the WhatsApp ones never were.
+    """
+    table = dynamodb.Table(SUBMISSIONS_TABLE)
     count = 0
 
-    for status in ['scheduled', 'confirmed']:
-        resp = table.query(
-            IndexName='status',
-            KeyConditionExpression=Key('status').eq(status),
-        )
-        for item in resp.get('Items', []):
-            slot_date = item.get('slotDate', '')
-            slot_time = item.get('slotTime', '23:59')
-            if not slot_date:
-                continue
-            try:
-                from datetime import datetime
-                dt_str = f'{slot_date} {slot_time}'
-                for fmt in ['%Y-%m-%d %I:%M %p', '%Y-%m-%d %H:%M', '%Y-%m-%d %H:%M:%S']:
-                    try:
-                        dt = datetime.strptime(dt_str, fmt)
-                        slot_ts = int(dt.timestamp())
-                        break
-                    except ValueError:
-                        slot_ts = 0
-                if slot_ts and (now - slot_ts) > (SLA_APPOINTMENT_MINUTES * 60):
-                    table.update_item(
-                        Key={'appointmentId': item['appointmentId']},
-                        UpdateExpression='SET #s = :s, updatedAt = :u',
-                        ExpressionAttributeNames={'#s': 'status'},
-                        ExpressionAttributeValues={
-                            ':s': 'no_show',
-                            ':u': Decimal(str(now)),
-                        },
-                    )
-                    count += 1
-            except Exception as e:
-                # `type(e).__name__`, not `{e}`. This `except` wraps a DynamoDB
-                # UpdateItem on an appointment row, so the exception text can carry
-                # the item's own attribute values back out of the service's error
-                # message; steering permits an exception's text only when our own
-                # code built it from known-safe parts. The appointment id stays, as
-                # the correlation handle for a failed transition.
-                logger.warning(f'No-show check failed for '
-                               f'{item.get("appointmentId")}: {type(e).__name__}')
+    for item in flow_records.pending_appointments(table):
+        slot_ts = flow_records.slot_timestamp(item)
+        if not slot_ts or (now - slot_ts) <= (SLA_APPOINTMENT_MINUTES * 60):
+            continue
+        try:
+            updated = flow_records.update_row(
+                table, flow_records.APPOINTMENT, item['submissionId'],
+                {'status': 'no_show'}, now)
+            if updated:
+                count += 1
+        except Exception as e:
+            # Nothing from the row reaches this line - not the id, not `{e}`. The row is a
+            # customer's flow response (phone, name, answers), and CodeQL's
+            # py/clear-text-logging-sensitive-data tracks it here through flow_records. The
+            # exception class is enough to triage, and the next sweep retries the same row.
+            logger.warning(f'No-show check failed: {type(e).__name__}')
 
     return count
 

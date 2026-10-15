@@ -5594,13 +5594,18 @@ def _tool_send_whatsapp_flow(params: Dict, request_id: str) -> Dict:
 
 
 def _tool_list_submit_requests(params: Dict, request_id: str) -> Dict:
-    """List submit request flow submissions from DynamoDB."""
+    """List a contact's flow submissions from the one flow-response table.
+
+    Every channel's submissions (WhatsApp Flows, website, staff) live there; the retired
+    SubmitRequestsTable this used to read has no live writer.
+    """
+    from lambda_utils import shared_tables
     contact_id = params.get('contactId')
     status_filter = params.get('status')
     limit = min(params.get('limit', 20), 50)
     
     try:
-        table = dynamodb.Table(os.environ.get('SUBMIT_REQUESTS_TABLE', 'stack-wecare-digital-SubmitRequestsTable'))
+        table = dynamodb.Table(shared_tables.flow_submissions_table_name())
         
         scan_kwargs = {'Limit': limit}
         filter_parts = []
@@ -5633,8 +5638,10 @@ def _tool_list_submit_requests(params: Dict, request_id: str) -> Dict:
             summary.append({
                 'submissionId': item.get('id') or item.get('submissionId'),
                 'contactId': item.get('contactId'),
-                'phone': item.get('senderPhone', ''),
+                'phone': item.get('phone') or item.get('senderPhone', ''),
                 'status': item.get('status', 'pending'),
+                'flowCode': item.get('flowCode', ''),
+                'channel': item.get('channel') or 'whatsapp',
                 'requestType': item.get('requestType', ''),
                 'description': (item.get('description', '') or '')[:100],
                 'createdAt': item.get('createdAt', ''),

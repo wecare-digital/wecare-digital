@@ -1,0 +1,133 @@
+"""One contact store for every channel: find the person, whatever minted their row.
+
+`ContactsTable` is the only person store. The WhatsApp inbox, WhatsApp catalog orders,
+WhatsApp Flows and the website checkout all resolve a customer to the same row, and this
+module is how they do it.
+
+Why a lookup needs more than one step
+-------------------------------------
+Rows in the table were minted by different writers, so one person's row can carry any of
+these ids:
+
+    wa{digits}           inbound WhatsApp (`_deterministic_contact_id`)
+    uuid5(sub)           website profile save (customer-profile)
+    uuid4                staff create (core/contacts)
+    uuid5(phone|email)   blog subscribe
+
+Readers that re-derived one scheme by hand (for example a `get_item` on `wa{digits}`) missed
+every row minted by the others. The phone is the one attribute every writer stores, so
+`lookup` tries the cheap deterministic key first and then the `phone-index` GSI, using every
+spelling of the number that has been written: `+digits` (the canonical form), bare digits
+(Meta's `wa_id`) and the caller's own text.
+
+Writes go the other way. `canonical_phone` gives the one spelling new writes should store,
+so the `phone-index` lookups of later readers keep converging on the same row.
+
+Soft-deleted rows (`deletedAt` / `isDeleted`) are skipped, matching the inbound handler.
+"""
+
+from __future__ import annotations
+
+import re
+from typing import Any, Dict, Iterable, List, Mapping, Optional
+
+from boto3.dynamodb.conditions import Key
+
+from lambda_utils import contact_key, shared_tables
+
+PHONE_INDEX = 'phone-index'
+
+_MIN_DIGITS = 7
+_MAX_DIGITS = 15
+_NON_DIGIT = re.compile(r'\D+')
+
+
+def table_name() -> str:
+    """The contacts table for this execution environment."""
+    return shared_tables.CONTACTS.name()
+
+
+def digits(phone: Any) -> str:
+    """The phone as bare digits, or `''` when it is not a plausible number (7 to 15 digits).
+
+    No country code is inferred. A 10-digit Indian mobile stays 10 digits, because guessing
+    `+91` is how a foreign number gets locked onto the wrong person.
+    """
+    text = _NON_DIGIT.sub('', str(phone or ''))
+    return text if _MIN_DIGITS <= len(text) <= _MAX_DIGITS else ''
+
+
+def canonical_phone(phone: Any) -> str:
+    """The one spelling new contact writes store: `+` followed by digits, or `''`."""
+    value = digits(phone)
+    return f'+{value}' if value else ''
+
+
+def phone_variants(phone: Any) -> List[str]:
+    """Every spelling a stored `phone` may carry, canonical first, without duplicates."""
+    out: List[str] = []
+    value = digits(phone)
+    candidates: Iterable[str] = (
+        f'+{value}' if value else '',
+        value,
+        str(phone or '').strip(),
+    )
+    for candidate in candidates:
+        if candidate and candidate not in out:
+            out.append(candidate)
+    return out
+
+
+def deterministic_id(phone: Any) -> str:
+    """The id the inbound handler mints for a phone-only contact: `wa` + digits."""
+    value = digits(phone)
+    return f'wa{value}' if value else ''
+
+
+def is_live(row: Optional[Mapping[str, Any]]) -> bool:
+    """True for a row that exists and is not soft-deleted."""
+    if not row:
+        return False
+    return not row.get('deletedAt') and not row.get('isDeleted')
+
+
+def _get(table: Any, contact_id: str) -> Optional[Dict[str, Any]]:
+    if not contact_id:
+        return None
+    item = table.get_item(Key=contact_key.key(contact_id)).get('Item')
+    return item if is_live(item) else None
+
+
+def find_by_phone(table: Any, phone: Any) -> Optional[Dict[str, Any]]:
+    """The first live row on `phone-index` for any spelling of `phone`, or None."""
+    for variant in phone_variants(phone):
+        response = table.query(
+            IndexName=PHONE_INDEX,
+            KeyConditionExpression=Key('phone').eq(variant),
+            Limit=5,
+        )
+        for item in response.get('Items') or []:
+            if is_live(item):
+                return item
+    return None
+
+
+def lookup(table: Any, phone: Any = '', *, contact_id: str = '') -> Optional[Dict[str, Any]]:
+    """The one live contact for this person, or None.
+
+    Order: an explicit id, then the deterministic `wa{digits}` key (a consistent read, and
+    the row the inbox writes), then `phone-index` (rows minted by the website, staff or blog
+    writers). Read errors propagate; callers decide whether a lookup is best-effort.
+    """
+    row = _get(table, contact_key.resolve(contact_id=contact_id))
+    if row:
+        return row
+    row = _get(table, deterministic_id(phone))
+    if row:
+        return row
+    return find_by_phone(table, phone)
+
+
+def lookup_id(table: Any, phone: Any = '', *, contact_id: str = '') -> str:
+    """`lookup`, reduced to the canonical contact id (`''` when there is no row)."""
+    return contact_key.resolve(lookup(table, phone, contact_id=contact_id))

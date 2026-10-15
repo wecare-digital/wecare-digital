@@ -22,8 +22,9 @@ Two endpoints, and the security properties that shape them
            is issued and sent, so a refused request never spends a billable WhatsApp message. The
            code is generated inside `otp_challenge.issue`, handed straight to the sender, and never
            logged, echoed, or stored in plaintext.
-`verify`   check the code and, on success, resolve or create the immutable `CUS_<ULID>` customer and
-           administratively provision the Cognito login. It stamps no customer id on the Cognito
+`verify`   check the code and, on success, resolve or create the customer's ONE ContactsTable row
+           (the same row the WhatsApp inbox and checkout use) and administratively provision the
+           Cognito login. It stamps no customer id on the Cognito
            user — that attribute is not in the pool's schema; see `_provision_login`. The browser
            then signs in with the existing WhatsApp-OTP `CUSTOM_AUTH` flow — which now works because
            the user exists as CONFIRMED. This handler never returns the customer id or a token: the
@@ -61,9 +62,10 @@ from typing import Any, Dict, Optional
 
 import boto3
 
-from lambda_utils import customer_session, otp_throttle
+from lambda_utils import contact_key, contact_store, customer_session, otp_throttle, shared_tables
 from lambda_utils.identity import customer as identity
 from lambda_utils.identity import registration
+from lambda_utils.identity import subscriber_id
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, extract_origin, options_response
 
@@ -92,8 +94,11 @@ REGION = os.environ.get("AWS_REGION", "us-east-1")
 #: email-verification door; both OTP modules default to a `grantId` key.
 OTP_TABLE = os.environ.get("OTP_TABLE", "stack-wecare-digital-DownloadGrantsTable")
 
-#: Where the immutable customer record lives (partition key `customerId`).
-CUSTOMERS_TABLE = os.environ.get("CUSTOMERS_TABLE", "stack-wecare-digital-CustomersTable")
+#: The one person store. A phone verified here resolves to - or creates - the SAME ContactsTable
+#: row the WhatsApp inbox, WhatsApp Flows, catalog orders and website checkout use. (This used
+#: to target a separate `CustomersTable` of `CUS_<ULID>` records, which never existed in the
+#: account and would have been a second identity for every customer.)
+CONTACTS_TABLE = shared_tables.contacts_table_name()
 
 #: The customer Cognito pool. Deliberately NOT the staff pool — the customer_auth helper pins the
 #: issuer to this one, and mixing them is the failure that helper exists to prevent.
@@ -128,11 +133,11 @@ def _table():
     return _dynamodb.Table(OTP_TABLE)
 
 
-def _customers_table():
+def _contacts_table():
     global _dynamodb
     if _dynamodb is None:
         _dynamodb = boto3.resource("dynamodb", region_name=REGION)
-    return _dynamodb.Table(CUSTOMERS_TABLE)
+    return _dynamodb.Table(CONTACTS_TABLE)
 
 
 def _lambda_client():
@@ -219,67 +224,70 @@ def _wa_destination(e164: str) -> str:
     return "".join(ch for ch in str(e164 or "") if ch.isdigit())
 
 
+def _as_customer(row: Dict[str, Any]) -> Dict[str, Any]:
+    """A contact row in the registration contract: `customerId` is the contact's id."""
+    return {**row, "customerId": contact_key.resolve(row)}
+
+
 def _resolve_customer(e164: str) -> Optional[Dict[str, Any]]:
-    """The existing customer for this phone, or None.
+    """The existing contact for this phone, or None - whichever channel created it.
 
-    Looks up by the normalised phone on a GSI-free scan-avoiding pattern: the customer table is
-    keyed on `customerId`, so phone lookup goes through the `PhoneIndex` GSI when present. When the
-    index is absent (fresh account, zero rows) a query raises and this returns None, which is the
-    safe answer — `complete` then creates the customer, and the create is itself conditional.
+    `contact_store.lookup` tries the deterministic `wa{digits}` key the inbox writes, then every
+    stored spelling on `phone-index`, so a customer who first messaged on WhatsApp or was entered
+    by staff is found rather than duplicated. A transient read error returns None; the conditional
+    create below is what actually guarantees one contact per phone.
     """
-    from boto3.dynamodb.conditions import Key
-
     try:
-        result = _customers_table().query(
-            IndexName=os.environ.get("CUSTOMERS_PHONE_INDEX", "normalizedPhone-index"),
-            KeyConditionExpression=Key("normalizedPhone").eq(e164),
-            Limit=1,
-        )
+        row = contact_store.lookup(_contacts_table(), e164)
     except Exception as error:  # noqa: BLE001
-        # No index yet, or a transient read error. Treat as "not found"; the conditional create
-        # below is what actually guarantees one customer per phone.
         logger.info(json.dumps({"event": "customer_lookup_miss",
                                  "error": type(error).__name__}))
         return None
-    items = result.get("Items") or []
-    return items[0] if items else None
+    return _as_customer(row) if row else None
 
 
 def _create_customer(e164: str) -> Dict[str, Any]:
-    """Create an immutable `CUS_<ULID>` customer with a verified phone, at most once per phone.
+    """Create the contact for a verified phone, at most once per phone.
 
-    The record is built with `identity.build_customer` (all fields normalised, nothing verified),
-    then `phoneVerifiedAt` is stamped because the OTP just proved it. The write is conditional on
-    the phone not already existing so a race between two verifications collapses to one customer.
-    Name and email are filled in by later checkout steps; they are absent here, not empty, so a
-    conditional write can assert their absence when the customer supplies them.
+    The id is the same deterministic `wa{digits}` the WhatsApp inbox mints, so when this customer
+    later messages on WhatsApp the inbox lands on THIS row instead of creating a second one. The
+    write is conditional on the id, so a race between two verifications collapses to one contact.
+    Purchase/transactional identity is not marketing consent, so every opt-in starts False, as on
+    the website profile path. Names arrive later through the checkout profile.
     """
     now = int(time.time())
-    # Names are not known at phone-verification time; build_customer requires them, so a minimal
-    # placeholder record is written directly instead. firstName/lastName are added at the name step.
+    contact_id = contact_store.deterministic_id(e164)
+    if not contact_id:
+        raise ValueError("a verified phone is required to create a contact")
     record = {
-        "customerId": identity.new_customer_id(),
-        "phone": e164,
-        "normalizedPhone": e164,
+        **contact_key.contact_item_keys(contact_id),
+        **subscriber_id.new_contact_fields(now=now),
+        "phone": contact_store.canonical_phone(e164),
         "phoneVerifiedAt": now,
+        "optInWhatsApp": False,
+        "optInEmail": False,
+        "optInSms": False,
+        "allowlistWhatsApp": False,
+        "allowlistEmail": False,
+        "allowlistSms": False,
         "createdAt": now,
         "updatedAt": now,
     }
     try:
-        _customers_table().put_item(
+        _contacts_table().put_item(
             Item=record,
-            ConditionExpression="attribute_not_exists(customerId)",
+            ConditionExpression="attribute_not_exists(id)",
         )
     except Exception as error:  # noqa: BLE001
-        # A losing race means another verification created the customer first. Re-resolve and adopt
-        # it rather than raising, so two concurrent verifications converge on one record.
+        # A losing race means another verification created the contact first. Re-resolve and
+        # adopt it rather than raising, so two concurrent verifications converge on one record.
         if _is_conditional_failure(error):
             existing = _resolve_customer(e164)
             if existing and existing.get("customerId"):
                 return existing
         raise
     logger.info(json.dumps({"event": "customer_created"}))
-    return record
+    return _as_customer(record)
 
 
 def _provision_login(e164: str, customer_id: str) -> None:  # noqa: ARG001 - see below
@@ -307,9 +315,8 @@ def _provision_login(e164: str, customer_id: str) -> None:  # noqa: ARG001 - see
     Session identity now comes from `customer_auth.customer_id_from_attributes`, which derives it
     from the Cognito `sub` - so the login this provisions and the session `customer_auth` proves
     cannot disagree, because neither of them stores a customer id on the user any more. The
-    `CUS_<ULID>` in `CustomersTable` remains the customer RECORD's identity; see
-    `customer_auth.customer_id_from_attributes` for why the two are deliberately not reconciled
-    here (that table does not exist in the account yet).
+    customer RECORD is the ContactsTable row; the website links it to the Cognito `sub` through
+    `checkoutCustomerId` when the profile is saved (auth/customer-profile).
     """
     import secrets as pysecrets
 

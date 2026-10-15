@@ -52,7 +52,6 @@ SHARED_DIR = ROOT / "amplify/functions/shared"
 
 PEPPER_SECRET_ID = "wecare/otp/pepper"
 OTP_TABLE = "stack-wecare-digital-DownloadGrantsTable"
-CUSTOMERS_TABLE = "stack-wecare-digital-CustomersTable"
 SES_CONFIGURATION_SET = "wecare-digital"
 SENDER_ADDRESS = "one@wecare.digital"
 
@@ -212,12 +211,13 @@ def ensure_role(dry_run: bool) -> str:
                 "Resource": [f"arn:aws:secretsmanager:{REGION}:{acct}:secret:{PEPPER_SECRET_ID}-*"],
             },
             {
-                "Sid": "OtpAndCustomerTables",
+                # The OTP/proof store only. Verification writes no person record: the profile
+                # endpoint stamps the verified email on the customer's ContactsTable row.
+                "Sid": "OtpTable",
                 "Effect": "Allow",
                 "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
                 "Resource": [
                     f"arn:aws:dynamodb:{REGION}:{acct}:table/{OTP_TABLE}",
-                    f"arn:aws:dynamodb:{REGION}:{acct}:table/{CUSTOMERS_TABLE}",
                 ],
             },
         ],
@@ -251,7 +251,6 @@ def ensure_log_group(dry_run: bool) -> str:
 def expected_environment() -> dict:
     return {
         "OTP_TABLE": OTP_TABLE,
-        "CUSTOMERS_TABLE": CUSTOMERS_TABLE,
         "OTP_PEPPER_SECRET_ID": PEPPER_SECRET_ID,
         "SES_CONFIGURATION_SET": SES_CONFIGURATION_SET,
         "VERIFICATION_EMAIL_SENDER": SENDER_ADDRESS,
