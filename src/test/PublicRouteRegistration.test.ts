@@ -284,7 +284,7 @@ describe( 'public route registration', () => {
     const metaStart = appSource.indexOf( 'const PUBLIC_PAGE_META' );
     const metaEnd = appSource.indexOf( '\nconst ', metaStart + 10 );
     const metaBlock = appSource.slice( metaStart, metaEnd === -1 ? undefined : metaEnd );
-    const metaRoutes = Array.from( metaBlock.matchAll( /^\s*'(\/[a-z0-9-]+)'\s*:/gm ) ).map( m => m[ 1 ] );
+    const metaRoutes = Array.from( metaBlock.matchAll( /^\s*'(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)'\s*:/gm ) ).map( m => m[ 1 ] );
 
     const missingFromSitemap = metaRoutes.filter( route => !sitemapRoutes.has( route ) );
 
