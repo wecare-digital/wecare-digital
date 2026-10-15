@@ -330,8 +330,9 @@ def _view(item: Dict[str, Any]) -> Dict[str, Any]:
         "batchId": item.get("batchId", ""),
         "sourceType": item.get("sourceType", ""),
         "sourceRef": item.get("sourceRef", ""),
-        #: Present only for an uploaded PDF on the public root. A URL source already has its
-        #: own address in `sourceRef`.
+        #: Intentionally empty for secure uploaded PDFs on list responses. A URL source
+        #: already has its own address in `sourceRef`; the authenticated detail route can
+        #: mint a short-lived presigned GET URL for a PDF.
         "sourceUrl": source_url(str(item.get("s3Key") or "")),
         "status": item.get("status", ""),
         "category": item.get("category", ""),
