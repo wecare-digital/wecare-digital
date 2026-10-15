@@ -2646,7 +2646,7 @@ const VayuLokLive: React.FC = () => {
         </div>
       </div>
 
-      <main className="vl-live-shell">
+      <div className="vl-live-shell">
 
 
         <div className="vl-live-workspace">
@@ -3565,7 +3565,7 @@ const VayuLokLive: React.FC = () => {
             </div>
           </section>
         </div>
-      </main>
+      </div>
 
       { pollutantTip && activePollutant && (
         <div
