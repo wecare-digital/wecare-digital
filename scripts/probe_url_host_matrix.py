@@ -180,7 +180,7 @@ def matrix() -> list[dict]:
     # change quietly turns its neighbours into pages. These three are probed by GET and asserted
     # on the BODY as well as the status, because 401 alone cannot tell the API's own rejection
     # from an edge-level one - the JSON is what proves the request reached the Lambda.
-    for protected in ("/api/invoices", "/api/contacts", "/api/wix-store/products"):
+    for protected in ("/api/invoices", "/api/contacts", "/api/native-catalog/products"):
         rows.append(_row("api", f"{SITE}{protected}", 401,
                          "protected operational endpoint: rejects an unauthenticated read with "
                          "the API's own JSON, not a page",
@@ -218,9 +218,11 @@ def matrix() -> list[dict]:
         rows.append(_row('subdomain', f'https://{host}.wecare.digital/old/path?old=1',
                          200, 'unused host must discard path/query and reach canonical home',
                          terminal_url=f'{SITE}/'))
-    # This nested hostname retains its existing Wix TLS redirect before our xout fallback.
-    rows.append(_row('subdomain', 'https://www.xout.wecare.digital/old/path?old=1',
-                     200, 'existing certificate chain reaches home', terminal_url=f'{SITE}/'))
+    # A nested hostname under a fallback host is the same second-label case as a.b below:
+    # measured 2026-10-15, it resolves through the wildcard and fails at TLS (status 0).
+    rows.append(_row('subdomain', 'https://www.xout.wecare.digital/old/path?old=1', 0,
+                     'second-label host under xout: resolves, but no certificate covers it - '
+                     'same documented coverage gap as a.b.wecare.digital'))
     # The residual gap, now the only one: the certificate covers ONE label. a.b.wecare.digital
     # DOES resolve - a DNS wildcard matches multiple labels (RFC 4592) - so the failure is at
     # TLS, not at DNS: `curl` reports "no alternative certificate subject name matches target

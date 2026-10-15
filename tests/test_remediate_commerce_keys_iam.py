@@ -12,7 +12,9 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "remediate_commerce_keys_iam.py"
-DELETED = "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-WixOrderIds"
+#: The table the commerce-key grants pointed at before the 2026-10-14 move; it no longer exists.
+DELETED_TABLE = "stack-wecare-digital-PreviousCommerceKeys"
+DELETED = f"arn:aws:dynamodb:us-east-1:775261844268:table/{DELETED_TABLE}"
 
 
 @pytest.fixture(scope="module")
@@ -102,7 +104,7 @@ def _drifted_live(mod):
     live = {}
     for (role, name), target in mod.target_documents().items():
         doc = json.loads(json.dumps(target).replace(
-            "stack-wecare-digital-CommerceKeys", "stack-wecare-digital-WixOrderIds"))
+            "stack-wecare-digital-CommerceKeys", DELETED_TABLE))
         for st in doc["Statement"]:
             if st.get("Sid") == "ReserveNativeInventory":
                 st["Action"] = ["dynamodb:TransactWriteItems"]
@@ -131,7 +133,9 @@ def test_targets_are_the_iac_documents(mod):
                             ("wecare-service-requests-role", "service-requests-rw")}
     native = json.loads((ROOT / "scripts" / "iam-native-catalog-checkout.json").read_text())
     assert targets[("wecare-checkout-role", "CheckoutNativeCatalogAuthority")] == native
-    assert "WixOrderIds" not in json.dumps(list(targets.values()))
+    # Both commerce-key homes grant the live table the resolver names.
+    assert mod.KEYS in json.dumps(targets[("wecare-checkout-role", "CheckoutLeastPrivilege")])
+    assert mod.KEYS in json.dumps(targets[("wecare-service-requests-role", "service-requests-rw")])
 
 
 def test_plan_reports_drift_and_writes_nothing(mod):
@@ -188,7 +192,7 @@ def test_apply_saves_rollback_first_then_fixes_only_changed_policies(mod, tmp_pa
     saved = json.loads(next(tmp_path.iterdir()).read_text())
     assert saved["account"] == "775261844268"
     assert {(p["role"], p["policyName"]) for p in saved["policies"]} == set(iam.puts)
-    assert all("WixOrderIds" in json.dumps(p["document"]) for p in saved["policies"])
+    assert all(DELETED_TABLE in json.dumps(p["document"]) for p in saved["policies"])
     assert "APPLIED AND VERIFIED" in "\n".join(lines)
 
 

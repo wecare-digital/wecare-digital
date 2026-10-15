@@ -7,8 +7,8 @@ is the wrong direction for a document whose whole value is what it leaves out - 
 
 THE SHARED ROLE IS THE POINT. `wecare-digital-lambda-role` is attached to most of the ~65-function
 fleet, so a grant there is a grant to all of them. This function reads a Meta token that can write
-to a customer-visible commerce catalogue and a Wix admin API key; putting either on the shared role
-would hand both to sixty unrelated functions. So this file asserts the provisioner never names it -
+to a customer-visible commerce catalogue; putting it on the shared role would hand it to sixty
+unrelated functions. So this file asserts the provisioner never names it -
 not that it does not grant anything to it, which would be weaker: a script that merely MENTIONS
 the shared role is one edit away from widening it.
 """
@@ -223,15 +223,37 @@ def test_the_role_this_script_creates_is_its_own(provisioner):
     assert provisioner.ROLE != SHARED_FLEET_ROLE
 
 
-# The Wix catalog webhook invoke grant is retired with the Wix exit: there is no
-# `wecare-wix-catalog-webhook` caller anymore (the native projection is driven by the schedule
-# backstop and the ProductsTable), so the provisioner declares no WEBHOOK_ROLE and no
-# webhook_invoke_policy. The former `test_the_invoke_grant_lands_on_the_WEBHOOKS_role...` is
-# removed because the behaviour it pinned is intentionally gone.
-def test_the_retired_wix_webhook_invoke_grant_is_gone(provisioner):
-    """The Wix catalog webhook caller is retired, so no cross-role invoke grant is provisioned."""
-    assert not hasattr(provisioner, "WEBHOOK_ROLE")
-    assert not hasattr(provisioner, "webhook_invoke_policy")
+def _calls(name: str) -> list[ast.Call]:
+    tree = ast.parse(SCRIPT.read_text(encoding="utf-8"), filename=str(SCRIPT))
+    return [node for node in ast.walk(tree) if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute) and node.func.attr == name]
+
+
+def _keyword(call: ast.Call, name: str):
+    return next((k.value for k in call.keywords if k.arg == name), None)
+
+
+def test_the_only_policy_it_writes_is_on_its_own_role(provisioner):
+    """Every `put_role_policy` targets `ROLE` with `POLICY`: the provisioner grants nothing on
+    any other function's role, so no second caller can be wired in by this script."""
+    calls = _calls("put_role_policy")
+    assert calls, "the role policy is written by put_role_policy"
+    for call in calls:
+        role, policy = _keyword(call, "RoleName"), _keyword(call, "PolicyName")
+        assert isinstance(role, ast.Name) and role.id == "ROLE"
+        assert isinstance(policy, ast.Name) and policy.id == "POLICY"
+
+
+def test_the_only_invoke_permission_is_the_schedules(provisioner):
+    """The two triggers are the ProductsTable stream (an event-source mapping, which needs no
+    resource-policy statement) and the schedule. So the alias carries exactly one invoke grant:
+    `events.amazonaws.com`, scoped to the rule's ARN."""
+    calls = _calls("add_permission")
+    assert len(calls) == 1
+    principal, source = _keyword(calls[0], "Principal"), _keyword(calls[0], "SourceArn")
+    assert isinstance(principal, ast.Constant) and principal.value == "events.amazonaws.com"
+    assert isinstance(source, ast.Call) and getattr(source.func, "id", "") == "rule_arn"
+    assert provisioner.rule_arn().endswith(":rule/wecare-meta-catalog-sync-schedule")
 
 
 # ── 3. no public surface ─────────────────────────────────────────────────────
@@ -313,8 +335,8 @@ def test_the_environment_carries_secret_NAMES_and_no_value(provisioner):
     enforcement hook would refuse a command carrying one - this asserts the same rule about the
     file that the hook asserts about the command line."""
     rendered = json.dumps(provisioner.ENVIRONMENT)
-    assert "wecare/meta-system-user-token" in rendered
-    assert "wecare/wix/headless-api-key" not in rendered
+    secret_names = sorted(v for v in provisioner.ENVIRONMENT.values() if v.startswith("wecare/"))
+    assert secret_names == ["wecare/meta-system-user-token"]
     for issuer_shape in ("rzp_live_", "sk-", "AIza", "ghp_", "xoxb-", "AKIA", "ASIA"):
         assert issuer_shape not in rendered
 

@@ -227,7 +227,7 @@ def test_the_coupons_policy_has_no_scan_and_no_wildcard_action(role):
     actions = {a for s in document["Statement"] for a in s["Action"]}
     assert actions == {
         "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem",
-        "dynamodb:Query", "secretsmanager:GetSecretValue",
+        "dynamodb:Query",
         "cognito-idp:AdminListGroupsForUser", "cognito-idp:AdminGetUser",
         "logs:CreateLogStream", "logs:PutLogEvents"}
     for forbidden in ("dynamodb:Scan", "dynamodb:*", "*", "secretsmanager:*", "iam:*"):
@@ -237,10 +237,6 @@ def test_the_coupons_policy_has_no_scan_and_no_wildcard_action(role):
         assert not resource.endswith(":table/*")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "scripts/provision_coupons_role.py (lines 57, 79, 136) still grants GetSecretValue on a "
-    "secret outside the provider allow-list, which no runtime code reads. Its owner drops the "
-    "grant; this mark then comes off, because strict=True turns the pass into a failure."))
 def test_the_coupons_policy_reads_only_approved_secrets_by_name(role):
     """A secret NAME, never a value, and only a name the provider allow-list approves. The
     six-character suffix wildcard is how Secrets Manager names ONE secret, not a widening to all

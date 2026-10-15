@@ -1,6 +1,6 @@
-"""`scripts/check_live_provider_independence.py` against stub clients: it flags frozen alias env
-keys, dangling table grants and a role that cannot read the commerce-key table, and it never
-needs a secret value."""
+"""`scripts/check_live_provider_independence.py` against stub clients: it holds frozen alias
+environments and planned-deletion secrets to the provider allow-list, flags dangling table grants
+and a role that cannot read the commerce-key table, and it never needs a secret value."""
 from __future__ import annotations
 
 import importlib.util
@@ -41,14 +41,6 @@ class Lambda:
                 raise RuntimeError("ResourceNotFoundException")
             Qualifier = alias["FunctionVersion"]
         return self.versions[(FunctionName, Qualifier)]
-
-
-class Gateway:
-    def __init__(self, keys):
-        self.keys = keys
-
-    def get_routes(self, ApiId, **_):
-        return {"Items": [{"RouteKey": k} for k in self.keys]}
 
 
 class Secrets:
@@ -103,7 +95,7 @@ def _table(name):
     return f"arn:aws:dynamodb:us-east-1:{ACCT}:table/{name}"
 
 
-def _clients(*, alias_env, decision, grant_table, routes=("GET /shop",), secrets=("wecare/x",),
+def _clients(*, alias_env, decision, grant_table, secrets=("wecare/meta-system-user-token",),
              tables=("stack-wecare-digital-CommerceKeys",)):
     role = f"arn:aws:iam::{ACCT}:role/wecare-checkout-role"
     latest = {"FunctionName": "wecare-checkout", "Role": role,
@@ -117,9 +109,8 @@ def _clients(*, alias_env, decision, grant_table, routes=("GET /shop",), secrets
         "Sid": "Keys", "Effect": "Allow", "Action": ["dynamodb:GetItem"],
         "Resource": [_table(grant_table)]}]}},
         {("wecare-checkout-role", _table("stack-wecare-digital-CommerceKeys")): decision})
-    return {"lambda": lam, "apigatewayv2": Gateway(list(routes)),
-            "secretsmanager": Secrets(list(secrets)), "dynamodb": Dynamo(list(tables)),
-            "iam": iam, "sts": Sts()}
+    return {"lambda": lam, "secretsmanager": Secrets(list(secrets)),
+            "dynamodb": Dynamo(list(tables)), "iam": iam, "sts": Sts()}
 
 
 def _by_name(checks):
@@ -133,32 +124,34 @@ def test_a_clean_account_passes(mod):
     assert all(c.passed for c in checks.values()), {k: c.evidence for k, c in checks.items()}
 
 
-def test_todays_drift_is_caught(mod):
-    """The 2026-10-14 state: alias env frozen with a WIX_ key, role grants the deleted table."""
+def test_frozen_alias_drift_is_caught(mod):
+    """A live alias frozen on an unapproved credential key, a role granting a deleted table."""
     checks = _by_name(mod.LiveAudit(_clients(
         alias_env={"COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys",
-                   "WIX_ORDER_IDS_TABLE": "stack-wecare-digital-CommerceKeys"},
-        decision="implicitDeny", grant_table="stack-wecare-digital-WixOrderIds")).run())
-    assert not checks["lambda-env-keys"].passed
-    assert checks["lambda-env-keys"].evidence == ["wecare-checkout:live WIX_ORDER_IDS_TABLE"]
+                   "LEGACY_API_KEY": "redacted"},
+        decision="implicitDeny", grant_table="stack-wecare-digital-DeletedOrderIds")).run())
+    # Only the published version carries the key, so $LATEST alone would have passed.
+    assert not checks["lambda-env"].passed
+    assert checks["lambda-env"].evidence == ["wecare-checkout:live LEGACY_API_KEY"]
     assert not checks["iam-dangling-tables"].passed
-    assert "stack-wecare-digital-WixOrderIds" in checks["iam-dangling-tables"].evidence[0]
+    assert "stack-wecare-digital-DeletedOrderIds" in checks["iam-dangling-tables"].evidence[0]
     assert not checks["commerce-key-access"].passed
     assert "implicitDeny" in checks["commerce-key-access"].evidence[0]
 
 
-def test_routes_secrets_tables_and_hosts_are_flagged(mod):
+def test_unapproved_hosts_and_planned_deletion_secrets_are_flagged(mod):
     checks = _by_name(mod.LiveAudit(_clients(
         alias_env={"COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys",
-                   "CDN": "https://static.wixstatic.com/media"},
+                   "CDN": "https://media.retired-cdn.net/media/a.png?token=redacted"},
         decision="allowed", grant_table="stack-wecare-digital-CommerceKeys",
-        routes=("POST /wix-catalog-webhook",), secrets=("wecare/wix/app-oauth",),
-        tables=("stack-wecare-digital-CommerceKeys", "stack-wecare-digital-WixOrderIds"))).run())
-    for name in ("api-routes", "secrets", "dynamodb-tables", "lambda-env-hosts"):
-        assert not checks[name].passed, name
-    # A host hit reports the KEY, never the value.
-    assert checks["lambda-env-hosts"].evidence == ["wecare-checkout:live CDN"]
-    assert all("wixstatic" not in e for e in checks["lambda-env-hosts"].evidence)
+        secrets=("wecare/meta-system-user-token", "wecare/retired/app-oauth"))).run())
+    assert not checks["secrets"].passed
+    assert checks["secrets"].evidence == ["wecare/retired/app-oauth"]
+    assert not checks["lambda-env"].passed
+    # A host finding names the key and the host; the rest of the value is never reported.
+    assert checks["lambda-env"].evidence == ["wecare-checkout:live CDN -> media.retired-cdn.net"]
+    assert all("token" not in e and "/media" not in e for e in checks["lambda-env"].evidence)
+    assert checks["iam-dangling-tables"].passed and checks["commerce-key-access"].passed
 
 
 def test_markdown_lists_every_check(mod):

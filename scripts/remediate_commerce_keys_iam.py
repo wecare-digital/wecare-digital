@@ -4,7 +4,7 @@
 What is wrong (measured read-only with iam:SimulatePrincipalPolicy, 2026-10-14):
 
 * `wecare-checkout-role` / `CheckoutLeastPrivilege` / `PaymentAttemptAndCommerceKeys` grants
-  Get/Put/Update on the DELETED `stack-wecare-digital-WixOrderIds` table. `wecare-checkout:live`
+  Get/Put/Update on the DELETED previous commerce-key table. `wecare-checkout:live`
   reads `COMMERCE_KEYS_TABLE=stack-wecare-digital-CommerceKeys`: PutItem there = implicitDeny.
 * `wecare-checkout-role` / `CheckoutNativeCatalogAuthority` / `ReserveNativeInventory` grants the
   pseudo-action `dynamodb:TransactWriteItems`. DynamoDB authorizes each transactional item with its

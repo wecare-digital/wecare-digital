@@ -136,9 +136,8 @@ An earlier version of this line called the write role "the only one that can wri
 production". That is not true and it was worth checking rather than repeating:
 `GitHubActions-bharat-stack-docs-scraper` holds `lambda:UpdateFunctionCode`,
 `lambda:CreateFunction`, `ecr:PutImage` and `events:Put*`, and
-`GitHubActions-bharat-stack-seo-tools` holds `lambda:UpdateFunctionCode` plus
-`secretsmanager:GetSecretValue` on the Wix headless key. Three of the six roles write to
-production; this one is simply the newest. What is true, and is the reason for the split
+`GitHubActions-bharat-stack-seo-tools` holds `lambda:UpdateFunctionCode`. Three of the six
+roles write to production; this one is simply the newest. What is true, and is the reason for the split
 above, is that it is the only role in the account whose *read-only counterpart* exists, so
 its safe mode needs no write grant at all.
 

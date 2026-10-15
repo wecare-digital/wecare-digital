@@ -49,7 +49,7 @@ SERVICE_REQUESTS_TABLE = "stack-wecare-digital-ServiceRequestsTable"
 CUSTOMER_INDEX = "customerId-createdAt-index"
 ORDER_INDEX = "orderId-index"
 #: The commerce-key table activation reads. Pinned by a test to
-#: `order_keys.commerce_keys_table_name()`; it replaced the deleted `...-WixOrderIds` table.
+#: `order_keys.commerce_keys_table_name()`, so the role and the code name the same table.
 COMMERCE_KEYS_TABLE = "stack-wecare-digital-CommerceKeys"
 RATE_LIMIT_TABLE = "stack-wecare-digital-RateLimitTable"
 ORDERS_TABLE = "stack-wecare-digital-OrderTable"
