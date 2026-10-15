@@ -68,3 +68,11 @@ def test_build_reports_consumers_and_env_keys_without_values(mod, monkeypatch):
     text = mod.to_markdown(list(rows.values()), "2026-10-14T00:00:00Z")
     assert "not-a-secret-name" not in text
     assert "`wecare/old`" in text.split("## Scheduled for deletion")[1]
+
+
+def test_an_explicit_deny_removes_the_role_from_readers(mod):
+    docs = {"wecare-digital-lambda-role": [
+        _doc(["secretsmanager:GetSecretValue"], [ARN + "wecare/*"]),
+        _doc(["secretsmanager:GetSecretValue"], [ARN + "wecare/github-pat-??????"], effect="Deny")]}
+    assert mod.readers_of(ARN + "wecare/github-pat-AbC123", docs) == []
+    assert mod.readers_of(ARN + "wecare/razorpay/api-AbC123", docs) == ["wecare-digital-lambda-role"]

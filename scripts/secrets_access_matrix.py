@@ -34,13 +34,13 @@ READ_ACTIONS = ("secretsmanager:GetSecretValue", "secretsmanager:BatchGetSecretV
 POLICY: dict[str, tuple[str, str, str]] = {
     "wecare/razorpay/api": ("payments", "KEEP_ISOLATED", "payment gateway API credentials"),
     "wecare/razorpay-webhook": ("payments", "KEEP_ISOLATED", "webhook signature verification secret"),
-    "wecare/meta/payments": ("payments", "KEEP_ISOLATED", "payment configuration; owner to confirm which fields are secret"),
+    "wecare/meta/payments": ("payments", "KEEP_ISOLATED", "Meta WABA payment-configuration to MID mapping (.env.local.example); no Lambda reads it at runtime"),
     "wecare/meta-system-user-token": ("integrations/meta", "KEEP_ISOLATED", "Graph system-user token and app secret"),
     "wecare/flow-private-key": ("security", "KEEP_ISOLATED", "WhatsApp Flows RSA private key"),
     "wecare/otp/pepper": ("security", "KEEP_ISOLATED", "OTP hashing pepper"),
-    "wecare/backup/recovery-passphrase": ("security", "KEEP_ISOLATED", "disaster-recovery passphrase"),
-    "wecare/aws/iam-access-keys": ("security", "NEEDS_OWNER_REVIEW", "stored long-lived AWS keys; replace with role-based temporary credentials, then retire"),
-    "wecare/github-pat": ("security", "ROTATE", "classic near-full-scope PAT, description says EXPOSED 2026-08-25; replace with a fine-grained token or GitHub App"),
+    "wecare/backup/recovery-passphrase": ("security", "KEEP_ISOLATED", "disaster-recovery passphrase; denied to the shared role since 2026-10-15"),
+    "wecare/aws/iam-access-keys": ("security", "NEEDS_OWNER_REVIEW", "stored long-lived AWS keys; replace with role-based temporary credentials, then retire; denied to the shared role since 2026-10-15"),
+    "wecare/github-pat": ("security", "ROTATE", "classic near-full-scope PAT, description says EXPOSED 2026-08-25; replace with a fine-grained token or GitHub App; denied to the shared role since 2026-10-15"),
     "wecare/plivo/api": ("communications", "KEEP_ISOLATED", "voice provider API credentials"),
     "wecare/plivo-answer": ("communications", "NEEDS_OWNER_REVIEW", "same provider as plivo/api; group only if every reader needs both and rotation matches"),
     "wecare/sinch/rcs": ("communications", "KEEP_ISOLATED", "RCS provider credentials"),
@@ -62,11 +62,15 @@ def _statements(document) -> list[dict]:
     return _list(document.get("Statement")) if isinstance(document, dict) else []
 
 
-def _allows_read(statement: dict) -> bool:
-    if statement.get("Effect") != "Allow" or "Action" not in statement:
+def _reads(statement: dict, effect: str) -> bool:
+    if statement.get("Effect") != effect or "Action" not in statement:
         return False
     return any(fnmatch.fnmatchcase(action, pattern) for pattern in _list(statement["Action"])
                for action in READ_ACTIONS)
+
+
+def _allows_read(statement: dict) -> bool:
+    return _reads(statement, "Allow")
 
 
 def role_documents(iam) -> dict[str, list[dict]]:
@@ -93,20 +97,24 @@ def role_documents(iam) -> dict[str, list[dict]]:
 
 
 def readers_of(secret_arn: str, documents: dict[str, list[dict]]) -> list[str]:
+    """Roles allowed to read the ARN. An explicit Deny on a matching resource wins."""
+    def matches(st):
+        return any(fnmatch.fnmatchcase(secret_arn, r) for r in _list(st.get("Resource")))
+
     readers = []
     for role, docs in documents.items():
-        for doc in docs:
-            if any(_allows_read(st) and any(fnmatch.fnmatchcase(secret_arn, r)
-                                            for r in _list(st.get("Resource")))
-                   for st in _statements(doc)):
-                readers.append(role)
-                break
+        statements = [st for doc in docs for st in _statements(doc)]
+        if any(_reads(st, "Deny") and matches(st) for st in statements):
+            continue
+        if any(_allows_read(st) and matches(st) for st in statements):
+            readers.append(role)
     return sorted(readers)
 
 
 def source_references(name: str) -> list[str]:
-    result = subprocess.run(["git", "grep", "-l", "-F", name, "--", "amplify/functions",
-                             "scripts", ".github"], cwd=ROOT, capture_output=True, text=True)
+    result = subprocess.run(["git", "grep", "-l", "-F", name, "--", "amplify", "scripts",
+                             ".github", "src", "config", ".env.example", ".env.local.example"],
+                            cwd=ROOT, capture_output=True, text=True)
     return [p for p in result.stdout.splitlines() if p and not p.endswith(".md")]
 
 
