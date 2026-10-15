@@ -363,8 +363,8 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings } ) => {
             overflow:hidden;color:inherit;
             transition:border-color .2s,transform .2s,box-shadow .2s;
           }
-          .shop-card:nth-child(3n+2)){border-inline-start-color:#2563eb}
-          .shop-card:nth-child(3n+3)){border-inline-start-color:#9849e8}
+          .shop-card:nth-child(3n+2){border-inline-start-color:#2563eb}
+          .shop-card:nth-child(3n+3){border-inline-start-color:#9849e8}
           /* The home CTA's treatment, and the only shadow this design language allows. */
           .shop-card:hover{
             border-color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
