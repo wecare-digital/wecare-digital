@@ -37,7 +37,7 @@ Provider/API failures must remain visible as unavailable/error states; they must
 
 Amplify reads the build-time browser key from the existing WECARE.DIGITAL Maps secret and exports it as `NEXT_PUBLIC_GOOGLE_BROWSER_KEY`.
 
-Any Google Cloud key-policy change for this feature must keep the browser key enabled for the six APIs listed above. Do not reintroduce a mandatory VayuLok server relay without an explicit product decision, because that previously caused repeated live breakage.
+Any Google Cloud key-policy change for this feature must keep the browser key enabled for the five APIs listed above. Do not reintroduce a mandatory VayuLok server relay without an explicit product decision, because that previously caused repeated live breakage.
 
 ## Acceptance
 
