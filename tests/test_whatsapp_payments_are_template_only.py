@@ -460,7 +460,9 @@ class _Quote:
     total_payable_paise = 59900 + 1498 + 270
 
 
-_SESSION = {'kind': 'SUBMIT_REQUEST', 'productId': 'prod-1', 'variantId': 'var-1'}
+#: The live Request services product and one of its variants: `payment_details` builds Meta retailer
+#: ids, which accept only catalog UUIDs.
+_SESSION = {'kind': 'SUBMIT_REQUEST', 'productId': 'df976a0a-f582-4535-b2e1-d532f348bd27', 'variantId': '864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b'}
 
 
 def _payment_details(configuration='WECAREDIGITAL', reference='WD-PAY-CATALOG1'):

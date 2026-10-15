@@ -14,6 +14,7 @@ tables when they explain the fold, so a substring search would find its own expl
 from __future__ import annotations
 
 import ast
+import json
 import re
 import sys
 from pathlib import Path
@@ -59,9 +60,27 @@ def code_strings(path: Path) -> Iterator[Tuple[int, str]]:
 
 
 def test_the_registry_names_exactly_the_live_tables():
-    assert {t.default_name for t in shared_tables.SHARED} == {
-        f'{PREFIX}-ContactsTable', f'{PREFIX}-OrderTable', f'{PREFIX}-FlowSubmissionTable',
-        f'{PREFIX}-FlowLogTable', f'{PREFIX}-RequestStatusHistoryTable', f'{PREFIX}-FlowDraftTable'}
+    expected = {
+        f'{PREFIX}-CartTable',
+        f'{PREFIX}-CommerceKeys',
+        f'{PREFIX}-ContactsTable',
+        f'{PREFIX}-FlowDraftTable',
+        f'{PREFIX}-FlowLogTable',
+        f'{PREFIX}-FlowSubmissionTable',
+        f'{PREFIX}-InvoiceAssetsTable',
+        f'{PREFIX}-InvoiceDeliveryLogTable',
+        f'{PREFIX}-InvoiceItemsTable',
+        f'{PREFIX}-InvoiceSequenceTable',
+        f'{PREFIX}-InvoicesTable',
+        f'{PREFIX}-OrderTable',
+        f'{PREFIX}-PaymentAttemptsTable',
+        f'{PREFIX}-ProductsTable',
+        f'{PREFIX}-RequestStatusHistoryTable'}
+    assert {t.default_name for t in shared_tables.SHARED} == expected
+    # Every registered name is a table the account really has (committed ListTables snapshot).
+    live = set(json.loads((Path(__file__).resolve().parents[1] / 'docs' / 'execution' /
+                           'snapshots' / 'dynamodb-tables.json').read_text())['tables'])
+    assert expected <= live, sorted(expected - live)
     # Every folded table maps into one of the shared stores, never into another folded table.
     shared_physical = {t.physical for t in shared_tables.SHARED}
     assert set(shared_tables.RETIRED.values()) <= shared_physical
