@@ -143,21 +143,19 @@ describe( 'scrollbar thumb colour is declared in exactly two files', () => {
     }
   } );
 
-  it( 'leaves the eleven display:none and height:6px hiders alone', () => {
+  it( 'leaves the thirteen display:none and height:6px hiders alone', () => {
     // They set no colour, so they do not compete, and deleting one would bring back a visible
     // scrollbar on a tab strip or carousel. Counted so a silent cull is caught here.
     // Nine are the long-standing tab-strip/carousel hiders, including Anew's "Perspectives"
-    // swipe pager. VayuLok contributes two legitimate Air-only hiders:
-    //   .vl-live-air-forecast-strip - the 24/48/96h Air forecast carousel
-    //   .vl-live-air-health-tabs    - the health-persona tab strip
-    // The two Weather-only hiders were intentionally deleted with the Weather surface, so the
-    // repository-wide invariant is now eleven rather than thirteen.
+    // swipe pager. VayuLok contributes four legitimate colourless hiders: the Air forecast
+    // carousel, health-persona tabs, Weather range controls and Weather history strip.
+    // Restoring Weather therefore restores the repository-wide invariant to thirteen.
     const hiders = files.flatMap( f => {
       const src = stripComments( fs.readFileSync( f, 'utf8' ) );
       return Array.from( src.matchAll( /::-webkit-scrollbar(?!-)[^{}]*\{([^}]*)\}/g ) )
         .filter( m => /display\s*:\s*none|height\s*:\s*6px/.test( m[ 1 ] ) );
     } );
-    expect( hiders.length ).toBe( 11 );
+    expect( hiders.length ).toBe( 13 );
   } );
 
   it( 'finds a planted declaration, and loses a commented one', () => {
