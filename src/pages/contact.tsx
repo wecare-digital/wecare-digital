@@ -71,7 +71,8 @@ const ContactPage: React.FC = () => (
       </PageShell>
       <ContactLocation />
       <style jsx>{`
-        .request-hub-title{font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;letter-spacing:-1.2px;color:rgba(0,0,0,.95);margin:0 0 24px}\n        .request-hub ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px;list-style:none;margin:24px 0;padding:0}
+        .request-hub-title{font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;letter-spacing:-1.2px;color:rgba(0,0,0,.95);margin:0 0 24px}
+        .request-hub ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px;list-style:none;margin:24px 0;padding:0}
         .request-hub li{padding:24px;border:1px solid #d1f470;border-radius:14px}
         .request-hub li :global(a){display:inline-block;font-size:22px;font-weight:700;color:#1a3a2a;min-height:44px}
         .request-hub p{font-size:20px;line-height:1.4;margin:8px 0 0}
