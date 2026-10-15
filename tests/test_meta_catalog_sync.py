@@ -128,21 +128,17 @@ def test_the_retailer_id_shape_is_the_documented_one():
 
 
 def test_new_ids_are_written_with_wecare_digital_namespace():
-    """All new catalogue ids use the owner-approved WECARE.DIGITAL namespace."""
+    """All catalogue ids use the owner-approved WECARE.DIGITAL namespace."""
     assert sync.RETAILER_PREFIX == "WECARE.DIGITAL"
     value = sync.retailer_id(TEST_PRODUCT, TEST_VARIANT)
     assert value.startswith("WECARE.DIGITAL:")
-    assert not value.lower().startswith("wix:")
+    assert sync.parse_retailer_id(value) == (TEST_PRODUCT, TEST_VARIANT)
 
 
-def test_legacy_wix_ids_still_resolve_during_catalogue_migration():
-    """Existing Meta items and in-flight carts remain readable until migration completes."""
-    assert "wix" in sync.LEGACY_RETAILER_PREFIXES
-    legacy = f"wix:{TEST_PRODUCT}:{TEST_VARIANT}"
-    assert sync.parse_retailer_id(legacy) == (TEST_PRODUCT, TEST_VARIANT)
-    assert sync.parse_retailer_id(
-        f"WECARE.DIGITAL:{TEST_PRODUCT}:{TEST_VARIANT}"
-    ) == (TEST_PRODUCT, TEST_VARIANT)
+def test_other_namespaces_do_not_resolve():
+    """Only the WECARE.DIGITAL namespace is owned by the catalogue projection."""
+    other = f"external:{TEST_PRODUCT}:{TEST_VARIANT}"
+    assert sync.parse_retailer_id(other) is None
 
 
 def test_case_is_normalised_so_one_item_cannot_fork_into_two():
@@ -710,26 +706,3 @@ def test_request_variants_use_their_own_locked_catalog_artwork():
         assert expected_image.endswith("-4096.png")
 
 
-def test_namespace_migration_creates_wecare_digital_items_and_retires_legacy(desired):
-    """Migration is additive/non-deleting and becomes idempotent after legacy retirement."""
-    legacy = [
-        dict(
-            _meta_row(item),
-            retailer_id=item["retailer_id"].replace("WECARE.DIGITAL:", "wix:", 1),
-        )
-        for item in desired
-    ]
-    plan = sync.diff(desired, legacy)
-    assert len(plan.create) == len(desired)
-    assert len(plan.retire) == len(legacy)
-    assert plan.update == []
-    assert plan.foreign == []
-    assert all(item["retailer_id"].startswith("WECARE.DIGITAL:") for item in plan.create)
-    assert all(
-        item["retailer_id"].startswith("wix:")
-        and item["availability"] == sync.OUT_OF_STOCK
-        for item in plan.retire
-    )
-
-    retired = [dict(row, availability=sync.OUT_OF_STOCK) for row in legacy]
-    assert sync.diff(desired, [_meta_row(item) for item in desired] + retired).is_empty
