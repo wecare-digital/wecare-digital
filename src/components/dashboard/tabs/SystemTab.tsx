@@ -108,11 +108,6 @@ const HANDLERS: HandlerInfo[] = [
         config: [],
     },
     {
-        // Corrected 2026-09-25. Every field in this entry was wrong, measured against
-        // the live account: the function was `wecare-voice-in-cdr` (does not exist —
-        // it is `wecare-voice-cdr-read`), the endpoint was `POST /webhook/voice-cdr`
-        // (does not exist — only `GET`/`DELETE /voice-cdr-read`), the table was
-        // `VoiceInCDRTable` (does not exist — it is `VoiceCDRTable`), and the
         name: 'wecare-voice-cdr-read',
         displayName: 'Call Records (read)',
         category: 'Voice',

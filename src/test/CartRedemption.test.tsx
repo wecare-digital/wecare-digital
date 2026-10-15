@@ -22,7 +22,7 @@ import type { ShopProduct } from '../content/shop';
 
 // Cart imports next/link only; no router mock needed. Populate localStorage so items render.
 const PRODUCT: ShopProduct = {
-  id: 'wix-abc-123',
+  id: 'prod-abc-123',
   name: 'Kiosk',
   slug: 'kiosk',
   formattedPrice: '₹24,999.00',

@@ -11,7 +11,7 @@ import { serviceByKind } from '../config/services';
  * src/content/customerservice.ts and the layout in ProductPage.tsx, so the pages that share that
  * shape cannot drift apart. This file exists only to own the route.
  *
- * WHY IT EXISTS: live Wix began returning a fifth variant of the services product on 2026-10-10,
+ * WHY IT EXISTS: the live catalogue began returning a fifth variant of the services product on 2026-10-10,
  * and a service that can be paid for needs a page a customer can read first. The variant is
  * declared in src/config/services.ts and mirrored in service_requests.py; this is its address.
  *

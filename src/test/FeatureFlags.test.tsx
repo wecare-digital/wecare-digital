@@ -68,39 +68,41 @@ describe( 'the Commerce home with the flag off', () => {
     expect( featureFlags.commerceModule ).toBe( false );
     render( <CommercePage embedded /> );
     expect( screen.getByText( /Commerce module is switched off/i ) ).toBeTruthy();
-    // Off because the storefront is LIVE, not because it is unfinished.
+    // Off because every capability already works at its own page, not because it is
+    // unfinished.
     expect( screen.getByText( /Not because it is unfinished/i ) ).toBeTruthy();
   } );
 
-  // Moved here from the deleted Growth block rather than dropped with it. Both module
-  // homes render the same shell over the same IntegrationAccessTable, so these two
-  // properties were never really about Growth — they are about how a flagged-off module
-  // home is allowed to behave, and that rule outlived the page.
-  it( 'still shows the real connection state, which is the useful part', () => {
+  // Moved here from the deleted Growth block rather than dropped with it. The property was
+  // never really about Growth — it is about how a flagged-off module home is allowed to
+  // behave, and that rule outlived the page.
+  it( 'still links to the native pages it gathers, which is the useful part', () => {
     render( <CommercePage embedded /> );
-    // Three-state, from the generated registry snapshot — not a tick.
-    expect( screen.getAllByText( /Not verified|Not connected/ ).length ).toBeGreaterThan( 0 );
+    // Catalog is the default tab: the working pages, listed rather than duplicated.
+    expect( screen.getByText( /These already work/i ) ).toBeTruthy();
+    expect( screen.getByRole( 'link', { name: /Invoice records/i } ) ).toBeTruthy();
   } );
 
   it( 'keeps provider names out of the page name and the tab labels', () => {
     render( <CommercePage embedded /> );
     // The master prompt: "Use provider-neutral page names and confine exact provider
     // labels/IDs to authorized connection details." So the page is "Commerce" and the
-    // tabs are neutral — while "Wix" DOES appear inside the connection table, which is
-    // the authorised place for it.
-    expect( screen.getByText( 'Commerce' ) ).toBeTruthy();
-    for ( const tab of [ 'Connections', 'Catalog & orders', 'Payments' ] ) {
-      expect( screen.getByText( tab ) ).toBeTruthy();
-    }
-    for ( const provider of [ 'Wix', 'Razorpay', 'Google Ads', 'Meta' ] ) {
+    // tabs are neutral. (The default Catalog tab also links to the "Commerce" store page,
+    // so the page name is asserted on the heading rather than on any matching text.)
+    expect( screen.getByRole( 'heading', { level: 1, name: 'Commerce' } ) ).toBeTruthy();
+    expect( screen.getAllByRole( 'tab' ).map( ( t ) => t.textContent ) )
+      .toEqual( [ 'Catalog & orders', 'Payments' ] );
+    // There is no storefront-connection tab any more: the catalogue is native.
+    expect( screen.queryByRole( 'tab', { name: /Connections/i } ) ).toBeNull();
+    for ( const provider of [ 'Razorpay', 'Google Ads', 'Meta' ] ) {
       expect( screen.queryByRole( 'tab', { name: new RegExp( provider, 'i' ) } ) ).toBeNull();
     }
   } );
 } );
 
 describe( 'the registry snapshot is real and honest', () => {
-  it( 'has all eight providers', () => {
-    expect( inventory.providers ).toHaveLength( 8 );
+  it( 'has all seven providers', () => {
+    expect( inventory.providers ).toHaveLength( 7 );
   } );
 
   it( 'claims nothing as VERIFIED, because nothing has been', () => {

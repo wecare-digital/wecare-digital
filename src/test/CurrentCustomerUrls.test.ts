@@ -5,7 +5,7 @@ describe( 'current customer product destinations', () => {
   it( 'every snapshot product has a route-safe slug for its canonical product page', () => {
     expect( catalog.products.length ).toBeGreaterThan( 0 );
     for ( const product of catalog.products ) {
-      // The snapshot no longer carries a provider `productUrl` (that was a Wix-only field, never
+      // The snapshot no longer carries a provider `productUrl` (that was a storefront-only field, never
       // part of the ShopProduct contract). The canonical page is derived from the slug, which IS
       // the path segment of /shop/<slug>/, so the slug must be present and URL-safe for the page
       // to be reachable.

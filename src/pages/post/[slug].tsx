@@ -178,8 +178,9 @@ export default function BlogPostPage ( {
   /**
    * THE STORED-SCHEMA BRANCH IS NOW VALIDATED RATHER THAN TRUSTED.
    *
-   * `post.jsonLd` is `{}` for every post on the public surface — `seo-tools/wix.py` hardcodes
-   * it — so this branch is dead today and the fallback below is what actually ships. The guard
+   * `post.jsonLd` is `{}` for any post whose draft stored no schema — the native blog pipeline
+   * passes `draft.jsonLd or {}` straight through — so this branch is effectively dead today and
+   * the fallback below is what actually ships. The guard
    * matters anyway, because the old test was truthiness of the OBJECT: `{ blogPosting: {} }`
    * is truthy, so the day that pipeline is wired, a `{}` would have been emitted verbatim as a
    * JSON-LD block with no `@context` and no `@type`. An empty schema block is worse than none:

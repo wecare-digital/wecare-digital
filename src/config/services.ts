@@ -15,7 +15,7 @@
  * when a price does.
  *
  * THE SERVER IS STILL THE AUTHORITY, and now so is the catalog. The browser names a CHOICE;
- * `cart_v2.calculate` prices the line and
+ * the checkout prices the line from ProductsTable and
  * amplify/functions/shared/lambda_utils/ecommerce/service_requests.py asserts THE CATALOG'S OWN line
  * price inside a wide catastrophe rail rather than against a committed figure — so a catalog price
  * edit is CHARGED instead of refusing the purchase, which is what it used to do.

@@ -3,11 +3,11 @@
  *
  * WHY THIS MODULE EXISTS AT ALL
  * -----------------------------
- * "One address format for the website, WhatsApp and Wix" was already true on the server:
+ * "One address format for the website, WhatsApp and the order" was already true on the server:
  * `lambda_utils/ecommerce/contact_address.py` owns `_RULES` - eight fields, four required -
  * `normalize_for_storage` validates and stores them at `checkoutDeliveryAddress`, and
- * `payment_address.for_wix` / `for_meta_beneficiary` project that one stored shape onto Wix and
- * onto Meta's beneficiary block. There was never a second server format.
+ * `payment_address` projects that one stored shape onto the order payload and onto Meta's
+ * beneficiary block (`for_meta_beneficiary`). There was never a second server format.
  *
  * What there WAS, twice over, is a browser that did not use it. The Contacts form and the Pay
  * Flow customer form each carried a free-text "Delivery Address" textarea beside a partial set

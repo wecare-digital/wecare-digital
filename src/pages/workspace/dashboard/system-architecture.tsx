@@ -96,7 +96,6 @@ const DB_TABLES: TableDef[] = [
   { name: 'AIInteraction', purpose: 'AI query/response logs', keyFields: 'interactionId', indexes: 'messageId', usedBy: 'ai-generate-response, ai-query-kb', category: 'AI' },
   { name: 'RateLimitTracker', purpose: 'Rate limiting counters', keyFields: 'channel + windowStart', ttl: '24h', indexes: '-', usedBy: 'outbound-whatsapp', category: 'Core' },
   { name: 'SystemConfig', purpose: 'System configuration key-value store', keyFields: 'configKey', indexes: '-', usedBy: 'ai-config-management', category: 'Core' },
-  { name: 'VoiceCall', purpose: 'Voice call records', keyFields: 'callId', ttl: '90d', indexes: 'contactId, phoneNumber', usedBy: 'outbound-voice', category: 'Voice' },
   { name: 'SmsAws', purpose: 'AWS Pinpoint SMS messages', keyFields: 'messageId', ttl: '90d', indexes: 'contactId, phoneNumber', usedBy: 'sms-aws', category: 'SMS' },
   { name: 'VoiceAws', purpose: 'AWS Pinpoint voice calls', keyFields: 'callId', ttl: '90d', indexes: 'contactId, phoneNumber', usedBy: 'voice-aws', category: 'Voice' },
   { name: 'DLTTemplates', purpose: 'TRAI DLT template registry (live)', keyFields: 'templateId', indexes: '-', usedBy: 'sms-aws', category: 'SMS' },
@@ -140,10 +139,10 @@ const LAMBDAS: LambdaDef[] = [
   { name: 'outbound-whatsapp', category: 'Messaging', trigger: 'API Gateway, SQS', tables: 'WhatsAppOutbound', description: 'Send WhatsApp messages via Cloud API', apiRoute: '/whatsapp/send' },
   { name: 'outbound-sms', category: 'Messaging', trigger: 'API Gateway', tables: 'Messages', description: 'Send SMS via AWS End User Messaging', apiRoute: '/sms/send' },
   { name: 'outbound-email', category: 'Messaging', trigger: 'API Gateway', tables: '-', description: 'Send email via Amazon SES', apiRoute: '/email/send' },
-  { name: 'outbound-voice', category: 'Messaging', trigger: 'API Gateway', tables: 'VoiceCall', description: 'Initiate voice calls', apiRoute: '/voice/call' },
+  { name: 'plivo-answer', category: 'Messaging', trigger: 'API GW Webhook', tables: 'VoiceCDR', description: 'Plivo PSTN voice webhooks; writes the voice CDR', apiRoute: '/plivo/*' },
   { name: 'sms-aws', category: 'Messaging', trigger: 'API GW, SNS', tables: 'SmsAws', description: 'AWS Pinpoint SMS handler', apiRoute: '/sms-aws' },
   { name: 'voice-aws', category: 'Messaging', trigger: 'API Gateway', tables: 'VoiceAws', description: 'AWS voice call handler', apiRoute: '/voice-aws' },
-  { name: 'voice-cdr-read', category: 'Messaging', trigger: 'API Gateway', tables: 'VoiceCDR', description: 'Read voice CDR records', apiRoute: '/voice-cdr' },
+  { name: 'voice-cdr-read', category: 'Messaging', trigger: 'API Gateway', tables: 'VoiceCDR', description: 'Read voice CDR records', apiRoute: '/voice-cdr-read' },
   { name: 'whatsapp-calling', category: 'Messaging', trigger: 'API GW Webhook', tables: 'WhatsAppCalling', description: 'WhatsApp voice/video call handling', apiRoute: '/whatsapp-calling' },
   { name: 'whatsapp-voice', category: 'Messaging', trigger: 'API Gateway', tables: 'WhatsAppVoice', description: 'WhatsApp voice note processing', apiRoute: '/whatsapp-voice' },
   { name: 'whatsapp-templates', category: 'Messaging', trigger: 'API Gateway', tables: '-', description: 'Template CRUD via Meta API', apiRoute: '/whatsapp/templates' },
@@ -323,7 +322,6 @@ const STORAGE_PATHS: StoragePath[] = [
   { path: 'o/stack/whatsapp-media/template-headers/', purpose: 'Template header media', readBy: 'whatsapp-templates', writtenBy: 'whatsapp-template-management' },
   { path: 'o/stack/whatsapp-media/downloads/', purpose: 'User-initiated media downloads', readBy: 'Frontend', writtenBy: 'messages-read' },
   { path: 'secure/stack/invoices/', purpose: 'Invoice PNGs and PDFs — gated: a rendered invoice carries the customer name, address, amount and GST breakdown, so it is served by presigned URL rather than from the unauthenticated o/ tree', readBy: 'invoice-engine (presigned), system-cleanup', writtenBy: 'invoice-engine, inbound-whatsapp-handler' },
-  { path: 'o/stack/voice/', purpose: 'Voice recordings', readBy: 'voice-cdr-read', writtenBy: 'voice-in' },
   { path: 'o/stack/reports/', purpose: 'Bulk job reports and exports', readBy: 'Frontend', writtenBy: 'bulk-worker' },
   { path: 'o/stack/store/products/', purpose: 'Product images', readBy: 'catalog-management, Frontend', writtenBy: 'product-image-gen' },
   { path: 'o/stream/media/m/', purpose: 'Logos, branding images (static)', readBy: 'Frontend (CDN)', writtenBy: 'Manual upload' },
@@ -381,7 +379,6 @@ const ENV_VARS: EnvVar[] = [
   // Secrets Manager entries (server-side, properly stored)
   { key: 'wecare/meta-system-user-token', value: '(Secrets Manager — 7 keys)', sensitive: true, category: 'Secrets Manager ✓' },
   { key: 'wecare/flow-private-key', value: '(Secrets Manager — 1 key)', sensitive: true, category: 'Secrets Manager ✓' },
-  { key: '3 retired-provider credentials', value: '(Secrets Manager — no remaining reader; pending destructive-approval deletion)', sensitive: true, category: 'Secrets Manager ✓' },
 ];
 
 // ─── Data: Frontend Routes ───
@@ -414,7 +411,7 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
   { path: '/workspace/engage/whatsapp/settings', label: 'WA Settings', backend: 'waba-management', tables: 'SystemConfig' },
   // SMS
   // Voice
-  { path: '/workspace/engage/voice', label: 'Voice Out', backend: 'outbound-voice, voice-aws', tables: 'VoiceCall, VoiceAws' },
+  { path: '/workspace/engage/voice', label: 'Voice Out', backend: 'voice-aws', tables: 'VoiceAws' },
   // Email / RCS / Push
   { path: '/workspace/engage/ses', label: 'Email', backend: 'outbound-email', tables: '-' },
   { path: '/workspace/engage/rcs', label: 'RCS', backend: '(planned)', tables: '-' },
@@ -491,7 +488,7 @@ const LAMBDA_DETAILED: LambdaDetailed[] = [
   { name: 'wecare-outbound-whatsapp', displayName: 'Outbound WhatsApp', category: 'Messaging', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Send WhatsApp messages via Cloud API', apiRoute: '/whatsapp/send', envVars: { OUTBOUND_TABLE: 'stack-wecare-digital-WhatsAppOutboundTable', MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'API Gateway', 'SQS' ], status: 'active' },
   { name: 'wecare-outbound-sms', displayName: 'Outbound SMS', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Send SMS via AWS End User Messaging', apiRoute: '/sms/send', envVars: { MESSAGES_TABLE: 'stack-wecare-digital-MessagesTable' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-outbound-email', displayName: 'Outbound Email', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Send email via Amazon SES', apiRoute: '/email/send', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-outbound-voice', displayName: 'Outbound Voice', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Initiate voice calls', apiRoute: '/voice/call', envVars: { VOICE_TABLE: 'stack-wecare-digital-VoiceCallTable' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'wecare-plivo-answer', displayName: 'Plivo Answer', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Plivo PSTN voice webhooks; writes the voice CDR', apiRoute: '/plivo/*', envVars: { VOICE_CDR_TABLE: 'stack-wecare-digital-VoiceCDRTable' }, triggers: [ 'API Gateway (Webhook)' ], status: 'active' },
   { name: 'wecare-whatsapp-calling', displayName: 'WhatsApp Calling', category: 'Messaging', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'WhatsApp voice/video call handling', apiRoute: '/whatsapp-calling', envVars: { CALLING_TABLE: 'stack-wecare-digital-WhatsAppVoiceTable' }, triggers: [ 'API Gateway (Webhook)' ], status: 'active' },
   { name: 'wecare-scheduled-messages', displayName: 'Scheduled Messages', category: 'Messaging', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Schedule and send messages at specific times', apiRoute: '/scheduled', envVars: { SCHEDULED_TABLE: 'stack-wecare-digital-ScheduledMessageTable' }, triggers: [ 'API Gateway', 'EventBridge' ], status: 'active' },
   { name: 'wecare-bulk-worker', displayName: 'Bulk Worker', category: 'Operations', runtime: 'Python 3.12', timeout: 300, memory: 512, description: 'Process bulk message queue items', apiRoute: '-', envVars: { QUEUE_URL: 'stack-wecare-digital-bulk-queue' }, triggers: [ 'SQS' ], status: 'active' },
@@ -506,13 +503,8 @@ const LAMBDA_DETAILED: LambdaDetailed[] = [
   { name: 'wecare-whatsapp-business-api', displayName: 'WhatsApp Business API', category: 'Messaging', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Meta Graph API wrapper — flows, payments, checkout', apiRoute: '/whatsapp/api', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-waba-management', displayName: 'WABA Management', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'WABA config, phone management, groups', apiRoute: '/waba', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-sms-aws', displayName: 'SMS AWS', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'AWS Pinpoint SMS handler', apiRoute: '/sms-aws', envVars: { SMS_TABLE: 'stack-wecare-digital-SmsAwsTable' }, triggers: [ 'API Gateway', 'SNS' ], status: 'active' },
-  // `wecare-sms-in` REMOVED 2026-09-25. Listed with `status: 'active'` and route
-  // `/webhook/sms-in`; measured against the account, neither the function nor the
   { name: 'wecare-voice-aws', displayName: 'Voice AWS', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'AWS voice call handler', apiRoute: '/voice-aws', envVars: { VOICE_TABLE: 'stack-wecare-digital-VoiceAwsTable' }, triggers: [ 'API Gateway' ], status: 'active' },
-  // `wecare-voice-in` REMOVED 2026-09-25. Listed with `status: 'active'` and route
-  // `/webhook/voice-*`; no such function or route exists. The live functions are
-  // was removed on 2026-09-25 — they serve the operations UI, not a provider webhook.
-  { name: 'wecare-voice-cdr-read', displayName: 'Voice CDR Read', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Read voice CDR records', apiRoute: '/voice-cdr', envVars: { CDR_TABLE: 'stack-wecare-digital-VoiceCDRTable' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'wecare-voice-cdr-read', displayName: 'Voice CDR Read', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Read voice CDR records', apiRoute: '/voice-cdr-read', envVars: { CDR_TABLE: 'stack-wecare-digital-VoiceCDRTable' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-template-analytics', displayName: 'Template Analytics', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Template performance metrics', apiRoute: '/whatsapp/template-analytics', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-meta-analytics', displayName: 'Meta Analytics', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Meta conversation analytics', apiRoute: '/meta-analytics', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-media-cleanup', displayName: 'Media Cleanup', category: 'Messaging', runtime: 'Python 3.12', timeout: 300, memory: 256, description: 'Clean up expired media from S3', apiRoute: '-', envVars: { MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'EventBridge Daily' ], status: 'active' },
@@ -586,12 +578,7 @@ const CODE_ASSETS: CodeAsset[] = [
   // Messaging Lambdas
   { id: 'l-sms-out', category: 'Messaging Lambdas', name: 'Outbound SMS', description: 'Send SMS via AWS End User Messaging.', path: 'amplify/functions/messaging/outbound-sms/handler.py', type: 'Lambda' },
   { id: 'l-email', category: 'Messaging Lambdas', name: 'Outbound Email', description: 'Send email via Amazon SES.', path: 'amplify/functions/messaging/outbound-email/handler.py', type: 'Lambda' },
-  { id: 'l-voice-out', category: 'Messaging Lambdas', name: 'Outbound Voice', description: 'Initiate voice calls. Retired-provider backing; PSTN voice moves to Plivo.', path: 'amplify/functions/messaging/outbound-voice/handler.py', type: 'Lambda' },
-  // `l-sms-in` REMOVED 2026-09-25: pointed at
-  // `amplify/functions/messaging/sms-in/handler.py`, a path that does not exist.
-  // `l-voice-in` REMOVED 2026-09-25: pointed at
-  // `amplify/functions/messaging/voice-in/handler.py`, which does not exist. The real
-  // sources are `voice-in/c2c/handler.py` and `voice-in/obd/handler.py`.
+  { id: 'l-plivo-answer', category: 'Messaging Lambdas', name: 'Plivo Answer', description: 'Plivo PSTN voice webhooks; writes the voice CDR.', path: 'amplify/functions/messaging/plivo-answer/handler.py', type: 'Lambda' },
   { id: 'l-scheduled', category: 'Messaging Lambdas', name: 'Scheduled Messages', description: 'Schedule and send messages at specific times.', path: 'amplify/functions/messaging/scheduled-messages/handler.py', type: 'Lambda' },
   { id: 'l-push', category: 'Messaging Lambdas', name: 'Push Notifications', description: 'Web push notification delivery.', path: 'amplify/functions/messaging/push-notifications/handler.py', type: 'Lambda' },
   // AI
@@ -944,7 +931,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user } ) => {
       <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 } }>
         { [
           { title: 'Core Services', count: 6, items: [ 'contacts', 'auth-middleware', 'messages-read', 'messages-delete', 'faq-handler', 'url-shortener' ], color: C.green },
-          { title: 'Messaging', count: 22, items: [ 'inbound-whatsapp', 'outbound-whatsapp', 'outbound-sms', 'outbound-email', 'outbound-voice', 'whatsapp-calling', '...+16 more' ], color: C.blue },
+          { title: 'Messaging', count: 22, items: [ 'inbound-whatsapp', 'outbound-whatsapp', 'outbound-sms', 'outbound-email', 'plivo-answer', 'whatsapp-calling', '...+16 more' ], color: C.blue },
           { title: 'AI / ML', count: 4, items: [ 'ai-generate-response', 'ai-query-kb', 'ai-config-management', 'agent-action-group' ], color: '#7c3aed' },
           { title: 'Payments', count: 3, items: [ 'razorpay-webhook', 'payments-read', 'invoice-engine' ], color: C.amber },
           { title: 'Operations', count: 6, items: [ 'bulk-job-create', 'bulk-job-control', 'bulk-worker', 'dlq-replay', 'system-cleanup', 'billing' ], color: '#ec4899' },

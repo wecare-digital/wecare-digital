@@ -83,9 +83,8 @@ const AWS_RESOURCES: Record<string, { arn: string; accountId: string; details?: 
       'wecare-dlq-replay',
       'wecare-sms-aws (Pinpoint SMS v2)',
       'wecare-voice-aws (Pinpoint Voice v2)',
-      'wecare-voice-in-c2c (retired provider — historical reads)',
-      'wecare-voice-in-obd (retired provider — historical reads)',
-      'wecare-voice-cdr (voice CDR — also written by Plivo)',
+      'wecare-plivo-answer (Plivo PSTN voice — writes the voice CDR)',
+      'wecare-voice-cdr-read (voice CDR reads)',
       'wecare-billing',
       'wecare-scheduled-messages',
       'wecare-template-analytics',
@@ -122,15 +121,14 @@ const AWS_RESOURCES: Record<string, { arn: string; accountId: string; details?: 
       'stack-wecare-digital-WhatsAppCallingTable',
       'stack-wecare-digital-WhatsAppVoiceTable',
       'stack-wecare-digital-WhatsAppGroupTable',
-      'stack-wecare-digital-MessagesTable (Legacy)',
+      'stack-wecare-digital-MessagesTable (canonical message log, incl. SMS)',
       'stack-wecare-digital-MediaFilesTable',
       'stack-wecare-digital-BulkJobsTable',
       'stack-wecare-digital-BulkRecipientsTable',
       'stack-wecare-digital-DLQMessagesTable',
-      'stack-wecare-digital-SmsAwsTable (Pinpoint SMS)',
       'stack-wecare-digital-DLTTemplates (TRAI DLT registry — live)',
       'stack-wecare-digital-VoiceAwsTable (Pinpoint Voice)',
-      'stack-wecare-digital-VoiceCDRTable (voice CDR — live, shared with Plivo)',
+      'stack-wecare-digital-VoiceCDRTable (voice CDR — live, written by Plivo)',
       'stack-wecare-digital-ScheduledMessagesTable',
       'stack-wecare-digital-TemplateAnalyticsTable',
       'stack-wecare-digital-InvoicesTable',
@@ -221,7 +219,7 @@ const AWS_RESOURCES: Record<string, { arn: string; accountId: string; details?: 
   'Amazon API Gateway': {
     arn: `arn:aws:apigateway:${AWS_REGION}::/restapis/*`,
     accountId: AWS_ACCOUNT_ID,
-    details: [ 'wecare.digital/api - HTTP API (prod stage, auto-deploy)', 'Routes: /contacts, /messages, /whatsapp/*, /sms-aws/*, /voice-aws/*, /voice-in/*, /voice-cdr-webhook, /sms-in/*, /billing, /ai/*, /templates/*, /waba/*' ]
+    details: [ 'wecare.digital/api - HTTP API (prod stage, auto-deploy)', 'Routes: /contacts, /messages, /whatsapp/*, /sms-aws/*, /voice-aws/*, /voice-cdr-read, /billing, /ai/*, /templates/*, /waba/*' ]
   },
   'AWS AppSync': {
     arn: `arn:aws:appsync:${AWS_REGION}:${AWS_ACCOUNT_ID}:*`,
@@ -264,7 +262,7 @@ const AWS_RESOURCES: Record<string, { arn: string; accountId: string; details?: 
       'Voice: +18444891209 (Toll-Free, Intl enabled, PENDING)',
       'Pool: TBD (pending toll-free approval)',
       'Protect Config: protect-b137924dfb934c32b1d10c28b737d08c (account default)',
-      'Tables: SmsAwsTable, VoiceAwsTable'
+      'Tables: MessagesTable (SMS log), VoiceAwsTable'
     ]
   },
   'WhatsApp Business API (Direct)': {
@@ -336,7 +334,7 @@ const AWS_RESOURCES: Record<string, { arn: string; accountId: string; details?: 
   'AWS Secrets Manager': {
     arn: `arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:*`,
     accountId: AWS_ACCOUNT_ID,
-    details: [ '31 secrets. 3 retired-provider credentials have no remaining reader and await destructive-approval deletion (see docs/provider-retirement-inventory.md). Paths are not listed here.' ]
+    details: [ '28 secrets. Paths are not listed here.' ]
   },
   'AWS KMS': {
     arn: `arn:aws:kms:${AWS_REGION}:${AWS_ACCOUNT_ID}:*`,
@@ -732,10 +730,9 @@ const Dashboard: React.FC<PageProps> = ( { signOut, user } ) => {
     { id: 'ai_interactions', label: 'AI Interactions Log', category: 'AI', type: 'dynamodb', table: 'AIInteractionsTable', count: -1 },
     { id: 'whatsapp_calling', label: 'WhatsApp Call Logs', category: 'Voice', type: 'dynamodb', table: 'WhatsAppCallingTable', count: -1 },
     { id: 'voice_cdr', label: 'Voice CDR Records', category: 'Voice', type: 'dynamodb', table: 'VoiceCDRTable', count: -1 },
-    { id: 'voice_calls', label: 'Voice Calls (legacy)', category: 'Voice', type: 'dynamodb', table: 'VoiceCalls', count: -1 },
     { id: 'voice_aws', label: 'Voice AWS (Pinpoint)', category: 'Voice', type: 'dynamodb', table: 'VoiceAwsTable', count: -1 },
     { id: 'whatsapp_voice_log', label: 'WhatsApp Voice (TTS) Log', category: 'Voice', type: 'dynamodb', table: 'WhatsAppVoiceTable', count: -1 },
-    { id: 'sms_aws', label: 'SMS AWS (Pinpoint)', category: 'SMS', type: 'dynamodb', table: 'SmsAwsTable', count: -1 },
+    { id: 'sms_aws', label: 'SMS AWS (Pinpoint)', category: 'SMS', type: 'dynamodb', table: 'MessagesTable', count: -1 },
     { id: 'invoices', label: 'Invoices', category: 'Invoices & Payments', type: 'dynamodb', table: 'InvoicesTable', count: -1 },
     { id: 'invoice_items', label: 'Invoice Line Items', category: 'Invoices & Payments', type: 'dynamodb', table: 'InvoiceItemsTable', count: -1 },
     { id: 'invoice_assets', label: 'Invoice Assets (PDFs)', category: 'Invoices & Payments', type: 'dynamodb', table: 'InvoiceAssetsTable', count: -1 },
@@ -1003,16 +1000,18 @@ const Dashboard: React.FC<PageProps> = ( { signOut, user } ) => {
         } else if ( id === 'whatsapp_calling' )
         {
           deleted = await bulkClear( `${API_BASE}/whatsapp` );
-        } else if ( id === 'voice_cdr' || id === 'voice_calls' )
+        } else if ( id === 'voice_cdr' )
         {
-          // Try voice-in/cdr first (POST with clearAll works), then voice-cdr-webhook
-          let bulk = await tryBulkClear( `${API_BASE}/voice-in/cdr`, 'POST', { clearAll: true } );
-          if ( bulk < 0 ) bulk = await tryBulkClear( `${API_BASE}/voice-cdr-webhook`, 'DELETE', { clearAll: true } );
-          if ( bulk < 0 ) bulk = await tryBulkClear( `${API_BASE}/voice-cdr-webhook`, 'POST', { clearAll: true, _action: 'clear-logs' } );
-          if ( bulk >= 0 ) { deleted = bulk; } else
-          {
-            results.push( { id, label, deleted: 0, error: 'API route not deployed — redeploy voice-cdr Lambda' } ); continue;
-          }
+          // The same request Call History's Clear button sends (engage/voice-in): an
+          // authenticated DELETE on the live voice-cdr-read route.
+          const response = await api.authFetch( `${API_BASE}/voice-cdr-read`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify( { clearAll: true, hardDelete: true } ),
+          } );
+          if ( !response.ok ) throw new Error( `HTTP ${response.status}` );
+          const data = await response.json().catch( () => ( {} ) );
+          deleted = data.totalDeleted ?? data.deletedCount ?? data.deleted ?? 0;
         } else if ( id === 'invoices' || id === 'invoice_items' || id === 'invoice_assets' || id === 'invoice_delivery_log' || id === 'invoice_sequence' || id === 'payments' || id === 'razorpay_webhook_log' || id === 's3_invoices' )
         {
           const invoiceIds = [ 'invoices', 'invoice_items', 'invoice_assets', 'invoice_delivery_log', 'invoice_sequence', 'payments', 'razorpay_webhook_log', 's3_invoices' ];
@@ -2420,26 +2419,6 @@ expected = hmac.new(webhook_secret, request_body, sha256).hexdigest()
                     ) ) }
                   </div>
                 </div>
-
-                {/* Retired payment gateway — section removed 2026-09-26.
-                    It documented PayU's live OAuth and payment-link endpoints
-                    (accounts.payu.in, oneapi.payu.in), its webhook URL and its
-                    Lambda name. All of that is gone: the function, route, table
-                    and secret were deleted, the secret's 30-day recovery window
-                    expired 2026-09-25, and Razorpay is the only gateway. Leaving
-                    it would tell an operator to call an API this platform no
-                    longer has credentials for.
-                    See docs/execution/aws-inventory-findings.md and
-                    docs/provider-retirement-inventory.md. */ }
-
-                {/* Retired India SMS provider — section removed 2026-09-19.
-                    It documented a retired provider's live send endpoints, DLT
-                    payloads and credential headers. Leaving it would tell an
-                    operator to call an API this platform no longer uses. The
-                    TRAI DLT registry itself is live and is administered at
-                    /dm/sms -> DLT Templates; historical messages are read-only
-                    under /dm/sms -> Legacy history.
-                    See docs/provider-retirement-inventory.md. */ }
 
                 {/* AWS Pinpoint SMS & Voice Section */ }
                 <div className="section" style={ { background: '#ffffff', padding: '1.5rem', borderRadius: '0.75rem', marginBottom: '1.5rem', color: '#1a1a1a', border: '1px solid #1a3a2a' } }>

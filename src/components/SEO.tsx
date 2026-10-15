@@ -106,9 +106,9 @@ export const PAGE_SEO = {
     keywords: 'email marketing, Amazon SES, bulk email, email campaigns, transactional email'
   },
   voice: {
-    title: 'Voice Calls - IVR, Click-to-Call & Notifications',
-    description: 'Place and receive voice calls with IVR, click-to-call and automated voice notifications, plus full call detail records.',
-    keywords: 'voice calls API, IVR, click to call, voice campaigns, voice notifications, call detail records'
+    title: 'Voice Calls - IVR and Notifications',
+    description: 'Place and receive voice calls with IVR and automated voice notifications, plus full call detail records.',
+    keywords: 'voice calls API, IVR, voice campaigns, voice notifications, call detail records'
   },
   payments: {
     title: 'Payments - Razorpay Integration',

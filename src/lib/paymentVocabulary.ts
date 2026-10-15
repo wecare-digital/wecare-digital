@@ -46,12 +46,11 @@ function normalise ( status: string | null | undefined ): string {
  * Whether the money is captured.
  *
  * This answers one question only — did the payment succeed — and it deliberately knows
- * nothing about the Wix writeback. An attempt sitting at `NEEDS_RECONCILIATION` with
- * `WIX_WRITE_CONTRACT_REQUIRED` is paid: the capture was verified by the webhook and the
- * internal order committed before that stage was ever written. The outstanding step is our
- * bookkeeping against the store, not the customer's payment, so it must never reach the
- * customer as doubt. `finalizationStage` is not returned by the status endpoint at all,
- * which is the structural version of that rule.
+ * nothing about any later bookkeeping stage. An attempt sitting at `NEEDS_RECONCILIATION` is
+ * paid: the capture was verified by the webhook and the internal order committed before that
+ * stage was ever written. The outstanding step is our own bookkeeping, not the customer's
+ * payment, so it must never reach the customer as doubt. `finalizationStage` is not returned by
+ * the status endpoint at all, which is the structural version of that rule.
  */
 export function isPaid ( status: string | null | undefined ): boolean {
   return ORDER_ELIGIBLE_STATES.has( normalise( status ) );

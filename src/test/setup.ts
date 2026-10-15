@@ -5,7 +5,7 @@ import '@testing-library/jest-dom/vitest';
  *
  * This file used to set `NEXT_PUBLIC_CONTRIBUTION_PRODUCT_ID` and
  * `NEXT_PUBLIC_CONTRIBUTION_VARIANT_ID` before any module read them, because `shop.ts` resolved
- * both from the committed catalogue snapshot and the product did not exist in Wix yet - so without
+ * both from the committed catalogue snapshot and the product did not exist in the catalogue yet - so without
  * the stubs the whole suite only ever exercised the honest-unavailable path.
  *
  * The ids are now committed constants in src/config/contribution.ts (the product id plus the three

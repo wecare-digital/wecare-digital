@@ -161,9 +161,9 @@ describe( 'the product pages are untouched by it (ITEM 2)', () => {
     }>;
     return result.then( ( { paths, fallback } ) => {
       const slugs = paths.map( entry => entry.params.slug );
-      // The catalogue auto-syncs from Wix, so the count is not frozen: assert every known product
-      // slug has a statically-generated path, not an exact length that would break whenever a
-      // product is added or removed in Wix.
+      // The catalogue auto-publishes from ProductsTable, so the count is not frozen: assert every
+      // known product slug has a statically-generated path, not an exact length that would break
+      // whenever a product is added or removed in the catalogue.
       for ( const slug of [
         'file-assist', 'guided-resolution', 'kiosk', 'merchandise', 'paperwork',
         'referral-partner', 'anew',
@@ -252,11 +252,11 @@ describe( 'the product pages are untouched by it (ITEM 2)', () => {
 describe( 'the snapshot and the tree still agree', () => {
   it( 'h: carries a top-level variantVerifiedAt and a real variant for every product', () => {
     /*
-     * THE STANDING GATE ON scripts/fetch-wix-catalog.js. That script emitted variantCount and no
-     * variants array, so a refresh would have silently dropped every variant - breaking the
-     * merchandise fit/size selector, the variantId the cart sends, and nothing at build time.
-     * This asserts the SHAPE the site consumes, so a regression in the fetch script is caught the
-     * next time the snapshot is regenerated rather than in production.
+     * THE STANDING GATE ON THE SNAPSHOT WRITER (scripts/build-catalog-snapshot.py). An earlier
+     * fetch script emitted variantCount and no variants array, so a refresh would have silently
+     * dropped every variant - breaking the merchandise fit/size selector, the variantId the cart
+     * sends, and nothing at build time. This asserts the SHAPE the site consumes, so a regression
+     * in the writer is caught the next time the snapshot is regenerated rather than in production.
      */
     const snapshot = catalogue as unknown as {
       variantVerifiedAt?: string;

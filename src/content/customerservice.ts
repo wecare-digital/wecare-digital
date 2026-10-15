@@ -26,7 +26,7 @@ import { REVIEW_ENTRY_URL } from '../lib/reviewEntry';
  *
  * THE GROUP HAS GROWN TWICE SINCE, which is why there are seven entries below and not five:
  * Vault joined on 2026-09-30 as the return leg of Drop Docs, and Request Pickup on 2026-10-10
- * with the fifth variant of the Wix services product. Both are request ACTIONS like the
+ * with the fifth variant of the services product. Both are request ACTIONS like the
  * originals, so they belong to this file rather than to STRUCTURAL in
  * scripts/generate-public-pages.js; the count here is pinned by tests/test_mcp_server.py.
  *
@@ -228,8 +228,8 @@ export const CUSTOMERSERVICE: ProductDef[] = [
      *
      * IT IS THE THIRD DOOR IN THE SAME PAIR. Drop Docs sends paperwork in, Vault asks for a copy
      * back out, and this one has it collected rather than sent - the same documents, a different
-     * leg. It became a real page on 2026-10-10, when live Wix began returning a fifth variant of
-     * the services product visible and in stock.
+     * leg. It became a real page on 2026-10-10, when the live catalogue began returning a fifth
+     * variant of the services product visible and in stock.
      *
      * THE NOTE IS THE POINT OF THIS PAGE'S COPY. A collection is the one request action that
      * depends on somebody who is not us: a courier or partner has to turn up. So the page says

@@ -317,7 +317,7 @@ const softwareSchema = {
   "operatingSystem": "Web Browser",
   // offers REMOVED. It declared price "0" INR, InStock - i.e. the machine-readable version
   // of every page said the product is free. The home page's closing band promises "Know the
-  // price before you commit" and the catalogue floor is 599 INR (wix-catalog.json, Viveka),
+  // price before you commit" and the catalogue floor was 599 INR (Viveka) when this was written,
   // so the page and its structured data contradicted each other on 22 routes.
   // It is NOT replaced with 599 either: this is a company-wide node emitted on /terms,
   // /privacy and every service page, and one price cannot be true for all of them. An Offer
@@ -540,7 +540,7 @@ const PUBLIC_PAGE_META: Record<string, {
   // the literal '[slug]'. Only the index front door belongs in this map. '/shop/page/[page]' is
   // in that chain for the same reason.
   //
-  // THE DESCRIPTION WAS REWORDED when the listing widened from the eight Wix catalogue rows to
+  // THE DESCRIPTION WAS REWORDED when the listing widened from the eight catalogue rows to
   // every product and service the site sells: most cards now link to /<slug>/ rather than to
   // /shop/<slug>/, so "Individual products live under /shop/<slug>/" had become inaccurate. The
   // same sentence is carried by the STRUCTURAL fallback in scripts/generate-public-pages.js and by

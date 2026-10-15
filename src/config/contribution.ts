@@ -4,8 +4,8 @@
  *
  * ONE AMOUNT TODAY, 2026-10-10. The owner reduced `Contribute` in catalog to a SINGLE visible
  * in-stock variant at ₹250; the ₹100 and ₹500 variants were deleted there, so they are deleted
- * here. catalog is the source of truth and this file follows it - a choice that no longer exists in
- * the catalogue cannot be priced by `cart_v2.calculate`, so leaving it declared would only offer
+ * here. The catalogue is the source of truth and this file follows it - a choice that no longer
+ * exists in ProductsTable cannot be priced by the checkout, so leaving it declared would only offer
  * a button that fails at checkout. The LIST SHAPE is kept rather than collapsed to one constant,
  * because the shape is what makes restoring a second amount a one-line change in two files.
  *
@@ -41,8 +41,8 @@
  * in the existing cart, paid on `POST /ecommerce/prepare-checkout`, and
  * `amplify/functions/ecommerce/checkout/handler.py:_contribution_request` re-derives the expected
  * collection from its OWN committed copy of the choices before any catalog call or DynamoDB
- * write. `cart_v2.calculate` remains the sole price authority; no price, amount or currency is ever
- * sent from the browser.
+ * write. The checkout's ProductsTable pricing remains the sole price authority; no price, amount or
+ * currency is ever sent from the browser.
  *
  * WHAT THE 2026-10-04 OWNER MODEL CHANGE REMOVED FROM THIS FILE
  * ------------------------------------------------------------
@@ -67,12 +67,11 @@ export const CONTRIBUTE_CTA_HREF = 'https://wa.me/message/BYFLCAAMSZBXD1';
  * visible in-stock variant at ₹250. It carried THREE variants - ₹100 / ₹250 / ₹500 - until the
  * owner removed two of them in catalog on 2026-10-10.
  *
- * CATALOG ID MIGRATION, 2026-10-05. Product and variant identifiers changed together.
- * `c993128b-26be-41cd-9fcd-904abe23462f`, which re-minted every product and variant id, so the
- * product id and the variant ids below changed together in one release exactly as the
+ * CATALOG ID MIGRATION, 2026-10-05. Every product and variant id was re-minted in one move, so
+ * the product id and the variant ids below changed together in one release exactly as the
  * paragraph below requires. The amounts did NOT change in that move: ₹100 / ₹250 / ₹500, 10000 /
- * 25000 / 50000 paise, before and after. The replacements were read live from the new site's
- * query-variants response and cross-checked against the refreshed `src/content/catalog-snapshot.json`,
+ * 25000 / 50000 paise, before and after. The replacements were read live from the catalogue's
+ * variant query and cross-checked against the refreshed `src/content/catalog-snapshot.json`,
  * whose "Amount" option labels confirm which variant carries which rupee figure.
  *
  * THERE IS NO `NEXT_PUBLIC_*` OVERRIDE, and its removal is deliberate rather than an omission.
@@ -117,7 +116,7 @@ export interface ContributionChoice {
  * visible in-stock variant of this product. The ₹100 (`ab4ee1a2-…`) and ₹500 (`19283bd8-…`)
  * variants are GONE from the catalogue, so they are gone from here and from the server's mirror
  * in the same change: a variant catalog has deleted cannot be priced, and a button offering one would
- * fail at `cart_v2.calculate` instead of collecting anything.
+ * fail at checkout pricing instead of collecting anything.
  *
  * What this replaced, because the shape of the change is the point: a contribution used to be one
  * ₹1 product whose QUANTITY carried the amount, with ₹10–₹1,00,000 bounds and a free-text "Other"
@@ -133,7 +132,7 @@ export interface ContributionChoice {
  * fails if the two drift.
  *
  * `paise` IS NOT A PRICE THE BROWSER SENDS. No amount, price or currency ever leaves the browser;
- * `cart_v2.calculate` prices the line. The figure is here so the button can say what it is about
+ * the checkout prices the line from ProductsTable. The figure is here so the button can say what it is about
  * to collect, and the server asserts the catalog's computed total against its own copy of it - so a catalog
  * price edit refuses the contribution rather than charging a figure the button did not promise.
  */

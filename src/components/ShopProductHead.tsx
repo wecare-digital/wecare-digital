@@ -63,10 +63,11 @@ export const shopProductSchema = (
    * result however complete the rest of it is - so the node buys nothing until there is a picture.
    * Sending the company logo instead would make one image the product photo for all seven.
    *
-   * `price` is the bare decimal Wix returns, because schema.org/price wants a number with no
-   * grouping and no symbol; the visible price uses Wix's formatted string. Two spellings of one
-   * value, read from the same field, so markup and page cannot disagree. No `sku` - the snapshot's
-   * only identifier is a Wix UUID, which is a database key rather than a stock-keeping unit. No
+   * `price` is the bare decimal the catalogue stores, because schema.org/price wants a number with
+   * no grouping and no symbol; the visible price uses the catalogue's formatted string. Two
+   * spellings of one value, read from the same field, so markup and page cannot disagree. No `sku`
+   * - the snapshot's only identifier is a catalogue UUID, which is a database key rather than a
+   * stock-keeping unit. No
    * aggregateRating and no review: nobody has rated these.
    *
    * `description` is the full copy rather than the 160-character meta description, because this node

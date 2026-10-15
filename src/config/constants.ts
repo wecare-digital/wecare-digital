@@ -75,7 +75,7 @@ export const GST_RATES = [
 // fee itself: total = (subtotal x percent%) x (1 + gstPercent/100).
 // The public checkout is AWS-owned. Server-side checkout/order code must use
 // the same values when composing the final payable amount; do not duplicate
-// these rates in a Wix Editor/Velo project.
+// these rates anywhere else.
 //
 // 2.5% ON OWNER INSTRUCTION, AND THE THREE COPIES NOW AGREE. They did not: this file
 // said 2.2%, outbound-whatsapp/handler.py defaulted to 0.022 and

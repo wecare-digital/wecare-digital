@@ -3,17 +3,17 @@ import { compare } from '../../scripts/catalogue-diff.js';
 import catalog from '../content/catalog-snapshot.json';
 
 /**
- * The gate between "Wix changed" and "rebuild production".
+ * The gate between "the catalogue changed" and "rebuild production".
  *
- * `.github/workflows/catalogue-sync.yml` runs every six hours and commits to `stack`, and branch
- * `stack` has `enableAutoBuild: true` - so whatever this function calls a change becomes a
- * production build. Both directions are failures with a cost:
+ * A scheduled catalogue refresh runs every six hours and commits to `stack`, and branch `stack`
+ * has `enableAutoBuild: true` - so whatever this function calls a change becomes a production
+ * build. Both directions are failures with a cost:
  *
- *   FALSE POSITIVE  four empty commits a day and four needless Amplify builds, because
- *                   `fetch-wix-catalog.js` restamps `fetchedAt` and `variantVerifiedAt` on every
- *                   single run. This is the common case, not the edge case.
- *   FALSE NEGATIVE  a product added in Wix never reaches the site, which is the whole defect B2
- *                   exists to fix.
+ *   FALSE POSITIVE  four empty commits a day and four needless Amplify builds, because a refresh
+ *                   restamps `fetchedAt` and `variantVerifiedAt` on every single run. This is the
+ *                   common case, not the edge case.
+ *   FALSE NEGATIVE  a product added to the catalogue never reaches the site, which is the whole
+ *                   defect B2 exists to fix.
  *
  * So each case below is one of those two, stated as a property.
  */
@@ -21,8 +21,8 @@ import catalog from '../content/catalog-snapshot.json';
 type Snapshot = Record<string, unknown>;
 
 const base = (): Snapshot => ( {
-  source: 'wix stores/v3 products/search (anonymous visitor token)',
-  catalogVersion: 'V3',
+  source: 'aws products-table (native catalog)',
+  catalogVersion: 'AWS_NATIVE_V1',
   fetchedAt: '2026-10-04T14:49:13.404Z',
   productCount: 2,
   products: [
@@ -45,7 +45,7 @@ describe( 'the catalogue change gate', () => {
     expect( result.summary ).toMatch( /no change/ );
   } );
 
-  it( 'is insensitive to key ORDER, which Wix does not promise to keep stable', () => {
+  it( 'is insensitive to key ORDER, which the catalogue source does not promise to keep stable', () => {
     // JSON.stringify comparison would fail here and trigger a build on a serialisation detail.
     const after = clone( base() );
     const [ first ] = after.products as Record<string, unknown>[];
@@ -92,10 +92,10 @@ describe( 'the catalogue change gate', () => {
   } );
 
   it( 'reports a change in the top-level catalogue metadata', () => {
-    // `source` moving means the fetch SCOPE moved - e.g. a visitor token replaced by an admin key,
+    // `source` moving means the fetch SCOPE moved - e.g. a public read replaced by a staff read,
     // which changes whether hidden products are included. That is a rebuild and a read.
     const after = clone( base() );
-    after.source = 'wix stores/v3 products/search (admin api key)';
+    after.source = 'aws products-table (native catalog, staff scope)';
     const result = compare( base(), after );
     expect( result.changed ).toBe( true );
     expect( result.meta ).toBe( true );

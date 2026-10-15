@@ -30,11 +30,10 @@
  *
  * `finalizationStage` is NOT consulted, and that is the point
  * ----------------------------------------------------------
- * The internal order commits before the Wix writeback is attempted, and the writeback is gated
- * off, so a real paid order rests at NEEDS_RECONCILIATION / WIX_WRITE_CONTRACT_REQUIRED. That is
- * our bookkeeping against the store and it says nothing about the customer's payment. The status
- * endpoint does not return the stage at all, so this screen structurally cannot turn a pending
- * writeback into doubt about a captured payment.
+ * The internal order commits as soon as the capture is verified, and any later finalization
+ * stage (an attempt can rest at NEEDS_RECONCILIATION) is our own bookkeeping; it says nothing
+ * about the customer's payment. The status endpoint does not return the stage at all, so this
+ * screen structurally cannot turn a pending bookkeeping step into doubt about a captured payment.
  *
  * Authority and privacy
  * ---------------------

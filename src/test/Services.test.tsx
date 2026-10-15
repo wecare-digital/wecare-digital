@@ -12,7 +12,7 @@ describe( 'the services config', () => {
     expect( SERVICE_CHOICES.map( c => c.kind ) ).toEqual(
       [ 'SUBMIT_REQUEST', 'REQUEST_AMENDMENT', 'DROP_DOCS', 'VAULT', 'REQUEST_PICKUP' ] );
     // NO `rupees` AND NO `paise`, since 2026-10-08. Owner decision: a price must be changeable
-    // in Wix with no deploy, so the only price a page shows is the live one it fetches. Asserted
+    // in the catalogue with no deploy, so the only price a page shows is the live one it fetches. Asserted
     // on the objects themselves rather than only in the type, because a type error is not a
     // runtime guarantee and this file is also what `tests/test_service_requests.py` mirrors.
     for ( const choice of SERVICE_CHOICES )
@@ -33,10 +33,10 @@ describe( 'the services config', () => {
   } );
 
   it( 'carries the snapshot\'s choiceId and SKU on every service, under one option id', () => {
-    // ADDITIVE REFERENCE METADATA, read out of src/content/wix-catalog.json rather than typed:
-    // the cart still travels on `variantId`, and nothing in the payment path reads these. What
-    // they buy is that the repo's declaration can be compared to Wix without a second copy of
-    // the catalogue existing somewhere to be kept in step by hand.
+    // ADDITIVE REFERENCE METADATA, read out of src/content/catalog-snapshot.json rather than
+    // typed: the cart still travels on `variantId`, and nothing in the payment path reads these.
+    // What they buy is that the repo's declaration can be compared to the catalogue without a
+    // second copy of it existing somewhere to be kept in step by hand.
     expect( SERVICES_OPTION_ID ).toBe( 'aee30ab6-72bd-4a04-ac83-0234652ad0ee' );
     for ( const choice of SERVICE_CHOICES )
     {

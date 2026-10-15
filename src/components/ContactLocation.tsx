@@ -11,7 +11,7 @@ import React, { useEffect, useRef, useState } from 'react';
  * translation with Cloud TTS, Street View, a nearby-places rail and a West Bengal
  * carousel. None of that is here, for two reasons. It is a different product, not a
  * contact panel; and it ships its own design system - Material tokens
- * (--md-sys-color-*), Wix Madefor type, a 13px radius scale, #111 ink - which directly
+ * (--md-sys-color-*), its own typeface, a 13px radius scale, #111 ink - which directly
  * contradicts this site's contract. Porting it would have imported a second visual
  * language onto a marketing page. What the owner asked for was the map in OUR design,
  * followed by the address, and that is what this is.

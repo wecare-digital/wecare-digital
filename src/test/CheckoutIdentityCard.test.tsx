@@ -7,7 +7,7 @@ import type { StoredAddress } from '../components/AddressFields';
 /**
  * THE FIRST TEST HERE IS A DRIFT GUARD, NOT A RENDERING TEST.
  *
- * `fullAddress` is derived server-side and is the string that reaches Wix and the invoice. If
+ * `fullAddress` is derived server-side and is the string that reaches the order and the invoice. If
  * anyone ever composes the Deliver line in the card from the six components instead, the card
  * starts reassuring the customer about a second rendering of the address that nothing downstream
  * uses - and the two can disagree without either side being obviously wrong.

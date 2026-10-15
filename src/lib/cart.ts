@@ -3,12 +3,12 @@
  *
  * THE ONE RULE THIS FILE EXISTS TO ENFORCE: the browser never sends a price, an amount, a
  * currency or any financial figure to the checkout. A cart entry carries a catalogue REFERENCE
- * (the product's Wix catalogue id, with its slug and name for display) and a QUANTITY, and nothing
- * else reaches the server. The amount charged is decided server-side from a live Wix checkout read
+ * (the product's ProductsTable id, with its slug and name for display) and a QUANTITY, and nothing
+ * else reaches the server. The amount charged is decided server-side from a live ProductsTable read
  * and compared in integer paise (amplify/functions/ecommerce/checkout/handler.py rule 2), so a
  * number invented here could only ever be wrong or dangerous. `formattedPrice` is kept for the
- * cart LIST rendering only - it is Wix's own passthrough string, never rebuilt, and it is stripped
- * out entirely by toLineItems(): see the test that asserts the serialized payload has no
+ * cart LIST rendering only - it is the catalogue's own formatted string, never rebuilt, and it is
+ * stripped out entirely by toLineItems(): see the test that asserts the serialized payload has no
  * price-like key.
  *
  * WHY LOCALSTORAGE. The cart must survive the sign-in/register redirect (a public shopper who
@@ -18,36 +18,18 @@
  * window/storage access is SSR-guarded (typeof window === 'undefined'), matching customerAuth.ts,
  * because these pages are statically exported and this module is imported into prerendered code.
  *
- * THE lineItems SHAPE MATCHES THE BACKEND CONTRACT, AND IT IS MEASURED RATHER THAN GUESSED.
+ * THE lineItems SHAPE MATCHES THE BACKEND CONTRACT. What `toLineItems()` emits:
  *
- * THE PARAGRAPH THAT USED TO BE HERE WAS FALSE, AND ITS FALSENESS COST A WRONG DIAGNOSIS OF A
- * LIVE PAYMENT OUTAGE (2026-10-04). It said: "The products are dummy placeholders today, so the
- * exact nested Wix catalogReference object (catalogItemId/appId) is not knowable from this repo;
- * toLineItems() therefore sends the product's Wix catalogue id as the catalogReference ... and is
- * trivially remapped to the final nested shape once real products are chosen." That described an
- * EARLIER implementation. The code moved to the real nested shape and the comment did not, so a
- * reader looking for the cause of a 502 found a self-declared guess sitting on top of correct
- * code and reasonably suspected it.
+ *   { catalogReference: { catalogItemId, options?: { variantId } }, quantity }
  *
- * What `toLineItems()` actually emits, and why each part is right, verified against the LIVE Wix
- * Catalog V3 API on 2026-10-04:
+ *   * `catalogItemId` is the PRODUCT id, never the slug and never a variant id. A variant id
+ *     here would 404 at the catalog lookup.
+ *   * `options.variantId` is present only when the line carries one: a no-option product's
+ *     reference carries no `options`.
  *
- *   { catalogReference: { appId, catalogItemId, options?: { variantId } }, quantity }
- *
- *   * `appId` is the Wix Stores app id `215238eb-22a5-4c36-9e7b-e7c08025e04e`, and it must equal
- *     `cart_v2.STORES_APP_ID` exactly -- `resolved_catalog_lines` refuses any other value as
- *     "invalid catalogue reference". It does. Pinned by a test, because the two are separate
- *     declarations in two languages.
- *   * `catalogItemId` is the V3 PRODUCT id, never the slug and never a variant id. A variant id
- *     here would 404 at `the catalog lookup`.
- *   * `options.variantId` is present only when the line carries one, which is the correct V3
- *     shape: a no-option product's reference carries no `options`.
- *
- * AND THE VARIANT IDS IN THE COMMITTED SNAPSHOT ARE LIVE, NOT STALE V1 LEFTOVERS. Measured for
- * all seven shop products: 19 of 19 committed variant ids exist in the live V3 response, every
- * one `visible: true` and `inStock: true`. A V3 product with `options: []` still has exactly one
- * real variant with a real id, and the snapshot holds that id. So `resolved_catalog_lines`
- * accepts every line this function builds, and it is NOT the source of the live 502.
+ * Nothing else rides in the reference. Product and variant ids are ProductsTable keys (some are
+ * preserved legacy catalogue ids), and the committed snapshot carries the same ids the checkout
+ * resolves, so every line this function builds names a row the server can price.
  */
 
 import { KNOWN_CATALOGUE_PRODUCT_IDS, SHOP_PRODUCTS } from '../content/shop';
@@ -71,13 +53,13 @@ export const CART_CHANGED_EVENT = 'wecare:cart-changed';
 export interface CartItem {
   productId?: string;
   variantId?: string;
-  /** The catalogue reference: the product's Wix catalogue id. Never a price. */
+  /** The catalogue reference: the product's catalogue id. Never a price. */
   ref: string;
   /** The product slug, so the cart can link back to /shop/<slug>/. */
   slug: string;
   /** Display name for the cart list. */
   name: string;
-  /** Wix's own formatted price string, e.g. "₹6,999.00". DISPLAY ONLY - never sent to the server. */
+  /** The catalogue's formatted price string, e.g. "₹6,999.00". DISPLAY ONLY - never sent to the server. */
   formattedPrice: string;
   /** How many, always a positive integer. */
   quantity: number;
@@ -98,7 +80,7 @@ export interface ClaimedLine {
 
 /** One entry of the checkout `create` payload: a catalogue reference and a quantity, nothing else. */
 export interface CheckoutLineItem {
-  catalogReference: { appId: string; catalogItemId: string; options?: { variantId: string } };
+  catalogReference: { catalogItemId: string; options?: { variantId: string } };
   quantity: number;
 }
 
@@ -151,17 +133,17 @@ function currentVariant ( item: CartItem, product: ShopProduct ): ShopVariant | 
   return labelled.length === 1 ? labelled[ 0 ] : null;
 }
 
-/** A Wix catalogue id: a lowercase UUID. What a `productId` and a modern `ref` base both are. */
+/** A catalogue id: a lowercase UUID. What a `productId` and a modern `ref` base both are. */
 const CATALOGUE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * Should an UNRESOLVABLE stored line be thrown away rather than carried into checkout?
  *
  * Only ever consulted for a line `currentProduct` could not resolve, and the predicate is
- * deliberately narrow: **the line names a Wix catalogue id (a UUID) that this snapshot has never
- * heard of.** That is exactly the pre-migration row - `/shop/` moved to Wix site `c993128b` on
- * 2026-10-05 and every product id was re-minted, so a browser holding the old ₹1 test product
- * carries a well-formed id that exists nowhere in the new catalogue.
+ * deliberately narrow: **the line names a catalogue id (a UUID) that this snapshot has never
+ * heard of.** That is exactly the pre-migration row - every product id was re-minted on
+ * 2026-10-05, so a browser holding the old ₹1 test product carries a well-formed id that exists
+ * nowhere in the current catalogue.
  *
  * Three things it is careful NOT to do:
  *
@@ -169,15 +151,15 @@ const CATALOGUE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  *     contribution vehicle and the services vehicle - so "absent from /shop/" is not "absent from
  *     the catalogue". `KNOWN_CATALOGUE_PRODUCT_IDS` reads the raw snapshot for that reason, and a
  *     contribution line is kept on CONFIG identity whether or not the snapshot has been refreshed
- *     at all. (It used to exclude thirteen: the twelve Wix template samples were deleted in Wix
- *     before the 2026-10-10 refresh, so the snapshot no longer carries them either and a stored
- *     row naming one is now correctly dropped.)
+ *     at all. (It used to exclude thirteen: twelve template sample rows have since left the
+ *     catalogue, so the snapshot no longer carries them either and a stored row naming one is
+ *     now correctly dropped.)
  *   * **It does not touch a non-UUID `ref`.** Those are the pre-2026-10 rows that carry a slug or
  *     an opaque reference, and the slug fallback in `currentProduct` is what repairs them; a row
  *     that fallback cannot place keeps today's behaviour exactly rather than being deleted on a
  *     guess about an id shape the catalogue never used.
- *   * **It does not claim to be the authority.** The live Wix catalogue is, and the server still
- *     refuses what it does not recognise. This only spares a customer learning it after pressing
+ *   * **It does not claim to be the authority.** ProductsTable is, and the server still refuses
+ *     what it does not recognise. This only spares a customer learning it after pressing
  *     Checkout.
  */
 function droppableUnknown ( item: CartItem ): boolean {
@@ -192,14 +174,15 @@ function droppableUnknown ( item: CartItem ): boolean {
  * Reconcile persisted rows against the catalogue bundled with THIS deployed storefront.
  *
  * This does not make the browser a price authority. It only upgrades identifiers and display
- * strings; checkout still sends references + quantities and the backend still prices from live
- * Wix. A multi-variant legacy row with no recoverable choice is deliberately left WITHOUT a
- * variant so /cart/ can ask the customer to choose one instead of silently guessing a size.
+ * strings; checkout still sends references + quantities and the backend still prices from
+ * ProductsTable. A multi-variant legacy row with no recoverable choice is deliberately left
+ * WITHOUT a variant so /cart/ can ask the customer to choose one instead of silently guessing a
+ * size.
  *
- * AN ID FROM THE PREVIOUS SITE IS NOW DROPPED RATHER THAN CARRIED. `/shop/` moved to Wix site
- * `c993128b` on 2026-10-05 and every product id was re-minted, so a returning visitor's
- * localStorage can hold a product id (e.g. the old ₹1 test product) that exists nowhere in the new
- * catalogue. Carried into `toLineItems()` it reaches `the catalog lookup`, 404s, and the
+ * AN ID FROM THE PREVIOUS CATALOGUE IS NOW DROPPED RATHER THAN CARRIED. Every product id was
+ * re-minted on 2026-10-05, so a returning visitor's localStorage can hold a product id (e.g. the
+ * old ₹1 test product) that exists nowhere in the current catalogue. Carried into
+ * `toLineItems()` it reaches the catalog lookup, 404s, and the
  * customer is told "An item in your cart is no longer available" only AFTER pressing Checkout.
  * Dropping it on read means they see the cart they can actually buy, and `readCart` persists the
  * pruned list because `changed` moves with the length.
@@ -500,9 +483,9 @@ export function setContribution ( variantId: string ): CartItem[] {
     // The amount is IN THE NAME, because a contribution has no other distinguishing feature and
     // "Contribute" alone beside a price would read as a product.
     name: `Contribute \u20B9${ choice.rupees }`,
-    // A REAL PRICE NOW, and it is honest: the variant is priced at exactly this figure in Wix and
-    // the quantity is 1, so the row total is the row price. Under the retired model this had to be
-    // blank, because a per-unit "Rs.1.00" beside a Rs.400 contribution was a lie.
+    // A REAL PRICE NOW, and it is honest: the variant is priced at exactly this figure in the
+    // catalogue and the quantity is 1, so the row total is the row price. Under the retired model
+    // this had to be blank, because a per-unit "Rs.1.00" beside a Rs.400 contribution was a lie.
     formattedPrice: `\u20B9${ choice.rupees }.00`,
     quantity: 1,
   } );
@@ -513,21 +496,21 @@ export function setContribution ( variantId: string ): CartItem[] {
 /**
  * Merge the lines a WhatsApp hand-off claim returned into the cart the customer pays from.
  *
- * WHY THIS IS NEEDED AT ALL. The claim merges the lines into the SERVER-side Wix cart, but the
- * cart this page renders - and the basket `prepare-checkout` is given, because `toLineItems()`
+ * WHY THIS IS NEEDED AT ALL. The claim merges the lines into the customer's SERVER-side cart, but
+ * the cart this page renders - and the basket `prepare-checkout` is given, because `toLineItems()`
  * reads the same storage - is the browser cart. Without this the claim succeeded invisibly: the
  * customer saw no new items, and the next checkout reconciled the claimed lines straight back OUT
- * of the Wix cart, because `_reconcile_saved_cart` makes the Wix cart match the REQUEST.
+ * of the server-side cart, because the checkout makes that cart match the REQUEST.
  *
  * IT ADDS NO SECOND STORAGE PATH. Every write goes through `addItem` or `setContribution`, which
  * both end at `writeCart` - the one writer - so a claimed line is indistinguishable from a line
  * added on /shop/ and announces the same `CART_CHANGED_EVENT` for the header badge.
  *
  * A LINE THIS BUILD CANNOT PLACE IS SKIPPED, NOT GUESSED AT, and the count says so. A claimed
- * product can be absent from `SHOP_PRODUCTS` (added in Wix since the committed snapshot was
- * fetched) or name a variant that snapshot no longer sells; there is no name and no price to show
- * for either, and inventing a row would put an unidentifiable line in a cart that is about to be
- * paid for. Skipping is also the safe direction at checkout: the server reconciles the Wix cart
+ * product can be absent from `SHOP_PRODUCTS` (added to ProductsTable since the committed snapshot
+ * was published) or name a variant that snapshot no longer sells; there is no name and no price to
+ * show for either, and inventing a row would put an unidentifiable line in a cart that is about to
+ * be paid for. Skipping is also the safe direction at checkout: the server reconciles its cart
  * down to what was requested, so the customer pays for exactly the lines they can see. The caller
  * uses `merged === 0` to say so out loud rather than showing an unchanged cart after a success.
  *
@@ -574,10 +557,10 @@ export function mergeClaimedLines ( lines: ClaimedLine[] ): { items: CartItem[];
 /**
  * Does this basket need a delivery address? Mirrors the server's rule and is NOT the authority.
  *
- * BOTH SIDES NOW KEY ON IDENTITY, which they did not always: the server used to read Wix's
- * `productType`, and the live `Contribute` product is PHYSICAL, so the two disagreed about the
- * same basket. `checkout/handler.py:_v2_catalog_items` overrides the `productType` rule for a
- * recognised contribution line, which is the rule mirrored here.
+ * BOTH SIDES NOW KEY ON IDENTITY, which they did not always: the server used to read the
+ * catalogue's `productType`, and the live `Contribute` product is PHYSICAL, so the two disagreed
+ * about the same basket. The checkout overrides the `productType` rule for a recognised
+ * contribution line, which is the rule mirrored here.
  *
  * FAIL-CLOSED HERE TOO, by construction: true unless the basket is PROVABLY contribution-only.
  * `[]` therefore returns true, which never reaches the gate because `proceed`'s
@@ -614,7 +597,7 @@ export const cartRequiresDelivery = ( items: CartItem[] = readCart() ): boolean 
  * Derived from `toLineItems()` rather than from `CartItem[]`, so it is computed from exactly the
  * payload the server will fingerprint - catalogue reference, variant and quantity, nothing else.
  * Order-independent (`sort`), because two carts holding the same lines in a different order are the
- * same intent and `cart_v2.calculate` prices them identically.
+ * same intent and the checkout prices them identically.
  *
  * NO CRYPTO AND NO ASYNC, deliberately: `crypto.subtle.digest` is a Promise, and `proceed` reads
  * the request key synchronously on a user gesture. A short djb2-style digest of the sorted
@@ -650,14 +633,14 @@ export function basketFingerprint ( items: CheckoutLineItem[] = toLineItems() ):
  *
  * This is the boundary the whole design rests on. Every returned entry is exactly
  * `{ catalogReference, quantity }` - no price, no amount, no currency, no formattedPrice. A test
- * asserts the serialized JSON of this output contains no price-like key. `catalogReference` is the
- * product's Wix catalogue id (see the module docblock and findings for the dummy-product
- * assumption); the server reads the authoritative total from a live Wix checkout, not from this.
+ * asserts the serialized JSON of this output contains no price-like key. `catalogReference` names
+ * the product (and, when there is one, the variant) by catalogue id - see the module docblock; the
+ * server reads the authoritative total from ProductsTable, not from this.
  */
 export function toLineItems ( items: CartItem[] = readCart() ): CheckoutLineItem[] {
   return items
     .filter( item => item.ref && item.quantity > 0 )
-    .map( item => ( { catalogReference: { appId: '215238eb-22a5-4c36-9e7b-e7c08025e04e', catalogItemId: item.productId || item.ref, ...( item.variantId ? { options: { variantId: item.variantId } } : {} ) }, quantity: item.quantity } ) );
+    .map( item => ( { catalogReference: { catalogItemId: item.productId || item.ref, ...( item.variantId ? { options: { variantId: item.variantId } } : {} ) }, quantity: item.quantity } ) );
 }
 
 /* ── Phase O-1 services: Submit Request / Request Amendment ─────────────────────────────────── */
@@ -692,11 +675,11 @@ export function setServiceLine (
 ): CartItem[] {
   const choice = serviceChoice( variantId );
   if ( !SERVICES_PRODUCT_ID || !choice || !intentId ) return readCart();
-  // `linePaise` is WIX'S LIVE price for the variant, passed in by the buy box, which only offers
-  // the line once it has one. There is no figure in `src/config/services.ts` to fall back on any
-  // more (owner decision 2026-10-08: a price is editable in Wix with no deploy), and inventing
-  // one here would put a number on a cart row that the checkout had never priced. A row with no
-  // usable amount is therefore not written at all.
+  // `linePaise` is the LIVE catalogue price for the variant, passed in by the buy box, which only
+  // offers the line once it has one. There is no figure in `src/config/services.ts` to fall back
+  // on any more (owner decision 2026-10-08: a price is editable in the catalogue with no deploy),
+  // and inventing one here would put a number on a cart row that the checkout had never priced. A
+  // row with no usable amount is therefore not written at all.
   if ( !Number.isSafeInteger( linePaise ) || linePaise <= 0 ) return readCart();
   const items = readCart().filter( item => !isServiceItem( item ) );
   items.push( {
@@ -707,7 +690,7 @@ export function setServiceLine (
     slug: '',
     name: choice.label,
     // Integer division and modulo, never `linePaise / 100`. Display only: `toLineItems` stays
-    // price-free and the checkout re-prices the line against Wix.
+    // price-free and the checkout re-prices the line against ProductsTable.
     formattedPrice: `\u20B9${ Math.trunc( linePaise / 100 ) }`
       + `.${ String( linePaise % 100 ).padStart( 2, '0' ) }`,
     quantity: 1,

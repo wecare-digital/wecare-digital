@@ -1,5 +1,5 @@
 /**
- * A captured payment must be confirmed on screen, even while the Wix writeback is pending.
+ * A captured payment must be confirmed on screen, even while a bookkeeping stage is pending.
  *
  * The defect this pins
  * --------------------
@@ -21,9 +21,9 @@
  * The money is the first assertion, because the one unrecoverable error on this screen is telling
  * someone who paid that something went wrong. Then the two facts they need to act on — the order
  * number they would quote to us, and the amount actually captured. Then the absence of the
- * internal vocabulary: NEEDS_RECONCILIATION and WIX_WRITE_CONTRACT_REQUIRED describe our
- * bookkeeping against the store, and a customer reading either on a confirmation screen learns
- * only that something might be wrong.
+ * internal vocabulary: NEEDS_RECONCILIATION and its finalization reason describe our own
+ * bookkeeping, and a customer reading either on a confirmation screen learns only that something
+ * might be wrong.
  *
  * The honest states are re-asserted here too. A fix that turned an unknown or failed attempt into
  * a confirmation would pass every assertion about the paid state and be far worse than the defect.
@@ -37,7 +37,7 @@ import CheckoutStatus, { viewFor } from '../pages/checkout/status';
 import { amountLabel, rupeesFromPaise } from '../lib/paymentVocabulary';
 import * as auth from '../lib/customerAuth';
 
-/** The live shape: captured, order committed, Wix writeback still gated off. */
+/** The live shape: captured, order committed, a bookkeeping stage possibly still pending. */
 const PAID_UNRECONCILED = {
   status: 'PAYMENT_PAID',
   orderNumber: 'WD-ORD-7ZTSG8X7',
@@ -68,7 +68,7 @@ afterEach( () => {
   window.history.replaceState( {}, '', '/' );
 } );
 
-describe( 'a captured payment awaiting the Wix writeback', () => {
+describe( 'a captured payment awaiting a bookkeeping stage', () => {
   it( 'confirms the payment rather than claiming anything failed', async () => {
     respondWith( PAID_UNRECONCILED );
     render( <CheckoutStatus /> );
@@ -104,15 +104,14 @@ describe( 'a captured payment awaiting the Wix writeback', () => {
       // Even if the endpoint one day leaked these, the screen must not print them. It does not
       // read them at all, which is the structural version of this assertion.
       finalizationStage: 'NEEDS_RECONCILIATION',
-      finalizationReason: 'WIX_WRITE_CONTRACT_REQUIRED',
+      finalizationReason: 'TENDER_SUM_MISMATCH',
     } );
     render( <CheckoutStatus /> );
 
     await screen.findByText( 'WD-ORD-7ZTSG8X7' );
     expect( document.body.textContent ).not.toContain( 'NEEDS_RECONCILIATION' );
-    expect( document.body.textContent ).not.toContain( 'WIX_WRITE_CONTRACT_REQUIRED' );
+    expect( document.body.textContent ).not.toContain( 'TENDER_SUM_MISMATCH' );
     expect( document.body.textContent ).not.toContain( 'reconcil' );
-    expect( document.body.textContent ).not.toContain( 'Wix' );
   } );
 
   it( 'stops asking once the payment is confirmed', async () => {

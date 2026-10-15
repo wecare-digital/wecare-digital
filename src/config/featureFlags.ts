@@ -43,9 +43,9 @@ export const featureFlags = {
   // nothing changes, and they go looking for the bug in the wrong place.
 
   /**
-   * The Commerce module home: catalog, storefront and order surfaces in one place.
-   * OFF because the Wix site is live and production, and a new surface over it should
-   * be opened deliberately rather than by deploying.
+   * The Commerce module home: catalog, order and payment surfaces in one place.
+   * OFF because every capability it gathers already works at its own page, so a second
+   * entry point should be opened deliberately rather than by deploying.
    */
   commerceModule: flag( process.env.NEXT_PUBLIC_ENABLE_COMMERCE_MODULE ),
 

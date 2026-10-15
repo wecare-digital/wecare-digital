@@ -260,7 +260,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
     const [ catalogProducts, setCatalogProducts ] = useState( '' );
     const [ catalogBody, setCatalogBody ] = useState( '' );
     // No catalogList/catalogLoading: they existed only for the removed product picker.
-    // Block + mark-unread + click-to-call
+    // Block + mark-unread
     const [ blocking, setBlocking ] = useState( false );
     const [ unreadIds, setUnreadIds ] = useState<Set<string>>( new Set() );
     const fileRef = useRef<HTMLInputElement | null>( null );
@@ -789,20 +789,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         finally { setBlocking( false ); }
     }, [ replyTarget, selectedWaba, toast ] );
 
-    // Click-to-call from the inbox is retired. It rang the agent through a retired
-    // India voice provider's bridge, and that endpoint now answers 410.
-    //
-    // This reports the change instead of prompting for a number and then failing:
-    // asking the operator to type their phone number before telling them the
-    // feature is gone is worse than telling them up front. The control that
-    // invokes this is disabled too; this is the backstop.
-    const handleCall = useCallback( async () => {
-        toast.error(
-            'Click-to-call is retired. PSTN voice is now Plivo, and outbound calling '
-            + 'arrives with the Plivo browser softphone.'
-        );
-    }, [ toast ] );
-
     const markUnread = useCallback( () => {
         if ( !selected ) return;
         setUnreadIds( prev => {
@@ -1010,9 +996,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                         } ) }
                                     </span>
                                     <button className="ui-icon-btn" onClick={ () => loadData() } title="Refresh"><Icon name="refresh" size={ 16 } /></button>
-                                    { replyTarget.phone && (
-                                        <button className="ui-icon-btn" onClick={ handleCall } disabled title="Click-to-call is retired. PSTN voice is now Plivo; outbound calling arrives with the Plivo browser softphone."><Icon name="phone" size={ 16 } /></button>
-                                    ) }
                                     <button className="ui-icon-btn" onClick={ markUnread } title="Mark unread"><Icon name="mail" size={ 16 } /></button>
                                     { replyChannel === 'whatsapp' && (
                                         <button className="ui-icon-btn ui-icon-danger" disabled={ blocking } onClick={ () => handleBlockToggle( true ) } title="Block contact (only if they messaged in last 24h)"><Icon name="block" size={ 16 } /></button>

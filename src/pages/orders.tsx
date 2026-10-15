@@ -914,7 +914,7 @@ export default function OrdersPage (): React.ReactElement {
                       // A review door in a per-order panel that carries no order would attribute
                       // nothing while looking like it does, and /leave-review/ already is the
                       // unattributed door for anyone who wants one. `isCarriableReference` is the
-                      // same bound the Lambda enforces on arrival, so the legacy spaced Wix
+                      // same bound the Lambda enforces on arrival, so the legacy spaced order
                       // number ('WD-ORD - A1B2C3D4 - …') drops out here instead of travelling as
                       // a mangled reference that matches no order.
                       const reviewHref =

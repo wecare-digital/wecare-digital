@@ -18,11 +18,11 @@ import { productCheckoutLine, isPlaceholderCheckout } from '../config/productChe
  * prices and collects. The WhatsApp pill above is untouched; this renders beneath it through
  * ProductPage's `belowCta` slot.
  *
- * TEMPORARY ₹1 LINE. These products have no real Wix line yet, so the button checks out a REAL ₹1
- * catalogue product (see src/config/productCheckout.ts) — the whole format is live and paid end to
- * end, and going real for a product is a one-line edit in that config. The price shown is the
- * line's own `formattedPrice` (Wix's), in /anew/'s `.pdp-price` treatment; the server re-prices on
- * prepare, so the browser never sends an amount.
+ * TEMPORARY ₹1 LINE. These products have no real catalogue line yet, so the button checks out a
+ * REAL ₹1 catalogue product (see src/config/productCheckout.ts) — the whole format is live and paid
+ * end to end, and going real for a product is a one-line edit in that config. The price shown is
+ * the line's own `formattedPrice` (the catalogue's), in /anew/'s `.pdp-price` treatment; the
+ * server re-prices on prepare, so the browser never sends an amount.
  */
 
 interface ProductBuyBoxProps {

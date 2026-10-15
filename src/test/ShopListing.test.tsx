@@ -22,9 +22,9 @@ import {
  * are TRUE OR FALSE rather than visual, and where a CSS property is the subject it reads the
  * component's own <style> TEXT, which is the technique src/test/BlogDesign.test.tsx established.
  *
- * NOTHING HERE PINS A COUNT. .github/workflows/catalogue-sync.yml re-reads Wix every six hours
- * and pushes src/content/wix-catalog.json straight to this branch, so a literal 15 would turn an
- * untouched branch red the moment the owner adds a product in Wix - and the only available fix
+ * NOTHING HERE PINS A COUNT. .github/workflows/aws-native-catalog-publish.yml re-reads
+ * ProductsTable every six hours and commits src/content/catalog-snapshot.json, so a literal 15
+ * would turn an untouched branch red the moment the owner adds a product - and the only available fix
  * would be editing a number in a test, which teaches the next person to edit numbers in tests.
  * The slug SET is asserted as a property of PRODUCTS and SHOP_PRODUCTS instead.
  */
@@ -62,7 +62,7 @@ describe( 'the merged shelf', () => {
      * ASSERTED AS A PROPERTY, NOT AGAINST A NUMBER. The set is the union of the two halves, so a
      * product added in either place is in the listing by construction, and this assertion says so
      * rather than counting. The sighting as of the 2026-10-10 snapshot is 15 - 8 PRODUCTS plus 8
-     * visible Wix rows minus the `anew` overlap - and that number belongs in this comment.
+     * visible catalogue rows minus the `anew` overlap - and that number belongs in this comment.
      */
     const expected = new Set( [
       ...PRODUCTS.map( product => product.slug ),
@@ -94,7 +94,7 @@ describe( 'the merged shelf', () => {
 
   it( 'imports its copy verbatim and never rewrites it', () => {
     // Read off the two source modules rather than compared to literals, so an owner copy edit in
-    // Wix or in products.ts cannot turn this red.
+    // the catalogue or in products.ts cannot turn this red.
     for ( const product of PRODUCTS ) {
       const listing = SHOP_LISTINGS.find( entry => entry.slug === product.slug )!;
       expect( listing.name ).toBe( product.name );
@@ -108,7 +108,7 @@ describe( 'the merged shelf', () => {
       expect( listing.name ).toBe( product.name );
       expect( listing.blurb ).toBe( product.tagline );
       expect( listing.href ).toBe( `/shop/${product.slug}/` );
-      // Wix's own formatted string, passed through, never rebuilt.
+      // The catalogue's own formatted string, passed through, never rebuilt.
       expect( listing.formattedPrice ).toBe( product.formattedPrice );
     }
   } );
@@ -390,7 +390,7 @@ describe( 'the house rules this listing has to hold', () => {
   it( 'writes its new copy to the house rules: no exclamation mark, no em or en dash', () => {
     /*
      * SCOPED TO THE STRINGS THIS CHANGE AUTHORS. The product copy it renders is imported verbatim
-     * from src/content/products.ts and the Wix snapshot, and several of those lines legitimately
+     * from src/content/products.ts and the catalogue snapshot, and several of those lines legitimately
      * carry an em dash and a rupee sign - rewriting imported copy to satisfy a tone sweep is the
      * opposite of the rule. So this reads the three new source files instead.
      */

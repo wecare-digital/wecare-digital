@@ -6,9 +6,9 @@ import type { ShopProduct } from '../content/shop';
 const [ SUBMIT, AMEND ] = SERVICE_CHOICES;
 const INTENT = '01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f';
 /**
- * The LIVE Wix price, injected. `setServiceLine` takes the line paise explicitly since
+ * The LIVE catalogue price, injected. `setServiceLine` takes the line paise explicitly since
  * 2026-10-08: `src/config/services.ts` no longer declares a price (owner decision — a price is
- * editable in Wix with no deploy), so the cart row's displayed amount has to come from the live
+ * editable in the catalogue with no deploy), so the cart row's displayed amount has to come from the live
  * figure the buy box resolved. One constant here rather than a number per call, and deliberately
  * NOT 9900: a figure that happens to match the old constant could pass for the wrong reason.
  */
@@ -16,7 +16,7 @@ const LIVE_PAISE = 14900;
 
 const OTHER_INTENT = '01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e60';
 const KIOSK: ShopProduct = {
-  id: 'wix-abc-123', name: 'Kiosk', slug: 'kiosk', formattedPrice: '₹24,999.00',
+  id: 'prod-abc-123', name: 'Kiosk', slug: 'kiosk', formattedPrice: '₹24,999.00',
   price: '24999.00', currency: 'INR', inStock: true, tagline: 't', body: [],
 };
 
@@ -64,7 +64,7 @@ describe( 'the service cart line (Phase O-1)', () => {
       expect( services[ 0 ] ).toMatchObject( {
         variantId: choice.variantId, name: choice.label, quantity: 1,
         // The LIVE figure, formatted by integer division and modulo. Identical across the four
-        // because the price is no longer a per-choice constant: it is whatever Wix says, and the
+        // because the price is no longer a per-choice constant: it is whatever the catalogue says, and the
         // row simply renders what it was handed.
         formattedPrice: '₹149.00',
       } );
@@ -78,8 +78,8 @@ describe( 'the service cart line (Phase O-1)', () => {
   } );
 
   it( 'refuses a line with no usable live price, writing nothing', () => {
-    // FAIL CLOSED. There is no committed figure to fall back on, so a row with no amount Wix
-    // priced is not written at all rather than written with an invented one.
+    // FAIL CLOSED. There is no committed figure to fall back on, so a row with no amount the
+    // catalogue priced is not written at all rather than written with an invented one.
     for ( const paise of [ 0, -1, 99.5, Number.NaN, Number.POSITIVE_INFINITY ] )
     {
       cart.setServiceLine( SUBMIT.variantId, INTENT, paise );
@@ -100,7 +100,7 @@ describe( 'the service cart line (Phase O-1)', () => {
     expect( wire ).not.toMatch( /price|amount|currency|₹/i );
     expect( wire ).not.toContain( String( LIVE_PAISE ) );
     expect( cart.toLineItems() ).toEqual( [ {
-      catalogReference: { appId: '215238eb-22a5-4c36-9e7b-e7c08025e04e',
+      catalogReference: {
         catalogItemId: SERVICES_PRODUCT_ID, options: { variantId: SUBMIT.variantId } },
       quantity: 1,
     } ] );

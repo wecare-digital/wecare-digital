@@ -178,8 +178,8 @@ const isServicesRow = ( raw: RawProduct ): boolean =>
  * `scripts/build-catalog-snapshot.py` collects it and it would otherwise get a public `/shop/1-test-product/`
  * page, a sitemap entry, and a ₹1 card in the grid — which reads as a broken storefront.
  *
- * Excluded by the SAME rule as the template samples (id first, slug second) and for the same
- * reasons: NON-DESTRUCTIVE (the row stays in the committed snapshot and in catalog), REVERSIBLE (delete
+ * Excluded by id first and slug second, and the exclusion is deliberately
+ * NON-DESTRUCTIVE (the row stays in the committed snapshot and in catalog), REVERSIBLE (delete
  * this line to sell it), and checkout is untouched (it reads the live catalogue, not SHOP_PRODUCTS),
  * so a ₹1 smoke-test cart by direct reference still works. The id cannot be edited in the catalog
  * dashboard; the slug can, hence both.
@@ -248,10 +248,11 @@ export const SHOP_PRODUCTS: ShopProduct[] = VISIBLE
  * out of `/shop/` while remaining valid catalogue identities. A `SHOP_PRODUCTS`-only lookup would
  * therefore under-count valid catalog ids and throw their cart lines away.
  *
- * What this exists for is the other direction: a `wecare.cart.v1` row written before the catalogue
- * moved to site `c993128b` names a product id that does not exist anywhere on the new site. Sent
- * to checkout it 404s at `the catalog lookup` and the customer is told to remove an item
- * — which they can at least do, but only after a failed payment attempt tells them to. Dropping it
+ * What this exists for is the other direction: a `wecare.cart.v1` row written before the
+ * catalogue's ids were re-minted on 2026-10-05 names a product id that does not exist anywhere in
+ * the current catalogue. Sent to checkout it 404s at the catalog lookup and the customer is told
+ * to remove an item — which they can at least do, but only after a failed payment attempt tells
+ * them to. Dropping it
  * at read time is the cheaper failure. See `reconcileStoredCart` in src/lib/cart.ts.
  */
 export const KNOWN_CATALOGUE_PRODUCT_IDS: ReadonlySet<string> = new Set(

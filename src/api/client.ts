@@ -1026,12 +1026,6 @@ export async function listBlockedWhatsAppUsers ( request: { contactId?: string; 
   } );
 }
 
-// Click-to-call initiation was removed on 2026-09-19. It posted to an endpoint
-// that dialled a retired India voice provider and now answers 410. PSTN voice is
-// Plivo, and outbound calling arrives with the Plivo browser softphone behind
-// PSTN_BROWSER_ROUTING_ENABLED. No replacement client function is added here yet,
-// so nothing can call a dialler that does not exist.
-
 // Send a reaction to a WhatsApp message
 export async function sendWhatsAppReaction ( request: SendReactionRequest ): Promise<{ messageId: string; status: string; emoji: string } | null> {
   return apiCall<{ messageId: string; status: string; emoji: string }>( `${API_BASE}/whatsapp/send`, {
@@ -1442,14 +1436,12 @@ export async function getSystemHealth (): Promise<SystemHealth> {
 // ============================================================================
 
 /** Provider categories exposed by current voice APIs. */
-export type VoiceProviderRead = 'plivo' | 'aws' | 'legacy';
+export type VoiceProviderRead = 'plivo' | 'aws';
 
 /**
  * Providers that may be SELECTED for a new call. PSTN voice is Plivo; 'aws' is
- * the AWS End User Messaging voice (TTS/audio) path.
- *
- * Retired providers are absent by design, so a retired-provider call is not
- * expressible in the type system rather than merely discouraged.
+ * the AWS End User Messaging voice (TTS/audio) path. No other provider is
+ * expressible in the type system.
  */
 export type VoiceProviderSelectable = 'plivo' | 'aws';
 
@@ -1459,7 +1451,7 @@ export interface VoiceCall {
   contactId: string;
   phoneNumber: string;
   provider: VoiceProviderRead;
-  callType: 'tts' | 'audio' | 'ivr' | 'click_to_call';
+  callType: 'tts' | 'audio' | 'ivr';
   status: string;
   direction: 'INBOUND' | 'OUTBOUND';
   duration: number;
@@ -1567,13 +1559,7 @@ export async function sendSmsAws ( request: SendSmsAwsRequest ): Promise<{ messa
 // SMS SENDING
 // ============================================================================
 // There is no provider-specific SMS client function. SMS goes to POST /sms/send,
-// which sends exclusively through AWS End User Messaging and refuses a request
-// naming a prohibited provider with 422.
-//
-// Removed 2026-09-19: a provider-specific helper that forced a prohibited SMS
-// provider and a hardcoded sender header on every call. It had no callers.
-// Identifier omitted so the provider-policy scan stays precise.
-// See docs/provider-retirement-inventory.md.
+// which sends exclusively through AWS End User Messaging.
 
 // ============================================================================
 // SINCH RCS API (Conversation API)

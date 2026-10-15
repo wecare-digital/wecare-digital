@@ -613,8 +613,6 @@ export interface BlogPublishResponse {
   ok: boolean;
   jobStatuses: string[];
   queue: BlogPublishJobView[];
-  /** Native publishing is the only supported publication path. */
-  providerWritesRetired: boolean;
   batchState?: {
     sources: number; byStatus: Record<string, number>; published: number;
     queued: number; refused: number; failed: number; unreleased: number; jobs: number;
@@ -826,7 +824,7 @@ export const getBlogPublishJob = ( jobId: string ) =>
   seoToolsJson<{ ok: boolean; job: BlogPublishJobView & { record: Record<string, unknown> } }>(
     `blog-publish/${encodeURIComponent( jobId )}` );
 
-/** Records the decision. Performs NO Wix write — publishing is a separate call. */
+/** Records the decision. Publishes NOTHING — publishing is a separate call. */
 export const releaseBlogArticle = ( sourceId: string ) =>
   seoToolsJson<BlogPublishJobView & { ok: boolean; created: boolean; note: string }>(
     'blog-publish/release', { method: 'POST', body: JSON.stringify( { sourceId } ) } );
@@ -835,7 +833,7 @@ export const withdrawBlogRelease = ( jobId: string, reason: string ) =>
   seoToolsJson<BlogPublishJobView & { ok: boolean; withdrawn: boolean }>(
     'blog-publish/withdraw', { method: 'POST', body: JSON.stringify( { jobId, reason } ) } );
 
-/** The only Wix mutation in the system. `refused: true` means the kill switch stopped it. */
+/** The only call that writes a post to the native blog. */
 export const publishBlogArticle = ( jobId: string ) =>
   seoToolsJson<BlogPublishJobView & { ok: boolean; published: boolean; refused?: boolean; postId?: string; postUrl?: string; note: string }>(
     'blog-publish', { method: 'POST', body: JSON.stringify( { jobId } ) } );

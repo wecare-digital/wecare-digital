@@ -26,7 +26,7 @@
  *
  *   `WD-ORD-A7K2M9PQ`            current minted form  (order_keys.PUBLIC_ORDER_NUMBER_*)
  *   `A7K2M9PQ3WXY`               legacy bare 12-char form, still valid for lookup
- *   `WD-ORD - A1B2C3D4 - 2026…`  legacy SPACED form from the Wix sync path
+ *   `WD-ORD - A1B2C3D4 - 2026…`  legacy SPACED display form from the pre-native order sync
  *
  * The first two satisfy the bound below and travel. The third does not, and the tempting
  * fix — strip everything outside `[A-Z0-9-]` — would mint `WD-ORD-A1B2C3D4-2026…`, a string

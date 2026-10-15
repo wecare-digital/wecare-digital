@@ -1,9 +1,10 @@
 /**
- * The browser client for the LIVE Wix price of each WECARE.DIGITAL service.
+ * The browser client for the LIVE catalogue price of each WECARE.DIGITAL service.
  *
  *   GET /ecommerce/service-prices  ->  { currency: 'INR', prices: { <slug>: ... } }
  *
- * WHY IT EXISTS. Owner decision 2026-10-08: a price must be changeable in Wix with no deploy, so
+ * WHY IT EXISTS. Owner decision 2026-10-08: a price must be changeable in the catalogue
+ * (ProductsTable) with no deploy, so
  * no figure is declared in the frontend any more (src/config/services.ts kept the variant ids and
  * dropped the amounts). The endpoint is anonymous and takes no input, because a visitor reads the
  * price BEFORE signing in — the price is what decides whether they sign in at all.
@@ -60,7 +61,7 @@ export const allUnavailable = (): Record<string, ServicePrice> =>
  * Integer division and modulo only; the grouping is `toLocaleString('en-IN')` on the already
  * truncated WHOLE rupees, which is exactly what `src/lib/paymentVocabulary.ts` does and is not
  * arithmetic. Grouping matters now in a way it did not when the figure was fixed at 49/99/350:
- * the price is Wix's and the catastrophe rail admits up to ₹50,000, which read as `₹50000`.
+ * the price is the catalogue's and the catastrophe rail admits up to ₹50,000, which read as `₹50000`.
  */
 export function rupeesFromPaise ( paise: number ): string {
   const whole = Math.trunc( paise / 100 );
@@ -86,8 +87,9 @@ function readPrice ( raw: unknown ): ServicePrice {
  * Every service's live price, keyed by slug. Never throws and never returns a partial map: on any
  * failure every slug is `{ available: false }`.
  *
- * A PER-SLUG failure from the server is preserved rather than widened — one service Wix cannot
- * price is no reason to take the other three off sale, which is the same rule the server applies.
+ * A PER-SLUG failure from the server is preserved rather than widened — one service the catalogue
+ * cannot price is no reason to take the other three off sale, which is the same rule the server
+ * applies.
  */
 export async function fetchServicePrices (): Promise<Record<string, ServicePrice>> {
   try

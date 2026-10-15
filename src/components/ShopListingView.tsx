@@ -15,7 +15,7 @@ import { type ShopListing } from '../content/shopProducts';
  * Same arrangement, and same reason, as components/BlogIndexView.tsx.
  *
  * WHAT CHANGED AND WHY. This listing was a PageTopBand heading over a three-up auto-fill grid of
- * the eight visible Wix rows. It is now the home page's own animated headline (RotatingHero,
+ * the eight visible catalogue rows. It is now the home page's own animated headline (RotatingHero,
  * mounted directly under the header), the blog listing's exact search box, and the blog's card
  * look laid out in a SINGLE HORIZONTAL ROW THAT SCROLLS sideways - a rotating hue spine on each
  * card, over the whole shelf, every product the site sells, from src/content/shopProducts.ts.

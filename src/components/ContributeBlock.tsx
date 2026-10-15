@@ -23,8 +23,9 @@ export const CONTRIBUTE_CTA_HREF = 'https://wa.me/message/BYFLCAAMSZBXD1';
  * line are read from the central src/config/contribution.ts (CONTRIBUTION_CHOICES[0].rupees = 250,
  * ₹ for CONTRIBUTION_CURRENCY = 'INR'), the same source the cart row and the server's own mirror
  * read, so the number cannot drift from the one the cart would price. Nothing about the amount,
- * price or currency leaves the browser - cart_v2.calculate remains the sole price authority. The
- * checkout path only NAMES the variant (via setContribution, which writes a catalogue reference +
+ * price or currency leaves the browser - the checkout's ProductsTable pricing remains the sole
+ * price authority. The checkout path only NAMES the variant (via setContribution, which writes a
+ * catalogue reference +
  * quantity 1 and replaces any existing contribution line), exactly like the cart contribution row.
  *
  * TWO PATHS, ONE INTENT.

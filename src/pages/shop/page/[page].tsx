@@ -25,7 +25,7 @@ import {
  *
  * ROUTE COLLISION, AND WHY THERE IS NOT ONE. Next resolves a static segment ahead of a dynamic
  * one, so /shop/page/2/ matches this file and never src/pages/shop/[slug].tsx. The reverse
- * hazard - a Wix product slugged `page` emitting out/shop/page/index.html - is closed by the
+ * hazard - a catalogue product slugged `page` emitting out/shop/page/index.html - is closed by the
  * build-time invariant in src/content/shopProducts.ts.
  *
  * ROUTING: '/shop/page/[page]' must be in the isContentPublic check in _app.tsx or this renders

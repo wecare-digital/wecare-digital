@@ -20,7 +20,7 @@ import { listPublicBlogPosts, listBlogCards, type BlogCard } from '../lib/public
  * logic - and hands the cards to ProductPage, which renders the panel. The panel shows them all
  * in a scroll rail and filters client-side. The build-time memo in public-blog.ts means this adds
  * no extra upstream request: /blog/ and /post/[slug] already warm the same cached promise, and
- * every build re-fetches the live corpus from Wix, so the panel is always current.
+ * every build re-fetches the live corpus from the native blog API, so the panel is always current.
  *
  * ROUTING: '/anew' must be in the EXACT-MATCH allowlist in _app.tsx or this renders an empty body
  * with HTTP 200, and in PUBLIC_EXACT in scripts/generate-sitemap.js or it is never advertised.

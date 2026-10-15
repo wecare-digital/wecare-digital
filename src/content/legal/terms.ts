@@ -1,9 +1,8 @@
 /**
  * Terms of Service — rewritten in plain English.
  *
- * THIS REPO IS NOW THE SOURCE OF TRUTH. The text originally came from the old Wix site,
- * which is being retired, so there is no longer an upstream to sync with and no
- * extractor to re-run. Edit this file.
+ * THIS REPO IS THE SOURCE OF TRUTH. There is no upstream to sync with and no extractor to
+ * re-run. Edit this file.
  *
  * WHAT THE REWRITE CHANGED, on owner instruction:
  *   - Active voice, short sentences, "we" and "you". The original was written almost
@@ -473,10 +472,10 @@ export const TERMS_SECTIONS: LegalSection[] = [
      * already covers promotions, coupons and offers; this adds the eligibility / validity /
      * stacking / refund-impact detail the new coupon field at checkout needs.
      *
-     * CONFIG CONSTRAINT: coupons and offers are Wix-native and validated server-side, and the live
-     * configuration (which codes exist, their validity, minimum order, eligible products, usage
-     * limits, stacking rules) lives in our commerce backend and cannot be asserted as fixed values
-     * from here. The /perks page is now a plain landing page and no longer lists offers; any
+     * CONFIG CONSTRAINT: coupons and offers are native to our commerce backend and validated
+     * server-side, and the live configuration (which codes exist, their validity, minimum order,
+     * eligible products, usage limits, stacking rules) lives in that backend and cannot be
+     * asserted as fixed values from here. The /perks page is now a plain landing page and no longer lists offers; any
      * eligible coupon is applied server-side at checkout. So this clause is written in terms
      * of "as configured in our commerce backend" / "where applicable" rather than listing specific
      * values, and does not claim any particular offer is currently available.
@@ -623,14 +622,14 @@ export const TERMS_SECTIONS: LegalSection[] = [
     /*
      * ADDED for the customer-experience upgrade (blog "Contribute" section). A SUB-CLAUSE OF 31,
      * beside 31.1 on editorial content, because a voluntary contribution attaches to the published
-     * articles rather than to a purchase - there is no cart, no Wix order and no product. It
+     * articles rather than to a purchase - there is no cart, no product order and no product. It
      * cross-references 12 for payments and 14 for refunds rather than restating them.
      *
      * FACTUAL BASIS (verified against amplify/.../ecommerce/blog_contribution.py and
      * src/config/contribution.ts): a BLOG_CONTRIBUTION is a voluntary payment the reader chooses,
      * in integer paise, processed through Razorpay on the same server-side verify / webhook /
-     * idempotency path as the rest of checkout; it creates NO Wix order and adds no fee on top. It
-     * is BUILT BUT GATED OFF (CHECKOUT_INITIATION_ENABLED default OFF) and not live. So the clause
+     * idempotency path as the rest of checkout; it creates NO product order and adds no fee on top.
+     * It is BUILT BUT GATED OFF (CHECKOUT_INITIATION_ENABLED default OFF) and not live. So the clause
      * describes it truthfully as voluntary and not currently charging, names Razorpay only as the
      * processor (consistent with 12), and makes none of the equity/investment/employment claims the
      * brief rules out.

@@ -95,8 +95,8 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
 
             {/* The product's own words, as TEXT and never as HTML. toParagraphs in
                 src/content/shop.ts strips the tags rather than trusting them: this is
-                merchant-authored rich text from a third-party CMS, and dangerouslySetInnerHTML
-                would make the storefront depend on Wix's sanitiser instead of ours. */}
+                merchant-authored rich text, and dangerouslySetInnerHTML would make the
+                storefront depend on an upstream sanitiser instead of ours. */}
             { product.body.map( ( paragraph, index ) => (
               <p className="shopd-p" key={ `p-${index}` }>{ paragraph }</p>
             ) ) }

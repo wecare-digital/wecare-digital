@@ -11,9 +11,8 @@ import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
  * which is exactly how the old site ended up with a different footer on every page. The
  * copy lives here, the layout lives in ProductPage.tsx, and each route is a thin file.
  *
- * WHERE THE COPY CAME FROM. The six existing products were read off the old Wix pages with
- * a real browser (pwtest/wixscrape.js). curl returns nothing usable - those pages ship JS
- * bundles and an empty body, so the copy only exists after hydration. Each product's
+ * WHERE THE COPY CAME FROM. The six existing products were read off the old site's pages
+ * with a real browser, because those pages only had copy after hydration. Each product's
  * one-line positioning statement is the owner's own, taken from the "X IS A WECARE.DIGITAL
  * BRAND FOR ..." line on its page, then rewritten into sentence case and plain English.
  *
@@ -24,7 +23,7 @@ import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
  * Terms and sat live for a session. It is navigation and slogans, not product copy, and
  * none of it is here.
  *
- * NIJI SETU HAS NO WIX PAGE. Its copy comes from the owner's description: a QR code people
+ * NIJI SETU HAD NO OLD-SITE PAGE. Its copy comes from the owner's description: a QR code people
  * scan to reach you on a masked call, with your real number never shown.
  *
  * TINTS AND DOTS ARE REUSED VERBATIM from the Grahak OS hero - four pairs, no new colours.

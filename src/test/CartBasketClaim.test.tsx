@@ -12,7 +12,7 @@ import type { ShopProduct } from '../content/shop';
  * THE `?basket=` CLAIM EFFECT on /cart/.
  *
  * A customer sends their cart in the WhatsApp catalogue and gets a link to
- * `/cart/?basket=<token>`. Opening it while signed in merges the lines into their own Wix cart.
+ * `/cart/?basket=<token>`. Opening it while signed in merges the lines into their own cart.
  *
  * What these pin, and why each one would regress silently:
  *   1. IT FIRES ONCE. The claim is a server-side SINGLE-USE write, so a double invoke renders a
@@ -33,7 +33,7 @@ import type { ShopProduct } from '../content/shop';
  */
 
 const PRODUCT: ShopProduct = {
-  id: 'wix-abc-123',
+  id: 'prod-abc-123',
   name: 'Kiosk',
   slug: 'kiosk',
   formattedPrice: '₹24,999.00',
@@ -62,9 +62,6 @@ const CATALOGUE_PRODUCT: ShopProduct = SHOP_PRODUCTS.find(
     && ( product.variants || [] ).filter( variant => variant.inStock ).length === 1 )!;
 const CATALOGUE_VARIANT = ( CATALOGUE_PRODUCT.variants || [] )
   .find( variant => variant.inStock )!;
-
-/** The Wix Stores app id `toLineItems()` sends. Repeated here for the same reason it is there. */
-const WIX_STORES_APP_ID = '215238eb-22a5-4c36-9e7b-e7c08025e04e';
 
 const PREPARE_URL = '/ecommerce/prepare-checkout';
 
@@ -320,11 +317,11 @@ describe( 'success', () => {
        * THE WHOLE JOURNEY, end to end, and the one assertion the previous version of this file
        * could not make.
        *
-       * The claim merges the lines into the SERVER-side Wix cart. The cart this page renders and
-       * the basket `prepare` is given both come from localStorage, so a reply carrying only
-       * `mergedLines` left the customer looking at an unchanged cart - and the following checkout
-       * reconciled the claimed lines back OUT of the Wix cart, because `_reconcile_saved_cart`
-       * makes the Wix cart match the REQUEST.
+       * The claim merges the lines into the customer's SERVER-side cart. The cart this page
+       * renders and the basket `prepare` is given both come from localStorage, so a reply carrying
+       * only `mergedLines` left the customer looking at an unchanged cart - and the following
+       * checkout reconciled the claimed lines back OUT of the server-side cart, because the
+       * checkout makes that cart match the REQUEST.
        *
        * Started from an EMPTY cart deliberately: a seeded line would let a page that merged
        * nothing still show something and still post something.
@@ -347,7 +344,6 @@ describe( 'success', () => {
 
       expect( prepares( fetchMock )[ 0 ].lineItems ).toEqual( [ {
         catalogReference: {
-          appId: WIX_STORES_APP_ID,
           catalogItemId: CATALOGUE_PRODUCT.id,
           options: { variantId: CATALOGUE_VARIANT.id },
         },
@@ -378,9 +374,9 @@ describe( 'success', () => {
   it( 'says so when it could place none of the claimed lines, instead of looking unchanged',
     async () => {
       /*
-       * A product in the live Wix catalogue - and therefore in the WhatsApp catalogue projected
-       * from it - but absent from the snapshot committed with this build. Added in Wix since the
-       * last catalogue sync is exactly that case.
+       * A product in the live catalogue (ProductsTable) - and therefore in the WhatsApp catalogue
+       * projected from it - but absent from the snapshot committed with this build. Added to
+       * ProductsTable since the last snapshot was published is exactly that case.
        *
        * Saying nothing here would reproduce the defect the returned lines exist to fix: a
        * successful claim that is indistinguishable from a refusal.

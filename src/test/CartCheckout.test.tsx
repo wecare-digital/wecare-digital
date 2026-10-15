@@ -21,7 +21,7 @@ import * as customerAuth from '../lib/customerAuth';
  * wherever the previous revision wrote `setContribution( 400 )`: the amount was arbitrary there
  * and still is, because those cases are about the checkout rail rather than the figure.
  *
- * IT WAS `[ LOW, MID ]` UNTIL 2026-10-10, when the owner reduced `Contribute` in Wix to a single
+ * IT WAS `[ LOW, MID ]` UNTIL 2026-10-10, when the owner reduced `Contribute` in the catalogue to a single
  * ₹250 variant. The two cases that needed a SECOND, DIFFERENT amount are rewritten around a
  * basket change instead, and each says so where it sits.
  */
@@ -89,7 +89,7 @@ import CheckoutStatus, { viewFor } from '../pages/checkout/status';
  */
 
 const PRODUCT: ShopProduct = {
-  id: 'wix-abc-123',
+  id: 'prod-abc-123',
   name: 'Kiosk',
   slug: 'kiosk',
   formattedPrice: '₹24,999.00',
@@ -101,7 +101,7 @@ const PRODUCT: ShopProduct = {
 };
 
 const OTHER: ShopProduct = {
-  id: 'wix-def-456',
+  id: 'prod-def-456',
   name: 'Merchandise',
   slug: 'merchandise',
   formattedPrice: '₹599.00',
@@ -294,7 +294,7 @@ describe( 'the cart store', () => {
     cart.addItem( PRODUCT, 2 );
     const items = cart.readCart();
     expect( items ).toHaveLength( 1 );
-    expect( items[ 0 ].ref ).toBe( 'wix-abc-123' );
+    expect( items[ 0 ].ref ).toBe( 'prod-abc-123' );
     expect( items[ 0 ].quantity ).toBe( 3 );
     expect( cart.cartCount() ).toBe( 3 );
   } );
@@ -302,22 +302,22 @@ describe( 'the cart store', () => {
   it( 'keeps distinct products as distinct lines', () => {
     cart.addItem( PRODUCT, 1 );
     cart.addItem( OTHER, 1 );
-    expect( cart.readCart().map( i => i.ref ) ).toEqual( [ 'wix-abc-123', 'wix-def-456' ] );
+    expect( cart.readCart().map( i => i.ref ) ).toEqual( [ 'prod-abc-123', 'prod-def-456' ] );
   } );
 
   it( 'sets an exact quantity and removes a line when it hits zero', () => {
     cart.addItem( PRODUCT, 1 );
-    cart.setQuantity( 'wix-abc-123', 5 );
+    cart.setQuantity( 'prod-abc-123', 5 );
     expect( cart.readCart()[ 0 ].quantity ).toBe( 5 );
-    cart.setQuantity( 'wix-abc-123', 0 );
+    cart.setQuantity( 'prod-abc-123', 0 );
     expect( cart.readCart() ).toHaveLength( 0 );
   } );
 
   it( 'removes a line and clears the whole cart', () => {
     cart.addItem( PRODUCT, 1 );
     cart.addItem( OTHER, 1 );
-    cart.removeItem( 'wix-abc-123' );
-    expect( cart.readCart().map( i => i.ref ) ).toEqual( [ 'wix-def-456' ] );
+    cart.removeItem( 'prod-abc-123' );
+    expect( cart.readCart().map( i => i.ref ) ).toEqual( [ 'prod-def-456' ] );
     cart.clearCart();
     expect( cart.readCart() ).toHaveLength( 0 );
   } );
@@ -336,11 +336,11 @@ describe( 'the cart store', () => {
   } );
 
   /*
-   * THE PRE-MIGRATION CART. `/shop/` moved to Wix site c993128b on 2026-10-05 and every product id
-   * was re-minted, so a returning visitor's localStorage can name a product that exists nowhere in
-   * the new catalogue. Carried into `toLineItems()` it reaches `GET /stores/v3/products/{id}`,
-   * 404s, and the customer is told "An item in your cart is no longer available" only after
-   * pressing Checkout. 15a80e88-... is the retired ₹1 test product; the live one is 121c9d57-...
+   * THE PRE-MIGRATION CART. Every product id was re-minted on 2026-10-05, so a returning visitor's
+   * localStorage can name a product that exists nowhere in the current catalogue. Carried into
+   * `toLineItems()` it reaches the catalogue lookup, 404s, and the customer is told "An item in
+   * your cart is no longer available" only after pressing Checkout. 15a80e88-... is the retired ₹1
+   * test product; the live one is 121c9d57-...
    */
   const RETIRED_ID = '15a80e88-6a2e-4b1f-9a7c-1b2c3d4e5f60';
 
@@ -383,10 +383,10 @@ describe( 'the cart store', () => {
     expect( cart.contributionOf( items[ 0 ] ) ).not.toBeNull();
   } );
 
-  it( 'drops a template sample Wix deleted, and still reads the raw snapshot not /shop/', () => {
+  it( 'drops a template sample the catalogue no longer has, and still reads the raw snapshot not /shop/', () => {
     /*
-     * THIS TEST WAS 'keeps a Wix template sample id, which the catalogue has and /shop/ hides'.
-     * Baseball Cap and the other eleven template samples were DELETED IN WIX before the
+     * THIS TEST WAS 'keeps a template sample id, which the catalogue has and /shop/ hides'.
+     * Baseball Cap and the other eleven template samples left the catalogue before the
      * 2026-10-10 snapshot refresh, so the catalogue genuinely no longer has them. A stored row
      * naming one is now exactly the pre-migration case `droppableUnknown` was written for - a
      * well-formed catalogue id the snapshot has never heard of - and dropping it is correct.
@@ -409,7 +409,7 @@ describe( 'the cart store', () => {
   it( 'leaves a legacy non-UUID reference alone rather than guessing it is dead', () => {
     // Pre-2026-10 rows carry a slug or an opaque ref, and `currentProduct`'s slug fallback owns
     // them. A row that fallback cannot place keeps exactly today's behaviour: the drop rule only
-    // fires on something that CLAIMS to be a Wix catalogue id.
+    // fires on something that CLAIMS to be a catalogue id.
     window.localStorage.setItem( 'wecare.cart.v1', JSON.stringify( [ {
       ref: 'legacy-opaque-ref', slug: 'no-such-slug', name: 'Something old',
       formattedPrice: '₹10.00', quantity: 1,
@@ -419,7 +419,7 @@ describe( 'the cart store', () => {
   } );
 
 
-  it( 'migrates a pre-productId single-variant row to the current Wix product and variant', () => {
+  it( 'migrates a pre-productId single-variant row to the current catalogue product and variant', () => {
     window.localStorage.setItem( 'wecare.cart.v1', JSON.stringify( [ {
       ref: 'kiosk',
       slug: 'kiosk',
@@ -428,9 +428,9 @@ describe( 'the cart store', () => {
       quantity: 2,
     } ] ) );
 
-    // The CURRENT Kiosk product and its single variant, re-measured against the migrated site
-    // c993128b on 2026-10-05. The previous site's ids were 00d4c72b-f694-441a-a192-e16f4b192440
-    // and variant 2d072962-37c0-4821-9c02-2cc223448711; the migration re-minted both. The row in
+    // The CURRENT Kiosk product and its single variant, re-measured after the 2026-10-05 id
+    // re-mint. The previous ids were 00d4c72b-f694-441a-a192-e16f4b192440 and variant
+    // 2d072962-37c0-4821-9c02-2cc223448711; the migration re-minted both. The row in
     // storage above has NO product id at all, which is the point - it migrates by slug, so a cart
     // saved before the move resolves to whatever the catalogue holds now.
     const [ item ] = cart.readCart();
@@ -441,7 +441,6 @@ describe( 'the cart store', () => {
     );
     expect( cart.toLineItems() ).toEqual( [ {
       catalogReference: {
-        appId: '215238eb-22a5-4c36-9e7b-e7c08025e04e',
         catalogItemId: 'a12e9e74-e109-4136-a12e-ab49ea6f98c3',
         options: { variantId: '4d3e2b31-7888-4250-8f5a-0587344431db' },
       },
@@ -513,8 +512,8 @@ describe( 'toLineItems emits references and quantities ONLY', () => {
     cart.addItem( OTHER, 1 );
     const lineItems = cart.toLineItems();
     expect( lineItems ).toEqual( [
-      { catalogReference: { appId: '215238eb-22a5-4c36-9e7b-e7c08025e04e', catalogItemId: 'wix-abc-123' }, quantity: 2 },
-      { catalogReference: { appId: '215238eb-22a5-4c36-9e7b-e7c08025e04e', catalogItemId: 'wix-def-456' }, quantity: 1 },
+      { catalogReference: { catalogItemId: 'prod-abc-123' }, quantity: 2 },
+      { catalogReference: { catalogItemId: 'prod-def-456' }, quantity: 1 },
     ] );
     for ( const item of lineItems )
     {
@@ -522,27 +521,23 @@ describe( 'toLineItems emits references and quantities ONLY', () => {
     }
   } );
 
-  it( 'sends the Wix Stores appId the SERVER validates against, byte for byte', () => {
+  it( 'names the product by catalogue id alone, with no app id in the reference', () => {
     /*
-     * `wix_ecom.resolved_catalog_lines` refuses any reference whose `appId` is not
-     * `cart_v2.STORES_APP_ID`, as "invalid catalogue reference" -> `WixEcomError` -> 502
-     * CATALOGUE_UNAVAILABLE. The two constants are separate declarations in two languages, so
-     * drift between them is an outage with a misleading error code.
-     *
-     * Pinned here because during a live 502 investigation on 2026-10-04 this was a leading
-     * suspect, and answering it needed a measurement rather than a reading. It matches.
+     * The native checkout resolves a line against ProductsTable by product (and variant) id. The
+     * reference used to carry a fixed storefront app id that no server code reads; it is gone,
+     * so the reference holds exactly the ids the catalogue lookup keys on and nothing else.
      */
     cart.addItem( PRODUCT, 1 );
     const [ line ] = cart.toLineItems();
-    // The value in amplify/functions/shared/lambda_utils/ecommerce/cart_v2.py:STORES_APP_ID.
-    expect( line.catalogReference.appId ).toBe( '215238eb-22a5-4c36-9e7b-e7c08025e04e' );
-    // And the id is the PRODUCT id, never the slug: a slug 404s at the V3 product GET.
+    expect( Object.keys( line.catalogReference ) ).toEqual( [ 'catalogItemId' ] );
+    expect( JSON.stringify( line ) ).not.toContain( 'appId' );
+    // And the id is the PRODUCT id, never the slug: a slug 404s at the catalogue lookup.
     expect( line.catalogReference.catalogItemId ).toBe( PRODUCT.id );
     expect( line.catalogReference.catalogItemId ).not.toBe( PRODUCT.slug );
   } );
 
-  it( 'omits `options` entirely for a line with no variant, which is the V3 shape', () => {
-    // A no-option Catalog V3 product's reference carries no `options` key at all. An
+  it( 'omits `options` entirely for a line with no variant, which is the contract shape', () => {
+    // A no-option product's reference carries no `options` key at all. An
     // `options: { variantId: undefined }` would serialise as `"options":{}` and is not the same
     // thing. `PRODUCT` has no `variants`, so this is the no-variant branch of `toLineItems`.
     cart.addItem( PRODUCT, 1 );
@@ -587,9 +582,9 @@ describe( 'legacy cart option recovery', () => {
     ) ).toBeTruthy();
     expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 0 );
 
-    // A variant that exists in the CURRENT catalogue (Merchandise "Men's / XL" on site
-    // c993128b). The previous spelling, 00ebbae6-7025-4724-835e-37f4bffc2476, belonged to the
-    // retired site and the repair would correctly refuse it now.
+    // A variant that exists in the CURRENT catalogue (Merchandise "Men's / XL"). The previous
+    // spelling, 00ebbae6-7025-4724-835e-37f4bffc2476, predates the 2026-10-05 id re-mint and the
+    // repair would correctly refuse it now.
     //
     // THE NAME IS AN EXACT STRING, NOT A REGEX, and that is batch 2f's labelling fix landing:
     // the control passes `label="Choose option"` AND a per-item
@@ -649,7 +644,7 @@ describe( 'the cart page proceed flow', () => {
     expect( prepare.body.action ).toBe( 'prepare' );
     expect( typeof prepare.body.requestKey ).toBe( 'string' );
     expect( prepare.body.requestKey.length ).toBeGreaterThan( 8 );
-    expect( prepare.body.lineItems ).toEqual( [ { catalogReference: { appId: '215238eb-22a5-4c36-9e7b-e7c08025e04e', catalogItemId: 'wix-abc-123' }, quantity: 2 } ] );
+    expect( prepare.body.lineItems ).toEqual( [ { catalogReference: { catalogItemId: 'prod-abc-123' }, quantity: 2 } ] );
     // No financial figure on the wire.
     expect( prepare.init.body as string ).not.toMatch( /price|amount|currency|formattedPrice/i );
     // And the readiness question carried no address, no phone and no body beyond the action.
@@ -1646,7 +1641,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
      * request key and opening a SECOND modal with no further click. What changed is that the
      * absence of a rotation turned out to be a dead end of its own. `intent_fingerprint` keeps
      * `cart_revision` AND `snapshot_hash`, and `checkout_pricing.basket_hash`'s docstring records
-     * as measured that the website prepare path WRITES TO THE WIX CART on every call - so a second
+     * as measured that the website prepare path WRITES TO THE SERVER CART on every call - so a second
      * prepare of an UNEDITED basket can present a different `snapshot_hash`, answer
      * 409 CHECKOUT_REJECTED, and latch `paymentBlocked` for the life of the tab for a refusal no
      * human caused.
@@ -1850,7 +1845,7 @@ describe( 'a mixed basket checks out, and the browser refuses nothing locally', 
    * THIS BLOCK USED TO ASSERT THE OPPOSITE, and the rule it asserted is gone.
    *
    * Owner decision, 2026-10-06: a product and a contribution are paid together, priced the way
-   * any single order is priced -- Wix prices every line, then the 2.5% convenience fee plus 18%
+   * any single order is priced -- ProductsTable prices every line, then the 2.5% convenience fee plus 18%
    * GST on that fee apply to the whole collection. So there is no mixed-basket notice, no
    * "Keep only the contribution" button and no `mixedBasket` term on the CTA's `disabled`.
    *
@@ -2022,9 +2017,9 @@ describe( 'two clicks cannot post two prepares - the measured live blocker', () 
    * THE BUG, from API Gateway and Lambda logs on checkout v11, not from reasoning.
    *
    * `prepare-checkout` was posted TWICE in rapid succession. The first answered 200 and reserved
-   * the cart; the second, one to three seconds later, reached Wix on that already-reserved cart,
-   * `wix_ecom` raised, and the handler's `except wix_ecom.WixEcomError` answered 502
-   * `CATALOGUE_UNAVAILABLE` -- which this page renders as "We could not prepare this order."
+   * the cart; the second, one to three seconds later, hit the catalogue step on that
+   * already-reserved cart, failed, and the handler answered 502 `CATALOGUE_UNAVAILABLE` -- which
+   * this page renders as "We could not prepare this order."
    * EVERY payment attempt failed, and it was the customer's own first attempt that broke their
    * second.
    *
@@ -2067,7 +2062,7 @@ describe( 'two clicks cannot post two prepares - the measured live blocker', () 
   } );
 
   it( 'posts prepare ONCE even while the first post is still unresolved', async () => {
-    // The production timing: the first prepare takes a second or two against Wix, and the extra
+    // The production timing: the first prepare takes a second or two server-side, and the extra
     // clicks arrive while it is in flight rather than after it settles.
     signedIn();
     let release: ( () => void ) | null = null;
@@ -2218,7 +2213,7 @@ describe( 'the contribution row CHOOSES an amount, it does not count copies', ()
 
   it( 'REPLACES the line when an amount is chosen, and keeps quantity 1', async () => {
     // CHOOSING ANOTHER AMOUNT IS WHAT THIS USED TO DRIVE, ₹250 -> ₹100. The owner reduced
-    // `Contribute` in Wix to a single ₹250 variant on 2026-10-10, so the select offers one option
+    // `Contribute` in the catalogue to a single ₹250 variant on 2026-10-10, so the select offers one option
     // and there is no second amount to switch to. Re-choosing the same one still pins the
     // property: the row writes through `setContribution`, which REPLACES, so a line at quantity 2
     // here would mean `addItem` had crept back behind this control.
@@ -2257,7 +2252,7 @@ describe( 'the contribution row CHOOSES an amount, it does not count copies', ()
 
 describe( 'CONTRIBUTION_NOT_PAYABLE says what is true instead of naming an impossible action', () => {
   /**
-   * Review pass 3, CR3-3. The server arm this covers fires when Wix will not price a
+   * Review pass 3, CR3-3. The server arm this covers fires when the catalogue will not price a
    * contribution-only cart - most likely because it wants a delivery destination for a PHYSICAL
    * product, which is what the live `Contribute` product is. It used to answer `CART_NOT_PAYABLE`,
    * whose copy is "Please review your cart and try again": the basket is one donation, so there is
@@ -2337,7 +2332,7 @@ describe( 'CART_RESET_REQUIRED carries an action, not only words', () => {
       expect( second.body.resetCart ).toBe( true );
       expect( second.body.lineItems ).toEqual( first.body.lineItems );
       // The BROWSER cart is untouched: the reset abandons the SERVER pointer only, and the next
-      // prepare rebuilds the Wix cart from this same localStorage basket.
+      // prepare rebuilds the server cart from this same localStorage basket.
       expect( cart.readCart() ).toHaveLength( 1 );
       expect( cart.readCart()[ 0 ].variantId ).toBe( ONLY.variantId );
     } );

@@ -22,9 +22,10 @@ interface IR { name: string; unitPrice: string; quantity: string; gstRate: strin
  *
  * `landmark`, `houseNumber` and `buildingName` are gone from this form's state. They were three
  * extra CRM columns standing in for `locality` and `addressLine2`, and nothing in the payment
- * path reads them: `contact_address._RULES` has eight fields and `payment_address.for_wix` /
- * `for_meta_beneficiary` project those eight. The stored flat columns are NOT deleted and are
- * NOT overwritten with blanks - the WhatsApp subscribe flow still writes them - they are simply
+ * path reads them: `contact_address._RULES` has eight fields and the `payment_address`
+ * projections (the order payload and `for_meta_beneficiary`) project those eight. The stored
+ * flat columns are NOT deleted and are NOT overwritten with blanks - the WhatsApp subscribe flow
+ * still writes them - they are simply
  * no longer edited here, and `openEditCust` folds whatever is in them into `addressLine2` /
  * `locality` so an existing contact loads with its address intact.
  */

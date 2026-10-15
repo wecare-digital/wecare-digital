@@ -13,7 +13,7 @@ import {
  * are what make this route render at HTTP 200 with a public shell rather than the staff sign-in
  * page, and keep it in the sitemap. src/test/ShopIndexRedirect.test.ts pins all of it.
  *
- * THIN ON PURPOSE. This file was 130 lines of markup and styles over the eight Wix rows; it is
+ * THIN ON PURPOSE. This file was 130 lines of markup and styles over the eight catalogue rows; it is
  * now a route that says "page 1". The view lives in components/ShopListingView.tsx and the data
  * in src/content/shopProducts.ts, both shared with src/pages/shop/page/[page].tsx - two routes
  * render the identical page and a copy of either would drift.
