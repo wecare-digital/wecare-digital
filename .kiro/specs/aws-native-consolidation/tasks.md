@@ -78,8 +78,11 @@ Legend: `[x]` done and verified · `[~]` implemented, not deployed · `[ ]` not 
       571 MB already in swap; disk 14 GB of 40 GB (`docs/migrations/evidence/lightsail-preflight-20261015.txt`).
 - [x] C.3 🔒 Approved host-access session ran `preflight.sh` 2026-10-15 01:00 UTC (port 22 for one IP,
       short-lived certificate, closed afterwards).
-- [ ] C.4 🔒 Stop and disable the dead `sms-proxy.service` (Airtel proxy on :8899, still running)
-      and, if unused, Docker/containerd; then re-measure.
+- [x] C.4 🔒 Stopped and disabled `sms-proxy.service` and Docker/containerd (2026-10-15 02:39 UTC,
+      owner-approved); 228 MB used after, Asterisk and 5061 unaffected.
+- [x] C.5 Verdict corrected: swap was idle (si/so 0). CONDITIONAL GO for a fresh Nano build,
+      NO-GO for copying the box.
+- [ ] C.6 Owner decision: keep Micro, fresh Nano build, or Plivo WhatsApp Calling (retire Lightsail).
 
 ## Gate 7 — Cost
 
