@@ -10,6 +10,7 @@ import type { ProductDef } from './products';
  * surface reads - this page and the four workspace tables.
  */
 import { REVIEW_ENTRY_URL } from '../lib/reviewEntry';
+import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
 
 /**
  * The seven Customer service pages, as data.
@@ -76,8 +77,11 @@ const cycle = ( a: string, b: string, c: string, d: string ): CycleWord[] => [
 ];
 
 /**
- * Every CTA lands on the public contact page, which is the real entry point - its own badge
- * reads "Customer service by WECARE.DIGITAL" and its rotation already names these actions.
+ * THE FALLBACK, NOT THE DESTINATION. ProductPage points the "Continue on WhatsApp" pill at the
+ * page's own conversation from src/config/whatsappServiceEntries.ts whenever one exists, and
+ * every request page here has one, so none of them actually lands on /contact/ any more. This
+ * is only what a page with no service entry would fall back to. Refer & Earn has no entry, so
+ * it carries its own keyword deep link instead - otherwise its WhatsApp pill opened a web page.
  * Through a constant so `grep CUSTOMERSERVICE_CTA` lists them all, the way PRODUCT_CTA does.
  */
 const CUSTOMERSERVICE_CTA = 'https://wecare.digital/contact/';
@@ -322,7 +326,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
     note:
       'What a referral is worth depends on what the person you introduced does next, so it is recognised case by case, not at a fixed rate. Anyone introducing people regularly should ask us about a partner arrangement - a different conversation, with terms written down.',
     ctaLabel: 'Introduce someone',
-    ctaHref: CUSTOMERSERVICE_CTA,
+    ctaHref: whatsappKeywordLink( 'Refer and Earn' ),
     ctaNote: 'Continue on WhatsApp →',
   },
 ];

@@ -11,9 +11,11 @@ import {
  * Head for /shop/page/N/, and ONLY for /shop/page/N/.
  *
  * WHY PAGE 1 IS NOT HERE. /shop/ is a static pathname-keyed route, so _app.tsx reads
- * PUBLIC_PAGE_META['/shop'] and already emits its canonical, its title, its WebPage node and a
- * BreadcrumbList of [Home, Shop] - which is exactly the trail the listing renders. There is
- * nothing to add and a second <head> would compete with it.
+ * PUBLIC_PAGE_META['/shop'] and emits its canonical, its WebPage node and a BreadcrumbList of
+ * [Home, Shop] - which is exactly the trail the listing renders. What _app.tsx does NOT emit
+ * is a per-page title: its sitewide <title> is the home page's, so /shop/ shipped as "Everyday
+ * AI, built for Bharat" until 2026-10-16. Page 1 sets its title and description through
+ * PageShell in ShopListingView, from SHOP_LISTING_DESCRIPTION below.
  *
  * WHY PAGES 2..N MUST OWN THEIRS. router.pathname for a dynamic route is the PATTERN
  * '/shop/page/[page]', so a PUBLIC_PAGE_META entry would compute a canonical of
@@ -48,11 +50,11 @@ const SHOP_ROOT = `${ORIGIN}/shop/`;
  * (a title of 15 to 75 characters, a description of 50 to 170) at today's three pages and at two
  * digits.
  */
-const BASE_DESCRIPTION =
+export const SHOP_LISTING_DESCRIPTION =
   'Every WECARE.DIGITAL product and service on one page, each linking to its own page.';
 
 interface ShopListingHeadProps {
-  /** 2 or greater. Page 1 is /shop/ and is served by _app.tsx. */
+  /** 2 or greater. Page 1 is /shop/ and uses PageShell. */
   page: number;
   totalPages: number;
 }
@@ -60,7 +62,7 @@ interface ShopListingHeadProps {
 const ShopListingHead: React.FC<ShopListingHeadProps> = ( { page, totalPages } ) => {
   const canonical = `${ORIGIN}${shopListingPageHref( page )}`;
   const title = buildPageTitle( `Shop, page ${page} of ${totalPages}` );
-  const description = `${BASE_DESCRIPTION} Page ${page} of ${totalPages}.`;
+  const description = `${SHOP_LISTING_DESCRIPTION} Page ${page} of ${totalPages}.`;
 
   const schema = {
     '@context': 'https://schema.org',

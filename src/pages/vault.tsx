@@ -22,7 +22,8 @@ import { serviceByKind } from '../config/services';
  * This page is the part that CAN sit in a menu: what is kept, for how long, and how a copy is
  * released.
  *
- * ITS CTA GOES TO /contact/, NOT TO /get/, like all five of its siblings. /get/ only has
+ * ITS CTA OPENS THE VAULT WHATSAPP CONVERSATION (whatsappServiceLink('vault')), NOT /get/, the
+ * same way each sibling opens its own service conversation. /get/ only has
  * something to show once files have actually been shared with you; a visitor whose document
  * was never put there would land on an empty collection screen, which is a worse answer than
  * being asked. The third point below describes the mechanism without linking to it, because

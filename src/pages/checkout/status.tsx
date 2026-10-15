@@ -67,9 +67,9 @@
  * THE TOP BAND IS SHARED NOW, AND IT HAD TO BE. This page used to centre a card inside
  * min-height:100vh with NO header clearance at all and no font stack declared, so its heading
  * painted underneath the 108px fixed header and its typeface depended on an Amplify stylesheet
- * happening to set one on body. components/PageTopBand owns the main landmark, the h1, both header
- * heights, the measure and the entrance animation, which is the whole of skill §6 that this screen
- * was missing.
+ * happening to set one on body. components/RotatingHero (which replaced PageTopBand) owns the
+ * main landmark, the h1, both header heights, the measure and the entrance animation, which is
+ * the whole of skill §6 that this screen was missing. It runs with a single static word here.
  */
 
 import Head from 'next/head';
@@ -258,7 +258,10 @@ export default function CheckoutStatus (): React.ReactElement {
   return (
     <>
       <Head>
-        <title>{copy.title} — WECARE.DIGITAL</title>
+        {/* ONE STRING CHILD. `{x} — BRAND` is two text children, and next/head renders a
+            <title> with more than one child EMPTY in the static HTML - which is what this page
+            shipped until 2026-10-16. A template literal is a single child. */}
+        <title>{ `${ copy.title } | WECARE.DIGITAL` }</title>
         {/* Transactional, session-bound, and per-customer: never indexed. */}
         <meta name="robots" content="noindex,nofollow" />
       </Head>

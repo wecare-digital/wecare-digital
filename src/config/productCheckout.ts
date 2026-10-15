@@ -1,13 +1,16 @@
 /**
- * TEMPORARY PRODUCT-CHECKOUT PLACEHOLDER, for the nine product pages whose real catalogue line
- * does not exist yet (Elsewhere, Expo Week, Dastavez, Clear Closure, Ritual Guru, Anew, Hunar,
- * Niji Setu, Bharat Rx).
+ * TEMPORARY PRODUCT-CHECKOUT PLACEHOLDER, for the nine pages that mount ProductBuyBox and whose
+ * real catalogue line does not exist yet (Expo Week, Dastavez, Clear Closure, Ritual Guru, Anew,
+ * Hunar, Niji Setu, Bharat Rx, Refer & Earn).
  *
  * WHAT THIS IS FOR. The owner wants the "Continue to checkout →" format LIVE on every product page
  * now, paid end to end, so the whole flow is proven. Until each product has its own catalog line, the
- * button checks out a REAL ₹1 catalogue product — `₹1 test product`, which exists and is in stock
- * in the live catalogue (src/content/catalog-snapshot.json) — so the checkout is genuine and the
- * server accepts it, rather than a fake id that would 404 at catalog and dead-end.
+ * button checks out a REAL ₹1 catalogue product — `₹1 test product`, which exists in the live
+ * ProductsTable — so the checkout is genuine and the server accepts it, rather than a fake id that
+ * would 404 at catalog and dead-end. Since 2026-10-15 the row is hidden from /shop/ and the Meta
+ * feed (visible:false, websiteEnabled:false in src/content/catalog-snapshot.json). That does not
+ * stop this checkout: native_cart._unit_price_paise prices any row whose status is `active`, and
+ * this one is (read from the live table on 2026-10-16).
  *
  * HOW TO MAKE A PRODUCT REAL. When a product gets its own catalog line, give it an entry in
  * `PRODUCT_CHECKOUT` below keyed on its page slug, with the live `productId`/`variantId`. The

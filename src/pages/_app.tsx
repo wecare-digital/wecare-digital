@@ -93,6 +93,7 @@ import { ConfirmProvider } from '../contexts/ConfirmContext';
 import { initCapacitor, isNative } from '../lib/capacitor';
 import { VERIFICATION } from '../config/analytics';
 import { ORGANIZATION, WEBSITE, ORG_ID, ld } from '../lib/schema';
+import { breadcrumbTrail } from '../content/breadcrumbTrails';
 
 /**
  * Plain-English labels for the MFA chooser.
@@ -1160,7 +1161,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
             <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( serviceSchema ) } } />
           ) }
           <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( getPublicPageSchema( router.pathname ) ) } } />
-          { PUBLIC_PAGE_META[ router.pathname ] && <script key="public-breadcrumbs" type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( breadcrumbSchema( [ { name: 'Home', href: '/' }, { name: PUBLIC_PAGE_META[ router.pathname ].name } ], `${router.pathname}/` ) ) } } /> }
+          { PUBLIC_PAGE_META[ router.pathname ] && <script key="public-breadcrumbs" type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( breadcrumbSchema( breadcrumbTrail( router.pathname )?.map( ( { label, href } ) => ( { name: label, href } ) ) || [ { name: 'Home', href: '/' }, { name: PUBLIC_PAGE_META[ router.pathname ].name } ], `${router.pathname}/` ) ) } } /> }
         </Head>
         ) }
         {/* NO DIRECT gtag.js HERE - BY POLICY, and it was being violated.

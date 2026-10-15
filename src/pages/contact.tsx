@@ -78,9 +78,10 @@ const ContactPage: React.FC = () => (
         .request-hub p{font-size:20px;line-height:1.4;margin:8px 0 0}
       `}</style>
 
-      {/* THE CAPABILITY STRIP HAS MOVED TO THE HOME PAGE, at the owner's request. It used
-          to sit here as <ContactCapabilities /> - the seven things the arrival map can do.
-          It is now src/components/PlatformCapabilities.tsx and renders on '/'.
+      {/* THE CAPABILITY STRIP LEFT THIS PAGE, at the owner's request. It used to sit here as
+          <ContactCapabilities /> - the seven things the arrival map can do - and moved to the
+          home page as PlatformCapabilities, which has since been removed as well (there is no
+          src/components/PlatformCapabilities.tsx any more).
           This page is better for it: /contact/ is where someone goes to reach us, and a
           seven-item platform showcase underneath the address competed with that job. */}
     </RotatingHero>

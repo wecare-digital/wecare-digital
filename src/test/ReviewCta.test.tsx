@@ -358,10 +358,15 @@ describe( '/leave-review/ page CTA', () => {
   } );
 
   it( 'no other customer-service CTA was repointed', () => {
-    const others = CUSTOMERSERVICE.filter( p => p.slug !== 'leave-review' );
+    // Refer & Earn is the one deliberate exception, since 2026-10-16: it has no WhatsApp service
+    // entry, so ProductPage fell back to this ctaHref and its "Continue on WhatsApp" pill opened
+    // /contact/. It now carries the keyword deep link every product page uses.
+    const others = CUSTOMERSERVICE.filter( p => p.slug !== 'leave-review' && p.slug !== 'refer-and-earn' );
     expect( others.length ).toBeGreaterThan( 0 );
     for ( const page of others ) {
       expect( page.ctaHref, page.slug ).toBe( 'https://wecare.digital/contact/' );
     }
+    const refer = CUSTOMERSERVICE.find( p => p.slug === 'refer-and-earn' );
+    expect( refer?.ctaHref ).toBe( 'https://wa.me/919330994400?text=Refer%20and%20Earn' );
   } );
 } );

@@ -1,5 +1,6 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
+import { breadcrumbTrail } from '../content/breadcrumbTrails';
 import ProductBuyBox from '../components/ProductBuyBox';
 import { productBySlug } from '../content/products';
 
@@ -24,7 +25,7 @@ import { productBySlug } from '../content/products';
 const RitualGuruPage: React.FC = () => (
   <ProductPage
     product={ productBySlug( 'ritual-guru' ) }
-    crumbs={ [ { label: 'Home', href: '/' }, { label: 'Shop', href: '/shop/' }, { label: 'Ritual Guru' } ] }
+    crumbs={ breadcrumbTrail( '/ritual-guru' ) }
     belowCta={ <ProductBuyBox slug="ritual-guru" /> }
   />
 );

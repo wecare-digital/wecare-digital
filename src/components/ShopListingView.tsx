@@ -1,3 +1,4 @@
+import { SHOP_LISTING_DESCRIPTION } from './ShopListingHead';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import RotatingHero, { type CycleWord } from './RotatingHero';
@@ -185,7 +186,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
     >
       <div className="shop-in">
         <PageShell title={ page === 1 ? 'Shop' : `Shop, page ${page} of ${totalPages}` }
-          description={ page === 1 ? 'Browse WECARE.DIGITAL products and services.' : `Every WECARE.DIGITAL product and service on one page, each linking to its own page. Page ${page} of ${totalPages}.` }
+          description={ page === 1 ? SHOP_LISTING_DESCRIPTION : `${SHOP_LISTING_DESCRIPTION} Page ${page} of ${totalPages}.` }
           canonical={ page === 1 ? '/shop/' : `/shop/page/${page}/` }
           crumbs={ [ { name: 'Home', href: '/' }, { name: 'Shop' } ] } />
 

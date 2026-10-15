@@ -41,7 +41,11 @@ export interface ShopListingPageProps {
   totalPages: number;
 }
 
-const ShopIndex = ( props: ShopListingPageProps ) => <ShopListingView { ...props } />;
+const ShopIndex = ( props: ShopListingPageProps ) => (
+  <>
+    <ShopListingView { ...props } />
+  </>
+);
 
 export const getStaticProps: GetStaticProps<ShopListingPageProps> = async () => ( {
   props: {

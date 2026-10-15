@@ -1,6 +1,7 @@
 import React from 'react';
 import type { GetStaticProps } from 'next';
 import ProductPage from '../components/ProductPage';
+import { breadcrumbTrail } from '../content/breadcrumbTrails';
 import ProductBuyBox from '../components/ProductBuyBox';
 import { productBySlug } from '../content/products';
 import { listPublicBlogPosts, listBlogCards, type BlogCard } from '../lib/public-blog';
@@ -19,7 +20,7 @@ interface AnewPageProps {
 const AnewPage: React.FC<AnewPageProps> = ( { blogCards, blogCategories } ) => (
   <ProductPage
     product={ productBySlug( 'anew' ) }
-    crumbs={ [ { label: 'Home', href: '/' }, { label: 'Shop', href: '/shop/' }, { label: 'Anew' } ] }
+    crumbs={ breadcrumbTrail( '/anew' ) }
     blogCards={ blogCards }
     blogCategories={ blogCategories }
     blogHeading="Perspectives"
