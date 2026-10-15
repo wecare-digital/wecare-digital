@@ -717,7 +717,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( rec.mapOpts?.scrollwheel ).toBe( true );
     expect( rec.mapOpts?.keyboardShortcuts ).toBe( true );
     expect( rec.mapOpts?.disableDoubleClickZoom ).toBe( false );
-    expect( rec.mapOpts?.zoomControl ).toBe( true );
+    expect( rec.mapOpts?.zoomControl ).toBe( false );
     expect( rec.mapClickHandler ).toBeUndefined();
 
     expect( container.querySelector( '.vl-live-place-card' ) ).toBeNull();
