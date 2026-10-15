@@ -12,8 +12,8 @@ and what would change" is decidable offline against the committed storefront sna
 `src/content/catalog-snapshot.json` (generated from ProductsTable by
 `scripts/build-catalog-snapshot.py`), which is how `tests/test_meta_catalog_sync.py` pins the
 item count without a credential. The Lambda in `ecommerce/meta-catalog-sync/` is the only thing
-that reads ProductsTable for this projection or talks to Meta, and it ships with both gates
-closed.
+that reads ProductsTable for this projection or talks to Meta. Its deployment environment
+controls whether a computed plan may be applied.
 
 ONE DIRECTION ONLY: PRODUCTSTABLE -> META
 -----------------------------------------
@@ -204,9 +204,8 @@ def retailer_id(product_id: Any, variant_id: Any) -> str:
     value: it would create a Meta item nothing can resolve, and the resolution failure would show
     up at order time as "we cannot price this line" rather than here.
 
-    Lowercasing is safe and necessary: the catalogue stores canonical lowercase UUIDs, and Meta's
-    retailer id is case-sensitive, so one upper-case character anywhere in the pipeline would fork
-    the item.
+    The namespace is emitted exactly as configured. UUIDs are normalised to lowercase so their
+    input case cannot fork a Meta item; incoming ids are parsed case-insensitively.
     """
     product = str(product_id or "").strip().lower()
     variant = str(variant_id or "").strip().lower()
