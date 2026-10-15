@@ -390,7 +390,7 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
   { path: '/workspace/dashboard/lambda-functions', label: 'Lambda Functions', backend: '(static data)', tables: '-' },
   { path: '/workspace/dashboard/code-repo', label: 'Code Repo', backend: '(static data)', tables: '-' },
   // WhatsApp
-  { path: '/workspace/engage/whatsapp', label: 'WhatsApp Inbox', backend: 'messages-read, inbound-whatsapp, outbound-whatsapp', tables: 'WhatsAppInbound, WhatsAppOutbound, Contact' },
+  { path: '/workspace/engage/inbox?channel=whatsapp', label: 'WhatsApp Inbox', backend: 'messages-read, inbound-whatsapp, outbound-whatsapp', tables: 'WhatsAppInbound, WhatsAppOutbound, Contact' },
   { path: '/workspace/engage/whatsapp/templates', label: 'WA Templates', backend: 'whatsapp-templates, whatsapp-template-management', tables: 'TemplateAnalytics' },
   { path: '/workspace/engage/whatsapp/campaign', label: 'WA Campaign', backend: 'outbound-whatsapp, bulk-job-create', tables: 'BulkJob, BulkRecipient, WhatsAppOutbound' },
   { path: '/workspace/engage/whatsapp/flows', label: 'WA Flows', backend: 'whatsapp-business-api', tables: 'FlowRegistry, FlowSubmission' },

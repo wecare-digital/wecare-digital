@@ -36,7 +36,7 @@ import Layout from '../../components/Layout';
 import SEO from '../../components/SEO';
 import {
   DashboardIcon, MessageIcon, ContactsIcon, StoreIcon, PaymentIcon, LinkIcon,
-  FormIcon, DocumentIcon, CheckListIcon, SearchIcon, AdvisorIcon, AccessIcon,
+  FormIcon, DocumentIcon, CheckListIcon, SearchIcon, AdvisorIcon,
   OverviewIcon, SettingsIcon,
 } from '../../lib/icons';
 
@@ -55,6 +55,23 @@ interface Family {
  * Every tile's `path` was confirmed to return 200 live on 2026-09-27. Keep it
  * that way: a hub whose links 404 is worse than no hub, because it looks
  * authoritative.
+ *
+ * NO TILE POINTS AT A REDIRECT STUB (2026-10-15). Five tiles used to: forms/, docs/,
+ * service/ and admin/ are router.replace signposts kept only so old bookmarks land
+ * somewhere, and access/ is the sign-in landing, which sends a signed-in user straight
+ * to /workspace/dashboard. A 200 from a signpost is not a destination, so each tile now
+ * names the page its signpost delivers, and says what that page is:
+ *   forms/   -> forms/responses              (label kept: it is the forms queue)
+ *   docs/    -> engage/documents             ("Drop Docs" — the old "Provider
+ *               documentation and changelog" text described the Docs Scraper, which
+ *               this tile never reached; that is engage/docs, in the gear)
+ *   service/ -> engage/service-ops           (label kept)
+ *   admin/   -> dashboard/system-architecture ("Architecture snapshot", the gear's
+ *               label for the same page — it is a document, not an admin console)
+ * The Access tile is GONE rather than repointed: its signpost lands on the dashboard,
+ * which is the first tile here, and nothing in the app is "Users, roles and
+ * permissions". Sign-in & MFA is in the gear's account group. Navigation.test.tsx
+ * asserts each path below is a real page and none is a signpost.
  */
 const families: Family[] = [
   { id: 'dashboard', label: 'Dashboard', desc: 'System overview, health and live metrics', path: '/workspace/dashboard/', Icon: DashboardIcon, color: '#3B82F6' },
@@ -63,13 +80,12 @@ const families: Family[] = [
   { id: 'commerce', label: 'Commerce', desc: 'Catalogue, orders and store integration', path: '/workspace/commerce/', Icon: StoreIcon, color: '#F59E0B' },
   { id: 'pay', label: 'Payments', desc: 'Invoices, collections and reconciliation', path: '/workspace/pay/', Icon: PaymentIcon, color: '#10B981' },
   { id: 'link', label: 'Links', desc: 'Short links and click analytics', path: '/workspace/link/', Icon: LinkIcon, color: '#6366F1' },
-  { id: 'forms', label: 'Forms', desc: 'Customer service forms and submissions', path: '/workspace/forms/', Icon: FormIcon, color: '#EC4899' },
-  { id: 'docs', label: 'Docs', desc: 'Provider documentation and changelog', path: '/workspace/docs/', Icon: DocumentIcon, color: '#0EA5E9' },
+  { id: 'forms', label: 'Forms', desc: 'Customer service forms and submissions', path: '/workspace/forms/responses/', Icon: FormIcon, color: '#EC4899' },
+  { id: 'docs', label: 'Drop Docs', desc: 'Documents customers send in, for review and approval', path: '/workspace/engage/documents/', Icon: DocumentIcon, color: '#0EA5E9' },
   { id: 'task', label: 'Tasks', desc: 'Work items, assignments and follow-ups', path: '/workspace/task/', Icon: CheckListIcon, color: '#14B8A6' },
   { id: 'seo', label: 'SEO', desc: 'Sitemaps, metadata and search tooling', path: '/workspace/seo/', Icon: SearchIcon, color: '#A855F7' },
-  { id: 'service', label: 'Service', desc: 'Customer requests and service desk', path: '/workspace/service/', Icon: AdvisorIcon, color: '#EF4444' },
-  { id: 'access', label: 'Access', desc: 'Users, roles and permissions', path: '/workspace/access/', Icon: AccessIcon, color: '#F97316' },
-  { id: 'admin', label: 'Admin', desc: 'Administrative operations and audit', path: '/workspace/admin/', Icon: OverviewIcon, color: '#64748B' },
+  { id: 'service', label: 'Service', desc: 'Customer requests and service desk', path: '/workspace/engage/service-ops/', Icon: AdvisorIcon, color: '#EF4444' },
+  { id: 'admin', label: 'Architecture snapshot', desc: 'Hand-maintained map of routes, functions, storage and risks', path: '/workspace/dashboard/system-architecture/', Icon: OverviewIcon, color: '#64748B' },
   // No index.tsx under settings/ — link the page that exists, not the directory.
   { id: 'settings', label: 'Settings', desc: 'Internal agent and system configuration', path: '/workspace/settings/internal-agent/', Icon: SettingsIcon, color: '#6B7280' },
 ];

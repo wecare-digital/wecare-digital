@@ -18,8 +18,11 @@ const PushIcon: React.FC<{ size?: number; color?: string }> = ({ size = 18, colo
   </svg>
 );
 
+// WhatsApp points at the inbox filter directly. It pointed at /workspace/engage/whatsapp,
+// which since 2026-10-15 is a router.replace signpost to this same URL, so the tile
+// lands where it always did, minus a redirect.
 const channels = [
-  { id: 'whatsapp', label: 'WhatsApp', desc: 'Business API messaging, campaigns & templates', path: '/workspace/engage/whatsapp', Icon: WhatsAppIcon, color: '#25D366', count: 0 },
+  { id: 'whatsapp', label: 'WhatsApp', desc: 'Business API messaging, campaigns & templates', path: '/workspace/engage/inbox?channel=whatsapp', Icon: WhatsAppIcon, color: '#25D366', count: 0 },
   { id: 'sms', label: 'SMS', desc: 'Transactional and promotional SMS', path: '/workspace/engage/sms', Icon: SmsIcon, color: '#3B82F6', count: 0 },
   { id: 'voice', label: 'Voice', desc: 'Outbound calls & CDR logs', path: '/workspace/engage/voice', Icon: VoiceIcon, color: '#8B5CF6', count: 0 },
   { id: 'email', label: 'Email', desc: 'Amazon SES campaigns & inbox', path: '/workspace/engage/ses', Icon: EmailIcon, color: '#EF4444', count: 0 },
@@ -42,7 +45,11 @@ const MessagesPage: React.FC<PageProps> = ({ signOut, user }) => {
 
   const handleQuickAction = (action: string) => {
     if (action === 'send') setSendOpen(true);
-    else if (action === 'logs') router.push('/workspace/engage/whatsapp');
+    // "View All Logs — Cross-channel message history" is engage/logs, the one logs view
+    // over MessagesTable for every channel. This went to /workspace/engage/whatsapp, a
+    // WhatsApp-only inbox, which kept neither half of the promise; that URL is now a
+    // signpost, so following it would only have added a redirect to the same mismatch.
+    else if (action === 'logs') router.push('/workspace/engage/logs');
     else if (action === 'contacts') router.push('/workspace/contacts');
   };
 

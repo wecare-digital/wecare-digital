@@ -61,7 +61,7 @@ export const useNavigationShortcuts = () => {
 
   const shortcuts: ShortcutConfig[] = [
     { key: 'd', ctrl: true, action: () => router.push('/workspace/dashboard'), description: 'Go to Dashboard' },
-    { key: 'm', ctrl: true, action: () => router.push('/workspace/engage/whatsapp'), description: 'Go to Messages' },
+    { key: 'm', ctrl: true, action: () => router.push('/workspace/engage/inbox?channel=whatsapp'), description: 'Go to Messages' },
     { key: 'c', ctrl: true, shift: true, action: () => router.push('/workspace/contacts'), description: 'Go to Contacts' },
     { key: 'b', ctrl: true, action: () => router.push('/workspace/engage/whatsapp/campaign'), description: 'Go to Campaign' },
     { key: 'p', ctrl: true, shift: true, action: () => router.push('/workspace/pay'), description: 'Go to Pay' },

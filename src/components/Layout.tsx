@@ -19,7 +19,10 @@ import BrandLockup from './BrandLockup';
 // Minimal navigation shown to limited-access partner (customer) users.
 const PARTNER_NAV: NavItem[] = [
   {
-    path: '/workspace/engage/whatsapp', label: 'WhatsApp', icon: 'whatsapp', children: [
+    // The parent row targets the partner's own page. It was /workspace/engage/whatsapp, the
+    // shared inbox (since 2026-10-15 a signpost to it) - a page a partner may not open, so
+    // the click only reached my-account by way of the redirect in the effect below.
+    path: '/workspace/engage/whatsapp/my-account', label: 'WhatsApp', icon: 'whatsapp', children: [
       { path: '/workspace/engage/whatsapp/my-account', label: 'My WhatsApp Account' },
       // Inbox intentionally omitted until tenant-scoped (avoids data leakage).
     ],

@@ -110,14 +110,21 @@ describe( 'SearchModal behaviour', () => {
   } );
 
   it( 'disambiguates same-named pages by their parent section', () => {
-    // More than one entry is called "Inbox" - the sidebar stream and the WhatsApp
-    // settings page. Without the parent as a subtitle they are indistinguishable in
-    // a flat result list, which is why getAllNavItems carries `parent`.
-    const inboxes = getAllNavItems().filter( ( i ) => /inbox/i.test( i.label ) );
-    expect( inboxes.length ).toBeGreaterThan( 1 );
-    expect( inboxes.some( ( i ) => !!i.parent ) ).toBe( true );
+    // Two different pages are both labelled "Commerce": Store -> Commerce
+    // (/workspace/engage/commerce) and the gear's Modules -> Commerce (/workspace/commerce).
+    // Without the parent as a subtitle they are indistinguishable in a flat result list,
+    // which is why getAllNavItems carries `parent`.
+    //
+    // The example was "Inbox" until 2026-10-15: the sidebar stream and the gear's
+    // "WhatsApp Inbox". That gear row was removed as a second URL for the same inbox, so
+    // one "Inbox" is left and it no longer exercises the property.
+    const commerce = getAllNavItems().filter( ( i ) => i.label === 'Commerce' );
+    expect( new Set( commerce.map( ( i ) => i.path ) ).size ).toBe( 2 );
+    expect( new Set( commerce.map( ( i ) => i.parent ) ) ).toEqual( new Set( [ 'Store', 'Modules' ] ) );
     render( <SearchModal isOpen onClose={ () => undefined } /> );
-    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'inbox' } } );
-    expect( screen.getAllByText( /Inbox/ ).length ).toBeGreaterThan( 0 );
+    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'commerce' } } );
+    expect( screen.getAllByText( 'Commerce' ) ).toHaveLength( 2 );
+    expect( screen.getByText( 'Store' ) ).toBeInTheDocument();
+    expect( screen.getByText( 'Modules' ) ).toBeInTheDocument();
   } );
 } );

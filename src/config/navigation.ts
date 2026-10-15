@@ -166,7 +166,15 @@ export const navigationConfig: NavItem[] = [
     children: [
       // Responses first: a submitted request nobody actioned is a customer who paid
       // and heard nothing, so the queue matters more than a builder would.
-      { path: '/workspace/forms/responses', label: 'Responses' },
+      //
+      // Labelled 'Form responses' — the page's own heading — since 2026-10-15. It was
+      // 'Responses', the same label as Service Ops -> Responses (request/responses), and
+      // the two are NOT one queue: this reads listSubmitRequests (SubmitRequest rows) with
+      // the oldest-unpaid sort, age, expiry and the awaiting/expired/collected totals;
+      // that one reads listFlowSubmissions through ResponsesQueue, which has none of
+      // those. Until the unified queue reaches that parity both stay, and they need
+      // names a person can tell apart in Ctrl+K.
+      { path: '/workspace/forms/responses', label: 'Form responses' },
       // '/workspace/forms/create' ("Forms Builder") was here. Removed 2026-09-25 with the page: it
       // was a ComingSoon stub listing six features with no backend behind any of them,
       // and [retired public path]/index.tsx redirected straight to it, so the whole [retired public path] landing was a
@@ -229,7 +237,12 @@ export const settingsConfig: SettingsGroup[] = [
       // and does not evaluate IAM — so the signed-in person must be able to reach
       // this. Burying it would work against the admin-MFA target.
       { path: '/workspace/access/security', label: 'Sign-in & MFA' },
-      { path: '/workspace/access', label: 'Access' },
+      // '/workspace/access' ("Access") was a second row here. It is the sign-in landing,
+      // and for a signed-in user - the only person who can open this gear - it does
+      // nothing but router.replace to /workspace/dashboard (access/index.tsx), which is
+      // already "Dashboard Overview" under Platform. A row labelled Access that lands on
+      // the dashboard is a promise the page does not keep. The PAGE stays: it is where
+      // "Sign in" links go.
     ],
   },
   {
@@ -238,7 +251,11 @@ export const settingsConfig: SettingsGroup[] = [
     icon: 'whatsapp',
     hint: 'WABA setup, templates, flows, calling',
     items: [
-      { path: '/workspace/engage/whatsapp', label: 'WhatsApp Inbox' },
+      // 'WhatsApp Inbox' (/workspace/engage/whatsapp) led this group until 2026-10-15. It
+      // was the same UnifiedInbox, pre-filtered to WhatsApp, that the sidebar's
+      // Inbox -> WhatsApp child opens - and an inbox is a daily stream, which by the rule
+      // at the top of this file is sidebar work, not configure-once. The route is now a
+      // router.replace signpost to /workspace/engage/inbox?channel=whatsapp.
       { path: '/workspace/engage/whatsapp/waba-dashboard', label: 'WABA Dashboard' },
       { path: '/workspace/engage/whatsapp/embedded-signup', label: 'Connect WABA' },
       { path: '/workspace/engage/whatsapp/connected-accounts', label: 'Connected Accounts' },
@@ -368,7 +385,10 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/dashboard/system-architecture', label: 'Architecture snapshot' },
       { path: '/workspace/dashboard/lambda-functions', label: 'Lambda Functions' },
       { path: '/workspace/dashboard/code-repo', label: 'Code Repo' },
-      { path: '/workspace/dashboard/waba-usernames', label: 'WABA Usernames' },
+      // 'WABA Usernames' (/workspace/dashboard/waba-usernames) was a row here until
+      // 2026-10-15. It was a smaller copy of WhatsApp -> BSUID & Usernames (same
+      // getBusinessUsername / claimBusinessUsername calls, same two numbers, none of the
+      // suggestions or webhook fields), so the route is now a signpost to that page.
       { path: '/workspace/dashboard/wa-graph-tools', label: 'WA Graph Tools' },
       { path: '/workspace/dashboard/cors-settings', label: 'CORS Settings' },
       { path: '/workspace/dashboard/design-reference', label: 'Design Reference' },
@@ -385,7 +405,12 @@ export const settingsConfig: SettingsGroup[] = [
       // menu entry leading to a promise is exactly the failure mode the Growth/Commerce
       // comment above set out to avoid — a flagged-off page that explains itself is real
       // content, "coming soon" is not.
-      { path: '/workspace/docs', label: 'Docs' },
+      //
+      // '/workspace/docs' ("Docs") was the last row here, removed 2026-10-15. docs/index.tsx
+      // is a router.replace signpost to /workspace/engage/documents, which the sidebar
+      // already lists as Service Ops -> Drop Docs, so the row was a second door to one page
+      // with a label that named neither it nor the Docs Scraper (/workspace/engage/docs,
+      // under Messaging tools). The signpost file stays for bookmarks.
     ],
   },
 ];
@@ -439,7 +464,11 @@ export const moduleHomes: ModuleHome[] = [
   {
     id: 'communications', label: 'Communications', path: '/workspace/engage',
     // The master prompt is explicit: Communications exposes EXACTLY these three.
-    innerPages: ['/workspace/engage/inbox', '/workspace/engage/whatsapp', '/workspace/engage/voice'],
+    // WhatsApp Business was `/workspace/engage/whatsapp` until 2026-10-15, when that route
+    // became a signpost to the common inbox (the first entry here) - so naming it would
+    // have listed the common inbox twice and WhatsApp Business not at all. It is now the
+    // WhatsApp hub: every WhatsApp capability except the inbox, as lazy tabs.
+    innerPages: ['/workspace/engage/inbox', '/workspace/engage/whatsapp/settings', '/workspace/engage/voice'],
     note: 'Common Inbox, WhatsApp Business and Business Calling — exactly three, as '
       + 'specified. The other channels (SMS, RCS, Email, Push) are filters on the '
       + 'common inbox plus configuration under the gear, not peers of these three.',
