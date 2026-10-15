@@ -63,7 +63,7 @@ def _run(vault_env, monkeypatch, *, deliverable='pdf', delivery_key='secure/d/re
     last = int(time.time()) if window_open else int(time.time()) - STALE
     contacts.seed({'id': 'c', 'phone': '+910000000000', 'checkoutCustomerId': ALICE,
                    'lastInboundMessageAt': last})
-    tables = {requests.name: requests, 'stack-wecare-digital-WixOrderIds': keys,
+    tables = {requests.name: requests, 'stack-wecare-digital-CommerceKeys': keys,
               files.name: files, grants.name: grants,
               'stack-wecare-digital-ContactsTable': contacts}
     db = Mock()
