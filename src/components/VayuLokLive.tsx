@@ -615,20 +615,6 @@ const COMPASS = [ 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW' ];
 function windDirection( deg: number ): string {
   return COMPASS[ Math.round( deg / 45 ) % 8 ];
 }
-function windDirectionDegrees( dir?: string ): number {
-  const i = COMPASS.indexOf( String( dir || '' ).toUpperCase() );
-  return i >= 0 ? i * 45 : 225;
-}
-
-function worldPixel( lat: number, lng: number, zoom: number ): { x: number; y: number } {
-  const scale = 256 * Math.pow( 2, zoom );
-  const sin = Math.max( -.9999, Math.min( .9999, Math.sin( lat * Math.PI / 180 ) ) );
-  return {
-    x: scale * ( .5 + lng / 360 ),
-    y: scale * ( .5 - Math.log( ( 1 + sin ) / ( 1 - sin ) ) / ( 4 * Math.PI ) ),
-  };
-}
-
 function clamp( value: number, min: number, max: number ): number {
   return Math.min( max, Math.max( min, value ) );
 }
@@ -1102,8 +1088,6 @@ const VayuLokLive: React.FC = () => {
 
   const mapHost = useRef<HTMLDivElement | null>( null );
   const mapRef = useRef<unknown>( null );
-  const atmosphereRef = useRef<HTMLDivElement | null>( null );
-  const atmosphereFrameRef = useRef<number | null>( null );
   // The place the camera already frames, so the place->camera effect never moves the camera to
   // it again. It starts as DEFAULT_PLACE, which the initial global view stands in for, and a
   // place committed from the map center is framed by the visitor's own camera. Compared by
@@ -1424,7 +1408,7 @@ const VayuLokLive: React.FC = () => {
         // Match the approved reference composition: India prominent, Himalaya/China above,
         // Arabian Sea + Bay of Bengal below. The map has worldwide data, but its camera is
         // destination-driven: only search/recent-place selection moves it.
-        center: { lat: 25, lng: 86 },
+        center: { lat: 22.9734, lng: 78.6569 },
         zoom: 4,
         mapTypeId: 'hybrid',
         // Static presentation map. Search/recent-place selection is the only camera-control
@@ -1455,46 +1439,7 @@ const VayuLokLive: React.FC = () => {
         if ( !cancelled ) setMapVisible( true );
       } );
 
-      const motionMap = map as {
-        addListener?: ( eventName: string, handler: () => void ) => { remove?: () => void };
-        getCenter?: () => { lat?: () => number; lng?: () => number } | null;
-        getZoom?: () => number | undefined;
-      };
       const motionListeners: { remove?: () => void }[] = [];
-      const syncAtmosphere = () => {
-        if ( cancelled || atmosphereFrameRef.current !== null ) return;
-        atmosphereFrameRef.current = requestAnimationFrame( () => {
-          atmosphereFrameRef.current = null;
-          const el = atmosphereRef.current;
-          const center = motionMap.getCenter?.();
-          const lat = center?.lat?.();
-          const lng = center?.lng?.();
-          const zoom = motionMap.getZoom?.();
-          if ( !el || !Number.isFinite( lat ) || !Number.isFinite( lng ) || !Number.isFinite( zoom ) ) return;
-
-          const anchor = worldPixel( 25, 86, zoom as number );
-          const current = worldPixel( lat as number, lng as number, zoom as number );
-          el.style.setProperty( '--vl-map-shift-x', `${clamp( anchor.x - current.x, -260, 260 ).toFixed( 1 )}px` );
-          el.style.setProperty( '--vl-map-shift-y', `${clamp( anchor.y - current.y, -180, 180 ).toFixed( 1 )}px` );
-          el.style.setProperty( '--vl-map-scale', clamp( Math.pow( 2, ( ( zoom as number ) - 4 ) * .06 ), .86, 1.18 ).toFixed( 3 ) );
-        } );
-      };
-
-      if ( typeof motionMap.addListener === 'function' ) {
-        for ( const eventName of [ 'center_changed', 'zoom_changed', 'idle' ] ) {
-          motionListeners.push( motionMap.addListener( eventName, syncAtmosphere ) || {} );
-        }
-      }
-
-      let resizeObserver: ResizeObserver | null = null;
-      const onViewportResize = () => syncAtmosphere();
-      if ( typeof ResizeObserver !== 'undefined' ) {
-        resizeObserver = new ResizeObserver( onViewportResize );
-        resizeObserver.observe( host );
-      }
-      window.visualViewport?.addEventListener( 'resize', onViewportResize );
-      window.addEventListener( 'orientationchange', onViewportResize );
-      syncAtmosphere();
 
       // OPTIONAL LIBRARIES LOAD AFTER MAP CONSTRUCTION, IN PARALLEL. Search can still call
       // ensurePlacesLibrary/ensureGeocoder if the user types before these finish; Google's
@@ -1535,13 +1480,6 @@ const VayuLokLive: React.FC = () => {
 
       ( host as HTMLDivElement & { __vlCleanup?: () => void } ).__vlCleanup = () => {
         motionListeners.forEach( listener => listener.remove?.() );
-        resizeObserver?.disconnect();
-        window.visualViewport?.removeEventListener( 'resize', onViewportResize );
-        window.removeEventListener( 'orientationchange', onViewportResize );
-        if ( atmosphereFrameRef.current !== null ) {
-          cancelAnimationFrame( atmosphereFrameRef.current );
-          atmosphereFrameRef.current = null;
-        }
       };
     };
 
@@ -2345,7 +2283,7 @@ const VayuLokLive: React.FC = () => {
     // Only `cancelled`. The map-init effect owns __vlCleanup. Calling it here as well (#335's
     // find-and-replace of this return) removed the map's idle, pointer, wheel, keydown and resize
     // listeners on the first place change, so map movement stopped selecting places and the
-    // atmosphere stopped tracking the camera after one selection.
+    // Weather section no longer mounts a separate storm/cloud map overlay.
     return () => { cancelled = true; };
   }, [ place.lat, place.lng, place.placeId, hasSelection, mapReady, ensureGeocoder ] );
 
@@ -2574,28 +2512,6 @@ const VayuLokLive: React.FC = () => {
     ? locationTime.shortLabel
     : 'IST default';
 
-  const atmosphereStyle = useMemo( () => {
-    const cloud = Number.isFinite( weather?.cloudCover ) ? weather?.cloudCover as number : 58;
-    const rain = Number.isFinite( weather?.rainProb ) ? weather?.rainProb as number : 24;
-    const storm = Number.isFinite( weather?.stormProb ) ? weather?.stormProb as number : 18;
-    const wind = Number.isFinite( weather?.windSpeed ) ? weather?.windSpeed as number : 16;
-    const cloudOpacity = Math.min( .72, Math.max( .28, .24 + cloud / 100 * .52 ) );
-    const stormOpacity = Math.min( .72, Math.max( .12, ( rain + storm ) / 180 ) );
-    const windOpacity = Math.min( .62, Math.max( .26, .24 + wind / 120 ) );
-    const windDuration = Math.max( 5.5, 17 - Math.min( 50, wind ) * .18 );
-    const cloudDuration = Math.max( 16, windDuration * 3.2 );
-    const vortexDuration = Math.max( 11, windDuration * 2.1 );
-    return {
-      '--vl-cloud-opacity': cloudOpacity.toFixed( 3 ),
-      '--vl-storm-opacity': stormOpacity.toFixed( 3 ),
-      '--vl-wind-opacity': windOpacity.toFixed( 3 ),
-      '--vl-wind-angle': `${windDirectionDegrees( weather?.windDir )}deg`,
-      '--vl-wind-duration': `${windDuration.toFixed( 1 )}s`,
-      '--vl-cloud-duration': `${cloudDuration.toFixed( 1 )}s`,
-      '--vl-vortex-duration': `${vortexDuration.toFixed( 1 )}s`,
-    } as React.CSSProperties;
-  }, [ weather ] );
-
   return (
     <section className="vl-live" aria-label="VayuLok conditions">
       {/* Search is ALWAYS rendered - it does not wait for the map to paint, so a user can look up
@@ -2786,8 +2702,7 @@ const VayuLokLive: React.FC = () => {
                         </div>
                       ) }
 
-                      {/* SECTION 1 - HEATMAP. The atmospheric layer stays part of the
-                          live map and no longer has a second Storm switch. This control keeps the
+                      {/* SECTION 1 - HEATMAP. This control keeps the
                           same real Google AQI tile behavior, using the exact Material Symbols
                           "switches" glyph requested for the control. */}
                       <div className="vl-live-air-heatmap">
@@ -3520,55 +3435,11 @@ const VayuLokLive: React.FC = () => {
               ) : (
                 <>
                   { !mapVisible && (
-                    <div className="vl-live-map-fallback" role="status">
-                      <span>Loading map…</span>
+                    <div className="vl-live-map-fallback" role="status" aria-label="Loading map">
+                      <span className="vl-live-map-loading-dot" aria-hidden="true" />
                     </div>
                   ) }
                   <div className={ `vl-live-map-canvas ${mapVisible ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ hasSelection ? `Map of ${place.name}` : 'Interactive world map' } />
-                  { mapReady && (
-                    <div ref={ atmosphereRef } className="vl-live-atmosphere" style={ atmosphereStyle } aria-hidden="true">
-                      <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
-                        <defs>
-                          <filter id="vl-live-cloud-soft" x="-25%" y="-25%" width="150%" height="150%">
-                            <feGaussianBlur stdDeviation="34" />
-                          </filter>
-                          <filter id="vl-live-wind-soft" x="-10%" y="-10%" width="120%" height="120%">
-                            <feGaussianBlur stdDeviation=".55" />
-                          </filter>
-                        </defs>
-
-                        <g className="vl-live-cloud-field" filter="url(#vl-live-cloud-soft)">
-                          <ellipse cx="120" cy="170" rx="250" ry="82" />
-                          <ellipse cx="390" cy="130" rx="230" ry="76" />
-                          <ellipse cx="650" cy="118" rx="280" ry="88" />
-                          <ellipse cx="965" cy="155" rx="250" ry="82" />
-                          <ellipse cx="1260" cy="118" rx="300" ry="98" />
-                          <ellipse className="is-dim" cx="1450" cy="260" rx="210" ry="90" />
-                          <ellipse className="is-dim" cx="210" cy="640" rx="245" ry="110" />
-                          <ellipse cx="505" cy="690" rx="270" ry="94" />
-                          <ellipse className="is-dim" cx="930" cy="720" rx="285" ry="102" />
-                          <ellipse cx="1320" cy="650" rx="310" ry="118" />
-                        </g>
-
-                        <g className="vl-live-wind-field" filter="url(#vl-live-wind-soft)">
-                          <path className="vl-live-wind-path p1" d="M-120 610 C120 520 300 535 500 625 S860 760 1120 640 S1450 520 1720 610" />
-                          <path className="vl-live-wind-path p2" d="M-80 690 C150 610 350 630 535 715 S900 815 1160 710 S1450 625 1680 690" />
-                          <path className="vl-live-wind-path p3" d="M-60 520 C160 445 360 455 565 535 S930 655 1200 540 S1470 460 1690 525" />
-                          <path className="vl-live-wind-path p4" d="M-90 400 C130 330 330 340 520 420 S860 520 1090 430 S1410 330 1700 405" />
-                          <path className="vl-live-wind-path p5" d="M-60 300 C190 235 385 250 590 320 S950 405 1190 320 S1450 245 1690 300" />
-                          <path className="vl-live-wind-path p6" d="M-40 785 C210 720 410 735 610 805 S980 860 1210 800 S1455 730 1660 775" />
-                          <path className="vl-live-wind-path p7" d="M20 210 C250 150 480 175 665 240 S1010 315 1250 235 S1470 165 1620 205" />
-                        </g>
-
-                        <g className="vl-live-vortex">
-                          <ellipse cx="295" cy="680" rx="156" ry="92" />
-                          <ellipse cx="295" cy="680" rx="112" ry="66" />
-                          <ellipse cx="295" cy="680" rx="70" ry="40" />
-                          <path d="M122 680 C172 555 355 535 444 635 C520 720 412 819 294 786 C215 764 214 694 288 670 C341 654 372 701 340 731" />
-                        </g>
-                      </svg>
-                    </div>
-                  ) }
                 </>
               ) }
 
@@ -3662,9 +3533,9 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-context{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 18px;padding:0 0 16px;border-bottom:1px solid var(--hair)}
         .vl-live-air-context-item{display:inline-flex;min-width:0;align-items:center;gap:9px;color:var(--status);font-size:12px;line-height:1.25}
         .vl-live-air-context-item svg{flex:0 0 var(--vl-action-size);width:var(--vl-action-size);height:var(--vl-action-size);padding:7px;border-radius:50%;background:var(--lime);fill:var(--green)}
-        .vl-live-air-context-item strong{min-width:0;overflow:hidden;color:var(--heading);font-size:15px;font-weight:700;line-height:1.25;text-overflow:ellipsis;white-space:nowrap}
+        .vl-live-air-context-item strong{min-width:0;overflow:hidden;color:var(--heading);font-size:15px;font-weight:600;line-height:1.25;text-overflow:ellipsis;white-space:nowrap}
         .vl-live-air-context-item.is-time{justify-content:flex-end;white-space:nowrap}
-        .vl-live-air-context-item time{color:var(--heading);font-weight:700}
+        .vl-live-air-context-item time{color:var(--heading);font-weight:600}
         .vl-live-air-context-item small{color:var(--muted);font-size:11px;font-weight:600}
 
         /* Air/Weather toggle - same pale tint + saturated same-hue dot as the hero pill. */
@@ -3688,7 +3559,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-aqi-number{display:block;color:#000;font-size:30px;font-weight:700;line-height:1;letter-spacing:-.6px}
         .vl-live-air-aqi-unit{display:block;margin-top:4px;color:var(--muted);font-size:10.5px;font-weight:700;line-height:1;letter-spacing:.08em;text-transform:uppercase}
         .vl-live-air-gauge-meta{min-width:0}
-        .vl-live-air-gauge-word{display:block;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
+        .vl-live-air-gauge-word{display:block;color:#000;font-size:var(--vl-card-heading-size);font-weight:600;line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
         .vl-live-air-summary-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
         .vl-live-air-summary-meta strong{color:var(--status);font-weight:700}
         .vl-live-air-summary-chip{display:inline-flex;align-items:center;gap:5px}
@@ -3950,35 +3821,13 @@ const VayuLokLive: React.FC = () => {
         .vl-live :global(.gm-style-cc),
         .vl-live :global(a[aria-label="Google Maps"]),
         .vl-live :global(img[alt="Google"]){display:none!important}
-        /* REFERENCE-MATCHED ATMOSPHERE. This is code-rendered, not a background image.
-           Clouds are soft translucent SVG masses; wind is a field of animated dashed
-           streamlines; the lower-left vortex gives the storm/cyclone read from the approved
-           reference. Live Google Weather values drive opacity, direction and speed. */
-        .vl-live-atmosphere{--vl-map-shift-x:0px;--vl-map-shift-y:0px;--vl-map-scale:1;position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden;border-radius:var(--panel-r);mix-blend-mode:screen;transform:translate3d(var(--vl-map-shift-x),var(--vl-map-shift-y),0) scale(var(--vl-map-scale));transform-origin:50% 50%;will-change:transform}
-        .vl-live-atmosphere svg{display:block;width:100%;height:100%;overflow:visible}
-        .vl-live-cloud-field{opacity:var(--vl-cloud-opacity);animation:vl-live-cloud-drift var(--vl-cloud-duration) ease-in-out infinite alternate}
-        .vl-live-cloud-field ellipse{fill:rgba(255,255,255,.88)}
-        .vl-live-cloud-field ellipse.is-dim{fill:rgba(214,229,239,.66)}
-        .vl-live-wind-field{opacity:var(--vl-wind-opacity);transform-origin:800px 450px;transform:rotate(var(--vl-wind-angle))}
-        .vl-live-wind-path{fill:none;stroke:rgba(255,255,255,.86);stroke-width:1.5;stroke-linecap:round;stroke-dasharray:5 17;animation:vl-live-wind-flow var(--vl-wind-duration) linear infinite}
-        .vl-live-wind-path.p2{animation-delay:-1.8s;opacity:.82}
-        .vl-live-wind-path.p3{animation-delay:-3.1s;opacity:.72}
-        .vl-live-wind-path.p4{animation-delay:-4.4s;opacity:.66}
-        .vl-live-wind-path.p5{animation-delay:-5.7s;opacity:.58}
-        .vl-live-wind-path.p6{animation-delay:-2.6s;opacity:.76}
-        .vl-live-wind-path.p7{animation-delay:-4.9s;opacity:.54}
-        .vl-live-vortex{opacity:var(--vl-storm-opacity);transform-origin:295px 680px;animation:vl-live-vortex-spin var(--vl-vortex-duration) linear infinite}
-        .vl-live-vortex ellipse,.vl-live-vortex path{fill:none;stroke:rgba(255,255,255,.86);stroke-width:2;stroke-linecap:round;stroke-dasharray:8 14}
-        @keyframes vl-live-wind-flow{to{stroke-dashoffset:-88}}
-        @keyframes vl-live-cloud-drift{from{transform:translate3d(-2.2%,0,0) scale(1.02)}to{transform:translate3d(2.8%,1.2%,0) scale(1.06)}}
-        @keyframes vl-live-vortex-spin{to{transform:rotate(360deg)}}
         .vl-live-map-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:24px;text-align:center;z-index:0;background:#eef1ed;color:var(--green)}
         .vl-live-map-placeholder strong{font-size:15px;letter-spacing:-.01em}
         .vl-live-map-placeholder span{font-size:12.5px;color:var(--muted)}
         .vl-live-map-placeholder p{margin:4px 0 0;font-size:12px;color:var(--status)}
         .vl-live-map-retry{margin-top:10px;min-height:36px;padding:0 16px;border:0;border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:13px;font-weight:700;cursor:pointer;transition:background-color .2s,transform .16s ease}
         .vl-live-map-retry:hover{background:var(--lime-hover);transform:translateY(-1px)}
-        .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;border-radius:var(--panel-r);background:#eef1ed;color:var(--green);font-size:13px}
+        .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;border-radius:var(--panel-r);background:#eef1ed;color:var(--green);font-size:13px}\n        .vl-live-map-loading-dot{width:9px;height:9px;border-radius:50%;background:rgba(26,58,42,.28);animation:vl-live-map-pulse 1.15s ease-in-out infinite alternate}\n        @keyframes vl-live-map-pulse{to{opacity:.35;transform:scale(.72)}}
         .vl-live-map-fallback button{margin-left:8px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);padding:7px 11px}
         /* DESTINATION SEARCH is a separate page section ABOVE the map shell. Its outer
            wrapper is deliberately invisible: the only visible field chrome is the same
