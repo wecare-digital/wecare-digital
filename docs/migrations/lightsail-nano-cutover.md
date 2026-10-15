@@ -1,5 +1,10 @@
 # Lightsail Nano cutover
 
+**Status 2026-10-15 11:30 UTC: complete.** `wecare-voice-bot-nano` is the only voice server.
+The Micro, its 2026-10-07 snapshot and the old IVR key are deleted, calls are no longer
+recorded, and there is no backup of the Nano (owner decision). See
+[Accepted and retired](#accepted-and-retired-2026-10-15).
+
 ## Built 2026-10-15 03:25 UTC; CUT OVER 2026-10-15 03:39 UTC (owner-approved)
 
 | | Micro (production) | Nano (candidate) |
@@ -86,25 +91,55 @@ The Nano's firewall was never opened. Both firewalls were re-read afterwards and
   its verbose logging is off and its AGI log was empty, with `/tmp` full since at least
   2026-10-07). Test recording deleted from S3 and the Nano.
 
-## Still to do
+## Accepted and retired (2026-10-15)
 
-1. Owner places one real WhatsApp call: two-way audio, IVR prompt heard, call log in
-   `wecare-whatsapp-calling`. Because the post-call hook now fires, the call should also leave a
-   Calls-page breadcrumb, an object in `secure/u/whatsapp/calls/`, and (toggle
-   `whatsapp_calling_postcall_wa` is unset, so default on) the post-call menu text to the caller.
-   The recording lands in S3 a few seconds after hangup (`journalctl -t wecare-ivr-rec`).
-2. If anything is wrong: `APPLY=1 CONFIRM=I-APPROVE-rollback ./rollback.sh`, then re-enable the
-   two timers on the Micro (`ROLLBACK.md`). The Micro still has the old IVR config (dead bucket).
-3. After about a week clean: 🔒 `aws lightsail delete-instance --instance-name wecare-voice-bot`
-   (the 2026-10-07 snapshot remains for deep rollback), then deactivate and delete the old key
-   …L4WC. `scripts/aws_cost_model.py --live` then reports the $2.00 as REALISED.
-4. `/root/captures/waba-test-5061-20261007.pcap` (459 MB) exists only on the Micro; it goes with
-   the Micro unless the owner wants it kept.
-5. The 57 recordings made on the Micro (2026-06 to 2026-10-07, 33 MB, now also on the Nano) were
-   never uploaded. Backfilling them into `secure/u/whatsapp/calls/` is an owner decision.
+- **Owner acceptance, 10:21 UTC.** Two real WhatsApp calls, one to each business number,
+  reached the Nano and played the IVR prompt. Both recordings uploaded complete (15.6 s and
+  13.1 s, full WAV headers). After each call the Lambda sent the post-call menu text and a
+  disconnect SMS. The call to the second number got the text from both numbers, so the test
+  produced 3 WhatsApp messages (with 👍 reactions) and 2 SMS.
+- **Retired, about 10:30 UTC (owner-approved, no new backup).**
+  - 57 recordings from 2026-06 to 2026-10-07 (33 MB) deleted from the Nano. Their other copies
+    went with the Micro and the snapshot.
+  - Micro `wecare-voice-bot` deleted, with the 459 MB capture file on it. No DNS record, disk or
+    alarm referenced it.
+  - Snapshot `wecare-voice-bot-backup-20261007` deleted; no Lightsail snapshots remain.
+  - Old `asterisk-ivr-service` key (…L4WC) deleted. Its last use was 07:22 UTC, before the
+    rotation. The Nano's key (…NPGH) is the only one left.
+  - `aws_cost_model.py --live` reports the $2.00/month as REALISED. Lightsail is $5/month with
+    no snapshot storage.
+- **Call recording stopped, 11:24 UTC (owner decision).** The flow only plays the welcome
+  prompt, so a recording held the caller's microphone audio with no purpose and no retention
+  rule.
+  - The MixMonitor line in `/etc/asterisk/extensions.conf` is commented out and the dialplan
+    reloaded. Backup: `extensions.conf.bak.20261015T1124Z`.
+  - `/usr/local/bin/wecare-ivr-upload-recording` removed.
+  - IAM `IVRAccess` lost its recordings upload statement. Only the TTS cache grant on
+    `secure/stack/ivr-cache/` remains.
+  - Both test-call recordings deleted from S3 and the Nano; `secure/u/whatsapp/calls/` holds no
+    objects, versions or markers.
+  - A loopback call through the live flow left no file, the AGI logged `rec=-`, and the Lambda
+    received `post_call_sip`.
+  - With the Micro gone, access for this change opened port 22 on the Nano for one IP. The host
+    key matched the private-network pin, and the port was closed afterwards.
+
+## Still open
+
+1. **No backup.** The IVR script, dialplan, SIP and TLS configuration exist only on the Nano.
+   Losing it means rebuilding by hand; `migrate-workload.sh` copied from the Micro and cannot
+   run again.
+2. **Post-call messages.** Every caller gets the post-call menu text (from both numbers for calls
+   to the second number) and a disconnect SMS. The repo's notification rules say the post-call
+   SMS should not fire, but the deployed Lambda (2026-10-08) sends it. Owner decision.
 
 ## Rollback
 
-`APPLY=1 CONFIRM=I-APPROVE-rollback ./rollback.sh` moves the static IP back to the Micro. Then
-re-enable `certbot-renew.timer` and `wecare-cert-check.timer` on the Micro and disable them on the
-Nano (`ROLLBACK.md`).
+None. The Micro and its snapshot are deleted, and `rollback.sh` refuses to run without the
+Micro. Restarting recording would need three things back:
+
+- the MixMonitor line with its upload command, from `extensions.conf.bak.20261015T1124Z` on the
+  Nano;
+- an upload script that MixMonitor runs once the file is closed;
+- an IAM `s3:PutObject` grant on `wecare-digital-get/secure/u/whatsapp/calls/*`.
+
+It should also get a retention rule.

@@ -1,5 +1,12 @@
 # Lightsail Nano migration — rollback runbook
 
+> **Retired 2026-10-15.** After owner acceptance, the Micro `wecare-voice-bot`, the snapshot
+> `wecare-voice-bot-backup-20261007` and the old IVR key were deleted (owner-approved, no new
+> backup). Nothing below can run any more: `rollback.sh` refuses without the Micro, and
+> `migrate-workload.sh` copies from it. The Nano has no backup; see
+> `docs/migrations/lightsail-nano-cutover.md`. The rest of this file is kept as the record of
+> the procedure that was available during the migration.
+
 The production **micro** `wecare-voice-bot` stays RUNNING and billable throughout the
 migration so rollback is a single static-IP move. Nothing is deleted until acceptance is
 signed off.
