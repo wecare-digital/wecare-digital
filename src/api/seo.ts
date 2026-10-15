@@ -156,6 +156,8 @@ export interface BlogSourcesResponse {
   aiDraftEnabled: boolean;
   maxSourceBytes: number;
   total: number;
+  shown: number;
+  truncated: boolean;
   byStatus: Record<string, number>;
   byCategory: Record<string, number>;
   pending: number;
