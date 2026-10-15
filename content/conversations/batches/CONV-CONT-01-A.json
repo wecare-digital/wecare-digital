@@ -47,28 +47,17 @@
         "PRIVACY": "PASS",
         "HUMAN_QUALITY_TEST": "PASS"
       },
-      "publishedPostId": "7697b0df-cc34-400e-8c90-8cad0348fdfe",
       "firstPublishedDate": "2026-09-30T15:10:16.038Z",
       "liveTitle": "Pleasant Feelings Can Be Reactive Too",
       "liveSlug": "pleasant-feelings-can-be-reactive-too",
       "liveVerification": {
-        "wixPostId": "7697b0df-cc34-400e-8c90-8cad0348fdfe",
-        "authorMemberId": "217e3cc5-4502-49b5-befb-9265b4b5c6b5",
-        "categoryIds": [
-          "13d64656-f903-4e0f-9a07-e700d69328fc"
-        ],
-        "tagIds": [
-          "b63b82e6-2b0a-45f9-b731-6c4c6cfdac60",
-          "a8c3793e-03bf-44dd-b22f-2464bbe9e51b"
-        ],
         "excerptVerified": true,
         "seoVerified": true,
-        "richContentNodeCount": 7,
         "sourceLeakageCheck": "PASS",
         "privacyCheck": "PASS",
         "attributionCheck": "PASS"
       }
     }
   ],
-  "notes": "First 25-position review slice; only one source survived full-source review and live-corpus distinction-level dedupe. Published and live-read-back verified on Wix 2026-09-30; post ID 7697b0df-cc34-400e-8c90-8cad0348fdfe."
+  "notes": "First 25-position review slice; only one source survived full-source review and live-corpus distinction-level dedupe. Published and live-read-back verified 2026-09-30."
 }

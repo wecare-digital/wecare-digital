@@ -22,9 +22,12 @@ sources (PDF / URL)
   ├─ scripts/blog_quality_v2.py       the standard, as executable checks
   │     └─ batches/CONV-*.json        only READY_TO_PUBLISH enters the queue
   │
-  └─ publish path                     scripts/conversations_batch.py (Conversations)
-        │                             scripts/gastronomy_batch.py   (Gastronomy)
-        └─ both delegate every Wix write to scripts/wix_blog_migrate.py
+  ├─ batch gates                      scripts/conversations_batch.py (Conversations)
+  │     │                             scripts/gastronomy_batch.py   (Gastronomy)
+  │     └─ validate against the native blog contract (scripts/blog_native_contract.py)
+  │
+  └─ Blog Studio  (human)             release and publish, written by wecare-seo-tools
+        └─ batch gates audit          read every published post back
 ```
 
 ## What is committed, and what is not
@@ -67,7 +70,7 @@ provenance on a published article.
 
 ## The two categories
 
-`Conversations` and `Gastronomy`. These are the two that exist on the live Wix site, and
+`Conversations` and `Gastronomy`. These are the two that exist on the live blog, and
 `blog_quality_v2.CATEGORIES` is an enum rather than free text on purpose: the older admin
 form used a `<datalist>`, where a typo silently creates a third category — and `/blog/`
 serves whichever category sorts first alphabetically, so `Conversatons` would have taken
@@ -89,37 +92,37 @@ the standard into a rubber stamp while reporting full compliance.
 So mechanical checks only ever move a record **down**. A record that passes every
 automated check lands on `EDITORIAL_QA`. Reaching `READY_TO_PUBLISH` requires a human to
 have recorded the eleven human gates in the record's `gate` object. Section 32's rule that
-only `READY_TO_PUBLISH` enters the Wix queue is therefore preserved rather than defeated.
+only `READY_TO_PUBLISH` enters the publish queue is therefore preserved rather than defeated.
 
-## Publication is still gated, and still two-phase
+## Publication happens in Blog Studio, not here
 
-Nothing in the ingestion pipeline publishes. The publish paths do that, and each requires an
-explicit, separately authorised step:
+Nothing in this directory's tooling publishes. Posts live in the AWS-native blog store
+(`blogPost` records in SeoToolsTable), and the only writer is `wecare-seo-tools`: an operator
+releases a signed-off article in Blog Studio and the publish step re-checks the sign-off and
+the body hash before writing. Both `publish` workflow inputs are retired and fail explicitly.
 
-- Conversations — `scripts/conversations_batch.py publish`, or the `publish` input on
-  `.github/workflows/conversations-publish.yml`. `validate` and `audit` mutate nothing.
-- Gastronomy — the `publish` input on `.github/workflows/gastronomy-content-gate.yml`.
+The batch gates check records against the native blog contract in
+`scripts/blog_native_contract.py`:
 
-Neither script writes to Wix itself. Both delegate to `scripts/wix_blog_migrate.py`, so
-there is one publisher, one credential path and one `WIX_CREDENTIALS_DISABLED` kill switch.
-
-`conversations_batch.py` adds what publishing continuously needs and a one-shot CLI does
-not: it is idempotent by slug, so a re-run after a partial failure publishes only what is
-missing; it reads every published post back off the live site and checks body, title, slug,
-author, category, tags, SEO, public URL, publication freshness, Ricos validity, duplicates
-and formatting corruption; and it checkpoints `PUBLISHED` then `VERIFIED` into
-`ledger.json` after each chunk, so an interrupted run is resumable.
+- **validate** — the v2 standard, ledger provenance, and whether the record would go live
+  intact: a slug the store keeps unchanged (lowercase words and single hyphens, at most 120
+  characters), a body under the store's item limit, and only Markdown the post page renders
+  (`#`/`##`/`###` headings, paragraphs, `- ` lines, `**bold**`, `*italic*`). It needs no AWS
+  access.
+- **audit** — reads every published post back through the public read route
+  (`/seo-tools/blog-public`) and checks title, slug, author, category, tags, SEO, URL, cover
+  image, publication freshness, the body against the record, duplicates and formatting
+  corruption, then checkpoints `VERIFIED` into `ledger.json`. A record that is not live yet
+  is reported as not published rather than failed.
 
 ```bash
 python scripts/conversations_batch.py validate --manifest content/conversations/batches/CONV-001.json
-python scripts/conversations_batch.py publish  --manifest content/conversations/batches/CONV-001.json
 python scripts/conversations_batch.py audit    --manifest content/conversations/batches/CONV-001.json
 ```
 
-Manifest size is arbitrary. There is no editorial batch count for Conversations — Gastronomy's
-contiguous 25 is its own rule — and Wix is fed in chunks of 20 because that is the API's bulk
-limit, which is an internal detail rather than an editorial unit.
+Manifest size is arbitrary. There is no editorial batch count for Conversations; Gastronomy's
+contiguous 25 is its own rule.
 
 And because the public site is a static export (`output: 'export'` in `next.config.js`),
-a published post is not visible until an Amplify build re-reads Wix. See
+a published post is not visible until an Amplify build re-reads the native blog. See
 `.kiro/steering/lambda-snapstart-deploy.md` for the same two-phase shape on Lambda.

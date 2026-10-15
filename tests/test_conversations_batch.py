@@ -1,23 +1,23 @@
-"""Contract tests for the Conversations continuous publishing runner.
+"""Contract tests for the Conversations batch runner and the native blog contract it checks.
 
 Three of these carry most of the weight:
 
-  `test_a_record_without_human_gates_is_never_published` - the runner exists to publish
-  automatically, which is exactly the circumstance in which a human gate gets quietly
-  dropped. If that test starts passing records through, the standard is decoration.
+  `test_a_record_without_human_gates_is_never_queued` - automation must not be able to
+  self-certify. If that test starts passing records through, the standard is decoration.
 
-  `test_publishing_twice_creates_nothing_the_second_time` - a duplicate paid publication is
-  the one failure in this pipeline that cannot be undone after the fact.
+  `test_the_runner_has_no_publish_path` - publication belongs to Blog Studio, behind its
+  own sign-off and release gates. A second writer here would route around them, and the
+  easiest way to grow one back is quietly, so this asserts it against the source.
 
-  `test_the_runner_owns_no_wix_client_of_its_own` - the acceptance criterion is reuse, and
-  reuse is easy to claim and easy to drift away from. This asserts it against the source.
+  `test_audit_catches_the_wrong_body_under_the_right_slug` - metadata can match perfectly
+  while the body belongs to another article, which is the failure a reader notices first.
 
-Everything is exercised through plain data or a recording fake, so no test touches Wix,
-Lambda or Secrets Manager.
+Everything runs on plain data or a recording fake, so no test touches Lambda.
 """
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import sys
 from datetime import datetime, timedelta, timezone
@@ -31,7 +31,6 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import blog_ledger  # noqa: E402
 import blog_quality_v2 as quality  # noqa: E402
-import wix_blog_migrate as real_wix  # noqa: E402
 
 
 def load_module():
@@ -41,6 +40,7 @@ def load_module():
     return module
 
 
+#: A body that uses the Markdown the native post page renders: paragraphs and `## `.
 GOOD_BODY = """A person gives their word and then does not honour it. The ordinary response reaches for morality: they were wrong, they should feel bad, they are not to be trusted. That reading arrives instantly and explains nothing about what actually broke.
 
 Something was counting on the word. A schedule, a decision someone else made on the strength of it, a resource committed. The word was load-bearing. When it came out, the structure moved, and the movement is visible whether or not anybody feels guilty about it afterwards.
@@ -149,11 +149,11 @@ def distinct_distinction(n: int) -> str:
 #: shape produces near-uniform cadence, which section 15 flags - correctly, since an
 #: article with no rhythm of its own reads as machine-made.
 def distinct_body(n: int) -> str:
-    """Four paragraphs whose vocabulary and cadence belong to record `n`."""
+    """Five paragraphs whose vocabulary and cadence belong to record `n`."""
     word = spell(n)
-    paragraphs: List[str] = []
+    paragraphs = []
     for para in range(5):
-        sentences: List[str] = []
+        sentences = []
         for index in range(6):
             seed = n + para * 3 + index
             shape = (para + index) % 3
@@ -236,65 +236,6 @@ def ledger_for(path: Path, records) -> "blog_ledger.Ledger":
     return ledger
 
 
-class FakeWix:
-    """The real module's pure helpers, with the network replaced by a recorder.
-
-    Ricos compilation, the draft body and the SEO tags come from `wix_blog_migrate`
-    itself, so a change to the real payload shape shows up here rather than being masked
-    by a hand-written stub.
-    """
-
-    TARGET_SITE_ID = "site-under-test"
-    BULK_LIMIT = real_wix.BULK_LIMIT
-    chunks = staticmethod(real_wix.chunks)
-    normalize_manifest_post = staticmethod(real_wix.normalize_manifest_post)
-    draft_post = staticmethod(real_wix.draft_post)
-    markdown_to_rich_content = staticmethod(real_wix.markdown_to_rich_content)
-
-    def __init__(self, live=None, fail_slugs=()):
-        self.live = list(live or [])
-        self.fail_slugs = set(fail_slugs)
-        self.calls = []
-        self.next_id = 100
-
-    def query_posts(self, site_id, include_content=False):
-        self.calls.append(("query_posts", site_id))
-        return [dict(post) for post in self.live]
-
-    def ensure_author(self):
-        self.calls.append(("ensure_author", None))
-        return "member-1"
-
-    def ensure_category(self):
-        self.calls.append(("ensure_category", None))
-        return "category-1"
-
-    def ensure_tags(self, labels):
-        labels = list(labels)
-        self.calls.append(("ensure_tags", labels))
-        return {label: f"tag-{index}" for index, label in enumerate(labels)}
-
-    def request(self, site_id, method, path, body=None):
-        self.calls.append((method, path, body))
-        if "bulk/draft-posts/create" not in path:
-            raise AssertionError(f"unexpected Wix call: {method} {path}")
-        results = []
-        for index, draft in enumerate(body["draftPosts"]):
-            slug = draft["seoSlug"]
-            if slug in self.fail_slugs:
-                results.append({"itemMetadata": {"originalIndex": index,
-                                                 "success": False,
-                                                 "error": {"description": "rejected"}}})
-                continue
-            self.next_id += 1
-            self.live.append({"id": f"post-{self.next_id}", "slug": slug,
-                              "title": draft["title"], "memberId": draft["memberId"]})
-            results.append({"itemMetadata": {"originalIndex": index, "success": True}})
-        return {"results": results,
-                "bulkActionMetadata": {"totalSuccesses": len(results),
-                                       "totalFailures": 0}}
-
-
 @pytest.fixture
 def mod(monkeypatch):
     module = load_module()
@@ -302,33 +243,65 @@ def mod(monkeypatch):
     return module
 
 
-def install(monkeypatch, module, fake):
-    monkeypatch.setattr(module, "load_wix", lambda: fake)
-    return fake
+def public_post(item, *, published="2026-09-29T10:00:00Z", **overrides):
+    """A live post as the native `/seo-tools/blog-public/<slug>` view returns it.
 
-
-def public_post(mod, item, *, published="2026-09-29T10:00:00Z", **overrides):
-    """A live post as `/seo-tools/blog-public/<slug>` would return it."""
-    rich = real_wix.markdown_to_rich_content(item["contentMarkdown"])
+    `content` is the stored Markdown, verbatim, which is what `storage.create_blog_post`
+    keeps and the post page renders. No trailing slash on `url`: that is what the store
+    writes for a new post.
+    """
     post = {
-        "id": "post-101",
+        "id": f"blog_{item['slug'].replace('-', '')[:12]}",
         "title": item["title"],
         "slug": item["slug"],
         "excerpt": item["metaDescription"],
-        "url": f"https://wecare.digital/post/{item['slug']}/",
+        "url": f"https://wecare.digital/post/{item['slug']}",
         "seoTitle": item["seoTitle"],
         "metaDescription": item["metaDescription"],
         "publishedDate": published,
         "modifiedDate": published,
         "coverImage": "",
+        "status": "published",
         "category": "Conversations",
         "tags": list(item["tags"]),
+        "hashtags": [],
         "authorName": quality.AUTHOR,
-        "richContent": rich,
-        "content": mod.flatten_text(rich),
+        "content": item["contentMarkdown"],
+        "contentText": item["contentMarkdown"],
     }
     post.update(overrides)
     return post
+
+
+def serve(monkeypatch, mod, live_records, *, extra_listing=()):
+    """Point the audit's two reads at plain data: the listing and the single-post view."""
+    by_slug = {item["slug"]: public_post(item) for item in live_records}
+    listing = [{"slug": slug, "title": post["title"]} for slug, post in by_slug.items()]
+    listing.extend(extra_listing)
+    monkeypatch.setattr(mod, "list_public_posts", lambda: list(listing))
+
+    def fetch(slug):
+        if slug not in by_slug:
+            raise RuntimeError(f"public-blog HTTP 404 for /seo-tools/blog-public/{slug}")
+        return by_slug[slug]
+
+    monkeypatch.setattr(mod, "fetch_public_post", fetch)
+    return by_slug
+
+
+class FakeLambda:
+    """Records each invoke and answers from a `(path, event) -> (status, body)` function."""
+
+    def __init__(self, answer):
+        self.answer = answer
+        self.events = []
+
+    def invoke(self, **kwargs):
+        event = json.loads(kwargs["Payload"])
+        self.events.append((kwargs["FunctionName"], kwargs["InvocationType"], event))
+        status, body = self.answer(event["rawPath"], event)
+        envelope = {"statusCode": status, "body": json.dumps(body)}
+        return {"StatusCode": 200, "Payload": io.BytesIO(json.dumps(envelope).encode())}
 
 
 # ── the entry gate ──────────────────────────────────────────────────────────────
@@ -342,11 +315,11 @@ def test_a_fully_gated_record_validates_and_enters_the_queue(mod, tmp_path):
     assert report["readyToPublish"] == [doc["posts"][0]["slug"]]
 
 
-def test_a_record_without_human_gates_is_never_published(mod, monkeypatch, tmp_path):
+def test_a_record_without_human_gates_is_never_queued(mod, tmp_path):
     """The load-bearing property: automation must not be able to self-certify.
 
     `blog_quality_v2` holds an ungated record at EDITORIAL_QA. This asserts the runner
-    honours that rather than publishing everything a manifest happens to contain.
+    honours that rather than queueing everything a manifest happens to contain.
     """
     doc = document(1, gated=False)
     ledger_path = tmp_path / "ledger.json"
@@ -355,12 +328,6 @@ def test_a_record_without_human_gates_is_never_published(mod, monkeypatch, tmp_p
     assert report["errors"] == []
     assert report["readyToPublish"] == []
     assert report["byStatus"] == {"EDITORIAL_QA": 1}
-
-    fake = install(monkeypatch, mod, FakeWix())
-    result = mod.publish_document(doc, ledger_path=ledger_path)
-    assert result["created"] == 0
-    assert result["heldByGate"] == [doc["posts"][0]["slug"]]
-    assert not any(call[0] == "POST" for call in fake.calls)
 
 
 def test_one_gate_answer_missing_is_enough_to_hold_the_record(mod, tmp_path):
@@ -392,7 +359,7 @@ def test_duplicate_slug_inside_one_manifest_is_rejected(mod, tmp_path):
     assert any("appears 2 times" in error for error in report["errors"])
 
 
-def test_a_record_with_no_ledger_row_cannot_publish(mod, tmp_path):
+def test_a_record_with_no_ledger_row_cannot_be_queued(mod, tmp_path):
     """Publishing it would lose the source-to-article link permanently."""
     doc = document(2)
     ledger_path = tmp_path / "ledger.json"
@@ -402,7 +369,7 @@ def test_a_record_with_no_ledger_row_cannot_publish(mod, tmp_path):
     assert doc["posts"][1]["slug"] in " ".join(report["errors"])
 
 
-def test_payload_contract_rejects_what_wix_cannot_accept(mod):
+def test_record_contract_rejects_what_the_native_store_cannot_keep(mod):
     bad = record(1, slug="Not A Slug", tags=[], seoTitle="", coverImage="x.jpg")
     errors = " ".join(mod.payload_errors(bad))
     assert "slug must be lowercase" in errors
@@ -411,210 +378,201 @@ def test_payload_contract_rejects_what_wix_cannot_accept(mod):
     assert "coverImage is forbidden" in errors
 
 
-def test_ricos_validity_catches_an_uncompiled_or_media_bearing_body(mod):
-    leaked = {"nodes": [{"type": "PARAGRAPH", "nodes": []},
-                        {"type": "PARAGRAPH_EMPTY"},
-                        {"type": "IMAGE"},
-                        {"type": "MENTION"}]}
-    errors = " ".join(mod.ricos_errors(leaked, "slug"))
-    assert "PARAGRAPH_EMPTY marker reached the payload" in errors
-    assert "forbidden media node IMAGE" in errors
-    assert "unexpected rich-content node MENTION" in errors
+def test_a_slug_the_store_would_truncate_is_rejected(mod):
+    """`storage._slugify` cuts at 120, so a longer slug goes live under a different URL."""
+    long_slug = "-".join(["integrity"] * 14)
+    assert len(long_slug) > mod.native.SLUG_MAX_CHARS
+    errors = " ".join(mod.payload_errors(record(1, slug=long_slug,
+                                                canonical=f"https://wecare.digital/post/{long_slug}/")))
+    assert f"cuts slugs at {mod.native.SLUG_MAX_CHARS}" in errors
 
 
-def test_an_empty_ricos_tree_is_an_error_not_a_pass(mod):
-    assert mod.ricos_errors({"nodes": []}, "slug") == [
-        "slug: rich content compiled to no nodes"]
+def test_markdown_the_native_page_renders_is_accepted(mod):
+    assert mod.payload_errors(record(1, contentMarkdown=GOOD_BODY)) == []
+    rendered = mod.native.parse_blocks(GOOD_BODY + "\n- a list line\n**Bold** and *italic*.")
+    assert [block.kind for block in rendered].count("heading") == 1
+    assert rendered[-2].kind == "item"
+    assert rendered[-1].text == "Bold and italic."
 
 
-# ── idempotence ─────────────────────────────────────────────────────────────────
+@pytest.mark.parametrize("line, finding", [
+    ("#### Too deep", "heading deeper than ###"),
+    ("##Squashed", "heading marker needs a space"),
+    ("* starred item", "'* ' list marker"),
+    ("> a quotation", "blockquote marker"),
+    ("---", "horizontal rule"),
+    ("| a | b |", "Markdown table"),
+    ("```", "code fence"),
+    ("See [the page](https://example.com).", "Markdown link"),
+    ("![alt](https://example.com/a.png)", "Markdown image"),
+    ("Use `code` here.", "backtick code markup"),
+    ("<p>markup</p>", "raw HTML markup"),
+    ("A&nbsp;gap", "unresolved HTML entity"),
+    ("This is _underscored_.", "underscore emphasis"),
+    ("An *unpaired marker.", "unpaired * emphasis marker"),
+    ("Lost line break ## Heading", "heading marker inside a line"),
+    (r"Escaped\nnewline", "literal escaped newline"),
+    ("Hello {{name}}", "unsubstituted template variable"),
+])
+def test_body_contract_flags_markdown_the_renderer_shows_literally(mod, line, finding):
+    body = distinct_body(1) + "\n\n" + line
+    errors = mod.native.body_errors(body)
+    assert any(finding in error for error in errors), errors
+    assert any(error.endswith(f"(line {len(body.splitlines())})") for error in errors), errors
 
-def test_pending_skips_slugs_already_live_and_already_ledgered(mod, tmp_path):
-    items = [record(n) for n in (1, 2, 3)]
-    ledger = ledger_for(tmp_path / "ledger.json", items)
-    ledger.update(items[1]["sourceId"], status="PUBLISHED",
-                  publishedAt="2026-09-28T00:00:00+00:00")
-    pending = mod.pending_records(items, {items[0]["slug"]}, ledger)
-    assert [item["slug"] for item in pending] == [items[2]["slug"]]
 
-
-def test_publishing_twice_creates_nothing_the_second_time(mod, monkeypatch, tmp_path):
-    """The failure this pipeline must never have: the same article published twice."""
-    doc = document(3)
+def test_validate_reports_a_body_the_native_blog_cannot_render(mod, tmp_path):
+    doc = document(1)
+    doc["posts"][0]["contentMarkdown"] += "\n\n#### A heading the page cannot show"
     ledger_path = tmp_path / "ledger.json"
     ledger_for(ledger_path, doc["posts"])
-    fake = install(monkeypatch, mod, FakeWix())
-
-    first = mod.publish_document(doc, ledger_path=ledger_path)
-    assert first["created"] == 3
-    assert sorted(first["published"]) == sorted(p["slug"] for p in doc["posts"])
-
-    creates = [call for call in fake.calls if call[0] == "POST"]
-    assert len(creates) == 1, "a 3-post manifest should need one bulk call"
-
-    second = mod.publish_document(doc, ledger_path=ledger_path)
-    assert second["created"] == 0
-    assert second["skipped"] == 3
-    assert len([call for call in fake.calls if call[0] == "POST"]) == 1
+    report = mod.validate_document(doc, manifest_path=None, ledger_path=ledger_path)
+    assert any("heading deeper than ###" in error for error in report["errors"])
 
 
-def test_a_large_manifest_is_chunked_at_the_wix_bulk_limit(mod, monkeypatch, tmp_path):
-    doc = document(45)
+def test_a_body_too_large_for_the_native_item_is_rejected(mod):
+    body = distinct_body(1) + "\n\n" + ("x" * (mod.native.MAX_BODY_BYTES + 1))
+    errors = mod.native.body_errors(body)
+    assert any("the native blogPost item allows" in error for error in errors)
+
+
+def test_validate_needs_no_aws_sdk(mod, monkeypatch, tmp_path):
+    """The validate job holds no AWS role, so it must not need boto3 either."""
+    monkeypatch.setitem(sys.modules, "boto3", None)
+    doc = document(1)
     ledger_path = tmp_path / "ledger.json"
     ledger_for(ledger_path, doc["posts"])
-    fake = install(monkeypatch, mod, FakeWix())
-    result = mod.publish_document(doc, ledger_path=ledger_path)
-    assert result["created"] == 45
-    creates = [call for call in fake.calls if call[0] == "POST"]
-    assert [len(call[2]["draftPosts"]) for call in creates] == [20, 20, 5]
-    assert all(call[2]["publish"] is True for call in creates)
-
-
-def test_publish_checkpoints_the_ledger_durably_per_chunk(mod, monkeypatch, tmp_path):
-    doc = document(25)
-    ledger_path = tmp_path / "ledger.json"
-    ledger_for(ledger_path, doc["posts"])
-    install(monkeypatch, mod, FakeWix())
-    mod.publish_document(doc, ledger_path=ledger_path)
-
-    #: Re-read from disk, not from the in-memory object: the point of the checkpoint is
-    #: that an interrupted run leaves the state behind.
-    reloaded = blog_ledger.Ledger.load(ledger_path)
-    assert len(reloaded.rows) == 25
-    for row in reloaded.rows:
-        assert row.status == "PUBLISHED"
-        assert row.publishedAt
-        assert row.wixPostId.startswith("post-")
-    assert json.loads(ledger_path.read_text())["version"] == blog_ledger.LEDGER_VERSION
-
-
-def test_a_failed_wix_item_raises_and_does_not_checkpoint_it(mod, monkeypatch, tmp_path):
-    doc = document(2)
-    ledger_path = tmp_path / "ledger.json"
-    ledger_for(ledger_path, doc["posts"])
-    install(monkeypatch, mod, FakeWix(fail_slugs={doc["posts"][1]["slug"]}))
-    with pytest.raises(RuntimeError, match="failed"):
-        mod.publish_document(doc, ledger_path=ledger_path)
-    rows = {row.slug: row for row in blog_ledger.Ledger.load(ledger_path).rows}
-    assert rows[doc["posts"][0]["slug"]].publishedAt
-    assert not rows[doc["posts"][1]["slug"]].publishedAt
+    report = mod.validate_document(doc, manifest_path=None, ledger_path=ledger_path)
+    assert report["errors"] == []
 
 
 # ── the live read-back ──────────────────────────────────────────────────────────
 
 def test_a_correctly_published_post_audits_clean(mod):
     item = record(1)
-    live = {item["slug"]: 1}
-    assert mod.audit_post(public_post(mod, item), item,
-                          admin={"memberId": "member-1", "slug": item["slug"]},
-                          author_member_id="member-1",
-                          live_slug_counts=live,
+    assert mod.audit_post(public_post(item), item,
+                          live_slug_counts={item["slug"]: 1},
                           live_title_counts={item["title"]: 1}) == []
+
+
+def test_a_trailing_slash_is_not_a_url_difference(mod):
+    """New posts are stored without the slash; migrated posts carry the page's own form."""
+    item = record(1)
+    slashed = public_post(item, url=f"https://wecare.digital/post/{item['slug']}/")
+    assert mod.audit_post(slashed, item) == []
+    assert mod.audit_post(public_post(item), item) == []
 
 
 def test_audit_catches_metadata_and_url_drift(mod):
     item = record(1)
-    public = public_post(mod, item, title="Something Else",
+    public = public_post(item, title="Something Else",
                          seoTitle="Wrong | WECARE.DIGITAL",
                          metaDescription="Wrong.",
                          tags=["Integrity"],
                          category="Gastronomy",
+                         coverImage="https://example.com/cover.jpg",
                          url="https://wecare.digital/blog/when-a-word-is-load-bearing-1")
-    errors = " ".join(mod.audit_post(public, item,
-                                    admin={"memberId": "member-1"},
-                                    author_member_id="member-1"))
+    errors = " ".join(mod.audit_post(public, item))
     assert "title is" in errors
     assert "seoTitle is" in errors
     assert "metaDescription is" in errors
     assert "tags are" in errors
     assert "category is" in errors
     assert "public URL is" in errors
+    assert "coverImage is set" in errors
+
+
+def test_tag_case_is_not_a_tag_difference(mod):
+    """The standard folds case for tag identity; a different tag still fails."""
+    item = record(1)
+    assert mod.audit_post(public_post(item, tags=["integrity", "ACCOUNTABILITY"]), item) == []
+    errors = mod.audit_post(public_post(item, tags=["integrity", "Trust"]), item)
+    assert any("tags are" in error for error in errors)
+
+
+def test_audit_checks_the_stored_author(mod):
+    """The native store keeps `authorName` per post, so the public view is evidence."""
+    item = record(1)
+    errors = mod.audit_post(public_post(item, authorName="WECARE.DIGITAL"), item)
+    assert any("authorName is 'WECARE.DIGITAL'" in error for error in errors)
 
 
 def test_audit_catches_formatting_corruption_in_the_published_body(mod):
-    """The real body, with each corruption signature appended.
+    """The real body with each corruption signature appended.
 
-    Built on top of the correct body on purpose: the char floor and the opening-prose check
-    then pass, so every error reported is a corruption finding and the assertions below
-    cannot be satisfied by unrelated noise.
+    Built on the correct body on purpose: the length floor and the body match then pass,
+    so every error reported is a formatting finding and the assertions below cannot be
+    satisfied by unrelated noise.
     """
     item = record(1)
-    good = mod.flatten_text(real_wix.markdown_to_rich_content(item["contentMarkdown"]))
-    corrupt = {"nodes": [{"type": "PARAGRAPH", "nodes": [{
-        "type": "TEXT",
-        "textData": {"text": good + r' Tail.\n\n## Heading\t**bold** <p>html</p> '
-                                    r'&nbsp; {"type": "PARAGRAPH"} {{placeholder}} '
-                                    r'undefined'},
-    }]}]}
-    errors = mod.audit_post(public_post(mod, item, richContent=corrupt, content=""), item,
-                            admin={"memberId": "member-1"},
-                            author_member_id="member-1")
+    corrupt = (item["contentMarkdown"]
+               + "\n\n" + r"Tail.\n\n## Heading\t<p>html</p> &nbsp; " + '{"type": "PARAGRAPH"}'
+               + " {{placeholder}} undefined"
+               + "\n#### Deep heading\nAn *unpaired marker")
+    errors = mod.audit_post(public_post(item, content=corrupt, contentText=corrupt), item)
     joined = " ".join(errors)
     for expected in ("literal escaped newline", "literal escaped tab",
-                     "literal Markdown heading", "literal Markdown bold markers",
-                     "raw editor JSON", "raw HTML markup", "unresolved HTML entity",
-                     "unresolved template placeholder",
+                     "heading marker inside a line", "heading deeper than ###",
+                     "unpaired * emphasis marker", "raw editor JSON", "raw HTML markup",
+                     "unresolved HTML entity", "unresolved template placeholder",
                      "unsubstituted template variable"):
         assert expected in joined, expected
+    assert all("published body: " in error for error in errors), errors
     assert not any("chars, expected at least" in error for error in errors)
-    assert not any("does not open with" in error for error in errors)
+    assert not any("wrong content is live" in error for error in errors)
+
+
+def test_markdown_in_the_live_body_is_the_format_not_corruption(mod):
+    """Headings and emphasis are what the native page renders; they must not fail."""
+    item = record(1, contentMarkdown=GOOD_BODY + "\n\nA closing line with **weight** and "
+                                              "*lean*, long enough to be ordinary prose.")
+    assert mod.audit_post(public_post(item), item) == []
 
 
 def test_audit_catches_the_wrong_body_under_the_right_slug(mod):
     """Metadata can match perfectly while the body belongs to another article."""
     item = record(1)
-    other = real_wix.markdown_to_rich_content(
-        "A completely different opening paragraph about something else entirely, long "
-        "enough to clear the minimum published length on its own without repeating any "
-        "of the phrasing that belongs to the record under audit here. It continues for "
-        "several more clauses so the character floor is comfortably passed and the only "
-        "thing wrong with this post is that the prose is not the prose that was "
-        "approved for this slug at all, which is the whole point of the check.")
-    errors = " ".join(mod.audit_post(public_post(mod, item, richContent=other, content=""),
-                                     item, admin={"memberId": "member-1"},
-                                     author_member_id="member-1"))
-    assert "does not open with this record's body" in errors
+    other = distinct_body(2)
+    errors = " ".join(mod.audit_post(public_post(item, content=other, contentText=other),
+                                     item))
+    assert "the wrong content is live under this slug" in errors
+
+
+def test_audit_reports_a_live_body_that_lost_a_paragraph(mod):
+    """Still recognisably this article, so it is drift rather than the wrong post."""
+    item = record(1)
+    shortened = "\n\n".join(item["contentMarkdown"].split("\n\n")[:-1])
+    errors = " ".join(mod.audit_post(public_post(item, content=shortened,
+                                                 contentText=shortened), item))
+    assert "it has drifted from the approved text" in errors
+    assert "the wrong content is live" not in errors
+
+
+def test_an_empty_live_body_is_reported_once(mod):
+    item = record(1)
+    errors = mod.audit_post(public_post(item, content="", contentText=""), item)
+    assert [error for error in errors if "body" in error] == [
+        f"{item['slug']}: published body is empty"]
 
 
 def test_audit_requires_a_fresh_publication_timestamp(mod):
     item = record(1)
-    stale = mod.audit_post(public_post(mod, item, published="2019-04-02T00:00:00Z"), item,
-                           admin={"memberId": "member-1"}, author_member_id="member-1")
+    stale = mod.audit_post(public_post(item, published="2019-04-02T00:00:00Z"), item)
     assert any("not newer than the source" in error for error in stale)
 
     since = datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)
-    early = mod.audit_post(public_post(mod, item, published="2026-09-29T10:00:00Z"), item,
-                           admin={"memberId": "member-1"}, author_member_id="member-1",
+    early = mod.audit_post(public_post(item, published="2026-09-29T10:00:00Z"), item,
                            published_since=since)
     assert any("predates this run" in error for error in early)
 
     future = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
-    ahead = mod.audit_post(public_post(mod, item, published=future), item,
-                           admin={"memberId": "member-1"}, author_member_id="member-1")
+    ahead = mod.audit_post(public_post(item, published=future), item)
     assert any("in the future" in error for error in ahead)
-
-
-def test_audit_reports_author_as_unverified_without_an_admin_read(mod):
-    """The public view serves a constant author name, so it is not evidence.
-
-    `_blog_view` in seo-tools/wix.py sets `authorName` from a module constant. An audit
-    that only asserted that field would pass on a post attributed to anyone at all.
-    """
-    item = record(1)
-    errors = mod.audit_post(public_post(mod, item), item, admin=None)
-    assert any("author not verified against Wix" in error for error in errors)
-
-    wrong = mod.audit_post(public_post(mod, item), item,
-                           admin={"memberId": "someone-else"},
-                           author_member_id="member-1")
-    assert any("attributed to the wrong author" in error for error in wrong)
 
 
 def test_audit_catches_a_duplicated_slug_or_title_on_the_live_site(mod):
     item = record(1)
-    errors = " ".join(mod.audit_post(public_post(mod, item), item,
-                                     admin={"memberId": "member-1"},
-                                     author_member_id="member-1",
+    errors = " ".join(mod.audit_post(public_post(item), item,
                                      live_slug_counts={item["slug"]: 2},
                                      live_title_counts={item["title"]: 3}))
     assert "2 live posts share this slug" in errors
@@ -630,11 +588,7 @@ def test_audit_marks_verified_in_the_ledger(mod, monkeypatch, tmp_path):
     doc = document(2)
     ledger_path = tmp_path / "ledger.json"
     ledger_for(ledger_path, doc["posts"])
-    fake = install(monkeypatch, mod, FakeWix())
-    mod.publish_document(doc, ledger_path=ledger_path)
-    monkeypatch.setattr(mod, "fetch_public_post",
-                        lambda slug: public_post(
-                            mod, next(p for p in doc["posts"] if p["slug"] == slug)))
+    serve(monkeypatch, mod, doc["posts"])
 
     report = mod.audit_document(doc, ledger_path=ledger_path)
     assert report["errors"] == []
@@ -642,6 +596,7 @@ def test_audit_marks_verified_in_the_ledger(mod, monkeypatch, tmp_path):
     for row in blog_ledger.Ledger.load(ledger_path).rows:
         assert row.status == "VERIFIED"
         assert row.verifiedAt
+        assert row.publishedAt == "2026-09-29T10:00:00Z"
 
 
 def test_audit_reports_an_unpublished_record_rather_than_failing_it(mod, monkeypatch,
@@ -649,49 +604,97 @@ def test_audit_reports_an_unpublished_record_rather_than_failing_it(mod, monkeyp
     doc = document(1)
     ledger_path = tmp_path / "ledger.json"
     ledger_for(ledger_path, doc["posts"])
-    install(monkeypatch, mod, FakeWix())
+    serve(monkeypatch, mod, [])
     report = mod.audit_document(doc, ledger_path=ledger_path)
     assert report["errors"] == []
     assert report["notPublished"] == [doc["posts"][0]["slug"]]
+    assert all(row.status != "VERIFIED"
+               for row in blog_ledger.Ledger.load(ledger_path).rows)
 
 
-# ── reuse, asserted against the source ──────────────────────────────────────────
-
-def test_the_runner_owns_no_wix_client_of_its_own():
-    """Acceptance criterion: one publisher. Reuse is easy to claim and easy to drift from.
-
-    A second HTTP client or a second credential read here would route around
-    `wix_blog_migrate.load_api_key`, and with it the WIX_CREDENTIALS_DISABLED kill switch
-    that loader checks before touching Secrets Manager.
-    """
-    source = SCRIPT.read_text(encoding="utf-8")
-    for forbidden in ("import urllib", "import requests", "http.client",
-                      "get_secret_value", "secretsmanager", "Authorization"):
-        assert forbidden not in source, f"{forbidden} suggests a second Wix client"
-
-
-def test_the_ricos_and_draft_payload_come_from_the_migrate_module(mod, monkeypatch):
-    """Not a hand-rolled equivalent: byte-identical to what `wix_blog_migrate` builds."""
-    item = record(1)
-    install(monkeypatch, mod, FakeWix())
-    payload = mod.to_wix_post(item)
-    assert payload["richContent"] == real_wix.markdown_to_rich_content(distinct_body(1))
-    draft = real_wix.draft_post(payload, "member-1", "category-1",
-                                {"Integrity": "t1", "Accountability": "t2"})
-    assert draft["seoSlug"] == item["slug"]
-    assert draft["seoData"] == real_wix.seo_data(payload)
-    #: Absent on purpose, so Wix stamps a fresh publication date.
-    assert "firstPublishedDate" not in draft
-
-
-def test_publish_sends_only_the_bulk_create_endpoint(mod, monkeypatch, tmp_path):
-    doc = document(2)
+def test_audit_counts_duplicates_from_the_whole_live_listing(mod, monkeypatch, tmp_path):
+    doc = document(1)
+    item = doc["posts"][0]
     ledger_path = tmp_path / "ledger.json"
     ledger_for(ledger_path, doc["posts"])
-    fake = install(monkeypatch, mod, FakeWix())
-    mod.publish_document(doc, ledger_path=ledger_path)
-    paths = {call[1] for call in fake.calls if call[0] == "POST"}
-    assert paths == {"/blog/v3/bulk/draft-posts/create"}
+    serve(monkeypatch, mod, doc["posts"],
+          extra_listing=[{"slug": "an-older-post", "title": item["title"]}])
+    report = mod.audit_document(doc, ledger_path=ledger_path)
+    assert any("2 live posts share the title" in error for error in report["errors"])
+    assert report["verified"] == []
+
+
+def test_a_failed_read_back_is_an_error_for_that_record(mod, monkeypatch, tmp_path):
+    doc = document(1)
+    ledger_path = tmp_path / "ledger.json"
+    ledger_for(ledger_path, doc["posts"])
+    serve(monkeypatch, mod, [], extra_listing=[{"slug": doc["posts"][0]["slug"],
+                                                "title": doc["posts"][0]["title"]}])
+    report = mod.audit_document(doc, ledger_path=ledger_path)
+    assert [error.split(":")[0] for error in report["errors"]] == [doc["posts"][0]["slug"]]
+    assert "read-back failed" in report["errors"][0]
+
+
+# ── the read route ──────────────────────────────────────────────────────────────
+
+def test_the_read_back_is_a_get_on_the_public_route(mod):
+    item = record(1)
+    fake = FakeLambda(lambda path, event: (200, {"ok": True, "post": public_post(item)}))
+    post = mod.native.fetch_public_post(item["slug"], client=fake)
+    assert post["slug"] == item["slug"]
+    (function, invocation, event), = fake.events
+    assert function == "wecare-seo-tools"
+    assert invocation == "RequestResponse"
+    assert event["requestContext"]["http"]["method"] == "GET"
+    assert event["rawPath"] == f"/seo-tools/blog-public/{item['slug']}"
+
+
+def test_the_listing_asks_only_for_the_fields_it_needs(mod):
+    fake = FakeLambda(lambda path, event: (200, {"ok": True, "total": 1,
+                                                 "posts": [{"slug": "a", "title": "A"}]}))
+    assert mod.native.list_public_posts(client=fake) == [{"slug": "a", "title": "A"}]
+    (_, _, event), = fake.events
+    assert event["rawPath"] == "/seo-tools/blog-public"
+    assert event["queryStringParameters"] == {"fields": "slug,title"}
+
+
+def test_a_truncated_listing_is_refused(mod):
+    """A short corpus hides duplicates and makes live posts look unpublished."""
+    fake = FakeLambda(lambda path, event: (200, {"ok": True, "total": 3,
+                                                 "posts": [{"slug": "a", "title": "A"}]}))
+    with pytest.raises(RuntimeError, match="returned 1 of 3"):
+        mod.native.list_public_posts(client=fake)
+
+
+def test_a_missing_post_raises_from_the_read_route(mod):
+    fake = FakeLambda(lambda path, event: (404, {"ok": False, "error": "Blog post not found"}))
+    with pytest.raises(RuntimeError, match="HTTP 404"):
+        mod.native.fetch_public_post("not-live", client=fake)
+
+
+def test_the_read_helper_refuses_any_route_but_the_public_one(mod):
+    fake = FakeLambda(lambda path, event: (200, {"ok": True}))
+    with pytest.raises(ValueError, match="not on the public read route"):
+        mod.native.invoke_public("/seo-tools/blog-publish/release", client=fake)
+    assert fake.events == []
+
+
+# ── no publish path, asserted against the source ────────────────────────────────
+
+def test_the_runner_has_no_publish_path(mod):
+    """Publication belongs to Blog Studio. Nothing here may write a post or hold a secret."""
+    with pytest.raises(SystemExit) as refused:
+        mod.main(["publish", "--manifest", "unused.json"])
+    assert refused.value.code == 2
+    assert not hasattr(mod, "publish_document")
+
+    for path in (SCRIPT, ROOT / "scripts" / "blog_native_contract.py"):
+        source = path.read_text(encoding="utf-8")
+        for forbidden in ("import urllib", "import requests", "http.client",
+                          "get_secret_value", "secretsmanager", "Authorization",
+                          "put_item", "update_item", "put_object", "create_blog_post(",
+                          "/blog-publish"):
+            assert forbidden not in source, f"{forbidden} in {path.name}"
 
 
 def test_build_corpus_excludes_the_manifest_from_itself(tmp_path, monkeypatch):
