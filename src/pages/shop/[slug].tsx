@@ -52,7 +52,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
 
   return (
     <>
-      <ShopProductHead product={ product } />
+      <ShopProductHead product={ product } routePath={ '/shop/' + product.slug + '/' } />
       <RotatingHero
         frame="Explore"
         words={ [ { word: product.name, tint: '#e0f7c8', dot: '#3da35a' } ] }
