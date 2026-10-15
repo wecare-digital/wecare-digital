@@ -297,9 +297,10 @@ describe( 'both intake paths stay distinguishable', () => {
     expect( pageSource ).toContain( 'blog_ingest.py ingest' );
   } );
 
-  it( 'says which path is for which volume', () => {
-    expect( pageSource ).toMatch( /thousands of sources/ );
-    expect( pageSource ).toMatch( /interactive batch/ );
+  it( 'says the live and CLI paths are both unbounded in total volume', () => {
+    expect( pageSource ).toMatch( /no product-level source-count ceiling/ );
+    expect( pageSource ).toMatch( /unbounded total/ );
+    expect( pageSource ).toMatch( /optional offline\/resumable path/ );
   } );
 } );
 
