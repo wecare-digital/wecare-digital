@@ -433,7 +433,7 @@ const Header: React.FC = () => {
                   { COLUMNS.map( ( column, columnIndex ) => (
                     <div key={ columnIndex } className="nav-col">
                       { column.sections.map( ( section, sectionIndex ) => {
-                        const isProducts = section.heading.startsWith( 'Products' );
+                        const isProducts = section.heading === 'Products 1 of 2' || section.heading === 'Products 2 of 2';
                         const headingActive = Boolean(
                           section.headingHref && section.headingMatch && router.pathname === section.headingMatch
                         );
