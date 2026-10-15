@@ -152,6 +152,20 @@ UNDECLARED_ALLOWED: dict[str, str] = {
         "Provisioned 2026-09-24 by scripts/provision_agent_approvals_table.py for "
         "the agent action approval path. Deliberately not modelled here: it is "
         "operational state with a TTL, not part of the CRM data model.",
+    "CartTable":
+        "AWS-native working cart owned by amplify/catalog-resources.ts and "
+        "lambda_utils/ecommerce/native_cart.py. It is checkout infrastructure, "
+        "not an Amplify GraphQL CRM model.",
+    "ProductsTable":
+        "AWS-native catalog authority owned by amplify/catalog-resources.ts. "
+        "Storefront and checkout read it directly; Amplify GraphQL does not own it.",
+    "CustomerSessionsTable":
+        "Backend-owned customer session store defined by customer_session_config.py. "
+        "Its server-side session lifecycle is intentionally outside the CRM model.",
+    "ServiceRequestsTable":
+        "Provisioned by scripts/provision_service_requests.py for paid service request "
+        "state and dedicated GSIs; it is owned by the service-request subsystem, "
+        "not the Amplify GraphQL model.",
     "PstnSoftphoneSessions":
         "Provisioned by scripts/provision_pstn_softphone.py. Its expiresAt is both "
         "the DynamoDB TTL and the agent availability cutoff; modelling it here "
