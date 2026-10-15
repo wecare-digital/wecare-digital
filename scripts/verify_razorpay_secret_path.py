@@ -51,10 +51,10 @@ def main() -> int:
     print(f"  resolved from      : {src}")
     # Not `prefix={k[:4]}`, which is what this printed until 2026-09-29 while the
     # docstring above claimed it reported only populated-ness and length. Four
-    # characters of a live key id is an issuer prefix, and
-    # `set_wix_credential.py::fingerprint` states the rule this broke: never print
-    # a prefix or a suffix of a credential, because an issuer prefix plus an exact
-    # length is a meaningful head start. The sha256 prefix still distinguishes the
+    # characters of a live key id is an issuer prefix, and the repository's
+    # credential-fingerprint rule is the one this broke: never print a prefix or a
+    # suffix of a credential, because an issuer prefix plus an exact length is a
+    # meaningful head start. The sha256 prefix still distinguishes the
     # new path's key id from the old path's, which is the only thing it is for.
     print(f"  key_id populated   : {bool(k)}  len={len(k)}  {fingerprint(k)}")
     print(f"  key_secret populated: {bool(s)}  len={len(s)}")

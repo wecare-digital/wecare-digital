@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Prove AWS End User Messaging can actually send, before Airtel is removed.
+"""Prove AWS End User Messaging can actually send.
 
-Stage 3 of docs/migration-plan.md cannot start until this passes. Airtel is the
-primary India sender today; replacing it on the strength of "the sender id looks
-registered" would be a guess. This exercises the real code path through
-lambda_utils.comms against the real account.
+AWS End User Messaging is the only SMS provider, for Indian (DLT) and international
+destinations alike, so "the sender id looks registered" is not evidence that a send
+works. This exercises the real code path through lambda_utils.comms against the real
+account.
 
 DEFAULT IS DRY RUN. `DryRun=True` makes AWS validate the origination identity,
 the DLT parameters and the destination, and return a MessageId, WITHOUT
@@ -272,13 +272,13 @@ def main() -> int:
 
     print()
     if problems:
-        print(f"{problems} problem(s). Do NOT start Stage 3 until these clear.\n")
+        print(f"{problems} problem(s). Do NOT rely on SMS delivery until these clear.\n")
         return 1
     print("AWS End User Messaging is ready for both routes.")
     if not args.live:
         print("This was a DRY RUN: AWS validated identity, DLT and destination")
         print("without delivering. Do one --live send to a number you control")
-        print("before removing Airtel.\n")
+        print("to prove delivery end to end.\n")
     return 0
 
 

@@ -10,8 +10,8 @@ query; nothing is printed and nothing is written that contains a value.
 
 `--gate` is opt-in because this script also performs a live provider query that can
 fail for reasons unrelated to the endpoint table, and a reporting run should not go
-red on Razorpay being slow. See the comment above ENDPOINTS for what an expectation
-is and why three of the ten rows expect *absence*.
+red on Razorpay being slow. See the comment above ENDPOINTS for what the route check
+asserts in each direction.
 """
 from __future__ import annotations
 
@@ -26,6 +26,10 @@ from pathlib import Path
 import boto3
 
 GATE = "--gate" in sys.argv
+
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import provider_allowlist  # noqa: E402
 
 REGION = "us-east-1"
 API_ID = "zllr9lrg7j"
@@ -76,61 +80,62 @@ def razorpay_live_webhooks() -> tuple[list[dict], str]:
 
 
 def gateway_routes() -> list[str]:
+    """Every route key on the API. get_routes pages, so NextToken is always drained."""
     api = boto3.client("apigatewayv2", region_name=REGION)
-    items = api.get_routes(ApiId=API_ID, MaxResults="1000")["Items"]
-    return sorted(r["RouteKey"] for r in items)
+    items, token = [], None
+    while True:
+        kwargs = {"ApiId": API_ID, "MaxResults": "100"}
+        if token:
+            kwargs["NextToken"] = token
+        page = api.get_routes(**kwargs)
+        items += page["Items"]
+        token = page.get("NextToken")
+        if not token:
+            return sorted(r["RouteKey"] for r in items)
 
 
-# Provider -> (endpoint, method, auth model, consuming Lambda, expectation)
+# Provider -> (endpoint, method, auth model, consuming Lambda). Every row is expected LIVE.
 #
-# THE FIFTH FIELD, added 2026-09-29, and why it is not decoration.
+# THE ROUTE CHECK IS TWO-SIDED, AND BOTH SIDES ARE POSITIVE.
 #
-# This table used to hold ten rows and the report marked any absent route **MISSING**.
-# Three of the ten had been deliberately retired, so the check emitted three permanent
-# failures that were all correct behaviour:
+#   1. Every endpoint below must have a live route. These are the URLs configured at each
+#      provider; a missing one means a provider is posting into nothing.
+#   2. Every live route in the inbound webhook namespace must be an APPROVED webhook route
+#      in scripts/provider_allowlist.py. An IaC deploy or a well-meaning re-provision is
+#      exactly how a retired provider's callback returns, and this side catches it by the
+#      route not being approved, whatever provider it belonged to.
 #
-#   /webhook/sinch-dlr    Sinch SMS DLR. Sinch is approved for India RCS ONLY; its SMS
-#                         surface is a prohibited provider. Routes deleted 2026-09-21 and
-#                         API 79g3bbufdh deleted entirely. docs/prohibited-provider-retirement.md
-#   /sms-in/airtel        Airtel messaging, prohibited provider. Lambda and routes gone.
-#   /voice-cdr-webhook    Deleted 2026-09-20 because it carried an UNAUTHENTICATED
-#                         `DELETE /voice-cdr-webhook/clear-logs`. That hole is what caused
-#                         scripts/audit_route_auth.py to be written at all.
-#                         docs/deleted-routes-unauthenticated-cdr-20260920-0822.json
-#
-# A check whose output is three standing MISSINGs teaches its reader to skim past the word,
-# which is precisely how a real missing route would then go unnoticed. Same defect as the
-# stale-dimension alarms that were permanently green, and the same fix: assert the state
-# that is actually intended.
-#
-# So `expect` is `"live"` or a retirement reason, and the gate is now two-sided - a route
-# that should be live and is absent fails, and a RETIRED route that has come back fails
-# too. The second half is the one worth having: an IaC deploy or a well-meaning
-# re-provision is exactly how a prohibited-provider endpoint returns, and nothing else here
-# would catch it.
+# This table once carried rows for retired endpoints with an "expect absence" marker, so
+# that a returning route would fail. Side 2 does that for every retired route at once,
+# without the inventory having to name any of them.
 ENDPOINTS = [
     ("Razorpay", "/razorpay-webhook", "POST",
-     "HMAC SHA256 X-Razorpay-Signature vs webhook_secret", "wecare-razorpay-webhook", "live"),
+     "HMAC SHA256 X-Razorpay-Signature vs webhook_secret", "wecare-razorpay-webhook"),
     ("Meta / WhatsApp Cloud", "/whatsapp/inbound", "POST",
-     "X-Hub-Signature-256 vs app_secret + verify_token on GET", "wecare-inbound-whatsapp", "live"),
+     "X-Hub-Signature-256 vs app_secret + verify_token on GET", "wecare-inbound-whatsapp"),
     ("Meta / WhatsApp (business)", "/wa-business/webhooks", "POST",
-     "X-Hub-Signature-256", "wecare-whatsapp-business-api", "live"),
+     "X-Hub-Signature-256", "wecare-whatsapp-business-api"),
     ("Plivo (voice IVR)", "/plivo/answer", "POST",
      "optional ?token= shared secret (PLIVO_ANSWER_TOKEN); Plivo does not sign answer_url",
-     "wecare-plivo-answer", "live"),
-    ("Sinch (SMS DLR)", "/webhook/sinch-dlr", "POST", "provider callback", "wecare-sinch-dlr",
-     "RETIRED 2026-09-21 — Sinch SMS is a prohibited provider (RCS India only). "
-     "Routes and API 79g3bbufdh deleted; see docs/prohibited-provider-retirement.md"),
-    ("Sinch (RCS)", "/webhook/sinch-rcs", "POST", "provider callback", "wecare-rcs-dlr", "live"),
-    ("Airtel IQ (SMS inbound)", "/sms-in/airtel", "POST", "provider callback",
-     "wecare-sms-in-airtel",
-     "RETIRED — Airtel messaging is a prohibited provider; Lambda and routes deleted"),
-    ("Airtel IQ (voice C2C)", "/voice-in/c2c", "POST", "provider callback", "wecare-voice-in-c2c", "live"),
-    ("Airtel IQ (voice OBD)", "/voice-in/obd", "POST", "provider callback", "wecare-voice-in-obd", "live"),
-    ("Voice CDR", "/voice-cdr-webhook", "POST", "provider callback", "wecare-voice-cdr-read",
-     "RETIRED 2026-09-20 — carried an unauthenticated DELETE .../clear-logs; see "
-     "docs/deleted-routes-unauthenticated-cdr-20260920-0822.json"),
+     "wecare-plivo-answer"),
+    ("Sinch (RCS)", "/webhook/sinch-rcs", "POST", "provider callback", "wecare-rcs-dlr"),
 ]
+
+
+def route_failures(routes: set) -> list[str]:
+    """Both sides of the route check, as failure messages. Pure, for tests."""
+    failures = []
+    for _prov, path, method, _auth, fn in ENDPOINTS:
+        if f"{method} {path}" not in routes:
+            failures.append(f"{method} {path} should be live but no route exists "
+                            f"(target {fn})")
+    for route in sorted(routes):
+        path = route.split(None, 1)[-1]
+        if provider_allowlist.is_webhook_route(path) and \
+                not provider_allowlist.webhook_route_ok(path):
+            failures.append(f"{route} is a webhook route that is not on the provider "
+                            f"allow-list (scripts/provider_allowlist.py)")
+    return failures
 
 
 def main() -> int:
@@ -162,24 +167,22 @@ def main() -> int:
     add(f"- Razorpay live query: {status}\n")
 
     add("## Endpoints to configure at each provider\n")
-    add("A retired endpoint being absent is the intended state, not a gap — the fourth")
-    add("column says which is which, and `scripts/webhook_inventory.py --gate` fails on a")
-    add("live route that is missing **and** on a retired route that has reappeared.\n")
+    add("`scripts/webhook_inventory.py --gate` fails when one of these has no live route,")
+    add("**and** when a live route in the webhook namespace is not an approved webhook")
+    add("route in `scripts/provider_allowlist.py`.\n")
     add("| Provider | URL | Method | Route state | Auth | Lambda |")
     add("|---|---|---|---|---|---|")
-    for prov, path, method, auth, fn, expect in ENDPOINTS:
-        present = f"{method} {path}" in routes
-        if expect == "live":
-            state = "YES" if present else "**MISSING**"
-        else:
-            state = "**RESURRECTED — should not exist**" if present else "retired, absent as intended"
+    for prov, path, method, auth, fn in ENDPOINTS:
+        state = "YES" if f"{method} {path}" in routes else "**MISSING**"
         add(f"| {prov} | `{BASE}{path}` | {method} | {state} | {auth} | `{fn}` |")
 
-    retired = [(p, e) for _pr, p, _m, _a, _f, e in ENDPOINTS if e != "live"]
-    if retired:
-        add(f"\n### Retired endpoints ({len(retired)}) — absence is correct\n")
-        for path, why in retired:
-            add(f"- `{path}` — {why}")
+    unapproved = [r for r in sorted(routes)
+                  if provider_allowlist.is_webhook_route(r.split(None, 1)[-1])
+                  and not provider_allowlist.webhook_route_ok(r.split(None, 1)[-1])]
+    if unapproved:
+        add(f"\n### Webhook routes not on the allow-list ({len(unapproved)})\n")
+        for route in unapproved:
+            add(f"- `{route}`")
         add("")
 
     add("\n## Razorpay — current state\n")
@@ -244,32 +247,20 @@ def main() -> int:
     print(f"\nwrote {out} ({out.stat().st_size} bytes)")
 
     print("\nendpoint route check:")
-    failures: list[str] = []
-    for prov, path, method, _a, fn, expect in ENDPOINTS:
-        present = f"{method} {path}" in routes
-        if expect == "live":
-            mark = "ok      " if present else "MISSING "
-            if not present:
-                failures.append(f"{method} {path} should be live but no route exists "
-                                f"(target {fn})")
-        elif present:
-            mark = "RETURNED"
-            failures.append(f"{method} {path} is RETIRED but a route exists again — "
-                            f"{expect}")
-        else:
-            mark = "retired "
+    for _prov, path, method, _a, fn in ENDPOINTS:
+        mark = "ok      " if f"{method} {path}" in routes else "MISSING "
         print(f"  {mark} {method:5s} {path:28s} -> {fn}")
 
-    print(f"\n{len(ENDPOINTS)} endpoint(s): "
-          f"{sum(1 for e in ENDPOINTS if e[5] == 'live')} expected live, "
-          f"{sum(1 for e in ENDPOINTS if e[5] != 'live')} retired")
+    failures = route_failures(routes)
+    print(f"\n{len(ENDPOINTS)} endpoint(s) expected live; "
+          f"{len(routes)} live route(s) checked against the webhook allow-list")
     if failures:
         print(f"\nFAIL — {len(failures)} endpoint expectation(s) violated:")
         for f in failures:
             print(f"  {f}")
         return 1 if GATE else 0
-    print("WEBHOOK ENDPOINT EXPECTATIONS OK — every live route exists and no retired "
-          "route has come back.")
+    print("WEBHOOK ENDPOINT EXPECTATIONS OK — every listed route exists and every live "
+          "webhook route is approved.")
     return 0
 
 

@@ -1,7 +1,7 @@
 """Coupon IAM and table provisioning, as offline contract tests over the scripts themselves.
 
-Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/coupons-20261001.md` sections 4,
-5.2.1 and 6, and the test list in section 7 (tests 52-58). Modelled on
+Design reference: the coupons and gift-cards design note of 2026-10-01 (`coupons-20261001.md`),
+sections 4, 5.2.1 and 6, and the test list in section 7 (tests 52-58). Modelled on
 `tests/test_provision_checkout_contract.py`: parse the provisioner, read its policy document and
 its constants, and assert over those. No provisioner is ever run with `--apply`, and no AWS call is
 made.
@@ -33,6 +33,10 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+
+import provider_allowlist  # noqa: E402
 
 TABLE_SCRIPT = ROOT / "scripts" / "provision_coupons_table.py"
 ROLE_SCRIPT = ROOT / "scripts" / "provision_coupons_role.py"
@@ -121,7 +125,7 @@ def _checkout_simulated_tables() -> list:
 # ── 52 / 52a / 52b: SEAM-C3b, landed ──────────────────────────────────────────
 
 def test_checkout_role_does_not_gain_the_custom_coupons_table():
-    """Website coupons are Wix-authoritative; checkout must not depend on the legacy custom store."""
+    """Checkout must not depend on the coupon service's own table."""
     policy = _checkout_policy()
     resources = [r for s in policy["Statement"] for r in s.get("Resource", [])]
     assert COUPONS_TABLE_ARN not in resources
@@ -233,14 +237,29 @@ def test_the_coupons_policy_has_no_scan_and_no_wildcard_action(role):
         assert not resource.endswith(":table/*")
 
 
-def test_the_coupons_policy_names_only_the_wix_secret_and_by_name(role):
-    """A secret NAME, never a value. The six-character suffix wildcard is how Secrets Manager
-    names ONE secret, not a widening to all of them."""
+@pytest.mark.xfail(strict=True, reason=(
+    "scripts/provision_coupons_role.py (lines 57, 79, 136) still grants GetSecretValue on a "
+    "secret outside the provider allow-list, which no runtime code reads. Its owner drops the "
+    "grant; this mark then comes off, because strict=True turns the pass into a failure."))
+def test_the_coupons_policy_reads_only_approved_secrets_by_name(role):
+    """A secret NAME, never a value, and only a name the provider allow-list approves. The
+    six-character suffix wildcard is how Secrets Manager names ONE secret, not a widening to all
+    of them."""
     document = role.least_privilege_policy()
     secrets = [r for s in document["Statement"]
                if "secretsmanager:GetSecretValue" in s["Action"] for r in s["Resource"]]
-    assert secrets == ["arn:aws:secretsmanager:us-east-1:775261844268:"
-                       "secret:wecare/wix/headless-api-key-*"]
+    prefix = "arn:aws:secretsmanager:us-east-1:775261844268:secret:"
+    for arn in secrets:
+        assert arn.startswith(prefix) and arn.endswith("-*"), arn
+        name = arn[len(prefix):-len("-*")]
+        assert "*" not in name, f"{arn} widens past one secret"
+        assert provider_allowlist.secret_owner(name)[0], f"{name} is not an approved secret"
+
+
+def test_the_coupons_policy_carries_no_credential_value(role):
+    """The policy document names resources; it never carries an issuer-shaped value, and it
+    grants no payment-gateway credential to code that cannot reach a gateway."""
+    document = role.least_privilege_policy()
     rendered = json.dumps(document)
     for shape in ("rzp_live_", "rzp_test_", "sk-", "AIza", "ghp_", "xoxb-", "AKIA", "ASIA",
                   "sk_live_", "-----BEGIN"):

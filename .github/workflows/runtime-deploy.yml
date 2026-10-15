@@ -1,4 +1,4 @@
-name: Wix exit runtime deploy
+name: Runtime deploy
 # scoped deployment trigger after pinned layer permission
 
 on:
@@ -13,14 +13,14 @@ on:
       - 'amplify/functions/shared/lambda_utils/**'
       - 'scripts/deploy_all_lambdas.py'
       - 'scripts/snapstart_publish.py'
-      - '.github/workflows/wix-exit-runtime-deploy.yml'
+      - '.github/workflows/runtime-deploy.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: wix-exit-runtime-production
+  group: runtime-deploy-production
   cancel-in-progress: true
 
 jobs:
