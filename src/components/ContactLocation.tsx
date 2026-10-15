@@ -219,8 +219,9 @@ const ContactLocation: React.FC = () => {
 
   // Maps JS API, only when a key is configured. Everything in the options block is
   // the point of taking this path at all:
-  //   mapTypeId 'satellite'   the imagery that was asked for
-  //   disableDefaultUI true   pan, zoom, fullscreen and Street View GONE, not just inert
+  //   mapTypeId 'roadmap'     show the normal map by default
+  //   mapTypeControl true     keep Roadmap/Satellite available as an explicit user choice
+  //   disableDefaultUI true   remove the rest of the default controls; mapTypeControl is re-enabled below
   //   gestureHandling 'none'  no drag, no scroll-zoom, natively rather than via an overlay
   //   keyboardShortcuts false no focus-then-arrow-keys route back into panning
   //   clickableIcons false    no POI click opening Google's own info card over ours
@@ -242,8 +243,10 @@ const ContactLocation: React.FC = () => {
       const map = new maps.Map( mapHost.current, {
         center: { lat: LAT, lng: LNG },
         zoom: 18,
-        mapTypeId: 'satellite',
+        mapTypeId: 'roadmap',
         disableDefaultUI: true,
+        mapTypeControl: true,
+        mapTypeControlOptions: { mapTypeIds: [ 'roadmap', 'satellite' ] },
         gestureHandling: 'none',
         keyboardShortcuts: false,
         clickableIcons: false,
