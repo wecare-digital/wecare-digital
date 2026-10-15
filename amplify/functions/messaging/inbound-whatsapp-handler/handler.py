@@ -220,7 +220,11 @@ WD_LEAF_LINKS: Dict[str, Tuple[str, str]] = {
     'wd_grahak_os': ('Grahak OS', '/grahak-os/'),
     'wd_vayulok': ('VayuLok', '/vayulok/'),
     'wd_bharat_rx': ('Bharat Rx', '/bharat-rx/'),
-    'wd_elsewhere': ('Elsewhere', '/elsewhere/'),
+    # Elsewhere children. There is no /elsewhere/ page any more (it became a category
+    # on 2026-10-15, mirroring the Header), so `wd_elsewhere` is a submenu, not a leaf.
+    'wd_elsewhere_visa': ('Visa', '/elsewhere/visa/'),
+    'wd_elsewhere_trip': ('Trip', '/elsewhere/trip/'),
+    'wd_elsewhere_activities': ('Activities', '/elsewhere/activities/'),
     'wd_expo_week': ('Expo Week', '/expo-week/'),
     'wd_dastavez': ('Dastavez', '/dastavez/'),
     'wd_clear_closure': ('Clear Closure', '/clear-closure/'),
@@ -314,6 +318,19 @@ WD_LISTS: Dict[str, Dict[str, Any]] = {
             {'id': 'wd_vault', 'title': 'Vault'},
             {'id': 'wd_shipments', 'title': 'Shipments'},
             {'id': 'wd_review', 'title': 'Leave Review'},
+            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
+        ],
+    },
+    # Elsewhere has no parent page (Header.tsx renders it as a label over three
+    # children), so the row opens its children instead of linking a 404.
+    'wd_elsewhere': {
+        'body': 'Elsewhere',
+        'button': 'Open Menu',
+        'section': 'Elsewhere',
+        'rows': [
+            {'id': 'wd_elsewhere_visa', 'title': 'Visa'},
+            {'id': 'wd_elsewhere_trip', 'title': 'Trip'},
+            {'id': 'wd_elsewhere_activities', 'title': 'Activities'},
             {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
         ],
     },
