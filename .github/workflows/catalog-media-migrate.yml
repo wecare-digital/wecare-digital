@@ -48,9 +48,10 @@ jobs:
     needs: test
     if: (github.event_name == 'push' && github.ref == 'refs/heads/stack') || (github.event_name == 'workflow_dispatch' && inputs.action == 'apply' && github.ref == 'refs/heads/stack')
     runs-on: ubuntu-26.04
-    # Pushes to `stack` with the stack-bot deploy key: the `stack: required checks` ruleset lets
-    # only that key bypass, and the key lives in an environment only `stack` jobs can read.
-    environment: stack-bot
+    # Pushes to `stack` with the stack-bot deploy key (repository secret STACK_DEPLOY_KEY): the
+    # `stack: required checks` ruleset lets only that key bypass. Not an environment secret on
+    # purpose - an environment changes the OIDC `sub` to `environment:...`, which the
+    # GitHubActions-* trust policies (scripts/fix_github_oidc_trust.py) do not accept.
     timeout-minutes: 30
     permissions:
       contents: write
