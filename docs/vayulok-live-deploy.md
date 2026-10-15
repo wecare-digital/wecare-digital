@@ -52,3 +52,6 @@ On a deployed `*.wecare.digital` origin:
 3. Release the map and confirm the displayed location/default information changes.
 4. Confirm Weather and Air Quality requests use the new center coordinates.
 5. Search for a city and confirm search still recenters and refreshes the same data.
+
+
+<!-- Rebuild trigger: 2026-10-15 VayuLok browser-key redeploy -->
