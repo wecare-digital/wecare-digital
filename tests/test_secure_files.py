@@ -572,7 +572,7 @@ def test_otp_is_never_logged():
 CLIENT_TS = ROOT / "src/api/client.ts"
 # The collection page lives at /get, the URL originally specified. It was briefly at
 # /files while working around /get/<*> being rewritten to CloudFront.
-FILES_PAGE = ROOT / "src/pages/get.tsx"
+FILES_PAGE = ROOT / "src/components/get/GetPage.tsx"
 CUSTOMER_AUTH = ROOT / "src/lib/customerAuth.ts"
 
 
