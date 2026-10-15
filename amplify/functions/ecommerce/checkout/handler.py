@@ -142,10 +142,10 @@ CONTACTS_TABLE = shared_tables.contacts_table_name()
 #: `DeleteItem`: an order record is evidence that money moved.
 ORDERS_TABLE = shared_tables.orders_table_name()
 #: AWS-native product catalog; the only checkout product authority.
-PRODUCTS_TABLE = os.environ.get("PRODUCTS_TABLE", "stack-wecare-digital-ProductsTable")
+PRODUCTS_TABLE = shared_tables.products_table_name()
 #: AWS-native working cart (CartTable), the backing store for the WhatsApp claim-basket /
 #: customer-cart adapter that replaced the Wix Cart V2 adapter.
-CART_TABLE = os.environ.get("CART_TABLE", "stack-wecare-digital-CartTable")
+CART_TABLE = shared_tables.carts_table_name()
 WEBSITE_SNAPSHOT_TTL_SECONDS = 15 * 60
 
 #: Reasons that mean "we refuse", as opposed to "we do not know". 409 for the first; 200 for the
