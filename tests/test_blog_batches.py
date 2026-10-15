@@ -366,6 +366,17 @@ def test_the_status_report_is_uncapped_by_default(env):
     assert env["bs"].status_report()["total"] == 600
 
 
+def test_limited_status_report_keeps_exact_totals(env):
+    batch_id = _batch(env)
+    _bulk_sources(env, batch_id, 600)
+    report = env["bs"].status_report(limit=100)
+    assert report["total"] == 600
+    assert report["shown"] == 100
+    assert report["truncated"] is True
+    assert len(report["sources"]) == 100
+    assert report["byStatus"]["UPLOADED"] == 600
+
+
 def test_the_status_report_can_be_scoped_to_one_batch(env):
     """Scoped through the batch index, not by reading every source in the system."""
     first = _batch(env, name="Wave 1")

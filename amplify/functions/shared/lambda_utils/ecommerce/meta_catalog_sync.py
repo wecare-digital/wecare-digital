@@ -184,6 +184,7 @@ WIX_TEMPLATE_SAMPLE_SLUGS: Tuple[str, ...] = (
 #: real, sellable product reached by direct cart reference, and the owner's catalogue list names
 #: it. Its three variants remain subject to checkout's own variant allow-list and quantity-1 rule.
 CONTRIBUTION_PRODUCT_ID = "8514c405-3971-4786-ad0d-15406ca23407"
+CONTRIBUTION_CTA_URL = "https://wa.me/message/BYFLCAAMSZBXD1"
 
 #: The ₹1 test product - a visible:true catalogue test row that is not this storefront and must
 #: never reach a customer-facing WhatsApp catalogue (it is also hidden from /shop/ by
@@ -510,6 +511,8 @@ def desired_items(products: Iterable[Mapping[str, Any]], *,
             service_path = SERVICE_PATH_BY_VARIANT.get(str(variant.get("id") or ""))
             if product_id == SERVICE_PRODUCT_ID and service_path:
                 item["url"] = f"https://wecare.digital{service_path}"
+            elif product_id == CONTRIBUTION_PRODUCT_ID:
+                item["url"] = CONTRIBUTION_CTA_URL
             elif product_id != SERVICE_PRODUCT_ID:
                 canonical_path = str(product.get("canonicalPath") or "").strip()
                 if canonical_path.startswith("/") and "://" not in canonical_path:

@@ -196,6 +196,26 @@ describe( 'the upload path is wired to the real routes', () => {
     expect( flow ).toContain( 'confirmable.push' );
   } );
 
+  it( 'keeps total volume unlimited while bounding transport and upload concurrency', () => {
+    expect( pageSource ).toContain( 'INTAKE_CHUNK_SIZE' );
+    expect( pageSource ).toContain( 'CONFIRM_CHUNK_SIZE' );
+    expect( pageSource ).toContain( 'UPLOAD_CONCURRENCY' );
+    expect( pageSource ).toContain( 'mapWithConcurrency' );
+    expect( pageSource ).toContain( 'chunked( requests, INTAKE_CHUNK_SIZE )' );
+    expect( pageSource ).toContain( 'chunked( confirmable, CONFIRM_CHUNK_SIZE )' );
+    expect( pageSource ).toContain( 'unlimited bulk' );
+    expect( pageSource ).not.toMatch( /files\.length\s*>\s*1000/ );
+  } );
+
+  it( 'uses exact backend rollups even when the visible source table is bounded', () => {
+    expect( clientSource ).toContain( 'shown: number;' );
+    expect( clientSource ).toContain( 'truncated: boolean;' );
+    expect( pageSource ).toContain( 'setSourceRollup( data.byStatus || {} )' );
+    expect( pageSource ).toContain( 'const liveRollup = sourceRollup;' );
+    expect( pageSource ).toContain( 'recent rows of' );
+    expect( pageSource ).toContain( 'total sources' );
+  } );
+
   it( 'links the source document so a reviewer can actually read it', () => {
     // Section 2 of the standard forbids building an article from a title or an excerpt, and
     // `blog_sources.source_url` exists only to make that reading one click away - it returns
@@ -277,9 +297,10 @@ describe( 'both intake paths stay distinguishable', () => {
     expect( pageSource ).toContain( 'blog_ingest.py ingest' );
   } );
 
-  it( 'says which path is for which volume', () => {
-    expect( pageSource ).toMatch( /thousands of sources/ );
-    expect( pageSource ).toMatch( /interactive batch/ );
+  it( 'says the live and CLI paths are both unbounded in total volume', () => {
+    expect( pageSource ).toMatch( /no product-level source-count ceiling/ );
+    expect( pageSource ).toMatch( /unbounded total/ );
+    expect( pageSource ).toMatch( /optional offline\/resumable path/ );
   } );
 } );
 
