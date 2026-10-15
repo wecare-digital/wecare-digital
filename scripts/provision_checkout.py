@@ -156,7 +156,11 @@ SHARED_DIR = ROOT / "amplify/functions/shared"
 DEPLOY_SOURCE_ROOT = ROOT / ".scratch" / "deploy-checkout"
 
 PAYMENT_ATTEMPTS_TABLE = "stack-wecare-digital-PaymentAttemptsTable"
-COMMERCE_KEYS_TABLE = "stack-wecare-digital-WixOrderIds"
+#: The commerce-key table the live function reads (`COMMERCE_KEYS_TABLE` env, and the
+#: `order_keys.commerce_keys_table_name()` default). It replaced the deleted
+#: `stack-wecare-digital-WixOrderIds` table on 2026-10-14; a test pins this literal to the
+#: resolver's default so the role, the env and the code cannot name different tables again.
+COMMERCE_KEYS_TABLE = "stack-wecare-digital-CommerceKeys"
 #: Checkout pricing and inventory authority is the AWS-native ProductsTable.
 PRODUCTS_TABLE = "stack-wecare-digital-ProductsTable"
 RAZORPAY_API_SECRET = "wecare/razorpay/api"

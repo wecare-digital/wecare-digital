@@ -30,7 +30,7 @@ def test_the_policy_has_exact_resources_including_selected_vault_files(prov):
         {"Sid": "ServiceRequestsByCustomer", "Effect": "Allow", "Action": ["dynamodb:Query"],
          "Resource": [f"{table}/index/customerId-createdAt-index"]},
         {"Sid": "ReadPaidOrderClaims", "Effect": "Allow", "Action": ["dynamodb:GetItem"],
-         "Resource": [f"arn:aws:dynamodb:us-east-1:{ACCT}:table/stack-wecare-digital-WixOrderIds"],
+         "Resource": [f"arn:aws:dynamodb:us-east-1:{ACCT}:table/stack-wecare-digital-CommerceKeys"],
          "Condition": {"ForAllValues:StringLike": {"dynamodb:LeadingKeys": [
              "PAYREF#*", "REFERENCE#*", "PAYMENTATTEMPT#*"]}}},
         # _resolve_original_order (handler.py:125-146) resolves PAYREF -> PAYMENTATTEMPT on the

@@ -1,31 +1,28 @@
 #!/usr/bin/env python3
 """Deterministic cost model for the AWS-native consolidation program.
 
-READ-ONLY. This script never mutates AWS. It computes the recurring-cost
-scenarios the migration cares about from (a) deterministic list-price constants
-recorded below and (b) optional live *counts* pulled read-only from the account
-(secret count, Lightsail bundle). It prints a reconciliation table and writes a
-machine-readable JSON artifact so the cost doc cites computed numbers, never
-hand-typed ones.
+READ-ONLY. Never mutates AWS. Two inputs, both reproducible:
+
+1. A committed Cost Explorer evidence file (default
+   `docs/migrations/evidence/cost-explorer-20261014.json`): gross usage by service and usage type,
+   plus the credit lines, read with four GetCostAndUsage calls on 2026-10-14. This script makes
+   NO Cost Explorer call itself (each one costs $0.01 and CE calls were a September cost driver).
+2. Recorded counts (secrets, Lightsail bundle, billed snapshot size), optionally refreshed with
+   `--live` using free read-only list/describe calls.
 
 Usage:
-    python3 scripts/aws_cost_model.py                 # offline, uses recorded counts
-    python3 scripts/aws_cost_model.py --live          # pull live counts (read-only)
-    python3 scripts/aws_cost_model.py --json out.json # also write JSON artifact
+    python3 scripts/aws_cost_model.py                       # recorded counts + committed evidence
+    python3 scripts/aws_cost_model.py --live                # refresh counts (read-only)
+    python3 scripts/aws_cost_model.py --json out.json       # also write the JSON artifact
 
-Design rules (from the master task):
-  - Secrets Manager list price is $0.40 per secret per month + $0.05 per 10k API
-    calls. These are the planning constants; --live confirms the count only, not
-    the price (AWS does not expose per-account secret price via an API).
-  - "Scheduled for deletion" secrets are NOT counted as future savings — AWS
-    stops billing them at the moment deletion is scheduled, so removing them is
-    already realised, not a new win.
-  - Lightsail bundle prices come from get-bundles when --live, else the recorded
-    constants. The $2/month micro->nano delta is only "realised" once the micro
-    actually stops being billable; this script reports it as *potential* until
-    then.
-  - No theoretical saving is reported as realised cash. Every figure is labelled
-    POTENTIAL or REALISED.
+Rules (from the master task):
+  - Every figure is labelled MEASURED, REALISED or POTENTIAL. No POTENTIAL figure is cash.
+  - Scheduled-for-deletion secrets are not billed, so they are never a new saving.
+  - Historical fixes (the September Cost Explorer call storm) are reported, never re-counted.
+  - Lightsail snapshots bill on STORED size (5.3 GB-month measured), not on the 40 GB disk.
+  - Credits netted the bill to $0.00 in Aug-Oct 2026. Until credits run out, a saving extends
+    the credit runway; it is not a cash saving. Credit balance/expiry is not exposed by the CE
+    API: the owner must read it in the Billing console.
 """
 from __future__ import annotations
 
@@ -33,34 +30,43 @@ import argparse
 import json
 import subprocess
 import sys
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
 
 REGION = "us-east-1"
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_EVIDENCE = ROOT / "docs" / "migrations" / "evidence" / "cost-explorer-20261014.json"
 
-# ---- Deterministic list-price constants (us-east-1, verified 2026-10-14) ----
+# ---- List-price constants (us-east-1, checked 2026-10-14) ----
 SECRET_STORAGE_USD_PER_MONTH = 0.40      # per secret per month
 SECRET_API_USD_PER_10K_CALLS = 0.05      # per 10,000 API calls
 PARAM_STORE_STANDARD_USD = 0.00          # Standard tier: no per-parameter charge
-LIGHTSAIL_MICRO_USD = 7.0                # micro_3_0 bundle/month
-LIGHTSAIL_NANO_USD = 5.0                 # nano_3_0 bundle/month
-# Lightsail instance snapshots: $0.05/GB-month (us-east-1).
+LIGHTSAIL_MICRO_USD = 7.0                # micro_3_0 bundle/month (live get-bundles)
+LIGHTSAIL_NANO_USD = 5.0                 # nano_3_0 bundle/month (live get-bundles)
 LIGHTSAIL_SNAPSHOT_USD_PER_GB_MONTH = 0.05
+CW_ALARM_USD_PER_MONTH = 0.10            # standard-resolution metric alarm
+CW_FREE_ALARMS = 10
+KMS_CMK_USD_PER_MONTH = 1.00
 
-# ---- Recorded counts (offline fallback; confirmed live 2026-10-14) ----
+# ---- Recorded counts (live-verified 2026-10-14) ----
 RECORDED = {
-    "active_secrets": 22,
-    "scheduled_deletion_secrets": 13,
-    "wix_secrets": 3,  # headless-api-key, catalog-webhook, app-oauth
+    "active_secrets": 19,
+    "scheduled_deletion_secrets": 9,
+    "reference_active_secrets_20261012": 22,
+    "wix_secrets_deleted_20261014": 3,   # force-deleted 2026-10-14 (CloudTrail)
     "lightsail_bundle": "micro_3_0",
-    "snapshot_gb": 40,
+    "snapshot_billed_gb": 5.3,           # CE USE1-SnapshotUsage, GB-month
+    "cloudwatch_alarms": 73,
+    "kms_customer_keys": 4,
 }
+
+#: Fixed monthly charges: billed in full at the start of the month, so no run-rate scaling.
+FIXED_MONTHLY_SERVICES = {"AWS Business Support+"}
 
 
 def _aws(args: list[str]) -> str:
-    return subprocess.run(
-        ["aws", *args, "--region", REGION, "--output", "text"],
-        capture_output=True, text=True, check=True,
-    ).stdout.strip()
+    return subprocess.run(["aws", *args, "--region", REGION, "--output", "text"],
+                          capture_output=True, text=True, check=True).stdout.strip()
 
 
 def live_counts() -> dict:
@@ -68,175 +74,185 @@ def live_counts() -> dict:
     try:
         out["active_secrets"] = int(_aws([
             "secretsmanager", "list-secrets", "--max-results", "100",
-            "--query", "length(SecretList[?DeletedDate==null])",
-        ]))
+            "--query", "length(SecretList[?DeletedDate==null])"]))
         out["scheduled_deletion_secrets"] = int(_aws([
-            "secretsmanager", "list-secrets", "--include-planned-deletion",
-            "--max-results", "100",
-            "--query", "length(SecretList[?DeletedDate!=null])",
-        ]))
+            "secretsmanager", "list-secrets", "--include-planned-deletion", "--max-results",
+            "100", "--query", "length(SecretList[?DeletedDate!=null])"]))
         out["lightsail_bundle"] = _aws([
             "lightsail", "get-instance", "--instance-name", "wecare-voice-bot",
-            "--query", "instance.bundleId",
-        ])
+            "--query", "instance.bundleId"])
+        out["cloudwatch_alarms"] = int(_aws([
+            "cloudwatch", "describe-alarms", "--query", "length(MetricAlarms)"]))
     except (subprocess.CalledProcessError, ValueError) as exc:  # pragma: no cover
-        print(f"warning: live pull failed, using recorded counts: {exc}",
-              file=sys.stderr)
+        print(f"warning: live pull failed, using recorded counts: {exc}", file=sys.stderr)
     return out
 
 
+# ── measured baseline from the committed Cost Explorer evidence ─────────────────────────────
+
+def _days(period: dict) -> int:
+    from datetime import date
+    start = date.fromisoformat(period["start"])
+    end = date.fromisoformat(period["end"])
+    return (end - start).days
+
+
+def measured(evidence: dict) -> dict:
+    gross = evidence["gross_by_service"]
+    sep = gross["2026-09"]["groups"]
+    octo = gross["2026-10"]
+    oct_days = _days(octo)
+    scale = 31 / oct_days
+    run_rate = {}
+    for service, row in octo["groups"].items():
+        usd = row["usd"]
+        run_rate[service] = round(usd if service in FIXED_MONTHLY_SERVICES else usd * scale, 2)
+    usage = evidence["usage_types_selected_services"]
+
+    def ut(month: str, key: str) -> dict:
+        return usage[month]["groups"].get(key, {"usd": 0.0, "quantity": 0.0})
+
+    credits = {m: round(v["groups"].get("Credit", {"usd": 0.0})["usd"], 2)
+               for m, v in evidence["record_type"].items()}
+    return {
+        "gross_total": {m: round(sum(r["usd"] for r in v["groups"].values()), 2)
+                        for m, v in gross.items()},
+        "credits": credits,
+        "oct_days": oct_days,
+        "sep_by_service": {k: round(v["usd"], 2) for k, v in sep.items()},
+        "oct_run_rate_by_service": run_rate,
+        "oct_run_rate_total": round(sum(run_rate.values()), 2),
+        "amplify_build_minutes": {"2026-09": ut("2026-09", "USE1-BuildDuration")["quantity"],
+                                  "2026-10_mtd": ut("2026-10", "USE1-BuildDuration")["quantity"]},
+        "amplify_build_usd": {"2026-09": ut("2026-09", "USE1-BuildDuration")["usd"],
+                              "2026-10_run_rate": round(
+                                  ut("2026-10", "USE1-BuildDuration")["usd"] * scale, 2)},
+        "amplify_egress_gb": {"2026-09": ut("2026-09", "USE1-DataTransferOut")["quantity"],
+                              "2026-10_mtd": ut("2026-10", "USE1-DataTransferOut")["quantity"]},
+        "amplify_egress_usd": {"2026-09": ut("2026-09", "USE1-DataTransferOut")["usd"],
+                               "2026-10_run_rate": round(
+                                   ut("2026-10", "USE1-DataTransferOut")["usd"] * scale, 2)},
+        "cost_explorer_usd": {"2026-09": round(sep.get("AWS Cost Explorer", {"usd": 0})["usd"], 2),
+                              "2026-10_mtd": round(octo["groups"].get(
+                                  "AWS Cost Explorer", {"usd": 0})["usd"], 2)},
+    }
+
+
+# ── levers and scenarios ─────────────────────────────────────────────────────────────────────
+
 @dataclass
-class Scenario:
+class Lever:
     name: str
-    label: str  # BASELINE | POTENTIAL | REALISED
-    secrets_monthly: float = 0.0
-    lightsail_monthly: float = 0.0
+    label: str            # REALISED | POTENTIAL | NOT_A_LEVER | HISTORICAL
+    monthly_delta: float  # negative = saving
+    decision: str
     notes: list[str] = field(default_factory=list)
 
-    @property
-    def total_monthly(self) -> float:
-        return round(self.secrets_monthly + self.lightsail_monthly, 2)
+
+def levers(counts: dict, m: dict, *, amplify_build_reduction: float = 0.5,
+           secret_candidates: int = 3) -> list[Lever]:
+    build_rr = m["amplify_build_usd"]["2026-10_run_rate"]
+    egress_rr, egress_sep = (m["amplify_egress_usd"]["2026-10_run_rate"],
+                             m["amplify_egress_usd"]["2026-09"])
+    alarms = counts["cloudwatch_alarms"]
+    snapshot = round(counts["snapshot_billed_gb"] * LIGHTSAIL_SNAPSHOT_USD_PER_GB_MONTH, 2)
+    return [
+        Lever("wix_secrets_deleted", "REALISED",
+              -round(counts["wix_secrets_deleted_20261014"] * SECRET_STORAGE_USD_PER_MONTH, 2),
+              "done 2026-10-14 (force-deleted; no recovery window)",
+              ["Counted against the 2026-10-12 reference of "
+               f"{counts['reference_active_secrets_20261012']} active secrets."]),
+        Lever("support_plan_business_plus", "POTENTIAL",
+              -m["oct_run_rate_by_service"].get("AWS Business Support+", 0.0),
+              "owner: keep Business Support+ or move to Basic",
+              ["Largest single line. Trade-off: loses Business-tier case SLAs and support API."]),
+        Lever("amplify_build_minutes", "POTENTIAL", -round(build_rr * amplify_build_reduction, 2),
+              "owner: batch merges / skip docs-only builds / pause auto-build",
+              [f"Sep {m['amplify_build_minutes']['2026-09']:.0f} min "
+               f"(${m['amplify_build_usd']['2026-09']:.2f}); Oct run-rate "
+               f"${build_rr:.2f}/mo from {m['amplify_build_minutes']['2026-10_mtd']:.0f} min "
+               f"in {m['oct_days']} days.",
+               f"Assumes a {amplify_build_reduction:.0%} build reduction; every merge to stack "
+               "triggers a full build."]),
+        Lever("amplify_egress", "POTENTIAL", -round(max(egress_rr - egress_sep, 0.0), 2),
+              "investigate the October hosting egress jump before acting",
+              [f"Egress {m['amplify_egress_gb']['2026-09']:.1f} GB in Sep vs "
+               f"{m['amplify_egress_gb']['2026-10_mtd']:.1f} GB in Oct 1-{m['oct_days']}."]),
+        Lever("cloudwatch_alarms", "POTENTIAL", 0.0,
+              "review only; no reduction assumed",
+              [f"{alarms} alarms: ${max(alarms - CW_FREE_ALARMS, 0) * CW_ALARM_USD_PER_MONTH:.2f}"
+               "/mo after the 10 free."]),
+        Lever("secrets_consolidation", "POTENTIAL",
+              -round(secret_candidates * SECRET_STORAGE_USD_PER_MONTH, 2),
+              "owner confirms each candidate in secrets-access-matrix.md",
+              [f"{counts['active_secrets']} active secrets = "
+               f"${counts['active_secrets'] * SECRET_STORAGE_USD_PER_MONTH:.2f}/mo.",
+               f"Up to {secret_candidates} candidates (unreferenced/scripts-only); grouping of "
+               "security-sensitive secrets is not proposed."]),
+        Lever("kms_customer_keys", "NOT_A_LEVER", 0.0, "keep",
+              [f"{counts['kms_customer_keys']} CMKs = "
+               f"${counts['kms_customer_keys'] * KMS_CMK_USD_PER_MONTH:.2f}/mo; one protects 6 "
+               "secrets, the other three were not usage-audited here."]),
+        Lever("lightsail_nano", "POTENTIAL", -(LIGHTSAIL_MICRO_USD - LIGHTSAIL_NANO_USD),
+              "NO-GO today (RAM unmeasured); see lightsail-nano-feasibility.md",
+              [f"One-time overlap ${LIGHTSAIL_NANO_USD:.2f} for a month of dual running, plus "
+               "engineering and call-test time.", f"Snapshot storage ${snapshot:.2f}/mo either way."]),
+        Lever("lightsail_retire", "POTENTIAL", -LIGHTSAIL_MICRO_USD,
+              "not authorised: needs an approved SIP media replacement first",
+              [f"Snapshot retention would remain ${snapshot:.2f}/mo if kept."]),
+        Lever("cost_explorer_calls", "HISTORICAL", 0.0, "already fixed; not counted again",
+              [f"Sep ${m['cost_explorer_usd']['2026-09']:.2f} -> Oct "
+               f"${m['cost_explorer_usd']['2026-10_mtd']:.2f} month to date."]),
+    ]
 
 
-def build(counts: dict, secret_api_calls_per_month: int = 0) -> list[Scenario]:
-    active = counts["active_secrets"]
-    wix = counts["wix_secrets"]
-    bundle = counts["lightsail_bundle"]
-    micro = LIGHTSAIL_MICRO_USD if bundle == "micro_3_0" else LIGHTSAIL_MICRO_USD
-
-    api_cost = round((secret_api_calls_per_month / 10_000)
-                     * SECRET_API_USD_PER_10K_CALLS, 2)
-
-    baseline = Scenario(
-        "baseline", "BASELINE",
-        secrets_monthly=round(active * SECRET_STORAGE_USD_PER_MONTH + api_cost, 2),
-        lightsail_monthly=micro,
-        notes=[
-            f"{active} active secrets x ${SECRET_STORAGE_USD_PER_MONTH} = "
-            f"${active * SECRET_STORAGE_USD_PER_MONTH:.2f}/mo storage",
-            f"Secrets API calls: ~${api_cost:.2f}/mo "
-            f"(at {secret_api_calls_per_month:,} calls/mo)",
-            "13 scheduled-for-deletion secrets already stopped billing - NOT counted.",
-            f"Lightsail micro_3_0: ${micro:.2f}/mo",
-        ],
-    )
-
-    # After Wix removal: 3 Wix secrets retired. No grouping assumed yet.
-    after_wix = Scenario(
-        "after_wix_removal", "POTENTIAL",
-        secrets_monthly=round((active - wix) * SECRET_STORAGE_USD_PER_MONTH + api_cost, 2),
-        lightsail_monthly=micro,
-        notes=[
-            f"{active - wix} secrets after retiring {wix} Wix secrets "
-            f"({active}-{wix}).",
-            f"POTENTIAL saving: ${wix * SECRET_STORAGE_USD_PER_MONTH:.2f}/mo - "
-            "realised only after deletion window closes.",
-            "Lightsail unchanged in this workstream.",
-        ],
-    )
-
-    # Security-safe consolidation + Parameter Store moves. We DO NOT pick a fixed
-    # target count before access analysis (task B10); model a conservative,
-    # access-safe move of non-secret config to Parameter Store Standard (free).
-    # Conservative assumption: 2 confirmed non-secret config entries move to SSM.
-    ps_moves = 2
-    after_consolidation = Scenario(
-        "after_safe_consolidation", "POTENTIAL",
-        secrets_monthly=round((active - wix - ps_moves) * SECRET_STORAGE_USD_PER_MONTH
-                              + api_cost, 2),
-        lightsail_monthly=micro,
-        notes=[
-            f"Illustrative: {ps_moves} confirmed NON-secret config entries moved to "
-            "Parameter Store Standard (free).",
-            "No security-sensitive secret grouped or moved. Grouping only where every "
-            "consuming role already needs every field (task B4).",
-            f"POTENTIAL saving over baseline: "
-            f"${(wix + ps_moves) * SECRET_STORAGE_USD_PER_MONTH:.2f}/mo.",
-            "Final count is an OUTPUT of the access matrix, not a target.",
-        ],
-    )
-
-    after_nano = Scenario(
-        "after_lightsail_nano", "POTENTIAL",
-        secrets_monthly=after_consolidation.secrets_monthly,
-        lightsail_monthly=LIGHTSAIL_NANO_USD,
-        notes=[
-            f"Lightsail nano_3_0: ${LIGHTSAIL_NANO_USD:.2f}/mo "
-            f"(gross delta ${micro - LIGHTSAIL_NANO_USD:.2f}/mo).",
-            "POTENTIAL only until the micro instance stops being billable AND the "
-            "temporary dual-run overlap ends.",
-            f"Dual-run overlap adds ${LIGHTSAIL_NANO_USD:.2f}/mo while both run.",
-        ],
-    )
-
-    after_retire = Scenario(
-        "after_lightsail_retire", "POTENTIAL",
-        secrets_monthly=after_consolidation.secrets_monthly,
-        lightsail_monthly=0.0,
-        notes=[
-            "Lightsail fully retired: $0/mo bundle.",
-            "ONLY valid after the voice/SIP workload is independently replaced or "
-            "removed AND accepted (task C5/C8). Not authorised here.",
-            f"Snapshot retention if kept: "
-            f"${counts['snapshot_gb'] * LIGHTSAIL_SNAPSHOT_USD_PER_GB_MONTH:.2f}/mo "
-            f"({counts['snapshot_gb']}GB x ${LIGHTSAIL_SNAPSHOT_USD_PER_GB_MONTH}).",
-        ],
-    )
-
-    return [baseline, after_wix, after_consolidation, after_nano, after_retire]
+def payback_months(one_time_usd: float, monthly_saving: float) -> float | None:
+    return None if monthly_saving <= 0 else round(one_time_usd / monthly_saving, 1)
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--live", action="store_true",
-                    help="pull live counts (read-only) instead of recorded")
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--live", action="store_true", help="refresh counts (read-only)")
+    ap.add_argument("--evidence", type=Path, default=DEFAULT_EVIDENCE)
     ap.add_argument("--json", metavar="PATH", help="write JSON artifact")
-    ap.add_argument("--secret-api-calls", type=int, default=0,
-                    help="assumed Secrets Manager API calls/month for request-cost line")
-    args = ap.parse_args()
+    ap.add_argument("--amplify-build-reduction", type=float, default=0.5)
+    ap.add_argument("--secret-candidates", type=int, default=3)
+    args = ap.parse_args(argv)
 
     counts = live_counts() if args.live else dict(RECORDED)
-    scenarios = build(counts, args.secret_api_calls)
+    m = measured(json.loads(args.evidence.read_text(encoding="utf-8")))
+    ls = levers(counts, m, amplify_build_reduction=args.amplify_build_reduction,
+                secret_candidates=args.secret_candidates)
 
-    base = scenarios[0]
-    print(f"\nAWS-native consolidation cost model  (region {REGION}, "
-          f"{'LIVE' if args.live else 'recorded'} counts)")
+    print(f"\nAWS cost model (region {REGION}; {'LIVE' if args.live else 'recorded'} counts; "
+          f"evidence {args.evidence.name})")
     print("=" * 78)
-    print(f"{'scenario':<26}{'label':<11}{'secrets$':>10}"
-          f"{'lightsail$':>12}{'total$/mo':>12}{'Δ vs base':>12}")
-    print("-" * 78)
-    for s in scenarios:
-        delta = round(s.total_monthly - base.total_monthly, 2)
-        print(f"{s.name:<26}{s.label:<11}{s.secrets_monthly:>10.2f}"
-              f"{s.lightsail_monthly:>12.2f}{s.total_monthly:>12.2f}{delta:>12.2f}")
-    print("-" * 78)
-    print("\nNotes per scenario:")
-    for s in scenarios:
-        print(f"\n[{s.name}] ({s.label})")
-        for n in s.notes:
-            print(f"  - {n}")
-
-    print("\nIMPORTANT: every Δ above is POTENTIAL recurring saving. None is realised "
-          "cash\nuntil the corresponding deletion window closes / the micro stops "
-          "being billed.")
+    print("MEASURED gross usage (credits excluded):")
+    for month, total in m["gross_total"].items():
+        print(f"  {month}: ${total:>7.2f}   credits ${m['credits'].get(month, 0.0):>8.2f}")
+    print(f"  October run-rate (fixed lines as billed, usage x31/{m['oct_days']}): "
+          f"${m['oct_run_rate_total']:.2f}/mo")
+    print("\nLevers (negative = monthly reduction):")
+    print(f"  {'lever':<28}{'label':<13}{'delta/mo':>9}  decision")
+    for lv in ls:
+        print(f"  {lv.name:<28}{lv.label:<13}{lv.monthly_delta:>9.2f}  {lv.decision}")
+        for n in lv.notes:
+            print(f"      - {n}")
+    potential = round(sum(lv.monthly_delta for lv in ls
+                          if lv.label == "POTENTIAL" and lv.name not in {"lightsail_retire"}), 2)
+    print(f"\n  Sum of POTENTIAL levers excluding Lightsail retirement: ${potential:.2f}/mo")
+    print(f"  Lightsail nano payback on a $5 overlap alone: "
+          f"{payback_months(LIGHTSAIL_NANO_USD, 2.0)} months (engineering time excluded)")
+    print("\nCash note: credits covered 100% of gross usage in Aug-Oct 2026, so none of these is "
+          "a cash saving\nuntil the credits are exhausted. Check the balance and expiry in Billing.")
 
     if args.json:
-        payload = {
-            "region": REGION,
-            "source": "live" if args.live else "recorded",
-            "counts": counts,
-            "constants": {
-                "secret_storage_usd_per_month": SECRET_STORAGE_USD_PER_MONTH,
-                "secret_api_usd_per_10k_calls": SECRET_API_USD_PER_10K_CALLS,
-                "lightsail_micro_usd": LIGHTSAIL_MICRO_USD,
-                "lightsail_nano_usd": LIGHTSAIL_NANO_USD,
-            },
-            "scenarios": [
-                {**asdict(s), "total_monthly": s.total_monthly} for s in scenarios
-            ],
-        }
-        with open(args.json, "w") as fh:
-            json.dump(payload, fh, indent=2)
+        Path(args.json).write_text(json.dumps({
+            "region": REGION, "counts": counts, "measured": m,
+            "levers": [asdict(lv) for lv in ls],
+            "potential_total_excluding_retirement": potential,
+        }, indent=2), encoding="utf-8")
         print(f"\nwrote {args.json}")
     return 0
 
