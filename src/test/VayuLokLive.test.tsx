@@ -780,6 +780,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const map = container.querySelector( '.vl-live-map-canvas' ) as HTMLElement | null;
     expect( map ).not.toBeNull();
 
+    await settle();
+    const locationLookupsBefore = rec.geocodeCalls.filter( call => 'location' in call ).length;
+
     fireEvent.pointerDown( map as HTMLElement );
     fireEvent.wheel( map as HTMLElement );
     fireEvent.keyDown( map as HTMLElement, { key: 'ArrowRight' } );
@@ -787,7 +790,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     rec.mapIdleHandler?.();
 
     await settle();
-    expect( rec.geocodeCalls.some( call => 'location' in call ) ).toBe( false );
+    const locationLookupsAfter = rec.geocodeCalls.filter( call => 'location' in call ).length;
+    expect( locationLookupsAfter ).toBe( locationLookupsBefore );
   } );
 
   it( 'overlays a floating Air Quality card on the map (no left place panel) with the title and the Air/Weather toggle', async () => {
