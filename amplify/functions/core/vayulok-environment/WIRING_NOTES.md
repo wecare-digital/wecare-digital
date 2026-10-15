@@ -5,13 +5,13 @@
 `handler.py` is a hardened server-side proxy (`POST /vayulok/environment`) that reads the
 Google key from Secrets Manager, checks a `*.wecare.digital` HTTPS Origin, clamps coordinates
 to India bounds, and forwards to Google's Air Quality / Weather APIs. Its intent is to stop the
-browser needing `NEXT_PUBLIC_GOOGLE_MAPS_KEY` for the data calls, so the key is not inlined into
+browser needing `NEXT_PUBLIC_GOOGLE_BROWSER_KEY` for the data calls, so the key is not inlined into
 the public `output: 'export'` bundle.
 
 ## Current reality
 
 `src/components/VayuLokLive.tsx` does **not** call `/vayulok/environment`. It calls Google
-directly from the browser with `NEXT_PUBLIC_GOOGLE_MAPS_KEY`. So the proxy is, today, unused by
+directly from the browser with `NEXT_PUBLIC_GOOGLE_BROWSER_KEY`. So the proxy is, today, unused by
 the shipping frontend.
 
 ## Why we did NOT blindly wire it (would regress the product)
@@ -48,5 +48,5 @@ match the frontend's real contract:
 
 Once those land, switch each `fetch(...)` in `VayuLokLive.tsx` to POST `/vayulok/environment`
 with the matching `operation`, parse the same Google-shaped JSON the proxy passes through, and
-remove `NEXT_PUBLIC_GOOGLE_MAPS_KEY` from the public env. Verify with
+remove `NEXT_PUBLIC_GOOGLE_BROWSER_KEY` from the public env. Verify with
 `scripts/verify_public_bundle_secrets.py` that the key no longer appears in `out/`.

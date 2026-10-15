@@ -237,7 +237,7 @@ const VayuLokPage: React.FC = () => {
           it needs no wrapper and no rule here. (The map stack is loaded by injecting the
           Maps JS <script> inside an effect, after mount; the component imports no deck.gl -
           both the AQI and PM2.5 heatmaps are Google ImageMapType tile overlays.)
-          WHAT THE KEYLESS PATH ACTUALLY RENDERS. With NEXT_PUBLIC_GOOGLE_MAPS_KEY unset,
+          WHAT THE KEYLESS PATH ACTUALLY RENDERS. With NEXT_PUBLIC_GOOGLE_BROWSER_KEY unset,
           which is every CI and sandbox run, the component injects no Maps JS, mounts no
           interactive canvas, shows no live air or weather panels and issues no fetch
           calls. It renders a self-contained placeholder (no iframe, no remote asset) where

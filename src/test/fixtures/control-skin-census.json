@@ -8,7 +8,6 @@
     ],
     "files": [
       "src/pages/workspace/engage/sms/index.tsx",
-      "src/pages/workspace/engage/voice-in/index.tsx",
       "src/styles/Dashboard.css",
       "src/styles/Layout.css",
       "src/styles/Pages.css",
@@ -23,7 +22,7 @@
         "decls": "width: auto; margin: 0;",
         "file": "src/pages/workspace/engage/sms/index.tsx",
         "geometry": false,
-        "line": 621,
+        "line": 511,
         "mech": "B-styledjsx",
         "mode": "element",
         "pairing": false,
@@ -32,45 +31,6 @@
           "width": false
         },
         "sel": ".checkbox-label input[type=\"checkbox\"]",
-        "spec": [
-          0,
-          2,
-          1
-        ]
-      },
-      {
-        "classes": [],
-        "decls": "display: none;",
-        "file": "src/pages/workspace/engage/voice-in/index.tsx",
-        "geometry": false,
-        "line": 852,
-        "mech": "B-styledjsx",
-        "mode": "element",
-        "pairing": false,
-        "props": {
-          "display": false
-        },
-        "sel": ".audio-option input[type=\"radio\"]",
-        "spec": [
-          0,
-          2,
-          1
-        ]
-      },
-      {
-        "classes": [],
-        "decls": "width: 16px; height: 16px; accent-color: #1a3a2a;",
-        "file": "src/pages/workspace/engage/voice-in/index.tsx",
-        "geometry": true,
-        "line": 854,
-        "mech": "B-styledjsx",
-        "mode": "element",
-        "pairing": false,
-        "props": {
-          "height": false,
-          "width": false
-        },
-        "sel": ".checkbox-group input[type=\"checkbox\"]",
         "spec": [
           0,
           2,
@@ -501,12 +461,12 @@
       }
     ],
     "summary": {
-      "files": 9,
-      "geometryFiles": 8,
-      "geometryRuleSets": 15,
+      "files": 8,
+      "geometryFiles": 7,
+      "geometryRuleSets": 14,
       "matchModes": {
         "class": 0,
-        "element": 24
+        "element": 22
       },
       "mechanisms": {
         "A-global": {
@@ -522,10 +482,10 @@
           "ruleSets": 0
         },
         "B-styledjsx": {
-          "files": 2,
-          "geometryFiles": 1,
-          "geometryRuleSets": 1,
-          "ruleSets": 3
+          "files": 1,
+          "geometryFiles": 0,
+          "geometryRuleSets": 0,
+          "ruleSets": 1
         },
         "C-injected": {
           "files": 0,
@@ -535,7 +495,7 @@
         }
       },
       "pairings": 0,
-      "ruleSets": 24
+      "ruleSets": 22
     }
   },
   "countingRule": "one rule set = one {...} block, counted once regardless of how many compounds its selector list holds or how many at-rules it is nested inside; a block counts when its selector names `select` as a whole token, or names a class that appears as a className literal on one, AND its body sets at least one box property. Geometry is the subset whose body sets border, border-width, border-radius, padding, height, min-height, appearance or -webkit-appearance.",
@@ -547,6 +507,7 @@
     "src/pages/workspace/engage/logs/index.tsx",
     "src/pages/workspace/engage/push/index.tsx",
     "src/pages/workspace/engage/sms/index.tsx",
+    "src/pages/workspace/engage/voice-in/index.tsx",
     "src/pages/workspace/engage/whatsapp/migration.tsx",
     "src/pages/workspace/engage/whatsapp/templates.tsx",
     "src/pages/workspace/engage/whatsapp/waba-dashboard.tsx",
@@ -844,7 +805,7 @@
       "decls": "width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; font-family: inherit; box-sizing: border-box;",
       "file": "src/pages/workspace/engage/sms/index.tsx",
       "geometry": true,
-      "line": 614,
+      "line": 504,
       "mech": "B-styledjsx",
       "mode": "element",
       "pairing": true,
@@ -866,7 +827,7 @@
       "decls": "outline: none; border-color: #1a3a2a;",
       "file": "src/pages/workspace/engage/sms/index.tsx",
       "geometry": false,
-      "line": 615,
+      "line": 505,
       "mech": "B-styledjsx",
       "mode": "element",
       "pairing": false,
@@ -878,6 +839,28 @@
       "spec": [
         0,
         2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "padding:8px 10px; border:1px solid #d1d5db; border-radius:8px; background:#fff;",
+      "file": "src/pages/workspace/engage/voice-in/index.tsx",
+      "geometry": true,
+      "line": 177,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "padding": false
+      },
+      "sel": ".filters input,.filters select",
+      "spec": [
+        0,
+        1,
         1
       ]
     },
@@ -1944,12 +1927,12 @@
     "sample": ".ui-planted{border:1px solid ${colors.border};border-radius:9px;padding:4px 8px} .ui-planted:focus{box-shadow:${shadow.focus}} .ui-untouched{color:#333}"
   },
   "summary": {
-    "files": 21,
-    "geometryFiles": 20,
-    "geometryRuleSets": 28,
+    "files": 22,
+    "geometryFiles": 21,
+    "geometryRuleSets": 29,
     "matchModes": {
       "class": 4,
-      "element": 60
+      "element": 61
     },
     "mechanisms": {
       "A-global": {
@@ -1965,10 +1948,10 @@
         "ruleSets": 0
       },
       "B-styledjsx": {
-        "files": 11,
-        "geometryFiles": 10,
-        "geometryRuleSets": 10,
-        "ruleSets": 21
+        "files": 12,
+        "geometryFiles": 11,
+        "geometryRuleSets": 11,
+        "ruleSets": 22
       },
       "C-injected": {
         "files": 2,
@@ -1977,7 +1960,7 @@
         "ruleSets": 3
       }
     },
-    "pairings": 19,
-    "ruleSets": 64
+    "pairings": 20,
+    "ruleSets": 65
   }
 }

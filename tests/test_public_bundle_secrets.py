@@ -258,7 +258,7 @@ def fake_boto3(monkeypatch):
 
 def test_amplify_env_clean_passes(fake_boto3, capsys):
     fake_boto3({"NEXT_PUBLIC_API_BASE": "https://api.wecare.digital",
-                "NEXT_PUBLIC_GOOGLE_MAPS_KEY": BENIGN_GOOGLE})
+                "NEXT_PUBLIC_GOOGLE_BROWSER_KEY": BENIGN_GOOGLE})
 
     assert vpbs.check_amplify_env() == 0
     assert "PASS" in capsys.readouterr().out
@@ -266,16 +266,16 @@ def test_amplify_env_clean_passes(fake_boto3, capsys):
 
 def test_amplify_env_catches_a_server_side_key_in_a_public_var(
         fake_boto3, monkeypatch, capsys):
-    """The exact mistake: the unified key pasted into NEXT_PUBLIC_GOOGLE_MAPS_KEY."""
+    """The exact mistake: the unified key pasted into NEXT_PUBLIC_GOOGLE_BROWSER_KEY."""
     monkeypatch.setitem(vpbs.FORBIDDEN_FINGERPRINTS,
                         vpbs.fingerprint(SERVER_GOOGLE), "synthetic server-side key")
-    fake_boto3({"NEXT_PUBLIC_GOOGLE_MAPS_KEY": SERVER_GOOGLE})
+    fake_boto3({"NEXT_PUBLIC_GOOGLE_BROWSER_KEY": SERVER_GOOGLE})
 
     rc = vpbs.check_amplify_env()
     out = capsys.readouterr().out
 
     assert rc == 1
-    assert "NEXT_PUBLIC_GOOGLE_MAPS_KEY" in out
+    assert "NEXT_PUBLIC_GOOGLE_BROWSER_KEY" in out
     assert "every visitor" in out
     # the value itself must never be printed
     assert SERVER_GOOGLE not in out
@@ -304,7 +304,7 @@ def test_amplify_env_whitespace_does_not_defeat_the_fingerprint(
     """A pasted value often carries a trailing newline; it must still match."""
     monkeypatch.setitem(vpbs.FORBIDDEN_FINGERPRINTS,
                         vpbs.fingerprint(SERVER_GOOGLE), "synthetic server-side key")
-    fake_boto3({"NEXT_PUBLIC_GOOGLE_MAPS_KEY": f"  {SERVER_GOOGLE}\n"})
+    fake_boto3({"NEXT_PUBLIC_GOOGLE_BROWSER_KEY": f"  {SERVER_GOOGLE}\n"})
 
     assert vpbs.check_amplify_env() == 1
 
@@ -320,7 +320,12 @@ def test_the_gate_runs_in_the_amplify_build_after_the_build():
     cmds = spec["frontend"]["phases"]["build"]["commands"]
     gate = [i for i, c in enumerate(cmds) if "verify_public_bundle_secrets" in c]
     assert gate, "the credential gate is missing from amplify.yml"
-    assert cmds.index("npm run build") < gate[0], "the gate must run after the build"
+    # MATCHED AS A SUBSTRING, not the whole command: the build line now exports
+    # NEXT_PUBLIC_GOOGLE_BROWSER_KEY from Secrets Manager and then runs `npm run build` in the
+    # same shell command, so an exact cmds.index("npm run build") no longer finds it.
+    build = [i for i, c in enumerate(cmds) if "npm run build" in c]
+    assert build, "the build step is missing from amplify.yml"
+    assert build[0] < gate[0], "the gate must run after the build"
 
     pre = spec["frontend"]["phases"]["preBuild"]["commands"]
     assert any("python3 --version" in c for c in pre), \

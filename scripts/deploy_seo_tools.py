@@ -57,6 +57,7 @@ SOURCE_BUCKET = "wecare-digital-get"
 #: so every sub-prefix (sources/, extracted/, qa/, publish-records/, verification/) is
 #: covered without widening to the bucket.
 SOURCE_PREFIX = "o/blog-production/"
+SECURE_MASTER_PREFIX = "secure/blog-production/"
 
 #: Pure-python wheel, no compiled parts, so it zips straight into the function package -
 #: no layer, no Amazon Linux cross-compile. Pinned, and the same version
@@ -344,7 +345,8 @@ def ensure_blog_source_perms() -> None:
     Scoped as narrowly as the two capabilities allow, because this role is SHARED by the
     whole fleet - a wildcard here would widen every other function too.
 
-    - S3 is limited to `o/blog-production/*` in one bucket, and to the three actions the
+    - S3 is limited to the public `o/blog-production/*` tree plus the internal
+      `secure/blog-production/*` production-master snapshot in the same bucket, and to the
       pipeline uses. No DeleteObject: nothing here deletes a source, and a source is the
       provenance record for a published article. Note this grants WRITE on a prefix of the
       public root, so the blast radius of a bug in key construction is "publishes a file
@@ -362,7 +364,10 @@ def ensure_blog_source_perms() -> None:
                 "Sid": "BlogSourceObjects",
                 "Effect": "Allow",
                 "Action": ["s3:PutObject", "s3:GetObject", "s3:HeadObject"],
-                "Resource": f"arn:aws:s3:::{SOURCE_BUCKET}/{SOURCE_PREFIX}*",
+                "Resource": [
+                    f"arn:aws:s3:::{SOURCE_BUCKET}/{SOURCE_PREFIX}*",
+                    f"arn:aws:s3:::{SOURCE_BUCKET}/{SECURE_MASTER_PREFIX}*",
+                ],
             },
             {
                 "Sid": "BlogWorkerSelfInvoke",

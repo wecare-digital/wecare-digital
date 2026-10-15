@@ -16,7 +16,7 @@ import VoiceSearchMic from './VoiceSearchMic';
  * browser key - exactly as the shipped src/components/ContactLocation.tsx already calls
  * Open-Meteo client-side. So this component follows ContactLocation's proven approach.
  *
- * THE KEY. Read ONLY from process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY, exactly as
+ * THE KEY. Read ONLY from process.env.NEXT_PUBLIC_GOOGLE_BROWSER_KEY, exactly as
  * ContactLocation.tsx does. With output:'export', that value is inlined into a JS chunk
  * at build time - never into the prerendered HTML, because it is only read inside a
  * useEffect. No key literal appears anywhere in this file. A Maps BROWSER key is public
@@ -46,7 +46,7 @@ import VoiceSearchMic from './VoiceSearchMic';
  * .vl-preview-shell are PREVIEW-ONLY and are NOT ported.
  */
 
-const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
+const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_BROWSER_KEY || '';
 
 // Selected-place marker uses Google's canonical Material Symbols Outlined "location_on"
  // glyph (source: google/material-design-icons), presented on the same lime/green circle
