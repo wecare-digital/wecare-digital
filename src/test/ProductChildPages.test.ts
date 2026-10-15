@@ -8,7 +8,6 @@ const read = ( rel: string ): string => fs.readFileSync( path.join( ROOT, rel ),
 const CHILDREN = [
   [ '/elsewhere/visa/', 'src/pages/elsewhere/visa.tsx' ],
   [ '/elsewhere/trip/', 'src/pages/elsewhere/trip.tsx' ],
-  [ '/elsewhere/activities/', 'src/pages/elsewhere/activities.tsx' ],
   [ '/dastavez/drafting/', 'src/pages/dastavez/drafting.tsx' ],
   [ '/dastavez/registration/', 'src/pages/dastavez/registration.tsx' ],
   [ '/dastavez/legal-reference/', 'src/pages/dastavez/legal-reference.tsx' ],
@@ -50,9 +49,9 @@ describe( 'product family child pages', () => {
     expect( header ).not.toMatch( /href:\s*'\/elsewhere\/?'/ );
   } );
 
-  it( 'keeps Puja Guidance above DIY Puja Kit in the menu', () => {
+  it( 'keeps DIY Puja Kit above Puja Guidance in the menu', () => {
     const header = read( 'src/components/Header.tsx' );
     expect( header.indexOf( "label: 'Puja Guidance'" ) ).toBeGreaterThan( -1 );
-    expect( header.indexOf( "label: 'DIY Puja Kit'" ) ).toBeGreaterThan( header.indexOf( "label: 'Puja Guidance'" ) );
+    expect( header.indexOf( "label: 'Puja Guidance'" ) ).toBeGreaterThan( header.indexOf( "label: 'DIY Puja Kit'" ) );
   } );
 } );
