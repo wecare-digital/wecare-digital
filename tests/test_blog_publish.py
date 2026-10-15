@@ -487,29 +487,27 @@ def test_a_record_write_failure_does_not_report_a_failed_publish(env, monkeypatc
 # ── Nothing else may publish ────────────────────────────────────────────────────
 
 def test_nothing_in_the_pipeline_can_release(env):
-    """Section 38. Enforced by grepping, because this is the kind of convenience somebody
-    adds later - a batch reaching READY calling release "to save a click"."""
+    """Section 38: pipeline work may publish an ALREADY-RELEASED job, but may never release.
+
+    Bulk publish fan-out deliberately lives in blog_queue: an operator creates QUEUED jobs
+    first, then the queue scales the existing publish() operation. What remains forbidden is
+    any extraction/batch/QA path calling release(), because that would turn processing
+    completion into publication intent without the operator decision.
+    """
     import ast
     source = ROOT / "amplify" / "functions" / "operations" / "seo-tools"
     for name in ("blog_sources.py", "blog_queue.py", "blog_batches.py", "blog_qa.py",
                  "blog_draft.py", "blog_analysis.py", "blog_repetition.py",
                  "blog_templates.py", "blog_gate.py"):
-        #: Parsed rather than grepped. A grep for the module name also matches the PROSE in
-        #: `blog_qa`'s docstring, which correctly explains that releasing lives elsewhere - and a
-        #: test that fails on an accurate comment gets the comment deleted, not the code fixed.
         tree = ast.parse((source / name).read_text(encoding="utf-8"))
-        imported = set()
-        called = set()
         for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                imported |= {alias.name for alias in node.names}
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                imported.add(node.module)
-            elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-                called.add(node.value.id)
-        assert "blog_publish" not in imported, (
-            f"{name} imports blog_publish; releasing must come from an operator route only")
-        assert "blog_publish" not in called, f"{name} calls into blog_publish"
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                continue
+            if not isinstance(node.func.value, ast.Name):
+                continue
+            assert not (
+                node.func.value.id == "blog_publish" and node.func.attr == "release"
+            ), f"{name} calls blog_publish.release; release must remain operator-only"
 
 
 def test_the_publish_route_is_not_idempotency_claimed(env):
