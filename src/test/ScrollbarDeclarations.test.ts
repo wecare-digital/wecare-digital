@@ -28,10 +28,10 @@ import { describe, expect, it } from 'vitest';
  * author was not testing. That does not look like a CSS conflict; it looks like a browser bug.
  * A token change does not fix any of them, which is why they were deleted rather than retuned.
  *
- * WHAT IS NOT IN SCOPE. The nine `::-webkit-scrollbar { display: none }` and `{ height: 6px }`
- * rules on tab strips and carousels are untouched and must stay passing: they hide or resize a
- * scrollbar and set no colour, so none of them competes. The test therefore keys on a thumb
- * COLOUR, not on the presence of a `::-webkit-scrollbar` selector.
+ * WHAT IS NOT IN SCOPE. The `::-webkit-scrollbar { display: none }` and `{ height: 6px }` rules
+ * on tab strips and carousels (listed in HIDERS below) are untouched and must stay passing: they
+ * hide or resize a scrollbar and set no colour, so none of them competes. The test therefore keys
+ * on a thumb COLOUR, not on the presence of a `::-webkit-scrollbar` selector.
  */
 
 const SRC = path.join( __dirname, '..' );
@@ -103,6 +103,36 @@ const ALLOWED = [
   'src/components/WorkflowTerminal.tsx',
 ];
 
+/**
+ * Every `::-webkit-scrollbar` rule that hides (display:none) or resizes (height:6px) a
+ * scrollbar, as `<file> <selector>`. One entry per rule, so Pages.css's two `.tabs` rules
+ * appear twice.
+ *
+ * LISTED BY NAME, NOT COUNTED. This used to be a bare number, and it was hand-edited seven times
+ * (9, 10, 8, 9, 11, 12, 13, 11) as VayuLok panels came and went. Each failure read only "expected
+ * 11 to be 13", so whoever hit it had to work out which hider had moved. The diff now names it.
+ *
+ * When you delete a scroller, its hider goes too: remove the entry in the same commit. That is
+ * how the Weather tab's two (.vl-live-wx-hist-strip and .vl-live-wx-history .vl-live-air-range)
+ * left when VayuLok became Air-only. A new horizontal scroller that hides its scrollbar adds one.
+ * A hider that vanishes while its scroller stays is the silent cull this list exists to catch.
+ */
+const HIDERS = [
+  'src/components/ProductBlogPanel.tsx .pbp-track',
+  'src/components/VayuLokLive.tsx .vl-live-air-forecast-strip',
+  'src/components/VayuLokLive.tsx .vl-live-air-health-tabs',
+  'src/components/VayuLokLive.tsx .vl-live-wx-hist-strip',
+  'src/components/VayuLokLive.tsx .vl-live-wx-history .vl-live-air-range',
+  'src/pages/workspace/engage/inbox/index.tsx .ui-tools',
+  'src/styles/Dashboard.css .dash-tabs',
+  'src/styles/Pages.css .dash-tabs',
+  'src/styles/Pages.css .tabs',
+  'src/styles/Pages.css .tabs',
+  'src/styles/inner-pages.css .layout .main-content .sub-tabs',
+  'src/styles/inner-ux.css .ps-tabs-wrapper',
+  'src/styles/inner-ux.css .tabs',
+];
+
 describe( 'scrollbar thumb colour is declared in exactly two files', () => {
   const files = WALK( SRC );
 
@@ -143,19 +173,27 @@ describe( 'scrollbar thumb colour is declared in exactly two files', () => {
     }
   } );
 
-  it( 'leaves the thirteen display:none and height:6px hiders alone', () => {
+  it( 'leaves every display:none and height:6px hider alone', () => {
     // They set no colour, so they do not compete, and deleting one would bring back a visible
-    // scrollbar on a tab strip or carousel. Counted so a silent cull is caught here.
-    // Nine are the long-standing tab-strip/carousel hiders, including Anew's "Perspectives"
-    // swipe pager. VayuLok contributes four legitimate colourless hiders: the Air forecast
-    // carousel, health-persona tabs, Weather range controls and Weather history strip.
-    // Restoring Weather therefore restores the repository-wide invariant to thirteen.
+    // scrollbar on a tab strip or a carousel. See HIDERS for what to do when this fails.
+    // Pinned by SELECTOR, not by a bare count: a count catches a cull but silently accepts a
+    // hider moving to the wrong scroller. Restoring VayuLok Weather adds its legitimate
+    // colourless hiders (the Air forecast carousel, health-persona tabs, Weather range controls
+    // and Weather history strip), which belong in HIDERS by name.
     const hiders = files.flatMap( f => {
       const src = stripComments( fs.readFileSync( f, 'utf8' ) );
-      return Array.from( src.matchAll( /::-webkit-scrollbar(?!-)[^{}]*\{([^}]*)\}/g ) )
-        .filter( m => /display\s*:\s*none|height\s*:\s*6px/.test( m[ 1 ] ) );
-    } );
-    expect( hiders.length ).toBe( 13 );
+      const rel = path.relative( path.join( SRC, '..' ), f ).split( path.sep ).join( '/' );
+      return Array.from( src.matchAll( /([^{}]*)::-webkit-scrollbar(?!-)[^{}]*\{([^}]*)\}/g ) )
+        .filter( m => /display\s*:\s*none|height\s*:\s*6px/.test( m[ 2 ] ) )
+        // The selector is the text on the rule's own line, ahead of the pseudo-element.
+        .map( m => `${rel} ${m[ 1 ].slice( m[ 1 ].lastIndexOf( '\n' ) + 1 ).replace( /\s+/g, ' ' ).trim()}` );
+    } ).sort();
+
+    expect(
+      hiders,
+      'a scrollbar hider appeared or disappeared. If its scroller went with it, update HIDERS '
+      + 'in this file in the same commit; if the scroller is still there, restore the hider.',
+    ).toEqual( [ ...HIDERS ].sort() );
   } );
 
   it( 'finds a planted declaration, and loses a commented one', () => {
