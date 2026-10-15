@@ -1,19 +1,24 @@
 # AWS-native production cutover runbook (backlog items 1–7)
 
-Owner-approval-gated production steps that unblock the remaining Wix-exit backlog. Every step is
-a production mutation (🔒) and must be run with explicit owner approval. Each has a verification
-and a rollback. Nothing here runs automatically.
+> **STATUS: CUTOVER COMPLETE — all gates A–F verified live on 2026-10-14 (acct 775261844268).**
+> Every production mutation below was already applied (by the deploy pipeline / prior runs); the
+> gate instructions are retained as the record of what was done and how to roll each one back.
+> Re-running the 🔒 apply steps is unnecessary and should be avoided — they are not idempotent in
+> every case (e.g. media migration). See the "Live verification" table below.
 
-## Verified live state (us-east-1, acct 775261844268) — captured 2026-10-14
+## Live verification (us-east-1, acct 775261844268) — re-checked 2026-10-14
 
-| Resource | State | Implication |
-|---|---|---|
-| `wecare-checkout` live alias | **v49** (`CHECKOUT_MODE=AWS_NATIVE`, `CATALOG_SOURCE=aws`, `WIX_CART_V2_ENABLED=false`) | Native supply path is live; the "v48" in the audit is stale. |
-| `stack-wecare-digital-ProductsTable` | **ACTIVE, 0 items**, stream `NEW_AND_OLD_IMAGES` enabled | Exists and stream-ready; **empty** — the storefront/catalog serve nothing until seeded. |
-| `stack-wecare-digital-CartTable` | **ACTIVE** | Native cart store ready (claim-basket/customer-cart adapter backs onto it). |
-| `wecare-wix-store`, `wecare-wix-catalog-webhook` | **still deployed** | Item 7 retirement pending. |
-| `wecare-meta-catalog-sync-schedule` | EventBridge rule present (6h backstop) | Keep as backstop; the stream trigger makes sync near-instant. |
-| `outputs/products-seed.json` | 10 products / 23 variants, production-quality copy | Ready to load into ProductsTable. |
+| Gate | Resource / check | Live result | Status |
+|---|---|---|---|
+| A | `stack-wecare-digital-ProductsTable` | ACTIVE, **10 items**, stream `NEW_AND_OLD_IMAGES` | ✅ seeded |
+| B | `src/content/catalog-snapshot.json` | **10 products**, committed | ✅ in sync |
+| C | event-source mapping ProductsTable stream → `wecare-meta-catalog-sync:live` | **Enabled**; 17 invocations/24h | ✅ wired + firing |
+| D | `wecare-checkout` live alias | **v53** (`CHECKOUT_MODE=AWS_NATIVE`, `CATALOG_SOURCE=aws`, `WIX_CART_V2_ENABLED` absent); **0 errors/24h** | ✅ native |
+| E | ProductsTable `imageRefs` | **0** `wixstatic.com` references | ✅ media on S3 |
+| F | `wecare-wix-store`, `wecare-wix-catalog-webhook` Lambdas; `/wix-*` API routes | **absent** (`[]`) | ✅ retired |
+| — | public surfaces | `/shop/` 200, `/api/.../blog-public` 200, `/api/.../service-prices` 200 (native INR prices) | ✅ healthy |
+
+`stack-wecare-digital-CartTable` ACTIVE; `wecare-meta-catalog-sync-schedule` 6h backstop retained.
 
 ---
 
