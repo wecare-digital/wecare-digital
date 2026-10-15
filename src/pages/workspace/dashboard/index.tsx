@@ -138,7 +138,6 @@ const AWS_RESOURCES: Record<string, { arn: string; accountId: string; details?: 
       'stack-wecare-digital-InvoiceSequenceTable',
       'stack-wecare-digital-PaymentsTable',
       'stack-wecare-digital-RazorpayWebhookLogTable',
-      'stack-wecare-digital-SubmitRequestsTable',
       'stack-wecare-digital-ConversationHistoryTable',
       'stack-wecare-digital-AIInteractionsTable',
       'stack-wecare-digital-SystemConfigTable',
@@ -150,7 +149,6 @@ const AWS_RESOURCES: Record<string, { arn: string; accountId: string; details?: 
       'stack-wecare-digital-AuditLog',
       'stack-wecare-digital-RateLimitTracker',
       'stack-wecare-digital-CommerceKeys',
-      'stack-wecare-digital-UsersTable',
     ]
   },
   'Amazon RDS': {

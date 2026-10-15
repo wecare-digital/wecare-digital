@@ -149,7 +149,7 @@ const ContactActivityTimeline: React.FC<{ phone: string; contactId: string; crea
     (async () => {
       const items: ActivityItem[] = [];
 
-      // Customer ideas are read from their authoritative ReviewTable records.
+      // Customer ideas are FlowSubmission rows (flowCode WD_IDEA), served by the reviews API.
       try {
         const { reviews } = await api.listReviews({ customerPhone: phone, contactId });
         for (const review of reviews.filter(r => r.reviewType === 'customer_idea' && r.contactId === contactId)) {
