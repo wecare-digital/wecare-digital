@@ -1,6 +1,6 @@
 /**
  * VayuLok public product page
- * Bharat Air Intelligence, by WECARE.DIGITAL
+ * Bharat Air + Weather Intelligence, by WECARE.DIGITAL
  *
  * DELIBERATELY CLEAR. The page is the hero - the tag, the rotating line beneath it and
  * the approved globe beside them - followed by the live VayuLok section. That is the
@@ -9,30 +9,9 @@
  * rotating words name, so the section below the hero adds no new claims of its own -
  * it shows real fetched air and weather data, or nothing at all when it has none.
  *
- * THE ROTATING WORDS, AND WHICH OF THEM ARE BACKED TODAY.
- *
- * Air, Weather, Forecast and Solar name Google service capabilities. They are not
- * treated as live runtime integrations until corresponding AWS endpoints are
- * implemented:
- *
- *   Air       airquality.googleapis.com/v1/currentConditions:lookup
- *   Weather   weather.googleapis.com/v1/currentConditions:lookup
- *   Forecast  weather.googleapis.com/v1/forecast/days:lookup
- *   Solar     solar.googleapis.com/v1/buildingInsights:findClosest
- *
- * Heatmap and Pollen are ROADMAP, added at the owner's request. Both are real Google
- * APIs, neither is wired here yet:
- *
- *   Pollen    pollen.googleapis.com/v1/forecast:lookup                 (unused)
- *   Heatmap   airquality .../mapTypes/{type}/heatmapTiles/{z}/{x}/{y}  (unused)
- *
- * Heatmap is also the one word in the set that is a VIEW rather than a subject, so it
- * reads oddly in the slot - "Bharat Heatmap Intelligence" parses as intelligence
- * about heatmaps rather than a heatmap of intelligence. Kept because it was asked
- * for; "Pollution" or dropping it are the alternatives if that grates on screen.
- *
- * So the rotation is no longer a pure statement of what is built. When the two
- * endpoints land, delete this caveat.
+ * The hero names the live capabilities surfaced by this page: Air, Weather, Forecast,
+ * Conditions, History and Heatmap. The page keeps the lighter hero presentation while Weather
+ * remains a first-class live section below.
  *
  * The hero is the shared RotatingHero, as on Grahak OS, so the two pages animate identically:
  * measured width so the pill resizes instead of snapping, a pale tint with a
@@ -129,7 +108,7 @@ const VayuLokPage: React.FC = () => {
   // were removed: neither has a wired endpoint (Google Pollen has no India coverage; Solar is
   // unbuilt), so advertising them in the hero overstated the product. They are replaced by two
   // real, prominent features. "Conditions" replaces the unsupported Pollen promise while
-  // accurately covering the live Air + Weather current-condition experience.
+  // accurately covering the live Air current-condition experience.
   const cycleWords = [
     { word: 'Air', tint: '#e0f7c8', dot: '#3da35a' },
     { word: 'Weather', tint: '#dbeafe', dot: '#2563eb' },
@@ -155,7 +134,7 @@ const VayuLokPage: React.FC = () => {
           the same caution. Add them here when they are real. */}
       <PageMeta
         title="VayuLok — Bharat air and weather intelligence | WECARE.DIGITAL"
-        description="VayuLok by WECARE.DIGITAL — air and weather intelligence for Bharat: air quality, weather and forecasts for wherever you are."
+        description="VayuLok by WECARE.DIGITAL — live air quality, weather, forecasts, history and heatmaps for a chosen location."
         path="/vayulok/"
         jsonLd={ vayulokJsonLd() }
         image={ VAYULOK_SOCIAL_CARD }
@@ -169,7 +148,7 @@ const VayuLokPage: React.FC = () => {
           badgeLabel="VayuLok by WECARE.DIGITAL"
           frame="Bharat intelligence"
           words={ cycleWords }
-          sub="Forecasts cover cities. VayuLok reads your street — live air and weather, exactly where you are."
+          sub="VayuLok reads your chosen place — live air quality and weather, with forecast, history and heatmap."
           visual={ (
           <div className="vl-hero-visual">
             <VayuLokApprovedGlobe />
@@ -204,6 +183,7 @@ const VayuLokPage: React.FC = () => {
            down to 861px, where the shared split would stack at 1024px. .vl-page makes
            the selector outrank the component's own .rh-split at every width. */
         .vl-page :global(.rh-split){display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);gap:56px;align-items:center}
+        .vl-page :global(.rh-head){font-weight:500}
         .vl-hero-visual{min-width:0;width:100%;display:flex;justify-content:center}
         .vl-hero-visual :global(.vag-shell){width:100%;max-width:720px}
 
