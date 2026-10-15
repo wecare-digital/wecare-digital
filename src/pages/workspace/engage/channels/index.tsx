@@ -27,7 +27,7 @@ interface ChannelCard {
 const CHANNELS: ChannelCard[] = [
     {
         key: 'whatsapp', label: channel.whatsapp, desc: channelDescription.whatsapp, fg: '#15803d', bg: '#f0fdf4',
-        links: [ { label: 'Inbox', href: '/workspace/engage/whatsapp' }, { label: 'Settings', href: '/workspace/engage/whatsapp/settings' }, { label: 'Service Ops', href: '/workspace/engage/service-ops' } ],
+        links: [ { label: 'Inbox', href: '/workspace/engage/inbox?channel=whatsapp' }, { label: 'Settings', href: '/workspace/engage/whatsapp/settings' }, { label: 'Service Ops', href: '/workspace/engage/service-ops' } ],
     },
     {
         key: 'sms', label: channel.sms, desc: channelDescription.sms, fg: '#1d4ed8', bg: '#eff6ff',

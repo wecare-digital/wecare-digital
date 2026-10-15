@@ -223,7 +223,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
             title="WA Board" 
             subtitle="WhatsApp Business Account details, phone quality, and system events"
             icon="whatsapp"
-            backLink="/workspace/engage/whatsapp"
+            backLink="/workspace/engage/inbox?channel=whatsapp"
             backLabel="Back"
             actions={
               <Button variant="secondary" icon="refresh" onClick={loadData} disabled={loading} loading={loading}>Refresh</Button>

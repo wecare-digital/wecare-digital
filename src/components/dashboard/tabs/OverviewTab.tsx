@@ -65,7 +65,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ data }) => {
       <div className="section">
         <h3>Quick Actions</h3>
         <div className="actions-grid">
-          <Link href="/workspace/engage/whatsapp" className="action-card">
+          <Link href="/workspace/engage/inbox?channel=whatsapp" className="action-card">
             <span className="icon"><WhatsAppIcon size={20} /></span>
             <span>WhatsApp</span>
           </Link>
@@ -85,7 +85,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ data }) => {
             <span className="icon"><ContactsIcon size={20} /></span>
             <span>Contacts</span>
           </Link>
-          <Link href="/workspace/engage/whatsapp" className="action-card">
+          <Link href="/workspace/engage/broadcast" className="action-card">
             <span className="icon"><BulkIcon size={20} /></span>
             <span>Campaign</span>
           </Link>
@@ -119,7 +119,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ data }) => {
       <div className="section full-width">
         <div className="section-header">
           <h3>Recent Messages</h3>
-          <Link href="/workspace/engage/whatsapp" className="link">View All</Link>
+          <Link href="/workspace/engage/inbox?channel=whatsapp" className="link">View All</Link>
         </div>
         <div className="msg-list">
           {messages.slice(0, 5).map(msg => {

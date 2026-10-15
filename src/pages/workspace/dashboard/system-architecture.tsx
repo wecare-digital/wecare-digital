@@ -390,7 +390,7 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
   { path: '/workspace/dashboard/lambda-functions', label: 'Lambda Functions', backend: '(static data)', tables: '-' },
   { path: '/workspace/dashboard/code-repo', label: 'Code Repo', backend: '(static data)', tables: '-' },
   // WhatsApp
-  { path: '/workspace/engage/whatsapp', label: 'WhatsApp Inbox', backend: 'messages-read, inbound-whatsapp, outbound-whatsapp', tables: 'WhatsAppInbound, WhatsAppOutbound, Contact' },
+  { path: '/workspace/engage/inbox?channel=whatsapp', label: 'WhatsApp Inbox', backend: 'messages-read, inbound-whatsapp, outbound-whatsapp', tables: 'WhatsAppInbound, WhatsAppOutbound, Contact' },
   { path: '/workspace/engage/whatsapp/templates', label: 'WA Templates', backend: 'whatsapp-templates, whatsapp-template-management', tables: 'TemplateAnalytics' },
   { path: '/workspace/engage/whatsapp/campaign', label: 'WA Campaign', backend: 'outbound-whatsapp, bulk-job-create', tables: 'BulkJob, BulkRecipient, WhatsAppOutbound' },
   { path: '/workspace/engage/whatsapp/flows', label: 'WA Flows', backend: 'whatsapp-business-api', tables: 'FlowRegistry, FlowSubmission' },
@@ -549,7 +549,7 @@ const CODE_ASSETS: CodeAsset[] = [
   // Frontend Pages
   { id: 'p-dashboard', category: 'Frontend Pages', name: 'Dashboard Overview', description: 'Main analytics dashboard with billing, conversation metrics.', path: 'src/pages/workspace/dashboard/index.tsx', type: 'Page' },
   { id: 'p-control', category: 'Frontend Pages', name: 'Project Control Center', description: '18-tab system architecture dashboard — single source of truth.', path: 'src/pages/workspace/dashboard/system-architecture.tsx', type: 'Page' },
-  { id: 'p-wa-inbox', category: 'Frontend Pages', name: 'WhatsApp Inbox', description: 'Real-time WhatsApp message inbox with contact sidebar.', path: 'src/pages/workspace/engage/whatsapp/index.tsx', type: 'Page' },
+  { id: 'p-wa-inbox', category: 'Frontend Pages', name: 'WhatsApp Inbox', description: 'Bookmark signpost to the unified inbox filtered to WhatsApp.', path: 'src/pages/workspace/engage/whatsapp/index.tsx', type: 'Page' },
   { id: 'p-wa-templates', category: 'Frontend Pages', name: 'WhatsApp Templates', description: 'Template management — create, edit, send, analytics.', path: 'src/pages/workspace/engage/whatsapp/templates.tsx', type: 'Page' },
   { id: 'p-wa-flows', category: 'Frontend Pages', name: 'WhatsApp Flows', description: 'Flow builder and management for WhatsApp Business Flows.', path: 'src/pages/workspace/engage/whatsapp/flows.tsx', type: 'Page' },
   { id: 'p-wa-flowhub', category: 'Frontend Pages', name: 'Flow Hub', description: 'Centralized flow registry, submissions, and analytics.', path: 'src/pages/workspace/engage/whatsapp/flow-hub.tsx', type: 'Page' },

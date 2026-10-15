@@ -18,8 +18,10 @@
  *
  * THE FILE STAYS, deliberately. src/test/CssDrivenMotion.test.tsx reads this exact path and
  * asserts it hardcodes no smooth scroll behavior — a TEXT match over the source, so this
- * docblock must not spell the literal it forbids. whatsapp/index.tsx also imports './inbox'
- * and full-screen-wraps it, and that route is a declared inner page of `communications`.
+ * docblock must not spell the literal it forbids. whatsapp/index.tsx used to import './inbox'
+ * and full-screen-wrap it; since 2026-10-15 that route is a router.replace signpost to
+ * /workspace/engage/inbox?channel=whatsapp, and nothing imports this file any more. It is
+ * kept as a working URL for anyone who bookmarked it, not as a nav destination.
  *
  * `embedded` passes straight through rather than being hardcoded, so the omnichannel page
  * decides the shell: bare content when embedded, Layout-wrapped otherwise. That keeps this

@@ -161,6 +161,17 @@ class TestTheDeclaredHomesExist:
         missing = [p for p in set(inner_pages) if route_to_page(p) is None]
         assert not missing, f"module homes declare inner pages that do not exist: {missing}"
 
+    def test_no_declared_route_is_a_redirect_signpost(self, inner_pages):
+        # A home and its inner pages are where a module's screens live. A router.replace
+        # signpost (admin/, service/, forms/, docs/, engage/whatsapp/) is a bookmark-catcher
+        # with no screen of its own, so declaring one here would quietly point the module at
+        # whatever page the signpost forwards to.
+        signposts = sorted(
+            p for p in set(inner_pages)
+            if (page := route_to_page(p)) is not None
+            and re.search(r"router\.replace\(\s*'", page.read_text(encoding="utf-8")))
+        assert not signposts, f"module homes declare redirect signposts: {signposts}"
+
 
 class TestCommunicationsExposesExactlyThree:
     def test_exactly_three_and_they_are_the_named_three(self, nav_source):
@@ -173,7 +184,11 @@ class TestCommunicationsExposesExactlyThree:
         inner = block.split("innerPages:")[1]
         inner = inner[: inner.index("]")]
         pages = re.findall(r"'(/[a-z0-9/-]+)'", inner)
-        assert pages == ["/workspace/engage/inbox", "/workspace/engage/whatsapp", "/workspace/engage/voice"], (
+        # WhatsApp Business moved from /workspace/engage/whatsapp to the WhatsApp hub on
+        # 2026-10-15: the old route is now a router.replace signpost to the common inbox,
+        # so pinning it here would have pinned the common inbox twice.
+        assert pages == ["/workspace/engage/inbox", "/workspace/engage/whatsapp/settings",
+                         "/workspace/engage/voice"], (
             f"Communications must expose exactly Common Inbox, WhatsApp Business and "
             f"Business Calling; found {pages}")
 

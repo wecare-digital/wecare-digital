@@ -33,6 +33,32 @@ function pageExists ( navPath: string ): boolean {
     || fs.existsSync( path.join( PAGES, clean, 'index.tsx' ) );
 }
 
+/** The page file behind a path, or null. Query string and trailing slash are stripped. */
+function pageFile ( navPath: string ): string | null {
+  const clean = navPath.split( '?' )[ 0 ].replace( /^\//, '' ).replace( /\/$/, '' );
+  for ( const f of [ path.join( PAGES, `${clean}.tsx` ), path.join( PAGES, clean, 'index.tsx' ) ] )
+  {
+    if ( fs.existsSync( f ) ) return f;
+  }
+  return null;
+}
+
+/**
+ * Where a path's page forwards to, if the page is a router.replace signpost; else null.
+ *
+ * The workspace retires URLs with small client-side stubs (admin/, service/, forms/,
+ * docs/, engage/whatsapp/) rather than server redirects, and access/ is the sign-in
+ * landing, which sends a signed-in user straight to the dashboard. Each is a fine
+ * bookmark-catcher and a poor destination: a row or tile pointing at one is a second
+ * door with a redirect behind it.
+ */
+function signpostTarget ( navPath: string ): string | null {
+  const file = pageFile( navPath );
+  if ( !file ) return null;
+  const m = fs.readFileSync( file, 'utf8' ).match( /router\.replace\(\s*'([^']+)'/ );
+  return m ? m[ 1 ] : null;
+}
+
 describe( 'the sidebar is short and holds only daily streams', () => {
   it( 'has far fewer top-level entries than the 11 it had', () => {
     // The bound moved 8 -> 9 on 2026-10-07 to carry the Content section, which puts the
@@ -137,6 +163,52 @@ describe( 'every nav path resolves to a real page', () => {
     {
       expect( all ).not.toContain( dead );
     }
+  } );
+} );
+
+describe( 'no entry point lands on a redirect signpost', () => {
+  // Kept on purpose, so a bookmark still lands somewhere. Removing one of these files is a
+  // decision about bookmarks, not about navigation, and should fail here first.
+  const SIGNPOSTS = [ '/workspace/admin', '/workspace/service', '/workspace/forms',
+    '/workspace/docs', '/workspace/access', '/workspace/engage/whatsapp',
+    '/workspace/dashboard/waba-usernames' ];
+
+  it( 'keeps every signpost, and each forwards to a destination the nav reaches', () => {
+    const all = getAllNavItems().map( ( i ) => i.path );
+    for ( const s of SIGNPOSTS )
+    {
+      const target = signpostTarget( s );
+      expect( target, `${s} is no longer a router.replace signpost` ).not.toBeNull();
+      expect( all, `${s} forwards to ${target}, which no nav row reaches` ).toContain( target );
+    }
+  } );
+
+  it( 'no gear row and no sidebar leaf points at a signpost', () => {
+    const sidebarLeaves = getAllNavItemsFrom(
+      navigationConfig.flatMap( ( i ) => i.children ?? [ i ] ) );
+    const rows = [ ...sidebarLeaves, ...getSettingsItems().map( ( i ) => i.path ) ];
+    expect( rows.filter( ( p ) => signpostTarget( p ) !== null ) ).toEqual( [] );
+  } );
+
+  it( 'a sidebar section is a signpost only into one of its own children', () => {
+    // A section's path doubles as its active-state prefix (isNavItemActive), which is why
+    // Forms keeps /workspace/forms rather than naming one child: the signpost forwards to
+    // Forms -> Form responses, so a collapsed-sidebar click or the "Forms" Ctrl+K row
+    // still lands inside the section it names.
+    for ( const item of navigationConfig )
+    {
+      const target = signpostTarget( item.path );
+      if ( target === null ) continue;
+      expect( item.children?.map( ( c ) => c.path ) ).toContain( target );
+    }
+  } );
+
+  it( 'no /workspace hub tile points at a signpost or a missing page', () => {
+    const hub = fs.readFileSync( path.join( PAGES, 'workspace/index.tsx' ), 'utf8' );
+    const tiles = [ ...hub.matchAll( /path: '([^']+)'/g ) ].map( ( m ) => m[ 1 ] );
+    expect( tiles.length ).toBeGreaterThan( 10 );
+    expect( tiles.filter( ( p ) => pageFile( p ) === null ) ).toEqual( [] );
+    expect( tiles.filter( ( p ) => signpostTarget( p ) !== null ) ).toEqual( [] );
   } );
 } );
 
