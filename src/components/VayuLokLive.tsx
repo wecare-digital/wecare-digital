@@ -31,14 +31,10 @@ import VoiceSearchMic from './VoiceSearchMic';
  * map area is a LOCAL .vl-live-map-placeholder - plain text over a muted panel, no src and
  * no remote asset - so this path contacts no third party at all, not even Google.
  *
- * DEFAULT-ON MAP VISUALS. The keyed map paints (a) Google's continuous AQI heatmap tiles
- * (UAQI_RED_GREEN) and (b) a code-rendered atmospheric layer: soft cloud masses, wind
- * streamlines and a storm vortex whose density/speed are driven by the selected place's LIVE
- * Google Weather values (cloud cover, rain/storm probability and wind). The atmosphere is SVG/
- * CSS, not a static image and not an invented Google tile endpoint. On the KEYLESS path no
- * ImageMapType or atmosphere layer is mounted and zero third-party calls fire. Both the AQI
- * (UAQI_RED_GREEN) and PM2.5 (PM25_INDIGO_PERSIAN) heatmaps are Google ImageMapType tile
- * overlays - there is no deck.gl dot overlay or sampled grid anymore.
+ * DEFAULT-ON MAP VISUALS. The keyed map paints Google's continuous AQI heatmap tiles
+ * (UAQI_RED_GREEN), with PM2.5 available as the alternate heatmap. No local weather/storm
+ * animation layer is mounted. On the KEYLESS path no ImageMapType is mounted and zero
+ * third-party calls fire.
  *
  * SELF-STYLING via styled-jsx with a vl-live- scope. styled-jsx only attaches its scoping
  * class to markup it can statically see, so every element stays INLINE in this component's
@@ -106,11 +102,7 @@ const AQI_HEATMAP_MAP_TYPE = 'UAQI_RED_GREEN';
 const PM25_HEATMAP_MAP_TYPE = 'PM25_INDIGO_PERSIAN';
 const AQI_HEATMAP_TILE_BASE = 'https://airquality.googleapis.com/v1/mapTypes';
 
-// The storm look is rendered locally as SVG/CSS over the live map and is driven by Google
-// Weather values already fetched for the selected place. Google Weather map tiles currently
-// cover only documented US/EU precipitation products, so there is intentionally no fabricated
-// global `tile.googleapis.com/.../weather` URL here.
-// Neutral map camera; no place is selected until the visitor acts.
+// Neutral map camera; search/recent-place selection chooses the destination.
 interface PlaceState {
   name: string;
   addr: string;
@@ -210,7 +202,7 @@ const DEFAULT_PLACE: PlaceState = {
   // Initial VayuLok demonstration location: Shillong, Meghalaya (a recognisable city, not a
   // neighbourhood presented as "your location"). It is simply the starting destination until the
   // user searches for another place. regionCode IN keeps the India CPCB local AQI; live
-  // Weather/Air requests use these coordinates.
+  // Air Quality requests use these coordinates.
   name: 'Shillong',
   addr: 'Meghalaya, India',
   lat: 25.5788,
@@ -458,7 +450,7 @@ interface AirPoint {interface AirPoint {
     effects?: string;
   }[];
 }
-function clamp(function clamp( value: number, min: number, max: number ): number {
+function clamp( value: number, min: number, max: number ): number {
   return Math.min( max, Math.max( min, value ) );
 }
 // The Air Quality API returns concentration units as long SCREAMING_SNAKE enums
@@ -511,54 +503,6 @@ function formatPollutantValue( value: number ): string {
 function n(function n( value: unknown ): number {
   const out = Number( value );
   return Number.isFinite( out ) ? out : NaN;
-}
-
-function weatherHourFromApi( row: Record<string, any> ): WeatherHour | null {
-  const time = new Date( row?.interval?.startTime || row?.dateTime || 0 ).getTime();
-  if ( !Number.isFinite( time ) ) return null;
-  const out: WeatherHour = { time };
-  const temp = n( row?.temperature?.degrees );
-  const feels = n( row?.feelsLikeTemperature?.degrees );
-  const rain = n( row?.precipitation?.probability?.percent );
-  const rainMm = n( row?.precipitation?.qpf?.quantity );
-  const storm = n( row?.thunderstormProbability );
-  const uv = n( row?.uvIndex );
-  const windSpeed = n( row?.wind?.speed?.value );
-  const windDeg = n( row?.wind?.direction?.degrees );
-  if ( Number.isFinite( temp ) ) out.temp = Math.round( temp );
-  if ( Number.isFinite( feels ) ) out.feelsLike = Math.round( feels );
-  if ( Number.isFinite( rain ) ) out.rainProb = Math.round( rain );
-  if ( Number.isFinite( rainMm ) ) out.rainMm = rainMm;
-  if ( Number.isFinite( storm ) ) out.stormProb = Math.round( storm );
-  if ( Number.isFinite( uv ) ) out.uv = Math.round( uv );
-  if ( Number.isFinite( windSpeed ) ) out.windSpeed = Math.round( windSpeed );
-  if ( Number.isFinite( windSpeed ) ) out.windUnit = windUnitLabel( row?.wind?.speed?.unit );
-  if ( Number.isFinite( windDeg ) ) out.windDir = windDirection( windDeg );
-  if ( typeof row?.weatherCondition?.description?.text === 'string' ) out.condition = row.weatherCondition.description.text;
-  if ( typeof row?.weatherCondition?.iconBaseUri === 'string' ) out.icon = row.weatherCondition.iconBaseUri;
-  // Richer per-hour dimensions Google already returns - surfaced in the hourly detail panel.
-  const humidity = n( row?.relativeHumidity );
-  const dew = n( row?.dewPoint?.degrees );
-  const heat = n( row?.heatIndex?.degrees );
-  const chill = n( row?.windChill?.degrees );
-  const wet = n( row?.wetBulbTemperature?.degrees );
-  const gust = n( row?.wind?.gust?.value );
-  const vis = n( row?.visibility?.distance );
-  const pressure = n( row?.airPressure?.meanSeaLevelMillibars );
-  const cloud = n( row?.cloudCover );
-  const ice = n( row?.iceThickness?.thickness );
-  if ( Number.isFinite( humidity ) ) out.humidity = Math.round( humidity );
-  if ( Number.isFinite( dew ) ) out.dewPoint = Math.round( dew );
-  if ( Number.isFinite( heat ) ) out.heatIndex = Math.round( heat );
-  if ( Number.isFinite( chill ) ) out.windChill = Math.round( chill );
-  if ( Number.isFinite( wet ) ) out.wetBulb = Math.round( wet );
-  if ( Number.isFinite( gust ) ) out.windGust = Math.round( gust );
-  if ( Number.isFinite( vis ) ) out.visibilityKm = vis;
-  if ( Number.isFinite( pressure ) ) out.pressureHpa = Math.round( pressure );
-  if ( Number.isFinite( cloud ) ) out.cloudCover = Math.round( cloud );
-  if ( Number.isFinite( ice ) ) out.iceThicknessMm = ice;
-  if ( typeof row?.precipitation?.probability?.type === 'string' ) out.precipitationType = row.precipitation.probability.type;
-  return out;
 }
 
 function airPointFromApi( row: Record<string, any> ): AirPoint | null {
@@ -1607,7 +1551,6 @@ const VayuLokLive: React.FC = () => {
     // Only `cancelled`. The map-init effect owns __vlCleanup. Calling it here as well (#335's
     // find-and-replace of this return) removed the map's idle, pointer, wheel, keydown and resize
     // listeners on the first place change, so map movement stopped selecting places and the
-    // atmosphere stopped tracking the camera after one selection.
     return () => { cancelled = true; };
   }, [ place.lat, place.lng, place.placeId, hasSelection, mapReady, ensureGeocoder ] );
 
@@ -1798,9 +1741,7 @@ const VayuLokLive: React.FC = () => {
 
   // The floating Air card and the on-map label read these. The former LEFT-panel
   // derivations (photo rail, 24h forecast rail, best-outside / rain signals, 4-day
-  // outlook, weather-context) were removed with the panel they fed; the underlying
-  // weather/air history + forecast state is still fetched and kept intact for the
-  // Weather phase and the map layers.
+  // outlook and weather context were removed with the Weather surface.
   const previewPlace = mapCandidate || place;
   const activePollutant = pollutantTip
     ? air?.pollutants.find( p => p.code === pollutantTip.code ) || null
@@ -2544,8 +2485,6 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-toggle-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:rgba(26,58,42,.3)}
         .vl-live-air-toggle-btn.is-air.is-active{background:#e0f7c8}
         .vl-live-air-toggle-btn.is-air.is-active .vl-live-air-toggle-dot{background:#3da35a}
-        .vl-live-air-toggle-btn.is-weather.is-active{background:#dbeafe;color:#1e3a5f}
-        .vl-live-air-toggle-btn.is-weather.is-active .vl-live-air-toggle-dot{background:#2563eb}
 
         .vl-live-air-panel{margin-top:16px}
         .vl-live-air-empty{margin:0;padding:14px 0;color:var(--muted);font-size:12.5px;line-height:1.5}
@@ -2817,9 +2756,6 @@ const VayuLokLive: React.FC = () => {
           .vl-live-air-context-item.is-time{margin-left:auto}
           .vl-live-air-health-tabs{scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scroll-padding-inline:2px}
           .vl-live-air-history-head,.vl-live-air-forecast-head{align-items:flex-start;flex-direction:column}
-          .vl-live-wx-history .vl-live-air-forecast-head{display:block}
-          .vl-live-wx-daily-row{grid-template-columns:54px 28px minmax(0,1fr) auto;gap:8px}
-          .vl-live-wx-daily-rain{display:none}
           .vl-live-air-history-head-meta{width:100%;justify-content:space-between}
           .vl-live-air-range{max-width:100%;overflow-x:auto}
           .vl-live-air-health-tab{scroll-snap-align:start}
