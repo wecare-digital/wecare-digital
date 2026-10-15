@@ -1105,6 +1105,12 @@ const VayuLokLive: React.FC = () => {
   const atmosphereRef = useRef<HTMLDivElement | null>( null );
   const atmosphereFrameRef = useRef<number | null>( null );
   const initialGlobalViewRef = useRef( true );
+  // True only when the visitor directly manipulates the map canvas. Programmatic camera
+  // changes (initial paint/search selection) must not rewrite the selected place.
+  const mapInteractionRef = useRef( false );
+  // A place committed from the current map center must not immediately snap the camera to
+  // zoom 14 in the place->camera effect; the visitor's chosen camera is already correct.
+  const selectionFromMapRef = useRef( false );
   const markerRef = useRef<unknown>( null );
   const markerCtorRef = useRef<( new ( opts: Record<string, unknown> ) => unknown ) | null>( null );
   const placesLibRef = useRef<Record<string, unknown> | null>( null );
@@ -1419,22 +1425,22 @@ const VayuLokLive: React.FC = () => {
         center: { lat: 25, lng: 86 },
         zoom: 4,
         mapTypeId: 'hybrid',
-        // Owner interaction contract: no drag, pinch, trackpad pan, wheel zoom, double-click
-        // zoom or keyboard movement. Programmatic fitBounds/setCenter from destination choice
-        // still works, so selecting a place is the single camera-control path.
-        gestureHandling: 'none',
-        draggable: false,
-        scrollwheel: false,
-        disableDoubleClickZoom: true,
+        // The map itself is a location picker. Drag/pinch/wheel/keyboard movement is enabled;
+        // when movement settles, the camera center becomes the selected destination and the
+        // Air/Weather cards refresh for that point. Search remains an alternate jump control.
+        gestureHandling: 'greedy',
+        draggable: true,
+        scrollwheel: true,
+        disableDoubleClickZoom: false,
         disableDefaultUI: true,
-        zoomControl: false,
+        zoomControl: true,
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: false,
         scaleControl: false,
-        rotateControl: false,
+        rotateControl: true,
         cameraControl: false,
-        keyboardShortcuts: false,
+        keyboardShortcuts: true,
         clickableIcons: false,
         styles: MAP_STYLES,
       } );
@@ -1502,8 +1508,88 @@ const VayuLokLive: React.FC = () => {
         },
       );
 
-      // Intentionally no map click handler. Location changes are owned by the search/recent
-      // place selector only, which keeps the map, AQI tiles and atmosphere visually aligned.
+      // Direct map interaction is also a location selection path. Mark only genuine pointer/
+      // wheel interaction on the canvas; programmatic search recentering must not feed back into
+      // place state. When Google's map becomes idle, commit the visible center immediately so
+      // the default Air/Weather information changes with the globe/map position.
+      const markMapInteraction = () => { mapInteractionRef.current = true; };
+      host.addEventListener( 'pointerdown', markMapInteraction, { passive: true } );
+      host.addEventListener( 'touchstart', markMapInteraction, { passive: true } );
+      host.addEventListener( 'wheel', markMapInteraction, { passive: true } );
+
+      const commitVisibleCenter = async () => {
+        if ( cancelled || !mapInteractionRef.current ) return;
+        mapInteractionRef.current = false;
+        const center = motionMap.getCenter?.();
+        const lat = center?.lat?.();
+        const lng = center?.lng?.();
+        if ( !Number.isFinite( lat ) || !Number.isFinite( lng ) ) return;
+
+        const base: PlaceState = {
+          name: 'Selected location',
+          addr: `${( lat as number ).toFixed( 4 )}, ${( lng as number ).toFixed( 4 )}`,
+          lat: lat as number,
+          lng: lng as number,
+        };
+
+        const apply = ( next: PlaceState ) => {
+          selectionFromMapRef.current = true;
+          rememberPlace( next );
+          setPlace( next );
+          setHasSelection( true );
+          setMapCandidate( null );
+          setQuery( next.name === 'Selected location' ? '' : next.name );
+          setOpen( false );
+          setResults( [] );
+          setActive( -1 );
+          setSearchStatus( 'idle' );
+        };
+
+        try {
+          let gc = geocoder.current as {
+            geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
+          } | null;
+          if ( !gc?.geocode ) {
+            const geocodingLib = await imp( 'geocoding' );
+            const GeocoderCtor = ( geocodingLib as { Geocoder?: new () => unknown } | null )?.Geocoder || legacy.Geocoder;
+            if ( GeocoderCtor ) {
+              geocoder.current = new GeocoderCtor();
+              gc = geocoder.current as typeof gc;
+            }
+          }
+          if ( !gc?.geocode || cancelled ) {
+            apply( base );
+            return;
+          }
+          gc.geocode( { location: { lat, lng } }, ( rows, status ) => {
+            if ( cancelled ) return;
+            if ( status !== 'OK' || !Array.isArray( rows ) || !rows.length ) {
+              apply( base );
+              return;
+            }
+            const row = rows[ 0 ] as {
+              formatted_address?: string;
+              place_id?: string;
+              address_components?: { types?: string[]; short_name?: string }[];
+            };
+            const formatted = row.formatted_address || base.addr;
+            const country = row.address_components?.find( c => c.types?.includes( 'country' ) )?.short_name;
+            apply( {
+              ...base,
+              name: formatted.split( ',' )[ 0 ] || base.name,
+              addr: formatted,
+              placeId: row.place_id,
+              ...( country ? { regionCode: country.toUpperCase() } : {} ),
+            } );
+          } );
+        } catch {
+          apply( base );
+        }
+      };
+
+      if ( typeof motionMap.addListener === 'function' ) {
+        motionListeners.push( motionMap.addListener( 'idle', () => { void commitVisibleCenter(); } ) || {} );
+      }
 
       // `tilesloaded` is now a HEALTH/READINESS signal, not a visibility gate. A refused
       // browser key can still construct a Map object while never delivering usable tiles;
@@ -1531,6 +1617,9 @@ const VayuLokLive: React.FC = () => {
         resizeObserver?.disconnect();
         window.visualViewport?.removeEventListener( 'resize', onViewportResize );
         window.removeEventListener( 'orientationchange', onViewportResize );
+        host.removeEventListener( 'pointerdown', markMapInteraction );
+        host.removeEventListener( 'touchstart', markMapInteraction );
+        host.removeEventListener( 'wheel', markMapInteraction );
         if ( atmosphereFrameRef.current !== null ) {
           cancelAnimationFrame( atmosphereFrameRef.current );
           atmosphereFrameRef.current = null;
@@ -2241,6 +2330,9 @@ const VayuLokLive: React.FC = () => {
     } | null;
     if ( initialGlobalViewRef.current ) {
       initialGlobalViewRef.current = false;
+    } else if ( selectionFromMapRef.current ) {
+      // The map is already at the camera the visitor chose. Update marker/data only.
+      selectionFromMapRef.current = false;
     } else if ( place.viewport && map.fitBounds ) map.fitBounds( place.viewport, 56 );
     else {
       map.setCenter?.( { lat: place.lat, lng: place.lng } );
