@@ -206,7 +206,7 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     fitBoundsCalls: [],
     setZoomCalls: [],
     setCenterCalls: [],
-    mapCenter: { lat: 25, lng: 86 },
+    mapCenter: { lat: 22.9734, lng: 78.6569 },
     mapListeners: new Map(),
     fireMapEvent: eventName => {
       for ( const handler of [ ...( rec.mapListeners.get( eventName ) || [] ) ] ) handler();
@@ -709,7 +709,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     // the other libraries are allowed to continue in the background.
     expect( rec.importedLibraries[ 0 ] ).toBe( 'maps' );
     expect( rec.mapOpts?.restriction ).toBeUndefined();
-    expect( rec.mapOpts?.center ).toEqual( { lat: 25, lng: 86 } );
+    expect( rec.mapOpts?.center ).toEqual( { lat: 22.9734, lng: 78.6569 } );
     expect( rec.mapOpts?.zoom ).toBe( 4 );
     expect( rec.mapOpts?.mapTypeId ).toBe( 'hybrid' );
     expect( rec.mapOpts?.gestureHandling ).toBe( 'none' );
@@ -794,7 +794,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( locationLookupsAfter ).toBe( locationLookupsBefore );
   } );
 
-  it( 'overlays a floating Air Quality card on the map (no left place panel) with the title and the Air/Weather toggle', async () => {
+  it( 'overlays a floating Air Quality card on the map with an Air-only heading', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     const { container } = render( <VayuLokLive /> );
@@ -821,11 +821,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( container.querySelector( '.vl-live-forecast-weather' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-air-source-strip' ) ).toBeNull();
 
-    // The toggle is a two-tab tablist with Air selected by default.
-    const airTab = await screen.findByRole( 'tab', { name: 'Air' } );
-    const weatherTab = await screen.findByRole( 'tab', { name: 'Weather' } );
-    expect( airTab ).toHaveAttribute( 'aria-selected', 'true' );
-    expect( weatherTab ).toHaveAttribute( 'aria-selected', 'false' );
+    expect( container.querySelector( '.vl-live-air-heading' )?.textContent ).toContain( 'Air quality' );
+    expect( screen.queryByRole( 'tab', { name: 'Weather' } ) ).toBeNull();
   } );
 
   it( 'shows AQI context, inline dominant metadata and pollutant details with one Material icon language', async () => {
@@ -969,196 +966,6 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( weatherPanel?.textContent ).not.toMatch( /coming soon/i );
     // The Air panel is no longer shown while Weather is selected.
     expect( container.querySelector( '[aria-label="Air details"]' ) ).toBeNull();
-  } );
-
-  it( 'uses Google currentTime for Weather freshness instead of the browser fetch-completion time', async () => {
-    const realNow = Date.now();
-    const providerTime = new Date( realNow - 12 * 60 * 1000 ).toISOString();
-    const baseFetch = environmentFetch();
-    const fetchSpy = vi.fn( async ( input: RequestInfo | URL, init?: RequestInit ) => {
-      if ( requestIs( input, 'weather.googleapis.com', '/v1/currentConditions' ) ) {
-        return {
-          ok: true,
-          json: async () => ( {
-            currentTime: providerTime,
-            temperature: { degrees: 26 },
-            feelsLikeTemperature: { degrees: 27 },
-            relativeHumidity: 68,
-            weatherCondition: { description: { text: 'Mostly sunny' } },
-          } ),
-        } as Response;
-      }
-      return baseFetch( input, init );
-    } );
-    vi.stubGlobal( 'fetch', fetchSpy );
-
-    const VayuLokLive = await loadComponent();
-    const { container } = render( <VayuLokLive /> );
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    await selectMumbai();
-    fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
-
-    await waitFor( () => {
-      const freshness = container.querySelector( '.vl-live-wx-freshness' )?.textContent || '';
-      expect( freshness ).toMatch( /Current · updated 1[12] min ago/ );
-    } );
-  } );
-
-  it( 'renders the full Weather dashboard (metrics grid, hourly, 10-day, 24h history, neutral alerts)', async () => {
-    const fetchSpy = environmentFetch();
-    vi.stubGlobal( 'fetch', fetchSpy );
-    const VayuLokLive = await loadComponent();
-    const { container } = render( <VayuLokLive /> );
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    await selectMumbai();
-
-    fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
-    const panel = await waitFor( () => {
-      const el = container.querySelector( '[aria-label="Weather details"]' );
-      expect( el?.querySelector( '.vl-live-wx-now-temp' ) ).not.toBeNull();
-      return el as HTMLElement;
-    } );
-
-    // Current metrics grid shows only returned fields.
-    expect( panel.querySelector( '.vl-live-wx-grid' ) ).not.toBeNull();
-    expect( panel.textContent ).toContain( 'Humidity' );
-    expect( panel.textContent ).toContain( 'Wind' );
-    expect( panel.textContent ).toContain( 'Day range' );
-    // Hourly forecast strip with 24h/48h range.
-    expect( panel.querySelector( '.vl-live-air-forecast-strip' ) ).not.toBeNull();
-    expect( within( panel ).getByRole( 'group', { name: 'Weather forecast range' } ) ).toBeTruthy();
-    // Google defaults daily pageSize to 5; VayuLok explicitly asks for 10 and renders all ten.
-    expect( panel.querySelectorAll( '.vl-live-wx-daily-row' ).length ).toBe( 10 );
-    const dailyCall = fetchSpy.mock.calls.find( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/forecast/days' ) );
-    expect( String( dailyCall?.[ 0 ] ) ).toContain( 'days=10' );
-    expect( String( dailyCall?.[ 0 ] ) ).toContain( 'pageSize=10' );
-    const googleDataCalls = fetchSpy.mock.calls.filter( call => {
-      const url = requestUrl( call[ 0 ] as RequestInfo | URL );
-      return Boolean( url && (
-        url.hostname === 'weather.googleapis.com'
-        || url.hostname === 'airquality.googleapis.com'
-        || ( url.hostname === 'maps.googleapis.com' && url.pathname.startsWith( '/maps/api/timezone/' ) )
-      ) );
-    } );
-    expect( googleDataCalls.length ).toBeGreaterThan( 0 );
-    googleDataCalls.forEach( call => {
-      expect( ( call[ 1 ] as RequestInit | undefined )?.cache ).toBe( 'no-store' );
-    } );
-    // 24h history with a metric toggle.
-    expect( within( panel ).getByRole( 'group', { name: 'Weather history metric' } ) ).toBeTruthy();
-    expect( panel.querySelector( '.vl-live-wx-daily-icon' ) ).not.toBeNull();
-    // History cards are selectable; selection reveals the full returned hourly snapshot.
-    const historyCard = panel.querySelector( '.vl-live-wx-hist-item' ) as HTMLButtonElement;
-    expect( historyCard ).toBeTruthy();
-    fireEvent.click( historyCard );
-    await waitFor( () => {
-      const detail = panel.querySelector( '.vl-live-wx-history .vl-live-air-forecast-detail' );
-      expect( detail?.textContent ).toContain( 'Feels' );
-      expect( detail?.textContent ).toContain( 'Dew point' );
-      expect( detail?.textContent ).toContain( 'Pressure' );
-      expect( detail?.textContent ).toContain( 'Wind' );
-      expect( detail?.textContent ).toContain( 'Cloud' );
-    } );
-    // Alerts: India has no coverage, so the neutral customer-facing line avoids provider/internal wording.
-    expect( panel.textContent ).toContain( 'Weather alerts aren’t available for this location.' );
-    // Unsupported is a distinct state, not the same as a successful "no alerts" response.
-    // No publicAlerts request was made for India.
-    expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
-    // Raw temperature value carries data-wc-no-translate (keeps numbers honest under translation).
-    expect( panel.querySelector( '.vl-live-wx-now-temp' )?.getAttribute( 'data-wc-no-translate' ) ).toBe( 'true' );
-    // NO RED.
-    expect( container.innerHTML ).not.toContain( 'dc2626' );
-  } );
-
-  it( 'adds a humanised moon phase to the daily astronomy when a 10-day row is expanded', async () => {
-    const fetchSpy = environmentFetch();
-    vi.stubGlobal( 'fetch', fetchSpy );
-    const VayuLokLive = await loadComponent();
-    const { container } = render( <VayuLokLive /> );
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    await selectMumbai();
-    fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
-
-    const row = await waitFor( () => {
-      const el = container.querySelector( '.vl-live-wx-daily-row' );
-      expect( el ).not.toBeNull();
-      return el as HTMLElement;
-    } );
-    fireEvent.click( row );
-    let detail = await waitFor( () => {
-      const el = container.querySelector( '.vl-live-wx-daily-list .vl-live-air-forecast-detail' );
-      expect( el ).not.toBeNull();
-      return el as HTMLElement;
-    } );
-    expect( detail.textContent ).toContain( 'Sunrise' );
-    const periodToggle = await screen.findByRole( 'group', { name: /Today forecast period/i } );
-    fireEvent.click( within( periodToggle ).getByRole( 'button', { name: 'Night' } ) );
-    detail = await waitFor( () => {
-      const el = container.querySelector( '.vl-live-wx-daily-list .vl-live-air-forecast-detail' );
-      expect( el?.textContent ).toContain( 'Moonrise' );
-      return el as HTMLElement;
-    } );
-    expect( detail.textContent ).toContain( 'Moon' );
-    // The SCREAMING_SNAKE enum is humanised to sentence case, never shown raw.
-    expect( detail.textContent ).toContain( 'Waxing crescent' );
-    expect( detail.textContent ).not.toContain( 'WAXING_CRESCENT' );
-    expect( container.innerHTML ).not.toContain( 'dc2626' );
-  } );
-
-  it( 'queries and renders full Google public alerts for a supported region', async () => {
-    rec = installGoogleMaps( { placeCountryCode: 'US' } );
-    const baseFetch = environmentFetch();
-    const alertFetch = vi.fn( ( input: RequestInfo | URL, init?: RequestInit ) => {
-      if ( requestIs( input, 'weather.googleapis.com', '/v1/publicAlerts' ) ) {
-        return Promise.resolve( {
-          ok: true,
-          json: async () => ( {
-            weatherAlerts: [ {
-              alertId: 'alert-1',
-              alertTitle: { text: 'Flash Flood Warning', languageCode: 'en' },
-              eventType: 'FLASH_FLOOD',
-              areaName: 'Wake County, NC',
-              polygon: '{"type":"Polygon","coordinates":[[[-78.4,35.7],[-78.2,35.7],[-78.4,35.7]]]}',
-              description: 'Flash flooding is occurring.',
-              severity: 'SEVERE',
-              certainty: 'LIKELY',
-              urgency: 'IMMEDIATE',
-              instruction: [ 'Move to higher ground.' ],
-              safetyRecommendations: [ { directive: 'Avoid flooded roads.', subtext: 'Turn around, do not drown.' } ],
-              startTime: new Date().toISOString(),
-              expirationTime: new Date( Date.now() + 60 * 60 * 1000 ).toISOString(),
-              timezoneOffset: '-14400s',
-              dataSource: { publisher: 'NOAA', name: 'National Weather Service', authorityUri: 'https://www.weather.gov/' },
-            } ],
-            regionCode: 'US',
-          } ),
-        } as Response );
-      }
-      return baseFetch( input, init );
-    } );
-    vi.stubGlobal( 'fetch', alertFetch );
-    const VayuLokLive = await loadComponent();
-    const { container } = render( <VayuLokLive /> );
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    await selectMumbai();
-
-    fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
-    const panel = await waitFor( () => {
-      const el = container.querySelector( '[aria-label="Weather details"]' ) as HTMLElement | null;
-      expect( el?.textContent ).toContain( 'Flash Flood Warning' );
-      return el as HTMLElement;
-    } );
-    expect( alertFetch.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( true );
-    expect( panel.textContent ).toContain( 'FLASH FLOOD' );
-    expect( panel.textContent ).toContain( 'SEVERE' );
-    expect( panel.textContent ).toContain( 'LIKELY' );
-    expect( panel.textContent ).toContain( 'IMMEDIATE' );
-    expect( panel.textContent ).toContain( 'Wake County, NC' );
-    expect( panel.textContent ).toContain( 'Move to higher ground.' );
-    expect( panel.textContent ).toContain( 'Avoid flooded roads.' );
-    expect( panel.textContent ).toContain( 'View affected area' );
-    const sourceLink = within( panel ).getByRole( 'link', { name: 'National Weather Service' } );
-    expect( sourceLink ).toHaveAttribute( 'href', 'https://www.weather.gov/' );
   } );
 
   it( 'renders pollutant concentrations faithfully: a real 0.4 stays 0.4, 0.04 stays 0.04, exact 0 stays 0', async () => {
@@ -1493,40 +1300,17 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     } );
   } );
 
-  it( 'uses real 24-hour weather history and requests 96 hours of AQ forecast', async () => {
+  it( 'requests the 96-hour Air forecast without any Google Weather calls', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
     render( <VayuLokLive /> );
 
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    await selectMumbai();
-
-    await waitFor( () => expect(
-      fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/history/hours' ) ),
-    ).toBe( true ) );
-
-    const airForecastCall = await waitFor( () => {
-      const call = fetchSpy.mock.calls.find( call => requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/forecast' ) );
-      expect( call ).toBeTruthy();
-      return call!;
+    await waitFor( () => {
+      expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/forecast' ) ) ).toBe( true );
     } );
-    const init = airForecastCall[ 1 ] as RequestInit;
-    const body = JSON.parse( String( init.body ) );
-    expect( body.pageSize ).toBe( 96 );
-    expect( body.extraComputations ).toEqual( expect.arrayContaining( [
-      'LOCAL_AQI',
-      'POLLUTANT_CONCENTRATION',
-      'DOMINANT_POLLUTANT_CONCENTRATION',
-      'HEALTH_RECOMMENDATIONS',
-      'POLLUTANT_ADDITIONAL_INFO',
-    ] ) );
-    const start = new Date( body.period.startTime ).getTime();
-    const end = new Date( body.period.endTime ).getTime();
-    // 95 hours, NOT 96: Google's forecast:lookup rejects an exactly-96-hour period with HTTP 400
-    // ("time period is not supported"); 95h still returns ~96 hourly rows. Requesting 96h was the
-    // cause of the forecast rendering empty in production.
-    expect( Math.round( ( end - start ) / 3_600_000 ) ).toBe( 95 );
+
+    expect( fetchSpy.mock.calls.some( call => String( call[ 0 ] ).includes( 'weather.googleapis.com' ) ) ).toBe( false );
   } );
 
   it( 'requests the India CPCB local AQI (customLocalAqis ind_cpcb) on the currentConditions:lookup air call', async () => {
@@ -1863,7 +1647,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.fitBoundsCalls.length ).toBeGreaterThan( 0 ) );
   } );
 
-  it( 'does not call unsupported India pollen or Google weather-alert endpoints', async () => {
+  it( 'does not call Pollen or Google Weather endpoints', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
@@ -1874,52 +1658,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( fetchSpy.mock.calls.length ).toBeGreaterThan( 3 ) );
 
     expect( fetchSpy.mock.calls.some( call => requestUrl( call[ 0 ] as RequestInfo | URL )?.hostname === 'pollen.googleapis.com' ) ).toBe( false );
-    expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
-  } );
-
-  it( 'paints the AQI heatmap and mounts the code-rendered atmosphere by default', async () => {
-    const fetchSpy = airConditionsFetch( 450, 180 );
-    vi.stubGlobal( 'fetch', fetchSpy );
-    const VayuLokLive = await loadComponent();
-
-    const { container } = render( <VayuLokLive /> );
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    await selectMumbai();
-
-    // AQI remains a genuine Google Air Quality ImageMapType.
-    await waitFor( () => {
-      expect( rec.imageMapTypeOpts.length ).toBeGreaterThanOrEqual( 1 );
-      expect( rec.overlayPushes.length ).toBeGreaterThanOrEqual( 1 );
-    } );
-    const aqiOpts = rec.imageMapTypeOpts.find( o => o.name === 'vl-live-aqi-heatmap' )!;
-    expect( aqiOpts ).toBeTruthy();
-    expect( aqiOpts.opacity ).toBe( 0.64 );
-    const getTileUrl = aqiOpts.getTileUrl as (
-      coord: { x: number; y: number }, zoom: number,
-    ) => string;
-    const tileUrl = getTileUrl( { x: 1, y: 2 }, 5 );
-    expect( tileUrl ).toContain( 'airquality.googleapis.com' );
-    expect( tileUrl ).toContain( 'mapTypes/UAQI_RED_GREEN/heatmapTiles' );
-    expect( tileUrl ).toContain( '/5/1/2' );
-    expect( tileUrl ).toContain( 'key=' );
-
-    // The weather/storm appearance is now local SVG/CSS, not a fabricated Google weather tile.
-    await waitFor( () => expect( container.querySelector( '.vl-live-atmosphere' ) ).not.toBeNull() );
-    expect( rec.imageMapTypeOpts.some( o => o.name === 'vl-live-weather-storm' ) ).toBe( false );
-    expect( rec.overlayEntries ).toHaveLength( 1 );
-    expect( deckRec.overlaySetMapCalls.some( value => Boolean( value ) ) ).toBe( false );
-  } );
-
-  it( 'keeps the SVG/CSS atmosphere on the live map without a separate Storm switch', async () => {
-    vi.stubGlobal( 'fetch', airConditionsFetch( 450, 180 ) );
-    const VayuLokLive = await loadComponent();
-
-    const { container } = render( <VayuLokLive /> );
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    await selectMumbai();
-
-    await waitFor( () => expect( container.querySelector( '.vl-live-atmosphere' ) ).not.toBeNull() );
-    expect( screen.queryByRole( 'switch', { name: 'Weather storm overlay' } ) ).toBeNull();
+    expect( fetchSpy.mock.calls.some( call => String( call[ 0 ] ).includes( 'weather.googleapis.com' ) ) ).toBe( false );
   } );
 
   it( 'does not render the removed map layer or selected-location pills', async () => {
@@ -2135,16 +1874,6 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( forecastTimeRule ).toContain( 'font-size:13px' );
     expect( forecastValueRule ).toContain( 'font-size:18px' );
     expect( forecastMetaRule ).toContain( 'font-size:13px' );
-    const weatherDailyListRule = css.match( /\.vl-live-wx-daily-list\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( weatherDailyListRule ).toContain( 'max-height:430px' );
-    expect( weatherDailyListRule ).toContain( 'overflow-y:auto' );
-    const weatherHistoryHeadRule = css.match( /\.vl-live-wx-history \.vl-live-air-forecast-head\{[^}]*\}/ )?.[ 0 ] || '';
-    const weatherHistoryTitleRule = css.match( /\.vl-live-wx-history \.vl-live-air-forecast-title\{[^}]*\}/ )?.[ 0 ] || '';
-    const weatherHistoryStripRule = css.match( /\.vl-live-wx-hist-strip\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( weatherHistoryHeadRule ).toContain( 'display:block' );
-    expect( weatherHistoryHeadRule ).toContain( 'margin-bottom:8px' );
-    expect( weatherHistoryTitleRule ).toContain( 'white-space:nowrap' );
-    expect( weatherHistoryStripRule ).toContain( 'margin:8px 0 0' );
     // The heatmap On/Off state control lives in the air panel's `air ? (...)` branch, so on the
     // keyless path (no live air data) it is correctly absent. Assert that absence rather than a
     // live On/Off string, which this path can never produce.
