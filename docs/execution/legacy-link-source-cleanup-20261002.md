@@ -4,7 +4,7 @@ Owner requested a deep purge of retired website references from current files an
 
 ## Runtime source corrections
 
-- SEO page inventory now reads the generated public-page catalogue rather than an obsolete Wix list. The catalogue is packaged with the SEO Lambda; CI watches catalogue changes and tests its parity without making Wix requests.
+- SEO page inventory now reads the generated public-page catalogue rather than an obsolete external list. The catalogue is packaged with the SEO Lambda; CI watches catalogue changes and tests its parity without making upstream requests.
 - AI, inbound WhatsApp, voice follow-up, notification, and RCS link defaults use current customer destinations.
 - Product URLs in the seven-product snapshot point at current shop pages. The fetcher now generates those canonical destinations, so a refresh cannot restore the retired storefront URLs.
 - Product normalization no longer invents legacy product pages. SEO instruction examples, catalogue-builder placeholders, and page-manager inventories use current pages.

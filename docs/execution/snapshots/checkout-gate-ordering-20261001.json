@@ -34,14 +34,14 @@
     }
   ],
   "createOrderingOnLive": {
-    "wix_ecom.create_checkout (a LIVE Wix write)": 259,
+    "_revised": "A retired-provider checkout write that preceded readiness on v2 has since been removed from the handler; pricing is now a ProductsTable read, which writes nothing.",
     "payment_readiness evaluation": 277,
     "order_keys.allocate_payment_reference": 290,
     "put_item on PaymentAttemptsTable": 312,
     "the CHECKOUT_INITIATION_ENABLED gate": 323
   },
   "theGateIsTheLastCheck": true,
-  "consequenceIfReadinessIsEverSetWhileTheGateIsOff": "every authenticated action=create would perform a live Wix write and write a PaymentAttempt row before refusing. No money moves and no gateway order is created, but the endpoint stops being inert. provision_checkout.py --verify now EXITS 1 on that combination rather than printing it.",
+  "consequenceIfReadinessIsEverSetWhileTheGateIsOff": "every authenticated action=create would reserve a payment reference and write a PaymentAttempt row before refusing. No money moves and no gateway order is created, but the endpoint stops being inert. provision_checkout.py --verify now EXITS 1 on that combination rather than printing it.",
   "howTheBranchIsCoveredInstead": [
     "tests/test_checkout_handler.py::test_create_disabled_prepares_attempt_but_sends_nothing_and_makes_no_order - authenticated fixture, asserts 59900 integer paise, INR, one attempt row, a PAYREF# reservation, no order keys, no send",
     "tests/test_checkout_gate_contract.py - 5 assertions pinning the two structural facts above, the PAYMENT_INITIATION_DISABLED branch itself, and a SUBSET check that fails when a NEW side effect appears ahead of the gate"

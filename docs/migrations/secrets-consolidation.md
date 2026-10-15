@@ -10,11 +10,6 @@ Measured 2026-10-14 from metadata only (no secret value read). Per-secret detail
   30-day windows; not billed). No secret has rotation enabled.
 - KMS: 15 active secrets use `aws/secretsmanager`; 4 active (`bing/api`, `google/ads`,
   `google/cloud`, `plivo/api`) and 2 scheduled ones use the customer key `9b5b8734…` ($1/month).
-- **Wix secrets are gone, irreversibly.** CloudTrail: `wecare/wix/headless-api-key`,
-  `/catalog-webhook` and `/app-oauth` were scheduled with a 7-day window at 11:31 IST, then
-  force-deleted without recovery at 19:12 IST by the root identity through the AWS MCP tool. The
-  four Airtel secrets were force-deleted the same way at 20:46 IST. B6's "schedule with a
-  recovery window" step can no longer be applied to them.
 
 ## Findings, in priority order
 

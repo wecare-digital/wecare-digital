@@ -22,7 +22,7 @@ All money is integer paise; rupees are only how it is printed.
     Line items                      paise
       Rs1 test product  x1            100
       Contribute (Rs100) x1         10000
-    collection before convenience   10100   (Wix total: goods + delivery - discount;
+    collection before convenience   10100   (cart total: goods + delivery - discount;
                                              delivery assumed Rs0 in this example)
 
     convenience fee  = round_half_up(10100 * 250 / 10000)  = round_half_up(252.5)  =   253
@@ -129,7 +129,7 @@ Notes on the [~] and [P] lines, measured in the engine:
 
 ## 3. Second worked example - same basket with a Rs10 coupon
 
-    collection = 10100 - 1000 (coupon, applied by Wix Calculate Cart)  =  9100
+    collection = 10100 - 1000 (coupon, applied by the native checkout quote)  =  9100
     fee  = round_half_up(9100 * 250 / 10000) = round_half_up(227.5)    =   228
     GST  = round_half_up( 228 * 1800 / 10000) = round_half_up(41.04)   =    41
            SGST = floor(41 / 2) = 20,  CGST = 41 - 20 = 21

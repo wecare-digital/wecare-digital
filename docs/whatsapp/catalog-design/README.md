@@ -22,7 +22,7 @@ The palette comes from the homepage audience accents in `src/pages/index.tsx`. O
 
 Submit Request uses Google's outlined Material assignment icon. Vault uses the owner-supplied Google Material cloud-download SVG. Google icon source: https://github.com/google/material-design-icons ; license: Apache-2.0. The WECARE.DIGITAL brand symbol is owner-supplied artwork.
 
-This commit saves the artwork and reusable templates. It does not upload catalog media, change Wix product records, send customer messages, publish Meta Flows, or enable payment/backend features.
+This commit saves the artwork and reusable templates. It does not upload catalog media, change product records, send customer messages, publish Meta Flows, or enable payment/backend features.
 
 Rollback: revert this scoped design commit. No live catalog records need restoration.
 

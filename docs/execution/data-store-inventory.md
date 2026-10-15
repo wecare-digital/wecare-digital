@@ -36,16 +36,14 @@ mismatch there would not surface.
 ## Referenced by code, absent from the account
 
 Six, after classifying out SQS queues, Lambda function names and bare prefixes that
-share the `stack-wecare-` prefix.
+share the `stack-wecare-` prefix. Three were retired-provider names that have since been
+removed with their code; the other three are below.
 
 | Name | Named by | Assessment |
 |---|---|---|
 | `…-SmsAwsTable` | `messaging/sms-aws`, `core/messages-read`, `operations/system-cleanup` | **Not a live SMS defect.** Sends write `UNIFIED_TABLE`; the only remaining use is a best-effort legacy `delete_item`. The Phase 4 migration stopped the dual-write and made the canonical store sole. Dead references to remove |
-| `…-AirtelC2CTable` | `messaging/voice-in/c2c` | Retired-provider residue. The deployed function still carries `AIRTEL_C2C_TABLE` **and** `AIRTEL_C2C_SECRET_NAME=wecare/airtel/c2c` as env vars, for a table that does not exist and a secret scheduled for deletion |
-| `…-AirtelSMSTable` | `shared/lambda_utils/comms/legacy_history.py` | Retired-provider residue in a legacy-history reader |
 | `…-PstnNotificationDelivery` | `shared/lambda_utils/pstn/claims.py` | `NOTIF-STORE-001`. Declared in `resource.ts` and the TTL registry, named here, and **no table exists**. Inert only because `PSTN_CONNECTED_NOTIFICATIONS_ENABLED` is false |
 | `…-SystemConfig` | `operations/system-cleanup` | Wrong name — the live table is `…-SystemConfigTable`. A cleanup pass naming it would fail |
-| `…-wix-store` | `core/service-api`, `messaging/whatsapp-business-api/service_api.py` | Neither a table nor a live function (`wecare-wix-store` is the function). Needs tracing |
 
 `…-RcsMessagesTable` was a seventh. The three `RCS_TABLE` constants naming it were
 removed on 2026-09-21 — each was assigned once and never read, the Phase 4
@@ -58,8 +56,6 @@ Read from live function configuration, not from source:
 
 | Function | Variable | Problem |
 |---|---|---|
-| `wecare-voice-in-c2c` | `AIRTEL_C2C_TABLE` | names a table that does not exist |
-| `wecare-voice-in-c2c` | `AIRTEL_C2C_SECRET_NAME` | names `wecare/airtel/c2c`, scheduled for deletion |
 | `wecare-rcs-dlr` | `RCS_TABLE` | names a table that does not exist; now inert since the constant was removed |
 
 `wecare-sms-aws`, `wecare-system-cleanup` and `wecare-messages-read` carry **no**

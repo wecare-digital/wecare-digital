@@ -27,15 +27,15 @@ The only service with real bloat is **DynamoDB**. Everything else is already lea
 ### A. Per-channel message/log tables → unify (biggest win)
 Today each channel has its own inbound/outbound/log table:
 `MessagesTable`, `WhatsAppInboundTable`, `WhatsAppOutboundTable`, `SmsAwsTable`, `SmsOutboundTable`,
-`SmsInAirtelTable`, `AirtelSMSTable`, `RcsMessagesTable`, `VoiceAwsTable`, `WhatsAppVoiceTable`,
-`WhatsAppCallingTable`, `VoiceCalls`, `VoiceCDRTable`, `AirtelC2CTable`, `OBDCampaigns`.
+`RcsMessagesTable`, `VoiceAwsTable`, `WhatsAppVoiceTable`, `WhatsAppCallingTable`, `VoiceCalls`,
+`VoiceCDRTable`.
 - **Recommendation:** one unified `Messages` table keyed by `contactId`/`conversationId` with a
   `channel` attribute (whatsapp|sms|rcs|voice) + GSIs, replacing ~10 of these. Voice CDR/call-detail
   can stay separate (different shape). This is the single largest simplification but requires handler
   refactors + a data migration (acceptable since data-loss is OK — you can cut over fresh).
 
 ### B. Cache tables → unify or drop
-`CatalogCacheTable`, `WixOrdersCache`, `WixProductsCache`, `WixOrderIds` — all caches.
+`CatalogCacheTable` — a cache.
 - **Recommendation:** one `Cache` table with `type` prefix + TTL, or drop entirely and re-fetch. Low risk.
 
 ### C. Payment webhook logs → unify
@@ -49,8 +49,8 @@ Today each channel has its own inbound/outbound/log table:
 ### E. "Empty" tables — DO NOT DELETE (evidence-based correction)
 Grep of handler code proves the empty tables are **empty because the channel/feature is low-traffic,
 NOT because they're dead**. Each has an active writer:
-- `WhatsAppCallingTable` ← whatsapp-calling, `VoiceAwsTable` ← voice-aws, `AirtelC2CTable` ← voice-in/c2c,
-  `OBDCampaigns` ← voice-in/obd, `WhatsAppVoiceTable` ← whatsapp-voice, `AdClickAttributionTable` ← ad-attribution,
+- `WhatsAppCallingTable` ← whatsapp-calling, `VoiceAwsTable` ← voice-aws,
+  `WhatsAppVoiceTable` ← whatsapp-voice, `AdClickAttributionTable` ← ad-attribution,
   `CatalogCacheTable` ← catalog-management, `DLQMessagesTable` ← dlq-replay, `AuditLogsTable` ← shared audit.py,
   `Razorpay/PayUWebhookLogTable` ← the two payment webhooks.
 - **Conclusion:** deleting them would break live handlers. Reduction must come from **schema consolidation
@@ -75,19 +75,18 @@ NOT because they're dead**. Each has an active writer:
 Grouped by domain prefix (all `python3.12`):
 - **messaging** (~24): inbound-whatsapp, outbound-whatsapp, whatsapp-business-api, whatsapp-calling,
   whatsapp-voice, whatsapp-templates, whatsapp-template-management, waba-management, outbound-sms,
-  sms-in-airtel, sms-aws, outbound-email, outbound-voice, voice-aws, voice-in-{c2c,obd,cdr},
-  voice-cdr-read, scheduled-messages, template-analytics, ad-attribution, push-notifications,
+  sms-aws, outbound-email, voice-aws, voice-cdr-read, plivo-answer, pstn-softphone, scheduled-messages, template-analytics, ad-attribution, push-notifications,
   media-cleanup, meta-analytics
 - **ai** (4): ai-query-kb, ai-generate-response, ai-config-management, agent-action-group
 - **payments** (4): invoice-engine, payments-read, razorpay-webhook, payu-webhook
-- **ecommerce** (2): wix-store, product-image-gen
+- **ecommerce**: checkout, native-catalog-admin, coupons, gift-cards, customer-orders,
+  customer-invoice, meta-catalog-sync, product-image-gen
 - **operations** (6): system-cleanup, sla-engine, bulk-worker, bulk-job-create, dlq-replay, billing
 - **core** (~10): auth-middleware, automation-rules, contacts, conversation-meta, faq-handler,
   messages-delete, messages-read, service-api, url-shortener
 
 **Consolidation view:** Lambda count is *reasonable* for the surface area — do **not** over-merge
-(micro-functions give clean IAM boundaries + independent scaling). Only obvious merges:
-- `voice-in-c2c` / `voice-in-obd` / `voice-in-cdr` → could be one `voice-in` with an event router (optional).
+(micro-functions give clean IAM boundaries + independent scaling). Only obvious merge:
 - `messages-read` / `messages-delete` → one `messages` CRUD function (optional).
 The bigger Lambda issue is **not count, it's that they're outside IaC** (see Lambda IaC plan).
 

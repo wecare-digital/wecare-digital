@@ -179,11 +179,11 @@ rather than two individually-correct status codes.
 | 83 | `https://shop.wecare.digital/` | no address; TLS alert 40 at the CF IP | **302 → `https://wecare.digital/`, terminal 200** — re-measured 13:15Z | **gap CLOSED, by the home-fallback workstream, not by this task — §4.1** |
 | 83a | `https://shop.wecare.digital/shop/` | not measured before | **302 → `https://wecare.digital/`, terminal 200 — path DROPPED** | new row; the fallback deliberately discards the path, unlike row 3 — §4.1 |
 | 83b | `https://a.b.wecare.digital/` | not measured before (reported only as "not covered") | **resolves to `3.175.86.x`, TLS refused: no SAN matches — status 0** | **the residual gap, still open — §4.1** |
-| 84 | `https://xout.wecare.digital/` | 404 (Wix) | **302 → `https://wecare.digital/`, terminal 200** — changed later the same day | **INFORMATIONAL** — Wix-owned, out of scope, §4 and §9.3 |
+| 84 | `https://xout.wecare.digital/` | 404 (third-party storefront host) | **302 → `https://wecare.digital/`, terminal 200** — changed later the same day | **INFORMATIONAL** — third-party-hosted at the time, out of scope, §4 and §9.3 |
 | 85 | `https://mta-sts.wecare.digital/` | 403 at `/` | 403 | **must not change** — email auth is fail-closed |
 | **86** | `GET /api/invoices` | not measured before | **401** `{"error": "No authorization token provided"}` | **unchanged** — see §1.1 |
 | **87** | `GET /api/contacts` | not measured before | **401**, same JSON | unchanged — §1.1 |
-| **88** | `GET /api/wix-store/products` | not measured before | **401**, same JSON | unchanged — §1.1 |
+| **88** | the retired storefront products route | not measured before | **401**, same JSON | route since removed with the provider — §1.1 |
 | **89** | `GET /?code=…&state=…` (the Cognito OAuth redirect URI) | not measured before | **200**, query intact | **unchanged** — §1.2 |
 | **90** | `GET https://www.wecare.digital/?code=…&state=…` | not measured before | **301 → `https://wecare.digital/?code=…&state=…`**, terminal 200 | **the `?code=` survives the host 301** — §1.2 |
 | **91** | `GET /api/checkout/download-receipt` | not measured before | **404** `{"message":"Not Found"}` | **no live route — unprovisioned, not broken** — §1.3 |
@@ -217,7 +217,7 @@ neighbours into pages.
 |---|---|---|
 | `GET /api/invoices` | 401 | `{"error": "No authorization token provided"}` |
 | `GET /api/contacts` | 401 | same |
-| `GET /api/wix-store/products` | 401 | same |
+| the retired storefront products route (since removed) | 401 | same |
 
 The **body** is asserted, not just the status, and that is the point of the rows rather than
 thoroughness: 401 alone cannot distinguish the API's own rejection from an edge-level one. The
@@ -228,7 +228,7 @@ of preservation, not of new work.
 
 ### 1.2 OAuth callbacks — the apex IS the redirect URI
 
-Added 2026-10-01, third convergence pass. The brief names Cognito, Meta and Wix OAuth callbacks
+Added 2026-10-01, third convergence pass. The brief names Cognito and Meta OAuth callbacks
 among the surfaces that must keep working, and the matrix had no row and no statement for any of
 them. Measured, per provider:
 
@@ -247,9 +247,6 @@ measured.
 **Meta.** There is no browser callback. Meta's surface on this domain is the webhook already
 covered by row 76, `POST /api/wa-business/webhooks` at **401** — a signature rejection from the
 Lambda, not a page.
-
-**Wix.** Wix Headless is reached server-to-server from the Lambda tree. No Wix OAuth callback
-resolves on this domain, so there is nothing on this host to preserve or break.
 
 ### 1.3 Signed receipt links and verified-email callbacks — unprovisioned, measured
 
@@ -470,7 +467,7 @@ separated rather than reported as one item.**
 | Measurement | Value |
 |---|---|
 | `list-resource-record-sets Z03939753QJGZ6ZD6BXO8` | **33** record sets, including `\052.wecare.digital` **A** and **AAAA**, both ALIAS → `d27evp2npt2kzr.cloudfront.net` |
-| That distribution | CloudFront **`E1ZZ786I3YH65O`**, alias `*.wecare.digital`, `Status: Deployed`, comment *"Redirect unused WECARE subdomains and retired Wix hosts to home"* |
+| That distribution | CloudFront **`E1ZZ786I3YH65O`**, alias `*.wecare.digital`, `Status: Deployed`, comment: redirect unused WECARE subdomains and retired hosts to home |
 | `dig +short A shop.wecare.digital` | `3.175.86.69 .46 .32 .99` |
 | `dig +short A zzz-not-a-host.wecare.digital` | same four addresses — any unused single-label name, not just `shop` |
 | `curl -I https://shop.wecare.digital/` | **302**, `location: https://wecare.digital/`, terminal **200** |
@@ -520,7 +517,7 @@ refuse inbound mail. **Outside this task's authority** and not a change to make 
 second-label host is required by any product surface today, so there is nothing waiting on it.
 
 `www.xout.wecare.digital` is the one second-label host that answers, and it answers because it
-keeps its **own Wix TLS endpoint** (`pointing.wixdns.net`) rather than because our certificate
+keeps its **own third-party TLS endpoint** rather than because our certificate
 reaches it — restored deliberately by the home-fallback workstream's final owner correction. It
 301s to `xout`, which 302s to the apex.
 
@@ -558,16 +555,16 @@ app **and** CloudFront `E1SZBXLQ4XNLJ7`, which is the MTA-STS policy endpoint un
 and not a change to make casually at any time.
 
 **Two second-label hosts already exist and already miss the goal:**
-`xout.wecare.digital` → Wix (`pointing.wixdns.net`), HTTP **404**, and
+`xout.wecare.digital` → the third-party storefront host, HTTP **404**, and
 `www.xout.wecare.digital` → 301 → `xout.wecare.digital` → 404. Repointing them means editing
-hosted-zone records for a legacy Wix surface and registering the hosts on Amplify.
+hosted-zone records for a legacy storefront surface and registering the hosts on Amplify.
 **Out of scope — reported, not touched.**
 
 > **CORRECTED 2026-10-01T13:15Z.** Both now reach the canonical home, and `xout` is no longer a
 > second-label host from our side: it has an address in our own zone and lands on
 > `E1ZZ786I3YH65O` like any other unused single-label name — measured `302 → https://wecare.digital/`,
 > terminal 200. `www.xout` is the genuinely second-label one; it still terminates through its own
-> Wix TLS endpoint, 301 to `xout`, then 302 to the apex. Repointed by the home-fallback
+> third-party TLS endpoint, 301 to `xout`, then 302 to the apex. Repointed by the home-fallback
 > workstream under the owner's instruction, not by this task. §9.3 carries the same correction
 > for the probe row.
 
@@ -997,11 +994,11 @@ The later owner instruction authorized wildcard home routing and direct access r
 ### 9.3 `xout.wecare.digital` moved too, and why its row is now informational
 
 A second drift, caught on the final re-run. `https://xout.wecare.digital/` was measured at
-**404 (Wix)** earlier in the day and at **302 → `https://wecare.digital/`, terminal 200** later
+**404 (third-party host)** earlier in the day and at **302 → `https://wecare.digital/`, terminal 200** later
 the same day. **Nothing of ours changed between those readings** — this task made no DNS, ACM or
 CloudFront change and is not permitted to make one.
 
-`xout` is a **Wix-managed second-label host**. Asserting a third party's configuration as a hard
+`xout` is a **third-party-managed second-label host**. Asserting a third party's configuration as a hard
 gate means our run goes red whenever they edit their host, which is how a probe harness earns a
 reputation for crying wolf and then gets ignored. So this one row is now
 `informational=True`: it is still probed, and any mismatch is still printed — as `NOTE` with a
@@ -1021,8 +1018,8 @@ Both re-measured at their expected values on the final run.
 **CORRECTED ON MERGE - the cause is known, and it was not a third party.** The paragraph
 above is the explanation: a concurrent session deployed CloudFront `E1ZZ786I3YH65O` for
 wildcard home routing and its `wildcard/xout/www.xout` DNS change reached `INSYNC` between
-the two readings. So the drift was OURS, authorized and deliberate - not Wix editing their
-host. The original wording "Nothing of ours changed between those readings" was true of this
+the two readings. So the drift was OURS, authorized and deliberate - not the third party editing
+their host. The original wording "Nothing of ours changed between those readings" was true of this
 task, which made no DNS/ACM/CloudFront change, but false of the repository. Recorded rather
 than silently rewritten, because an unexplained third-party drift and a teammate's approved
 change landing mid-run warrant different responses, and only the second one is this one.
@@ -1035,7 +1032,7 @@ only - see section 4), so its routing is owned elsewhere either way.
 `shop` row was: left at `404` the row reported a permanent `NOTE` on every run, and a note nobody
 acts on is read no more carefully than a permanent `FAIL`. It now expects 200 with terminal
 `https://wecare.digital/` and stays informational, so it reads `ok` today and NOTEs only if the
-Wix-owned `www.xout` endpoint changes.
+third-party-owned `www.xout` endpoint changes.
 
 ---
 
@@ -1230,7 +1227,7 @@ eyes rather than a silent overwrite:
 
 - **`xout.wecare.digital` is promoted from `informational=True` to a hard gate.** It was
   informational deliberately, and the reason is recorded in `_row`'s own docstring: `www.xout`
-  still terminates through a Wix TLS endpoint (`pointing.wixdns.net`) that we do not control, so
+  still terminates through a third-party TLS endpoint that we do not control, so
   asserting it as a hard row makes **our** run red whenever a third party edits **their** host.
   `origin/stack` additionally adds `www.xout.wecare.digital` as a hard row. That is a
   deliberate-looking choice by a release-gating workstream, so it is reported, not reverted.
@@ -1366,9 +1363,9 @@ So the single-label gap is **CLOSED** and the remaining gap is exactly one thing
 | Host shape | Measured at closure | Verdict |
 |---|---|---|
 | `store.wecare.digital/` | DNS resolves; TLS verifies (`ssl_verify_result=0`); **302 → terminal 200** | covered |
-| `xout.wecare.digital/old/path?old=1` | 302 → 200 | covered (Wix-owned host, informational row) |
+| `xout.wecare.digital/old/path?old=1` | 302 → 200 | covered (third-party-owned host, informational row) |
 | `release-check-unknown.wecare.digital/old/path?old=1` | 302 → 200 | covered |
-| `www.xout.wecare.digital/old/path?old=1` | 301 → 302 → 200 | covered (terminates through Wix TLS we do not control) |
+| `www.xout.wecare.digital/old/path?old=1` | 301 → 302 → 200 | covered (terminates through third-party TLS we do not control) |
 | **`a.b.wecare.digital/`** | DNS **resolves** to the wildcard alias, then TLS **fails**: `curl` 60, `no alternative certificate subject name matches target host name`, `ssl_verify_result=1`, HTTP `000` | **THE GAP** |
 
 The cause is not a missing DNS record and not a missing distribution. It is the certificate:
@@ -1378,7 +1375,7 @@ on the certificate, re-associated on **both** the Amplify app **and** CloudFront
 — and `E1SZBXLQ4XNLJ7` is the **MTA-STS policy endpoint under `mode: enforce`**, where a broken
 TLS chain means senders refuse inbound mail rather than degrading quietly. That is why this stays
 an owner decision and was not attempted. `xout.wecare.digital` and `www.xout.wecare.digital` are
-existing second-label Wix hosts and are out of scope either way.
+existing second-label third-party hosts and are out of scope either way.
 
 ### 10.5 Left open, with its owner
 

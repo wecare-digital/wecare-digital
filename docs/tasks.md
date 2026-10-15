@@ -10,8 +10,7 @@ authority split is worth stating plainly rather than leaving for the next reader
 | Document | Authority | Owner |
 |---|---|---|
 | [`docs/spec.md`](spec.md) | **authoritative requirements** (`FR-*`, `TR-*`) | `sess_a140bc76` |
-| [`docs/design.md`](design.md) | **authoritative design** (`ADR-001`…`ADR-008`, 20 diagrams) | `sess_a140bc76` |
-| [`.kiro/specs/whatsapp-wix-commerce/requirements.md`](../.kiro/specs/whatsapp-wix-commerce/requirements.md) | commerce requirements `R0`–`R18` | `sess_a140bc76` |
+| [`docs/design.md`](design.md) | **authoritative design** (`ADR-001`…`ADR-008`, 20 diagrams), including native AWS commerce | `sess_a140bc76` |
 | [`docs/current-environment.md`](current-environment.md) + [`docs/current-environment-addendum.md`](current-environment-addendum.md) | Phase 0 inventory | two independent passes |
 | [`docs/compatibility.md`](compatibility.md) | vendor/version matrix | — |
 | **this file**, [`docs/security.md`](security.md), [`docs/operations.md`](operations.md) | ordering, threat model, runbook | this session |
@@ -24,15 +23,10 @@ names an outcome, the `FR-*` requirement in `spec.md` is the contract, not the w
 Requirement *state* changes in [`docs/execution/requirement-registry.md`](execution/requirement-registry.md),
 which stays the one place state changes. This file is the ordering, not a second registry.
 
-## Two corrections that invalidate earlier drafts
+## A correction that invalidates earlier drafts
 
-1. **`R0` — the Wix credential — is CLOSED.** Commit `82fa0d5a`: the owner supplied the key, it
-   was stored without the value entering argv, and Catalog V3 is now **measured** rather than
-   inferred — `/stores/v3/products/query` returns 7 products and a live invoke of
-   `wecare-wix-store:live` returned three with prices and stock. Every `⏳ PENDING (1.1 now closed)`
-   below is therefore unblocked; the annotations are kept so the dependency order stays legible.
-2. **WAF on the API is not achievable as specified.** WAFv2 does not support API Gateway HTTP
-   APIs. Measured, not assumed. See 1.6 and 10.1.
+**WAF on the API is not achievable as specified.** WAFv2 does not support API Gateway HTTP
+APIs. Measured, not assumed. See 1.6 and 10.1.
 
 ## How to read the status column
 
@@ -47,7 +41,7 @@ evidence of success. Anything unverified is not COMPLETE.
 
 | # | Task | Status | Evidence |
 |---|---|---|---|
-| 0.1 | Read-only inventory of AWS, Meta, SES, Google, Wix, frontend | ✅ COMPLETE | [`docs/current-environment.md`](current-environment.md) — 65 Lambdas, 79 tables, 361 routes, 0 authorizers, 19 gaps |
+| 0.1 | Read-only inventory of AWS, Meta, SES, Google, frontend | ✅ COMPLETE | [`docs/current-environment.md`](current-environment.md) — 65 Lambdas, 79 tables, 361 routes, 0 authorizers, 19 gaps |
 | 0.2 | Vendor capability and version matrix | ✅ COMPLETE | [`docs/compatibility.md`](compatibility.md) |
 | 0.3 | Live Meta WABA, sender and template verification | ✅ COMPLETE | WABA `APPROVED`/`COMPLETE`, sender `+91 93309 94400` `GREEN`, `wecare_otp` `APPROVED` — measured via internal Lambda invoke, token never in context |
 | 0.4 | SES sender identity verification | ✅ COMPLETE | `one@wecare.digital` verified, DKIM `SUCCESS`, production access, 50k/day, not suppressed |
@@ -74,8 +68,6 @@ Nothing in these is workaroundable. Each names the exact action and who must tak
 
 | # | Task | Status | Holder | Unblock action |
 |---|---|---|---|---|
-| 1.1 | Mint and store the Wix Headless credential | ✅ COMPLETE | owner + agent | Commit `82fa0d5a`. Value never entered argv, staging file shredded, encrypted local and S3 recovery copies refreshed and verified. Catalog V3 measured live: 7 products |
-| 1.2 | Confirm the target Wix site against the published/draft pair | 🟡 IN PROGRESS | agent | **Narrowed, not closed.** A visitor token from the committed `WIX_CLIENT_ID` returns live catalog and blog data, and Wix's own scope error names `fcd82f0c-…` — so the public client and the committed site id provably belong together. Still open: which of the owner's two sites is the *published* one. `https://xout.wecare.digital/` returned **404** during discovery, so the brief's "Published" claim does not hold at the URL it supplies. Settle with `POST /site-list/v2/sites/query` |
 | 1.3 | Add `places.googleapis.com` to the unified key's `apiTargets` | ✅ COMPLETE, and **insufficient** | agent, gcloud | Added 2026-09-26 with `--append`, verified purely additive: 48 → 49 targets, nothing lost, referrers unchanged. The call still failed afterwards with `API_KEY_HTTP_REFERRER_BLOCKED` — see 1.3b. Necessary, not sufficient |
 | 1.3b | Mint a server-restricted key for address capture | ✅ COMPLETE | agent | **This was the actual blocker.** The unified key is a *browser* key, and Google refuses referrer-restricted keys for server-side calls on both legacy Maps and Places (New); no edit to it could work. `scripts/provision_maps_server_key.py --create` minted `wecare/google-maps-server`, 4 apiTargets, value never in argv or context. Proven live: Places (New) returns suggestions, legacy Geocoding returns `OK` |
 | 1.4 | Finish the key split — narrow the browser key | ⏳ PENDING | agent, gcloud | Server half done in 1.3b. Still owed on the browser half: drop the pseudo-referrers `places.googleapis.com` and `*.googleapis.com/*`, which no browser sends, and cut `apiTargets` from 49 to what the frontend actually needs |
@@ -161,20 +153,19 @@ Depends on 1.3 and 1.4.
 
 ---
 
-## Phase 6 — Wix content adapters and page composition
+## Phase 6 — Native content reads and page composition
 
-`WixCatalogAdapter` extends a real boundary. `WixBlogAdapter` is new — the Blog API is not
-called anywhere today.
+Products and posts are read from AWS: the catalog from `ProductsTable` through the generated
+`src/content/catalog-snapshot.json`, the blog from `SeoToolsTable` through `wecare-seo-tools`.
 
 | # | Task | Requirement | Status | Acceptance |
 |---|---|---|---|---|
-| 6.1 | `WixCatalogAdapter`, 10 methods | PUB-2.1 | ⏳ PENDING (1.1 now closed) | extends the existing Lambda boundary; pure transforms stay AWS-free and unit-testable |
-| 6.2 | `WixBlogAdapter`, 8 methods | PUB-2.2 | ⏳ PENDING (1.1 now closed) | published and public posts only |
-| 6.3 | OAuth `client_credentials` replacing the admin API key | design §6 | ⏳ PENDING (1.1 now closed) | short-lived token; lazy resolution so a rotation lands on sandbox recycle |
-| 6.4 | Page and section entities | PUB-3.2 | ⏳ PENDING | sections store Wix **references**, never copies |
+| 6.1 | Catalog reads from `ProductsTable` | PUB-2.1 | ✅ COMPLETE | `scripts/build-catalog-snapshot.py` writes `src/content/catalog-snapshot.json`, imported by `src/content/shop.ts`; recorded in `.kiro/specs/aws-native-consolidation/tasks.md` A.2 |
+| 6.2 | Blog reads from `SeoToolsTable` | PUB-2.2 | ✅ COMPLETE | `/seo-tools/blog-public[/{slug}]` via `src/lib/public-blog.ts`; published and public posts only; recorded in A.1 |
+| 6.4 | Page and section entities | PUB-3.2 | ⏳ PENDING | sections store product or post **references**, never copies |
 | 6.5 | `PageSectionRenderer`, 15 types | PUB-3.3 | ⏳ PENDING | unknown type renders nothing and does not break the page |
-| 6.6 | Batched reference resolution | design §7 | ⏳ PENDING | `query-variants` takes a page of ids and cursor-pages to 1,000 variants |
-| 6.7 | Graceful degradation for deleted Wix content | PUB-3.5 | ⏳ PENDING | drop the card, render the rest, never 500 |
+| 6.6 | Batched reference resolution | design §7 | ⏳ PENDING | one batched read per page against `ProductsTable` and `SeoToolsTable` |
+| 6.7 | Graceful degradation for deleted content | PUB-3.5 | ⏳ PENDING | drop the card, render the rest, never 500 |
 | 6.8 | Admin page composer UI | §40 | ⏳ PENDING | `[retired public path 84a04c24]/content/pages` |
 
 ---
@@ -195,23 +186,24 @@ called anywhere today.
 
 ## Phase 8 — Commerce
 
-Owned by the commerce spec. Listed for ordering only.
+Native AWS commerce; design in [`docs/design.md`](design.md) §8–§12. The native path is live,
+but the owner QA checkout (`.kiro/specs/aws-native-consolidation/tasks.md` P0.5) is still open,
+so nothing below is `✅ COMPLETE` yet.
 
-| # | Task | Requirement | Status |
+| # | Task | Design | Status |
 |---|---|---|---|
-| 8.1 | Cart and checkout | `R5` | ⏳ PENDING (1.1 now closed) |
-| 8.2 | Money integrity, exact total match | `R6` | ⏳ PENDING (1.1 now closed) |
-| 8.3 | `commerceOrderNumber` with `ORDERNO#` reservation | `R2` | ⏳ PENDING |
-| 8.4 | Payment reconciliation | `R7` | ⏳ PENDING (1.1 now closed) |
-| 8.5 | Inventory adjusted once, by Wix | `R8` | ⏳ PENDING (1.1 now closed) |
-| 8.6 | Billing document, generated once | `R9` | ⏳ PENDING (1.1 now closed) |
-| 8.7 | Hashed tracking tokens | `R11` | ⏳ PENDING |
-| 8.8 | Admin order, payment and reconciliation views | `R12` | ⏳ PENDING |
-| 8.9 | Append-only timeline backing both views | `R13` | ⏳ PENDING |
-| 8.10 | Fulfillment sync | `R14` | ⏳ PENDING (1.1 now closed) |
+| 8.1 | Cart and checkout — `wecare-checkout`, `CartTable` | §8 | 🟡 IN PROGRESS — native path live, `CHECKOUT_MODE=AWS_NATIVE` |
+| 8.2 | Money integrity — server-side quote in integer paise | §8 | 🟡 IN PROGRESS — `checkout_pricing.compute_quote` is the only calculator |
+| 8.3 | `commerceOrderNumber` with `ORDERNO#` reservation | data model | ⏳ PENDING |
+| 8.4 | Payment reconciliation after verified capture | §9 | 🟡 IN PROGRESS — `order_creation.reconcile_payment` + `finalization` |
+| 8.5 | Inventory decremented once | ADR-7 | 🟡 IN PROGRESS — `native_inventory_txn.reserve_basket` |
+| 8.6 | Billing document, generated once | ADR-8, §11 | 🟡 IN PROGRESS — `wecare-invoice-engine` |
+| 8.7 | Hashed tracking tokens | ADR-9 | ⏳ PENDING |
+| 8.8 | Admin order, payment and reconciliation views | — | ⏳ PENDING |
+| 8.9 | Append-only timeline backing both views | §12 | ⏳ PENDING |
+| 8.10 | Fulfillment | §12 | ⏳ PENDING — not built |
 
-8.3 and 8.7 are not actually blocked on Wix — order-number reservation and token hashing are
-ours. Build them early; they are cheap and they gate the tracking page.
+8.3 and 8.7 are cheap and they gate the tracking page; build them before 8.9 and 8.10.
 
 ---
 
@@ -271,18 +263,16 @@ flowchart LR
     K[1.3b server key minted - CLOSED] --> P4[Phase 4 address]
     P2 --> P4
     P4 --> P7
-    W[1.1 Wix credential - CLOSED] --> P6[Phase 6 adapters and composition]
-    W --> P8[Phase 8 commerce]
     P5[Phase 5 public web] --> P7
-    P5 --> P6
+    P5 --> P6[Phase 6 content reads and composition]
     P7 --> P9[Phase 9 testing]
-    P8 --> P9
+    P8[Phase 8 commerce] --> P9
     P9 --> P11[Phase 11 readiness]
     P10[Phase 10 hardening] --> P11
 ```
 
-**Every phase is now unblocked.** `R0` closed the Wix credential; 1.3b closed the Google one.
-No task on this plan is waiting on an external party.
+**Every phase is now unblocked.** 1.3b closed the Google key blocker, and Phase 6 and Phase 8
+read and write AWS-native stores only. No task on this plan is waiting on an external party.
 
 The single remaining owner-only item is 1.7, confirming which SES DKIM selector is in use, and
 it blocks nothing here.

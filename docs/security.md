@@ -5,12 +5,11 @@ public commerce surface. Companion to [`docs/spec.md`](spec.md) and
 [`docs/design.md`](design.md); grounded in the measurements in
 [`docs/current-environment.md`](current-environment.md).
 
-Scope note: `R16` in
-[`.kiro/specs/whatsapp-wix-commerce/requirements.md`](../.kiro/specs/whatsapp-wix-commerce/requirements.md)
-owns the commerce threat list — forged and replayed webhooks, duplicate payment, amount and
-currency manipulation, invoice duplication. This document owns identity, verification,
-session, address, and the public web, and states the controls for the shared items rather
-than restating the requirement.
+Scope note: the commerce threats — forged and replayed webhooks, duplicate payment, amount
+and currency manipulation, invoice duplication — are controlled in the native payment path
+described in [`docs/design.md`](design.md) §8–§11 (Razorpay signature over the raw body,
+`WebhookDedup` lease, `CommerceKeys` claims, server-side integer-paise quote). This document
+owns identity, verification, session, address, and the public web.
 
 ## Current posture, measured
 
@@ -24,7 +23,7 @@ than restating the requirement.
 | Customer pool deletion protection | `INACTIVE` | one accidental delete removes every customer login |
 | Staff pool MFA | `OPTIONAL` | owner overrides make admin MFA a required target |
 | Staff password minimum | **8** | weak for an account that can reach production data |
-| Secrets | 25, in Secrets Manager, KMS-backed | `wecare/wix/headless-api-key` was empty at discovery and was **populated on 2026-09-26** (commit `82fa0d5a`), without the value entering argv |
+| Secrets | in Secrets Manager, KMS-backed | retired-provider secrets are force-deleted; see [Retired provider credentials](#retired-provider-credentials) |
 | Email authentication | `DMARC p=reject; sp=reject`, MTA-STS `enforce`, DKIM `SUCCESS` | fail-closed: a misconfiguration bounces mail, it does not spam-folder it |
 | OTP at rest | **none** | the only OTP lives unhashed inside a Cognito auth session |
 | Tracking authorisation | **order id only** | guessable-adjacent; no token concept exists |
@@ -190,7 +189,7 @@ order id today. It is superseded, not extended.
 
 ## T8 — Credential exposure
 
-**Threat.** A Meta token, Wix client secret, SES credential, Google key or OTP pepper reaches
+**Threat.** A Meta token, Razorpay secret, SES credential, Google key or OTP pepper reaches
 source, a log, a bundle, a command line, or a permissions file.
 
 **Controls.**
@@ -208,10 +207,10 @@ source, a log, a bundle, a command line, or a permissions file.
   denies it.
 - No secret in a maintenance report. `scripts/maintenance_report.py` refuses to write when
   credential-shaped material is detected.
-- The browser receives no Wix credential, no Meta token, no Google server key, and no OTP
+- The browser receives no payment secret, no Meta token, no Google server key, and no OTP
   pepper. Asserted by a test that greps the built bundle, because "we did not mean to" is not
   a control.
-- `WIX_CLIENT_ID` and the Cognito public client id are *not* secrets and are safe to commit.
+- The Cognito public client id is *not* a secret and is safe to commit.
 
 **Known open item, inherited.** `_get_gmaps_key()` in `whatsapp-templates/handler.py` calls
 `get_secret_value` directly, against steering. Recorded as inventory, not carried into new
@@ -329,8 +328,8 @@ when the configuration reads as intended.
 customer name.
 
 **Controls.** React escapes by default; no `dangerouslySetInnerHTML` on customer-supplied or
-Wix-supplied content without sanitisation. Wix rich text is sanitised server-side in the
-adapter, not in the component. A strict CSP where the static export allows it.
+blog content without sanitisation. Blog rich text from `SeoToolsTable` is untrusted input. A
+strict CSP where the static export allows it.
 
 **The adjacent failure, which has actually happened here.** Public route registration is an
 exact-match allowlist in `src/pages/_app.tsx`, and a public page missing from it renders an
@@ -358,8 +357,9 @@ ambiguity is cheaper than that.
 metadata service.
 
 **Controls.** No user-supplied URL is fetched server-side. Outbound hosts are a fixed
-allowlist: `graph.facebook.com`, `www.wixapis.com`, `places.googleapis.com`,
-`addressvalidation.googleapis.com`, and AWS endpoints. Webhook payload URLs are stored and
+allowlist: `graph.facebook.com`, `api.razorpay.com`, `places.googleapis.com`,
+`addressvalidation.googleapis.com`, and AWS endpoints; CI enforces the declared provider
+hosts with `scripts/check_provider_allowlist.py`. Webhook payload URLs are stored and
 displayed, never fetched. Billing document assets are fetched only from our own S3 bucket.
 
 ## T14 — Supply chain
@@ -413,13 +413,27 @@ Honest list. Each is tracked in [`docs/tasks.md`](tasks.md).
 | Google server key | ✅ CLOSED | `wecare/google-maps-server` minted and proven live against Places (New) and Geocoding. The Places migration is no longer credential-blocked |
 | Browser key still over-broad | `MEDIUM` | 49 `apiTargets` and two pseudo-referrer entries. No longer blocking anything, so downgraded from `HIGH`, but a browser key usable for 49 services is a wide blast radius if it leaks |
 | Places proxy reads the browser key server-side | `MEDIUM` | `whatsapp-templates/handler.py` cannot work as written. Latent: zero invocations in the retained log window |
-| ~~Wix credential absent~~ | ✅ CLOSED | Owner supplied it; stored 2026-09-26 via the staging-file path so the value never reached argv, staging file shredded, encrypted local and S3 recovery copies refreshed and verified |
 | Legacy Places still in use | `HIGH` | deprecated, so this has an expiry rather than an indefinite pass |
 | `get_secret_value` in the Places proxy | `LOW` | pre-existing; superseded by `AddressService` |
 | `/plivo/answer` unauthenticated and can send SMS | `HIGH` | pre-existing, outside this build; ordering matters — add `?token=` at Plivo **first**, set the Lambda variable **second**, or every inbound WhatsApp call 403s in between |
 
 Security Hub stays excluded per owner overrides. GuardDuty is optional and does not block
 closure.
+
+## Retired provider credentials
+
+Archival record, kept because no code or live check can show it. The old commerce/blog
+provider and the old SMS/voice provider are retired; no Lambda, route, table or secret for
+either exists in the account.
+
+- Their seven secrets (`wecare/wix/*` ×3, `wecare/airtel*` ×4) were **force-deleted without a
+  recovery window** on 2026-10-14 (CloudTrail). They cannot be restored.
+- Copies survive outside Secrets Manager: the 2026-09-25 and 2026-09-26 versions of the
+  encrypted archive in `wecare-credential-backups-775261844268` predate the deletion (open
+  item B-5 in [`docs/migrations/secrets-consolidation.md`](migrations/secrets-consolidation.md)),
+  and git history holds the SMS/voice provider's credentials, which a deleted handler docstring
+  carried in plaintext. The old site is deleted, so its keys are dead; the SMS/voice
+  credentials must be revoked at the provider if that account still exists (owner action).
 
 ## Verification
 

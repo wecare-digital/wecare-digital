@@ -67,9 +67,7 @@
     "businessApiVersion": "79",
     "checkoutVersion": "40",
     "WHATSAPP_CATALOG_SERVICES_ENABLED": "UNSET (off)",
-    "VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED": "UNSET (off)",
-    "WIX_WRITEBACK_ENABLED": "UNSET (off)",
-    "WIX_ECOM_WRITE_CONFIRMED": "UNSET (off)"
+    "VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED": "UNSET (off)"
   },
   "approvedDownloadTemplate": {
     "id": "1410998911012572",

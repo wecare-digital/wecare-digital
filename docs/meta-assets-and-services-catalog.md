@@ -1,14 +1,16 @@
 # Meta assets and the services catalogue
 
 The canonical ids for every Meta asset WECARE.DIGITAL uses, and the catalogue they describe.
-Written 2026-10-10 from the owner's own list and from a live read of the Wix storefront, so it
-records what is live rather than what was planned.
+Written 2026-10-10 from the owner's own list and a live read of the storefront, so it records
+what is live rather than what was planned. The product, variant and choice ids below are the
+ones `ProductsTable` retained at the native cutover.
 
-**Wix is the single source of truth for products, variants and prices.** Nothing in this
-repository decides what a service costs: `src/content/wix-catalog.json` is a committed snapshot
-written by `node scripts/fetch-wix-catalog.js`, and the live price a customer is charged comes
-from `cart_v2.calculate` on the one checkout path. Re-run that script after any catalogue edit in
-Wix. The Meta catalogue mirrors the same five variants, so Wix remains upstream of Meta too.
+**`ProductsTable` is the single source of truth for products, variants and prices.** Nothing in
+this repository decides what a service costs: `src/content/catalog-snapshot.json` is generated
+from it by `scripts/build-catalog-snapshot.py` (`.github/workflows/aws-native-catalog-publish.yml`),
+and the price a customer is charged comes from `checkout_pricing.compute_quote` on the one
+checkout path. `wecare-meta-catalog-sync` mirrors the same variants into the Meta catalogue, so
+`ProductsTable` is upstream of Meta too.
 
 ## Meta assets
 
@@ -27,7 +29,7 @@ Pixel id are declared in `src/config/analytics.ts`; the Pixel is the only one th
 
 ## The five paid services
 
-One Wix product carries all five, as variants of its single `Service` option.
+One product carries all five, as variants of its single `Service` option.
 
 - Product: `Request` (slug `wecaredigital-services`), `df976a0a-f582-4535-b2e1-d532f348bd27`
 - Option: `Service`, `aee30ab6-72bd-4a04-ac83-0234652ad0ee`
@@ -61,11 +63,11 @@ A separate product, and not a service: one variant, ₹250.
 |---------|-----------|------------|-----------|-------|
 | Contribute | 8514c405-3971-4786-ad0d-15406ca23407 | 8ad6f376-a526-4631-b510-0e047b33a5b9 | 616cbd34-a1ad-4fe7-82b5-1d28e901aebc | ₹250 |
 
-It carried three variants — ₹100, ₹250, ₹500 — until the owner removed two in Wix on 2026-10-10.
+It carried three variants — ₹100, ₹250, ₹500 — until the owner removed two on 2026-10-10.
 The deleted ids (`ab4ee1a2-1568-4dc4-abe1-55e24fa51576` and
 `19283bd8-a61d-455e-a992-79eb10b9228f`) are gone from the code as well as from the catalogue: a
-variant Wix has deleted cannot be priced, so a button offering one would fail at checkout rather
-than collect anything.
+deleted variant cannot be priced, so a button offering one would fail at checkout rather than
+collect anything.
 
 ## The free flows are not catalogue products
 
@@ -79,9 +81,9 @@ Adding one of them to the catalogue would advertise a price for something that h
 
 ## Owner action outstanding: per-variant artwork (Option A)
 
-The snapshot is taken exactly as Wix returns it, with no images imported into this repository and
-no artwork committed here. When the five service variants were first synced they all shared the
-product's main image, which was accepted rather than treated as a blocker — the owner adds
-artwork in Wix, and a re-run of `scripts/fetch-wix-catalog.js` picks it up. The 2026-10-10 refresh
-shows each variant now carrying its own image URL, so that action is in progress; any variant that
-still shares the product image is a Wix-side edit, not a code change.
+The snapshot carries image references only; no artwork is committed here. When the five service
+variants were first synced they all shared the product's main image, which was accepted rather
+than treated as a blocker — the owner sets per-variant artwork on the product
+(`wecare-native-catalog-admin`), and the next snapshot build picks it up. The 2026-10-10 refresh
+shows each variant carrying its own image URL; any variant that still shares the product image
+is a catalogue edit, not a code change.

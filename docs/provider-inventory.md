@@ -23,7 +23,6 @@ Disposition vocabulary:
 | **AWS** | — | **ALL SMS ✅** | — | international ✅ |
 | **Sinch** | ❌ | ❌ | ❌ | **India only ✅** |
 | **Plivo** | ❌ | ❌ | PSTN/SIP/IVR ✅ | — |
-| **Airtel** | ❌ | ❌ | ❌ | ❌ |
 
 The single most important rule: **AWS End User Messaging is the normal SMS
 provider**, for India (`ap-south-1`) and international (`us-east-1` default),
@@ -76,7 +75,6 @@ Nothing exists today. There is no `social-messaging` client anywhere in the repo
 |---|---|
 | Credential loader | `outbound-sms/handler.py:270-297` (secret `wecare/sinch/sms`) |
 | Sender | `outbound-sms/handler.py:299-385` → `jumbo.aclgateway.com/v12/.../messages.json` |
-| **SMS fallback from Airtel** | `outbound-sms/handler.py:185-194` |
 | DLR receiver (whole Lambda) | `messaging/sms-in/sinch/handler.py`, `wecare-sinch-dlr` |
 | Frontend forcing the Sinch branch | `src/api/client.ts:1248-1266` `sendSinchSms()` |
 | Route `POST /webhook/sinch-dlr` | `docs/WEBHOOK-INVENTORY.md:20` |
@@ -98,60 +96,16 @@ path removes a already-broken dependency rather than a working one.
 | RCS helper | `lambda_utils/sinch_rcs.py` | **KEEP** → `providers/sinch/rcs/` per §10 |
 | Send Lambda | `messaging/rcs-send/handler.py` | KEEP |
 | DLR Lambda | `messaging/rcs-dlr/handler.py` | KEEP |
-| Enable flag `SINCH_RCS_ENABLED` | `voice-in/{cdr,c2c,obd}/resource.ts` | KEEP |
+| Enable flag `SINCH_RCS_ENABLED` | `lambda_utils/sinch_rcs.py` | KEEP |
 | Data model `RcsMessages` | `amplify/data/resource.ts:361-389` | KEEP |
 | Approved templates `rcsmenu`/`rcsorder`/`waalert` | `sinch_rcs.py:22-25` | KEEP |
 | `send_rcs_order_notification` | `sinch_rcs.py:399-431` | **DELETE** — no callers |
 | `send_rcs_wa_alert` | `sinch_rcs.py:434-452` | **DELETE** — no callers |
-| Duplicate local `_is_rcs_enabled()` | `voice-in/cdr/handler.py:1307` | **DELETE** — use the shared helper |
 | `SinchRcsTemplateImporter` | — | **NEW** (§12), read-only |
 | Internal `RcsTemplate` model | — | **NEW** (§13) |
 
 **RCS fallback must become AWS SMS `ap-south-1`** (§11). It must never fall back
 to Sinch SMS.
-
----
-
-## 5. Airtel — DELETE everything (§2)
-
-### 5.1 Airtel SMS
-
-| Item | Location |
-|---|---|
-| Primary India sender (whole Lambda) | `messaging/sms-in/airtel/handler.py`, `wecare-sms-in-airtel` |
-| Static-IP proxy `52.3.44.165:8899` | `sms-in/airtel/handler.py:99,120-176` · `outbound-sms/handler.py:52,538` |
-| Second Airtel sender + v4/v5/v6 | `outbound-sms/handler.py:435-636` |
-| Dead legacy wrapper | `outbound-sms/handler.py:638-651` |
-| Sync Airtel call from calling | `whatsapp-calling/handler.py:1324,1412-1474` |
-| Order SMS target | `ecommerce/wix-store/handler.py:1589` |
-| Voice-path SMS routing | `voice-in/c2c/handler.py:1001` · `voice-in/obd/handler.py:1680` |
-| Secrets | `wecare/airtel-iq`, `wecare/airtel/sms` |
-| IAM | `amplify/iam-policies.ts:336` |
-| Alarms + log retention | `amplify/backend-resources.ts:182-190` |
-| Data models `AirtelSMS`, TTL config | `amplify/data/resource.ts:317-343` · `amplify/backend.ts:53-57` |
-| Deploy map | `scripts/deploy_all_lambdas.py:159` |
-| Dashboard send tab | `src/pages/dm/sms/index.tsx:288-291,688-691` |
-| Steering doc | `.kiro/steering/AIRTEL-IQ-SMS-REPLY-EMAIL.md` |
-| **Plaintext credentials in a docstring** | `sms-in/airtel/handler.py:20-23,49-55` — **SCRUB** |
-
-### 5.2 Airtel voice — out of SMS scope, still prohibited
-
-`voice-in/c2c` (`wecare/airtel/c2c`, `iqvoice.airtel.in`), `voice-in/obd`
-(`wecare/airtel/obd`), `voice-in/cdr` (`wecare/airtel/sms` + Sinch whitelist note
-at `:1301-1308`), plus models `AirtelC2C`/`VoiceCDR`/`OBDCampaign` in
-`data/resource.ts:390-530`.
-
-§2 says Airtel is prohibited as an active provider, which includes voice. §1
-assigns PSTN voice to Plivo. **Airtel voice removal is larger than Airtel SMS
-removal** and is sequenced separately in the migration plan — the C2C/OBD/CDR
-subsystems have their own dashboards, tables and webhook endpoints.
-
-### 5.3 What Airtel removal unlocks
-
-The Airtel SMS proxy is **one of only two jobs** the Lightsail box does. Removing
-Airtel SMS deletes the `:8899` dependency entirely, leaving only the SIP media
-leg — which is what the Plivo cutover replaces. **Lightsail retirement is an
-outcome of this migration.**
 
 ---
 
@@ -234,7 +188,6 @@ Only the secret definition exists (`scripts/store_provider_secret.py:107-116`).
 |---|---|---|
 | `/whatsapp-voice/tts` | `whatsapp-voice/handler.py:282-464` | **REWIRE** behind `TextToSpeechService` |
 | `/site-language/tts` | `core/site-language/handler.py:332-341` | REWIRE — best pattern: discovers voices via `describe_voices` |
-| `/voice-in/obd/tts` | `voice-in/obd/handler.py:555-562` | REWIRE |
 | `_generate_ivr_tts_audio` | `whatsapp-calling/handler.py:2115-2174` | REWIRE |
 | `TextToSpeechService` abstraction | — | **NEW** (§30) |
 | `VoiceScriptComposer` + approval flow | — | **NEW** (§28, §29) |
@@ -248,7 +201,7 @@ tests enforce that. Do not add TTS to it.
 
 | Item | Disposition |
 |---|---|
-| `scripts/check-provider-policy.sh` | **NEW** (§44) — land before the migration |
+| `scripts/provider_allowlist.py` + `scripts/check_provider_allowlist.py`, run by `.github/workflows/provider-allowlist.yml` | **KEEP** (§44) — positive allow-list: any external provider not declared fails CI |
 | `.env.example` | **NEW** (§45) — only `.env.local.example` exists |
 | `scripts/test-aws-sms.sh`, `test-india-aws-sms.sh` | NEW (§46) |
 | `scripts/sync-sinch-rcs-templates` | NEW (§12) |
@@ -263,8 +216,6 @@ tests enforce that. Do not add TTS to it.
 
 | Secret | Provider | Disposition |
 |---|---|---|
-| `wecare/airtel-iq`, `wecare/airtel/sms` | Airtel SMS | DELETE after cutover |
-| `wecare/airtel/c2c`, `wecare/airtel/obd`, `wecare/airtel-iq` | Airtel voice | DELETE in the voice phase |
 | `wecare/sinch/sms` | Sinch SMS | DELETE (already unusable — no `oauth_token`) |
 | `wecare/sinch/rcs` | Sinch RCS | KEEP |
 | `wecare/meta-system-user-token` | Meta | KEEP |
@@ -322,19 +273,15 @@ migration; removal is a separate, later step once nothing reads it.
 
 ## 13. Counts to drive §49 acceptance
 
-Measured at baseline `41dc41c2`:
+Enforced by `scripts/check_provider_allowlist.py` (CI: `.github/workflows/provider-allowlist.yml`),
+which passes on the current tree:
 
 ```
-SMS senders                         3   -> target 1 (AwsSmsProvider)
-distinct SMS providers in runtime   4   -> target 1 (AWS)
-   Airtel IQ, Sinch, classic Pinpoint, EUM v2
-Airtel runtime references          14 files
-Sinch SMS runtime references        5 files
-Plivo SMS references                0   (already compliant)
-AWS RCS implementations             0   -> target 1
-provider abstractions               0   -> target: SmsService + 2 RCS providers + orchestrator
+SMS transport                       AWS End User Messaging only (wecare-sms-aws; wecare-outbound-sms delegates)
+SMS / voice / RCS Lambdas           exactly the CHANNEL_FUNCTIONS set in scripts/provider_allowlist.py
+Sinch                               RCS channel only (wecare-rcs-send, wecare-rcs-dlr)
+Plivo                               voice resources only, never SMS
 AWS SMS delivery-receipt consumers  0   -> target 1
 ```
 
-Acceptance is met when the first two rows read `1` and `1`, Airtel and Sinch SMS
-read `0`, and `scripts/check-provider-policy.sh` exits `0` in CI.
+Acceptance is met while the gate exits `0` in CI and the delivery-receipt consumer exists.

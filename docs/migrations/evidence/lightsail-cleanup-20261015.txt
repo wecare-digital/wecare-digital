@@ -5,7 +5,6 @@ Mem:             916         261          67           3         588         504
 Swap:           1023         570         453
 calls now: 0 active call
 --- sms-proxy unit ---
-Description=Airtel SMS Proxy
 ActiveState=active
 UnitFileState=enabled
 program: path=/usr/bin/python3

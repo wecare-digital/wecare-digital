@@ -222,8 +222,8 @@ Failure policy differs per artifact on purpose:
 
 ## Stale artifact, do not reuse
 
-`seo/llm/llms-txt-draft.md` is a complete, careful, hand-written llms.txt — for the **old
-Wix site**. It advertises `/bnb`, `/legal-champ`, `/ritual`, `[retired public path 74ea5c7a]`, `[retired public path 14041cbc]`,
+`seo/llm/llms-txt-draft.md` is a complete, careful, hand-written llms.txt — for the **retired
+previous site**. It advertises `/bnb`, `/legal-champ`, `/ritual`, `[retired public path 74ea5c7a]`, `[retired public path 14041cbc]`,
 `[retired public path 9109e567]` and `/_functions/*`, and not one of those exists now. It is the reason
 `/llms.txt` is generated rather than committed: a hand-maintained file describing a site
 that changes is a file that will be wrong, and wrong quietly.

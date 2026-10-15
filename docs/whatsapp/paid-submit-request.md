@@ -6,7 +6,7 @@ Implemented 2026-10-08. Meta draft: `WD_Submit_Request_Paid_v1`, ID `11071641119
 
 `stack-wecare-digital-OrderTable` is the central directory for all checkout order kinds, including products, Submit Request, Request Amendment, Drop Docs and Vault. New authenticated checkout attempts retain the verified profile phone; finalization copies it as `customerPhone` together with permanent `customerId`. CRM contact deletion does not delete this independent directory. Identity ownership, rather than an editable contact row or an unverified phone supplied in the Flow, authorizes access.
 
-The order selector queries `customerId-createdAt-index`, reads each candidate consistently, and verifies exact owner identity. It offers the latest 100 earlier orders across all product and service types. The newly paid Submit Request purchase is excluded from the earlier-order list. The live central table and the Wix orders endpoint both returned zero orders during this inspection; there were no historical orders to import. Legacy records without a verified customer identity need an explicit ownership migration rather than an unsafe phone substring match.
+The order selector queries `customerId-createdAt-index`, reads each candidate consistently, and verifies exact owner identity. It offers the latest 100 earlier orders across all product and service types. The newly paid Submit Request purchase is excluded from the earlier-order list. The live central table returned zero orders during this inspection; there were no historical orders to import. Legacy records without a verified customer identity need an explicit ownership migration rather than an unsafe phone substring match.
 
 | Record | Meaning | Relationship |
 | --- | --- | --- |
@@ -19,7 +19,7 @@ The request is authoritative in `stack-wecare-digital-ServiceRequestsTable`. Aft
 
 ## Payment then a separate details Flow
 
-The existing Wix Submit Request variant is `e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b` under product `df976a0a-f582-4535-b2e1-d532f348bd27`. Pricing remains authoritative in the existing checkout path (verified live as INR 99); the Flow contains no charging code.
+The Submit Request variant is `e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b` under product `df976a0a-f582-4535-b2e1-d532f348bd27` in `ProductsTable`. Pricing is authoritative in native checkout (verified live as INR 99); the Flow contains no charging code.
 
 After verified payment and a matching order claim, the activation dispatch invokes the existing service activation handler and independently invokes an internal paid-Flow preparation action with only reference, attempt and order identifiers. The backend checks service variant, paid status, owner, payment reference, checkout claim and service purchase order before issuing an opaque capability.
 

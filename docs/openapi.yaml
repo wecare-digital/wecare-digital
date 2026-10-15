@@ -41,7 +41,7 @@ components:
 
 paths:
   # ── Core ──
-  [retired public path 44011e36]:
+  '[retired public path 44011e36]':
     get:
       tags: [Core]
       summary: List contacts (paginated)
@@ -60,7 +60,7 @@ paths:
       responses:
         '200': { description: Contact created/updated }
 
-  [retired public path 44011e36]/{contactId}:
+  '[retired public path 44011e36]/{contactId}':
     get:
       tags: [Core]
       summary: Get contact by ID
@@ -214,12 +214,12 @@ paths:
       tags: [Operations]
       summary: Send a push notification (Admin only)
       responses: { '200': { description: Push accepted } }
-  [retired public path a2557b8d]/sources:
+  '[retired public path a2557b8d]/sources':
     get: { tags: [Operations], summary: List documentation sources (Admin only), responses: { '200': { description: Source list } } }
     post: { tags: [Operations], summary: Add a documentation source (Admin only), responses: { '200': { description: Source added } } }
-  [retired public path a2557b8d]/scrape:
+  '[retired public path a2557b8d]/scrape':
     post: { tags: [Operations], summary: Run documentation scraping (Admin only), responses: { '200': { description: Scrape summary } } }
-  [retired public path a2557b8d]/changelog:
+  '[retired public path a2557b8d]/changelog':
     get: { tags: [Operations], summary: Read documentation changes (Admin only), responses: { '200': { description: Changelog } } }
 
   /seo-tools/blog-public:
@@ -271,33 +271,18 @@ paths:
   /outbound-sms:
     post:
       tags: [SMS]
-      summary: Send SMS via Airtel or AWS Pinpoint
+      summary: Send SMS via AWS End User Messaging (delegates to wecare-sms-aws)
       responses:
         '200': { description: SMS sent }
 
   /sms-aws:
     post:
       tags: [SMS]
-      summary: Send SMS via AWS Pinpoint
+      summary: Send SMS via AWS End User Messaging (India ap-south-1 with TRAI DLT)
       responses:
         '200': { description: SMS sent }
 
-  /sms-in/airtel:
-    post:
-      tags: [SMS]
-      summary: Airtel inbound SMS webhook
-      security: []
-      responses:
-        '200': { description: SMS received }
-
   # ── Voice ──
-  /outbound-voice:
-    post:
-      tags: [Voice]
-      summary: Initiate outbound voice call (TTS or audio)
-      responses:
-        '200': { description: Call initiated }
-
   /voice-aws:
     post:
       tags: [Voice]
@@ -311,30 +296,6 @@ paths:
       summary: Read voice CDR records
       responses:
         '200': { description: CDR list }
-
-  /voice-in/c2c:
-    post:
-      tags: [Voice]
-      summary: Airtel Click-to-Call webhook
-      security: []
-      responses:
-        '200': { description: C2C event processed }
-
-  /voice-in/cdr:
-    post:
-      tags: [Voice]
-      summary: Airtel Voice CDR webhook
-      security: []
-      responses:
-        '200': { description: CDR stored }
-
-  /voice-in/obd:
-    post:
-      tags: [Voice]
-      summary: Airtel OBD campaign webhook
-      security: []
-      responses:
-        '200': { description: OBD event processed }
 
   # ── Email ──
   /outbound-email:
@@ -373,18 +334,24 @@ paths:
         '200': { description: Invoice created }
 
   # ── E-commerce ──
-  /wix-store:
-    get:
-      tags: [E-commerce]
-      summary: Wix Store product/order sync
-      responses:
-        '200': { description: Store data }
+  /ecommerce/checkout:
     post:
       tags: [E-commerce]
-      summary: Wix Store webhook events
-      security: []
+      summary: Native checkout (wecare-checkout) - server-side quote from ProductsTable, Razorpay order
       responses:
-        '200': { description: Event processed }
+        '200': { description: Checkout created }
+
+  /native-catalog/products:
+    get:
+      tags: [E-commerce]
+      summary: List products in ProductsTable (staff)
+      responses:
+        '200': { description: Product list }
+    post:
+      tags: [E-commerce]
+      summary: Create a product in ProductsTable (staff)
+      responses:
+        '200': { description: Product created }
 
   /product-image-gen:
     post:

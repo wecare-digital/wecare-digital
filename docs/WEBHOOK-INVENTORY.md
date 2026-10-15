@@ -19,24 +19,20 @@ live route that is missing **and** on a retired route that has reappeared.
 | Plivo (voice IVR) | `https://wecare.digital/api/plivo/answer` | POST | YES | optional ?token= shared secret (PLIVO_ANSWER_TOKEN); Plivo does not sign answer_url | `wecare-plivo-answer` |
 | Sinch (SMS DLR) | `https://wecare.digital/api/webhook/sinch-dlr` | POST | retired, absent as intended | provider callback | `wecare-sinch-dlr` |
 | Sinch (RCS) | `https://wecare.digital/api/webhook/sinch-rcs` | POST | YES | provider callback | `wecare-rcs-dlr` |
-| Airtel IQ (SMS inbound) | `https://wecare.digital/api/sms-in/airtel` | POST | retired, absent as intended | provider callback | `wecare-sms-in-airtel` |
-| Airtel IQ (voice C2C) | `https://wecare.digital/api/voice-in/c2c` | POST | YES | provider callback | `wecare-voice-in-c2c` |
-| Airtel IQ (voice OBD) | `https://wecare.digital/api/voice-in/obd` | POST | YES | provider callback | `wecare-voice-in-obd` |
-| Voice CDR | `https://wecare.digital/api/voice-cdr-webhook` | POST | retired, absent as intended | provider callback | `wecare-voice-cdr-read` |
 
-### Retired endpoints (3) — absence is correct
+### Retired endpoints (1) — absence is correct
 
 - `/webhook/sinch-dlr` — RETIRED 2026-09-21 — Sinch SMS is a prohibited provider (RCS India only). Routes and API 79g3bbufdh deleted; see docs/prohibited-provider-retirement.md
-- `/sms-in/airtel` — RETIRED — Airtel messaging is a prohibited provider; Lambda and routes deleted
-- `/voice-cdr-webhook` — RETIRED 2026-09-20 — carried an unauthenticated DELETE .../clear-logs; see docs/deleted-routes-unauthenticated-cdr-20260920-0822.json
+
+Any other route in the inbound webhook namespace must be an approved webhook route in
+`scripts/provider_allowlist.py`; `scripts/webhook_inventory.py --gate` fails otherwise.
 
 
 ## Razorpay — current state
 
 | # | URL | Status | Events |
 |---|---|---|---|
-| 1 | `https://express.razorpay.com/wix/v1/webhook-handler` |  | 57 |
-| 2 | `https://wecare.digital/api/razorpay-webhook` |  | 57 |
+| 1 | `https://wecare.digital/api/razorpay-webhook` |  | 57 |
 
 ### Events the handler processes (31)
 

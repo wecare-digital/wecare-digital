@@ -40,10 +40,6 @@ evidence — it must be re-read from the provider before any mutation.
 
 | Secret name | Deletion date reported |
 |---|---|
-| `wecare/airtel-iq` | 2026-09-20 |
-| `wecare/airtel/c2c` | 2026-09-20 |
-| `wecare/airtel/obd` | 2026-09-20 |
-| `wecare/airtel/sms` | 2026-09-20 |
 | `wecare/sinch/sms` | 2026-09-20 |
 | `wecare/payu` | 2026-08-26 |
 

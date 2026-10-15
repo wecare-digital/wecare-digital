@@ -167,7 +167,6 @@
       "operations/seo-tools/seo_freshness.py",
       "operations/seo-tools/seo_refresh.py",
       "operations/seo-tools/storage.py",
-      "operations/seo-tools/wix.py",
       "shared/lambda_utils/__init__.py",
       "shared/lambda_utils/appsecret.py",
       "shared/lambda_utils/audit.py",
@@ -222,8 +221,6 @@
       "shared/lambda_utils/wa_status.py",
       "shared/lambda_utils/webhook_dedup.py",
       "shared/lambda_utils/whatsapp_types.py",
-      "shared/lambda_utils/wix_ecom.py",
-      "shared/lambda_utils/wix_guard.py",
       "shared/static_knowledge_base.py"
     ],
     "sourceDifferences": [],
