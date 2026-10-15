@@ -113,8 +113,8 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript } ) => {
       </button>
       <style jsx>{`
         .voice-search-mic{
-          position:absolute;right:4px;bottom:6px;top:auto;z-index:2;
-          display:inline-grid;place-items:center;width:32px;height:32px;padding:0;
+          position:absolute;right:-2px;bottom:0;top:auto;z-index:2;
+          display:inline-grid;place-items:center;width:44px;height:44px;padding:0;
           border:0;border-radius:0;background:transparent;color:#3da35a;
           transform:none;cursor:pointer;
           transition:color .14s ease,transform .14s ease,opacity .14s ease;
