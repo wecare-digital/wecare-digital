@@ -278,7 +278,7 @@ describe( 'public route registration', () => {
     expect( exactStart, 'PUBLIC_EXACT not found in generate-sitemap.js' ).toBeGreaterThan( -1 );
     const exactBlock = sitemapSource.slice( exactStart, sitemapSource.indexOf( '] )', exactStart ) );
     const sitemapRoutes = new Set(
-      Array.from( exactBlock.matchAll( /'(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)'/g ) ).map( m => m[ 1 ] )
+      Array.from( exactBlock.matchAll( /'(\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?)'/g ) ).map( m => m[ 1 ] )
     );
 
     const metaStart = appSource.indexOf( 'const PUBLIC_PAGE_META' );
