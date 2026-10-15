@@ -59,7 +59,6 @@ CONTRIBUTE = sync.CONTRIBUTION_PRODUCT_ID
 EXPECTED_ITEMS_BY_SLUG = {
     "wecaredigital-services": 5,
     "merchandise": 10,
-    "contribute": 1,
     "kiosk": 1,
     "referral-partner": 1,
     "guided-resolution": 1,
@@ -68,7 +67,7 @@ EXPECTED_ITEMS_BY_SLUG = {
     "anew": 1,
 }
 
-EXPECTED_ITEM_COUNT = 22
+EXPECTED_ITEM_COUNT = 21
 
 
 @pytest.fixture(scope="module")
@@ -223,19 +222,15 @@ def test_a_sample_is_excluded_by_SLUG_even_when_its_id_changed():
                              "slug": "baseball-cap"}) is False
 
 
-def test_the_contribution_product_is_INCLUDED(products):
-    """Deliberately different from `/shop/`, which hides it from the grid.
-
-    `shop.ts` `isContributionRow` keeps it out of the GRID because the place to choose a
-    contribution is the block at the foot of a blog post. It is still a real sellable product
-    reached by direct cart reference, and the owner's catalogue list names it - so the WhatsApp
-    catalogue carries it and its amount variants.
-
-    ONE AMOUNT SINCE 2026-10-10. It carried three - Rs.100 / Rs.250 / Rs.500 - until the owner
-    deleted two of the variants in Wix, and the refreshed snapshot reports `variantCount: 1`.
+def test_the_contribution_product_is_retained_but_not_meta_syncable(products):
+    """The payment vehicle stays in the snapshot for cart identity, but catalog v2 explicitly
+    disables website and Meta publication. A hidden row must therefore remain known without
+    becoming a customer-visible WhatsApp catalogue item.
     """
     contribute = next(p for p in products if p["id"] == CONTRIBUTE)
-    assert sync.is_syncable(contribute) is True
+    assert contribute["visible"] is False
+    assert contribute["metaEnabled"] is False
+    assert sync.is_syncable(contribute) is False
     assert len(contribute["variants"]) == 1
 
 
