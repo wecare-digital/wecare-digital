@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Warn when local stack is stale",
+      "trigger": "SessionStart",
+      "description": "Fetches origin/stack and warns when the local stack ref is behind it. This is intentionally warning-only: it never moves refs or touches the working tree, because a session may start with unrelated uncommitted work.",
+      "action": {
+        "type": "command",
+        "command": "D=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; git -C \"$D\" fetch --quiet origin stack >/dev/null 2>&1 || exit 0; git -C \"$D\" show-ref --verify --quiet refs/heads/stack || exit 0; git -C \"$D\" show-ref --verify --quiet refs/remotes/origin/stack || exit 0; behind=$(git -C \"$D\" rev-list --count stack..origin/stack 2>/dev/null) || exit 0; ahead=$(git -C \"$D\" rev-list --count origin/stack..stack 2>/dev/null) || exit 0; if [ \"$behind\" -gt 0 ]; then printf '\\nSTALE STACK WARNING: local stack is %s commit(s) behind origin/stack and %s ahead. Sync stack before any merge or push. Suggested safe command: git fetch origin && git switch stack && git merge --ff-only origin/stack\\n\\n' \"$behind\" \"$ahead\" >&2; fi",
+        "timeout": 30
+      },
+      "enabled": true
+    }
+  ]
+}
