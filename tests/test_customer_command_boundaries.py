@@ -8,7 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 import pytest
-from lambda_utils import media_paths
+from lambda_utils import flow_completion, media_paths
 ROOT = Path(os.environ.get('REVIEW_SOURCE', Path(__file__).resolve().parents[1]))
 
 
@@ -77,6 +77,7 @@ def staff_response(record, signer):
     logs = []
     ns = {'dynamodb': SimpleNamespace(Table=lambda name: Table()), 'FLOW_SUBMISSIONS_TABLE': 'fixture',
           'Decimal': Decimal, 'Dict': dict, 'json': json, 'media_paths': media_paths,
+          'flow_responses': flow_completion,
           's3_client': SimpleNamespace(generate_presigned_url=signer), 'MEDIA_BUCKET': 'fixture-media',
           '_resp': lambda status, body: body,
           'logger': SimpleNamespace(error=logs.append, warning=logs.append)}

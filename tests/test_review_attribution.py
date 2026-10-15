@@ -18,15 +18,15 @@ every `WD-ORD-…` number does — would silently reroute the flow or strip the 
 REPLAY SAFETY IS THE PROPERTY THIS FILE EXISTS FOR
 --------------------------------------------------
 Meta retries a `data_exchange` it did not get a clean response to. `review_id` is derived
-from `flow_completion.completion_key`, so a retry recomputes the SAME id and overwrites an
-identical row instead of creating a second review — and `claim_completion`'s conditional put
-refuses the duplicate, so only the first attempt may message the customer.
+from `flow_completion.completion_key`, so a retry recomputes the SAME id, and the review is
+ONE row in the shared flow-response table (ReviewTable was folded into FlowSubmissionTable):
+`claim_completion`'s conditional put refuses the duplicate, so a retry can neither create a
+second review nor rewrite the first, and only the first attempt may message the customer.
 
 The specific trap tested here is the DRAFT. The reference is read before the write and
-cleared only inside `if result.should_fire_side_effects:`. Clear it unconditionally and a
-retry reads an empty draft and rewrites the review row with `orderId` gone — losing the
-attribution precisely on the path the derived id exists to make safe. That is
-`test_a_replay_does_not_drop_the_attribution`.
+cleared only inside `if result.should_fire_side_effects:`, and only after the row is
+confirmed written. Clear it unconditionally and a failed first write leaves a retry with no
+reference at all. That is `test_a_failed_row_write_keeps_the_draft_so_the_retry_can_attribute`.
 
 THE FLAG IS OFF, AND IT GATES BOTH LAMBDAS
 ------------------------------------------
@@ -65,6 +65,9 @@ for _path in (str(SHARED), str(WBA), str(Path(__file__).resolve().parent)):
 from crm_fake_dynamo import FakeDynamo  # noqa: E402
 from lambda_utils import flow_completion as fc  # noqa: E402
 
+#: Reviews live in the one flow-response table now; this alias keeps the assertions readable.
+REVIEWS = fc.FLOW_SUBMISSIONS_TABLE
+
 # The QA recipient the owner nominated (`.kiro/steering/02-qa-recipient.md`), never a
 # business number. Used here only as a fixture value; this file sends nothing.
 QA_PHONE = "918100640044"
@@ -95,12 +98,10 @@ def review_env(monkeypatch):
 
     fake = FakeDynamo(
         {
-            leave_review.REVIEWS_TABLE: "reviewId",
             flows_common.DRAFTS_TABLE: "draftKey",
             fc.FLOW_SUBMISSIONS_TABLE: "submissionId",
         },
         {
-            leave_review.REVIEWS_TABLE: {},
             flows_common.DRAFTS_TABLE: {},
             fc.FLOW_SUBMISSIONS_TABLE: {},
         },
@@ -149,7 +150,7 @@ class TestTheReviewIsAttributed:
 
         leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-1")
 
-        rows = fake.all_rows(leave_review.REVIEWS_TABLE)
+        rows = fake.all_rows(REVIEWS)
         assert len(rows) == 1
         assert rows[0]["orderId"] == REFERENCE
 
@@ -163,7 +164,7 @@ class TestTheReviewIsAttributed:
         leave_review, fake, _ = review_env
         leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-1")
 
-        row = fake.all_rows(leave_review.REVIEWS_TABLE)[0]
+        row = fake.all_rows(REVIEWS)[0]
         assert row["source"] == "whatsapp"
         assert row["rating"] == 5
         assert isinstance(row["rating"], int)
@@ -180,14 +181,14 @@ class TestTheReviewIsAttributed:
         """
         leave_review, fake, _ = review_env
         leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-1")
-        assert fake.all_rows(leave_review.REVIEWS_TABLE)[0]["status"] == "submitted"
+        assert fake.all_rows(REVIEWS)[0]["status"] == "submitted"
 
     def test_an_unattributed_review_is_stored_without_an_order(self, review_env):
         """Someone who just typed `review` is a supported path, not an error."""
         leave_review, fake, _ = review_env
         leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-1")
 
-        row = fake.all_rows(leave_review.REVIEWS_TABLE)[0]
+        row = fake.all_rows(REVIEWS)[0]
         assert "orderId" not in row
         assert row["source"] == "whatsapp"
 
@@ -258,7 +259,7 @@ class TestTheFlowSideIsGated:
 
         leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-1")
 
-        assert "orderId" not in fake.all_rows(leave_review.REVIEWS_TABLE)[0]
+        assert "orderId" not in fake.all_rows(REVIEWS)[0]
         assert fake.Table(flows_common.DRAFTS_TABLE).get_item(
             Key={"draftKey": DRAFT_KEY}).get("Item") is not None
 
@@ -266,19 +267,19 @@ class TestTheFlowSideIsGated:
         """Turning the flag off is a ROLLBACK, and a rollback must not destroy data.
 
         `_stored_order_id` is deliberately NOT gated: it recovers a reference this function
-        already wrote. Gated, a Meta retry arriving after the flag went off would rewrite
-        the review with `orderId` gone, because the domain write is a `put_item` and
-        replaces the whole item rather than merging.
+        already wrote. And the review row is written by a conditional claim, so a Meta retry
+        arriving after the flag went off finds the row and leaves it exactly as it was.
         """
         leave_review, fake, _ = flag_off
         key, _unused = fc.completion_key(TOKEN, "REVIEW_FORM", FORM_DATA)
         review_id = fc.reference_for(key, "WD-REV")
-        fake.Table(leave_review.REVIEWS_TABLE).put_item(
-            Item={"reviewId": review_id, "orderId": REFERENCE})
+        fake.Table(REVIEWS).put_item(Item={
+            "submissionId": review_id, "reviewId": review_id, "flowCode": "WD_REV",
+            "orderId": REFERENCE})
 
         leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-retry")
 
-        assert fake.all_rows(leave_review.REVIEWS_TABLE)[0]["orderId"] == REFERENCE
+        assert fake.all_rows(REVIEWS)[0]["orderId"] == REFERENCE
 
     @pytest.mark.parametrize("raw,expected", [
         ("5", 5), ("1", 1), ("3", 3),
@@ -291,7 +292,7 @@ class TestTheFlowSideIsGated:
         data = dict(FORM_DATA)
         data["rating"] = raw
         leave_review.handle_review_form(data, TOKEN, "req-1")
-        rows = fake.all_rows(leave_review.REVIEWS_TABLE)
+        rows = fake.all_rows(REVIEWS)
         # rating 0 is dropped by the falsy filter on the way in, which is today's behaviour.
         assert rows[0].get("rating", 0) == expected
 
@@ -306,7 +307,7 @@ class TestReplaySafety:
         second = leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-2-retry")
 
         # One review, one claimed completion, one confirmation.
-        assert len(fake.all_rows(leave_review.REVIEWS_TABLE)) == 1
+        assert len(fake.all_rows(REVIEWS)) == 1
         assert len(fake.all_rows(fc.FLOW_SUBMISSIONS_TABLE)) == 1
         assert len(sends) == 1, "a Meta retry must not send a second confirmation"
         # And the customer sees the same reference both times.
@@ -326,7 +327,7 @@ class TestReplaySafety:
         leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-1")
         leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-2-retry")
 
-        rows = fake.all_rows(leave_review.REVIEWS_TABLE)
+        rows = fake.all_rows(REVIEWS)
         assert len(rows) == 1
         assert rows[0]["orderId"] == REFERENCE, "the replay rewrote the row without its order"
 
@@ -334,9 +335,7 @@ class TestReplaySafety:
         """The mechanism behind the test above, asserted directly.
 
         With no draft at all but a row already carrying `orderId`, a repeat completion must
-        still store the attribution. This is the only thing standing between a Meta retry
-        and a blanked field, because the domain write is a `put_item` and replaces the whole
-        item rather than merging.
+        leave the attribution in place and report the stored reference.
         """
         leave_review, fake, _ = review_env
         from flows import common as flows_common
@@ -344,14 +343,16 @@ class TestReplaySafety:
         # Pre-existing row, exactly as the winning call would have left it.
         key, _ = fc.completion_key(TOKEN, "REVIEW_FORM", FORM_DATA)
         review_id = fc.reference_for(key, "WD-REV")
-        fake.Table(leave_review.REVIEWS_TABLE).put_item(
-            Item={"reviewId": review_id, "orderId": REFERENCE})
+        fake.Table(REVIEWS).put_item(Item={
+            "submissionId": review_id, "reviewId": review_id, "flowCode": "WD_REV",
+            "orderId": REFERENCE})
+        assert leave_review._stored_order_id(review_id) == REFERENCE
         assert fake.Table(flows_common.DRAFTS_TABLE).get_item(
             Key={"draftKey": DRAFT_KEY}).get("Item") is None
 
         leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-retry")
 
-        rows = fake.all_rows(leave_review.REVIEWS_TABLE)
+        rows = fake.all_rows(REVIEWS)
         assert len(rows) == 1
         assert rows[0]["orderId"] == REFERENCE
 
@@ -388,7 +389,7 @@ class TestReplaySafety:
         later = TOKEN.replace("3f2a91c4", "77777777")
         leave_review.handle_review_form(dict(FORM_DATA), later, "req-later")
 
-        rows = fake.all_rows(leave_review.REVIEWS_TABLE)
+        rows = fake.all_rows(REVIEWS)
         assert len(rows) == 1
         assert "orderId" not in rows[0], "a lapsed door attributed an unrelated review"
 
@@ -416,7 +417,7 @@ class TestReplaySafety:
     def test_a_failed_row_write_keeps_the_draft_so_the_retry_can_attribute(self, review_env):
         """The clear is guarded on the WRITE, not only on winning the claim.
 
-        If the ReviewTable `put_item` raises, there is no row for `_stored_order_id` to
+        If the review row's `put_item` fails, there is no row for `_stored_order_id` to
         recover from. Clearing the draft as well would leave a Meta retry with neither
         source, and the review would be stored permanently unattributed - the one outcome
         the two-source read exists to prevent.
@@ -424,11 +425,11 @@ class TestReplaySafety:
         leave_review, fake, _ = review_env
         from flows import common as flows_common
         _park(fake, flows_common.DRAFTS_TABLE)
-        fake.arm_failure(leave_review.REVIEWS_TABLE, "put_item", RuntimeError("boom"))
+        fake.arm_failure(REVIEWS, "put_item", RuntimeError("boom"))
 
         leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-1")
 
-        assert fake.all_rows(leave_review.REVIEWS_TABLE) == []
+        assert fake.all_rows(REVIEWS) == []
         assert fake.Table(flows_common.DRAFTS_TABLE).get_item(
             Key={"draftKey": DRAFT_KEY}).get("Item") is not None, \
             "the only surviving copy of the reference was destroyed"
@@ -441,7 +442,7 @@ class TestReplaySafety:
         leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-1")
         leave_review.handle_review_form(dict(FORM_DATA), other, "req-2")
 
-        assert len(fake.all_rows(leave_review.REVIEWS_TABLE)) == 2
+        assert len(fake.all_rows(REVIEWS)) == 2
         assert len(sends) == 2
 
 

@@ -4,7 +4,7 @@ import re
 import time
 import boto3
 from botocore.exceptions import ClientError
-from lambda_utils import customer_auth, media_paths, receipt_links
+from lambda_utils import customer_auth, media_paths, receipt_links, shared_tables
 from lambda_utils.identity import customer_uuid
 from flows import customer_orders, paid_vault
 
@@ -12,7 +12,7 @@ TEMPLATE = 'wecare_share_pdf'
 
 
 def resolve(db, identity, order_id):
-    order = db.Table('stack-wecare-digital-OrderTable').get_item(
+    order = db.Table(shared_tables.orders_table_name()).get_item(
         Key={'orderId': str(order_id)}, ConsistentRead=True).get('Item') or {}
     if order.get('customerId') != identity.customer_id or not order.get('orderNumber'):
         raise customer_auth.CustomerNotAuthorized('invoice unavailable')
@@ -53,14 +53,15 @@ def handle(event, get_template, lambda_client, s3_client):
     day = int(time.time()) // 86400
     reference = 'WD-INVCOPY-' + hashlib.sha256(
         f'{identity.customer_id}:{order["orderId"]}:{day}'.encode()).hexdigest()[:24].upper()
-    table = db.Table('stack-wecare-digital-FlowSubmissionTable')
+    table = db.Table(shared_tables.flow_submissions_table_name())
     key = {'submissionId': reference}
     row = {**key, 'submissionNumber': reference, 'flowCode': 'WD_Orders', 'flowType': 'invoice_copy',
         'subject': 'Invoice copy', 'customerId': identity.customer_id, 'contactId': session['contactId'],
         'customerUuid': customer_uuid.from_contact(contact) or '', 'phone': identity.phone,
         'orderId': order['orderId'], 'orderNumber': order['orderNumber'], 'paymentStatus': 'none',
         'invoiceId': asset['invoiceId'] if asset else '',
-        'status': 'open', 'tags': ['Orders', 'Invoice copy'], 'createdAt': int(time.time())}
+        'status': 'open', 'channel': 'whatsapp',
+        'tags': ['Orders', 'Invoice copy'], 'createdAt': int(time.time())}
     try:
         table.put_item(Item=row, ConditionExpression='attribute_not_exists(submissionId)')
     except ClientError as exc:

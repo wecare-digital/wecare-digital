@@ -4,7 +4,7 @@ import os
 import secrets
 import time
 import boto3
-from lambda_utils import customer_auth
+from lambda_utils import customer_auth, shared_tables
 from lambda_utils.ecommerce import catalog_service_checkout as catalog, service_request_store as store, vault_access as vault
 
 HEADER_IMAGE = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png'
@@ -45,7 +45,7 @@ def handle(event, client):
         return {'outcome': 'NATIVE_SERVICE_ROLLOUT_DISABLED'}
     db = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
     keys = db.Table('stack-wecare-digital-CommerceKeys')
-    contacts = db.Table('stack-wecare-digital-ContactsTable')
+    contacts = db.Table(shared_tables.contacts_table_name())
     contact = contacts.get_item(Key={'id': event.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
     owner = contact.get('checkoutCustomerId')
     # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
@@ -65,7 +65,7 @@ def handle(event, client):
             return {'outcome': 'CATALOG_SERVICE_UNAVAILABLE'}
         if choice['kind'] == 'SUBMIT_REQUEST':
             from lambda_utils.ecommerce.paid_submit_request import has_prior_order
-            if not has_prior_order(db.Table('stack-wecare-digital-OrderTable'),
+            if not has_prior_order(db.Table(shared_tables.orders_table_name()),
                                    {'customerId': identity.customer_id, 'orderId': ''}):
                 _send(client, {'contactId': contact['id'], 'phone': identity.phone,
                                'phoneNumberId': event['phoneNumberId']},

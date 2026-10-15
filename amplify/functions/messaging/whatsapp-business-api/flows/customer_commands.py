@@ -3,7 +3,7 @@ import json
 import os
 import re
 import boto3
-from lambda_utils import customer_auth
+from lambda_utils import customer_auth, shared_tables
 from lambda_utils.ecommerce import catalog_service_checkout as catalog
 from lambda_utils.identity import customer_uuid
 
@@ -73,7 +73,7 @@ def handle(event, client):
     if not selected:
         return {'outcome': 'UNKNOWN_CUSTOMER_COMMAND'}
     db = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-    contact = db.Table('stack-wecare-digital-ContactsTable').get_item(
+    contact = db.Table(shared_tables.contacts_table_name()).get_item(
         Key={'id': event.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
     owner = str(contact.get('checkoutCustomerId') or '')
     # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
@@ -82,6 +82,6 @@ def handle(event, client):
     users = boto3.client('cognito-idp', region_name=os.environ.get('AWS_REGION', 'us-east-1')).list_users(
         UserPoolId=customer_auth.CUSTOMER_POOL_ID, Filter='sub = "' + owner + '"', Limit=2).get('Users') or []
     identity = catalog.verified_identity(contact, users, event.get('senderPhone', ''))
-    text = reply(db.Table('stack-wecare-digital-OrderTable'), contact, identity, selected)
+    text = reply(db.Table(shared_tables.orders_table_name()), contact, identity, selected)
     # Inbound owns reply sending, dedup and receiving-number context. This function is read-only.
     return {'outcome': 'CUSTOMER_COMMAND_READY', 'reply': text}

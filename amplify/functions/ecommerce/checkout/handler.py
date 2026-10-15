@@ -1210,6 +1210,9 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
     # which is every row written before this attribute existed; "" then suppresses the field
     # everywhere downstream rather than printing a placeholder on an invoice.
     public_customer_uuid = customer_uuid.from_contact(profile)
+    # The contact row's own id, off the same row. `resolve` never raises and answers "" for a
+    # row without one, which suppresses the field rather than inventing a link.
+    public_contact_id = contact_key.resolve(profile)
 
     now = int(time.time())
     keys = _keys_table()
@@ -1338,7 +1341,11 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             reserve_attempt=lambda attempt: _reserve_website_attempt(
                 dict(attempt, channel=channel, customerPhone=_profile_phone(identity),
                      **({customer_uuid.ATTRIBUTE: public_customer_uuid}
-                        if public_customer_uuid else {}))),
+                        if public_customer_uuid else {}),
+                     # The ONE ContactsTable row this customer has - the row the session owns,
+                     # already read by `_checkout_profile` - so the order lands on the same
+                     # contact the WhatsApp inbox and Flows use, whichever channel it came from.
+                     **({'contactId': public_contact_id} if public_contact_id else {}))),
             # The read-only attempt store the one-live-payment guard needs. Without it the guard
             # can tell a basket has a recorded attempt but not whether that attempt was paid.
             attempts_table=_attempts_table(),
@@ -2099,9 +2106,13 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         # AWS-native WhatsApp catalog-service attempt. The authoritative record is the frozen
         # `purchasedSnapshot` + `snapshotHash` (what `finalization.accept_paid` reads); there is
         # no Wix order payload — the order is finalized natively.
-        attempt.update(nativeCatalogService=True, channel='whatsapp',
+        attempt.update(nativeCatalogService=True, channel=order_channel.CHANNEL_WHATSAPP,
             customerPhone=_profile_phone(identity), catalogServiceSession=catalog_session['orderId'],
             snapshotHash=snapshot.snapshot_hash, purchasedSnapshot=dict(snapshot.frozen_data))
+        # The session was opened for, and ownership-checked against, one ContactsTable row; the
+        # order inherits it so the WhatsApp purchase sits on the same contact as everything else.
+        if catalog_session.get('contactId'):
+            attempt['contactId'] = str(catalog_session['contactId'])
         if len(json.dumps(attempt, default=str).encode()) > 350000:
             return cors_response(409, {'error': 'CATALOG_SERVICE_SNAPSHOT_TOO_LARGE'}, origin)
 

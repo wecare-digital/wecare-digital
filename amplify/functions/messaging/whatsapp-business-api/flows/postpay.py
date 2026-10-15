@@ -153,6 +153,7 @@ def handle_submit(data: dict, flow_token: str, request_id: str) -> dict:
         'referenceId': ref or '',
         'status': 'open',
         'paymentStatus': 'paid',
+        'channel': 'whatsapp',
         'createdAt': Decimal(str(now)),
         'updatedAt': Decimal(str(now)),
         'ttl': now + (365 * 86400),

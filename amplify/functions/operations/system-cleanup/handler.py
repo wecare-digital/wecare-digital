@@ -287,11 +287,14 @@ CLEANUP_RESOURCES = {
         'type': 'dynamodb',
         'table': 'stack-wecare-digital-TemplateAnalyticsTable',
     },
+    # Every channel's flow responses (WhatsApp Flows, website, staff) and the folded review,
+    # appointment, Rx slot, enterprise and amendment records live in this one table now. It
+    # is customer data, so it stays outside CLEANUP_ALLOWLIST like the table it replaced.
     'submit_requests': {
-        'label': 'Flow Submit Requests',
+        'label': 'Flow Submissions (all channels)',
         'category': 'Analytics & Logs',
         'type': 'dynamodb',
-        'table': 'stack-wecare-digital-SubmitRequestsTable',
+        'table': 'stack-wecare-digital-FlowSubmissionTable',
     },
     'audit_logs': {
         'label': 'Audit Logs',

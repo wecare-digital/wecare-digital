@@ -86,6 +86,8 @@ secrets_client = boto3.client('secretsmanager', region_name=os.environ.get('AWS_
 
 from lambda_utils.meta_version import META_API_VERSION  # one source; validated at import
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
+from lambda_utils import shared_tables  # one name per shared store (contacts, orders, flows)
+from lambda_utils import flow_completion as flow_responses  # channel vocabulary, legacy rows
 META_TOKEN_SECRET = os.environ.get('META_TOKEN_SECRET', 'wecare/meta-system-user-token')
 GRAPH_BASE = f'https://graph.facebook.com/{META_API_VERSION}'
 
@@ -142,8 +144,12 @@ MEDIA_ALLOWED_MIME = {
 INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-invoice-engine')
 META_CATALOG_SYNC_FUNCTION = os.environ.get(
     'META_CATALOG_SYNC_FUNCTION', 'wecare-meta-catalog-sync:live')
-CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')
-SUBMIT_REQUESTS_TABLE = os.environ.get('SUBMIT_REQUESTS_TABLE', 'stack-wecare-digital-SubmitRequestsTable')
+# The shared stores (contacts, orders, flow responses, flow logs, status history) resolve in
+# one place, `lambda_utils.shared_tables`, so this Lambda reads and writes the same tables as
+# the inbox, the catalog-order path and the website checkout.
+CONTACTS_TABLE = shared_tables.contacts_table_name()
+ORDERS_TABLE = shared_tables.orders_table_name()
+STATUS_HISTORY_TABLE = shared_tables.status_history_table_name()
 SYSTEM_CONFIG_TABLE = os.environ.get('SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable')
 CATALOG_FLOW_MAP_ID = 'catalog_flow_map'  # SystemConfigTable key for product→flow mapping
 AI_ROUTING_ID = 'ai_hybrid_routing'  # SystemConfigTable key for AI-vs-bot routing rules
@@ -165,8 +171,12 @@ DEFAULT_AI_ROUTING = {
 
 # Flow management tables
 FLOW_REGISTRY_TABLE = os.environ.get('FLOW_REGISTRY_TABLE', 'stack-wecare-digital-FlowRegistryTable')
-FLOW_SUBMISSIONS_TABLE = os.environ.get('FLOW_SUBMISSIONS_TABLE', 'stack-wecare-digital-FlowSubmissionTable')
-FLOW_LOGS_TABLE = os.environ.get('FLOW_LOGS_TABLE', 'stack-wecare-digital-FlowLogTable')
+FLOW_SUBMISSIONS_TABLE = shared_tables.flow_submissions_table_name()
+FLOW_LOGS_TABLE = shared_tables.flow_logs_table_name()
+
+#: The submit-request flow codes the `/submit-requests` list reads from the one flow-response
+#: table: the WhatsApp Submit Request flow, its paid variant, and the staff web form.
+SUBMIT_REQUEST_FLOW_CODES = ('01.WD_SR', '01.WD_PAID_SR')
 
 # Flow registry cache (in-memory, refreshed every 5 min)
 _flow_registry_cache: Dict = {}
@@ -4006,7 +4016,7 @@ def _update_submission_status(body: Dict) -> Dict:
 
         # Log to RequestStatusHistoryTable
         try:
-            hist_table = dynamodb.Table('stack-wecare-digital-RequestStatusHistoryTable')
+            hist_table = dynamodb.Table(STATUS_HISTORY_TABLE)
             hist_table.put_item(Item={
                 'historyId': str(uuid.uuid4()),
                 'submissionId': submission_id,
@@ -4136,6 +4146,9 @@ def _list_flow_submissions(params: Dict) -> Dict:
         for item in items:
             if 'attachments' in item:
                 item['attachments'] = _project_submission_attachments(item['attachments'])
+            # Every response carries its channel (whatsapp / website / staff), including the
+            # rows written before the field existed.
+            item['channel'] = flow_responses.channel_of(item)
         for item in items:
             for k, v in item.items():
                 if isinstance(v, Decimal):
@@ -4872,80 +4885,9 @@ def _handle_flow_data(body: Dict, request_id: str, origin: str = '') -> Dict:
 
 
 
-def _save_submit_request(phone: str, order_id: str, subject: str, description: str,
-                         flow_token: str, request_id: str, request_number: str = '',
-                         payment_ref_id: str = '',
-                         requires_payment: bool = False,
-                         payment_amount: int = 0,
-                         phone_number_id: str = '') -> str:
-    """Save flow submission to SubmitRequests DynamoDB table.
-    
-    CRITICAL: requires_payment and payment_amount MUST come from the flow registry.
-    Do NOT hardcode payment values — each flow defines its own payment config.
-    phone_number_id is resolved from flow_token by the caller.
-    """
-    try:
-        now = int(time.time())
-        submission_id = str(uuid.uuid4())
-        ref_id = payment_ref_id if requires_payment else ''
-
-        # Look up contact info
-        contact_id = _find_contact_by_phone(phone)
-        sender_name = ''
-        if contact_id:
-            try:
-                table = dynamodb.Table(CONTACTS_TABLE)
-                resp = table.get_item(Key={'id': contact_id}, ProjectionExpression='#n', ExpressionAttributeNames={'#n': 'name'})
-                sender_name = resp.get('Item', {}).get('name', '')
-            except Exception as e:
-                logger.warning(f'Contact name lookup failed for {contact_id}: {e}')
-
-        # Payment fields are flow-specific — only set if flow requires payment
-        pay_status = 'pending' if requires_payment else 'none'
-        pay_amount = payment_amount if requires_payment else 0
-
-        item = {
-            'id': submission_id,
-            'requestId': request_id,
-            'requestNumber': request_number,
-            'flowToken': flow_token,
-            'phone': phone,
-            'senderName': sender_name,
-            'contactId': contact_id,
-            'orderId': order_id,
-            'subject': subject,
-            'description': description,
-            'paymentStatus': pay_status,
-            'paymentReferenceId': ref_id,
-            'paymentAmount': pay_amount,
-            'phoneNumberId': phone_number_id,
-            'createdAt': Decimal(str(now)),
-            'updatedAt': Decimal(str(now)),
-        }
-
-        table = dynamodb.Table(SUBMIT_REQUESTS_TABLE)
-        table.put_item(Item={k: v for k, v in item.items() if v is not None and v != ''})
-
-        logger.info(json.dumps({
-            'event': 'submit_request_saved',
-            'submissionId': submission_id,
-            'orderId': order_id,
-            'phone': phone[:6] + '***' if phone else '',
-            'referenceId': ref_id,
-            'requiresPayment': requires_payment,
-            'paymentAmount': pay_amount,
-            'phoneNumberId': phone_number_id,
-            'requestId': request_id,
-        }))
-        return submission_id
-    except Exception as e:
-        logger.error(json.dumps({
-            'event': 'submit_request_save_error',
-            'error': str(e),
-            'orderId': order_id,
-            'requestId': request_id,
-        }))
-        return ''
+# `_save_submit_request` was removed here (2026-10-15). It wrote a second, unguarded copy of a
+# Submit Request into SubmitRequestsTable and had zero callers: every submission is written
+# once, to the shared flow-response table, by `flow_completion.claim_completion`.
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -5256,19 +5198,21 @@ def _send_payment_after_flow(phone: str, order_id: str, subject: str, request_id
             # reports the failure it actually had.
             return ''
 
-        # Store invoiceId on the SubmitRequest record
+        # Store the invoice on the submission it bills: the one flow-response row, found by its
+        # payment reference. (This used to target SubmitRequestsTable, which no live writer
+        # fills, so the link never landed and "resend payment link" had no invoice id.)
         try:
-            sr_table = dynamodb.Table(SUBMIT_REQUESTS_TABLE)
-            sr_resp = sr_table.query(
-                IndexName='paymentReferenceId',
-                KeyConditionExpression='paymentReferenceId = :ref',
+            fs_table = dynamodb.Table(FLOW_SUBMISSIONS_TABLE)
+            fs_resp = fs_table.query(
+                IndexName='paymentRefId',
+                KeyConditionExpression='paymentRefId = :ref',
                 ExpressionAttributeValues={':ref': ref_id},
                 Limit=1,
             )
-            sr_items = sr_resp.get('Items', [])
-            if sr_items:
-                sr_table.update_item(
-                    Key={'id': sr_items[0]['id']},
+            fs_items = fs_resp.get('Items', [])
+            if fs_items:
+                fs_table.update_item(
+                    Key={'submissionId': fs_items[0]['submissionId']},
                     UpdateExpression='SET invoiceId = :inv, invoiceNumber = :inum, updatedAt = :u',
                     ExpressionAttributeValues={
                         ':inv': invoice_id,
@@ -5519,31 +5463,18 @@ def _get_phone_number_id_for_phone(phone: str) -> str:
 
 
 def _find_contact_by_phone(phone: str) -> str:
-    """Look up contactId from DynamoDB Contacts table by phone number using GSI."""
+    """The shared ContactsTable id for this phone, the same row the inbox and checkout use.
+
+    Through `contact_store.lookup` (deterministic `wa{digits}` key first, then every stored
+    spelling on `phone-index`), so a contact minted by the website or by staff resolves too.
+    """
     if not phone:
         return ''
     try:
-        # Normalize: strip + and spaces
-        clean = phone.replace('+', '').replace(' ', '').replace('-', '')
-        with_plus = f'+{clean}'
-        table = dynamodb.Table(CONTACTS_TABLE)
-        # Try with + prefix first (contacts are stored as +91XXXXXXXXXX), then without
-        for variant in [with_plus, clean]:
-            try:
-                resp = table.query(
-                    IndexName='phone-index',
-                    KeyConditionExpression='phone = :p',
-                    ExpressionAttributeValues={':p': variant},
-                    Limit=1,
-                    ProjectionExpression='id'
-                )
-                items = resp.get('Items', [])
-                if items:
-                    return items[0].get('id', '')
-            except Exception as e:
-                logger.debug(f'Contact query variant failed: {e}')
+        from lambda_utils import contact_store
+        return contact_store.lookup_id(dynamodb.Table(CONTACTS_TABLE), phone)
     except Exception as e:
-        logger.warning(f'Contact lookup failed for {phone[:6]}***: {e}')
+        logger.warning(f'Contact lookup failed for {mask_phone(phone)}: {type(e).__name__}')
     return ''
 
 
@@ -5554,112 +5485,107 @@ def _fetch_orders_for_flow(phone: str, email: str) -> list:
     return fetch_orders_for_flow(phone, email)
 
 
+def _plain_numbers(item: Dict) -> Dict:
+    """DynamoDB Decimals as int/float, so the JSON body carries numbers."""
+    for k, v in item.items():
+        if isinstance(v, Decimal):
+            item[k] = int(v) if v == int(v) else float(v)
+    return item
+
+
+def _submit_request_view(row: Dict, now: int) -> Dict:
+    """A Submit Request flow response in the `SubmitRequest` shape the workspace reads.
+
+    The rows live in the one flow-response table now; the legacy field names (`id`,
+    `requestNumber`, `paymentReferenceId`) are projected here so the dashboard, the
+    flow-responses page and the forms page keep working unchanged.
+    """
+    item = _plain_numbers(dict(row))
+    item['id'] = item.get('submissionId', '')
+    item.setdefault('requestId', item.get('submissionId', ''))
+    item['requestNumber'] = item.get('submissionNumber') or item.get('submissionId', '')
+    item['paymentReferenceId'] = item.get('paymentRefId') or item.get('referenceId', '')
+    item['channel'] = flow_responses.channel_of(row)
+    for internal in ('flowToken', 'completionKey', 'completionKeyDegraded', 'ttl'):
+        item.pop(internal, None)
+    created = item.get('createdAt', 0) or 0
+    if created:
+        days_old = (now - int(created)) // 86400
+        item['daysOld'] = days_old
+        # Mark as expired if pending for more than 7 days. Canonical for the same reason as
+        # the SLA sweep above: four other spellings mean the same "still owing".
+        if (pay_status.canonical(item.get('paymentStatus')) == pay_status.PENDING
+                and days_old > 7):
+            item['isExpired'] = True
+    return item
+
+
 def _list_submit_requests(params: Dict) -> Dict:
-    """List submit request submissions from DynamoDB."""
+    """Submit Request responses, from every channel, out of the one flow-response table.
+
+    This used to read SubmitRequestsTable, which no live writer fills, so the page was
+    always empty while the real submissions sat in FlowSubmissionTable.
+    """
     try:
-        table = dynamodb.Table(SUBMIT_REQUESTS_TABLE)
+        table = dynamodb.Table(FLOW_SUBMISSIONS_TABLE)
         limit = min(int(params.get('limit', '100')), 500)
         payment_status = params.get('paymentStatus', '')
 
         if payment_status:
-            resp = table.query(
-                IndexName='paymentStatus',
-                KeyConditionExpression='paymentStatus = :s',
-                ExpressionAttributeValues={':s': payment_status},
-                ScanIndexForward=False,
-                Limit=limit,
-            )
+            rows, _complete = _drain(table, 'query', IndexName='paymentStatus',
+                                     KeyConditionExpression='paymentStatus = :s',
+                                     ExpressionAttributeValues={':s': payment_status})
+            rows = [r for r in rows if r.get('flowCode') in SUBMIT_REQUEST_FLOW_CODES]
         else:
-            resp = table.scan(Limit=limit)
+            rows = []
+            for code in SUBMIT_REQUEST_FLOW_CODES:
+                page, _complete = _drain(table, 'query', IndexName='flowCode',
+                                         KeyConditionExpression='flowCode = :c',
+                                         ExpressionAttributeValues={':c': code})
+                rows.extend(page)
 
-        items = resp.get('Items', [])
         now = int(time.time())
-        # Convert Decimal to int/float for JSON + add computed fields
-        for item in items:
-            for k, v in item.items():
-                if isinstance(v, Decimal):
-                    item[k] = int(v) if v == int(v) else float(v)
-            # Add days old + expiry flag for pending payments
-            created = item.get('createdAt', 0)
-            if created:
-                days_old = (now - created) // 86400
-                item['daysOld'] = days_old
-                # Mark as expired if pending for more than 7 days. Canonical for the same reason as
-                # the SLA sweep above: four other spellings mean the same "still owing".
-                if (pay_status.canonical(item.get('paymentStatus')) == pay_status.PENDING
-                        and days_old > 7):
-                    item['isExpired'] = True
-
-        # Sort by createdAt descending
+        items = [_submit_request_view(row, now) for row in rows]
         items.sort(key=lambda x: x.get('createdAt', 0), reverse=True)
-
+        items = items[:limit]
         return _resp(200, {'requests': items, 'count': len(items)})
     except Exception as e:
-        logger.error(f'List submit requests error: {e}')
-        return _resp(500, {'error': str(e)})
+        logger.error(f'List submit requests error: {type(e).__name__}')
+        return _resp(500, {'error': 'Could not list submit requests'})
 
 
-def _log_flow_event(flow_token: str, phone: str, action: str, screen: str,
-                    data_keys: list, request_id: str, data: dict = None):
-    """
-    Log a flow interaction event to SubmitRequestsTable for audit trail.
-    Uses type='flow_log' to distinguish from actual submissions.
-    Captures full submitted data for comprehensive logging.
-    """
-    try:
-        now = int(time.time())
-        table = dynamodb.Table(SUBMIT_REQUESTS_TABLE)
-        item = {
-            'id': f'flog-{uuid.uuid4().hex[:12]}',
-            'type': 'flow_log',
-            'flowToken': flow_token,
-            'phone': phone,
-            'action': action,
-            'screen': screen,
-            'dataKeys': data_keys,
-            'requestId': request_id,
-            'createdAt': Decimal(str(now)),
-        }
+# `_log_flow_event` was removed here (2026-10-15). It had zero callers and wrote flow logs into
+# SubmitRequestsTable; the live writer is `flows.common.log_flow_event`, which writes the one
+# flow-log store, FlowLogTable.
 
-        # Capture full submitted data for comprehensive flow logs
-        if data and isinstance(data, dict):
-            # Store individual known fields for easy querying
-            for field in ('order_id', 'subject', 'description', 'email'):
-                if data.get(field):
-                    item[field] = str(data[field])
-            # Store full data snapshot as JSON string (for any extra fields)
-            try:
-                item['flowData'] = json.dumps(data, default=str)
-            except Exception as e:
-                logger.debug(f'Flow data serialization failed: {e}')
 
-        table.put_item(Item={k: v for k, v in item.items() if v is not None and v != ''})
-    except Exception as e:
-        logger.warning(f'Flow log write failed: {e}')
+def _flow_log_view(row: Dict) -> Dict:
+    """A FlowLogTable row in the `FlowLog` shape the workspace reads (`id`, `flowData`)."""
+    item = _plain_numbers(dict(row))
+    item['id'] = item.get('logId', '')
+    item.setdefault('type', 'flow_log')
+    if 'dataSnapshot' in item and 'flowData' not in item:
+        item['flowData'] = item['dataSnapshot']
+    item.pop('ttl', None)
+    return item
 
 
 def _list_flow_logs(params: Dict) -> Dict:
-    """List flow interaction logs from SubmitRequestsTable (type=flow_log)."""
+    """Flow interaction logs from the one flow-log store, FlowLogTable."""
     try:
-        table = dynamodb.Table(SUBMIT_REQUESTS_TABLE)
+        table = dynamodb.Table(FLOW_LOGS_TABLE)
         limit = min(int(params.get('limit', '200')), 500)
         phone_filter = params.get('phone', '')
 
-        # Scan for flow_log type records with full pagination
-        filter_expr = '#t = :t'
-        expr_names = {'#t': 'type'}
-        expr_values = {':t': 'flow_log'}
-
+        scan_kwargs: Dict[str, Any] = {}
         if phone_filter:
-            filter_expr += ' AND contains(phone, :ph)'
-            expr_values[':ph'] = phone_filter.replace('+', '').replace(' ', '')
+            scan_kwargs = {
+                'FilterExpression': 'contains(phone, :ph)',
+                'ExpressionAttributeValues': {
+                    ':ph': phone_filter.replace('+', '').replace(' ', '')},
+            }
 
         items = []
-        scan_kwargs = {
-            'FilterExpression': filter_expr,
-            'ExpressionAttributeNames': expr_names,
-            'ExpressionAttributeValues': expr_values,
-        }
         while len(items) < limit:
             resp = table.scan(**scan_kwargs)
             items.extend(resp.get('Items', []))
@@ -5667,19 +5593,13 @@ def _list_flow_logs(params: Dict) -> Dict:
                 break
             scan_kwargs['ExclusiveStartKey'] = resp['LastEvaluatedKey']
 
-        # Trim to limit
-        items = items[:limit]
-
-        for item in items:
-            for k, v in item.items():
-                if isinstance(v, Decimal):
-                    item[k] = int(v) if v == int(v) else float(v)
-
+        items = [_flow_log_view(item) for item in items]
         items.sort(key=lambda x: x.get('createdAt', 0), reverse=True)
+        items = items[:limit]
         return _resp(200, {'logs': items, 'count': len(items)})
     except Exception as e:
-        logger.error(f'List flow logs error: {e}')
-        return _resp(500, {'error': str(e)})
+        logger.error(f'List flow logs error: {type(e).__name__}')
+        return _resp(500, {'error': 'Could not list flow logs'})
 
 
 def _handle_async_post_submit(event: Dict, request_id: str) -> Dict:
@@ -5797,27 +5717,33 @@ def _handle_async_post_submit(event: Dict, request_id: str) -> Dict:
             )
             fs_items = fs_resp.get('Items', [])
             if fs_items:
+                # The NUMBER, never over the invoice id: `_send_payment_after_flow` already
+                # linked the real `invoiceId`, which is what "resend payment link" calls with.
                 fs_table.update_item(
                     Key={'submissionId': fs_items[0]['submissionId']},
-                    UpdateExpression='SET invoiceId = :inv, updatedAt = :u',
+                    UpdateExpression='SET invoiceNumber = if_not_exists(invoiceNumber, :inv), '
+                                     'updatedAt = :u',
                     ExpressionAttributeValues={
                         ':inv': invoice_number,
                         ':u': Decimal(str(int(time.time()))),
                     },
                 )
-                logger.info(f'FlowSubmission updated with invoiceId for paymentRefId={payment_ref_id}')
+                logger.info(f'FlowSubmission updated with invoiceNumber for paymentRefId={payment_ref_id}')
         except Exception as fs_err:
             logger.warning(f'FlowSubmission invoice link failed: {fs_err}')
 
-    # Step 4: Update OrdersTable — increment requestCount, set has_open_request
-    if order_id and order_id.startswith('WD-ORD'):
+    # Step 4: Update the order — increment requestCount. Any order in the one order table,
+    # whichever channel created it: the WD-ORD prefix gate this used to have skipped every
+    # website and WhatsApp-catalog order (their orderId is a UUIDv7), and the condition stops
+    # UpdateItem from creating a phantom order row for an id that does not exist.
+    if order_id and order_id != 'none':
         try:
-            orders_table_name = os.environ.get('ORDERS_TABLE', 'stack-wecare-digital-OrderTable')
-            ot = dynamodb.Table(orders_table_name)
+            ot = dynamodb.Table(ORDERS_TABLE)
             now = Decimal(str(int(time.time())))
             ot.update_item(
                 Key={'orderId': order_id},
                 UpdateExpression='SET updatedAt = :u ADD requestCount :one',
+                ConditionExpression='attribute_exists(orderId)',
                 ExpressionAttributeValues={
                     ':u': now,
                     ':one': 1,

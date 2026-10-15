@@ -93,10 +93,11 @@ REGION = os.environ.get("AWS_REGION", "us-east-1")
 #: handful of ephemeral rows.
 OTP_TABLE = os.environ.get("OTP_TABLE", "stack-wecare-digital-DownloadGrantsTable")
 
-#: Where a successful verification is recorded. Optional: when unset, the handler still verifies
-#: the code and returns success, it simply does not stamp a customer row (used in flows that
-#: persist the customer elsewhere).
-CUSTOMERS_TABLE = os.environ.get("CUSTOMERS_TABLE", "")
+#: This handler writes NO person record. Verification proves ownership of the email only; the
+#: authenticated profile endpoint (`auth/customer-profile`) consumes the proof and stamps
+#: `emailVerifiedAt` on the customer's row in the one contact store, ContactsTable. The
+#: `CUSTOMERS_TABLE` stamp that used to live here pointed at a table that never existed and had
+#: no caller; it was removed so there is exactly one person store.
 
 #: Read by reference, lazily. Never printed. The `block-inline-secrets` hook explicitly allows a
 #: `SecretId='wecare/...'` name, which is what this is — a name, not a value.
@@ -117,13 +118,6 @@ def _table():
     if _dynamodb is None:
         _dynamodb = boto3.resource("dynamodb", region_name=REGION)
     return _dynamodb.Table(OTP_TABLE)
-
-
-def _customers_table():
-    global _dynamodb
-    if _dynamodb is None:
-        _dynamodb = boto3.resource("dynamodb", region_name=REGION)
-    return _dynamodb.Table(CUSTOMERS_TABLE)
 
 
 def _proof_digest(email: str) -> str:
@@ -320,28 +314,3 @@ def _verify(event: Dict[str, Any], body: Dict[str, Any], origin: str) -> Dict[st
         "proof": proof,
         "expiresInSeconds": PROOF_TTL_SECONDS,
     }, origin))
-
-
-def _mark_email_verified(customer_id: Optional[Any]) -> bool:
-    """Stamp `emailVerifiedAt` on the customer, at most once. Best-effort and non-fatal.
-
-    Conditional on the attribute being absent, so a replay does not move the timestamp. Returns
-    whether a stamp was written; a missing table or an already-verified row is not an error,
-    because the verification itself has already succeeded.
-    """
-    if not CUSTOMERS_TABLE or not customer_id:
-        return False
-    if not identity.is_customer_id(customer_id):
-        return False
-    try:
-        _customers_table().update_item(
-            Key={"customerId": customer_id},
-            UpdateExpression="SET emailVerifiedAt = :now, updatedAt = :now",
-            ConditionExpression="attribute_exists(customerId) AND "
-                                "attribute_not_exists(emailVerifiedAt)",
-            ExpressionAttributeValues={":now": int(time.time())},
-        )
-        return True
-    except Exception:  # noqa: BLE001
-        # Already stamped, or the row does not exist yet. Neither undoes the verification.
-        return False

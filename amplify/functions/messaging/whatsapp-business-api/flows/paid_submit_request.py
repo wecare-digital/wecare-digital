@@ -7,7 +7,7 @@ from datetime import datetime
 import boto3
 from lambda_utils.ecommerce import paid_submit_request as paid
 from lambda_utils.ecommerce import service_request_store as store, order_keys
-from lambda_utils import customer_auth
+from lambda_utils import customer_auth, shared_tables
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ def tables():
     db = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
     return (db.Table('stack-wecare-digital-ServiceRequestsTable'),
             db.Table('stack-wecare-digital-CommerceKeys'),
-            db.Table('stack-wecare-digital-OrderTable'))
+            db.Table(shared_tables.orders_table_name()))
 
 
 def route(action, screen, data, token):
@@ -48,7 +48,7 @@ def route(action, screen, data, token):
 
 def mirror(row):
     """Repairable workspace projection. The paid REQ row remains authoritative."""
-    table = boto3.resource('dynamodb').Table('stack-wecare-digital-FlowSubmissionTable')
+    table = boto3.resource('dynamodb').Table(shared_tables.flow_submissions_table_name())
     item = {
         'submissionId': row['publicRequestId'], 'flowId': paid.FLOW_ID,
         'flowCode': '01.WD_PAID_SR', 'flowName': 'Paid Submit Request',
@@ -56,7 +56,9 @@ def mirror(row):
         'customerId': row['customerId'], 'createdAt': row['detailsSubmittedAt'],
         'orderId': row['parentOrderId'], 'serviceOrderId': row['orderId'],
         'requestId': row['publicRequestId'], 'referenceId': row['referenceId'],
-        'subject': row['subject'], 'description': row['description']}
+        'subject': row['subject'], 'description': row['description'],
+        # The details arrive through the WhatsApp paid-request Flow, whichever surface paid.
+        'channel': 'whatsapp'}
     # Empty strings are not valid keys on a sparse DynamoDB index.
     if row.get('flowContactId'):
         item['contactId'] = row['flowContactId']
@@ -81,7 +83,7 @@ def send_review(event, lambda_client):
     if (row.get('kind') != 'SUBMIT_REQUEST' or not row.get('detailsSubmittedAt')
             or not row.get('flowContactId') or not row.get('flowPhone')):
         return {'outcome': 'REVIEW_NOT_DUE'}
-    contact = boto3.resource('dynamodb').Table('stack-wecare-digital-ContactsTable').get_item(
+    contact = boto3.resource('dynamodb').Table(shared_tables.contacts_table_name()).get_item(
         Key={'id': row['flowContactId']}, ConsistentRead=True).get('Item') or {}
     if (contact.get('checkoutCustomerId') != row.get('customerId') or contact.get('isDeleted')
             or contact.get('deletedAt') is not None or contact.get('phone') != row['flowPhone']):
@@ -152,7 +154,7 @@ def prepare_and_send(event, lambda_client, get_flow):
     phone = attrs.get('phone_number', '')
     if attrs.get('phone_number_verified') != 'true' or not phone.startswith('+'):
         return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
-    contacts = boto3.resource('dynamodb').Table('stack-wecare-digital-ContactsTable')
+    contacts = boto3.resource('dynamodb').Table(shared_tables.contacts_table_name())
     matches = contacts.query(IndexName='phone-index', KeyConditionExpression='phone=:p',
                              ExpressionAttributeValues={':p': phone}).get('Items') or []
     valid = []

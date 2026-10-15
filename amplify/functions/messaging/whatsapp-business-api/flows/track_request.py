@@ -38,13 +38,15 @@ def handle_order_select(data: Dict, flow_token: str, request_id: str) -> Dict:
             'data': _empty_status('No order selected'),
         }
 
-    # Fetch order details from OrdersTable
+    # Fetch order details from the one order table (website, WhatsApp and staff orders alike)
     order = get_order(order_id)
-    short = extract_short_id(order_id)
+    short = (order or {}).get('shortId') or extract_short_id(order_id)
 
     # Order details
     if order:
-        order_line = f'{short} — {order.get("orderDateIST", "")}'
+        from lambda_utils.ecommerce import order_record
+        when = order_record.display_date(order)
+        order_line = f'{short} — {when}' if when else short
         items_text = order.get('itemsSummary', '') or 'No items'
         total = order.get('totalAmount', 0)
         total_text = f'₹{float(total):.0f}' if total else '—'

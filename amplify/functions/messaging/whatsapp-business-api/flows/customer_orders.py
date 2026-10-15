@@ -8,7 +8,7 @@ import time
 from decimal import Decimal
 import boto3
 from botocore.exceptions import ClientError
-from lambda_utils import customer_auth
+from lambda_utils import customer_auth, shared_tables
 from lambda_utils.identity import customer_uuid
 from lambda_utils.ecommerce import catalog_service_checkout as catalog, contact_address
 
@@ -32,6 +32,7 @@ def record_order_help(table, identity, contact_id, session_token, data, *, publi
            'customerId': identity.customer_id, 'contactId': contact_id, 'phone': identity.phone,
            'orderReference': reference.strip(), 'description': description.strip(),
            'status': 'awaiting_order_verification', 'source': 'whatsapp_flow',
+           'channel': 'whatsapp',
            'tags': ['Orders', 'Order verification pending'], 'createdAt': int(time.time())}
     if public_customer_id:
         row['customerUuid'] = public_customer_id
@@ -60,7 +61,7 @@ def record_order_support(table, identity, contact_id, session_token, order, *, p
         'subject': 'Order support', 'paymentStatus': 'none',
         'customerId': identity.customer_id, 'contactId': contact_id, 'phone': identity.phone,
         'orderId': order['order_id'], 'orderNumber': order['order_number'],
-        'status': 'open', 'source': 'whatsapp_flow',
+        'status': 'open', 'source': 'whatsapp_flow', 'channel': 'whatsapp',
         'tags': ['Orders', 'Customer support'], 'createdAt': int(time.time())
     }
     if public_customer_id:
@@ -83,7 +84,7 @@ def _db():
 
 
 def _verified(db, contact_id, phone):
-    contact = db.Table('stack-wecare-digital-ContactsTable').get_item(
+    contact = db.Table(shared_tables.contacts_table_name()).get_item(
         Key={'id': contact_id}, ConsistentRead=True).get('Item') or {}
     owner = str(contact.get('checkoutCustomerId') or '')
     # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
@@ -151,7 +152,7 @@ def update_profile(db, contact, identity, data):
         stored: data.get(field, '') for field, stored in {
             'address_line1': 'addressLine1', 'address_line2': 'addressLine2', 'city': 'city',
             'state': 'state', 'postal_code': 'postalCode', 'country_code': 'countryCode'}.items()})
-    db.Table('stack-wecare-digital-ContactsTable').update_item(
+    db.Table(shared_tables.contacts_table_name()).update_item(
         Key={'id': contact['id']},
         UpdateExpression='SET firstName=:first, lastName=:last, #name=:name, checkoutDeliveryAddress=:address, checkoutAddressUpdatedAt=:now, updatedAt=:now',
         ConditionExpression='checkoutCustomerId=:owner AND attribute_not_exists(deletedAt) AND (attribute_not_exists(isDeleted) OR isDeleted=:false)',
@@ -178,7 +179,7 @@ def order_details(orders, identity, order_id):
 
 
 def order_page(db, identity, session, token, next_page=False):
-    orders = db.Table('stack-wecare-digital-OrderTable')
+    orders = db.Table(shared_tables.orders_table_name())
     query = {'IndexName': 'customerId-createdAt-index', 'KeyConditionExpression': 'customerId=:owner',
              'ExpressionAttributeValues': {':owner': identity.customer_id}, 'Limit': 10, 'ScanIndexForward': False}
     if next_page:
@@ -228,9 +229,9 @@ def route(action, screen, data, token):
             if data.get('order_id') == 'not_found':
                 return {'screen': 'ORDER_HELP', 'data': {}}
             return {'screen': 'DETAILS', 'data': order_details(
-                db.Table('stack-wecare-digital-OrderTable'), identity, data.get('order_id', ''))}
+                db.Table(shared_tables.orders_table_name()), identity, data.get('order_id', ''))}
         if action == 'data_exchange' and screen == 'DETAILS':
-            owned = order_details(db.Table('stack-wecare-digital-OrderTable'), identity, data.get('order_id', ''))
+            owned = order_details(db.Table(shared_tables.orders_table_name()), identity, data.get('order_id', ''))
             if data.get('detail_action') == 'invoice_copy':
                 response = boto3.client('lambda').invoke(FunctionName='wecare-whatsapp-business-api:live',
                     InvocationType='RequestResponse', Payload=json.dumps({'internalAction': 'customerInvoiceCopy',
@@ -243,14 +244,14 @@ def route(action, screen, data, token):
                 return {'screen': 'RESULT', 'data': {'reference': result['reference'], 'message': result['message']}}
             if data.get('detail_action') == 'contact_support':
                 reference = record_order_support(
-                    db.Table('stack-wecare-digital-FlowSubmissionTable'),
+                    db.Table(shared_tables.flow_submissions_table_name()),
                     identity, session.get('contactId', ''), token, owned,
                     public_customer_id=customer_uuid.from_contact(contact) or '')
                 return {'screen': 'RESULT', 'data': {'reference': reference,
                     'message': 'Your support request is saved against this order. No payment has been requested.'}}
             return {'screen': 'RESULT', 'data': {'reference': owned['order_number'], 'message': 'No changes were requested.'}}
         if action == 'data_exchange' and screen == 'ORDER_HELP':
-            reference = record_order_help(db.Table('stack-wecare-digital-FlowSubmissionTable'),
+            reference = record_order_help(db.Table(shared_tables.flow_submissions_table_name()),
                 identity, session.get('contactId', ''), token, data,
                 public_customer_id=customer_uuid.from_contact(contact) or '')
             return {'screen': 'RESULT', 'data': {'reference': reference,

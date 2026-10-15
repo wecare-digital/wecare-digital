@@ -36,8 +36,9 @@ _HANDLER_PATH = (Path(__file__).resolve().parents[1]
                  / "amplify/functions/auth/customer-registration/handler.py")
 
 OTP_TABLE = 'stack-wecare-digital-DownloadGrantsTable'
-CUSTOMERS_TABLE = 'stack-wecare-digital-CustomersTable'
-PHONE_INDEX = 'normalizedPhone-index'
+#: The one person store: registration resolves to, or creates, the customer's ContactsTable row.
+CONTACTS_TABLE = 'stack-wecare-digital-ContactsTable'
+PHONE_INDEX = 'phone-index'
 PEPPER = 'test-pepper-not-a-real-secret'
 # Spaced, WITH an explicit country code. The handler still normalises the separators; what it no
 # longer does is guess the country. A bare '93309 94400' was previously inferred to be Indian,
@@ -104,8 +105,7 @@ class _FakeCognito:
 @pytest.fixture
 def handler_env(monkeypatch):
     monkeypatch.setenv('OTP_TABLE', OTP_TABLE)
-    monkeypatch.setenv('CUSTOMERS_TABLE', CUSTOMERS_TABLE)
-    monkeypatch.setenv('CUSTOMERS_PHONE_INDEX', PHONE_INDEX)
+    monkeypatch.setenv('CONTACTS_TABLE', CONTACTS_TABLE)
     monkeypatch.setenv('APP_ENV', 'development')  # allow localhost origin in tests
 
     spec = importlib.util.spec_from_file_location(
@@ -114,8 +114,8 @@ def handler_env(monkeypatch):
     spec.loader.exec_module(h)
 
     fake = FakeDynamo(
-        keys={OTP_TABLE: 'grantId', CUSTOMERS_TABLE: 'customerId'},
-        indexes={CUSTOMERS_TABLE: {PHONE_INDEX: ('normalizedPhone', None)}},
+        keys={OTP_TABLE: 'grantId', CONTACTS_TABLE: 'id'},
+        indexes={CONTACTS_TABLE: {PHONE_INDEX: ('phone', None)}},
     )
     lam = _FakeLambda()
     cog = _FakeCognito()
@@ -170,10 +170,10 @@ def test_request_sends_and_returns_no_code(handler_env):
 
 def test_request_is_not_an_enumeration_oracle(handler_env):
     h, fake, lam, cog = handler_env
-    # Pre-create a customer + Cognito user for one number so it is "known".
-    fake.Table(CUSTOMERS_TABLE).put_item(
-        Item={'customerId': 'CUS_01J0000000000000000000000',
-              'normalizedPhone': '+919000000001'})
+    # Pre-create a contact for one number so it is "known".
+    fake.Table(CONTACTS_TABLE).put_item(
+        Item={'id': 'wa919000000001', 'contactId': 'wa919000000001',
+              'phone': '+919000000001'})
     known = h.handler(_event('request', phone='+919000000001'), None)
     unknown = h.handler(_event('request', phone='+919000000002'), None)
     assert known['statusCode'] == unknown['statusCode'] == 200
@@ -249,13 +249,15 @@ def test_verify_creates_the_customer_and_provisions_a_login(handler_env):
     # The customer id is NEVER handed to the browser.
     assert 'customerId' not in body and 'customer_id' not in json.dumps(body)
 
-    # Exactly one immutable customer row, keyed CUS_<ULID>, phone verified.
-    rows = fake.all_rows(CUSTOMERS_TABLE)
+    # Exactly one contact row, phone verified, keyed by the SAME deterministic id the WhatsApp
+    # inbox mints - so the customer's later WhatsApp messages land on this row, not a second one.
+    rows = fake.all_rows(CONTACTS_TABLE)
     assert len(rows) == 1
-    from lambda_utils.identity import customer as identity
-    assert identity.is_customer_id(rows[0]['customerId'])
+    assert rows[0]['id'] == rows[0]['contactId'] == 'wa919330994400'
     assert rows[0]['phoneVerifiedAt']
-    assert rows[0]['normalizedPhone'] == E164
+    assert rows[0]['phone'] == E164
+    # Transactional identity is not marketing consent.
+    assert rows[0]['optInWhatsApp'] is False and rows[0]['allowlistWhatsApp'] is False
 
     # The Cognito login was provisioned administratively, stamped with the WABA, with a permanent
     # password (so it is CONFIRMED and CUSTOM_AUTH works). No SignUp anywhere.
@@ -270,8 +272,8 @@ def test_verify_creates_the_customer_and_provisions_a_login(handler_env):
     # The attribute is not in pool us-east-1_46ULYuukt's schema (measured 2026-10-02: the only
     # custom attribute is `custom:partner_waba_id`), so sending it would have Cognito reject the
     # whole AdminCreateUser call with InvalidParameterException. Session identity comes from the
-    # Cognito `sub` via `customer_auth.customer_id_from_attributes` instead. The CUS_<ULID> above
-    # remains the customer RECORD's identity, which is a different thing from the session's.
+    # Cognito `sub` via `customer_auth.customer_id_from_attributes` instead. The contact row above
+    # is the customer RECORD, which is a different thing from the session's identity.
     assert 'custom:customer_id' not in attrs
     # Only attributes the pool can actually hold.
     assert set(attrs) <= {'phone_number', 'phone_number_verified', 'custom:partner_waba_id'}
@@ -279,17 +281,19 @@ def test_verify_creates_the_customer_and_provisions_a_login(handler_env):
 
 def test_verify_of_existing_customer_reuses_the_identity(handler_env):
     h, fake, lam, cog = handler_env
-    # A customer already exists for this phone.
-    fake.Table(CUSTOMERS_TABLE).put_item(
-        Item={'customerId': 'CUS_01J0000000000000000000000',
-              'normalizedPhone': E164, 'phoneVerifiedAt': 111})
+    # The customer already exists - minted by the website profile save (a uuid id, not the
+    # inbox's `wa{digits}`), so only the phone index can find it.
+    fake.Table(CONTACTS_TABLE).put_item(
+        Item={'id': 'c0ffee00-0000-5000-8000-000000000001',
+              'contactId': 'c0ffee00-0000-5000-8000-000000000001',
+              'phone': E164, 'phoneVerifiedAt': 111})
     cog.exists = True  # the Cognito user already exists too
 
     code = _issue_and_capture_code(h, lam)
     resp = h.handler(_event('verify', phone=RAW_PHONE, code=code), None)
     assert resp['statusCode'] == 200
-    # No second customer was minted.
-    assert fake.count(CUSTOMERS_TABLE) == 1
+    # No second contact was minted: every channel converges on the one row.
+    assert fake.count(CONTACTS_TABLE) == 1
     # Provisioning ran idempotently as an attribute update, not a create.
     assert cog.created == []
     assert len(cog.updated) == 1

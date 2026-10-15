@@ -20,7 +20,7 @@ import time
 from copy import deepcopy
 from decimal import Decimal, InvalidOperation
 
-from . import order_channel, payment_attempt
+from . import order_channel, order_record, payment_attempt
 
 #: Modes whose attempts may become an internal order. Native checkout and the established
 #: website Razorpay settlement marker are the only accepted modes.
@@ -260,6 +260,17 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
     if attempt.get('customerPhone'):
         # Recorded from the authenticated checkout session, never a browser field.
         order['customerPhone'] = attempt['customerPhone']
+    # THE ONE CONTACT ROW this order belongs to - the same ContactsTable row the WhatsApp inbox,
+    # the Flows and the website profile use - copied off the attempt, where checkout stamped it
+    # from the session-owned contact. Conditional and outside the conflict comparison for the
+    # same reason as `customerUuid`: it is attribution, not money.
+    if attempt.get('contactId'):
+        order['contactId'] = attempt['contactId']
+    # The short order number, so the `shortId` GSI finds website and WhatsApp orders alike
+    # (staff orders always carried it; these did not).
+    short = order_record.short_id(outcome['orderNumber'])
+    if short:
+        order['shortId'] = short
     try:
         orders.put_item(Item=order, ConditionExpression='attribute_not_exists(orderId)')
     except Exception as error:

@@ -62,10 +62,10 @@ def handle_init(data: Dict, flow_token: str, request_id: str,
 
 def handle_order_select(data: Dict, flow_token: str, request_id: str) -> Dict:
     """ORDER_SELECT → show SUBMIT_REQUEST_FORM with order context. Save draft."""
-    from flows.orders import extract_short_id
+    from flows.orders import order_label
     phone = get_phone_from_token(flow_token)
     order_id = data.get('order_id', '')
-    short_id = extract_short_id(order_id) if order_id else ''
+    short_id = order_label(order_id) if order_id else ''
     # Save draft at this step
     save_draft(phone, FLOW_CODE, 'SUBMIT_REQUEST_FORM', {
         'order_id': order_id, 'order_short_id': short_id,
@@ -177,8 +177,8 @@ def handle_review(data: Dict, flow_token: str, request_id: str,
     # Returned for a duplicate too: the customer's request *is* recorded, and showing them
     # an error for our own retry would be a lie. What a duplicate does not do is fire the
     # side effects below.
-    from flows.orders import extract_short_id
-    short_order_id = extract_short_id(order_id)
+    from flows.orders import order_label
+    short_order_id = order_label(order_id)
     response_payload = {
         'screen': 'THANK_YOU',
         'data': {

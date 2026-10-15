@@ -59,7 +59,8 @@ def handle_doc_form(data: Dict, flow_token: str, request_id: str) -> Dict:
     order_id = data.get('order_id', 'none')
     order_display = 'None'
     if order_id and order_id != 'none':
-        short = extract_short_id(order_id)
+        from flows.orders import order_label
+        short = order_label(order_id)
         order_display = short if short else order_id[:20]
 
     return {
