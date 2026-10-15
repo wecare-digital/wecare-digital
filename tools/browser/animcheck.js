@@ -67,17 +67,15 @@ const { launch, gotoStable } = require( './lib/browser' );
 const { target } = require( './lib/serve' );
 
 /**
- * The four rotating surfaces. Two stems per surface since the consolidation:
- *   - `head` is the per-page headline class, still unique because styled-jsx scopes each
- *     page's h1 clamp to its own file (grahak-os renders a bare <h1>, so `head` is null and
- *     the measurement falls back to q('h1')).
+ * The four rotating surfaces. Grahak OS and VayuLok now use RotatingHero too, so all
+ * product-band surfaces share the rh headline class as well as the shared RotatingPill.
  *   - `pill` is the SHARED RotatingPill class stem, now `rp` on every surface.
  */
 const SHARED_PILL = 'rp';
 const SURFACES = [
   { route: '/', head: 'home', pill: SHARED_PILL, label: 'Home' },
-  { route: '/grahak-os/', head: null, pill: SHARED_PILL, label: 'Grahak OS' },
-  { route: '/vayulok/', head: 'vl', pill: SHARED_PILL, label: 'VayuLok' },
+  { route: '/grahak-os/', head: 'rh', pill: SHARED_PILL, label: 'Grahak OS' },
+  { route: '/vayulok/', head: 'rh', pill: SHARED_PILL, label: 'VayuLok' },
   { route: '/contact/', head: 'rh', pill: SHARED_PILL, label: 'Contact (RotatingHero)' },
 ];
 
