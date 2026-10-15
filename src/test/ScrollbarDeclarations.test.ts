@@ -183,10 +183,10 @@ describe( 'scrollbar thumb colour is declared in exactly two files', () => {
     const hiders = files.flatMap( f => {
       const src = stripComments( fs.readFileSync( f, 'utf8' ) );
       const rel = path.relative( path.join( SRC, '..' ), f ).split( path.sep ).join( '/' );
-      return Array.from( src.matchAll( /([^{}]*)::-webkit-scrollbar(?!-)[^{}]*\{([^}]*)\}/g ) )
+      return Array.from( src.matchAll( /([^\n{}]*)::-webkit-scrollbar(?!-)[^{}]*\{([^}]*)\}/g ) )
         .filter( m => /display\s*:\s*none|height\s*:\s*6px/.test( m[ 2 ] ) )
         // The selector is the text on the rule's own line, ahead of the pseudo-element.
-        .map( m => `${rel} ${m[ 1 ].slice( m[ 1 ].lastIndexOf( '\n' ) + 1 ).replace( /\s+/g, ' ' ).trim()}` );
+        .map( m => `${rel} ${m[ 1 ].replace( /\s+/g, ' ' ).trim()}` );
     } ).sort();
 
     expect(
