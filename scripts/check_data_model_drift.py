@@ -148,6 +148,10 @@ EXPLICIT_TABLE: dict[str, str] = {
 PHANTOM_ALLOWED: dict[str, str] = {}
 
 UNDECLARED_ALLOWED: dict[str, str] = {
+    "ProductsTable": "AWS-native catalog authority (10 products, 23 variants), provisioned by scripts/provision_products_table.py and declared in amplify/catalog-resources.ts.",
+    "CartTable": "AWS-native cart store with TTL, declared in amplify/catalog-resources.ts; operational state, not a CRM model.",
+    "CustomerSessionsTable": "Customer session store owned by amplify/infra/customer-sessions.json (CloudFormation stack wecare-customer-sessions).",
+    "ServiceRequestsTable": "Paid service requests, provisioned by scripts/provision_service_requests.py.",
     "AgentApprovalsTable":
         "Provisioned 2026-09-24 by scripts/provision_agent_approvals_table.py for "
         "the agent action approval path. Deliberately not modelled here: it is "
