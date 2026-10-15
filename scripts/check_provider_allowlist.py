@@ -343,8 +343,8 @@ BARE_HOST = re.compile(
     r"""(?::\d{2,5})?(?:/[^'"`\s]*)?\1""")
 YAML_HOST = re.compile(r"(?<![\w./@-])(\*\.)?([a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,})(?![\w-])")
 DOCKER_FROM = re.compile(r"^\s*FROM\s+([a-z0-9-]+(?:\.[a-z0-9-]+)+)/", re.M | re.I)
-SECRET_LITERAL = re.compile(r"""['"`](wecare/[A-Za-z0-9._/{}+-]*)""")
-SECRET_REFERENCE = re.compile(r"(?:resolve:secretsmanager:|:secret:)(wecare/[A-Za-z0-9._/+-]*)")
+VAULT_LITERAL = re.compile(r"""['"`](wecare/[A-Za-z0-9._/{}+-]*)""")
+VAULT_REFERENCE = re.compile(r"(?:resolve:secretsmanager:|:secret:)(wecare/[A-Za-z0-9._/+-]*)")
 JS_IMPORTS = (
     re.compile(r"""\bimport\s+(?:type\s+)?[^'";]{0,2000}?\bfrom\s*['"]([^'"\n]+)['"]"""),
     re.compile(r"""\bimport\s*['"]([^'"\n]+)['"]"""),
@@ -457,14 +457,14 @@ class Scan:
                 check(m.group(1), m.start(), "image")
 
     def secrets(self, rel, code, owner=None):
-        for rx in (SECRET_LITERAL, SECRET_REFERENCE):
+        for rx in (VAULT_LITERAL, VAULT_REFERENCE):
             for m in rx.finditer(code):
-                secret = m.group(1)
-                if secret.rstrip("/.") in ("wecare", ""):
+                ref = m.group(1)
+                if ref.rstrip("/.") in ("wecare", ""):
                     continue
-                key, why = allow.secret_owner(secret, owner or rel)
+                key, why = allow.vault_owner(ref, owner or rel)
                 if key is None:
-                    self.add("secrets", rel, code, m.start(), secret, why)
+                    self.add("secrets", rel, code, m.start(), ref, why)
 
     def python_imports(self, rel, text):
         try:
@@ -664,7 +664,7 @@ class Scan:
                 if not isinstance(value, str):
                     continue
                 if value.startswith("wecare/"):
-                    found, why = allow.secret_owner(value, owner)
+                    found, why = allow.vault_owner(value, owner)
                     if found is None:
                         self.add("secrets", rel, text, text.find(value), value, why)
                 for m in URL.finditer(value):
@@ -759,7 +759,7 @@ def print_allowlist() -> None:
     for p in allow.PROVIDERS:
         print(f"\n  {p.name}  [{p.key}]  {p.purpose}")
         for label, values in (("domains", p.domains), ("transport", p.transport_domains),
-                              ("secrets", p.secret_prefixes), ("npm", p.npm),
+                              ("secrets", p.vault_prefixes), ("npm", p.npm),
                               ("pip", p.pip), ("webhooks", p.webhook_routes),
                               ("provider ids", p.provider_ids)):
             if values:

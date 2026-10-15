@@ -76,7 +76,7 @@ def test_every_entry_states_its_purpose_and_well_formed_vocabulary():
     for provider in allow.PROVIDERS:
         for domain in provider.domains + provider.transport_domains:
             assert host.match(domain), (provider.key, domain)
-        for prefix in provider.secret_prefixes:
+        for prefix in provider.vault_prefixes:
             assert prefix.startswith("wecare/") and prefix != "wecare/", (provider.key, prefix)
         for route in provider.webhook_routes:
             assert route == allow.normalise_route(route), (provider.key, route)
@@ -95,8 +95,8 @@ def test_single_capability_providers_are_scoped():
     assert allow.host_owner("convapi.aclwhatsapp.com",
                             "amplify/functions/messaging/whatsapp-calling/handler.py")[0] is None
     assert allow.host_owner("developers.sinch.com", "anywhere.py")[0] == "sinch"
-    assert allow.secret_owner("wecare/sinch/rcs", "lambda:wecare-rcs-send")[0] == "sinch"
-    assert allow.secret_owner("wecare/sinch/rcs", "lambda:wecare-outbound-sms")[0] is None
+    assert allow.vault_owner("wecare/sinch/rcs", "lambda:wecare-rcs-send")[0] == "sinch"
+    assert allow.vault_owner("wecare/sinch/rcs", "lambda:wecare-outbound-sms")[0] is None
 
 
 def test_channel_functions_are_the_supported_sets():
@@ -154,7 +154,7 @@ def test_the_gate_passes_on_the_current_tree(capsys):
 def test_the_gate_exercises_every_rule_on_the_tree():
     """Not vacuous: the tree really contains hosts, secrets, packages and routes to check."""
     counts = {"hosts": 0, "secrets": 0}
-    original_host, original_secret = allow.host_owner, allow.secret_owner
+    original_host, original_secret = allow.host_owner, allow.vault_owner
 
     def host(h, owner=""):
         counts["hosts"] += 1
@@ -164,11 +164,11 @@ def test_the_gate_exercises_every_rule_on_the_tree():
         counts["secrets"] += 1
         return original_secret(s, owner)
 
-    allow.host_owner, allow.secret_owner = host, secret
+    allow.host_owner, allow.vault_owner = host, secret
     try:
         scan = gate.run()
     finally:
-        allow.host_owner, allow.secret_owner = original_host, original_secret
+        allow.host_owner, allow.vault_owner = original_host, original_secret
     assert scan.findings == []
     assert scan.files > 300
     assert counts["hosts"] > 50 and counts["secrets"] > 50, counts
@@ -339,8 +339,7 @@ def test_the_cli_fails_on_an_explicit_violating_file(tmp_path, capsys):
     bad = tmp_path / "bad.py"
     bad.write_text('URL = "https://api.example-unknown.com/x"\n', encoding="utf-8")
     assert gate.main([str(bad)]) == 1
-    assert "api.example-unknown.com" in json.dumps(
-        [f.value for f in gate.run([str(bad)]).findings])
+    assert [f.value for f in gate.run([str(bad)]).findings] == ["api.example-unknown.com"]
     good = tmp_path / "good.py"
     good.write_text('URL = "https://graph.facebook.com/v26.0"\n', encoding="utf-8")
     assert gate.main([str(good)]) == 0
@@ -393,7 +392,7 @@ def test_the_live_gate_passes_an_approved_account(live):
                  routes=["POST /razorpay-webhook", "POST /webhook/sinch-rcs", "GET /contacts"])
     findings, counts = live.collect(lambda _service: fake)
     assert findings == []
-    assert counts["secrets"] == 2 and counts["functions"] == 2 and counts["routes"] == 3
+    assert counts["vault_entries"] == 2 and counts["functions"] == 2 and counts["routes"] == 3
 
 
 def test_the_live_gate_fails_on_anything_unapproved(live):

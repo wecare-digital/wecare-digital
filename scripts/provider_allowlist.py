@@ -53,7 +53,7 @@ class Provider:
     #: entry in the Lambda environment manifest. Applies to transport hosts and secrets.
     transport_scope: str = ""
     #: Secrets Manager id prefixes. Confined to ``transport_scope`` when it is set.
-    secret_prefixes: tuple = ()
+    vault_prefixes: tuple = ()
     #: npm package names. ``@scope/*`` admits a whole scope.
     npm: tuple = ()
     #: pip distribution names (requirements files, Dockerfile installs).
@@ -111,7 +111,7 @@ PROVIDERS: tuple = (
         name="WECARE.DIGITAL",
         purpose="First party: the public site, the API, short links, media and SIP hosts.",
         domains=("wecare.digital",),
-        secret_prefixes=(
+        vault_prefixes=(
             "wecare/otp/",               # OTP pepper
             "wecare/prod/security/",     # gift-card code pepper
             "wecare/config/",            # non-credential configuration records
@@ -132,7 +132,7 @@ PROVIDERS: tuple = (
                  "Cognito, SES/SNS/SQS/EventBridge, Secrets Manager."),
         domains=("amazonaws.com", "amazoncognito.com", "aws.amazon.com", "aws.com",
                  "community.aws", "awsstatic.com", "cloudfront.net", "amplifyapp.com"),
-        secret_prefixes=("wecare/aws/",),
+        vault_prefixes=("wecare/aws/",),
         npm=("aws-amplify", "@aws-amplify/*", "aws-cdk-lib", "@aws-cdk/*", "@aws-sdk/*",
              "constructs"),
         pip=("boto3", "botocore", "s3transfer", "jmespath", "awslambdaric",
@@ -154,7 +154,7 @@ PROVIDERS: tuple = (
         domains=("facebook.com", "facebook.net", "fbcdn.net", "fb.com", "fb.me", "fbsbx.com",
                  "whatsapp.com", "whatsapp.net", "wa.me", "instagram.com", "cdninstagram.com",
                  "meta.com", "messenger.com"),
-        secret_prefixes=(
+        vault_prefixes=(
             "wecare/meta-",              # system-user token, app secret
             "wecare/meta/",              # payments configuration
             "wecare/flow-private-key",   # WhatsApp Flows data-exchange key
@@ -183,7 +183,7 @@ PROVIDERS: tuple = (
         name="Razorpay",
         purpose="Payments: orders, checkout, payment links, UPI collection and webhooks.",
         domains=("razorpay.com", "rzp.io"),
-        secret_prefixes=("wecare/razorpay/", "wecare/razorpay-webhook"),
+        vault_prefixes=("wecare/razorpay/", "wecare/razorpay-webhook"),
         provider_ids=("razorpay",),
         webhook_routes=("/razorpay-webhook", "/ecommerce/verify-callback"),
         env_namespaces=("RAZORPAY", "RZP", "UPI"),
@@ -194,7 +194,7 @@ PROVIDERS: tuple = (
         name="Plivo",
         purpose="PSTN voice: IVR answer/hangup callbacks and the browser softphone.",
         domains=("plivo.com", "plivo.mintlify.app"),
-        secret_prefixes=("wecare/plivo/", "wecare/plivo-answer"),
+        vault_prefixes=("wecare/plivo/", "wecare/plivo-answer"),
         webhook_routes=("/plivo/answer", "/plivo/hangup", "/plivo/events",
                         "/plivo/dial-events", "/plivo/fallback"),
         env_namespaces=("PLIVO", "PSTN"),
@@ -207,7 +207,7 @@ PROVIDERS: tuple = (
         domains=("developers.sinch.com",),           # documentation, reachable from anywhere
         transport_domains=("aclwhatsapp.com", "sinch.com"),
         transport_scope=RCS_TRANSPORT_SCOPE,
-        secret_prefixes=("wecare/sinch/rcs",),
+        vault_prefixes=("wecare/sinch/rcs",),
         provider_ids=("sinch-rcs",),
         webhook_routes=("/webhook/sinch-rcs",),
         env_namespaces=("SINCH", "RCS"),
@@ -221,7 +221,7 @@ PROVIDERS: tuple = (
         domains=("google.com", "googleapis.com", "gstatic.com", "googletagmanager.com",
                  "google-analytics.com", "googleusercontent.com", "googlehosted.com",
                  "goog", "youtube.com"),
-        secret_prefixes=("wecare/google/", "wecare/google-", "wecare/seo/google-"),
+        vault_prefixes=("wecare/google/", "wecare/google-", "wecare/seo/google-"),
         provider_ids=("google", "google-cloud", "google-ads"),
         env_namespaces=("GOOGLE", "GA4", "GTM", "GSC", "MAPS"),
         ui_labels=("Google", "Google Maps", "Google Analytics", "Google Ads",
@@ -233,7 +233,7 @@ PROVIDERS: tuple = (
         name="Microsoft",
         purpose="Bing Webmaster Tools, and the container registry for the scraper image.",
         domains=("bing.com", "microsoft.com"),
-        secret_prefixes=("wecare/bing/",),
+        vault_prefixes=("wecare/bing/",),
         provider_ids=("bing", "microsoft"),
         env_namespaces=("BING", "MICROSOFT"),
         ui_labels=("Microsoft", "Bing", "Bing Webmaster Tools"),
@@ -243,7 +243,7 @@ PROVIDERS: tuple = (
         name="Truecaller",
         purpose="Customer identity verification.",
         domains=("truecaller.com",),
-        secret_prefixes=("wecare/truecaller",),
+        vault_prefixes=("wecare/truecaller",),
         provider_ids=("truecaller",),
         env_namespaces=("TRUECALLER",),
         ui_labels=("Truecaller",),
@@ -253,7 +253,7 @@ PROVIDERS: tuple = (
         name="OpenAI",
         purpose="Model API for generative features.",
         domains=("openai.com",),
-        secret_prefixes=("wecare/openai",),
+        vault_prefixes=("wecare/openai",),
         npm=("openai",),
         pip=("openai",),
         imports=("openai",),
@@ -266,7 +266,7 @@ PROVIDERS: tuple = (
         name="GitHub",
         purpose="Source hosting, Actions and the workspace code tools.",
         domains=("github.com", "githubusercontent.com"),
-        secret_prefixes=("wecare/github-",),
+        vault_prefixes=("wecare/github-",),
         provider_ids=("github",),
         env_namespaces=("GITHUB",),
         ui_labels=("GitHub",),
@@ -428,10 +428,10 @@ def host_owner(host: str, owner: str = "") -> tuple[str | None, str]:
     return None, "not on the provider allow-list"
 
 
-def secret_owner(secret_id: str, owner: str = "") -> tuple[str | None, str]:
+def vault_owner(secret_id: str, owner: str = "") -> tuple[str | None, str]:
     """Return (approving provider key or None, reason) for a Secrets Manager id."""
     for provider in PROVIDERS:
-        if any(secret_id.startswith(p) for p in provider.secret_prefixes):
+        if any(secret_id.startswith(p) for p in provider.vault_prefixes):
             if provider.transport_scope and owner and \
                     not re.search(provider.transport_scope, owner):
                 return None, (f"{provider.name} credential outside its approved modules "
@@ -598,7 +598,7 @@ __all__ = [
     "Provider", "Reference", "Library", "PROVIDERS", "REFERENCES", "LIBRARIES",
     "AWS_SERVICES", "PLIVO_VOICE_RESOURCES", "RCS_CHANNELS", "CHANNEL_FUNCTIONS",
     "CHANNEL_TOKENS", "SELECTOR_VALUES", "PROVIDER_SELECTOR_SUFFIX", "RAZORPAY_VPA",
-    "PRODUCT_TERMS", "host_owner", "secret_owner", "npm_owner", "pip_owner", "import_owner",
+    "PRODUCT_TERMS", "host_owner", "vault_owner", "npm_owner", "pip_owner", "import_owner",
     "provider_ids", "webhook_routes", "ui_labels", "env_namespaces", "env_namespace_ok",
     "is_credential_env_key", "channel_of", "channel_function_ok", "normalise_route",
     "is_webhook_route", "webhook_route_ok",

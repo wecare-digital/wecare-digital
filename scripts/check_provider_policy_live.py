@@ -81,7 +81,7 @@ UNDEPLOYABLE = "not in the deploy map: no supported path can patch it"
 
 URL_VALUE = re.compile(r"\b(?:https?|wss?)://([A-Za-z0-9.-]+)")
 HOST_VALUE = re.compile(r"^(?:[a-z0-9-]+\.)+[a-z]{2,}(?:/\S*)?$")
-SECRET_VALUE = re.compile(r"^wecare/[A-Za-z0-9._/+-]*$")
+VAULT_REF = re.compile(r"^wecare/[A-Za-z0-9._/+-]*$")
 
 
 def deploy_map() -> set:
@@ -129,8 +129,8 @@ def check_env(fn: str, env: dict) -> list:
                 findings.append(("env", fn, f"{key} -> {host}",
                                  allow.host_owner(host, owner)[1]))
         for part in (p.strip() for p in value.split(",")):
-            if SECRET_VALUE.match(part) and part.rstrip("/") != "wecare":
-                found, why = allow.secret_owner(part, owner)
+            if VAULT_REF.match(part) and part.rstrip("/") != "wecare":
+                found, why = allow.vault_owner(part, owner)
                 if found is None:
                     findings.append(("env", fn, f"{key} -> {part}", why))
         if key in allow.SELECTOR_VALUES and value not in allow.SELECTOR_VALUES[key]:
@@ -142,8 +142,8 @@ def check_env(fn: str, env: dict) -> list:
     return findings
 
 
-def check_secret(name: str) -> list:
-    found, why = allow.secret_owner(name)
+def check_vault_entry(name: str) -> list:
+    found, why = allow.vault_owner(name)
     return [] if found else [("secret", name, name, why)]
 
 
@@ -167,13 +167,13 @@ def check_function(fn: str, deployable: set) -> list:
 def collect(client) -> tuple[list, dict]:
     """Read the account through ``client(service)`` and return (findings, counts)."""
     findings: list = []
-    counts = {"secrets": 0, "functions": 0, "env_values": 0, "apis": 0, "routes": 0}
+    counts = {"vault_entries": 0, "functions": 0, "env_values": 0, "apis": 0, "routes": 0}
 
     sm = client("secretsmanager")
     for page in sm.get_paginator("list_secrets").paginate():
-        for secret in page.get("SecretList", []):
-            counts["secrets"] += 1
-            findings += check_secret(secret["Name"])
+        for entry in page.get("SecretList", []):
+            counts["vault_entries"] += 1
+            findings += check_vault_entry(entry["Name"])
 
     lam = client("lambda")
     deployable = deploy_map()
@@ -228,7 +228,7 @@ def main(argv=None) -> int:
 
     print(f"account region : {REGION}")
     print(f"allow-list     : {', '.join(p.name for p in allow.PROVIDERS)}")
-    print(f"scanned        : {counts['secrets']} secrets, {counts['functions']} functions "
+    print(f"scanned        : {counts['vault_entries']} secrets, {counts['functions']} functions "
           f"({counts['env_values']} env values), {counts['routes']} routes on "
           f"{counts['apis']} API(s)")
     provider = [f for f in findings if f[3] != UNDEPLOYABLE]

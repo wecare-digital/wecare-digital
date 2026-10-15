@@ -107,7 +107,7 @@ class LiveAudit:
         names = [s["Name"] for s in _pages(self.c["secretsmanager"].list_secrets, "SecretList",
                                            "NextToken", "NextToken",
                                            IncludePlannedDeletion=True)]
-        hits = sorted(n for n in names if allow.secret_owner(n)[0] is None)
+        hits = sorted(n for n in names if allow.vault_owner(n)[0] is None)
         return Check("secrets", not hits,
                      f"{len(names)} secrets incl. planned deletion, {len(hits)} not approved",
                      hits)

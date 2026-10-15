@@ -249,7 +249,7 @@ def test_the_coupons_policy_reads_only_approved_secrets_by_name(role):
         assert arn.startswith(prefix) and arn.endswith("-*"), arn
         name = arn[len(prefix):-len("-*")]
         assert "*" not in name, f"{arn} widens past one secret"
-        assert provider_allowlist.secret_owner(name)[0], f"{name} is not an approved secret"
+        assert provider_allowlist.vault_owner(name)[0], f"{name} is not an approved secret"
 
 
 def test_the_coupons_policy_carries_no_credential_value(role):

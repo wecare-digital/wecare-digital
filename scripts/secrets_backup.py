@@ -86,7 +86,7 @@ def approved_secret(name: str) -> bool:
     """
     import provider_allowlist  # scripts/, next to this file
 
-    return provider_allowlist.secret_owner(name)[0] is not None
+    return provider_allowlist.vault_owner(name)[0] is not None
 
 
 def backup_secret_ids(discovered: set[str], required: list[str],

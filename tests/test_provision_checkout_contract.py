@@ -76,7 +76,7 @@ def test_no_environment_value_looks_like_a_credential(provisioner):
     assert env["RAZORPAY_SECRET_ID"] == "wecare/razorpay/api"
     for key, value in env.items():
         if isinstance(value, str) and value.startswith("wecare/"):
-            assert provider_allowlist.secret_owner(value)[0], f"{key} names an unapproved secret"
+            assert provider_allowlist.vault_owner(value)[0], f"{key} names an unapproved secret"
     issuer_shapes = ("rzp_live_", "rzp_test_", "sk-", "AIza", "ghp_", "xoxb-",
                      "AKIA", "ASIA", "sk_live_", "-----BEGIN")
     for key, value in env.items():
@@ -329,7 +329,7 @@ def test_the_role_reads_only_the_razorpay_api_secret(provisioner):
     assert "wecare/razorpay-webhook" not in json.dumps(_policy(provisioner))
     for arn in secrets:
         name = arn.split(":secret:", 1)[1].removesuffix("-*")
-        assert provider_allowlist.secret_owner(name)[0], f"{name} is not an approved secret"
+        assert provider_allowlist.vault_owner(name)[0], f"{name} is not an approved secret"
 
 
 # ── A2.4: the invoke grant, in BOTH of its homes ──────────────────────────────
@@ -452,7 +452,7 @@ def test_the_environment_uses_only_approved_providers(provisioner):
         if provider_allowlist.is_credential_env_key(key):
             assert provider_allowlist.env_namespace_ok(key), f"{key}: unapproved namespace"
         if isinstance(value, str) and value.startswith("wecare/"):
-            assert provider_allowlist.secret_owner(value)[0], f"{key}: unapproved secret"
+            assert provider_allowlist.vault_owner(value)[0], f"{key}: unapproved secret"
         if key in provider_allowlist.SELECTOR_VALUES:
             assert value in provider_allowlist.SELECTOR_VALUES[key], f"{key}={value!r}"
     assert env["CATALOG_SOURCE"] == "aws"
@@ -1057,7 +1057,7 @@ def test_the_manifest_records_the_function_without_the_gate():
     # Every secret the manifest records for checkout is an approved one, by name.
     for key, value in entry.items():
         if isinstance(value, str) and value.startswith("wecare/"):
-            assert provider_allowlist.secret_owner(value, "lambda:wecare-checkout")[0], key
+            assert provider_allowlist.vault_owner(value, "lambda:wecare-checkout")[0], key
     assert manifest["_functions"] == len(manifest["functions"])
     assert manifest["_variables"] == sum(len(v) for v in manifest["functions"].values())
 
