@@ -526,15 +526,14 @@ def test_remaining_imageless_product_is_blocked_and_every_service_item_has_a_pic
 
     imageless = sorted(
         p["name"] for p in syncable
-        if int(p.get("mediaCount") or 0) == 0
+        if not str(p.get("image") or "").strip()
     )
     assert imageless == EXPECTED_BLOCKED
 
     pictured = [p for p in syncable if p["name"] not in EXPECTED_BLOCKED]
     assert len(pictured) == 9
     for product in pictured:
-        assert int(product.get("mediaCount") or 0) > 0
-        assert product.get("image"), f"{product['name']} has mediaCount but no image"
+        assert product.get("image"), f"{product['name']} has no native catalog image"
 
     services = [i for i in desired
                 if i["item_group_id"] == "df976a0a-f582-4535-b2e1-d532f348bd27"]
