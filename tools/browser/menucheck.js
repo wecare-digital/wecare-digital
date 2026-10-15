@@ -73,17 +73,17 @@ const fail = ( message ) => { throw new Error( message ); };
       );
       if ( undersized.length ) fail( `${viewport.name}: undersized header targets ${JSON.stringify( undersized )}` );
 
-      const partner = page.locator( '.nav-tree-item', { hasText: 'Partner' } ).first();
-      const partnerLabels = await partner.locator( '.nav-item' ).allTextContents();
-      if ( partnerLabels.join( '|' ) !== 'Partner|Referral|Merchandise|Kiosk' ) {
-        fail( `${viewport.name}: Partner order ${partnerLabels.join( ' > ' )}` );
+      const referGroup = page.locator( '.nav-group', { hasText: 'Refer & Earn' } ).first();
+      const referLabels = await referGroup.locator( '.nav-item' ).allTextContents();
+      if ( referLabels.join( '|' ) !== 'Merchandise|Kiosk|Referral' ) {
+        fail( `${viewport.name}: Refer & Earn order ${referLabels.join( ' > ' )}` );
       }
 
       const search = page.getByLabel( 'Search navigation' );
       await search.fill( 'elsewhere' );
       const status = await menu.getByRole( 'status' ).textContent();
-      if ( status?.trim() !== '3 menu results.' ) fail( `${viewport.name}: search status was ${status}` );
-      for ( const label of [ 'Visa', 'Trip', 'Activities' ] ) {
+      if ( status?.trim() !== '2 menu results.' ) fail( `${viewport.name}: search status was ${status}` );
+      for ( const label of [ 'Visa Support', 'Travel Support' ] ) {
         if ( await page.getByRole( 'link', { name: label } ).count() !== 1 ) fail( `${viewport.name}: missing search result ${label}` );
       }
 
