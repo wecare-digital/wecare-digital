@@ -78,9 +78,10 @@ function pm25Severity( pm25: number ): Sev {
 // is worldwide. Manual pan/zoom gestures are disabled; only an explicit place selection
 // is allowed to move the camera.
 
-// Destination search is deliberately submit-driven. Typing never calls a location API;
-// Enter, the search action, or a completed voice transcript performs one Geocoding lookup.
-// This keeps VayuLok off Places (New) / Autocomplete billing and avoids per-keystroke requests.
+// Destination autocomplete uses ONLY the Places (New) Autocomplete Data API. It is debounced
+// and session-tokened; selecting a suggestion resolves coordinates with one Geocoding request.
+// No Place Details, Text Search, Nearby Search, photos, contact data or atmosphere fields are used.
+const SEARCH_DEBOUNCE_MS = 180;
 
 // Continuous AQI heatmap TILE overlay (the organic, blob-shaped pollution cloud from the
 // reference). The AQI "Heatmap" switch paints Google's Air Quality heatmapTiles onto the
@@ -120,10 +121,55 @@ interface PlaceState {
   regionCode?: string;
 }
 
+interface AutocompletePredictionLike {
+  mainText?: { text?: string; toString?: () => string };
+  secondaryText?: { text?: string; toString?: () => string };
+  text?: { toString?: () => string };
+  placeId?: string;
+  toPlace?: () => { id?: string };
+}
+
 interface SearchResult {
   name: string;
   addr: string;
-  place: PlaceState;
+  place?: PlaceState;
+  prediction?: AutocompletePredictionLike;
+}
+
+function geocoderRowsToSearchResults( rows: unknown[], fallbackName: string ): SearchResult[] {
+  return rows
+    .slice( 0, 6 )
+    .map( ( row: unknown ): SearchResult | null => {
+      const result = row as {
+        formatted_address?: string;
+        place_id?: string;
+        geometry?: {
+          location?: { lat: () => number; lng: () => number };
+          viewport?: { toJSON?: () => { north: number; south: number; east: number; west: number } };
+        };
+        address_components?: { types?: string[]; short_name?: string }[];
+      };
+      const loc = result.geometry?.location;
+      const lat = loc?.lat?.();
+      const lng = loc?.lng?.();
+      if ( !Number.isFinite( lat ) || !Number.isFinite( lng ) ) return null;
+      const country = result.address_components
+        ?.find( component => component.types?.includes( 'country' ) )?.short_name;
+      const viewport = result.geometry?.viewport?.toJSON?.();
+      const hasViewport = viewport
+        && [ viewport.north, viewport.south, viewport.east, viewport.west ].every( Number.isFinite );
+      const place: PlaceState = {
+        name: result.formatted_address?.split( ',' )[ 0 ] || fallbackName || 'Place',
+        addr: result.formatted_address || fallbackName,
+        lat: lat as number,
+        lng: lng as number,
+        ...( typeof result.place_id === 'string' && result.place_id ? { placeId: result.place_id } : {} ),
+        ...( hasViewport ? { viewport } : {} ),
+        ...( typeof country === 'string' && country ? { regionCode: country.toUpperCase() } : {} ),
+      };
+      return { name: place.name, addr: place.addr, place };
+    } )
+    .filter( ( row ): row is SearchResult => row !== null );
 }
 
 const DEFAULT_PLACE: PlaceState = {
@@ -1016,12 +1062,15 @@ const VayuLokLive: React.FC = () => {
   // identity rather than with consume-once flags: a mapReady re-run cannot snap the camera to
   // zoom 14, and a flag left over from a map move cannot swallow the next search's camera move.
   const framedPlaceRef = useRef<PlaceState>( DEFAULT_PLACE );
-  // Bumped by every selection, map or search. A step that finishes later (a reverse geocode,
-  // Place details) applies its result only if no newer selection has started since.
+  // Bumped by every selection, map or search. A step that finishes later (for example a
+  // Geocoding resolution after autocomplete) applies its result only if no newer selection started.
   const selectionSeqRef = useRef( 0 );
   const markerRef = useRef<unknown>( null );
   const markerCtorRef = useRef<( new ( opts: Record<string, unknown> ) => unknown ) | null>( null );
+  const placesLibRef = useRef<Record<string, unknown> | null>( null );
+  const autocompleteTokenRef = useRef<unknown>( null );
   const geocoder = useRef<unknown>( null );
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
   // Cache the last fetched values per "lat,lng" so re-selecting a place bills nothing.
   const cache = useRef<Record<string, { ts: number; air: AirState | null; weather: WeatherState | null; pollen: PollenRow[] | null }>>( {} );
   const forecastCache = useRef<Record<string, {
@@ -1360,13 +1409,13 @@ const VayuLokLive: React.FC = () => {
 
       const motionListeners: { remove?: () => void }[] = [];
 
-      // OPTIONAL LIBRARIES LOAD AFTER MAP CONSTRUCTION, IN PARALLEL. VayuLok deliberately
-      // does not import the Places library: destination search is one Geocoding request per
-      // explicit submission, not Places (New) autocomplete on every keystroke.
-      void Promise.all( [ imp( 'marker' ), imp( 'geocoding' ) ] ).then(
-        ( [ markerLib, geocodingLib ] ) => {
+      // OPTIONAL LIBRARIES LOAD AFTER MAP CONSTRUCTION, IN PARALLEL. Places is used only
+      // for AutocompleteSuggestion; no Place Details fetchFields call exists in this component.
+      void Promise.all( [ imp( 'marker' ), imp( 'places' ), imp( 'geocoding' ) ] ).then(
+        ( [ markerLib, placesLib, geocodingLib ] ) => {
           if ( cancelled ) return;
           markerCtorRef.current = ( markerLib as { Marker?: MapsCtors['Marker'] } | null )?.Marker || legacy.Marker || null;
+          placesLibRef.current = ( placesLib as Record<string, unknown> | null ) || legacy.places || null;
           const GeocoderCtor = ( geocodingLib as { Geocoder?: MapsCtors['Geocoder'] } | null )?.Geocoder || legacy.Geocoder;
           if ( GeocoderCtor && !geocoder.current ) geocoder.current = new GeocoderCtor();
         },
@@ -2128,99 +2177,162 @@ const VayuLokLive: React.FC = () => {
   }, [ place, mapReady, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
-     SEARCH - explicit Google Geocoding only. No Places (New), no Autocomplete Data API,
-     no session token and no per-keystroke provider request. The field remains a combobox
-     because one submitted query can return several geocoding candidates. */
-  const runSearch = useCallback( async ( text: string ) => {
-    const queryText = text.trim();
-    if ( !MAPS_KEY || !queryText ) {
+     SEARCH - Places (New) AUTOCOMPLETE ONLY + Geocoding on selection/explicit submit.
+     No Place Details fields are fetched. This keeps the fast suggestion UX while avoiding
+     the higher-priced Places data SKUs the page does not need. */
+  const ensurePlacesLibrary = useCallback( async (): Promise<Record<string, unknown> | null> => {
+    if ( placesLibRef.current ) return placesLibRef.current;
+    const w = window as unknown as { google?: { maps?: {
+      importLibrary?: ( name: string ) => Promise<Record<string, unknown>>;
+      places?: Record<string, unknown>;
+    } } };
+    try {
+      const lib = w.google?.maps?.importLibrary
+        ? await w.google.maps.importLibrary( 'places' )
+        : w.google?.maps?.places || null;
+      placesLibRef.current = lib || null;
+      return placesLibRef.current;
+    } catch {
+      return null;
+    }
+  }, [] );
+
+  const ensureGeocoder = useCallback( async (): Promise<{
+    geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
+  } | null> => {
+    const existing = geocoder.current as {
+      geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
+    } | null;
+    if ( existing ) return existing;
+    const w = window as unknown as { google?: { maps?: {
+      importLibrary?: ( name: string ) => Promise<Record<string, unknown>>;
+      Geocoder?: new () => unknown;
+    } } };
+    try {
+      const lib = w.google?.maps?.importLibrary
+        ? await w.google.maps.importLibrary( 'geocoding' )
+        : null;
+      const Ctor = ( lib as { Geocoder?: new () => unknown } | null )?.Geocoder
+        || w.google?.maps?.Geocoder;
+      if ( Ctor ) geocoder.current = new Ctor();
+    } catch { /* explicit submit can show unavailable */ }
+    return geocoder.current as {
+      geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
+    } | null;
+  }, [] );
+
+  /* Optional human-readable address descriptor. Geocoding only; still no Place Details call. */
+  useEffect( () => {
+    if ( !MAPS_KEY || !hasSelection || !mapReady || typeof window === 'undefined' ) return;
+    let cancelled = false;
+    const describe = async () => {
+      const gc = await ensureGeocoder();
+      if ( !gc?.geocode || cancelled ) return;
+      const request: Record<string, unknown> = place.placeId
+        ? { placeId: place.placeId, extraComputations: [ 'ADDRESS_DESCRIPTORS' ] }
+        : { location: { lat: place.lat, lng: place.lng }, extraComputations: [ 'ADDRESS_DESCRIPTORS' ] };
+      try {
+        gc.geocode( request, ( rows: unknown[] | null, status: string ) => {
+          if ( cancelled || status !== 'OK' || !Array.isArray( rows ) || !rows.length ) return;
+          const descriptor = ( rows[ 0 ] as any )?.address_descriptor;
+          const landmark = Array.isArray( descriptor?.landmarks ) ? descriptor.landmarks[ 0 ] : null;
+          const area = Array.isArray( descriptor?.areas ) ? descriptor.areas[ 0 ] : null;
+          const landmarkName = landmark?.display_name || landmark?.displayName?.text || landmark?.display_name?.text;
+          const areaName = area?.display_name || area?.displayName?.text || area?.display_name?.text;
+          const relationship = String( landmark?.spatial_relationship || '' );
+          const relationshipLabel: Record<string, string> = {
+            NEAR: 'Near', WITHIN: 'Within', BESIDE: 'Beside', ACROSS_THE_ROAD: 'Across the road from',
+            DOWN_THE_ROAD: 'Down the road from', AROUND_THE_CORNER: 'Around the corner from', BEHIND: 'Behind',
+          };
+          const parts: string[] = [];
+          if ( landmarkName ) parts.push( `${relationshipLabel[ relationship ] || 'Near'} ${landmarkName}` );
+          if ( areaName && areaName !== landmarkName ) parts.push( `Within ${areaName}` );
+          if ( parts.length ) setAddressDescriptor( parts.join( ' · ' ) );
+        } );
+      } catch { /* optional enrichment */ }
+    };
+    void describe();
+    return () => { cancelled = true; };
+  }, [ place.lat, place.lng, place.placeId, hasSelection, mapReady, ensureGeocoder ] );
+
+  const runAutocomplete = useCallback( async ( text: string ) => {
+    const input = text.trim();
+    if ( !MAPS_KEY || input.length < 2 ) {
       setResults( [] );
+      setActive( -1 );
       setOpen( false );
       setSearchStatus( 'idle' );
       return;
     }
 
     setSearchStatus( 'searching' );
+    const lib = await ensurePlacesLibrary();
+    const Auto = lib?.AutocompleteSuggestion as {
+      fetchAutocompleteSuggestions?: ( req: Record<string, unknown> ) => Promise<{ suggestions?: unknown[] }>;
+    } | undefined;
+    const Token = lib?.AutocompleteSessionToken as ( new () => unknown ) | undefined;
+    if ( !Auto?.fetchAutocompleteSuggestions || !Token ) {
+      // Do not turn a blocked autocomplete library into per-keystroke Geocoding.
+      // Enter/search still provides a one-request Geocoding fallback.
+      setSearchStatus( 'idle' );
+      return;
+    }
+
+    try {
+      if ( !autocompleteTokenRef.current ) autocompleteTokenRef.current = new Token();
+      const out = await Auto.fetchAutocompleteSuggestions( {
+        input,
+        sessionToken: autocompleteTokenRef.current,
+      } );
+      const mapped = ( Array.isArray( out?.suggestions ) ? out.suggestions : [] )
+        .map( suggestion => {
+          const prediction = ( suggestion as { placePrediction?: AutocompletePredictionLike } )?.placePrediction;
+          if ( !prediction ) return null;
+          const name = prediction.mainText?.text
+            || prediction.mainText?.toString?.()
+            || prediction.text?.toString?.()
+            || input;
+          const addr = prediction.secondaryText?.text
+            || prediction.secondaryText?.toString?.()
+            || '';
+          return { name: String( name ), addr: String( addr ), prediction } satisfies SearchResult;
+        } )
+        .filter( ( row ): row is SearchResult => row !== null )
+        .slice( 0, 6 );
+
+      setResults( mapped );
+      setActive( mapped.length ? 0 : -1 );
+      setOpen( mapped.length > 0 );
+      setSearchStatus( mapped.length ? 'idle' : 'no-results' );
+    } catch {
+      setSearchStatus( 'idle' );
+    }
+  }, [ ensurePlacesLibrary ] );
+
+  const runGeocodeSearch = useCallback( async ( text: string ) => {
+    const queryText = text.trim();
+    if ( !MAPS_KEY || !queryText ) return;
+    setSearchStatus( 'searching' );
     const gc = await ensureGeocoder();
     if ( !gc?.geocode ) {
-      setResults( [] );
-      setOpen( true );
-      setSearchStatus( 'unavailable' );
-      return;
+      setResults( [] ); setOpen( false ); setSearchStatus( 'unavailable' ); return;
     }
-
-    gc.geocode(
-      { address: queryText },
-      ( rows, status ) => {
-        if ( status !== 'OK' || !Array.isArray( rows ) ) {
-          setResults( [] );
-          setOpen( true );
-          setSearchStatus( status === 'ZERO_RESULTS' ? 'no-results' : 'unavailable' );
-          return;
-        }
-
-        const mapped: SearchResult[] = rows
-          .slice( 0, 6 )
-          .map( ( row: unknown ): SearchResult | null => {
-            const result = row as {
-              formatted_address?: string;
-              place_id?: string;
-              geometry?: {
-                location?: { lat: () => number; lng: () => number };
-                viewport?: { toJSON?: () => { north: number; south: number; east: number; west: number } };
-              };
-              address_components?: { types?: string[]; short_name?: string }[];
-            };
-            const loc = result.geometry?.location;
-            const lat = loc?.lat?.();
-            const lng = loc?.lng?.();
-            if ( !Number.isFinite( lat ) || !Number.isFinite( lng ) ) return null;
-            const country = result.address_components
-              ?.find( component => component.types?.includes( 'country' ) )?.short_name;
-            const viewport = result.geometry?.viewport?.toJSON?.();
-            const hasViewport = viewport
-              && [ viewport.north, viewport.south, viewport.east, viewport.west ].every( Number.isFinite );
-            const place: PlaceState = {
-              name: result.formatted_address?.split( ',' )[ 0 ] || queryText,
-              addr: result.formatted_address || queryText,
-              lat: lat as number,
-              lng: lng as number,
-              ...( typeof result.place_id === 'string' && result.place_id ? { placeId: result.place_id } : {} ),
-              ...( hasViewport ? { viewport } : {} ),
-              ...( typeof country === 'string' && country ? { regionCode: country.toUpperCase() } : {} ),
-            };
-            return { name: place.name, addr: place.addr, place };
-          } )
-          .filter( ( row ): row is SearchResult => row !== null );
-
-        setResults( mapped );
-        setActive( mapped.length ? 0 : -1 );
-        setOpen( true );
-        setSearchStatus( mapped.length ? 'idle' : 'no-results' );
-      },
-    );
+    gc.geocode( { address: queryText }, ( rows: unknown[] | null, status: string ) => {
+      if ( status !== 'OK' || !Array.isArray( rows ) ) {
+        setResults( [] );
+        setOpen( false );
+        setSearchStatus( status === 'ZERO_RESULTS' ? 'no-results' : 'unavailable' );
+        return;
+      }
+      const mapped = geocoderRowsToSearchResults( rows, queryText );
+      setResults( mapped );
+      setActive( mapped.length ? 0 : -1 );
+      setOpen( mapped.length > 0 );
+      setSearchStatus( mapped.length ? 'idle' : 'no-results' );
+    } );
   }, [ ensureGeocoder ] );
 
-
-  const onQueryChange = ( e: React.ChangeEvent<HTMLInputElement> ) => {
-    const v = e.target.value;
-    setQuery( v );
-    setSearchStatus( 'idle' );
-    if ( !v.trim() ) {
-      const recent = recentPlaces().map( place => ( { name: place.name, addr: place.addr, place } ) );
-      setResults( recent );
-      setActive( recent.length ? 0 : -1 );
-      setOpen( recent.length > 0 );
-      return;
-    }
-    // Cost control: typing is local-only. A provider call happens only on explicit submit.
-    setResults( [] );
-    setActive( -1 );
-    setOpen( false );
-  };
-
-  const choose = useCallback( ( r: SearchResult ) => {
-    const next = r.place;
+  const commitPlace = useCallback( ( next: PlaceState ) => {
     ++selectionSeqRef.current;
     rememberPlace( next );
     setPlace( next );
@@ -2231,7 +2343,60 @@ const VayuLokLive: React.FC = () => {
     setResults( [] );
     setActive( -1 );
     setSearchStatus( 'idle' );
+    autocompleteTokenRef.current = null;
   }, [] );
+
+  const onQueryChange = ( e: React.ChangeEvent<HTMLInputElement> ) => {
+    const v = e.target.value;
+    setQuery( v );
+    setSearchStatus( 'idle' );
+    if ( searchTimer.current ) clearTimeout( searchTimer.current );
+    if ( !v.trim() ) {
+      autocompleteTokenRef.current = null;
+      const recent = recentPlaces().map( place => ( { name: place.name, addr: place.addr, place } ) );
+      setResults( recent );
+      setActive( recent.length ? 0 : -1 );
+      setOpen( recent.length > 0 );
+      return;
+    }
+    if ( v.trim().length < 2 ) {
+      setResults( [] ); setActive( -1 ); setOpen( false ); return;
+    }
+    searchTimer.current = setTimeout( () => { void runAutocomplete( v ); }, SEARCH_DEBOUNCE_MS );
+  };
+
+  const choose = useCallback( async ( r: SearchResult ) => {
+    if ( r.place ) {
+      commitPlace( r.place );
+      return;
+    }
+
+    const prediction = r.prediction;
+    let placeId = prediction?.placeId;
+    if ( !placeId ) {
+      try { placeId = prediction?.toPlace?.()?.id; } catch { /* use address fallback */ }
+    }
+
+    setSearchStatus( 'searching' );
+    const gc = await ensureGeocoder();
+    if ( !gc?.geocode ) {
+      setSearchStatus( 'unavailable' );
+      return;
+    }
+    const request = placeId ? { placeId } : { address: r.addr || r.name };
+    gc.geocode( request, ( rows: unknown[] | null, status: string ) => {
+      if ( status !== 'OK' || !Array.isArray( rows ) || !rows.length ) {
+        setSearchStatus( status === 'ZERO_RESULTS' ? 'no-results' : 'unavailable' );
+        return;
+      }
+      const resolved = geocoderRowsToSearchResults( rows, r.name )[ 0 ]?.place;
+      if ( !resolved ) {
+        setSearchStatus( 'no-results' );
+        return;
+      }
+      commitPlace( resolved );
+    } );
+  }, [ commitPlace, ensureGeocoder ] );
 
   const onKeyDown = ( e: React.KeyboardEvent<HTMLInputElement> ) => {
     if ( e.key === 'Escape' ) {
@@ -2240,24 +2405,21 @@ const VayuLokLive: React.FC = () => {
       return;
     }
     if ( e.key === 'ArrowDown' && open && results.length ) {
-      e.preventDefault();
-      setActive( i => Math.min( i + 1, results.length - 1 ) );
-      return;
+      e.preventDefault(); setActive( i => Math.min( i + 1, results.length - 1 ) ); return;
     }
     if ( e.key === 'ArrowUp' && open && results.length ) {
-      e.preventDefault();
-      setActive( i => Math.max( i - 1, 0 ) );
-      return;
+      e.preventDefault(); setActive( i => Math.max( i - 1, 0 ) ); return;
     }
     if ( e.key === 'Enter' ) {
       e.preventDefault();
-      if ( open && active >= 0 && results[ active ] ) {
-        choose( results[ active ] );
-      } else if ( query.trim() ) {
-        void runSearch( query );
-      }
+      if ( open && active >= 0 && results[ active ] ) void choose( results[ active ] );
+      else if ( query.trim() ) void runGeocodeSearch( query );
     }
   };
+
+  useEffect( () => () => {
+    if ( searchTimer.current ) clearTimeout( searchTimer.current );
+  }, [] );
 
   // The floating Air card and the on-map label read these. The former LEFT-panel
   // derivations (photo rail, 24h forecast rail, best-outside / rain signals, 4-day
@@ -2335,16 +2497,17 @@ const VayuLokLive: React.FC = () => {
               aria-controls="vl-live-search-results"
               aria-expanded={ open }
               aria-activedescendant={ open && active >= 0 ? `vl-live-search-option-${active}` : undefined }
-              aria-autocomplete="none"
+              aria-autocomplete="list"
               autoComplete="off"
               autoCorrect="off"
               spellCheck={ false }
-              placeholder="Search a city or pincode, then press Enter"
+              placeholder="Search a city or pincode"
               value={ query }
               onChange={ onQueryChange }
               onFocus={ () => {
                 if ( query.trim() ) {
                   if ( results.length ) setOpen( true );
+                  else if ( query.trim().length >= 2 ) void runAutocomplete( query );
                   return;
                 }
                 const recent = recentPlaces().map( place => ( { name: place.name, addr: place.addr, place } ) );
@@ -2358,14 +2521,15 @@ const VayuLokLive: React.FC = () => {
               aria-label="Search destination"
               title="Search destination"
               disabled={ !query.trim() || searchStatus === 'searching' }
-              onClick={ () => { if ( query.trim() ) void runSearch( query ); } }
+              onClick={ () => { if ( query.trim() ) void runGeocodeSearch( query ); } }
             >
               <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.search } /></svg>
             </button>
             <VoiceSearchMic
               onTranscript={ transcript => {
+                if ( searchTimer.current ) clearTimeout( searchTimer.current );
                 setQuery( transcript );
-                void runSearch( transcript );
+                void runAutocomplete( transcript );
               } }
             />
           </div>
