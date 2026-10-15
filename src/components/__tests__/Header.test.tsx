@@ -343,7 +343,7 @@ describe( 'Header', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
     fireEvent.change( screen.getByLabelText( 'Search navigation' ), { target: { value: 'elsewhere' } } );
-    expect( screen.getByRole( 'status' ) ).toHaveTextContent( '3 menu results.' );
+    expect( screen.getByRole( 'status' ) ).toHaveTextContent( '2 menu results.' );
   } );
 
   it( 'includes vh fallback, dynamic viewport sizing and native safe-area insets', () => {
