@@ -456,9 +456,10 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
       } ) ),
     ];
 
-    const bySourceId = new Map(
-      files.map( item => [ `blogsrc_${ item.sha256 }`, item ] as const ) );
-    const byName = new Map( files.map( item => [ item.name, item ] as const ) );
+    const bySourceId = new Map<string, PickedFile>(
+      files.map( item => [ `blogsrc_${ item.sha256 }`, item ] ) );
+    const byName = new Map<string, PickedFile>(
+      files.map( item => [ item.name, item ] ) );
 
     try
     {
