@@ -286,6 +286,10 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
   const [ log, setLog ] = useState<string[]>( [] );
   const [ dragging, setDragging ] = useState( false );
   const [ sources, setSources ] = useState<BlogSourceView[]>( [] );
+  const [ sourceRollup, setSourceRollup ] = useState<Record<string, number>>( {} );
+  const [ sourceTotal, setSourceTotal ] = useState( 0 );
+  const [ sourceShown, setSourceShown ] = useState( 0 );
+  const [ sourceTruncated, setSourceTruncated ] = useState( false );
   const [ aiDraftEnabled, setAiDraftEnabled ] = useState( false );
   const [ maxSourceBytes, setMaxSourceBytes ] = useState( 0 );
   const [ drafts, setDrafts ] = useState<Record<string, BlogDraftResponse>>( {} );
@@ -305,6 +309,10 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
     {
       const data = await listBlogSources( SOURCE_LIST_LIMIT );
       setSources( Array.isArray( data.sources ) ? data.sources : [] );
+      setSourceRollup( data.byStatus || {} );
+      setSourceTotal( Number( data.total || 0 ) );
+      setSourceShown( Number( data.shown || data.sources?.length || 0 ) );
+      setSourceTruncated( Boolean( data.truncated ) );
       setAiDraftEnabled( Boolean( data.aiDraftEnabled ) );
       setMaxSourceBytes( Number( data.maxSourceBytes || 0 ) );
       setApiError( '' );
@@ -681,11 +689,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
     }
   }, [ addLog ] );
 
-  const liveRollup = useMemo( () => {
-    const byStatus: Record<string, number> = {};
-    for ( const row of sources ) byStatus[ row.status ] = ( byStatus[ row.status ] || 0 ) + 1;
-    return byStatus;
-  }, [ sources ] );
+  const liveRollup = sourceRollup;
 
   const rollup = useMemo( () => {
     const byStatus: Record<string, number> = {};
@@ -914,9 +918,16 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
 
           <div className="card" style={ { padding: 20, marginBottom: 16 } }>
             <div style={ { display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' } }>
-              <h2 style={ { fontSize: 14, fontWeight: 700, margin: '0 0 8px' } }>
-                Uploaded sources
-              </h2>
+              <div>
+                <h2 style={ { fontSize: 14, fontWeight: 700, margin: '0 0 2px' } }>
+                  Uploaded sources
+                </h2>
+                <div style={ { fontSize: 11, color: 'rgba(0,0,0,.54)' } }>
+                  { sourceTruncated
+                    ? `Showing ${ sourceShown } recent rows of ${ sourceTotal } total sources`
+                    : `${ sourceTotal } total source(s)` }
+                </div>
+              </div>
               <div style={ { display: 'flex', gap: 8, alignItems: 'center' } }>
                 <span style={ { fontSize: 11, color: 'rgba(0,0,0,.54)' } }>
                   { inFlight > 0
