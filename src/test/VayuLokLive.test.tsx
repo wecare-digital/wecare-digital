@@ -136,6 +136,9 @@ interface MapsRecorder {
   markerOpts: Record<string, unknown>[];
   fitBoundsCalls: { bounds: unknown; padding?: number }[];
   setZoomCalls: number[];
+  setCenterCalls: { lat: number; lng: number }[];
+  mapCenter: { lat: number; lng: number };
+  mapIdleHandler?: () => void;
   mapClickHandler?: ( event: { latLng?: { lat: () => number; lng: () => number } } ) => void;
 }
 
@@ -187,6 +190,8 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     markerOpts: [],
     fitBoundsCalls: [],
     setZoomCalls: [],
+    setCenterCalls: [],
+    mapCenter: { lat: 25, lng: 86 },
   };
 
   // An ARRAY-BACKED MVCArray-like double for map.overlayMapTypes. The production component's
@@ -213,12 +218,24 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
 
   class FakeMap {
     overlayMapTypes = overlayMapTypes;
-    constructor( _el: HTMLElement, opts: Record<string, unknown> ) { rec.mapOpts = opts; }
-    setCenter() { /* no-op */ }
+    constructor( _el: HTMLElement, opts: Record<string, unknown> ) {
+      rec.mapOpts = opts;
+      const initial = opts.center as { lat?: number; lng?: number } | undefined;
+      if ( Number.isFinite( initial?.lat ) && Number.isFinite( initial?.lng ) ) {
+        rec.mapCenter = { lat: initial!.lat as number, lng: initial!.lng as number };
+      }
+    }
+    getCenter() { return { lat: () => rec.mapCenter.lat, lng: () => rec.mapCenter.lng }; }
+    getZoom() { return 4; }
+    setCenter( value: { lat: number; lng: number } ) {
+      rec.mapCenter = value;
+      rec.setCenterCalls.push( value );
+    }
     setZoom( zoom: number ) { rec.setZoomCalls.push( zoom ); }
     fitBounds( bounds: unknown, padding?: number ) { rec.fitBoundsCalls.push( { bounds, padding } ); }
     addListener( eventName: string, handler: ( event?: any ) => void ) {
       if ( eventName === 'tilesloaded' && paintMap ) requestAnimationFrame( () => handler() );
+      if ( eventName === 'idle' ) rec.mapIdleHandler = () => handler();
       if ( eventName === 'click' ) rec.mapClickHandler = handler;
       return { remove() { /* no-op */ } };
     }
@@ -621,11 +638,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( rec.mapOpts?.center ).toEqual( { lat: 25, lng: 86 } );
     expect( rec.mapOpts?.zoom ).toBe( 4 );
     expect( rec.mapOpts?.mapTypeId ).toBe( 'hybrid' );
-    expect( rec.mapOpts?.gestureHandling ).toBe( 'none' );
-    expect( rec.mapOpts?.draggable ).toBe( false );
-    expect( rec.mapOpts?.scrollwheel ).toBe( false );
-    expect( rec.mapOpts?.disableDoubleClickZoom ).toBe( true );
-    expect( rec.mapOpts?.zoomControl ).toBe( false );
+    expect( rec.mapOpts?.gestureHandling ).toBe( 'greedy' );
+    expect( rec.mapOpts?.draggable ).toBe( true );
+    expect( rec.mapOpts?.scrollwheel ).toBe( true );
+    expect( rec.mapOpts?.keyboardShortcuts ).toBe( true );
+    expect( rec.mapOpts?.disableDoubleClickZoom ).toBe( false );
+    expect( rec.mapOpts?.zoomControl ).toBe( true );
     expect( rec.mapClickHandler ).toBeUndefined();
 
     expect( container.querySelector( '.vl-live-place-card' ) ).toBeNull();
@@ -676,6 +694,38 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( decodedIcon ).toContain( 'width="36" height="36"' );
     expect( decodedIcon ).not.toContain( 'M19 0C8.5 0 0 8.5' );
     expect( rec.fitBoundsCalls[ 0 ].padding ).toBe( 56 );
+  } );
+
+  it( 'treats direct map movement as a new selected place and refreshes default live data', async () => {
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    const map = container.querySelector( '.vl-live-map-canvas' ) as HTMLElement | null;
+    expect( map ).not.toBeNull();
+
+    // A direct map gesture followed by Google's idle event makes the visible center authoritative.
+    fireEvent.pointerDown( map as HTMLElement );
+    rec.mapCenter = { lat: 19.076, lng: 72.8777 };
+    rec.mapIdleHandler?.();
+
+    await waitFor( () => {
+      expect( rec.geocodeCalls.some( call => {
+        const loc = call.location as { lat?: number; lng?: number } | undefined;
+        return loc?.lat === 19.076 && loc?.lng === 72.8777;
+      } ) ).toBe( true );
+    } );
+
+    await waitFor( () => {
+      expect( fetchSpy.mock.calls.some( call => {
+        const url = String( call[ 0 ] );
+        return url.includes( 'weather.googleapis.com/v1/currentConditions' )
+          && url.includes( 'location.latitude=19.076' )
+          && url.includes( 'location.longitude=72.8777' );
+      } ) ).toBe( true );
+    } );
   } );
 
   it( 'overlays a floating Air Quality card on the map (no left place panel) with the title and the Air/Weather toggle', async () => {

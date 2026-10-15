@@ -1,102 +1,54 @@
-# VayuLok live page: Google credential and deploy contract
+# VayuLok live page: browser credential and interaction contract
 
-The approved v8 UI has two different Google trust boundaries. Do not put them back on one key.
+VayuLok is intentionally a browser-driven Google Maps experience.
 
-## Browser key: Maps UI only
+## One browser flow
 
-`NEXT_PUBLIC_GOOGLE_BROWSER_KEY` is a public browser key. With Next static export it is
-inlined into JavaScript by design, so its protection is restriction, not secrecy.
-
-Use Google Cloud Website / HTTP referrer application restrictions:
-
-- `https://wecare.digital/*`
-- `https://*.wecare.digital/*`
-
-Do not put `*.googleapis.com/*`, `places.googleapis.com`, or other Google API hosts in
-the website allow-list. Those are destinations, not the referring WECARE website.
-
-Restrict this browser key to the APIs the approved browser UI needs:
+`NEXT_PUBLIC_GOOGLE_BROWSER_KEY` is the credential used by the public VayuLok page for:
 
 - Maps JavaScript API
 - Places API (New)
 - Geocoding API
-- Maps Elevation API
+- Time Zone API
+- Weather API
+- Air Quality API
 
-Do not add Weather, Air Quality, Pollen, Solar, Translate, Vision, YouTube, Business Profile,
-Routes, or unrelated APIs simply because they are enabled in the project.
+The key is expected to be a website/browser key restricted to WECARE.DIGITAL origins. VayuLok must not depend on a separate `/vayulok/environment` gateway to render its core Air or Weather experience.
 
-## Server key: Weather + Air Quality
+With Next static export the browser key is bundled into client JavaScript. Treat that as expected browser-key behavior: protect it with Google API restrictions and WECARE.DIGITAL website/referrer restrictions rather than by moving VayuLok's live reads behind an application gateway.
 
-Weather and Air Quality web-service requests belong behind
-`POST /vayulok/environment`, implemented by
-`amplify/functions/core/vayulok-environment/handler.py`.
+## Interaction contract
 
-That Lambda reads `wecare/google/cloud` from AWS Secrets Manager at request time and
-sends the key to Google in `X-Goog-Api-Key`, never in a browser bundle or URL query string.
-The server key is provisioned by `scripts/provision_maps_server_key.py`; its API target list
-contains the existing server address-capture and Translate services plus:
+The map itself is a location picker.
 
-- `airquality.googleapis.com`
-- `weather.googleapis.com`
+- Initial destination is Shillong.
+- Search/recent places can jump the camera to a destination.
+- Direct drag, touch/pinch, wheel/zoom and keyboard map movement are enabled.
+- After direct map movement settles, the visible map center becomes the selected destination.
+- VayuLok reverse-geocodes that center when Geocoding is available.
+- Air Quality and Weather refresh automatically for the newly selected center.
+- A map-originated selection must not snap the camera back to the search zoom.
 
-The public gateway is deliberately narrow: WECARE HTTPS Origin check before the secret read,
-India coordinate bounds, fixed operation names, fixed Weather/Air request shapes, bounded
-history ranges, a server-generated 3x3/5x5 AQ grid capped at 25 samples, and an API Gateway
-per-route throttle. Origin is cost-friction, not authentication; provider quotas and budgets
-remain necessary.
+The default information cards therefore always follow the current selected map location, whether it came from search or from direct map interaction.
 
-## Safe rollout order
+## Failure behavior
 
-The repository change is intentionally staged so production does not lose environmental data.
+A failed optional reverse-geocode must not block environmental refresh. In that case VayuLok keeps the selected coordinates and labels the point generically.
 
-1. Recreate/verify the server key without printing it:
-   `python scripts/provision_maps_server_key.py --create`
-   (or `--status` / `--verify` when it already exists).
-2. **Teach the public-bundle gate the new key, in the same change.** Step 1 prints a
-   copy-pasteable entry for `FORBIDDEN_FINGERPRINTS` in
-   `scripts/verify_public_bundle_secrets.py`, where a commented placeholder slot is
-   already waiting for it. Paste it **verbatim** — the printed block is a complete,
-   valid dict entry (two adjacent string literals relying on implicit concatenation),
-   and `tests/test_vayulok_server_key_provisioning.py` `ast.parse`s what the script
-   prints so a reflow that breaks the paste fails in CI rather than here. Then commit.
+Provider/API failures must remain visible as unavailable/error states; they must not be disguised as successful empty results.
 
-   After pasting, confirm the gate sees it:
-   `python scripts/verify_public_bundle_secrets.py --list-fingerprints`
-   must report the new entry instead of none.
+## Deployment
 
-   This is not bookkeeping. The key step 1 mints carries **no application restriction**
-   — deliberate, because Lambda has no stable egress IP to allowlist — so unlike the
-   referrer-restricted browser key it must never be inlined into a public JS chunk.
-   `output: 'export'` inlines every `NEXT_PUBLIC_*` value, and that gate is the only
-   automated thing that would notice. Until the fingerprint is pasted, the gate is blind
-   to the one key it was written for. The fingerprint is a one-way sha256 prefix and is
-   safe to commit; the value itself is never printed.
-3. Provision the gateway:
-   `python scripts/provision_vayulok_environment.py`
-4. Read back the route/alias:
-   `python scripts/provision_vayulok_environment.py --verify`
-5. Smoke `POST /vayulok/environment` from an allowed deployed WECARE origin.
-6. Only after that evidence is green, change `VayuLokLive.tsx` from direct
-   `weather.googleapis.com` / `airquality.googleapis.com` calls to this gateway.
-7. Then remove Weather/Air Quality from the browser key's API restrictions and redeploy
-   `stack`.
+Amplify reads the build-time browser key from the existing WECARE.DIGITAL Maps secret and exports it as `NEXT_PUBLIC_GOOGLE_BROWSER_KEY`.
 
-Do not perform step 6 before steps 1-5. The canonical `wecare/google/cloud` secret currently holds the referrer-restricted browser
-key until the server-key provisioning step replaces only its key fields while preserving project
-metadata. Cutting the browser over before that key and gateway are verified would turn credential
-hardening into a VayuLok outage.
+Any Google Cloud key-policy change for this feature must keep the browser key enabled for the six APIs listed above. Do not reintroduce a mandatory VayuLok server relay without an explicit product decision, because that previously caused repeated live breakage.
 
-## Unsupported India calls
+## Acceptance
 
-The approved v8 implementation does not call Google Pollen for India and does not request
-Google Weather public alerts for India. Do not enable those APIs on either key to compensate
-for absent UI data.
+On a deployed `*.wecare.digital` origin:
 
-## Validation
-
-- `tests/test_vayulok_environment.py` pins the server boundary.
-- `src/test/VayuLokLive.test.tsx` pins the approved v8 browser DOM/data behavior.
-- `.github/workflows/build-test.yml` runs build, TypeScript, Vitest, browser harness and lint.
-
-The final acceptance step remains a live rendered comparison of `/vayulok/` against
-`vayulok-local-prototype-wecare-v8(1).html` on a `*.wecare.digital` origin.
+1. Load `/vayulok/` and confirm Shillong Air/Weather appears.
+2. Drag or rotate/pan the map to a visibly different location.
+3. Release the map and confirm the displayed location/default information changes.
+4. Confirm Weather and Air Quality requests use the new center coordinates.
+5. Search for a city and confirm search still recenters and refreshes the same data.
