@@ -3925,12 +3925,11 @@ const VayuLokLive: React.FC = () => {
         /* ROUNDED MAP SECTION. The whole map area now carries the same corner radius as the
            surrounding cards (var(--panel-r) = the shared --radius-xl), so it no longer reads as a
            square against the rounded floating card. The SHELL keeps overflow:visible so the
-           floating .vl-live-air-card (which insets to clear Google's logo/legal corners) is never
-           clipped; instead the radius is applied to the map's VISUAL layers that fill it
-           (canvas, placeholder, fallback, atmosphere), each with overflow:hidden, so the Google
-           tiles/overlays and loading/fallback states clip to the rounded corners. Google's logo
-           and Terms sit inset from the bottom corners and are NOT hidden. isolation:isolate keeps
-           the overlay z-stack contained; the height band is unchanged. */
+           floating .vl-live-air-card is never clipped; instead the radius is applied to the map's
+           VISUAL layers that fill it (canvas, placeholder, fallback, atmosphere), each with
+           overflow:hidden, so the Google tiles/overlays and loading/fallback states clip to the
+           rounded corners. isolation:isolate keeps the overlay z-stack contained; the height band
+           is unchanged. */
         .vl-live-map-shell{position:relative;display:grid;height:auto;min-height:min(620px,72svh);max-height:none;overflow:visible;border-radius:var(--panel-r);background:#eef1ed;isolation:isolate;contain:layout}
         .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%;border-radius:var(--panel-r);overflow:hidden}
         .vl-live-map-canvas{opacity:0}
