@@ -297,3 +297,18 @@ def test_can_clear_artwork_after_both_publication_channels_are_off():
     product = payload(response)["product"]
     assert product["catalogImageKey"] == ""
     assert product["imageRefs"] == []
+
+
+@pytest.mark.parametrize("field", ["websiteEnabled", "metaEnabled"])
+def test_new_product_cannot_publish_a_channel_before_activation(field):
+    table = Table()
+    body = {
+        "title": "Premature Publish",
+        "slug": "premature-publish",
+        "variants": [{"priceMinor": 9900, "inventory": 0}],
+        "catalogImageKey": "o/stream/media/m/wd-catalog-live/kiosk-4096.png",
+        field: True,
+    }
+    response = mod.handle_request(event(method="POST", body=body), table)
+    assert response["statusCode"] == 400
+    assert table.items == {}

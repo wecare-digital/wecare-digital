@@ -189,8 +189,8 @@ def _create(table, body: dict[str, Any], who: str) -> tuple[int, dict[str, Any]]
         image_key = _catalog_image_key(body.get("catalogImageKey"))
     website_enabled = _channel_flag(body.get("websiteEnabled", False), "websiteEnabled")
     meta_enabled = _channel_flag(body.get("metaEnabled", False), "metaEnabled")
-    if (website_enabled or meta_enabled) and not image_key:
-        raise ValueError("channel publication requires an approved catalogImageKey")
+    if website_enabled or meta_enabled:
+        raise ValueError("new products start draft with publication channels disabled")
     row = {
         "id": "native:" + slug,
         "title": title,

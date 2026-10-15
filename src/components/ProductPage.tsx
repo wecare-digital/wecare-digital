@@ -78,6 +78,18 @@ interface ProductPageProps {
 // The SITE constant that used to live here is gone: PageMeta owns the origin now, so
 // keeping a second copy of it here would be a second place for it to be wrong.
 
+// Exact master-derived catalogue labels that also name a source-defined product page.
+// Parent families without a matching parent artwork are deliberately absent: never substitute
+// a child label as the parent's product photo.
+const CATALOG_ARTWORK_BASE = 'https://wecare.digital/get/o/stream/media/m/wd-catalog-live/';
+const PRODUCT_ARTWORK: Readonly<Record<string, string>> = {
+  'expo-week': CATALOG_ARTWORK_BASE + 'expo-week-4096.png',
+  anew: CATALOG_ARTWORK_BASE + 'anew-4096.png',
+  hunar: CATALOG_ARTWORK_BASE + 'hunar-4096.png',
+  'niji-setu': CATALOG_ARTWORK_BASE + 'niji-setu-4096.png',
+};
+
+
 const ProductPage: React.FC<ProductPageProps> = ( {
   product,
   blogCards,
@@ -121,6 +133,16 @@ const ProductPage: React.FC<ProductPageProps> = ( {
         <div className="pdp-crumbs"><Breadcrumbs items={ crumbs } /></div>
       ) }
       <section className="pdp" aria-label={ `About ${product.name}` }>
+        { PRODUCT_ARTWORK[ product.slug ] && (
+          <img
+            className="pdp-artwork"
+            src={ PRODUCT_ARTWORK[ product.slug ] }
+            alt={ `${product.name} catalogue artwork` }
+            width={ 4096 }
+            height={ 4096 }
+            decoding="async"
+          />
+        ) }
         <h2 className="pdp-h2">{ product.sectionHeading }</h2>
         {/* The lead may hold more than one paragraph, split on a blank line (\n\n) in the source,
             the same way the boundary note does - so an opener line can sit above the main
@@ -228,6 +250,10 @@ const ProductPage: React.FC<ProductPageProps> = ( {
 
         <style jsx>{`
           .pdp{max-width:700px}
+          .pdp-artwork{
+            display:block;width:100%;height:auto;aspect-ratio:1/1;object-fit:cover;
+            margin:0 0 28px;border:1px solid #e5e7eb;border-radius:14px;background:#fff;
+          }
           .pdp-h2{
             font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;
             letter-spacing:-1.2px;color:rgba(0,0,0,.95);margin:0 0 22px;
