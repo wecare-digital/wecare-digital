@@ -1,7 +1,6 @@
 """AWS-native catalog snapshot contract.
 
-The storefront snapshot is built from ProductsTable. The retained historical
-`wix-catalog.json` exists only for reconciliation and is not a build dependency.
+The storefront snapshot is built from ProductsTable. No retired provider snapshot is a storefront build dependency.
 """
 from __future__ import annotations
 
@@ -89,7 +88,6 @@ def test_publish_guard_rejects_empty_snapshot():
         raise AssertionError("empty native catalog was accepted")
 
 
-def test_retained_provider_snapshot_is_not_the_storefront_import():
+def test_storefront_import_is_native_snapshot_only():
     shop = (REPO / "src/content/shop.ts").read_text(encoding="utf-8")
     assert "catalog-snapshot.json" in shop
-    assert "wix-catalog.json" not in shop

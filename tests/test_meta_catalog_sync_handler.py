@@ -37,7 +37,7 @@ sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 from lambda_utils.ecommerce import meta_catalog_sync as sync  # noqa: E402
 
 HANDLER = ROOT / "amplify/functions/ecommerce/meta-catalog-sync/handler.py"
-SNAPSHOT = ROOT / "src/content/wix-catalog.json"
+SNAPSHOT = ROOT / "src/content/catalog-snapshot.json"
 
 #: A token-SHAPED placeholder, assembled so the file contains no issuer-prefixed literal. Its only
 #: job is to be non-empty: nothing in this file asserts anything about its value.
