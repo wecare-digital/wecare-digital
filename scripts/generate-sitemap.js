@@ -129,6 +129,18 @@ function isPublicRoute ( route ) {
   return PUBLIC_EXACT.has( route ) || PUBLIC_PREFIXES.some( prefix => route.startsWith( prefix ) );
 }
 
+// A sitemap lists CANONICAL URLs only. A page whose rel=canonical names another URL is a duplicate
+// by its own declaration - since catalog v2, /shop/anew/ canonicalises to /anew/ - and listing it is
+// the "Duplicate, Google chose different canonical than user" signal this file exists to stop.
+function canonicalElsewhere ( file, route ) {
+  const html = fs.readFileSync( file, 'utf8' );
+  const tag = ( html.match( /<link\b[^>]*\brel="canonical"[^>]*>/i ) || [] )[ 0 ];
+  const href = tag && ( tag.match( /\bhref="([^"]+)"/i ) || [] )[ 1 ];
+  if ( !href ) return false;
+  try { return normalizeRoute( new URL( href, 'https://wecare.digital' ).pathname ) !== route; }
+  catch { return false; }
+}
+
 function findHtmlFiles ( dir, base = '' ) {
   const urls = [];
   if ( !fs.existsSync( dir ) ) return urls;
@@ -147,7 +159,7 @@ function findHtmlFiles ( dir, base = '' ) {
     else if ( entry.name === 'index.html' )
     {
       const route = normalizeRoute( base );
-      if ( isPublicRoute( route ) ) urls.push( route );
+      if ( isPublicRoute( route ) && !canonicalElsewhere( fullPath, route ) ) urls.push( route );
     }
   }
   return urls;

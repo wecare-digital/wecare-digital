@@ -122,7 +122,9 @@ ENVIRONMENT = {
     # Empty means the product-level metaEnabled flag owns scope. Existing legacy rows remain
     # eligible until they are explicitly migrated; every newly-created native product starts
     # metaEnabled=false, so it cannot appear in the plan accidentally.
-    "META_CATALOG_SYNC_VARIANT_IDS": "",
+    # The live rollout scope (set 2026-10-15 11:54 IST with the gates). Clear it deliberately,
+    # with the manifest and the test, to hand scope to the product-level flag.
+    "META_CATALOG_SYNC_VARIANT_IDS": "ac5cee5d-0dd1-4a1e-ac13-c3767d3fd8dd,1960aa09-7585-4813-91b5-13b30e64d342,9a108efe-e3b9-42f2-b465-0e8470a293e4,081aa95d-82e4-451c-80f2-bc076d1cdb4d,4d3e2b31-7888-4250-8f5a-0587344431db,750a2d69-198d-42fa-ad80-f13a19ec6603,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,8ee7e325-d772-4452-a993-5c79e927d42b,db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4,e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,3788a657-9af2-4ecf-8c9b-f218669d753c,3879304e-f924-430e-991a-bd9592c1d8f7,4a691fd4-549d-4698-bff6-2df7c094ccf9,973e32ca-6272-43d9-b9ea-9dc1dd9ac2af,997508d6-1f2a-4d33-80df-83e992b4910a,9a3ac454-45b6-44ed-9d4a-7b4106e45556,a3559cf9-ced8-47d4-be89-ba6267af0b83,b2dc278c-1653-4012-acd8-feb0cf871899,b6aeb636-d3d8-4765-a63c-751c440d9a32,da9a27b8-d781-49c2-954a-66d8020861df",
     "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "false",
     "CATALOG_SOURCE": "aws",
     "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
