@@ -344,7 +344,10 @@ response = requests.post(
                 </div>
               </div>
             </div>
-        </RotatingHero>point and capabilities sit on a #fafafa
+        </RotatingHero>
+
+        {/*
+          Full-bleed tint pattern: touchpoint and capabilities sit on a #fafafa
           canvas that has to reach both window edges, so the 1300px measure moves
           off the section and onto .pp-inner while the section itself goes 100vw
           with a centring negative margin. Every class this pattern introduces is
