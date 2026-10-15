@@ -138,8 +138,16 @@ interface MapsRecorder {
   setZoomCalls: number[];
   setCenterCalls: { lat: number; lng: number }[];
   mapCenter: { lat: number; lng: number };
+  // Live map listeners by event name. remove() really unregisters, as a Google
+  // MapsEventListener does, so a test cannot fire a listener the component tore down.
+  mapListeners: Map<string, Set<( event?: any ) => void>>;
+  // Fires every live listener for one map event, the way Google dispatches it.
+  fireMapEvent: ( eventName: string ) => void;
+  // Fires the live 'idle' listeners: the camera has settled.
   mapIdleHandler?: () => void;
   mapClickHandler?: ( event: { latLng?: { lat: () => number; lng: () => number } } ) => void;
+  // Geocoder answers held back by `deferGeocode`, so a test can release them in any order.
+  pendingGeocodes: { req: Record<string, unknown>; release: () => void }[];
 }
 
 // Honest Place metadata the Places JS API may return. When provided, the stubbed Place
@@ -164,6 +172,11 @@ interface InstallOpts {
   // 'OK'; set e.g. 'REQUEST_DENIED' to exercise the error-surfacing fallback.
   geocodeStatus?: string;
   geocodeRows?: unknown[];
+  // Rows for one request, e.g. a different address per reverse-geocoded map center. Falls back
+  // to geocodeRows, then to the default Mumbai row, when it returns undefined.
+  geocodeRowsFor?: ( req: Record<string, unknown> ) => unknown[] | undefined;
+  // Hold every geocode answer in rec.pendingGeocodes instead of answering at once.
+  deferGeocode?: boolean;
   placeCountryCode?: string;
 }
 
@@ -174,6 +187,8 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     seedNamespaceGeocoder = true,
     geocodeStatus = 'OK',
     geocodeRows,
+    geocodeRowsFor,
+    deferGeocode = false,
     placeCountryCode = 'IN',
   }: InstallOpts = typeof opts === 'boolean' ? { paintMap: opts } : opts;
   const rec: MapsRecorder = {
@@ -192,7 +207,13 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     setZoomCalls: [],
     setCenterCalls: [],
     mapCenter: { lat: 25, lng: 86 },
+    mapListeners: new Map(),
+    fireMapEvent: eventName => {
+      for ( const handler of [ ...( rec.mapListeners.get( eventName ) || [] ) ] ) handler();
+    },
+    pendingGeocodes: [],
   };
+  rec.mapIdleHandler = () => rec.fireMapEvent( 'idle' );
 
   // An ARRAY-BACKED MVCArray-like double for map.overlayMapTypes. The production component's
   // detachHeatmap prefers the MVCArray contract: when getLength/getAt/removeAt are present it
@@ -235,9 +256,11 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     fitBounds( bounds: unknown, padding?: number ) { rec.fitBoundsCalls.push( { bounds, padding } ); }
     addListener( eventName: string, handler: ( event?: any ) => void ) {
       if ( eventName === 'tilesloaded' && paintMap ) requestAnimationFrame( () => handler() );
-      if ( eventName === 'idle' ) rec.mapIdleHandler = () => handler();
       if ( eventName === 'click' ) rec.mapClickHandler = handler;
-      return { remove() { /* no-op */ } };
+      const live = rec.mapListeners.get( eventName ) || new Set<( event?: any ) => void>();
+      live.add( handler );
+      rec.mapListeners.set( eventName, live );
+      return { remove() { live.delete( handler ); } };
     }
   }
   class FakeMarker {
@@ -257,7 +280,7 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
       // fallback's mapping path (results + 'idle') is exercised, not just the error branch.
       if ( typeof cb === 'function' ) {
         const rows = geocodeStatus === 'OK'
-          ? ( geocodeRows || [ {
+          ? ( geocodeRowsFor?.( req ) || geocodeRows || [ {
               formatted_address: 'Mumbai, Maharashtra, India',
               place_id: 'fake-place-id',
               geometry: { location: { lat: () => 19.076, lng: () => 72.8777 } },
@@ -266,7 +289,9 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
               ],
             } ] )
           : null;
-        cb( rows, geocodeStatus );
+        const release = () => cb( rows, geocodeStatus );
+        if ( deferGeocode ) rec.pendingGeocodes.push( { req, release } );
+        else release();
       }
     }
   }
@@ -373,6 +398,55 @@ async function selectMumbai() {
   fireEvent.pointerDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
   await waitFor( () => expect( rec.fitBoundsCalls.length ).toBeGreaterThan( 0 ) );
 }
+
+// One direct map gesture: a pointer lands on the canvas, the camera settles at `center`, and
+// Google fires idle, which is when the component commits the visible center as the place.
+function moveMapTo( container: HTMLElement, center: { lat: number; lng: number } ) {
+  fireEvent.pointerDown( container.querySelector( '.vl-live-map-canvas' ) as HTMLElement );
+  rec.mapCenter = center;
+  act( () => { rec.mapIdleHandler?.(); } );
+}
+
+// The reverse geocode for a committed map center. Place enrichment also sends a location, but
+// always with extraComputations, so those lookups are excluded.
+const isCenterLookup = ( req: Record<string, unknown>, lat: number ) => (
+  !req.extraComputations && ( req.location as { lat?: number } | undefined )?.lat === lat
+);
+const centerLookups = ( lat: number ) => rec.geocodeCalls.filter( req => isCenterLookup( req, lat ) );
+const releaseCenterLookup = ( lat: number ) => {
+  const pending = rec.pendingGeocodes.find( entry => isCenterLookup( entry.req, lat ) );
+  expect( pending, `no held reverse geocode for ${lat}` ).toBeDefined();
+  act( () => { pending!.release(); } );
+};
+
+const weatherFetchedAt = ( spy: { mock: { calls: unknown[][] } }, lat: number, lng: number ) => (
+  spy.mock.calls.some( call => {
+    const url = String( call[ 0 ] );
+    return url.includes( 'weather.googleapis.com/v1/currentConditions' )
+      && url.includes( `location.latitude=${lat}` )
+      && url.includes( `location.longitude=${lng}` );
+  } )
+);
+
+// Give pending effects and timers a moment, so a late update would have landed.
+const settle = () => act( async () => { await new Promise( resolve => setTimeout( resolve, 30 ) ); } );
+
+const LUCKNOW = { lat: 26.8467, lng: 80.9462 };
+const KOLKATA = { lat: 22.5726, lng: 88.3639 };
+// A distinct address per committed center, so the search field shows which place won.
+const addressFor = ( req: Record<string, unknown> ) => {
+  const lat = ( req.location as { lat?: number } | undefined )?.lat;
+  const formatted = lat === LUCKNOW.lat ? 'Lucknow, Uttar Pradesh, India'
+    : lat === KOLKATA.lat ? 'Kolkata, West Bengal, India'
+      : lat === 19.0761 ? 'Dharavi, Mumbai, Maharashtra, India'
+        : '';
+  if ( !formatted ) return undefined;
+  return [ {
+    formatted_address: formatted,
+    place_id: `place-${formatted.split( ',' )[ 0 ].toLowerCase()}`,
+    address_components: [ { long_name: 'India', short_name: 'IN', types: [ 'country' ] } ],
+  } ];
+};
 
 afterEach( () => {
   vi.unstubAllEnvs();
@@ -726,6 +800,133 @@ describe( 'VayuLokLive v8 approved design contract', () => {
           && url.includes( 'location.longitude=72.8777' );
       } ) ).toBe( true );
     } );
+  } );
+
+  it( 'keeps following direct map movement after the place has already changed', async () => {
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    // Tiles painted, so place enrichment has already run once for the default place.
+    await waitFor( () => expect( container.querySelector( '.vl-live-atmosphere' ) ).not.toBeNull() );
+
+    // Every place change used to run the enrichment effect's cleanup, which called the map's shared
+    // teardown and removed its idle, pointer, touch, wheel and keydown listeners. After one search
+    // or one map selection, moving the map never refreshed Air and Weather again.
+    await selectMumbai();
+    moveMapTo( container, LUCKNOW );
+    await waitFor( () => expect( weatherFetchedAt( fetchSpy, LUCKNOW.lat, LUCKNOW.lng ) ).toBe( true ) );
+    moveMapTo( container, KOLKATA );
+    await waitFor( () => expect( weatherFetchedAt( fetchSpy, KOLKATA.lat, KOLKATA.lng ) ).toBe( true ) );
+  } );
+
+  it( 'keeps the newest map selection when reverse-geocode answers arrive out of order', async () => {
+    rec = installGoogleMaps( { deferGeocode: true, geocodeRowsFor: addressFor } );
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( container.querySelector( '.vl-live-atmosphere' ) ).not.toBeNull() );
+    const input = screen.getByRole( 'combobox' ) as HTMLInputElement;
+
+    moveMapTo( container, LUCKNOW );
+    await waitFor( () => expect( centerLookups( LUCKNOW.lat ) ).toHaveLength( 1 ) );
+    moveMapTo( container, KOLKATA );
+    await waitFor( () => expect( centerLookups( KOLKATA.lat ) ).toHaveLength( 1 ) );
+
+    releaseCenterLookup( KOLKATA.lat );
+    await waitFor( () => expect( input.value ).toBe( 'Kolkata' ) );
+
+    // The older move's answer lands last. It must not drag the place back to Lucknow.
+    releaseCenterLookup( LUCKNOW.lat );
+    await settle();
+    expect( input.value ).toBe( 'Kolkata' );
+    expect( weatherFetchedAt( fetchSpy, LUCKNOW.lat, LUCKNOW.lng ) ).toBe( false );
+  } );
+
+  it( 'does not let a late reverse-geocode answer overwrite a newer search selection', async () => {
+    rec = installGoogleMaps( { deferGeocode: true, geocodeRowsFor: addressFor } );
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( container.querySelector( '.vl-live-atmosphere' ) ).not.toBeNull() );
+    const input = screen.getByRole( 'combobox' ) as HTMLInputElement;
+
+    moveMapTo( container, LUCKNOW );
+    await waitFor( () => expect( centerLookups( LUCKNOW.lat ) ).toHaveLength( 1 ) );
+    await selectMumbai();
+    expect( input.value ).toBe( 'Mumbai' );
+
+    releaseCenterLookup( LUCKNOW.lat );
+    await settle();
+    expect( input.value ).toBe( 'Mumbai' );
+    expect( weatherFetchedAt( fetchSpy, LUCKNOW.lat, LUCKNOW.lng ) ).toBe( false );
+  } );
+
+  it( 'still moves the camera to a search result after a map move made before the tiles painted', async () => {
+    rec = installGoogleMaps( { paintMap: false, geocodeRowsFor: addressFor } );
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => {
+      expect( container.querySelector( '.vl-live-map-canvas' )?.classList.contains( 'is-ready' ) ).toBe( true );
+    } );
+    const input = screen.getByRole( 'combobox' ) as HTMLInputElement;
+
+    moveMapTo( container, LUCKNOW );
+    await waitFor( () => expect( input.value ).toBe( 'Lucknow' ) );
+    // The visitor's own camera stays where they left it.
+    expect( rec.fitBoundsCalls ).toHaveLength( 0 );
+    expect( rec.setZoomCalls ).toHaveLength( 0 );
+
+    // Tiles have still not painted. The map-chosen place used to leave its "came from the map"
+    // flag set, so this search skipped its camera move and the map stayed on Lucknow.
+    await selectMumbai();
+    expect( input.value ).toBe( 'Mumbai' );
+  } );
+
+  it( 'does not snap the camera to a map-chosen place when the tiles finish painting', async () => {
+    rec = installGoogleMaps( { paintMap: false, geocodeRowsFor: addressFor } );
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => {
+      expect( container.querySelector( '.vl-live-map-canvas' )?.classList.contains( 'is-ready' ) ).toBe( true );
+    } );
+    const input = screen.getByRole( 'combobox' ) as HTMLInputElement;
+
+    moveMapTo( container, LUCKNOW );
+    await waitFor( () => expect( input.value ).toBe( 'Lucknow' ) );
+
+    // The tiles finish after the move, so mapReady flips and the place->camera effect runs again.
+    // That run must leave the visitor's camera alone rather than jump to zoom 14 on Lucknow.
+    act( () => { rec.fireMapEvent( 'tilesloaded' ); } );
+    await waitFor( () => expect( container.querySelector( '.vl-live-atmosphere' ) ).not.toBeNull() );
+    expect( rec.fitBoundsCalls ).toHaveLength( 0 );
+    expect( rec.setCenterCalls ).toHaveLength( 0 );
+    expect( rec.setZoomCalls ).toHaveLength( 0 );
+  } );
+
+  it( 'does not turn the camera move a search makes into a map selection', async () => {
+    rec = installGoogleMaps( { geocodeRowsFor: addressFor } );
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( container.querySelector( '.vl-live-atmosphere' ) ).not.toBeNull() );
+    const input = screen.getByRole( 'combobox' ) as HTMLInputElement;
+
+    // A tap that never moves the camera, so Google fires no idle for it.
+    fireEvent.pointerDown( container.querySelector( '.vl-live-map-canvas' ) as HTMLElement );
+    await selectMumbai();
+
+    // The search moved the camera itself, and Google fires idle when that move settles. The tap's
+    // leftover gesture flag used to turn this idle into a map selection named after the center.
+    rec.mapCenter = { lat: 19.0761, lng: 72.8775 };
+    act( () => { rec.mapIdleHandler?.(); } );
+    await settle();
+    expect( input.value ).toBe( 'Mumbai' );
+    expect( centerLookups( 19.0761 ) ).toHaveLength( 0 );
   } );
 
   it( 'overlays a floating Air Quality card on the map (no left place panel) with the title and the Air/Weather toggle', async () => {
