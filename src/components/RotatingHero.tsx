@@ -21,13 +21,11 @@ import RotatingPill from './RotatingPill';
  * the mega menu, where a renderLink() helper left the rules behind and every row fell
  * through to a global - so it is worth being exact about.
  *
- * Contact, Terms, Privacy, Bharat Rx and Orders all use this. Home, VayuLok and
- * Grahak OS still carry their own inline copies, because their tests pin their class
- * names and CSS strings - so there are FOUR implementations of this hero in the repo
- * (rh-, home-, vl-, hero-), not two. The animation constants here are identical to
- * theirs by construction, and `node tools/browser/animcheck.js` asserts that all four
- * surfaces share the same computed transitions so the family cannot silently drift
- * apart. Measured identical as of this commit:
+ * Contact, Terms, Privacy, Bharat Rx, Orders, the product pages, Grahak OS and VayuLok
+ * all use this. Home keeps its own headline (home-head) around the shared RotatingPill,
+ * and `node tools/browser/animcheck.js` asserts that every rotating surface shares the
+ * same computed transitions so the family cannot silently drift apart. Measured
+ * identical as of this commit:
  *   pill width  0.52s cubic-bezier(.16,1,.3,1)
  *   word        0.42s opacity + transform, same easing
  *   tint        0.52s background-color, same easing
@@ -45,13 +43,11 @@ import RotatingPill from './RotatingPill';
  * jumped 63px every 2400ms. Keep a set within ~2-4 characters anyway, and re-run
  * `node tools/browser/animcheck.js` after changing one.
  *
- * THAT GUARANTEE IS WHY THIS COMPONENT IS THE ONE TO REUSE. The two inline copies that
- * put the pill inline mid-sentence instead - /vayulok/ ("Bharat <pill> Intelligence")
- * and /grahak-os/ ("across <pill>") - still reflow at narrow widths: measured at 320px,
- * VayuLok's h1 is 126px on Weather/Forecast/Heatmap and 87px on Air/Pollen/Solar, and
- * Grahak OS is 168px on WhatsApp against 128px on SMS/Email/Voice. Every surface built
- * on THIS component measures constant at all 21 viewports. Migrating those two pages
- * here is the fix, but it changes their hero line structure, so it is an owner call.
+ * THAT GUARANTEE IS WHY THIS COMPONENT IS THE ONE TO REUSE. The old inline Grahak OS
+ * hero put "across <pill>" at a 36px floor and reflowed at 320px (168px on WhatsApp
+ * against 128px on SMS/Email/Voice). `pillPrefix` brings the "across" line back on this
+ * component's 32px/28px rungs (26px with a prefix at 300px and below), and animcheck.js
+ * keeps it from reflowing.
  */
 
 export interface CycleWord {
@@ -87,6 +83,13 @@ interface RotatingHeroProps {
   /**
    * Optional visual beside the copy. Above 1024px it is the right-hand hero column;
    * at 1024px and below it stacks with the copy.
+   *
+   * The page's own styled-jsx still styles it. styled-jsx stamps its scope class at COMPILE
+   * time on every lowercase element written inside the tree that holds the <style jsx>,
+   * prop expressions included, so markup written inline in `visual={ ... }` keeps the page's
+   * jsx-* class wherever this component renders it (verified in out/grahak-os/ and
+   * out/vayulok/: .hero-right and .vl-hero-visual carry their page's hash). A page can
+   * retune the split itself with `.<page-root> :global(.rh-split)`, as /vayulok/ does.
    */
   visual?: React.ReactNode;
   /** Extra content below the hero, inside the page measure. */

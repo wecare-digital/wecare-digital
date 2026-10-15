@@ -216,8 +216,12 @@ const VayuLokPage: React.FC = () => {
            little under half the width and the globe a little over, with the globe
            CENTRED in its column and capped so it never dwarfs the headline. The
            globe's own left-side info panel lives inside the right column, which is
-           why the gap is generous: it keeps the panel clear of the headline. */
-        .vl-hero-grid{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);gap:56px;align-items:center}
+           why the gap is generous: it keeps the panel clear of the headline.
+           These rules used to style .vl-hero-grid and now retune RotatingHero's
+           .rh-split, so the globe keeps its own proportions and stays beside the copy
+           down to 861px, where the shared split would stack at 1024px. .vl-page makes
+           the selector outrank the component's own .rh-split at every width. */
+        .vl-page :global(.rh-split){display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);gap:56px;align-items:center}
         .vl-hero-copy{min-width:0}
         .vl-hero-visual{min-width:0;width:100%;display:flex;justify-content:center}
         .vl-hero-visual :global(.vag-shell){width:100%;max-width:720px}
@@ -254,11 +258,11 @@ const VayuLokPage: React.FC = () => {
            component's markup, which is why the pill owns its own styles. */
 
         @media(max-width:1024px){
-          .vl-hero-grid{grid-template-columns:minmax(0,.96fr) minmax(0,1.04fr);gap:36px}
+          .vl-page :global(.rh-split){grid-template-columns:minmax(0,.96fr) minmax(0,1.04fr);gap:36px}
           .vl-hero-visual :global(.vag-shell){max-width:620px}
         }
         @media(max-width:860px){
-          .vl-hero-grid{grid-template-columns:1fr;gap:36px}
+          .vl-page :global(.rh-split){grid-template-columns:1fr;gap:36px}
           .vl-hero-visual{max-width:760px;margin:0 auto}
           .vl-hero-visual :global(.vag-shell){max-width:760px}
         }
@@ -266,7 +270,7 @@ const VayuLokPage: React.FC = () => {
           .vl-shell{padding-top:96px}
           .vl-layout{padding:48px 16px 32px}
           .vl-head{line-height:1.1}
-          .vl-hero-grid{gap:28px}
+          .vl-page :global(.rh-split){gap:28px}
           .vl-sub{font-size:17px;margin-top:18px;max-width:none}
         }
         @media(max-width:359px){
