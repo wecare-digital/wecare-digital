@@ -71,19 +71,38 @@ except ImportError:  # pragma: no cover - media_paths ships in every package
 #: are secure; public projections must use PUBLIC_ROOT_PREFIX explicitly.
 ROOT_PREFIX = SECURE_ROOT_PREFIX
 
-#: Internal layout. One place, so a key is never assembled from a literal at a call site.
-PREFIX = SECURE_ROOT_PREFIX + "sources/pdf/"
-URL_PREFIX = SECURE_ROOT_PREFIX + "sources/url/"
-EXTRACT_PREFIX = SECURE_ROOT_PREFIX + "extracted/"
-ANALYSIS_PREFIX = SECURE_ROOT_PREFIX + "source-analysis/"
-WORKING_PREFIX = SECURE_ROOT_PREFIX + "article-working/"
-QA_PREFIX = SECURE_ROOT_PREFIX + "qa/"
+#: The zero-paid-AI production backend has four durable areas under the secure root.
+#: 01-sources is category-addressable for bulk PDF intake; 02-masters and 04-checkpoints are
+#: owned by blog_production.py; all mechanical/editorial working artifacts live under 03-work.
+SOURCES_PREFIX = SECURE_ROOT_PREFIX + "01-sources/"
+PREFIX = SOURCES_PREFIX
+URL_PREFIX = SOURCES_PREFIX + "url/"
+WORK_ROOT_PREFIX = SECURE_ROOT_PREFIX + "03-work/"
+EXTRACT_PREFIX = WORK_ROOT_PREFIX + "extracted/"
+ANALYSIS_PREFIX = WORK_ROOT_PREFIX + "source-analysis/"
+WORKING_PREFIX = WORK_ROOT_PREFIX + "article-working/"
+QA_PREFIX = WORK_ROOT_PREFIX + "qa/"
 #: Collection-level repetition, which is a property of a BATCH rather than of one article, so it
 #: gets its own prefix keyed on the batch rather than living under `qa/`.
-REPETITION_PREFIX = SECURE_ROOT_PREFIX + "repetition/"
-PUBLISH_PREFIX = SECURE_ROOT_PREFIX + "publish-records/"
-VERIFY_PREFIX = SECURE_ROOT_PREFIX + "verification/"
-FAILURE_PREFIX = SECURE_ROOT_PREFIX + "failures/"
+REPETITION_PREFIX = WORK_ROOT_PREFIX + "repetition/"
+PUBLISH_PREFIX = WORK_ROOT_PREFIX + "publish-records/"
+VERIFY_PREFIX = WORK_ROOT_PREFIX + "verification/"
+FAILURE_PREFIX = WORK_ROOT_PREFIX + "failures/"
+
+CATEGORY_SOURCE_SLUGS = {"Conversations": "conversations", "Gastronomy": "gastronomy"}
+
+
+def category_source_prefix(category: str) -> str:
+    """Private bulk-upload prefix for one governed category."""
+    wanted = str(category or "").strip()
+    slug = CATEGORY_SOURCE_SLUGS.get(wanted)
+    if not slug:
+        raise ValueError(f"unsupported blog category {wanted!r}")
+    return f"{SOURCES_PREFIX}{slug}/"
+
+
+def source_pdf_key(category: str, sha256: str, file_name: str) -> str:
+    return category_source_prefix(category) + str(sha256) + _safe_extension(file_name)
 
 #: THE EXTRACT LIVES IN S3, NOT IN THE ITEM, AND THE REASON IS A HARD LIMIT.
 #:
@@ -404,7 +423,7 @@ def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> D
             if not ref:
                 raise ValueError(f"sources[{index}].fileName is required")
             record_id = source_id("pdf", ref, sha256)
-            key = PREFIX + sha256 + _safe_extension(ref)
+            key = source_pdf_key(category, sha256, ref)
         else:
             ref = normalize_url(entry.get("url") or entry.get("ref") or "")
             if not ref.startswith(("http://", "https://")):
