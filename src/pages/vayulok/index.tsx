@@ -162,8 +162,6 @@ const VayuLokPage: React.FC = () => {
       />
 
       <main className="vl-page">
-        {/* The globe is the hero's right-hand column (`visual`), as it was before the shared
-            band; it stacks under the copy at 1024px and below. */}
         <RotatingHero
           insideMain
           noShare
@@ -173,9 +171,9 @@ const VayuLokPage: React.FC = () => {
           words={ cycleWords }
           sub="Forecasts cover cities. VayuLok reads your street — live air and weather, exactly where you are."
           visual={ (
-            <div className="vl-hero-visual">
-              <VayuLokApprovedGlobe />
-            </div>
+          <div className="vl-hero-visual">
+            <VayuLokApprovedGlobe />
+          </div>
           ) }
         />
 

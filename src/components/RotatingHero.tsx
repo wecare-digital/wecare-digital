@@ -21,11 +21,13 @@ import RotatingPill from './RotatingPill';
  * the mega menu, where a renderLink() helper left the rules behind and every row fell
  * through to a global - so it is worth being exact about.
  *
- * Contact, Terms, Privacy, Bharat Rx, Orders, the product pages, Grahak OS and VayuLok
- * all use this. Home keeps its own headline (home-head) around the shared RotatingPill,
- * and `node tools/browser/animcheck.js` asserts that every rotating surface shares the
- * same computed transitions so the family cannot silently drift apart. Measured
- * identical as of this commit:
+ * Contact, Terms, Privacy, Bharat Rx and Orders all use this. Home, VayuLok and
+ * Grahak OS still carry their own inline copies, because their tests pin their class
+ * names and CSS strings - so there are FOUR implementations of this hero in the repo
+ * (rh-, home-, vl-, hero-), not two. The animation constants here are identical to
+ * theirs by construction, and `node tools/browser/animcheck.js` asserts that all four
+ * surfaces share the same computed transitions so the family cannot silently drift
+ * apart. Measured identical as of this commit:
  *   pill width  0.52s cubic-bezier(.16,1,.3,1)
  *   word        0.42s opacity + transform, same easing
  *   tint        0.52s background-color, same easing
@@ -43,11 +45,13 @@ import RotatingPill from './RotatingPill';
  * jumped 63px every 2400ms. Keep a set within ~2-4 characters anyway, and re-run
  * `node tools/browser/animcheck.js` after changing one.
  *
- * THAT GUARANTEE IS WHY THIS COMPONENT IS THE ONE TO REUSE. The old inline Grahak OS
- * hero put "across <pill>" at a 36px floor and reflowed at 320px (168px on WhatsApp
- * against 128px on SMS/Email/Voice). `pillLead` brings the "across" line back on this
- * component's narrower 32px/28px rungs (26px for a lead at 300px and below), where the
- * lead and the longest word fit one line from 280px up; animcheck.js keeps it that way.
+ * THAT GUARANTEE IS WHY THIS COMPONENT IS THE ONE TO REUSE. The two inline copies that
+ * put the pill inline mid-sentence instead - /vayulok/ ("Bharat <pill> Intelligence")
+ * and /grahak-os/ ("across <pill>") - still reflow at narrow widths: measured at 320px,
+ * VayuLok's h1 is 126px on Weather/Forecast/Heatmap and 87px on Air/Pollen/Solar, and
+ * Grahak OS is 168px on WhatsApp against 128px on SMS/Email/Voice. Every surface built
+ * on THIS component measures constant at all 21 viewports. Migrating those two pages
+ * here is the fix, but it changes their hero line structure, so it is an owner call.
  */
 
 export interface CycleWord {
@@ -71,28 +75,18 @@ interface RotatingHeroProps {
    * leave it out.
    */
   badgeLabel?: string;
-  /** Fixed text on the first headline line. The pill takes the second. */
+  /** Fixed text on the first headline line. */
   frame: string;
-  /**
-   * Words that open the pill's line, ahead of the pill. /grahak-os/ passes frame "Reach
-   * customers" and pillLead "across", so the h1 reads "Reach customers" / "across <pill>".
-   * Optional; without it the pill sits alone on the second line.
-   *
-   * The lead and the LONGEST word have to fit one line at every width, or that word alone
-   * re-breaks the line and the page below jumps every 2400ms. animcheck.js measures exactly
-   * that at 21 viewports, so re-run it after changing the lead or the word list.
-   */
-  pillLead?: string;
+  /** Optional fixed prefix rendered on the second line immediately before the rotating pill. */
+  pillPrefix?: string;
   words: CycleWord[];
   /** The single body line under the headline. Optional. */
   sub?: React.ReactNode;
   /** Accessible name for the landmark. */
   ariaLabel: string;
   /**
-   * A visual BESIDE the copy: the Grahak OS phone mockup, the VayuLok globe. Above 1024px the
-   * hero becomes two equal columns, copy left and visual right; at 1024px and below they stack,
-   * copy first. Pass the page's own element. It becomes the grid item itself, so the page's
-   * styled-jsx keeps styling it, including an `order` that lifts it above the copy on a phone.
+   * Optional visual beside the copy. Above 1024px it is the right-hand hero column;
+   * at 1024px and below it stacks with the copy.
    */
   visual?: React.ReactNode;
   /** Extra content below the hero, inside the page measure. */
@@ -119,8 +113,7 @@ interface RotatingHeroProps {
   /**
    * Embedded-primary mode: the page already owns the single <main>, but this hero still owns
    * the page's <h1>. This is for bespoke product pages that need the shared rotating band while
-   * keeping additional page-specific sections inside one main landmark. Content follows the
-   * band on those pages, so it is only as tall as its content rather than the viewport.
+   * keeping additional page-specific sections inside one main landmark.
    */
   insideMain?: boolean;
   /**
@@ -139,7 +132,7 @@ interface RotatingHeroProps {
   noShare?: boolean;
 }
 
-const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillLead, words, sub, ariaLabel, visual, children, subordinate = false, insideMain = false, noShare = false } ) => {
+const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, words, sub, ariaLabel, visual, children, subordinate = false, insideMain = false, noShare = false } ) => {
   /**
    * 'final' is the CSS default: shutter gone, dot popped, nothing animating. 'armed' puts
    * the start state back, 'shown' plays it. Starting at 'final' is what makes the entrance
@@ -214,27 +207,25 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillLea
         phase === 'armed' || phase === 'shown' ? 'is-armed' : '',
         phase === 'shown' ? 'show' : '',
       ].filter( Boolean ).join( ' ' ) }>
-        {/* The copy, and the page's visual beside it when one is passed. Without a visual this
-            wrapper is a plain block around .rh-hero, so every other hero lays out as before.
-            Inline rather than a helper or a variable: styled-jsx only scopes markup it can see
-            in this return tree. */}
         <div className={ visual ? 'rh-split' : undefined }>
           <div className="rh-hero">
-            {/* Wrapper carries the spacing. BrandBadge paints itself - styled-jsx
-                cannot reach into it from here either. */}
-            { badgeLabel && (
-              <div className="rh-eyebrow">
-                <BrandBadge label={ badgeLabel } />
-              </div>
-            ) }
+          {/* Wrapper carries the spacing. BrandBadge paints itself - styled-jsx
+              cannot reach into it from here either. */}
+          { badgeLabel && (
+            <div className="rh-eyebrow">
+              <BrandBadge label={ badgeLabel } />
+            </div>
+          ) }
 
-            <Head className={ pillLead ? 'rh-head has-lead' : 'rh-head' }>
-              <span className="rh-head-line">{ frame }</span>
-              { pillLead && <>{ pillLead }{ ' ' }</> }
+          <Head className={ pillPrefix ? 'rh-head has-prefix' : 'rh-head' }>
+            <span className="rh-head-line">{ frame }</span>
+            <span className="rh-head-line rh-head-rotate">
+              { pillPrefix && <span className="rh-head-prefix">{ pillPrefix } </span> }
               <RotatingPill words={ words } phase={ phase } />
-            </Head>
+            </span>
+          </Head>
 
-            { sub && <p className="rh-sub">{ sub }</p> }
+          { sub && <p className="rh-sub">{ sub }</p> }
           </div>
 
           { visual }
@@ -280,10 +271,6 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillLea
           font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
           color:#1a1a1a;
         }
-        /* An insideMain hero is the TOP BAND of a longer page, not the whole page, so it does
-           not fill the viewport: with the VayuLok globe beside the copy, a forced 100vh left an
-           empty band between the hero and the live section below it. Two classes, so this also
-           beats the 767px min-height further down. */
         .rh-shell.is-inside-main{min-height:0}
         .rh-layout{
           width:100%;max-width:1300px;margin:0 auto;
@@ -297,9 +284,6 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillLea
         /* align-items:flex-start replaces an align-self on the badge: without it the
            flex default stretches the pill to the full 1300px measure. */
         .rh-hero{display:flex;flex-direction:column;align-items:flex-start}
-        /* COPY + VISUAL. Two equal columns above 1024px, visual on the right; one column at
-           1024px and below, copy first unless the visual's own page CSS orders it ahead.
-           minmax(0,1fr) stops a wide visual pushing its track past half the measure. */
         .rh-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:56px;align-items:center}
         @media(max-width:1024px){
           .rh-split{grid-template-columns:minmax(0,1fr);gap:40px}
@@ -324,6 +308,8 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillLea
            dot, width glide, word fade and entrance) lives in RotatingPill, which self-scopes
            its own rp-* CSS - styled-jsx here cannot reach a child component's markup. */
         .rh-head-line{display:block}
+        .rh-head-rotate{display:flex;align-items:baseline;gap:.18em;flex-wrap:nowrap}
+        .rh-head-prefix{display:inline-block}
 
         /* The single body rung the contract allows: 20px/400/1.4/-.125px at
            rgba(0,0,0,.898). 560px rather than the headline's 900px, because at 20px a
@@ -361,12 +347,8 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillLea
         @media(max-width:340px){
           .rh-head{font-size:28px}
         }
-        /* A THIRD RUNG FOR A LEAD, measured rather than guessed. "across" plus the widest
-           Grahak OS word (WhatsApp) needs 9em - 252px at 28px - and 280px leaves 248px, so that
-           word alone re-broke the line and the h1 went 70px to 100px every rotation. 26px fits
-           it with ~14px to spare. Two classes, so only a hero with a lead is retuned. */
         @media(max-width:300px){
-          .rh-head.has-lead{font-size:26px}
+          .rh-head.has-prefix{font-size:26px}
         }
         @media(max-width:480px){
         }

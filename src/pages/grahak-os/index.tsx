@@ -236,16 +236,13 @@ response = requests.post(
           every other public page resolved `main`. The class is unchanged, so no CSS moves. */}
       <main className="page">
 
-        {/* The phone mockup is the hero's right-hand column (`visual`), as it was before the
-            shared band; "across" opens the pill's line. The mockup is written inline so this
-            page's styled-jsx still scopes every class in it. */}
         <RotatingHero
           insideMain
           noShare
           ariaLabel="Grahak OS"
           badgeLabel="Grahak OS by WECARE.DIGITAL"
           frame="Reach customers"
-          pillLead="across"
+          pillPrefix="across"
           words={ cycleWords }
           sub={ <>One platform for customer data, messaging, automation and campaigns, so every conversation stays connected whichever channel it starts on. Turn your WhatsApp number into your #1 revenue channel with Grahak OS.</> }
           visual={ (
