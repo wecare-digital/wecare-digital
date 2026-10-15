@@ -16,7 +16,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 DIR = ROOT / "scripts" / "lightsail-nano-migration"
 SCRIPTS = ["_common.sh", "preflight.sh", "bootstrap-nano.sh", "migrate-workload.sh",
            "verify-nano.sh", "rollback.sh"]
-MUTATING = ("create-instances", "open-instance-public-ports", "detach-static-ip",
+MUTATING = ("create-instances", "open-instance-public-ports", "put-instance-public-ports", "detach-static-ip",
             "attach-static-ip", "delete-instance", "stop-instance")
 
 STUB = r"""#!/usr/bin/env bash
@@ -176,3 +176,25 @@ def test_no_script_embeds_a_credential():
         text = (DIR / script).read_text()
         for needle in ("AKIA", "BEGIN RSA", "BEGIN OPENSSH", "password=", "secret="):
             assert needle not in text, (script, needle)
+
+
+def test_the_copy_set_is_the_voice_bot_only():
+    text = (DIR / "migrate-workload.sh").read_text()
+    paths = [p for p in text.split('PATHS="', 1)[1].split('"', 1)[0].split() if p != "\\"]
+    for needed in ("usr/sbin/asterisk", "usr/lib/asterisk", "usr/lib/libasteriskpj.so.2",
+                   "usr/lib64/libsrtp2.so.1", "etc/asterisk", "var/lib/asterisk", "etc/letsencrypt",
+                   "etc/systemd/system/asterisk.service", "usr/local/bin/cert_expiry_check.sh"):
+        assert needed in paths, needed
+    for left_behind in ("var/log/asterisk", "opt/wecare-bot", "opt/freeswitch", "var/lib/docker",
+                        "home/ec2-user/sms_proxy.py", "usr/local/bin/ffmpeg"):
+        assert not any(p == left_behind or p.startswith(left_behind + "/") for p in paths), left_behind
+
+
+def test_cutover_preview_hands_renewal_and_cert_check_to_one_owner(env):
+    e, log = env
+    r = _run("migrate-workload.sh", e, "--cutover")
+    assert r.returncode == 0, r.stderr
+    out = r.stdout
+    assert out.index("stop certificate renewal") < out.index("detach static IP") \
+        < out.index("attach static IP to the nano") < out.index("start certificate renewal")
+    assert _mutations(log) == []

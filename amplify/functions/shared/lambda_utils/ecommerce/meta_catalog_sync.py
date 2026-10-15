@@ -492,8 +492,12 @@ def desired_items(products: Iterable[Mapping[str, Any]], *,
             service_path = SERVICE_PATH_BY_VARIANT.get(str(variant.get("id") or ""))
             if product_id == SERVICE_PRODUCT_ID and service_path:
                 item["url"] = f"https://wecare.digital{service_path}"
-            elif product_id != SERVICE_PRODUCT_ID and slug and re.fullmatch(r"[a-zA-Z0-9_-]+", slug):
-                item["url"] = f"https://wecare.digital/shop/{slug}/"
+            elif product_id != SERVICE_PRODUCT_ID:
+                canonical_path = str(product.get("canonicalPath") or "").strip()
+                if canonical_path.startswith("/") and "://" not in canonical_path:
+                    item["url"] = "https://wecare.digital" + canonical_path
+                elif slug and re.fullmatch(r"[a-zA-Z0-9_-]+", slug):
+                    item["url"] = f"https://wecare.digital/shop/{slug}/"
             items.append(item)
     return items
 

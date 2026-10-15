@@ -210,3 +210,105 @@ def test_staff_admin_role_required_for_all_mutations(monkeypatch):
         assert result["statusCode"] == 403
     assert roles == ["Admin", "Admin", "Admin"]
     assert len(table.items) == 1
+
+
+def test_new_product_starts_with_both_publication_channels_off():
+    table = Table()
+    response = mod.handle_request(event(method="POST", body={
+        "title": "Draft Artwork Product",
+        "slug": "draft-artwork-product",
+        "variants": [{"priceMinor": 9900, "inventory": 0}],
+        "catalogImageKey": "o/stream/media/m/wd-catalog-live/kiosk-4096.png",
+    }), table)
+    assert response["statusCode"] == 201
+    product = payload(response)["product"]
+    assert product["status"] == "draft"
+    assert product["websiteEnabled"] is False
+    assert product["metaEnabled"] is False
+    assert product["catalogImageKey"].endswith("kiosk-4096.png")
+    assert product["imageRefs"] == [
+        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/kiosk-4096.png"
+    ]
+
+
+@pytest.mark.parametrize("key", [
+    "https://example.com/picture.png",
+    "o/catalog/products/kiosk.png",
+    "o/stream/media/m/wd-catalog-live/not-4096.jpg",
+    "o/stream/media/m/wd-catalog-live/../kiosk-4096.png",
+])
+def test_catalog_artwork_accepts_only_locked_live_4096_png_keys(key):
+    table = Table()
+    response = mod.handle_request(event(method="POST", body={
+        "title": "Bad Artwork",
+        "slug": "bad-artwork-" + str(abs(hash(key)))[:6],
+        "variants": [{"priceMinor": 100, "inventory": 0}],
+        "catalogImageKey": key,
+    }), table)
+    assert response["statusCode"] == 400
+
+
+def test_website_and_meta_publication_require_active_status_and_approved_artwork():
+    table = Table()
+    response = mod.handle_request(event(
+        "/native-catalog/products/product-123", method="PATCH", body={
+            "expectedUpdatedAt": seeded()["updatedAt"],
+            "catalogImageKey": "o/stream/media/m/wd-catalog-live/kiosk-4096.png",
+            "canonicalPath": "/shop/existing-product/",
+            "websiteEnabled": True,
+            "metaEnabled": True,
+        }), table)
+    assert response["statusCode"] == 200
+    product = payload(response)["product"]
+    assert product["websiteEnabled"] is True
+    assert product["metaEnabled"] is True
+    assert product["canonicalPath"] == "/shop/existing-product/"
+    assert product["imageRefs"][0].startswith("https://wecare.digital/get/o/stream/media/")
+
+
+def test_cannot_clear_artwork_while_a_publication_channel_is_enabled():
+    table = Table()
+    row = table.items["product-123"]
+    row["catalogImageKey"] = "o/stream/media/m/wd-catalog-live/kiosk-4096.png"
+    row["imageRefs"] = ["https://wecare.digital/get/o/stream/media/m/wd-catalog-live/kiosk-4096.png"]
+    row["websiteEnabled"] = True
+    response = mod.handle_request(event(
+        "/native-catalog/products/product-123", method="PATCH", body={
+            "expectedUpdatedAt": seeded()["updatedAt"],
+            "catalogImageKey": "",
+        }), table)
+    assert response["statusCode"] == 400
+    assert table.items["product-123"]["catalogImageKey"].endswith("kiosk-4096.png")
+
+
+def test_can_clear_artwork_after_both_publication_channels_are_off():
+    table = Table()
+    row = table.items["product-123"]
+    row["catalogImageKey"] = "o/stream/media/m/wd-catalog-live/kiosk-4096.png"
+    row["imageRefs"] = ["https://wecare.digital/get/o/stream/media/m/wd-catalog-live/kiosk-4096.png"]
+    row["websiteEnabled"] = False
+    row["metaEnabled"] = False
+    response = mod.handle_request(event(
+        "/native-catalog/products/product-123", method="PATCH", body={
+            "expectedUpdatedAt": seeded()["updatedAt"],
+            "catalogImageKey": "",
+        }), table)
+    assert response["statusCode"] == 200
+    product = payload(response)["product"]
+    assert product["catalogImageKey"] == ""
+    assert product["imageRefs"] == []
+
+
+@pytest.mark.parametrize("field", ["websiteEnabled", "metaEnabled"])
+def test_new_product_cannot_publish_a_channel_before_activation(field):
+    table = Table()
+    body = {
+        "title": "Premature Publish",
+        "slug": "premature-publish",
+        "variants": [{"priceMinor": 9900, "inventory": 0}],
+        "catalogImageKey": "o/stream/media/m/wd-catalog-live/kiosk-4096.png",
+        field: True,
+    }
+    response = mod.handle_request(event(method="POST", body=body), table)
+    assert response["statusCode"] == 400
+    assert table.items == {}

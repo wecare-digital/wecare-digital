@@ -90,7 +90,10 @@ def to_shop_product(item: Dict[str, Any]) -> Dict[str, Any]:
         "id": str(item.get("id", "")),
         "name": str(item.get("title") or item.get("name") or ""),
         "slug": str(item.get("slug", "")),
-        "visible": item.get("status", "active") == "active",
+        "visible": (
+            item.get("status", "active") == "active"
+            and item.get("websiteEnabled") is not False
+        ),
         "price": _paise_to_decimal_string(price_minor),
         "formattedPrice": _formatted_inr(price_minor),
         "currency": str(item.get("currency", "INR")),
@@ -98,6 +101,9 @@ def to_shop_product(item: Dict[str, Any]) -> Dict[str, Any]:
         "descriptionHtml": description,
         "tagline": str(item.get("tagline") or item.get("seoDescription") or ""),
         "body": [str(b) for b in body],
+        "canonicalPath": str(item.get("canonicalPath") or ("/shop/" + str(item.get("slug", "")) + "/")),
+        "websiteEnabled": item.get("websiteEnabled") is not False,
+        "metaEnabled": item.get("metaEnabled") is True,
     }
     images = item.get("imageRefs") or []
     if images:

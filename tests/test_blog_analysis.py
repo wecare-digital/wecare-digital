@@ -133,7 +133,7 @@ def test_the_evidence_goes_to_s3_not_onto_the_item(env):
 def test_the_body_key_sits_under_the_agreed_prefix(env):
     source_id = _ready(env)
     key = env["ba"].get(env["ba"].analyse(source_id, "admin")["analysisId"])["bodyKey"]
-    assert key.startswith("secure/blog-production/source-analysis/")
+    assert key.startswith("secure/blog-production/03-work/source-analysis/")
     assert key.endswith("/v1.json")
 
 

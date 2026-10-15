@@ -19,6 +19,7 @@ on:
       - 'tests/test_blog_queue.py'
       - 'tests/test_blog_publish.py'
       - 'tests/test_blog_catalog.py'
+      - 'tests/test_blog_production.py'
       - 'scripts/deploy_seo_tools.py'
       - 'config/public-pages.json'
       - '.github/workflows/seo-tools-deploy.yml'
@@ -37,6 +38,7 @@ on:
       - 'tests/test_blog_queue.py'
       - 'tests/test_blog_publish.py'
       - 'tests/test_blog_catalog.py'
+      - 'tests/test_blog_production.py'
       - 'scripts/deploy_seo_tools.py'
       - 'config/public-pages.json'
       - '.github/workflows/seo-tools-deploy.yml'
@@ -84,6 +86,7 @@ jobs:
           tests/test_blog_queue.py
           tests/test_blog_publish.py
           tests/test_blog_catalog.py
+          tests/test_blog_production.py
           -q
 
   deploy:

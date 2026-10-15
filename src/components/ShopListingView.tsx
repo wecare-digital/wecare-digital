@@ -247,7 +247,18 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings } ) => {
             onScroll={ measure }
           >
             { visible.map( listing => (
-              <Link key={ listing.slug } className="shop-card" href={ listing.href }>
+              <article key={ listing.slug } className="shop-card">
+                { listing.image && (
+                  <img
+                    className="shop-card-image"
+                    src={ listing.image }
+                    alt={ `${listing.name} catalogue artwork` }
+                    width={ 4096 }
+                    height={ 4096 }
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) }
                 <span className="shop-card-name">{ listing.name }</span>
                 <span className="shop-card-tag">{ listing.blurb }</span>
                 { ( listing.formattedPrice || listing.inStock === false ) && (
@@ -260,7 +271,8 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings } ) => {
                     ) }
                   </span>
                 ) }
-              </Link>
+                <Link className="shop-card-action" href={ listing.href }>View details</Link>
+              </article>
             ) ) }
           </section>
         ) : (
@@ -327,15 +339,9 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings } ) => {
              ::-webkit-scrollbar-thumb, so a local colour is invisible in one engine. */
           .shop-grid::-webkit-scrollbar{height:8px}
 
-          /* :global() IS MANDATORY ON EVERY .shop-card RULE - styled-jsx attaches its scoping
-             class only to the lowercase DOM tags it can see in this file, and <Link> is a
-             capitalised component, so a bare .shop-card rule would match nothing and the cards
-             would render as plain blue underlined links. It is the same trap Pager.tsx documents
-             at length for .pager-step. Scoped inside .shop-in, which IS a div in this file and
-             does carry the hash, so these cannot leak out of the component.
-             Do not "simplify" them to bare selectors, and do not swap <Link> for <a> to avoid the
-             wrapper: the link keeps client-side navigation, and an inner span carrying the class
-             would move it off the focusable element and break the focus ring. */
+          /* The card is now a real article with one explicit View details link. This avoids a
+             nested-link trap when the card grows more actions later, while preserving a real
+             crawlable product link for every listing. */
           /* THE SPINE IS THE ROTATING HUE, and three hues rather than four is a measured
              constraint. Green, blue and purple are the site's only accent spine motif, taken from
              .home-flow-list, and AMBER WAS MEASURED AT 2.04:1 AND REJECTED for a 3px stroke - see
@@ -343,7 +349,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings } ) => {
              belongs, in the hero pill, where the colour is a large tint behind dark type rather
              than a hairline. The cards are the direct children of section.shop-grid, so
              nth-child counts cards and nothing else. */
-          .shop-in :global(.shop-card){
+          .shop-card{
             /* A FIXED-WIDTH FLEX CHILD so the cards sit side by side in the scrolling row and
                keep their shape no matter how many there are. 320px is the blog card's natural
                three-up width at the 1300px measure; flex:0 0 means never grow and never shrink,
@@ -354,41 +360,51 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings } ) => {
             padding:26px;background:#fff;
             border:1px solid #e5e7eb;border-radius:14px;
             border-inline-start:3px solid #3da35a;
-            overflow:hidden;text-decoration:none;color:inherit;
+            overflow:hidden;color:inherit;
             transition:border-color .2s,transform .2s,box-shadow .2s;
           }
-          .shop-in :global(.shop-card:nth-child(3n+2)){border-inline-start-color:#2563eb}
-          .shop-in :global(.shop-card:nth-child(3n+3)){border-inline-start-color:#9849e8}
+          .shop-card:nth-child(3n+2)){border-inline-start-color:#2563eb}
+          .shop-card:nth-child(3n+3)){border-inline-start-color:#9849e8}
           /* The home CTA's treatment, and the only shadow this design language allows. */
-          .shop-in :global(.shop-card:hover){
+          .shop-card:hover{
             border-color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
           }
-          /* Opaque, because the translucent ring failed WCAG 1.4.11 at 1.51:1 on white. */
-          .shop-in :global(.shop-card:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px}
+          .shop-card-image{
+            display:block;width:calc(100% + 52px);height:auto;aspect-ratio:1/1;object-fit:cover;
+            margin:-26px -26px 10px;border-bottom:1px solid #e5e7eb;background:#fff;
+          }
+          .shop-in :global(.shop-card-action){
+            display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;
+            min-height:44px;margin-top:auto;padding:0 18px;border:2px solid #1a3a2a;
+            border-radius:50px;background:#fff;color:#1a3a2a;font-size:16px;font-weight:600;
+            text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s;
+          }
+          .shop-in :global(.shop-card-action:hover){background:#d1f470;transform:translateY(-1px)}
+          .shop-in :global(.shop-card-action:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px}
 
           /* The one card-heading rung, 22px/700/1.27/-.25px on solid black, and the one body
              rung, 20px/400/1.4/-.125px at rgba(0,0,0,.898) - the same two the blog listing and
              the home page's cards use. The blurb is clamped so a long tagline does not set the
              height of its row. */
-          .shop-in :global(.shop-card-name){
+          .shop-card-name{
             font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:#000;
           }
-          .shop-in :global(.shop-card-tag){
+          .shop-card-tag{
             font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;
             color:rgba(0,0,0,.898);
             display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
           }
-          .shop-in :global(.shop-card-foot){display:flex;align-items:baseline;gap:12px;margin-top:4px}
+          .shop-card-foot{display:flex;align-items:baseline;gap:12px;margin-top:4px}
           /* Dark green, not lime: lime means actionable on this site and the actionable surface
              is the button on the product page, not the price on a listing card. Tabular figures,
              like the product page. Rendered only where a live catalogue row supplies the string -
              a ProductDef entry carries no price, so this page never prints a number nobody
              quoted. */
-          .shop-in :global(.shop-card-price){
+          .shop-card-price{
             font-size:18px;font-weight:700;line-height:1.3;color:#1a3a2a;
             font-variant-numeric:tabular-nums;
           }
-          .shop-in :global(.shop-card-oos){
+          .shop-card-oos{
             font-size:14px;font-weight:700;line-height:1.3;color:rgba(0,0,0,.54);
           }
 
@@ -403,14 +419,15 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings } ) => {
              card plus a hint of the next, which is the cue that the row scrolls. The body rung
              steps down and the clamp opens, the same pair of moves the blog listing makes. */
           @media(max-width:767px){
-            .shop-in :global(.shop-card){flex-basis:82vw;padding:22px}
-            .shop-in :global(.shop-card-tag){font-size:18px;-webkit-line-clamp:4}
+            .shop-card{flex-basis:82vw;padding:22px}
+            .shop-card-image{width:calc(100% + 44px);margin:-22px -22px 10px}
+            .shop-card-tag{font-size:18px;-webkit-line-clamp:4}
           }
           /* A shadow appearing under a card is the same "something moved" cue as the lift, and the
              progress fill / arrow tints stop animating under reduced-motion too. */
           @media(prefers-reduced-motion:reduce){
-            .shop-in :global(.shop-card){transition:none}
-            .shop-in :global(.shop-card:hover){transform:none;box-shadow:none}
+            .shop-card,.shop-in :global(.shop-card-action){transition:none}
+            .shop-card:hover,.shop-in :global(.shop-card-action:hover){transform:none;box-shadow:none}
             .shop-arrow,.shop-progress-fill{transition:none}
           }
         `}</style>

@@ -82,7 +82,12 @@ Legend: `[x]` done and verified · `[~]` implemented, not deployed · `[ ]` not 
       owner-approved); 228 MB used after, Asterisk and 5061 unaffected.
 - [x] C.5 Verdict corrected: swap was idle (si/so 0). CONDITIONAL GO for a fresh Nano build,
       NO-GO for copying the box.
-- [ ] C.6 Owner decision: keep Micro, fresh Nano build, or Plivo WhatsApp Calling (retire Lightsail).
+- [x] C.6 Owner chose: fresh Nano + copy only the voice bot.
+- [x] C.7 🔒 Nano `wecare-voice-bot-nano` created and the voice bot copied (2026-10-15 03:25 UTC):
+      3,235 files, identical SHA-256 digest, 0 missing libraries, Asterisk 22.8.2 running, TLS CN
+      `sip.wecare.digital`, 171 MB used of 419 MB. See `docs/migrations/lightsail-nano-cutover.md`.
+- [ ] C.8 🔒 Cutover: move the static IP at 0 active calls, then a real WhatsApp call.
+- [ ] C.9 🔒 After about a week clean: delete the Micro; rotate the copied `asterisk-ivr-service` keys.
 
 ## Gate 7 — Cost
 

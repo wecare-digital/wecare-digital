@@ -21,6 +21,7 @@ import blog_catalog
 import blog_draft
 import blog_gate
 import blog_publish
+import blog_production
 import blog_qa
 import blog_queue
 import blog_repetition
@@ -474,6 +475,11 @@ def _review(body: Dict[str, Any], actor: str, origin: str):
 
 
 def _route_get(path: str, event: Dict[str, Any], origin: str):
+    if path.endswith('/blog-production'):
+        category = _query(event, 'category').strip()
+        if category:
+            return _response(200, {'ok': True, **blog_production.resume(category)}, origin)
+        return _response(200, {'ok': True, **blog_production.dashboard()}, origin)
     if path.endswith('/blog-posts'):
         posts = storage.list_blog_posts()
         return _response(200, {'ok': True, 'posts': posts, 'total': len(posts)}, origin)
@@ -701,6 +707,48 @@ def _route_get(path: str, event: Dict[str, Any], origin: str):
 
 
 def _route_post(path: str, body: Dict[str, Any], actor: str, origin: str):
+    # ── Zero-paid-AI editorial production state ────────────────────────────────
+    if path.endswith('/blog-production/init'):
+        duplicate = _claim({'version': 1}, actor, 'seo.blogproduction.init', origin)
+        if duplicate:
+            return duplicate
+        return _response(200, {'ok': True, **blog_production.initialize(actor)}, origin)
+
+    if path.endswith('/blog-production/claim'):
+        category = str(body.get('category') or '').strip()
+        return _response(200, {'ok': True, **blog_production.claim_next_source(
+            category, actor)}, origin)
+
+    if path.endswith('/blog-production/manifest'):
+        return _response(200, {'ok': True, **blog_production.submit_manifest(
+            body, actor)}, origin)
+
+    if path.endswith('/blog-production/sample'):
+        return _response(200, {'ok': True, **blog_production.save_sample(
+            body, actor)}, origin)
+
+    if path.endswith('/blog-production/sample-approve'):
+        duplicate = _claim(body, actor, 'seo.blogproduction.sampleapprove', origin)
+        if duplicate:
+            return duplicate
+        return _response(200, {'ok': True, **blog_production.approve_sample(
+            body, actor)}, origin)
+
+    if path.endswith('/blog-production/article'):
+        return _response(200, {'ok': True, **blog_production.save_article(
+            body, actor)}, origin)
+
+    if path.endswith('/blog-production/checkpoint'):
+        category = str(body.get('category') or '').strip()
+        return _response(200, {'ok': True, **blog_production.checkpoint(
+            category, body, actor)}, origin)
+
+    if path.endswith('/blog-production/complete-source'):
+        category = str(body.get('category') or '').strip()
+        source_id = str(body.get('sourceId') or '').strip()
+        return _response(200, {'ok': True, **blog_production.complete_source(
+            category, source_id, actor)}, origin)
+
     # ── Blog source intake ──────────────────────────────────────────────────────
     #
     # All four of these sit inside _route_post, which runs AFTER the require_auth call in

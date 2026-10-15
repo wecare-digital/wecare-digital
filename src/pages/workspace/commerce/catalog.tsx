@@ -36,6 +36,10 @@ interface NativeProduct {
   descriptionHtml?: string;
   variants: NativeVariant[];
   imageRefs?: string[];
+  catalogImageKey?: string;
+  canonicalPath?: string;
+  websiteEnabled?: boolean;
+  metaEnabled?: boolean;
   categories?: string[];
 }
 type Tab = 'products' | 'orders' | 'meta';
@@ -110,11 +114,17 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
   const [editTagline, setEditTagline] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editStatus, setEditStatus] = useState<NativeProduct['status']>('draft');
+  const [editCatalogImageKey, setEditCatalogImageKey] = useState('');
+  const [editCanonicalPath, setEditCanonicalPath] = useState('');
+  const [editWebsiteEnabled, setEditWebsiteEnabled] = useState(false);
+  const [editMetaEnabled, setEditMetaEnabled] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, VariantDraft>>({});
   const [newTitle, setNewTitle] = useState('');
   const [newSlug, setNewSlug] = useState('');
   const [newPrice, setNewPrice] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [newCatalogImageKey, setNewCatalogImageKey] = useState('');
+  const [newCanonicalPath, setNewCanonicalPath] = useState('');
   const [metaCatalog, setMetaCatalog] = useState<api.MetaCatalogSyncControl | null>(null);
   const [metaCatalogBusy, setMetaCatalogBusy] = useState(false);
   const [metaCatalogMessage, setMetaCatalogMessage] = useState('');
@@ -142,6 +152,10 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
     setEditTagline(p.tagline || '');
     setEditDescription(p.descriptionHtml || '');
     setEditStatus(p.status);
+    setEditCatalogImageKey(p.catalogImageKey || '');
+    setEditCanonicalPath(p.canonicalPath || ('/shop/' + p.slug + '/'));
+    setEditWebsiteEnabled(p.websiteEnabled !== false);
+    setEditMetaEnabled(p.metaEnabled === true);
     setDrafts(Object.fromEntries((p.variants || []).map(v => [v.sku, {
       label: v.label || 'Standard',
       price: (v.priceMinor / 100).toFixed(2),
@@ -210,6 +224,10 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
           tagline: editTagline,
           descriptionHtml: editDescription,
           status: editStatus,
+          catalogImageKey: editCatalogImageKey,
+          canonicalPath: editCanonicalPath,
+          websiteEnabled: editWebsiteEnabled,
+          metaEnabled: editMetaEnabled,
         }),
       });
       showProduct(data.product);
@@ -251,6 +269,10 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
         body: JSON.stringify({
           title: newTitle, slug: newSlug,
           descriptionHtml: newDescription, currency: 'INR',
+          ...(newCatalogImageKey.trim() ? { catalogImageKey: newCatalogImageKey.trim() } : {}),
+          canonicalPath: newCanonicalPath.trim() || ('/shop/' + newSlug + '/'),
+          websiteEnabled: false,
+          metaEnabled: false,
           variants: [{
             label: 'Standard', priceMinor: parsePaise(newPrice), inventory: 0,
           }],
@@ -259,6 +281,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
       await reloadProducts();
       showProduct(result.product);
       setNewTitle(''); setNewSlug(''); setNewPrice(''); setNewDescription('');
+      setNewCatalogImageKey(''); setNewCanonicalPath('');
       setMessage('Created as a draft in AWS; it is not publicly for sale until approved.');
     });
   };
@@ -360,6 +383,21 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
                     <textarea style={{ ...fieldStyle, minHeight: 95 }} value={editDescription}
                       onChange={e => setEditDescription(e.target.value)} />
                   </label>
+                  <label>Approved artwork S3 key
+                    <input style={fieldStyle} value={editCatalogImageKey}
+                      placeholder="o/stream/media/m/wd-catalog-live/product-4096.png"
+                      onChange={e => setEditCatalogImageKey(e.target.value)} />
+                  </label>
+                  {selected.imageRefs?.[0] && (
+                    <img src={selected.imageRefs[0]} alt={selected.title + ' artwork preview'}
+                      width={180} height={180}
+                      style={{ display: 'block', marginTop: 10, borderRadius: 10, objectFit: 'cover', border: '1px solid #dfe5e4' }} />
+                  )}
+                  <label>Canonical public path
+                    <input style={fieldStyle} value={editCanonicalPath}
+                      placeholder={'/shop/' + selected.slug + '/'}
+                      onChange={e => setEditCanonicalPath(e.target.value)} />
+                  </label>
                   <label>Visibility
                     <select style={fieldStyle} value={editStatus}
                       onChange={e => setEditStatus(e.target.value as NativeProduct['status'])}>
@@ -368,6 +406,18 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
                       <option value="archived">Archived</option>
                     </select>
                   </label>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
+                    <input type="checkbox" checked={editWebsiteEnabled}
+                      onChange={e => setEditWebsiteEnabled(e.target.checked)} />
+                    Publish on website after catalog snapshot/build
+                  </label>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                    <input type="checkbox" checked={editMetaEnabled}
+                      onChange={e => setEditMetaEnabled(e.target.checked)} />
+                    Include in Meta / WhatsApp catalog plan
+                  </label>
+                  <p style={muted}>Website or Meta publication requires Active status and an approved
+                    artwork key under the locked wd-catalog-live prefix. Meta still requires its separate exact-plan approval.</p>
                   <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
                     <button disabled={busy} onClick={updateProduct}>Save product</button>
                     <button disabled={busy} onClick={archive}>Archive</button>
@@ -405,8 +455,8 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
                       </div>
                     );
                   })}
-                  <p style={muted}>Artwork is hosted under the media service. Upload replacement
-                    images using the controlled S3 catalog-media migration; do not paste untrusted external URLs.</p>
+                  <p style={muted}>Artwork is referenced by approved S3 key. The API derives the public
+                    media URL; arbitrary external image URLs are not accepted.</p>
                 </>
               ) : (
                 <p>Select a product to edit its AWS source record.</p>
@@ -431,6 +481,16 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
               <label>Description HTML
                 <textarea style={{ ...fieldStyle, minHeight: 90 }} value={newDescription}
                   onChange={e => setNewDescription(e.target.value)} />
+              </label>
+              <label>Approved artwork S3 key (optional while draft)
+                <input style={fieldStyle} value={newCatalogImageKey}
+                  placeholder="o/stream/media/m/wd-catalog-live/product-4096.png"
+                  onChange={e => setNewCatalogImageKey(e.target.value)} />
+              </label>
+              <label>Canonical path (optional)
+                <input style={fieldStyle} value={newCanonicalPath}
+                  placeholder={newSlug ? '/shop/' + newSlug + '/' : '/shop/product-slug/'}
+                  onChange={e => setNewCanonicalPath(e.target.value)} />
               </label>
               <button style={{ marginTop: 12 }} disabled={busy} onClick={createProduct}>
                 Create AWS draft

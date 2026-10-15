@@ -141,15 +141,6 @@ EXPLICIT_TABLE: dict[str, str] = {
 # ---------------------------------------------------------------------------
 PHANTOM_ALLOWED: dict[str, str] = {}
 
-# Folded 2026-10-15 into FlowSubmissionTable (SubmitRequestsTable into FlowLogTable): no
-# runtime code reads or writes them (RETIRED in lambda_utils/shared_tables.py, pinned by
-# tests/test_shared_tables_contract.py), scripts/consolidate_shared_tables.py copied their
-# rows, and their models were removed from amplify/data/resource.ts. Allow-listed only until
-# the owner-approved physical deletion, which waits for the merged code to be deployed.
-_FOLDED_PENDING_DELETION = (
-    "Folded into the one flow-response store; pending physical deletion once the code that"
-    " stopped using it is deployed. See RETIRED in lambda_utils/shared_tables.py."
-)
 UNDECLARED_ALLOWED: dict[str, str] = {
     "ProductsTable": "AWS-native catalog authority (10 products, 23 variants), provisioned by scripts/provision_products_table.py and declared in amplify/catalog-resources.ts.",
     "CartTable": "AWS-native cart store with TTL, declared in amplify/catalog-resources.ts; operational state, not a CRM model.",
@@ -237,12 +228,6 @@ UNDECLARED_ALLOWED: dict[str, str] = {
         "commerce code is now AWS-native and no longer reads or writes this cache, and its "
         "declaration was removed from amplify/data/resource.ts. It stays live only until an "
         "owner deletes it in the console, so it is allow-listed rather than re-declared.",
-    "ReviewTable": _FOLDED_PENDING_DELETION,
-    "AppointmentTable": _FOLDED_PENDING_DELETION,
-    "RxSlotTable": _FOLDED_PENDING_DELETION,
-    "EnterpriseAssistTable": _FOLDED_PENDING_DELETION,
-    "AmendmentHistoryTable": _FOLDED_PENDING_DELETION,
-    "SubmitRequestsTable": _FOLDED_PENDING_DELETION,
 }
 
 
