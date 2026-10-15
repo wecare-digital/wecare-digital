@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-08T16:37:10.589782+00:00",
+  "generated": "2026-10-14T16:20:57.935920+00:00",
   "account": "775261844268",
   "identity_arn": "arn:aws:iam::775261844268:root",
   "region": "us-east-1",
@@ -8,7 +8,7 @@
   ],
   "lambda": {
     "count": 76,
-    "with_live_alias": 69,
+    "with_live_alias": 67,
     "without_live_alias": [
       "wecare-ad-attribution",
       "wecare-docs-scraper",
@@ -16,6 +16,8 @@
       "wecare-partner-token-refresh",
       "wecare-seo-tools",
       "wecare-sla-engine",
+      "wecare-temp-catalog-builder-b20dbfef-fn",
+      "wecare-temp-catalog-products-91804b04-fn",
       "wecare-url-shortener"
     ],
     "alias_read_errors": 0,
@@ -110,9 +112,9 @@
         ],
         "memory": 256,
         "timeout": 30,
-        "last_modified": "2026-10-05T02:37:10.000+0000",
-        "code_sha256": "sj3w3gW9VWUYu929W78n1wGPj6jcqY2raphJEa6ZfFA=",
-        "code_size": 593607,
+        "last_modified": "2026-10-08T23:02:15.000+0000",
+        "code_sha256": "oYYvXNdnG/1IhM3Ooxfk24rvrPUz8kpo9b2hRwM+oBI=",
+        "code_size": 594957,
         "layers": [],
         "env_var_names": [
           "AI_INTERACTIONS_TABLE",
@@ -126,7 +128,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "26"
+        "live_alias_version": "28"
       },
       {
         "name": "wecare-ai-generate-response",
@@ -137,9 +139,9 @@
         ],
         "memory": 1024,
         "timeout": 120,
-        "last_modified": "2026-10-05T02:37:06.000+0000",
-        "code_sha256": "78q0ROBHJ3c/FZw00+UISP1hbtfufkWn+OsouTViLXI=",
-        "code_size": 638310,
+        "last_modified": "2026-10-14T15:20:18.000+0000",
+        "code_sha256": "lQxqBHShNh15OGCpwC1pBtoceMeD/uIS6QkSlV/C5m8=",
+        "code_size": 742315,
         "layers": [],
         "env_var_names": [
           "ADMIN_MFA_REQUIRED",
@@ -163,7 +165,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "38"
+        "live_alias_version": "51"
       },
       {
         "name": "wecare-ai-query-kb",
@@ -260,6 +262,29 @@
           "live"
         ],
         "live_alias_version": "25"
+      },
+      {
+        "name": "wecare-blog-public",
+        "runtime": "python3.12",
+        "package_type": "Zip",
+        "architectures": [
+          "x86_64"
+        ],
+        "memory": 512,
+        "timeout": 30,
+        "last_modified": "2026-10-14T05:41:48.000+0000",
+        "code_sha256": "b5TWyQdOormFE/QN6PAAp0LgisChnmQCok83aCQ/wA0=",
+        "code_size": 11411,
+        "layers": [],
+        "env_var_names": [
+          "PUBLIC_SITE_URL",
+          "SEO_TOOLS_TABLE"
+        ],
+        "snapstart": "None",
+        "aliases": [
+          "live"
+        ],
+        "live_alias_version": "2"
       },
       {
         "name": "wecare-bulk-job-control",
@@ -375,32 +400,32 @@
         ],
         "memory": 256,
         "timeout": 20,
-        "last_modified": "2026-10-08T12:53:37.000+0000",
-        "code_sha256": "tV2jAKm7MpC/QOzEvMredC5Wi+br3hRu4D2hYWA33YE=",
-        "code_size": 777503,
+        "last_modified": "2026-10-14T15:51:28.000+0000",
+        "code_sha256": "F+zq1+1vGaQiC4XLQ4dsHTRaYDB4UMeBshPMmYq1Snw=",
+        "code_size": 788518,
         "layers": [],
         "env_var_names": [
-          "CHECKOUT_INITIATION_ENABLED",
+          "CATALOG_SOURCE",
+          "CHECKOUT_MODE",
           "COMMERCE_KEYS_TABLE",
           "CONTACTS_TABLE",
           "CONTRIBUTION_PRODUCT_ID",
           "EXPECTED_CONFIGURATION_NAME",
           "EXPECTED_PROVIDER_MID",
+          "NATIVE_STOCK_RESERVATION_ENABLED",
           "ORDERS_TABLE",
           "PAYMENT_ATTEMPTS_TABLE",
           "PAYMENT_WABA_ID",
+          "PRODUCTS_TABLE",
           "RAZORPAY_SECRET_ID",
           "SECRETS_REFRESHED_AT",
-          "SENDER_FUNCTION",
-          "WIX_API_KEY_SECRET",
-          "WIX_CART_V2_ENABLED",
-          "WIX_SITE_ID"
+          "SENDER_FUNCTION"
         ],
         "snapstart": "None",
         "aliases": [
           "live"
         ],
-        "live_alias_version": "37"
+        "live_alias_version": "53"
       },
       {
         "name": "wecare-cognito-custom-message",
@@ -424,7 +449,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "2"
+        "live_alias_version": "3"
       },
       {
         "name": "wecare-contacts",
@@ -435,9 +460,9 @@
         ],
         "memory": 256,
         "timeout": 60,
-        "last_modified": "2026-10-08T05:43:25.000+0000",
-        "code_sha256": "aol0YdzlAwRKypYOhpQqyz5fFyCkPYdg4k+jB45l/hs=",
-        "code_size": 682480,
+        "last_modified": "2026-10-10T09:41:33.000+0000",
+        "code_sha256": "VDVyw0ck6Iy8iURSlQIqyytJGILPtmL2A7Zks4c8eZ0=",
+        "code_size": 748185,
         "layers": [],
         "env_var_names": [
           "AWS_ACCOUNT_ID",
@@ -451,7 +476,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "32"
+        "live_alias_version": "35"
       },
       {
         "name": "wecare-conversation-meta",
@@ -485,16 +510,18 @@
         ],
         "memory": 256,
         "timeout": 30,
-        "last_modified": "2026-10-08T12:52:01.499+0000",
-        "code_sha256": "rUieJ+j2NUajYlqMRXwuILDVIgBLFdalGtmvYsimyAA=",
-        "code_size": 725797,
+        "last_modified": "2026-10-14T06:35:53.000+0000",
+        "code_sha256": "Lfw0UBvRaKYWqur6lkgTYZ7D4svJ9SKHgHwsZe4gyKI=",
+        "code_size": 755205,
         "layers": [],
-        "env_var_names": [],
+        "env_var_names": [
+          "CATALOG_SOURCE"
+        ],
         "snapstart": "None",
         "aliases": [
           "live"
         ],
-        "live_alias_version": "1"
+        "live_alias_version": "2"
       },
       {
         "name": "wecare-crm",
@@ -505,9 +532,9 @@
         ],
         "memory": 256,
         "timeout": 30,
-        "last_modified": "2026-10-05T02:34:15.000+0000",
-        "code_sha256": "KBefY5tYV5bf8i9r2i+V9blN/0BoEZ/ashM8rAwdmy0=",
-        "code_size": 594030,
+        "last_modified": "2026-10-10T09:41:50.000+0000",
+        "code_sha256": "gPJOZwSe76BJ6I2NP2HxRvCL1dMFsqzUACYoCeKxdeE=",
+        "code_size": 740373,
         "layers": [],
         "env_var_names": [
           "CONTACTS_TABLE",
@@ -523,7 +550,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "16"
+        "live_alias_version": "18"
       },
       {
         "name": "wecare-customer-orders",
@@ -534,9 +561,9 @@
         ],
         "memory": 512,
         "timeout": 15,
-        "last_modified": "2026-10-07T23:40:01.000+0000",
-        "code_sha256": "CmoW7yv/XKBycGhpcbeCr1UL6D8aZJys63wszK2HqbQ=",
-        "code_size": 610982,
+        "last_modified": "2026-10-09T03:05:25.000+0000",
+        "code_sha256": "IAHVgfXGsh8H7QwhO77yWefHWhzfBJk87cuFOlv93Ew=",
+        "code_size": 619768,
         "layers": [],
         "env_var_names": [
           "CONTACTS_TABLE",
@@ -549,7 +576,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "4"
+        "live_alias_version": "7"
       },
       {
         "name": "wecare-customer-profile",
@@ -560,9 +587,9 @@
         ],
         "memory": 256,
         "timeout": 15,
-        "last_modified": "2026-10-07T23:39:51.000+0000",
-        "code_sha256": "J0zMH7Yzug/nbschSVJ5o5Ytb8FO5Qh9jiI3wOq+IFI=",
-        "code_size": 610696,
+        "last_modified": "2026-10-10T08:13:49.000+0000",
+        "code_sha256": "tsgXqe5hhVBjtAfP1zJur0gQmtDQmj2EyTkKLh29X2Q=",
+        "code_size": 745886,
         "layers": [],
         "env_var_names": [
           "CONTACTS_TABLE",
@@ -573,7 +600,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "7"
+        "live_alias_version": "12"
       },
       {
         "name": "wecare-customer-session",
@@ -750,9 +777,9 @@
         ],
         "memory": 512,
         "timeout": 120,
-        "last_modified": "2026-10-08T12:53:31.000+0000",
-        "code_sha256": "ft6WHUzXr5CnYPgxSfCQOLE59mzHh9BfkRkPgNqV3f4=",
-        "code_size": 829900,
+        "last_modified": "2026-10-10T08:13:55.000+0000",
+        "code_sha256": "Z1wwjRCKWCVGtIlGTxVfc+LDJ+f5BsbgsGQ1Fi7MjDc=",
+        "code_size": 840990,
         "layers": [],
         "env_var_names": [
           "CONTACTS_TABLE",
@@ -768,7 +795,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "89"
+        "live_alias_version": "93"
       },
       {
         "name": "wecare-invoice-engine",
@@ -779,15 +806,16 @@
         ],
         "memory": 512,
         "timeout": 60,
-        "last_modified": "2026-10-08T12:53:24.000+0000",
-        "code_sha256": "hSEs26ORumqwTMBxKhKvHsyTR3CWZWFIurM/yo+At9M=",
-        "code_size": 1600420,
+        "last_modified": "2026-10-14T15:54:26.000+0000",
+        "code_sha256": "JVSWCd4eil1QT97bJggnpxQzrdDlRDC+sWjI3j1FqKg=",
+        "code_size": 1635129,
         "layers": [
           "pillow-python312:2"
         ],
         "env_var_names": [
           "ADMIN_MFA_REQUIRED",
           "CDN_DOMAIN",
+          "COMMERCE_KEYS_TABLE",
           "CONTACTS_TABLE",
           "INVOICES_TABLE",
           "INVOICE_ASSETS_TABLE",
@@ -802,7 +830,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "48"
+        "live_alias_version": "56"
       },
       {
         "name": "wecare-marketing-ads",
@@ -846,9 +874,9 @@
         ],
         "memory": 512,
         "timeout": 20,
-        "last_modified": "2026-10-08T11:38:05.000+0000",
-        "code_sha256": "2DYrfVA6d2bimUunM30xNyv83uTyXJIHSz4tVsIKUqw=",
-        "code_size": 18248,
+        "last_modified": "2026-10-10T17:35:05.000+0000",
+        "code_sha256": "drHQHDb63nRxWF10V1n/kPgWmGz4hkWGMYZfgKR4NSQ=",
+        "code_size": 18379,
         "layers": [],
         "env_var_names": [
           "LOG_LEVEL",
@@ -860,7 +888,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "12"
+        "live_alias_version": "17"
       },
       {
         "name": "wecare-media-cleanup",
@@ -897,9 +925,9 @@
         ],
         "memory": 256,
         "timeout": 30,
-        "last_modified": "2026-10-05T02:34:21.000+0000",
-        "code_sha256": "H+x85ctBDMGahj9UgPXqBsuSINUJEtmZtHaeDzIXnY0=",
-        "code_size": 590774,
+        "last_modified": "2026-10-10T09:41:59.000+0000",
+        "code_sha256": "ZgVi8z1SIbVpjhnZoxgj/5DlNJT5KsXmLG+zSl5akiI=",
+        "code_size": 739031,
         "layers": [],
         "env_var_names": [
           "AWS_ACCOUNT_ID",
@@ -912,7 +940,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "26"
+        "live_alias_version": "29"
       },
       {
         "name": "wecare-messages-read",
@@ -923,9 +951,9 @@
         ],
         "memory": 512,
         "timeout": 60,
-        "last_modified": "2026-10-05T02:34:26.000+0000",
-        "code_sha256": "mLxDrVYd2tq0MJ+VVTMt87EBmvH5Bjv22BxPd5TnIBU=",
-        "code_size": 593160,
+        "last_modified": "2026-10-09T00:09:39.000+0000",
+        "code_sha256": "SwhnuDChOmx9v4AyJXI3WDDsnEvk5zjGaLF2zUEGUFY=",
+        "code_size": 593222,
         "layers": [],
         "env_var_names": [
           "ADMIN_MFA_REQUIRED",
@@ -939,7 +967,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "28"
+        "live_alias_version": "29"
       },
       {
         "name": "wecare-meta-analytics",
@@ -970,16 +998,16 @@
         ],
         "memory": 256,
         "timeout": 60,
-        "last_modified": "2026-10-08T12:07:23.000+0000",
-        "code_sha256": "ee6oPGlqYuTqRqI5GmzuMfZuYRUJYONlcynmjtkK/4Y=",
-        "code_size": 729206,
+        "last_modified": "2026-10-08T23:01:39.000+0000",
+        "code_sha256": "+6wfCdkyYmWxNDE4zvkYQDV4wt++Hc/20VjFZXWhTrM=",
+        "code_size": 729035,
         "layers": [],
         "env_var_names": [],
         "snapstart": "None",
         "aliases": [
           "live"
         ],
-        "live_alias_version": "37"
+        "live_alias_version": "38"
       },
       {
         "name": "wecare-meta-catalog-sync",
@@ -990,12 +1018,14 @@
         ],
         "memory": 512,
         "timeout": 120,
-        "last_modified": "2026-10-08T11:52:02.000+0000",
-        "code_sha256": "v4uxaXl+7L52ZCN1ZxkblU3RHnfnp06jhZ07c3i195s=",
-        "code_size": 713563,
+        "last_modified": "2026-10-14T11:15:15.000+0000",
+        "code_sha256": "jTnarytEr35CU2nOP/DIFEjxBaJjODEGkPiWrWmlxps=",
+        "code_size": 741940,
         "layers": [],
         "env_var_names": [
+          "CATALOG_SOURCE",
           "LOG_LEVEL",
+          "META_CATALOG_APPROVALS_TABLE",
           "META_CATALOG_ID",
           "META_CATALOG_SYNC_DRY_RUN",
           "META_CATALOG_SYNC_ENABLED",
@@ -1003,14 +1033,38 @@
           "META_CATALOG_SYNC_VARIANT_IDS",
           "META_TOKEN_FIELD",
           "META_TOKEN_SECRET",
-          "WIX_API_KEY_SECRET",
-          "WIX_SITE_ID"
+          "PRODUCTS_TABLE"
         ],
         "snapstart": "None",
         "aliases": [
           "live"
         ],
-        "live_alias_version": "5"
+        "live_alias_version": "12"
+      },
+      {
+        "name": "wecare-native-catalog-admin",
+        "runtime": "python3.12",
+        "package_type": "Zip",
+        "architectures": [
+          "x86_64"
+        ],
+        "memory": 256,
+        "timeout": 20,
+        "last_modified": "2026-10-14T11:20:23.000+0000",
+        "code_sha256": "NW18U2u0b8srbT55Y+wTGQ3n+RezN3zTkVcIs/AuvOQ=",
+        "code_size": 727759,
+        "layers": [],
+        "env_var_names": [
+          "AUTH_SKIP_PATHS",
+          "COGNITO_USER_POOL_ID",
+          "LOG_LEVEL",
+          "PRODUCTS_TABLE"
+        ],
+        "snapstart": "None",
+        "aliases": [
+          "live"
+        ],
+        "live_alias_version": "4"
       },
       {
         "name": "wecare-notification-worker",
@@ -1072,13 +1126,11 @@
         ],
         "memory": 256,
         "timeout": 30,
-        "last_modified": "2026-10-05T02:35:56.000+0000",
+        "last_modified": "2026-10-14T14:43:00.000+0000",
         "code_sha256": "UU2bVLmpjUDcr/v4kjQLZ1PGNRs+AX67CBBvYaJlvsg=",
         "code_size": 590487,
         "layers": [],
         "env_var_names": [
-          "AIRTEL_IQ_ENTITY_ID",
-          "AIRTEL_IQ_SOURCE_ADDRESS",
           "AWS_ACCOUNT_ID",
           "CONTACTS_TABLE",
           "LOG_LEVEL",
@@ -1101,9 +1153,9 @@
         ],
         "memory": 512,
         "timeout": 60,
-        "last_modified": "2026-10-08T12:20:26.000+0000",
-        "code_sha256": "4l5puJr1dzOq67CZHDOiMbMNtwNZw9eK8GHtoCTJ+2A=",
-        "code_size": 777243,
+        "last_modified": "2026-10-10T08:13:59.000+0000",
+        "code_sha256": "u5xjOg1MwaA/3R8vFKeYd5mctYZa4RBwi2XJ/E9Fm/8=",
+        "code_size": 796341,
         "layers": [],
         "env_var_names": [
           "ADMIN_MFA_REQUIRED",
@@ -1128,7 +1180,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "55"
+        "live_alias_version": "57"
       },
       {
         "name": "wecare-partner-onboarding",
@@ -1139,7 +1191,7 @@
         ],
         "memory": 256,
         "timeout": 30,
-        "last_modified": "2026-10-05T02:35:47.000+0000",
+        "last_modified": "2026-10-14T15:54:31.000+0000",
         "code_sha256": "BPiiJLfHqcEatvVh3Zg1ysmft7uBgUO3/nSJ4I078Xo=",
         "code_size": 595903,
         "layers": [
@@ -1148,6 +1200,7 @@
         "env_var_names": [
           "ADMIN_MFA_REQUIRED",
           "COGNITO_USER_POOL_ID",
+          "COMMERCE_KEYS_TABLE",
           "LOG_LEVEL",
           "META_API_VERSION",
           "META_APP_ID",
@@ -1167,7 +1220,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "27"
+        "live_alias_version": "28"
       },
       {
         "name": "wecare-partner-token-refresh",
@@ -1206,9 +1259,9 @@
         ],
         "memory": 256,
         "timeout": 30,
-        "last_modified": "2026-10-05T02:37:47.000+0000",
-        "code_sha256": "SeRBEmbFNVzYV8+/ucPeIYhu1l7VLzrUC232y2lzylU=",
-        "code_size": 589155,
+        "last_modified": "2026-10-10T09:43:03.000+0000",
+        "code_sha256": "QkLBKbngpEplhj06CDPbBQj3SuTLzFbOT4zDRHFPqY8=",
+        "code_size": 735498,
         "layers": [],
         "env_var_names": [
           "AWS_ACCOUNT_ID",
@@ -1219,7 +1272,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "26"
+        "live_alias_version": "28"
       },
       {
         "name": "wecare-plivo-answer",
@@ -1257,23 +1310,18 @@
         ],
         "memory": 512,
         "timeout": 60,
-        "last_modified": "2026-10-05T04:29:30.000+0000",
-        "code_sha256": "tsz/BCq1Yo9PjJnL6gMD3FaXl3+ys12nGM7sbpN94rs=",
-        "code_size": 594936,
+        "last_modified": "2026-10-14T15:20:24.000+0000",
+        "code_sha256": "zsZLFjf6p13reYBTxMF4RAwYgeLoI7fDQoutsZHx/c4=",
+        "code_size": 697070,
         "layers": [
           "Klayers-p312-Pillow:10"
         ],
-        "env_var_names": [
-          "CREDENTIAL_PURGE_EPOCH",
-          "WIX_ACCOUNT_ID",
-          "WIX_CREDENTIALS_DISABLED",
-          "WIX_SITE_ID"
-        ],
+        "env_var_names": [],
         "snapstart": "None",
         "aliases": [
           "live"
         ],
-        "live_alias_version": "28"
+        "live_alias_version": "40"
       },
       {
         "name": "wecare-pstn-softphone",
@@ -1331,12 +1379,13 @@
         ],
         "memory": 256,
         "timeout": 60,
-        "last_modified": "2026-10-08T12:07:39.000+0000",
-        "code_sha256": "h9LRnYAhPjGkCg6tT1L8NwmYAwto2aAdNjofhsYcVEI=",
-        "code_size": 756727,
+        "last_modified": "2026-10-14T15:54:22.000+0000",
+        "code_sha256": "rxGhjcZSqqBM/4NFiAZpWbH276eCKuD3UfVJxQfePy0=",
+        "code_size": 782647,
         "layers": [],
         "env_var_names": [
           "AWS_ACCOUNT_ID",
+          "COMMERCE_KEYS_TABLE",
           "INVOICES_TABLE",
           "LOG_LEVEL",
           "MESSAGES_TABLE",
@@ -1353,7 +1402,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "56"
+        "live_alias_version": "60"
       },
       {
         "name": "wecare-rcs-dlr",
@@ -1413,9 +1462,9 @@
         ],
         "memory": 256,
         "timeout": 60,
-        "last_modified": "2026-10-05T02:36:40.000+0000",
-        "code_sha256": "C7+Ku7GNC7EoOrymQuki41c/ZdK0t9/TMDf+1IgAS30=",
-        "code_size": 590714,
+        "last_modified": "2026-10-08T23:27:51.000+0000",
+        "code_sha256": "/hCjUkPltb3zvUuSBHGuPL9O2iGJpewpt+877pNUagc=",
+        "code_size": 591971,
         "layers": [],
         "env_var_names": [
           "ADMIN_MFA_REQUIRED",
@@ -1431,7 +1480,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "24"
+        "live_alias_version": "25"
       },
       {
         "name": "wecare-secure-files",
@@ -1442,9 +1491,9 @@
         ],
         "memory": 512,
         "timeout": 30,
-        "last_modified": "2026-10-08T08:20:34.000+0000",
-        "code_sha256": "AToCbKYvSEN9JZAZPu6K4DQMCOT5rbsotoz3CyqiA1s=",
-        "code_size": 693756,
+        "last_modified": "2026-10-10T09:41:42.000+0000",
+        "code_sha256": "Gioimj7srfxDw/JwJkfZj23p2eccfBOrBXxRWZOTX9c=",
+        "code_size": 765695,
         "layers": [],
         "env_var_names": [
           "COGNITO_USER_POOL_ID",
@@ -1473,7 +1522,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "31"
+        "live_alias_version": "38"
       },
       {
         "name": "wecare-seo-tools",
@@ -1484,9 +1533,9 @@
         ],
         "memory": 512,
         "timeout": 120,
-        "last_modified": "2026-10-08T12:32:21.000+0000",
-        "code_sha256": "o8vsXlW2ktq9bhcyrzP3i5wHkB1oF0DLoAqp9MQAAIo=",
-        "code_size": 322909,
+        "last_modified": "2026-10-14T15:13:51.000+0000",
+        "code_sha256": "eBoMa7mP5HL0IjW57It5+0Rj747DdulfXv76l6aJhy4=",
+        "code_size": 317463,
         "layers": [],
         "env_var_names": [
           "ADMIN_MFA_REQUIRED",
@@ -1494,6 +1543,7 @@
           "BEDROCK_MODEL_ID",
           "BLOG_INGEST_QUEUE_NAME",
           "BLOG_INGEST_QUEUE_URL",
+          "BLOG_SOURCE",
           "BLOG_SOURCE_BUCKET",
           "COGNITO_USER_POOL_ID",
           "COST_MODE",
@@ -1502,16 +1552,12 @@
           "FAQ_AI_GENERATION",
           "LOG_LEVEL",
           "SEO_TOOLS_TABLE",
-          "WEBHOOK_DEDUP_TABLE",
-          "WIX_ACCOUNT_ID",
-          "WIX_BLOG_AUTHOR_NAME",
-          "WIX_BLOG_CLIENT_ID",
-          "WIX_CLIENT_ID",
-          "WIX_CREDENTIALS_DISABLED",
-          "WIX_SITE_ID"
+          "WEBHOOK_DEDUP_TABLE"
         ],
         "snapstart": "None",
-        "aliases": [],
+        "aliases": [
+          "blog-rollback-20261014"
+        ],
         "live_alias_version": null
       },
       {
@@ -1523,9 +1569,9 @@
         ],
         "memory": 256,
         "timeout": 30,
-        "last_modified": "2026-10-08T02:44:52.000+0000",
-        "code_sha256": "hyy3ohU8YHnQz1LQVvHcV/UtLG27LjQase/r+0O9IXY=",
-        "code_size": 595224,
+        "last_modified": "2026-10-14T15:20:09.000+0000",
+        "code_sha256": "MM9J0jBVRzkYhwJTSUxZklStK8CPdcycs/NRpugBwP0=",
+        "code_size": 697687,
         "layers": [],
         "env_var_names": [
           "DOCS_S3_BUCKET",
@@ -1535,7 +1581,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "22"
+        "live_alias_version": "37"
       },
       {
         "name": "wecare-service-requests",
@@ -1546,9 +1592,9 @@
         ],
         "memory": 512,
         "timeout": 15,
-        "last_modified": "2026-10-08T08:20:33.000+0000",
-        "code_sha256": "f+NT3wxCRCSfRelSupJTAEvyYaQETGUfTrD6uXqjxDk=",
-        "code_size": 663901,
+        "last_modified": "2026-10-14T15:51:28.000+0000",
+        "code_sha256": "mcx7erlUykCfXVRKwI1S96ZHvqevxXTjLgok2TuZvA0=",
+        "code_size": 663977,
         "layers": [],
         "env_var_names": [
           "COMMERCE_KEYS_TABLE",
@@ -1560,7 +1606,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "3"
+        "live_alias_version": "6"
       },
       {
         "name": "wecare-site-language",
@@ -1590,7 +1636,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "9"
+        "live_alias_version": "10"
       },
       {
         "name": "wecare-sla-engine",
@@ -1649,9 +1695,9 @@
         ],
         "memory": 512,
         "timeout": 300,
-        "last_modified": "2026-10-05T02:37:41.000+0000",
-        "code_sha256": "CzQXxfUFmS5qEXArpiThMtaXHv2LAb/kj4yoKiqgnfk=",
-        "code_size": 593112,
+        "last_modified": "2026-10-10T09:42:49.000+0000",
+        "code_sha256": "C0+mP1pi5VYccKeJ5AuoRS/2e+rrZs+SfJrWAFA77Cc=",
+        "code_size": 744148,
         "layers": [],
         "env_var_names": [
           "AWS_REGION_OVERRIDE",
@@ -1663,7 +1709,45 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "31"
+        "live_alias_version": "34"
+      },
+      {
+        "name": "wecare-temp-catalog-builder-b20dbfef-fn",
+        "runtime": "python3.12",
+        "package_type": "Zip",
+        "architectures": [
+          "x86_64"
+        ],
+        "memory": 1024,
+        "timeout": 90,
+        "last_modified": "2026-10-14T11:00:08.093+0000",
+        "code_sha256": "f5cbXPjuSjtjtl2XzJnJmViGuJPrR9V3tMAfI6BHXd4=",
+        "code_size": 1532,
+        "layers": [
+          "Klayers-p312-Pillow:10"
+        ],
+        "env_var_names": [],
+        "snapstart": "None",
+        "aliases": [],
+        "live_alias_version": null
+      },
+      {
+        "name": "wecare-temp-catalog-products-91804b04-fn",
+        "runtime": "python3.12",
+        "package_type": "Zip",
+        "architectures": [
+          "x86_64"
+        ],
+        "memory": 256,
+        "timeout": 90,
+        "last_modified": "2026-10-11T11:05:43.614+0000",
+        "code_sha256": "IV3W62lonb2jJIz/IYKxOjvCzEuE9a8Zn1K0fIB4msU=",
+        "code_size": 510,
+        "layers": [],
+        "env_var_names": [],
+        "snapstart": "None",
+        "aliases": [],
+        "live_alias_version": null
       },
       {
         "name": "wecare-template-analytics",
@@ -1761,61 +1845,6 @@
         "live_alias_version": "24"
       },
       {
-        "name": "wecare-voice-in-c2c",
-        "runtime": "python3.12",
-        "package_type": "Zip",
-        "architectures": [
-          "x86_64"
-        ],
-        "memory": 256,
-        "timeout": 60,
-        "last_modified": "2026-10-05T02:36:10.000+0000",
-        "code_sha256": "BRcc9bRjUgjLZBQAa9xjyH8Nldhn9oeqlnIifBNndFY=",
-        "code_size": 594521,
-        "layers": [],
-        "env_var_names": [
-          "AWS_ACCOUNT_ID",
-          "LOG_LEVEL",
-          "REGION",
-          "S3_BUCKET",
-          "SINCH_RCS_ENABLED",
-          "VOICE_CDR_TABLE"
-        ],
-        "snapstart": "None",
-        "aliases": [
-          "live"
-        ],
-        "live_alias_version": "29"
-      },
-      {
-        "name": "wecare-voice-in-obd",
-        "runtime": "python3.12",
-        "package_type": "Zip",
-        "architectures": [
-          "x86_64"
-        ],
-        "memory": 512,
-        "timeout": 120,
-        "last_modified": "2026-10-05T02:36:13.000+0000",
-        "code_sha256": "F+pkeAhAsnea+/ij6RZdTos2NRxa0TEUKw+PT/2ruag=",
-        "code_size": 598208,
-        "layers": [],
-        "env_var_names": [
-          "AWS_ACCOUNT_ID",
-          "LOG_LEVEL",
-          "OBD_CAMPAIGNS_TABLE",
-          "REGION",
-          "S3_BUCKET",
-          "SINCH_RCS_ENABLED",
-          "VOICE_CDR_TABLE"
-        ],
-        "snapstart": "None",
-        "aliases": [
-          "live"
-        ],
-        "live_alias_version": "30"
-      },
-      {
         "name": "wecare-waba-management",
         "runtime": "python3.12",
         "package_type": "Zip",
@@ -1853,14 +1882,15 @@
         ],
         "memory": 256,
         "timeout": 30,
-        "last_modified": "2026-10-08T13:35:40.000+0000",
-        "code_sha256": "qeJ3Voblg2wU0r8xDIRvy8uPWEbpGxRHc609oCIHWu4=",
-        "code_size": 1252588,
+        "last_modified": "2026-10-14T16:08:31.000+0000",
+        "code_sha256": "BAcuooIdf2KfN4QyauNlS8XG4xaGkXw7A3wtOslgDDQ=",
+        "code_size": 1442921,
         "layers": [
           "cryptography-python312:1"
         ],
         "env_var_names": [
           "AUTH_SKIP_PATHS",
+          "COMMERCE_KEYS_TABLE",
           "DIRECT_SEND_ENABLED_WABAS",
           "FLOW_LOGS_TABLE",
           "FLOW_PRIVATE_KEY_PASSPHRASE",
@@ -1870,21 +1900,20 @@
           "LOG_LEVEL",
           "MEDIA_BUCKET",
           "META_API_VERSION",
+          "META_CAPI_DATASET_ID",
           "META_TOKEN_SECRET",
           "PAYMENT_WABA_ID",
           "RAZORPAY_MID",
           "RAZORPAY_UPI_ID",
           "SECRETS_REFRESHED_AT",
           "SUBMIT_REQUESTS_TABLE",
-          "WIX_ORDERS_CACHE_TABLE",
-          "WIX_ORDER_IDS_TABLE",
-          "WIX_SITE_URL"
+          "WIX_ORDER_IDS_TABLE"
         ],
         "snapstart": "None",
         "aliases": [
           "live"
         ],
-        "live_alias_version": "77"
+        "live_alias_version": "114"
       },
       {
         "name": "wecare-whatsapp-calling",
@@ -1958,9 +1987,9 @@
         ],
         "memory": 256,
         "timeout": 30,
-        "last_modified": "2026-10-05T02:35:20.000+0000",
-        "code_sha256": "7XO9ll7KkAd6pGvYt4HuYf9sgPPAPD6u31ldPb0jMgg=",
-        "code_size": 594471,
+        "last_modified": "2026-10-08T22:50:05.000+0000",
+        "code_sha256": "yGVA2e9eu2kYqoSNjc9TnzF0iSNR7LQ++2egLDvbmwg=",
+        "code_size": 596086,
         "layers": [],
         "env_var_names": [
           "AWS_ACCOUNT_ID",
@@ -1972,7 +2001,7 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "29"
+        "live_alias_version": "30"
       },
       {
         "name": "wecare-whatsapp-voice",
@@ -2001,64 +2030,6 @@
         "live_alias_version": "31"
       },
       {
-        "name": "wecare-wix-catalog-webhook",
-        "runtime": "python3.12",
-        "package_type": "Zip",
-        "architectures": [
-          "x86_64"
-        ],
-        "memory": 128,
-        "timeout": 15,
-        "last_modified": "2026-10-07T09:45:45.000+0000",
-        "code_sha256": "JnJfnz3Zd0xzZcQUxfQRVXkb/nDB2BY6n3ZNwdm3Js4=",
-        "code_size": 649247,
-        "layers": [
-          "cryptography-python312:1"
-        ],
-        "env_var_names": [
-          "CATALOGUE_DISPATCH_EVENT",
-          "GITHUB_REPOSITORY",
-          "GITHUB_TOKEN_SECRET_ID"
-        ],
-        "snapstart": "None",
-        "aliases": [
-          "live"
-        ],
-        "live_alias_version": "9"
-      },
-      {
-        "name": "wecare-wix-store",
-        "runtime": "python3.12",
-        "package_type": "Zip",
-        "architectures": [
-          "x86_64"
-        ],
-        "memory": 256,
-        "timeout": 60,
-        "last_modified": "2026-10-08T12:02:06.000+0000",
-        "code_sha256": "oidx2+S1gKK/cugQkllFhtfZYu9LjBur4Tp/Pomn/Vc=",
-        "code_size": 603780,
-        "layers": [],
-        "env_var_names": [
-          "ADMIN_MFA_REQUIRED",
-          "CONTACTS_TABLE",
-          "LOG_LEVEL",
-          "WIX_ACCOUNT_ID",
-          "WIX_API_BASE_URL",
-          "WIX_API_KEY_SECRET",
-          "WIX_CART_V2_ENABLED",
-          "WIX_ORDERS_CACHE_TABLE",
-          "WIX_ORDER_IDS_TABLE",
-          "WIX_PRODUCTS_CACHE_TABLE",
-          "WIX_SITE_ID"
-        ],
-        "snapstart": "None",
-        "aliases": [
-          "live"
-        ],
-        "live_alias_version": "37"
-      },
-      {
         "name": "wecare-workspace-mcp",
         "runtime": "python3.12",
         "package_type": "Zip",
@@ -2067,9 +2038,9 @@
         ],
         "memory": 256,
         "timeout": 28,
-        "last_modified": "2026-10-06T13:43:12.000+0000",
-        "code_sha256": "PiENyw1+sRjrIIQZ4R0CuHNNklpYHFwNO54AM9CJm64=",
-        "code_size": 16585407,
+        "last_modified": "2026-10-08T22:50:33.000+0000",
+        "code_sha256": "C+xXFaCVmTf/omSXkMP8IY/lgspcw8As6KyxI3wAJaA=",
+        "code_size": 16585497,
         "layers": [],
         "env_var_names": [
           "CODE_JOBS_ENABLED",
@@ -2082,16 +2053,16 @@
         "aliases": [
           "live"
         ],
-        "live_alias_version": "10"
+        "live_alias_version": "11"
       }
     ]
   },
   "api_gateway": {
     "http_api_count": 1,
     "rest_api_count": 0,
-    "total_routes": 384,
+    "total_routes": 375,
     "total_authorizers": 1,
-    "routes_authorization_none": 382,
+    "routes_authorization_none": 373,
     "http_apis": [
       {
         "api_id": "zllr9lrg7j",
@@ -2099,7 +2070,7 @@
         "protocol": "HTTP",
         "endpoint": "https://zllr9lrg7j.execute-api.us-east-1.amazonaws.com",
         "created": "2026-02-10T15:51:02+00:00",
-        "route_count": 384,
+        "route_count": 375,
         "authorizer_count": 1,
         "authorizers": [
           {
@@ -2264,6 +2235,14 @@
             "payload_version": "2.0"
           },
           {
+            "route_key": "DELETE /native-catalog/products/{id}",
+            "authorization_type": "NONE",
+            "authorizer_id": null,
+            "target_function": "wecare-native-catalog-admin",
+            "qualifier": "live",
+            "payload_version": "2.0"
+          },
+          {
             "route_key": "DELETE /partners/tenants",
             "authorization_type": "NONE",
             "authorizer_id": null,
@@ -2316,46 +2295,6 @@
             "authorization_type": "NONE",
             "authorizer_id": null,
             "target_function": "wecare-voice-cdr-read",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
-            "route_key": "DELETE /voice-in/c2c",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-c2c",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
-            "route_key": "DELETE /voice-in/c2c/clear-logs",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-c2c",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
-            "route_key": "DELETE /voice-in/obd",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-obd",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
-            "route_key": "DELETE /voice-in/obd/audio-library",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-obd",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
-            "route_key": "DELETE /voice-in/obd/clear-logs",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-obd",
             "qualifier": "live",
             "payload_version": "2.0"
           },
@@ -2824,6 +2763,22 @@
             "payload_version": "2.0"
           },
           {
+            "route_key": "GET /native-catalog/products",
+            "authorization_type": "NONE",
+            "authorizer_id": null,
+            "target_function": "wecare-native-catalog-admin",
+            "qualifier": "live",
+            "payload_version": "2.0"
+          },
+          {
+            "route_key": "GET /native-catalog/products/{id}",
+            "authorization_type": "NONE",
+            "authorizer_id": null,
+            "target_function": "wecare-native-catalog-admin",
+            "qualifier": "live",
+            "payload_version": "2.0"
+          },
+          {
             "route_key": "GET /partners/billing",
             "authorization_type": "NONE",
             "authorizer_id": null,
@@ -2960,6 +2915,22 @@
             "payload_version": "2.0"
           },
           {
+            "route_key": "GET /seo-tools/blog-public",
+            "authorization_type": "NONE",
+            "authorizer_id": null,
+            "target_function": "wecare-blog-public",
+            "qualifier": "live",
+            "payload_version": "2.0"
+          },
+          {
+            "route_key": "GET /seo-tools/blog-public/{proxy+}",
+            "authorization_type": "NONE",
+            "authorizer_id": null,
+            "target_function": "wecare-blog-public",
+            "qualifier": "live",
+            "payload_version": "2.0"
+          },
+          {
             "route_key": "GET /site-language/languages",
             "authorization_type": "NONE",
             "authorizer_id": null,
@@ -3048,30 +3019,6 @@
             "payload_version": "2.0"
           },
           {
-            "route_key": "GET /voice-in/c2c",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-c2c",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
-            "route_key": "GET /voice-in/obd",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-obd",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
-            "route_key": "GET /voice-in/obd/audio-library",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-obd",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
             "route_key": "GET /voice/calls",
             "authorization_type": "NONE",
             "authorizer_id": null,
@@ -3121,6 +3068,14 @@
           },
           {
             "route_key": "GET /wa-business/catalog-flow-map",
+            "authorization_type": "NONE",
+            "authorizer_id": null,
+            "target_function": "wecare-whatsapp-business-api",
+            "qualifier": "live",
+            "payload_version": "2.0"
+          },
+          {
+            "route_key": "GET /wa-business/catalog-sync",
             "authorization_type": "NONE",
             "authorizer_id": null,
             "target_function": "wecare-whatsapp-business-api",
@@ -3560,14 +3515,6 @@
             "payload_version": "2.0"
           },
           {
-            "route_key": "GET /wix-store/{proxy+}",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-wix-store",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
             "route_key": "GET /workspace/mcp/oauth/callback",
             "authorization_type": "NONE",
             "authorizer_id": null,
@@ -3752,14 +3699,6 @@
             "payload_version": "2.0"
           },
           {
-            "route_key": "OPTIONS /voice-in/obd/audio-library",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-obd",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
             "route_key": "PATCH /crm/leads/{leadId}",
             "authorization_type": "NONE",
             "authorizer_id": null,
@@ -3772,6 +3711,22 @@
             "authorization_type": "NONE",
             "authorizer_id": null,
             "target_function": "wecare-crm",
+            "qualifier": "live",
+            "payload_version": "2.0"
+          },
+          {
+            "route_key": "PATCH /native-catalog/products/{id}",
+            "authorization_type": "NONE",
+            "authorizer_id": null,
+            "target_function": "wecare-native-catalog-admin",
+            "qualifier": "live",
+            "payload_version": "2.0"
+          },
+          {
+            "route_key": "PATCH /native-catalog/products/{id}/variants/{sku}",
+            "authorization_type": "NONE",
+            "authorizer_id": null,
+            "target_function": "wecare-native-catalog-admin",
             "qualifier": "live",
             "payload_version": "2.0"
           },
@@ -4168,6 +4123,14 @@
             "payload_version": "2.0"
           },
           {
+            "route_key": "POST /native-catalog/products",
+            "authorization_type": "NONE",
+            "authorizer_id": null,
+            "target_function": "wecare-native-catalog-admin",
+            "qualifier": "live",
+            "payload_version": "2.0"
+          },
+          {
             "route_key": "POST /partners/billing/settings",
             "authorization_type": "NONE",
             "authorizer_id": null,
@@ -4448,62 +4411,6 @@
             "payload_version": "2.0"
           },
           {
-            "route_key": "POST /voice-in/c2c",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-c2c",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
-            "route_key": "POST /voice-in/obd",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-obd",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
-            "route_key": "POST /voice-in/obd/audio-library",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-obd",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
-            "route_key": "POST /voice-in/obd/create",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-obd",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
-            "route_key": "POST /voice-in/obd/tts",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-obd",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
-            "route_key": "POST /voice-in/obd/upload-audio",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-obd",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
-            "route_key": "POST /voice-in/obd/upload-csv",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-voice-in-obd",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
             "route_key": "POST /wa-business/appointments",
             "authorization_type": "NONE",
             "authorizer_id": null,
@@ -4529,6 +4436,14 @@
           },
           {
             "route_key": "POST /wa-business/catalog-flow-map",
+            "authorization_type": "NONE",
+            "authorizer_id": null,
+            "target_function": "wecare-whatsapp-business-api",
+            "qualifier": "live",
+            "payload_version": "2.0"
+          },
+          {
+            "route_key": "POST /wa-business/catalog-sync",
             "authorization_type": "NONE",
             "authorizer_id": null,
             "target_function": "wecare-whatsapp-business-api",
@@ -4960,22 +4875,6 @@
             "payload_version": "2.0"
           },
           {
-            "route_key": "POST /wix-catalog-webhook",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-wix-catalog-webhook",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
-            "route_key": "POST /wix-store/{proxy+}",
-            "authorization_type": "NONE",
-            "authorizer_id": null,
-            "target_function": "wecare-wix-store",
-            "qualifier": "live",
-            "payload_version": "2.0"
-          },
-          {
             "route_key": "POST /workspace/mcp-iam",
             "authorization_type": "AWS_IAM",
             "authorizer_id": null,
@@ -5197,7 +5096,7 @@
     "rest_apis": []
   },
   "dynamodb": {
-    "count": 85,
+    "count": 84,
     "empty_tables": [
       "stack-wecare-digital-AIInteractionsTable",
       "stack-wecare-digital-AIProviderPolicyTable",
@@ -5209,7 +5108,9 @@
       "stack-wecare-digital-BulkJobsTable",
       "stack-wecare-digital-BulkRecipientsTable",
       "stack-wecare-digital-CallNotificationsTable",
+      "stack-wecare-digital-CartTable",
       "stack-wecare-digital-CatalogCacheTable",
+      "stack-wecare-digital-CommerceKeys",
       "stack-wecare-digital-ConversationHistoryTable",
       "stack-wecare-digital-ConversationMetaTable",
       "stack-wecare-digital-CouponsTable",
@@ -5220,7 +5121,6 @@
       "stack-wecare-digital-CrmStages",
       "stack-wecare-digital-DLQMessagesTable",
       "stack-wecare-digital-DLTTemplates",
-      "stack-wecare-digital-DocumentHistoryTable",
       "stack-wecare-digital-DownloadGrantsTable",
       "stack-wecare-digital-EnterpriseAssistTable",
       "stack-wecare-digital-FaqTable",
@@ -5232,7 +5132,6 @@
       "stack-wecare-digital-NotificationDeliveries",
       "stack-wecare-digital-NotificationEvents",
       "stack-wecare-digital-NotificationOutbox",
-      "stack-wecare-digital-OBDCampaigns",
       "stack-wecare-digital-OrderTable",
       "stack-wecare-digital-PartnerLedger",
       "stack-wecare-digital-PartnerWallet",
@@ -5244,7 +5143,6 @@
       "stack-wecare-digital-ScheduledMessagesTable",
       "stack-wecare-digital-SecureFilesTable",
       "stack-wecare-digital-ServiceRequestsTable",
-      "stack-wecare-digital-SiteLanguageCache",
       "stack-wecare-digital-SmsOutboundTable",
       "stack-wecare-digital-SubmitRequestsTable",
       "stack-wecare-digital-TemplateAnalyticsTable",
@@ -5254,20 +5152,17 @@
       "stack-wecare-digital-WhatsAppCallingTable",
       "stack-wecare-digital-WhatsAppGroupTable",
       "stack-wecare-digital-WhatsAppPhonesTable",
-      "stack-wecare-digital-WhatsAppVoiceTable",
-      "stack-wecare-digital-WixOrdersCache",
-      "stack-wecare-digital-WixProductsCache"
+      "stack-wecare-digital-WhatsAppVoiceTable"
     ],
     "no_pitr": [
       "stack-wecare-digital-CatalogCacheTable",
       "stack-wecare-digital-PstnSoftphoneSessions",
       "stack-wecare-digital-RateLimitTable",
       "stack-wecare-digital-SiteLanguageCache",
-      "stack-wecare-digital-WebhookDedup",
-      "stack-wecare-digital-WixOrdersCache",
-      "stack-wecare-digital-WixProductsCache"
+      "stack-wecare-digital-WebhookDedup"
     ],
     "with_streams": [
+      "stack-wecare-digital-ProductsTable",
       "stack-wecare-digital-VoiceCDRTable"
     ],
     "tables": [
@@ -5364,8 +5259,8 @@
       {
         "name": "stack-wecare-digital-AuditLogsTable",
         "status": "ACTIVE",
-        "item_count": 416,
-        "size_bytes": 318048,
+        "item_count": 1859,
+        "size_bytes": 1421270,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "id(HASH)"
@@ -5437,6 +5332,21 @@
         "deletion_protection": false
       },
       {
+        "name": "stack-wecare-digital-CartTable",
+        "status": "ACTIVE",
+        "item_count": 0,
+        "size_bytes": 0,
+        "billing_mode": "PAY_PER_REQUEST",
+        "keys": [
+          "cartId(HASH)"
+        ],
+        "gsi_count": 1,
+        "stream": null,
+        "ttl": "ENABLED",
+        "pitr": "ENABLED",
+        "deletion_protection": true
+      },
+      {
         "name": "stack-wecare-digital-CatalogCacheTable",
         "status": "ACTIVE",
         "item_count": 0,
@@ -5452,10 +5362,25 @@
         "deletion_protection": false
       },
       {
+        "name": "stack-wecare-digital-CommerceKeys",
+        "status": "ACTIVE",
+        "item_count": 0,
+        "size_bytes": 0,
+        "billing_mode": "PAY_PER_REQUEST",
+        "keys": [
+          "orderId(HASH)"
+        ],
+        "gsi_count": 0,
+        "stream": null,
+        "ttl": "DISABLED",
+        "pitr": "ENABLED",
+        "deletion_protection": false
+      },
+      {
         "name": "stack-wecare-digital-ContactsTable",
         "status": "ACTIVE",
-        "item_count": 4,
-        "size_bytes": 1139,
+        "item_count": 32,
+        "size_bytes": 10111,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "id(HASH)"
@@ -5589,8 +5514,8 @@
       {
         "name": "stack-wecare-digital-CustomerSessionsTable",
         "status": "ACTIVE",
-        "item_count": 1,
-        "size_bytes": 2883,
+        "item_count": 2,
+        "size_bytes": 5766,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "sidHash(HASH)"
@@ -5634,8 +5559,8 @@
       {
         "name": "stack-wecare-digital-DocumentHistoryTable",
         "status": "ACTIVE",
-        "item_count": 0,
-        "size_bytes": 0,
+        "item_count": 1,
+        "size_bytes": 132,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "historyId(HASH)"
@@ -5649,8 +5574,8 @@
       {
         "name": "stack-wecare-digital-DocumentTable",
         "status": "ACTIVE",
-        "item_count": 1,
-        "size_bytes": 377,
+        "item_count": 5,
+        "size_bytes": 1866,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "documentId(HASH)"
@@ -5739,8 +5664,8 @@
       {
         "name": "stack-wecare-digital-FlowRegistryTable",
         "status": "ACTIVE",
-        "item_count": 1,
-        "size_bytes": 448,
+        "item_count": 11,
+        "size_bytes": 3352,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "flowId(HASH)"
@@ -5847,8 +5772,8 @@
       {
         "name": "stack-wecare-digital-LinkClicksTable",
         "status": "ACTIVE",
-        "item_count": 968,
-        "size_bytes": 178174,
+        "item_count": 987,
+        "size_bytes": 182192,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "shortCode(HASH)",
@@ -5863,8 +5788,8 @@
       {
         "name": "stack-wecare-digital-MediaFilesTable",
         "status": "ACTIVE",
-        "item_count": 1,
-        "size_bytes": 285,
+        "item_count": 6,
+        "size_bytes": 1697,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "id(HASH)"
@@ -5878,8 +5803,8 @@
       {
         "name": "stack-wecare-digital-MessagesTable",
         "status": "ACTIVE",
-        "item_count": 233,
-        "size_bytes": 65282,
+        "item_count": 802,
+        "size_bytes": 251863,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "id(HASH)"
@@ -5945,21 +5870,6 @@
           "jobId(HASH)"
         ],
         "gsi_count": 1,
-        "stream": null,
-        "ttl": "ENABLED",
-        "pitr": "ENABLED",
-        "deletion_protection": false
-      },
-      {
-        "name": "stack-wecare-digital-OBDCampaigns",
-        "status": "ACTIVE",
-        "item_count": 0,
-        "size_bytes": 0,
-        "billing_mode": "PAY_PER_REQUEST",
-        "keys": [
-          "id(HASH)"
-        ],
-        "gsi_count": 0,
         "stream": null,
         "ttl": "ENABLED",
         "pitr": "ENABLED",
@@ -6042,6 +5952,21 @@
         "deletion_protection": true
       },
       {
+        "name": "stack-wecare-digital-ProductsTable",
+        "status": "ACTIVE",
+        "item_count": 10,
+        "size_bytes": 14028,
+        "billing_mode": "PAY_PER_REQUEST",
+        "keys": [
+          "id(HASH)"
+        ],
+        "gsi_count": 3,
+        "stream": "NEW_AND_OLD_IMAGES",
+        "ttl": "DISABLED",
+        "pitr": "ENABLED",
+        "deletion_protection": false
+      },
+      {
         "name": "stack-wecare-digital-PstnSoftphoneSessions",
         "status": "ACTIVE",
         "item_count": 0,
@@ -6074,8 +5999,8 @@
       {
         "name": "stack-wecare-digital-RateLimitTable",
         "status": "ACTIVE",
-        "item_count": 120,
-        "size_bytes": 11896,
+        "item_count": 3,
+        "size_bytes": 502,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "id(HASH)"
@@ -6179,8 +6104,8 @@
       {
         "name": "stack-wecare-digital-SeoToolsTable",
         "status": "ACTIVE",
-        "item_count": 500,
-        "size_bytes": 1085564,
+        "item_count": 2868,
+        "size_bytes": 9628065,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "id(HASH)"
@@ -6224,8 +6149,8 @@
       {
         "name": "stack-wecare-digital-SiteLanguageCache",
         "status": "ACTIVE",
-        "item_count": 0,
-        "size_bytes": 0,
+        "item_count": 253,
+        "size_bytes": 70756,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "cacheKey(HASH)"
@@ -6270,7 +6195,7 @@
         "name": "stack-wecare-digital-SystemConfigTable",
         "status": "ACTIVE",
         "item_count": 32,
-        "size_bytes": 18690,
+        "size_bytes": 18705,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "id(HASH)"
@@ -6284,8 +6209,8 @@
       {
         "name": "stack-wecare-digital-SystemEventTable",
         "status": "ACTIVE",
-        "item_count": 53,
-        "size_bytes": 14127,
+        "item_count": 180,
+        "size_bytes": 47499,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "id(HASH)"
@@ -6314,8 +6239,8 @@
       {
         "name": "stack-wecare-digital-ThreadOwnershipTable",
         "status": "ACTIVE",
-        "item_count": 6,
-        "size_bytes": 1026,
+        "item_count": 38,
+        "size_bytes": 6706,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "threadKey(HASH)",
@@ -6360,8 +6285,8 @@
       {
         "name": "stack-wecare-digital-VoiceCDRTable",
         "status": "ACTIVE",
-        "item_count": 7,
-        "size_bytes": 4776,
+        "item_count": 41,
+        "size_bytes": 28116,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "id(HASH)"
@@ -6390,8 +6315,8 @@
       {
         "name": "stack-wecare-digital-WebhookDedup",
         "status": "ACTIVE",
-        "item_count": 17,
-        "size_bytes": 2063,
+        "item_count": 118,
+        "size_bytes": 14337,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "eventId(HASH)"
@@ -6435,8 +6360,8 @@
       {
         "name": "stack-wecare-digital-WhatsAppInboundTable",
         "status": "ACTIVE",
-        "item_count": 5,
-        "size_bytes": 2875,
+        "item_count": 58,
+        "size_bytes": 32280,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "id(HASH)"
@@ -6450,8 +6375,8 @@
       {
         "name": "stack-wecare-digital-WhatsAppOutboundTable",
         "status": "ACTIVE",
-        "item_count": 117,
-        "size_bytes": 46004,
+        "item_count": 227,
+        "size_bytes": 89811,
         "billing_mode": "PAY_PER_REQUEST",
         "keys": [
           "id(HASH)"
@@ -6490,51 +6415,6 @@
         "stream": null,
         "ttl": "ENABLED",
         "pitr": "ENABLED",
-        "deletion_protection": false
-      },
-      {
-        "name": "stack-wecare-digital-WixOrderIds",
-        "status": "ACTIVE",
-        "item_count": 4,
-        "size_bytes": 600,
-        "billing_mode": "PAY_PER_REQUEST",
-        "keys": [
-          "orderId(HASH)"
-        ],
-        "gsi_count": 0,
-        "stream": null,
-        "ttl": "DISABLED",
-        "pitr": "ENABLED",
-        "deletion_protection": true
-      },
-      {
-        "name": "stack-wecare-digital-WixOrdersCache",
-        "status": "ACTIVE",
-        "item_count": 0,
-        "size_bytes": 0,
-        "billing_mode": "PAY_PER_REQUEST",
-        "keys": [
-          "orderId(HASH)"
-        ],
-        "gsi_count": 3,
-        "stream": null,
-        "ttl": "DISABLED",
-        "pitr": "DISABLED",
-        "deletion_protection": false
-      },
-      {
-        "name": "stack-wecare-digital-WixProductsCache",
-        "status": "ACTIVE",
-        "item_count": 0,
-        "size_bytes": 0,
-        "billing_mode": "PAY_PER_REQUEST",
-        "keys": [
-          "productId(HASH)"
-        ],
-        "gsi_count": 0,
-        "stream": null,
-        "ttl": "DISABLED",
-        "pitr": "DISABLED",
         "deletion_protection": false
       },
       {
@@ -6807,13 +6687,9 @@
     ]
   },
   "secrets_manager": {
-    "count": 35,
+    "count": 28,
     "scheduled_for_deletion": [
       "wecare/ads/account-registry",
-      "wecare/airtel-iq",
-      "wecare/airtel/c2c",
-      "wecare/airtel/obd",
-      "wecare/airtel/sms",
       "wecare/github-connection",
       "wecare/google-api-key",
       "wecare/google-maps",
@@ -6847,46 +6723,6 @@
         "last_accessed": "2026-10-06T00:00:00+00:00",
         "rotation_enabled": false,
         "deleted_date": null,
-        "kms_key": false,
-        "tags": {}
-      },
-      {
-        "name": "wecare/airtel-iq",
-        "arn": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/airtel-iq-VIq8Rr",
-        "last_changed": "2026-09-20T01:46:18.158000+00:00",
-        "last_accessed": "2026-09-19T00:00:00+00:00",
-        "rotation_enabled": false,
-        "deleted_date": "2026-09-20T01:46:18.150000+00:00",
-        "kms_key": false,
-        "tags": {}
-      },
-      {
-        "name": "wecare/airtel/c2c",
-        "arn": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/airtel/c2c-unYhQj",
-        "last_changed": "2026-09-20T01:46:18.793000+00:00",
-        "last_accessed": "2026-09-19T00:00:00+00:00",
-        "rotation_enabled": false,
-        "deleted_date": "2026-09-20T01:46:18.786000+00:00",
-        "kms_key": false,
-        "tags": {}
-      },
-      {
-        "name": "wecare/airtel/obd",
-        "arn": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/airtel/obd-3iJ5ZF",
-        "last_changed": "2026-09-20T01:46:18.488000+00:00",
-        "last_accessed": "2026-09-19T00:00:00+00:00",
-        "rotation_enabled": false,
-        "deleted_date": "2026-09-20T01:46:18.479000+00:00",
-        "kms_key": false,
-        "tags": {}
-      },
-      {
-        "name": "wecare/airtel/sms",
-        "arn": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/airtel/sms-P7s1OS",
-        "last_changed": "2026-09-20T01:46:19.117000+00:00",
-        "last_accessed": "2026-09-19T00:00:00+00:00",
-        "rotation_enabled": false,
-        "deleted_date": "2026-09-20T01:46:19.111000+00:00",
         "kms_key": false,
         "tags": {}
       },
@@ -6958,7 +6794,7 @@
         "name": "wecare/github-pat",
         "arn": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/github-pat-y4tXJa",
         "last_changed": "2026-08-26T00:47:58.696000+00:00",
-        "last_accessed": "2026-10-08T00:00:00+00:00",
+        "last_accessed": "2026-10-13T00:00:00+00:00",
         "rotation_enabled": false,
         "deleted_date": null,
         "kms_key": false,
@@ -7012,7 +6848,7 @@
         "name": "wecare/google/cloud",
         "arn": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/google/cloud-wKkDxP",
         "last_changed": "2026-10-03T04:52:56.855000+00:00",
-        "last_accessed": "2026-10-07T00:00:00+00:00",
+        "last_accessed": "2026-10-12T00:00:00+00:00",
         "rotation_enabled": false,
         "deleted_date": null,
         "kms_key": true,
@@ -7040,7 +6876,7 @@
         "name": "wecare/meta-system-user-token",
         "arn": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/meta-system-user-token-5vu2o3",
         "last_changed": "2026-09-30T22:58:36.662000+00:00",
-        "last_accessed": "2026-10-08T00:00:00+00:00",
+        "last_accessed": "2026-10-14T00:00:00+00:00",
         "rotation_enabled": false,
         "deleted_date": null,
         "kms_key": false,
@@ -7119,7 +6955,7 @@
         "name": "wecare/plivo/api",
         "arn": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/plivo/api-aIEx8b",
         "last_changed": "2026-09-30T22:58:36.334000+00:00",
-        "last_accessed": "2026-10-08T00:00:00+00:00",
+        "last_accessed": "2026-10-14T00:00:00+00:00",
         "rotation_enabled": false,
         "deleted_date": null,
         "kms_key": true,
@@ -7138,7 +6974,7 @@
         "name": "wecare/razorpay-webhook",
         "arn": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/razorpay-webhook-Jt2DYn",
         "last_changed": "2026-09-30T22:58:35.691000+00:00",
-        "last_accessed": "2026-10-08T00:00:00+00:00",
+        "last_accessed": "2026-10-10T00:00:00+00:00",
         "rotation_enabled": false,
         "deleted_date": null,
         "kms_key": false,
@@ -7154,7 +6990,7 @@
         "name": "wecare/razorpay/api",
         "arn": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/razorpay/api-vaHEaM",
         "last_changed": "2026-10-02T11:24:46.461000+00:00",
-        "last_accessed": "2026-10-08T00:00:00+00:00",
+        "last_accessed": "2026-10-14T00:00:00+00:00",
         "rotation_enabled": false,
         "deleted_date": null,
         "kms_key": false,
@@ -7174,7 +7010,7 @@
         "name": "wecare/sinch/rcs",
         "arn": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/sinch/rcs-18kRci",
         "last_changed": "2026-05-05T14:01:52.351000+00:00",
-        "last_accessed": "2026-10-08T00:00:00+00:00",
+        "last_accessed": "2026-10-14T00:00:00+00:00",
         "rotation_enabled": false,
         "deleted_date": null,
         "kms_key": false,
@@ -7195,36 +7031,6 @@
         "arn": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/truecaller-b4PYwF",
         "last_changed": "2026-09-19T07:28:31.915000+00:00",
         "last_accessed": "2026-10-06T00:00:00+00:00",
-        "rotation_enabled": false,
-        "deleted_date": null,
-        "kms_key": false,
-        "tags": {}
-      },
-      {
-        "name": "wecare/wix/app-oauth",
-        "arn": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/wix/app-oauth-67oprS",
-        "last_changed": "2026-10-05T04:19:22.346000+00:00",
-        "last_accessed": "2026-10-06T00:00:00+00:00",
-        "rotation_enabled": false,
-        "deleted_date": null,
-        "kms_key": false,
-        "tags": {}
-      },
-      {
-        "name": "wecare/wix/catalog-webhook",
-        "arn": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/wix/catalog-webhook-vpsISW",
-        "last_changed": "2026-10-05T04:19:22.050000+00:00",
-        "last_accessed": "2026-10-08T00:00:00+00:00",
-        "rotation_enabled": false,
-        "deleted_date": null,
-        "kms_key": false,
-        "tags": {}
-      },
-      {
-        "name": "wecare/wix/headless-api-key",
-        "arn": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/wix/headless-api-key-UTWQel",
-        "last_changed": "2026-10-05T14:21:47.512000+00:00",
-        "last_accessed": "2026-10-08T00:00:00+00:00",
         "rotation_enabled": false,
         "deleted_date": null,
         "kms_key": false,
@@ -7515,9 +7321,9 @@
         "id": "Z03939753QJGZ6ZD6BXO8",
         "name": "wecare.digital.",
         "private": false,
-        "record_count": 31,
+        "record_count": 25,
         "record_types": {
-          "CNAME": 14,
+          "CNAME": 8,
           "TXT": 7,
           "A": 4,
           "AAAA": 3,
@@ -7548,12 +7354,42 @@
     "dashboards": [
       "wecare-platform-health"
     ],
-    "log_group_count": 92,
+    "log_group_count": 122,
     "log_groups_without_retention": [
-      "/aws/lambda/wecare-customer-profile",
-      "/aws/lambda/wecare-customer-session"
+      "/aws/lambda/wecare-blog-public",
+      "/aws/lambda/wecare-native-catalog-admin",
+      "/aws/lambda/wecare-temp-catalog-batch-7e749ea6-fn",
+      "/aws/lambda/wecare-temp-catalog-builder-b20dbfef-fn",
+      "/aws/lambda/wecare-temp-catalog-import-cb2fd008-fn",
+      "/aws/lambda/wecare-temp-catalog-products-8e3be3b2-fn",
+      "/aws/lambda/wecare-temp-clear-closure-case-f2825095-fn",
+      "/aws/lambda/wecare-temp-clear-closure-guided-f28ed6a5-fn",
+      "/aws/lambda/wecare-temp-clear-closure-paperwork-bb1e143d-fn",
+      "/aws/lambda/wecare-temp-contact-us-a900408c-fn",
+      "/aws/lambda/wecare-temp-dastavez-drafting-3404470d-fn",
+      "/aws/lambda/wecare-temp-dastavez-legal-9512c940-fn",
+      "/aws/lambda/wecare-temp-dastavez-legal-fit-b67206f7-fn",
+      "/aws/lambda/wecare-temp-dastavez-registration-fit-8a1235e6-fn",
+      "/aws/lambda/wecare-temp-elsewhere-labels-5285e58d-fn",
+      "/aws/lambda/wecare-temp-extras-perks-14f9a6ba-fn",
+      "/aws/lambda/wecare-temp-guided-replace-5898c16f-fn",
+      "/aws/lambda/wecare-temp-legal-privacy-20261014a-fn",
+      "/aws/lambda/wecare-temp-legal-terms-6121d013-fn",
+      "/aws/lambda/wecare-temp-refer-kiosk-c0526171-fn",
+      "/aws/lambda/wecare-temp-refer-merch-e2772f37-fn",
+      "/aws/lambda/wecare-temp-refer-referral-f2b4eaa7-fn",
+      "/aws/lambda/wecare-temp-request-drop-docs-c9c0a673-fn",
+      "/aws/lambda/wecare-temp-request-orders-db8ffcb0-fn",
+      "/aws/lambda/wecare-temp-request-pickup-b76b829f-fn",
+      "/aws/lambda/wecare-temp-request-review-b5d32564-fn",
+      "/aws/lambda/wecare-temp-request-shipments-7bea5edd-fn",
+      "/aws/lambda/wecare-temp-request-submit-3293d582-fn",
+      "/aws/lambda/wecare-temp-request-subscribe-4fe74cd3-fn",
+      "/aws/lambda/wecare-temp-request-vault-8bd01a54-fn",
+      "/aws/lambda/wecare-temp-ritual-diy-7ab0acbd-fn",
+      "/aws/lambda/wecare-temp-ritual-guidance-a466978c-fn"
     ],
-    "log_bytes_total": 899984030,
+    "log_bytes_total": 104244700,
     "alarms": [
       {
         "name": "wecare-apigw-5xx-wecare-api",
@@ -8142,7 +7978,7 @@
     ]
   },
   "iac": {
-    "cfn_stack_count": 4,
+    "cfn_stack_count": 6,
     "cfn_stacks": [
       {
         "name": "CDKToolkit",
@@ -8166,6 +8002,20 @@
         "parent": null
       },
       {
+        "name": "wecare-temp-catalog-builder-b20dbfef",
+        "status": "CREATE_COMPLETE",
+        "updated": "2026-10-14T11:00:01.906000+00:00",
+        "drift": "NOT_CHECKED",
+        "parent": null
+      },
+      {
+        "name": "wecare-temp-catalog-products-91804b04",
+        "status": "CREATE_COMPLETE",
+        "updated": "2026-10-11T11:05:37.378000+00:00",
+        "drift": "NOT_CHECKED",
+        "parent": null
+      },
+      {
         "name": "wecare-workspace-mcp",
         "status": "UPDATE_COMPLETE",
         "updated": "2026-10-06T13:43:05.973000+00:00",
@@ -8181,7 +8031,7 @@
         "default_domain": "d22dm4b0jn71jw.amplifyapp.com",
         "platform": "WEB",
         "repository": "https://github.com/wecare-digital/wecare-digital",
-        "custom_rule_count": 14,
+        "custom_rule_count": 11,
         "branches": [
           {
             "branch": "stack",
@@ -8189,22 +8039,22 @@
             "enable_auto_build": true,
             "recent_jobs": [
               {
-                "id": "1472",
-                "status": "SUCCEED",
-                "commit": "88856c1936d5",
-                "end": "2026-10-08T13:39:04.675000+00:00"
+                "id": "1801",
+                "status": "FAILED",
+                "commit": "7ab6d09d02a4",
+                "end": "2026-10-14T15:22:10.474000+00:00"
               },
               {
-                "id": "1471",
-                "status": "SUCCEED",
-                "commit": "4167680a2c2f",
-                "end": "2026-10-08T12:56:48.212000+00:00"
+                "id": "1800",
+                "status": "FAILED",
+                "commit": "afb674db59cc",
+                "end": "2026-10-14T15:17:05.860000+00:00"
               },
               {
-                "id": "1470",
+                "id": "1799",
                 "status": "SUCCEED",
-                "commit": "23a3a7aa3735",
-                "end": "2026-10-08T12:40:03.123000+00:00"
+                "commit": "d0c0c4156396",
+                "end": "2026-10-14T15:14:28.114000+00:00"
               }
             ]
           }
@@ -8228,7 +8078,7 @@
   },
   "errors": [],
   "error_count": 0,
-  "duration_seconds": 164.2,
+  "duration_seconds": 162.5,
   "partial_run": false,
   "collectors_run": [
     "api_gateway",

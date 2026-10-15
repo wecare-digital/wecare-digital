@@ -86,12 +86,11 @@ def _env_get_defaults(path: pathlib.Path, var: str) -> list:
 # ── the table actually exists ────────────────────────────────────────────────
 
 def test_the_resolver_names_a_table_the_account_actually_provisions():
-    """`CommerceKeys` was never provisioned, which is what made the divergence fatal rather than
-    merely untidy: the wrong branch does not read stale rows, it raises
-    `ResourceNotFoundException` on a money path. Pinned against the names this repo provisions,
-    so a rename has to come here."""
+    """`stack-wecare-digital-WixOrderIds` was deleted on 2026-10-14 when the rows moved to
+    `CommerceKeys`, so naming it does not read stale rows, it raises `ResourceNotFoundException`
+    on a money path. Pinned against the name this repo provisions, so a rename has to come here."""
     assert PROVISIONED == 'stack-wecare-digital-CommerceKeys'
-    assert 'CommerceKeys' not in PROVISIONED
+    assert 'WixOrderIds' not in PROVISIONED
 
 
 # ── both legs agree ──────────────────────────────────────────────────────────

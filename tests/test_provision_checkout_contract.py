@@ -505,7 +505,7 @@ def test_the_role_cannot_delete_checkout_evidence(provisioner):
     evidence = {
         "arn:aws:dynamodb:us-east-1:775261844268:table/"
         "stack-wecare-digital-PaymentAttemptsTable",
-        "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-WixOrderIds",
+        "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-CommerceKeys",
         "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-OrderTable",
     }
     for statement in statements:
@@ -559,7 +559,7 @@ def test_the_role_names_only_the_checkout_tables_and_contact_index(provisioner):
     prefix = "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-"
     assert sorted(tables) == sorted([
         prefix + "PaymentAttemptsTable",
-        prefix + "WixOrderIds",
+        prefix + "CommerceKeys",
         prefix + "OrderTable",
         prefix + "ContactsTable/index/phone-index"])
     assert not any("CouponsTable" in table or "GiftCardsTable" in table for table in tables)
@@ -806,7 +806,7 @@ def test_delete_item_becoming_allowed_on_an_evidence_table_is_reported(grant_rep
     # Override the fake's baseline so its explicit action decision is returned for every resource.
     problems = grant_report(fake, _CLEAN_MEMBERS)
     assert any("dynamodb:DeleteItem" in p and "PaymentAttemptsTable" in p for p in problems)
-    assert any("dynamodb:DeleteItem" in p and "WixOrderIds" in p for p in problems)
+    assert any("dynamodb:DeleteItem" in p and "CommerceKeys" in p for p in problems)
     assert any("dynamodb:DeleteItem" in p and "OrderTable" in p for p in problems)
 
 

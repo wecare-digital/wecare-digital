@@ -1,34 +1,36 @@
-# Lightsail Nano cutover (owner-approval required)
+# Lightsail Nano cutover (owner approval required)
 
-Prerequisite: feasibility verdict is GO or CONDITIONAL GO from
-`lightsail-nano-feasibility.md` AND `preflight.sh` was run on the box with
-acceptable memory/disk evidence. Today the verdict is INCOMPLETE (no host SSH
-access from here), so this cutover is **not yet authorised**.
+Prerequisite: `lightsail-nano-feasibility.md` says GO or CONDITIONAL GO, based on
+`preflight.sh` output from the box. Today the verdict is **NO-GO (evidence incomplete)**, so this
+cutover is not authorised.
 
-Scripts: `scripts/lightsail-nano-migration/` (dry-run by default). Every mutating
-step requires `APPLY=1 CONFIRM=I-APPROVE-<step>`.
+Scripts: `scripts/lightsail-nano-migration/` — dry-run by default; a mutating step needs
+`APPLY=1 CONFIRM=I-APPROVE-<step>`; every mutating step first checks that the recovery
+snapshot is `available`; `NANO_INSTANCE` can never name the production micro.
 
 ## Sequence (each step 🔒)
-1. Verify recovery snapshot `wecare-voice-bot-backup-20261007` is `available`.
-2. `bootstrap-nano.sh` → provision fresh `nano_3_0`, open 5061/TCP + 10000-60000/UDP.
-3. `migrate-workload.sh` (no cutover) → rsync `/etc/asterisk`, `/etc/letsencrypt`,
-   custom sounds with sha256 checksums; install Asterisk; add 1G swap (Nano has
-   512MB RAM — swap is the margin that makes 512MB viable).
-4. `verify-nano.sh` → passive 5061 reachability + TLS cert + attachment.
-5. Measure Nano RAM/disk/CPU under load (in-guest `free -m`/`df -h`).
-6. `migrate-workload.sh --cutover` → move static IP `wecare-static-ip` to the
-   nano. `sip.wecare.digital` points at the IP, so no DNS change is needed.
-7. Human places a REAL WhatsApp call; `python scripts/test_call_paths.py watch`
-   must show non-empty `sipHeaders` (cannot be self-certified).
-8. Keep the micro RUNNING for rollback until acceptance.
+
+1. `bootstrap-nano.sh` — fresh `nano_3_0`, ports 5061/TCP and 10000-60000/UDP.
+2. On the nano, install the same Asterisk version `preflight.sh` reported for the micro
+   (Amazon Linux 2023 has no Asterisk package).
+3. `migrate-workload.sh` — streams `/etc/asterisk`, `/etc/letsencrypt` and custom sounds with
+   `ssh | tar`, compares SHA-256 tree digests, adds 1 GB swap if none, restarts Asterisk.
+4. `verify-nano.sh --pre-cutover` — 5061 reachable on the nano's own IP, CN check.
+5. Measure nano RAM, swap, disk and CPU in the guest during approved test calls.
+6. `PRECUTOVER_VERIFIED=1 migrate-workload.sh --cutover` — moves `wecare-static-ip`.
+   `sip.wecare.digital` follows the IP; no DNS change.
+7. `verify-nano.sh`, then an approved real WhatsApp call: two-way audio, IVR prompts, post-call
+   callback logged by `wecare-whatsapp-calling`.
+8. Keep the micro running until acceptance. `rollback.sh` moves the IP back.
 
 ## Hard constraints
-- No in-place downgrade (Lightsail cannot restore a 40GB snapshot onto 20GB).
-- No change to customer phone numbers, WABA registration, or Meta Calling settings.
-- The static IP is the ONLY routing lever; moving it is both the cutover and the
-  rollback.
+
+- No in-place downgrade (a 40 GB micro snapshot cannot restore onto a 20 GB nano).
+- No change to phone numbers, WABA registration or Meta Calling settings.
+- The static IP is the only routing lever.
 
 ## After acceptance (separate approval)
-Stop + delete the micro; decide snapshot retention ($2/mo for 40GB); re-run
-`scripts/aws_cost_model.py --live` to record the REALISED $2/mo.
-See `lightsail-nano-rollback.md`.
+
+Stop and delete the micro, decide snapshot retention (about $0.27/month at the measured
+5.3 GB-month), and record the realised $2/month only once the micro stops billing.
+See `scripts/lightsail-nano-migration/ROLLBACK.md`.
