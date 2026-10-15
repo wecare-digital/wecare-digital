@@ -1,3 +1,5 @@
+import { readCart, isContributionItem } from '../lib/cart';
+import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID, CONTRIBUTE_CTA_HREF } from '../config/contribution';
 import PublicShare from '../components/PublicShare';
 import fs from 'fs';
 import path from 'path';
@@ -219,7 +221,7 @@ describe( 'Share controls', () => {
 
 // The retired ShareLinks implementation is gone; keep its useful behavior coverage on PublicShare.
 describe( 'current shared action dock', () => {
-  afterEach( () => vi.unstubAllGlobals() );
+  afterEach( () => { vi.unstubAllGlobals(); window.localStorage.clear(); } );
 
   it( 'opens a WhatsApp contact picker and labels every available share action', () => {
     const { container } = render( <PublicShare url="https://wecare.digital/post/x/" title="A Post" /> );
@@ -230,6 +232,23 @@ describe( 'current shared action dock', () => {
     for ( const action of container.querySelectorAll( 'button' ) ) {
       expect( action.getAttribute( 'aria-label' ) ).toBeTruthy();
     }
+  } );
+
+  it( 'keeps the central contribution variant and the single cart checkout path', () => {
+    window.localStorage.clear();
+    const assign = vi.fn();
+    vi.stubGlobal( 'location', { ...window.location, assign } );
+    render( <PublicShare url="https://wecare.digital/post/x/" title="A Post" /> );
+    fireEvent.click( screen.getByRole( 'button', { name: /Contribute ₹/ } ) );
+    expect( screen.getByRole( 'link', { name: 'Contribute on WhatsApp' } ) ).toHaveAttribute( 'href', CONTRIBUTE_CTA_HREF );
+    expect( readCart() ).toHaveLength( 0 );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Contribute on the website at checkout' } ) );
+    const lines = readCart().filter( isContributionItem );
+    expect( lines ).toHaveLength( 1 );
+    expect( lines[ 0 ] ).toMatchObject( {
+      productId: CONTRIBUTION_PRODUCT_ID, variantId: CONTRIBUTION_CHOICES[ 0 ].variantId, quantity: 1,
+    } );
+    expect( assign ).toHaveBeenCalledWith( '/cart/' );
   } );
 
   it( 'uses the native share sheet and clipboard only when supported', async () => {
