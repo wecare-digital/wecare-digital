@@ -4,9 +4,11 @@ import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
 /**
  * The WECARE.DIGITAL product pages, as data.
  *
- * SEVEN PAGES, ONE SHAPE. Elsewhere, Expo Week, Dastavez, Clear Closure, Ritual Guru,
- * Anew and Niji Setu are all the same kind of page: a rotating hero, a short lead, three
- * points, an optional boundary note and one call to action. Seven copy-pasted page files
+ * SEVEN TOP-LEVEL PAGES, ONE SHAPE. Expo Week, Dastavez, Clear Closure, Ritual Guru,
+ * Anew, Hunar and Niji Setu are all the same kind of page: a rotating hero, a short lead,
+ * three points, an optional boundary note and one call to action. Elsewhere is deliberately
+ * a non-clickable family in the menu; its Visa, Trip and Activities pages live in
+ * productChildren.ts instead. Seven copy-pasted page files
  * would mean seven places to fix a spacing bug and seven chances for them to drift apart,
  * which is exactly how the old site ended up with a different footer on every page. The
  * copy lives here, the layout lives in ProductPage.tsx, and each route is a thin file.
@@ -123,30 +125,6 @@ export interface ProductDef {
 // link stays a safe fallback for the rest.
 
 export const PRODUCTS: ProductDef[] = [
-  {
-    slug: 'elsewhere',
-    name: 'Elsewhere',
-    blurb: 'Travel, visas and journeys, handled end to end.',
-    title: 'Elsewhere — travel, visas and journeys | WECARE.DIGITAL',
-    description:
-      'Elsewhere by WECARE.DIGITAL — end-to-end travel: visas, bookings, group and individual journeys, planned and handled for you.',
-    frame: 'We handle the',
-    words: cycle( 'travel', 'visas', 'bookings', 'journey' ),
-    sub: 'A full-service travel club for people who would rather arrive than arrange.',
-    sectionHeading: 'What Elsewhere does',
-    lead:
-      'Elsewhere is the WECARE.DIGITAL brand for end-to-end travel — visas, bookings, and both group and individual journeys, from the first idea to the last transfer.',
-    points: [
-      { heading: 'Visas and documentation', body: 'The paperwork a trip needs, prepared and tracked, so an application is not the thing that delays you.' },
-      { heading: 'Groups and individuals', body: 'Whether it is one traveller or a company offsite, the itinerary is built around who is actually going.' },
-      { heading: 'One point of contact', body: 'Flights, stays, transfers and changes stay with one team, so nothing falls between two suppliers.' },
-    ],
-    note:
-      'Visas, entry permissions and travel approvals are granted by governments and airlines, not by us. We prepare and submit what is needed and keep you informed; we cannot guarantee an outcome another authority controls.',
-    ctaLabel: 'Plan a journey',
-    ctaHref: whatsappKeywordLink( 'Elsewhere' ),
-    ctaNote: 'Continue on WhatsApp →',
-  },
   {
     slug: 'expo-week',
     name: 'Expo Week',
