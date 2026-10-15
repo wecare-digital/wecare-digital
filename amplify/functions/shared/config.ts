@@ -123,7 +123,7 @@ export const COGNITO_CONFIG = {
 //
 //   Both live paths use the Converse API directly and are unaffected. Provisioning a
 //   real agent is new capability creation, not reconciliation, and is an owner
-//   decision - see .kiro/work/phases-5-10/plan.md item 6.4.
+//   decision.
 //
 // Foundation Models (confirmed working):
 //   - amazon.nova-pro-v1:0: SEO audit quality (confirmed working)

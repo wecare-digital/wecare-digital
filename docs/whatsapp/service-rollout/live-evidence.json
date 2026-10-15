@@ -278,7 +278,6 @@
         "shared/lambda_utils/rcs_status.py",
         "shared/lambda_utils/receipt_links.py",
         "shared/lambda_utils/response.py",
-        "shared/lambda_utils/retired_store.py",
         "shared/lambda_utils/sinch_rcs.py",
         "shared/lambda_utils/sinch_signature.py",
         "shared/lambda_utils/system_events.py",

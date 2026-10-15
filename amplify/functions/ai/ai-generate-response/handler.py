@@ -4205,8 +4205,7 @@ def _release_processing_lock(phone_hash: str) -> None:
 # Provisioning a real agent would be NEW capability creation, not reconciliation: it
 # needs a foundation model, written instructions, an IAM role, the action group
 # attached, a `bedrock.amazonaws.com` invoke permission on that Lambda, a prepare,
-# and a real alias. That is an owner decision, recorded in
-# .kiro/work/phases-5-10/plan.md item 6.4.
+# and a real alias. That is an owner decision.
 #
 # The empty agent itself is deliberately left in place: deleting it is a destructive
 # AWS operation requiring explicit confirmation, and it is inert and free.

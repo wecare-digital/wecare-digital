@@ -146,7 +146,7 @@ genuinely open. See `requirement-registry.md` §2026-09-25.
 
 ## Recorded gaps that were already closed
 
-The gap list in `.kiro/work/phases-5-10/plan.md` is partly stale. Re-verified closed:
+The earlier phase gap list (now in git history) is partly stale. Re-verified closed:
 
 | Gap | State at 2026-09-25 |
 |---|---|

@@ -1369,9 +1369,8 @@ const schema = a.schema( {
   // ProviderDriftSnapshot REMOVED 2026-09-24. No table, and no writer: the Plivo
   // drift check in .github/workflows/plivo-drift.yml compares state and reports,
   // it does not persist snapshots. backend.ts carried a TTL entry for it, which
-  // the `if ( table )` guard silently turned into a no-op. This was the deferred
-  // item 9.2 in .kiro/work/phases-5-10/plan.md; the retired-provider surface it
-  // was waiting for is being swept now, so it goes with the rest.
+  // the `if ( table )` guard silently turned into a no-op, so it was removed with
+  // the other declarations for stores that do not exist.
   // Table: FlowLog — Audit trail for every flow screen interaction
   FlowLog: a
     .model( {
