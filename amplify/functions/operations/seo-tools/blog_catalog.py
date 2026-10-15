@@ -27,7 +27,7 @@ SECURE_MASTER_PREFIX = blog_sources.SECURE_ROOT_PREFIX
 PRODUCTION_MASTER_KEY = SECURE_MASTER_PREFIX + "production-master.json"
 
 GOVERNED_CATEGORIES = ("Conversations", "Gastronomy")
-MAX_BULK_ITEMS = 1000
+UNLIMITED_BULK = True
 
 # Category-specific governing constraints from the two Continuous Production Masters.
 # These are operational metadata, not a substitute for the executable quality gates.
@@ -162,7 +162,7 @@ def production_master() -> Dict[str, Any]:
         "generatedAt": storage.now_iso(),
         "authoritativeStore": storage.TABLE_NAME,
         "bucket": blog_sources.BUCKET,
-        "maxBulkItems": MAX_BULK_ITEMS,
+        "unlimitedBulk": UNLIMITED_BULK,
         "governedCategories": list(GOVERNED_CATEGORIES),
         "masterPolicies": MASTER_POLICIES,
         "categories": categories,
@@ -190,5 +190,5 @@ def sync() -> Dict[str, Any]:
         "productionMasterKey": PRODUCTION_MASTER_KEY,
         "catalogPosts": catalog["count"],
         "categories": master["categories"],
-        "maxBulkItems": MAX_BULK_ITEMS,
+        "unlimitedBulk": UNLIMITED_BULK,
     }

@@ -120,7 +120,7 @@ MAX_SOURCE_BYTES = int(os.environ.get("BLOG_SOURCE_MAX_BYTES", str(40 * 1024 * 1
 #: How many sources one worker invocation handles before chaining. Sized so the batch
 #: finishes well inside the 120s function timeout even when every PDF is large.
 WORKER_BATCH = int(os.environ.get("BLOG_WORKER_BATCH", "5"))
-MAX_REGISTER_BATCH = 1000
+REGISTER_CHUNK_SIZE = 1000
 
 RECORD_TYPE = "blogSource"
 
@@ -376,19 +376,16 @@ def _view(item: Dict[str, Any]) -> Dict[str, Any]:
 # ── Phase 1: register and presign ───────────────────────────────────────────────
 
 def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> Dict[str, Any]:
-    """Create or resolve up to 1,000 source records and presign each new PDF.
+    """Create or resolve an arbitrary number of source records and presign each new PDF.
 
-    Validation and identity derivation happen before any write. Existing records are then
-    resolved with BatchGetItem and new/retryable rows are written through DynamoDB's batch
-    writer. That keeps a 1,000-source request bounded instead of doing 1,000 GetItem +
-    1,000 PutItem network round-trips inside one API request.
+    There is no product/business ceiling on the total source count. AWS request payload and
+    Lambda runtime limits still exist, so clients should stream very large imports as repeated
+    calls; DynamoDB/SQS work remains internally chunked. `REGISTER_CHUNK_SIZE` is therefore
+    an efficiency hint, not a rejection threshold.
     """
     entries = body.get("sources")
     if not isinstance(entries, list) or not entries:
         raise ValueError("sources must be a non-empty array")
-    if len(entries) > MAX_REGISTER_BATCH:
-        raise ValueError(f"at most {MAX_REGISTER_BATCH} sources per request")
-
     batch_id = str(body.get("batchId") or "").strip()
     batch: Dict[str, Any] = {}
     if batch_id:
@@ -494,9 +491,15 @@ def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> D
     logger.info(json.dumps({
         "event": "blog_sources_registered", "actor": actor, "count": len(registered),
         "new": sum(1 for row in registered if not row["alreadyKnown"]),
-        "maxBatch": MAX_REGISTER_BATCH,
+        "unlimitedBulk": True,
+        "transportChunkSize": REGISTER_CHUNK_SIZE,
     }))
-    return {"sources": registered, "bucket": BUCKET, "maxBatch": MAX_REGISTER_BATCH}
+    return {
+        "sources": registered,
+        "bucket": BUCKET,
+        "unlimitedBulk": True,
+        "transportChunkSize": REGISTER_CHUNK_SIZE,
+    }
 
 
 # ── Phase 2: confirm the bytes arrived, then hand off ────────────────────────────
@@ -513,9 +516,6 @@ def confirm(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     ids = body.get("sourceIds")
     if not isinstance(ids, list) or not ids:
         raise ValueError("sourceIds must be a non-empty array")
-    if len(ids) > MAX_REGISTER_BATCH:
-        raise ValueError(f"at most {MAX_REGISTER_BATCH} sourceIds per request")
-
     requested = [str(value).strip() for value in ids if str(value or "").strip()]
     records = storage.get_typed_many(requested, RECORD_TYPE)
     confirmed: List[str] = []
@@ -592,7 +592,7 @@ def confirm(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
         "event": "blog_sources_confirmed", "actor": actor, "confirmed": len(confirmed),
         "missing": len(missing), "unknown": len(unknown), "workerStarted": started,
         "queued": queued["queued"], "queueConfigured": queued["configured"],
-        "maxBatch": MAX_REGISTER_BATCH,
+        "unlimitedBulk": True, "transportChunkSize": REGISTER_CHUNK_SIZE,
     }))
     return {
         "confirmed": confirmed, "missingUpload": missing, "unknownSourceId": unknown,

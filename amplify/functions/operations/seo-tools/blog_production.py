@@ -429,9 +429,6 @@ def submit_manifest(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     raw_intents = body.get("intents")
     if not isinstance(raw_intents, list):
         raise ValueError("intents must be an array")
-    if len(raw_intents) > 1000:
-        raise ValueError("at most 1000 article intents per source manifest")
-
     duplicate_count = max(0, int(body.get("duplicateCount") or 0))
     rejected_count = max(0, int(body.get("rejectedCount") or 0))
     hold_count = max(0, int(body.get("holdCount") or 0))
