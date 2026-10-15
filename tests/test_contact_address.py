@@ -209,8 +209,8 @@ def test_autocomplete_metadata_never_enters_the_stored_address():
 
 
 def test_an_unknown_nested_key_is_dropped_rather_than_refused():
-    # A recorded divergence from `cart_v2.delivery_address`, which refuses unknown fields:
-    # nothing reads the dropped keys, and refusing them would reject browser autofill extras.
+    # Dropped rather than refused: nothing reads the unknown keys, and refusing them would reject
+    # browser autofill extras.
     out = contact_address.normalize_for_storage(address(
         addressId="addr-1", recipientName="Asha Sen", sameAsBilling=True))
     assert "addressId" not in out

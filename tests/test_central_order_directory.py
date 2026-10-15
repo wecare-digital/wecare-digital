@@ -29,7 +29,7 @@ def test_selector_includes_all_product_and_service_order_types(setup):
         # incidental here - this test is about the selector covering every order KIND.
         orders.seed({'orderId':kind,'customerId':paid_service['customerId'],'createdAt':number+10,
                      'orderNumber':'WD-ORD-'+order_keys.PUBLIC_ORDER_NUMBER_ALPHABET[number]*8,
-                     'kind':kind,'source':'wix'})
+                     'kind':kind,'source':'website'})
     selected={entry['id'] for entry in paid.list_orders(orders,paid_service)}
     assert {'PRODUCT','DROP_DOCS','VAULT','REQUEST_AMENDMENT','SUBMIT_REQUEST','earlier'}==selected
     assert paid_service['orderId'] not in selected

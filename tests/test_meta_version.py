@@ -1,7 +1,5 @@
 """The Meta Graph API version has exactly one source, and it validates.
 
-Spec tasks R1.1, R1.2, R1.3 (`.kiro/specs/whatsapp-wix-commerce`).
-
 Before this, `META_API_VERSION = 'v25.0'` was declared at module scope in **eleven**
 handlers and embedded in **five** request URLs as a literal. Five of the eleven read the
 environment with a hard-coded default; six ignored the environment entirely. So a version

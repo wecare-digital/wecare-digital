@@ -87,7 +87,7 @@ def _attempt(fake):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def test_the_attempt_row_carries_the_contacts_public_id(monkeypatch):
-    h, fake, _wix = make_env(monkeypatch)
+    h, fake, _catalog = make_env(monkeypatch)
     _stamp_contact(fake, CUSTOMER_ID)
     _prepare(h, fake)
     assert _attempt(fake)[customer_uuid.ATTRIBUTE] == CUSTOMER_ID
@@ -96,7 +96,7 @@ def test_the_attempt_row_carries_the_contacts_public_id(monkeypatch):
 def test_the_payref_row_carries_it_too(monkeypatch):
     """The webhook lineage's row. Without this the GST invoice for a WhatsApp-settled order would
     print no customer id while the orders page showed one."""
-    h, fake, _wix = make_env(monkeypatch)
+    h, fake, _catalog = make_env(monkeypatch)
     _stamp_contact(fake, CUSTOMER_ID)
     _prepare(h, fake)
     assert _payref(fake)[customer_uuid.ATTRIBUTE] == CUSTOMER_ID
@@ -105,7 +105,7 @@ def test_the_payref_row_carries_it_too(monkeypatch):
 def test_both_rows_agree(monkeypatch):
     """One read of the contact row, so the two lineages cannot disagree. Two reads is how an
     invoice and an orders page come to show different ids for one order."""
-    h, fake, _wix = make_env(monkeypatch)
+    h, fake, _catalog = make_env(monkeypatch)
     _stamp_contact(fake, CUSTOMER_ID)
     _prepare(h, fake)
     assert (_attempt(fake)[customer_uuid.ATTRIBUTE]
@@ -115,7 +115,7 @@ def test_both_rows_agree(monkeypatch):
 def test_the_checkout_reads_the_contact_once(monkeypatch):
     """No extra contacts Query for the id. It is taken off the row `_checkout_profile` already
     returned, so the money path still touches ContactsTable exactly as often as before."""
-    h, fake, _wix = make_env(monkeypatch)
+    h, fake, _catalog = make_env(monkeypatch)
     _stamp_contact(fake, CUSTOMER_ID)
     _prepare(h, fake)
     contact_reads = [call for call in fake.calls
@@ -130,7 +130,7 @@ def test_the_checkout_reads_the_contact_once(monkeypatch):
 def test_a_contact_with_no_public_id_writes_rows_unchanged(monkeypatch):
     """The state of every contact created before this attribute existed. Absent, not empty -
     `test_checkout_service_lines` asserts the `PAYREF#` key set by equality."""
-    h, fake, _wix = make_env(monkeypatch)
+    h, fake, _catalog = make_env(monkeypatch)
     _stamp_contact(fake, None)
     _prepare(h, fake)
     assert customer_uuid.ATTRIBUTE not in _payref(fake)
@@ -141,7 +141,7 @@ def test_a_contact_with_no_public_id_writes_rows_unchanged(monkeypatch):
 def test_a_junk_stored_value_is_dropped_not_carried(monkeypatch, junk):
     """`from_contact` re-validates at the read, so a bad value never enters the payment path at
     all - rather than travelling to a renderer that then has to decide what to do with it."""
-    h, fake, _wix = make_env(monkeypatch)
+    h, fake, _catalog = make_env(monkeypatch)
     _stamp_contact(fake, junk)
     _prepare(h, fake)
     assert customer_uuid.ATTRIBUTE not in _payref(fake)
@@ -151,7 +151,7 @@ def test_a_junk_stored_value_is_dropped_not_carried(monkeypatch, junk):
 def test_a_uuid7_stored_on_the_contact_never_reaches_a_row(monkeypatch):
     """Named on its own because it is the one junk value that PARSES as a UUID. Carrying it would
     put the customer's record-creation millisecond on a document they keep and forward."""
-    h, fake, _wix = make_env(monkeypatch)
+    h, fake, _catalog = make_env(monkeypatch)
     seven = identifiers.new_uuid7()
     _stamp_contact(fake, seven)
     _prepare(h, fake)

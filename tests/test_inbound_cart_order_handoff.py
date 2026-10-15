@@ -2,11 +2,11 @@
 at all while the gate is off.
 
 This file is half additive and half a REMOVAL TEST, and the removal half is the important one. The
-replaced implementation read Meta's `item_price` as a `float`, added 18% GST to goods Wix had
-already taxed, logged a 2% convenience fee, rewrote every retailer id to `ITEM_n`, and then called
-`_send_payment_request` to build an `order_details` / Review-and-Pay message against a Meta payment
-configuration this account does not have. The AST assertions at the bottom are what stop any of
-that coming back by accident.
+replaced implementation read Meta's `item_price` as a `float`, added 18% GST to goods whose
+catalogue price already carried it, logged a 2% convenience fee, rewrote every retailer id to
+`ITEM_n`, and then called `_send_payment_request` to build an `order_details` / Review-and-Pay
+message against a Meta payment configuration this account does not have. The AST assertions at
+the bottom are what stop any of that coming back by accident.
 """
 from __future__ import annotations
 
@@ -29,9 +29,10 @@ for extra in (ROOT / "amplify/functions/shared",
         sys.path.insert(0, str(extra))
 
 from crm_fake_dynamo import FakeDynamo  # noqa: E402
+from lambda_utils.ecommerce import meta_catalog_sync  # noqa: E402
 from lambda_utils.ecommerce import whatsapp_basket as wb  # noqa: E402
 
-KEYS = "stack-wecare-digital-WixOrderIds"
+KEYS = "stack-wecare-digital-CommerceKeys"
 CONTACTS = "stack-wecare-digital-ContactsTable"
 SYSTEM_CONFIG = "stack-wecare-digital-SystemConfigTable"
 
@@ -48,7 +49,8 @@ WAMID = "wamid.HBgMOTE5ODc2NTQzMjEwFQIAEhggQkJDMTIz"
 
 
 def retailer(product_id: str, variant_id: str) -> str:
-    return f"wix:{product_id}:{variant_id}"
+    """The Meta catalogue retailer id for one ProductsTable line, from its one owner."""
+    return meta_catalog_sync.retailer_id(product_id, variant_id)
 
 
 def order_message(items=None, *, message_id=WAMID, catalog_id="catalog-1"):
@@ -151,7 +153,7 @@ def test_system_config_can_turn_the_gate_on_without_a_deploy(handler):
 # ── the write ─────────────────────────────────────────────────────────────────
 
 
-def test_two_wix_lines_write_exactly_one_handoff_row(handler):
+def test_two_catalogue_lines_write_exactly_one_handoff_row(handler):
     module, fake, recorder, monkeypatch = handler
     enable(module, monkeypatch)
     run(module)

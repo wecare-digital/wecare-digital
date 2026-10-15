@@ -450,8 +450,8 @@ def test_an_internal_invoke_still_returns_none(monkeypatch):
 def test_an_internal_invoke_with_a_routing_http_block_still_returns_none(monkeypatch):
     """Internal callers build a minimal `requestContext.http` for routing and no apiId."""
     _install(monkeypatch, FakeCognito(groups=[]))
-    event = {"requestContext": {"http": {"method": "POST", "path": "/wix-store/orders"}},
-             "rawPath": "/wix-store/orders", "headers": {}}
+    event = {"requestContext": {"http": {"method": "POST", "path": "/service/orders"}},
+             "rawPath": "/service/orders", "headers": {}}
     assert mw.require_auth(event, required_role="Admin") is None
 
 
