@@ -1,6 +1,6 @@
 # Tasks — AWS-Native Consolidation & Cost Optimization
 
-Status as of 2026-10-15 00:30 IST, measured against the live account (775261844268 / us-east-1)
+Status as of 2026-10-15 06:05 IST (owner-approved changes applied 05:47-06:00 IST), measured against the live account (775261844268 / us-east-1)
 and `origin/stack` 4ee023cc. The tool-neutral plan with approval commands and rollback is
 `docs/migrations/aws-native-consolidation-plan.md` (Codex reads that one); keep both in sync.
 
@@ -24,8 +24,10 @@ Legend: `[x]` done and verified · `[~]` implemented, not deployed · `[ ]` not 
       `iam-native-catalog-checkout.json`, `amplify/infra/checkout.json`) + alignment tests.
 - [x] P0.2 `scripts/remediate_commerce_keys_iam.py`: plan mode run live (3 policies drift,
       Access Analyzer clean, 17/17 simulated cases pass on the targets).
-- [ ] P0.3 🔒 Apply: `--apply --confirm I-APPROVE-COMMERCE-KEYS-IAM` (owner).
-- [ ] P0.4 Re-run `check_live_provider_independence.py`; `commerce-key-access` must PASS.
+- [x] P0.3 🔒 Applied 2026-10-15 00:17Z with owner approval; verified with SimulatePrincipalPolicy.
+      Rollback file: `.scratch/iam-rollback/commerce-keys-iam-20261015T001739Z.json`.
+- [x] P0.4 Live check: `commerce-key-access` PASS (6 of 6 functions), see
+      `docs/migrations/evidence/live-provider-independence-20261015.md`.
 
 ## Workstream A — Wix exit
 
@@ -37,12 +39,13 @@ Legend: `[x]` done and verified · `[~]` implemented, not deployed · `[ ]` not 
 - [x] A.4 Wix Lambdas, routes, cache tables and the `WixOrderIds` table deleted (live check PASS
       for names, routes, tables, secrets).
 - [x] A.5 Source policy gate blocking with 0 runtime findings (`check-wix-policy.sh`).
-- [ ] A.6 🔒 Delete the `wecare-seo-tools:blog-rollback-20261014` alias (v1 carries WIX_* env
-      and Wix-era code; the Wix site no longer exists, so it cannot serve as rollback).
-- [ ] A.7 🔒 Drop `WIX_ORDER_IDS_TABLE` from `wecare-whatsapp-business-api` env (value already
-      CommerceKeys; confirm no reader first), then refresh `config/lambda-env-manifest.json`.
-- [ ] A.8 🔒 Remove dangling `NativeCommerceCatalogRead` from `wecare-meta-catalog-sync-role`
-      (grants the deleted table; no code reads it).
+- [x] A.6 🔒 Deleted the `wecare-seo-tools:blog-rollback-20261014` alias (last invoked 10-14 10:49 IST,
+      no route, rule or mapping used it). Version 1 is kept; alias and policy saved in `.scratch/iam-rollback/`.
+- [x] A.7 `WIX_ORDER_IDS_TABLE` dropped from `wecare-whatsapp-business-api` by another session
+      (v116, 2026-10-15 00:17Z); live check `lambda-env-keys` PASS.
+- [x] A.8 🔒 Removed `NativeCommerceCatalogRead` from `wecare-meta-catalog-sync-role`; meta-sync
+      still reads ProductsTable (simulated). Document saved in `.scratch/iam-rollback/`.
+- [x] A.8b Deletion protection enabled on ProductsTable and CommerceKeys (CartTable already had it).
 - [ ] A.9 Meta catalog sync is DISABLED (`META_CATALOG_SYNC_ENABLED=false`) and the ProductsTable
       stream trigger is not wired; enabling Meta writes is a separate 🔒 decision.
 - [x] A.10 Frontend build: production Amplify builds failed from #476 to #478 (TypeScript);
@@ -54,10 +57,15 @@ Legend: `[x]` done and verified · `[~]` implemented, not deployed · `[ ]` not 
 - [x] B.1 Access matrix and findings (`secrets-consolidation.md`).
 - [x] B.2 Shared helper meets B5 (`lambda_utils/secrets_access.py`, 12 tests); no refactor.
 - [ ] B.3 🔒 B-0 stop using root access keys for automation.
-- [ ] B.4 🔒 B-1 narrow `wecare-digital-lambda-role` `secret:wecare/*` (61 functions).
+- [~] B.4 🔒 B-1a applied: managed policy `wecare-shared-role-secret-guard` denies `github-pat`,
+      `backup/recovery-passphrase` and `aws/iam-access-keys` to the shared role (CloudTrail: no
+      shared-role reader in 90 days). The full allow-list rewrite (B-1b) is still open; the role's
+      inline policies are at IAM's 10,240-byte limit.
 - [ ] B.5 🔒 B-2 replace and revoke the exposed classic GitHub PAT.
-- [ ] B.6 🔒 B-3/B-4 retire `aws/iam-access-keys`, confirm-and-retire `meta/payments`, `bing/api`;
-      `config/webhook-registry` to SSM only if no secret field.
+- [ ] B.6 🔒 B-3 retire `aws/iam-access-keys` (owner: it belongs to the tooling identity);
+      `config/webhook-registry` to SSM only if no secret field (owner-run, reads the value).
+      `meta/payments` stays: `.env.local.example` names it as the config-to-MID mapping
+      (deletion was scheduled at 05:58 IST and restored at once). `bing/api` stays (registry reads it).
 - [ ] B.7 🔒 B-5 fresh encrypted backup, then owner retention decision on the two old versions.
 - [x] B.8 Wix secrets retired (force-deleted 2026-10-14; recovery window was bypassed).
 

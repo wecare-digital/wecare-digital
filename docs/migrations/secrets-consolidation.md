@@ -28,10 +28,11 @@ Measured 2026-10-14 from metadata only (no secret value read). Per-secret detail
    description says it is a classic near-full-scope token exposed in an agent transcript on
    2026-08-25. Its only source consumer, `wecare-workspace-mcp`, runs under its own role
    (`wecare-workspace-mcp-runtime`); the 61 shared-role functions can read it without needing it.
-3. **Four secrets have no Lambda consumer** yet are readable by all 61 functions:
+3. **Four secrets have no Lambda consumer** yet were readable by all 61 functions:
    `aws/iam-access-keys` and `config/webhook-registry` (scripts only),
-   `backup/recovery-passphrase` (`scripts/secrets_backup.py` only), and `meta/payments` (no
-   reference anywhere in source).
+   `backup/recovery-passphrase` (`scripts/secrets_backup.py` only), and `meta/payments` (named in
+   `.env.local.example` as the payment-config mapping). Three of them are now denied to the
+   shared role (B-1a).
 4. **The operator CLI runs as the account root user** with long-lived root access keys
    (`aws sts get-caller-identity` → `arn:aws:iam::775261844268:root`). Agents, including the one
    that force-deleted secrets, inherit full, unrestrictable access.
@@ -60,10 +61,10 @@ Measured 2026-10-14 from metadata only (no secret value read). Per-secret detail
 | Phase | Change | Why approval | Rollback |
 | --- | --- | --- | --- |
 | B-0 | Stop using root access keys: an Identity Center or IAM role for automation, MFA, then deactivate and delete the root keys | security and access control | re-create keys (not advised) |
-| B-1 | Replace `secret:wecare/*` on `wecare-digital-lambda-role` with the explicit ARNs its functions reference; drop `wecare/payu-*`; exclude `github-pat`, `backup/recovery-passphrase`, `aws/iam-access-keys`. Verify each function with SimulatePrincipalPolicy before and after | IAM on a role used by 61 functions | restore the saved policy document |
+| B-1 | **B-1a applied 2026-10-15:** managed policy `wecare-shared-role-secret-guard` denies `github-pat`, `backup/recovery-passphrase` and `aws/iam-access-keys` to the shared role. B-1b (open): replace `secret:wecare/*` with explicit ARNs and drop `wecare/payu-*`; the role's inline policies are at the 10,240-byte limit, so this needs a managed policy too | IAM on a role used by 61 functions | detach the guard / restore the saved document |
 | B-2 | GitHub: replace the classic PAT with a fine-grained token or GitHub App scoped to `wecare-digital/wecare-digital`, store as a new version, refresh `wecare-workspace-mcp`, revoke the old token at GitHub | credential rotation | the old token is revoked, so roll forward |
 | B-3 | Replace `aws/iam-access-keys` in `scripts/sync_webhook_registry.py` and `scripts/audit_secrets_structure.py` with role credentials; deactivate the IAM user keys; schedule deletion with a 30-day window | credential revocation | restore within the window |
-| B-4 | Owner confirms `meta/payments` and `bing/api` are unused, then schedule deletion with a 30-day window; move `config/webhook-registry` to SSM Standard if it has no secret field | data deletion | restore within the window |
+| B-4 | Move `config/webhook-registry` to SSM Standard only if it has no secret field (owner-run: copying needs the value). `meta/payments` and `bing/api` stay: the first is the payment-config mapping named in `.env.local.example`, the second is read by the integrations registry | data change | keep the secret until SSM is verified |
 | B-5 | Encrypted backup: regenerate with `scripts/secrets_backup.py` (owner-run; it reads values), excluding retired secrets; decide retention for the two 2026-09-25/26 versions, which still contain the retired Wix and Airtel credentials | backup deletion | versions remain until expired |
 
 ## Backups (B8)
