@@ -1282,7 +1282,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/forecast' ) ) ).toBe( true );
     } );
 
-    expect( fetchSpy.mock.calls.some( call => String( call[ 0 ] ).includes( 'weather.googleapis.com' ) ) ).toBe( false );
+    expect( fetchSpy.mock.calls.some( call => requestUrl( call[ 0 ] as RequestInfo | URL )?.hostname === 'weather.googleapis.com' ) ).toBe( false );
   } );
 
   it( 'requests the India CPCB local AQI (customLocalAqis ind_cpcb) on the currentConditions:lookup air call', async () => {
@@ -1630,7 +1630,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( fetchSpy.mock.calls.length ).toBeGreaterThan( 3 ) );
 
     expect( fetchSpy.mock.calls.some( call => requestUrl( call[ 0 ] as RequestInfo | URL )?.hostname === 'pollen.googleapis.com' ) ).toBe( false );
-    expect( fetchSpy.mock.calls.some( call => String( call[ 0 ] ).includes( 'weather.googleapis.com' ) ) ).toBe( false );
+    expect( fetchSpy.mock.calls.some( call => requestUrl( call[ 0 ] as RequestInfo | URL )?.hostname === 'weather.googleapis.com' ) ).toBe( false );
   } );
 
   it( 'does not render the removed map layer or selected-location pills', async () => {
