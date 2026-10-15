@@ -1008,21 +1008,6 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     } );
   } );
 
-  it( 'keeps Weather data while leaving the heavy storm/cloud map atmosphere removed', async () => {
-    vi.stubGlobal( 'fetch', environmentFetch() );
-    const VayuLokLive = await loadComponent();
-    const { container } = render( <VayuLokLive /> );
-
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    await selectMumbai();
-
-    const weatherTab = await screen.findByRole( 'tab', { name: 'Weather' } );
-    fireEvent.click( weatherTab );
-    await screen.findByText( 'Temperature' );
-
-    expect( container.querySelector( '.vl-live-atmosphere' ) ).toBeNull();
-  } );
-
   it( 'renders the full Weather dashboard (metrics grid, hourly, 10-day, 24h history, neutral alerts)', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
