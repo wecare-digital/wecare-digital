@@ -581,9 +581,9 @@ _CDR_ROUTE_RANK = {
 }
 CDR_RANK_ATTRIBUTE = 'cdrRank'
 
-# Set once and never restamped. `createdAt` is the sort key for both read paths in
-# voice-cdr-read AND the date fallback the renderer uses when `timestamp` is
-# absent, so moving it moves the row's place in history.
+# Set once and never restamped. `createdAt` is the sort key in voice-cdr-read AND
+# the time Call History displays for the call, so moving it moves the row's place
+# in history.
 _CDR_WRITE_ONCE = ('createdAt',)
 
 
@@ -646,8 +646,8 @@ def _persist_cdr(params: dict, route: str, request_id: str) -> bool:
     Writes BOTH shapes on purpose.
 
     The camelCase keys are what every reader and the dashboard actually use
-    (voice-cdr-read._format_record_for_ui, _calculate_stats, and the CDR tab in
-    src/pages/dm/voice-in). Before this, Plivo rows were written only in
+    (voice-cdr-read._format_record and _calculate_stats, and Call History in
+    src/pages/workspace/engage/voice-in). Before this, Plivo rows were written only in
     snake_case, so they were present in the table and invisible in the product:
     blank caller/destination/status cells, no date (there was no `createdAt`,
     which is also the sort key, so every Plivo row sorted to 0 and fell off the
@@ -658,7 +658,8 @@ def _persist_cdr(params: dict, route: str, request_id: str) -> bool:
     them and nothing rewrites history; dropping them would strip fields off
     existing rows on any subsequent callback for the same call.
 
-    `source='plivo'` stays the discriminator - this table contains Plivo and historical retired-provider rows.
+    `source='plivo'` names the writer. This function is the table's only writer,
+    so every row carries it (42 of 42 on 2026-10-15).
     """
     call_uuid = params.get('CallUUID') or ''
     if not call_uuid:

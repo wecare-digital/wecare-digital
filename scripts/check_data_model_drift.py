@@ -93,7 +93,6 @@ EXPLICIT_TABLE: dict[str, str] = {
     # physical table drops the "Tracker". Reported as missing by any rule-based
     # guess, which is why the map exists.
     "RateLimitTracker": "RateLimitTable",
-    "VoiceCall": "VoiceCalls",
     "VoiceCDR": "VoiceCDRTable",
     "OBDCampaign": "OBDCampaigns",
     "DLTTemplates": "DLTTemplates",

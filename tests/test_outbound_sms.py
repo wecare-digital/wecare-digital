@@ -1,17 +1,15 @@
 """outbound-sms is AWS-only, and says so when asked for anything else.
 
-This suite is the regression net the inventory found missing: before 2026-09-19 no
-test anywhere referenced retired transport or alternate transport, so the four-provider fallback chain in
-this handler could have been changed or removed with nothing noticing.
+AWS End User Messaging is the only SMS transport. The properties pinned here:
 
-The properties pinned here:
-
-  * the module imports no provider transport and holds no provider host
-  * an explicitly prohibited `provider` is REFUSED, not silently upgraded to AWS
-  * a legacy raw `dltTemplateId` is validated against the approved map
+  * the only sender is `lambda_utils.comms.get_sms_service()`; the module builds no
+    AWS client but DynamoDB and holds no network endpoint of its own
+  * any `provider` other than AWS is REFUSED, not silently upgraded to AWS
+  * a raw `dltTemplateId` is validated against the approved map
   * India with no approved template produces 422 and no send
   * a send failure is a failure - there is no second provider
 """
+import ast
 import importlib.util
 import json
 import sys
@@ -110,31 +108,47 @@ def _body(response):
 
 
 # --------------------------------------------------------------------------
-# no provider transport survives in this module
+# the only transport is the shared AWS SMS service
 # --------------------------------------------------------------------------
-def test_source_holds_no_prohibited_provider_transport():
-    source = HANDLER_PATH.read_text()
-    for prohibited in ("iqmessaging.retired_transport.in", "jumbo.aclgateway.com",
-                       "52.3.44.165", "8899", "AIRTEL_IQ_", "SMS_PROXY_URL",
-                       "_send_retired_transport", "_send_alternate_transport", "sns.publish",
-                       "pinpoint.send_messages", "boto3.client('sns'",
-                       'boto3.client("sns"'):
-        assert prohibited not in source, f"{prohibited} still present"
+def _tree():
+    return ast.parse(HANDLER_PATH.read_text())
 
 
-def test_module_does_not_construct_sns_or_classic_pinpoint_clients(mod):
-    assert not hasattr(mod, "sns")
-    assert not hasattr(mod, "pinpoint")
+def test_the_only_aws_client_built_here_is_dynamodb():
+    """Contact lookups. Sending is not done with a client of this module's own."""
+    built = sorted(
+        (node.func.attr, node.args[0].value)
+        for node in ast.walk(_tree())
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name) and node.func.value.id == "boto3"
+    )
+    assert built == [("resource", "dynamodb")]
 
 
-def test_no_alternate_sender_functions_exist(mod):
-    for gone in ("_send_retired_transport_iq_sms", "_send_retired_transport_sms", "_send_alternate_transport_sms",
-                 "_load_alternate_transport_sms_creds", "_load_retired_transport_iq_creds", "_send_aws_sms"):
-        assert not hasattr(mod, gone), f"{gone} still defined"
+def test_every_send_goes_through_the_shared_sms_service():
+    sends = [node for node in ast.walk(_tree())
+             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+             and node.func.attr == "send_sms"]
+    assert len(sends) == 1, "exactly one send call site"
+    receiver = sends[0].func.value
+    assert isinstance(receiver, ast.Call) and getattr(receiver.func, "id", "") == "get_sms_service"
+
+
+def test_the_module_holds_no_network_endpoint():
+    """A transport needs somewhere to send to; this module names nowhere."""
+    literals = [node.value for node in ast.walk(_tree())
+                if isinstance(node, ast.Constant) and isinstance(node.value, str)]
+    for value in literals:
+        assert "://" not in value, value
+
+
+def test_the_service_imported_is_the_shared_comms_one(mod):
+    from lambda_utils import comms
+    assert mod.get_sms_service is comms.get_sms_service
 
 
 # --------------------------------------------------------------------------
-# prohibited provider is refused, not silently upgraded
+# a provider other than AWS is refused, not silently upgraded
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("provider", ["unsupported", "alternate", "legacy", "custom"])
 def test_unsupported_provider_is_refused(wired, provider):
@@ -168,7 +182,7 @@ def test_aws_and_absent_provider_proceed(wired, provider):
 
 
 # --------------------------------------------------------------------------
-# legacy raw dltTemplateId is validated, not trusted
+# a raw dltTemplateId is validated, not trusted
 # --------------------------------------------------------------------------
 def test_approved_raw_template_id_maps_to_its_key(wired):
     mod, service, _ = wired
@@ -270,13 +284,13 @@ def test_unknown_contact_is_404(mod, monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# legacy retired transport message types are mapped, not rejected
+# message types outside the AWS vocabulary are mapped, not rejected
 # --------------------------------------------------------------------------
-@pytest.mark.parametrize("legacy", ["SERVICE_IMPLICIT", "SERVICE_EXPLICIT", "junk"])
-def test_legacy_message_types_map_to_transactional(wired, legacy):
+@pytest.mark.parametrize("other", ["SERVICE_IMPLICIT", "SERVICE_EXPLICIT", "junk"])
+def test_other_message_types_map_to_transactional(wired, other):
     mod, service, _ = wired
     _post(mod, {"phoneNumber": "+919903300044", "content": "hi",
-                "dltTemplateKey": "ivr-default", "messageType": legacy})
+                "dltTemplateKey": "ivr-default", "messageType": other})
     assert service.calls[0]["message_type"] == "TRANSACTIONAL"
 
 

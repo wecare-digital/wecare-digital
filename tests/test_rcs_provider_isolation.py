@@ -72,11 +72,11 @@ def test_sinch_transport_only_inside_approved_rcs_paths():
 
 
 def test_no_lambda_reads_the_sinch_secret_directly():
-    """Only sinch_rcs may resolve the Sinch credential.
+    """Only sinch_rcs (and the two RCS Lambdas) may resolve the Sinch credential.
 
-    voice-in/cdr used to read `wecare/sinch/rcs` inline in an unreachable copy of
-    the RCS sender. That gave a voice handler a live path to the credential for
-    no working feature.
+    A voice handler once read `wecare/sinch/rcs` inline in an unreachable copy of
+    the RCS sender. That gave it a live path to the credential for no working
+    feature.
     """
     offenders = [
         str(path.relative_to(ROOT))
@@ -86,18 +86,23 @@ def test_no_lambda_reads_the_sinch_secret_directly():
     assert offenders == []
 
 
-def test_voice_in_cdr_ingester_is_gone():
-    """The Airtel CDR ingester carried a duplicate RCS implementation.
+def test_the_rcs_senders_outside_the_rcs_lambdas_are_known():
+    """Lambdas that send RCS do it through `lambda_utils.sinch_rcs`, and they are these.
 
-    It was first reduced to using the shared helper, then deleted outright on
-    2026-09-20 once it was shown to be unreachable: no routes, no event source
-    mappings, no invocations after its routes were removed, and no Lambda
-    invoking it by name. Deletion is the strongest form of "no duplicate
-    implementation", so this now asserts absence rather than contents.
+    A new importer is a new RCS sender, which is a provider-policy decision rather than
+    an incidental import.
     """
-    assert not (FUNCTIONS / "messaging" / "voice-in" / "cdr").exists(), (
-        "the Airtel CDR ingester is back; it was deleted as unreachable and "
-        "previously held a second copy of the RCS send path")
+    importers = sorted(
+        str(path.relative_to(FUNCTIONS))
+        for path in _python_sources()
+        if path.name != "sinch_rcs.py"
+        and re.search(r"from lambda_utils(?:\.sinch_rcs import| import sinch_rcs)",
+                      path.read_text(errors="replace"))
+    )
+    assert importers == [
+        "messaging/whatsapp-calling/handler.py",
+        "shared/lambda_utils/notifications/worker.py",
+    ], importers
 
 
 def test_no_function_reimplements_the_rcs_helpers():

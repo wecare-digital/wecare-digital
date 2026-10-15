@@ -43,7 +43,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
 from contribution_env import (  # noqa: E402
     ATTEMPTS_TABLE, CONTACTS_TABLE, KEYS_TABLE, body_of, make_env, prepare_event)
-from contribution_wix import kiosk_line  # noqa: E402
+from contribution_catalog import kiosk_line  # noqa: E402
 from lambda_utils import identifiers  # noqa: E402
 from lambda_utils.ecommerce import finalization, payment_attempt  # noqa: E402
 from lambda_utils.identity import customer_uuid  # noqa: E402

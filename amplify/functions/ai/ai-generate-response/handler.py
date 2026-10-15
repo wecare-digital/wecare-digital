@@ -1154,7 +1154,7 @@ RULES:
                             'type': 'object',
                             'properties': {
                                 'callType': {'type': 'string', 'description': 'INBOUND or OUTBOUND'},
-                                'status': {'type': 'string', 'description': 'Answered, Missed, Busy, Disconnected'},
+                                'status': {'type': 'string', 'description': 'Answered, Missed or Busy'},
                                 'limit': {'type': 'number', 'description': 'Number of records (default 20)'},
                                 'callerNumber': {'type': 'string', 'description': 'Filter by caller phone'}
                             }
@@ -5055,85 +5055,6 @@ def _tool_clear_all_contact_data(params: Dict, request_id: str) -> Dict:
     """Disabled: destructive cross-table cleanup has no atomic retention lease."""
     return {'success': False, 'error': 'CONTACT_RETENTION_PROTECTION'}
 
-    # Legacy implementation retained below pending an audited removal.
-    contact_id = params.get('contactId')
-    confirm = params.get('confirm', False)
-    
-    if not contact_id:
-        return {'success': False, 'error': 'contactId is required'}
-    
-    if not confirm:
-        return {
-            'success': False,
-            'error': 'Confirmation required. This will delete ALL data including messages, media, and conversation history. Set confirm=true to proceed.'
-        }
-    
-    try:
-        # Never erase message/media history before checking the contact retention lock.
-        existing = dynamodb.Table(CONTACTS_TABLE).get_item(Key={'id': contact_id}, ConsistentRead=True).get('Item')
-        if not existing or existing.get('locked') is True:
-            return {'success': False, 'error': 'CONTACT_LOCKED'}
-        results = {
-            'messages_deleted': 0,
-            'media_files_deleted': 0,
-            'conversation_cleared': False,
-            'contact_deleted': False
-        }
-        
-        # Delete messages
-        messages_result = _tool_delete_messages({'contactId': contact_id}, request_id)
-        if messages_result.get('success'):
-            results['messages_deleted'] = messages_result.get('deletedCount', 0)
-        
-        # Delete media files
-        media_result = _tool_delete_media_files({'contactId': contact_id}, request_id)
-        if media_result.get('success'):
-            results['media_files_deleted'] = media_result.get('deletedCount', 0)
-        
-        # Clear conversation history
-        try:
-            conversation_table = dynamodb.Table(CONVERSATION_TABLE)
-            phone_hash = f'contact-{contact_id}'
-            
-            # Query and delete all conversation records
-            response = conversation_table.query(
-                KeyConditionExpression='phoneHash = :ph',
-                ExpressionAttributeValues={':ph': phone_hash}
-            )
-            
-            for item in response.get('Items', []):
-                conversation_table.delete_item(
-                    Key={
-                        'phoneHash': item['phoneHash'],
-                        'timestamp': item['timestamp']
-                    }
-                )
-            
-            results['conversation_cleared'] = True
-        except Exception:
-            pass
-        
-        # Soft delete contact
-        contact_result = _tool_delete_contact({'contactId': contact_id}, request_id)
-        if contact_result.get('success'):
-            results['contact_deleted'] = True
-        
-        logger.warning(json.dumps({
-            'event': 'all_contact_data_cleared',
-            'contactId': mask_contact_id(contact_id),
-            'results': results,
-            'requestId': request_id
-        }))
-        
-        return {
-            'success': True,
-            'results': results,
-            'message': f'Cleared all data for contact: {results["messages_deleted"]} messages, {results["media_files_deleted"]} media files, conversation history, and contact record'
-        }
-        
-    except Exception as e:
-        return {'success': False, 'error': str(e)}
-
 
 def _media_keys_for_contact(contact_id: str) -> List[str]:
     """Every S3 key belonging to a contact, resolved from that contact's message rows.
@@ -5241,7 +5162,14 @@ def _tool_list_media_files(params: Dict, request_id: str) -> Dict:
 # ===== NEW TOOLS: Voice CDR, Billing, Invoicing, Ecommerce =====
 
 def _tool_get_voice_cdr(params: Dict, request_id: str) -> Dict:
-    """Get voice call detail records."""
+    """Get voice call detail records from wecare-voice-cdr-read.
+
+    Reads only what that reader returns: `overallCallStatus` (falling back to the
+    provider's raw `call_status`), the `*DurationSec` fields, `timestamp` (UTC) and
+    `stats.total`. This used to read `status`, `conversationDuration`, `startTime`
+    and `stats.totalCalls`, none of which the reader emits, so every summary row
+    said N/A and the total was always 0.
+    """
     try:
         query_params = {}
         if params.get('callType'):
@@ -5266,19 +5194,30 @@ def _tool_get_voice_cdr(params: Dict, request_id: str) -> Dict:
         )
         
         result = json.loads(response['Payload'].read().decode('utf-8'))
-        body = json.loads(result.get('body', '{}'))
+        body = json.loads(result.get('body') or '{}')
+        if result.get('statusCode') != 200:
+            return {'success': False,
+                    'error': body.get('error') or f"voice-cdr-read returned {result.get('statusCode')}"}
         
         records = body.get('records', [])
         stats = body.get('stats', {})
         
         summary = []
         for r in records[:10]:
+            seconds = (r.get('billableDurationSec') or r.get('conversationDurationSec')
+                       or r.get('durationSec') or 0)
+            try:
+                seconds = int(float(seconds))
+            except (TypeError, ValueError):
+                seconds = 0
+            timestamp = r.get('timestamp') or ''
             summary.append({
-                'caller': r.get('callerNumber', 'N/A'),
-                'destination': r.get('destinationNumber', 'N/A'),
-                'status': r.get('status', 'N/A'),
-                'duration': r.get('conversationDuration', '00:00'),
-                'time': r.get('startTime', 'N/A')
+                'caller': r.get('callerNumber') or r.get('from_number') or 'N/A',
+                'destination': r.get('destinationNumber') or r.get('to_number') or 'N/A',
+                'direction': r.get('direction') or r.get('callType') or 'N/A',
+                'status': r.get('overallCallStatus') or r.get('call_status') or 'N/A',
+                'duration': f'{seconds // 60:02d}:{seconds % 60:02d}',
+                'time': f'{timestamp} UTC' if timestamp else 'N/A',
             })
         
         return {
@@ -5286,7 +5225,7 @@ def _tool_get_voice_cdr(params: Dict, request_id: str) -> Dict:
             'totalRecords': body.get('count', 0),
             'records': summary,
             'stats': {
-                'totalCalls': stats.get('totalCalls', 0),
+                'totalCalls': stats.get('total', 0),
                 'answered': stats.get('answered', 0),
                 'missed': stats.get('missed', 0),
             }

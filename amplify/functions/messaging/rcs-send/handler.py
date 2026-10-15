@@ -65,7 +65,7 @@ from typing import Dict, Any
 
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
-from lambda_utils.message_store import put_message  # unified MessagesTable dual-write
+from lambda_utils.message_store import put_message  # canonical MessagesTable writer
 from lambda_utils import contact_key  # `id` is the physical key; `contactId` is its alias
 
 logger = get_logger(__name__)
@@ -431,9 +431,16 @@ def _send_rcs(body: Dict, request_id: str, origin: str) -> Dict:
             }
         }
 
-    # Optional: RCS → SMS fallback
+    # RCS is the only channel this function asks Sinch for: the payload carries no
+    # `channel_priority_order`, so Sinch can never deliver it as SMS. SMS goes only
+    # through AWS End User Messaging (lambda_utils.comms). A `fallback` flag from an
+    # older caller is therefore not honoured here; it is logged so it is visible.
     if body.get('fallback'):
-        payload["channel_priority_order"] = ["RCS", "SMS"]
+        logger.warning(json.dumps({
+            'event': 'rcs_send_fallback_ignored',
+            'detail': 'RCS only; send SMS through the AWS SMS service instead',
+            'requestId': request_id,
+        }))
 
     if metadata:
         payload["message_metadata"] = metadata[:1024]
@@ -819,11 +826,9 @@ MESSAGE_TTL_SECONDS = 90 * 24 * 60 * 60  # 90 days
 
 def _store_rcs_message(message_id: str, phone: str, content: str, status: str,
                        template_id: str = '', metadata: str = ''):
-    """Persist RCS message to the canonical MessagesTable only.
+    """Persist RCS message to the canonical MessagesTable (channel='rcs').
 
-    Phase 4: legacy RcsMessagesTable dual-write STOPPED — canonical is the sole store
-    (RCS list/DLR already read canonical). RcsMessagesTable retained read-only during
-    the soak, then deleted.
+    That table is the only RCS store: the RCS list and the DLR handler both read it.
     """
     now = int(time.time())
     contact_id = _lookup_contact_by_phone(phone)

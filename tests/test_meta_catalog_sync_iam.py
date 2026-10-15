@@ -7,8 +7,8 @@ is the wrong direction for a document whose whole value is what it leaves out - 
 
 THE SHARED ROLE IS THE POINT. `wecare-digital-lambda-role` is attached to most of the ~65-function
 fleet, so a grant there is a grant to all of them. This function reads a Meta token that can write
-to a customer-visible commerce catalogue and a Wix admin API key; putting either on the shared role
-would hand both to sixty unrelated functions. So this file asserts the provisioner never names it -
+to a customer-visible commerce catalogue; putting that grant on the shared role would hand it to
+sixty unrelated functions. So this file asserts the provisioner never names it -
 not that it does not grant anything to it, which would be weaker: a script that merely MENTIONS
 the shared role is one edit away from widening it.
 """
@@ -57,12 +57,13 @@ def provisioner():
 # ── 1. the document, exactly ─────────────────────────────────────────────────
 
 
-def test_the_policy_is_exactly_the_four_required_statements(provisioner):
-    """Native: logs + ONE Meta token secret + the approvals table + the native ProductsTable read.
+def test_the_policy_is_exactly_the_five_required_statements(provisioner):
+    """Native: logs + ONE Meta token secret + the approvals table + the ProductsTable change
+    stream + the native ProductsTable read.
 
-    The Wix exit made the catalog source AWS-native: the function reads the ProductsTable instead
-    of the Wix headless API, so the Wix headless-api-key secret is gone (one secret, not two) and a
-    fourth statement grants the read-only ProductsTable access the native projection needs.
+    The catalog source is AWS-native: the function reads the ProductsTable, so the Meta token is
+    its only secret. The stream statement lets the ProductsTable change stream deliver real-time
+    sync events; the last statement grants the read-only ProductsTable access the projection needs.
     """
     assert provisioner.expected_role_policy(ACCOUNT) == {
         "Version": "2012-10-17",
@@ -97,6 +98,18 @@ def test_the_policy_is_exactly_the_four_required_statements(provisioner):
                 ],
             },
             {
+                "Sid": "ReadProductsStream",
+                "Effect": "Allow",
+                "Action": [
+                    "dynamodb:DescribeStream", "dynamodb:GetRecords",
+                    "dynamodb:GetShardIterator", "dynamodb:ListStreams",
+                ],
+                "Resource": [
+                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/"
+                    "stack-wecare-digital-ProductsTable/stream/*",
+                ],
+            },
+            {
                 "Sid": "ReadNativeProductCatalog",
                 "Effect": "Allow",
                 "Action": [
@@ -113,12 +126,12 @@ def test_the_policy_is_exactly_the_four_required_statements(provisioner):
     }
 
 
-def test_the_policy_has_no_statement_beyond_the_four_required(provisioner):
+def test_the_policy_has_no_statement_beyond_the_five_required(provisioner):
     statements = provisioner.expected_role_policy(ACCOUNT)["Statement"]
-    assert len(statements) == 4
+    assert len(statements) == 5
     assert [s["Sid"] for s in statements] == [
         "OwnLogs", "ReadMetaToken", "CatalogProposalApprovalRecords",
-        "ReadNativeProductCatalog"]
+        "ReadProductsStream", "ReadNativeProductCatalog"]
     assert all(s["Effect"] == "Allow" for s in statements)
 
 
@@ -137,8 +150,9 @@ def test_no_forbidden_action_appears_anywhere_in_the_policy(provisioner):
         for forbidden in FORBIDDEN_ACTION_PREFIXES:
             assert not action.startswith(forbidden), f"{action} is not least privilege here"
     assert sorted(actions) == [
-        "dynamodb:BatchGetItem",
+        "dynamodb:BatchGetItem", "dynamodb:DescribeStream",
         "dynamodb:GetItem", "dynamodb:GetItem",
+        "dynamodb:GetRecords", "dynamodb:GetShardIterator", "dynamodb:ListStreams",
         "dynamodb:PutItem", "dynamodb:Query", "dynamodb:Scan",
         "dynamodb:UpdateItem",
         "logs:CreateLogStream", "logs:PutLogEvents", "secretsmanager:GetSecretValue"]
@@ -204,15 +218,24 @@ def test_the_role_this_script_creates_is_its_own(provisioner):
     assert provisioner.ROLE != SHARED_FLEET_ROLE
 
 
-# The Wix catalog webhook invoke grant is retired with the Wix exit: there is no
-# `wecare-wix-catalog-webhook` caller anymore (the native projection is driven by the schedule
-# backstop and the ProductsTable), so the provisioner declares no WEBHOOK_ROLE and no
-# webhook_invoke_policy. The former `test_the_invoke_grant_lands_on_the_WEBHOOKS_role...` is
-# removed because the behaviour it pinned is intentionally gone.
-def test_the_retired_wix_webhook_invoke_grant_is_gone(provisioner):
-    """The Wix catalog webhook caller is retired, so no cross-role invoke grant is provisioned."""
-    assert not hasattr(provisioner, "WEBHOOK_ROLE")
-    assert not hasattr(provisioner, "webhook_invoke_policy")
+def test_the_schedule_is_the_only_invoke_grant_and_iam_writes_target_only_its_own_role():
+    """The scheduled EventBridge rule is the function's one provisioned caller, so the provisioner
+    adds exactly one invoke permission (for `events.amazonaws.com`) and writes IAM for its own role
+    only - no grant lands on another function's role."""
+    tree = ast.parse(SCRIPT.read_text(encoding="utf-8"), filename=str(SCRIPT))
+    calls = [node for node in ast.walk(tree)
+             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)]
+
+    grants = [call for call in calls if call.func.attr == "add_permission"]
+    assert len(grants) == 1
+    principal = {kw.arg: kw.value for kw in grants[0].keywords}["Principal"]
+    assert isinstance(principal, ast.Constant) and principal.value == "events.amazonaws.com"
+
+    iam_writes = [call for call in calls if call.func.attr in ("create_role", "put_role_policy")]
+    assert iam_writes
+    for call in iam_writes:
+        role = {kw.arg: kw.value for kw in call.keywords}["RoleName"]
+        assert isinstance(role, ast.Name) and role.id == "ROLE"
 
 
 # ── 3. no public surface ─────────────────────────────────────────────────────
@@ -257,18 +280,19 @@ def test_a_dry_run_is_the_default_and_calls_no_mutating_api(provisioner):
 
 
 def test_the_provisioned_environment_matches_the_product_scoped_rollout(provisioner):
-    """Global writes stay closed while per-product metaEnabled owns desired catalogue scope.
+    """Real-time sync with bounded auto-apply; per-product metaEnabled owns catalogue scope.
 
     The fixed five-variant rollout list is intentionally empty after catalog-publishing v2.
-    Exact-plan approval plus the enabled/dry-run gates still protect every Meta write.
+    Background runs may auto-apply only small non-destructive plans (AUTO_APPLY_SAFE with a
+    50-change ceiling); anything destructive still needs an exact-plan approval.
     """
     manifest = json.loads((ROOT / "config/lambda-env-manifest.json").read_text())
     live = manifest["functions"]["wecare-meta-catalog-sync"]
     expected = {
-        "META_CATALOG_SYNC_ENABLED": "false",
-        "META_CATALOG_SYNC_DRY_RUN": "true",
+        "META_CATALOG_SYNC_ENABLED": "true",
+        "META_CATALOG_SYNC_DRY_RUN": "false",
         "META_CATALOG_SYNC_VARIANT_IDS": "",
-        "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
+        "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "false",
     }
     for key, value in expected.items():
         assert provisioner.ENVIRONMENT[key] == value
@@ -280,8 +304,9 @@ def test_the_environment_carries_secret_NAMES_and_no_value(provisioner):
     enforcement hook would refuse a command carrying one - this asserts the same rule about the
     file that the hook asserts about the command line."""
     rendered = json.dumps(provisioner.ENVIRONMENT)
-    assert "wecare/meta-system-user-token" in rendered
-    assert "wecare/wix/headless-api-key" not in rendered
+    secret_names = [value for key, value in provisioner.ENVIRONMENT.items()
+                    if key.endswith("_SECRET")]
+    assert secret_names == ["wecare/meta-system-user-token"]
     for issuer_shape in ("rzp_live_", "sk-", "AIza", "ghp_", "xoxb-", "AKIA", "ASIA"):
         assert issuer_shape not in rendered
 

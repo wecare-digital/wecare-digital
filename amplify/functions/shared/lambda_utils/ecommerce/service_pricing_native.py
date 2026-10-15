@@ -1,25 +1,20 @@
-"""AWS-native service-page pricing — the native sibling of `service_pricing.py`.
+"""AWS-native service-page pricing for `GET /ecommerce/service-prices`.
 
-`service_pricing.py` reads each service's LIVE price from a reused Wix cart
-estimate. The AWS-native catalog IS the price authority, so the native path reads
-the service variant's `priceMinor` directly from `ProductsTable` — no cart, no Wix
-call. It returns the EXACT same contract as `service_pricing.resolve_all`:
+The AWS-native catalog IS the price authority, so this reads each service variant's
+`priceMinor` directly from `ProductsTable` — no cart and no third-party call. The
+checkout handler serves its result as:
 
     {"currency": "INR", "prices": {slug: {"available": True, "paise": int}
                                          | {"available": False}}}
 
-so the checkout handler can switch sources behind `CATALOG_SOURCE` with no change
-to the response shape or the frontend.
-
-Same guarantees as the Wix module:
+Guarantees:
   - integer paise only (never float), via `positive_paise`,
   - FAIL CLOSED PER SLUG: a slug whose price cannot be resolved is
     `{"available": False}` with NO `paise` key — never a zero, stale, or fallback,
   - one slug failing leaves the others priced.
 
-Not wired until the checkout handler gates `resolve_all` on `CATALOG_SOURCE=aws`.
 The lookup is injected (`product_reader`) so this is unit-testable offline and the
-module reads no secret and holds no boto3 client, matching `service_pricing.py`.
+module reads no secret and holds no boto3 client.
 """
 from __future__ import annotations
 
@@ -40,9 +35,8 @@ ProductReader = Callable[[str], Optional[Mapping[str, Any]]]
 
 
 def _variant_paise(row: Optional[Mapping[str, Any]]) -> int:
-    """The variant's price as positive integer paise, or raise. Mirrors the Wix
-    module's refusal discipline: a missing/non-positive/non-INR price is a refusal,
-    not a zero."""
+    """The variant's price as positive integer paise, or raise. A missing,
+    inactive, non-positive or non-INR price is a refusal, not a zero."""
     if not isinstance(row, Mapping):
         raise ValueError("service variant not found in catalog")
     if str(row.get("status") or "active") != "active":
@@ -57,10 +51,9 @@ def _variant_paise(row: Optional[Mapping[str, Any]]) -> int:
 
 
 def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
-    """Every public service slug's native price, same contract as
-    `service_pricing.resolve_all`. No warm-sandbox cache here: a DynamoDB point read
-    per slug is cheap and avoids serving a stale price across a price edit — the Wix
-    module cached only to avoid hammering a third party, which no longer applies."""
+    """Every public service slug's native price. No warm-sandbox cache here: a
+    DynamoDB point read per slug is cheap and avoids serving a stale price across a
+    price edit."""
     prices: Dict[str, Dict[str, Any]] = {}
     for slug, kind in service_requests.SERVICE_KIND_BY_SLUG.items():
         variant = service_requests.SERVICE_VARIANT_BY_KIND.get(kind, "")

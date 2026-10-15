@@ -149,9 +149,9 @@ def test_the_intent_happy_path(env):
     status, body, _ = call(env, "/services/request-intent", {
         "kind": "SUBMIT_REQUEST", "originalOrderReferenceId": seed_original_order(env)})
     assert status == 200, body
-    # `amountPaise` is None: PRICED AT CHECKOUT, by Wix. The key stays in the payload so the wire
-    # shape remains a superset of what src/lib/serviceRequests.ts reads, and None says "not priced
-    # yet" where a 0 would have claimed the service is free.
+    # `amountPaise` is None: PRICED AT CHECKOUT, from ProductsTable. The key stays in the payload
+    # so the wire shape remains a superset of what src/lib/serviceRequests.ts reads, and None says
+    # "not priced yet" where a 0 would have claimed the service is free.
     assert body["amountPaise"] is None and body["currency"] == "INR"
     assert body["variantId"] == "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
 
@@ -294,7 +294,7 @@ def test_the_handler_imports_no_money_mover_and_reads_no_secret():
             names.update(alias.name for alias in node.names)
         elif isinstance(node, ast.Import):
             names.update(alias.name for alias in node.names)
-    for banned in ("razorpay_orders", "razorpay_verify", "wix_ecom", "cart_v2", "wix_writeback",
-                   "finalization", "order_creation", "secretsmanager"):
+    for banned in ("razorpay_orders", "razorpay_verify", "website_checkout", "native_cart",
+                   "customer_cart", "finalization", "order_creation", "secretsmanager"):
         assert not any(banned in name for name in names), banned
     assert "secretsmanager" not in HANDLER.read_text(encoding="utf-8")

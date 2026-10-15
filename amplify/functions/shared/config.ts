@@ -24,7 +24,6 @@ export const TABLES = {
   AI_INTERACTIONS: process.env.AI_INTERACTIONS_TABLE || 'stack-wecare-digital-AIInteractionsTable',
   RATE_LIMIT: process.env.RATE_LIMIT_TABLE || 'stack-wecare-digital-RateLimitTable',
   SYSTEM_CONFIG: process.env.SYSTEM_CONFIG_TABLE || 'stack-wecare-digital-SystemConfigTable',
-  VOICE_CALLS: process.env.VOICE_CALLS_TABLE || 'stack-wecare-digital-VoiceCalls',
   // SMS_AWS removed 2026-09-24: `stack-wecare-digital-SmsAwsTable` does not exist
   // in the account. SMS is stored in the canonical MessagesTable under
   // channel='sms' (see MESSAGES below if added, and messaging/sms-aws/handler.py).
@@ -149,7 +148,6 @@ export const TTL_CONFIG = {
   DLQ_MESSAGES: 7 * 24 * 60 * 60,   // 7 days
   AUDIT_LOGS: 180 * 24 * 60 * 60,   // 180 days
   RATE_LIMIT: 24 * 60 * 60,         // 24 hours
-  VOICE_CALLS: 90 * 24 * 60 * 60,   // 90 days
 };
 
 // Rate Limits

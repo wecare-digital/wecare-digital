@@ -1,19 +1,14 @@
-"""A native catalog descriptor + line builders for the Phase-2 contribution/service tests.
+"""A native catalogue descriptor + line builders for the Phase-2 contribution/service tests.
 
-HISTORY: this module used to be a stateful Wix Cart V2 transport fake (it imported wix_ecom and
-synthesised 404s through wix_ecom.http_error). The checkout handler is AWS-native now — it prices
-every basket off ProductsTable through `_native_quote`, with no Wix cart and no Wix transport — so
-the transport fake was retired. What survives is the part the live native tests still need: the
-real catalogue identifiers (imported from blog_contribution, never invented) and the small
-`catalogReference` line builders, plus a lightweight `ContributionWix` descriptor that carries a
-product → variant → price registry for `contribution_env.make_env` to build a native
+The checkout handler prices every basket off ProductsTable through `_native_quote`. What the
+contribution and service tests need is the real catalogue identifiers (imported from
+blog_contribution, never invented), the small `catalogReference` line builders the browser's
+basket shape uses, and a lightweight `NativeCatalog` descriptor that carries a
+product -> variant -> price registry for `contribution_env.make_env` to build a native
 `_native_product_reader` from.
 
-The descriptor keeps empty `.calls`/`.requests`/`.commands` lists so a native test asserting "no
-Wix call was made" (`wix.calls == []`) reads true by construction — there is no transport to call.
-
-Nothing here reaches AWS, the network, a credential, or wix_ecom. The contribution ids are the
-real ones (blog_contribution), pinned against src/config/contribution.ts by
+Nothing here reaches AWS, the network or a credential. The contribution ids are the real ones
+(blog_contribution), pinned against src/config/contribution.ts by
 tests/test_blog_contribution.py::test_server_choices_mirror_the_frontend_contract.
 """
 
@@ -59,8 +54,6 @@ UNIT_RUPEES = {KIOSK_ID: 24999, OTHER_ID: 150}
 VARIANTS: Dict[str, List[str]] = {CONTRIBUTION_ID: list(CONTRIBUTION_VARIANTS),
                                   KIOSK_ID: [KIOSK_VARIANT], OTHER_ID: [OTHER_VARIANT]}
 
-STORES_APP_ID = "215238eb-22a5-4c36-9e7b-e7c08025e04e"
-
 #: `productType` per product. EVERY product is PHYSICAL, including the contribution, because that
 #: is what the live catalogue holds. Native shipping is free, so a PHYSICAL contribution still
 #: prices at exactly its variant figure.
@@ -75,49 +68,21 @@ def unit_paise(product_id: str, variant_id: str) -> int:
     return UNIT_RUPEES[product_id] * 100
 
 
-class ContributionWix:
-    """A native catalogue descriptor (NOT a transport). It carries a product → variant → price
-    registry that `contribution_env.make_env` turns into a `_native_product_reader`, and empty
-    `calls`/`requests`/`commands` lists so "no Wix call" assertions hold by construction.
+class NativeCatalog:
+    """A native catalogue descriptor. It carries a product -> variant -> price registry that
+    `contribution_env.make_env` turns into a `_native_product_reader`.
 
-    Pricing knobs (`tax_rupees`, `discount_rupees`, `delivery_rupees`, `fees_rupees`) are retained
-    on the signature so existing callers keep their shape, but the native supply engine prices from
-    the per-variant catalogue only (GST-inclusive, free shipping): adjustments a Wix cart used to
-    compute no longer apply, and a basket that would have carried delivery/tax/fees simply prices
-    at its line total. The services tests that asserted a delivery/tax/fee REFUSAL now assert that
-    at the pure-unit layer (`service_requests.assert_service_line_price`), which is unchanged.
+    The native supply engine prices from the per-variant catalogue only (GST-inclusive, free
+    shipping), so a basket prices at its line total. The per-line service price guard is
+    asserted at the pure-unit layer (`service_requests.native_service_line_paise`).
     """
 
-    def __init__(self, *, lines: Optional[List[Dict[str, Any]]] = None,
-                 delivery_address: Optional[Dict[str, Any]] = None,
-                 product_type: Optional[Dict[str, str]] = None,
-                 tax_rupees: int = 0, discount_rupees: int = 0,
-                 delivery_rupees: int = 0, fees_rupees: int = 0,
-                 coupons: Optional[list] = None, gift_cards: Optional[list] = None,
-                 in_stock: bool = True, confirmed_delta: int = 0,
-                 line_status: str = "IN_STOCK", variant_count: int = 0,
-                 require_delivery_on_calculate: bool = False,
-                 offered_delivery_options: Optional[List[Dict[str, Any]]] = None,
-                 gone_cart_ids: Optional[List[str]] = None,
-                 gone_product_ids: Optional[List[str]] = None):
-        self.lines = [dict(line) for line in (lines or [])]
-        self.delivery_address = copy.deepcopy(delivery_address) if delivery_address else None
+    def __init__(self, *, product_type: Optional[Dict[str, str]] = None,
+                 in_stock: bool = True):
         self.product_type = dict(product_type or PRODUCT_TYPE)
         #: product_id -> [variant ids]. A copy so a test can teach it the services product.
         self.variants = {key: list(value) for key, value in VARIANTS.items()}
         self.in_stock = in_stock
-        self.tax_rupees = tax_rupees
-        self.discount_rupees = discount_rupees
-        self.delivery_rupees = delivery_rupees
-        self.fees_rupees = fees_rupees
-        self.coupons = coupons or []
-        self.gift_cards = gift_cards or []
-        self.cart_id = CART_ID
-        #: There is no transport, so these stay empty — "no Wix call" is structural now.
-        self.calls: List[tuple] = []
-        self.requests: List[tuple] = []
-        self.commands: List[tuple] = []
-        self.created_carts: List[str] = []
 
     def product_rows(self) -> Dict[str, Dict[str, Any]]:
         """ProductsTable items for every product this descriptor knows, keyed by product id.
@@ -151,7 +116,7 @@ class ContributionWix:
         return read
 
 
-def register_product(descriptor: "ContributionWix", product_id: str, variant_id: str, *,
+def register_product(descriptor: "NativeCatalog", product_id: str, variant_id: str, *,
                      unit_rupees: int = 10, product_type: str = "PHYSICAL") -> None:
     """Teach one descriptor about an extra catalogue product so a multi-line basket can be priced."""
     UNIT_RUPEES.setdefault(product_id, unit_rupees)
@@ -165,7 +130,7 @@ def contribution_line(variant: str = CONTRIBUTION_VARIANT, quantity: int = 1) ->
     `quantity` defaults to 1 and is a parameter only so a test can send a wrong one: a contribution
     is a fixed-price variant, so 1 is the only quantity the server accepts.
     """
-    return {"catalogReference": {"appId": STORES_APP_ID, "catalogItemId": CONTRIBUTION_ID,
+    return {"catalogReference": {"catalogItemId": CONTRIBUTION_ID,
                                  "options": {"variantId": variant}},
             "quantity": quantity}
 
@@ -176,13 +141,13 @@ def contribution_paise(variant: str = CONTRIBUTION_VARIANT) -> int:
 
 
 def kiosk_line(quantity: int = 1) -> Dict[str, Any]:
-    return {"catalogReference": {"appId": STORES_APP_ID, "catalogItemId": KIOSK_ID,
+    return {"catalogReference": {"catalogItemId": KIOSK_ID,
                                  "options": {"variantId": KIOSK_VARIANT}},
             "quantity": quantity}
 
 
 def other_line(quantity: int = 1) -> Dict[str, Any]:
-    return {"catalogReference": {"appId": STORES_APP_ID, "catalogItemId": OTHER_ID,
+    return {"catalogReference": {"catalogItemId": OTHER_ID,
                                  "options": {"variantId": OTHER_VARIANT}},
             "quantity": quantity}
 

@@ -48,7 +48,7 @@ def test_client_cannot_name_a_cheaper_option():
 
 def test_full_native_supply_chain():
     """cart lines -> shipping -> coupon discount -> supply tax -> price_cart ->
-    compute_quote. The whole native supply total with no Wix anywhere."""
+    compute_quote. The whole native supply total, end to end."""
     from lambda_utils.ecommerce import checkout_pricing
     policy = sh.ShippingPolicy(flat_rate_paise=9900, free_above_paise=200000)
     lines = [_line(qty=2, price=50000)]              # subtotal 100000

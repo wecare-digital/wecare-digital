@@ -238,10 +238,10 @@ def _fingerprint(kind: str, variant_id: str, target_request_id: str,
                  original_order_id: str = "") -> str:
     """What makes two intents for the same thing the same intent.
 
-    NO AMOUNT, since 2026-10-08. Wix owns the price now, so an amount in here would mean a Wix
-    price edit between two visits produced a DIFFERENT fingerprint for the same request -- and
-    the customer's one open intent would be superseded by an identical one for no reason the
-    customer caused. The identity of an intent is what service it is and what it is for.
+    NO AMOUNT, since 2026-10-08. ProductsTable owns the price, so an amount in here would mean a
+    catalogue price edit between two visits produced a DIFFERENT fingerprint for the same
+    request -- and the customer's one open intent would be superseded by an identical one for no
+    reason the customer caused. The identity of an intent is what service it is and what it is for.
     """
     material = "|".join([
         kind, variant_id, SERVICE_CURRENCY, target_request_id, original_order_id
@@ -250,7 +250,7 @@ def _fingerprint(kind: str, variant_id: str, target_request_id: str,
 
 
 def _intent_view(intent: Dict[str, Any]) -> Dict[str, Any]:
-    """The intent on the wire. ``amountPaise`` is ``None``: PRICED AT CHECKOUT, by Wix.
+    """The intent on the wire. ``amountPaise`` is ``None``: PRICED AT CHECKOUT, from ProductsTable.
 
     The key stays in the payload rather than being dropped, so the shape remains a superset of
     what `src/lib/serviceRequests.ts` reads, and ``None`` says "not priced yet" where a ``0``
@@ -301,7 +301,7 @@ def _mint_items(table_name: str, *, intent: Dict[str, Any], open_key: str,
 def _new_intent(*, intent_id: str, owner: str, kind: str, variant_id: str,
                 target: Optional[Dict[str, Any]], original_order: Optional[Dict[str, Any]],
                 fingerprint: str, now: int) -> Dict[str, Any]:
-    """The stored intent. NO ``amountPaise``: an intent is pre-payment and Wix prices the line.
+    """The stored intent. NO ``amountPaise``: an intent is pre-payment and checkout prices the line.
 
     Storing a figure here would be storing a guess, and a guess on a money row is the thing that
     later gets compared against reality and refuses an honest payment.
@@ -574,9 +574,10 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
     if (str(intent.get("variantId") or "") != variant_id
             or str(intent.get("kind") or "") != kind or str(line.get("kind") or "") != kind):
         return _unmatched("VARIANT_MISMATCH", reference_id=reference_id, order_id=order_id)
-    # WHAT WAS CHARGED IS WHAT WIX PRICED, so there is no committed figure left to agree with.
-    # The check is therefore on the SHAPE of the recorded amount, not on its value: a positive
-    # integer inside the same catastrophe rail `assert_service_line_price` applied at checkout.
+    # WHAT WAS CHARGED IS WHAT THE NATIVE QUOTE PRICED, so there is no committed figure left to
+    # agree with. The check is therefore on the SHAPE of the recorded amount, not on its value: a
+    # positive integer inside the same catastrophe rail `native_service_line_paise` applied at
+    # checkout.
     # ``AMOUNT_MISMATCH`` is kept verbatim as the reason code -- every historical
     # PAID_SERVICE_UNMATCHED alert and any operator runbook already matches that string, and a
     # rename would silently stop matching them.

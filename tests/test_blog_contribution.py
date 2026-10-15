@@ -25,7 +25,7 @@ from lambda_utils.ecommerce import blog_contribution as bc  # noqa: E402
 from lambda_utils.ecommerce import order_keys  # noqa: E402
 from lambda_utils.integrations import razorpay_orders as ro  # noqa: E402
 
-KEYS_TABLE = 'stack-wecare-digital-WixOrderIds'
+KEYS_TABLE = 'stack-wecare-digital-CommerceKeys'
 POST_ID = 'post_abc123'
 SLUG = 'how-to-do-the-thing'
 
@@ -77,7 +77,7 @@ def test_server_presets_mirror_the_frontend_contract():
     # and `prepare_contribution` still use it, but nothing in production calls either, and
     # src/config/contribution.ts no longer declares a matching `CONTRIBUTION_PRESETS_PAISE` --
     # the 2026-10-04 owner model change replaced the preset-plus-custom-amount model with
-    # fixed-price Wix variants, so there is no browser-proposed amount left to widen.
+    # fixed-price catalogue variants, so there is no browser-proposed amount left to widen.
     #
     # THE THREE FIGURES ARE DELIBERATELY LEFT AS THEY ARE by the 2026-10-10 catalogue reduction,
     # which took the LIVE choices down to one Rs.250 variant. These are amounts on a path with no
@@ -94,12 +94,12 @@ def test_server_choices_mirror_the_frontend_contract():
     Parsed out of the TS source rather than transpiled, which is the same move
     `test_server_presets_mirror_the_frontend_contract` made for the retired presets.
 
-    The GUIDs are MEASURED values, read off the live `Contribute` product's
-    `GET /stores/v3/products/{id}` -- one product, PHYSICAL. It carried three visible in-stock
-    variants priced Rs.100 / Rs.250 / Rs.500 when this guard was written on 2026-10-04; the owner
-    reduced it to a SINGLE Rs.250 variant in Wix on 2026-10-10, so ONE choice is what both sides
-    must now declare. The count is asserted rather than derived on purpose: a TS file that
-    declared no choice at all would otherwise mirror a Python map that declared none either.
+    The GUIDs are MEASURED values: the live `Contribute` product's variant ids -- one product.
+    It carried three visible in-stock variants priced Rs.100 / Rs.250 / Rs.500 when this guard
+    was written on 2026-10-04; the owner reduced it to a SINGLE Rs.250 variant on 2026-10-10, so
+    ONE choice is what both sides must now declare. The count is asserted rather than derived on
+    purpose: a TS file that declared no choice at all would otherwise mirror a Python map that
+    declared none either.
     """
     import re
     root = pathlib.Path(__file__).resolve().parents[1]
@@ -381,7 +381,7 @@ def test_matching_signature_and_capture_settles():
     assert paid.contribution_id == 'contrib_1'
 
 
-# ── webhook settlement: idempotency, notes-not-authority, quarantine, no Wix order ──
+# ── webhook settlement: idempotency, notes-not-authority, quarantine, no order ──
 
 def _settle(table, *, payment, provider):
     quarantined = []
@@ -473,7 +473,7 @@ def test_webhook_not_captured_quarantines():
 
 
 def test_webhook_settlement_creates_no_order_identity():
-    # A contribution capture must NOT create a Wix Store product/order or mint a public order
+    # A contribution capture must NOT create a store product/order or mint a public order
     # number. Settling writes ONLY the contribution record and the settlement claim - no
     # PAYMENTATTEMPT# order claim, no ORDERNO# reservation.
     table = _keys()

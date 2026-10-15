@@ -14,14 +14,14 @@ payment tests use.
 
 Two things make a contribution DIFFERENT from a cart checkout, and both are deliberate:
 
-  1. There is no cart, no Wix total and no FEAT-001 quote. The amount is the contribution amount
-     the reader chose, validated SERVER-SIDE against an authoritative preset set + custom bounds
-     defined HERE (not read from the browser), in integer paise. The browser value is only a
+  1. There is no cart, no catalogue total and no FEAT-001 quote. The amount is the contribution
+     amount the reader chose, validated SERVER-SIDE against an authoritative preset set + custom
+     bounds defined HERE (not read from the browser), in integer paise. The browser value is only a
      request; the server decides. A plain voluntary contribution is NOT a commerce collection, so
      it is NOT run through the convenience-fee + GST calculator - the reader is charged exactly the
      amount they chose, in paise, and nothing is added on top. (If accounting later requires a fee
      on contributions, that is a deliberate change here, not a silent default.)
-  2. A captured contribution does NOT create a Wix Store product or purchase order and mints no
+  2. A captured contribution does NOT create a catalogue product or purchase order and mints no
      public order number. It settles the contribution record and stops. ``order_keys`` keeps the
      contribution record in its own ``BLOGCONTRIB#`` namespace precisely so nothing downstream
      mistakes it for an order.
@@ -52,14 +52,14 @@ webhook: on a signature-verified ``payment.captured`` whose notes mark it a BLOG
 amount is RE-DERIVED from the stored contribution record (NOT from ``payment.notes`` - a forged
 notes amount is ignored), a conditional one-time claim keyed by the payment id is made BEFORE any
 settle write (so a replay settles exactly once), the capture is verified against Razorpay's API,
-and a paid-but-unresolvable capture is QUARANTINED for a human rather than guessed. No Wix order
-is ever created.
+and a paid-but-unresolvable capture is QUARANTINED for a human rather than guessed. No order is
+ever created.
 
 PHASE 2 (2026-10-03): THIS MODULE'S OWN MONEY PATH IS RETIRED, NOT DELETED
 --------------------------------------------------------------------------
-A contribution is now **one fixed-price Wix product line in the existing cart**, priced by
-the former Wix cart calculation on the one live checkout path. ``POST /api/ecommerce/contribution`` stays 404
-and is never built, so ``prepare_contribution``, ``verify_contribution_callback`` and
+A contribution is now **one fixed-price ProductsTable product line in the existing cart**, priced
+by the native ProductsTable quote on the one live checkout path.
+``POST /api/ecommerce/contribution`` stays 404 and is never built, so ``prepare_contribution``, ``verify_contribution_callback`` and
 ``settle_contribution_capture`` have no production caller and gain none. They are retained rather
 than removed because the webhook still carries a keyed ``BLOG_CONTRIBUTION`` arm and because
 deleting a verified payment implementation is not this phase's job.
@@ -73,10 +73,11 @@ no bounds, no ``quantity x 100`` re-derivation. The change DELETES the amount ar
 than relocating it, which is why there is less money code after it than before.
 
 ONE AMOUNT SINCE 2026-10-10. The model change offered three -- Rs.100, Rs.250, Rs.500. The owner
-then removed two of the three variants in Wix, leaving a SINGLE visible in-stock variant at
-Rs.250, and the allow-list below follows the catalogue because Wix is the source of truth: a
-variant Wix has deleted cannot be priced by the former Wix cart calculation, so a basket naming one fails
-closed at Wix rather than collecting anything.
+then removed two of the three variants from the catalogue, leaving a SINGLE visible in-stock
+variant at Rs.250, and the allow-list below follows the catalogue because the catalogue is the
+source of truth: a variant that is not in ProductsTable cannot be priced by the native quote
+(`native_cart._unit_price_paise` refuses it), so a basket naming one fails closed rather than
+collecting anything.
 
 What IS live in this module is the part the unified checkout imports rather than re-declares:
 ``CONTRIBUTION_PRODUCT_IDS`` -- the committed recognition set that makes the
@@ -136,30 +137,30 @@ CONTRIBUTION_CURRENCY = "INR"
 #: Only these exact three values are accepted.
 CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = (10000, 25000, 50000)
 
-#: Every Wix catalogue product id that has ever served as a contribution vehicle, lowercased.
+#: The ProductsTable product id that carries the contribution variants, lowercased.
 #: COMMITTED rather than configured, because this set is what makes CONTRIBUTION_PRODUCT_ID a kill
 #: switch instead of a de-guard: unsetting the env key must REFUSE a contribution basket, and that
 #: is only possible if the server can still recognise one. Ids are catalogue references, not
 #: secrets.
 #:
 #: The one entry is the live `Contribute` product (slug ``contribute``), MEASURED against the live
-#: Wix catalogue on 2026-10-10 rather than transcribed: ``PHYSICAL``, ``visible: true``, one option
-#: named "Amount" rendered as TEXT_CHOICES, and a SINGLE visible in-stock variant priced Rs.250
-#: (it carried three, Rs.100 / Rs.250 / Rs.500, until the owner removed two in Wix). Note the
-#: shape, because it is NOT what the owner's instruction said: the GUIDs supplied are VARIANT ids
-#: of ONE product, not product ids. A `catalogItemId` of a variant id would 404 at
-#: the Wix storefront product-by-id endpoint, so the distinction is load-bearing.
+#: catalogue on 2026-10-10 rather than transcribed: ``PHYSICAL``, one option named "Amount", and a
+#: SINGLE visible in-stock variant priced Rs.250 (it carried three, Rs.100 / Rs.250 / Rs.500, until
+#: the owner removed two). Note the shape, because it is NOT what the owner's instruction said: the
+#: GUIDs supplied are VARIANT ids of ONE product, not product ids. A `catalogItemId` holding a
+#: variant id names no ProductsTable product and fails the native quote, so the distinction is
+#: load-bearing.
 #:
 #: SITE MIGRATION, 2026-10-05: THE SET IS REPLACED, NOT EXTENDED, and that is a correction to what
 #: this comment used to claim. It said "an id is added here, never removed -- a retired vehicle must
 #: stay recognisable", which the module could never honour: the mirror guard
 #: ``test_server_choices_mirror_the_frontend_contract`` holds this set EQUAL to the single id
 #: ``src/config/contribution.ts`` declares, so a second member fails the build. The old id
-#: ``af326b8c-f373-45ea-ad0d-b7a38b8ce0cc`` belonged to the retired Wix site and names a product
-#: that no longer exists, so keeping it recognisable buys nothing: a stale cart line carrying it
-#: cannot be priced at all -- the former Wix cart calculation refuses an unknown ``catalogItemId`` -- so that
-#: basket fails closed at Wix rather than being mistaken for an ordinary purchase and charged the
-#: convenience fee and GST.
+#: ``af326b8c-f373-45ea-ad0d-b7a38b8ce0cc`` belonged to the retired catalogue site and names a
+#: product that no longer exists, so keeping it recognisable buys nothing: a stale cart line
+#: carrying it cannot be priced at all -- the native quote refuses a ``catalogItemId`` that is not
+#: in ProductsTable -- so that basket fails closed rather than being mistaken for an ordinary
+#: purchase and charged the convenience fee and GST.
 CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
     "8514c405-3971-4786-ad0d-15406ca23407",
 })
@@ -172,13 +173,12 @@ CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
 #: is retired in favour of fixed-price variants chosen at quantity 1, which deletes the
 #: quantity arithmetic, the bounds and the custom-amount validation rather than adding to them.
 #:
-#: WHY THE SERVER HOLDS THE PAISE FIGURE AT ALL, given that the former Wix cart calculation is the sole price
-#: authority: the browser's button says "Contribute Rs.250", and a Wix price edit would otherwise
-#: charge a different figure than the one the customer was promised. So this is not a second price
-#: -- it is the EXPECTED collection the Wix-computed total is asserted against, and a mismatch
-#: FAILS CLOSED (``checkout/handler.py:_assert_contribution_total``) rather than charging either
-#: figure. Changing a price in the Wix dashboard therefore refuses contributions until this map
-#: moves with it, which is the correct direction: the alternative is a label that lies.
+#: WHY THE SERVER HOLDS THE PAISE FIGURE AT ALL, given that ProductsTable is the sole price
+#: authority: the browser's button says "Contribute Rs.250", and this map is the committed
+#: statement of that promise. It is not a second price -- the native quote charges the variant's
+#: ProductsTable ``priceMinor`` -- and the checkout reads it only to word its
+#: ``CONTRIBUTION_AMOUNT_INVALID`` refusal (``choicesPaise``). A catalogue price edit therefore
+#: has to move this map and src/config/contribution.ts with it, or the label lies.
 #:
 #: MIRRORED IN src/config/contribution.ts as CONTRIBUTION_CHOICES, deliberately as a separate
 #: declaration so the browser cannot widen the trusted set.
@@ -186,21 +186,19 @@ CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
 #: that fails if the two drift.
 #:
 #: SITE MIGRATION, 2026-10-05: the three variant GUIDs moved and the three AMOUNTS DID NOT. The
-#: catalogue was re-created on site ``c993128b-26be-41cd-9fcd-904abe23462f``, which re-mints every
-#: variant id, so all three keys changed in one release while the values stayed 10000 / 25000 /
-#: 50000 -- the customer is charged exactly what they were charged before. Which new variant
-#: carries which rupee figure was read off the new site's query-variants response and confirmed
-#: independently by the "Amount" option label in ``src/content/wix-catalog.json``, because getting
+#: catalogue was re-created, which re-minted every variant id, so all three keys changed in one
+#: release while the values stayed 10000 / 25000 / 50000 -- the customer is charged exactly what
+#: they were charged before. Which new variant carries which rupee figure was read off the
+#: re-created catalogue and confirmed independently by its "Amount" option label, because getting
 #: that correspondence wrong would collect the wrong amount silently rather than failing.
 #:
 #: CATALOGUE REDUCTION, 2026-10-10: THREE KEYS BECAME ONE. The owner deleted the Rs.100
 #: (``ab4ee1a2-1568-4dc4-abe1-55e24fa51576``) and Rs.500
-#: (``19283bd8-a61d-455e-a992-79eb10b9228f``) variants in Wix, and the refreshed
-#: ``src/content/wix-catalog.json`` reports the product with ``variantCount: 1``. They are REMOVED
-#: here rather than kept recognisable, for the reason ``CONTRIBUTION_PRODUCT_IDS`` above records
-#: about the retired site's id: a deleted variant cannot be priced, so a stale cart line naming
-#: one fails closed at the former Wix cart calculation, and the mirror guard holds this map equal to the
-#: single choice ``src/config/contribution.ts`` declares anyway.
+#: (``19283bd8-a61d-455e-a992-79eb10b9228f``) variants from the catalogue, leaving the product with
+#: one variant. They are REMOVED here rather than kept recognisable, for the reason
+#: ``CONTRIBUTION_PRODUCT_IDS`` above records about the retired site's id: a deleted variant cannot
+#: be priced, so a stale cart line naming one fails closed at the native quote, and the mirror
+#: guard holds this map equal to the single choice ``src/config/contribution.ts`` declares anyway.
 CONTRIBUTION_CHOICES_PAISE: Mapping[str, int] = MappingProxyType({
     "8ad6f376-a526-4631-b510-0e047b33a5b9": 25000,     # Rs.250
 })
@@ -633,7 +631,7 @@ def settle_contribution_capture(*,
 
     A captured-but-unresolvable payment (no record, amount mismatch, wrong currency, not captured)
     is QUARANTINED via the injected ``quarantine(reference, payment_id)`` sink. A BLOG_CONTRIBUTION
-    settle creates NO Wix Store product or order - it only advances the contribution record.
+    settle creates NO catalogue product or order - it only advances the contribution record.
     """
     notes = payment.get("notes", {}) or {}
     payment_id = str(payment.get("id") or "")
@@ -689,8 +687,8 @@ def settle_contribution_capture(*,
         return ContributionSettlement(status=SETTLE_DUPLICATE, payment_id=payment_id,
                                       contribution_id=contribution_id, amount_paise=record_paise)
 
-    # Settle exactly once. This advances the contribution record and does NOTHING else - no Wix
-    # Store product, no purchase order, no public order number.
+    # Settle exactly once. This advances the contribution record and does NOTHING else - no
+    # catalogue product, no purchase order, no public order number.
     order_keys.mark_contribution_settled(
         keys_table, contribution_id=contribution_id, provider_payment_id=payment_id,
         amount_paise=record_paise)

@@ -1,22 +1,21 @@
-"""AWS-native shipping/delivery resolver — the last native supply component.
+"""AWS-native shipping/delivery resolver — the delivery component of the native quote.
 
-Replaces the former Wix delivery path (its delivery-options /
-set-delivery-method calls, whose charge Wix put in `priceSummary.delivery`). Shipping
-is a BUSINESS POLICY, not something Wix uniquely owns: it is a rule over the cart
-subtotal, the delivery address (place of supply), and whether any line requires
-physical delivery. This module makes that policy explicit and server-authoritative,
-returning options in the SAME `{id, title, pricePaise}` shape the Wix path used and
-a chosen `delivery_paise` that feeds `catalog_pricing.price_cart(delivery_paise=...)`.
+Shipping is a BUSINESS POLICY: it is a rule over the cart subtotal, the delivery
+address (place of supply), and whether any line requires physical delivery. This
+module makes that policy explicit and server-authoritative, returning options in a
+`{id, title, pricePaise}` shape and a chosen `delivery_paise` that feeds
+`catalog_pricing.price_cart(delivery_paise=...)` via `native_checkout.quote_native_cart`.
 
 Policy (overridable via a ShippingPolicy; defaults are explicit, not hidden):
   - A fully-digital cart (no line requires delivery) ships free — there is nothing
     to deliver.
   - Otherwise: FREE at or above `free_above_paise`; else a flat `flat_rate_paise`.
-  - An option id is an identifier, never a price (same rule as the Wix path):
-    the charge is decided here from the policy, not supplied by the client.
+  - An option id is an identifier, never a price: the charge is decided here from
+    the policy, not supplied by the client.
 
-Integer paise only, no float, no I/O. Unit-testable offline. NOT wired until
-CHECKOUT_MODE=AWS_NATIVE.
+The checkout constructs the default `ShippingPolicy()`, which is free delivery.
+
+Integer paise only, no float, no I/O. Unit-testable offline.
 """
 from __future__ import annotations
 
@@ -72,9 +71,9 @@ def resolve_delivery_paise(lines: Sequence[CatalogLine], subtotal_paise: int,
                            policy: ShippingPolicy, *, option_id: Optional[str] = None) -> int:
     """The authoritative delivery charge in paise for a chosen option.
 
-    If `option_id` is None, the single resolved option's price is used (Wix's model
-    resolved exactly one method for a cart+address). If an id is given it must be one
-    the policy actually offers for this cart — a client cannot name a cheaper option.
+    If `option_id` is None, the first (cheapest) resolved option's price is used; the
+    policy resolves exactly one option for a cart today. If an id is given it must be
+    one the policy actually offers for this cart — a client cannot name a cheaper option.
     """
     options = delivery_options(lines, subtotal_paise, policy)
     by_id = {o["id"]: o for o in options}

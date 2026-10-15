@@ -5,7 +5,7 @@ Extracted rather than duplicated because two test files drive the same handler a
 two files come to disagree about what "a seeded cart pointer" means.
 
 Nothing here reaches AWS, the network or a credential. The Razorpay client is stubbed, the Wix
-transport is `tests/contribution_wix.py`, and DynamoDB is `FakeDynamo`.
+transport is `tests/contribution_catalog.py`, and DynamoDB is `FakeDynamo`.
 """
 
 from __future__ import annotations
@@ -20,9 +20,9 @@ sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
 from crm_fake_dynamo import FakeDynamo  # noqa: E402
-from contribution_wix import (  # noqa: E402
+from contribution_catalog import (  # noqa: E402
     CART_ID, CONTRIBUTION_CHOICES, CONTRIBUTION_ID, CONTRIBUTION_VARIANT, CONTRIBUTION_VARIANTS,
-    ContributionWix, KIOSK_ID, KIOSK_VARIANT, OTHER_ID, OTHER_VARIANT, REPLACEMENT_CART_ID,
+    NativeCatalog, KIOSK_ID, KIOSK_VARIANT, OTHER_ID, OTHER_VARIANT, REPLACEMENT_CART_ID,
     contribution_line, contribution_paise, kiosk_line, other_line, saved)
 
 from lambda_utils.ecommerce import contact_address  # noqa: E402
@@ -155,7 +155,7 @@ def make_env(monkeypatch, *, wix=None, contribution_env=CONTRIBUTION_ID,
     fake = FakeDynamo(keys={ATTEMPTS_TABLE: "paymentAttemptId", KEYS_TABLE: "orderId",
                             CONTACTS_TABLE: "id", CART_TABLE: "cartId", PRODUCTS_TABLE: "id"},
                       indexes={CONTACTS_TABLE: {"phone-index": ("phone", None)}})
-    wix = wix if wix is not None else ContributionWix()
+    wix = wix if wix is not None else NativeCatalog()
     monkeypatch.setattr(h, "_dynamodb", fake)
     monkeypatch.setattr(h, "_lambda_client", lambda: _FakeLambda())
     monkeypatch.setattr(h, "INITIATION_ENABLED", True)

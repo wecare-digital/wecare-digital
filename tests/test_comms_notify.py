@@ -1,10 +1,10 @@
 """Contract for the one path a Lambda uses to trigger a customer SMS.
 
-Before `comms.notify`, four functions each hand-rolled this and three of them
-chose `wecare-sms-in-airtel` for `+91`. These tests pin the properties that
-removal depended on:
+Every notification SMS goes to `wecare-sms-aws`, which sends through AWS End User
+Messaging. These tests pin the properties that keep it the only path:
 
-  * the target is always the AWS SMS function, never a provider
+  * the target is always the AWS SMS function, for every destination country
+  * the payload is exactly the documented shape, so no caller can steer transport
   * the caller passes a template KEY, never a raw DLT template id
   * dispatch is asynchronous unless the caller explicitly needs the message id
   * a transport failure returns a result, it does not raise into a webhook handler
@@ -73,24 +73,31 @@ def test_target_is_the_aws_sms_function(fake_lambda):
     assert fake_lambda.calls[0]["FunctionName"] == "wecare-sms-aws:live"
 
 
-def test_indian_destination_does_not_select_a_different_function(fake_lambda):
-    """The regression that mattered: +91 used to pick wecare-sms-in-airtel."""
+def test_every_destination_country_targets_the_same_aws_function(fake_lambda):
+    """India is not routed anywhere else: one SMS function for every country."""
     notify_mod.send_notification_sms("+919903300044", "hi", dlt_template_key="ivr-default")
     notify_mod.send_notification_sms("+18444891209", "hi")
+    notify_mod.send_notification_sms("+6581234567", "hi")
     targets = {c["FunctionName"] for c in fake_lambda.calls}
     assert targets == {"wecare-sms-aws:live"}
 
 
-def test_no_airtel_or_sinch_identifier_reaches_the_payload(fake_lambda):
+def test_the_payload_is_exactly_the_documented_shape(fake_lambda):
+    """Nothing beyond the sms-aws send contract travels with the message."""
     notify_mod.send_notification_sms("+919903300044", "hello",
                                      dlt_template_key="ivr-default",
-                                     campaign="c2c-cdr")
-    call = fake_lambda.calls[0]
-    blob = (call["FunctionName"] + call["InvocationType"]
-            + call["Payload"].decode()).lower()
-    for prohibited in ("airtel", "sinch", "plivo", "8899", "52.3.44.165",
-                       "iqmessaging", "jumbo.aclgateway"):
-        assert prohibited not in blob
+                                     campaign="post-call")
+    payload = json.loads(fake_lambda.calls[0]["Payload"].decode())
+    assert set(payload) == {"rawPath", "requestContext", "headers", "body"}
+    assert payload["requestContext"] == {"http": {"method": "POST", "path": "/sms-aws/send"}}
+    assert payload["headers"] == {"origin": "https://wecare.digital"}
+    assert json.loads(payload["body"]) == {
+        "phoneNumber": "+919903300044",
+        "content": "hello",
+        "messageType": "TRANSACTIONAL",
+        "dltTemplateKey": "ivr-default",
+        "campaignName": "post-call",
+    }
 
 
 def test_route_is_the_sms_aws_send_path(fake_lambda):

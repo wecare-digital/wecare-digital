@@ -2,10 +2,10 @@
 
 What this is for
 ----------------
-Eight providers are named in the brief — Google Ads, GA4, Search Console, Business
-Profile, Play Reporting, Bing Webmaster, Meta Ads/CTWA and Wix — and before this
-module there was no record of which of them we can actually read, under whose
-account, with which scopes, or how stale the answer is. Measured 2026-09-23:
+Seven providers are named in the brief — Google Ads, GA4, Search Console, Business
+Profile, Play Reporting, Bing Webmaster and Meta Ads/CTWA — and before this module
+there was no record of which of them we can actually read, under whose account,
+with which scopes, or how stale the answer is. Measured 2026-09-23:
 
     provider            adapter files    credential
     Google Ads              0            wecare/google/ads
@@ -15,10 +15,9 @@ account, with which scopes, or how stale the answer is. Measured 2026-09-23:
     Business Profile        4            wecare/seo/google-oauth
     Bing Webmaster         14            wecare/bing/api
     Meta Ads / CTWA        26            wecare/meta-system-user-token
-    Wix                    31            env fallback, no secret
 
-Three of the eight have no adapter, and one of those has no credential either. A
-registry that listed all eight as available would be the same class of lie as the
+Three of the seven have no adapter, and one of those has no credential either. A
+registry that listed all seven as available would be the same class of lie as the
 Bedrock agent config that claimed a working agent for five months.
 
 Three decisions this module exists to enforce
@@ -83,7 +82,7 @@ class Provider:
     #: The exact next action that would move `access` forward. "Blocked" without
     #: this is a status, not information.
     unblock: str
-    #: Scopes the provider only offers in a write-capable form. Two of the eight are
+    #: Scopes the provider only offers in a write-capable form. Two of the seven are
     #: in this position and there is no read-only alternative to choose, so the
     #: registry cannot make them safe - it can only make them visible. The mitigation
     #: is a reviewed constraint on the adapter, recorded in `write_scope_mitigation`.
@@ -229,15 +228,6 @@ REGISTRY: Dict[str, Provider] = {
                  "to add a scope would interrupt live messaging."),
         notes=("Shares its credential with the WhatsApp messaging path, which is "
                "why scope changes here are not free."),
-    ),
-    "wix": _p(
-        key="wix", display_name="Retired Wix storefront",
-        owner="WECARE.DIGITAL retired provider",
-        secret_name="", access=ACCESS_CREDENTIAL_ABSENT,
-        read_scopes=(), max_age_seconds=3600, adapter_built=False,
-        unblock="Use the AWS-native product and blog APIs; this provider is retired.",
-        notes="The site was deleted and its credentials are scheduled for retirement. "
-              "Historical references are retained for reconciliation only.",
     ),
 }
 

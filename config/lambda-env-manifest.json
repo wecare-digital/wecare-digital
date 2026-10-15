@@ -1,8 +1,8 @@
 {
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
-  "_functions": 68,
-  "_variables": 416,
+  "_functions": 66,
+  "_variables": 405,
   "_fingerprinted": 15,
   "functions": {
     "stack-wecare-url-shortener": {
@@ -469,23 +469,6 @@
       "AWS_ACCOUNT_ID": "775261844268",
       "REGION": "us-east-1",
       "S3_BUCKET": "wecare-digital-get"
-    },
-    "wecare-voice-in-c2c": {
-      "AWS_ACCOUNT_ID": "775261844268",
-      "LOG_LEVEL": "INFO",
-      "REGION": "us-east-1",
-      "S3_BUCKET": "wecare-digital-get",
-      "SINCH_RCS_ENABLED": "true",
-      "VOICE_CDR_TABLE": "stack-wecare-digital-VoiceCDRTable"
-    },
-    "wecare-voice-in-obd": {
-      "AWS_ACCOUNT_ID": "775261844268",
-      "LOG_LEVEL": "INFO",
-      "OBD_CAMPAIGNS_TABLE": "stack-wecare-digital-OBDCampaigns",
-      "REGION": "us-east-1",
-      "S3_BUCKET": "wecare-digital-get",
-      "SINCH_RCS_ENABLED": "true",
-      "VOICE_CDR_TABLE": "stack-wecare-digital-VoiceCDRTable"
     },
     "wecare-waba-management": {
       "ADMIN_MFA_REQUIRED": "true",

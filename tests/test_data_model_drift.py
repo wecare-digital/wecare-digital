@@ -13,6 +13,7 @@ it passes while the two sides disagree.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -57,14 +58,14 @@ def test_no_unexpected_disagreement_in_either_direction(report):
     assert report["undeclared_tables_unexpected"] == []
 
 
-def test_the_six_phantom_models_are_gone(report):
+def test_the_removed_phantom_models_are_gone(report):
     """Each declared a table that does not exist in the account.
 
     They are listed individually rather than by count so that reintroducing one
-    names itself in the failure.
+    names itself in the failure. Any other phantom fails
+    `test_no_unexpected_disagreement_in_either_direction` whatever it is called.
     """
-    removed = {"SmsAws", "AirtelSMS", "AirtelC2C", "RcsMessages",
-               "AdminActionLog", "ProviderDriftSnapshot"}
+    removed = {"SmsAws", "RcsMessages", "AdminActionLog", "ProviderDriftSnapshot"}
     text = RESOURCE_TS.read_text()
     for name in sorted(removed):
         # The name survives in a comment explaining the removal; what must not
@@ -104,9 +105,10 @@ def test_ttl_config_has_no_entry_for_a_removed_model():
     """
     text = (ROOT / "amplify" / "backend.ts").read_text()
     block = text.split("const TTL_CONFIG", 1)[1].split("};", 1)[0]
-    for name in ("SmsAws", "AirtelSMS", "AirtelC2C", "RcsMessages",
-                 "ProviderDriftSnapshot"):
-        assert f"\n  {name}: '" not in block, f"TTL still configured for {name}"
+    configured = set(re.findall(r"^  (\w+): '", block, re.M))
+    declared = set(re.findall(r"^  ([A-Z][A-Za-z0-9]*): a$", RESOURCE_TS.read_text(), re.M))
+    assert configured, "TTL_CONFIG parsed as empty; this test would pass vacuously"
+    assert configured <= declared, f"TTL configured for undeclared models: {sorted(configured - declared)}"
 
 
 def test_gate_fails_when_a_phantom_is_reintroduced(tmp_path, monkeypatch):

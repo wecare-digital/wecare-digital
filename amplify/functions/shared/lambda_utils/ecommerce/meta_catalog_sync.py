@@ -1,4 +1,4 @@
-"""Wix -> Meta catalogue projection: the retailer-id contract, the item shape and the diff.
+"""ProductsTable -> Meta catalogue projection: the retailer-id contract, item shape and diff.
 
 PHASE W, FEAT-001. Design decisions D2, D3 and D4 of
 `.agents/tasks/phase-w-whatsapp-commerce-20261006/plan.md`; the measurements behind them are in
@@ -8,24 +8,27 @@ PURE, AND THAT IS THE POINT
 ---------------------------
 No boto3 client, no network, no environment read, no clock. Every input arrives as an argument,
 exactly like `initiation.py` and `finalization.py`. So the whole of "what would we send to Meta,
-and what would change" is decidable offline against the committed snapshot
-`src/content/wix-catalog.json`, which is how `tests/test_meta_catalog_sync.py` pins the 24-item
-result without a credential. The Lambda in `ecommerce/meta-catalog-sync/` is the only thing that
-talks to Wix or Meta, and it ships with both gates closed.
+and what would change" is decidable offline against the committed storefront snapshot
+`src/content/catalog-snapshot.json` (generated from ProductsTable by
+`scripts/build-catalog-snapshot.py`), which is how `tests/test_meta_catalog_sync.py` pins the
+item count without a credential. The Lambda in `ecommerce/meta-catalog-sync/` is the only thing
+that reads ProductsTable for this projection or talks to Meta, and it ships with both gates
+closed.
 
-ONE DIRECTION ONLY: WIX -> META
--------------------------------
-Wix is the single source of truth for products, variants, prices and availability. Meta is a
-VIEW. Nothing here reads a Meta value back into Wix, and nothing here deletes a Meta item - see
-`diff` for why a vanished Wix variant becomes `availability: out of stock` instead.
+ONE DIRECTION ONLY: PRODUCTSTABLE -> META
+-----------------------------------------
+The AWS ProductsTable is the single source of truth for products, variants, prices and
+availability. Meta is a VIEW. Nothing here reads a Meta value back into the catalogue, and
+nothing here deletes a Meta item - see `diff` for why a vanished variant becomes
+`availability: out of stock` instead.
 
 THE RETAILER ID IS THE JOIN, AND IT IS NOT A NEW IDEA
 -----------------------------------------------------
-`wix:<productId>:<variantId>` is exactly the `catalogReference` pair (`catalogItemId` plus
-`options.variantId`) that `src/lib/cart.ts` `toLineItems()` and `checkout/handler.py`
-`_v2_catalog_items` already use. So an order that arrives from WhatsApp carrying
-`product_retailer_id` resolves to the same Wix line as an order placed on the website, with no
-mapping table to keep in step. 77 characters against Meta's 100-character limit.
+`<RETAILER_PREFIX>:<productId>:<variantId>` carries exactly the `catalogReference` pair
+(`catalogItemId` plus `options.variantId`) that `src/lib/cart.ts` `toLineItems()` sends and
+`checkout/handler.py` `_native_quote` prices. So an order that arrives from WhatsApp carrying
+`product_retailer_id` resolves to the same ProductsTable line as an order placed on the website,
+with no mapping table to keep in step. 77 characters against Meta's 100-character limit.
 
 MONEY IS INTEGER PAISE AND THERE IS NO FLOAT IN THIS FILE
 ---------------------------------------------------------
@@ -44,18 +47,27 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-#: The namespace that marks an item as OURS. An item whose retailer id lacks it was created by
-#: hand in the Meta catalog builder (`catalog-builder.tsx` free-types a SKU, e.g. `WD-PARTNER-UP`)
-#: and this sync must report it and never touch it. See `diff`'s `foreign` bucket.
+#: The retailer-id namespace. AN EXTERNAL IDENTIFIER, NOT A NAME WE ARE FREE TO CHANGE: every item
+#: already published in the live Meta catalogue carries it, and every inbound WhatsApp catalogue
+#: order echoes it back as `product_retailer_id`, so `parse_retailer_id` must keep accepting
+#: exactly this value. It is a legacy spelling kept for that contract only, and this is the one
+#: place the backend writes it - everything else builds or parses ids through `retailer_id` /
+#: `parse_retailer_id`. Re-keying it needs an owner-approved Meta catalogue migration (publish the
+#: new ids, carry in-flight carts across, retire the old ones), and that cannot run while the sync
+#: is disabled in production (`META_CATALOG_SYNC_ENABLED=false`).
+#:
+#: It is also the namespace that marks an item as OURS. An item whose retailer id lacks it was
+#: created by hand in the Meta catalog builder (`catalog-builder.tsx` free-types a SKU, e.g.
+#: `WD-PARTNER-UP`) and this sync must report it and never touch it. See `diff`'s `foreign` bucket.
 RETAILER_PREFIX = "wix"
 
 #: Meta's documented ceiling for `retailer_id`. A pair of UUIDs plus the prefix is 77, so this is
-#: headroom rather than a constraint - but it is asserted rather than assumed, because a Wix id
-#: format change would otherwise fail at Meta instead of here.
+#: headroom rather than a constraint - but it is asserted rather than assumed, because a change to
+#: the catalogue's id format would otherwise fail at Meta instead of here.
 RETAILER_ID_MAX_LENGTH = 100
 
-#: Wix product and variant ids are canonical lowercase UUIDs. Anchored, so a value carrying a
-#: colon cannot smuggle an extra segment past `parse_retailer_id`.
+#: ProductsTable product ids and variant ids (the variant `sku`) are canonical lowercase UUIDs.
+#: Anchored, so a value carrying a colon cannot smuggle an extra segment past `parse_retailer_id`.
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 #: Meta's availability vocabulary, which is not ours. Two literals in one place so no caller
@@ -67,14 +79,14 @@ OUT_OF_STOCK = "out of stock"
 CURRENCY = "INR"
 
 # Service payment vehicles have dedicated public routes and no /shop/<slug>/ page.
-# Stable identities mirror src/config/services.ts; prices remain entirely Wix-owned.
+# Stable identities mirror src/config/services.ts; prices come from ProductsTable like any other.
 SERVICE_PRODUCT_ID = "df976a0a-f582-4535-b2e1-d532f348bd27"
 SERVICE_PATH_BY_VARIANT = {
     "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b": "/submit-request/",
     "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b": "/request-amendment/",
     "db166bc8-a763-41ec-9f65-0f718f18155a": "/drop-docs/",
     "dcff995e-448c-493a-9259-f6a82ccdc2b4": "/vault/",
-    # Added 2026-10-10 with the fifth Wix variant. A SERVICE VARIANT WITHOUT A ROUTE IS NOT A
+    # Added 2026-10-10 with the fifth service variant. A SERVICE VARIANT WITHOUT A ROUTE IS NOT A
     # COSMETIC GAP: `desired_items` omits `url` entirely for one, and `_batch_requests` in the
     # handler reads `item["url"]` to build Meta's `link` - so a routeless variant takes the whole
     # sync down with a KeyError rather than publishing a linkless item. The page this names is
@@ -95,7 +107,7 @@ SERVICE_ARTWORK_BY_VARIANT = {
         "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/request-pickup-4096.png",
 }
 
-# Customer-facing service copy is variant-specific; the shared Wix description
+# Customer-facing service copy is variant-specific; the shared product description
 # contains operational details for several services and is not catalog copy.
 SERVICE_COPY_BY_VARIANT = {
     "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b":
@@ -134,73 +146,37 @@ META_ITEM_FIELDS = (
 COMPARED_FIELDS = ("name", "description", "availability", "price", "currency", "image_url", "url")
 
 # ─────────────────────────────────────────────────────────────────────────────────────────────
-# The exclusion lists.
+# Named catalogue rows.
 #
-# COPIED FROM `src/content/shop.ts:186-209`, VERBATIM AND DELIBERATELY NOT SHARED.
-# `tests/test_meta_catalog_exclusion_parity.py` extracts both arrays from `shop.ts` by regex and
-# asserts set equality with the copies below, so drift is a test failure rather than a silent
-# divergence between the two channels.
-#
-# WHY A TEST RATHER THAN ONE SHARED JSON FILE (plan decision D4): `shop.ts` is concurrently owned
-# by the phase-o1 and ui-native-replace worktrees. Moving the list into a file both sides import
-# would mean editing their file; a parity test catches the same drift at the same cost and touches
-# nothing they own.
-#
-# These twelve are the Wix store template's own demo products. They are `visible: true` real
-# catalogue rows, so `scripts/fetch-wix-catalog.js` collects them, and `/shop/` filters them out
-# rather than deleting anything from Wix. The Meta catalogue must agree with `/shop/`: publishing
-# a template's sample data to a customer-visible WhatsApp catalogue would offer Baseball Caps for
-# sale.
+# There is no product deny-list here. Whether a row reaches Meta is decided by the catalogue's own
+# flags: `metaEnabled` in the Lambda's ProductsTable read (`_native_products` skips a row whose flag
+# is False) and `visible` in `is_syncable`. Two rows are named below: the contribution vehicle,
+# which is deliberately NOT special-cased, and the ₹1 test product, the one exception, excluded by
+# slug for the reason its docstring gives.
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 
-WIX_TEMPLATE_SAMPLE_PRODUCT_IDS: Tuple[str, ...] = (
-    "618dcfe4-8d85-40a9-87c6-0dea57abe644",  # Baseball Cap
-    "af654225-662f-42e5-ac51-fbebc88f63ed",  # Ceramic Flower Vase
-    "df8ae122-9a06-4fa2-96bb-4b058db5959f",  # Crew T-Shirt
-    "f68519fb-2095-4dfc-8684-ec55d60c2adc",  # Essential Oil Diffuser
-    "96ff5295-1660-40d1-89e4-d1f1a34309be",  # Foaming Facial Cleanser
-    "ca71fee6-1fc9-4a57-8fa7-967c8edcaabb",  # Hydrating Eye Serum - Pre Order
-    "99684dfe-d36a-4869-858a-dba67af9b993",  # Knitted Golf Sweater
-    "fedfcb20-1ad2-405b-950b-e65112bb6222",  # Minimalist Tote Bag
-    "d86d7bea-fe19-4654-a597-bfe8dd449407",  # Round Eyeglasses
-    "42941ee7-1707-4b5d-a7d7-41e12da6ab9e",  # Solid Wood Chair
-    "1190303d-1fb5-40ca-bb60-2d5c1af3ae97",  # Stainless Steel Water Bottle
-    "d2dc8bef-0a26-414a-b1dc-7bbba867bc6a",  # Textured Loop Earrings
-)
-
-#: The same twelve by slug, so the exclusion survives a product being re-created in Wix with a new
-#: id. Checked SECOND, because the id is the identity the catalogue keys on and cannot be edited in
-#: the Wix dashboard while the slug can - the same ordering `isTemplateSampleRow` uses.
-WIX_TEMPLATE_SAMPLE_SLUGS: Tuple[str, ...] = (
-    "baseball-cap", "ceramic-flower-vase", "crew-t-shirt", "essential-oil-diffuser",
-    "foaming-facial-cleanser", "hydrating-eye-serum", "knitted-golf-sweater",
-    "minimalist-tote-bag", "round-eyeglasses", "solid-wood-chair",
-    "stainless-steel-water-bottle", "textured-loop-earrings",
-)
-
-#: The contribution vehicle, and it is INCLUDED here while `/shop/` excludes it. That difference is
-#: deliberate, not an oversight: `shop.ts` `isContributionRow` keeps it out of the `/shop/` GRID
-#: because the place to choose a contribution is the block at the foot of a blog post - but it is a
-#: real, sellable product reached by direct cart reference, and the owner's catalogue list names
-#: it. Its three variants remain subject to checkout's own variant allow-list and quantity-1 rule.
+#: The contribution vehicle. Deliberately NOT special-cased here, although `/shop/` keeps it out of
+#: its GRID (`shop.ts` `isContributionRow`) because the place to choose a contribution is the block
+#: at the foot of a blog post: it is a real, sellable product reached by direct cart reference, so
+#: whether the WhatsApp catalogue carries it is decided by its own catalogue flags like any other
+#: row. Its variants remain subject to checkout's own variant allow-list and quantity-1 rule.
 CONTRIBUTION_PRODUCT_ID = "8514c405-3971-4786-ad0d-15406ca23407"
 
-#: The ₹1 test product - a visible:true catalogue test row that is not this storefront and must
-#: never reach a customer-facing WhatsApp catalogue (it is also hidden from /shop/ by
-#: `isTestProductRow` in shop.ts). Excluded BY SLUG ONLY (`1-test-product`), deliberately NOT by
-#: id: the projection unit tests reuse this product's real id as a throwaway fixture under neutral
-#: slugs ("x", "imageless", "wecaredigital-services"), and those fixtures must stay syncable. The
-#: real snapshot row carries slug `1-test-product`, which the id-reuse fixtures never do, so a
-#: slug gate drops exactly the real row and nothing else. It stays in the committed snapshot (the
-#: generator owns that artifact); this keeps it out of the Meta projection, so the syncable set is
-#: 9 products / 22 items with no blocker.
+#: The ₹1 test product - a catalogue test row that is not this storefront and must never reach a
+#: customer-facing WhatsApp catalogue, whatever its visibility flags say (it is also hidden from
+#: /shop/ by `isTestProductRow` in shop.ts). Excluded BY SLUG ONLY (`1-test-product`),
+#: deliberately NOT by id: the projection unit tests reuse this product's real id as a throwaway
+#: fixture under neutral slugs ("x", "imageless", "wecaredigital-services"), and those fixtures
+#: must stay syncable. The real row carries slug `1-test-product`, which the id-reuse fixtures
+#: never do, so a slug gate drops exactly the real row and nothing else. It stays in ProductsTable
+#: and in the committed snapshot (the generator owns that artifact); this keeps it out of the Meta
+#: projection.
 TEST_PRODUCT_SLUGS: Tuple[str, ...] = ("1-test-product",)
 
-_SAMPLE_IDS = frozenset(WIX_TEMPLATE_SAMPLE_PRODUCT_IDS)
-_SAMPLE_SLUGS = frozenset(WIX_TEMPLATE_SAMPLE_SLUGS)
 _TEST_PRODUCT_SLUGS = frozenset(TEST_PRODUCT_SLUGS)
 
-#: Stripped from `descriptionHtml`. Wix stores description as HTML; Meta wants plain text.
+#: Stripped from `descriptionHtml`. The catalogue stores the description as HTML; Meta wants plain
+#: text.
 _TAG_RE = re.compile(r"<[^>]+>")
 _WHITESPACE_RE = re.compile(r"\s+")
 
@@ -215,25 +191,26 @@ class RetailerIdError(ValueError):
 
 
 def retailer_id(product_id: Any, variant_id: Any) -> str:
-    """`wix:<productId>:<variantId>`, lowercased. Raises on anything that is not two UUIDs.
+    """`<RETAILER_PREFIX>:<productId>:<variantId>`, lowercased. Raises unless both are UUIDs.
 
     REFUSES RATHER THAN NORMALISES ANYTHING BUT CASE. A retailer id is the join key between a
-    WhatsApp order line and a Wix catalogue line, so a value that is nearly right is worse than no
+    WhatsApp order line and a ProductsTable line, so a value that is nearly right is worse than no
     value: it would create a Meta item nothing can resolve, and the resolution failure would show
     up at order time as "we cannot price this line" rather than here.
 
-    Lowercasing is safe and necessary: Wix emits canonical lowercase UUIDs, and Meta's retailer id
-    is case-sensitive, so one upper-case character anywhere in the pipeline would fork the item.
+    Lowercasing is safe and necessary: the catalogue stores canonical lowercase UUIDs, and Meta's
+    retailer id is case-sensitive, so one upper-case character anywhere in the pipeline would fork
+    the item.
     """
     product = str(product_id or "").strip().lower()
     variant = str(variant_id or "").strip().lower()
     if not _UUID_RE.match(product):
-        raise RetailerIdError("product id is not a Wix UUID")
+        raise RetailerIdError("product id is not a catalogue UUID")
     if not _UUID_RE.match(variant):
-        raise RetailerIdError("variant id is not a Wix UUID")
+        raise RetailerIdError("variant id is not a catalogue UUID")
     value = f"{RETAILER_PREFIX}:{product}:{variant}"
     if len(value) > RETAILER_ID_MAX_LENGTH:
-        # Unreachable with today's UUIDs (77 characters), and asserted anyway so a Wix id format
+        # Unreachable with today's UUIDs (77 characters), and asserted anyway so an id format
         # change fails here with a readable reason instead of at Meta with a 400.
         raise RetailerIdError(
             f"retailer id is {len(value)} characters, over Meta's {RETAILER_ID_MAX_LENGTH}")
@@ -265,29 +242,27 @@ def parse_retailer_id(value: Any) -> Optional[Tuple[str, str]]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────────────
-# Which Wix rows become Meta items
+# Which catalogue rows become Meta items
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 
 
 def is_syncable(product: Mapping[str, Any]) -> bool:
-    """Should this Wix snapshot row be projected into the Meta catalogue?
+    """Should this catalogue row (native ProductsTable projection or snapshot row) reach Meta?
 
-    Three exclusions and no more. Id first, slug second, both `.strip().lower()`, mirroring
-    `isTemplateSampleRow`/`isTestProductRow` in `src/content/shop.ts`:
+    Two exclusions and no more:
 
-    1. a Wix template sample row - see the list above;
-    2. the ₹1 test product, BY SLUG ONLY (`1-test-product`) - not by id, because the projection
-       unit tests reuse its id as a fixture under neutral slugs that must stay syncable;
-    3. `visible is False` - identity against `False`, not truthiness, so an ABSENT `visible` key
-       means visible. Wix omits the field on some reads and treating absence as hidden would empty
-       the catalogue on a shape change.
+    1. the ₹1 test product, BY SLUG ONLY (`1-test-product`, compared `.strip().lower()`) - not by
+       id, unlike `isTestProductRow` in `src/content/shop.ts`, because the projection unit tests
+       reuse its id as a fixture under neutral slugs that must stay syncable;
+    2. `visible is False` - identity against `False`, not truthiness, so an ABSENT `visible` key
+       means visible. Treating absence as hidden would empty the catalogue on a shape change.
+
+    The Meta channel flag (`metaEnabled`) is applied before this, in the Lambda's ProductsTable
+    read, so it is not repeated here.
     """
     if not isinstance(product, Mapping):
         return False
-    identifier = str(product.get("id") or "").strip().lower()
     slug = str(product.get("slug") or "").strip().lower()
-    if identifier in _SAMPLE_IDS or slug in _SAMPLE_SLUGS:
-        return False
     if slug in _TEST_PRODUCT_SLUGS:
         return False
     if product.get("visible") is False:
@@ -301,12 +276,12 @@ def is_syncable(product: Mapping[str, Any]) -> bool:
 
 
 def paise_from_major(value: Any) -> int:
-    """A Wix decimal-string amount in major units (`"1199.00"`) -> integer paise.
+    """A decimal-string amount in major units (`"1199.00"`) -> integer paise.
 
     `Decimal(str(value))`, never float, and a value that is not an exact whole number of paise is
-    REFUSED rather than rounded - the same rule the former Wix eCom client's paise converter applies, for the
-    same reason: a fractional paise in a catalogue price is a data error, and rounding it here
-    would plant a one-paise mismatch for the checkout comparison to fail closed on later.
+    REFUSED rather than rounded: a fractional paise in a catalogue price is a data error, and
+    rounding it here would plant a one-paise mismatch for the checkout comparison to fail closed
+    on later.
     """
     try:
         rupees = Decimal(str(value))
@@ -374,7 +349,7 @@ def _plain_text(html: Any) -> str:
 
 
 def _description(product: Mapping[str, Any], name: str) -> str:
-    """Wix's description as plain text, or the same name-based tagline `/shop/` falls back to.
+    """The catalogue description as plain text, or the name-based tagline `/shop/` falls back to.
 
     Borrowed from `shop.ts` `fallbackTagline` on purpose, so the two channels describe an
     uncopywritten product with the same sentence rather than two slightly different ones. It
@@ -387,15 +362,13 @@ def _description(product: Mapping[str, Any], name: str) -> str:
 
 
 def _image_url(product: Mapping[str, Any]) -> str:
-    """The product's public image URL, or `""`.
+    """The row's public image URL, or `""`.
 
-    `image` is the key `scripts/fetch-wix-catalog.js` emits and `shop.ts` reads; `imageUrl` is
-    accepted too because the live Catalog V3 read the Lambda performs names it that way. All ten
-    real products carry `mediaCount: 0` in the committed snapshot today (the services product's
-    per-choice artwork is re-linked in the Wix dashboard, not carried forward here, and Wix
-    currently returns none), so this returns `""` for every one - which is what `blockers` reports.
-    Nothing here invents a placeholder: an item with a made-up image would pass Meta commerce
-    review under false pretences.
+    `image` is the key the Lambda's ProductsTable read emits (the first `imageRefs` entry), the
+    storefront snapshot carries and `shop.ts` reads; `imageUrl` is accepted too, for a row shaped
+    that way. An imageless row returns `""`, which is what `blockers` reports. Nothing here
+    invents a placeholder: an item with a made-up image would pass Meta commerce review under
+    false pretences.
     """
     for key in ("image", "imageUrl"):
         value = str(product.get(key) or "").strip()
@@ -408,15 +381,13 @@ def _variant_price_paise(product: Mapping[str, Any], variant: Mapping[str, Any],
                          *, require_variant_price: bool) -> int:
     """The variant's own price in paise, falling back to the product's when permitted.
 
-    THE FALLBACK IS AN OFFLINE-ONLY CONVENIENCE AND THE LIVE PATH REFUSES IT.
-    `src/content/wix-catalog.json`'s variant rows now carry `pricePaise` alongside `id`, `label`,
-    `inStock`, `sku`, `choiceId` and `optionId`: the catalogue fetch script reads the upstream
-    variant-query endpoint and projects the variant's own price (2026-10-10 - before
-    that the snapshot carried no per-variant price at all and this fallback was the only answer).
-    The fallback stays because a row can still arrive without one - a product whose variants Wix
-    did not price, or a hand-built fixture - and for a product with a price RANGE (Contribute is
-    100-500, the Request services product 49-350) the product-level `price` is the RANGE MINIMUM
-    and would be wrong for most variants.
+    THE FALLBACK IS AN OFFLINE-ONLY CONVENIENCE AND THE LIVE PATH REFUSES IT. The Lambda's
+    ProductsTable read gives every priced variant its own `pricePaise`, straight from the
+    variant's integer `priceMinor`. The committed storefront snapshot carries no per-variant price
+    (its variant rows are `id`, `label` and `inStock`), and a row can still arrive without one - a
+    variant with no `priceMinor`, or a hand-built fixture. For a product whose variants are priced
+    differently (the Request services product, for one) the product-level `price` is a single
+    figure and would be wrong for most variants.
 
     That is why `require_variant_price=True` - which the Lambda always passes - raises instead.
     The permissive default exists so the diff can be computed against the committed snapshot in a
@@ -431,13 +402,13 @@ def _variant_price_paise(product: Mapping[str, Any], variant: Mapping[str, Any],
             return paise_from_major(variant.get(key))
     if require_variant_price:
         raise ValueError(
-            "variant carries no price; query-variants must supply one before a Meta write")
+            "variant carries no price; the catalogue must supply one before a Meta write")
     return paise_from_major(product.get("price"))
 
 
 def desired_items(products: Iterable[Mapping[str, Any]], *,
                   require_variant_price: bool = False) -> List[Dict[str, Any]]:
-    """The Meta catalogue this Wix catalogue implies: ONE ITEM PER WIX VARIANT.
+    """The Meta catalogue this product catalogue implies: ONE ITEM PER VARIANT.
 
     One item per variant rather than per product, because a variant is what a customer buys and
     what `catalogReference.options.variantId` names. `item_group_id = productId` groups them, so
@@ -478,13 +449,13 @@ def desired_items(products: Iterable[Mapping[str, Any]], *,
                 "name": name,
                 "description": description,
                 # Identity against `False`, like `is_syncable`: an absent `inStock` means in
-                # stock, because Wix omits the field on some reads and defaulting to out of stock
-                # would hide the whole catalogue on a shape change.
+                # stock, because defaulting a row read without the field to out of stock would
+                # hide the whole catalogue on a shape change.
                 "availability": OUT_OF_STOCK if variant.get("inStock") is False else IN_STOCK,
                 "price": price_text(_variant_price_paise(
                     product, variant, require_variant_price=require_variant_price)),
-                # Compared explicitly, never inferred from the amount. A Wix row that is not INR
-                # is a configuration error this catalogue has no handling for, and `currency` is
+                # Compared explicitly, never inferred from the amount. A catalogue row that is not
+                # INR is a configuration error this catalogue has no handling for, and `currency` is
                 # one of `COMPARED_FIELDS` so it would surface as a permanent update rather than
                 # a silent mis-sale.
                 "currency": str(product.get("currency") or CURRENCY).strip().upper(),
@@ -492,7 +463,7 @@ def desired_items(products: Iterable[Mapping[str, Any]], *,
                 # reach Meta because `meta_payload` projects through `META_ITEM_FIELDS`.
                 "product_name": product_name,
             }
-            # Prefer the variant's linked Wix image and fall back to the product image. The
+            # Prefer the variant's linked image and fall back to the product image. The
             # 2026-10-11 snapshot carries linked artwork for all five Request variants, so this
             # preserves their distinct catalogue images while still handling ordinary one-image
             # products without inventing a placeholder.
@@ -504,8 +475,8 @@ def desired_items(products: Iterable[Mapping[str, Any]], *,
             ) or _image_url(variant) or _image_url(product)
             if image:
                 item["image_url"] = image
-            # Same public route as scripts/fetch-wix-catalog.js and shopProductHref.
-            # Wix supplies the slug; its editorless storefront domain stays internal.
+            # Same public route as `shopProductPath` in src/content/shop.ts: the row's
+            # `canonicalPath` when it has one, else /shop/<slug>/. Both come from ProductsTable.
             slug = str(product.get("slug") or "").strip()
             service_path = SERVICE_PATH_BY_VARIANT.get(str(variant.get("id") or ""))
             if product_id == SERVICE_PRODUCT_ID and service_path:
@@ -533,9 +504,9 @@ def blockers(desired: Sequence[Mapping[str, Any]]) -> List[str]:
     """The products that cannot pass Meta commerce review, because they have no image.
 
     Meta rejects an imageless item, so publishing one is a review failure rather than a listing.
-    MEASURED against the committed 2026-10-11 snapshot: nine of the ten syncable Wix products
-    carry media and only the ₹1 test product remains imageless. That state is reported rather
-    than worked around - nothing here invents a placeholder image.
+    The current state is MEASURED rather than assumed: `tests/test_meta_catalog_sync.py` pins it
+    against the native ProductsTable read (every syncable product carries an image today). A
+    missing image is reported rather than worked around - nothing here invents a placeholder.
 
     REPORTED PER PRODUCT, NOT PER ITEM, and deduplicated on `item_group_id`, so a multi-variant
     product with a missing image is named once rather than once per Meta item.
@@ -610,9 +581,9 @@ def _comparable(item: Mapping[str, Any]) -> Dict[str, str]:
 
 def diff(desired: Sequence[Mapping[str, Any]],
          existing: Sequence[Mapping[str, Any]]) -> SyncPlan:
-    """What it would take to make the Meta catalogue match Wix. Computes; never calls anything.
+    """What it would take to make the Meta catalogue match ProductsTable. Computes only.
 
-    A VANISHED WIX VARIANT IS RETIRED, NEVER DELETED. `retire` sets `availability: out of stock`
+    A VANISHED VARIANT IS RETIRED, NEVER DELETED. `retire` sets `availability: out of stock`
     and nothing else. A delete would break an in-flight WhatsApp cart: the customer's cart holds a
     `product_retailer_id`, and if the item is gone the hand-off cannot resolve the line at all,
     which fails at checkout rather than at browse time. Out of stock is a state the whole pipeline
@@ -683,8 +654,6 @@ __all__ = [
     "CURRENCY",
     "META_ITEM_FIELDS",
     "COMPARED_FIELDS",
-    "WIX_TEMPLATE_SAMPLE_PRODUCT_IDS",
-    "WIX_TEMPLATE_SAMPLE_SLUGS",
     "CONTRIBUTION_PRODUCT_ID",
     "RetailerIdError",
     "SyncPlan",

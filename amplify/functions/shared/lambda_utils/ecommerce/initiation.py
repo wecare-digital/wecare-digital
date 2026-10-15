@@ -1,4 +1,4 @@
-"""Atomic customer-scoped initiation and immutable Cart V2 snapshots.
+"""Atomic customer-scoped initiation and immutable cart quote snapshots.
 
 No expiry on financial/idempotency records. A PENDING/UNKNOWN send is never
 replayed automatically: network acceptance cannot be inferred from a timeout.

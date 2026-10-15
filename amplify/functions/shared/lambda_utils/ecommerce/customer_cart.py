@@ -1,8 +1,11 @@
 """Phone-keyed backend cart using the existing CommerceKeys table (D4).
 
 Keys have a namespace; immutable order keys must never acquire DynamoDB TTL.
-Cart expiry is enforced by this application. A lock with an uncertain Wix outcome
+Cart expiry is enforced by this application. A lock with an uncertain cart-store outcome
 is never stolen on expiry: readback/reconciliation is required before reuse.
+
+The cart operations themselves go through an injected adapter; in production that is
+`native_cart_adapter.NativeCartAdapter`, backed by CartTable and the native ProductsTable quote.
 """
 import hashlib
 import json
@@ -54,12 +57,12 @@ class CustomerCart:
         self.now = int(time.time()) if now is None else now
 
     def resolve(self, identity):
-        """The live Wix cart id persisted for this identity, or None. Reads only, writes nothing.
+        """The live cart id persisted for this identity, or None. Reads only, writes nothing.
 
         Exists so a caller that needs a cart can find the one that already exists instead of
         minting a second. Raises CartBusy on a locked row for the same reason execute does: a
-        lock means a Wix outcome is uncertain, and reusing the cart id behind it could price or
-        pay against a cart whose contents are not known.
+        lock means a cart-store outcome is uncertain, and reusing the cart id behind it could
+        price or pay against a cart whose contents are not known.
         """
         row = self.table.get_item(Key={"orderId": _key(identity)},
                                   ConsistentRead=True).get("Item")
@@ -78,8 +81,8 @@ class CustomerCart:
 
         Returns (cart_id, created). Resolve before generate. One purchase has one cart: the
         browser cart route and any checkout attempt for the same identity must land on the same
-        Wix cart, or a retried checkout mints a fresh cart per attempt and abandons the previous
-        one on the live site, with nothing to clean it up. Creation goes through execute rather
+        cart, or a retried checkout mints a fresh cart per attempt and abandons the previous
+        CartTable row, with nothing to clean it up. Creation goes through execute rather
         than straight to the adapter, so the lock protocol, the duplicate-request fingerprint and
         the persistence all stay in one place.
         """
@@ -95,11 +98,11 @@ class CustomerCart:
         return cart_id, True
 
     def abandon(self, identity):
-        """Stop using this identity's saved Wix cart. Returns True when a pointer was released.
+        """Stop using this identity's saved cart. Returns True when a pointer was released.
 
-        Why this exists: a no-delivery basket must not inherit `deliveryInfo.address` from an
-        earlier physical attempt on the same 30-day cart, and there is no Cart V2 call that clears
-        that field. The only way to get a clean cart is to stop using this one.
+        Why this exists: the WhatsApp basket claim's `resetCart` retry (`checkout/handler.py`)
+        must start from a clean cart instead of resolving the customer's existing one. The only
+        way to get a clean cart is to stop using this one.
 
         A PUT OF AN EXPIRED POINTER, NOT A DELETE, and that is measured rather than stylistic: the
         checkout function's IAM grants GetItem/PutItem/UpdateItem on this table and NOT DeleteItem
@@ -114,24 +117,21 @@ class CustomerCart:
         version+1, busy, expiresAt}` plus `cartId` only when `active`, and `finished` derives
         from `pending` -- so neither carries `abandonedCartId`. On an abandoned row `active` is
         False, so `ensure` -> `resolve` -> None -> `execute("create")` always takes that branch,
-        and BOTH call sites re-`ensure` in the same invocation. Lifetime: milliseconds. The field
-        is kept because it costs nothing and is occasionally readable; the DURABLE record of an
-        abandon is the LOG LINE, which is why `checkout_cart_delivery_reset` carries the abandoned
-        Wix cart id. The reason this method is a put rather than a delete is the IAM fact above,
-        which stands on its own and never needed the traceability argument.
+        and the caller re-`ensure`s in the same invocation. Lifetime: milliseconds. The field is
+        kept because it costs nothing and is occasionally readable; the DURABLE record of an
+        abandon is the caller's LOG LINE (`checkout_basket_claim_cart_released`). The reason this
+        method is a put rather than a delete is the IAM fact above, which stands on its own and
+        never needed the traceability argument.
 
-        REFUSES WHILE THE CART IS BUSY, deliberately. A lock means a Wix outcome is unknown, and
-        abandoning the pointer behind one would hide that rather than resolve it. This is NOT the
-        remedy for a stuck lock -- that stays an owner action.
+        REFUSES WHILE THE CART IS BUSY, deliberately. A lock means a cart-store outcome is
+        unknown, and abandoning the pointer behind one would hide that rather than resolve it.
+        This is NOT the remedy for a stuck lock -- that stays an owner action.
 
-        WHICH PATH ACTUALLY REACHES THAT REFUSAL, because only one does. On the stale-delivery
-        path this method is called AFTER `ensure`, and `ensure` calls `resolve`, which raises
-        `CartBusy` on a busy row before it returns a cart id -- so a busy cart is refused by
-        `resolve` and this check is never evaluated. The check is reachable only from the
-        `resetCart` path, where `abandon` runs BEFORE `ensure`. It is kept regardless, because an
-        unconditional read-modify-write of a locked row would be wrong whoever called it, and
-        because the conditional put below could not be relied on alone: it refuses on a version
-        mismatch, which a lock does not necessarily produce.
+        The `resetCart` caller runs `abandon` BEFORE `ensure`, so this check is the one that
+        refuses a busy row there. It is also kept on principle, because an unconditional
+        read-modify-write of a locked row would be wrong whoever called it, and because the
+        conditional put below could not be relied on alone: it refuses on a version mismatch,
+        which a lock does not necessarily produce.
 
         The conditional is `execute`'s own claim condition, so a concurrent operation wins rather
         than being clobbered.
@@ -159,7 +159,7 @@ class CustomerCart:
     def execute(self, identity, command):
         """Identity comes from customer_auth or a verified WhatsApp webhook adapter.
 
-        A browser cannot supply phone, customerId, Wix cart id or money. Duplicate
+        A browser cannot supply phone, customerId, cart id or money. Duplicate
         writes need the same requestId and same command, and return the saved result.
         """
         if not isinstance(command, dict):
@@ -280,8 +280,8 @@ class CustomerCart:
                     "lastRequestId": request_id, "fingerprint": fingerprint, "result": result}
         del finished["busy"]
         if snapshot:
-            # Wix non-money fields can contain fractional weights/coordinates.
-            # boto3 resources require Decimal; monetary amounts remain integers.
+            # Any fractional non-money number in the snapshot is stored as Decimal, because
+            # boto3 resources require it; monetary amounts remain integers.
             finished["snapshot"] = json.loads(json.dumps(snapshot), parse_float=Decimal)
         self.table.put_item(Item=finished, ConditionExpression="busy = :lock",
                             ExpressionAttributeValues={":lock": lock})

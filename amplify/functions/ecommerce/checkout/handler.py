@@ -1070,10 +1070,8 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
     if not request_key or len(request_key) > 80:
         return cors_response(400, {"error": "REQUEST_KEY_REQUIRED"}, origin)
     # Phase O-1: a services basket is refused here, PURE, before the profile read, any pricing or
-    # any DynamoDB write -- Drop Docs/Vault, a bad quantity or a missing intent. Native pricing
-    # is the approved server-side engine, so `native_pricing_enabled=True`.
-    refusal = service_requests.checkout_preflight(
-        line_items, body, v2_enabled=False, native_pricing_enabled=True)
+    # any DynamoDB write -- Drop Docs/Vault, a bad quantity or a missing intent.
+    refusal = service_requests.checkout_preflight(line_items, body)
     if refusal is not None:
         return cors_response(refusal[0], refusal[1], origin)
 
@@ -1862,11 +1860,9 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                                               "again."}, origin)
 
     if catalog_session is not None:
-        # Native services require the same authoritative per-line guard as website services.
-        # `native_pricing_enabled=True` because the snapshot above is a ProductsTable-backed
-        # price.
-        guard = service_requests.checkout_preflight(
-            line_items, body, v2_enabled=False, native_pricing_enabled=True)
+        # Native services require the same authoritative per-line guard as website services;
+        # the snapshot above is a ProductsTable-backed price.
+        guard = service_requests.checkout_preflight(line_items, body)
         if guard is not None:
             return cors_response(guard[0], guard[1], origin)
         # The authoritative per-line price, read from the FROZEN native quote (never a client

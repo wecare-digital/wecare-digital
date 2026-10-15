@@ -167,15 +167,3 @@ def test_list_marks_a_non_builtin_name_as_such(registry):
     dlt_registry.create_template({
         "templateId": "1000000000000000006", "name": "something-else", "content": "x"})
     assert dlt_registry.list_templates()["templates"][0]["isBuiltinKey"] is False
-
-
-# ==========================================================================
-# legacy history
-# ==========================================================================
-LEGACY_ROWS = [
-    {"messageId": "m1", "provider": "airtel", "content": "a", "status": "SENT",
-     "createdAt": 100, "dltTemplateId": "1007277993798259629"},
-    {"messageId": "m2", "provider": "sinch", "content": "b", "status": "FAILED",
-     "createdAt": 200},
-    {"messageId": "m3", "content": "c", "status": "SENT", "createdAt": 300},
-]

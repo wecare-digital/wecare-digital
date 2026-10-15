@@ -4,8 +4,8 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 
 /**
- * AWS-native product catalog table — the authoritative replacement for the Wix
- * commerce catalog (spec .kiro/specs/aws-native-consolidation).
+ * AWS-native product catalog table — the authoritative product catalogue
+ * (spec .kiro/specs/aws-native-consolidation).
  *
  * WHY A NEW TABLE, PROVISIONED THIS WAY. The live DynamoDB fleet is created by
  * CDK (seo-resources.ts, backend-resources.ts, link-resources.ts) and
@@ -24,11 +24,11 @@ import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
  *
  * SHAPE. Mirrors the fields catalog_pricing.CatalogLine and the shop/meta-sync
  * consumers need:
- *   PK id (immutable; the Wix product id is preserved as `sourceId`)
+ *   PK id (immutable UUID; it is also the product half of the Meta retailer id)
  *   GSI slug-updatedAt-index    -> public /shop/<slug> lookup, newest first
  *   GSI status-updatedAt-index  -> list active|draft|archived
  *   GSI category-updatedAt-index-> category listing
- * Item attributes (written by the admin catalog UI / seeded from the Wix export):
+ * Item attributes (written by the admin catalog UI):
  *   title, slug, sku, priceMinor (integer paise), currency ('INR'),
  *   variants[] (sku, priceMinor, inventory, options{}), inventory, categories[],
  *   imageRefs[] (S3 keys), taxClass, seoTitle, seoDescription, canonicalUrl,
@@ -43,8 +43,8 @@ export function addCatalogResources ( stack: Stack ) {
         billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
         pointInTimeRecovery: true,
         removalPolicy: RemovalPolicy.RETAIN,
-        // A product-change stream drives meta-catalog-sync natively, replacing the
-        // Wix catalog webhook (see docs/migrations/wix-subsystem-deep-audit.md §4).
+        // A product-change stream drives meta-catalog-sync natively (see
+        // addCatalogStreamTrigger below).
         stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     } );
 
@@ -73,8 +73,8 @@ export function addCatalogResources ( stack: Stack ) {
 }
 
 /**
- * AWS-native cart table — the authoritative replacement for the Wix Cart V2
- * record (`cart_v2.py`) when CHECKOUT_MODE=AWS_NATIVE.
+ * AWS-native cart table — the server-side cart record used when
+ * CHECKOUT_MODE=AWS_NATIVE.
  *
  * A cart is a short-lived working document, so unlike ProductsTable it carries a
  * TTL (expiresTtl) to reap abandoned carts automatically — a cart is NOT a
@@ -115,18 +115,13 @@ export function addCartResources ( stack: Stack ) {
 }
 
 /**
- * NATIVE CATALOG-CHANGE TRIGGER — the AWS-native replacement for the Wix catalog webhook.
+ * NATIVE CATALOG-CHANGE TRIGGER — a ProductsTable write prompts a Meta catalogue re-sync.
  *
- * WHAT IT REPLACES. The retired flow was: a Wix Stores product edit -> Wix POSTs an RS256 webhook
- * to the `wecare-wix-catalog-webhook` Lambda -> that Lambda async-invokes `wecare-meta-catalog-sync`
- * (and fires a GitHub `repository_dispatch`). The trigger originated OUTSIDE our account, at Wix.
- *
- * THE NATIVE FLOW. A write to our own authoritative `ProductsTable` emits a DynamoDB stream record
+ * THE FLOW. A write to our own authoritative `ProductsTable` emits a DynamoDB stream record
  * (the table is declared with `stream: NEW_AND_OLD_IMAGES`). This event source mapping delivers that
  * record straight to `wecare-meta-catalog-sync`, whose `_trigger` classifies it as `ddb-stream` and
- * re-reads the catalogue — identical downstream behaviour to the old webhook invoke, with NO Wix
- * involved and no inbound internet trigger to verify. The six-hourly EventBridge schedule remains the
- * backstop exactly as before.
+ * re-reads the whole catalogue. The trigger originates inside our own account, so there is no
+ * inbound internet webhook to verify. The six-hourly EventBridge schedule stays as the backstop.
  *
  * WHY `bisectBatchOnError` + a DLQ-less retry bound. The sync is idempotent (a full re-read + diff +
  * gated write), so re-delivery is safe; a poison record must not wedge the shard, hence a bounded
@@ -136,8 +131,9 @@ export function addCartResources ( stack: Stack ) {
  *
  * NOT YET WIRED. Like addCatalogResources, this is a prepared, reviewable artifact. Calling
  * addCatalogStreamTrigger() from backend.ts creates a live event source mapping on a billable table
- * and must be deployed with owner approval, as the single Wix-webhook-retirement cutover step. Until
- * then the Wix webhook Lambda and the six-hourly schedule keep the catalogue in sync.
+ * and must be deployed with owner approval. Until then the six-hourly EventBridge schedule
+ * (`wecare-meta-catalog-sync-schedule`) is the only trigger. Either way, the sync's own release
+ * gates (META_CATALOG_SYNC_ENABLED / META_CATALOG_SYNC_DRY_RUN) decide whether anything is written.
  */
 export const META_CATALOG_SYNC_FUNCTION_NAME =
     process.env.META_CATALOG_SYNC_FUNCTION_NAME ?? 'wecare-meta-catalog-sync';

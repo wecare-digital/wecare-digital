@@ -92,12 +92,12 @@ PAYMENT_ATTEMPTS_TABLE = os.environ.get('PAYMENT_ATTEMPTS_TABLE',
 #: Already accessed via the code default; made explicit so the manifest describes the dependency
 #: instead of the default hiding it.
 #:
-#: Resolved through `order_keys.commerce_keys_table_name()` and NEVER through a second literal.
-#: This constant previously defaulted to `stack-wecare-digital-CommerceKeys`, which is not a
-#: provisioned table in this account -- so with the env var absent (its live state) `reconcile`
-#: read the reservation from `WixOrderIds` via the resolver at one call site while the delivery
-#: and review claims below addressed a table that does not exist. Two spellings of one dependency
-#: inside one handler is the defect; the resolver is the single home for it.
+#: Resolved through `order_keys.commerce_keys_table_name()` (today
+#: `stack-wecare-digital-CommerceKeys`, overridable by COMMERCE_KEYS_TABLE) and NEVER through a
+#: second literal. This constant once carried its own hard-coded default that disagreed with the
+#: resolver, so `reconcile` read the reservation from one table while the delivery and review
+#: claims below addressed another. Two spellings of one dependency inside one handler is the
+#: defect; the resolver is the single home for it.
 COMMERCE_KEYS_TABLE = order_keys.commerce_keys_table_name()
 
 #: WABA1's phone id, hoisted to a module constant so it stops appearing twice in this file. It is
@@ -468,9 +468,9 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
     Two things it deliberately does NOT do. It does not trust `payment`: the amount, currency and
     status all come back from Razorpay's API through `razorpay_verify`, because the webhook signing
     secret is in this repository's public git history and a signature therefore proves only that
-    somebody read the history. And it does not perform the downstream side effects - Wix order,
-    transaction record, receipt, confirmation - which are separately guarded so that a failure in
-    the last one does not re-run the first.
+    somebody read the history. And it does not perform the downstream side effects - transaction
+    record, receipt, confirmation - which are separately guarded so that a failure in the last one
+    does not re-run the first.
 
     Never raises. A failure to create the order must not fail the webhook, because a non-2xx makes
     Razorpay retry the whole event and the lease above already handles recovery.
@@ -503,8 +503,8 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
             if not row or not row.get('paymentAttemptId'):
                 return None
             # The attempt's authoritative amount and currency live on the PAYREF# row, written when
-            # the payment request was built from the Wix checkout. Reading them from the webhook
-            # instead would make the comparison compare the event against itself.
+            # the payment request was created. Reading them from the webhook instead would make
+            # the comparison compare the event against itself.
             attribution['channel'] = row.get('channel', '')
             # The public customer id, on the same footing and for the same reasons as the
             # channel one line above: read off OUR row and never from the event, noted on the
@@ -1182,7 +1182,7 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> None:
 
 
 def _handle_blog_contribution_captured(payment: Dict, request_id: str) -> None:
-    """Settle a Section 5 voluntary blog contribution — bound, verified, once, and no Wix order.
+    """Settle a Section 5 voluntary blog contribution — bound, verified, once, and no order.
 
     Mirrors ``_handle_wallet_topup_captured`` exactly, for the BLOG_CONTRIBUTION purpose:
 
@@ -1195,7 +1195,7 @@ def _handle_blog_contribution_captured(payment: Dict, request_id: str) -> None:
       3. A conditional one-time claim keyed by the payment id is made BEFORE the settle, so a
          duplicate delivery settles exactly once.
 
-    A BLOG_CONTRIBUTION capture creates NO Wix Store product or order. Never raises: a non-2xx
+    A BLOG_CONTRIBUTION capture creates NO store product or order. Never raises: a non-2xx
     makes Razorpay retry the whole event, and nothing here is worth that.
     """
     from lambda_utils.ecommerce import blog_contribution, order_keys
@@ -1249,7 +1249,7 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
         return
 
     # Section 5 voluntary blog contribution (BLOG_CONTRIBUTION): settle the stored contribution
-    # record and stop. This is NOT an invoice payment and must NOT create a Wix Store product or
+    # record and stop. This is NOT an invoice payment and must NOT create a store product or
     # order, so it must not fall through below. The amount is re-derived from the stored record,
     # never from these notes - the notes are only a routing hint.
     if (notes or {}).get('purpose') == 'BLOG_CONTRIBUTION':

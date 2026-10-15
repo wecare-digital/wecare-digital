@@ -801,7 +801,8 @@ def _list_catalog_feeds(catalog_id: str) -> Dict:
 
 def _upsert_catalog_feed(body: Dict) -> Dict:
     """Create or update a scheduled product feed (data source) on a catalog so Meta
-    auto-fetches the Wix TSV on a schedule and keeps the WhatsApp catalog in sync.
+    auto-fetches the feed file at the caller-supplied `url` on a schedule and keeps the
+    WhatsApp catalog in sync.
     POST /wa-business/catalog-feed
     Body: { catalogId, url, name?, interval(HOURLY|DAILY|WEEKLY)?, hour?, feedId? }
     - If feedId or a feed with the same name exists -> update its schedule (url/interval).

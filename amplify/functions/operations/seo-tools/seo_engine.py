@@ -1,16 +1,16 @@
 """Deterministic derived-SEO engine.
 
-WHAT THIS IS. Given a SOURCE record (a public blog post as `wix._blog_view` returns it, or a
-static page descriptor), this computes a DERIVED SEO record - title, meta description,
+WHAT THIS IS. Given a SOURCE record (a public blog post as `storage.get_blog_post` returns it,
+or a static page descriptor), this computes a DERIVED SEO record - title, meta description,
 canonical, robots, OpenGraph and JSON-LD - and stores it in `SeoToolsTable` under
 `recordType='seo'`. It reads source content and writes only derived records. It calls no model
 by default.
 
 THE ONE RULE THIS MODULE ENFORCES, in code and in tests: the source is READ ONLY. Nothing here
-mutates the post/page it is handed, and nothing here writes to a source table. The derived
-record is a separate item keyed `seo_<entityType>_<slug>`, and deleting or rewriting it cannot
-touch the source, because the source does not live in this table at all - blog content is in
-Wix, page content is in-repo TSX. This module could not write to them if it tried.
+mutates the post/page it is handed, and the only item it writes is its own derived record,
+keyed `seo_<entityType>_<slug>` with `recordType='seo'`. Deleting or rewriting that item cannot
+touch the source: a blog post is a separate `blogPost` record written by the blog admin and
+publish paths, never by this module, and page content is in-repo TSX.
 
 CHANGE DETECTION. A `sourceHash` is computed from the fields that actually affect SEO output.
 If the stored derived record already carries that hash, refresh is a no-op: no write, no model
@@ -94,7 +94,7 @@ def source_hash(source: Dict[str, Any]) -> str:
         "coverImage": _text(source.get("coverImage")),
         "modifiedDate": _text(source.get("modifiedDate")),
         "publishedDate": _text(source.get("publishedDate")),
-        # Source-authored SEO overrides. If the author set these in Wix, they are part of the
+        # Source-authored SEO overrides. If the author set these on the post, they are part of the
         # input and a change to them must re-derive.
         "seoTitle": _text(source.get("seoTitle")),
         "metaDescription": _text(source.get("metaDescription")),
