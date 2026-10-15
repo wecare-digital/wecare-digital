@@ -206,7 +206,7 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     fitBoundsCalls: [],
     setZoomCalls: [],
     setCenterCalls: [],
-    mapCenter: { lat: 25, lng: 86 },
+    mapCenter: { lat: 22.9734, lng: 78.6569 },
     mapListeners: new Map(),
     fireMapEvent: eventName => {
       for ( const handler of [ ...( rec.mapListeners.get( eventName ) || [] ) ] ) handler();
@@ -421,10 +421,14 @@ const releaseCenterLookup = ( lat: number ) => {
 
 const weatherFetchedAt = ( spy: { mock: { calls: unknown[][] } }, lat: number, lng: number ) => (
   spy.mock.calls.some( call => {
-    const url = String( call[ 0 ] );
-    return url.includes( 'weather.googleapis.com/v1/currentConditions' )
-      && url.includes( `location.latitude=${lat}` )
-      && url.includes( `location.longitude=${lng}` );
+    const url = requestUrl( call[ 0 ] as RequestInfo | URL );
+    return Boolean(
+      url
+      && url.hostname === 'weather.googleapis.com'
+      && url.pathname.startsWith( '/v1/currentConditions' )
+      && url.searchParams.get( 'location.latitude' ) === String( lat )
+      && url.searchParams.get( 'location.longitude' ) === String( lng )
+    );
   } )
 );
 
@@ -709,7 +713,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     // the other libraries are allowed to continue in the background.
     expect( rec.importedLibraries[ 0 ] ).toBe( 'maps' );
     expect( rec.mapOpts?.restriction ).toBeUndefined();
-    expect( rec.mapOpts?.center ).toEqual( { lat: 25, lng: 86 } );
+    expect( rec.mapOpts?.center ).toEqual( { lat: 22.9734, lng: 78.6569 } );
     expect( rec.mapOpts?.zoom ).toBe( 4 );
     expect( rec.mapOpts?.mapTypeId ).toBe( 'hybrid' );
     expect( rec.mapOpts?.gestureHandling ).toBe( 'none' );
@@ -740,7 +744,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( container.querySelector( '.vl-live-map-canvas' )?.classList.contains( 'is-ready' ) ).toBe( true );
     } );
     expect( container.querySelector( '.vl-live-map-fallback' ) ).toBeNull();
-    // No tilesloaded event was fired, so tile-dependent atmosphere stays gated.
+    // No tilesloaded event was fired, so tile-dependent overlays stay gated.
     expect( container.querySelector( '.vl-live-atmosphere' ) ).toBeNull();
   } );
 
@@ -1002,6 +1006,21 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       const freshness = container.querySelector( '.vl-live-wx-freshness' )?.textContent || '';
       expect( freshness ).toMatch( /Current · updated 1[12] min ago/ );
     } );
+  } );
+
+  it( 'keeps Weather data while leaving the heavy storm/cloud map atmosphere removed', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    const weatherTab = await screen.findByRole( 'tab', { name: 'Weather' } );
+    fireEvent.click( weatherTab );
+    await screen.findByText( 'Temperature' );
+
+    expect( container.querySelector( '.vl-live-atmosphere' ) ).toBeNull();
   } );
 
   it( 'renders the full Weather dashboard (metrics grid, hourly, 10-day, 24h history, neutral alerts)', async () => {
@@ -1271,7 +1290,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( tileUrl ).toContain( 'key=' );
 
     // TEARDOWN: flipping the Heatmap switch OFF (layer -> null) detaches the AQI heatmap
-    // via the production removeAt index-removal loop. The atmosphere is not an ImageMapType.
+    // via the production removeAt index-removal loop. Weather does not add a separate storm/cloud ImageMapType.
     const overlayCountBeforeOff = rec.overlayEntries.length;
     await waitFor( () => {
       const sw = screen.getByRole( 'switch', { name: 'Air quality heatmap' } );
@@ -1877,51 +1896,6 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
   } );
 
-  it( 'paints the AQI heatmap and mounts the code-rendered atmosphere by default', async () => {
-    const fetchSpy = airConditionsFetch( 450, 180 );
-    vi.stubGlobal( 'fetch', fetchSpy );
-    const VayuLokLive = await loadComponent();
-
-    const { container } = render( <VayuLokLive /> );
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    await selectMumbai();
-
-    // AQI remains a genuine Google Air Quality ImageMapType.
-    await waitFor( () => {
-      expect( rec.imageMapTypeOpts.length ).toBeGreaterThanOrEqual( 1 );
-      expect( rec.overlayPushes.length ).toBeGreaterThanOrEqual( 1 );
-    } );
-    const aqiOpts = rec.imageMapTypeOpts.find( o => o.name === 'vl-live-aqi-heatmap' )!;
-    expect( aqiOpts ).toBeTruthy();
-    expect( aqiOpts.opacity ).toBe( 0.64 );
-    const getTileUrl = aqiOpts.getTileUrl as (
-      coord: { x: number; y: number }, zoom: number,
-    ) => string;
-    const tileUrl = getTileUrl( { x: 1, y: 2 }, 5 );
-    expect( tileUrl ).toContain( 'airquality.googleapis.com' );
-    expect( tileUrl ).toContain( 'mapTypes/UAQI_RED_GREEN/heatmapTiles' );
-    expect( tileUrl ).toContain( '/5/1/2' );
-    expect( tileUrl ).toContain( 'key=' );
-
-    // The weather/storm appearance is now local SVG/CSS, not a fabricated Google weather tile.
-    await waitFor( () => expect( container.querySelector( '.vl-live-atmosphere' ) ).not.toBeNull() );
-    expect( rec.imageMapTypeOpts.some( o => o.name === 'vl-live-weather-storm' ) ).toBe( false );
-    expect( rec.overlayEntries ).toHaveLength( 1 );
-    expect( deckRec.overlaySetMapCalls.some( value => Boolean( value ) ) ).toBe( false );
-  } );
-
-  it( 'keeps the SVG/CSS atmosphere on the live map without a separate Storm switch', async () => {
-    vi.stubGlobal( 'fetch', airConditionsFetch( 450, 180 ) );
-    const VayuLokLive = await loadComponent();
-
-    const { container } = render( <VayuLokLive /> );
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    await selectMumbai();
-
-    await waitFor( () => expect( container.querySelector( '.vl-live-atmosphere' ) ).not.toBeNull() );
-    expect( screen.queryByRole( 'switch', { name: 'Weather storm overlay' } ) ).toBeNull();
-  } );
-
   it( 'does not render the removed map layer or selected-location pills', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
@@ -1990,13 +1964,13 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     // heatmap toggle, the Health Recommendations tablist and the Hourly History chart live
     // content are all absent - no fabricated chart, no fake persona panel, zero fetches.
     expect( screen.queryByRole( 'switch', { name: 'Air quality heatmap' } ) ).toBeNull();
-    // Storm is part of the map atmosphere now; there is intentionally no Storm switch.
+    // There is intentionally no separate Storm map switch.
     expect( screen.queryByRole( 'switch', { name: 'Weather storm overlay' } ) ).toBeNull();
     expect( screen.queryByRole( 'tablist', { name: 'Health recommendation profiles' } ) ).toBeNull();
     expect( container.querySelector( '.vl-live-air-history-chart' ) ).toBeNull();
 
     // DEFAULT-ON MUST NOT FIRE WITHOUT A KEY. The AQI tile overlay must construct no
-    // google.maps.ImageMapType and the SVG atmosphere must not mount because the keyed map
+    // google.maps.ImageMapType must not mount because the keyed map
     // never becomes ready.
     expect( rec.imageMapTypeOpts ).toHaveLength( 0 );
     expect( rec.overlayPushes ).toHaveLength( 0 );
