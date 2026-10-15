@@ -589,9 +589,11 @@ class TestShopIsExcluded:
         icon), which is a different thing from the menu entry."""
         with open(HEADER_TSX, encoding='utf-8') as fh:
             source = fh.read()
-        assert "heading: 'Shop'" in source
-        assert "label: 'Browse All'" in source
-        assert "href: '/shop/'" in source
+        assert "label: 'Home', href: '/', match: '/'" in source
+        assert "label: 'Shop', href: '/shop/', match: '/shop'" in source
+        assert "label: 'Browse All'" not in source
+        assert "heading: 'Products 1 of 2'" not in source
+        assert "heading: 'Products 2 of 2'" not in source
 
     def test_typed_shop_still_answers(self, handler_source):
         """STORE_KEYWORDS keeps `shop` as a TYPED alias on purpose - it is a live
