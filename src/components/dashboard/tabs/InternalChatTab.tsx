@@ -123,8 +123,8 @@ const TOOLS_LIST: ToolRow[] = [
   { id: 'get_billing_summary', name: 'AWS Billing', category: 'Analytics', cls: 'READ', refused: false },
   { id: 'get_invoice_list', name: 'List Invoices', category: 'Invoicing', cls: 'READ', refused: false },
   { id: 'create_invoice', name: 'Create Invoice', category: 'Invoicing', cls: 'APPLY', refused: true },
-  { id: 'get_wix_products', name: 'Wix Products', category: 'Ecommerce', cls: 'READ', refused: false },
-  { id: 'get_wix_orders', name: 'Wix Orders', category: 'Ecommerce', cls: 'READ', refused: false },
+  { id: 'get_products', name: 'Products', category: 'Ecommerce', cls: 'READ', refused: false },
+  { id: 'get_orders', name: 'Orders', category: 'Ecommerce', cls: 'READ', refused: false },
   { id: 'list_submit_requests', name: 'Flow Submissions', category: 'Flows', cls: 'READ', refused: false },
 ];
 
