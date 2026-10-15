@@ -21,6 +21,9 @@
     "cap:build": "next build && npx cap sync",
     "cap:open:ios": "npx cap open ios",
     "cap:open:android": "npx cap open android",
+    "cap:public:sync": "npx cap sync --config capacitor.public.config.ts",
+    "cap:public:open:ios": "npx cap open ios --config capacitor.public.config.ts",
+    "cap:public:open:android": "npx cap open android --config capacitor.public.config.ts",
     "amplify:install": "npm install --prefix amplify --no-audit --no-fund",
     "demo-video": "node scripts/make_demo_video.mjs"
   },

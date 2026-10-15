@@ -1,0 +1,59 @@
+name: Menu cross-browser
+
+on:
+  pull_request:
+    paths:
+      - 'src/components/Header.tsx'
+      - 'src/components/VoiceSearchMic.tsx'
+      - 'tools/browser/menucheck.js'
+      - 'tools/browser/**'
+      - '.github/workflows/menu-cross-browser.yml'
+  push:
+    branches: [ stack ]
+    paths:
+      - 'src/components/Header.tsx'
+      - 'src/components/VoiceSearchMic.tsx'
+      - 'tools/browser/menucheck.js'
+      - 'tools/browser/**'
+      - '.github/workflows/menu-cross-browser.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: menu-cross-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  menu:
+    name: Menu - ${{ matrix.browser }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install app dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build production export
+        run: npm run build
+
+      - name: Install browser harness
+        run: npm ci --no-audit --no-fund --prefix tools/browser
+
+      - name: Install ${{ matrix.browser }} and native dependencies
+        run: node tools/browser/node_modules/playwright-core/cli.js install --with-deps ${{ matrix.browser }}
+
+      - name: Run menu compatibility contract
+        run: node tools/browser/menucheck.js --${{ matrix.browser }}

@@ -269,9 +269,12 @@ describe( 'Header', () => {
 
     expect( screen.queryByRole( 'link', { name: 'Refer & Earn' } ) ).toBeNull();
     expect( screen.queryByRole( 'link', { name: 'Partner' } ) ).toBeNull();
+    const partner = screen.getByText( 'Partner' ).closest( '.nav-tree-item' );
+    const partnerLabels = Array.from( partner?.querySelectorAll( '.nav-item' ) || [] ).map( node => node.textContent );
+    expect( partnerLabels ).toEqual( [ 'Partner', 'Referral', 'Merchandise', 'Kiosk' ] );
+    expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toHaveAttribute( 'href', '/shop/referral-partner/' );
     expect( screen.getByRole( 'link', { name: 'Merchandise' } ) ).toHaveAttribute( 'href', '/shop/merchandise/' );
     expect( screen.getByRole( 'link', { name: 'Kiosk' } ) ).toHaveAttribute( 'href', '/shop/kiosk/' );
-    expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toHaveAttribute( 'href', '/shop/referral-partner/' );
 
     fireEvent.change( screen.getByLabelText( 'Search navigation' ), { target: { value: 'partner' } } );
     expect( screen.getByRole( 'link', { name: 'Merchandise' } ) ).toBeInTheDocument();
@@ -300,8 +303,9 @@ describe( 'Header', () => {
     const { container } = render( <Header /> );
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
     expect( css ).toContain( ".nav-item::before{content:''" );
-    expect( css ).toContain( 'transition:transform .2s cubic-bezier(.16,1,.3,1)' );
+    expect( css ).toContain( 'transition:transform .22s cubic-bezier(.16,1,.3,1),opacity .14s ease' );
     expect( css ).toContain( '.nav-tree-item:last-child > .nav-item:last-child::after{display:none}' );
+    expect( css ).toContain( 'background:linear-gradient(90deg,transparent 0,#e5eadc 12%,#e5eadc 88%,transparent 100%)' );
   } );
 
   it( 'keeps Extras above Contact and Legal Stuff', () => {
@@ -355,6 +359,23 @@ describe( 'Header', () => {
     expect( css ).toContain( '.nav-item{position:relative;display:flex;align-items:center;min-height:46px;padding:0 12px;font-size:19px;font-weight:600' );
     expect( css ).toContain( '.nav-child{font-size:19px;font-weight:600;min-height:46px' );
     expect( css ).not.toContain( '.nav-sub{font-size:17px' );
+  } );
+
+  it( 'announces menu search result counts to assistive technology', () => {
+    render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+    fireEvent.change( screen.getByLabelText( 'Search navigation' ), { target: { value: 'elsewhere' } } );
+    expect( screen.getByRole( 'status' ) ).toHaveTextContent( '3 menu results.' );
+  } );
+
+  it( 'includes vh fallback, dynamic viewport sizing and native safe-area insets', () => {
+    const { container } = render( <Header /> );
+    const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
+    expect( css ).toContain( 'max-height:calc(100vh - 140px)' );
+    expect( css ).toContain( 'max-height:calc(100dvh - 140px - env(safe-area-inset-bottom, 0px))' );
+    expect( css ).toContain( 'env(safe-area-inset-left,0px)' );
+    expect( css ).toContain( 'env(safe-area-inset-right,0px)' );
+    expect( css ).toContain( 'touch-action:pan-y' );
   } );
 
   it( 'keeps desktop Products capped but removes nested product scrolling on mobile', () => {
