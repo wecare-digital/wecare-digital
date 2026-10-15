@@ -56,7 +56,10 @@ SUBMENU_ROW_IDS = {
                       'wd_niji_setu', 'wd_back'],
     'wd_request': ['wd_orders', 'wd_submit', 'wd_amend', 'wd_drop_docs', 'wd_vault',
                    'wd_shipments', 'wd_review', 'wd_back'],
-    'wd_work': ['wd_refer', 'wd_contact', 'wd_perks', 'wd_back'],
+    'wd_shipments': ['wd_track', 'wd_pickup', 'wd_back'],
+    'wd_work': ['wd_refer', 'wd_perks', 'wd_contact', 'wd_back'],
+    'wd_refer': ['wd_partner', 'wd_back'],
+    'wd_partner': ['wd_merchandise', 'wd_kiosk', 'wd_referral', 'wd_back'],
     'wd_legal': ['wd_terms', 'wd_privacy', 'wd_back'],
 }
 
@@ -80,9 +83,12 @@ LEAF_PATHS = {
     'wd_amend': '/request-amendment/',
     'wd_drop_docs': '/drop-docs/',
     'wd_vault': '/vault/',
-    'wd_shipments': '/shipments/',
+    'wd_track': '/shipments/',
+    'wd_pickup': '/request-pickup/',
     'wd_review': '/leave-review/',
-    'wd_refer': '/refer-and-earn/',
+    'wd_merchandise': '/shop/merchandise/',
+    'wd_kiosk': '/shop/kiosk/',
+    'wd_referral': '/shop/referral-partner/',
     'wd_contact': '/contact/',
     'wd_perks': '/perks/',
     'wd_terms': '/terms/',
@@ -256,7 +262,7 @@ def _reply_branch_node(tree, reply_type: str):
 
 
 class TestTheStructureIsExactlyWhatWasApproved:
-    def test_there_are_seven_lists_and_no_others(self, wa):
+    def test_there_are_only_the_approved_lists(self, wa):
         assert set(wa.WD_LISTS) == {'wd_main'} | set(SUBMENU_ROW_IDS)
 
     def test_the_main_menu_rows_are_the_five_approved_ones_in_order(self, wa):
