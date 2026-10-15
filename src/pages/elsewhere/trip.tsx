@@ -11,7 +11,6 @@ const TripPage: React.FC = () => (
     crumbs={ [
       { label: 'Home', href: '/' },
       { label: 'Shop', href: '/shop/' },
-      { label: 'Elsewhere' },
       { label: 'Trip' },
     ] }
   />
