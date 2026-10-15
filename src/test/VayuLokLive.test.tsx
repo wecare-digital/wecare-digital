@@ -419,15 +419,6 @@ const releaseCenterLookup = ( lat: number ) => {
   act( () => { pending!.release(); } );
 };
 
-const weatherFetchedAt = ( spy: { mock: { calls: unknown[][] } }, lat: number, lng: number ) => (
-  spy.mock.calls.some( call => {
-    const url = String( call[ 0 ] );
-    return url.includes( 'weather.googleapis.com/v1/currentConditions' )
-      && url.includes( `location.latitude=${lat}` )
-      && url.includes( `location.longitude=${lng}` );
-  } )
-);
-
 // Give pending effects and timers a moment, so a late update would have landed.
 const settle = () => act( async () => { await new Promise( resolve => setTimeout( resolve, 30 ) ); } );
 
