@@ -1,4 +1,4 @@
-"""`wecare-meta-catalog-sync-role` is four exact statements, and the shared fleet role is untouched.
+"""`wecare-meta-catalog-sync-role` is five exact statements, and the shared fleet role is untouched.
 
 PHASE W, FEAT-001. Every assertion here is EQUALITY rather than containment. A test that checks
 the policy *contains* the statements it wants passes just as happily when a third is added, which
@@ -57,12 +57,17 @@ def provisioner():
 # ── 1. the document, exactly ─────────────────────────────────────────────────
 
 
-def test_the_policy_is_exactly_the_four_required_statements(provisioner):
-    """Native: logs + ONE Meta token secret + the approvals table + the native ProductsTable read.
+def test_the_policy_is_exactly_the_five_required_statements(provisioner):
+    """Native: logs + ONE Meta token secret + the approvals table + the ProductsTable stream + the
+    native ProductsTable read.
 
     The Wix exit made the catalog source AWS-native: the function reads the ProductsTable instead
     of the Wix headless API, so the Wix headless-api-key secret is gone (one secret, not two) and a
-    fourth statement grants the read-only ProductsTable access the native projection needs.
+    statement grants the read-only ProductsTable access the native projection needs.
+
+    #525 made a ProductsTable change trigger the sync through a stream event-source mapping. Lambda
+    polls that stream with the function's own role, so the role needs the four stream-read
+    actions, scoped to that one table's streams and nothing else.
     """
     assert provisioner.expected_role_policy(ACCOUNT) == {
         "Version": "2012-10-17",
@@ -97,6 +102,18 @@ def test_the_policy_is_exactly_the_four_required_statements(provisioner):
                 ],
             },
             {
+                "Sid": "ReadProductsStream",
+                "Effect": "Allow",
+                "Action": [
+                    "dynamodb:DescribeStream", "dynamodb:GetRecords",
+                    "dynamodb:GetShardIterator", "dynamodb:ListStreams",
+                ],
+                "Resource": [
+                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/"
+                    "stack-wecare-digital-ProductsTable/stream/*"
+                ],
+            },
+            {
                 "Sid": "ReadNativeProductCatalog",
                 "Effect": "Allow",
                 "Action": [
@@ -113,12 +130,12 @@ def test_the_policy_is_exactly_the_four_required_statements(provisioner):
     }
 
 
-def test_the_policy_has_no_statement_beyond_the_four_required(provisioner):
+def test_the_policy_has_no_statement_beyond_the_five_required(provisioner):
     statements = provisioner.expected_role_policy(ACCOUNT)["Statement"]
-    assert len(statements) == 4
+    assert len(statements) == 5
     assert [s["Sid"] for s in statements] == [
         "OwnLogs", "ReadMetaToken", "CatalogProposalApprovalRecords",
-        "ReadNativeProductCatalog"]
+        "ReadProductsStream", "ReadNativeProductCatalog"]
     assert all(s["Effect"] == "Allow" for s in statements)
 
 
@@ -127,7 +144,8 @@ def test_no_forbidden_action_appears_anywhere_in_the_policy(provisioner):
     invoke. `events:` likewise - the schedule invokes it; it does not manage the schedule.
 
     Native: the ProductsTable read adds Query/Scan/BatchGetItem alongside GetItem — all read-only
-    DynamoDB actions, none forbidden, no Delete/Put/Update on the catalog table.
+    DynamoDB actions, none forbidden, no Delete/Put/Update on the catalog table. The stream
+    statement adds the four stream-read actions, which are read-only too.
     """
     actions: list[str] = []
     for statement in provisioner.expected_role_policy(ACCOUNT)["Statement"]:
@@ -137,8 +155,9 @@ def test_no_forbidden_action_appears_anywhere_in_the_policy(provisioner):
         for forbidden in FORBIDDEN_ACTION_PREFIXES:
             assert not action.startswith(forbidden), f"{action} is not least privilege here"
     assert sorted(actions) == [
-        "dynamodb:BatchGetItem",
+        "dynamodb:BatchGetItem", "dynamodb:DescribeStream",
         "dynamodb:GetItem", "dynamodb:GetItem",
+        "dynamodb:GetRecords", "dynamodb:GetShardIterator", "dynamodb:ListStreams",
         "dynamodb:PutItem", "dynamodb:Query", "dynamodb:Scan",
         "dynamodb:UpdateItem",
         "logs:CreateLogStream", "logs:PutLogEvents", "secretsmanager:GetSecretValue"]
@@ -253,26 +272,40 @@ def test_a_dry_run_is_the_default_and_calls_no_mutating_api(provisioner):
     assert "if not apply:" in source
 
 
-# ── 4. the gates ship closed, and this script does not open them ───────────
+# ── 4. the gates are open and auto-apply is bounded (since #525) ───────────
 
 
 def test_the_provisioned_environment_matches_the_product_scoped_rollout(provisioner):
-    """Global writes stay closed while per-product metaEnabled owns desired catalogue scope.
+    """The gates are open, and only a bounded, non-destructive plan applies without approval.
 
-    The fixed five-variant rollout list is intentionally empty after catalog-publishing v2.
-    Exact-plan approval plus the enabled/dry-run gates still protect every Meta write.
+    #525 ("Restore real-time Meta catalog sync with safe auto-apply") opened the global gates on
+    purpose: sync enabled, dry run off, no forced out-of-stock. The fixed five-variant rollout list
+    stays empty because per-product metaEnabled owns catalogue scope. What still protects Meta is
+    the auto-apply bound: at most META_CATALOG_AUTO_APPLY_MAX_CHANGES creates and updates, from a
+    stream or schedule trigger only, with zero retires and zero foreign rows. Anything else still
+    needs an exact-plan approval (asserted against the handler below).
     """
     manifest = json.loads((ROOT / "config/lambda-env-manifest.json").read_text())
     live = manifest["functions"]["wecare-meta-catalog-sync"]
     expected = {
-        "META_CATALOG_SYNC_ENABLED": "false",
-        "META_CATALOG_SYNC_DRY_RUN": "true",
+        "META_CATALOG_SYNC_ENABLED": "true",
+        "META_CATALOG_SYNC_DRY_RUN": "false",
         "META_CATALOG_SYNC_VARIANT_IDS": "",
-        "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
+        "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "false",
+        "META_CATALOG_AUTO_APPLY_SAFE": "true",
+        "META_CATALOG_AUTO_APPLY_MAX_CHANGES": "50",
     }
     for key, value in expected.items():
         assert provisioner.ENVIRONMENT[key] == value
         assert live[key] == value
+
+    # The bound lives in the handler; pin its shape so opening the gates cannot widen it.
+    handler = HANDLER.read_text(encoding="utf-8")
+    assert 'trigger.get("source") not in {"ddb-stream", "schedule"}' in handler
+    assert 'int(counts.get("retire", 0)) == 0' in handler
+    assert 'int(counts.get("foreign", 0)) == 0' in handler
+    assert "return value if 0 < value <= 1000 else 0" in handler
+    assert '"approval_required_for_destructive_or_unusual_plan"' in handler
 
 
 def test_the_environment_carries_secret_NAMES_and_no_value(provisioner):
