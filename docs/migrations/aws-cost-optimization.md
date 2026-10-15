@@ -39,8 +39,8 @@ not expose the credit balance or expiry; read them in the Billing console.
 | Amplify build minutes −50% | POTENTIAL | −23.14 | batch merges to `stack`, skip docs-only builds |
 | Amplify egress back to September level | POTENTIAL | −15.61 | investigate 49.1 GB in Oct 1–14 vs 4.6 GB in Sep first |
 | Secrets: up to 3 retired/moved | POTENTIAL | −1.20 | owner confirms each in the access matrix |
-| Lightsail Micro → Nano | POTENTIAL | −2.00 | NO-GO today; +$5 one-time overlap |
-| Lightsail retirement | POTENTIAL | −7.00 | not authorised; needs an approved SIP replacement |
+| Lightsail Micro → Nano | POTENTIAL | −2.00 | cut over 2026-10-15; REALISED when the Micro standby is deleted |
+| Lightsail retirement | POTENTIAL | −5.00 | not authorised; needs an approved SIP replacement (now the Nano's $5) |
 | CloudWatch alarms (73 → $6.30/mo) | POTENTIAL | 0.00 | review only |
 | KMS customer keys (4 → $4/mo) | NOT A LEVER | 0.00 | keep |
 | Cost Explorer calls | HISTORICAL | 0.00 | fixed in September; not counted again |
@@ -55,11 +55,12 @@ three owner decisions (Support, Amplify builds, Amplify egress) that need no mig
 | Current production | $125.28 |
 | After Wix migration | already included (Wix Lambdas, tables and secrets are deleted; the Wix subscription is outside AWS and must be checked in Wix billing) |
 | After safe secret consolidation | −$1.20 POTENTIAL |
-| After optional Lightsail downsizing | −$2.00 POTENTIAL, +$5 one-time, payback ≈ 2.5 months on overlap alone (engineering and call-test time excluded) |
-| After possible Lightsail retirement | −$7.00 POTENTIAL, not authorised |
+| After the Lightsail downsizing | −$2.00, cut over 2026-10-15; both instances bill ($12/mo, hourly) until the Micro is deleted |
+| After possible Lightsail retirement | −$5.00 POTENTIAL, not authorised |
 
 Recommendation: spend effort on the Support decision and the Amplify build cadence first.
-Do not spend migration effort on the $2/month Nano move until guest memory is measured.
+The Nano move is done (`lightsail-nano-cutover.md`); re-run the model with `--live` after the
+Micro is deleted and it reports the $2.00 as REALISED.
 
 ## Not visible from AWS
 

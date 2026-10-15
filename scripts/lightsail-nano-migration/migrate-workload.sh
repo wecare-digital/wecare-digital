@@ -85,6 +85,9 @@ EOF
 set -e
 ldconfig
 install -d -o asterisk -g asterisk -m 755 /var/log/asterisk /var/cache/asterisk /var/run/asterisk
+# The cert check runs as ec2-user and appends here. Logs are not copied and /var/log is root-only,
+# so without this file the check fails (it did on the first Nano run, 2026-10-15 07:15 UTC).
+[ -e /var/log/cert-expiry.log ] || install -o ec2-user -g ec2-user -m 644 /dev/null /var/log/cert-expiry.log
 chown -R asterisk:asterisk /etc/asterisk /var/lib/asterisk /var/spool/asterisk /usr/lib/asterisk
 printf '%s\n' '/var/log/asterisk/messages /var/log/asterisk/full /var/log/asterisk/queue_log {' \
   '    weekly' '    rotate 4' '    missingok' '    notifempty' '    compress' '    delaycompress' \
