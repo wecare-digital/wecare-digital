@@ -75,16 +75,6 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
               is the h1 in the band above it. section.pdp names itself the same way on the fourteen
               pages ProductPage renders. */}
           <section className="shopd-about" aria-label={ `About ${product.name}` }>
-            { product.image && (
-              <img
-                className="shopd-image"
-                src={ product.image }
-                alt={ `${product.name} catalogue artwork` }
-                width={ 4096 }
-                height={ 4096 }
-                decoding="async"
-              />
-            ) }
             {/* The price sits with the action, not in the top band. data-wc-no-translate because a
                 translated "₹24,999.00" is a different number in a different grouping convention. */}
             <p className="shopd-price" data-wc-no-translate="true">{ product.formattedPrice }</p>
@@ -193,10 +183,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              list, which was the one part no stylesheet could reach. */
           .shopd-cta-btn:disabled{opacity:.5;cursor:not-allowed}
           .shopd-in{width:100%;max-width:700px;margin:0}
-          .shopd-image{
-            display:block;width:100%;height:auto;aspect-ratio:1/1;object-fit:cover;
-            margin:0 0 26px;border:1px solid #e5e7eb;border-radius:14px;background:#fff;
-          }
+          
 
           /* The card rung - 22px/700/lh1.27/-.25px - in dark green rather than lime, for the
              reason .shop-price records: lime means actionable and the page's one lime surface is
