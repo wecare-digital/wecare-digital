@@ -4871,7 +4871,7 @@ def _tool_add_contact_email(params: Dict, request_id: str) -> Dict:
             UpdateExpression='SET email = :email, updatedAt = :now',
             ExpressionAttributeValues={
                 ':email': email,
-                ':now': int(time.time()), ':false': False
+                ':now': int(time.time())
             },
             ReturnValues='ALL_NEW'
         )
@@ -4920,7 +4920,7 @@ def _tool_delete_contact(params: Dict, request_id: str) -> Dict:
             UpdateExpression='SET deletedAt = :now, updatedAt = :now',
             ConditionExpression='attribute_exists(id) AND (attribute_not_exists(locked) OR locked = :false)',
             ExpressionAttributeValues={
-                ':now': int(time.time())
+                ':now': int(time.time()), ':false': False
             },
             ReturnValues='ALL_NEW'
         )
