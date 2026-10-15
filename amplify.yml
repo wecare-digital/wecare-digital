@@ -43,7 +43,7 @@ frontend:
         - npm ci --no-audit --no-fund
     build:
       commands:
-        - npm run build
+        - export NEXT_PUBLIC_GOOGLE_BROWSER_KEY="$(aws secretsmanager get-secret-value --secret-id wecare/google-maps --query SecretString --output text | python3 -c 'import json,sys; s=sys.stdin.read().strip(); d=json.loads(s) if s.startswith("{") else s; print((d.get("api_key") or d.get("unified_google_api_key") or "") if isinstance(d,dict) else d)')"; test -n "$NEXT_PUBLIC_GOOGLE_BROWSER_KEY"; npm run build
         - python3 scripts/checkout_release_check.py --export-dir out
         - python3 scripts/sync_faq.py --check
         # THE REAL CREDENTIAL GATE, and it has to be here rather than only in CI.

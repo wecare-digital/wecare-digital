@@ -101,7 +101,7 @@ function cssRuleFor( css: string, selector: string ): string {
  * --------------------------------------------------------------
  * src/components/VayuLokLive.tsx reads the key ONCE, at module-evaluation time:
  *
- *     const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
+ *     const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_BROWSER_KEY || '';
  *
  * A top-level `import` would freeze that read at whatever the env was when the suite was first
  * loaded, so the key-absent and key-present cases could not both be exercised from one file. Each
@@ -603,7 +603,7 @@ function environmentFetch() {
 describe( 'VayuLokLive v8 approved design contract', () => {
 
   beforeEach( () => {
-    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_BROWSER_KEY', DUMMY_KEY );
     rec = installGoogleMaps();
   } );
 
@@ -1836,7 +1836,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
 describe( 'VayuLokLive v8 no-key map fallback', () => {
   it( 'shows a map-free keyless fallback without injecting Maps JS or issuing environmental calls', async () => {
-    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', '' );
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_BROWSER_KEY', '' );
     const fetchSpy = vi.fn();
     vi.stubGlobal( 'fetch', fetchSpy );
     // Seed the Google Maps stub anyway so we can PROVE the keyless path never touches it:
@@ -1907,7 +1907,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     // CSS assertions read the rendered <style> text: vitest renders styled-jsx as a plain,
     // unscoped <style>, so the component's whole stylesheet is readable as text. Formatting is
     // the component's single-line declaration style, so these match on the exact declarations.
-    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', '' );
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_BROWSER_KEY', '' );
     vi.stubGlobal( 'fetch', vi.fn() );
     const VayuLokLive = await loadComponent();
     const { container } = render( <VayuLokLive /> );

@@ -11,7 +11,7 @@ import { act, render } from '@testing-library/react';
  * markup that was no longer rendered, and the component imported nowhere outside its own test.
  * Nothing in the suite noticed, because no test imported the page. This is that assertion.
  *
- * It runs on the KEYLESS path - NEXT_PUBLIC_GOOGLE_MAPS_KEY stubbed empty, which is also CI's
+ * It runs on the KEYLESS path - NEXT_PUBLIC_GOOGLE_BROWSER_KEY stubbed empty, which is also CI's
  * natural state - so no Maps JS is injected and no air/weather fetch is issued, and the test
  * needs neither a google stub nor a network stub. The keyless path renders a self-contained
  * .vl-live-map-placeholder where the interactive canvas would be and reaches no third-party
@@ -28,7 +28,7 @@ async function loadPage() {
 }
 
 beforeEach( () => {
-  vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', '' );
+  vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_BROWSER_KEY', '' );
 } );
 
 afterEach( () => {

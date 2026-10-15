@@ -25,6 +25,7 @@ the one failure in this pipeline that cannot be undone after publication.
 """
 from __future__ import annotations
 
+import concurrent.futures
 import hashlib
 import json
 import logging
@@ -483,56 +484,86 @@ def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> D
 # ── Phase 2: confirm the bytes arrived, then hand off ────────────────────────────
 
 def confirm(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
-    """Verify each upload against S3, then start the worker.
+    """Verify up to 1,000 uploaded objects concurrently, then fan them out to SQS.
 
-    head_object rather than trusting the browser, for the same reason `secure-files` does
-    it: a PUT that failed halfway leaves a record claiming a file that is not there, and
-    the worker would then report an extraction failure for what is really a lost upload.
+    A serial ``head_object`` + DynamoDB update per source makes a 1,000-file wave exceed
+    API Gateway's request budget even though the expensive extraction itself is async.
+    Existing records are therefore batch-read once, and pending PDFs are checked in a
+    bounded thread pool. The status write is conditional on PENDING_UPLOAD, so a retried
+    confirm can never move an already-EXTRACTING source backwards to UPLOADED.
     """
     ids = body.get("sourceIds")
     if not isinstance(ids, list) or not ids:
         raise ValueError("sourceIds must be a non-empty array")
+    if len(ids) > MAX_REGISTER_BATCH:
+        raise ValueError(f"at most {MAX_REGISTER_BATCH} sourceIds per request")
 
-    confirmed, missing, unknown = [], [], []
-    for record_id in [str(value) for value in ids][:MAX_REGISTER_BATCH]:
-        record = get_source(record_id)
+    requested = [str(value).strip() for value in ids if str(value or "").strip()]
+    records = storage.get_typed_many(requested, RECORD_TYPE)
+    confirmed: List[str] = []
+    missing: List[str] = []
+    unknown: List[str] = []
+    pending: List[Tuple[str, Dict[str, Any]]] = []
+
+    for record_id in requested:
+        record = records.get(record_id)
         if not record:
             unknown.append(record_id)
             continue
         if record.get("status") in (UPLOADED, EXTRACTING, EXTRACTED):
             confirmed.append(record_id)
             continue
-        key = record.get("s3Key") or ""
+        key = str(record.get("s3Key") or "")
         if not key:
             confirmed.append(record_id)
             continue
+        pending.append((record_id, record))
+
+    table_ref = storage.table()
+    table_meta = getattr(table_ref, "meta", None)
+    table_client = getattr(table_meta, "client", None) if table_meta is not None else None
+    table_name = getattr(table_ref, "name", storage.TABLE_NAME)
+
+    def update_uploaded(record_id: str, content_length: int) -> None:
+        kwargs = {
+            "Key": {"id": record_id},
+            "UpdateExpression": "SET #s = :uploaded, sourceBytes = :b, updatedAt = :u, #e = :e",
+            "ConditionExpression": "#s = :pending",
+            "ExpressionAttributeNames": {"#s": "status", "#e": "error"},
+            "ExpressionAttributeValues": {
+                ":uploaded": UPLOADED, ":pending": PENDING_UPLOAD,
+                ":b": int(content_length), ":u": storage.now_iso(), ":e": "",
+            },
+        }
+        if table_client is not None:
+            table_client.update_item(TableName=table_name, **kwargs)
+        else:
+            table_ref.update_item(**kwargs)
+
+    def check_upload(item: Tuple[str, Dict[str, Any]]) -> Tuple[str, str]:
+        record_id, record = item
+        key = str(record.get("s3Key") or "")
         try:
             head = s3_client().head_object(Bucket=BUCKET, Key=key)
         except ClientError:
-            missing.append(record_id)
-            continue
-        storage.table().update_item(
-            Key={"id": record_id},
-            UpdateExpression="SET #s = :s, sourceBytes = :b, updatedAt = :u, #e = :e",
-            ExpressionAttributeNames={"#s": "status", "#e": "error"},
-            ExpressionAttributeValues={
-                ":s": UPLOADED, ":b": int(head["ContentLength"]),
-                ":u": storage.now_iso(), ":e": "",
-            },
-        )
-        confirmed.append(record_id)
+            return record_id, "missing"
+        try:
+            update_uploaded(record_id, int(head["ContentLength"]))
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+                raise
+            # Another confirm/worker already moved it forward. That is success for confirm.
+        return record_id, "confirmed"
 
-    #: FAN OUT TO THE QUEUE, one message per source, and fall back to the sweep when no queue
-    #: is configured.
-    #:
-    #: The fallback is not defensive padding. It is what keeps the unit tests and a
-    #: not-yet-provisioned environment working, and it is the same code path the reconciliation
-    #: route uses - so it stays exercised rather than rotting into a branch nobody has run.
-    #:
-    #: Neither is allowed to fail the request. The source records are already durable at this
-    #: point, so the worst case of a failed hand-off is that extraction waits for the next
-    #: confirm or a manual drain. Failing the HTTP call instead would tell an operator their
-    #: upload failed when it did not.
+    if pending:
+        workers = min(32, len(pending))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            for record_id, outcome in pool.map(check_upload, pending):
+                if outcome == "confirmed":
+                    confirmed.append(record_id)
+                else:
+                    missing.append(record_id)
+
     import blog_queue
     queued = blog_queue.enqueue(confirmed, reason="confirm") if confirmed else {
         "queued": 0, "failed": 0, "configured": False}
@@ -543,6 +574,7 @@ def confirm(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
         "event": "blog_sources_confirmed", "actor": actor, "confirmed": len(confirmed),
         "missing": len(missing), "unknown": len(unknown), "workerStarted": started,
         "queued": queued["queued"], "queueConfigured": queued["configured"],
+        "maxBatch": MAX_REGISTER_BATCH,
     }))
     return {
         "confirmed": confirmed, "missingUpload": missing, "unknownSourceId": unknown,

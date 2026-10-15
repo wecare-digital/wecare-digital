@@ -4,7 +4,7 @@ The approved v8 UI has two different Google trust boundaries. Do not put them ba
 
 ## Browser key: Maps UI only
 
-`NEXT_PUBLIC_GOOGLE_MAPS_KEY` is a public browser key. With Next static export it is
+`NEXT_PUBLIC_GOOGLE_BROWSER_KEY` is a public browser key. With Next static export it is
 inlined into JavaScript by design, so its protection is restriction, not secrecy.
 
 Use Google Cloud Website / HTTP referrer application restrictions:

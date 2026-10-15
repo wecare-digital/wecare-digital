@@ -97,7 +97,7 @@ async function inspectMapFrame( page ) {
   const iframe = await page.$( 'iframe.cl-frame' );
   if ( !iframe ) {
     /**
-     * KEYED PATH. NEXT_PUBLIC_GOOGLE_MAPS_KEY is set, so ContactLocation renders a plain
+     * KEYED PATH. NEXT_PUBLIC_GOOGLE_BROWSER_KEY is set, so ContactLocation renders a plain
      * div that the Maps JS API draws into - there is no iframe and nothing cross-origin.
      *
      * This branch exists so the harness does NOT go quiet the moment the map changes
