@@ -93,7 +93,7 @@ def test_invoice_and_receipt_management_have_one_engine_and_shared_stores():
 
 def test_order_record_declares_one_order_table_for_every_channel():
     source = _src("amplify/functions/shared/lambda_utils/ecommerce/order_record.py")
-    assert "OrderTable holds every order, whatever surface it came from" in source
+    assert "`OrderTable` holds every order, whatever surface it came from" in source
     assert "return shared_tables.ORDERS.name()" in source
 
 
