@@ -1,4 +1,5 @@
 name: Native catalog admin API deploy
+# catalog-publishing-v2 deploy ownership: guarded artwork + channel fields ship through this workflow
 
 on:
   pull_request:
