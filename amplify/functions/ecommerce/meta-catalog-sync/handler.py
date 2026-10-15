@@ -319,6 +319,36 @@ def _enabled() -> bool:
     return os.environ.get("META_CATALOG_SYNC_ENABLED", "").strip().lower() in _TRUE
 
 
+def _safe_auto_apply_enabled() -> bool:
+    return os.environ.get("META_CATALOG_AUTO_APPLY_SAFE", "").strip().lower() in _TRUE
+
+
+def _safe_auto_apply_max_changes() -> int:
+    raw = os.environ.get("META_CATALOG_AUTO_APPLY_MAX_CHANGES", "50").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return 0
+    return value if 0 < value <= 1000 else 0
+
+
+def _safe_auto_apply(plan, blocked: Sequence[str], trigger: Mapping[str, str]) -> bool:
+    """True only for bounded non-destructive background catalogue changes."""
+    if not _safe_auto_apply_enabled():
+        return False
+    if trigger.get("source") not in {"ddb-stream", "schedule"}:
+        return False
+    counts = plan.counts()
+    total = int(counts.get("create", 0)) + int(counts.get("update", 0))
+    return (
+        not blocked
+        and int(counts.get("retire", 0)) == 0
+        and int(counts.get("foreign", 0)) == 0
+        and total > 0
+        and total <= _safe_auto_apply_max_changes()
+    )
+
+
 def _dry_run() -> bool:
     """`META_CATALOG_SYNC_DRY_RUN` must say false EXPLICITLY to switch dry run off.
 
@@ -841,7 +871,32 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
                 "catalogId": catalog_id, "counts": counts, "blocked": blocked,
                 "planHash": plan_hash, "approved": approved, "applied": 0}
 
-    # A schedule/webhook is never an APPLY command. Even if both release gates are opened later,
+    if not action and _safe_auto_apply(plan, blocked, trigger):
+        outcome = _apply(plan, graph, token=token, app_secret=app_secret, catalog_id=catalog_id)
+        return {"ok": outcome["ok"], "reason": "safe_auto_apply",
+                "enabled": True, "dryRun": False, "catalogId": catalog_id,
+                "counts": counts, "blocked": blocked, "planHash": plan_hash,
+                "approved": False, "autoApplied": True,
+                "applied": outcome["applied"], "batchHandles": outcome.get("batchHandles", []),
+                "validationErrors": outcome.get("validationErrors", []),
+                "responseFields": outcome.get("responseFields", []),
+                "validationStatus": outcome.get("validationStatus")}
+
+    if not action and (
+        int(counts.get("retire", 0)) > 0
+        or int(counts.get("foreign", 0)) > 0
+        or (
+            int(counts.get("create", 0)) + int(counts.get("update", 0))
+            > _safe_auto_apply_max_changes()
+        )
+    ):
+        return {"ok": False, "reason": "approval_required_for_destructive_or_unusual_plan",
+                "enabled": True, "dryRun": False, "catalogId": catalog_id,
+                "counts": counts, "blocked": blocked, "planHash": plan_hash,
+                "approved": approved, "autoApplied": False, "applied": 0}
+
+    # A schedule/webhook is never an APPLY command unless it qualifies for the bounded
+    # safe-auto-apply policy above. Destructive/unusual plans stay owner-approved.
     # a write still requires a separately authenticated admin action bound to the exact approved
     # plan. This prevents "approval exists" from becoming "background job may spend it whenever".
     if action != "apply":
