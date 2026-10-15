@@ -2,39 +2,21 @@
 
     POST /sms/send    send one SMS
 
-Every send resolves through `lambda_utils.comms`, which owns E.164
-normalisation, region selection and the India TRAI DLT gate. This function
-contains no provider logic of its own.
+AWS End User Messaging is the only SMS transport, in every country. Every send
+resolves through `lambda_utils.comms` (`get_sms_service().send_sms`), which owns
+E.164 normalisation, region selection and the India TRAI DLT gate. This function
+contains no transport of its own, and there is no fallback: a failed send is
+reported as a failure (422 for a missing or unapproved DLT template, 502 for a
+transport error) and is never retried through anything else.
 
-What this function used to be
------------------------------
-Until 2026-09-19 it carried four senders and a fallback chain: an Indian
-operator's A2P API reached through a static-IP proxy, a second Indian aggregator,
-and two superseded AWS SMS transports. On any failure of the first it silently
-retried through the second and then relabelled the stored row with the second
-provider's name.
-
-All four are removed. Three were prohibited outright by the provider policy; the
-fourth - the silent cross-provider fallback - was worse than any single provider
-choice, because content approved under one registered sender was retried through
-a different enterprise, and the stored row then misreported which carrier
-actually delivered it.
-
-There is no fallback now. AWS End User Messaging is the only SMS provider, in
-every country, and a failure is reported as a failure.
-
-See docs/provider-retirement-inventory.md for the removed surface, by line, and
-scripts/check-provider-policy.sh for the gate that keeps it removed. Prohibited
-vendor hostnames and credential identifiers are deliberately not repeated in this
-file, so that the policy scan stays high-precision over runtime code.
+`scripts/check-provider-policy.sh` is the CI gate that keeps it that way.
 
 The `provider` request field
 ----------------------------
-Still accepted, still validated, deliberately not honoured as a choice. Current
-callers send `'aws'`; older ones named one of the retired providers. Rather than
-ignore the field - which would let a caller believe it had selected a specific
-carrier and silently get AWS - an explicitly prohibited value is refused with 422
-and names the policy. Absent or `'aws'` proceeds.
+Accepted and validated, never honoured as a choice. Absent, `'aws'` and
+`'aws-end-user-messaging'` proceed. Any other value is refused with 422
+`UNSUPPORTED_PROVIDER` and nothing is sent, so a caller can never believe it
+selected a different carrier while silently getting AWS.
 """
 
 import json
@@ -56,8 +38,8 @@ dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', '
 
 CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')
 
-# Values a caller may pass for `provider`. 'aws' is the only provider; '' means
-# "no preference". Anything else is a policy violation, not a routing hint.
+# Values a caller may pass for `provider`. AWS End User Messaging is the only
+# transport; '' means "no preference". Anything else is refused, not a routing hint.
 _ALLOWED_PROVIDERS = {'', 'aws', 'aws-end-user-messaging'}
 PROVIDER_POLICY_MESSAGE = (
     'SMS is sent exclusively through AWS End User Messaging. '

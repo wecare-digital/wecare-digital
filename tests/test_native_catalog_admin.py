@@ -1,4 +1,4 @@
-"""Offline product-manager contract: zero Wix calls, staff roles and safe edits."""
+"""Offline product-manager contract: ProductsTable only, staff roles and safe edits."""
 from __future__ import annotations
 
 import copy

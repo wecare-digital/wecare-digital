@@ -13,7 +13,6 @@ ROOT = Path(__file__).resolve().parents[1]
 SHARED = ROOT / "amplify/functions/shared/lambda_utils"
 FUNCTIONS = {
     "wecare-messages-read": "amplify/functions/core/messages-read/handler.py",
-    "wecare-wix-store": "amplify/functions/ecommerce/wix-store/handler.py",
     "wecare-outbound-whatsapp": "amplify/functions/messaging/outbound-whatsapp/handler.py",
     "wecare-push-notifications": "amplify/functions/messaging/push-notifications/handler.py",
     "wecare-scheduled-messages": "amplify/functions/messaging/scheduled-messages/handler.py",

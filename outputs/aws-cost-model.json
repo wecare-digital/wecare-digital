@@ -4,7 +4,7 @@
     "active_secrets": 19,
     "scheduled_deletion_secrets": 9,
     "reference_active_secrets_20261012": 22,
-    "wix_secrets_deleted_20261014": 3,
+    "secrets_deleted_20261014": 3,
     "lightsail_bundles": [
       "micro_3_0",
       "nano_3_0"
@@ -85,7 +85,7 @@
   },
   "levers": [
     {
-      "name": "wix_secrets_deleted",
+      "name": "secrets_deleted",
       "label": "REALISED",
       "monthly_delta": -1.2,
       "decision": "done 2026-10-14 (force-deleted; no recovery window)",

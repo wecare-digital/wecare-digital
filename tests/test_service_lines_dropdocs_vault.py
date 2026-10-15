@@ -1,18 +1,19 @@
 """Drop Docs (Rs.350) and Vault (Rs.49) end to end, in integer paise, on the ONE checkout.
 
 The two new fixed-price lines reuse the Phase O-1 money path verbatim: `POST
-/ecommerce/prepare-checkout` -> `cart_v2.calculate` -> ONE Razorpay order -> verify-callback /
-razorpay-webhook reconciliation -> ONE activation. Nothing here adds a payment implementation, so
-what has to be pinned is that the SAME guards hold at the two new amounts.
+/ecommerce/prepare-checkout` -> the native ProductsTable quote -> ONE Razorpay order ->
+verify-callback / razorpay-webhook reconciliation -> ONE activation. Nothing here adds a payment
+implementation, so what has to be pinned is that the SAME guards hold at the two new amounts.
 
 What is pinned, and why each is a property rather than a shape:
 
 * **(a)(b) The payable is ordinary order pricing, to the paise.** 35000 -> fee 875 + GST 158 =
   36033; 4900 -> 123 + 22 = 5045. Asserted against the real `compute_quote`, as `int`s, and
-  against what the gateway was actually asked for.
-* **(c) A one-paise disagreement fails closed in BOTH directions**, and a services-only basket
-  that acquires delivery, tax or an additional fee is refused. A Wix price edit must refuse the
-  purchase, not charge a figure the page did not promise.
+  against what the gateway was actually asked for -- so a services-only basket that acquired
+  delivery or supply tax would fail here.
+* **(c) The per-line guard reads THIS variant's price from the frozen native quote**, charges a
+  catalogue price edit inside the catastrophe rail, and fails closed outside it or on a
+  sibling's line.
 * **(d) Currency is compared explicitly.** `'inr'` and `'USD'` are both CURRENCY_MISMATCH at
   activation -- never inferred from the amount, never case-folded into agreement.
 * **(e) Replay safety.** One captured payment delivered three times by the webhook plus once by
@@ -20,8 +21,8 @@ What is pinned, and why each is a property rather than a shape:
   for each new kind.
 
 NO FLOAT ANYWHERE, including in the test arithmetic: every figure below is an integer paise
-literal or an integer expression. Offline: FakeDynamo, the Cart V2 fake, a recording Razorpay
-stub at the HTTP seam. No AWS, no network, no credential.
+literal or an integer expression. Offline: FakeDynamo, the native catalogue descriptor, a
+recording Razorpay stub at the HTTP seam. No AWS, no network, no credential.
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ import importlib
 import os
 import pathlib
 import sys
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -38,9 +40,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
-import contribution_wix  # noqa: E402
+import contribution_catalog  # noqa: E402
+from contribution_catalog import NativeCatalog  # noqa: E402
 from contribution_env import ATTEMPTS_TABLE, KEYS_TABLE, body_of, make_env, prepare_event  # noqa
-from contribution_wix import STORES_APP_ID, ContributionWix  # noqa: E402
 from crm_fake_dynamo import FakeDynamo  # noqa: E402
 from service_requests_fake_dynamo import RequestTable  # noqa: E402
 from test_one_service_money_path import LambdaToReceiver, RecordingRazorpay  # noqa: E402
@@ -68,17 +70,23 @@ NEW_SERVICES = {
 
 
 def service(variant=DROP_DOCS, quantity=1):
-    return {"catalogReference": {"appId": STORES_APP_ID, "catalogItemId": PRODUCT,
+    return {"catalogReference": {"catalogItemId": PRODUCT,
                                  "options": {"variantId": variant}}, "quantity": quantity}
 
 
-def services_wix(monkeypatch, *, rupees, **kwargs):
-    """The Cart V2 fake taught the services product at one unit price, PHYSICAL, four variants."""
-    wix = ContributionWix(**kwargs)
-    monkeypatch.setitem(contribution_wix.UNIT_RUPEES, PRODUCT, rupees)
-    wix.variants[PRODUCT] = [SUBMIT, DROP_DOCS, VAULT]
-    wix.product_type[PRODUCT] = "PHYSICAL"
-    return wix
+def services_env(monkeypatch, *, rupees):
+    """`make_env`, with ProductsTable taught the services product at one unit price.
+
+    PHYSICAL, three variants. The handler's `_native_product_reader` is re-bound to this
+    catalogue after `make_env` has bound its default one.
+    """
+    h, fake, _default = make_env(monkeypatch)
+    catalog = NativeCatalog()
+    monkeypatch.setitem(contribution_catalog.UNIT_RUPEES, PRODUCT, rupees)
+    catalog.variants[PRODUCT] = [SUBMIT, DROP_DOCS, VAULT]
+    catalog.product_type[PRODUCT] = "PHYSICAL"
+    monkeypatch.setattr(h, "_native_product_reader", catalog.reader)
+    return h, fake
 
 
 def payrefs(fake):
@@ -104,8 +112,7 @@ def test_the_payable_is_ordinary_order_pricing_to_the_paise(monkeypatch, variant
         quote.collection_before_convenience_paise, quote.convenience_fee_paise,
         quote.convenience_gst_paise, quote.total_payable_paise))
 
-    h, fake, _wix = make_env(monkeypatch, wix=services_wix(monkeypatch,
-                                                           rupees=line_paise // 100))
+    h, fake = services_env(monkeypatch, rupees=line_paise // 100)
     response = prepare(h, [service(variant)])
     assert response["statusCode"] == 200, body_of(response)
     assert body_of(response)["status"] == "CHECKOUT_OPTIONS_READY"
@@ -123,8 +130,7 @@ def test_the_payable_is_ordinary_order_pricing_to_the_paise(monkeypatch, variant
 def test_a_service_is_not_fee_exempt(monkeypatch, variant):
     """A contribution is fee-exempt; a service is not. Pinned by refusing the exempt path."""
     _kind, line_paise, _fee, _gst, payable = NEW_SERVICES[variant]
-    h, fake, _wix = make_env(monkeypatch, wix=services_wix(monkeypatch,
-                                                           rupees=line_paise // 100))
+    h, fake = services_env(monkeypatch, rupees=line_paise // 100)
 
     def exempt_must_not_run(*_a, **_k):
         raise AssertionError("a service is NOT fee-exempt")
@@ -135,77 +141,66 @@ def test_a_service_is_not_fee_exempt(monkeypatch, variant):
     assert int(attempt["amountPaise"]) == payable > line_paise
 
 
-# ── (c) the per-line assertion fails closed in both directions ───────────────
+# ── (c) the per-line guard reads this variant from the frozen native quote ───
 
-def _rupees(paise: int) -> dict:
-    return {"amount": f"{paise // 100}.{paise % 100:02d}"}
-
-
-def calculated(variant, line_paise, *, delivery=0, tax=0, fees=0):
-    cart_lines = [{"id": "L1", "quantityInfo": {"confirmedQuantity": 1},
-                   "source": {"catalogReference": {"catalogItemId": PRODUCT,
-                                                   "options": {"variantId": variant}}}}]
-    summary = [{"lineItemId": "L1", "totalPrice": _rupees(line_paise)}]
-    return {"cart": {"lineItems": cart_lines}, "summary": {"lineItems": summary},
-            "componentsPaise": {"subtotal": line_paise, "discount": 0, "delivery": delivery,
-                                "additionalFees": fees, "tax": tax,
-                                "total": line_paise + delivery + tax + fees}}
+def frozen_quote(variant, unit_paise, *, quantity=1):
+    """The `frozen_data['items']` shape `native_checkout.quote_native_cart` freezes."""
+    return SimpleNamespace(frozen_data={"items": [{
+        "productId": PRODUCT, "variantId": variant,
+        "quantity": quantity, "unitPricePaise": unit_paise}]})
 
 
 @pytest.mark.parametrize("variant", list(NEW_SERVICES))
-def test_the_assertion_passes_at_exactly_the_committed_paise(variant):
+def test_the_guard_returns_exactly_the_frozen_line_price(variant):
     _kind, line_paise, _f, _g, _p = NEW_SERVICES[variant]
-    sr.assert_service_line_price(calculated(variant, line_paise), [service(variant)],
-                                 delivery_required=False)
+    assert sr.native_service_line_paise(frozen_quote(variant, line_paise),
+                                        [service(variant)]) == line_paise
 
 
 @pytest.mark.parametrize("variant,priced", [(DROP_DOCS, 34999), (DROP_DOCS, 35001),
                                             (VAULT, 4899), (VAULT, 4901)])
-def test_a_one_paise_edit_in_either_direction_is_now_CHARGED(variant, priced):
-    """INVERTED 2026-10-08: Wix owns the price, so its figure is charged, not refused.
+def test_a_one_paise_catalogue_edit_in_either_direction_is_charged(variant, priced):
+    """ProductsTable owns the price, so an edited figure inside the rail is charged, not refused.
 
-    The structural checks below (zero delivery/tax/fees, quantity 1, the right variant) are what
-    still protect this basket; see the module docstring in `service_requests`.
+    The structural checks (quantity 1, the right variant, one matching line) are what still
+    protect this basket; see the module docstring in `service_requests`.
     """
-    assert sr.assert_service_line_price(calculated(variant, priced), [service(variant)],
-                                        delivery_required=False) == priced
+    assert sr.native_service_line_paise(frozen_quote(variant, priced),
+                                        [service(variant)]) == priced
 
 
 @pytest.mark.parametrize("variant,priced", [(DROP_DOCS, 5_000_001), (VAULT, 0)])
 def test_a_figure_outside_the_catastrophe_rail_still_fails_closed(variant, priced):
     with pytest.raises(sr.ServicePriceChanged):
-        sr.assert_service_line_price(calculated(variant, priced), [service(variant)],
-                                     delivery_required=False)
+        sr.native_service_line_paise(frozen_quote(variant, priced), [service(variant)])
 
 
 @pytest.mark.parametrize("variant", list(NEW_SERVICES))
-@pytest.mark.parametrize("component", ["delivery", "tax", "fees"])
-def test_any_non_zero_component_on_a_services_only_basket_fails_closed(variant, component):
+def test_a_frozen_quantity_other_than_one_fails_closed(variant):
     _kind, line_paise, _f, _g, _p = NEW_SERVICES[variant]
-    calc = calculated(variant, line_paise, **{component: 1})
     with pytest.raises(sr.ServicePriceChanged):
-        sr.assert_service_line_price(calc, [service(variant)], delivery_required=False)
+        sr.native_service_line_paise(frozen_quote(variant, line_paise, quantity=2),
+                                     [service(variant)])
 
 
 @pytest.mark.parametrize("variant", list(NEW_SERVICES))
-def test_the_line_asserted_is_this_variants_own_line_and_not_a_siblings(variant):
-    """Four services share ONE Wix product, so the assertion has to be variant-scoped.
+def test_the_line_read_is_this_variants_own_line_and_not_a_siblings(variant):
+    """Several services share ONE catalogue product, so the guard has to be variant-scoped.
 
-    It can no longer be demonstrated by pricing this variant at its sibling's figure -- Wix owns
-    the price, so any figure inside the rail is legitimate for any variant, and refusing one
-    would be refusing a price edit. What is still demonstrable, and is the property that
-    mattered, is that the assertion reads THIS variant's line: a calculation carrying the
-    sibling's variant id is refused outright rather than silently priced.
+    It cannot be demonstrated by pricing this variant at its sibling's figure -- ProductsTable
+    owns the price, so any figure inside the rail is legitimate for any variant, and refusing one
+    would be refusing a price edit. What is demonstrable, and is the property that matters, is
+    that the guard reads THIS variant's line: a quote carrying only the sibling's variant id is
+    refused outright rather than silently priced.
     """
     other = next(key for key in NEW_SERVICES if key != variant)
     sibling_paise = NEW_SERVICES[other][1]
     # Same figure, right variant: accepted, and returned.
-    assert sr.assert_service_line_price(calculated(variant, sibling_paise), [service(variant)],
-                                        delivery_required=False) == sibling_paise
-    # Wix returned the SIBLING's line for a basket that asked for this variant.
+    assert sr.native_service_line_paise(frozen_quote(variant, sibling_paise),
+                                        [service(variant)]) == sibling_paise
+    # The quote holds the SIBLING's line for a basket that asked for this variant.
     with pytest.raises(sr.ServicePriceChanged):
-        sr.assert_service_line_price(calculated(other, sibling_paise), [service(variant)],
-                                     delivery_required=False)
+        sr.native_service_line_paise(frozen_quote(other, sibling_paise), [service(variant)])
 
 
 # ── (d) currency is compared explicitly ──────────────────────────────────────
@@ -228,8 +223,7 @@ def _identity(owner=OWNER):
 
 
 def _keys_table():
-    return FakeDynamo(keys={"stack-wecare-digital-WixOrderIds": "orderId"}).Table(
-        "stack-wecare-digital-WixOrderIds")
+    return FakeDynamo(keys={KEYS_TABLE: "orderId"}).Table(KEYS_TABLE)
 
 
 @pytest.mark.parametrize("variant", list(NEW_SERVICES))
@@ -263,9 +257,10 @@ def test_the_store_records_the_exact_string_inr(variant):
     target = _seed_target(requests)
     intent = store.request_intent(requests, _identity(), kind, target)
     assert intent["currency"] == "INR" == sr.SERVICE_CURRENCY
-    # NO `amountPaise` ON THE STORED INTENT, since 2026-10-08. An intent is pre-payment and Wix
-    # prices the line at checkout, so a figure here would be a stored guess -- and a stored guess
-    # on a money row is what later gets compared against reality and refuses an honest payment.
+    # NO `amountPaise` ON THE STORED INTENT, since 2026-10-08. An intent is pre-payment and the
+    # native quote prices the line at checkout, so a figure here would be a stored guess -- and a
+    # stored guess on a money row is what later gets compared against reality and refuses an
+    # honest payment.
     # The currency IS recorded, because it is not a guess: INR is the only currency offered.
     row = requests.rows["INTENT#" + intent["intentId"]]
     assert "amountPaise" not in row

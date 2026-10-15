@@ -21,7 +21,7 @@ mostly a list of things *not* to build.
 | Backend-for-frontend API | **exists** | `wecare-seo-tools` Lambda, ~20 routes incl. `GET /blog-public` and `/blog-public/{slug}` |
 | Blog API | **exists** | `/blog-public` — the static export builds through it |
 | Category API | **exists** | category streams come from `blogIndexProps`, served from the same feed |
-| Page API | **exists** | `wix.page_seo(path)`, `/page-audit`, `/product-pages` |
+| Page API | **exists** | `/page-audit`, `/product-pages` |
 | SEO metadata | **exists** | source `seoTitle` / `metaDescription` read through, never replaced |
 | Structured data | **exists, extended** | `_app.tsx` (WebPage, BreadcrumbList, Service ×11), `[slug].tsx` (BlogPosting, Recipe ×448), `BlogIndexHead` (Blog, CollectionPage, BreadcrumbList, ItemList ×54) |
 | Sitemap generation | **exists** | `scripts/generate-sitemap.js` → static `out/sitemap.xml`, 1355 URLs, 275 kB |
@@ -56,8 +56,8 @@ EC2, ECS, EKS, App Runner. The site is a **static export** (`next.config.js`:
 
 ### a. Approved FAQ never reached the page
 
-The whole chain existed and was cut in exactly one place: `wix.py::_blog_view` hardcodes
-`'jsonLd': {}`, because Wix is the post source and carries none of our schema. `ai.py` generated
+The whole chain existed and was cut in exactly one place: the blog view returned
+`'jsonLd': {}`, because the post source carried none of our schema. `ai.py` generated
 FAQ, `_run_audit` stored it, the Admin approved it, and `src/pages/post/[slug].tsx` had rendered
 `post.jsonLd.faqSchema` all along.
 
@@ -98,15 +98,13 @@ Source content is read-only **structurally**, not by policy:
 
 | Check | Result |
 |---|---|
-| `wix.py` post update/patch function | **does not exist** — there is no source-write path to misuse |
 | `faq.py` write calls | none — it adds a field to an API *response* |
 | `seo_freshness.py` — `put_item`, `update_item`, `now_iso`, `updatedAt`, `publishedAt`, `dateModified` | **none**, asserted by test |
 | AI reachable from a public route | **no** — `ai.invoke_seo` has exactly one caller, behind `require_auth` |
 | Anything scheduling AI | **nothing** — grepped `amplify/`, `scripts/`, `.github/workflows/` |
 
 One path does write, and it is legitimate: `storage.apply_blog_audit` writes `seoTitle`,
-`metaDescription` and `jsonLd` onto a `blogPost` record — but that is a **DB-native record in
-SeoToolsTable, not the Wix public corpus**, and it requires an authenticated `/apply` on an
+`metaDescription` and `jsonLd` onto a `blogPost` record in **SeoToolsTable**, and it requires an authenticated `/apply` on an
 already-`approved` audit. That is the application's own workflow, which the rules permit.
 
 Worth flagging: it also sets `updatedAt: now_iso()`. Correct for a human-approved apply that

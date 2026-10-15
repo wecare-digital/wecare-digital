@@ -68,9 +68,9 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
     # addition to this list, which is exactly the "conscious decision" this count guards.
     # wecare-customer-registration added 2026-09-30: the registration front door (the WhatsApp-OTP
     # HTTP door that provisions the Cognito login), also genuinely new and awaiting first provision.
-    # wecare-checkout added 2026-10-01: the headless checkout front door (authoritative Wix total,
-    # readiness gate, PaymentAttempt, in-chat handoff; initiation off), also new and awaiting first
-    # provision.
+    # wecare-checkout added 2026-10-01: the headless checkout front door (authoritative
+    # ProductsTable total, readiness gate, PaymentAttempt, in-chat handoff), also new and awaiting
+    # first provision.
     # wecare-customer-orders added 2026-10-03: the customer's own order history and profile
     # summary. Never created in AWS - its sparse customerId-createdAt-index on OrderTable, its
     # own least-privilege role and its one route are all first-provisioned by
@@ -88,13 +88,6 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
     # wecare-blog-subscribe added 2026-10-02: the public OTP-gated blog subscriber front door.
     # It intentionally has its own least-privilege role/routes and must be first-created by
     # provision_blog_subscribe.py before deploy-all can update its code.
-    # wecare-wix-catalog-webhook added 2026-10-04: the Wix catalogue webhook receiver for
-    # auto-sync. Never created in AWS - its own least-privilege role (two secret reads and its
-    # log group, nothing else), the version-pinned cryptography layer its verifier needs, and
-    # its one route are all first-provisioned by scripts/provision_wix_catalog_webhook.py, so a
-    # deploy-all run before that is legitimately awaiting provisioning. Note its absence costs
-    # catalogue auto-sync NOTHING: .github/workflows/catalogue-sync.yml re-reads Wix on a
-    # six-hourly cron with no credential, and this receiver only makes it near-instant.
     # wecare-vayulok-environment added 2026-10-05: public VayuLok needs Weather/Air
     # without publishing the web-service key. Its role, server-key grant, live alias,
     # exact POST/OPTIONS routes and per-route throttle are first-created by
@@ -114,16 +107,12 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
     # intents, the customer's own request list, and activation from the razorpay-webhook hint.
     # Never created in AWS - its table + two GSIs, its own least-privilege role, its two routes
     # and its alarm are first-provisioned by scripts/provision_service_requests.py.
-    # wecare-meta-catalog-sync added 2026-10-06 (PHASE W, FEAT-001): the Wix -> Meta catalogue
-    # projection. Never created in AWS - its own least-privilege role (one GetSecretValue naming
-    # two secrets, plus its log group, and nothing else), its six-hourly EventBridge backstop and
-    # the invoke grant on the WEBHOOK's role are all first-provisioned by
-    # scripts/provision_meta_catalog_sync.py. A code update cannot create the schedule, and
-    # without the schedule the sync only ever runs when the webhook fires. It has NO HTTP API
-    # route and no function URL, so there is no route for a deploy to leave unauthenticated.
-    # Its absence costs nothing today: both gates ship closed (META_CATALOG_SYNC_ENABLED absent,
-    # META_CATALOG_SYNC_DRY_RUN true), so even once provisioned it computes and logs the diff and
-    # writes nothing to the customer-visible Meta catalog.
+    # wecare-meta-catalog-sync added 2026-10-06 (PHASE W, FEAT-001): the ProductsTable -> Meta
+    # catalogue projection. Its own least-privilege role, its ProductsTable stream mapping and its
+    # six-hourly EventBridge backstop are all first-provisioned by
+    # scripts/provision_meta_catalog_sync.py; a code update can create neither trigger. It has NO
+    # HTTP API route and no function URL, so there is no route for a deploy to leave
+    # unauthenticated.
     # Session infrastructure is owned by its CloudFormation template; an account
     # without that stack must provision it rather than report a code-update failure.
     assert waiting == ["wecare-customer-session", "wecare-vayulok-environment", "wecare-customer-whatsapp-auth", "wecare-email-verification",
@@ -132,7 +121,6 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
                        "wecare-customer-invoice",
                        "wecare-coupons", "wecare-gift-cards",
                        "wecare-meta-catalog-sync"]
-                       # wecare-wix-catalog-webhook removed in the Wix exit (catalogue source is AWS).
 
 
 def test_the_summary_line_reports_the_new_state(deploy_module):

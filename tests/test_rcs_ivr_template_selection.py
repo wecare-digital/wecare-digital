@@ -9,7 +9,7 @@ notification, and until 2026-09-28 they disagreed:
 So setting `NOTIF_RCS_TEMPLATE_NAME` switched one sender and silently left the other.
 A half-applied migration that reads as applied is worse than one that plainly is not,
 and the hardcoded half was the one that mattered: `send_rcs_ivr_notification` is what
-voice-in/c2c, voice-in/obd and whatsapp-calling call, and those three are the functions
+whatsapp-calling and the notification worker call, and whatsapp-calling is the function
 carrying `SINCH_RCS_ENABLED=true`.
 
 WHY IT BECAME URGENT. `rcsmenu`'s approved body and Get Started button point at

@@ -1,0 +1,95 @@
+name: Provider allow-list
+
+# Runtime code may depend only on approved providers.
+#
+# scripts/provider_allowlist.py is the one declaration of every external party runtime
+# code may reference, and how: hosts, Secrets Manager prefixes, npm/pip packages, inbound
+# webhook routes, provider identifiers, environment-key namespaces and display names.
+# The approved providers today:
+#
+#   AWS        compute, data, delivery, End User Messaging SMS/voice, Bedrock, Cognito
+#   Meta       WhatsApp Cloud API and calling, Graph, Marketing and Conversions API
+#   Razorpay   payments
+#   Plivo      PSTN voice only
+#   Sinch      India RCS only, its transport confined to the RCS modules
+#   Google, Microsoft (Bing), Truecaller, OpenAI, GitHub
+#
+# MODE: blocking. The gate is POSITIVE - it carries no list of providers that must not
+# appear. Anything runtime code references that the allow-list does not approve fails,
+# whatever it is called, so a provider that has been retired is simply absent from the
+# list, and absence is what fails.
+#
+# If this job fails on your PR you have referenced, from runtime code, one of:
+#   * a host, secret id, package or webhook route that is not on the allow-list
+#   * a `provider` value or backend selector outside the approved vocabulary
+#   * an SMS path that is not AWS End User Messaging, or a Plivo call that is not voice
+#   * the Sinch transport outside the RCS modules, or a Sinch channel other than RCS
+#   * a voice, SMS or RCS Lambda outside the supported set
+# Either remove the reference or approve the provider in scripts/provider_allowlist.py,
+# with its purpose, as a deliberate decision.
+#
+# SCOPE - source only. A clean tree is not a clean AWS account: a retirement commit
+# removes code while the deployed function, its routes, its environment and its secrets
+# stay live. The same allow-list is asserted against the account by
+# scripts/check_provider_policy_live.py, which needs AWS credentials this workflow
+# deliberately does not have:
+#
+#     python scripts/check_provider_policy_live.py
+#
+# Comments and docstrings are stripped before the scan, and tests, documentation and
+# lockfiles are out of scope, so prose about a provider is never reported as a use of it.
+
+on:
+  push:
+    branches: [stack]
+  pull_request:
+    branches: [stack]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provider-allowlist:
+    name: Provider allow-list gate
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+
+      # No dependencies: the gate is pure standard library, so an unrelated dependency
+      # change cannot break it.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Check provider allow-list
+        run: python scripts/check_provider_allowlist.py --verbose
+
+      # Added 2026-09-28. This gate existed as a script and ran in no workflow, because
+      # it could not pass: every rendering defect was flat HIGH, including one on
+      # `get_started` — a template no code path sends and whose senders never existed —
+      # so `--check` returned 1 permanently. A check that can never go green gets wired
+      # nowhere and guards nothing, which is how a real defect in `rcsmenu` (the only
+      # template anything sends) would have gone unnoticed.
+      #
+      # Severity is now derived from reachability, so HIGH means "a customer can receive
+      # this". `--validate` re-runs the rules against the committed export and makes NO
+      # AWS or Sinch call, so this needs no credentials and cannot be skipped for want of
+      # a secret. Refreshing the export itself still requires AWS and stays manual.
+      - name: RCS template health (blocking on HIGH)
+        run: python scripts/rcs_template_sync.py --validate --check
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo '### Provider allow-list'
+            echo ''
+            echo 'Mode: **blocking**. Runtime code may reference only what'
+            echo '`scripts/provider_allowlist.py` approves.'
+            echo ''
+            echo '```'
+            python scripts/check_provider_allowlist.py 2>&1 \
+              | grep -E '^  (ok|FAIL)|^        [0-9]+ finding|^PROVIDER' || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

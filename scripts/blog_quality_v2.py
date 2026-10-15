@@ -23,7 +23,7 @@ So the rule this module enforces is:
 `decide_status` will return EDITORIAL_QA for a record that passes every machine check
 but carries no human verdict. READY_TO_PUBLISH requires a human to have recorded the
 human-only gates in `record['gate']`. Section 32's "only READY_TO_PUBLISH may enter the
-Wix publishing queue" is therefore preserved rather than defeated: the machine clears
+publishing queue" is therefore preserved rather than defeated: the machine clears
 the mechanical debt so the human time goes where only human judgement works.
 
 Two categories are supported, because two exist on the live site: Conversations and
@@ -989,9 +989,9 @@ def check_seo_and_metadata(record: Dict[str, Any]) -> List[Finding]:
     if slug:
         if not canonical:
             #: REVIEW rather than BLOCK, because an absent canonical is DERIVED at publish
-            #: time - `wix_blog_migrate.seo_data()` builds it from the slug, and none of the
-            #: 108 published Conversations manifests stores one. A stored canonical that
-            #: DISAGREES with the slug is the real defect, and that still blocks below.
+            #: time from the slug, and none of the 108 published Conversations manifests
+            #: stores one. A stored canonical that DISAGREES with the slug is the real
+            #: defect, and that still blocks below.
             out.append(_review("24", "CANONICAL_MISSING",
                                f"canonical is not stored; it will be derived as "
                                f"{expected_canonical(slug)}",
@@ -1467,7 +1467,7 @@ def assess_wave(posts: Sequence[Dict[str, Any]],
 
 
 def publish_queue(wave: Dict[str, Any]) -> List[str]:
-    """Only READY_TO_PUBLISH slugs. Section 32's gate on the Wix queue."""
+    """Only READY_TO_PUBLISH slugs. Section 32's gate on the publishing queue."""
     return [r["slug"] for r in wave["records"] if r["readyToPublish"]]
 
 

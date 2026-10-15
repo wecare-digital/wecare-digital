@@ -1,0 +1,103 @@
+name: Runtime deploy
+# scoped deployment trigger after pinned layer permission
+
+on:
+  push:
+    branches: [stack]
+    paths:
+      - 'amplify/functions/ai/ai-generate-response/**'
+      - 'amplify/functions/core/service-api/**'
+      - 'amplify/functions/messaging/whatsapp-business-api/**'
+      - 'amplify/functions/ecommerce/product-image-gen/**'
+      - 'amplify/functions/ecommerce/meta-catalog-sync/**'
+      - 'amplify/functions/shared/lambda_utils/**'
+      - 'scripts/deploy_all_lambdas.py'
+      - 'scripts/snapstart_publish.py'
+      - '.github/workflows/runtime-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install deploy dependency
+        run: python -m pip install --disable-pip-version-check boto3==1.43.98
+
+      - name: Assume exact-scope deployment role
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::775261844268:role/GitHubActions-wecare-runtime-deploy
+          role-session-name: selected-runtime-deploy
+          aws-region: us-east-1
+
+      - name: Require production account
+        run: test "$(aws sts get-caller-identity --query Account --output text)" = "775261844268"
+
+      - name: Package validation against live configuration
+        run: |
+          python -m py_compile \
+            amplify/functions/ai/ai-generate-response/handler.py \
+            amplify/functions/core/service-api/handler.py \
+            amplify/functions/messaging/whatsapp-business-api/handler.py \
+            amplify/functions/messaging/whatsapp-business-api/service_api.py \
+            amplify/functions/messaging/whatsapp-business-api/flows/orders.py \
+            amplify/functions/ecommerce/product-image-gen/handler.py \
+            amplify/functions/ecommerce/meta-catalog-sync/handler.py
+          python scripts/deploy_all_lambdas.py --dry-run \
+            wecare-ai-generate-response \
+            wecare-service-api \
+            wecare-whatsapp-business-api \
+            wecare-product-image-gen \
+            wecare-meta-catalog-sync
+
+      - name: Deploy selected runtime functions
+        run: |
+          python scripts/deploy_all_lambdas.py \
+            wecare-ai-generate-response \
+            wecare-service-api \
+            wecare-whatsapp-business-api \
+            wecare-product-image-gen \
+            wecare-meta-catalog-sync
+
+      - name: Verify live aliases serve latest code
+        run: |
+          python - <<'PY'
+          import boto3
+          lam = boto3.client("lambda", region_name="us-east-1")
+          names = [
+              "wecare-ai-generate-response",
+              "wecare-service-api",
+              "wecare-whatsapp-business-api",
+              "wecare-product-image-gen",
+              "wecare-meta-catalog-sync",
+          ]
+          bad = []
+          for name in names:
+              latest = lam.get_function_configuration(FunctionName=name)["CodeSha256"]
+              alias = lam.get_alias(FunctionName=name, Name="live")["FunctionVersion"]
+              served = lam.get_function_configuration(
+                  FunctionName=f"{name}:{alias}"
+              )["CodeSha256"]
+              print(f"{name}: live=v{alias} current={served == latest}")
+              if served != latest:
+                  bad.append(name)
+          if bad:
+              raise SystemExit("live alias mismatch: " + ", ".join(bad))
+          PY

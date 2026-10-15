@@ -297,7 +297,7 @@ def test_vault_grant_cannot_be_downloaded_by_recreated_different_identity(mod,mo
     grants=FakeTable(key_attr='grantId',name='grants')
     files.seed({'fileId':'f','ownerPhone':'910000000000','status':'active'})
     grants.seed({'grantId':'g','fileId':'f','ownerPhone':'910000000000','customerId':ALICE,
-                 'source':'wix_vault','paid':True,'consumed':False})
+                 'source':'vault_purchase','paid':True,'consumed':False})
     monkeypatch.setattr(mod,'_table',lambda name:files if name==mod.FILES_TABLE else grants)
     response=mod._redeem('f',{'queryStringParameters':{'grant':'g'}},{'phone':'910000000000','subject':BOB},'')
     assert response['statusCode']==403

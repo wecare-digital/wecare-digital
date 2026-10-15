@@ -211,8 +211,8 @@ non-.py members: none
 All 16 required modules are present — `website_checkout.py`, `razorpay_orders.py`,
 `checkout_pricing.py`, `order_keys.py`, `payment_attempt.py`, `order_creation.py`,
 `customer_session.py`, `payment_status.py`, `customer_auth.py`, `payment_readiness.py`,
-`wix_ecom.py`, `media_paths.py`, `response.py`, `logging.py`, `customer_receipt.py` and
-`handler.py`.
+the retired storefront client, `media_paths.py`, `response.py`, `logging.py`,
+`customer_receipt.py` and `handler.py`.
 
 **No templates are needed, and that is now asserted rather than assumed.** Nothing in the
 package reads a `.html`/`.txt`/`.json`/`.j2` file from disk; the only non-`.py` file anywhere
@@ -257,7 +257,7 @@ it is the deployed revision, and the working tree is not.
 > **Superseded on fact 1, 2026-10-09 — `CHECKOUT_INITIATION_ENABLED` is recorded as `"true"`.**
 > This document's six "absent" claims (`:38`, this section, `:749`, `:1080`, `:1245`, `:1327`) were
 > measured on 2026-10-01 and were correct then. Two later in-repo records supersede them:
-> `docs/execution/snapshots/lambda-env-wix-before-site-migration-20261005.json:26` (captured
+> a 2026-10-05 Lambda env snapshot, since removed from the tree and kept in git history (captured
 > 2026-10-05T04:28:34Z, `wecare-checkout` live alias version 20) and
 > `docs/execution/xcodex-20261009/production-change-record.json:212` (dated 2026-10-09), both
 > `"CHECKOUT_INITIATION_ENABLED": "true"`. The change itself is unrecorded in this repository.
@@ -285,7 +285,7 @@ Four independent facts, each measured:
 
 1. **`CHECKOUT_INITIATION_ENABLED` is absent from the live environment** — not `"false"`, absent.
    The live variables are exactly `PAYMENT_ATTEMPTS_TABLE`, `COMMERCE_KEYS_TABLE`,
-   `WIX_API_KEY_SECRET`, `WIX_SITE_ID`, `SENDER_FUNCTION`, `PAYMENT_WABA_ID`,
+   two retired storefront keys, `SENDER_FUNCTION`, `PAYMENT_WABA_ID`,
    `EXPECTED_CONFIGURATION_NAME` (empty) and `EXPECTED_PROVIDER_MID` (empty).
 2. **Readiness blocks independently of the gate.** Both `EXPECTED_*` inputs are empty, so
    `payment_readiness.evaluate` returns `CONFIGURATION_UNVERIFIED`. Flipping the flag alone still
@@ -335,8 +335,8 @@ different reason than a reader might assume. Measured order inside `_create` in 
 (line offsets within the function):
 
 ```
-+12  wix_ecom.create_checkout(line_items)      <- a LIVE Wix write
-+13  wix_ecom.checkout_currency(checkout)         currency compared explicitly against "INR"
++12  <retired storefront create_checkout>      <- a LIVE provider write (since removed)
++13  <retired storefront currency check>          currency compared explicitly against "INR"
 +30  _readiness()                             <- layer 2 refuses here today
 +43  order_keys.allocate_payment_reference()      reserves PAYREF#
 +65  _attempts_table().put_item(...)              writes the PaymentAttempt row
@@ -349,9 +349,10 @@ handler code, outside the scope of this change, but it determines what the next 
 looks like:
 
 > Once an owner supplies `EXPECTED_CONFIGURATION_NAME` and `EXPECTED_PROVIDER_MID` — **with
-> `CHECKOUT_INITIATION_ENABLED` still off** — an authenticated `action=create` will create a Wix
-> checkout and write a `PaymentAttempt` row on **every** call, then answer
-> `PAYMENT_INITIATION_DISABLED`.
+> `CHECKOUT_INITIATION_ENABLED` still off** — an authenticated `action=create` will reserve a
+> payment reference and write a `PaymentAttempt` row on **every** call, then answer
+> `PAYMENT_INITIATION_DISABLED`. (On v2 it also performed a live storefront-provider write; that
+> write has since been removed from the handler.)
 
 No money can move: no gateway order is created, no payable message is sent, and the role grants no
 Razorpay credential read. But "the gate is off" stops meaning "nothing happens" at that point, and
@@ -366,9 +367,10 @@ stubs `customer_auth.authenticate` to return a `CustomerIdentity`, sets readines
 `INITIATION_ENABLED=False` — so it enters the exact branch a live probe cannot, and asserts the
 properties that matter rather than just the status string:
 
-- `status == 'PAYMENT_INITIATION_DISABLED'`, `amountPaise == 59900` (Wix's authoritative 599.00 in
-  integer paise), `currency == 'INR'`
-- exactly **one** attempt row, bound to the customer, `checkoutMode == 'WIX_HEADLESS'`,
+- `status == 'PAYMENT_INITIATION_DISABLED'`, `amountPaise == 59900` (the catalogue's authoritative
+  599.00 in integer paise), `currency == 'INR'`
+- exactly **one** attempt row, bound to the customer, with the then-current `checkoutMode` (now
+  `AWS_NATIVE`),
   `status == 'PAYMENT_READINESS_CHECKED'`
 - a `PAYREF#` reservation exists, and **no** `ORDERNO#`, `PAYMENTATTEMPT#` or `PROVIDERPAYMENT#`
   row does — so no order was created
@@ -530,7 +532,7 @@ number, no amount tied to an identity, no credential-shaped material, no import 
 
 | Sid | Action | Resource |
 |---|---|---|
-| `ReadWixApiKey` | `secretsmanager:GetSecretValue` | `wecare/wix/headless-api-key-*` |
+| (retired storefront API-key read) | `secretsmanager:GetSecretValue` | the retired storefront API-key secret |
 | `PaymentAttemptAndCommerceKeys` | `dynamodb:GetItem`, `PutItem`, `UpdateItem` | the two named tables only |
 | `InvokeWhatsAppSender` | `lambda:InvokeFunction` | `wecare-whatsapp-business-api` and `:live` |
 
@@ -575,8 +577,8 @@ lambda_utils/ecommerce/__init__.py      lambda_utils/middleware.py
 lambda_utils/ecommerce/money.py         lambda_utils/payment_readiness.py
 lambda_utils/ecommerce/order_keys.py    lambda_utils/rate_limit.py
 lambda_utils/ecommerce/payment_attempt.py  lambda_utils/response.py
-lambda_utils/ecommerce/wix_domain.py    lambda_utils/template_ttl.py
-lambda_utils/validation.py              lambda_utils/wix_ecom.py
+(retired storefront domain module)      lambda_utils/template_ttl.py
+lambda_utils/validation.py              (retired storefront client)
 ```
 
 A grant report that cries wolf is one nobody reads, which is the same reasoning the inline-secret
@@ -605,7 +607,8 @@ state so adding it has to be a deliberate edit.
 
 At `4c603188`, `handler.py` mentions `website_checkout` and `razorpay_orders` **only in its
 docstring**. Its top-level imports are `customer_auth`, `payment_readiness`, `order_keys`,
-`payment_attempt`, `wix_ecom`, `logging`, `response` — confirmed by the 18-file import closure.
+`payment_attempt`, the retired storefront client, `logging`, `response` — confirmed by the 18-file
+import closure.
 `_action` dispatches `create` and `status` and nothing else.
 
 **Re-measured at `83a8d60d` after the merge: still true.** The import list is unchanged, so the
@@ -907,7 +910,7 @@ answering.
 | 5 | `test_no_float_arithmetic_on_the_money_path` skipped absent modules | Presence asserted before parsing; a dropped money module now **fails** |
 | 6 | Two property tests ran only against the working tree | Both parametrised over `working-tree` **and** `committed` |
 | 7 | The lazy-secret test's reach was narrower than its claim | Rewritten to walk every import-time statement in **every** packaged module |
-| 8 | `--verify` did not check `WIX_SITE_ID` | The key list is **derived** from `expected_environment()`, so it cannot drift |
+| 8 | `--verify` did not check the storefront site-id key | The key list is **derived** from `expected_environment()`, so it cannot drift |
 | 9 | `--verify` exited 0 on gate-off-plus-readiness-set | That combination is now a **problem**, with the reason in the message |
 
 ### Finding 3 is the one that changes what `--verify` means
@@ -963,7 +966,7 @@ inferred from an export. One result is worth pulling out, because it is a strong
 anything in the previous passes:
 
 > Six packaged modules read a secret. Exactly **one** of them is reachable from the live handler:
-> `lambda_utils/wix_ecom.py`. And `wecare/wix/headless-api-key` is exactly the one secret
+> the retired storefront client. And its API-key secret is exactly the one secret
 > `CheckoutLeastPrivilege` grants. The role's single secret grant matches the single reachable
 > reader, with nothing spare on either side.
 
@@ -1005,13 +1008,13 @@ claimed to check.
 
 **7 — the lazy-secret test.** It walked `tree.body` filtered to `Assign`/`Expr`/`AnnAssign`, in two
 named files. So a module-scope `try:` wrapping a credential read — the *most likely* spelling, since
-anyone writing one would write it defensively — was invisible to it, and `wix_ecom.py`, the one
-secret this role can actually read, was not inspected at all. Rewritten to compute "every call that
+anyone writing one would write it defensively — was invisible to it, and the storefront client,
+the one secret reader this role could actually reach, was not inspected at all. Rewritten to compute "every call that
 is not inside a function body" across **every packaged module**, which widens it in four directions
 at once: compound statements, class bodies, decorators, and default argument values. Proven against
 the real package with five injected shapes:
 
-| Injected into `wix_ecom.py` at module scope | Old test | New test |
+| Injected into the storefront client at module scope | Old test | New test |
 |---|---|---|
 | `try:` wrapping the read | **passed** | fails |
 | `if:` wrapping the read | **passed** | fails |
@@ -1037,7 +1040,7 @@ again from the live bytes — line numbers inside `handler.py` on v2, not offset
 | Line | Step |
 |---:|---|
 | 229 | `customer_auth.require_customer` — before the body is parsed at 233 |
-| 259 | `wix_ecom.create_checkout` — **a live Wix write** |
+| 259 | retired storefront `create_checkout` — **a live provider write** (since removed) |
 | 277 | `payment_readiness` — refuses here today, both `EXPECTED_*` empty |
 | 290 | `order_keys.allocate_payment_reference` — reserves `PAYREF#` |
 | 312 | `put_item` on `PaymentAttemptsTable` |
@@ -1046,8 +1049,8 @@ again from the live bytes — line numbers inside `handler.py` on v2, not offset
 
 The recorded 0-before / 0-after on `PaymentAttemptsTable` is true because line 229 refuses at the
 door, and it would stay true at line 277 for an authenticated caller. But the moment an owner
-supplies both readiness values with the flag still off, every authenticated `action=create` performs
-a live Wix write and writes an attempt row before refusing. `--verify` now **exits 1** on that
+supplies both readiness values with the flag still off, every authenticated `action=create` on v2
+performed a live provider write and wrote an attempt row before refusing. `--verify` now **exits 1** on that
 combination and says why, instead of printing `readiness inputs: SET by an operator` and returning
 success. An operator who sets those values expecting inertness gets a failure, which is the whole
 point of a verifier.

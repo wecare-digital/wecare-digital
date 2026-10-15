@@ -25,7 +25,7 @@
  * -----------------------------------------
  * seo/llm/llms-txt-draft.md is the cautionary tale: a complete, careful, hand-written
  * llms.txt that advertises /bnb, /legal-champ, /ritual, [retired public path] and /_functions/* - the old
- * Wix site. Not one of those paths exists now. A hand-maintained file describing a site
+ * site. Not one of those paths exists now. A hand-maintained file describing a site
  * that changes is a file that will be wrong, and wrong quietly.
  *
  * config/public-pages.json is the single source, shared with the MCP server's zip, and

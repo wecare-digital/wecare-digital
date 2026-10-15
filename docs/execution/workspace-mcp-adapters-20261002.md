@@ -10,7 +10,6 @@ Amplify stack job 1204 SUCCEED for the same source. Build and test CI passed.
 | AWS | verified | Account 775261844268, region us-east-1, workspace live 2; public MCP live 9 |
 | GitHub | verified | wecare-digital/wecare-digital, default stack |
 | Razorpay | verified, read-only | Orders collection, count 1; no order/customer data returned |
-| Wix | verified, read-only | Configured site properties readable |
 | Plivo | documentation_verified | MCP initialization/discovery, 3 tools; no live account access |
 | Sinch | documentation_verified | MCP initialization/discovery, 2 tools; no live account access; RCS restriction retained |
 | Meta Social | blocked | Custom MCP client registration refused by Meta |

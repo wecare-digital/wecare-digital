@@ -49,8 +49,9 @@ LOG_LEVELS = {"info", "warning", "error", "debug", "critical", "exception", "log
 #: this module to f-strings. They are not hypothetical spellings: `formatted_phone` and
 #: `norm_phone` are what `outbound-whatsapp` and `bulk-worker` call the number *after*
 #: normalisation, which is the point at which it is most likely to be logged ("sent to
-#: X"), and `buyer_phone` is the Wix order field. The original alternation covered the
-#: inbound-facing names only, so the outbound-facing ones were invisible.
+#: X"), and `buyer_phone` is the conventional name for an order purchaser's number. The
+#: original alternation covered the inbound-facing names only, so the outbound-facing ones
+#: were invisible.
 PHONE_KEY = re.compile(
     r"^(?:(?:sender|recipient|caller|contact|customer|display|receiving|to|from|whatsapp"
     r"|dest\w*|clean|formatted|norm|normalised|normalized|buyer)_?)?phone(?:_?number|_?e164)?$"

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Read-only AWS-native SEO blog smoke test for the separately deployed SEO Lambda.
 
-Unlike the legacy Wix Headless smoke test, this validates the format that
-SeoToolsTable-backed blog posts actually serve: content/contentText. It checks
-the *whole* list, so accidental 500-post truncation cannot masquerade as success.
+It validates the format SeoToolsTable-backed blog posts actually serve:
+content/contentText. It checks the *whole* list, so accidental 500-post
+truncation cannot masquerade as success.
 
 This script invokes Lambda without publishing content or writing any AWS resource.
 """
@@ -88,7 +88,7 @@ def verify_blog(
     if len(set(slugs)) != count:
         raise AssertionError("blog listing contains duplicate slugs")
     # Check beginning, middle and end to catch lookups that only work for the
-    # first page or a stale legacy Wix-backed subset. No fixed prose or authors.
+    # first page or a stale cached subset. No fixed prose or authors.
     tested = []
     for slug in dict.fromkeys((slugs[0], slugs[count // 2], slugs[-1])):
         detail = invoke(_event("/seo-tools/blog-public/" + slug))

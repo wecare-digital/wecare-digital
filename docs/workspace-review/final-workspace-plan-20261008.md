@@ -69,7 +69,7 @@ Inner-page pattern: **header + local tabs + saved filters + paged resource list 
 
 | Phase | Scope and deliverables | Exit gate |
 |---|---|---|
-| 0 Baseline | Fix current CI contract/layout/workflow issues; investigate Wix mass-removal evidence; rebase pending correctness changes | Exact source SHA has required checks green; blocked provider scope stays visible; guard is not bypassed |
+| 0 Baseline | Fix current CI contract/layout/workflow issues; investigate catalogue mass-removal evidence; rebase pending correctness changes | Exact source SHA has required checks green; blocked provider scope stays visible; guard is not bypassed |
 | 1 Correctness | Flow key, expiring caches, SEO claim lifecycle, schedule cancellation, save/read-back, truthful billing, canonical product URLs | Collision/retry/stale-data/error-state regressions pass; release artifact and rollback recorded |
 | 2 Contracts | Staff request queue/detail; order/thread cursor APIs; delivery inspection; ledger/catalog sync read state | Actor/record scope, verb/payload/pagination tests pass; no browser direct table access |
 | 3 Shared shell | Capability registry; role-aware menus/search; shared index/detail/settings components; current-route migration map | Every preserved capability reachable; keyboard/mobile/Back/empty/error tests pass |
@@ -191,7 +191,7 @@ Total local executed subset: **949 Python + 245 frontend = 1194 passed**. Fronte
 | Sync Gastronomy quality branch, run 37642257164 | Checkout cannot find branch/tag `gastronomy-quality` | Decide whether obsolete sync should skip absent branch or be retired; pending CI cleanup already addresses this pattern |
 | Build and test, run 37642257188 | Two typography assertions: `/vault/ .srp-title` uses 21px versus section-heading 40px contract | Correct heading semantics/style or documented exception; rerun full workflow |
 | CodeQL, run 37642256959 | Improved incremental analysis failed; runner message lists disk constraints as a possible cause | Treat as scanner execution failure, investigate configuration/caching/resources; disk shortage not proven and no exploit implied |
-| Wix catalogue sync, run 37701000433 | Safeguard stops 12 of 22 product removals in one fetch | Verify upstream scope/deletion evidence; preserve guard; do not approve mass removal from a scan report |
+| Catalogue sync, run 37701000433 | Safeguard stops 12 of 22 product removals in one fetch | Verify upstream scope/deletion evidence; preserve guard; do not approve mass removal from a scan report |
 
 The local subset is green while these current workflows are red. Neither successful Amplify deployment nor failed CodeQL execution supersedes the required release checks. CI log evidence was read-only. Links use `https://github.com/wecare-digital/wecare-digital/actions/runs/<run-id>`.
 

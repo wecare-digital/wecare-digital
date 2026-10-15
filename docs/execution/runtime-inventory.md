@@ -7,11 +7,11 @@ Machine-readable companion: `runtime-inventory.json`. Environment variable
 
 | Count | |
 |---|---:|
-| Lambda functions | 76 |
-| with a `live` alias | 69 |
+| Lambda functions | 74 |
+| with a `live` alias | 67 |
 | HTTP APIs | 1 |
-| Routes | 384 |
-| DynamoDB tables | 85 |
+| Routes | 381 |
+| DynamoDB tables | 82 |
 
 ## Anomalies
 
@@ -47,7 +47,7 @@ Every entry above is a documented exception.
 
 ### Functions with errors in 7 days
 
-- `wecare-wix-catalog-webhook`: 1
+(none)
 
 ### Zero invocations in 7 days — candidates for retirement review
 
@@ -218,5 +218,4 @@ Every entry above is a documented exception.
 - `/whatsapp/inbound`
 - `/whatsapp/template-management`
 - `/whatsapp/voice`
-- `/wix-catalog-webhook`
 - `/workspace/mcp-iam`

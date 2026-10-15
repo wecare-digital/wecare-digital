@@ -307,8 +307,8 @@ class TestLiveInventory:
         path sends; severity is now derived from reachability, so it is reported at MEDIUM
         with its consequence and remediation intact. `--check` gating on HIGH is what made
         this matter: at 1 it could never pass, so it ran in no workflow. At 0 it is now a
-        blocking step in `provider-policy.yml`, and it will fail the moment a defect lands
-        on a template something actually sends.
+        blocking step in `provider-allowlist.yml`, and it will fail the moment a defect
+        lands on a template something actually sends.
 
         Zero is therefore the correct pin, and it is a stronger position than 1: the
         assertion below no longer tolerates a reachable defect at all.

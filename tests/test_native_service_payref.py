@@ -1,4 +1,4 @@
-"""Protect native service checkout from Wix V2 and missing PAYREF unit prices.
+"""Protect native service checkout from missing PAYREF unit prices.
 
 These are pure, offline tests. A service payment must never produce a PAYREF
 whose serviceLine.paise is None; the amount must come from the frozen AWS quote,
@@ -44,19 +44,10 @@ def frozen_quote(*, price=9900, variant=SERVICE_VARIANT, quantity=1,
     }]})
 
 
-def test_native_engine_allows_preflight_while_legacy_wix_v2_is_disabled():
+def test_a_well_formed_service_basket_passes_preflight():
     lines = service_cart()
     body = {"serviceIntentId": VALID_INTENT}
-    assert sr.checkout_preflight(lines, body, v2_enabled=False,
-                                 native_pricing_enabled=True) is None
-
-
-def test_old_checkout_stays_fail_closed_without_any_price_engine():
-    result = sr.checkout_preflight(
-        service_cart(), {"serviceIntentId": VALID_INTENT},
-        v2_enabled=False, native_pricing_enabled=False)
-    assert result is not None
-    assert result[0] == 503 and result[1]["error"] == "SERVICE_UNAVAILABLE"
+    assert sr.checkout_preflight(lines, body) is None
 
 
 def test_native_service_price_from_frozen_quote_not_client():

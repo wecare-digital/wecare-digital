@@ -30,7 +30,7 @@ from crm_fake_dynamo import FakeClientError, FakeDynamo  # noqa: E402
 from lambda_utils.ecommerce import order_creation as oc  # noqa: E402
 from lambda_utils.ecommerce import order_keys, payment_attempt  # noqa: E402
 
-TABLE = 'stack-wecare-digital-WixOrderIds'
+TABLE = 'stack-wecare-digital-CommerceKeys'
 CUSTOMER = 'CUS_01J0000000000000000000000'
 REFERENCE = 'WD-PAY-ABCDEFGHJKMNPQ'
 TXN = 'pay_LIVE0000000001'
@@ -318,8 +318,8 @@ def test_a_crash_between_claiming_and_numbering_is_finished_on_re_entry(table):
     than starting a second order.
 
     Reports ORDER_CREATED, not ORDER_ALREADY_EXISTS, and that is the right signal: the
-    interrupted run never reached the downstream steps — Wix order, transaction record, receipt,
-    confirmation — so the caller must run them. They are individually guarded, so re-running is
+    interrupted run never reached the downstream steps — order record, attempt finalization,
+    receipt, confirmation — so the caller must run them. They are individually guarded, so re-running is
     safe; skipping them would leave a paid order with no receipt and no confirmation.
     """
     attempt = _attempt()
@@ -423,11 +423,12 @@ def test_no_permitted_call_is_a_money_movement():
 
 
 def test_reconciliation_does_not_perform_the_downstream_side_effects():
-    """Wix order, transaction record, receipt and confirmation are separately guarded. Folding
+    """Finalization (the order record), receipt and confirmation are separately guarded. Folding
     them in would mean a failure in the last one re-runs the first."""
     for name in _PERMITTED_CALLS:
         lowered = name.lower()
-        for downstream in ('wix', 'invoice', 'receipt', 'whatsapp', 'order_status', 'send'):
+        for downstream in ('finaliz', 'accept_paid', 'invoice', 'receipt', 'whatsapp',
+                           'order_status', 'send'):
             assert downstream not in lowered, f'{name} is a downstream side effect'
 
 

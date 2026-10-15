@@ -33,9 +33,6 @@ amplify/functions/ecommerce/customer-session/handler.py,127,wecare-customer-sess
 amplify/functions/ecommerce/gift-cards/handler.py,401,wecare-gift-cards,,require_auth; verify_pin,False,Source markers only; caller/shared-module auth and event-only paths require inspection
 amplify/functions/ecommerce/product-image-gen/handler.py,650,wecare-product-image-gen,wecare-product-image-gen,require_auth,False,Source markers only; caller/shared-module auth and event-only paths require inspection
 amplify/functions/ecommerce/service-requests/handler.py,236,wecare-service-requests,wecare-service-requests,,False,Source markers only; caller/shared-module auth and event-only paths require inspection
-amplify/functions/ecommerce/wix-catalog-webhook/handler.py,264,wecare-wix-catalog-webhook,wecare-wix-catalog-webhook,_unauthorized; verify_signature,False,Source markers only; caller/shared-module auth and event-only paths require inspection
-amplify/functions/ecommerce/wix-giftcard-spi/handler.py,467,wecare-wix-giftcard-spi,,_unauthorized; verify; verify_pin,False,Source markers only; caller/shared-module auth and event-only paths require inspection
-amplify/functions/ecommerce/wix-store/handler.py,1620,wecare-wix-store,wecare-wix-store,require_auth,False,Source markers only; caller/shared-module auth and event-only paths require inspection
 amplify/functions/edge/get-miss-redirect/handler.py,116,,,,False,Source markers only; caller/shared-module auth and event-only paths require inspection
 amplify/functions/messaging/ad-attribution/handler.py,209,wecare-ad-attribution,wecare-ad-attribution,,False,Source markers only; caller/shared-module auth and event-only paths require inspection
 amplify/functions/messaging/inbound-whatsapp-handler/handler.py,8049,wecare-inbound-whatsapp,wecare-inbound-whatsapp,verify,True,Source markers only; caller/shared-module auth and event-only paths require inspection
@@ -59,8 +56,6 @@ amplify/functions/messaging/sms-aws/handler.py,726,wecare-sms-aws,wecare-sms-aws
 amplify/functions/messaging/template-analytics/handler.py,236,wecare-template-analytics,wecare-template-analytics,require_auth,True,Source markers only; caller/shared-module auth and event-only paths require inspection
 amplify/functions/messaging/voice-aws/handler.py,376,wecare-voice-aws,wecare-voice-aws,require_auth,True,Source markers only; caller/shared-module auth and event-only paths require inspection
 amplify/functions/messaging/voice-cdr-read/handler.py,652,wecare-voice-cdr-read,wecare-voice-cdr-read,require_auth,True,Source markers only; caller/shared-module auth and event-only paths require inspection
-amplify/functions/messaging/voice-in/c2c/handler.py,596,wecare-voice-in-c2c,wecare-voice-in-c2c,require_auth,True,Source markers only; caller/shared-module auth and event-only paths require inspection
-amplify/functions/messaging/voice-in/obd/handler.py,972,wecare-voice-in-obd,wecare-voice-in-obd,require_auth,True,Source markers only; caller/shared-module auth and event-only paths require inspection
 amplify/functions/messaging/waba-management/handler.py,1146,wecare-waba-management,wecare-waba-management,_verify_otp; require_auth,False,Source markers only; caller/shared-module auth and event-only paths require inspection
 amplify/functions/messaging/whatsapp-business-api/handler.py,6440,wecare-whatsapp-business-api,wecare-whatsapp-business-api,require_auth; verify,True,Source markers only; caller/shared-module auth and event-only paths require inspection
 amplify/functions/messaging/whatsapp-calling/handler.py,2554,wecare-whatsapp-calling,wecare-whatsapp-calling,_get_verify_token; _verify_webhook; _verify_webhook_signature; require_auth,True,Source markers only; caller/shared-module auth and event-only paths require inspection

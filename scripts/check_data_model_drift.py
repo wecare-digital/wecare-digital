@@ -93,9 +93,7 @@ EXPLICIT_TABLE: dict[str, str] = {
     # physical table drops the "Tracker". Reported as missing by any rule-based
     # guess, which is why the map exists.
     "RateLimitTracker": "RateLimitTable",
-    "VoiceCall": "VoiceCalls",
     "VoiceCDR": "VoiceCDRTable",
-    "OBDCampaign": "OBDCampaigns",
     "DLTTemplates": "DLTTemplates",
     "WebhookDedup": "WebhookDedup",
     "SystemConfig": "SystemConfigTable",
@@ -206,8 +204,8 @@ UNDECLARED_ALLOWED: dict[str, str] = {
         "the same reason as PstnSoftphoneSessions: Amplify does not own that clock.",
     "CouponsTable":   "Provisioned by scripts/provision_coupons_table.py; issuance, usage "
                       "counters and per-customer limits owned by wecare-coupons. Deliberately "
-                      "not modelled here: the discount arithmetic is Wix's and this table is "
-                      "the issuance record, not part of the CRM data model.",
+                      "not modelled here: it is the coupon service's issuance record, not "
+                      "part of the CRM data model.",
     "GiftCardsTable": "Provisioned by scripts/provision_gift_cards_table.py; a liability ledger "
                       "owned by wecare-gift-cards. Not modelled here because its partition key "
                       "is an HMAC of a bearer code, which has no place in a GraphQL model.",
@@ -218,16 +216,6 @@ UNDECLARED_ALLOWED: dict[str, str] = {
         "contact can hold two independent threads (the same person talks to both WABA "
         "numbers). A contact-keyed GraphQL model cannot express that, which is the reason "
         "it is a table of its own rather than attributes on Contact.",
-    "WixOrdersCache":
-        "Retired Wix cache table; pending physical deletion in AWS, see Wix exit. The "
-        "commerce code is now AWS-native and no longer reads or writes this cache, and its "
-        "declaration was removed from amplify/data/resource.ts. It stays live only until an "
-        "owner deletes it in the console, so it is allow-listed rather than re-declared.",
-    "WixProductsCache":
-        "Retired Wix cache table; pending physical deletion in AWS, see Wix exit. The "
-        "commerce code is now AWS-native and no longer reads or writes this cache, and its "
-        "declaration was removed from amplify/data/resource.ts. It stays live only until an "
-        "owner deletes it in the console, so it is allow-listed rather than re-declared.",
 }
 
 

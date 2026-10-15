@@ -148,7 +148,7 @@ def _list_orders(params: Dict) -> Dict:
     items = [order_record.view(item) for item in items]
     if search:
         q = search.lower()
-        items = [i for i in items if q in (str(i.get('orderId', '')) + str(i.get('orderNumber', '')) + str(i.get('shortId', '')) + str(i.get('wixOrderId', '')) + str(i.get('customerName', '')) + str(i.get('customerPhone', ''))).lower()]
+        items = [i for i in items if q in (str(i.get('orderId', '')) + str(i.get('orderNumber', '')) + str(i.get('shortId', '')) + str(i.get('customerName', '')) + str(i.get('customerPhone', ''))).lower()]
 
     items.sort(key=lambda x: x.get('createdAt', 0), reverse=True)
     limit = int(params.get('limit', 200))

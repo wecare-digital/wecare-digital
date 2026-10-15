@@ -1,9 +1,8 @@
 """`GET /ecommerce/service-prices`: anonymous, input-free, fails closed — AWS-native.
 
-Replaces the retired Wix-cart route test. Drives the SHIPPED `checkout/handler.py`
-with CATALOG_SOURCE=aws and a stubbed native variant reader (ProductsTable), so no
-Wix call and no network. Preserves the two properties that justify an
-unauthenticated route:
+Drives the SHIPPED `checkout/handler.py` with CATALOG_SOURCE=aws and a stubbed native
+variant reader (ProductsTable), so no network call is made. Pins the two properties that
+justify an unauthenticated route:
   * require_customer is never reached on the GET (regression that moved the arm
     below the auth gate fails loudly),
   * nothing a caller supplies changes the answer (query/body ignored).
@@ -49,7 +48,7 @@ def prices_event(*, method="GET", query=None, body=None):
 
 
 def _native_env(monkeypatch, reader=None):
-    h, fake, _wix = make_env(monkeypatch)
+    h, fake, _catalog = make_env(monkeypatch)
     monkeypatch.setenv("CATALOG_SOURCE", "aws")
     monkeypatch.setattr(h, "_native_variant_reader", lambda: (reader or _reader()))
     return h

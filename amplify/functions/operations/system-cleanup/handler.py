@@ -36,8 +36,8 @@ not in a four-entry `PROTECTED_TABLES` into the registry, and `_discover_s3_pref
 did the same for every folder three levels under `o/stack/`. So ContactsTable,
 InvoicesTable, PaymentsTable, AuditLogsTable and every future table were selectable, and
 a new table became selectable merely by existing. The curated registry was a hole too -
-it named contacts, invoices, invoice_items, payments, razorpay_webhook_log, wix_order_ids
-and audit_logs outright.
+it named contacts, invoices, invoice_items, payments, razorpay_webhook_log, the commerce
+key mapping and audit_logs outright.
 
 The registry below is kept for DISPLAY, so an operator can still see what exists and how
 much is in it, but every entry is now marked `selectable` or `protected` with a reason,
@@ -144,14 +144,8 @@ CLEANUP_RESOURCES = {
         'type': 'dynamodb',
         'table': 'stack-wecare-digital-VoiceCDRTable',
     },
-    'voice_calls': {
-        'label': 'Voice Calls',
-        'category': 'Voice',
-        'type': 'dynamodb',
-        'table': 'stack-wecare-digital-VoiceCalls',
-    },
     'voice_aws': {
-        'label': 'Voice AWS (Pinpoint)',
+        'label': 'Voice (AWS End User Messaging)',
         'category': 'Voice',
         'type': 'dynamodb',
         'table': 'stack-wecare-digital-VoiceAwsTable',
@@ -222,12 +216,6 @@ CLEANUP_RESOURCES = {
         'type': 'dynamodb',
         'table': 'stack-wecare-digital-WhatsAppVoiceTable',
     },
-    'obd_campaigns': {
-        'label': 'OBD Campaigns',
-        'category': 'Voice',
-        'type': 'dynamodb',
-        'table': 'stack-wecare-digital-OBDCampaigns',
-    },
     's3_invoices': {
         'label': 'S3: Invoice Files',
         'category': 'S3 Storage',
@@ -263,8 +251,10 @@ CLEANUP_RESOURCES = {
         'type': 'dynamodb',
         'table': 'stack-wecare-digital-DLQMessagesTable',
     },
-    'messages_legacy': {
-        'label': 'Messages (Legacy Table)',
+    # The canonical store for every channel's messages (SMS, RCS, voice breadcrumbs and
+    # the unified inbox mirror). Customer history, so the keyword guard protects it.
+    'messages': {
+        'label': 'Messages (All Channels)',
         'category': 'Messages',
         'type': 'dynamodb',
         'table': 'stack-wecare-digital-MessagesTable',
@@ -308,7 +298,6 @@ CLEANUP_RESOURCES = {
         'type': 'dynamodb',
         'table': 'stack-wecare-digital-RateLimitTable',
     },
-    # sms_in_airtel / payu_webhook_log removed 2026-09-20 with their tables.
     's3_whatsapp_media_incoming': {
         'label': 'S3: WhatsApp Media (Incoming)',
         'category': 'S3 Storage',
@@ -403,11 +392,15 @@ PROTECTED_TABLES = {
     # could delete the record of its own deletions. An audit trail inside the deletable
     # set is not an audit trail.
     'stack-wecare-digital-AuditLogsTable',
+    # The TRAI DLT template registry. Regulatory application data: each row records a
+    # template approved on the DLT portal, which comms/dlt resolves before every India
+    # SMS send. Nothing repopulates it, so it is never a cleanup target.
+    'stack-wecare-digital-DLTTemplates',
 }
 
 # ── The allow-list. Nothing outside this is deletable, by anybody, ever. ──
 #
-# Four tables, each one a cache or a derived aggregate that rebuilds itself. The test for
+# Two tables, each one a cache or a derived aggregate that rebuilds itself. The test for
 # membership is not "is this low value" but "if this were empty in five minutes, would the
 # system repopulate it without anyone intervening".
 #
@@ -420,8 +413,6 @@ CLEANUP_ALLOWLIST = {
     'stack-wecare-digital-RateLimitTable',
     # derived analytics; re-fetchable from Meta's template insights API
     'stack-wecare-digital-TemplateAnalyticsTable',
-    # DLT template registry is regulatory application data.
-    'stack-wecare-digital-DLTTemplates',
 }
 
 #: Empty on purpose, and the reason is in `_protected_reason`: S3 under `o/stack/` and

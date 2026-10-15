@@ -1,9 +1,0 @@
-=== BEFORE BIMI change 2026-09-26T22:56:48Z ===
-TXT wecare.digital -> "google-site-verification=G74l7Vaf6_5214FKtpjHqCkaw4wQ6TEc2qMmVlRSg0k" "v=spf1 include:_spf.google.com include:sendgrid.net include:amazonses.com -all" 
-MX wecare.digital -> 1 smtp.google.com. 
-TXT _dmarc.wecare.digital -> "v=DMARC1;p=reject;pct=100;sp=reject;rua=mailto:dmarc-reports@wecare.digital;" 
-TXT _mta-sts.wecare.digital -> "v=STSv1; id=2026082302" 
-TXT _smtp._tls.wecare.digital -> "v=TLSRPTv1; rua=mailto:smtp-tls-reports@wecare.digital" 
-TXT default._bimi.wecare.digital -> "v=BIMI1; l=https://app.wecare.digital/stream/media/m/wecare-digital.svg; a=; avp=brand;" 
-TXT google._domainkey.wecare.digital -> "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCysuk2+0UwKAIhchviCaYZ2qnGvj2mXgJEkoOXuVHMPlMji6URSrQYw7NQukZ2zIxplxidjX2e9s+ugb24aAxhQlP4vdlnKe2CBa01FWJJXKhvjpDfkrjFnCoEvxy/L/tUnULoziCkSyHiQimPma8MGpZ7LS7X6tfegv6Lu95cIQIDAQAB" 
-CNAME sg.wecare.digital -> sg.wecare.digital.s014.ascendbywix.com. 

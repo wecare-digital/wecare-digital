@@ -37,7 +37,6 @@ Full offline Python handler suite:10187passed,6skipped,3expected failures. Front
 
 ## Remaining decisions and external evidence
 
-- Wix's authenticated and public complete views both returned10products against22snapshot entries. Twelve IDs are absent; removal intent cannot be inferred. Preserve the mass-disappearance stop until product intent is confirmed.
 - Canonical Meta schemas are now verified. Full coexistence ingestion still requires tenant/account/phone mapping, consent/session evidence, a durable size-bounded history inbox, atomic replay persistence, configured Routing roles and standby grant/terms. Current ten-event audit storage cannot prove durable backfill.
 - The repository contains a QA destination, but the current instruction does not authorize live sends, calls, capture/refunds or payment writes. Handset/provider/customer journeys require that separately scoped authorization and device evidence.
 - npm audit retains five high braces chain entries; no compatible patched upstream release was available. The moderate UUID chain was corrected earlier. Forced Next/ESLint downgrades are not applied.

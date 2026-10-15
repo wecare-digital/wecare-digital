@@ -1,11 +1,11 @@
 """Staff-only AWS-native product catalog CRUD.
 
-Product authority: stack-wecare-digital-ProductsTable, not Wix or Meta.
+Product authority: stack-wecare-digital-ProductsTable, not Meta.
 This is deliberately a *new* Lambda/route so the legacy storefront can stay
 available for reconciliation until its callers have been moved and verified.
 
 Mutations require the STAFF Cognito Admin group and optimistic concurrency.
-Existing Wix-derived UUID product/variant ids are preserved. Deletion only
+Existing UUID product/variant ids are preserved. Deletion only
 archives the product: historical order records may continue to reference it.
 
 No secrets and no provider-network calls are made in this module.

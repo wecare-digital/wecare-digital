@@ -96,7 +96,7 @@ def assert_payable(address: Dict[str, Any], *, channel: str) -> None:
 
     if channel == WEBSITE_RAZORPAY:
         # Website: a non-India address must still map to the normalized delivery shape, which demands
-        # an ISO 3166-2 state. Re-raise Wix's refusal as the one caller-facing type.
+        # an ISO 3166-2 state. Re-raise the mapping refusal as the one caller-facing type.
         try:
             india_address.to_delivery_address(address)
         except india_address.UnmappableAddress:
@@ -105,17 +105,6 @@ def assert_payable(address: Dict[str, Any], *, channel: str) -> None:
 
     # An unknown channel is a programming error, not a customer error.
     raise UnpayableAddress("UNKNOWN_CHANNEL", "")
-
-
-def for_wix(address: Dict[str, Any]) -> Dict[str, Any]:
-    """Assert website-payability, then return the normalized delivery address. Raises `UnpayableAddress`."""
-    assert_payable(address, channel=WEBSITE_RAZORPAY)
-    try:
-        return india_address.to_delivery_address(address)
-    except india_address.UnmappableAddress:
-        # assert_payable already ran to_india_address for non-India; India can still fail the
-        # mapping here if the subdivision resolved but the owned shape is otherwise unusable.
-        raise UnpayableAddress("UNMAPPABLE_STATE", "state") from None
 
 
 def for_meta_beneficiary(address: Dict[str, Any], *, recipient_name: str) -> Dict[str, Any]:
@@ -140,6 +129,5 @@ __all__ = [
     "WHATSAPP_ORDER_DETAILS",
     "UnpayableAddress",
     "assert_payable",
-    "for_wix",
     "for_meta_beneficiary",
 ]

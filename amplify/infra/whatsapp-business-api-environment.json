@@ -1,7 +1,5 @@
 {
   "FunctionName": "wecare-whatsapp-business-api",
-  "EnvironmentPatch": {
-    "WIX_SITE_URL": "https://wecare.digital"
-  },
-  "Description": "Merge this canonical URL into the existing environment; preserve all other variables. No current Python consumer remains after the Velo fallback retirement."
+  "EnvironmentPatch": {},
+  "Description": "No environment keys are patched. The former site-URL key had no Python consumer and was removed from this patch; preserve all existing variables when deploying."
 }

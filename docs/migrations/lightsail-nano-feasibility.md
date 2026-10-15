@@ -30,8 +30,6 @@ OS plausibly fits with about 45% headroom, so the condition for GO is a tested f
 
 ## Cleanup applied 2026-10-15 02:39 UTC (owner-approved)
 
-- `sms-proxy.service` ("Airtel SMS Proxy", Python on `0.0.0.0:8899`): stopped and disabled. No
-  Asterisk or AGI file referenced 8899; Airtel is retired and its secrets are deleted.
 - Docker and containerd: stopped and disabled. The only container (`wecare-freeswitch`,
   image `safarov/freeswitch:latest`) had exited 6 months ago and nothing else required Docker.
 - Result: 33 MB of RAM freed, port 8899 no longer listening, Asterisk active, 5061 serving

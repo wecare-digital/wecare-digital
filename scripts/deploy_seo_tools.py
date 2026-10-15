@@ -610,10 +610,11 @@ def ensure_freshness_schedule() -> None:
 # `WECARE.DIGITAL` namespace, the same `filterPattern='"event_name"'` shape, the same SNS topic all
 # 61 existing alarms already route to.
 #
-# THE ONE DISTINCTION THAT MATTERS. `blog_publish_refused` is deliberately NOT counted. A refusal
-# is an operator having switched Wix writes off, and paging somebody because the switch they threw
-# is working would teach them to ignore the channel - which is the only thing that makes an alarm
-# worthless. `blog_publish_failed` is Wix rejecting a post, and that is worth a look.
+# THE ONE DISTINCTION THAT MATTERS. Only a recorded FAILURE pages anybody. A native publish has no
+# credential to revoke and no kill switch, so it is never refused: a write either PUBLISHED or
+# FAILED, and `blog_publish_failed` is the native store rejecting a post, which is worth a look.
+# A refusal must never be counted: paging somebody because the switch they threw is working would
+# teach them to ignore the channel - which is the only thing that makes an alarm worthless.
 ALARM_NAMESPACE = "WECARE.DIGITAL"
 #: The topic every one of the 61 existing alarms already uses. An alarm with no action is a row in
 #: a console nobody opens, so `provision_alarms` refuses to create one without it.
@@ -650,8 +651,8 @@ LOG_ALARMS = (
         "BlogPublishFailures",
         0.0,
         300,
-        ("blog_publish_failed logged - Wix rejected a post. Deliberately does NOT count "
-         "blog_publish_refused, which is the kill switch working as intended."),
+        ("blog_publish_failed logged - the native blog store rejected a post. Recorded as "
+         "FAILED; nothing retries automatically."),
     ),
 )
 

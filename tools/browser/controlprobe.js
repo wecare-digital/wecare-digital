@@ -18,14 +18,15 @@
  * ORDER OF OPERATIONS IS THE POINT. It asserts the three controls are PRESENT AND VISIBLE
  * before it records a single number, and fails if any is missing. That one assertion catches
  * a bad seed at the gate rather than at a review, and it does not depend on the reasoning
- * about the seed being right. An earlier revision of the design seeded `crew-t-shirt`, a Wix
- * template sample that src/content/shop.ts:251 filters out of SHOP_PRODUCTS: cart.ts:113
- * would resolve it to null, availableVariantsForItem would return [], needsVariantSelection
- * would return false and .cart-option would never render.
+ * about the seed being right. An earlier revision of the design seeded `crew-t-shirt`, a
+ * template sample product that never reached SHOP_PRODUCTS: src/lib/cart.ts would resolve it
+ * to null, availableVariantsForItem would return [], needsVariantSelection would return false
+ * and .cart-option would never render.
  *
  * STANDING RULE for any product id in a seed, fixture or harness route: check it against
- * SHOP_PRODUCTS in src/content/shop.ts (8 storefront products), NEVER against
- * src/content/wix-catalog.json (21 products).
+ * SHOP_PRODUCTS in src/content/shop.ts (the visible storefront products), NEVER against the
+ * raw rows of src/content/catalog-snapshot.json, which also carry the contribution, services
+ * and test products that SHOP_PRODUCTS filters out.
  *
  * Read-only. Serves the existing static export through lib/serve.js; mutates nothing, sends
  * nothing, and touches no payment path — it reads computed styles.
@@ -69,9 +70,9 @@ const VIEWPORTS = [
 const CART_SEED = [
   {
     // The LIVE contribution variant: Rs.250, `8ad6f376-…`, the only one `Contribute` carries
-    // since the owner reduced it in Wix on 2026-10-10. Seeded with a variant the catalogue no
-    // longer has, the cart row would render as unavailable and the amount select this probe
-    // measures would never appear.
+    // since the owner removed the Rs.100 and Rs.500 amounts on 2026-10-10. Seeded with a variant
+    // the catalogue no longer has, the cart row would render as unavailable and the amount
+    // select this probe measures would never appear.
     productId: '8514c405-3971-4786-ad0d-15406ca23407',
     variantId: '8ad6f376-a526-4631-b510-0e047b33a5b9',
     ref: '8514c405-3971-4786-ad0d-15406ca23407:8ad6f376-a526-4631-b510-0e047b33a5b9',

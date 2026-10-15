@@ -104,7 +104,7 @@ def test_the_committed_export_has_no_high_finding(sync):
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     findings = sync.validate(manifest["templates"])
     high = [f for f in findings if f["severity"] == "HIGH"]
-    assert not high, f"HIGH findings would fail the provider-policy gate: {high}"
+    assert not high, f"HIGH findings would fail the provider allow-list workflow: {high}"
 
 
 def test_the_one_referenced_template_is_still_covered(sync):

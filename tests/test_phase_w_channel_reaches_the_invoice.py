@@ -51,7 +51,7 @@ from lambda_utils.ecommerce import order_channel, order_keys  # noqa: E402
 WEBHOOK_DIR = os.path.join(REPO, 'amplify', 'functions', 'payments', 'razorpay-webhook')
 ENGINE_DIR = os.path.join(REPO, 'amplify', 'functions', 'payments', 'invoice-engine')
 
-KEYS_TABLE = 'stack-wecare-digital-WixOrderIds'
+KEYS_TABLE = 'stack-wecare-digital-CommerceKeys'
 REFERENCE = 'WD-PAY-ABCDEFGHJKMNPQ'
 ATTEMPT = '01930000-0000-7000-8000-000000000001'
 TXN = 'pay_LIVE0000000001'

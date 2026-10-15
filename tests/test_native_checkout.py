@@ -1,5 +1,5 @@
 """native_checkout.quote_native_cart composes the whole native supply chain into a
-QuoteSnapshot with no Wix. Offline fakes; proves the payable amount and stock gate.
+QuoteSnapshot from ProductsTable prices. Offline fakes; proves the payable amount and stock gate.
 """
 import sys
 from pathlib import Path

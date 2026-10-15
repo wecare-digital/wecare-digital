@@ -55,7 +55,7 @@ Two facts were verified before adopting, so this is a purge and nothing else rod
 | `amplify/functions/messaging/whatsapp-business-api/handler.py` | A | Comment only, line ~3165. Placeholders replace the pair. **No code behaviour change; the no-hardcoded-fallback design is intact** |
 | `src/pages/workspace/dashboard/system-architecture.tsx` | A | Retired-comment id replaced. Displayed values remain `acc_TTFSyolquKEZEy` / `wecaredigitalbh511413.rzp@rxairtel` |
 | `amplify/functions/shared/lambda_utils/payment_readiness.py` | B | `STALE` → `RETIRED`, past tense; placeholder replaces the id. Module behaviour unchanged |
-| `.kiro/specs/whatsapp-wix-commerce/tasks.md` | E | Past tense, placeholders |
+| `.kiro/specs/<retired commerce spec>/tasks.md` (spec since deleted) | E | Past tense, placeholders |
 | `tests/test_payment_status.py` | D | Both fixtures → `acc_RETIRED_FIXTURE` |
 | `tests/test_payment_readiness.py` | D | Mismatch fixture → `acc_RETIRED_FIXTURE`; test **kept** |
 | `amplify/functions/messaging/partner-onboarding/handler.py` | — | Webhook-secret fallback removed |

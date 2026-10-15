@@ -1,11 +1,12 @@
 """The shared offline harness for the Phase-2 contribution tests.
 
 Extracted rather than duplicated because two test files drive the same handler against the same
-`FakeDynamo` and the same stateful Cart V2 fake, and a second copy of a 100-line fixture is how
+`FakeDynamo` and the same native catalogue fake, and a second copy of a 100-line fixture is how
 two files come to disagree about what "a seeded cart pointer" means.
 
-Nothing here reaches AWS, the network or a credential. The Razorpay client is stubbed, the Wix
-transport is `tests/contribution_wix.py`, and DynamoDB is `FakeDynamo`.
+Nothing here reaches AWS, the network or a credential. The Razorpay client is stubbed, the
+ProductsTable catalogue is `tests/contribution_catalog.py`'s `NativeCatalog`, and DynamoDB is
+`FakeDynamo`.
 """
 
 from __future__ import annotations
@@ -20,9 +21,9 @@ sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
 from crm_fake_dynamo import FakeDynamo  # noqa: E402
-from contribution_wix import (  # noqa: E402
+from contribution_catalog import (  # noqa: E402
     CART_ID, CONTRIBUTION_CHOICES, CONTRIBUTION_ID, CONTRIBUTION_VARIANT, CONTRIBUTION_VARIANTS,
-    ContributionWix, KIOSK_ID, KIOSK_VARIANT, OTHER_ID, OTHER_VARIANT, REPLACEMENT_CART_ID,
+    NativeCatalog, KIOSK_ID, KIOSK_VARIANT, OTHER_ID, OTHER_VARIANT, REPLACEMENT_CART_ID,
     contribution_line, contribution_paise, kiosk_line, other_line, saved)
 
 from lambda_utils.ecommerce import contact_address  # noqa: E402
@@ -41,8 +42,6 @@ CUSTOMER = "CUS_01J8Z9EXAMPLECUSTOMER"
 
 OWNED = {"addressLine1": "12 Dalhousie Square", "city": "Kolkata",
          "state": "West Bengal", "postalCode": "700001"}
-WIX_ADDRESS = {"country": "IN", "subdivision": "IN-WB", "city": "Kolkata",
-               "postalCode": "700001", "addressLine": "12 Dalhousie Square"}
 
 SESSION_PHONE = "+918100640044"
 STORED_PHONE = customer_identity.normalize_phone_preserving_country(SESSION_PHONE)
@@ -148,23 +147,23 @@ CATALOG_SESSION = {
 }
 
 
-def make_env(monkeypatch, *, wix=None, contribution_env=CONTRIBUTION_ID,
+def make_env(monkeypatch, *, catalog=None, contribution_env=CONTRIBUTION_ID,
              committed=(CONTRIBUTION_ID,), address=OWNED, real_loader=False,
              catalog_leg=True):
     h = _load_handler(monkeypatch, contribution_env=contribution_env, committed=committed)
     fake = FakeDynamo(keys={ATTEMPTS_TABLE: "paymentAttemptId", KEYS_TABLE: "orderId",
                             CONTACTS_TABLE: "id", CART_TABLE: "cartId", PRODUCTS_TABLE: "id"},
                       indexes={CONTACTS_TABLE: {"phone-index": ("phone", None)}})
-    wix = wix if wix is not None else ContributionWix()
+    catalog = catalog if catalog is not None else NativeCatalog()
     monkeypatch.setattr(h, "_dynamodb", fake)
     monkeypatch.setattr(h, "_lambda_client", lambda: _FakeLambda())
     monkeypatch.setattr(h, "INITIATION_ENABLED", True)
     h.gateway_orders = []
     _stub_gateway(h, monkeypatch, h.gateway_orders)
-    # AWS-NATIVE pricing: the handler no longer has `_wix_request`/`wix_ecom`. It prices off
-    # ProductsTable through `_native_product_reader`, which this stubs to the catalogue the `wix`
-    # descriptor carries (contribution variants, kiosk, other, plus any product a test taught it).
-    monkeypatch.setattr(h, "_native_product_reader", wix.reader)
+    # The handler prices off ProductsTable through `_native_product_reader`, which this stubs to
+    # the `catalog` descriptor (contribution variants, kiosk, other, plus any product a test
+    # taught it).
+    monkeypatch.setattr(h, "_native_product_reader", catalog.reader)
     monkeypatch.setattr(h.customer_auth, "authenticate", lambda event: _Identity())
     # The in-chat CART leg is refused at the top of `_create` — cart purchases are collected on
     # the website (requirements statement 8), and that refusal is pinned in
@@ -188,8 +187,6 @@ def make_env(monkeypatch, *, wix=None, contribution_env=CONTRIBUTION_ID,
                                catalog_session=catalog_session or dict(CATALOG_SESSION))
 
         monkeypatch.setattr(h, "_create", _create_on_the_catalog_leg)
-        # The native catalog-service path no longer builds a Wix order payload or gates on a Wix
-        # writeback flag; the internal order is finalized natively. No wix_writeback setup needed.
         fake.Table(KEYS_TABLE).put_item(Item={"orderId": CATALOG_SESSION["orderId"],
                                               "serviceIntentId": CATALOG_INTENT,
                                               "status": "PREPARING_PAYMENT"})
@@ -199,7 +196,7 @@ def make_env(monkeypatch, *, wix=None, contribution_env=CONTRIBUTION_ID,
     else:
         monkeypatch.setattr(h, "LOAD_OWNED_ADDRESS",
                             lambda customer_id: dict(address) if address else address)
-    return h, fake, wix
+    return h, fake, catalog
 
 
 def prepare_event(line_items, **over):

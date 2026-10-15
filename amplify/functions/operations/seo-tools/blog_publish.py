@@ -23,12 +23,11 @@ asserts it by grepping, because that is the kind of convenience somebody adds la
 
 ## The write goes to the AWS-native store, and a failure is recorded rather than swallowed
 
-WIX EXIT COMPLETE: the publish write goes to the AWS-native blog store through
-`storage.create_blog_post`, which persists the PUBLISHED `blogPost` record the native public read
-path (`blog_source`/`storage`) serves. There is no Wix credential and no kill switch in native
-mode, so a native publish is NEVER REFUSED - a write that does not succeed is always recorded as
-FAILED. `wix_blog_migrate` and the Ricos compiler are gone: the native read path renders the
-stored markdown directly, so there is no rich-content compile to satisfy.
+The publish write goes to the AWS-native blog store through `storage.create_blog_post`, which
+persists the PUBLISHED `blogPost` record the native public read path (`blog_source`/`storage`)
+serves. There is no external credential and no kill switch on that path, so a publish is NEVER
+REFUSED - a write that does not succeed is always recorded as FAILED. The public read path renders
+the stored markdown directly, so there is no rich-content compile step.
 
 The duplicate-publish guarantees are source-agnostic and unchanged: the resolve-before-generate
 release, the conditional QUEUED -> PUBLISHING claim, the publish-time releasability and body-hash
@@ -50,7 +49,7 @@ RECORD_TYPE = "blogPublishJob"
 
 #: A job's lifecycle. REFUSED is retained as a historical status constant (older jobs may still
 #: carry it, and `batch_publish_state` still rolls it up) but native publishing never produces it:
-#: there is no Wix credential to switch off, so a write either PUBLISHED or FAILED.
+#: there is no credential to switch off, so a write either PUBLISHED or FAILED.
 QUEUED = "QUEUED"
 PUBLISHING = "PUBLISHING"
 PUBLISHED = "PUBLISHED"
@@ -270,8 +269,8 @@ def publish(job_ref: str, actor: str) -> Dict[str, Any]:
             "would go live; re-run QA, re-sign, and release again")
 
     #: The publish WRITE goes to the AWS-native store (SeoToolsTable `blogPost` records), which
-    #: the native public read path (`blog_source.py`) serves. There is no Wix credential and no
-    #: kill switch in native mode, so a native publish is NEVER REFUSED - a write either PUBLISHED
+    #: the native public read path (`blog_source.py`) serves. There is no external credential and
+    #: no kill switch on this path, so a native publish is NEVER REFUSED - a write either PUBLISHED
     #: or, on an exception, FAILED. `_blog_source_is_aws()` is unconditionally True; it is kept so
     #: `publish` reads as a source-agnostic branch.
     native_blog = _blog_source_is_aws()
@@ -283,8 +282,8 @@ def publish(job_ref: str, actor: str) -> Dict[str, Any]:
     try:
         result = _write_native(record, draft, actor)
     except Exception as exc:  # noqa: BLE001
-        #: A native publish has no Wix credential and no kill switch, so a write that raises is
-        #: always a real failure - recorded as FAILED, never reclassified as a refusal.
+        #: A native publish has no credential to revoke and no kill switch, so a write that
+        #: raises is always a real failure - recorded as FAILED, never reclassified as a refusal.
         logger.exception("blog publish failed")
         #: `wecare-blog-publish-failures` counts this line. A FAILED publish is the native store
         #: rejecting a post, which is a defect to look at.
@@ -323,13 +322,11 @@ def publish(job_ref: str, actor: str) -> Dict[str, Any]:
 
 
 def _blog_source_is_aws() -> bool:
-    """Whether the blog WRITE goes to the AWS-native store. Shares the one BLOG_SOURCE
-    flag with the public READ path (blog_source.py).
+    """Whether the blog WRITE goes to the AWS-native store. Always True.
 
-    WIX EXIT COMPLETE: the blog WRITE always goes to the AWS-native store now. The Wix
-    publish path and its credential/kill-switch handling were removed with the Wix
-    Lambdas, so this is unconditionally True and kept only so `publish()` reads as a
-    source-agnostic branch."""
+    The AWS-native store is the only blog store, for the public READ path (blog_source.py)
+    and for this WRITE alike, and no environment flag is consulted. Kept only so `publish()`
+    reads as a source-agnostic branch."""
     return True
 
 
@@ -339,8 +336,8 @@ def _write_native(record: Dict[str, Any], draft: Dict[str, Any], actor: str) -> 
 
     Maps the approved draft to `storage.create_blog_post`'s body and writes it as a
     PUBLISHED `blogPost` record — the exact record type `blog_source`/`storage` serve to
-    the public blog. Markdown is stored as-is (the native read path renders it); no Ricos
-    compile is needed because there is no Wix to satisfy.
+    the public blog. Markdown is stored as-is; the native read path renders it, so there is
+    no compile step.
     """
     body = {
         "title": str(draft.get("title") or "").strip(),

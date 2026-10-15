@@ -480,7 +480,7 @@
     "ServicePricesRoute": {
       "Type": "AWS::ApiGatewayV2::Route",
       "Metadata": {
-        "WECARE::Consumer": "src/lib/servicePricing.ts GETs ${API_BASE}/ecommerce/service-prices from the four public service pages (/submit-request/, /request-amendment/, /drop-docs/, /vault/) so each card shows its own variant's LIVE Wix price. Owner decision 2026-10-08: a price must be changeable in Wix with no deploy.",
+        "WECARE::Consumer": "src/lib/servicePricing.ts GETs ${API_BASE}/ecommerce/service-prices from the four public service pages (/submit-request/, /request-amendment/, /drop-docs/, /vault/) so each card shows its own variant's live ProductsTable price. A price changes in the native catalogue with no deploy.",
         "WECARE::WhyAnonymous": [
           "This is the ONE route on this function that is not behind require_customer, and the",
           "exemption is deliberate rather than an oversight.",
@@ -488,8 +488,8 @@
           "A visitor reads the price BEFORE signing in - the price is what decides whether they",
           "sign in at all - so there is no customer identity available to authenticate. The arm is",
           "narrow by construction: GET only, one exact path, and handler._service_prices accepts no",
-          "path parameter, no query string and no body, so nothing a caller supplies reaches Wix or",
-          "a table. It returns only Wix-live prices in integer paise and cannot mutate anything.",
+          "path parameter, no query string and no body, so nothing a caller supplies reaches the catalogue or",
+          "a table. It returns only live catalogue prices in integer paise and cannot mutate anything.",
           "",
           "POST on the same path still requires a session: handler.handler gates the pre-auth arm",
           "on the method as well as the path, and the SourceArn below pins GET, so the exemption",
@@ -506,9 +506,9 @@
           "only takes as a parameter, so declaring AWS::ApiGatewayV2::Stage would claim ownership",
           "of configuration belonging to every other function.",
           "",
-          "WHY IT EXISTS. A cache MISS on this route costs eight Wix calls (get + estimate per",
-          "variant) on the same API key the live checkout prices real baskets with, so anonymous",
-          "traffic here can induce provider throttling that reaches the payment path. The /api/*",
+          "WHY IT EXISTS. A cache MISS on this route costs a ProductsTable scan on the same table",
+          "the live checkout prices real baskets from, so anonymous traffic here can induce read",
+          "throttling that reaches the payment path. The /api/*",
           "edge was measured caching a public max-age response on 2026-10-08, which keeps origin",
           "volume to roughly one fill per PoP per minute - but that is someone else's",
           "configuration and could change silently. This cap does not depend on it.",
@@ -531,7 +531,7 @@
       "Type": "AWS::Lambda::Permission",
       "Metadata": {
         "WECARE::WhySeparate": "One statement per route, with an EXACT SourceArn and no wildcard. The METHOD in the ARN is load-bearing here: it is what keeps the anonymous exemption to GET.",
-        "WECARE::NoNewIam": "The arm needs nothing the role does not already hold - it reads the Wix key (ReadWixApiKey) and the commerce-keys table (PaymentAttemptAndCommerceKeys) that the checkout path already uses, so no policy statement changes."
+        "WECARE::NoNewIam": "The arm needs nothing the role does not already hold - it reads the ProductsTable (ReadNativeProductCatalog) and the commerce-keys table (PaymentAttemptAndCommerceKeys) that the checkout path already uses, so no policy statement changes."
       },
       "Properties": {
         "FunctionName": {

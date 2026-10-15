@@ -52,7 +52,11 @@ def test_nothing_forbidden_is_granted(prov):
     for verb in ("DeleteItem", "Scan", "BatchWriteItem", "BatchGetItem", "*"):
         assert not any(a.endswith(verb) for a in actions), verb
     text = json.dumps(prov.expected_role_policy(ACCT))
-    assert "razorpay" not in text.lower() and "wix/" not in text.lower()
+    assert "razorpay" not in text.lower()
+    # Every resource is one of this stack's DynamoDB tables or indexes: no secret, no provider.
+    resources = [r for s in prov.expected_role_policy(ACCT)["Statement"] for r in s["Resource"]]
+    assert all(r.startswith(f"arn:aws:dynamodb:us-east-1:{ACCT}:table/stack-wecare-digital-")
+               for r in resources), resources
     assert "wecare-digital-lambda-role" not in SCRIPT.read_text()
 
 

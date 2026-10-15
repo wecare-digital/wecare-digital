@@ -2,8 +2,8 @@
 
 Regression guard for a silent failure. `plivo-answer._persist_cdr` had been
 writing rows into VoiceCDRTable since the Plivo migration, in snake_case only.
-Every read path (voice-cdr-read._format_record_for_ui, _calculate_stats, and the
-CDR tab) binds to camelCase Airtel-era names, so those rows were in the table and
+Every read path (voice-cdr-read._format_record, _calculate_stats, and Call
+History) binds to camelCase names, so those rows were in the table and
 invisible in the product:
 
   * blank caller / destination / status cells
@@ -276,9 +276,8 @@ def test_nonnumeric_duration_does_not_raise(captured):
 # invariants that must not regress
 # --------------------------------------------------------------------------
 
-def test_source_stays_plivo_because_the_table_is_shared(captured):
-    """VoiceCDRTable holds Plivo and historical retired-provider rows.
-    `source` is the only discriminator."""
+def test_source_names_plivo_as_the_writer(captured):
+    """plivo-answer is VoiceCDRTable's only writer; `source` and the id prefix say so."""
     item = _persist(captured, CallUUID="u12", Direction="inbound",
                     CallStatus="completed", Duration="5")
     assert item["source"] == "plivo"
@@ -300,7 +299,7 @@ def test_missing_call_uuid_is_refused(captured):
     assert captured.items == []
 
 
-def test_breadcrumb_is_written_as_plivo_not_airtel(captured):
+def test_breadcrumb_is_written_with_the_plivo_call_type(captured):
     """src/pages/workspace/engage/calls keys its provider badge on this value."""
     _persist(captured, CallUUID="u14", From="+919876543210", To="+918031830030",
              Direction="inbound", CallStatus="completed", Duration="12")

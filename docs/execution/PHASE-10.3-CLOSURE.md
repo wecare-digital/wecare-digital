@@ -87,7 +87,7 @@ generate_integration_inventory --check  current
 | 5 Plivo PSTN + softphone | ✅ COMPLETE (5.1–5.4) |
 | 6 chatbot + governed ops | ✅ COMPLETE (6.1–6.4) |
 | 7.1 integration registry | ✅ **COMPLETE** — 88 fixture-driven contract tests; live reads `WAITING_FOR_OWNER`, which the prompt names as a completion state |
-| 7.2 Meta Ads / Wix refactor | ✅ **COMPLETE** — domain layer lifted (handler 1,761 → 1,512 lines), equivalence proven over 64 golden cases, 0 differences |
+| 7.2 Meta Ads / storefront refactor | ✅ **COMPLETE** — domain layer lifted (handler 1,761 → 1,512 lines), equivalence proven over 64 golden cases, 0 differences; that storefront handler has since been retired |
 | 7.3 Growth + Commerce homes | ✅ COMPLETE (behind flags, both off) |
 | 8.1 eight module homes | ✅ COMPLETE |
 | 8.2 productVocabulary + CI | ✅ COMPLETE, now blocking at every severity |
@@ -131,7 +131,6 @@ generate_integration_inventory --check  current
 | Gap | Severity | Note |
 |---|---|---|
 | `origin` still threads through 22 signatures via a module global | MEDIUM | The cross-request leak is fixed (reset in `finally`, 7 tests) and the domain layer is out, but `_response` still reads a global rather than taking an argument. 36 call sites, only 2 with an origin to pass |
-| `_money_amount` passes a non-numeric price through verbatim | LOW | It is `str(value)` with a dict unwrap. A junk price would travel into a Wix payload. Pre-existing and unchanged by the lift (all 64 golden cases matched); latent only because Wix is switched off |
 | Meta Ads monolith boundaries | LOW | `marketing-ads` is 448 lines with 0 DynamoDB scans, so there is no scan debt. The adapter/domain split there was not needed to close 7.2 and was not done |
 | `wecare-customer-whatsapp-auth` in the deploy map, absent from the account | LOW | The customer-pool script was written and never run. One `failed=1` in every deploy-all |
 | `wecare-invoice-engine` imports `qrcode`, not in package or layers | LOW | Guarded by try/except, so it degrades rather than crashes |

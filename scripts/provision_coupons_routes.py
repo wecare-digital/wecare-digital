@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Provision the seven `wecare-coupons` HTTP API routes, their integration and their permissions.
 
-Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/coupons-20261001.md` section 5.1.1.
+Design reference: the coupons and gift-cards design note of 2026-10-01 (`coupons-20261001.md`),
+section 5.1.1.
 
 Without this script the function would be deployed with no way to reach it, which is the gap the
 design calls out: the deploy sequence is table -> role -> routes -> deploy -> alias -> publish.

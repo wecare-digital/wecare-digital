@@ -126,8 +126,9 @@ WA_CATALOG_ORDERS_ENABLED = os.environ.get(
 # Where the hand-off link points. The public cart page, which already reads a session and owns the
 # claim effect. Trailing slash because the site is a static export and `/cart` would redirect.
 CART_HANDOFF_URL = os.environ.get('CART_HANDOFF_URL', 'https://wecare.digital/cart/')
-# The reply copy. NO PRICE, NO TOTAL, NO ITEM COUNT IN MONEY TERMS - Wix prices the basket when
-# the customer opens it, and a figure here would be a second total with a different authority.
+# The reply copy. NO PRICE, NO TOTAL, NO ITEM COUNT IN MONEY TERMS - the website checkout prices
+# the basket from ProductsTable when the customer opens it (`checkout_pricing.compute_quote`), and
+# a figure here would be a second total with a different authority.
 CART_HANDOFF_BUTTON = 'Open my cart'
 CART_HANDOFF_BODY = ('Your cart is saved. Open it on our website to review it and pay securely. '
                      'Sign in with this same WhatsApp number and the items will be waiting.')
@@ -6664,11 +6665,12 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
     WHAT THIS USED TO DO, AND WHY NONE OF IT IS LEFT
     ------------------------------------------------
     It built a native `order_details` (Review & Pay) message out of Meta's own numbers:
-    `item_price` read as a **float**, `gst_rate: 18.0` added to goods Wix had already taxed, supply
-    GST re-added per item inside `_send_payment_request`, a convenience fee logged at **2%**
-    against the 2.5% the rest of the system charges, and every `retailer_id` rewritten to
-    `ITEM_1..n` so a line could never be resolved back to the Wix variant it came from. Five
-    numbers, not one of which agreed with what the website would charge for the same basket.
+    `item_price` read as a **float**, `gst_rate: 18.0` added to goods whose catalogue price
+    already includes GST, supply GST re-added per item inside `_send_payment_request`, a
+    convenience fee logged at **2%** against the 2.5% the rest of the system charges, and every
+    `retailer_id` rewritten to `ITEM_1..n` so a line could never be resolved back to the catalogue
+    variant it came from. Five numbers, not one of which agreed with what the website would charge
+    for the same basket.
 
     It also could not complete. `_send_payment_request` reaches
     `outbound-whatsapp::_build_payment_settings`, the single per-WABA payment-configuration
@@ -6689,8 +6691,9 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
     not called either: its only purpose was a display name on that message.
 
     THE REPLY CARRIES NO PRICE, deliberately. Meta's `item_price` is the customer's client's view;
-    Wix prices the basket at claim time. Quoting a figure here would be a second total with a
-    different authority - the defect being removed, not a feature being kept.
+    the website checkout prices the basket from ProductsTable after the claim. Quoting a figure
+    here would be a second total with a different authority - the defect being removed, not a
+    feature being kept.
 
     All the real logic is in `lambda_utils.ecommerce.whatsapp_basket`, which is pure and tested on
     its own. This function is wiring: a gate, two refusals, two conditional writes and a reply.
@@ -6728,7 +6731,7 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
 
         basket = whatsapp_basket.parse_order_message(message)
         if basket is None:
-            # Nothing in the cart resolves to a Wix variant. The existing conversational paths
+            # Nothing in the cart resolves to a catalogue variant. The existing conversational paths
             # still apply; handing over a link to an empty basket would not.
             logger.info(json.dumps({
                 'event': 'cart_order_no_resolvable_lines',
@@ -6822,7 +6825,7 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
 # order_details message - not the approved template - with float GST, a browser-style
 # `WD-PAY-` reference minted in-process and reserved nowhere, a 2% convenience fee against the
 # 2.5% the rest of the system charges, and every `retailer_id` rewritten to `ITEM_n` so a line
-# could never be resolved back to the Wix variant it came from. It had ZERO callers: the
+# could never be resolved back to the catalogue variant it came from. It had ZERO callers: the
 # catalogue-order path stopped calling it in Phase W, and nothing else ever did.
 #
 # A minted-but-unreserved reference is the failure `wa_payment_request` exists to prevent: it

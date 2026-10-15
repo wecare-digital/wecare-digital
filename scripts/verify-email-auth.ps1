@@ -104,7 +104,6 @@ if ($spf.Count -eq 0) {
 Head 'DKIM by sending service'
 
 $dkimGroups = @(
-    @{ Name = 'Wix Ascend / SendGrid'; NeedAll = $true;  Selectors = @('s1', 's2', 'sel1') }
     @{ Name = 'Google Workspace';      NeedAll = $true;  Selectors = @('google') }
     @{ Name = 'Amazon SES';            NeedAll = $false; Selectors = @(
             'v5w4wexbfyum54omlfe7l6ayada7j2nq',
@@ -148,11 +147,8 @@ if ($dmarc.Count -eq 0) {
     elseif ($d -match 'p=quarantine') { Warn 'p=quarantine - not yet at reject' }
     else                              { Warn 'p=none - monitoring only, no enforcement' }
 
-    if ($d -match 'aspf=s') {
-        Fail 'aspf=s breaks Wix: envelope sg.wecare.digital vs From wecare.digital needs relaxed'
-    } else {
-        Pass 'aspf relaxed - subdomain envelope senders (Wix/SendGrid) align'
-    }
+    if ($d -match 'aspf=s') { Warn 'aspf=s - requires the envelope domain to equal From on every sender' }
+    else                    { Pass 'aspf relaxed' }
     if ($d -match 'adkim=s') { Warn 'adkim=s - requires exact d= match on every sender' }
     else                     { Pass 'adkim relaxed' }
 

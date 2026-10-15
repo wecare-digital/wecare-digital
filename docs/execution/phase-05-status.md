@@ -32,17 +32,11 @@ a measurement, the measurement is recorded and the stale figure is named.
 | `DEP-READBACK-001` | Per-file proof of what each `live` alias runs | `LIVE_VERIFIED` | `check_deployed_source.py`, 62 functions |
 | `SEC-SITELANG-001` | Unauthenticated Polly + open translate proxy closed | `LIVE_VERIFIED` | v6→v7; 200→404 on `/voices`, 403 on `/translate` |
 | `DEP-STALE-001` | Stale rate limiter reached its two callers | `LIVE_VERIFIED` | bulk-worker v16, partner-onboarding v16, 83/83 files identical |
-| `DEP-STALE-002` | Airtel-field removal reached `voice-in-obd` | `DEPLOYED` | v17→v18, 83/83 identical; no traffic in window to verify live |
 | `DEP-STALE-003` | Softphone artifact carries current `middleware.py` | `DEPLOYED` | v1→v2, 83/83 identical; behind feature flag, so not live-verifiable |
 | `RET-PAYU-001` | PayU permanently absent | `LIVE_VERIFIED` | `DeleteSecret` 2026-08-26 window=30; now `ResourceNotFoundException` |
-| `RET-AIRTEL-001` | Airtel secrets retired | `DEPLOYED` | 4 secrets in recovery window to ~2026-10-20T01:46Z |
 | `RET-SINCHSMS-001` | Sinch SMS retired, India RCS retained | `DEPLOYED` | `wecare/sinch/sms` in window; `wecare/sinch/rcs` untouched |
 | `RET-ELEVENLABS-001` | ElevenLabs surface absent at runtime | `DISCOVERED` | 6 Lambdas + 3 HTTP APIs + 1 table absent; 6 CFN stacks + 1 IAM role remain |
 | `PROV-POLICY-001` | Provider policy, static and live | `LIVE_VERIFIED` | both gates green, 361 routes scanned |
-| `WIX-SITE-001` | Production Wix site identity | `LIVE_VERIFIED` | headless client resolves to the committed site id; Wix reports `xout.wecare.digital` |
-| `WIX-CAT-001` | Catalog V3 in use | `LIVE_VERIFIED` | `stores/v1` → 428 `CATALOG_V3_CALLING_CATALOG_V1_API`; 7 products |
-| `WIX-BLOG-001` | Blog reachable | `LIVE_VERIFIED` | `blogV3` 200; 617 posts |
-| `WIX-INVOICE-001` | Wix Invoices available | `BLOCKED` | `wixInvoices` **NOT AVAILABLE**; `invoicesV2` 404 |
 | `PSTN-PLIVO-001` | Plivo voice-only, protected binding intact | `LIVE_VERIFIED` | `plivo-reconcile` all PASS; `+918031830030` → app `12775976954213184` |
 | `PAY-RZP-001` | Razorpay is the only gateway, correct secret path | `LIVE_VERIFIED` | `verify_razorpay_secret_path.py`: new path resolves, old returns 501 |
 | `META-SUB-001` | Meta subscription ownership | `DISCOVERED` | 2 apps subscribed to WABA1 and WABA2; WABA3 read returns 400 |
@@ -260,27 +254,9 @@ Event source mappings: 2 total, both pointing at functions that exist — no
 obsolete mapping. Repository recreation paths for ElevenLabs: one hit, in
 `check_provider_policy_live.py` itself, which names it as retired and must stay.
 
-Retired-provider log groups retained as non-executable history, per rule 35:
-`wecare-payu-webhook` 8,084 B · `wecare-sinch-dlr` 8,226 B ·
-`wecare-sms-in-airtel` 380,598 B · `wecare-voice-in-cdr` 948,993 B ·
-`wecare-outbound-voice` 521 B · `wecare-temp-code-inspector` 743 B.
-
 ---
 
-## 5. Wix, Meta, Plivo, Razorpay
-
-**Wix** — the headless client resolves to the committed production site id and
-Wix reports that site as `xout.wecare.digital`, so the draft `WECARE.DIGITAL` site
-was not selected. `CATALOG_V3` confirmed by `stores/v1` returning 428
-`CATALOG_V3_CALLING_CATALOG_V1_API`. 7 products, 617 blog posts.
-`storesInventoryV3`, `storesCategoriesV3`, `storesCustomizationsV3`,
-`storesBrandsV3`, `blogV3` all 200.
-
-The billing plan needs revisiting: **`wixInvoices` reports NOT AVAILABLE and
-`invoicesV2` returns 404.** Requirements 104–106 assume a Wix billing document.
-`ecomOrders` 403 `READ_ORDER_FORBIDDEN`, `members` 403 and `siteProperties` 403
-are expected for a visitor token and are not findings; they do mean order and
-member reads need the admin-scoped path.
+## 5. Meta, Plivo, Razorpay
 
 **Meta** — two apps are subscribed to the same WABAs: `2238810740192680`
 (WECARE.DIGITAL) and `1143680903703001` (Business Agent), both on WABA1
@@ -358,7 +334,6 @@ QA round trip. Enabling a live-send path is outside the standing grant.
 | `OBS-TRAIL-001` | HIGH | No management-event audit beyond 90 days; no Athena query path | No trail ever created | 90-day console history | Create one multi-region trail to an SSE-KMS bucket | 1–2 h |
 | `RET-ELEVENLABS-001` | MEDIUM | 6 CFN stacks can recreate retired-provider infrastructure | Resources deleted outside CloudFormation | stacks are inert unless updated | `A4` gate: delete 6 stacks + `wecare-elevenlabs-postcall-role`; templates already exported | 1 h |
 | `SEC-SITELANG-002` | MEDIUM | `/voices` and `/tts` routes still exist, now 404 | Routes were never deleted with the code | handler 404s them | `A4` gate: delete both routes; target Lambda exists so this is outside the standing grant | 30 m |
-| `WIX-INVOICE-001` | MEDIUM | Billing requirements 104–106 assume an unavailable API | `wixInvoices` not installed on this site | none | Decide: install Wix Invoices, or record the paid-order receipt through the supported order-linked mechanism | 4–8 h to re-plan |
 | `OBS-DLQ-001` | MEDIUM | 3 DLQs unmonitored; 2 alarms can never fire | Alarms point at `base-wecare-digital-*`, queues are `stack-wecare-digital-*` | none | **Closed in `df67e7f3`** — 2 alarms repointed, notification DLQ alarm added, statistic corrected to `Maximum > 0`; 33 alarms also given a human subscriber | done |
 | `SEC-POLLY-001` | LOW | Dead Polly grant persists on the shared Lambda role; the grant cannot be revoked account-wide because it has live consumers | 3 separate declarations; `deploy_site_language.py:104-106` writes the dead one onto a role shared account-wide | none needed — no route reaches it since v7 | Narrow `deploy_site_language.py` and re-run (**cleanup, not closure**). Real fix is a least-privilege role for site-language, per entry 142. Confirm effective permissions with a live `list-role-policies` read before recording as fixed | 30 m edit; 2 h for the role |
 | `SEC-DOMAIN-001` | MEDIUM | The Amplify app is configured to answer **every** `*.wecare.digital` name, bound to branch `stack` | Domain association carries a wildcard subdomain entry: `* CNAME d2av2go6w170k.cloudfront.net` with `prefix` absent and `branchName: stack` | Latent, not live: entry 234 verified **no** wildcard CNAME in Route 53, so an unconfigured name NXDOMAINs rather than reaching the app | Decide whether the wildcard entry should exist. First a live read — Amplify `GetDomainAssociation` plus the zone — since the only evidence today is a pre-teardown snapshot. `A3` if removed | 1 h |
@@ -375,14 +350,14 @@ QA round trip. Enabling a live-send path is outside the standing grant.
 **`LIVE_VERIFIED`** — AWS inventory · route authorization (0 open of 361) · WAF
 association · per-file deploy readback · site-language exposure closed · rate
 limiter reaching its callers · PayU permanently absent · provider policy static
-and live · Wix production site identity, Catalog V3 and Blog · Plivo voice-only
+and live · Plivo voice-only
 with protected binding intact · Razorpay secret path.
 
 **`ENGINEERING REMAINING`** — 206 HIGH CodeQL findings · CloudTrail trail ·
 TLS floor on one distribution · the wildcard subdomain decision · a real 404
 page · least-privilege role for site-language · unified notification cutover
 (code done, flags off) · duplicate producer retirement · Web Phone completion ·
-customer identity and OTP · Wix adapters and page composer · commerce, order,
+customer identity and OTP · page composer · commerce, order,
 billing and tracking · frontend consolidation · CRM, growth, MCP · native shells.
 
 **`WAITING_FOR OWNER/PROVIDER`** — WhatsApp handset round trip · connected-call

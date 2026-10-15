@@ -6,13 +6,13 @@
 
 **Architecture:** Reuse the website's customer identity, OrderTable and invoice records. Native Flows are views/actions over those records; the chat payment message uses a frozen server quote and a verified payment attempt. Vault uses a native list and download template, without a Flow.
 
-**Tech Stack:** Python Lambda, DynamoDB, Cognito, S3, Meta Graph API/Flows, Wix repository, Next.js/React.
+**Tech Stack:** Python Lambda, DynamoDB, Cognito, S3, Meta Graph API/Flows, Next.js/React.
 
 **Spec:** orders-whatsapp-flow-blueprint-20261009.md, supplied in the task workspace; service-flow-drafts/payment-artwork-check.md.
 
 ## Global constraints
 
-- Preserve the current brand, Wix variant IDs/prices, public order-number formatting, dataset 4554612361454941 and catalog 1457045652952851.
+- Preserve the current brand, `ProductsTable` variant IDs/prices, public order-number formatting, dataset 4554612361454941 and catalog 1457045652952851.
 - Every personal read/action must bind verified permanent customer identity, never a caller-supplied phone/order alone.
 - Keep original order, paid service purchase, payment attempt/reference and request IDs distinct.
 - No new Vault Flow. No charge for invoice copies, reviews or undefined shipment SKUs.
@@ -72,6 +72,6 @@ This is a partial release, not end-to-end customer certification. Keep unchecked
 
 Backend merged-tree offline gate: 10,332 passed, 7 skipped, 3 expected failures. Exact ZIP import checks pass for all three customer-service candidates, including the new invoice module. Orders/invoice inert candidate invocations reject unauthorized HTTP with 403 and no function error. No actual invoice send, customer purchase, capture, refund, or fabricated Purchase event was executed by those checks.
 
-The four Wix proposals have concise public descriptions and the original IDs/prices: Submit Request ₹99; Request Amendment ₹99; Drop Docs ₹350; Vault ₹49. All proposals remain out of stock. Their Wix image URLs are assigned; the six original ultra-HD catalog PNGs remain separately stored under `o/catalog/services/<slug>/v1/image-4096.png` in `wecare-digital-get`.
+The four catalog proposals have concise public descriptions and the original IDs/prices: Submit Request ₹99; Request Amendment ₹99; Drop Docs ₹350; Vault ₹49. All proposals remain out of stock. Their image URLs are assigned; the six original ultra-HD catalog PNGs remain separately stored under `o/catalog/services/<slug>/v1/image-4096.png` in `wecare-digital-get`.
 
 Immediate rollback: business API 87 (original pre-feature baseline 83), secure-files 32, service-requests 4, catalog-sync 6. Catalog-sync 6 restores the obsolete old catalog configuration and should only be used as an emergency rollback. Preserve later concurrent releases; refresh alias revisions before any rollback. Remove only `PrivateIncomingOwnershipProof` from the existing secure-files policy if rolling back that scoped permission.

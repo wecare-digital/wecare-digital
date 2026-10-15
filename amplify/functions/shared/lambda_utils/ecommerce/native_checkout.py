@@ -1,11 +1,11 @@
-"""Compose the native supply pieces into a QuoteSnapshot — the AWS-native
-counterpart of the Wix snapshot-building branch in checkout/handler.py.
+"""Compose the native supply pieces into a QuoteSnapshot for checkout/handler.py.
 
-This is the single orchestration seam the checkout handler calls when
-CHECKOUT_MODE=AWS_NATIVE, so the handler's native branch stays a few lines and
-all the composition is unit-testable here, off the live payment path.
+This is the single orchestration seam the checkout handler calls to price a basket
+(`_native_quote`) and a saved cart (`NativeCartAdapter.calculate`), so the handler
+stays a few lines and all the composition is unit-testable here, off the live
+payment path.
 
-The chain, with NO Wix anywhere:
+The chain:
     native_cart.to_catalog_lines(cart)                       # lines (server prices)
     native_inventory.validate_lines(...)                     # fail-closed stock check
     native_shipping.resolve_delivery_paise(...)              # delivery charge
@@ -16,16 +16,13 @@ The chain, with NO Wix anywhere:
     checkout_pricing.compute_quote(collection)               # + convenience fee + GST
     checkout_pricing.build_snapshot(...)                     # the immutable QuoteSnapshot
 
-The payment amount is the native quote's total (identical downstream handling to
-the Wix path). Prices are server-authoritative; a client value never enters. The
-snapshot's `site` is tagged `aws-native` so a persisted amount is traceable to the
-native policy, not Wix.
+The payment amount is the native quote's total. Prices are server-authoritative; a
+client value never enters. The snapshot's `site` is tagged `aws-native` so a
+persisted amount is traceable to the native pricing policy.
 
 Stock reservation is performed by the CALLER around payment initiation (reserve
 before creating the gateway order, release on failure), not here — this function
 only PRICES and VALIDATES, so it is side-effect-free and safe to call repeatedly.
-
-NOT WIRED until the handler gates on CHECKOUT_MODE=AWS_NATIVE (owner-gated).
 """
 from __future__ import annotations
 
@@ -100,8 +97,7 @@ def quote_native_cart(
         # `lineItemId` is the STABLE line identity the paid-basket narrow guard keys on
         # (checkout_pricing.narrow_basket_hash returns "" and the guard is DISABLED for a line
         # without one). Natively the variant id IS that identity — the same choice NativeCartAdapter
-        # makes — so the duplicate-payment narrow guard works on the native path exactly as it did
-        # on the Wix cart.
+        # makes — so the duplicate-payment narrow guard stays enabled on every native quote.
         items=[{"lineItemId": ln.variant_id,
                 "productId": ln.product_id, "variantId": ln.variant_id,
                 "quantity": ln.quantity, "unitPricePaise": ln.unit_price_paise}

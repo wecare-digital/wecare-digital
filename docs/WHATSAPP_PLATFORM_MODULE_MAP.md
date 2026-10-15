@@ -26,7 +26,7 @@ Contact, Message, WhatsAppInbound, WhatsAppOutbound, MediaFile, DLQMessage, Audi
 RateLimitTracker, SystemConfig, ScheduledMessage, WhatsAppVoice, WhatsAppCalling, WhatsAppGroup,
 TemplateAnalytics, SubmitRequest, ConversationHistory, AIInteraction, **WebhookDedup**,
 **SystemEvent**, CatalogCache, AdClickAttribution, FlowRegistry, FlowDraft, FlowSubmission,
-FlowLog, Payment, Invoice(+Item/Asset/DeliveryLog/Sequence), Razorpay/PayUWebhookLog, Wix*,
+FlowLog, Payment, Invoice(+Item/Asset/DeliveryLog/Sequence), Razorpay/PayUWebhookLog,
 Order, Appointment, RxSlot, Document, EnterpriseAssist, Review, Faq, RequestStatusHistory.
 (Note: `WebhookDedup` and `SystemEvent` models **already exist** — earlier draft incorrectly flagged dedup as absent.)
 
@@ -154,7 +154,7 @@ template_management, validation, webhook_signature.
 ### M9 · Catalog / Commerce
 1. **Module**: Catalog + commerce settings
 2. **Lambda**: `ecommerce/catalog-management/handler.py`; commerce-settings in M3
-3. **Models**: CatalogCache, WixProductsCache
+3. **Models**: CatalogCache; products live in `ProductsTable` (`wecare-native-catalog-admin`)
 4. **Frontend**: `dm/content`, `store`
 5. **Meta doc**: Commerce settings (Graph) — WABA-to-number ref
 6. **Missing endpoints**: product set sync; cart webhooks

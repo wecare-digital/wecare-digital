@@ -29,7 +29,7 @@ ps -eo pid,comm,rss --sort=-rss 2>/dev/null | head -15 || true
 
 echo "--- SERVICES (is this Asterisk + anything else?) ---"
 systemctl list-units --type=service --state=running 2>/dev/null \
-  | grep -Ei 'asterisk|certbot|nginx|httpd|airtel|proxy|8899' || echo "  (no matching services)"
+  | grep -Ei 'asterisk|certbot|nginx|httpd|proxy|8899' || echo "  (no matching services)"
 
 echo "--- LISTENING SOCKETS (expect 5061 TLS, RTP range; flag :8899 legacy proxy) ---"
 ss -tulnp 2>/dev/null | sed "$REDACT" | grep -E ':(5061|5060|8899|10[0-9]{3}|[1-5][0-9]{4})' || true
@@ -46,7 +46,7 @@ if command -v asterisk >/dev/null 2>&1; then
 else echo "  (asterisk CLI not found)"; fi
 echo "--- DISK BY PATH (what a migration would copy) ---"
 du -sh /etc/asterisk /etc/letsencrypt /var/lib/asterisk /var/spool/asterisk /var/log/asterisk 2>/dev/null || true
-echo "--- LEGACY :8899 PROXY (Airtel retired 2026-10-14; firewall port closed) ---"
+echo "--- LEGACY :8899 PROXY (retired 2026-10-14; firewall port closed) ---"
 ss -tlnp 2>/dev/null | grep -q ':8899 ' && echo "  a process still LISTENS on :8899" || echo "  nothing listens on :8899"
 echo "--- SCHEDULED JOBS (names only; command lines can hold URLs/tokens) ---"
 ls /etc/cron.d 2>/dev/null || true

@@ -1,29 +1,27 @@
-"""A coupon works on a WhatsApp-origin basket BY CONSTRUCTION, and gift cards are deferred.
+"""A coupon works on a WhatsApp-origin basket BY CONSTRUCTION, and gift cards gain nothing.
 
 WHY "BY CONSTRUCTION" IS THE WHOLE CLAIM
 ----------------------------------------
-Phase W adds no coupon code. After the hand-off is claimed, a WhatsApp catalogue order IS a Wix
-cart belonging to a signed-in customer - the same row, under the same `CUSTOMERCART#` key, holding
-the same `cartId` a website basket would have. Every coupon authority downstream keys on that
-cart id and on the customer, and NONE of them can see a channel:
+Phase W adds no coupon code. After the hand-off is claimed, a WhatsApp catalogue order IS a
+website cart belonging to a signed-in customer - the same row, under the same `CUSTOMERCART#`
+key, holding the same `cartId` a website basket would have. Every coupon authority downstream
+keys on that cart id and on the customer, and NONE of them can see a channel:
 
   * `ecommerce/coupons` decides eligibility and holds the code, keyed on `cartId` + `customerId`;
-  * `purchase_intent.apply_coupon` sends the code to Wix, which decides what it is worth;
+  * `purchase_intent.apply_coupon` hands the code to the cart's adapter, which decides its worth;
   * `redemption.apply_coupon` turns a provider verdict into `discounted_collection_paise`;
   * `checkout_pricing.compute_quote` charges the convenience fee ON that discounted collection.
 
 So the tests below are mostly NEGATIVE and STRUCTURAL: there is no second discount arithmetic, no
 channel-aware branch in any coupon authority, and the fee basis is the discounted collection rather
-than the original. A positive end-to-end coupon test would prove the Wix stub works; these prove
-there is only one implementation to get wrong.
+than the original. A positive end-to-end coupon test would prove a stub works; these prove there
+is only one implementation to get wrong.
 """
 from __future__ import annotations
 
 import ast
 import pathlib
 import sys
-
-import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
@@ -38,7 +36,7 @@ INBOUND_HANDLER = ROOT / "amplify/functions/messaging/inbound-whatsapp-handler/h
 CHECKOUT_HANDLER = ROOT / "amplify/functions/ecommerce/checkout/handler.py"
 INVOICE_ENGINE = ROOT / "amplify/functions/payments/invoice-engine/handler.py"
 
-#: Wix collection 25499.00, the shared Cart V2 fixture's figure.
+#: A ₹25,499.00 basket collection, before any coupon.
 COLLECTION_PAISE = 2549900
 #: A flat ₹500 coupon, as a provider would report it.
 DISCOUNT_PAISE = 50000
@@ -61,7 +59,7 @@ class _Provider:
 
 
 class _RecordingAdapter:
-    """A Cart V2 adapter recording every coupon call, so the two channels can be compared."""
+    """A cart adapter recording every coupon call, so the two channels can be compared."""
 
     def __init__(self):
         self.coupons = []
@@ -135,10 +133,10 @@ def test_the_same_coupon_on_the_same_basket_costs_the_same_on_both_channels():
         compute_quote(website.discounted_collection_paise).total_payable_paise
 
 
-def test_a_coupon_reaches_wix_through_the_one_purchase_intent_path():
+def test_a_coupon_reaches_the_cart_adapter_through_the_one_purchase_intent_path():
     """`purchase_intent.apply_coupon` is a one-line delegation to the adapter, and both channels go
-    through it. The code is a CLAIM: Wix decides the value, and the reduced figure comes back
-    through Calculate Cart like every other component."""
+    through it. The code is a CLAIM: the adapter decides the value, and the reduced figure comes
+    back through the adapter's own pricing like every other component."""
     adapter = _RecordingAdapter()
     purchase_intent.apply_coupon(adapter, "cart-from-whatsapp", "WELCOME500")
     purchase_intent.apply_coupon(adapter, "cart-from-website", "WELCOME500")
@@ -258,28 +256,15 @@ def test_the_claim_leaves_the_coupon_panel_exactly_where_it_was():
     assert cart_page.count("const REDEMPTION_URL") == 1
 
 
-# ── gift cards: DEFERRED, and recorded as deferred ────────────────────────────
-
-
-@pytest.mark.skip(reason=(
-    "The Wix gift-card SPI is UNPROVISIONED: its secret, its function registration and the SPI "
-    "registration on the site are all absent (Phase W findings section 3). So there is no "
-    "gift-card tender for a WhatsApp-origin order to be at parity ON. "
-    "`wixGiftCardRedeemPaise` remains the only gift-card tender the website consumes, and a "
-    "WhatsApp-origin order INHERITS exactly that by being the same website checkout after the "
-    "claim - there is no separate WhatsApp gift-card path to implement or to test. Provisioning "
-    "the SPI is an owner action and out of this phase's scope; this test exists so the deferral is "
-    "a recorded skip with a reason rather than a silent gap or a passing claim."))
-def test_gift_card_parity_is_inherited_not_implemented():
-    raise AssertionError("unreachable: see the skip reason")
+# ── gift cards: the hand-off adds no tender ───────────────────────────────────
 
 
 def test_the_gift_card_tender_is_untouched_by_this_feature():
-    """What CAN be asserted today: the gift-card surface gained nothing from Phase W.
+    """The gift-card surface gained nothing from Phase W.
 
     The tender is subtracted from the final payable by `gift_card_settlement`, after
-    `compute_quote`, and the hand-off contributes no money field for it to interact with. So the
-    deferral above costs nothing: there is no half-built WhatsApp gift-card path.
+    `compute_quote`, and the hand-off contributes no money field for it to interact with, so there
+    is no half-built WhatsApp gift-card path.
     """
     basket_source = BASKET_MODULE.read_text().lower()
     assert "gift" not in basket_source

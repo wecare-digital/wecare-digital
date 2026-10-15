@@ -8,14 +8,14 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 
-def test_cutover_replaces_only_retired_wix_hosts_and_adds_wildcard():
+def test_cutover_only_upserts_alias_records_for_its_names_and_is_idempotent():
     service = {"Name": "sip.wecare.digital.", "Type": "A", "TTL": 60, "ResourceRecords": [{"Value": "192.0.2.1"}]}
-    wix = [{"Name": name, "Type": "CNAME", "TTL": 300, "ResourceRecords": [{"Value": "pointing.wixdns.net"}]} for name in module.NAMES[1:]]
-    result = module.changes("example.cloudfront.net", wix + [service])
-    assert len(result) == 5
+    result = module.changes("example.cloudfront.net", [service])
+    assert len(result) == 2 * len(module.NAMES)
+    assert all(c["Action"] == "UPSERT" for c in result)
     assert all(c["ResourceRecordSet"]["Name"] in module.NAMES for c in result)
-    assert [c["ResourceRecordSet"] for c in result if c["Action"] == "DELETE"] == wix
-    applied = [c["ResourceRecordSet"] for c in result if c["Action"] == "UPSERT"]
+    assert {c["ResourceRecordSet"]["Type"] for c in result} == {"A", "AAAA"}
+    applied = [c["ResourceRecordSet"] for c in result]
     assert module.changes("example.cloudfront.net", applied + [service]) == []
     escaped = [{**r, "Name": r["Name"].replace("*", "\\052")} for r in applied]
     assert module.changes("example.cloudfront.net", escaped + [service]) == []
@@ -25,6 +25,8 @@ def test_unexpected_service_or_cname_prevents_cutover():
     for record in [
         {"Name": module.NAMES[1], "Type": "TXT", "ResourceRecords": [{"Value": "service"}]},
         {"Name": module.NAMES[1], "Type": "CNAME", "ResourceRecords": [{"Value": "other.example"}]},
+        {"Name": module.NAMES[0], "Type": "CNAME", "ResourceRecords": [{"Value": "example.cloudfront.net"}]},
+        {"Name": module.NAMES[1], "Type": "A", "AliasTarget": {"DNSName": "other.cloudfront.net."}},
     ]:
         with pytest.raises(ValueError):
             module.changes("example.cloudfront.net", [record])

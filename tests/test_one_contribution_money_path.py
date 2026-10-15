@@ -15,10 +15,12 @@ So this walks the AST of every handler in the tree and asserts two things:
    `settle_contribution_capture`**, with one deliberate exception: the Razorpay webhook keeps its
    keyed `BLOG_CONTRIBUTION` net. Nothing mints `notes.purpose == 'BLOG_CONTRIBUTION'` any more, so
    that branch can no longer fire, but deleting a verified settlement path is not this phase's job.
-2. **The contribution prepare path cannot charge again.** The Wix endpoints the checkout handler and
-   its collaborators can reach are enumerated, and none of them is an order-create, a place-order or
-   a charging endpoint. R7.4 asks for "it cannot charge again" to be demonstrated by enumeration
-   rather than asserted in prose, and an enumeration is what survives a refactor.
+2. **The contribution prepare path cannot charge again.** Every path-shaped literal the checkout
+   handler and its collaborators carry is enumerated against a reviewed allowlist: the handler's
+   own routes and the internal payment-config read, and nothing in the supply modules at all. So
+   there is no endpoint on the path through which to create, place, capture or refund an order.
+   R7.4 asks for "it cannot charge again" to be demonstrated by enumeration rather than asserted in
+   prose, and an enumeration is what survives a refactor.
 
 An AST walk rather than a text grep, deliberately: the comments explaining this rule necessarily
 contain the very names being banned, and a text search cannot tell a call from an explanation.
@@ -44,37 +46,27 @@ RETIRED_MONEY_ENTRY_POINTS = (
 #: inherit the exemption by being named similarly.
 RETAINED_NET = "amplify/functions/payments/razorpay-webhook/handler.py"
 
-#: Wix endpoint fragments that create, place or charge an order. None of these may appear in the
-#: checkout function's package or in the shared modules it reaches on the prepare path.
-CHARGING_FRAGMENTS = (
-    "/orders/create",
-    "/create-order",
-    "/ecom/v1/orders",
-    "/v1/orders/create",
-    "place-order",
-    "placeOrder",
-    "/checkouts/{checkoutId}/create-order",
-    "create-order-from-checkout",
-    "/payments/capture",
-    "/capture",
-    "/refund",
-)
-
-#: The modules the contribution prepare path actually reaches, enumerated rather than globbed so
-#: adding one to the path means adding it here and having the enumeration apply to it.
-PREPARE_PATH_MODULES = (
-    "amplify/functions/ecommerce/checkout/handler.py",
-    # The AWS-native supply modules the prepare path now reaches instead of the retired Wix client
-    # (wix_ecom.py) and Wix cart (cart_v2.py): `_native_quote` prices off ProductsTable through
-    # native_cart + native_checkout, with native_shipping as the (free) delivery policy.
-    "amplify/functions/shared/lambda_utils/ecommerce/native_cart.py",
-    "amplify/functions/shared/lambda_utils/ecommerce/native_checkout.py",
-    "amplify/functions/shared/lambda_utils/ecommerce/native_shipping.py",
-    "amplify/functions/shared/lambda_utils/ecommerce/customer_cart.py",
-    "amplify/functions/shared/lambda_utils/ecommerce/purchase_intent.py",
-    "amplify/functions/shared/lambda_utils/ecommerce/checkout_pricing.py",
-    "amplify/functions/shared/lambda_utils/ecommerce/website_checkout.py",
-)
+#: The modules the contribution prepare path actually reaches, each with EVERY path-shaped string
+#: literal it may carry. Enumerated rather than globbed, so adding a module to the path means adding
+#: it here; and an allowlist rather than a list of banned endpoints, so a new endpoint of any kind
+#: (an order create, a capture, a refund) fails here until it is reviewed and listed.
+PREPARE_PATH_LITERALS = {
+    # The handler's own routes, and the payment-config read it makes by internal Lambda invoke.
+    "amplify/functions/ecommerce/checkout/handler.py": frozenset({
+        "/", "/ecommerce/service-prices", "/prepare-checkout", "/status", "/verify-callback",
+        "/wa-business/payment-config/list",
+    }),
+    # The AWS-native supply modules: `_native_quote` prices off ProductsTable through native_cart +
+    # native_checkout, with native_shipping as the (free) delivery policy. They compute over rows
+    # and name no endpoint at all.
+    "amplify/functions/shared/lambda_utils/ecommerce/native_cart.py": frozenset(),
+    "amplify/functions/shared/lambda_utils/ecommerce/native_checkout.py": frozenset(),
+    "amplify/functions/shared/lambda_utils/ecommerce/native_shipping.py": frozenset(),
+    "amplify/functions/shared/lambda_utils/ecommerce/customer_cart.py": frozenset(),
+    "amplify/functions/shared/lambda_utils/ecommerce/purchase_intent.py": frozenset(),
+    "amplify/functions/shared/lambda_utils/ecommerce/checkout_pricing.py": frozenset(),
+    "amplify/functions/shared/lambda_utils/ecommerce/website_checkout.py": frozenset(),
+}
 
 
 def _handlers():
@@ -158,37 +150,43 @@ def test_the_checkout_handler_does_not_import_the_contribution_payment_surface()
         "the retired amount-as-quantity bounds must not return to the live checkout path"
 
 
-@pytest.mark.parametrize("relative", PREPARE_PATH_MODULES)
-def test_the_prepare_path_reaches_no_order_creating_or_charging_wix_endpoint(relative):
+def _path_literals(tree: ast.AST) -> set:
+    """Every string constant shaped like a URL path.
+
+    Constants rather than text, so a comment explaining an endpoint is not mistaken for a call
+    site.
+    """
+    return {node.value for node in ast.walk(tree)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+            and node.value.startswith("/")}
+
+
+@pytest.mark.parametrize("relative", sorted(PREPARE_PATH_LITERALS))
+def test_the_prepare_path_names_exactly_its_reviewed_paths(relative):
     """Enumerated from the AST's string constants, so "it cannot charge again" is demonstrated.
 
-    Every Wix endpoint these modules can reach is a cart read, a cart mutation, a calculate or a
-    product read. A contribution's prepare therefore cannot create a Wix order, place one, capture
-    a payment or issue a refund -- there is no call site for any of them.
+    The handler carries its own routes and the payment-config read, and the supply modules carry
+    no path at all. A contribution's prepare therefore has no endpoint through which to create a
+    second order, place one, capture a payment or issue a refund: its one charge is the Razorpay
+    order the handler creates through `razorpay_orders`.
     """
     tree = ast.parse((ROOT / relative).read_text(encoding="utf-8"))
-    literals = [node.value for node in ast.walk(tree)
-                if isinstance(node, ast.Constant) and isinstance(node.value, str)]
-    offenders = sorted({value for value in literals
-                        for fragment in CHARGING_FRAGMENTS
-                        if fragment in value and value.startswith("/")})
-    assert offenders == [], (
-        f"{relative} names a Wix order-create, place-order or charging endpoint: {offenders}")
+    # Equality, not a subset: a path that disappears shrinks the list too, so the allowlist
+    # cannot rot into a blanket allowance.
+    assert _path_literals(tree) == PREPARE_PATH_LITERALS[relative], (
+        f"{relative}'s paths differ from its reviewed set; a new one is listed in "
+        "PREPARE_PATH_LITERALS only once it is shown not to create, place, capture or refund an "
+        "order")
 
 
 def test_the_enumeration_itself_is_not_vacuous():
     """A guard that can never fire protects nothing, so the detector is proven to detect.
 
-    Without this, a typo in `CHARGING_FRAGMENTS` -- or a future rename of the fragments -- would
-    turn the test above into a tautology that passes over a handler that charges twice.
+    Without this, a detector that stopped seeing string constants would make every empty
+    allowlist above pass over a module that names an order-create endpoint.
     """
-    probe = ast.parse('X = "/ecom/v1/orders"\nY = "/stores/v3/products/1"\n')
-    literals = [node.value for node in ast.walk(probe)
-                if isinstance(node, ast.Constant) and isinstance(node.value, str)]
-    hits = [value for value in literals
-            for fragment in CHARGING_FRAGMENTS
-            if fragment in value and value.startswith("/")]
-    assert hits == ["/ecom/v1/orders"]
+    probe = ast.parse('X = "/v1/orders"\nY = "orders"\n# Z = "/v1/payments/capture"\n')
+    assert _path_literals(probe) == {"/v1/orders"}
 
 
 def test_no_route_named_contribution_exists_in_the_checkout_handler():

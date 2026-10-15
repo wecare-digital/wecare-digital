@@ -70,7 +70,7 @@ def test_order_support_is_owner_bound_idempotent_and_has_no_payment(hub):
     assert row['customerId']=='owner' and row['orderId']=='order-1'
     assert row['customerUuid']=='public-customer'
     assert row['paymentStatus']=='none'
-    assert not any(k in row for k in ['paymentAttemptId','amountPaise','wixOrderId'])
+    assert not any(k in row for k in ['paymentAttemptId','amountPaise'])
 
 
 def test_missing_order_help_is_saved_once_without_order_or_payment(hub):

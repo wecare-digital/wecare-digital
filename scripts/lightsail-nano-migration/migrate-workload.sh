@@ -7,7 +7,7 @@
 # (IVR prompts, the ivr_engine.py AGI, TLS copies), /var/spool/asterisk, the asterisk and
 # wecare-cert-check systemd units, the cert-check script, /etc/letsencrypt, the ec2-user AWS profile
 # the cert check uses, and the system python site-packages (boto3 for the AGI). What is NOT copied:
-# 2.4 GB of logs, Docker/containerd, the retired Airtel proxy, the disabled bot folders, ffmpeg.
+# 2.4 GB of logs, Docker/containerd, the retired :8899 SIP proxy, the disabled bot folders, ffmpeg.
 #
 # Secrets (TLS key, SIP and AWS credentials) stream prod -> nano through the operator's own SSH
 # sessions (`ssh prod tar | ssh nano tar`); no copy lands on the operator's disk and nothing is printed.

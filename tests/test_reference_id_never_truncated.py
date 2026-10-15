@@ -121,8 +121,7 @@ def test_outbound_refuses_to_turn_an_order_number_into_a_reference(outbound):
     spaced = 'WD-ORD - A1B2C3D4 - 22-02-2026 - 23:30:00 - IST'
     assert len(spaced) > LIMIT
 
-    # Order-number generation moved to order_keys when the Wix-named wix_domain module
-    # was removed in the Wix exit; the public number is minted here now.
+    # `order_keys` mints the public order number.
     from lambda_utils.ecommerce.order_keys import mint_public_order_number
     current = mint_public_order_number()
     assert len(current) <= LIMIT

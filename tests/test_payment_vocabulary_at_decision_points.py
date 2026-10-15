@@ -262,7 +262,6 @@ CONSULTING_FILES = [
 RAW_SCAN_ONLY_FILES = [
     ("ecommerce/coupons/handler.py", None),
     ("ecommerce/gift-cards/handler.py", None),
-    # (ecommerce/wix-giftcard-spi/handler.py was scanned here until #475 deleted the retired SPI.)
     # Phase O-1 services. None of them decides payment state: a request is created only when the
     # `PAYMENTATTEMPT#` claim exists, so paid-ness is the existence of a row, never a word. They
     # are scanned so that stays true.

@@ -1,11 +1,11 @@
 """AI-generated FAQ reaches the public site only after a human approved it.
 
-THE CHAIN ALREADY EXISTED AND WAS CUT IN ONE PLACE. `ai.py` has generated FAQPage schema for a
+THE CHAIN ALREADY EXISTED AND WAS MISSING ONE LINK. `ai.py` has generated FAQPage schema for a
 while, `_run_audit` stores it as an `audit` record, the Admin surface approves or rejects it, and
-`src/pages/post/[slug].tsx` already renders `post.jsonLd.faqSchema` when it has entries. The only
-reason no FAQ ever appeared is that `wix.py::_blog_view` hardcodes `'jsonLd': {}` - Wix is the
-post source and carries none of our schema. `faq.py` closes that gap on the `/blog-public/<slug>`
-route, which is the seam the static export builds through, so the frontend changes nothing.
+`src/pages/post/[slug].tsx` already renders `post.jsonLd.faqSchema` when it has entries. The post
+record itself carries only its own stored `jsonLd`, so an approved FAQ never reached the page on
+its own. `faq.py` closes that gap on the `/blog-public/<slug>` route, which is the seam the static
+export builds through, so the frontend changes nothing.
 
 THE TESTS THAT MATTER MOST ARE THE REFUSALS. An audit is written with `status: 'pending_review'`.
 Serving that publicly would publish unreviewed model output as structured data under the

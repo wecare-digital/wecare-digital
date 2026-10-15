@@ -5,10 +5,10 @@ WHAT THIS FILE IS FOR
 The owner's instruction was "one system only" and "remove what is not working". Exploration found
 that neither of the two half-built stacks was old and neither was wired: `redemption.py` held the
 money arithmetic and the apply order with no concrete provider anywhere, and
-`coupon_store`/`gift_card_store` held real tables, Wix mirrors and routes with no caller in any
-money path. So the work was to BIND them, not to pick one and delete the other - and the risk a
-binding carries is that a second one grows beside it later, quietly, in a handler nobody is
-reading. These tests are the thing that notices.
+`coupon_store`/`gift_card_store` held real tables and routes with no caller in any money path. So
+the work was to BIND them, not to pick one and delete the other - and the risk a binding carries
+is that a second one grows beside it later, quietly, in a handler nobody is reading. These tests
+are the thing that notices.
 
 Every assertion here is STRUCTURAL and mostly NEGATIVE, which is deliberate: a positive
 end-to-end coupon test proves a stub works, while these prove there is only one implementation to

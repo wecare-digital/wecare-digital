@@ -37,7 +37,7 @@ from lambda_utils.comms import numbers
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
 from lambda_utils.validation import normalize_phone
-from lambda_utils.message_store import put_message  # unified MessagesTable dual-write
+from lambda_utils.message_store import put_message  # canonical MessagesTable writer
 
 logger = get_logger(__name__)
 
@@ -47,12 +47,8 @@ dynamodb = boto3.resource('dynamodb', region_name=REGION)
 pinpoint_sms = boto3.client('pinpoint-sms-voice-v2', region_name=REGION)
 
 CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')
-# SMS_TABLE removed 2026-09-24. It named `stack-wecare-digital-SmsAwsTable`, which
-# does not exist in the account, and its only use was a "best-effort legacy
-# cleanup" delete inside _delete_message. That dual-write window is closed -
-# _store_message writes to the canonical MessagesTable only - so the delete could
-# never remove anything and only ever raised into a bare `except: pass`.
-# Canonical unified table — reads/deletes now target this (channel=sms).
+# SMS rows live only in the canonical MessagesTable (channel='sms'): every read,
+# write and delete in this function targets it.
 UNIFIED_TABLE = os.environ.get('UNIFIED_MESSAGES_TABLE', 'stack-wecare-digital-MessagesTable')
 # Non-India origination identity. MUST be pinned to a real number.
 #
@@ -529,11 +525,9 @@ def _get_contact(contact_id: str) -> Dict[str, Any]:
 
 
 def _store_message(item: Dict) -> None:
-    """Store SMS message in the canonical MessagesTable only.
+    """Store an SMS message in the canonical MessagesTable (channel='sms').
 
-    Phase 4: legacy SmsAwsTable dual-write STOPPED — canonical is now the sole store
-    (all readers already query canonical). SmsAwsTable is retained read-only during the
-    soak, then deleted.
+    That table is the only SMS store; every reader queries it.
     """
     # Ensure 'id' is present for the canonical messageId.
     if 'id' not in item and 'messageId' in item:
@@ -597,8 +591,8 @@ def _response(status_code: int, body: Dict, resp_origin: str = '') -> Dict[str, 
 # PUT    /sms-aws/dlt-templates          patch a registered template
 # DELETE /sms-aws/dlt-templates?templateId=...
 #
-# Replaces the registry CRUD that lived in the retired India sender. The logic is
-# in lambda_utils/comms/dlt_registry.py so it is unit-testable without a Lambda
+# The registry CRUD lives beside the only SMS sender. The logic is in
+# lambda_utils/comms/dlt_registry.py so it is unit-testable without a Lambda
 # event, and so it sits beside comms/dlt.py, which reads what this writes.
 def _dlt_templates_route(method: str, event: Dict, query_params: Dict,
                          path_params: Dict, request_id: str) -> Dict[str, Any]:

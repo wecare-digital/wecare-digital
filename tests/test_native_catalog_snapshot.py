@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -52,10 +53,16 @@ def test_prices_are_exact_decimal_strings():
             raise AssertionError(f"{product['slug']}: invalid decimal price {price!r}")
 
 
-def test_live_media_snapshot_contains_no_provider_urls():
-    raw = SNAPSHOT.read_text(encoding="utf-8").lower()
-    assert "wixstatic.com" not in raw
-    assert "wixapis.com" not in raw
+#: The origins the storefront snapshot may reference: our own site and the product-image
+#: CloudFront distribution in front of our S3 bucket.
+OWNED_MEDIA_HOSTS = {"wecare.digital", "d1kf2rchz7yras.cloudfront.net"}
+
+
+def test_every_snapshot_url_is_served_from_an_owned_origin():
+    raw = SNAPSHOT.read_text(encoding="utf-8")
+    hosts = {host.lower() for host in re.findall(r'https?://([^/"\s]+)', raw)}
+    assert hosts, "the snapshot carries no media URL at all"
+    assert hosts <= OWNED_MEDIA_HOSTS, sorted(hosts - OWNED_MEDIA_HOSTS)
 
 
 def test_builder_targets_products_table_and_preserves_ids():

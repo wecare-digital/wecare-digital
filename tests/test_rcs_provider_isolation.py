@@ -7,8 +7,10 @@ the boundary structurally, on the source tree, because the failure mode is a
 Sinch transport for a non-RCS purpose would pass any behavioural test while
 breaking the policy.
 
-`scripts/check-provider-policy.sh` enforces the same rule in CI. This suite
-exists so the boundary also fails a developer's local `pytest` run, before CI.
+`scripts/check_provider_allowlist.py` enforces the same rule in CI, from the
+Sinch entry in `scripts/provider_allowlist.py` (its transport is scoped to
+`RCS_TRANSPORT_SCOPE`). This suite exists so the boundary also fails a
+developer's local `pytest` run, before CI.
 """
 import re
 import sys
@@ -25,7 +27,8 @@ if str(SHARED) not in sys.path:
 from lambda_utils import sinch_rcs  # noqa: E402
 
 # The only paths allowed to hold the Sinch vendor transport - hosts and the
-# credential id. Mirrors RCS_ALLOWED_RE in scripts/check-provider-policy.sh.
+# credential id. Mirrors RCS_TRANSPORT_SCOPE in scripts/provider_allowlist.py;
+# test_the_allowlist_scope_admits_exactly_these_paths keeps the two in step.
 RCS_ALLOWED = (
     "lambda_utils/sinch_rcs.py",
     "/rcs-send/",
@@ -72,11 +75,11 @@ def test_sinch_transport_only_inside_approved_rcs_paths():
 
 
 def test_no_lambda_reads_the_sinch_secret_directly():
-    """Only sinch_rcs may resolve the Sinch credential.
+    """Only sinch_rcs (and the two RCS Lambdas) may resolve the Sinch credential.
 
-    voice-in/cdr used to read `wecare/sinch/rcs` inline in an unreachable copy of
-    the RCS sender. That gave a voice handler a live path to the credential for
-    no working feature.
+    A voice handler once read `wecare/sinch/rcs` inline in an unreachable copy of
+    the RCS sender. That gave it a live path to the credential for no working
+    feature.
     """
     offenders = [
         str(path.relative_to(ROOT))
@@ -86,18 +89,23 @@ def test_no_lambda_reads_the_sinch_secret_directly():
     assert offenders == []
 
 
-def test_voice_in_cdr_ingester_is_gone():
-    """The Airtel CDR ingester carried a duplicate RCS implementation.
+def test_the_rcs_senders_outside_the_rcs_lambdas_are_known():
+    """Lambdas that send RCS do it through `lambda_utils.sinch_rcs`, and they are these.
 
-    It was first reduced to using the shared helper, then deleted outright on
-    2026-09-20 once it was shown to be unreachable: no routes, no event source
-    mappings, no invocations after its routes were removed, and no Lambda
-    invoking it by name. Deletion is the strongest form of "no duplicate
-    implementation", so this now asserts absence rather than contents.
+    A new importer is a new RCS sender, which is a provider-policy decision rather than
+    an incidental import.
     """
-    assert not (FUNCTIONS / "messaging" / "voice-in" / "cdr").exists(), (
-        "the Airtel CDR ingester is back; it was deleted as unreachable and "
-        "previously held a second copy of the RCS send path")
+    importers = sorted(
+        str(path.relative_to(FUNCTIONS))
+        for path in _python_sources()
+        if path.name != "sinch_rcs.py"
+        and re.search(r"from lambda_utils(?:\.sinch_rcs import| import sinch_rcs)",
+                      path.read_text(errors="replace"))
+    )
+    assert importers == [
+        "messaging/whatsapp-calling/handler.py",
+        "shared/lambda_utils/notifications/worker.py",
+    ], importers
 
 
 def test_no_function_reimplements_the_rcs_helpers():
@@ -204,3 +212,34 @@ def test_no_module_outside_the_approved_paths_can_reach_sinch():
         assert any(fragment.strip("/") in path for fragment in RCS_ALLOWED), (
             f"{path} can reach the Sinch transport but is not an approved India "
             "RCS path")
+
+
+# --------------------------------------------------------------------------
+# the CI gate and this suite enforce the same boundary
+# --------------------------------------------------------------------------
+def test_the_allowlist_scope_admits_exactly_these_paths():
+    """The allow-list's Sinch transport scope and RCS_ALLOWED describe one boundary.
+
+    Every module that holds the transport today is inside both, and a voice handler
+    - the shape of the original leak - is inside neither.
+    """
+    scripts = str(ROOT / "scripts")
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    import provider_allowlist
+
+    holders = [
+        str(path.relative_to(ROOT))
+        for path in _python_sources()
+        if any(marker in path.read_text(errors="replace") for marker in TRANSPORT_MARKERS)
+    ]
+    assert holders, "no module holds the Sinch transport; this test would pass vacuously"
+    for rel in holders:
+        assert re.search(provider_allowlist.RCS_TRANSPORT_SCOPE, rel), rel
+        assert _is_allowed(ROOT / rel), rel
+    outsider = "amplify/functions/messaging/whatsapp-calling/handler.py"
+    assert not re.search(provider_allowlist.RCS_TRANSPORT_SCOPE, outsider)
+    assert not _is_allowed(ROOT / outsider)
+    sinch = next(p for p in provider_allowlist.PROVIDERS if p.key == "sinch")
+    assert sinch.transport_scope == provider_allowlist.RCS_TRANSPORT_SCOPE
+    assert set(sinch.provider_ids) == {"sinch-rcs"}

@@ -17,7 +17,7 @@
 **How it was built** (owner-approved): a fresh Amazon Linux 2023 Nano, then only the voice bot was
 copied from the Micro: 23 paths, 3,235 files, SHA-256 tree digest `ca06269dcfc864c6` identical on
 both sides. Runtime packages came from `dnf` (the same RPM set `ldd` showed on the Micro, plus sox
-and certbot). Logs, Docker, the retired Airtel proxy, the disabled bot folders and ffmpeg were left
+and certbot). Logs, Docker, the retired SMS proxy, the disabled bot folders and ffmpeg were left
 behind. `ldd` reports 0 missing libraries. Every SSH session opened port 22 for one IP only,
 used Lightsail's short-lived certificate, and closed the port afterwards. The Nano's host key, which
 Lightsail did not report yet, was pinned only after an internet scan matched a scan made from the

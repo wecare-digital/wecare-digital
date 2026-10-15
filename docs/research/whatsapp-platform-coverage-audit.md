@@ -29,7 +29,6 @@ The measured surface:
 | **15** | committed Flow JSON definitions plus 13 Python flow handlers |
 | **~250** | WhatsApp-related exported functions in `src/api/client.ts` |
 | **265** | files in `tests/`, ~37 of them WhatsApp/payment/template/flow-specific |
-| **84 / 114** | spec tasks still open in `.kiro/specs/whatsapp-wix-commerce/tasks.md` |
 
 At-a-glance completion, weighted by sub-feature count rather than lines of code. These
 percentages are judgement applied to the status table in §2, not a metric emitted by a
@@ -150,7 +149,7 @@ Paths are relative to `/Users/wecaredigital/wecare-store`. Backend paths omit th
 | Authentication template / OTP | ✅ | `outbound-whatsapp` OTP branch at `handler.py:3482-3512`: `sub_type: 'url'` with the code parameter, and `sub_type: 'copy_code'` with `coupon_code` at `:3509`; also `auth/customer-whatsapp-auth/handler.py:392` | `components/OTPTemplateUI.tsx` | [Authentication templates](https://developers.facebook.com/docs/whatsapp/cloud-api) |
 | One-tap autofill / zero-tap authentication | ⛔ | No `autofill`, `one_tap` or `zero_tap` in any template construction path. The copy-code button is the only OTP delivery mechanism implemented | — | [One-tap autofill](https://developers.facebook.com/docs/whatsapp/cloud-api) · [Zero-tap](https://developers.facebook.com/docs/whatsapp/cloud-api) |
 | Keyboard suggestions (auth) | ⛔ | Zero references | — | [Keyboard suggestions](https://developers.facebook.com/docs/whatsapp/cloud-api) |
-| Coupon-code template | 🟡 | The `copy_code` button sub-type is implemented, but it is driven by the OTP path (`outbound-whatsapp:3509`). The commerce coupon engine (`whatsapp-business-api:4797-4897`) is a Wix coupon lookup, not a Meta coupon-code template | `whatsapp/template-builder.tsx` (button type available) | [Coupon code templates](https://developers.facebook.com/docs/whatsapp/cloud-api) |
+| Coupon-code template | 🟡 | The `copy_code` button sub-type is implemented, but it is driven by the OTP path (`outbound-whatsapp:3509`). The commerce coupon engine (`whatsapp-business-api:4797-4897`) is a coupon lookup, not a Meta coupon-code template | `whatsapp/template-builder.tsx` (button type available) | [Coupon code templates](https://developers.facebook.com/docs/whatsapp/cloud-api) |
 | Limited-time-offer (LTO) template | ⛔ | Zero references to `limited_time_offer` / `LTO` in `amplify/` | — | [Limited-time-offer templates](https://developers.facebook.com/docs/whatsapp/cloud-api) |
 | Location templates | ✅ | `LOCATION` in `HEADER_FORMATS:16`; send-time coordinates in `outbound-whatsapp` `_build_message_payload` (~3423) | `whatsapp/template-builder.tsx` | [Location templates](https://developers.facebook.com/docs/whatsapp/cloud-api) |
 | Template TTL (`message_send_ttl_seconds`) | ✅ | `shared/lambda_utils/template_ttl.py` (162 lines) with per-category bounds; `whatsapp_types.py` `TTL_BOUNDS:24-28`, `TTL_NEG1_ALLOWED:29`; `whatsapp-business-api` `_validate_ttl:1605`, `_get_ttl_rules:1656`, `_update_template_ttl:1698`; `whatsapp-template-management` `_validate_template_ttl:304` | `api/client.ts` `getTemplateTtlRules`, `validateTemplateTtl`, `updateTemplateTtl` | [Configure time-to-live](https://developers.facebook.com/docs/whatsapp/cloud-api) |
@@ -263,7 +262,7 @@ Paths are relative to `/Users/wecaredigital/wecare-store`. Backend paths omit th
 
 > **Read the status column with the §1 caveat in mind.** The code is built and tested; the
 > capability was retired from the active purchase flow by the owner's 2026-10-01
-> website-only ruling, recorded at `.kiro/specs/whatsapp-wix-commerce/tasks.md:7`.
+> website-only ruling.
 
 | Sub-feature | Status | Backend evidence | Frontend evidence | Doc |
 |---|---|---|---|---|
@@ -285,7 +284,7 @@ Paths are relative to `/Users/wecaredigital/wecare-store`. Backend paths omit th
 | `reference_id` discipline | ✅ | `outbound-whatsapp` `_sanitize_reference_id:2921`, `REFERENCE_ID_MAX_LENGTH:40` from `order_keys.META_REFERENCE_ID_MAX_LENGTH`; resolve-before-generate via `REFERENCE#<metaReferenceId>` | — | — (repo-local discipline) |
 | In-WhatsApp capture branch | ➖ retired | `tests/test_inbound_whatsapp_payment_superseded.py` drives the real `_process_payment_status` with a forged `captured` event and asserts **no** paid invoice, receipt or order. Written to fail if the branch is reinstated | — | — |
 | Invoices / payment links / receipts | ✅ | `payments/invoice-engine/handler.py`, `payments/payments-read/handler.py`; `whatsapp-business-api` routes `/invoices`, `/invoices/send-payment-link` | `engage/pay/*`; `api/client.ts` `createInvoiceFromPayment`, `sendInvoiceWhatsApp`, `sendPaymentLink`, `sendCheckoutTemplate` | [Payment links](https://developers.facebook.com/docs/whatsapp/payments-india) |
-| Wix order creation / reconciliation | 🟡 blocked | `shared/lambda_utils/ecommerce/` (`cart_v2.py`, `order_keys.py`, `wix_ecom.py`, `wix_guard.py`); spec Phases 6-13 blocked on the R0 Wix credential gate | `commerce/index.tsx`, `engage/orders/index.tsx` | — |
+| Order creation / reconciliation | ✅ native (since this audit) | `shared/lambda_utils/ecommerce/` (`order_creation.py`, `order_keys.py`, `finalization.py`, `native_inventory_txn.py`) | `commerce/index.tsx`, `engage/orders/index.tsx` | — |
 | Payments Brazil / Rest-of-world | ➖ | India-only business; `.kiro/steering/whatsapp-payments-india-reference.md` fixes MCC 7392, purpose code 03, `INR` only, integer paise | — | [Payments Brazil](https://developers.facebook.com/docs/whatsapp/payments-brazil) |
 
 ### I. MM API for WhatsApp (marketing messages)
@@ -350,7 +349,7 @@ Paths are relative to `/Users/wecaredigital/wecare-store`. Backend paths omit th
 | Per-user cap (1 msg / 6 s, error 131056) | ✅ | `outbound-whatsapp` `_check_pair_rate_limit:3928`, `_record_pair_rate_violation:3979` | — | [About the platform](https://developers.facebook.com/docs/whatsapp/cloud-api/) |
 | Meta error taxonomy | ✅ | `outbound-whatsapp` `META_MESSAGE_ERRORS:548`, `ROUTING_OWNERSHIP_ERRORS:601` (2494191, 138038); `shared/lambda_utils/graph_errors.py` | `components/wa/MetaErrorPanel.tsx`; `test/DirectSendErrorBlurb.test.ts` | [Error codes](https://developers.facebook.com/docs/whatsapp/cloud-api) |
 | Access tokens / permissions | ✅ | Secret `wecare/meta-system-user-token` (name only); `shared/lambda_utils/meta_client.py` `_creds:88`, `_use_waba2:85`, `build_appsecret_proof:104`; `shared/lambda_utils/appsecret.py`; `messaging/partner-token-refresh` | — | [Access tokens](https://developers.facebook.com/docs/whatsapp/cloud-api) · [Permissions](https://developers.facebook.com/docs/whatsapp/cloud-api) |
-| Lazy per-request secret loading | ✅ | Required by spec task 18.4; fixed 2026-09-19 in `payments/razorpay-webhook`, `ecommerce/wix-store`, `messaging/outbound-sms`; verified by `scripts/verify_razorpay_secret_path.py` | — | — |
+| Lazy per-request secret loading | ✅ | Required by spec task 18.4; fixed 2026-09-19 in `payments/razorpay-webhook`, `messaging/outbound-sms`; verified by `scripts/verify_razorpay_secret_path.py` | — | — |
 | Graph pagination | ✅ | `meta_client.py` `paginate:222`; `shared/lambda_utils/pagination.py` | — | [Graph API](https://developers.facebook.com/docs/graph-api) |
 | Phone masking in logs | ✅ | `shared/lambda_utils/masking.py` `mask_phone`, used throughout `whatsapp-calling` and the inbound handler | `components/wa/masked.tsx` | [Data privacy & security](https://developers.facebook.com/docs/whatsapp/cloud-api) |
 | Live-send lockdown | ✅ | `shared/lambda_utils/live_smoke.py`; `outbound-whatsapp` `_assert_smoke_recipient_allowed:198`; `whatsapp-business-api:1082-1104` places `check_recipient` as the last statement before `_graph_api` | — | — |
@@ -697,8 +696,7 @@ spelling:
 - **Integer paise.** No float arithmetic on the payment path, so a one-paise rounding
   artefact cannot become a refused order.
 
-What is retired. `.kiro/specs/whatsapp-wix-commerce/tasks.md:7` records the owner's
-2026-10-01 website-only ruling: payment is collected on the website via Razorpay Standard
+What is retired. The owner's 2026-10-01 website-only ruling: payment is collected on the website via Razorpay Standard
 Checkout, the receipt is an authenticated download, and in-WhatsApp payment is removed from
 the active purchase flow. `tests/test_inbound_whatsapp_payment_superseded.py` enforces it by
 driving the real `_process_payment_status` against an in-memory DynamoDB fake with a forged
@@ -708,10 +706,9 @@ written to fail if the branch returns.
 What is blocked. The production gate at `tasks.md:16-45` records that all four payment
 configurations (`WECAREDIGITAL` and `WECAREUPI` on both WABAs, MCC 7392, purpose code 03) were
 restored by the owner and reported Active, but that the reading came from the owner's
-dashboard rather than a live probe. The Razorpay live key and the Wix admin token are still
-owner-pending in Secrets Manager, and both were disclosed in a chat transcript on 2026-09-30,
-so they need rotation rather than re-storage. Spec Phases 6 through 13 are blocked on that R0
-gate.
+dashboard rather than a live probe. The Razorpay live key is still owner-pending in Secrets
+Manager and was disclosed in a chat transcript on 2026-09-30, so it needs rotation rather than
+re-storage.
 
 Relevant doc links: [Payments India](https://developers.facebook.com/docs/whatsapp/payments-india) ·
 [Payment gateway](https://developers.facebook.com/docs/whatsapp/payments-india) ·
@@ -847,7 +844,7 @@ produces error 131056. Most integrations implement the first and discover the se
 production.
 
 **Lazy secret loading.** Required by spec task 18.4 and fixed on 2026-09-19 in
-`payments/razorpay-webhook`, `ecommerce/wix-store` and `messaging/outbound-sms`. The reason is
+`payments/razorpay-webhook` and `messaging/outbound-sms`. The reason is
 specific: a module-scope read caches the value for the life of the execution environment, so a
 rotation does not take effect until every warm sandbox recycles.
 `scripts/verify_razorpay_secret_path.py` re-confirms it.
@@ -1004,7 +1001,6 @@ above would overstate the engineering backlog.
 | Item | Blocker | Reference |
 |---|---|---|
 | Razorpay live key + secret not loaded | owner-only; disclosed in a transcript 2026-09-30, needs rotation not re-storage | `tasks.md:16-45`, `docs/CREDENTIAL-ROTATION-RUNBOOK.md` |
-| Wix admin token absent (R0 gate) | owner-only; blocks spec Phases 6-13 | `tasks.md:208-232` |
 | `WA_QA_RECIPIENT` unset in production | owner nominated `+918100640044` 2026-09-22; still absent from the live function | `docs/execution/feature-flag-register.md:15` |
 | Live payment configurations not re-probed | reported Active from the owner's dashboard, not measured | `tasks.md:20-26` |
 | Six credential values in git history | rotation deferred to project close by owner decision | `.kiro/steering/secret-handling.md` |
@@ -1070,7 +1066,7 @@ Three copies that must stay equal will drift again.
 
 **I9. Fail-closed the `_money_amount` non-numeric path.**
 The payments steering records a latent defect: a non-numeric price passes through as
-`str(value)` and would travel into a Wix payload. Latent only because Wix writes are off.
+`str(value)` and would travel into a provider payload.
 Given that R6.2 requires failing closed on a one-paise mismatch, a junk price should refuse
 rather than propagate.
 
@@ -1097,9 +1093,9 @@ correct until the metric publishes.
 it; only `findings.md`, `plan.md`, `report.md` and the review files exist. Evidence is in
 `report.md`, just not under the expected filename.
 
-**I15. Export `DIRECT_SEND_ENABLED_WABAS` into the env manifest.** Blocked on moving
-`wecare-seo-tools`' Wix client ids out of env vars and into Secrets Manager, which is
-owner-gated credential work.
+**I15. Export `DIRECT_SEND_ENABLED_WABAS` into the env manifest.** The blocker recorded
+here, provider client ids in `wecare-seo-tools` env vars, is gone (live check
+`lambda-env-keys` PASS on 2026-10-15).
 
 ---
 
@@ -1131,8 +1127,8 @@ checkout).
 ## 7. Doable batch — next steps
 
 Ordered by dependency and by cost-to-value. Each item is small enough to land and verify
-independently. Spec task references point at
-`.kiro/specs/whatsapp-wix-commerce/tasks.md`. None of these requires an owner credential.
+independently. Spec task numbers refer to the commerce task list in force on the audit date.
+None of these requires an owner credential.
 
 **Batch 1 — close the observability gaps (lines up with spec tasks 4.4, 17.2, 17.3)**
 
@@ -1194,8 +1190,7 @@ independently. Spec task references point at
 
 **Not in the batch, and deliberately so.** Everything requiring a credential load, a
 provider rotation, a live-send authorisation or a QA-recipient environment variable is owner
-work. Spec tasks 6.x through 13.x are blocked on the R0 Wix credential gate and cannot be
-started regardless of engineering capacity.
+work.
 
 ---
 
@@ -1431,7 +1426,7 @@ Paths relative to `/Users/wecaredigital/wecare-store/amplify/functions/`. Line c
 | `partner_billing.py` | — | Prepaid wallet charging off `pricing.billable`. |
 | `appsecret.py`, `partner_tokens.py` | — | App-secret proof and partner token storage. |
 | `notifications/` | 8 files | `events.py` (business-number registry), `policy.py`, `states.py`, `store.py`, `suppression.py`, `worker.py`, `keys.py`, `service.py`. |
-| `ecommerce/` | — | `cart_v2.py`, `order_keys.py`, `wix_ecom.py`, `wix_guard.py`, `customer_receipt.py`, `coupon_store.py` and others. |
+| `ecommerce/` | — | `native_cart.py`, `order_keys.py`, `order_creation.py`, `checkout_pricing.py`, `customer_receipt.py`, `coupon_store.py` and others. |
 
 ### A9.2 Frontend surfaces
 
@@ -1591,8 +1586,6 @@ Changelog · Error codes ·
 
 ### A9.4 Repo documents consulted
 
-- `.kiro/specs/whatsapp-wix-commerce/{requirements.md,design.md,tasks.md}` — 30 tasks closed,
-  84 open; the production gate at `tasks.md:16-45`; the website-only supersession at `:7`
 - `.kiro/steering/whatsapp-payments-india-reference.md`, `secret-handling.md`,
   `lambda-snapstart-deploy.md`, `00-current-owner-overrides.md`, `01-standing-authorization.md`,
   `02-qa-recipient.md`, `blog-production-s3.md`, `aws-agent-rules.md`

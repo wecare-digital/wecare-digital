@@ -2,12 +2,12 @@
 
 WHY THIS FILE EXISTS
 --------------------
-On 2026-10-14 the commerce-key rows moved from `stack-wecare-digital-WixOrderIds` to
-`stack-wecare-digital-CommerceKeys` and the old table was deleted. Code, the env manifest and
-`amplify/infra/checkout.json` moved. Two provisioners (`provision_checkout.py`,
-`provision_service_requests.py`) and the separately applied `iam-native-catalog-checkout.json`
-did not, and the live dedicated roles kept granting only the deleted table. Measured with the IAM
-policy simulator the same day: `wecare-checkout-role` PutItem on CommerceKeys = implicitDeny.
+On 2026-10-14 the commerce-key rows moved to `stack-wecare-digital-CommerceKeys` and the previous
+table was deleted. Code, the env manifest and `amplify/infra/checkout.json` moved. Two
+provisioners (`provision_checkout.py`, `provision_service_requests.py`) and the separately applied
+`iam-native-catalog-checkout.json` did not, and the live dedicated roles kept granting only the
+deleted table. Measured with the IAM policy simulator the same day: `wecare-checkout-role` PutItem
+on CommerceKeys = implicitDeny.
 
 Separately, `ReserveNativeInventory` granted the pseudo-action `dynamodb:TransactWriteItems`.
 DynamoDB authorizes each transactional Put/Update/Delete/ConditionCheck with the underlying item
@@ -36,7 +36,6 @@ sys.path.insert(0, str(SHARED))
 from lambda_utils.ecommerce import order_keys  # noqa: E402
 
 ACCT = "775261844268"
-DELETED_TABLE = "stack-wecare-digital-WixOrderIds"
 TABLE_ARN = f"arn:aws:dynamodb:us-east-1:{ACCT}:table/"
 NATIVE_POLICY = ROOT / "scripts" / "iam-native-catalog-checkout.json"
 INFRA_CHECKOUT = ROOT / "amplify" / "infra" / "checkout.json"
@@ -116,17 +115,20 @@ def test_provisioned_env_matches_the_manifest(checkout_prov, service_prov, resol
     assert service_prov.expected_environment()["COMMERCE_KEYS_TABLE"] == resolver_default
 
 
-def test_no_iam_home_names_the_deleted_table(checkout_prov, service_prov):
-    homes = {
-        "provision_checkout.expected_role_policy":
-            json.dumps(checkout_prov.expected_role_policy(ACCT)),
-        "provision_service_requests.expected_role_policy":
-            json.dumps(service_prov.expected_role_policy(ACCT)),
-        "iam-native-catalog-checkout.json": NATIVE_POLICY.read_text(encoding="utf-8"),
-        "amplify/infra/checkout.json CheckoutRole": json.dumps(_infra_role_statements()),
-    }
-    offenders = [name for name, text in homes.items() if DELETED_TABLE in text]
-    assert offenders == [], f"IAM homes still grant the deleted table: {offenders}"
+@pytest.mark.parametrize("home", ["provision_checkout", "provision_service_requests",
+                                  "amplify/infra/checkout.json"])
+def test_every_commerce_key_home_reads_the_resolver_default(checkout_prov, service_prov,
+                                                            resolver_default, home):
+    """The 2026-10-14 failure, stated positively: each IAM home of a function that reads
+    commerce keys must allow GetItem on the table the resolver names, so a home left on a
+    previous table fails here rather than as an implicitDeny in a customer's checkout."""
+    statements = {
+        "provision_checkout": lambda: checkout_prov.expected_role_policy(ACCT)["Statement"],
+        "provision_service_requests":
+            lambda: service_prov.expected_role_policy(ACCT)["Statement"],
+        "amplify/infra/checkout.json": _infra_role_statements,
+    }[home]()
+    assert _allows(statements, "dynamodb:GetItem", TABLE_ARN + resolver_default), home
 
 
 def test_no_policy_relies_on_the_transact_pseudo_action():

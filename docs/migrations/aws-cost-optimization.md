@@ -34,7 +34,6 @@ not expose the credit balance or expiry; read them in the Billing console.
 
 | Lever | Label | $/month | Decision |
 | --- | --- | --- | --- |
-| Wix secrets deleted | REALISED | −1.20 | done 2026-10-14 (force-deleted) |
 | Support plan Business+ → Basic | POTENTIAL | −29.00 | owner: trade-off is losing Business-tier support |
 | Amplify build minutes −50% | POTENTIAL | −23.14 | batch merges to `stack`, skip docs-only builds |
 | Amplify egress back to September level | POTENTIAL | −15.61 | investigate 49.1 GB in Oct 1–14 vs 4.6 GB in Sep first |
@@ -53,7 +52,6 @@ three owner decisions (Support, Amplify builds, Amplify egress) that need no mig
 | Scenario | Change vs October run-rate |
 | --- | --- |
 | Current production | $125.28 |
-| After Wix migration | already included (Wix Lambdas, tables and secrets are deleted; the Wix subscription is outside AWS and must be checked in Wix billing) |
 | After safe secret consolidation | −$1.20 POTENTIAL |
 | After the Lightsail downsizing | −$2.00, cut over 2026-10-15; both instances bill ($12/mo, hourly) until the Micro is deleted |
 | After possible Lightsail retirement | −$5.00 POTENTIAL, not authorised |

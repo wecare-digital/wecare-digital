@@ -1,9 +1,9 @@
 """Native supply pricing (catalog_pricing) — pure, synthetic, no I/O.
 
-Proves the AWS-native supply total reproduces the Wix priceSummary contract: the
+Proves the AWS-native supply total holds the price-summary contract: the
 identity subtotal - discount + delivery + additionalFees + tax == total, the
-per-line sum == subtotal, and integer-paise discipline (no float). The native
-authoritative_total_paise reader is the drop-in replacement for the Wix one.
+per-line sum == subtotal, and integer-paise discipline (no float).
+`authoritative_total_paise` is the one reader of that total.
 """
 import sys
 from pathlib import Path
@@ -68,7 +68,7 @@ def test_quantity_bounds(qty):
         CatalogLine(product_id="p", variant_id="v", quantity=qty, unit_price_paise=100)
 
 
-# ── native coupon pricing (replaces Wix Calculate Cart for the website) ──────
+# ── native coupon pricing (the website coupon discount) ─────────────────────
 
 from lambda_utils.ecommerce.catalog_pricing import coupon_discount_paise, price_cart  # noqa: E402
 
@@ -95,7 +95,7 @@ def test_money_off_clamped_at_subtotal():
 
 def test_price_cart_end_to_end_feeds_compute_quote():
     """price_cart -> authoritative_total_paise -> checkout_pricing.compute_quote.
-    This is the full native checkout chain the Wix path currently owns."""
+    This is the full native checkout chain."""
     from lambda_utils.ecommerce import checkout_pricing
     lines = [_line(qty=2, price=50000)]  # subtotal 100000
     coupon = {"discountKind": "PERCENT_OFF", "percentOffBps": 1000}  # 10% -> 10000 off

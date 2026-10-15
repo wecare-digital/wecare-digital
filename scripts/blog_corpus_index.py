@@ -6,7 +6,7 @@ THE DEFECT THIS CLOSES.
 `blog_quality_v2.CorpusIndex` loaded from committed manifests. Measured 2026-09-29:
 
     committed manifest records                        383
-    live Wix corpus                                 1,140
+    live published corpus                           1,140
     published posts with NO local record               757
 
 So section 28's duplication gate compared every new article against a THIRD of the corpus

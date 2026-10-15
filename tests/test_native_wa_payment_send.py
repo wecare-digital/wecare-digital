@@ -308,7 +308,9 @@ def test_the_reserved_attempt_carries_no_tender_split_attribute(engine, fake):
 
     attempt = list(fake.tables[ATTEMPTS].values())[0]
     payref = fake.tables[KEYS][order_keys.PAYMENT_REFERENCE_PREFIX + REFERENCE]
-    for attr in ('razorpayChargedPaise', 'giftCardRedeemedPaise', 'wixGiftCardRedeemPaise'):
+    from lambda_utils.ecommerce import finalization
+    # Every tender attribute finalization reads, so a new one is covered here automatically.
+    for attr in ('razorpayChargedPaise', *finalization.OTHER_TENDER_PAISE_ATTRS):
         assert attr not in attempt
         assert attr not in payref
     assert payref['payablePaise'] == payref['amountPaise']

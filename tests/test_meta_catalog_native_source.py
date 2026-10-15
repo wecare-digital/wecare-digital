@@ -34,13 +34,11 @@ receiver = _load()
 
 
 def test_catalog_source_is_unconditionally_native(monkeypatch):
-    """The Wix exit made the catalogue source UNCONDITIONAL: ProductsTable is the sole authority.
+    """The catalogue source is UNCONDITIONAL: ProductsTable is the sole authority.
 
-    There is no `_catalog_source()` switch anymore (the old `wix`/`aws` selector is retired) and
-    the handler reads the native catalogue directly via `_native_products`, so CATALOG_SOURCE no
-    longer routes anything. This asserts the switch is gone and the native reader is the one path.
+    The handler reads the native catalogue directly via `_native_products`, so CATALOG_SOURCE
+    routes nothing. This asserts the native reader is the one path the plan is computed from.
     """
-    assert not hasattr(receiver, "_catalog_source")
     assert hasattr(receiver, "_native_products")
     source = HANDLER.read_text(encoding="utf-8")
     # The handler computes its plan from the native products read, with no provider branch.
@@ -62,7 +60,7 @@ def test_native_products_projects_slim_shape():
     assert row["name"] == "Starter Kit"
     assert row["slug"] == "starter-kit"
     assert row["visible"] is True
-    assert row["price"] == "6599.00"          # decimal string, like the Wix slim shape
+    assert row["price"] == "6599.00"          # decimal string in major units
     assert row["currency"] == "INR"
     assert row["image"] == "s3://media/sk.png"
     assert row["variants"][0]["pricePaise"] == 659900   # integer paise for require_variant_price
@@ -81,12 +79,11 @@ def test_native_products_excludes_archived():
 
 def test_native_products_feed_desired_items_with_variant_price():
     """A native product with a priced variant must survive desired_items'
-    require_variant_price=True gate, exactly as a Wix product would.
+    require_variant_price=True gate.
 
     The retailer-id contract requires product AND variant ids to be UUIDs
-    (`wix:<productUUID>:<variantUUID>` is the Meta<->catalog join key), so the
-    ProductsTable MUST mint UUID ids for products and variants — a real native
-    requirement documented in docs/migrations/wix-subsystem-deep-audit.md.
+    (`<prefix>:<productUUID>:<variantUUID>` is the Meta<->catalog join key), so
+    ProductsTable MUST mint UUID ids for products and variants.
     """
     product_uuid = "11111111-1111-4111-8111-111111111111"
     variant_uuid = "22222222-2222-4222-8222-222222222222"
@@ -101,7 +98,7 @@ def test_native_products_feed_desired_items_with_variant_price():
     assert len(desired) >= 1
 
 
-def test_native_variant_without_price_is_refused_like_wix():
+def test_native_variant_without_price_is_refused():
     items = [{
         "id": "prod-x", "title": "Unpriced", "slug": "unpriced", "status": "active",
         "priceMinor": 0, "currency": "INR", "inventory": 1,

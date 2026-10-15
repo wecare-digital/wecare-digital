@@ -53,7 +53,7 @@ RECORDED = {
     "active_secrets": 19,
     "scheduled_deletion_secrets": 9,
     "reference_active_secrets_20261012": 22,
-    "wix_secrets_deleted_20261014": 3,   # force-deleted 2026-10-14 (CloudTrail)
+    "secrets_deleted_20261014": 3,       # force-deleted 2026-10-14 (CloudTrail)
     # Every running Lightsail instance (live 2026-10-15): the Nano serves sip.wecare.digital since
     # the 03:39 UTC cutover; the Micro stays running as the rollback standby until it is deleted.
     "lightsail_bundles": ["micro_3_0", "nano_3_0"],
@@ -172,8 +172,8 @@ def levers(counts: dict, m: dict, *, amplify_build_reduction: float = 0.5,
     else:
         nano_label, nano_decision = "POTENTIAL", "Nano not built; see lightsail-nano-feasibility.md"
     return [
-        Lever("wix_secrets_deleted", "REALISED",
-              -round(counts["wix_secrets_deleted_20261014"] * SECRET_STORAGE_USD_PER_MONTH, 2),
+        Lever("secrets_deleted", "REALISED",
+              -round(counts["secrets_deleted_20261014"] * SECRET_STORAGE_USD_PER_MONTH, 2),
               "done 2026-10-14 (force-deleted; no recovery window)",
               ["Counted against the 2026-10-12 reference of "
                f"{counts['reference_active_secrets_20261012']} active secrets."]),
