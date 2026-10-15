@@ -946,26 +946,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( container.innerHTML ).not.toContain( 'dc2626' );
   
 
-    // Toggle to Weather: aria-selected flips and an inert placeholder panel appears,
-    // with no invented weather data.
-    const airTab = await screen.findByRole( 'tab', { name: 'Air' } );
-    const weatherTab = await screen.findByRole( 'tab', { name: 'Weather' } );
-    expect( airTab ).toHaveAttribute( 'aria-selected', 'true' );
-
-    fireEvent.click( weatherTab );
-    await waitFor( () => expect( weatherTab ).toHaveAttribute( 'aria-selected', 'true' ) );
-    expect( airTab ).toHaveAttribute( 'aria-selected', 'false' );
-    const weatherPanel = container.querySelector( '[aria-label="Weather details"]' );
-    expect( weatherPanel ).not.toBeNull();
-    // The Weather tab now renders the real current-conditions dashboard from the already-fetched
-    // weather data (environmentFetch returns 26°, feels 27, humidity 68, "Mostly sunny").
-    await waitFor( () => {
-      expect( weatherPanel?.querySelector( '.vl-live-wx-now-temp' )?.textContent ).toContain( '26°' );
-    } );
-    expect( weatherPanel?.querySelector( '.vl-live-wx-now-cond' )?.textContent ).toContain( 'Mostly sunny' );
-    expect( weatherPanel?.textContent ).not.toMatch( /coming soon/i );
-    // The Air panel is no longer shown while Weather is selected.
-    expect( container.querySelector( '[aria-label="Air details"]' ) ).toBeNull();
+    expect( screen.queryByRole( 'tab', { name: 'Weather' } ) ).toBeNull();
   } );
 
   it( 'renders pollutant concentrations faithfully: a real 0.4 stays 0.4, 0.04 stays 0.04, exact 0 stays 0', async () => {
