@@ -118,14 +118,16 @@ ENVIRONMENT = {
     "META_TOKEN_SECRET": META_TOKEN_SECRET,
     "META_TOKEN_FIELD": "access_token",
     "META_CATALOG_ID": "1457045652952851",
-    "META_CATALOG_SYNC_ENABLED": "false",
-    "META_CATALOG_SYNC_DRY_RUN": "true",
+    "META_CATALOG_SYNC_ENABLED": "true",
+    "META_CATALOG_SYNC_DRY_RUN": "false",
+    "META_CATALOG_AUTO_APPLY_SAFE": "true",
+    "META_CATALOG_AUTO_APPLY_MAX_CHANGES": "50",
     "META_CATALOG_APPROVALS_TABLE": CATALOG_APPROVALS_TABLE,
     # Empty means the product-level metaEnabled flag owns scope. Existing legacy rows remain
     # eligible until they are explicitly migrated; every newly-created native product starts
     # metaEnabled=false, so it cannot appear in the plan accidentally.
     "META_CATALOG_SYNC_VARIANT_IDS": "",
-    "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
+    "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "false",
     "CATALOG_SOURCE": "aws",
     "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
     "LOG_LEVEL": "INFO",
@@ -216,6 +218,19 @@ def expected_role_policy(account: str = ACCOUNT_ID) -> dict:
                 ],
                 "Resource": [
                     f"arn:aws:dynamodb:{REGION}:{account}:table/{CATALOG_APPROVALS_TABLE}"
+                ],
+            },
+            {
+                "Sid": "ReadProductsStream",
+                "Effect": "Allow",
+                "Action": [
+                    "dynamodb:DescribeStream",
+                    "dynamodb:GetRecords",
+                    "dynamodb:GetShardIterator",
+                    "dynamodb:ListStreams",
+                ],
+                "Resource": [
+                    f"arn:aws:dynamodb:{REGION}:{account}:table/stack-wecare-digital-ProductsTable/stream/*"
                 ],
             },
             {
@@ -348,6 +363,40 @@ def ensure_alias(apply: bool) -> str:
         return f"moved {LIVE_ALIAS} -> v{version}"
 
 
+def ensure_stream_mapping(apply: bool) -> str:
+    table = boto3.client("dynamodb", region_name=REGION).describe_table(
+        TableName="stack-wecare-digital-ProductsTable")["Table"]
+    stream_arn = str(table.get("LatestStreamArn") or "")
+    if not stream_arn:
+        raise RuntimeError("ProductsTable stream is not enabled")
+
+    mappings = lam().list_event_source_mappings(FunctionName=FUNCTION).get("EventSourceMappings", [])
+    current = next((m for m in mappings if m.get("EventSourceArn") == stream_arn), None)
+    if current:
+        if current.get("State") == "Enabled":
+            return f"exists enabled {current.get('UUID')}"
+        if not apply:
+            return f"would enable {current.get('UUID')}"
+        lam().update_event_source_mapping(UUID=current["UUID"], Enabled=True)
+        return f"enabled {current.get('UUID')}"
+
+    if not apply:
+        return f"would create {stream_arn} -> {function_arn()}"
+
+    created = lam().create_event_source_mapping(
+        EventSourceArn=stream_arn,
+        FunctionName=function_arn(),
+        Enabled=True,
+        BatchSize=10,
+        MaximumBatchingWindowInSeconds=2,
+        StartingPosition="LATEST",
+        BisectBatchOnFunctionError=True,
+        MaximumRetryAttempts=3,
+        ParallelizationFactor=1,
+    )
+    return f"created {created.get('UUID')}"
+
+
 def ensure_schedule(apply: bool) -> str:
     """The six-hourly backstop, pointed at the `live` alias."""
     try:
@@ -440,6 +489,21 @@ def verify() -> int:
                             "reach a code update")
 
     try:
+        table = boto3.client("dynamodb", region_name=REGION).describe_table(
+            TableName="stack-wecare-digital-ProductsTable")["Table"]
+        stream_arn = str(table.get("LatestStreamArn") or "")
+        mappings = lam().list_event_source_mappings(FunctionName=FUNCTION).get("EventSourceMappings", [])
+        current = next((m for m in mappings if m.get("EventSourceArn") == stream_arn), None)
+        if not stream_arn:
+            problems.append("ProductsTable stream is not enabled")
+        elif not current:
+            problems.append("ProductsTable stream has no Meta sync event-source mapping")
+        elif current.get("State") != "Enabled":
+            problems.append(f"ProductsTable stream mapping is {current.get('State')}")
+    except ClientError:
+        problems.append("could not verify ProductsTable stream mapping")
+
+    try:
         rule = events().describe_rule(Name=SCHEDULE_RULE)
         if rule.get("ScheduleExpression") != SCHEDULE_EXPRESSION:
             problems.append(f"{SCHEDULE_RULE} runs {rule.get('ScheduleExpression')}")
@@ -483,6 +547,7 @@ def main(argv=None) -> int:
     print(f"  log group         : {ensure_log_group(apply)}")
     print(f"  function          : {ensure_function(apply)}")
     print(f"  alias             : {ensure_alias(apply)}")
+    print(f"  stream trigger    : {ensure_stream_mapping(apply)}")
     print(f"  schedule          : {ensure_schedule(apply)}")
     print(f"  schedule invoke   : {ensure_schedule_permission(apply)}")
     print()
