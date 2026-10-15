@@ -21,20 +21,24 @@ import { SUBSCRIBE_CTA_HREF } from '../content/subscribe';
  */
 interface NavLink {
   label: string;
-  href: string;
-  /** router.pathname value that marks this link as the current page. */
+  /** Omitted only for a visible grouping label such as Elsewhere. */
+  href?: string;
+  /** router.pathname value that marks this link as the one current page. */
   match?: string;
-  /** True for absolute URLs off this app. Same tab either way. No nav row uses it now:
-   *  the two that did pointed at www.wecare.digital paths that both 404. */
+  /** Extra menu words that should find this destination in navigation search. */
+  searchTerms?: string[];
+  /** Child destinations shown directly beneath this family item. */
+  children?: NavLink[];
+  /** True for absolute URLs off this app. Same tab either way. */
   external?: boolean;
 }
 
 interface NavSection {
-  /** '' renders the links with no heading above them. */
+  /** '' renders the links with no structural heading above them. */
   heading: string;
-  /** When set, the heading itself is a link. Used by Customer service, which is both a
-   *  real destination and the parent of the rows beneath it. */
+  /** Some structural headings are also real destinations. */
   headingHref?: string;
+  headingMatch?: string;
   links: NavLink[];
 }
 
@@ -43,125 +47,74 @@ interface NavColumn {
   sections: NavSection[];
 }
 
-// BOTH OF THESE USED TO BE ABSOLUTE URLS ON www.wecare.digital, AND BOTH RETURNED 404
-// ON EVERY PUBLIC PAGE. Measured: [retired public path] -> 404 and /product-page/referral-partner
-// -> 404, on both the apex and the www host. That domain serves THIS Next.js app, which
-// has no [retired public path] route and no /product-page/* routes - the old storefront those
-// paths assumed is not published there. The referral-partner PRODUCT is real (it exists in
-// the catalogue at 999.00); only the URL was wrong.
-// They now point at routes that exist and return 200. [retired public path]/ and its three children are
-// real exported pages that were simply never wired into this menu.
+interface SearchableNavLink extends NavLink {
+  href: string;
+  searchText: string;
+}
 
-// EVERY ROW NOW HAS ITS OWN PAGE, and the placeholder that stood here is gone with the
-// constants it defined.
-//
-// What it said: every Customer service child pointed at /contact/, chosen over href="#" or an
-// invented path so that each row at least worked. The consequence, measured on the built
-// home page, was six distinct labels - Submit Request, Request Amendment, Drop Docs, Leave
-// Review, Refer & Earn and Contact us - resolving to one destination, on all 872 documents.
-// The menu made six promises and kept one.
-//
-// That note also named the way out, and this is it: public pages, registered in
-// PUBLIC_PAGE_META. Copy lives in src/content/customerservice.ts, layout in ProductPage.tsx -
-// the same shape the seven product pages use, so twelve pages cannot drift apart. Contact us
-// keeps /contact/, which is its real destination, so five pages were needed rather than six.
-//
-// STILL NOT [retired public path]/*, AND THAT PART OF THE OLD NOTE STANDS. Those routes exist and return
-// 200, and an earlier pass wired these rows to them, which was wrong: service/index.tsx
-// renders <Layout user onSignOut> and submit-request.tsx reads the requester from
-// user?.signInDetails?.loginId. None is in PUBLIC_PAGE_META, so _app.tsx wraps them in the
-// Authenticator and a public row pointing there shows an anonymous visitor a login wall.
-// Measured: out/service/submit-request/index.html was 144,800 bytes of auth shell against
-// 35,738 for public /contact/. The new pages touch neither Layout nor a session.
-//
-// The current mapping, for the record:
-//   Submit Request     -> /submit-request/
-//   Request Amendment  -> /request-amendment/
-//   Orders             -> /orders/
-//   Drop Docs          -> /drop-docs/
-//   Leave Review       -> /leave-review/
-//   Refer & Earn       -> /refer-and-earn/
-//   Contact us         -> /contact/
-//
-// Header.test.tsx pins the public navigation rows so a typo cannot silently drop one.
-
-// One structure, rendered as columns, rather than the single flat list this used to
-// be. The Customer service group is why: seven children under one parent made a
-// single-column dropdown roughly 700px tall, past the bottom of a laptop viewport.
-//
-// Trailing slashes are load-bearing on the static pages: next.config.js sets
-// trailingSlash, so /vayulok would redirect before resolving. Staff access belongs
-// inside /workspace/ and is deliberately absent from this public menu.
-//
-// The external entries carry no target, so they open in the SAME tab. That is the
-// default for a plain anchor, so it is the ABSENCE of an attribute doing the work -
-// do not "fix" it by adding target, and note rel="noopener" would be inert without
-// one. They also carry no `match`: it is compared against router.pathname, which can
-// never equal an absolute URL.
+/**
+ * PUBLIC MENU SOURCE OF TRUTH.
+ *
+ * Structural headings stay on the existing small uppercase rung.
+ * Every family and every destination uses the same 19px/600 navigation rung.
+ * Elsewhere is a non-clickable family label; its children are the destinations.
+ * Search is derived from this same graph.
+ */
 const COLUMNS: NavColumn[] = [
   {
     sections: [
       {
-        heading: 'Shop',
+        heading: '',
         links: [
-          { label: 'Browse All', href: '/shop/', match: '/shop' },
+          { label: 'Home', href: '/', match: '/' },
+          { label: 'Shop', href: '/shop/', match: '/shop' },
         ],
       },
       {
-        heading: 'Products 1 of 2',
+        heading: 'Products',
         links: [
           { label: 'Grahak OS', href: '/grahak-os/', match: '/grahak-os' },
           { label: 'VayuLok', href: '/vayulok/', match: '/vayulok' },
           { label: 'Bharat Rx', href: '/bharat-rx/', match: '/bharat-rx' },
-        ],
-      },
-      {
-        heading: 'Elsewhere',
-        headingHref: '/elsewhere/',
-        links: [
-          { label: 'Visa Support', href: '/elsewhere/', match: '/elsewhere' },
-          { label: 'Travel Support', href: '/elsewhere/', match: '/elsewhere' },
-        ],
-      },
-      {
-        heading: '',
-        links: [
+          {
+            label: 'Elsewhere',
+            searchTerms: [ 'travel' ],
+            children: [
+              { label: 'Visa', href: '/elsewhere/visa/', match: '/elsewhere/visa', searchTerms: [ 'elsewhere' ] },
+              { label: 'Trip', href: '/elsewhere/trip/', match: '/elsewhere/trip', searchTerms: [ 'elsewhere', 'travel' ] },
+              { label: 'Activities', href: '/elsewhere/activities/', match: '/elsewhere/activities', searchTerms: [ 'elsewhere' ] },
+            ],
+          },
           { label: 'Expo Week', href: '/expo-week/', match: '/expo-week' },
-        ],
-      },
-      {
-        heading: 'Dastavez',
-        headingHref: '/dastavez/',
-        links: [
-          { label: 'Drafting', href: '/dastavez/', match: '/dastavez' },
-          { label: 'Registration', href: '/dastavez/', match: '/dastavez' },
-          { label: 'Legal Reference', href: '/dastavez/', match: '/dastavez' },
-        ],
-      },
-      {
-        heading: 'Products 2 of 2',
-        links: [],
-      },
-      {
-        heading: 'Clear Closure',
-        headingHref: '/clear-closure/',
-        links: [
-          { label: 'Guided Resolution', href: '/shop/guided-resolution/' },
-          { label: 'Case Submission', href: '/shop/file-assist/' },
-          { label: 'Paperwork', href: '/shop/paperwork/' },
-        ],
-      },
-      {
-        heading: 'Ritual Guru',
-        headingHref: '/ritual-guru/',
-        links: [
-          { label: 'DIY Puja Kit', href: '/ritual-guru/', match: '/ritual-guru' },
-          { label: 'Puja Guidance', href: '/ritual-guru/', match: '/ritual-guru' },
-        ],
-      },
-      {
-        heading: '',
-        links: [
+          {
+            label: 'Dastavez',
+            href: '/dastavez/',
+            match: '/dastavez',
+            children: [
+              { label: 'Drafting', href: '/dastavez/drafting/', match: '/dastavez/drafting', searchTerms: [ 'dastavez' ] },
+              { label: 'Registration', href: '/dastavez/registration/', match: '/dastavez/registration', searchTerms: [ 'dastavez' ] },
+              { label: 'Legal Reference', href: '/dastavez/legal-reference/', match: '/dastavez/legal-reference', searchTerms: [ 'dastavez' ] },
+            ],
+          },
+          {
+            label: 'Clear Closure',
+            href: '/clear-closure/',
+            match: '/clear-closure',
+            children: [
+              { label: 'Guided Resolution', href: '/shop/guided-resolution/' },
+              { label: 'Case Submission', href: '/shop/file-assist/' },
+              { label: 'Paperwork', href: '/shop/paperwork/' },
+            ],
+          },
+          {
+            label: 'Ritual Guru',
+            href: '/ritual-guru/',
+            match: '/ritual-guru',
+            children: [
+              { label: 'DIY Puja Kit', href: '/ritual-guru/diy-puja-kit/', match: '/ritual-guru/diy-puja-kit', searchTerms: [ 'ritual guru' ] },
+              { label: 'Puja Guidance', href: '/ritual-guru/puja-guidance/', match: '/ritual-guru/puja-guidance', searchTerms: [ 'ritual guru' ] },
+            ],
+          },
           { label: 'Anew', href: '/anew/', match: '/anew' },
           { label: 'Hunar', href: '/hunar/', match: '/hunar' },
           { label: 'Niji Setu', href: '/niji-setu/', match: '/niji-setu' },
@@ -192,6 +145,7 @@ const COLUMNS: NavColumn[] = [
       {
         heading: 'Refer & Earn',
         headingHref: '/refer-and-earn/',
+        headingMatch: '/refer-and-earn',
         links: [
           { label: 'Merchandise', href: '/shop/merchandise/' },
           { label: 'Kiosk', href: '/shop/kiosk/' },
@@ -199,15 +153,15 @@ const COLUMNS: NavColumn[] = [
         ],
       },
       {
-        heading: 'Extras',
-        links: [
-          { label: 'Perks', href: '/perks/', match: '/perks' },
-        ],
-      },
-      {
         heading: 'Contact',
         links: [
           { label: 'Contact us', href: '/contact/', match: '/contact' },
+        ],
+      },
+      {
+        heading: 'Extras',
+        links: [
+          { label: 'Perks', href: '/perks/', match: '/perks' },
         ],
       },
       {
@@ -221,6 +175,46 @@ const COLUMNS: NavColumn[] = [
   },
 ];
 
+const flattenMenuLinks = (): SearchableNavLink[] => {
+  const result: SearchableNavLink[] = [];
+  const push = ( link: NavLink, inheritedTerms: string[] ) => {
+    const terms = [ ...inheritedTerms, ...( link.searchTerms || [] ) ];
+    if ( link.href ) {
+      result.push( {
+        ...link,
+        href: link.href,
+        searchText: [ link.label, ...terms ].join( ' ' ).toLocaleLowerCase(),
+      } );
+    }
+    for ( const child of link.children || [] ) push( child, [ ...terms, link.label ] );
+  };
+
+  for ( const column of COLUMNS ) {
+    for ( const section of column.sections ) {
+      if ( section.headingHref ) {
+        result.push( {
+          label: section.heading,
+          href: section.headingHref,
+          match: section.headingMatch,
+          searchText: section.heading.toLocaleLowerCase(),
+        } );
+      }
+      for ( const link of section.links ) push( link, section.heading ? [ section.heading ] : [] );
+    }
+  }
+
+  const seen = new Set<string>();
+  return result.filter( link => {
+    const key = link.href + '\n' + link.label;
+    if ( seen.has( key ) ) return false;
+    seen.add( key );
+    return true;
+  } );
+};
+
+const MENU_SEARCH_LINKS = flattenMenuLinks();
+
+
 const Header: React.FC = () => {
   const [ open, setOpen ] = useState( false );
   const [ query, setQuery ] = useState( '' );
@@ -232,17 +226,11 @@ const Header: React.FC = () => {
   const term = query.trim().toLocaleLowerCase();
   const searching = term.length > 0;
 
-  // Flattened once, from the same structure the columns render, so a link can never
-  // exist in the menu but be missing from search.
-  const allLinks = useMemo( () => COLUMNS.flatMap( column => column.sections.flatMap( section => (
-    section.headingHref
-      ? [ { label: section.heading, href: section.headingHref, external: true }, ...section.links ]
-      : section.links
-  ) ) ), [] );
-
+  // Search results come only from the menu graph. Family and section names are inherited
+  // search terms, so "Elsewhere" returns Visa, Trip and Activities without a dead parent link.
   const filtered = useMemo( () => (
-    searching ? allLinks.filter( link => link.label.toLocaleLowerCase().includes( term ) ) : allLinks
-  ), [ allLinks, searching, term ] );
+    searching ? MENU_SEARCH_LINKS.filter( link => link.searchText.includes( term ) ) : MENU_SEARCH_LINKS
+  ), [ searching, term ] );
 
   const close = () => { setOpen( false ); setQuery( '' ); };
 
@@ -310,7 +298,7 @@ const Header: React.FC = () => {
   // nav-item on it at all - no padding, no row height, no hover, no active weight.
   // The 33 unit tests still passed, because they assert role, name and href and
   // never look at classes. Only reading the built HTML caught it.
-  const isActive = ( link: NavLink ) => link.match !== undefined && router.pathname === link.match;
+  const isActive = ( link: NavLink ) => Boolean( link.href && link.match && router.pathname === link.match );
 
   // NO renderLink() HELPER. The anchor markup is duplicated inline in both branches
   // below, on purpose, and it must stay that way.
@@ -397,35 +385,52 @@ const Header: React.FC = () => {
                   { COLUMNS.map( ( column, columnIndex ) => (
                     <div key={ columnIndex } className="nav-col">
                       { column.sections.map( ( section, sectionIndex ) => {
-                        // The PRODUCTS section is the one that grows without bound - it is
-                        // generated from src/content/products.ts and is meant to hold 100+
-                        // entries eventually. So ONLY this section gets a capped, scrollable
-                        // list with a pinned heading; every other section renders exactly as
-                        // before. Matched by heading text rather than index so reordering the
-                        // columns cannot silently move the scroll onto the wrong group.
                         const isProducts = section.heading === 'Products';
+                        const headingActive = Boolean(
+                          section.headingHref && section.headingMatch && router.pathname === section.headingMatch
+                        );
                         const label = section.heading && ( section.headingHref
                           ? (
-                            // The heading is the parent destination as well as a label, so
-                            // it is a link. Styled as a heading rather than as a row so the
-                            // hierarchy still reads.
                             <a
                               href={ section.headingHref }
-                              className="nav-group-label nav-group-link"
+                              className={ `nav-group-label nav-group-link ${headingActive ? 'active' : ''}`.trim() }
+                              aria-current={ headingActive ? 'page' : undefined }
                               onClick={ close }
                             >{ section.heading }</a>
                           )
                           : <span className="nav-group-label">{ section.heading }</span>
                         );
+
                         const items = section.links.map( link => (
-                          <a
-                            key={ link.label + link.href }
-                            href={ link.href }
-                            className={ `nav-item ${section.headingHref ? 'nav-sub' : ''} ${isActive( link ) ? 'active' : ''}`.trim() }
-                            aria-current={ isActive( link ) ? 'page' : undefined }
-                            onClick={ close }
-                          >{ link.label }</a>
+                          <div
+                            key={ link.label + ( link.href || '' ) }
+                            className={ `nav-tree-item ${link.children?.length ? 'has-children' : ''}`.trim() }
+                            role={ link.children?.length ? 'group' : undefined }
+                            aria-label={ link.children?.length ? link.label : undefined }
+                          >
+                            { link.href ? (
+                              <a
+                                href={ link.href }
+                                className={ `nav-item ${isActive( link ) ? 'active' : ''}`.trim() }
+                                aria-current={ isActive( link ) ? 'page' : undefined }
+                                onClick={ close }
+                              >{ link.label }</a>
+                            ) : (
+                              <span className="nav-item nav-family-label">{ link.label }</span>
+                            ) }
+
+                            { link.children?.map( child => child.href && (
+                              <a
+                                key={ child.label + child.href }
+                                href={ child.href }
+                                className={ `nav-item nav-child ${isActive( child ) ? 'active' : ''}`.trim() }
+                                aria-current={ isActive( child ) ? 'page' : undefined }
+                                onClick={ close }
+                              >{ child.label }</a>
+                            ) ) }
+                          </div>
                         ) );
+
                         return (
                           <div key={ section.heading || sectionIndex } className={ `nav-group ${isProducts ? 'nav-group-products' : ''}`.trim() }>
                             { label }
@@ -774,8 +779,8 @@ const Header: React.FC = () => {
         /* Split, same reason. .38 is a stronger tint than the .22 above but still only
            reaches rgb(238,251,201) over white - darker than nothing, nowhere near 3:1, and
            outline:none removed the fallback. Tint on hover, opaque ring on focus. */
-        .nav-item:hover{background:rgba(209,244,112,.38)}
-        .nav-item:focus-visible{background:rgba(209,244,112,.38);outline:3px solid #1a3a2a;outline-offset:1px}
+        .nav-item:not(.active):hover{background:rgba(209,244,112,.38)}
+        .nav-item:focus-visible{outline:3px solid #1a3a2a;outline-offset:1px}.nav-item:not(.active):focus-visible{background:rgba(209,244,112,.38)}
         .nav-item.active{font-weight:800;background:#d1f470;color:#0f2a1d}
         /* DIVIDER LINE AFTER EACH ROW + a lime SWEEP on hover.
            ::after is the faint resting hairline (#f1f3ec - deliberately very light, so it
@@ -793,15 +798,15 @@ const Header: React.FC = () => {
         /* The desktop panel hangs off its trigger, so under rtl it has to hang off the other
            edge. Paired with the --nav-menu-inset base rule above. */
         :global([dir='rtl']) .nav-menu{left:auto;right:var(--nav-menu-inset)}
-        .nav-item:hover::before,.nav-item:focus-visible::before{transform:scaleX(1)}
+        .nav-item:not(.active):hover::before,.nav-item:not(.active):focus-visible::before{transform:scaleX(1)}
         /* The last row in a group has nothing after it, so no divider. */
         .nav-group .nav-item:last-child::after,.nav-products-scroll .nav-item:last-child::after{display:none}
         @media(prefers-reduced-motion:reduce){.nav-item::before{transition:none}}
-        /* Children of a linked heading step down to 17px. Same weight and colour, so
-           they read as the same kind of thing at a lower level rather than as a
-           different control - and the size difference is what carries the hierarchy
-           now that indentation alone would be ambiguous inside a column. */
-        .nav-sub{font-size:17px;min-height:42px}
+        /* Family children use the exact same 19px/600 navigation typography as their
+           parent. Hierarchy is expressed by grouping and indentation, never smaller text. */
+        .nav-tree-item.has-children + .nav-tree-item{margin-top:6px}
+        .nav-family-label{cursor:default}
+        .nav-child{font-size:19px;font-weight:600;min-height:46px;padding-inline-start:24px}
 
         /* The panel breaks to fewer columns before the columns get too narrow to hold
            "Request Amendment" on one line. Measured rather than guessed: at 19px/17px
@@ -818,7 +823,7 @@ const Header: React.FC = () => {
            variable - symmetric, therefore direction-neutral, therefore no rtl override
            needed. It still has to beat the base rule's compiled :lang() selector, which the
            extra .hdr-in ancestor class does. */
-        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:16px;right:16px;width:auto;max-height:calc(100dvh - 140px)}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item{font-size:19px;min-height:52px}.nav-sub{font-size:17px;min-height:46px}}
+        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:16px;right:16px;width:auto;max-height:calc(100dvh - 140px)}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:19px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto;background:transparent;padding:0;border-radius:0}}
 
         /* ROOM FOR THE SHOPPING BAG ON THE NARROWEST DEVICE THAT SHIPS, derived rather than
            nudged. Measured on the built header at 280px (Galaxy Fold, folded) before the bag
