@@ -78,11 +78,9 @@ function pm25Severity( pm25: number ): Sev {
 // is worldwide. Manual pan/zoom gestures are disabled; only an explicit place selection
 // is allowed to move the camera.
 
-// Place-autocomplete debounce. 120ms is a deliberately snappy value: it keeps ONE
-// Autocomplete Data API request per settled keystroke (so a fast typist does not spam the
-// SKU) while feeling immediate rather than the previous 300ms lag. The session-token reuse
-// (autocompleteTokenRef) behavior is unchanged; only the settle delay is shorter.
-const SEARCH_DEBOUNCE_MS = 120;
+// Destination search is deliberately submit-driven. Typing never calls a location API;
+// Enter, the search action, or a completed voice transcript performs one Geocoding lookup.
+// This keeps VayuLok off Places (New) / Autocomplete billing and avoids per-keystroke requests.
 
 // Continuous AQI heatmap TILE overlay (the organic, blob-shaped pollution cloud from the
 // reference). The AQI "Heatmap" switch paints Google's Air Quality heatmapTiles onto the
@@ -116,94 +114,16 @@ interface PlaceState {
   addr: string;
   lat: number;
   lng: number;
-  // Retain the resolved Google Place ID so a future server-side Geocoding v4
-  // SearchDestinations relay can enrich discrete destinations without re-searching.
+  // Geocoding can return a stable place ID and viewport without invoking Places (New).
   placeId?: string;
-  // Honest, optional Google Place metadata surfaced in the left card. Each is written to
-  // state ONLY when the Places API actually returned it, so the card never shows an
-  // invented fact or a placeholder (see metaFromGooglePlace / the left-card guards).
-  primaryType?: string;
-  types?: string[];
-  rating?: number;
-  userRatingCount?: number;
-  websiteURI?: string;
-  summary?: string;
   viewport?: { north: number; south: number; east: number; west: number };
   regionCode?: string;
-}
-
-// The extra Place fields requested on the keyed search/select + map-click paths, on top of
-// the display fields. Fetched ONLY on those existing keyed paths - never unconditionally -
-// so honest degradation (no key => no fetch) is preserved.
-const PLACE_META_FIELDS = [
-  'types',
-  'primaryTypeDisplayName',
-  'rating',
-  'userRatingCount',
-  'websiteURI',
-  'editorialSummary',
-  'viewport',
-] as const;
-
-/* The shape of a resolved google.maps.places.Place once fetchFields has run. Mirrors the
-   Places JS API: every metadata field is optional and only present when Google returned
-   it. We never fabricate; absence simply means that line does not render. */
-interface GooglePlaceLike {
-  fetchFields?: ( req: { fields: string[] } ) => Promise<void>;
-  id?: string;
-  displayName?: string;
-  formattedAddress?: string;
-  location?: { lat?: () => number; lng?: () => number };
-  addressComponents?: { types?: string[]; shortText?: string }[];
-  types?: string[];
-  primaryTypeDisplayName?: string;
-  rating?: number;
-  userRatingCount?: number;
-  websiteURI?: string;
-  editorialSummary?: string;
-  viewport?: { toJSON?: () => { north: number; south: number; east: number; west: number } };
-}
-
-/* Pull the honest metadata subset off a resolved Google Place. Returns only the fields
-   that are genuinely present (finite numbers, non-empty strings, real booleans); every
-   other field is left undefined so the left card renders nothing for it. */
-function metaFromGooglePlace( p: GooglePlaceLike ): Partial<PlaceState> {
-  const meta: Partial<PlaceState> = {};
-  const primaryType = humanisePlaceType( p.primaryTypeDisplayName );
-  if ( primaryType ) meta.primaryType = primaryType;
-  const types = Array.isArray( p.types )
-    ? p.types.map( humanisePlaceType ).filter( ( t ): t is string => Boolean( t ) )
-    : [];
-  if ( types.length ) meta.types = Array.from( new Set( types ) ).slice( 0, 3 );
-  if ( Number.isFinite( p.rating ) ) meta.rating = p.rating;
-  if ( Number.isFinite( p.userRatingCount ) ) meta.userRatingCount = p.userRatingCount;
-  if ( typeof p.websiteURI === 'string' && p.websiteURI ) meta.websiteURI = p.websiteURI;
-  const summary = typeof p.editorialSummary === 'string' ? p.editorialSummary.trim() : '';
-  if ( summary ) meta.summary = summary;
-  const viewport = p.viewport?.toJSON?.();
-  if ( viewport && [ viewport.north, viewport.south, viewport.east, viewport.west ].every( Number.isFinite ) ) meta.viewport = viewport;
-  const country = p.addressComponents?.find( component => component.types?.includes( 'country' ) )?.shortText;
-  if ( typeof country === 'string' && country.trim() ) meta.regionCode = country.trim().toUpperCase();
-  return meta;
-}
-
-// Google place-type tokens arrive as snake_case machine strings (e.g. 'tourist_attraction').
-// primaryTypeDisplayName is already human-readable. Normalise both into Title Case words,
-// dropping empties, so attribute lines read like prose rather than API enums.
-function humanisePlaceType( raw: unknown ): string | undefined {
-  if ( typeof raw !== 'string' ) return undefined;
-  const cleaned = raw.replaceAll( '_', ' ' ).trim();
-  if ( !cleaned ) return undefined;
-  return cleaned.replace( /\b\w/g, c => c.toUpperCase() );
 }
 
 interface SearchResult {
   name: string;
   addr: string;
-  place?: PlaceState;
-  prediction?: {
-    toPlace?: () => GooglePlaceLike;
-  };
+  place: PlaceState;
 }
 
 const DEFAULT_PLACE: PlaceState = {
@@ -344,7 +264,7 @@ interface HealthPersonaDefinition {
 /* Local paths from Google's Material Symbols Outlined set. Keeping the SVG paths local avoids
    a runtime icon-font dependency while preserving Google's icon language across the Air card. */
 const MATERIAL_SYMBOL_PATHS: Record<
-  HealthPersonaIcon | 'info' | 'switches' | 'close' | 'air' | 'eco' | 'schedule' | 'location' | 'chevronLeft' | 'chevronRight',
+  HealthPersonaIcon | 'info' | 'switches' | 'close' | 'air' | 'eco' | 'schedule' | 'location' | 'search' | 'chevronLeft' | 'chevronRight',
   string
 > = {
   info: 'M453-280h60v-240h-60v240Zm50.5-323.2q9.5-9.2 9.5-22.8 0-14.45-9.48-24.22-9.48-9.78-23.5-9.78t-23.52 9.78Q447-640.45 447-626q0 13.6 9.48 22.8 9.48 9.2 23.5 9.2t23.52-9.2ZM480.27-80q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z',
@@ -356,6 +276,7 @@ const MATERIAL_SYMBOL_PATHS: Record<
   air: 'M460-160q-50 0-85-35t-35-85h80q0 17 11.5 28.5T460-240q17 0 28.5-11.5T500-280q0-17-11.5-28.5T460-320H80v-80h380q50 0 85 35t35 85q0 50-35 85t-85 35ZM80-560v-80h540q26 0 43-17t17-43q0-26-17-43t-43-17q-26 0-43 17t-17 43h-80q0-59 40.5-99.5T620-840q59 0 99.5 40.5T760-700q0 59-40.5 99.5T620-560H80Zm660 320v-80q26 0 43-17t17-43q0-26-17-43t-43-17H80v-80h660q59 0 99.5 40.5T880-380q0 59-40.5 99.5T740-240Z',
   schedule: 'm612-292 56-56-148-148v-184h-80v216l172 172ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-400Zm0 320q133 0 226.5-93.5T800-480q0-133-93.5-226.5T480-800q-133 0-226.5 93.5T160-480q0 133 93.5 226.5T480-160Z',
   location: 'M480-480q33 0 56.5-23.5T560-560q0-33-23.5-56.5T480-640q-33 0-56.5 23.5T400-560q0 33 23.5 56.5T480-480Zm0 294q122-112 181-203.5T720-552q0-109-69.5-178.5T480-800q-101 0-170.5 69.5T240-552q0 71 59 162.5T480-186Zm0 106Q319-217 239.5-334.5T160-552q0-150 96.5-239T480-880q127 0 223.5 89T800-552q0 100-79.5 217.5T480-80Zm0-480Z',
+  search: 'M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z',
   general: 'M420-340h120v-100h100v-120H540v-100H420v100H320v120h100v100Zm60 260q-139-35-229.5-159.5T160-516v-244l320-120 320 120v244q0 152-90.5 276.5T480-80Zm0-84q104-33 172-132t68-220v-189l-240-90-240 90v189q0 121 68 220t172 132Zm0-316Z',
   elderly: 'm320-40-48-36 104-139-8-191q-2-52 5.5-109.5T397-617l-97 56v111h-60v-146l167-96q17-10 32.5-15t29.5-5q27 0 48.5 21t41.5 66q20 46 59 75.5t94 46.5q7-4 13.5-5.5T739-510q23 0 42 18.5t19 41.5v410h-30v-410q0-12-9-21t-21-9q-12 0-21 9t-9 21v30h-30v-33q-42-11-87.5-42T521-568q-12 34-18.5 75t-4.5 73l97 137v243h-60v-219l-85-95-10 154L320-40Zm218-714q-30 0-51.5-21.5T465-827q0-30 21.5-51.5T538-900q30 0 51.5 21.5T611-827q0 30-21.5 51.5T538-754Z',
   respiratory: 'M190-120q-46 0-78-32t-32-78v-185l108-279q12-31 40.07-48.5t60.82-17.5q42.11 0 71.61 29.57T390-659v39h-60v-39q0-17.19-12.83-29.1-12.82-11.9-29.92-11.9-14.25 0-26.25 6.5T244-674L140-405v175q0 21.25 14.38 35.62Q168.75-180 190-180h140q21.25 0 35.63-14.38Q380-208.75 380-230v-70h60v70q0 46-32.08 78-32.09 32-77.92 32H190Zm580 0H630q-45.83 0-77.92-32Q520-184 520-230v-70h60v70q0 21.25 14.38 35.62Q608.75-180 630-180h140q21.25 0 35.63-14.38Q820-208.75 820-230v-175L716-674q-5-13-17-19.5t-26-6.5q-17 0-30 11.9-13 11.91-13 29.1v39h-60v-39q0-41.86 29.52-71.43Q629.03-760 671.2-760q32.8 0 60.8 17.5t40 48.5l108 279v185q0 46-32.08 78-32.09 32-77.92 32ZM334-456Zm292 0Zm-146-62L376-414l-42-42 116-116v-308h60v308l116 116-42 42-104-104Z',
@@ -455,6 +376,7 @@ interface WeatherState {
   windSpeed?: number;
   windUnit?: string;
   windDir?: string;
+  windDeg?: number;
   windGust?: number;
   rainMm?: number;
   rainProb?: number;
@@ -1099,8 +1021,6 @@ const VayuLokLive: React.FC = () => {
   const selectionSeqRef = useRef( 0 );
   const markerRef = useRef<unknown>( null );
   const markerCtorRef = useRef<( new ( opts: Record<string, unknown> ) => unknown ) | null>( null );
-  const placesLibRef = useRef<Record<string, unknown> | null>( null );
-  const autocompleteTokenRef = useRef<unknown>( null );
   const geocoder = useRef<unknown>( null );
   // Cache the last fetched values per "lat,lng" so re-selecting a place bills nothing.
   const cache = useRef<Record<string, { ts: number; air: AirState | null; weather: WeatherState | null; pollen: PollenRow[] | null }>>( {} );
@@ -1115,7 +1035,6 @@ const VayuLokLive: React.FC = () => {
   const historyCache = useRef<Record<string, { ts: number; points: AirPoint[] }>>( {} );
   const weatherHistoryCache = useRef<Record<string, { ts: number; rows: WeatherHour[] }>>( {} );
   const timeZoneCache = useRef<Record<string, LocationTimeState>>( {} );
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
   // The google.maps.ImageMapType instance for the continuous AQI heatmap tile overlay
   // (FEAT-001). Attached by DEFAULT once the KEYED map is initialized (layer defaults to
   // 'AQI'), pushed onto map.overlayMapTypes, and detached idempotently on toggle-off /
@@ -1441,14 +1360,13 @@ const VayuLokLive: React.FC = () => {
 
       const motionListeners: { remove?: () => void }[] = [];
 
-      // OPTIONAL LIBRARIES LOAD AFTER MAP CONSTRUCTION, IN PARALLEL. Search can still call
-      // ensurePlacesLibrary/ensureGeocoder if the user types before these finish; Google's
-      // importLibrary de-duplicates those requests. None of this delays the first map tiles.
-      void Promise.all( [ imp( 'marker' ), imp( 'places' ), imp( 'geocoding' ) ] ).then(
-        ( [ markerLib, placesLib, geocodingLib ] ) => {
+      // OPTIONAL LIBRARIES LOAD AFTER MAP CONSTRUCTION, IN PARALLEL. VayuLok deliberately
+      // does not import the Places library: destination search is one Geocoding request per
+      // explicit submission, not Places (New) autocomplete on every keystroke.
+      void Promise.all( [ imp( 'marker' ), imp( 'geocoding' ) ] ).then(
+        ( [ markerLib, geocodingLib ] ) => {
           if ( cancelled ) return;
           markerCtorRef.current = ( markerLib as { Marker?: MapsCtors['Marker'] } | null )?.Marker || legacy.Marker || null;
-          placesLibRef.current = ( placesLib as unknown as MapsCtors['places'] ) || legacy.places || null;
           const GeocoderCtor = ( geocodingLib as { Geocoder?: MapsCtors['Geocoder'] } | null )?.Geocoder || legacy.Geocoder;
           if ( GeocoderCtor && !geocoder.current ) geocoder.current = new GeocoderCtor();
         },
@@ -1507,7 +1425,7 @@ const VayuLokLive: React.FC = () => {
     const script = document.createElement( 'script' );
     script.id = ID;
     script.async = true;
-    // Keep the bootstrap lean. Places/marker/geocoding are imported lazily after the map constructor.
+    // Keep the bootstrap lean. Marker/geocoding are imported lazily after the map constructor.
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent( MAPS_KEY )}&loading=async&v=beta`;
     document.head.appendChild( script );
     // Start the same namespace-readiness path immediately; it will resolve once
@@ -1555,6 +1473,14 @@ const VayuLokLive: React.FC = () => {
       heatmapOverlayRef.current = null;
     };
 
+    // Weather mode owns the visual map surface. Remove Air Quality tiles while the
+    // Weather tab is active so sky/wind circulation is not mixed with an AQI heatmap.
+    if ( detailTab !== 'air' ) {
+      detachHeatmap();
+      requestAnimationFrame( () => { setDataLoading( false ); } );
+      return;
+    }
+
     // No layer active -> ensure the heatmap overlay is detached and the single-point air clears.
     if ( !layer ) {
       detachHeatmap();
@@ -1594,7 +1520,7 @@ const VayuLokLive: React.FC = () => {
     }
 
     return undefined;
-  }, [ layer, place, refreshNonce, mapReady, hasSelection ] );
+  }, [ layer, place, refreshNonce, mapReady, hasSelection, detailTab ] );
 
   /* ---------------------------------------------------------------------------------
      ATMOSPHERE VISUAL. No extra provider request is made here. The live Weather API payload
@@ -1692,7 +1618,10 @@ const VayuLokLive: React.FC = () => {
           out.windSpeed = Math.round( windSpeed );
           out.windUnit = windUnitLabel( typeof windUnit === 'string' ? windUnit : undefined );
         }
-        if ( Number.isFinite( windDeg ) ) out.windDir = windDirection( windDeg );
+        if ( Number.isFinite( windDeg ) ) {
+          out.windDir = windDirection( windDeg );
+          out.windDeg = ( ( windDeg % 360 ) + 360 ) % 360;
+        }
         const gust = n( d?.wind?.gust?.value );
         const rainMm = n( d?.precipitation?.qpf?.quantity );
         const rainProb = n( d?.precipitation?.probability?.percent );
@@ -2199,149 +2128,19 @@ const VayuLokLive: React.FC = () => {
   }, [ place, mapReady, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
-     SEARCH - modern Places Autocomplete Data API with one session token per query/
-     selection session. This avoids legacy Text Search on every keystroke and is
-     intentionally worldwide. Geocoding remains only as an unavailable-Places fallback. */
-  const ensurePlacesLibrary = useCallback( async (): Promise<Record<string, unknown> | null> => {
-    if ( placesLibRef.current ) return placesLibRef.current;
-    const w = window as unknown as { google?: { maps?: { importLibrary?: ( name: string ) => Promise<Record<string, unknown>>; places?: Record<string, unknown> } } };
-    try {
-      const lib = w.google?.maps?.importLibrary
-        ? await w.google.maps.importLibrary( 'places' )
-        : w.google?.maps?.places || null;
-      placesLibRef.current = lib || null;
-      return placesLibRef.current;
-    } catch {
-      return null;
-    }
-  }, [] );
-
-  // Obtain a Geocoder the same way the map init effect does: via importLibrary('geocoding')
-  // under the modern loader, falling back to a pre-populated namespace Geocoder only for an
-  // older loader. Mirrors ensurePlacesLibrary so the search geocoding fallback never depends
-  // on legacy.Geocoder being seeded on google.maps. Caches into geocoder.current.
-  const ensureGeocoder = useCallback( async (): Promise<{
-    geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
-  } | null> => {
-    const existing = geocoder.current as {
-      geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
-    } | null;
-    if ( existing ) return existing;
-    const w = window as unknown as { google?: { maps?: {
-      importLibrary?: ( name: string ) => Promise<Record<string, unknown>>;
-      Geocoder?: new () => unknown;
-    } } };
-    try {
-      const lib = w.google?.maps?.importLibrary
-        ? await w.google.maps.importLibrary( 'geocoding' )
-        : null;
-      const Ctor = ( lib as { Geocoder?: new () => unknown } | null )?.Geocoder
-        || w.google?.maps?.Geocoder;
-      if ( Ctor ) geocoder.current = new Ctor();
-    } catch { /* no geocoder available -> degrade */ }
-    return geocoder.current as {
-      geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
-    } | null;
-  }, [] );
-
-  /* ---------------------------------------------------------------------------------
-     Place enrichment: the on-map selected label shows a human address descriptor
-     (landmark/area) when the Geocoder exposes one. Optional and degrades cleanly when
-     a project has not enabled the service. */
-  useEffect( () => {
-    if ( !MAPS_KEY || !hasSelection || !mapReady || typeof window === 'undefined' ) return;
-    let cancelled = false;
-
-    const describe = async () => {
-      const gc = await ensureGeocoder();
-      if ( !gc?.geocode || cancelled ) return;
-      const request: Record<string, unknown> = place.placeId
-        ? { placeId: place.placeId, extraComputations: [ 'ADDRESS_DESCRIPTORS' ] }
-        : { location: { lat: place.lat, lng: place.lng }, extraComputations: [ 'ADDRESS_DESCRIPTORS' ] };
-      try {
-        gc.geocode( request, ( rows, status ) => {
-          if ( cancelled || status !== 'OK' || !Array.isArray( rows ) || !rows.length ) return;
-          const descriptor = ( rows[ 0 ] as any )?.address_descriptor;
-          const landmark = Array.isArray( descriptor?.landmarks ) ? descriptor.landmarks[ 0 ] : null;
-          const area = Array.isArray( descriptor?.areas ) ? descriptor.areas[ 0 ] : null;
-          const landmarkName = landmark?.display_name || landmark?.displayName?.text || landmark?.display_name?.text;
-          const areaName = area?.display_name || area?.displayName?.text || area?.display_name?.text;
-          const relationship = String( landmark?.spatial_relationship || '' );
-          const relationshipLabel: Record<string, string> = {
-            NEAR: 'Near', WITHIN: 'Within', BESIDE: 'Beside', ACROSS_THE_ROAD: 'Across the road from',
-            DOWN_THE_ROAD: 'Down the road from', AROUND_THE_CORNER: 'Around the corner from', BEHIND: 'Behind',
-          };
-          const parts: string[] = [];
-          if ( landmarkName ) parts.push( `${relationshipLabel[ relationship ] || 'Near'} ${landmarkName}` );
-          if ( areaName && areaName !== landmarkName ) parts.push( `Within ${areaName}` );
-          if ( parts.length ) setAddressDescriptor( parts.join( ' · ' ) );
-        } );
-      } catch { /* descriptor enrichment is optional */ }
-    };
-
-    void describe();
-    // Only `cancelled`. The map-init effect owns __vlCleanup. Calling it here as well (#335's
-    // find-and-replace of this return) removed the map's idle, pointer, wheel, keydown and resize
-    // listeners on the first place change, so map movement stopped selecting places and the
-    // Weather section no longer mounts a separate storm/cloud map overlay.
-    return () => { cancelled = true; };
-  }, [ place.lat, place.lng, place.placeId, hasSelection, mapReady, ensureGeocoder ] );
-
+     SEARCH - explicit Google Geocoding only. No Places (New), no Autocomplete Data API,
+     no session token and no per-keystroke provider request. The field remains a combobox
+     because one submitted query can return several geocoding candidates. */
   const runSearch = useCallback( async ( text: string ) => {
-    if ( !MAPS_KEY || !text.trim() ) {
+    const queryText = text.trim();
+    if ( !MAPS_KEY || !queryText ) {
       setResults( [] );
       setOpen( false );
       setSearchStatus( 'idle' );
       return;
     }
+
     setSearchStatus( 'searching' );
-    const lib = await ensurePlacesLibrary();
-    const Auto = lib?.AutocompleteSuggestion as {
-      fetchAutocompleteSuggestions?: ( req: Record<string, unknown> ) => Promise<{ suggestions?: unknown[] }>;
-    } | undefined;
-    const Token = lib?.AutocompleteSessionToken as ( new () => unknown ) | undefined;
-
-    if ( Auto?.fetchAutocompleteSuggestions && Token ) {
-      try {
-        if ( !autocompleteTokenRef.current ) autocompleteTokenRef.current = new Token();
-        const out = await Auto.fetchAutocompleteSuggestions( {
-          input: text,
-          sessionToken: autocompleteTokenRef.current,
-        } );
-        const mapped: SearchResult[] = ( Array.isArray( out?.suggestions ) ? out.suggestions : [] )
-          .map( suggestion => {
-            const prediction = ( suggestion as { placePrediction?: any } )?.placePrediction;
-            if ( !prediction ) return null;
-            const name = prediction.mainText?.text
-              || prediction.mainText?.toString?.()
-              || prediction.text?.toString?.()
-              || 'Place';
-            const addr = prediction.secondaryText?.text
-              || prediction.secondaryText?.toString?.()
-              || '';
-            return { name: String( name ), addr: String( addr ), prediction };
-          } )
-          .filter( Boolean )
-          .slice( 0, 6 ) as SearchResult[];
-        if ( mapped.length ) {
-          setResults( mapped );
-          setActive( 0 );
-          setOpen( true );
-          setSearchStatus( 'idle' );
-          return;
-        }
-        // A permitted Maps JS load can still have Places (New) blocked by the browser key's
-        // API-target restrictions. Empty suggestions must not dead-end the field: fall through
-        // to the Geocoder path below so destination search remains usable.
-        autocompleteTokenRef.current = null;
-      } catch {
-        autocompleteTokenRef.current = null;
-      }
-    }
-
-    // Fallback for a partial/restricted Places load: Geocoding is worldwide. The Geocoder
-    // comes from importLibrary('geocoding') via ensureGeocoder, NOT from a pre-populated
-    // google.maps.Geocoder, so this path works under the modern loading=async loader.
     const gc = await ensureGeocoder();
     if ( !gc?.geocode ) {
       setResults( [] );
@@ -2349,107 +2148,83 @@ const VayuLokLive: React.FC = () => {
       setSearchStatus( 'unavailable' );
       return;
     }
+
     gc.geocode(
-      { address: text },
+      { address: queryText },
       ( rows, status ) => {
-        // ZERO_RESULTS is a benign "nothing matched"; every other non-OK status
-        // (REQUEST_DENIED / OVER_QUERY_LIMIT / INVALID_REQUEST / UNKNOWN_ERROR, etc.)
-        // is a real failure the user must see via the existing 'unavailable' retry
-        // affordance rather than being silently swallowed.
         if ( status !== 'OK' || !Array.isArray( rows ) ) {
           setResults( [] );
           setOpen( true );
           setSearchStatus( status === 'ZERO_RESULTS' ? 'no-results' : 'unavailable' );
           return;
         }
+
         const mapped: SearchResult[] = rows
           .slice( 0, 6 )
           .map( ( row: unknown ): SearchResult | null => {
-            const pr = row as { formatted_address?: string; geometry?: { location?: { lat: () => number; lng: () => number } } };
-            const loc = pr.geometry?.location;
+            const result = row as {
+              formatted_address?: string;
+              place_id?: string;
+              geometry?: {
+                location?: { lat: () => number; lng: () => number };
+                viewport?: { toJSON?: () => { north: number; south: number; east: number; west: number } };
+              };
+              address_components?: { types?: string[]; short_name?: string }[];
+            };
+            const loc = result.geometry?.location;
             const lat = loc?.lat?.();
             const lng = loc?.lng?.();
             if ( !Number.isFinite( lat ) || !Number.isFinite( lng ) ) return null;
-            const country = ( row as { address_components?: { types?: string[]; short_name?: string }[] } ).address_components
+            const country = result.address_components
               ?.find( component => component.types?.includes( 'country' ) )?.short_name;
+            const viewport = result.geometry?.viewport?.toJSON?.();
+            const hasViewport = viewport
+              && [ viewport.north, viewport.south, viewport.east, viewport.west ].every( Number.isFinite );
             const place: PlaceState = {
-              name: pr.formatted_address?.split( ',' )[ 0 ] || 'Place',
-              addr: pr.formatted_address || '',
+              name: result.formatted_address?.split( ',' )[ 0 ] || queryText,
+              addr: result.formatted_address || queryText,
               lat: lat as number,
               lng: lng as number,
+              ...( typeof result.place_id === 'string' && result.place_id ? { placeId: result.place_id } : {} ),
+              ...( hasViewport ? { viewport } : {} ),
               ...( typeof country === 'string' && country ? { regionCode: country.toUpperCase() } : {} ),
             };
             return { name: place.name, addr: place.addr, place };
           } )
-          // The predicate narrows to the shape the `.map` above ACTUALLY produces, not to
-          // `SearchResult`. `SearchResult.place` is optional, so `row is SearchResult` is not
-          // assignable to this parameter's `{ ..., place: PlaceState } | null` and TS rejects the
-          // guard outright (TS2677) - which then leaves `mapped` as `(... | null)[]` and fails
-          // the annotation too (TS2322). Narrowing to the concrete shape satisfies both, and the
-          // result is still assignable to `SearchResult[]` because a required `place` meets an
-          // optional one. Behaviour is unchanged: every element here is an object or null.
-          .filter( ( row ): row is { name: string; addr: string; place: PlaceState } => row !== null );
+          .filter( ( row ): row is SearchResult => row !== null );
+
         setResults( mapped );
         setActive( mapped.length ? 0 : -1 );
         setOpen( true );
         setSearchStatus( mapped.length ? 'idle' : 'no-results' );
       },
     );
-  }, [ ensurePlacesLibrary, ensureGeocoder ] );
+  }, [ ensureGeocoder ] );
 
 
   const onQueryChange = ( e: React.ChangeEvent<HTMLInputElement> ) => {
     const v = e.target.value;
     setQuery( v );
-    if ( searchTimer.current ) clearTimeout( searchTimer.current );
+    setSearchStatus( 'idle' );
     if ( !v.trim() ) {
-      autocompleteTokenRef.current = null;
       const recent = recentPlaces().map( place => ( { name: place.name, addr: place.addr, place } ) );
       setResults( recent );
       setActive( recent.length ? 0 : -1 );
       setOpen( recent.length > 0 );
-      setSearchStatus( 'idle' );
       return;
     }
-    // SEARCH_DEBOUNCE_MS (120ms) keeps one request per settled keystroke while feeling instant.
-    searchTimer.current = setTimeout( () => { void runSearch( v ); }, SEARCH_DEBOUNCE_MS );
+    // Cost control: typing is local-only. A provider call happens only on explicit submit.
+    setResults( [] );
+    setActive( -1 );
+    setOpen( false );
   };
 
-  const choose = useCallback( async ( r: SearchResult ) => {
-    const seq = ++selectionSeqRef.current;
-    let next = r.place;
-    if ( !next && r.prediction?.toPlace ) {
-      try {
-        const googlePlace = r.prediction.toPlace();
-        await googlePlace.fetchFields?.( { fields: [ 'id', 'displayName', 'formattedAddress', 'location', 'addressComponents', ...PLACE_META_FIELDS ] } );
-        const lat = googlePlace.location?.lat?.();
-        const lng = googlePlace.location?.lng?.();
-        if ( Number.isFinite( lat ) && Number.isFinite( lng ) ) {
-          next = {
-            name: googlePlace.displayName || r.name,
-            addr: googlePlace.formattedAddress || r.addr,
-            lat: lat as number,
-            lng: lng as number,
-            placeId: googlePlace.id,
-            // Surface only the metadata Google actually returned; absent fields stay
-            // undefined so the on-map label renders no placeholder for them.
-            ...metaFromGooglePlace( googlePlace ),
-          };
-        }
-      } catch {
-        setSearchStatus( 'unavailable' );
-      } finally {
-        // Place.fetchFields concludes the billing session; never reuse its token.
-        autocompleteTokenRef.current = null;
-      }
-    }
-    // A map move or another pick made while Place details were loading is newer, so it wins.
-    if ( !next || seq !== selectionSeqRef.current ) return;
+  const choose = useCallback( ( r: SearchResult ) => {
+    const next = r.place;
+    ++selectionSeqRef.current;
     rememberPlace( next );
     setPlace( next );
     setHasSelection( true );
-    // A fresh search selection owns the view. Clear transient preview metadata so the
-    // on-map label and camera follow only the newly chosen location.
     setMapCandidate( null );
     setQuery( next.name );
     setOpen( false );
@@ -2464,13 +2239,25 @@ const VayuLokLive: React.FC = () => {
       setSearchStatus( 'idle' );
       return;
     }
-    if ( !open || !results.length ) return;
-    if ( e.key === 'ArrowDown' ) { e.preventDefault(); setActive( i => Math.min( i + 1, results.length - 1 ) ); }
-    else if ( e.key === 'ArrowUp' ) { e.preventDefault(); setActive( i => Math.max( i - 1, 0 ) ); }
-    else if ( e.key === 'Enter' ) { e.preventDefault(); if ( active >= 0 ) void choose( results[ active ] ); }
+    if ( e.key === 'ArrowDown' && open && results.length ) {
+      e.preventDefault();
+      setActive( i => Math.min( i + 1, results.length - 1 ) );
+      return;
+    }
+    if ( e.key === 'ArrowUp' && open && results.length ) {
+      e.preventDefault();
+      setActive( i => Math.max( i - 1, 0 ) );
+      return;
+    }
+    if ( e.key === 'Enter' ) {
+      e.preventDefault();
+      if ( open && active >= 0 && results[ active ] ) {
+        choose( results[ active ] );
+      } else if ( query.trim() ) {
+        void runSearch( query );
+      }
+    }
   };
-
-  useEffect( () => () => { if ( searchTimer.current ) clearTimeout( searchTimer.current ); }, [] );
 
   // The floating Air card and the on-map label read these. The former LEFT-panel
   // derivations (photo rail, 24h forecast rail, best-outside / rain signals, 4-day
@@ -2483,6 +2270,26 @@ const VayuLokLive: React.FC = () => {
     ? air?.pollutants.find( p => p.code === pollutantTip.code ) || null
     : null;
   const mapActive = Boolean( MAPS_KEY );
+  const weatherVisual = useMemo( () => {
+    if ( !weather ) return null;
+    const clamp = ( value: number, min: number, max: number ) => Math.min( max, Math.max( min, value ) );
+    const cloud = clamp( Number.isFinite( weather.cloudCover ) ? weather.cloudCover as number : 0, 0, 100 );
+    const rain = clamp( Number.isFinite( weather.rainProb ) ? weather.rainProb as number : 0, 0, 100 );
+    const wind = clamp( Number.isFinite( weather.windSpeed ) ? weather.windSpeed as number : 0, 0, 100 );
+    const condition = ( weather.condition || '' ).toLowerCase();
+    const rainy = rain >= 35 || ( Number.isFinite( weather.rainMm ) && ( weather.rainMm as number ) > 0.1 )
+      || /rain|drizzle|shower/.test( condition );
+    const cloudy = cloud >= 45 || /cloud|overcast|fog|mist|haze/.test( condition );
+    const night = weather.isDaytime === false;
+    return {
+      className: [ night ? 'is-night' : 'is-day', cloudy ? 'is-cloudy' : '', rainy ? 'is-rainy' : '' ].filter( Boolean ).join( ' ' ),
+      skyOpacity: clamp( ( night ? 0.34 : 0.20 ) + cloud * 0.0016 + rain * 0.0012, 0.18, 0.58 ),
+      cloudOpacity: clamp( 0.08 + cloud * 0.0045, 0.08, 0.52 ),
+      windOpacity: clamp( 0.16 + wind * 0.007, 0.16, 0.72 ),
+      windAngle: Number.isFinite( weather.windDeg ) ? weather.windDeg as number : 0,
+      windDuration: clamp( 9 - wind * 0.065, 2.6, 9 ),
+    };
+  }, [ weather ] );
 
   const liveHealthPersonas = useMemo( () => {
     const recommendations = air?.healthRecommendations;
@@ -2528,17 +2335,16 @@ const VayuLokLive: React.FC = () => {
               aria-controls="vl-live-search-results"
               aria-expanded={ open }
               aria-activedescendant={ open && active >= 0 ? `vl-live-search-option-${active}` : undefined }
-              aria-autocomplete="list"
+              aria-autocomplete="none"
               autoComplete="off"
               autoCorrect="off"
               spellCheck={ false }
-              placeholder="Search a city or pincode"
+              placeholder="Search a city or pincode, then press Enter"
               value={ query }
               onChange={ onQueryChange }
               onFocus={ () => {
                 if ( query.trim() ) {
                   if ( results.length ) setOpen( true );
-                  else void runSearch( query );
                   return;
                 }
                 const recent = recentPlaces().map( place => ( { name: place.name, addr: place.addr, place } ) );
@@ -2546,10 +2352,18 @@ const VayuLokLive: React.FC = () => {
               } }
               onKeyDown={ onKeyDown }
             />
+            <button
+              type="button"
+              className="vl-live-search-submit"
+              aria-label="Search destination"
+              title="Search destination"
+              disabled={ !query.trim() || searchStatus === 'searching' }
+              onClick={ () => { if ( query.trim() ) void runSearch( query ); } }
+            >
+              <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.search } /></svg>
+            </button>
             <VoiceSearchMic
               onTranscript={ transcript => {
-                if ( searchTimer.current ) clearTimeout( searchTimer.current );
-                autocompleteTokenRef.current = null;
                 setQuery( transcript );
                 void runSearch( transcript );
               } }
@@ -2580,6 +2394,31 @@ const VayuLokLive: React.FC = () => {
         <div className="vl-live-workspace">
           <section className="vl-live-map-region" aria-label="Map">
             <div className="vl-live-map-shell">
+
+              { detailTab === 'weather' && weatherVisual && mapVisible && (
+                <div
+                  className={ `vl-live-weather-visual ${weatherVisual.className}` }
+                  style={ {
+                    '--vl-sky-opacity': weatherVisual.skyOpacity,
+                    '--vl-cloud-opacity': weatherVisual.cloudOpacity,
+                    '--vl-wind-opacity': weatherVisual.windOpacity,
+                    '--vl-wind-angle': `${weatherVisual.windAngle}deg`,
+                    '--vl-wind-duration': `${weatherVisual.windDuration}s`,
+                  } as React.CSSProperties }
+                  aria-hidden="true"
+                >
+                  <div className="vl-live-sky-wash" />
+                  <div className="vl-live-cloud-field">
+                    <i className="c1" /><i className="c2" /><i className="c3" /><i className="c4" />
+                  </div>
+                  <div className="vl-live-wind-field">
+                    <i className="vl-live-wind-path p1" /><i className="vl-live-wind-path p2" />
+                    <i className="vl-live-wind-path p3" /><i className="vl-live-wind-path p4" />
+                    <i className="vl-live-wind-path p5" /><i className="vl-live-wind-path p6" />
+                    <i className="vl-live-wind-path p7" /><i className="vl-live-wind-path p8" />
+                  </div>
+                </div>
+              ) }
 
               {/* FLOATING AIR QUALITY CARD. Overlays the map in the top-left corner, inset so
                   it never reaches Google's bottom-left logo or bottom-right legal notices. The
@@ -3817,6 +3656,27 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%;border-radius:var(--panel-r);overflow:hidden}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
+        .vl-live-weather-visual{position:absolute;inset:0;z-index:5;overflow:hidden;border-radius:var(--panel-r);pointer-events:none;isolation:isolate}
+        .vl-live-sky-wash{position:absolute;inset:0;opacity:var(--vl-sky-opacity);transition:opacity .35s ease,background .35s ease}
+        .vl-live-weather-visual.is-day .vl-live-sky-wash{background:linear-gradient(180deg,rgba(93,173,226,.68) 0%,rgba(187,224,247,.42) 46%,rgba(255,255,255,.08) 100%)}
+        .vl-live-weather-visual.is-night .vl-live-sky-wash{background:linear-gradient(180deg,rgba(17,32,61,.78) 0%,rgba(45,66,96,.50) 58%,rgba(255,255,255,.05) 100%)}
+        .vl-live-weather-visual.is-cloudy .vl-live-sky-wash{background:linear-gradient(180deg,rgba(116,139,158,.60) 0%,rgba(205,216,222,.38) 58%,rgba(255,255,255,.10) 100%)}
+        .vl-live-weather-visual.is-rainy .vl-live-sky-wash{background:linear-gradient(180deg,rgba(75,99,124,.68) 0%,rgba(150,170,184,.42) 60%,rgba(219,234,242,.12) 100%)}
+        .vl-live-cloud-field{position:absolute;inset:-8%;opacity:var(--vl-cloud-opacity);filter:blur(10px);animation:vl-live-cloud-drift 22s ease-in-out infinite alternate}
+        .vl-live-cloud-field i{position:absolute;display:block;border-radius:50%;background:radial-gradient(ellipse at center,rgba(255,255,255,.82) 0%,rgba(244,248,250,.55) 48%,rgba(224,232,236,0) 74%)}
+        .vl-live-cloud-field .c1{width:42%;height:28%;left:-4%;top:8%}
+        .vl-live-cloud-field .c2{width:48%;height:32%;right:-8%;top:18%}
+        .vl-live-cloud-field .c3{width:38%;height:26%;left:24%;top:44%}
+        .vl-live-cloud-field .c4{width:44%;height:30%;right:4%;bottom:0}
+        @keyframes vl-live-cloud-drift{from{transform:translate3d(-2%,0,0)}to{transform:translate3d(3%,1.5%,0)}}
+        .vl-live-wind-field{position:absolute;inset:-28%;opacity:var(--vl-wind-opacity);transform:rotate(var(--vl-wind-angle));transform-origin:50% 50%}
+        .vl-live-wind-path{position:absolute;left:-28%;display:block;width:24%;height:2px;border-radius:999px;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.88),rgba(209,244,112,.78),rgba(255,255,255,0));box-shadow:0 0 8px rgba(255,255,255,.30);animation:vl-live-wind-flow var(--vl-wind-duration) linear infinite}
+        .vl-live-wind-path.p1{top:10%;animation-delay:-.4s}.vl-live-wind-path.p2{top:21%;animation-delay:-1.8s}
+        .vl-live-wind-path.p3{top:33%;animation-delay:-3.1s}.vl-live-wind-path.p4{top:46%;animation-delay:-.9s}
+        .vl-live-wind-path.p5{top:59%;animation-delay:-2.4s}.vl-live-wind-path.p6{top:70%;animation-delay:-4.2s}
+        .vl-live-wind-path.p7{top:81%;animation-delay:-1.2s}.vl-live-wind-path.p8{top:91%;animation-delay:-3.6s}
+        @keyframes vl-live-wind-flow{from{transform:translateX(0)}to{transform:translateX(620%)}}
+
         /* Narrow live test: hide only Google attribution/branding nodes; do not touch map controls. */
         .vl-live :global(.gm-style-cc),
         .vl-live :global(a[aria-label="Google Maps"]),
@@ -3839,7 +3699,11 @@ const VayuLokLive: React.FC = () => {
         /* Exact Header.tsx .nav-search INPUT treatment, with one optional voice action floated
            inside the right edge. The mic does not change the hairline/search-box geometry. */
         .vl-live-search-field{position:relative;display:block;min-height:44px;padding:0;background:transparent;border-radius:0}
-        .vl-live-search-field input{width:100%;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;padding:0 44px 0 2px;font-size:16px;font-weight:400;line-height:1.3;color:rgba(0,0,0,.898);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+        .vl-live-search-field input{width:100%;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;padding:0 88px 0 2px;font-size:16px;font-weight:400;line-height:1.3;color:rgba(0,0,0,.898);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+        .vl-live-search-submit{position:absolute;right:42px;bottom:0;z-index:2;display:inline-grid;place-items:center;width:44px;height:44px;padding:0;border:0;background:transparent;color:var(--green);cursor:pointer}
+        .vl-live-search-submit svg{width:22px;height:22px;fill:currentColor}
+        .vl-live-search-submit:hover{color:#000}.vl-live-search-submit:disabled{opacity:.32;cursor:default}
+        .vl-live-search-submit:focus-visible{outline:2px solid var(--green);outline-offset:2px;border-radius:6px}
         .vl-live-search-field input::placeholder{color:rgba(0,0,0,.42)}
         .vl-live-search-field input::-webkit-search-cancel-button,.vl-live-search-field input::-webkit-search-decoration{display:none;-webkit-appearance:none}
         .vl-live-search-field input::-ms-clear{display:none;width:0;height:0}
