@@ -75,7 +75,7 @@ const fail = ( message ) => { throw new Error( message ); };
 
       const search = page.getByLabel( 'Search navigation' );
       await search.fill( 'elsewhere' );
-      const status = await page.getByRole( 'status' ).textContent();
+      const status = await menu.getByRole( 'status' ).textContent();
       if ( status?.trim() !== '3 menu results.' ) fail( `${viewport.name}: search status was ${status}` );
       for ( const label of [ 'Visa', 'Trip', 'Activities' ] ) {
         if ( await page.getByRole( 'link', { name: label } ).count() !== 1 ) fail( `${viewport.name}: missing search result ${label}` );
