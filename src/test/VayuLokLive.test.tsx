@@ -389,7 +389,6 @@ let rec: MapsRecorder;
 async function selectMumbai() {
   const input = await screen.findByRole( 'combobox' );
   fireEvent.change( input, { target: { value: 'Mumbai' } } );
-  fireEvent.keyDown( input, { key: 'Enter' } );
   // The suggestion <li> commits the selection on `onPointerDown` (pointer events are the
   // component's chosen interaction so a touch/mouse tap recentres before blur closes the
   // list). fireEvent.mouseDown dispatches a `mousedown` event, which never invokes a React
@@ -1220,7 +1219,6 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     // No active option before any results, so no activedescendant is advertised.
     expect( input.getAttribute( 'aria-activedescendant' ) ).toBeFalsy();
     fireEvent.change( input, { target: { value: 'Mumbai' } } );
-    fireEvent.keyDown( input, { key: 'Enter' } );
     const option = await screen.findByRole( 'option', { name: /Mumbai/i } );
     await waitFor( () =>
       expect( input.getAttribute( 'aria-activedescendant' ) ).toBe( option.id ) );
@@ -1737,7 +1735,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( body.customLocalAqis ).toBeUndefined();
   } );
 
-  it( 'does not call a provider while typing and geocodes once on explicit submit', async () => {
+  it( 'autocompletes after a short debounce and does not fetch Place Details', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     render( <VayuLokLive /> );
@@ -1745,19 +1743,15 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     const input = await screen.findByRole( 'combobox' );
 
-    rec.geocodeCalls.length = 0;
+    rec.autocompleteCalls.length = 0;
+    rec.placeFetchFields.length = 0;
     fireEvent.change( input, { target: { value: 'Mumbai' } } );
-    await new Promise( resolve => setTimeout( resolve, 180 ) );
 
-    // Cost control: typing alone must never hit Places or Geocoding.
+    await new Promise( resolve => setTimeout( resolve, 120 ) );
     expect( rec.autocompleteCalls ).toHaveLength( 0 );
-    expect( rec.geocodeCalls ).toHaveLength( 0 );
 
-    fireEvent.keyDown( input, { key: 'Enter' } );
-    await waitFor( () => expect(
-      rec.geocodeCalls.some( req => req.address === 'Mumbai' ),
-    ).toBe( true ) );
-    expect( rec.autocompleteCalls ).toHaveLength( 0 );
+    await waitFor( () => expect( rec.autocompleteCalls.length ).toBeGreaterThan( 0 ) );
+    expect( rec.placeFetchFields ).toHaveLength( 0 );
   } );
 
 
@@ -1816,9 +1810,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const input = screen.getByRole( 'combobox' ) as HTMLInputElement;
     await waitFor( () => expect( input.value ).toBe( 'কলকাতা' ) );
     await waitFor( () => expect(
-      rec.geocodeCalls.some( req => req.address === 'কলকাতা' ),
+      rec.autocompleteCalls.some( req => req.input === 'কলকাতা' ),
     ).toBe( true ) );
-    expect( rec.autocompleteCalls ).toHaveLength( 0 );
+    expect( rec.placeFetchFields ).toHaveLength( 0 );
   } );
 
   it( 'reopens typed autocomplete on focus and selects suggestions with pointer input', async () => {
