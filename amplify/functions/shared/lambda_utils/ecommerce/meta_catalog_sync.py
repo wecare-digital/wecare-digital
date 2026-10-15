@@ -82,6 +82,19 @@ SERVICE_PATH_BY_VARIANT = {
     "8ee7e325-d772-4452-a993-5c79e927d42b": "/request-pickup/",
 }
 
+SERVICE_ARTWORK_BY_VARIANT = {
+    "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b":
+        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/submit-request-4096.png",
+    "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b":
+        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/request-amendment-4096.png",
+    "db166bc8-a763-41ec-9f65-0f718f18155a":
+        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/drop-docs-4096.png",
+    "dcff995e-448c-493a-9259-f6a82ccdc2b4":
+        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/vault-4096.png",
+    "8ee7e325-d772-4452-a993-5c79e927d42b":
+        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/request-pickup-4096.png",
+}
+
 # Customer-facing service copy is variant-specific; the shared Wix description
 # contains operational details for several services and is not catalog copy.
 SERVICE_COPY_BY_VARIANT = {
@@ -483,7 +496,12 @@ def desired_items(products: Iterable[Mapping[str, Any]], *,
             # 2026-10-11 snapshot carries linked artwork for all five Request variants, so this
             # preserves their distinct catalogue images while still handling ordinary one-image
             # products without inventing a placeholder.
-            image = _image_url(variant) or _image_url(product)
+            variant_id = str(variant.get("id") or "").strip().lower()
+            image = (
+                SERVICE_ARTWORK_BY_VARIANT.get(variant_id, "")
+                if product_id == SERVICE_PRODUCT_ID
+                else ""
+            ) or _image_url(variant) or _image_url(product)
             if image:
                 item["image_url"] = image
             # Same public route as scripts/fetch-wix-catalog.js and shopProductHref.
