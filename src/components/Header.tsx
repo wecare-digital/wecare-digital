@@ -231,7 +231,7 @@ const Header: React.FC = () => {
   const searching = term.length > 0;
 
   // Search results come only from the menu graph. Family and section names are inherited
-  // search terms, so "Elsewhere" returns Visa, Trip and Activities without a dead parent link.
+  // search terms, so "Elsewhere" returns Visa Support and Travel Support without a dead parent link.
   const filtered = useMemo( () => (
     searching ? MENU_SEARCH_LINKS.filter( link => link.searchText.includes( term ) ) : MENU_SEARCH_LINKS
   ), [ searching, term ] );
