@@ -12,8 +12,8 @@ and what would change" is decidable offline against the committed storefront sna
 `src/content/catalog-snapshot.json` (generated from ProductsTable by
 `scripts/build-catalog-snapshot.py`), which is how `tests/test_meta_catalog_sync.py` pins the
 item count without a credential. The Lambda in `ecommerce/meta-catalog-sync/` is the only thing
-that reads ProductsTable for this projection or talks to Meta, and it ships with both gates
-closed.
+that reads ProductsTable for this projection or talks to Meta. Its deployment environment
+controls whether a computed plan may be applied.
 
 ONE DIRECTION ONLY: PRODUCTSTABLE -> META
 -----------------------------------------
@@ -28,7 +28,7 @@ THE RETAILER ID IS THE JOIN, AND IT IS NOT A NEW IDEA
 (`catalogItemId` plus `options.variantId`) that `src/lib/cart.ts` `toLineItems()` sends and
 `checkout/handler.py` `_native_quote` prices. So an order that arrives from WhatsApp carrying
 `product_retailer_id` resolves to the same ProductsTable line as an order placed on the website,
-with no mapping table to keep in step. 77 characters against Meta's 100-character limit.
+with no mapping table to keep in step. 88 characters against Meta's 100-character limit.
 
 MONEY IS INTEGER PAISE AND THERE IS NO FLOAT IN THIS FILE
 ---------------------------------------------------------
@@ -47,21 +47,26 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-#: The retailer-id namespace. AN EXTERNAL IDENTIFIER, NOT A NAME WE ARE FREE TO CHANGE: every item
-#: already published in the live Meta catalogue carries it, and every inbound WhatsApp catalogue
-#: order echoes it back as `product_retailer_id`, so `parse_retailer_id` must keep accepting
-#: exactly this value. It is a legacy spelling kept for that contract only, and this is the one
-#: place the backend writes it - everything else builds or parses ids through `retailer_id` /
-#: `parse_retailer_id`. Re-keying it needs an owner-approved Meta catalogue migration (publish the
-#: new ids, carry in-flight carts across, retire the old ones), and that cannot run while the sync
-#: is disabled in production (`META_CATALOG_SYNC_ENABLED=false`).
+#: The retailer-id namespace. New Meta catalogue items are branded with WECARE.DIGITAL.
+#: Existing live items and in-flight WhatsApp carts may still carry the historical `wix:`
+#: namespace, so inbound parsing remains backward-compatible during migration. New writes MUST
+#: use only `WECARE.DIGITAL:`.
 #:
-#: It is also the namespace that marks an item as OURS. An item whose retailer id lacks it was
-#: created by hand in the Meta catalog builder (`catalog-builder.tsx` free-types a SKU, e.g.
-#: `WD-PARTNER-UP`) and this sync must report it and never touch it. See `diff`'s `foreign` bucket.
-RETAILER_PREFIX = "wix"
+#: The migration is deliberately non-deleting: an approved sync creates the new
+#: `WECARE.DIGITAL:` items and retires matching legacy `wix:` items by marking them out of
+#: stock. Once the live Meta catalogue and all in-flight carts no longer contain legacy ids,
+#: `"wix"` can be removed from `LEGACY_RETAILER_PREFIXES`.
+#:
+#: Known namespaces mark an item as OURS. An item whose retailer id carries none of them was
+#: created independently (for example by the Meta catalog builder) and this sync reports it as
+#: foreign and never touches it.
+RETAILER_PREFIX = "WECARE.DIGITAL"
 
-#: Meta's documented ceiling for `retailer_id`. A pair of UUIDs plus the prefix is 77, so this is
+#: Prefixes accepted on READ. Values are lowercase because `parse_retailer_id` normalises input
+#: before comparison; `retailer_id` still writes the branded `RETAILER_PREFIX` exactly.
+LEGACY_RETAILER_PREFIXES = (RETAILER_PREFIX.lower(), "wix")
+
+#: Meta's documented ceiling for `retailer_id`. A pair of UUIDs plus the prefix is 88, so this is
 #: headroom rather than a constraint - but it is asserted rather than assumed, because a change to
 #: the catalogue's id format would otherwise fail at Meta instead of here.
 RETAILER_ID_MAX_LENGTH = 100
@@ -192,16 +197,15 @@ class RetailerIdError(ValueError):
 
 
 def retailer_id(product_id: Any, variant_id: Any) -> str:
-    """`<RETAILER_PREFIX>:<productId>:<variantId>`, lowercased. Raises unless both are UUIDs.
+    """`<RETAILER_PREFIX>:<productId>:<variantId>` with canonical lowercase UUIDs.
 
     REFUSES RATHER THAN NORMALISES ANYTHING BUT CASE. A retailer id is the join key between a
     WhatsApp order line and a ProductsTable line, so a value that is nearly right is worse than no
     value: it would create a Meta item nothing can resolve, and the resolution failure would show
     up at order time as "we cannot price this line" rather than here.
 
-    Lowercasing is safe and necessary: the catalogue stores canonical lowercase UUIDs, and Meta's
-    retailer id is case-sensitive, so one upper-case character anywhere in the pipeline would fork
-    the item.
+    The namespace is emitted exactly as configured. UUIDs are normalised to lowercase so their
+    input case cannot fork a Meta item; incoming ids are parsed case-insensitively.
     """
     product = str(product_id or "").strip().lower()
     variant = str(variant_id or "").strip().lower()
@@ -211,7 +215,7 @@ def retailer_id(product_id: Any, variant_id: Any) -> str:
         raise RetailerIdError("variant id is not a catalogue UUID")
     value = f"{RETAILER_PREFIX}:{product}:{variant}"
     if len(value) > RETAILER_ID_MAX_LENGTH:
-        # Unreachable with today's UUIDs (77 characters), and asserted anyway so an id format
+        # Unreachable with today's UUIDs (88 characters), and asserted anyway so an id format
         # change fails here with a readable reason instead of at Meta with a 400.
         raise RetailerIdError(
             f"retailer id is {len(value)} characters, over Meta's {RETAILER_ID_MAX_LENGTH}")
@@ -231,12 +235,12 @@ def parse_retailer_id(value: Any) -> Optional[Tuple[str, str]]:
     - an id with extra colon-separated segments - `_UUID_RE` is anchored, so it cannot pass.
     """
     text = str(value or "").strip().lower()
-    if not text.startswith(f"{RETAILER_PREFIX}:"):
-        return None
     parts = text.split(":")
     if len(parts) != 3:
         return None
-    _, product, variant = parts
+    prefix, product, variant = parts
+    if prefix not in LEGACY_RETAILER_PREFIXES:
+        return None
     if not _UUID_RE.match(product) or not _UUID_RE.match(variant):
         return None
     return product, variant
@@ -651,6 +655,7 @@ def diff(desired: Sequence[Mapping[str, Any]],
 
 __all__ = [
     "RETAILER_PREFIX",
+    "LEGACY_RETAILER_PREFIXES",
     "RETAILER_ID_MAX_LENGTH",
     "IN_STOCK",
     "OUT_OF_STOCK",

@@ -153,13 +153,28 @@ def test_one_variant_sent_twice_is_summed_not_duplicated():
 
 
 def test_a_retailer_id_is_lowercased_on_the_way_in():
-    """`meta_catalog_sync.retailer_id` publishes lowercase, and `cart_contract.identifier`
-    lowercases too, so an upper-case id from Meta must resolve to the same cart line rather than
-    forking it."""
+    """Catalogue UUIDs resolve to the same cart line regardless of input case."""
     basket = wb.parse_order_message(order_message([
         item(raw_retailer(PRODUCT_A.upper(), VARIANT_A.upper()), 1)]))
     assert basket is not None
     assert basket.lines == [{"productId": PRODUCT_A, "variantId": VARIANT_A, "quantity": 1}]
+
+
+@pytest.mark.parametrize("prefixes", [
+    ("wix", "wix"),
+    ("WECARE.DIGITAL", "WECARE.DIGITAL"),
+    ("wix", "WECARE.DIGITAL"),
+])
+def test_catalogue_namespace_migration_preserves_incoming_cart_lines(prefixes):
+    basket = wb.parse_order_message(order_message([
+        item(f"{prefixes[0]}:{PRODUCT_A}:{VARIANT_A}", 2),
+        item(f"{prefixes[1]}:{PRODUCT_B}:{VARIANT_B}", 1),
+    ]))
+    assert basket is not None
+    assert basket.lines == [
+        {"productId": PRODUCT_A, "variantId": VARIANT_A, "quantity": 2},
+        {"productId": PRODUCT_B, "variantId": VARIANT_B, "quantity": 1},
+    ]
 
 
 # ── the phone binding ─────────────────────────────────────────────────────────
