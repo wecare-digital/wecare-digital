@@ -183,7 +183,8 @@ WIX_TEMPLATE_SAMPLE_SLUGS: Tuple[str, ...] = (
 #: because the place to choose a contribution is the block at the foot of a blog post - but it is a
 #: real, sellable product reached by direct cart reference, and the owner's catalogue list names
 #: it. Its three variants remain subject to checkout's own variant allow-list and quantity-1 rule.
-CONTRIBUTION_PRODUCT_ID = "8514c405-3971-4786-ad0d-15406ca23407"\nCONTRIBUTION_CTA_URL = "https://wa.me/message/BYFLCAAMSZBXD1"
+CONTRIBUTION_PRODUCT_ID = "8514c405-3971-4786-ad0d-15406ca23407"
+CONTRIBUTION_CTA_URL = "https://wa.me/message/BYFLCAAMSZBXD1"
 
 #: The ₹1 test product - a visible:true catalogue test row that is not this storefront and must
 #: never reach a customer-facing WhatsApp catalogue (it is also hidden from /shop/ by
