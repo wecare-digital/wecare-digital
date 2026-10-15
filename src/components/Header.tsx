@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import BrandLockup from './BrandLockup';
 import HeaderCart from './HeaderCart';
@@ -132,8 +132,14 @@ const COLUMNS: NavColumn[] = [
           { label: 'Request Amendment', href: '/request-amendment/', match: '/request-amendment' },
           { label: 'Drop Docs', href: '/drop-docs/', match: '/drop-docs' },
           { label: 'Vault', href: '/vault/', match: '/vault' },
-          { label: 'Request Pickup', href: '/request-pickup/', match: '/request-pickup' },
-          { label: 'Shipments', href: '/shipments/', match: '/shipments' },
+          {
+            label: 'Shipments',
+            searchTerms: [ 'track', 'pickup' ],
+            children: [
+              { label: 'Track', href: '/shipments/', searchTerms: [ 'shipments', 'tracking' ] },
+              { label: 'Pickup Request', href: '/request-pickup/', searchTerms: [ 'shipments', 'pickup' ] },
+            ],
+          },
           { label: 'Leave Review', href: '/leave-review/', match: '/leave-review' },
           { label: 'Subscribe', href: SUBSCRIBE_CTA_HREF, external: true },
         ],
@@ -144,24 +150,28 @@ const COLUMNS: NavColumn[] = [
     sections: [
       {
         heading: 'Refer & Earn',
-        headingHref: '/refer-and-earn/',
-        headingMatch: '/refer-and-earn',
         links: [
-          { label: 'Merchandise', href: '/shop/merchandise/' },
-          { label: 'Kiosk', href: '/shop/kiosk/' },
-          { label: 'Referral', href: '/shop/referral-partner/' },
-        ],
-      },
-      {
-        heading: 'Contact',
-        links: [
-          { label: 'Contact us', href: '/contact/', match: '/contact' },
+          {
+            label: 'Partner',
+            searchTerms: [ 'refer', 'earn' ],
+            children: [
+              { label: 'Merchandise', href: '/shop/merchandise/', searchTerms: [ 'partner', 'refer', 'earn' ] },
+              { label: 'Kiosk', href: '/shop/kiosk/', searchTerms: [ 'partner', 'refer', 'earn' ] },
+              { label: 'Referral', href: '/shop/referral-partner/', searchTerms: [ 'partner', 'refer', 'earn' ] },
+            ],
+          },
         ],
       },
       {
         heading: 'Extras',
         links: [
           { label: 'Perks', href: '/perks/', match: '/perks' },
+        ],
+      },
+      {
+        heading: 'Contact',
+        links: [
+          { label: 'Contact us', href: '/contact/', match: '/contact' },
         ],
       },
       {
@@ -232,7 +242,7 @@ const Header: React.FC = () => {
     searching ? MENU_SEARCH_LINKS.filter( link => link.searchText.includes( term ) ) : MENU_SEARCH_LINKS
   ), [ searching, term ] );
 
-  const close = () => { setOpen( false ); setQuery( '' ); };
+  const close = useCallback( () => { setOpen( false ); setQuery( '' ); }, [] );
 
   // Escape closes from anywhere, an outside pointerdown dismisses, AND the menu closes
   // when the mouse LEAVES it (hover-out), on owner request. None of these existed
@@ -279,7 +289,7 @@ const Header: React.FC = () => {
       root?.removeEventListener( 'mouseleave', onMouseLeave );
       root?.removeEventListener( 'mouseenter', onMouseEnter );
     };
-  }, [ open ] );
+  }, [ close, open ] );
 
   // Focus returns to the trigger on close, so a keyboard user is not dropped onto
   // <body> and made to tab from the top of the document again.
@@ -288,17 +298,23 @@ const Header: React.FC = () => {
     if ( hasOpened.current ) triggerRef.current?.focus();
   }, [ open ] );
 
-  // Driven off router.pathname, which carries no trailing slash even though the
-  // hrefs do - hence the separate `match` field.
-  //
-  // This returns a BOOLEAN, and className is written inline on each anchor, on
-  // purpose. Returning a props object and spreading it silently broke the whole
-  // menu: styled-jsx appends its own className attribute AFTER a spread, so the
-  // spread's className lost and every anchor exported as class="jsx-hash" with no
-  // nav-item on it at all - no padding, no row height, no hover, no active weight.
-  // The 33 unit tests still passed, because they assert role, name and href and
-  // never look at classes. Only reading the built HTML caught it.
-  const isActive = ( link: NavLink ) => Boolean( link.href && link.match && router.pathname === link.match );
+  // Exact selection uses the concrete browser URL when Next.js exposes it. Dynamic
+  // /shop/[slug] pages share one router.pathname, so pathname alone can select more than
+  // one menu row. asPath distinguishes Guided Resolution, Case Submission and Paperwork.
+  const normalizePath = ( value?: string ) => {
+    if ( !value || /^[a-z][a-z0-9+.-]*:/i.test( value ) ) return '';
+    const path = value.split( /[?#]/, 1 )[ 0 ] || '/';
+    return path === '/' ? '/' : ( path.replace( /\/+$/, '' ) || '/' );
+  };
+  const concretePath = normalizePath( router.asPath );
+  const currentPath = concretePath || normalizePath( router.pathname );
+  const isActive = ( link: NavLink ) => {
+    if ( !link.href ) return false;
+    const destination = normalizePath( link.href );
+    if ( !destination ) return false;
+    if ( concretePath ) return destination === currentPath;
+    return link.match ? router.pathname === link.match : destination === currentPath;
+  };
 
   // NO renderLink() HELPER. The anchor markup is duplicated inline in both branches
   // below, on purpose, and it must stay that way.
