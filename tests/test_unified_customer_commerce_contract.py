@@ -36,6 +36,8 @@ def test_shared_table_names_are_single_home():
     assert shared_tables.invoice_delivery_table_name() == "stack-wecare-digital-InvoiceDeliveryLogTable"
     assert shared_tables.payment_attempts_table_name() == "stack-wecare-digital-PaymentAttemptsTable"
     assert shared_tables.commerce_keys_table_name() == "stack-wecare-digital-CommerceKeys"
+    assert shared_tables.products_table_name() == "stack-wecare-digital-ProductsTable"
+    assert shared_tables.carts_table_name() == "stack-wecare-digital-CartTable"
 
 
 def test_website_checkout_uses_shared_customer_order_and_payment_stores():
@@ -44,6 +46,8 @@ def test_website_checkout_uses_shared_customer_order_and_payment_stores():
     assert "ORDERS_TABLE = shared_tables.orders_table_name()" in source
     assert "PAYMENT_ATTEMPTS_TABLE = shared_tables.payment_attempts_table_name()" in source
     assert "COMMERCE_KEYS_TABLE = shared_tables.commerce_keys_table_name()" in source
+    assert "PRODUCTS_TABLE = shared_tables.products_table_name()" in source
+    assert "CART_TABLE = shared_tables.carts_table_name()" in source
 
 
 def test_whatsapp_inbox_uses_same_contact_and_flow_response_stores():
@@ -70,7 +74,8 @@ def test_website_order_history_reads_the_same_contact_and_order_stores():
 def test_whatsapp_catalog_is_a_projection_of_the_native_products_table():
     source = _src("amplify/functions/ecommerce/meta-catalog-sync/handler.py")
     assert "project the AWS ProductsTable onto the Meta Commerce catalog" in source
-    assert 'PRODUCTS_TABLE = os.environ.get("PRODUCTS_TABLE", "stack-wecare-digital-ProductsTable")' in source
+    assert "from lambda_utils import shared_tables" in source
+    assert "PRODUCTS_TABLE = shared_tables.products_table_name()" in source
     assert "ProductsTable is the sole catalogue authority" in source
 
 
