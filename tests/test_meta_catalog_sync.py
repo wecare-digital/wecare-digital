@@ -135,9 +135,10 @@ def test_new_ids_are_written_with_wecare_digital_namespace():
     assert sync.parse_retailer_id(value) == (TEST_PRODUCT, TEST_VARIANT)
 
 
-def test_other_namespaces_do_not_resolve():
+@pytest.mark.parametrize("prefix", ["external", "wix", "WIX"])
+def test_other_namespaces_do_not_resolve(prefix):
     """Only the WECARE.DIGITAL namespace is owned by the catalogue projection."""
-    other = f"external:{TEST_PRODUCT}:{TEST_VARIANT}"
+    other = f"{prefix}:{TEST_PRODUCT}:{TEST_VARIANT}"
     assert sync.parse_retailer_id(other) is None
 
 

@@ -109,6 +109,19 @@ def test_an_all_foreign_cart_yields_none():
     assert wb.parse_order_message({}) is None
 
 
+def test_retired_catalogue_ids_do_not_resolve_into_checkout_lines():
+    assert wb.parse_order_message(order_message([
+        item(f"wix:{PRODUCT_A}:{VARIANT_A}", 2),
+    ])) is None
+    basket = wb.parse_order_message(order_message([
+        item(f"wix:{PRODUCT_A}:{VARIANT_A}", 2),
+        item(retailer(PRODUCT_B, VARIANT_B), 1),
+    ]))
+    assert basket is not None
+    assert basket.dropped == 1
+    assert basket.lines == [{"productId": PRODUCT_B, "variantId": VARIANT_B, "quantity": 1}]
+
+
 def test_item_price_is_never_read_so_an_absurd_one_changes_nothing():
     """The regression test for the deleted float reprice, stated as an identity.
 
