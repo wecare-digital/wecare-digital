@@ -356,7 +356,10 @@ class TestEveryLeafResolvesToTheSitePath:
 
     @pytest.mark.parametrize('leaf_id', sorted(LEAF_PATHS))
     def test_the_path_starts_and_ends_with_a_slash(self, wa, leaf_id):
-        assert re.fullmatch(r'/([a-z0-9-]+/)?', wa.WD_LEAF_LINKS[leaf_id][1])
+        # Some approved destinations are nested under /shop/ (Merchandise, Kiosk,
+        # Referral). The invariant is a clean site-relative path with trailing slash,
+        # not a one-segment-only URL.
+        assert re.fullmatch(r'/(?:[a-z0-9-]+/)*', wa.WD_LEAF_LINKS[leaf_id][1])
 
     def test_the_base_url_has_no_trailing_slash_so_paths_do_not_double_up(self, wa):
         assert wa.WD_SITE_BASE == 'https://wecare.digital'
@@ -581,11 +584,12 @@ class TestShopIsExcluded:
             assert 'shop' not in row['id'].lower(), f'{list_key}/{row["id"]}'
             assert 'shop' not in row['title'].lower(), f'{list_key}/{row["title"]}'
 
-    def test_no_leaf_mentions_shop(self, wa):
-        for leaf_id, (name, path) in wa.WD_LEAF_LINKS.items():
+    def test_no_leaf_is_named_shop(self, wa):
+        # Shop itself is still not a WhatsApp row/leaf. Approved Refer & Earn leaves
+        # may legitimately resolve to nested /shop/... site routes.
+        for leaf_id, (name, _path) in wa.WD_LEAF_LINKS.items():
             assert 'shop' not in leaf_id.lower()
             assert 'shop' not in name.lower()
-            assert 'shop' not in path.lower()
 
     def test_the_site_nav_has_the_restored_shop_link(self):
         """RESTORED 2026-10-10. The site nav carries the Shop link again, pointing at the
