@@ -42,7 +42,9 @@ ENV_VAR = 'COMMERCE_KEYS_TABLE'
 PROVISIONED = order_keys.commerce_keys_table_name()
 
 #: `order_keys` is the ONE place allowed to name a fallback, because it is the resolver.
-RESOLVER_SOURCE = SHARED / 'lambda_utils' / 'ecommerce' / 'order_keys.py'
+#: `order_keys.commerce_keys_table_name()` delegates to `shared_tables`, the one home of the env
+#: var and its fallback since `arch(identity): give CommerceKeys one resolver`.
+RESOLVER_SOURCE = SHARED / 'lambda_utils' / 'shared_tables.py'
 
 PAYMENT_HANDLERS = {
     'invoice-engine': ROOT / 'amplify/functions/payments/invoice-engine/handler.py',
@@ -135,10 +137,11 @@ def test_only_the_resolver_names_a_fallback():
     resolver_source = RESOLVER_SOURCE.read_text(encoding='utf-8')
     tree = ast.parse(resolver_source)
     reads = [node for node in ast.walk(tree)
-             if isinstance(node, ast.Call) and node.args
-             and isinstance(node.args[0], ast.Constant) and node.args[0].value == ENV_VAR]
+             if isinstance(node, ast.Call)
+             and any(isinstance(a, ast.Constant) and a.value == ENV_VAR for a in node.args)]
     assert reads, 'the resolver stopped reading the env var'
-    assert PROVISIONED in resolver_source, 'the resolver no longer names a provisioned fallback'
+    suffix = PROVISIONED.rsplit('-', 1)[-1]
+    assert f"'{suffix}'" in resolver_source, 'the resolver no longer names a provisioned fallback'
 
     for label, path in PAYMENT_HANDLERS.items():
         assert _env_get_defaults(path, ENV_VAR) == [], label
