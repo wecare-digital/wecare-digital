@@ -73,42 +73,18 @@ jobs:
       - name: Confirm live alias and exact API Gateway targets
         run: python scripts/provision_native_catalog_api.py --verify
       - name: Anonymous access must be rejected
+        # Probe the public route the editor calls, without credentials. This covers API
+        # Gateway routing as well as the handler's own auth, and needs no
+        # lambda:InvokeFunction on the deploy role (which deliberately does not have it).
         shell: bash
         run: |
-          python - <<'PY'
-          import json
-          import subprocess
-          import tempfile
-          from pathlib import Path
-          event = {
-              "version": "2.0",
-              "requestContext": {
-                  "apiId": "zllr9lrg7j",
-                  "http": {
-                      "method": "GET",
-                      "path": "/native-catalog/products",
-                      "sourceIp": "127.0.0.1",
-                  },
-              },
-              "rawPath": "/native-catalog/products",
-              "headers": {},
-          }
-          with tempfile.TemporaryDirectory() as folder:
-              root = Path(folder)
-              (root / "input.json").write_text(json.dumps(event))
-              subprocess.run([
-                  "aws", "lambda", "invoke",
-                  "--function-name", "wecare-native-catalog-admin:live",
-                  "--cli-binary-format", "raw-in-base64-out",
-                  "--payload", f"fileb://{root / 'input.json'}",
-                  "--region", "us-east-1",
-                  str(root / "response.json"),
-              ], check=True, stdout=subprocess.DEVNULL)
-              result = json.loads((root / "response.json").read_text())
-              if result.get("statusCode") != 401:
-                  raise SystemExit(f"Anonymous staff API returned {result.get('statusCode')}, expected 401")
-          print("PASS: unauthenticated catalog access denied")
-          PY
+          url="https://zllr9lrg7j.execute-api.us-east-1.amazonaws.com/prod/native-catalog/products"
+          status=$(curl -sS -o /dev/null -w '%{http_code}' --retry 3 --max-time 20 "$url")
+          if [ "$status" != "401" ]; then
+            echo "Anonymous staff API returned $status, expected 401" >&2
+            exit 1
+          fi
+          echo "PASS: unauthenticated catalog access denied"
 
   verify:
     needs: test
