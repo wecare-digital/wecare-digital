@@ -1839,7 +1839,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     );
     const voiceCss = Array.from( document.querySelectorAll( 'style' ) )
       .map( s => s.textContent || '' )
-      .find( css => css.includes( '.voice-search-mic-glyph{fill:currentColor}' ) ) || '';
+      .find( css => /\.voice-search-mic-glyph\{fill:currentColor\}/.test( css ) ) || '';
     expect( voiceCss ).toContain( 'background:transparent;color:#3da35a' );
     expect( voiceCss ).toContain( 'border-radius:0' );
     expect( voiceCss ).toContain( 'width:23px;height:23px' );
