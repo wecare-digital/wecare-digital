@@ -1,14 +1,14 @@
 """The checkout handler: it consumes the payment core without ever creating an order or a charge.
 
-What these tests defend (Wix-Velo prompt §44, §52, §58, §61)
-------------------------------------------------------------
+What these tests defend (checkout specification §44, §52, §58, §61)
+-------------------------------------------------------------------
 The mechanism (attempt state machine, reference reservation, readiness) is tested elsewhere. This
 file tests the *handler's* obligations at the customer boundary:
 
 - authority comes from the session, never the request: no session -> 401; another customer's
   attempt -> the identical opaque 401 (IDOR);
-- the amount is Wix's authoritative total in integer paise, not the browser's; non-INR and
-  non-whole-paise fail closed;
+- the amount is the server's calculator total over the ProductsTable price, in integer paise,
+  never the browser's;
 - payments are readiness-gated: a blocked readback creates NO attempt and NO order;
 - with initiation disabled (the default), the attempt is prepared but NO payable message is sent
   and NO order exists;
@@ -35,7 +35,8 @@ _HANDLER_PATH = (Path(__file__).resolve().parents[1]
                  / "amplify/functions/ecommerce/checkout/handler.py")
 
 ATTEMPTS_TABLE = 'stack-wecare-digital-PaymentAttemptsTable'
-KEYS_TABLE = 'stack-wecare-digital-WixOrderIds'
+KEYS_TABLE = 'stack-wecare-digital-CommerceKeys'
+ORDERS_TABLE = 'stack-wecare-digital-OrderTable'
 CUSTOMER = 'CUS_01J0000000000000000000000'
 OTHER_CUSTOMER = 'CUS_01J9999999999999999999999'
 
@@ -101,6 +102,7 @@ class _Identity:
 def env(monkeypatch):
     monkeypatch.setenv('PAYMENT_ATTEMPTS_TABLE', ATTEMPTS_TABLE)
     monkeypatch.setenv('COMMERCE_KEYS_TABLE', KEYS_TABLE)
+    monkeypatch.setenv('ORDERS_TABLE', ORDERS_TABLE)
     monkeypatch.setenv('EXPECTED_CONFIGURATION_NAME', 'WECAREDIGITAL')
     monkeypatch.setenv('EXPECTED_PROVIDER_MID', 'acc_TESTMID')
     monkeypatch.setenv('PAYMENT_WABA_ID', '2094615664435155')
@@ -113,6 +115,7 @@ def env(monkeypatch):
     fake = FakeDynamo(keys={
         ATTEMPTS_TABLE: 'paymentAttemptId',
         KEYS_TABLE: 'orderId',
+        ORDERS_TABLE: 'orderId',
         'stack-wecare-digital-ContactsTable': 'id',
     })
     lam = _FakeLambda()
@@ -180,8 +183,7 @@ class _Quote:
 class _Snapshot:
     """The frozen native QuoteSnapshot, with only the attributes `_create` reads.
 
-    `frozen_data['items']` carries the one service line the native per-line price guard reads;
-    the `site` is the native tag, not a Wix site id.
+    `frozen_data['items']` carries the one service line the native per-line price guard reads.
     """
 
     cart_id = 'native:testcart'
@@ -260,12 +262,10 @@ def test_no_session_is_refused(env):
 # is the opposite of that ruling.
 #
 # POSITION is what these tests are about, not the status code. The refusal sits at the TOP of
-# `_create`, above the Wix call, the readiness gate, the reference reservation and the attempt
-# write — so it burns nothing for a payment that can never be sent. The three tests that used to
-# measure V1 pricing here (`..._wix_authoritative...`, `..._non_inr...`, `..._non_whole_paise...`)
-# are folded in below, because the property is now stronger than the one they asserted: nothing
-# is priced at all. Wix's own currency and whole-paise guards keep their coverage in
-# `tests/test_wix_cart_v2_*.py` and on the website path.
+# `_create`, above the pricing, the readiness gate, the reference reservation and the attempt
+# write — so it burns nothing for a payment that can never be sent. Nothing is priced on this leg
+# at all, which is stronger than any price guard; the native pricing guards are covered by
+# `tests/test_native_checkout.py`, `tests/test_catalog_pricing.py` and the website path.
 
 def test_the_in_chat_cart_leg_is_refused_before_any_io(env):
     h, fake, lam, monkeypatch = env
@@ -350,14 +350,12 @@ def test_create_disabled_prepares_attempt_but_sends_nothing_and_makes_no_order(e
     assert resp['statusCode'] == 200, resp['body']
     body = json.loads(resp['body'])
     assert body['status'] == 'PAYMENT_INITIATION_DISABLED'
-    # The CALCULATOR total — Wix's collection plus our convenience fee plus the GST on that fee —
-    # never the raw collection figure.
+    # The CALCULATOR total — the native collection plus our convenience fee plus the GST on that
+    # fee — never the raw collection figure.
     assert body['amountPaise'] == TOTAL_PAYABLE_PAISE
     assert body['currency'] == 'INR'
 
     # An attempt exists, in the readiness-checked state, marked AWS_NATIVE, bound to the customer.
-    # (The Wix exit made checkout native and unconditional; the attempt's checkoutMode is the
-    # handler's CHECKOUT_MODE constant, now AWS_NATIVE rather than the retired WIX_HEADLESS.)
     attempts = fake.all_rows(ATTEMPTS_TABLE)
     assert len(attempts) == 1
     assert attempts[0]['customerId'] == CUSTOMER
@@ -388,11 +386,10 @@ def test_the_amount_recorded_is_the_quote_not_the_request(env):
     assert fake.all_rows(ATTEMPTS_TABLE)[0]['amountPaise'] == TOTAL_PAYABLE_PAISE
 
 
-def test_the_catalog_leg_prices_natively_without_cart_v2(env, monkeypatch):
-    """The catalog-service leg no longer depends on Wix Cart V2: it prices off ProductsTable via
-    `_native_quote` and the per-line guard reads the frozen native quote. With native pricing in
-    place there is no 503 SERVICE_UNAVAILABLE and no crash — the attempt is prepared from the
-    calculator total. (The old V2-only branch that answered 503 with V2 off is gone.)"""
+def test_the_catalog_leg_prices_natively(env, monkeypatch):
+    """The catalog-service leg prices off ProductsTable via `_native_quote` and the per-line guard
+    reads the frozen native quote, so the attempt is prepared from the calculator total with no
+    503 SERVICE_UNAVAILABLE."""
     h, fake, _lam, _mp = env
     _enable_catalog_leg(h, monkeypatch)
     resp = _drive_catalog(h)
@@ -513,24 +510,22 @@ def _store_attempt(h, fake, customer_id, status='PAYMENT_PENDING', order_number=
 
 
 def test_status_returns_the_order_number_of_a_paid_but_unreconciled_attempt(env):
-    """A captured payment whose Wix writeback is still pending must still report its order.
+    """A captured payment whose order record committed but whose tenders did not reconcile must
+    still report its order.
 
-    This is the live shape, not a hypothetical: the writeback gate is off, so
     `finalization.accept_paid` commits the internal order, writes `orderNumber` at
-    INTERNAL_ORDER_CREATED, then moves the stage to NEEDS_RECONCILIATION with
-    WIX_WRITE_CONTRACT_REQUIRED. Order WD-ORD-7ZTSG8X7 sat exactly there.
-
-    `order_number` used to be read only inside the `_finalize_from_claim` arm, which runs only
-    while `finalizationStage` is unset -- so an attempt the webhook had already finalized reported
-    `orderNumber: None` forever and the paying customer was shown "we are creating your order"
-    permanently. The number is evidence the order record committed, and the reconciliation stage
-    is bookkeeping against the store; the first must reach the customer and the second must not.
+    INTERNAL_ORDER_CREATED, and stages NEEDS_RECONCILIATION with TENDER_SUM_MISMATCH when the
+    tender sum does not close. The number is evidence the order record committed, and the
+    reconciliation stage is our bookkeeping; the first must reach the customer and the second
+    must not. `order_number` is read off the attempt row on every poll, not only inside the
+    `_finalize_from_claim` arm (which runs only while `finalizationStage` is unset), so an attempt
+    finalized by the webhook still shows its number.
     """
     h, fake, _lam, _mp = env
     attempt = _store_attempt(h, fake, CUSTOMER, status='PAYMENT_PAID',
                              order_number='WD-ORD-7ZTSG8X7',
                              finalization_stage='NEEDS_RECONCILIATION',
-                             finalization_reason='WIX_WRITE_CONTRACT_REQUIRED')
+                             finalization_reason='TENDER_SUM_MISMATCH')
     resp = h.handler(_event('status', paymentAttemptId=attempt['paymentAttemptId']), None)
     assert resp['statusCode'] == 200
     body = json.loads(resp['body'])
@@ -546,7 +541,7 @@ def test_status_returns_the_order_number_of_a_paid_but_unreconciled_attempt(env)
     assert 'finalizationStage' not in body['attempt']
     assert 'finalizationReason' not in body['attempt']
     assert 'NEEDS_RECONCILIATION' not in resp['body']
-    assert 'WIX_WRITE_CONTRACT_REQUIRED' not in resp['body']
+    assert 'TENDER_SUM_MISMATCH' not in resp['body']
 
 
 def test_status_strips_an_order_number_from_a_non_paid_row(env):
@@ -678,3 +673,99 @@ def test_the_sender_refusal_precedes_the_claim_in_source_order():
     check = source.index('not in wa_payment_request.PAYMENT_SENDERS')
     claim = source.index('SET nativePrepareClaim=:claimed')
     assert check < claim, 'the WABA1-only refusal must come before the one-shot claim write'
+
+
+# ── finalizeNativeCatalogService: a natively finalized order unlocks the service ──
+#
+# `finalization.accept_paid` writes the order record, stages INTERNAL_ORDER_CREATED with the
+# orderId and then ORDER_FINALIZED once the tenders reconcile. `finalization_complete` gates on
+# exactly that row, and it is what lets `finalizeNativeCatalogService` close the customer's
+# one-purchase NATIVESERVICEACTIVE# session.
+
+NATIVE_ATTEMPT_ID = 'att-native-service-1'
+NATIVE_REFERENCE = 'WD-PAY-NATIVESVC0001'
+NATIVE_ORDER_ID = 'order-native-service-1'
+NATIVE_ORDER_NUMBER = 'WD-ORD-NATIVE01'
+NATIVE_SESSION_KEY = 'NATIVESERVICEACTIVE#' + CATALOG_CUSTOMER
+
+
+def _seed_paid_native_service(h, fake, *, verified_paise=TOTAL_PAYABLE_PAISE):
+    """The rows a captured catalog-service payment leaves before its order record exists.
+
+    The attempt carries what `_create` stores (the frozen snapshot, its hash, the session it was
+    prepared for) plus the provider-confirmed amount `_record_verified_capture` stores; the
+    PAYMENTATTEMPT# claim carries the order identity the webhook reserved; the
+    NATIVESERVICEACTIVE# row is the session `flows/catalog_services.py` opens.
+    """
+    from lambda_utils.ecommerce import order_keys, payment_attempt as pa
+    attempt = pa.build(customer_id=CATALOG_CUSTOMER, reference_id=NATIVE_REFERENCE,
+                       amount_paise=TOTAL_PAYABLE_PAISE, configuration_name='WECAREDIGITAL',
+                       payment_attempt_id=NATIVE_ATTEMPT_ID)
+    attempt = pa.transition(attempt, pa.PAYMENT_PENDING)
+    attempt.update({
+        'checkoutMode': h.CHECKOUT_MODE, 'nativeCatalogService': True, 'channel': 'whatsapp',
+        'customerPhone': '+919330994400', 'catalogServiceSession': CATALOG_SESSION['orderId'],
+        'snapshotHash': 'sha256:native-service',
+        'purchasedSnapshot': {
+            'cart': {'id': 'native:service', 'revision': 0},
+            'items': [{'productId': SERVICE_PRODUCT_ID, 'variantId': SERVICE_VARIANT_ID,
+                       'quantity': 1, 'unitPricePaise': COLLECTION_PAISE}]},
+        'verifiedCapturedPaise': verified_paise,
+    })
+    fake.Table(ATTEMPTS_TABLE).put_item(Item=attempt)
+    fake.Table(KEYS_TABLE).put_item(Item={
+        'orderId': order_keys.PAYMENT_ATTEMPT_PREFIX + NATIVE_ATTEMPT_ID,
+        'orderIdRef': NATIVE_ORDER_ID, 'orderNumber': NATIVE_ORDER_NUMBER,
+        'providerTransactionId': 'pay_native_service_1'})
+    fake.Table(KEYS_TABLE).put_item(Item={
+        'orderId': NATIVE_SESSION_KEY, 'status': 'ACTIVE',
+        'sessionKey': CATALOG_SESSION['orderId']})
+
+
+def _finalize_native_service(h):
+    return h._native_catalog_service(
+        {'internalAction': 'finalizeNativeCatalogService',
+         'paymentAttemptId': NATIVE_ATTEMPT_ID}, 'http://localhost:3000')
+
+
+def test_a_natively_finalized_service_order_closes_the_session(env):
+    """PAYMENT_PAID + orderId + ORDER_FINALIZED satisfies `finalization_complete`, so the action
+    answers NATIVE_SERVICE_FINALIZED and closes the NATIVESERVICEACTIVE# session."""
+    from lambda_utils.ecommerce import catalog_service_checkout as catalog
+    h, fake, lam, _mp = env
+    _seed_paid_native_service(h, fake)
+
+    assert _finalize_native_service(h) == {'outcome': 'NATIVE_SERVICE_FINALIZED'}
+
+    stored = fake.Table(ATTEMPTS_TABLE).get_item(
+        Key={'paymentAttemptId': NATIVE_ATTEMPT_ID})['Item']
+    assert stored['status'] == 'PAYMENT_PAID'
+    assert stored['orderId'] == NATIVE_ORDER_ID
+    assert stored['orderNumber'] == NATIVE_ORDER_NUMBER
+    assert stored['finalizationStage'] == 'ORDER_FINALIZED'
+    assert catalog.finalization_complete(stored) is True
+    session = fake.Table(KEYS_TABLE).get_item(Key={'orderId': NATIVE_SESSION_KEY})['Item']
+    assert session['status'] == 'CLOSED'
+    # One order record, mirrored final. The stored provider figure was enough: no provider
+    # readback and no invoke was needed to finish it.
+    orders = fake.all_rows(ORDERS_TABLE)
+    assert [order['orderId'] for order in orders] == [NATIVE_ORDER_ID]
+    assert orders[0]['finalizationStage'] == 'ORDER_FINALIZED'
+    assert lam.invocations == []
+
+
+def test_an_unreconciled_service_order_keeps_the_session_open(env):
+    """A capture one paise short of the payable records the order but stages
+    NEEDS_RECONCILIATION, so `finalization_complete` stays false: the action answers
+    NATIVE_SERVICE_FINALIZATION_PENDING and the session is left ACTIVE for a human."""
+    h, fake, _lam, _mp = env
+    _seed_paid_native_service(h, fake, verified_paise=TOTAL_PAYABLE_PAISE - 1)
+
+    assert _finalize_native_service(h) == {'outcome': 'NATIVE_SERVICE_FINALIZATION_PENDING'}
+
+    stored = fake.Table(ATTEMPTS_TABLE).get_item(
+        Key={'paymentAttemptId': NATIVE_ATTEMPT_ID})['Item']
+    assert stored['finalizationStage'] == 'NEEDS_RECONCILIATION'
+    assert stored['finalizationReason'] == 'TENDER_SUM_MISMATCH'
+    session = fake.Table(KEYS_TABLE).get_item(Key={'orderId': NATIVE_SESSION_KEY})['Item']
+    assert session['status'] == 'ACTIVE'

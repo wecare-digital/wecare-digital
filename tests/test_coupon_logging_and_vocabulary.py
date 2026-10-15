@@ -1,11 +1,8 @@
 """What the coupon handler may and may not put in a log line.
 
-Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/coupons-20261001.md` section 7
-(tests 59-61) and section 9 (the vocabulary gate).
-
 The asymmetry these two tests protect is deliberate and runs in OPPOSITE directions
 -----------------------------------------------------------------------------------
-* The Wix API key must not appear in a logging expression AT ALL - not "must not be logged".
+* A secret must not appear in a logging expression AT ALL - not "must not be logged".
   CodeQL's `py/clear-text-logging-sensitive-data` failed this repository's build twice on a line
   that could not leak anything (`"google" if key else "aws"`), and it was right to: the analysis
   cannot prove the value is discarded, and neither can a reviewer at a glance. It also tracks
@@ -35,11 +32,11 @@ VOCABULARY_GATE = ROOT / "tests/test_payment_vocabulary_at_decision_points.py"
 SOURCE = HANDLER.read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE, filename=str(HANDLER))
 
-#: Every name by which the Wix credential could be reached in this function. The SECRET NAME
-#: itself is a name, not a value, and may appear in the source - what must never appear in a
-#: logging expression is anything that could hold or be derived from the VALUE.
-SECRET_BEARING_NAMES = {"WIX_API_KEY_SECRET", "api_key", "_api_key", "apiKey", "key",
-                        "secret", "_key_cache", "get_secret_value"}
+#: Every name by which a credential could be reached in this function. A SECRET NAME is a name,
+#: not a value, and may appear in the source - what must never appear in a logging expression is
+#: anything that could hold or be derived from the VALUE.
+SECRET_BEARING_NAMES = {"api_key", "_api_key", "apiKey", "key", "secret", "_key_cache",
+                        "get_secret_value"}
 
 
 def _functions(tree: ast.Module) -> dict:
@@ -71,7 +68,7 @@ def _called_local_functions(node: ast.AST, local: dict) -> set:
 
 # ── 59 ────────────────────────────────────────────────────────────────────────
 
-def test_no_logging_expression_mentions_the_wix_api_key():
+def test_no_logging_expression_reaches_a_secret():
     """An AST walk of every `logger.*` argument, TRANSITIVELY through local helpers.
 
     Transitive because CodeQL is: `provider <- _google_enabled() <- _google_key() <- the secret`
@@ -101,14 +98,9 @@ def test_no_logging_expression_mentions_the_wix_api_key():
         "secret. Reducing it to a bool does not launder it.")
 
 
-def test_the_handler_holds_no_wix_reference_at_all_so_there_is_nothing_to_leak():
-    """Stronger than before, post Wix-exit: the coupons handler is AWS-native and holds NO Wix
-    reference of any kind — not the admin-key secret name, not a Wix import, not a secret read.
-    The local DynamoDB row is the sole authority, so there is nothing provider-side to leak.
-    """
-    assert "WIX_API_KEY_SECRET" not in SOURCE      # the mirror and its key are gone
-    assert "wix_coupons" not in SOURCE
-    assert "wix_ecom" not in SOURCE
+def test_the_coupon_path_reads_no_secret_so_there_is_nothing_to_leak():
+    """The coupons handler and `coupon_store` need no credential: a coupon is a CouponsTable row
+    and nothing else. With no secret read anywhere on this path, no log line can carry one."""
     assert "get_secret_value" not in SOURCE
     assert "secretsmanager" not in SOURCE
     # The coupon store also reads no secret directly.
@@ -118,9 +110,8 @@ def test_the_handler_holds_no_wix_reference_at_all_so_there_is_nothing_to_leak()
 
 
 def test_an_exception_contributes_only_its_type_name_to_a_log_line():
-    """A Wix error message carries the HTTP status as prose. A status in a log is one grep away
-    from a branch, and `wix_ecom._request` reduces the body out for that reason - so the handler
-    must not put the message back."""
+    """An exception message can carry a status as prose, or a value, and a status in a log is one
+    grep away from a branch - so the handler logs an exception by its type name only."""
     for call in _logging_calls(TREE):
         rendered = ast.unparse(call)
         assert "str(exc" not in rendered
@@ -186,8 +177,7 @@ def test_the_new_handlers_are_in_the_raw_scan_list():
     assert assignment is not None, "RAW_SCAN_ONLY_FILES is not declared in the vocabulary gate"
     entries = ast.literal_eval(assignment.value)
     # Both, because nothing else pins these entries and the list is the only thing putting
-    # those handlers under the raw-'captured' scan at all. (The Wix gift-card SPI handler was
-    # the third until #475 deleted it; a listed file that no longer exists fails the gate.)
+    # those handlers under the raw-'captured' scan at all.
     for handler in ("ecommerce/coupons/handler.py", "ecommerce/gift-cards/handler.py"):
         assert (handler, None) in entries, f"{handler} is outside the raw-scan gate"
 

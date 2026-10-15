@@ -18,14 +18,16 @@ class Money:
             raise ValueError("money must be nonnegative integer paise in INR")
 
     @classmethod
-    def from_wix(cls, amount):
+    def from_decimal_string(cls, amount):
+        """Parse an exact decimal-rupee string ("1499", "1499.50") into paise.
+
+        The native price-summary shapes (delivery options, service line totals) carry money
+        as decimal strings; floats, numbers and more than two fraction digits are refused.
+        """
         if not isinstance(amount, str) or not re.fullmatch(r"[0-9]{1,14}(?:\.[0-9]{1,2})?", amount):
-            raise ValueError("Wix amount must be an exact decimal string")
+            raise ValueError("amount must be an exact decimal string")
         whole, _, fraction = amount.partition(".")
         return cls(int(whole) * 100 + int(fraction.ljust(2, "0")))
-
-    def to_wix(self):
-        return f"{self.paise // 100}.{self.paise % 100:02d}"
 
 
 def positive_paise(value):

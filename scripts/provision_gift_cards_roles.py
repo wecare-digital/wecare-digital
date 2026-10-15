@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Provision the AWS-native gift-card execution role and alarms.
+"""Provision the gift-card execution role and its alarm.
 
-The retired provider SPI has no Lambda, route, IAM role or secret in AWS and is not
-provisioned by this script. The native gift-card function reads the provider-neutral
-HMAC pepper secret and the GiftCardsTable only.
+`wecare-gift-cards` is the one function this script provisions a role for. It reads the
+gift-card HMAC pepper secret and the GiftCardsTable, and nothing else.
 """
 
 from __future__ import annotations
@@ -257,8 +256,7 @@ def alarm_topic_arn() -> str:
 def ensure_alarms(apply: bool) -> str:
     """The gift-card mismatch alarm, at `Sum >= 1` over five minutes, one datapoint.
 
-    A threshold of one rather than a rate, because a single occurrence of either is actionable: the
-    first means Wix called an endpoint section 1.3 predicts it never calls, and the second means a
+    A threshold of one rather than a rate, because a single occurrence is actionable: it means a
     recorded charge disagrees with what the gateway confirmed.
     """
     topic = alarm_topic_arn()

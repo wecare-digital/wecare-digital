@@ -1,10 +1,7 @@
 """The coupon issuance store: uniqueness, validation, limits, holds and redemption.
 
-Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/coupons-20261001.md` sections 4,
-5.2, 5.4 and 5.5, and the test list in section 7 (tests 1-21).
-
-Three tests here are not in that list and are the reason the HIGH findings stay closed rather
-than merely answered in prose:
+Three tests here are the reason the HIGH findings stay closed rather than merely answered in
+prose:
 
 * `test_every_dynamodb_access_is_an_exact_key_operation_or_the_status_index_query` enumerates the
   module's call sites, which is what pins HIGH-3 / DECISION 5. A sentence saying "no scan" is not
@@ -64,10 +61,8 @@ def payload(**overrides):
 
 
 def issue(store: FakeTable, **overrides):
-    """A coupon that has been created AND mirrored, which is the only applicable state."""
-    definition = cs.create(store, payload(**overrides), created_by="staff-1", clock=clock())
-    return cs.mark_mirrored(store, definition["code"], "wix-" + definition["code"].lower(),
-                            clock=clock())
+    """A created coupon. Creation alone makes it applicable: the row is the sole authority."""
+    return cs.create(store, payload(**overrides), created_by="staff-1", clock=clock())
 
 
 # ── 1-2: the code is the key ──────────────────────────────────────────────────
@@ -91,11 +86,30 @@ def test_the_code_is_the_partition_key_so_a_duplicate_is_refused_by_the_database
         assert kwargs["ConditionExpression"] == f"attribute_not_exists({cs.KEY_ATTRIBUTE})"
 
 
+@pytest.mark.parametrize("overrides", [
+    {},
+    {"usageLimit": 5, "limitPerCustomer": 1, "tags": ["launch"],
+     "expirationTimeMs": START_MS + 86_400_000, "limitedToOneItem": True},
+    {"minimumSubtotalPaise": None, "scopeNamespace": "stores", "scopeGroupName": "product",
+     "scopeEntityId": "11111111-1111-4111-8111-111111111111"},
+])
+def test_a_created_coupon_row_carries_only_the_declared_attribute_set(overrides):
+    """What `create` stores is exactly what it returns, and every attribute on it is declared in
+    `DEFINITION_ATTRIBUTES` - so nothing undeclared rides along on a new definition row."""
+    store = table()
+    definition = cs.create(store, payload(**overrides), created_by="staff-1", clock=clock())
+    stored = store.rows["COUPON#SAVE10"]
+    assert stored == definition
+    undeclared = set(stored) - set(cs.DEFINITION_ATTRIBUTES)
+    assert not undeclared, f"a created coupon row carries undeclared attributes: {undeclared}"
+    assert stored[cs.STATUS_ATTRIBUTE] == cs.STATUS_ACTIVE
+    assert stored["usageCount"] == 0
+
+
 @pytest.mark.parametrize("spelling", ["SAVE10", "save10", "Save10", "ＳＡＶＥ１０", " save10 "])
 def test_case_and_unicode_variants_normalise_to_one_coupon(spelling):
     """A fullwidth or lower-case variant is the SAME coupon, because a customer reads it that
-    way. Wix does not document its code uniqueness as case-insensitive, so normalising is ours
-    to do."""
+    way, so the key is normalised before it is claimed."""
     assert cs.normalise_code(spelling) == "SAVE10"
     assert cs.definition_key(spelling) == "COUPON#SAVE10"
 
@@ -109,8 +123,8 @@ def test_case_and_unicode_variants_normalise_to_one_coupon(spelling):
 # ── 3-5: exactly one kind, and the free-shipping exception ────────────────────
 
 def test_exactly_one_discount_kind_is_accepted():
-    """Refused HERE rather than at Wix, because Wix's `type` is read-only and derived from
-    whichever discount field was set - so two fields would mean something nobody chose."""
+    """Two discount fields would mean something nobody chose, so a payload must carry exactly
+    the one its `discountKind` names."""
     with pytest.raises(cs.CouponValidationError) as none_at_all:
         cs.validate_definition(payload(discountKind=None, moneyOffPaise=None), clock=clock())
     assert none_at_all.value.code == "INVALID_DISCOUNT_KIND"
@@ -198,12 +212,11 @@ def test_money_is_stored_as_integer_paise_and_rates_as_basis_points():
     ("percentOffBps", 250),
 ])
 def test_a_sub_rupee_amount_is_refused_at_creation(field, value):
-    """Pins section 4.2's whole-rupee restriction as DELIBERATE rather than a bug.
+    """Pins the whole-rupee restriction as DELIBERATE rather than a bug.
 
-    The Wix coupon service's money fields are JSON numbers in decimal rupees and nothing
-    documents a string being accepted, so this release emits `paise // 100`. Rounding a
-    discount silently changes what a customer was promised, and `2500` bps rounded to `25`
-    is a different coupon from 2.5%.
+    This release issues coupon amounts in whole rupees. Rounding a discount silently changes
+    what a customer was promised, and `2500` bps rounded to `25` is a different coupon from
+    2.5%.
     """
     body = payload(moneyOffPaise=None if field != "moneyOffPaise" else value)
     if field == "fixedPricePaise":
@@ -220,9 +233,10 @@ def test_a_sub_rupee_amount_is_refused_at_creation(field, value):
 # ── 9-11: times and the code bound ────────────────────────────────────────────
 
 @pytest.mark.parametrize("start", [0, 1, 999_999_999_999, -1700000000000])
-def test_a_start_time_below_the_wix_minimum_is_refused(start):
-    """Wix's own documented `minimum: 1000000000000` on `startTime`."""
-    assert cs.WIX_MIN_TIME_MS == 1_000_000_000_000
+def test_a_start_time_below_the_epoch_millisecond_floor_is_refused(start):
+    """`MIN_EPOCH_MS` refuses epoch SECONDS sent where milliseconds belong, which would
+    otherwise issue a coupon that started in January 1970."""
+    assert cs.MIN_EPOCH_MS == 1_000_000_000_000
     with pytest.raises(cs.CouponValidationError) as refusal:
         cs.validate_definition(payload(startTimeMs=start), clock=clock())
     assert refusal.value.code == "INVALID_START_TIME"
@@ -235,8 +249,8 @@ def test_an_expiry_not_after_the_start_is_refused(expiry):
     assert refusal.value.code == "INVALID_EXPIRATION_TIME"
 
 
-def test_a_code_longer_than_twenty_characters_never_reaches_wix():
-    """Wix documents `Specification.code` as "Max: 20 characters"."""
+def test_a_code_longer_than_twenty_characters_is_refused():
+    """An issued code is at most 20 characters, our own limit."""
     assert cs.MAX_CODE_LENGTH == 20
     assert cs.normalise_code("A" * 20) == "A" * 20
     with pytest.raises(cs.CouponValidationError) as refusal:
@@ -654,7 +668,6 @@ def test_the_store_exposes_no_function_that_returns_a_discount_amount():
 
 
 def test_the_verdict_vocabulary_is_closed_and_carries_no_amount():
-    # Post Wix-exit: WIX_MIRROR_INCOMPLETE is no longer a producible verdict (the mirror is gone).
     assert set(cs.VERDICTS) == {
         "ELIGIBLE", "UNKNOWN_CODE", "NOT_ACTIVE", "NOT_STARTED", "EXPIRED",
         "USAGE_LIMIT_REACHED", "CUSTOMER_LIMIT_REACHED", "HELD_BY_ANOTHER_CART"}
@@ -663,14 +676,12 @@ def test_the_verdict_vocabulary_is_closed_and_carries_no_amount():
 @pytest.mark.parametrize("definition,expected", [
     (None, cs.UNKNOWN_CODE),
     ({cs.STATUS_ATTRIBUTE: cs.STATUS_INACTIVE}, cs.NOT_ACTIVE),
-    # AWS-native: an ACTIVE coupon is ELIGIBLE on its own authority — a (legacy) PENDING_WIX
-    # mirror state is irrelevant now that the local row is the sole authority.
-    ({cs.STATUS_ATTRIBUTE: cs.STATUS_ACTIVE, "wixMirrorState": cs.MIRROR_PENDING},
-     cs.ELIGIBLE),
+    # An ACTIVE row is ELIGIBLE on its own authority; nothing outside the row is consulted.
+    ({cs.STATUS_ATTRIBUTE: cs.STATUS_ACTIVE}, cs.ELIGIBLE),
 ])
 def test_evaluate_decides_eligibility_from_our_own_row(definition, expected):
     """Eligibility is decided entirely from the local row: UNKNOWN when absent, NOT_ACTIVE when
-    not active, otherwise ELIGIBLE (subject to the time/limit checks). No Wix mirror gate."""
+    not active, otherwise ELIGIBLE (subject to the time/limit checks)."""
     assert cs.evaluate(definition, clock=clock()) == expected
 
 

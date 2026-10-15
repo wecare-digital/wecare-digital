@@ -1,9 +1,5 @@
 """Two-leg settlement: a verified Razorpay capture is necessary and NOT sufficient.
 
-Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/gift-cards-service-plugin-20261001.md`
-sections 3.1 (the ladder), 3.2 (`is_fully_settled`), 3.3 (ordering) and 7.3 (the closed evidence
-set), and the test list in section 9.1 (tests 65-86, including 83a, 83b, 83c and 83d).
-
 MEDIUM-7's rename is applied: test 80 was `..._after_the_reference_is_minted_...`, and revision 3
 re-keyed the hold onto `paymentAttemptId` precisely BECAUSE the reference is not available in time
 on the website path - `attempt["referenceId"]` there is the Razorpay order id, which does not exist
@@ -367,39 +363,6 @@ def test_the_hold_is_taken_after_the_attempt_id_is_minted_and_before_the_gateway
     assert gcs.stage(attempts.rows[attempt_id]) == gcs.GC_HELD
 
 
-def test_the_redemption_happens_after_capture_is_verified():
-    """Section 3.3 step 3. If step 3 fails after a verified capture the order is recoverable by
-    replay, because the redemption is idempotent; the opposite order would deduct from a card for a
-    payment that then failed, which needs a void to undo."""
-    cards = cards_table()
-    attempts = attempts_table()
-    gc.issue(cards, initial_value_paise=100000, pepper=PEPPER, code=CODE, clock=clock())
-    attempt_id = "attempt-1"
-    attempts.seed({"paymentAttemptId": attempt_id, "amountPaise": PAYABLE})
-    gc.hold(cards, code_hash=digest(), attempt_id=attempt_id, amount_paise=REDEEMED,
-            clock=clock())
-    gcs.advance(attempts, attempt_id=attempt_id, stage=gcs.GC_HELD,
-                giftCardRequiredPaise=REDEEMED, giftCardCodeHash=digest())
-
-    # Before capture: the balance has NOT moved. A hold reserves; it does not deduct.
-    assert cards.rows[gc.PREFIX_CARD + digest()]["balancePaise"] == 100000
-    assert gcs.is_fully_settled(attempts.rows[attempt_id]) is False
-
-    # Capture verified (the existing, untouched machinery).
-    attempts.rows[attempt_id].update({
-        "status": payment_attempt.PAYMENT_PAID,
-        gcs.RAZORPAY_EVIDENCE_ATTR: "pay_RAZORPAYID00001",
-        gcs.RAZORPAY_VERIFIED_PAISE_ATTR: CHARGED})
-
-    outcome = gc.redeem(cards, code_hash=digest(), attempt_id=attempt_id,
-                        amount_paise=REDEEMED, clock=clock())
-    gcs.advance(attempts, attempt_id=attempt_id, stage=gcs.GC_REDEEMED,
-                giftCardRedeemedPaise=REDEEMED,
-                giftCardTransactionId=outcome["transactionId"])
-    assert cards.rows[gc.PREFIX_CARD + digest()]["balancePaise"] == 60000
-    assert gcs.is_fully_settled(attempts.rows[attempt_id]) is True
-
-
 def test_a_failed_gateway_releases_the_hold_and_deducts_nothing():
     cards = cards_table()
     gc.issue(cards, initial_value_paise=100000, pepper=PEPPER, code=CODE, clock=clock())
@@ -418,38 +381,19 @@ def test_a_failed_gateway_releases_the_hold_and_deducts_nothing():
 # ── 83 / 83a / 83b / 83c / 83d: the closure compares a VERIFIED capture ─────────
 
 def test_a_tampered_redeem_amount_cannot_reach_a_settled_order():
-    """Driven through BOTH gates: the section 4.2 reconciliation refuses it pre-hold, and
-    `is_fully_settled` returns False post-hoc.
+    """`is_fully_settled` closes both legs against the VERIFIED capture, so a split altered after
+    the fact cannot settle.
 
     Asserted against `verifiedCapturedPaise`, the provider-confirmed figure, never the intended
     `razorpayChargedPaise` (HIGH-3). The two are written by the same code in the same request from
     the same split, so their sum re-deriving the payable proves the split was internally consistent
     when written - arithmetic, not evidence.
     """
-    from lambda_utils.ecommerce import checkout_pricing
+    # Honest split: 40000 redeemed, 62950 charged and verified.
+    assert gcs.is_fully_settled(two_leg()) is True
 
-    quote = checkout_pricing.compute_quote(100000)
-    summary = {
-        "priceSummary": {"total": {"amount": "1000.00"}},
-        "paymentSummary": {
-            "requiresPaymentAfterGiftCard": True,
-            "giftCards": [{"redeemAmount": {"amount": "400.00"}}],
-            "payNow": {"amount": "600.00"},
-        },
-    }
-    # Honest split: 40000 redeemed, 62950 charged.
-    assert gc.reconcile_with_wix(summary, gift_card_redeem_paise=40000,
-                                pay_now_paise=62950, quote=quote)["wixAppliedPaise"] == 40000
-
-    # Gate 1: a redeemAmount altered after the quote was frozen fails closed, pre-hold.
-    with pytest.raises(gc.GiftCardValidationError) as refusal:
-        gc.reconcile_with_wix(summary, gift_card_redeem_paise=50000,
-                              pay_now_paise=52950, quote=quote)
-    assert refusal.value.code == "WIX_APPLIED_MISMATCH"
-
-    # Gate 2: and if the split were altered after the fact, the closure fails against the REAL
-    # capture. Reduce `razorpayChargedPaise` and nothing reads it; reduce `giftCardRequiredPaise`
-    # and `redeemed != required`; reduce `amountPaise` and the sum fails against the capture.
+    # Reduce `razorpayChargedPaise` and nothing reads it; inflate the gift-card leg and the sum
+    # fails against the capture.
     tampered = two_leg(**{gcs.REDEEMED_PAISE_ATTR: 50000, gcs.REQUIRED_PAISE_ATTR: 50000})
     assert gcs.is_fully_settled(tampered) is False
     shrunk = two_leg(**{gcs.CHECKOUT_INTENDED_PAISE_ATTR: 1})
@@ -522,40 +466,6 @@ def test_the_settlement_decision_never_reads_the_intended_gateway_figure():
 
 # ── 84-86 ─────────────────────────────────────────────────────────────────────
 
-def test_a_redemption_failure_after_capture_lands_in_needs_reconciliation():
-    """Never "paid". The stage stays `GC_HELD`, `is_fully_settled` is False, and a replay repairs
-    it because the redemption is idempotent on `(codeHash, paymentAttemptId)`."""
-    cards = cards_table()
-    attempts = attempts_table()
-    gc.issue(cards, initial_value_paise=100000, pepper=PEPPER, code=CODE, clock=clock())
-    attempts.seed({"paymentAttemptId": "attempt-1", "amountPaise": PAYABLE,
-                   "status": payment_attempt.PAYMENT_PAID,
-                   gcs.RAZORPAY_EVIDENCE_ATTR: "pay_X",
-                   gcs.RAZORPAY_VERIFIED_PAISE_ATTR: CHARGED,
-                   gcs.RANK_ATTRIBUTE: gcs.STAGE_RANK[gcs.GC_HELD],
-                   gcs.REQUIRED_PAISE_ATTR: REDEEMED})
-
-    # Aimed at `transact_write_items`, because that is where the balance move lives: the move
-    # and the claim's `settled` flag are one transaction. Only the INJECTION POINT moves - every
-    # assertion below is unchanged, which is what shows the property was preserved rather than
-    # the test adjusted. A bare throughput error is not a cancellation, so it surfaces as
-    # `GiftCardStoreUnavailable` and can never be mistaken for a lost race.
-    cards.arm_failure("transact_write_items",
-                      RuntimeError("ProvisionedThroughputExceededException"))
-    with pytest.raises(gc.GiftCardStoreUnavailable):
-        gc.redeem(cards, code_hash=digest(), attempt_id="attempt-1", amount_paise=REDEEMED,
-                  clock=clock())
-    assert gcs.is_fully_settled(attempts.rows["attempt-1"]) is False
-    assert gcs.stage(attempts.rows["attempt-1"]) == gcs.GC_HELD
-
-    outcome = gc.redeem(cards, code_hash=digest(), attempt_id="attempt-1",
-                        amount_paise=REDEEMED, clock=clock())
-    assert outcome["committed"] is True
-    gcs.advance(attempts, attempt_id="attempt-1", stage=gcs.GC_REDEEMED,
-                giftCardRedeemedPaise=REDEEMED,
-                giftCardTransactionId=outcome["transactionId"])
-    assert gcs.is_fully_settled(attempts.rows["attempt-1"]) is True
-
 
 def test_nothing_here_writes_the_razorpay_machinery():
     """AST. The Razorpay leg is CONSULTED through `payment_attempt.may_create_order` and never
@@ -593,9 +503,9 @@ def test_nothing_here_writes_the_razorpay_machinery():
 def test_the_attempt_keeps_the_full_payable_as_amount_paise():
     """Section 8 point 3, and getting it backwards is a silent under-charge.
 
-    `attempt["amountPaise"]` is what `is_fully_settled` closes both legs against and what the Wix
-    order must show - the FULL taxable value, because under GST a voucher is consideration rather
-    than a reduction in the value of supply. The gateway amount is a DIFFERENT number.
+    `attempt["amountPaise"]` is what `is_fully_settled` closes both legs against and what the
+    order record must show - the FULL taxable value, because under GST a voucher is consideration
+    rather than a reduction in the value of supply. The gateway amount is a DIFFERENT number.
     """
     attempt = two_leg()
     assert attempt["amountPaise"] == PAYABLE

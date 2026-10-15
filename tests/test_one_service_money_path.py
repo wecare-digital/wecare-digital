@@ -10,12 +10,13 @@
     request the path makes is recorded; the set is exactly ``{GET /payments/<id>}`` -- no
     capture, refund or payment-configuration request is made.
 (d) The enumeration is not vacuous.
-(e) The new role names no Razorpay or Wix credential path.
+(e) The new role names no provider credential path.
 """
 
 from __future__ import annotations
 
 import ast
+import copy
 import importlib
 import json
 import os
@@ -30,9 +31,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
-import contribution_wix  # noqa: E402
 from contribution_env import ATTEMPTS_TABLE, KEYS_TABLE, body_of, make_env, prepare_event  # noqa
-from contribution_wix import STORES_APP_ID, ContributionWix  # noqa: E402
 from crm_fake_dynamo import FakeDynamo  # noqa: E402
 from service_requests_fake_dynamo import RequestTable  # noqa: E402
 
@@ -50,8 +49,8 @@ NEW_MODULES = (
     "amplify/functions/shared/lambda_utils/ecommerce/service_requests.py",
     "amplify/functions/shared/lambda_utils/ecommerce/service_request_dispatch.py",
 )
-BANNED_IMPORTS = {"razorpay_orders", "razorpay_verify", "wix_ecom", "wix_writeback",
-                  "finalization", "order_creation", "urllib", "requests", "http"}
+BANNED_IMPORTS = {"razorpay_orders", "razorpay_verify", "finalization", "order_creation",
+                  "urllib", "requests", "http"}
 
 
 def _imports(tree):
@@ -99,7 +98,7 @@ def test_a_the_new_modules_import_no_money_mover(relative):
 # ── (b) the prepare path, enumerated ─────────────────────────────────────────
 
 def _service_line():
-    return {"catalogReference": {"appId": STORES_APP_ID, "catalogItemId": PRODUCT,
+    return {"catalogReference": {"catalogItemId": PRODUCT,
                                  "options": {"variantId": SUBMIT}}, "quantity": 1}
 
 
@@ -107,23 +106,36 @@ def _endpoint_shape(path: str) -> str:
     return re.sub(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "{id}", path)
 
 
-def test_b_the_prepare_path_makes_no_provider_cart_call_and_one_gateway_order(monkeypatch):
-    """AWS-NATIVE: the prepare path prices off ProductsTable through `_native_quote`, so it makes
-    ZERO Wix cart calls — "no provider cart call" is structural now, not an enumerated set. What
-    still has to hold is the money shape it used to protect: exactly one Razorpay order is created,
-    and a second prepare on the SAME requestKey mints no second gateway order and no second attempt.
+#: The ProductsTable row the services basket is priced from: Rs.99 for the Submit Request variant.
+SERVICE_ROW = {"id": PRODUCT, "status": "active",
+               "variants": [{"sku": SUBMIT, "priceMinor": 9900, "inventory": 50}]}
+
+
+def test_b_the_prepare_path_reads_only_products_table_and_makes_one_gateway_order(monkeypatch):
+    """The prepare path prices the services basket off ProductsTable through `_native_quote`:
+    every product read is a ProductsTable read, and the money shape holds -- exactly one Razorpay
+    order is created, and a second prepare on the SAME requestKey mints no second gateway order
+    and no second attempt.
     """
-    wix = ContributionWix()
-    monkeypatch.setitem(contribution_wix.UNIT_RUPEES, PRODUCT, 99)
-    wix.variants[PRODUCT] = [SUBMIT]
-    h, fake, wix = make_env(monkeypatch, wix=wix)
+    h, fake, _catalog = make_env(monkeypatch)
+    product_reads = []
+
+    def reader():
+        def read(product_id):
+            product_reads.append(str(product_id))
+            return copy.deepcopy(SERVICE_ROW) if str(product_id) == PRODUCT else None
+        return read
+
+    monkeypatch.setattr(h, "_native_product_reader", reader)
     event = prepare_event([_service_line()],
                           serviceIntentId="01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f")
     response = h.handler(event, None)
     assert response["statusCode"] == 200, body_of(response)
-    # No Wix cart transport exists on the native path: the descriptor records no calls.
-    assert wix.calls == []
+    # The basket was priced from the one ProductsTable row it names, and from nothing else.
+    assert product_reads and set(product_reads) == {PRODUCT}
     assert len(h.gateway_orders) == 1               # Razorpay orders.create x1
+    assert h.gateway_orders[0]["amount"] == \
+        fake.all_rows(ATTEMPTS_TABLE)[0]["amountPaise"]
     # A second prepare with the SAME requestKey creates NO second gateway order. The native basket
     # hashes to a stable cart id, so the one-live-payment guard resumes onto the same attempt
     # (200) rather than minting a second. Nothing payable is created twice.
@@ -209,8 +221,8 @@ class LambdaToReceiver:
 
 
 def test_c_a_capture_delivered_four_times_makes_one_claim_one_order_one_request(monkeypatch):
-    keys = FakeDynamo(keys={"stack-wecare-digital-WixOrderIds": "orderId"}).Table(
-        "stack-wecare-digital-WixOrderIds")
+    keys = FakeDynamo(keys={"stack-wecare-digital-CommerceKeys": "orderId"}).Table(
+        "stack-wecare-digital-CommerceKeys")
     requests = RequestTable()
     identity = customer_auth.CustomerIdentity(customer_id="sub-1", phone="+910000000000",
                                               subject="sub-1")
@@ -313,5 +325,6 @@ def test_e_the_new_role_names_no_provider_credential_path():
     prov = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(prov)
     text = json.dumps(prov.expected_role_policy("123456789012")).lower()
-    for needle in ("secretsmanager", "razorpay", "wecare/wix", "kms", "lambda:invoke"):
+    # `secretsmanager` covers every provider credential path, whichever provider it names.
+    for needle in ("secretsmanager", "razorpay", "kms", "lambda:invoke"):
         assert needle not in text

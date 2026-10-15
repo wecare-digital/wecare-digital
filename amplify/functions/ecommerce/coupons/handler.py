@@ -1,18 +1,16 @@
 """`wecare-coupons` - coupon issuance, eligibility and holds. Seven routes, no discount.
 
-Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/coupons-20261001.md` sections 5.1
-(routes), 5.1.1 (the route provisioner and the authorization posture), 5.3 (error handling) and 5.4
-(validation).
-
-| Route | Identity | Wix call |
+| Route | Identity | `coupon_store` call |
 |---|---|---|
-| `POST /coupons` | staff | `POST /stores/v2/coupons` |
-| `GET /coupons/{code}` | staff | `GET /stores/v2/coupons/{id}` |
-| `GET /coupons` | staff | none |
-| `POST /coupons/{code}/deactivate` | staff | `PATCH /stores/v2/coupons/{id}` |
-| `POST /coupons/validate` | customer session | none |
-| `POST /coupons/hold` | customer session | none |
-| `POST /coupons/release` | customer session | none |
+| `POST /coupons` | staff | `create` (conditional put) |
+| `GET /coupons/{code}` | staff | `get_definition` |
+| `GET /coupons` | staff | `list_by_status` (`status-index`) |
+| `POST /coupons/{code}/deactivate` | staff | `deactivate` |
+| `POST /coupons/validate` | customer session | `get_definition`, `customer_uses`, `evaluate` |
+| `POST /coupons/hold` | customer session | `evaluate`, then `hold` |
+| `POST /coupons/release` | customer session | `release` |
+
+Every route is a DynamoDB operation on the CouponsTable; none calls an external service.
 
 There is no `DELETE /coupons/{code}`. Deactivation is reversible and preserves the audit trail;
 deletion destroys the definition a settled order references.
@@ -35,17 +33,17 @@ gives `UNKNOWN_CODE` the same answer SHAPE as `EXPIRED`.
 
 VALIDATE RETURNS A VERDICT AND NEVER AN AMOUNT
 ----------------------------------------------
-That is the security boundary, not a stylistic choice. The amount is Wix's answer to
-`Calculate Cart`; a validate endpoint that returned a discount figure would become a number a
-browser could quote. Every answer is one word from `coupon_store.VERDICTS`.
+That is the security boundary, not a stylistic choice. The amount is computed server-side, by
+`coupon_store.discount_paise`, only when a checkout or an invoice prices the coupon; a validate
+endpoint that returned a discount figure would become a number a browser could quote. Every
+answer is one word from `coupon_store.VERDICTS`.
 
-AWS-NATIVE, NO WIX MIRROR
--------------------------
-Coupons are AWS-native: the local DynamoDB row is the sole authority and
-`coupon_store.discount_paise` prices every coupon on the native checkout path. There is no Wix
-coupon mirror — the Wix admin key is retired and a mirror would only fail into PENDING_WIX. The
-`wixCouponId`/`wixMirrorState` attributes remain in the stored shape for historical rows but are
-never written or read against Wix any more.
+ONE AUTHORITY
+-------------
+The CouponsTable row is the sole authority for a coupon: `coupon_store.evaluate` decides
+eligibility from it and `coupon_store.discount_paise` prices it. There is no second copy of a
+coupon to keep in step, so a create, a deactivation or a hold takes effect the moment its write
+commits.
 """
 from __future__ import annotations
 
@@ -189,11 +187,10 @@ def _route_key(event: Dict[str, Any]) -> str:
 # ── staff routes ──────────────────────────────────────────────────────────────
 
 def _create(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Create the coupon in our DynamoDB table. AWS-native: the local row is the sole authority.
+    """Create the coupon in the CouponsTable. One conditional put, answered `201`.
 
-    A conditional put claims the code; `coupon_store.discount_paise` prices the coupon on the
-    native checkout path. There is no Wix mirror, so a create is a clean `201` with no external
-    call and no `PENDING_WIX` limbo.
+    The conditional put claims the normalised code, so a duplicate is a `409` from the database
+    rather than from a read we made first. The coupon is usable as soon as the put commits.
     """
     denied = _staff(event)
     if denied:
@@ -210,12 +207,7 @@ def _create(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
 
 
 def _get(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Our record, resolved code -> row. AWS-native: the local row is the authority, no Wix read.
-
-    `mirror.state` is still returned for shape stability (historical rows carry a
-    `wixMirrorState`), but no call is made to Wix — the field reflects only what the stored row
-    records.
-    """
+    """Our record, resolved code -> row by one exact-key read."""
     denied = _staff(event)
     if denied:
         return denied
@@ -223,8 +215,7 @@ def _get(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     definition = coupon_store.get_definition(table, _path_code(event))
     if not definition:
         return error_response(404, "UNKNOWN_CODE", origin)
-    mirror: Dict[str, Any] = {"state": definition.get("wixMirrorState")}
-    return cors_response(200, {"coupon": _public(definition), "mirror": mirror}, origin)
+    return cors_response(200, {"coupon": _public(definition)}, origin)
 
 
 def _list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
@@ -240,9 +231,10 @@ def _list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
 
 
 def _deactivate(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Set the coupon `INACTIVE` in our table. AWS-native: no Wix call. Never a delete.
+    """Set the coupon `INACTIVE` in the CouponsTable. Never a delete.
 
-    The local state binds: an INACTIVE coupon is refused by `validate` before it can be applied.
+    The change binds at once: an INACTIVE coupon is refused by `validate` before it can be
+    applied.
     """
     denied = _staff(event)
     if denied:
@@ -313,7 +305,7 @@ PUBLIC_ATTRIBUTES = ("code", "name", "status", "discountKind", "moneyOffPaise", 
                      "fixedPricePaise", "buyX", "buyY", "minimumSubtotalPaise",
                      "scopeNamespace", "scopeGroupName", "scopeEntityId", "startTimeMs",
                      "expirationTimeMs", "usageLimit", "limitPerCustomer", "usageCount",
-                     "limitedToOneItem", "currency", "wixMirrorState", "couponId",
+                     "limitedToOneItem", "currency", "couponId",
                      "policyVersion", "createdAt", "updatedAt", "tags")
 
 

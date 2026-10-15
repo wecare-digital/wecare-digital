@@ -3,14 +3,14 @@
 What this module is, and why it is NOT the gateway path
 -------------------------------------------------------
 Section 2 of the owner's specification adds a coupon field and a gift-card field to the website
-checkout. Both must be SERVER/Wix-authoritative in integer paise: the browser value is only a
+checkout. Both must be SERVER-authoritative in integer paise: the browser value is only a
 request, a browser-calculated discount is never trusted, and the browser never controls the
 trusted amount. This module is the server authority for both. It is written handler-free - every
 external dependency (the keys table, the coupon/gift-card provider readback) is injected - so it
-is fully testable offline with the same ``FakeDynamo`` the other payment tests use, and it holds
-NO vendor-specific code: the provider is an abstract seam (see ``RedemptionProvider``) so the
-concrete binding (Wix Headless coupons / Wix gift cards OR a third-party system) can be chosen
-later without touching the money arithmetic or the gate.
+is fully testable offline with the same ``FakeDynamo`` the other payment tests use. The provider
+is an abstract seam (see ``RedemptionProvider``) whose one concrete binding is
+``store_redemption_provider``, over our own ``coupon_store`` definitions and ``gift_card_store``
+balances; the money arithmetic and the gate never learn which store answered.
 
 The two primitives, and where each applies relative to the fee/GST calculator
 -----------------------------------------------------------------------------
@@ -21,7 +21,8 @@ section 7 ``checkout_pricing`` calculator (convenience fee + GST-on-fee), which 
     calculator, so the convenience fee and its GST are computed on the DISCOUNTED collection - a
     smaller cart genuinely costs a smaller fee. ``apply_coupon`` returns the authoritative
     discounted collection paise; the caller passes THAT into ``checkout_pricing.compute_quote``.
-    The discount itself is decided by the provider (Wix), never by the browser.
+    The discount itself is decided by the provider (``coupon_store.discount_paise``, through
+    ``store_redemption_provider``), never by the browser.
 
   * A GIFT CARD is TENDER, not a price change. It does not make the cart cheaper; it pays for part
     (or all) of the already-computed total. So a gift-card redemption is subtracted from the FINAL
@@ -34,18 +35,13 @@ section 7 ``checkout_pricing`` calculator (convenience fee + GST-on-fee), which 
     Every value is integer paise; a redemption is capped at the total (you cannot redeem more than
     is owed) and at the card's verified balance.
 
-The split against the former Wix cart's blanket rejection
----------------------------------------------------------
-The former Wix cart calculation still RAISES ``CartContractError`` on any ``paymentSummary.giftCards``
-/ split / deferred payment and still requires ``payNow == totalAfterGiftCards == total``. That
-protection is RETAINED unchanged: the standalone cart contract keeps rejecting an UNVERIFIED
-gift-card payment that Wix's own ``paymentSummary`` reports, because the cart boundary has no way
-to verify it. The secure replacement does NOT weaken that contract - it computes the authoritative
-Wix total through the retained cart path, and only THEN, server-side and after an authoritative
-provider balance readback, subtracts a VERIFIED redemption to compute the Razorpay payable. Wix
-never collects a gift card for us; our server does the verified subtraction. The two never
-disagree because they answer different questions: the former Wix cart rejects a gift card the cart tried to
-self-apply; this module applies a gift card the SERVER verified.
+A gift card is applied by the server, never by a cart
+-----------------------------------------------------
+The cart boundary has no way to verify a gift card, so no cart total ever carries one. The
+authoritative total is computed server-side first, and only THEN, after an authoritative provider
+balance readback, does this module subtract a VERIFIED redemption to compute the Razorpay payable.
+A gift card a cart or a browser tried to self-apply is never money; a gift card the SERVER
+verified against our own ledger is.
 
 Reservation, rollback, concurrency and reconciliation
 -----------------------------------------------------
@@ -158,18 +154,14 @@ class GiftCardAuthority:
 
 
 class RedemptionProvider(Protocol):
-    """The abstract coupon/gift-card authority. Bound to a concrete provider later.
+    """The abstract coupon/gift-card authority.
 
-    Deliberately provider-agnostic: a Wix Headless implementation would call Wix's coupons /
-    gift-cards REST APIs; a third-party implementation would call that system. Either returns the
-    SAME ``CouponAuthority`` / ``GiftCardAuthority`` shapes in integer paise, so the money
-    arithmetic, the gate and the UI never learn which vendor is behind the seam.
-
-    Concrete binding, recorded for the live wiring (see docs/execution runbook): a Wix coupons
-    binding resolves a coupon ``code`` against the cart/checkout and reads the applied discount
-    amount; a Wix gift-cards binding resolves a card ``code``/``number`` to its remaining balance
-    and currency. Both convert the provider's decimal amounts to integer paise via ``money.py``
-    (never float) at the boundary, exactly as the former Wix cart already converts Wix amounts.
+    The one concrete binding is ``store_redemption_provider.StoreRedemptionProvider``:
+    ``validate_coupon`` resolves a coupon ``code`` against our own ``coupon_store`` definition and
+    prices it with ``coupon_store.discount_paise``; ``read_gift_card`` resolves a card ``code`` to
+    its stored ``gift_card_store`` balance and currency. Both answer in the SAME
+    ``CouponAuthority`` / ``GiftCardAuthority`` shapes in integer paise (never float), so the
+    money arithmetic, the gate and the UI never depend on how a definition or a balance is stored.
     """
 
     def validate_coupon(self, *, code: str, collection_before_discount_paise: int,

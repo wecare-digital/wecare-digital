@@ -1,9 +1,9 @@
 """`action: "claim-basket"` adopts a WhatsApp hand-off, and the price that follows is the website's.
 
 The last test in this file is the one the whole feature exists for. The replaced inbound path
-computed a total from Meta's `item_price` with a float, 18% GST on goods Wix had already taxed and
-a 2% fee; here the payable for a WhatsApp-origin basket is asserted to equal
-`checkout_pricing.compute_quote` over the Wix-calculated collection EXACTLY, in integer paise. That
+computed a total from Meta's `item_price` with a float, 18% GST on goods whose price already
+included it and a 2% fee; here the payable for a WhatsApp-origin basket is asserted to equal
+`checkout_pricing.compute_quote` over the ProductsTable collection EXACTLY, in integer paise. That
 equality is what replaces the deleted reprice - not a corrected second calculator, but the absence
 of one.
 """
@@ -44,8 +44,8 @@ GATEWAY_PAYMENT_ID = "pay-claim-1"
 
 CUSTOMER = "CUS_01J8Z9EXAMPLECUSTOMER"
 OTHER_CUSTOMER = "CUS_01J8Z9SOMEBODYELSE00"
-#: The owner-nominated QA recipient, which is what the Cart V2 fixtures in this repo already use
-#: as a customer phone. It is NOT a business number.
+#: The owner-nominated QA recipient, which the checkout fixtures in this repo use as a customer
+#: phone. It is NOT a business number.
 SESSION_PHONE = "+918100640044"
 STORED_PHONE = customer_identity.normalize_phone_preserving_country(SESSION_PHONE)
 OTHER_PHONE = "+919812345678"
@@ -54,38 +54,25 @@ OWNED = {"addressLine1": "12 Dalhousie Square", "city": "Kolkata",
          "state": "West Bengal", "postalCode": "700001"}
 
 #: AWS-native collection for a single-unit basket: the product's own price, with native shipping
-#: FREE by default (the Wix fixture carried a 500 delivery; the native policy is free). Derived
-#: through `compute_quote` below rather than copied from the implementation.
+#: FREE by default. Derived through `compute_quote` below rather than copied from the
+#: implementation.
 COLLECTION_PAISE = 2499900
 
 CART_TABLE = "stack-wecare-digital-CartTable"
 PRODUCTS_TABLE = "stack-wecare-digital-ProductsTable"
 
 
-#: The product/variant/app and cart identifiers this file needs. Inlined rather than read from a
-#: Wix Cart V2 fixture: the claim-basket path is AWS-native now, so all this file consumes from the
-#: old fixture is one cart id and one catalogReference (product + variant + appId). Keeping them
-#: here removes the last dependency on the retired `wix_cart_v2_*.json` fixtures.
+#: The cart and catalogue identifiers this file needs: one saved-cart id, and one catalogReference
+#: (a ProductsTable product + variant id) shared by the WhatsApp hand-off and the website lines.
 HANDOFF_CART_ID = "de4d6a89-e575-4c51-b930-aec2adbd8b80"
 HANDOFF_CATALOG_REFERENCE = {
     "catalogItemId": "00d4c72b-f694-441a-a192-e16f4b192440",
-    "appId": "215238eb-22a5-4c36-9e7b-e7c08025e04e",
     "options": {"variantId": "2d072962-37c0-4821-9c02-2cc223448711"},
 }
 
 
-def delivery_complete():
-    """The minimal cart shape this file reads: an id and a single line's catalogReference.
-
-    Native-shaped stand-in for the retired Wix Cart V2 fixture; only `['cart']['id']` and
-    `['cart']['lineItems'][0]['source']['catalogReference']` are ever consumed.
-    """
-    return {"cart": {"id": HANDOFF_CART_ID, "lineItems": [
-        {"source": {"catalogReference": copy.deepcopy(HANDOFF_CATALOG_REFERENCE)}}]}}
-
-
 def fixture_reference():
-    return delivery_complete()["cart"]["lineItems"][0]["source"]["catalogReference"]
+    return copy.deepcopy(HANDOFF_CATALOG_REFERENCE)
 
 
 def _native_product_row():
@@ -103,11 +90,12 @@ NATIVE_PRODUCT_ROW = _native_product_row()
 
 
 def handoff_lines(quantity=1):
-    """The hand-off's lines, naming the SAME Wix variant the fixture cart holds.
+    """The hand-off's lines, naming the SAME product and variant the website lines name.
 
-    Deliberately the fixture's own variant: the point of `retailer_id = wix:<product>:<variant>`
-    is that a WhatsApp line and a website line resolve to one Wix cart line, and a test using a
-    different id would prove the plumbing while hiding that.
+    Deliberately the same ids: the point of the Meta retailer id
+    (`meta_catalog_sync.retailer_id(product, variant)`) is that a WhatsApp line and a website line
+    resolve to one cart line, and a test using a different id would prove the plumbing while
+    hiding that.
     """
     reference = fixture_reference()
     return [{"productId": reference["catalogItemId"],
@@ -117,8 +105,7 @@ def handoff_lines(quantity=1):
 
 def website_line_items():
     reference = fixture_reference()
-    return [{"catalogReference": {"appId": reference["appId"],
-                                  "catalogItemId": reference["catalogItemId"],
+    return [{"catalogReference": {"catalogItemId": reference["catalogItemId"],
                                   "options": {"variantId": reference["options"]["variantId"]}},
              "quantity": 1}]
 
@@ -153,28 +140,6 @@ class _FakeLambda:
         return {"Payload": _Payload(json.dumps(inner).encode("utf-8"))}
 
 
-class RecordingWix:
-    """Replays a Cart V2 response and records every call, so a test can enumerate them."""
-
-    def __init__(self):
-        self.response = delivery_complete()
-        self.requests = []
-
-    def __call__(self, endpoint, method="GET", body=None):
-        self.requests.append((method.upper(), endpoint, copy.deepcopy(body)))
-        if endpoint.startswith("/stores/v3/products/"):
-            reference = fixture_reference()
-            return {"product": {
-                "id": reference["catalogItemId"], "visible": True,
-                "variantsInfo": {"variants": [{
-                    "id": reference["options"]["variantId"], "visible": True,
-                    "inventoryStatus": {"inStock": True}}]}}}
-        return copy.deepcopy(self.response)
-
-    def paths(self):
-        return [path for _method, path, _body in self.requests]
-
-
 @pytest.fixture
 def env(monkeypatch):
     monkeypatch.setenv("PAYMENT_ATTEMPTS_TABLE", ATTEMPTS_TABLE)
@@ -186,7 +151,7 @@ def env(monkeypatch):
     monkeypatch.setenv("PAYMENT_WABA_ID", "2094615664435155")
     monkeypatch.setenv("APP_ENV", "development")
     # AWS-NATIVE: the claim-basket / customer-cart path is backed by NativeCartAdapter (CartTable
-    # + ProductsTable), not the Wix Cart V2 adapter.
+    # + ProductsTable).
     monkeypatch.setenv("CHECKOUT_MODE", "AWS_NATIVE")
     monkeypatch.setenv("CART_TABLE", CART_TABLE)
     monkeypatch.setenv("PRODUCTS_TABLE", PRODUCTS_TABLE)
@@ -199,7 +164,6 @@ def env(monkeypatch):
                             CONTACTS_TABLE: "id", ORDERS_TABLE: "orderId",
                             CART_TABLE: "cartId", PRODUCTS_TABLE: "id"},
                       indexes={CONTACTS_TABLE: {"phone-index": ("phone", None)}})
-    wix = RecordingWix()
     monkeypatch.setattr(h, "_dynamodb", fake)
     monkeypatch.setattr(h, "_lambda_client", lambda: _FakeLambda())
     monkeypatch.setattr(h, "INITIATION_ENABLED", False)
@@ -210,7 +174,8 @@ def env(monkeypatch):
     monkeypatch.setattr(h, "_native_product_reader",
                         lambda: (lambda pid: dict(NATIVE_PRODUCT_ROW)))
     seed_contact(fake)
-    return h, fake, wix, monkeypatch
+    # The third element is the ProductsTable row every basket here is priced from.
+    return h, fake, dict(NATIVE_PRODUCT_ROW), monkeypatch
 
 
 def seed_contact(fake, *, phone=STORED_PHONE, customer=CUSTOMER):
@@ -254,8 +219,7 @@ def carts_in(fake):
 
 
 def carts_created(fake):
-    """Every native cart row created in the CartTable. The AWS-native replacement for counting
-    Wix `POST /ecom/v2/carts` calls — a native cart create writes one CartTable row."""
+    """Every cart row created in CartTable: a cart create writes exactly one."""
     return [row for row in fake.all_rows(CART_TABLE) if row.get("cartId")]
 
 
@@ -280,12 +244,10 @@ def line_items_from(lines):
 
     Deliberately NOT `website_line_items()`: driving the prepare from a fixture proves the pricing
     while hiding whether the claim's own lines can reach it at all, which is the defect this
-    conversion exists to close. The `appId` is supplied here because `src/lib/cart.ts::toLineItems`
-    supplies it too - it is a constant of the Wix Stores app, not part of the hand-off.
+    conversion exists to close. The shape is exactly what `src/lib/cart.ts::toLineItems` emits:
+    `{catalogReference: {catalogItemId, options: {variantId}}, quantity}`.
     """
-    app_id = fixture_reference()["appId"]
-    return [{"catalogReference": {"appId": app_id,
-                                  "catalogItemId": line["productId"],
+    return [{"catalogReference": {"catalogItemId": line["productId"],
                                   "options": {"variantId": line["variantId"]}},
              "quantity": line["quantity"]}
             for line in lines]
@@ -295,7 +257,7 @@ def line_items_from(lines):
 
 
 def test_a_claim_by_the_owning_phone_merges_the_lines_and_marks_the_row_claimed(env):
-    h, fake, wix, _ = env
+    h, fake, _catalog, _ = env
     seed_handoff(fake)
 
     response = h.handler(event("claim-basket", basket="tok-claim-1"), None)
@@ -323,7 +285,7 @@ def test_a_claim_by_the_owning_phone_merges_the_lines_and_marks_the_row_claimed(
 
 
 def test_the_claim_writes_the_channel_pointer_the_prepare_reads(env):
-    h, fake, _wix, _ = env
+    h, fake, _catalog, _ = env
     seed_handoff(fake)
     h.handler(event("claim-basket", basket="tok-claim-1"), None)
 
@@ -342,16 +304,15 @@ def test_the_claim_writes_the_channel_pointer_the_prepare_reads(env):
 def test_the_claim_returns_the_lines_so_the_browser_cart_can_hold_the_same_basket(env):
     """THE HAND-OFF HAS TO REACH THE CART THE CUSTOMER PAYS FROM, which is the browser's.
 
-    The claim merges the lines into the SERVER-side Wix cart, but /cart/ renders `readCart()` from
+    The claim merges the lines into the SERVER-side cart, but /cart/ renders `readCart()` from
     localStorage and `proceed` posts `toLineItems()` built from that same storage. A reply carrying
-    only `mergedLines` left that cart untouched, so a successful claim showed no new items - and
-    the next checkout reconciled the claimed lines straight back OUT of the Wix cart, because
-    `_reconcile_saved_cart` makes the Wix cart match the REQUEST.
+    only `mergedLines` would leave that cart untouched, so a successful claim would show no new
+    items - and the next checkout, which prices the REQUEST's lines, would not carry them.
 
     STILL NO MONEY FIELD. The lines are catalogue references and quantities; the payable is
     produced once, by `compute_quote`, on the prepare that follows.
     """
-    h, fake, _wix, _ = env
+    h, fake, _catalog, _ = env
     seed_handoff(fake, quantity=2)
 
     body = json.loads(h.handler(event("claim-basket", basket="tok-claim-1"), None)["body"])
@@ -359,7 +320,7 @@ def test_the_claim_returns_the_lines_so_the_browser_cart_can_hold_the_same_baske
     assert body["lines"] == handoff_lines(quantity=2)
     assert body["mergedLines"] == len(body["lines"])
 
-    # Exactly the three keys `cart_v2.catalog_item` accepts, and nothing resembling a price.
+    # Exactly the three keys `cart_contract.catalog_item` accepts, and nothing resembling a price.
     for line in body["lines"]:
         assert set(line) == {"productId", "variantId", "quantity"}
         assert type(line["quantity"]) is int
@@ -372,7 +333,7 @@ def test_the_claim_returns_the_lines_so_the_browser_cart_can_hold_the_same_baske
 
 
 def test_a_claim_by_a_different_phone_merges_nothing_and_is_refused(env):
-    h, fake, wix, monkeypatch = env
+    h, fake, _catalog, monkeypatch = env
     seed_handoff(fake, phone=OTHER_PHONE)
 
     response = h.handler(event("claim-basket", basket="tok-claim-1"), None)
@@ -389,7 +350,7 @@ def test_every_refusal_is_byte_identical_so_the_endpoint_is_not_an_existence_ora
     Distinguishing them would let a caller holding a guessed token learn that it names a real
     basket, and a caller holding a real token learn whose it is.
     """
-    h, fake, _wix, _ = env
+    h, fake, _catalog, _ = env
     answers = set()
 
     answers.add(h.handler(event("claim-basket", basket="never-issued"), None)["body"])
@@ -410,7 +371,7 @@ def test_every_refusal_is_byte_identical_so_the_endpoint_is_not_an_existence_ora
 
 
 def test_a_second_claim_of_the_same_row_is_refused_and_leaves_one_cart(env):
-    h, fake, wix, _ = env
+    h, fake, _catalog, _ = env
     seed_handoff(fake)
 
     first = h.handler(event("claim-basket", basket="tok-claim-1"), None)
@@ -420,14 +381,14 @@ def test_a_second_claim_of_the_same_row_is_refused_and_leaves_one_cart(env):
     assert second["statusCode"] == 404
     assert json.loads(second["body"])["status"] == "BASKET_UNAVAILABLE"
     assert len(carts_in(fake)) == 1
-    assert len(carts_created(fake)) == 1, "a second claim must not mint a second Wix cart"
+    assert len(carts_created(fake)) == 1, "a second claim must not mint a second cart"
 
 
 def test_a_token_naming_a_row_of_another_kind_is_refused(env):
     """CommerceKeys shares one partition key, so `PAYREF#` and `CUSTOMERCART#` rows live beside the
     baskets. The `WABASKET#` prefix in the key, plus `claimable`'s own prefix check, is what stops
     a token addressing one of them."""
-    h, fake, _wix, _ = env
+    h, fake, _catalog, _ = env
     fake.Table(KEYS_TABLE).put_item(Item={
         "orderId": "WABASKET#WD-PAY-1", "customerId": CUSTOMER, "amountPaise": 100})
     response = h.handler(event("claim-basket", basket="WD-PAY-1"), None)
@@ -436,7 +397,7 @@ def test_a_token_naming_a_row_of_another_kind_is_refused(env):
 
 
 def test_an_unauthenticated_call_is_refused_before_any_read(env):
-    h, fake, wix, monkeypatch = env
+    h, fake, _catalog, monkeypatch = env
     seed_handoff(fake)
 
     def refuse(event_):
@@ -462,19 +423,19 @@ def test_an_existing_website_cart_is_reported_and_the_basket_stays_claimable(env
     report success for a merge that did not happen or discard lines the customer added on the
     website. Nothing is lost: the same link works again once the website cart is empty.
     """
-    h, fake, wix, _ = env
+    h, fake, _catalog, _ = env
     seed_handoff(fake)
-    # A live cart for this identity, exactly as the `/wix-store/cart` route leaves one.
+    # A live saved-cart pointer for this identity, exactly as `customer_cart` leaves one.
     fake.Table(KEYS_TABLE).put_item(Item={
         "orderId": "CUSTOMERCART#" + SESSION_PHONE, "customerId": CUSTOMER, "version": 1,
-        "cartId": delivery_complete()["cart"]["id"], "expiresAt": 9_999_999_999})
+        "cartId": HANDOFF_CART_ID, "expiresAt": 9_999_999_999})
 
     response = h.handler(event("claim-basket", basket="tok-claim-1"), None)
     assert response["statusCode"] == 200
     body = json.loads(response["body"])
     assert body["status"] == "BASKET_CART_IN_USE"
     assert body["handoffLines"] == 1
-    assert carts_created(fake) == [], "no second Wix cart"
+    assert carts_created(fake) == [], "no second cart"
     assert "claimedAt" not in handoff_row(fake), "the basket must stay claimable"
     assert h._claimed_handoff(_Identity(), {}) is None, "an unclaimed basket is not an attribution"
 
@@ -492,9 +453,9 @@ def test_a_stale_saved_cart_is_released_by_the_one_retry_rather_than_dead_ending
     the case where there is nothing of the customer's to lose. This is the server half: the saved
     pointer is released and `ensure` then creates a fresh cart holding the hand-off lines.
     """
-    h, fake, wix, _ = env
+    h, fake, _catalog, _ = env
     seed_handoff(fake)
-    stale = delivery_complete()["cart"]["id"]
+    stale = HANDOFF_CART_ID
     fake.Table(KEYS_TABLE).put_item(Item={
         "orderId": "CUSTOMERCART#" + SESSION_PHONE, "customerId": CUSTOMER, "version": 1,
         "cartId": stale, "expiresAt": 9_999_999_999})
@@ -515,12 +476,12 @@ def test_a_stale_saved_cart_is_released_by_the_one_retry_rather_than_dead_ending
 
 
 def test_reset_cart_is_an_identity_comparison_so_a_truthy_string_does_not_release_anything(env):
-    """`is True`, the same reading `_website_prepare` uses. A typo must not be destructive."""
-    h, fake, wix, _ = env
+    """`is True` is an identity comparison, not a coercion. A typo must not be destructive."""
+    h, fake, _catalog, _ = env
     seed_handoff(fake)
     fake.Table(KEYS_TABLE).put_item(Item={
         "orderId": "CUSTOMERCART#" + SESSION_PHONE, "customerId": CUSTOMER, "version": 1,
-        "cartId": delivery_complete()["cart"]["id"], "expiresAt": 9_999_999_999})
+        "cartId": HANDOFF_CART_ID, "expiresAt": 9_999_999_999})
 
     for value in ("true", 1, "yes", [], {}):
         body = json.loads(h.handler(
@@ -537,11 +498,11 @@ def test_the_cart_in_use_sentence_is_the_same_on_both_sides(env):
     the browser shows it without a round trip when it already knows the outcome. Two copies of a
     customer-facing instruction is two things to get wrong; this is the cheaper half of sharing it.
     """
-    h, fake, _wix, _ = env
+    h, fake, _catalog, _ = env
     seed_handoff(fake)
     fake.Table(KEYS_TABLE).put_item(Item={
         "orderId": "CUSTOMERCART#" + SESSION_PHONE, "customerId": CUSTOMER, "version": 1,
-        "cartId": delivery_complete()["cart"]["id"], "expiresAt": 9_999_999_999})
+        "cartId": HANDOFF_CART_ID, "expiresAt": 9_999_999_999})
     served = json.loads(h.handler(
         event("claim-basket", basket="tok-claim-1"), None)["body"])["message"]
 
@@ -612,7 +573,7 @@ def _verify(h, monkeypatch):
 
 
 def test_the_claimed_channel_reaches_the_attempt_and_the_payref_row(env):
-    h, fake, _wix, monkeypatch = env
+    h, fake, _catalog, monkeypatch = env
     seed_handoff(fake)
     h.handler(event("claim-basket", basket="tok-claim-1"), None)
 
@@ -634,7 +595,7 @@ def test_the_claimed_channel_reaches_the_attempt_and_the_payref_row(env):
 
 
 def test_a_prepare_with_no_claim_is_attributed_to_the_website(env):
-    h, fake, _wix, monkeypatch = env
+    h, fake, _catalog, monkeypatch = env
     body, _created = _prepare(h, monkeypatch, request_key="request-website-1")
     assert body["status"] == "CHECKOUT_OPTIONS_READY"
     assert fake.all_rows(ATTEMPTS_TABLE)[0]["channel"] == "website"
@@ -651,7 +612,7 @@ def test_a_prepare_for_a_different_cart_than_the_claimed_one_is_attributed_websi
     A mismatch degrades to `website` exactly as a malformed pointer does: the asymmetric default
     that under-claims the WhatsApp channel rather than mislabelling a website order.
     """
-    h, fake, _wix, monkeypatch = env
+    h, fake, _catalog, monkeypatch = env
     seed_handoff(fake)
     h.handler(event("claim-basket", basket="tok-claim-1"), None)
     assert h._claimed_handoff(_Identity(), {})["channel"] == "whatsapp"
@@ -678,7 +639,7 @@ def test_no_cart_at_all_is_not_an_attribution_either(env):
     `resolve` answers `None` for both, and `None` is a mismatch rather than a wildcard - the
     fail-closed direction, and the one a pointer written before `cartId` existed also takes.
     """
-    h, fake, _wix, _ = env
+    h, fake, _catalog, _ = env
     seed_handoff(fake)
     h.handler(event("claim-basket", basket="tok-claim-1"), None)
 
@@ -693,7 +654,7 @@ def test_a_locked_cart_degrades_to_no_claim_rather_than_failing_the_prepare(env)
     A DynamoDB blip or a concurrent cart operation must not turn a checkout into a 500 over a
     LABEL, so the cart read is inside the same never-raises contract as the pointer read.
     """
-    h, fake, _wix, monkeypatch = env
+    h, fake, _catalog, monkeypatch = env
     seed_handoff(fake)
     h.handler(event("claim-basket", basket="tok-claim-1"), None)
 
@@ -707,7 +668,7 @@ def test_the_pointer_is_released_when_the_basket_it_names_is_paid(env):
 
     Binding the pointer to the cart is necessary and NOT sufficient on its own, which is measured
     rather than assumed: nothing in this repository abandons `CUSTOMERCART#<phone>` at payment, so
-    the next website prepare resolves the very same Wix cart id and the pointer would still match
+    the next website prepare resolves the very same saved cart id and the pointer would still match
     it. `_finalize` therefore expires the pointer after `accept_paid` has written the order - the
     order row already carries `channel`, so releasing the label changes nothing about what was
     just recorded.
@@ -715,7 +676,7 @@ def test_the_pointer_is_released_when_the_basket_it_names_is_paid(env):
     Expired rather than deleted, because this function's IAM grants no `DeleteItem` on
     CommerceKeys; `active_claim` reads `expiresAt > now`, so the two are the same answer.
     """
-    h, fake, _wix, monkeypatch = env
+    h, fake, _catalog, monkeypatch = env
     seed_handoff(fake)
     h.handler(event("claim-basket", basket="tok-claim-1"), None)
     _body, _created = _prepare(h, monkeypatch, request_key="request-paid-1")
@@ -734,7 +695,7 @@ def test_paying_without_ever_claiming_does_not_create_a_pointer_row(env):
 
     A blind put would hand every paying customer a `WABASKETCLAIM#` row they never earned.
     """
-    h, fake, _wix, monkeypatch = env
+    h, fake, _catalog, monkeypatch = env
     _body, _created = _prepare(h, monkeypatch, request_key="request-plain-website-1")
     assert _verify(h, monkeypatch)["status"] == "VERIFIED_PAID"
     assert claim_pointer(fake) is None
@@ -744,12 +705,12 @@ def test_the_payable_for_a_whatsapp_basket_is_compute_quote_exactly_in_integer_p
     """THE TEST THAT REPLACES THE DELETED FLOAT/2% REPRICE.
 
     The old inbound path produced its own number from Meta's `item_price`. There is now exactly
-    one number, it comes from `compute_quote` over the collection WIX calculated, and it is what
+    one number, it comes from `compute_quote` over the ProductsTable collection, and it is what
     Razorpay is asked to charge. Asserted by equality against a freshly computed quote - not
     against a copied constant - so a change to the fee or its GST has to be a change to
     `checkout_pricing` and shows up here as a matching move on both sides.
     """
-    h, fake, _wix, monkeypatch = env
+    h, fake, _catalog, monkeypatch = env
     seed_handoff(fake)
     claim = json.loads(h.handler(event("claim-basket", basket="tok-claim-1"), None)["body"])
     # DRIVEN FROM THE CLAIM, NOT FROM A FIXTURE. The prepare is given exactly the lines the claim
@@ -765,7 +726,7 @@ def test_the_payable_for_a_whatsapp_basket_is_compute_quote_exactly_in_integer_p
     assert body["options"]["currency"] == "INR"
     # Integers, not Decimals and certainly not floats, all the way out.
     assert type(created["amount"]) is int
-    # The collection is Wix's and the only things added are the convenience fee and its GST.
+    # The collection is the ProductsTable price; the only things added are the fee and its GST.
     assert quote.total_payable_paise == (COLLECTION_PAISE
                                          + quote.convenience_fee_paise
                                          + quote.convenience_gst_paise)
@@ -775,7 +736,7 @@ def test_the_payable_for_a_whatsapp_basket_is_compute_quote_exactly_in_integer_p
 
 def test_the_same_basket_claimed_on_either_channel_costs_the_same(env):
     """Two channels, one catalogue, one price. The hand-off changes attribution and nothing else."""
-    h, fake, _wix, monkeypatch = env
+    h, fake, _catalog, monkeypatch = env
     _website, website_order = _prepare(h, monkeypatch, request_key="request-parity-website")
 
     # A second identity, so the two legs do not share a cart or an attempt.
@@ -800,7 +761,7 @@ def test_the_same_basket_claimed_on_either_channel_costs_the_same(env):
 
 
 def test_claim_basket_is_an_explicit_action_and_not_the_create_fallback(env):
-    h, _fake, _wix, _ = env
+    h, _fake, _catalog, _ = env
     assert h._action({}, {"action": "claim-basket"}) == "claim-basket"
     assert h._action({}, {"action": "CLAIM-BASKET"}) == "claim-basket"
     # And an unrecognised action still falls through to `create`, unchanged.
@@ -810,7 +771,7 @@ def test_claim_basket_is_an_explicit_action_and_not_the_create_fallback(env):
 def test_the_claim_action_reads_no_meta_payment_configuration(env):
     """Payment stays on the website through Razorpay. A claim must not touch the in-chat payment
     surface at all - no readiness read, no sender invoke, no `order_details`."""
-    h, fake, _wix, monkeypatch = env
+    h, fake, _catalog, monkeypatch = env
     seed_handoff(fake)
     monkeypatch.setattr(h, "_lambda_client",
                         lambda: pytest.fail("a claim must not invoke the WhatsApp sender"))

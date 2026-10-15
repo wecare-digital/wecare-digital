@@ -1,28 +1,21 @@
 #!/usr/bin/env python3
 """Provision the gift-card ledger table, encrypted with a CUSTOMER-MANAGED KMS key.
 
-Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/gift-cards-service-plugin-20261001.md`
-section 6, and DECISION 6 of that task's `plan.md`.
-
-One table, six row types, one partition attribute
--------------------------------------------------
+One table, three row types, one partition attribute
+---------------------------------------------------
     GIFTCARD#<codeHash>                        the card: balance, status, expiry
-    GCORDER#<codeHash>#<paymentAttemptId>      idempotency claim, carries the winning transactionId
-    GCWIXORDER#<wixOrderId>                    pointer -> paymentAttemptId, at WIX_ORDER_CREATED
-    GCTXN#<codeHash>#<transactionId>           the transaction record (REDEEM or VOID)
-    GCTXNID#<transactionId>                    reverse index -> {codeHash, paymentAttemptId}
     GCHOLD#<codeHash>#<paymentAttemptId>       reservation taken at checkout initiation
     GCID#<giftCardId>                          pointer -> codeHash, for the staff read by our own id
 
-Namespaced rows on a single partition key, the same shape `stack-wecare-digital-WixOrderIds` uses,
-because the uniqueness guarantee has to be a conditional write ON THE PARTITION KEY. A GSI is
+Namespaced rows on a single partition key, the same shape `order_keys` uses for the CommerceKeys
+table, because the uniqueness guarantee has to be a conditional write ON THE PARTITION KEY. A GSI is
 eventually consistent and so cannot enforce a constraint, and a sort key would change the shape of
 every row type to serve one.
 
 THE PARTITION KEY IS NEVER THE CODE
 -----------------------------------
-`codeHash` is `HMAC-SHA256(pepper, NFKC(code).upper()).hexdigest()`. The SPI bounds a code at 8-20
-characters, which is inside brute-force range for a PLAIN hash, so a leaked table would expose live
+`codeHash` is `HMAC-SHA256(pepper, NFKC(code).upper()).hexdigest()`. A code is 8 to 20 characters,
+which is inside brute-force range for a PLAIN hash, so a leaked table would expose live
 balances. The pepper lives in Secrets Manager and never reaches this script - nothing here reads a
 secret, and nothing here needs to.
 
@@ -35,7 +28,7 @@ CMK, so this is the first. The table is created with
                         "KMSMasterKeyId": "alias/wecare-gift-cards"}
 
 and the alias indirection is deliberate: a key ARN is not known until the key is created, so the
-provisioner and the two role policies have to agree on a NAME rather than on a dated ARN.
+provisioner and the role policy have to agree on a NAME rather than on a dated ARN.
 
 **KMS key creation requires pointwise owner confirmation** (`maintenance-reporting.md` lists "KMS
 create/delete" explicitly), so it is behind `--apply` and is recorded as an owner item. A dry run is
@@ -76,13 +69,13 @@ ACCOUNT_ID = "775261844268"
 TABLE = "stack-wecare-digital-GiftCardsTable"
 KEY_ATTRIBUTE = "giftCardKey"
 
-#: DECISION 6. The alias is what the table and both role policies name, because the key ARN does not
+#: DECISION 6. The alias is what the table and the role policy name, because the key ARN does not
 #: exist until the key is created.
 KMS_ALIAS = "alias/wecare-gift-cards"
 KMS_DESCRIPTION = "Encrypts stack-wecare-digital-GiftCardsTable, the gift-card liability ledger"
 
-#: `status-index` is SPARSE: only card rows carry `status`, so transactions, claims, holds and
-#: pointer rows never enter it. `createdAt` is the range key because there are only two status
+#: `status-index` is SPARSE: only card rows carry `status`, so hold and pointer rows never enter
+#: it. `createdAt` is the range key because there are only two status
 #: values - a low-cardinality partition that a range key keeps bounded to a window instead of
 #: reading whole. Name follows the `<field>-index` convention already live on PaymentsTable,
 #: PaymentAttemptsTable and CouponsTable.
@@ -98,7 +91,7 @@ ATTRIBUTES: dict[str, str] = {
     "createdAt": "N",
 }
 
-#: The two least-privilege roles that need to use the key. Named here so the key policy and
+#: The least-privilege role that needs to use the key. Named here so the key policy and
 #: `provision_gift_cards_roles.py` cannot disagree about who may decrypt.
 CONSUMER_ROLES = ("wecare-gift-cards-role",)
 

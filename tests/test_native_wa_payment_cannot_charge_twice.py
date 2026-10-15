@@ -4,7 +4,7 @@ HOW THIS FILE IS BUILT, AND WHY
 -------------------------------
 "It cannot charge again" is usually asserted as an ABSENCE - no capture, no second create_order -
 and an absence is exactly what a NEW call slips past. A test that says "capture was not called"
-keeps passing when somebody adds a transfer or a second Wix write.
+keeps passing when somebody adds a transfer or a second provider write.
 
 So this RECORDS every outbound call while driving the whole path and asserts the recorded set
 EQUAL to a written-out permitted list, PER DRIVE. Adding any external call fails this file until
@@ -96,16 +96,12 @@ PERMITTED_RAZORPAY_CALLS_REPLAY = frozenset({'GET /v1/payments/{id}'})
 PERMITTED_META_CALLS_SEND = frozenset({'POST /{phone_id}/messages'})
 PERMITTED_META_CALLS_CAPTURE = frozenset({'GET /{phone_id}/payments/{config}/{reference_id}'})
 
-# ── permitted WIX calls ──────────────────────────────────────────────────────
+# ── the external hosts ───────────────────────────────────────────────────────
 #
-# EMPTY, and that is a consequence rather than an accident: the native path takes an `invoiceId`
-# and never a basket, so no price is fetched and no cart is calculated. Nothing on this leg
-# touches Wix at all.
-PERMITTED_WIX_CALLS = frozenset()
-
-#: Reused verbatim from the website-leg enumeration and asserted over the CONSTANT itself, so
-#: widening it later to admit `create-order` fails here.
-FORBIDDEN_WIX_FRAGMENTS = ('create-order', 'orders', 'checkout', 'payments', '/v1/')
+# EXACTLY these two, and the HTTP seam raises on any other. The native path takes an `invoiceId`
+# and never a basket, so no price is fetched and no cart is calculated: Razorpay and Meta's Graph
+# API are the only providers it can reach. `test_every_external_host_is_enumerated` pins it.
+PERMITTED_EXTERNAL_HOSTS = frozenset({'api.razorpay.com', 'graph.facebook.com'})
 
 # ── permitted LAMBDA invokes, per drive ──────────────────────────────────────
 #
@@ -205,7 +201,6 @@ class Recorder:
     def __init__(self):
         self.razorpay = []
         self.meta = []
-        self.wix = []
         self.lambdas = []
         #: `(label, payload, invocation_type)` per Lambda invoke.
         self.payloads = []
@@ -223,10 +218,8 @@ class Recorder:
             body = json.dumps({'payments': [{'status': 'captured',
                                              'provider_order_id': GATEWAY_ORDER,
                                              'provider_payment_id': PAYMENT}]})
-        elif 'wixapis.com' in url or 'www.wixapis' in url:
-            self.wix.append(f'{method} {url}')
-            body = '{}'
-        else:  # pragma: no cover - an unrecognised host is itself a finding
+        else:
+            # An unrecognised host is itself a finding: PERMITTED_EXTERNAL_HOSTS is the whole set.
             raise AssertionError(f'unrecognised external host: {url}')
 
         class _Resp:
@@ -289,7 +282,7 @@ class Recorder:
         return _Lambda()
 
     def all_calls(self):
-        return set(self.razorpay) | set(self.meta) | set(self.wix) | set(self.lambdas)
+        return set(self.razorpay) | set(self.meta) | set(self.lambdas)
 
 
 def _normalise_razorpay(url):
@@ -444,7 +437,6 @@ def test_the_send_drive_makes_exactly_the_permitted_calls(engine, fake):
     assert resp['statusCode'] == 200, resp
 
     assert set(recorder.razorpay) == PERMITTED_RAZORPAY_CALLS_SEND
-    assert set(recorder.wix) == PERMITTED_WIX_CALLS
     assert set(recorder.lambdas) == PERMITTED_LAMBDA_INVOKES_SEND
 
 
@@ -455,7 +447,6 @@ def test_the_fresh_capture_drive_makes_exactly_the_permitted_calls(webhook, fake
 
     assert set(recorder.razorpay) == PERMITTED_RAZORPAY_CALLS_FRESH_CAPTURE
     assert set(recorder.meta) == PERMITTED_META_CALLS_CAPTURE
-    assert set(recorder.wix) == PERMITTED_WIX_CALLS
     assert set(recorder.lambdas) == PERMITTED_LAMBDA_INVOKES_FRESH_CAPTURE
 
 
@@ -467,7 +458,6 @@ def test_the_deduplicated_drive_makes_exactly_the_permitted_calls(webhook, fake)
     drive_capture(webhook, fake, recorder, deduplicated=True)
 
     assert set(recorder.lambdas) == PERMITTED_LAMBDA_INVOKES_DEDUPLICATED
-    assert set(recorder.wix) == PERMITTED_WIX_CALLS
 
 
 def test_the_replay_drive_makes_exactly_the_permitted_calls(webhook, fake):
@@ -478,7 +468,6 @@ def test_the_replay_drive_makes_exactly_the_permitted_calls(webhook, fake):
     assert set(recorder.razorpay) == PERMITTED_RAZORPAY_CALLS_REPLAY
     assert len(recorder.razorpay) == 1, recorder.razorpay
     assert len(recorder.meta) == 1, recorder.meta
-    assert set(recorder.wix) == PERMITTED_WIX_CALLS
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -651,12 +640,19 @@ def test_the_enumeration_is_not_vacuous(webhook, fake):
     assert set(recorder.razorpay) != PERMITTED_RAZORPAY_CALLS_FRESH_CAPTURE
 
 
-def test_the_wix_call_set_is_empty_and_the_forbidden_fragments_hold_over_it():
-    """T-C8. Asserted over the CONSTANT itself, so widening it later to admit `create-order`
-    fails here rather than passing quietly."""
-    assert PERMITTED_WIX_CALLS == frozenset()
-    for fragment in FORBIDDEN_WIX_FRAGMENTS:
-        assert not any(fragment in call for call in PERMITTED_WIX_CALLS)
+def test_every_external_host_is_enumerated():
+    """T-C8. The HTTP seam answers exactly PERMITTED_EXTERNAL_HOSTS and raises on any other host,
+    so a call to a third provider fails the drive instead of being recorded quietly."""
+    import urllib.request
+    recorder = Recorder()
+    with pytest.raises(AssertionError, match='unrecognised external host'):
+        recorder.urlopen(urllib.request.Request('https://api.other-provider.example/v1/orders'))
+    assert recorder.all_calls() == set()
+    for host in PERMITTED_EXTERNAL_HOSTS:
+        call = urllib.request.Request(f'https://{host}/v1/payments/pay_X')
+        with recorder.urlopen(call) as response:
+            assert response.read()
+    assert len(recorder.razorpay) == 1 and len(recorder.meta) == 1
 
 
 def test_no_gateway_order_is_created_on_this_leg():

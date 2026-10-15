@@ -4,7 +4,7 @@ What this module is
 -------------------
 `redemption.py` holds the money arithmetic, the apply order (coupon first as a price change, gift
 card last as tender) and an ABSTRACT provider seam. `coupon_store` / `gift_card_store` hold the
-definitions, the balances, the Wix mirror and the holds. Until this module existed the two halves
+definitions, the balances and the holds. Until this module existed the two halves
 had never been joined: nothing under `amplify/` implemented the Protocol, so no discount reached
 real money on any surface.
 
@@ -153,8 +153,8 @@ class StoreRedemptionProvider:
         self._customer_id = customer_id
         self._clock = clock
         # Resolved by the CALLER (handler) via gift_card_store.resolve_pepper_secret_id(os.environ),
-        # so the redemption path follows the pepper when it migrates out of the Wix SPI secret.
-        # None preserves read_pepper's default (the Wix SPI secret) until migration.
+        # so this path reads the same pepper secret as the gift-cards function. None falls back to
+        # read_pepper's default, gift_card_store.SECRET_ID (wecare/prod/security/giftcard-pepper).
         self._pepper_secret_id = pepper_secret_id
 
     # ── coupon: a verdict from our store, an amount from the module that owns it ──
@@ -164,7 +164,7 @@ class StoreRedemptionProvider:
 
         Order: normalise, read the definition by exact key, read this customer's usage counter
         when there is a customer, then `evaluate`. Only an `ELIGIBLE` verdict is priced, so a
-        usage-limited or unmirrored coupon never reaches the arithmetic at all.
+        usage-limited, inactive or expired coupon never reaches the arithmetic at all.
 
         The amount is `coupon_store.discount_paise`, not a figure computed here. That is the
         whole binding: `redemption.apply_coupon` then clamps it to the collection and returns the

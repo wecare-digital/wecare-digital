@@ -8,18 +8,26 @@ from lambda_utils.ecommerce import catalog_service_checkout as catalog
 
 
 @pytest.mark.parametrize('row', [
-    {'status': 'PAYMENT_PENDING', 'wixOrderId': 'wix-1', 'finalizationStage': 'WIX_CART_COMPLETED'},
-    {'status': 'PAYMENT_PAID', 'finalizationStage': 'WIX_CART_COMPLETED'},
-    {'status': 'PAYMENT_PAID', 'wixOrderId': 'wix-1', 'finalizationStage': 'NEEDS_RECONCILIATION'},
-    {'status': 'PAYMENT_PAID', 'wixOrderId': 'wix-1', 'finalizationStage': 'WIX_ORDER_CREATED'},
+    # A finalized order on an attempt that is not paid.
+    {'status': 'PAYMENT_PENDING', 'orderId': 'order-1', 'finalizationStage': 'ORDER_FINALIZED'},
+    # Paid and staged final, but no order record id on the attempt.
+    {'status': 'PAYMENT_PAID', 'finalizationStage': 'ORDER_FINALIZED'},
+    # Paid with an order record whose tenders did not reconcile.
+    {'status': 'PAYMENT_PAID', 'orderId': 'order-1', 'finalizationStage': 'NEEDS_RECONCILIATION'},
+    # Paid with an order record that has not reached the terminal stage yet.
+    {'status': 'PAYMENT_PAID', 'orderId': 'order-1', 'finalizationStage': 'INTERNAL_ORDER_CREATED'},
+    # Paid, nothing finalized.
+    {'status': 'PAYMENT_PAID'},
 ])
 def test_partial_finalization_cannot_unlock_service(row):
     assert catalog.finalization_complete(row) is False
 
 
-def test_only_paid_wix_cart_completion_unlocks_service():
-    assert catalog.finalization_complete({'status': 'PAYMENT_PAID', 'wixOrderId': 'wix-1',
-                                           'finalizationStage': 'WIX_CART_COMPLETED'}) is True
+def test_a_paid_attempt_with_a_finalized_native_order_unlocks_service():
+    """`finalization.accept_paid` stages INTERNAL_ORDER_CREATED with the orderId and then
+    ORDER_FINALIZED, its only terminal success stage; that row is what unlocks the service."""
+    assert catalog.finalization_complete({'status': 'PAYMENT_PAID', 'orderId': 'order-1',
+                                           'finalizationStage': 'ORDER_FINALIZED'}) is True
 
 from lambda_utils.ecommerce import service_requests
 from lambda_utils import customer_auth

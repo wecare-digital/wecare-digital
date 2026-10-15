@@ -480,7 +480,7 @@ def observed_service_line_paise(calculated: Dict[str, Any]) -> Optional[int]:
     if len(summary_lines) != 1:
         return None
     try:
-        return Money.from_wix((summary_lines[0].get("totalPrice") or {}).get("amount")).paise
+        return Money.from_decimal_string((summary_lines[0].get("totalPrice") or {}).get("amount")).paise
     except ValueError:
         return None
 
@@ -517,7 +517,7 @@ def assert_service_line_price(calculated: Dict[str, Any], line_items: Any, *,
     if len(summary_lines) != 1:
         _mismatch(None, "SERVICE_SUMMARY_LINE_NOT_FOUND")
     try:
-        line_paise = Money.from_wix((summary_lines[0].get("totalPrice") or {}).get("amount")).paise
+        line_paise = Money.from_decimal_string((summary_lines[0].get("totalPrice") or {}).get("amount")).paise
     except ValueError:
         _mismatch(None, "SERVICE_LINE_UNREADABLE")
     if not SERVICE_LINE_MIN_PAISE <= line_paise <= SERVICE_LINE_MAX_PAISE:
