@@ -1,6 +1,14 @@
 import { PRODUCTS } from './products';
 import { SHOP_PRODUCTS, shopProductPath } from './shop';
 
+const CATALOG_ARTWORK_BASE = 'https://wecare.digital/get/o/stream/media/m/wd-catalog-live/';
+const APPROVED_PRODUCT_ARTWORK: Readonly<Record<string, string>> = {
+  'expo-week': CATALOG_ARTWORK_BASE + 'expo-week-4096.png',
+  anew: CATALOG_ARTWORK_BASE + 'anew-4096.png',
+  hunar: CATALOG_ARTWORK_BASE + 'hunar-4096.png',
+  'niji-setu': CATALOG_ARTWORK_BASE + 'niji-setu-4096.png',
+};
+
 /**
  * Everything WECARE.DIGITAL sells, as ONE list for ONE listing page.
  *
@@ -52,6 +60,8 @@ export interface ShopListing {
   formattedPrice?: string;
   /** catalog stock flag, present only on a catalog-backed entry. */
   inStock?: boolean;
+  /** Approved catalogue artwork where one exists. */
+  image?: string;
   /** Which half this came from. Read by the card to decide whether to print a price. */
   source: 'product' | 'catalogue';
 }
@@ -78,6 +88,7 @@ const merge = (): ShopListing[] => {
       name: product.name,
       blurb: product.blurb,
       href: `/${product.slug}/`,
+      ...( APPROVED_PRODUCT_ARTWORK[ product.slug ] ? { image: APPROVED_PRODUCT_ARTWORK[ product.slug ] } : {} ),
       source: 'product',
     } );
   }
@@ -92,6 +103,7 @@ const merge = (): ShopListing[] => {
       href: shopProductPath( product ),
       formattedPrice: product.formattedPrice,
       inStock: product.inStock,
+      ...( product.image ? { image: product.image } : {} ),
       source: 'catalogue',
     } );
   }
