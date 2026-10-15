@@ -54,7 +54,17 @@ type LdNode = Record<string, unknown>;
 export const shopProductSchema = (
   product: ShopProduct,
 ): { '@context': string; '@graph': LdNode[] } => {
-  const url = ORIGIN + shopProductPath( product );
+  /**
+   * THE GRAPH IS SCOPED TO THE ROUTE THAT RENDERS IT, not to the canonical. A product may name a
+   * dedicated landing page as its canonical (Anew canonicalises to /anew/), and that page emits its
+   * own #webpage and #breadcrumb. Reusing the canonical here would define the same page-scoped @id on
+   * two routes, which schemacheck refuses. The <link rel="canonical"> below still points at the
+   * canonical, so search engines consolidate on it.
+   */
+  const url = ORIGIN + '/shop/' + product.slug + '/';
+  // The product's canonical page: where search engines consolidate and what the Product and
+  // Offer nodes point a shopper at. Equal to `url` unless the product names a landing page.
+  const canonical = ORIGIN + shopProductPath( product );
   const description = shopMetaDescription( product );
 
   /**
@@ -78,13 +88,13 @@ export const shopProductSchema = (
     '@id': url + '#product',
     name: product.name,
     description: [ product.tagline, ...product.body ].join( ' ' ),
-    url,
+    url: canonical,
     image: product.image,
     brand: { '@id': ORG_ID },
     offers: {
       '@type': 'Offer',
       '@id': url + '#offer',
-      url,
+      url: canonical,
       price: product.price,
       priceCurrency: product.currency,
       availability: product.inStock
