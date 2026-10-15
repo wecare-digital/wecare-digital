@@ -1,6 +1,8 @@
 # WECARE.DIGITAL Admin Platform
 
-Multi-channel messaging platform for WhatsApp, SMS, Email, and Voice communications.
+Multi-channel messaging platform for WhatsApp, SMS, RCS, Email, and Voice communications.
+Commerce and the blog run natively on AWS; voice uses Plivo and AWS, SMS uses AWS End User
+Messaging, and RCS uses Sinch.
 
 ## Quick Start
 
@@ -90,7 +92,7 @@ The `ID` column above is the AWS-side identifier the code reads; Meta's own WABA
 `Meta ID` column. The Catalog, Pixel, Dataset/CAPI, App and phone-number ids Meta knows these
 assets by are listed in
 [Meta assets and the services catalogue](docs/meta-assets-and-services-catalog.md), together with
-the five paid services and their Wix variant ids.
+the five paid services and their catalogue variant ids.
 
 See [repository layout and maintenance boundaries](docs/execution/repository-layout.md) for the active web/backend install roots, operational scripts, generated outputs and retained history.
 
@@ -108,7 +110,7 @@ See [repository layout and maintenance boundaries](docs/execution/repository-lay
 │   ├── pages/         # Next.js pages
 │   └── styles/        # CSS styles
 ├── docs/              # Documentation
-├── shared/            # Shared config (FAQ, Wix)
+├── shared/            # Shared config (FAQ)
 └── scripts/           # Deploy & sync scripts
 ```
 
