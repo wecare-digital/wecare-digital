@@ -7,6 +7,7 @@ import ShopIndex from '../pages/shop/index';
 import ShopListingPage, { getStaticPaths } from '../pages/shop/page/[page]';
 import ShopListingView from '../components/ShopListingView';
 import { PRODUCTS } from '../content/products';
+import { PRODUCT_CHILDREN } from '../content/productChildren';
 import { SHOP_PRODUCTS } from '../content/shop';
 import {
   SHOP_LISTINGS, SHOP_LISTINGS_PER_PAGE, shopListingPageCount, shopListingPageHref,
@@ -66,6 +67,7 @@ describe( 'the merged shelf', () => {
      */
     const expected = new Set( [
       ...PRODUCTS.map( product => product.slug ),
+      ...PRODUCT_CHILDREN.map( child => child.product.slug ),
       ...SHOP_PRODUCTS.map( product => product.slug ),
     ] );
     expect( SHOP_LISTINGS.map( listing => listing.slug ).sort() ).toEqual( [ ...expected ].sort() );
@@ -313,7 +315,7 @@ describe( 'searching the shelf', () => {
     fireEvent.change( field, { target: { value: 'visas' } } );
     const byBlurb = Array.from( container.querySelectorAll( 'a.shop-card-action' ) );
     expect( byBlurb.map( link => link.getAttribute( 'href' ) ).map( samePath ) )
-      .toContain( '/elsewhere' );
+      .toContain( '/elsewhere/visa' );
 
     /*
      * THE NEWLINE JOIN, ASSERTED. The fields are joined with '\n' rather than a space, so a query
