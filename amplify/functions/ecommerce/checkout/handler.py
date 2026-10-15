@@ -90,7 +90,7 @@ from uuid import uuid4
 import boto3
 from boto3.dynamodb.conditions import Key
 
-from lambda_utils import contact_key, customer_auth, customer_session, payment_readiness
+from lambda_utils import contact_key, customer_auth, customer_session, payment_readiness, shared_tables
 from lambda_utils.ecommerce import (
     blog_contribution, cart_contract, catalog_analytics, checkout_pricing, contact_address, customer_cart, finalization,
     gift_card_settlement, india_address, order_channel, order_creation, order_keys, payment_address,
@@ -134,14 +134,13 @@ logger = get_logger(__name__)
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 #: The payment-attempt store and the commerce-keys (reference reservation) store.
-PAYMENT_ATTEMPTS_TABLE = os.environ.get(
-    "PAYMENT_ATTEMPTS_TABLE", payment_attempt.DEFAULT_TABLE_NAME)
-COMMERCE_KEYS_TABLE = os.environ.get("COMMERCE_KEYS_TABLE", "")
-CONTACTS_TABLE = os.environ.get("CONTACTS_TABLE", "stack-wecare-digital-ContactsTable")
+PAYMENT_ATTEMPTS_TABLE = shared_tables.payment_attempts_table_name()
+COMMERCE_KEYS_TABLE = shared_tables.commerce_keys_table_name()
+CONTACTS_TABLE = shared_tables.contacts_table_name()
 #: The internal order record. An order exists ONLY after an authoritative capture, and this is
 #: where that record lands. Granted `GetItem`/`PutItem`/`UpdateItem` and explicitly NOT
 #: `DeleteItem`: an order record is evidence that money moved.
-ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "stack-wecare-digital-OrderTable")
+ORDERS_TABLE = shared_tables.orders_table_name()
 #: AWS-native product catalog; the only checkout product authority.
 PRODUCTS_TABLE = os.environ.get("PRODUCTS_TABLE", "stack-wecare-digital-ProductsTable")
 #: AWS-native working cart (CartTable), the backing store for the WhatsApp claim-basket /
