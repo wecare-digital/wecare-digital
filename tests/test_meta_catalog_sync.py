@@ -45,7 +45,7 @@ sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 from lambda_utils.ecommerce import meta_catalog_sync as sync  # noqa: E402
 
 MODULE = ROOT / "amplify/functions/shared/lambda_utils/ecommerce/meta_catalog_sync.py"
-SNAPSHOT = ROOT / "src/content/wix-catalog.json"
+SNAPSHOT = ROOT / "src/content/catalog-snapshot.json"
 
 #: Two real ids from the snapshot, so the round-trip is tested on values Wix actually emitted.
 TEST_PRODUCT = "121c9d57-2cc9-490b-8eed-66bf7b9c172a"
