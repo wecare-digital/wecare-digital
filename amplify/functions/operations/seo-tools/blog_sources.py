@@ -925,18 +925,19 @@ def _draft_record(record: Dict[str, Any], extract: Any, q, bp) -> Dict[str, Any]
 # ── Reporting ───────────────────────────────────────────────────────────────────
 
 def status_report(limit: int = 0, batch_id: str = "") -> Dict[str, Any]:
-    """Counts across every source, or one batch's.
+    """Return exact counts plus a bounded list projection.
 
-    `limit=0` means all of them, and it goes through the paginating helper rather than
-    `list_sources`, which clamps at 500. The old default silently reported on the most recent
-    500 sources in a system specified to hold thousands - the number looked plausible, which
-    is what made it dangerous.
+    Total volume is unbounded, but an HTTP response is not. Counts are therefore computed from
+    the full paginated source set while `limit` only controls how many compact rows are returned
+    to the UI. A 50,000-source production run can still say "50,000 total" without trying to send
+    50,000 rows through API Gateway in one response.
     """
     if batch_id:
         import blog_batches
-        rows = blog_batches.batch_sources(batch_id, limit=limit)
+        rows = blog_batches.batch_sources(batch_id, limit=0)
     else:
-        rows = storage.scan_by_record_type(RECORD_TYPE, limit=limit)
+        rows = storage.scan_by_record_type(RECORD_TYPE, limit=0)
+
     by_status: Dict[str, int] = {}
     by_category: Dict[str, int] = {}
     for row in rows:
@@ -944,14 +945,18 @@ def status_report(limit: int = 0, batch_id: str = "") -> Dict[str, Any]:
         category = str(row.get("category") or "")
         if category:
             by_category[category] = by_category.get(category, 0) + 1
+
+    visible = rows[:limit] if limit > 0 else rows
     return {
         "total": len(rows),
+        "shown": len(visible),
+        "truncated": len(visible) < len(rows),
         "byStatus": dict(sorted(by_status.items())),
         "byCategory": dict(sorted(by_category.items())),
         "pending": sum(1 for row in rows if row.get("status") == UPLOADED),
         "extracted": sum(1 for row in rows if row.get("status") == EXTRACTED),
         "failed": sum(1 for row in rows if row.get("status") == EXTRACTION_FAILED),
-        "sources": [_view(row) for row in rows],
+        "sources": [_view(row) for row in visible],
     }
 
 

@@ -156,6 +156,8 @@ export interface BlogSourcesResponse {
   aiDraftEnabled: boolean;
   maxSourceBytes: number;
   total: number;
+  shown: number;
+  truncated: boolean;
   byStatus: Record<string, number>;
   byCategory: Record<string, number>;
   pending: number;
@@ -195,6 +197,10 @@ export interface BlogSourceRegisterResponse {
   ok: boolean;
   sources: BlogSourceRegistration[];
   bucket: string;
+  /** No WECARE.DIGITAL product ceiling; callers still chunk requests to fit transport limits. */
+  unlimitedBulk: boolean;
+  /** Backend efficiency hint only, never a total-volume limit. */
+  transportChunkSize: number;
 }
 
 export interface BlogSourceConfirmResponse {
@@ -204,6 +210,9 @@ export interface BlogSourceConfirmResponse {
   missingUpload: string[];
   unknownSourceId: string[];
   workerStarted: boolean;
+  queued: number;
+  queueFailed: number;
+  queueConfigured: boolean;
 }
 
 export interface BlogSourceRetryResponse {
@@ -250,7 +259,8 @@ async function seoToolsJson<T> ( path: string, init: RequestInit = {} ): Promise
 }
 
 /** Every source with its status, plus the enums and flags the page renders against. */
-export const listBlogSources = () => seoToolsJson<BlogSourcesResponse>( 'blog-sources' );
+export const listBlogSources = ( limit = 500 ) =>
+  seoToolsJson<BlogSourcesResponse>( `blog-sources?limit=${ encodeURIComponent( String( limit ) ) }` );
 
 /** One source including its extract and draft. Split out because the extract is large. */
 export const getBlogSource = ( sourceId: string ) =>
