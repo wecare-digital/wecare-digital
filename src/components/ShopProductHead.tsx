@@ -5,7 +5,7 @@ import {
   SOCIAL_CARD_URL, SOCIAL_CARD_TYPE, SOCIAL_CARD_W, SOCIAL_CARD_H, SOCIAL_CARD_ALT,
   SHARE_CARD_TYPE,
 } from '../config/share';
-import { shopMetaDescription, shopPageTitle, shopProductPath } from '../content/shop';
+import { shopMetaDescription, shopPageTitle, shopProductPath, shopProductRoute } from '../content/shop';
 import type { ShopProduct } from '../content/shop';
 
 /**
@@ -55,6 +55,15 @@ export const shopProductSchema = (
   product: ShopProduct,
 ): { '@context': string; '@graph': LdNode[] } => {
   const url = ORIGIN + shopProductPath( product );
+  /**
+   * THE @id BASE IS THE ROUTE BEING RENDERED, NOT THE CANONICAL. Every `url` below names the
+   * canonical, as rel=canonical does, but an @id names a node THIS document defines. The two part
+   * when a product declares a canonicalPath on another route: Anew's is /anew/, which already
+   * defines /anew/#webpage and /anew/#breadcrumb through _app.tsx, so keying these on `url` made
+   * /shop/anew/ define them a second time with different content - the cross-route collision
+   * tools/audit/schemacheck.js fails the build on.
+   */
+  const route = ORIGIN + shopProductRoute( product );
   const description = shopMetaDescription( product );
 
   /**
@@ -75,7 +84,7 @@ export const shopProductSchema = (
    */
   const productNode: LdNode[] = product.image ? [ {
     '@type': 'Product',
-    '@id': url + '#product',
+    '@id': route + '#product',
     name: product.name,
     description: [ product.tagline, ...product.body ].join( ' ' ),
     url,
@@ -83,7 +92,7 @@ export const shopProductSchema = (
     brand: { '@id': ORG_ID },
     offers: {
       '@type': 'Offer',
-      '@id': url + '#offer',
+      '@id': route + '#offer',
       url,
       price: product.price,
       priceCurrency: product.currency,
@@ -99,17 +108,17 @@ export const shopProductSchema = (
     '@graph': [
       {
         '@type': 'ItemPage',
-        '@id': url + '#webpage',
+        '@id': route + '#webpage',
         url,
         name: product.name,
         description,
         isPartOf: { '@id': WEBSITE_ID },
         inLanguage: 'en-IN',
-        breadcrumb: { '@id': url + '#breadcrumb' },
+        breadcrumb: { '@id': route + '#breadcrumb' },
         // mainEntity ONLY when the Product exists. A reference to an @id nothing defines is a
         // dangling pointer, and schemacheck asserts there are none - so an unconditional mainEntity
         // would trade one failure for another.
-        ...( productNode.length ? { mainEntity: { '@id': url + '#product' } } : {} ),
+        ...( productNode.length ? { mainEntity: { '@id': route + '#product' } } : {} ),
         publisher: { '@id': ORG_ID },
       },
       {
@@ -123,7 +132,7 @@ export const shopProductSchema = (
         // is the mismatch that makes a rich result disappear SILENTLY - no error, no warning, the
         // breadcrumb simply stops being shown. The two must be edited together.
         '@type': 'BreadcrumbList',
-        '@id': url + '#breadcrumb',
+        '@id': route + '#breadcrumb',
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'Home', item: ORIGIN + '/' },
           { '@type': 'ListItem', position: 2, name: 'Shop', item: ORIGIN + '/shop/' },

@@ -565,6 +565,31 @@ describe( 'the product page', () => {
     expect( json ).toContain( 'https://wecare.digital' + shopProductPath( anew ) );
     expect( json ).not.toContain( '[slug]' );
   } );
+  it( 'defines its nodes under its own /shop/<slug>/ route, even when the canonical is elsewhere', () => {
+    // A page-scoped @id may be defined on ONE route (tools/audit/schemacheck.js). /anew/ already
+    // defines /anew/#webpage and /anew/#breadcrumb, so /shop/anew/ must not: the URLs name the
+    // canonical, the identities stay the route's. The synthetic row survives a snapshot refresh.
+    const elsewhere: ShopProduct = {
+      ...SYNTHETIC, image: 'https://wecare.digital/x.png', canonicalPath: '/another-page/',
+    };
+    for ( const product of [ ...SHOP_PRODUCTS, elsewhere ] ) {
+      const defined: string[] = [];
+      const walk = ( value: unknown ): void => {
+        if ( Array.isArray( value ) ) { value.forEach( walk ); return; }
+        if ( !value || typeof value !== 'object' ) return;
+        const id = ld( value )[ '@id' ];
+        // @type AND @id defines a node; a bare @id only references one - schemacheck's rule.
+        if ( typeof ld( value )[ '@type' ] === 'string' && typeof id === 'string' ) defined.push( id );
+        Object.values( value ).forEach( walk );
+      };
+      walk( shopProductSchema( product )[ '@graph' ] );
+      expect( defined.length, product.slug ).toBeGreaterThan( 0 );
+      for ( const id of defined ) {
+        expect( id.startsWith( `https://wecare.digital/shop/${product.slug}/#` ), `${product.slug} defines ${id}` )
+          .toBe( true );
+      }
+    }
+  } );
 
   it( 'offers a way back to the listing through a three-item breadcrumb and an all-items link', () => {
     /*

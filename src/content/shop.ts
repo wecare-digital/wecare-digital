@@ -367,6 +367,14 @@ export const shopMetaDescription = ( product: ShopProduct ): string => {
 export const shopPageTitle = ( product: ShopProduct ): string =>
   product.name + ' — price and what it includes | WECARE.DIGITAL';
 
+/**
+ * '/shop/anew/' - the route src/pages/shop/[slug].tsx serves for this product, whatever its
+ * canonical destination. Since catalog v2 that is not always shopProductPath: Anew declares
+ * canonicalPath '/anew/', a route another page owns. ShopProductHead keys its @ids on this.
+ */
+export const shopProductRoute = ( product: ShopProduct ): string =>
+  '/shop/' + product.slug + '/';
+
 /** '/shop/kiosk/' - trailingSlash is on, so the canonical form carries one. */
 export const shopProductPath = ( product: ShopProduct ): string =>
-  product.canonicalPath || ( '/shop/' + product.slug + '/' );
+  product.canonicalPath || shopProductRoute( product );

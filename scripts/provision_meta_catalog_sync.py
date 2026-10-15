@@ -107,6 +107,10 @@ SCHEDULE_EXPRESSION = "cron(25 */6 * * ? *)"
 #: Secret NAMES, never values. Neither is read by this script.
 META_TOKEN_SECRET = "wecare/meta-system-user-token"
 CATALOG_APPROVALS_TABLE = "stack-wecare-digital-AgentApprovalsTable"
+#: The ONE ProductsTable stream the `live` alias's event-source mapping reads, named by its exact
+#: label rather than `stream/*`. Re-enabling a stream mints a new label, and a new stream is a new,
+#: deliberate grant. Matches the live `NativeProductsChangeStream` grant on this role.
+PRODUCTS_STREAM_LABEL = "2026-10-14T06:15:10.307"
 
 #: No secret value, by construction - only NAMES and public identifiers. The catalog id is the ONE
 #: shared `wecare_shop` catalog used by BOTH WABAs, from `src/pages/catalog-builder.tsx`, so this
@@ -118,16 +122,14 @@ ENVIRONMENT = {
     "META_TOKEN_SECRET": META_TOKEN_SECRET,
     "META_TOKEN_FIELD": "access_token",
     "META_CATALOG_ID": "1457045652952851",
-    "META_CATALOG_SYNC_ENABLED": "true",
-    "META_CATALOG_SYNC_DRY_RUN": "false",
-    "META_CATALOG_AUTO_APPLY_SAFE": "true",
-    "META_CATALOG_AUTO_APPLY_MAX_CHANGES": "50",
+    "META_CATALOG_SYNC_ENABLED": "false",
+    "META_CATALOG_SYNC_DRY_RUN": "true",
     "META_CATALOG_APPROVALS_TABLE": CATALOG_APPROVALS_TABLE,
     # Empty means the product-level metaEnabled flag owns scope. Existing legacy rows remain
     # eligible until they are explicitly migrated; every newly-created native product starts
     # metaEnabled=false, so it cannot appear in the plan accidentally.
     "META_CATALOG_SYNC_VARIANT_IDS": "",
-    "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "false",
+    "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
     "CATALOG_SOURCE": "aws",
     "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
     "LOG_LEVEL": "INFO",
@@ -179,11 +181,13 @@ def trust_policy() -> dict:
 
 
 def expected_role_policy(account: str = ACCOUNT_ID) -> dict:
-    """Four exact statements: logs, Meta token, approval table, and ProductsTable read.
+    """Five exact statements: logs, Meta token, approval table, ProductsTable stream and read.
 
     Pinned by EQUALITY in `tests/test_meta_catalog_sync_iam.py`. The DynamoDB grant is deliberately
     limited to the existing AgentApprovals table and only GetItem/PutItem/UpdateItem: proposal,
     exact approval, apply claim and readback status. No Scan/Query/Delete and no other table.
+    The stream statement is the four read-only actions Lambda's event-source mapping polls with,
+    on the one stream it maps (PRODUCTS_STREAM_LABEL).
 
     - no `s3:*` - it writes no artefact;
     - no `lambda:InvokeFunction` - it is invoked, it does not invoke;
@@ -230,7 +234,8 @@ def expected_role_policy(account: str = ACCOUNT_ID) -> dict:
                     "dynamodb:ListStreams",
                 ],
                 "Resource": [
-                    f"arn:aws:dynamodb:{REGION}:{account}:table/stack-wecare-digital-ProductsTable/stream/*"
+                    f"arn:aws:dynamodb:{REGION}:{account}:table/stack-wecare-digital-ProductsTable"
+                    f"/stream/{PRODUCTS_STREAM_LABEL}"
                 ],
             },
             {
@@ -277,7 +282,7 @@ def ensure_role(apply: bool) -> str:
 
     if not apply:
         return (f"would put {POLICY} on existing {ROLE}" if existing
-                else f"would create {ROLE} with {POLICY} (4 statements)")
+                else f"would create {ROLE} with {POLICY} (5 statements)")
 
     if not existing:
         iam().create_role(
@@ -370,7 +375,11 @@ def ensure_stream_mapping(apply: bool) -> str:
     if not stream_arn:
         raise RuntimeError("ProductsTable stream is not enabled")
 
-    mappings = lam().list_event_source_mappings(FunctionName=FUNCTION).get("EventSourceMappings", [])
+    # By the `live` ALIAS ARN. A mapping belongs to the qualified function it invokes, and
+    # listing by the bare name returns none of the alias's mappings - so this saw no mapping,
+    # and `--apply` would have created a duplicate beside the live one (c15e412f).
+    mappings = lam().list_event_source_mappings(FunctionName=function_arn()).get(
+        "EventSourceMappings", [])
     current = next((m for m in mappings if m.get("EventSourceArn") == stream_arn), None)
     if current:
         if current.get("State") == "Enabled":
@@ -387,11 +396,14 @@ def ensure_stream_mapping(apply: bool) -> str:
         EventSourceArn=stream_arn,
         FunctionName=function_arn(),
         Enabled=True,
-        BatchSize=10,
-        MaximumBatchingWindowInSeconds=2,
+        # The live mapping's settings (c15e412f, read 2026-10-15), so a re-create reproduces
+        # what runs rather than a second opinion of it.
+        BatchSize=1,
+        MaximumBatchingWindowInSeconds=5,
         StartingPosition="LATEST",
         BisectBatchOnFunctionError=True,
-        MaximumRetryAttempts=3,
+        MaximumRetryAttempts=2,
+        MaximumRecordAgeInSeconds=3600,
         ParallelizationFactor=1,
     )
     return f"created {created.get('UUID')}"
@@ -492,7 +504,8 @@ def verify() -> int:
         table = boto3.client("dynamodb", region_name=REGION).describe_table(
             TableName="stack-wecare-digital-ProductsTable")["Table"]
         stream_arn = str(table.get("LatestStreamArn") or "")
-        mappings = lam().list_event_source_mappings(FunctionName=FUNCTION).get("EventSourceMappings", [])
+        mappings = lam().list_event_source_mappings(FunctionName=function_arn()).get(
+            "EventSourceMappings", [])
         current = next((m for m in mappings if m.get("EventSourceArn") == stream_arn), None)
         if not stream_arn:
             problems.append("ProductsTable stream is not enabled")

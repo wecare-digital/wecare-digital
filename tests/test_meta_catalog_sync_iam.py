@@ -1,4 +1,4 @@
-"""`wecare-meta-catalog-sync-role` is four exact statements, and the shared fleet role is untouched.
+"""`wecare-meta-catalog-sync-role` is five exact statements, and the shared fleet role is untouched.
 
 PHASE W, FEAT-001. Every assertion here is EQUALITY rather than containment. A test that checks
 the policy *contains* the statements it wants passes just as happily when a third is added, which
@@ -32,6 +32,10 @@ REGION = "us-east-1"
 
 SHARED_FLEET_ROLE = "wecare-digital-lambda-role"
 
+#: The one stream the `live` alias's event-source mapping reads (live ESM c15e412f, 2026-10-15).
+PRODUCTS_STREAM_ARN = (f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/"
+                       "stack-wecare-digital-ProductsTable/stream/2026-10-14T06:15:10.307")
+
 #: Anything that could change data, invoke code, message a person or widen access. None of these
 #: may appear anywhere in the new role's policy.
 FORBIDDEN_ACTION_PREFIXES = (
@@ -57,12 +61,16 @@ def provisioner():
 # ── 1. the document, exactly ─────────────────────────────────────────────────
 
 
-def test_the_policy_is_exactly_the_four_required_statements(provisioner):
-    """Native: logs + ONE Meta token secret + the approvals table + the native ProductsTable read.
+def test_the_policy_is_exactly_the_five_required_statements(provisioner):
+    """Native: logs + ONE Meta token secret + approvals table + ProductsTable stream and read.
 
     The Wix exit made the catalog source AWS-native: the function reads the ProductsTable instead
     of the Wix headless API, so the Wix headless-api-key secret is gone (one secret, not two) and a
-    fourth statement grants the read-only ProductsTable access the native projection needs.
+    statement grants the read-only ProductsTable access the native projection needs.
+
+    The ProductsTable stream event-source mapping on the `live` alias replaced the Wix webhook as
+    the prompt trigger. Lambda polls that stream with THIS role, so the role needs the four
+    read-only stream actions - on the ONE mapped stream, by its exact label, not `stream/*`.
     """
     assert provisioner.expected_role_policy(ACCOUNT) == {
         "Version": "2012-10-17",
@@ -97,6 +105,15 @@ def test_the_policy_is_exactly_the_four_required_statements(provisioner):
                 ],
             },
             {
+                "Sid": "ReadProductsStream",
+                "Effect": "Allow",
+                "Action": [
+                    "dynamodb:DescribeStream", "dynamodb:GetRecords",
+                    "dynamodb:GetShardIterator", "dynamodb:ListStreams",
+                ],
+                "Resource": [PRODUCTS_STREAM_ARN],
+            },
+            {
                 "Sid": "ReadNativeProductCatalog",
                 "Effect": "Allow",
                 "Action": [
@@ -113,12 +130,12 @@ def test_the_policy_is_exactly_the_four_required_statements(provisioner):
     }
 
 
-def test_the_policy_has_no_statement_beyond_the_four_required(provisioner):
+def test_the_policy_has_no_statement_beyond_the_five_required(provisioner):
     statements = provisioner.expected_role_policy(ACCOUNT)["Statement"]
-    assert len(statements) == 4
+    assert len(statements) == 5
     assert [s["Sid"] for s in statements] == [
         "OwnLogs", "ReadMetaToken", "CatalogProposalApprovalRecords",
-        "ReadNativeProductCatalog"]
+        "ReadProductsStream", "ReadNativeProductCatalog"]
     assert all(s["Effect"] == "Allow" for s in statements)
 
 
@@ -127,7 +144,8 @@ def test_no_forbidden_action_appears_anywhere_in_the_policy(provisioner):
     invoke. `events:` likewise - the schedule invokes it; it does not manage the schedule.
 
     Native: the ProductsTable read adds Query/Scan/BatchGetItem alongside GetItem — all read-only
-    DynamoDB actions, none forbidden, no Delete/Put/Update on the catalog table.
+    DynamoDB actions, none forbidden, no Delete/Put/Update on the catalog table. The stream read
+    adds DescribeStream/GetRecords/GetShardIterator/ListStreams, also read-only.
     """
     actions: list[str] = []
     for statement in provisioner.expected_role_policy(ACCOUNT)["Statement"]:
@@ -137,8 +155,9 @@ def test_no_forbidden_action_appears_anywhere_in_the_policy(provisioner):
         for forbidden in FORBIDDEN_ACTION_PREFIXES:
             assert not action.startswith(forbidden), f"{action} is not least privilege here"
     assert sorted(actions) == [
-        "dynamodb:BatchGetItem",
+        "dynamodb:BatchGetItem", "dynamodb:DescribeStream",
         "dynamodb:GetItem", "dynamodb:GetItem",
+        "dynamodb:GetRecords", "dynamodb:GetShardIterator", "dynamodb:ListStreams",
         "dynamodb:PutItem", "dynamodb:Query", "dynamodb:Scan",
         "dynamodb:UpdateItem",
         "logs:CreateLogStream", "logs:PutLogEvents", "secretsmanager:GetSecretValue"]
@@ -151,6 +170,15 @@ def test_dynamodb_is_limited_to_one_table_and_three_item_actions(provisioner):
         f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-AgentApprovalsTable"]
     rendered = json.dumps(statement)
     assert "Scan" not in rendered and "Query" not in rendered and "Delete" not in rendered
+
+
+def test_the_stream_read_is_one_named_stream_and_four_read_actions(provisioner):
+    """`stream/*` would follow any future stream on the table; a new stream is a new grant."""
+    statement = provisioner.expected_role_policy(ACCOUNT)["Statement"][3]
+    assert statement["Action"] == ["dynamodb:DescribeStream", "dynamodb:GetRecords",
+                                   "dynamodb:GetShardIterator", "dynamodb:ListStreams"]
+    assert statement["Resource"] == [PRODUCTS_STREAM_ARN]
+    assert "*" not in json.dumps(statement["Resource"])
 
 
 def test_no_resource_is_a_wildcard(provisioner):
@@ -261,6 +289,10 @@ def test_the_provisioned_environment_matches_the_product_scoped_rollout(provisio
 
     The fixed five-variant rollout list is intentionally empty after catalog-publishing v2.
     Exact-plan approval plus the enabled/dry-run gates still protect every Meta write.
+
+    Background safe auto-apply sits behind those two gates and stays off as well: with it on, even
+    a temporary exact-plan gate opening would let a stream or schedule run publish a bounded plan
+    nobody approved.
     """
     manifest = json.loads((ROOT / "config/lambda-env-manifest.json").read_text())
     live = manifest["functions"]["wecare-meta-catalog-sync"]
@@ -273,6 +305,8 @@ def test_the_provisioned_environment_matches_the_product_scoped_rollout(provisio
     for key, value in expected.items():
         assert provisioner.ENVIRONMENT[key] == value
         assert live[key] == value
+    for environment in (provisioner.ENVIRONMENT, live):
+        assert environment.get("META_CATALOG_AUTO_APPLY_SAFE", "false") == "false"
 
 
 def test_the_environment_carries_secret_NAMES_and_no_value(provisioner):
