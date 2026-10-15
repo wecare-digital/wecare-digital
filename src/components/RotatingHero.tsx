@@ -104,6 +104,12 @@ interface RotatingHeroProps {
    */
   subordinate?: boolean;
   /**
+   * Embedded-primary mode: the page already owns the single <main>, but this hero still owns
+   * the page's <h1>. This is for bespoke product pages that need the shared rotating band while
+   * keeping additional page-specific sections inside one main landmark.
+   */
+  insideMain?: boolean;
+  /**
    * Suppress the Subscribe+Share block for a page that genuinely must not carry it.
    *
    * The block is auto-mounted here for every RotatingHero page, which is right for the marketing
@@ -119,7 +125,7 @@ interface RotatingHeroProps {
   noShare?: boolean;
 }
 
-const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, sub, ariaLabel, children, subordinate = false, noShare = false } ) => {
+const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, sub, ariaLabel, children, subordinate = false, insideMain = false, noShare = false } ) => {
   /**
    * 'final' is the CSS default: shutter gone, dot popped, nothing animating. 'armed' puts
    * the start state back, 'shown' plays it. Starting at 'final' is what makes the entrance
@@ -184,7 +190,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, 
   // The landmark and the heading level move together: a subordinate hero is a section of
   // someone else's page, so it must not claim either role. Styling is by class throughout, so
   // the rendered result is pixel-identical - only the semantics differ.
-  const Shell = subordinate ? 'section' : 'main';
+  const Shell = subordinate || insideMain ? 'section' : 'main';
   const Head = subordinate ? 'h2' : 'h1';
 
   return (
