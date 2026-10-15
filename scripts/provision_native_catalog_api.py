@@ -63,6 +63,22 @@ def existing(call, **kwargs):
         raise
 
 
+def all_items(call, **kwargs):
+    """Every item of a paginated API Gateway v2 list call (`get_routes`, `get_integrations`).
+
+    These calls return one page plus a `NextToken`, and the shared API carries hundreds of
+    routes. Reading only the first page missed existing catalog routes, so `create_route`
+    then failed with ConflictException on every redeploy.
+    """
+    items, token = [], None
+    while True:
+        page = call(**(dict(kwargs, NextToken=token) if token else kwargs))
+        items.extend(page.get("Items", []))
+        token = page.get("NextToken")
+        if not token:
+            return items
+
+
 def role_policy():
     table = f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/{TABLE}"
     pool = f"arn:aws:cognito-idp:{REGION}:{ACCOUNT}:userpool/{STAFF_POOL}"
@@ -181,7 +197,7 @@ def apply():
         lam.create_alias(FunctionName=FUNCTION, Name="live", FunctionVersion=version)
     aid = api_id()
     integration_uri = f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{FUNCTION}:live"
-    integrations = apigw.get_integrations(ApiId=aid).get("Items", [])
+    integrations = all_items(apigw.get_integrations, ApiId=aid)
     match = next((i for i in integrations if i.get("IntegrationUri") == integration_uri), None)
     if match:
         integration_id = match["IntegrationId"]
@@ -191,7 +207,7 @@ def apply():
             IntegrationUri=integration_uri, PayloadFormatVersion="2.0",
         )["IntegrationId"]
     current = {
-        x["RouteKey"]: x for x in apigw.get_routes(ApiId=aid).get("Items", [])
+        x["RouteKey"]: x for x in all_items(apigw.get_routes, ApiId=aid)
     }
     target = "integrations/" + integration_id
     for route in ROUTES:
@@ -222,10 +238,10 @@ def verify():
     lam, apigw = client("lambda"), client("apigatewayv2")
     cfg = lam.get_function_configuration(FunctionName=FUNCTION, Qualifier="live")
     aid = api_id()
-    all_routes = {v["RouteKey"]: v for v in apigw.get_routes(ApiId=aid)["Items"]}
+    all_routes = {v["RouteKey"]: v for v in all_items(apigw.get_routes, ApiId=aid)}
     missing = sorted(set(ROUTES) - set(all_routes))
     expected_arn = f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{FUNCTION}:live"
-    integrations = apigw.get_integrations(ApiId=aid).get("Items", [])
+    integrations = all_items(apigw.get_integrations, ApiId=aid)
     matches = [i["IntegrationId"] for i in integrations
                if i.get("IntegrationUri") == expected_arn]
     if len(matches) != 1:
