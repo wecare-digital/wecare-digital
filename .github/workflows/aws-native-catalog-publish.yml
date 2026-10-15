@@ -70,11 +70,15 @@ jobs:
   snapshot:
     if: github.ref == 'refs/heads/stack'
     runs-on: ubuntu-26.04
+    # Pushes to `stack` with the stack-bot deploy key: the `stack: required checks` ruleset lets
+    # only that key bypass, and the key lives in an environment only `stack` jobs can read.
+    environment: stack-bot
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
           ref: stack
+          ssh-key: ${{ secrets.STACK_DEPLOY_KEY }}
           fetch-depth: 1
 
       - uses: actions/setup-python@v7
