@@ -341,7 +341,7 @@ def test_a_run_is_recorded_with_its_report_in_s3(env):
     result = env["br"].run(batch_id, "admin")
     record = env["br"].get(result["repetitionRunId"])
     assert record["recordType"] == env["br"].RECORD_TYPE
-    assert record["bodyKey"].startswith("o/blog-production/repetition/")
+    assert record["bodyKey"].startswith("secure/blog-production/repetition/")
     report = json.loads(env["s3"].objects[record["bodyKey"]].decode())
     assert report["batchId"] == batch_id
     assert report["thresholds"]["pairBody"] == env["br"].PAIR_BODY

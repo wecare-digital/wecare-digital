@@ -14,8 +14,8 @@ read-only audit.
 | Constraint | Source |
 |---|---|
 | Bucket is `wecare-digital-get`. Never create a bucket. | `.kiro/steering/blog-production-s3.md` |
-| Every prefix under `o/blog-production/`, composed through `media_paths` | same, owner decision taken twice |
-| `o/` is **public** via CloudFront `E2GP22R4BIFGQ3` — unlisted, not private | measured |
+| Internal source/working prefixes under `secure/blog-production/`; only published mirrors/catalog under `o/blog-production/`, composed through `media_paths` | owner hardening decision 2026-10-15 |
+| `secure/` is the source/working security boundary; `o/` is public and reserved here for deliberate published outputs | measured + owner hardening decision 2026-10-15 |
 | No auto-publish. Processing completion never implies publishing. | spec §38 |
 | AI can never self-certify. The human gates are unreachable from any model write. | spec §29/§30 |
 | Every total derived from records. No incremented counters. | spec §41 |
@@ -39,7 +39,7 @@ compared against 383 committed records and reported PASS having checked a third 
 corpus.
 
 ### 4. Prefix rename and extract to S3 — DONE (`626cdef0`)
-`o/blog-src/` → `o/blog-production/` while it held zero objects. Extract moved out of the
+`o/blog-src/` → `o/blog-production/` while it held zero objects. On 2026-10-15 the source/working tree was hardened to `secure/blog-production/` before the first real production source; public catalog/post mirrors remain under `o/blog-production/`. Extract moved out of the
 DynamoDB item: a 300-page book is ~450 kB of text against a 400 kB item cap, so the write
 failed on exactly the documents the pipeline exists for.
 

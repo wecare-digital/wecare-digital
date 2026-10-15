@@ -92,7 +92,7 @@ def inspect(command: str) -> tuple[bool, str]:
                 f"BLOCKED: {label} creates an S3 bucket.\n"
                 f"\n"
                 f"Blog Production must use the EXISTING bucket {APPROVED_BUCKET!r} under the "
-                f"prefix o/blog-production/. Creating a bucket is prohibited without "
+                f"prefixes secure/blog-production/ (working data) and o/blog-production/ (public output). Creating a bucket is prohibited without "
                 f"explicit owner approval - see .kiro/steering/blog-production-s3.md.\n"
                 f"\n"
                 f"If you reached for this because a bucket lookup returned 404: the project "

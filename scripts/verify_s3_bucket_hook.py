@@ -38,13 +38,13 @@ MUST_BLOCK = [
 MUST_ALLOW = [
     # Every ordinary operation against the approved bucket
     f"aws s3api head-bucket --bucket {APPROVED_BUCKET}",
-    f"aws s3 ls s3://{APPROVED_BUCKET}/o/blog-production/ --recursive",
-    f"aws s3api put-object --bucket {APPROVED_BUCKET} --key o/blog-production/sources/pdf/a.pdf",
-    f"aws s3api get-object --bucket {APPROVED_BUCKET} --key o/blog-production/extracted/x.md out.md",
-    f"aws s3api list-objects-v2 --bucket {APPROVED_BUCKET} --prefix o/blog-production/",
+    f"aws s3 ls s3://{APPROVED_BUCKET}/secure/blog-production/ --recursive",
+    f"aws s3api put-object --bucket {APPROVED_BUCKET} --key secure/blog-production/sources/pdf/a.pdf",
+    f"aws s3api get-object --bucket {APPROVED_BUCKET} --key secure/blog-production/extracted/x.md out.md",
+    f"aws s3api list-objects-v2 --bucket {APPROVED_BUCKET} --prefix secure/blog-production/",
     f"aws s3api get-bucket-encryption --bucket {APPROVED_BUCKET}",
     f"aws s3api get-bucket-policy --bucket {APPROVED_BUCKET}",
-    f"aws s3api delete-object --bucket {APPROVED_BUCKET} --key o/blog-production/failures/x.json",
+    f"aws s3api delete-object --bucket {APPROVED_BUCKET} --key secure/blog-production/failures/x.json",
     # Unrelated work that happens to mention buckets or S3
     "python3 scripts/deploy_seo_tools.py",
     "grep -rn 'Bucket' amplify/functions/ | head",
