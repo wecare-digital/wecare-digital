@@ -2713,7 +2713,7 @@ def _process_message(
         if content_lower in MY_ID_KEYWORDS:
             try:
                 # Look up subscriber by phone
-                fs_table = dynamodb.Table(os.environ.get('FLOW_SUBMISSIONS_TABLE', 'stack-wecare-digital-FlowSubmissionTable'))
+                fs_table = dynamodb.Table(FLOW_SUBMISSIONS_TABLE)
                 # Query by phone using GSI
                 fs_resp = fs_table.scan(
                     FilterExpression='phone = :ph AND flowCode = :fc',

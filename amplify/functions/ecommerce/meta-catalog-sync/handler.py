@@ -48,6 +48,7 @@ import urllib.parse
 import urllib.request
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
+from lambda_utils import shared_tables
 from lambda_utils.ecommerce import meta_catalog_sync as catalog
 from lambda_utils.logging import get_logger
 from lambda_utils.meta_version import graph_url
@@ -77,7 +78,7 @@ META_PRODUCT_FIELDS = ("id,name,retailer_id,price,currency,availability,image_ur
 META_PAGE_LIMIT = "100"
 
 #: AWS-native product authority.
-PRODUCTS_TABLE = os.environ.get("PRODUCTS_TABLE", "stack-wecare-digital-ProductsTable")
+PRODUCTS_TABLE = shared_tables.products_table_name()
 
 #: A cursor that never empties would otherwise spin until the Lambda timed out. Same guard, and
 #: the same value, as both existing cursor loops.
