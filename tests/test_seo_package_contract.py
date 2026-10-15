@@ -35,3 +35,23 @@ def test_seo_ci_deploy_uses_complete_shared_package_builder():
     # The old hand-rolled zip omitted blog_pipeline, blog_quality_v2 and pypdf.
     assert "from scripts.deploy_seo_tools import package" in workflow
     assert "write_bytes(package())" in workflow
+
+
+def test_seo_ci_deploy_package_step_closes_python_heredoc():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    step = workflow.split("      - name: Package SEO tools Lambda", 1)[1].split(
+        "      - name: Configure AWS credentials", 1
+    )[0]
+    assert step.splitlines().count("          PY") == 1, (
+        "Unclosed heredoc prevents the deployment package from being built"
+    )
+
+
+def test_seo_ci_deploy_installs_pinned_packaging_dependencies():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    deploy_setup = workflow.split("\n  deploy:", 1)[1].split(
+        "      - name: Package SEO tools Lambda", 1
+    )[0]
+    assert "python -m pip install --disable-pip-version-check boto3 pypdf==6.19.0" in deploy_setup, (
+        "The deploy job runs on a fresh runner; test-job dependencies are not inherited"
+    )
