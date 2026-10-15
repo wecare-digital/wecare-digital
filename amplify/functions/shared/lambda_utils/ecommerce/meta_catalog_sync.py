@@ -48,18 +48,28 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 #: The retailer-id namespace. AN EXTERNAL IDENTIFIER, NOT A NAME WE ARE FREE TO CHANGE: every item
-#: already published in the live Meta catalogue carries it, and every inbound WhatsApp catalogue
-#: order echoes it back as `product_retailer_id`, so `parse_retailer_id` must keep accepting
-#: exactly this value. It is a legacy spelling kept for that contract only, and this is the one
-#: place the backend writes it - everything else builds or parses ids through `retailer_id` /
-#: `parse_retailer_id`. Re-keying it needs an owner-approved Meta catalogue migration (publish the
-#: new ids, carry in-flight carts across, retire the old ones), and that cannot run while the sync
-#: is disabled in production (`META_CATALOG_SYNC_ENABLED=false`).
+#: already published in the live Meta catalogue carries one of these, and every inbound WhatsApp
+#: catalogue order echoes it back as `product_retailer_id`, so `parse_retailer_id` must keep
+#: accepting every value here. This is the one place the backend builds ids - everything else
+#: builds or parses them through `retailer_id` / `parse_retailer_id`.
 #:
-#: It is also the namespace that marks an item as OURS. An item whose retailer id lacks it was
+#: MIGRATION (owner decision 2026-10-16: "we will use our own site, not Wix"):
+#: `RETAILER_PREFIX` is the single namespace NEW ids are WRITTEN with. It is now the provider-
+#: neutral `wecare`. `LEGACY_RETAILER_PREFIXES` lists every namespace still READABLE on inbound,
+#: so orders placed against items published under the old `wix` spelling keep resolving while the
+#: next catalogue sync republishes the ~21 live variants under `wecare:`. Once Meta shows no
+#: `wix:` item remaining (and no in-flight `wix:` cart can arrive), drop `"wix"` from
+#: `LEGACY_RETAILER_PREFIXES` to retire the compatibility read path.
+#:
+#: These namespaces also mark an item as OURS. An item whose retailer id carries none of them was
 #: created by hand in the Meta catalog builder (`catalog-builder.tsx` free-types a SKU, e.g.
 #: `WD-PARTNER-UP`) and this sync must report it and never touch it. See `diff`'s `foreign` bucket.
-RETAILER_PREFIX = "wix"
+RETAILER_PREFIX = "wecare"
+
+#: Every prefix a retailer id may legitimately carry on INBOUND. Must always include
+#: `RETAILER_PREFIX`. Carries `"wix"` only for backward compatibility with items published before
+#: the 2026-10-16 rename; remove it after the live Meta catalogue is fully republished.
+LEGACY_RETAILER_PREFIXES = (RETAILER_PREFIX, "wix")
 
 #: Meta's documented ceiling for `retailer_id`. A pair of UUIDs plus the prefix is 77, so this is
 #: headroom rather than a constraint - but it is asserted rather than assumed, because a change to
@@ -226,17 +236,21 @@ def parse_retailer_id(value: Any) -> Optional[Tuple[str, str]]:
     set it can parse. That covers three cases on purpose:
 
     - a hand-made SKU from the catalog builder (`WD-PARTNER-UP`) - not ours, leave it;
-    - an id carrying the prefix but not two UUIDs - ours in intention, broken in fact, and
+    - an id carrying a known prefix but not two UUIDs - ours in intention, broken in fact, and
       modifying it blind could overwrite an item we cannot identify;
-    - an id with extra colon-separated segments - `_UUID_RE` is anchored, so it cannot pass.
+    - an id with extra colon-separated segments - split length is checked first, so it cannot pass.
+
+    Accepts any prefix in `LEGACY_RETAILER_PREFIXES` so items still published under the old
+    namespace resolve during the `wecare:` migration; `retailer_id` only ever WRITES the current
+    `RETAILER_PREFIX`.
     """
     text = str(value or "").strip().lower()
-    if not text.startswith(f"{RETAILER_PREFIX}:"):
-        return None
     parts = text.split(":")
     if len(parts) != 3:
         return None
-    _, product, variant = parts
+    prefix, product, variant = parts
+    if prefix not in LEGACY_RETAILER_PREFIXES:
+        return None
     if not _UUID_RE.match(product) or not _UUID_RE.match(variant):
         return None
     return product, variant
@@ -651,6 +665,7 @@ def diff(desired: Sequence[Mapping[str, Any]],
 
 __all__ = [
     "RETAILER_PREFIX",
+    "LEGACY_RETAILER_PREFIXES",
     "RETAILER_ID_MAX_LENGTH",
     "IN_STOCK",
     "OUT_OF_STOCK",

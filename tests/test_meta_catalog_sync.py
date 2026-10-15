@@ -120,12 +120,35 @@ def test_a_retailer_id_round_trips(products):
 
 
 def test_the_retailer_id_shape_is_the_documented_one():
-    """`<prefix>:<productId>:<variantId>`. The 77 also pins the prefix's length: the live Meta
-    catalogue and inbound WhatsApp orders already carry ids of exactly this shape."""
+    """`<prefix>:<productId>:<variantId>`. The length is the prefix plus two 36-char UUIDs and the
+    two colons, and must stay under Meta's ceiling: the live Meta catalogue and inbound WhatsApp
+    orders carry ids of exactly this shape."""
     value = sync.retailer_id(TEST_PRODUCT, TEST_VARIANT)
     assert value == f"{PREFIX}:{TEST_PRODUCT}:{TEST_VARIANT}"
-    assert len(value) == 77
-    assert 77 < sync.RETAILER_ID_MAX_LENGTH
+    assert len(value) == len(PREFIX) + 1 + 36 + 1 + 36
+    assert len(value) < sync.RETAILER_ID_MAX_LENGTH
+
+
+def test_new_ids_are_written_provider_neutral_not_wix():
+    """New catalogue ids carry the provider-neutral namespace. The owner uses their own site, not
+    Wix, so nothing the backend WRITES may stamp a `wix:` id."""
+    assert sync.RETAILER_PREFIX == "wecare"
+    assert sync.retailer_id(TEST_PRODUCT, TEST_VARIANT).startswith("wecare:")
+    assert not sync.retailer_id(TEST_PRODUCT, TEST_VARIANT).startswith("wix:")
+
+
+def test_legacy_wix_ids_still_resolve_so_in_flight_orders_do_not_break():
+    """Items published before the rename carry `wix:` ids, and a WhatsApp order against one echoes
+    that back. Until the live Meta catalogue is fully republished under `wecare:`, inbound parsing
+    MUST still resolve a legacy id to its ProductsTable line - otherwise an in-flight order fails
+    with 'we cannot price this line'. This compatibility is removed once Meta carries no `wix:`
+    item."""
+    assert "wix" in sync.LEGACY_RETAILER_PREFIXES
+    legacy = f"wix:{TEST_PRODUCT}:{TEST_VARIANT}"
+    assert sync.parse_retailer_id(legacy) == (TEST_PRODUCT, TEST_VARIANT)
+    # and the current namespace parses too
+    assert sync.parse_retailer_id(
+        f"wecare:{TEST_PRODUCT}:{TEST_VARIANT}") == (TEST_PRODUCT, TEST_VARIANT)
 
 
 def test_case_is_normalised_so_one_item_cannot_fork_into_two():
