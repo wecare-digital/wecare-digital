@@ -137,6 +137,7 @@ interface MapsRecorder {
   fitBoundsCalls: { bounds: unknown; padding?: number }[];
   setZoomCalls: number[];
   setCenterCalls: { lat: number; lng: number }[];
+  mapCenter: { lat: number; lng: number };
   mapIdleHandler?: () => void;
   mapClickHandler?: ( event: { latLng?: { lat: () => number; lng: () => number } } ) => void;
 }
@@ -190,6 +191,7 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     fitBoundsCalls: [],
     setZoomCalls: [],
     setCenterCalls: [],
+    mapCenter: { lat: 25, lng: 86 },
   };
 
   // An ARRAY-BACKED MVCArray-like double for map.overlayMapTypes. The production component's
@@ -216,18 +218,17 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
 
   class FakeMap {
     overlayMapTypes = overlayMapTypes;
-    private center = { lat: 25, lng: 86 };
     constructor( _el: HTMLElement, opts: Record<string, unknown> ) {
       rec.mapOpts = opts;
       const initial = opts.center as { lat?: number; lng?: number } | undefined;
       if ( Number.isFinite( initial?.lat ) && Number.isFinite( initial?.lng ) ) {
-        this.center = { lat: initial!.lat as number, lng: initial!.lng as number };
+        rec.mapCenter = { lat: initial!.lat as number, lng: initial!.lng as number };
       }
     }
-    getCenter() { return { lat: () => this.center.lat, lng: () => this.center.lng }; }
+    getCenter() { return { lat: () => rec.mapCenter.lat, lng: () => rec.mapCenter.lng }; }
     getZoom() { return 4; }
     setCenter( value: { lat: number; lng: number } ) {
-      this.center = value;
+      rec.mapCenter = value;
       rec.setCenterCalls.push( value );
     }
     setZoom( zoom: number ) { rec.setZoomCalls.push( zoom ); }
@@ -641,8 +642,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( rec.mapOpts?.draggable ).toBe( true );
     expect( rec.mapOpts?.scrollwheel ).toBe( true );
     expect( rec.mapOpts?.keyboardShortcuts ).toBe( true );
-    expect( rec.mapOpts?.disableDoubleClickZoom ).toBe( true );
-    expect( rec.mapOpts?.zoomControl ).toBe( false );
+    expect( rec.mapOpts?.disableDoubleClickZoom ).toBe( false );
+    expect( rec.mapOpts?.zoomControl ).toBe( true );
     expect( rec.mapClickHandler ).toBeUndefined();
 
     expect( container.querySelector( '.vl-live-place-card' ) ).toBeNull();
@@ -696,30 +697,34 @@ describe( 'VayuLokLive v8 approved design contract', () => {
   } );
 
   it( 'treats direct map movement as a new selected place and refreshes default live data', async () => {
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     const map = container.querySelector( '.vl-live-map-canvas' ) as HTMLElement | null;
     expect( map ).not.toBeNull();
 
-    // Simulate a real visitor gesture, then move the fake camera before Google reports idle.
+    // A direct map gesture followed by Google's idle event makes the visible center authoritative.
     fireEvent.pointerDown( map as HTMLElement );
-    const mapInstance = ( window as any ).google.maps;
-    // The FakeMap instance itself is not exported; the production listener reads getCenter(),
-    // so drive the center through the component's first programmatic map object via setCenter.
-    // Search hasn't run, so the last recorded setCenter is empty and we can use the listener
-    // by updating the test map through the map constructor's prototype-bound instance.
-    const lastMap = ( map as any );
-    // jsdom cannot expose the internal Google object through the div, so installGoogleMaps'
-    // FakeMap returns its current center from the constructor default. Change the default by
-    // selecting Mumbai through reverse-geocoder coordinates after an interaction.
-    // The assertion below proves idle commits the center and triggers a fresh Weather request.
+    rec.mapCenter = { lat: 19.076, lng: 72.8777 };
     rec.mapIdleHandler?.();
 
     await waitFor( () => {
-      expect( rec.geocodeCalls.some( call => 'location' in call ) ).toBe( true );
+      expect( rec.geocodeCalls.some( call => {
+        const loc = call.location as { lat?: number; lng?: number } | undefined;
+        return loc?.lat === 19.076 && loc?.lng === 72.8777;
+      } ) ).toBe( true );
     } );
+
     await waitFor( () => {
-      expect( fetchSpy.mock.calls.some( call =>
-        requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/currentConditions' )
-      ) ).toBe( true );
+      expect( fetchSpy.mock.calls.some( call => {
+        const url = String( call[ 0 ] );
+        return url.includes( 'weather.googleapis.com/v1/currentConditions' )
+          && url.includes( 'location.latitude=19.076' )
+          && url.includes( 'location.longitude=72.8777' );
+      } ) ).toBe( true );
     } );
   } );
 
