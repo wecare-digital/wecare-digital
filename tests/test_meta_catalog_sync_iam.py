@@ -57,7 +57,7 @@ def provisioner():
 # ── 1. the document, exactly ─────────────────────────────────────────────────
 
 
-def test_the_policy_is_exactly_the_four_required_statements(provisioner):
+def test_the_policy_is_exactly_the_five_required_statements(provisioner):
     """Native: logs + ONE Meta token secret + the approvals table + the native ProductsTable read.
 
     The Wix exit made the catalog source AWS-native: the function reads the ProductsTable instead
@@ -97,6 +97,20 @@ def test_the_policy_is_exactly_the_four_required_statements(provisioner):
                 ],
             },
             {
+                "Sid": "ReadProductsStream",
+                "Effect": "Allow",
+                "Action": [
+                    "dynamodb:DescribeStream",
+                    "dynamodb:GetRecords",
+                    "dynamodb:GetShardIterator",
+                    "dynamodb:ListStreams",
+                ],
+                "Resource": [
+                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/"
+                    "stack-wecare-digital-ProductsTable/stream/*"
+                ],
+            },
+            {
                 "Sid": "ReadNativeProductCatalog",
                 "Effect": "Allow",
                 "Action": [
@@ -113,12 +127,12 @@ def test_the_policy_is_exactly_the_four_required_statements(provisioner):
     }
 
 
-def test_the_policy_has_no_statement_beyond_the_four_required(provisioner):
+def test_the_policy_has_no_statement_beyond_the_five_required(provisioner):
     statements = provisioner.expected_role_policy(ACCOUNT)["Statement"]
-    assert len(statements) == 4
+    assert len(statements) == 5
     assert [s["Sid"] for s in statements] == [
         "OwnLogs", "ReadMetaToken", "CatalogProposalApprovalRecords",
-        "ReadNativeProductCatalog"]
+        "ReadProductsStream", "ReadNativeProductCatalog"]
     assert all(s["Effect"] == "Allow" for s in statements)
 
 
@@ -137,8 +151,9 @@ def test_no_forbidden_action_appears_anywhere_in_the_policy(provisioner):
         for forbidden in FORBIDDEN_ACTION_PREFIXES:
             assert not action.startswith(forbidden), f"{action} is not least privilege here"
     assert sorted(actions) == [
-        "dynamodb:BatchGetItem",
-        "dynamodb:GetItem", "dynamodb:GetItem",
+        "dynamodb:BatchGetItem", "dynamodb:DescribeStream",
+        "dynamodb:GetItem", "dynamodb:GetItem", "dynamodb:GetRecords",
+        "dynamodb:GetShardIterator", "dynamodb:ListStreams",
         "dynamodb:PutItem", "dynamodb:Query", "dynamodb:Scan",
         "dynamodb:UpdateItem",
         "logs:CreateLogStream", "logs:PutLogEvents", "secretsmanager:GetSecretValue"]
@@ -265,10 +280,12 @@ def test_the_provisioned_environment_matches_the_product_scoped_rollout(provisio
     manifest = json.loads((ROOT / "config/lambda-env-manifest.json").read_text())
     live = manifest["functions"]["wecare-meta-catalog-sync"]
     expected = {
-        "META_CATALOG_SYNC_ENABLED": "false",
-        "META_CATALOG_SYNC_DRY_RUN": "true",
+        "META_CATALOG_SYNC_ENABLED": "true",
+        "META_CATALOG_SYNC_DRY_RUN": "false",
         "META_CATALOG_SYNC_VARIANT_IDS": "",
-        "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
+        "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "false",
+        "META_CATALOG_AUTO_APPLY_SAFE": "true",
+        "META_CATALOG_AUTO_APPLY_MAX_CHANGES": "50",
     }
     for key, value in expected.items():
         assert provisioner.ENVIRONMENT[key] == value
