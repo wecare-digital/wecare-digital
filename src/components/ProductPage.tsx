@@ -81,7 +81,7 @@ interface ProductPageProps {
 // keeping a second copy of it here would be a second place for it to be wrong.
 
 // Catalogue artwork belongs on /shop/ only. Product and request detail pages deliberately
-// render no wd-catalog-live image: their visual identity is the shared rotating hero band.
+// render no catalogue tile: their visual identity is the shared rotating hero band.
 const ProductPage: React.FC<ProductPageProps> = ( {
   product,
   blogCards,
