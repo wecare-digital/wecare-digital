@@ -75,8 +75,10 @@ interface RotatingHeroProps {
    * leave it out.
    */
   badgeLabel?: string;
-  /** Fixed text on the first headline line. The pill takes the second. */
+  /** Fixed text on the first headline line. */
   frame: string;
+  /** Optional fixed prefix rendered on the second line immediately before the rotating pill. */
+  pillPrefix?: string;
   words: CycleWord[];
   /** The single body line under the headline. Optional. */
   sub?: React.ReactNode;
@@ -125,7 +127,7 @@ interface RotatingHeroProps {
   noShare?: boolean;
 }
 
-const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, sub, ariaLabel, children, subordinate = false, insideMain = false, noShare = false } ) => {
+const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, words, sub, ariaLabel, children, subordinate = false, insideMain = false, noShare = false } ) => {
   /**
    * 'final' is the CSS default: shutter gone, dot popped, nothing animating. 'armed' puts
    * the start state back, 'shown' plays it. Starting at 'final' is what makes the entrance
@@ -211,7 +213,10 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, 
 
           <Head className="rh-head">
             <span className="rh-head-line">{ frame }</span>
-            <RotatingPill words={ words } phase={ phase } />
+            <span className="rh-head-line rh-head-rotate">
+              { pillPrefix && <span className="rh-head-prefix">{ pillPrefix } </span> }
+              <RotatingPill words={ words } phase={ phase } />
+            </span>
           </Head>
 
           { sub && <p className="rh-sub">{ sub }</p> }
@@ -289,6 +294,8 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, 
            dot, width glide, word fade and entrance) lives in RotatingPill, which self-scopes
            its own rp-* CSS - styled-jsx here cannot reach a child component's markup. */
         .rh-head-line{display:block}
+        .rh-head-rotate{display:flex;align-items:baseline;gap:.18em;flex-wrap:nowrap}
+        .rh-head-prefix{display:inline-block}
 
         /* The single body rung the contract allows: 20px/400/1.4/-.125px at
            rgba(0,0,0,.898). 560px rather than the headline's 900px, because at 20px a
