@@ -14,6 +14,12 @@ place their names are decided:
     flow logs        FlowLogTable                 Flow interaction     FLOW_LOGS_TABLE
     status history   RequestStatusHistoryTable    status change        STATUS_HISTORY_TABLE
     flow drafts      FlowDraftTable               resumable Flow       DRAFTS_TABLE
+    invoices         InvoicesTable                 financial document   INVOICES_TABLE
+    invoice items    InvoiceItemsTable             invoice line         INVOICE_ITEMS_TABLE
+    invoice assets   InvoiceAssetsTable            private receipt      INVOICE_ASSETS_TABLE
+    invoice sequence InvoiceSequenceTable          statutory sequence   INVOICE_SEQ_TABLE
+    payment attempts PaymentAttemptsTable          payment attempt      PAYMENT_ATTEMPTS_TABLE
+    commerce keys    CommerceKeys                   idempotency/binding  COMMERCE_KEYS_TABLE
 
 The env names are the ones the live Lambdas already carry, so resolving through here changes
 no deployed value. When an env var is absent the name is built from `TABLE_PREFIX` (what
@@ -81,10 +87,19 @@ FLOW_LOGS = SharedTable('flow_logs', 'FLOW_LOGS_TABLE', 'FlowLogTable', 'logId')
 STATUS_HISTORY = SharedTable('status_history', 'STATUS_HISTORY_TABLE',
                              'RequestStatusHistoryTable', 'historyId')
 FLOW_DRAFTS = SharedTable('flow_drafts', 'DRAFTS_TABLE', 'FlowDraftTable', 'draftKey')
+INVOICES = SharedTable('invoices', 'INVOICES_TABLE', 'InvoicesTable', 'invoiceId')
+INVOICE_ITEMS = SharedTable('invoice_items', 'INVOICE_ITEMS_TABLE', 'InvoiceItemsTable', 'itemId')
+INVOICE_ASSETS = SharedTable('invoice_assets', 'INVOICE_ASSETS_TABLE', 'InvoiceAssetsTable', 'assetId')
+INVOICE_SEQUENCE = SharedTable('invoice_sequence', 'INVOICE_SEQ_TABLE', 'InvoiceSequenceTable', 'sequenceId')
+PAYMENT_ATTEMPTS = SharedTable('payment_attempts', 'PAYMENT_ATTEMPTS_TABLE',
+                               'PaymentAttemptsTable', 'paymentAttemptId')
+COMMERCE_KEYS = SharedTable('commerce_keys', 'COMMERCE_KEYS_TABLE', 'CommerceKeys', 'orderId')
 
 #: Every shared store, in the order the module docstring lists them.
 SHARED: Tuple[SharedTable, ...] = (
-    CONTACTS, ORDERS, FLOW_SUBMISSIONS, FLOW_LOGS, STATUS_HISTORY, FLOW_DRAFTS)
+    CONTACTS, ORDERS, FLOW_SUBMISSIONS, FLOW_LOGS, STATUS_HISTORY, FLOW_DRAFTS,
+    INVOICES, INVOICE_ITEMS, INVOICE_ASSETS, INVOICE_SEQUENCE,
+    PAYMENT_ATTEMPTS, COMMERCE_KEYS)
 
 #: Folded table -> the table its rows live in now. A test asserts no runtime module names a
 #: key of this map, so a writer cannot quietly reopen a second store.
@@ -121,3 +136,26 @@ def status_history_table_name() -> str:
 
 def flow_drafts_table_name() -> str:
     return FLOW_DRAFTS.name()
+
+def invoices_table_name() -> str:
+    return INVOICES.name()
+
+
+def invoice_items_table_name() -> str:
+    return INVOICE_ITEMS.name()
+
+
+def invoice_assets_table_name() -> str:
+    return INVOICE_ASSETS.name()
+
+
+def invoice_sequence_table_name() -> str:
+    return INVOICE_SEQUENCE.name()
+
+
+def payment_attempts_table_name() -> str:
+    return PAYMENT_ATTEMPTS.name()
+
+
+def commerce_keys_table_name() -> str:
+    return COMMERCE_KEYS.name()
