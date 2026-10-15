@@ -1,25 +1,15 @@
-"""Provider-neutral cart contract: the vocabulary and pure helpers a cart surface needs,
-with NO Wix (or any provider) API coupling.
+"""Provider-neutral cart contract: the vocabulary and pure helpers a cart surface needs.
 
-WHY THIS MODULE EXISTS. These pieces were originally defined in `cart_v2.py` (the Wix Cart V2
-adapter). Native code — `service_requests`, `customer_cart`, `purchase_intent`, the checkout
-handler's catch arms — reuses them as a shared vocabulary (the `CartContractError` family) and as
-pure utilities (`identifier`, `catalog_item`, `cheapest_delivery_option`, `STORES_APP_ID`), none
-of which make a provider call. Extracting them here lets the native paths depend on the contract
-without importing the Wix adapter, which is the prerequisite for deleting `cart_v2.py`.
+The native cart paths — `service_requests`, `customer_cart`, the checkout handler's catch arms —
+share this vocabulary (the `CartContractError` family) and these pure utilities (`identifier`,
+`catalog_item`, `cheapest_delivery_option`, `delivery_address`). Nothing here performs I/O.
 
-Nothing here performs I/O. `catalog_item` still stamps `STORES_APP_ID` as the `catalogReference`
-appId because that id is the stable Meta retailer-id contract the native catalog preserves — it
-is an identifier, not a Wix endpoint.
+A cart line is identified by its ProductsTable product id and variant id, carried in the
+`catalogReference` shape (`catalogItemId` + `options.variantId`) the website cart sends.
 """
 from uuid import UUID
 
 from .money import Money
-
-#: The Wix Stores app id, preserved as the `catalogReference.appId` because the native catalog
-#: keeps the original product/variant UUIDs (the Meta retailer-id contract). It is an identifier,
-#: not an endpoint — no call is made with it here.
-STORES_APP_ID = "215238eb-22a5-4c36-9e7b-e7c08025e04e"
 
 _COUNTRY_LENGTH = 2
 
@@ -94,7 +84,7 @@ def catalog_item(item):
     if type(quantity) is not int or not 1 <= quantity <= 100000:
         raise ValueError("quantity must be a positive integer")
     return {"catalogReference": {
-        "appId": STORES_APP_ID, "catalogItemId": identifier(item["productId"]),
+        "catalogItemId": identifier(item["productId"]),
         "options": {"variantId": identifier(item["variantId"])}}, "quantity": quantity}
 
 
@@ -144,9 +134,9 @@ def delivery_address(address):
 
 
 def available_delivery_options(summary):
-    """Delivery options a Calculate/Estimate `summary` offers, cheapest first.
+    """Delivery options a price `summary` offers, cheapest first.
 
-    `[{"id", "title", "pricePaise"}]`, or `[]`. `pricePaise` is integer paise via `Money.from_wix`
+    `[{"id", "title", "pricePaise"}]`, or `[]`. `pricePaise` is integer paise via `Money.from_decimal_string`
     (never a float) and `None` when no parseable amount was sent — unknown rather than zero, so a
     missing price cannot silently read as free. An unpriced option sorts LAST. Stable sort, so the
     source order survives a tie.
@@ -157,7 +147,7 @@ def available_delivery_options(summary):
     if not code:
         return []
     try:
-        price = Money.from_wix((delivery.get("price") or {}).get("amount")).paise
+        price = Money.from_decimal_string((delivery.get("price") or {}).get("amount")).paise
     except ValueError:
         price = None
     title = method.get("title")

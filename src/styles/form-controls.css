@@ -453,11 +453,12 @@ input[type="file"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):
    loud rather than subtle: appearance: none WITHOUT a drawn indicator makes every checkbox on
    the site look permanently unchecked.
 
-   TWO OF THOSE 20 RULE SETS WERE OPT-OUTS, not competitors, and ONE OF THE TWO IS GONE.
-   voice-in/index.tsx's .audio-option input[type="radio"] is hidden with display: none and the
-   visible control is the label, so our rule would draw a SECOND control on top of the first. It
-   happens to be inert today - we never declare `display` - but that is an accident, so it is
-   marked [data-ui-raw] at the call site instead, which is what the attribute is for.
+   TWO OF THOSE 20 RULE SETS WERE OPT-OUTS, not competitors, and NEITHER IS IN THE TREE NOW.
+   THE FIRST WAS an .audio-option input[type="radio"] on the old voice page, hidden with
+   display: none behind its label and marked [data-ui-raw] at the call site, because our rule
+   would otherwise draw a SECOND control on top of the first. The page at engage/voice-in is now
+   the Call History table and has no radio at all; the committed census fixture predates that and
+   still lists the file, so regenerate it with the command in the test header when it is next due.
    THE OTHER WAS BlogContribution.tsx's .bc-radio, visually hidden with opacity: 0 behind a
    sibling .bc-choice-face pill. It was retired on 2026-10-10 when owner instruction turned that
    block into a single WhatsApp anchor: the amount pill went, so the radio, its [data-ui-raw]

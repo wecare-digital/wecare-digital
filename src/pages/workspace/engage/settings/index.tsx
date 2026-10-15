@@ -44,7 +44,7 @@ const SettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
         { label: 'SMS', desc: 'Sender IDs and India DLT templates', href: '/workspace/engage/sms' },
         { label: 'RCS', desc: 'Bot config & templates (Sinch)', href: '/workspace/engage/rcs' },
         { label: 'Email', desc: 'SES from-address & campaigns', href: '/workspace/engage/ses' },
-        { label: 'Voice', desc: 'Origination identity, OBD/C2C', href: '/workspace/engage/voice' },
+        { label: 'Voice', desc: 'Plivo PSTN and AWS voice origination', href: '/workspace/engage/voice' },
         { label: 'Push', desc: 'Mobile push apps and device tokens', href: '/workspace/engage/push' },
     ];
 

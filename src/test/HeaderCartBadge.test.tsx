@@ -31,7 +31,7 @@ import type { ShopProduct } from '../content/shop';
  */
 
 const PRODUCT: ShopProduct = {
-  id: 'wix-abc-123',
+  id: 'prod-abc-123',
   name: 'Kiosk',
   slug: 'kiosk',
   formattedPrice: '₹24,999.00',
@@ -42,7 +42,7 @@ const PRODUCT: ShopProduct = {
   body: [ 'You already have the place.' ],
 };
 
-const OTHER: ShopProduct = { ...PRODUCT, id: 'wix-def-456', name: 'Merchandise', slug: 'merchandise' };
+const OTHER: ShopProduct = { ...PRODUCT, id: 'prod-def-456', name: 'Merchandise', slug: 'merchandise' };
 
 // Header reads router.pathname to mark the current row. Mocked the same way Header.test.tsx does it.
 const routerState = vi.hoisted( () => ( { pathname: '/' } ) );

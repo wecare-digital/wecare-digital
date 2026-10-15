@@ -1,22 +1,27 @@
 """Native catalog service boundaries: product identity, verified owner and message claims.
 
 Inbound catalog amounts are deliberately discarded. Native checkout must still obtain a
-Wix-priced snapshot and pass live payment readiness before sending a payable message.
+ProductsTable-priced snapshot and pass live payment readiness before sending a payable message.
 """
 from __future__ import annotations
 import re
 from typing import Any
 from lambda_utils import customer_auth
-from . import service_requests, whatsapp_basket
+from . import meta_catalog_sync, service_requests, whatsapp_basket
 
 SESSION_PREFIX = 'CATALOGSERVICE#'
 ALLOWED = frozenset({'SUBMIT_REQUEST', 'VAULT'})
 
 
 def finalization_complete(attempt: dict) -> bool:
+    """True once the native finalizer committed the order and reconciled its tenders.
+
+    `finalization.finalize` stages INTERNAL_ORDER_CREATED (with the orderId) and then
+    ORDER_FINALIZED on the attempt row; ORDER_FINALIZED is its only terminal success stage.
+    """
     return bool(attempt.get('status') == 'PAYMENT_PAID'
-                and attempt.get('wixOrderId')
-                and attempt.get('finalizationStage') == 'WIX_CART_COMPLETED')
+                and attempt.get('orderId')
+                and attempt.get('finalizationStage') == 'ORDER_FINALIZED')
 
 
 def service_from_lines(lines: list[dict]) -> dict | None:
@@ -73,7 +78,7 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
     if not re.fullmatch(r'[A-Za-z0-9._-]{1,35}', reference_id or '') or not configuration:
         raise ValueError('verified payment configuration and canonical reference required')
     label = 'Submit Request' if row['kind'] == 'SUBMIT_REQUEST' else 'Vault'
-    items = [{'retailer_id': 'wix:' + row['productId'] + ':' + row['variantId'],
+    items = [{'retailer_id': meta_catalog_sync.retailer_id(row['productId'], row['variantId']),
               'name': label, 'quantity': 1,
               'amount': {'value': quote.collection_before_convenience_paise, 'offset': 100}}]
     if quote.convenience_fee_paise:

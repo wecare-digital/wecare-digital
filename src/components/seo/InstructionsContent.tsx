@@ -166,7 +166,7 @@ export default function InstructionsContent () {
   "name": "Partner Up — Activate 4,000+ SKUs",
   "description": "Unlock earnings across 4,000+ SKUs from BNB Club, Expo Week, Legal Champ, No-Fault, Ritual Guru, Swdhya.",
   "url": "https://wecare.digital/shop/referral-partner/",
-  "image": "https://static.wixstatic.com/media/6b2d7a_cffca42eb2e7428fb618600456d257d9~mv2.png",
+  "image": "https://d1kf2rchz7yras.cloudfront.net/o/catalog/products/example.png",
   "brand": { "@type": "Brand", "name": "WECARE.DIGITAL" },
   "offers": {
     "@type": "Offer",

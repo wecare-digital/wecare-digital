@@ -1,16 +1,15 @@
 /**
  * Commerce module home — phase 7.3.
  *
- * Provider-neutral name and headings; the storefront provider is named only inside the
- * connection table, which is the authorised place for it.
+ * Provider-neutral name and headings. The catalogue, orders and payments it gathers are
+ * all native (ProductsTable, the native cart/checkout and the order ledger), and each
+ * already has its own working page.
  *
- * BEHIND A FLAG, AND OFF — for a different reason than Growth
- * ----------------------------------------------------------
- * Growth is off because the data is not reachable. Commerce is off because the storefront
- * **is live and in production**. The master prompt is explicit that the existing Wix site
- * must be preserved, so a new surface over a production store opens deliberately rather
- * than by being deployed. With the flag off this page links to the working catalog and
- * order pages instead of shadowing them.
+ * BEHIND A FLAG, AND OFF
+ * ----------------------
+ * Every capability this home gathers already works at its own page, so a second entry
+ * point opens deliberately rather than by being deployed. With the flag off this page
+ * links to the working catalog and order pages instead of shadowing them.
  *
  * NO APPLY, AND NO PAYMENT MUTATION
  * ---------------------------------
@@ -24,19 +23,14 @@ import Link from 'next/link';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import PageShell, { ShellTab } from '../../../components/PageShell';
-import IntegrationAccessTable from '../../../components/IntegrationAccessTable';
 import { featureFlags } from '../../../config/featureFlags';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const TABS: ShellTab[] = [
-  { id: 'connections', label: 'Connections' },
   { id: 'catalog', label: 'Catalog & orders' },
   { id: 'payments', label: 'Payments' },
 ];
-
-/** The storefront provider. Growth owns the other seven. */
-const COMMERCE_PROVIDERS = [ 'wix' ];
 
 /** The live pages this module gathers rather than replaces. */
 const EXISTING = [
@@ -55,10 +49,9 @@ const Disabled: React.FC = () => (
       The Commerce module is switched off
     </div>
     <p style={ { fontSize: 13, color: '#92400e', lineHeight: 1.6, margin: '0 0 10px' } }>
-      Not because it is unfinished, but because the storefront is live. A new surface over
-      a production store should be opened on purpose, and every capability it would gather
-      already works at its own page — so turning this on before then would add a second
-      way to do the same things rather than a better one.
+      Not because it is unfinished, but because every capability it would gather already
+      works at its own page. Turning this on adds a second way to do the same things rather
+      than a better one, so it should be opened on purpose.
     </p>
     <p style={ { fontSize: 13, color: '#92400e', lineHeight: 1.6, margin: 0 } }>
       Set
@@ -77,22 +70,11 @@ const CommerceBody: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
       title="Commerce"
       subtitle="Catalog, orders and payment state"
       tabs={ TABS }
-      defaultTab="connections"
+      defaultTab="catalog"
     >
       { ( activeTab ) => (
         <div style={ { display: 'flex', flexDirection: 'column', gap: 20 } }>
           { !featureFlags.commerceModule && <Disabled /> }
-
-          { activeTab === 'connections' && (
-            <IntegrationAccessTable
-              only={ COMMERCE_PROVIDERS }
-              caption={
-                'The storefront connection. It reads SCOPE_UNVERIFIED because no '
-                + 'authorised read has been recorded, not because the store is down — '
-                + 'the live site is serving.'
-              }
-            />
-          ) }
 
           { activeTab === 'catalog' && (
             <div style={ { maxWidth: 760 } }>

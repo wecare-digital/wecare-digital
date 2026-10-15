@@ -10,7 +10,7 @@ import styles from '../../../styles/MCPConnections.module.css';
 
 const names: Record<string, string> = {
   'meta-social': 'Meta Social', whatsapp: 'WhatsApp Business Tools', aws: 'AWS', github: 'GitHub',
-  wix: 'Wix', razorpay: 'Razorpay', 'google-cloud': 'Google Cloud', 'google-ads': 'Google Ads',
+  razorpay: 'Razorpay', 'google-cloud': 'Google Cloud', 'google-ads': 'Google Ads',
   'meta-ads': 'Meta Ads', plivo: 'Plivo', sinch: 'Sinch',
 };
 const descriptions: Record<string, string> = {

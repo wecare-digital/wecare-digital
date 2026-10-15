@@ -18,7 +18,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
  *      form. Asserted as a PROPERTY against all three business numbers, not as today's
  *      string, so a future edit cannot repoint it.
  *   2. IT CARRIES A REFERENCE THAT MATCHES NO ORDER. Order numbers have three live shapes and
- *      one of them — the legacy spaced Wix form `WD-ORD - A1B2C3D4 - …` — cannot survive in a
+ *      one of them — the legacy spaced form `WD-ORD - A1B2C3D4 - …` — cannot survive in a
  *      URL keyword. `reviewWaLink` drops it rather than stripping it to something that looks
  *      like a reference and resolves to nothing.
  *
@@ -154,7 +154,7 @@ describe( 'reviewWaLink builds the wa.me URL', () => {
 
   it( 'DROPS a reference it cannot vouch for rather than mangling it', () => {
     /*
-     * The decision this test exists for. Stripping the legacy spaced Wix number to
+     * The decision this test exists for. Stripping the legacy spaced order number to
      * `[A-Z0-9-]` would mint `WD-ORD-A1B2C3D4-20260101` — a string matching NO order in the
      * table. Attribution would then look successful and point at nothing, which is worse for
      * the staff member reading the queue than an honest absence.

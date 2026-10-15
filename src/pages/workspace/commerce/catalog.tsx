@@ -5,7 +5,7 @@
  * ProductsTable, and the scheduled OIDC catalog publisher commits a new snapshot
  * to trigger an Amplify rebuild. Payment quotes always read live ProductsTable.
  *
- * No Wix runtime API and no Meta catalog as price authority.
+ * ProductsTable is the only price authority; the Meta catalog is never one.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -502,8 +502,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
         {tab === 'orders' && (
           <section style={boxStyle}>
             <h2 style={{ fontSize: 18 }}>AWS order history</h2>
-            <p style={muted}>Orders are read from the existing native order service.
-              Previous Wix identifiers are retained only where needed to reconcile history.</p>
+            <p style={muted}>Orders are read from the existing native order service.</p>
             {orders.length ? (
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead><tr>

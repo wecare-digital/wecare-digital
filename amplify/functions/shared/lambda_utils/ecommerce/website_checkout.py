@@ -18,8 +18,8 @@ What `prepare_checkout` guarantees before it ever calls Razorpay
 1. Session/profile/cart/quote ownership. The caller passes a proven `customer_id`; the snapshot's
    `customer_id` must equal it, and the client-presented snapshot hash must `matches()` the
    immutable FEAT-001 snapshot. An expired snapshot is refused.
-2. The amount is the FEAT-001 CALCULATOR total (`quote.as_payable_money()`), not the raw Wix
-   total — a zero-total quote is not payable and never reaches the gateway.
+2. The amount is the FEAT-001 CALCULATOR total (`quote.as_payable_money()`), not the raw supply
+   collection — a zero-total quote is not payable and never reaches the gateway.
 3. INR only, and the account mode is derived from the live key id and persisted on the binding.
 4. A customer-scoped request key is reserved BEFORE the external call. Same key + same intent
    resumes onto the one order already created (concurrent clicks coordinate); same key + CHANGED
@@ -65,6 +65,9 @@ from lambda_utils.ecommerce.checkout_pricing import (
 logger = logging.getLogger(__name__)
 
 #: Checkout mode marker, distinguishing the website path from the retained in-WhatsApp one.
+#: `finalization.ACCEPTED_CHECKOUT_MODES` repeats it as a literal, because that module holds no
+#: import of this one; a test pins the two equal, since a divergence would leave every website
+#: attempt unfinalizable.
 CHECKOUT_MODE_WEBSITE = "WEBSITE_RAZORPAY_STANDARD"
 
 # ── one live payment per basket ────────────────────────────────────────────────
@@ -73,11 +76,10 @@ CHECKOUT_MODE_WEBSITE = "WEBSITE_RAZORPAY_STANDARD"
 #:
 #: Strictly greater than every quote TTL that can serve this path, so a second create always
 #: needs a fresh quote before the block lifts:
-#:   purchase_intent.QUOTE_TTL_SECONDS             = 300   (Cart V2, the live serving path)
-#:   checkout handler WEBSITE_SNAPSHOT_TTL_SECONDS = 900   (the V1 fallback)
+#:   checkout handler WEBSITE_SNAPSHOT_TTL_SECONDS = 900   (the native ProductsTable quote)
 #:   CREATE_CLAIM_STALE_SECONDS                    = 120
-#: 900 was wrong: it EQUALS the V1 TTL, so on V1 the quote and the block would expire together
-#: and the property this constant exists for would not hold. A test pins the inequality.
+#: A block EQUAL to the quote TTL would let the quote and the block expire together, and the
+#: property this constant exists for would not hold. A test pins the inequality.
 CART_PAYMENT_IN_FLIGHT_SECONDS = 1200
 
 #: How long a create claim is honoured before a later click may take it over. The provider
@@ -89,20 +91,10 @@ CART_PAYMENT_IN_FLIGHT_SECONDS = 1200
 #: not inherit `CART_PAYMENT_IN_FLIGHT_SECONDS`.
 CREATE_CLAIM_STALE_SECONDS = 120
 
-#: The budget the TWO stored blobs SHARE, because they are two attributes on ONE 400 KB DynamoDB
-#: item. Split JOINTLY, never per-blob: a per-blob ceiling of this size permits twice this size
-#: on the row, which is how a guard written to bound an item limit comes to exceed it.
+#: The size budget of the reviewed snapshot stored on the attempt row. The attempt is ONE
+#: DynamoDB item with a 400 KB ceiling, so the snapshot blob is bounded well below it and the
+#: rest of the row keeps its room. See `_bounded_snapshot`.
 _ATTEMPT_BLOB_BUDGET_BYTES = 180_000
-
-#: The floor the Wix payload keeps whatever the snapshot used, so `priceSummary` and
-#: `additionalFees` — which are never trimmed at any size — stay representable.
-_WIX_PAYLOAD_FLOOR_BYTES = 20_000
-
-#: Stable reduced-payload marker retained as a literal for backward-compatible records.
-#: `finalization.ACCEPTED_CHECKOUT_MODES` mirrors `CHECKOUT_MODE_WEBSITE` as one: this module
-#: holds no import of its sibling writeback adapter. A divergence between the two would silently
-#: DISABLE `accept_paid`'s reduced-payload refusal, so a test pins them equal.
-_WIX_PAYLOAD_REDUCED_FLAG = "lineItemsReduced"
 
 # ── outcome states (the documented website contract, replacing PAYMENT_REQUEST_SENT) ──
 #: Initiation gate is off: everything up to the external call ran, but no gateway order was
@@ -143,14 +135,10 @@ CREATE_IN_FLIGHT = "CREATE_IN_FLIGHT"
 PAYABLE_MODAL_UNRESOLVED = "PAYABLE_MODAL_UNRESOLVED"
 
 #: Raised as `CheckoutRejected`, not returned as a reason: a pre-create refusal with nothing
-#: created and nothing written. The V1 snapshot branch mints a NEW Wix checkout id per prepare,
-#: so the cart-keyed guard cannot resolve a pointer on it and the one-live-payment invariant does
-#: not exist there.
-CART_V2_REQUIRED = "CART_V2_REQUIRED"
-#: Also raised as `CheckoutRejected`. The snapshot carries no frozen payload, so no basket
-#: identity can be computed and the one-live-payment guard CANNOT RUN. Distinct from
-#: AMOUNT_NOT_SETTLED, which means the quote will not settle — a guard that could not run is a
-#: different fact and must not be reported as a pricing failure.
+#: created and nothing written. The snapshot carries no frozen payload, so no basket identity can
+#: be computed and the one-live-payment guard CANNOT RUN. Distinct from AMOUNT_NOT_SETTLED, which
+#: means the quote will not settle — a guard that could not run is a different fact and must not
+#: be reported as a pricing failure.
 BASKET_IDENTITY_REQUIRED = "BASKET_IDENTITY_REQUIRED"
 #: Also raised as `CheckoutRejected`. The request key was reserved by an earlier click that has
 #: no reference on its row, so the create provably never started. The one refusal on the resume
@@ -220,9 +208,9 @@ def _browser_options(*, key_id: str, gateway_order_id: str, amount_paise: int,
                      payment_attempt_id: str) -> Dict[str, Any]:
     """Exactly the fields the browser is allowed to receive. Nothing else.
 
-    No secret, no raw Wix total, no customer id, no full binding. The prefill is restricted to the
-    name/email/contact Razorpay's checkout documents, and only values the caller passed through
-    from the proven session/profile.
+    No secret, no raw collection total, no customer id, no full binding. The prefill is
+    restricted to the name/email/contact Razorpay's checkout documents, and only values the
+    caller passed through from the proven session/profile.
     """
     allowed_prefill = {}
     for field in ("name", "email", "contact"):
@@ -354,27 +342,6 @@ def _bounded_snapshot(payload: Mapping[str, Any], ceiling: int) -> Dict[str, Any
     }
 
 
-def _bounded_wix_order_payload(payload: Mapping[str, Any], ceiling: int) -> Dict[str, Any]:
-    """The Wix order payload as stored on the attempt, reduced only when it is too large.
-
-    What differs from `_bounded_snapshot` is WHAT may be trimmed: A MONEY FIELD IS NEVER THE
-    THING THAT GETS TRIMMED. `priceSummary` and `additionalFees` are untouched at any size; only
-    the line-item detail is reduced, and the reduction is FLAGGED — `finalization.accept_paid`
-    refuses to send a flagged payload, because a payload with no catalog references would create
-    a Wix order naming no products.
-    """
-    stored = dict(payload)
-    if len(json.dumps(stored, default=str)) <= ceiling:
-        return stored
-    items = stored.get("lineItems")
-    stored["lineItems"] = [
-        {"productName": item.get("productName"), "quantity": item.get("quantity")}
-        for item in items if isinstance(item, Mapping)] if isinstance(items, list) else []
-    stored[_WIX_PAYLOAD_REDUCED_FLAG] = True
-    logger.info('{"event":"website_checkout_wix_payload_reduced"}')
-    return stored
-
-
 # ── the cart guard: one live payment per basket ────────────────────────────────
 
 def _stored_attempt(attempts_table, attempt_id):
@@ -457,8 +424,8 @@ def _paid_basket_refusal(row, attempts_table, customer_id, now,
     if payment_attempt.may_create_order(prior):
         # PAID, and this is the same basket by KEY EQUALITY rather than by comparison. No window:
         # re-presenting a basket that was captured is refused for as long as the row and the paid
-        # attempt exist, whatever the request key says and whatever Wix's revision counter has
-        # done since. NO request-key exemption, deliberately — see the docstring.
+        # attempt exist, whatever the request key says and however the cart revision has moved
+        # since. NO request-key exemption, deliberately — see the docstring.
         return CART_ALREADY_PAID, attempt_id
     if same_request:
         # A resume of an UNPAID attempt on the key that created it. Below the paid arm, never
@@ -489,7 +456,8 @@ def _live_cart_payment(*, keys_table, attempts_table, customer_id, cart_id,
         identity. Asked first.
       * `CARTNARROW#<sub>#<cart>#<narrowHash>` — the SAME question keyed on the identity we can
         PROVE is stable. Asked beside it, and it is what answers when `basket_hash` moved on a
-        field Wix controls. Either row resolving to a paid attempt is enough.
+        term the narrow identity does not enumerate. Either row resolving to a paid attempt is
+        enough.
       * `CARTPAYMENT#<sub>#<cart>` — "which attempt is LIVE on this cart?" One per cart,
         last-writer-wins, which is correct for that question and fatal for the paid one.
 
@@ -506,11 +474,11 @@ def _live_cart_payment(*, keys_table, attempts_table, customer_id, cart_id,
     #    identities. Without these rows, paying B1 then opening and abandoning a different basket
     #    B2 on the same 30-day cart makes B1 payable again — with NO window at all if B2 ended in
     #    a retryable state, because the single-slot cart row no longer names A1. Without the
-    #    SECOND row the same thing happens one level down: if any non-enumerated field of Wix's
-    #    lineItems / deliveryAddress / deliveryMethod moved between the two calculates,
-    #    `basket_hash` differs, the key composes differently, the lookup misses BY KEY, and the
-    #    pointer's narrow veto is unreachable because it only runs when the pointer names a paid
-    #    attempt.
+    #    SECOND row the same thing happens one level down: if any term `narrow_basket_hash` does
+    #    not enumerate (the address, the delivery choice, a non-enumerated line field) moved
+    #    between the two quotes, `basket_hash` differs, the key composes differently, the lookup
+    #    misses BY KEY, and the pointer's narrow veto is unreachable because it only runs when the
+    #    pointer names a paid attempt.
     #
     #    Written as four statements rather than two conditional expressions on purpose:
     #    `a() or {} if cond else {}` parses as `(a() or {}) if cond else {}`, which is what is
@@ -617,12 +585,10 @@ def _live_cart_payment(*, keys_table, attempts_table, customer_id, cart_id,
     # onto the SAME gateway order at step 3 and mints nothing. A FRESH key is the dangerous
     # shape. BELOW the paid arm, never above it — see the comment there.
     #
-    # `intent_fingerprint` carries `cart_revision` AND `snapshot_hash`, so if the prepare's own
-    # write really does bump Wix's revision then a same-key second prepare raises INTENT_CHANGED
-    # at step 3 and this arm is unreachable on V2 with the gate on. It then serves the gate-off
-    # path, the V1 path, and the world where Wix does not bump. It is kept either way: it costs
-    # one string comparison, and in the world where the resume IS reachable removing it would
-    # turn a legitimate reload into a CART_PAYMENT_IN_FLIGHT refusal. Whichever world holds, the
+    # `intent_fingerprint` carries `cart_revision` AND `snapshot_hash`, so a same-key second
+    # prepare whose quote moved raises INTENT_CHANGED at step 3 and never reaches this arm. An
+    # unchanged basket does reach it — the native quote is deterministic per basket — and
+    # refusing here would turn a legitimate reload into a CART_PAYMENT_IN_FLIGHT refusal. The
     # resume it allows cannot reach the browser without the three cart rows, because
     # `_emit_payable_modal` writes them.
     if request_key and str(pointer.get("requestKey") or "") == request_key:
@@ -800,9 +766,8 @@ def prepare_checkout(*,
                      reserve_attempt: Optional[Callable[[Dict[str, Any]], None]] = None,
                      attempts_table: Any = None,
                      reference_id: str = "",
-                     allocate_reference: Optional[Callable[[str, int, int], str]] = None,
+                     allocate_reference: Optional[Callable[[str, int], str]] = None,
                      purchased_snapshot: Optional[Mapping[str, Any]] = None,
-                     wix_order_payload: Optional[Mapping[str, Any]] = None,
                      ) -> PreparedCheckout:
     """Run every pre-create guard, then (only if enabled) create and bind the gateway order.
 
@@ -811,11 +776,11 @@ def prepare_checkout(*,
     attempt store is `keys_table` plus an optional `reserve_attempt` sink for the PaymentAttempt
     record (the handler supplies the conditional put; tests may omit it).
 
-    Every one of the five new parameters is defaulted, so the existing call sites and tests keep
-    their current behaviour byte for byte: with `attempts_table=None` the guard consults the rows
-    only, with `allocate_reference=None` and `reference_id=""` no reference is minted and
-    `_receipt_for` falls back to the `wk_<requestKey>` form, and with both payload arguments
-    `None` the attempt is written exactly as it was before the graft.
+    The optional parameters are defaulted: with `attempts_table=None` the guard consults the rows
+    only; with `allocate_reference=None` and `reference_id=""` no reference is minted and
+    `_receipt_for` falls back to the `wk_<requestKey>` form; with `purchased_snapshot=None` the
+    attempt stores the snapshot's own frozen payload. `allocate_reference(attempt_id, leg_paise)`
+    mints and durably reserves the `PAYREF#` row for the Razorpay leg.
     """
     prefill = prefill or {}
 
@@ -837,23 +802,10 @@ def prepare_checkout(*,
         raise CheckoutRejected("NOT_PAYABLE")
     payable = quote.as_payable_money()
     full_amount_paise = payable.paise
-
-    # Wix-native gift cards are tender, not a discount: the quote remains the full order total.
-    # Cart V2 freezes the authoritative redemption into the snapshot, and only that verified leg
-    # is subtracted from what Razorpay is asked to collect. The convenience fee/GST therefore
-    # remains outside the gift-card-funded Wix collection.
-    payment_data = snapshot.frozen_data.get("payment") if isinstance(snapshot.frozen_data, Mapping) else None
-    payment_data = payment_data if isinstance(payment_data, Mapping) else {}
-    gift_card = payment_data.get("wixGiftCard")
-    gift_card = gift_card if isinstance(gift_card, Mapping) else None
-    gift_card_redeem_paise = int(payment_data.get("wixGiftCardRedeemPaise") or 0)
-    if gift_card_redeem_paise < 0 or gift_card_redeem_paise > quote.collection_before_convenience_paise:
-        raise CheckoutRejected("GIFT_CARD_MISMATCH")
-    pay_now_paise = full_amount_paise - gift_card_redeem_paise
-    if pay_now_paise <= 0:
-        # Wix gift cards fund the Wix collection; WECARE's fee/GST still requires the external
-        # website gateway on every positive cart. A zero external leg would be a different flow.
-        raise CheckoutRejected("NOT_PAYABLE")
+    # The Razorpay leg IS the payable: the website path takes no second tender, so the gateway is
+    # asked for exactly the calculator total. It keeps its own name because the reservation, the
+    # binding and the attempt record the gateway leg (`razorpayChargedPaise`) beside the payable.
+    pay_now_paise = full_amount_paise
 
     # 2a. ONE LIVE PAYMENT PER BASKET. Keyed on the CART, not on the request key, because a fresh
     #     request key is exactly what a second tab or a cleared sessionStorage mints and the
@@ -928,8 +880,7 @@ def prepare_checkout(*,
             snapshot=snapshot, prefill=prefill, create_order=create_order,
             find_order_by_receipt=find_order_by_receipt, account_mode_of=account_mode_of,
             reserve_attempt=reserve_attempt, configuration_name=configuration_name,
-            gift_card=gift_card, gift_card_redeem_paise=gift_card_redeem_paise,
-            purchased_snapshot=purchased_snapshot, wix_order_payload=wix_order_payload)
+            purchased_snapshot=purchased_snapshot)
 
     # 4b. ONE LIVE CREATE PER BASKET. The arms at 2a are reads and the rows they read are written
     #     after `create_order` returns, so two prepares overlapping in time with DIFFERENT request
@@ -940,7 +891,8 @@ def prepare_checkout(*,
     #
     #     ONE slot is claimed, not both, and the narrow one is preferred: two prepares of the same
     #     basket are equal on the narrow identity BY CONSTRUCTION, whereas they can differ on the
-    #     fine identity if Wix moved a field — exactly the case the claim must still exclude.
+    #     fine identity if a non-enumerated term moved — exactly the case the claim must still
+    #     exclude.
     #     Claiming both would need a TransactWriteItems to be atomic and buys nothing: the two
     #     keys are derived from one basket, so winning either is winning the basket.
     if snapshot.cart_id and (presented_narrow or presented_basket):
@@ -989,8 +941,7 @@ def prepare_checkout(*,
     #    the loser correlates on the winner's stored reference below.
     #    `test_a_lost_create_right_correlates_on_the_stored_reference` pins both halves.
     if not reference_id and allocate_reference is not None:
-        reference_id = str(allocate_reference(attempt_id, pay_now_paise,
-                                              gift_card_redeem_paise) or "")
+        reference_id = str(allocate_reference(attempt_id, pay_now_paise) or "")
     if reference_id:
         reference_id, may_create = _reference_and_create_right(
             keys_table, customer_id=customer_id, request_key=request_key, now=now,
@@ -1005,11 +956,9 @@ def prepare_checkout(*,
                 request_key=request_key, pay_now_paise=pay_now_paise,
                 full_amount_paise=full_amount_paise, currency="INR",
                 account_mode_of=account_mode_of, prefill=prefill, error=None,
-                reserve_attempt=reserve_attempt, snapshot=snapshot, gift_card=gift_card,
-                gift_card_redeem_paise=gift_card_redeem_paise, customer_id=customer_id,
+                reserve_attempt=reserve_attempt, snapshot=snapshot, customer_id=customer_id,
                 configuration_name=configuration_name, reference_id=reference_id,
-                purchased_snapshot=purchased_snapshot, wix_order_payload=wix_order_payload,
-                miss_reason=CREATE_IN_FLIGHT)
+                purchased_snapshot=purchased_snapshot, miss_reason=CREATE_IN_FLIGHT)
 
     # 6. Create the gateway order. The receipt is the reference when there is one, so ambiguity
     #    recovery correlates on the same value the webhook reconciles on.
@@ -1031,10 +980,9 @@ def prepare_checkout(*,
             pay_now_paise=pay_now_paise, full_amount_paise=full_amount_paise,
             currency="INR", account_mode_of=account_mode_of,
             prefill=prefill, error=error, reserve_attempt=reserve_attempt,
-            snapshot=snapshot, gift_card=gift_card,
-            gift_card_redeem_paise=gift_card_redeem_paise, customer_id=customer_id,
+            snapshot=snapshot, customer_id=customer_id,
             configuration_name=configuration_name, reference_id=reference_id,
-            purchased_snapshot=purchased_snapshot, wix_order_payload=wix_order_payload,
+            purchased_snapshot=purchased_snapshot,
         )
 
     return _bind_and_ready(
@@ -1042,18 +990,16 @@ def prepare_checkout(*,
         pay_now_paise=pay_now_paise, full_amount_paise=full_amount_paise,
         currency="INR", account_mode_of=account_mode_of,
         prefill=prefill, reserve_attempt=reserve_attempt, customer_id=customer_id,
-        configuration_name=configuration_name, snapshot=snapshot, gift_card=gift_card,
-        gift_card_redeem_paise=gift_card_redeem_paise, reference_id=reference_id,
-        purchased_snapshot=purchased_snapshot, wix_order_payload=wix_order_payload,
+        configuration_name=configuration_name, snapshot=snapshot, reference_id=reference_id,
+        purchased_snapshot=purchased_snapshot,
     )
 
 
 def _resume_lost_request_key(*, reservation, keys_table, customer_id, request_key, now,
                              attempt_id, pay_now_paise, full_amount_paise, snapshot, prefill,
                              create_order, find_order_by_receipt, account_mode_of,
-                             reserve_attempt, configuration_name, gift_card,
-                             gift_card_redeem_paise, purchased_snapshot,
-                             wix_order_payload) -> PreparedCheckout:
+                             reserve_attempt, configuration_name,
+                             purchased_snapshot) -> PreparedCheckout:
     """A later click on a request key somebody else reserved, with the SAME intent.
 
     It never calls `allocate_reference`. Three branches, in order:
@@ -1100,9 +1046,8 @@ def _resume_lost_request_key(*, reservation, keys_table, customer_id, request_ke
             full_amount_paise=full_amount_paise, currency="INR",
             account_mode_of=account_mode_of, prefill=prefill,
             reserve_attempt=reserve_attempt, customer_id=customer_id,
-            configuration_name=configuration_name, snapshot=snapshot, gift_card=gift_card,
-            gift_card_redeem_paise=gift_card_redeem_paise, reference_id=stored_reference,
-            purchased_snapshot=purchased_snapshot, wix_order_payload=wix_order_payload)
+            configuration_name=configuration_name, snapshot=snapshot,
+            reference_id=stored_reference, purchased_snapshot=purchased_snapshot)
     if not retook:
         # Somebody holds the create right right now. A create may be in flight, so this carries
         # no claim in either direction, and no attempt id: the payable attempt is the winner's.
@@ -1122,19 +1067,16 @@ def _resume_lost_request_key(*, reservation, keys_table, customer_id, request_ke
             receipt=receipt, attempt_id=attempt_id, request_key=request_key,
             pay_now_paise=pay_now_paise, full_amount_paise=full_amount_paise,
             currency="INR", account_mode_of=account_mode_of, prefill=prefill, error=error,
-            reserve_attempt=reserve_attempt, snapshot=snapshot, gift_card=gift_card,
-            gift_card_redeem_paise=gift_card_redeem_paise, customer_id=customer_id,
+            reserve_attempt=reserve_attempt, snapshot=snapshot, customer_id=customer_id,
             configuration_name=configuration_name, reference_id=stored_reference,
-            purchased_snapshot=purchased_snapshot, wix_order_payload=wix_order_payload)
+            purchased_snapshot=purchased_snapshot)
 
     return _bind_and_ready(
         keys_table=keys_table, order=order, attempt_id=attempt_id, request_key=request_key,
         pay_now_paise=pay_now_paise, full_amount_paise=full_amount_paise, currency="INR",
         account_mode_of=account_mode_of, prefill=prefill, reserve_attempt=reserve_attempt,
         customer_id=customer_id, configuration_name=configuration_name, snapshot=snapshot,
-        gift_card=gift_card, gift_card_redeem_paise=gift_card_redeem_paise,
-        reference_id=stored_reference, purchased_snapshot=purchased_snapshot,
-        wix_order_payload=wix_order_payload)
+        reference_id=stored_reference, purchased_snapshot=purchased_snapshot)
 
 
 def _landed_order(find_order_by_receipt, receipt) -> Optional[Dict[str, Any]]:
@@ -1150,9 +1092,8 @@ def _landed_order(find_order_by_receipt, receipt) -> Optional[Dict[str, Any]]:
 
 def _bind_and_ready(*, keys_table, order, attempt_id, request_key, pay_now_paise,
                     full_amount_paise, currency, account_mode_of, prefill, reserve_attempt,
-                    customer_id, configuration_name, snapshot, gift_card,
-                    gift_card_redeem_paise, reference_id="", purchased_snapshot=None,
-                    wix_order_payload=None) -> PreparedCheckout:
+                    customer_id, configuration_name, snapshot, reference_id="",
+                    purchased_snapshot=None) -> PreparedCheckout:
     gateway_order_id = str(order.get("id") or "")
     key_id = str(order.get("key_id") or "")
     if not gateway_order_id or not key_id:
@@ -1214,27 +1155,14 @@ def _bind_and_ready(*, keys_table, order, attempt_id, request_key, pay_now_paise
         attempt["providerOrderId"] = gateway_order_id
         attempt["razorpayChargedPaise"] = pay_now_paise
         attempt["snapshotHash"] = snapshot.snapshot_hash
-        attempt["wixGiftCardRedeemPaise"] = int(gift_card_redeem_paise)
-        if gift_card:
-            attempt["giftCard"] = dict(gift_card)
-        # The two stored blobs SHARE one budget, because they are two attributes on ONE 400 KB
-        # DynamoDB item. Split JOINTLY: a per-blob ceiling of the same size permits twice it on
-        # the row, which is how a guard written to bound an item limit comes to exceed it.
+        # The reviewed snapshot is the order's line detail, so it is stored on the attempt that
+        # `finalization.accept_paid` turns into the order record, bounded so the ONE 400 KB item
+        # always fits.
         stored_snapshot = purchased_snapshot
         if stored_snapshot is None:
             stored_snapshot = snapshot.frozen_data
         attempt["purchasedSnapshot"] = _bounded_snapshot(
             stored_snapshot, _ATTEMPT_BLOB_BUDGET_BYTES)
-        if wix_order_payload is not None:
-            # WHATEVER THE SNAPSHOT DID NOT USE. The snapshot is measured first, deliberately:
-            # `accept_paid` REFUSES a reduced payload and TOLERATES a reduced snapshot, so the
-            # blob that must stay whole is the one measured against the remainder. The floor keeps
-            # `priceSummary` and `additionalFees` — never trimmed at any size — representable even
-            # for an absurd snapshot.
-            remaining = _ATTEMPT_BLOB_BUDGET_BYTES - len(
-                json.dumps(attempt.get("purchasedSnapshot") or {}, default=str))
-            attempt["wixOrderPayload"] = _bounded_wix_order_payload(
-                wix_order_payload, max(remaining, _WIX_PAYLOAD_FLOOR_BYTES))
         # `transition` is rank-based (CREATED 10 -> PAYMENT_PENDING 40 is forwards-only) and
         # pure, so the conditional put persists PAYMENT_PENDING as the row's initial state rather
         # than needing a second write for it.
@@ -1273,9 +1201,8 @@ def _link_request_key_to_order(keys_table, customer_id, request_key, gateway_ord
 def _recover_ambiguous_create(*, keys_table, find_order_by_receipt, receipt, attempt_id,
                               request_key, pay_now_paise, full_amount_paise, currency,
                               account_mode_of, prefill, error, reserve_attempt, snapshot,
-                              gift_card, gift_card_redeem_paise, customer_id="",
-                              configuration_name=CHECKOUT_MODE_WEBSITE, reference_id="",
-                              purchased_snapshot=None, wix_order_payload=None,
+                              customer_id="", configuration_name=CHECKOUT_MODE_WEBSITE,
+                              reference_id="", purchased_snapshot=None,
                               miss_reason="CREATE_UNCONFIRMED") -> PreparedCheckout:
     """A create raised, or the create right was held. Correlate by receipt; NEVER create a second.
 
@@ -1305,9 +1232,7 @@ def _recover_ambiguous_create(*, keys_table, find_order_by_receipt, receipt, att
             prefill=prefill, reserve_attempt=reserve_attempt,
             customer_id=customer_id or str(landed.get("notes", {}).get("customerId") or ""),
             configuration_name=configuration_name, snapshot=snapshot,
-            gift_card=gift_card, gift_card_redeem_paise=gift_card_redeem_paise,
             reference_id=reference_id, purchased_snapshot=purchased_snapshot,
-            wix_order_payload=wix_order_payload,
         )
     # Could not confirm a landed order. Report ambiguous-pending for reconciliation.
     return PreparedCheckout(status=CHECKOUT_AMBIGUOUS, payment_attempt_id=attempt_id,
@@ -1422,7 +1347,6 @@ __all__ = [
     "BINDING_OWNED_ELSEWHERE",
     "CREATE_IN_FLIGHT",
     "PAYABLE_MODAL_UNRESOLVED",
-    "CART_V2_REQUIRED",
     "BASKET_IDENTITY_REQUIRED",
     "CREATE_NOT_STARTED",
     "CheckoutRejected",

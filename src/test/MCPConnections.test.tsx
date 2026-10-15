@@ -36,7 +36,7 @@ it('shows renewal checks and provider failures without claiming the grant was lo
   expect(await within(google).findByRole('alert')).toHaveTextContent('Provider access was revoked.');
 });
 const connections = [{ provider: 'aws', kind: 'sdk', status: 'sdk' }, { provider: 'github', kind: 'sdk', status: 'sdk' },
-  { provider: 'whatsapp', kind: 'remote-mcp', status: 'consent_required' }, { provider: 'wix', kind: 'pending-adapter', status: 'pending-adapter' }];
+  { provider: 'whatsapp', kind: 'remote-mcp', status: 'consent_required' }, { provider: 'razorpay', kind: 'pending-adapter', status: 'pending-adapter' }];
 beforeEach(() => {
   vi.clearAllMocks();
   role.mockReturnValue({ role: 'Admin', groups: ['Admin'], isAdmin: true, isPartner: false, wabaId: null, loading: false });
@@ -51,7 +51,7 @@ it('does not load or offer management to Operators', async () => {
 it('checks multiple selected providers without offering Connect for pending adapters', async () => {
   render(<Page />);
   await screen.findByLabelText('Select AWS');
-  expect(within(screen.getByRole('region', { name: 'Wix' })).queryByRole('button')).toBeNull();
+  expect(within(screen.getByRole('region', { name: 'Razorpay' })).queryByRole('button')).toBeNull();
   fireEvent.click(screen.getByLabelText('Select AWS'));
   fireEvent.click(screen.getByLabelText('Select GitHub'));
   fireEvent.click(screen.getByRole('button', { name: 'Check selected' }));

@@ -1,8 +1,5 @@
 """The gift-card settlement stage, and the two-leg definition of "fully paid".
 
-Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/gift-cards-service-plugin-20261001.md`
-sections 3.1 (the ladder), 3.2 (`is_fully_settled`), 3.3 (ordering) and 7.3 (the public surface).
-
 Why a second ladder exists at all
 ---------------------------------
 A gift card settles a leg that is NOT a Razorpay capture. The existing verification machinery - the
@@ -158,7 +155,7 @@ def condition_expression(attribute: str = RANK_ATTRIBUTE) -> str:
 
     The `attribute_not_exists` arm lets the first write through and establishes the rank from then
     on. Strictly `<`, so re-applying the same stage is refused as well as a backward one: a second
-    `GC_REDEEMED` means a caller is redeeming twice, and `redeem()`'s own idempotency contract is
+    `GC_REDEEMED` means a caller is redeeming twice, and the redeeming caller's own idempotency is
     where that is supposed to be absorbed.
     """
     return f"attribute_not_exists({attribute}) OR {attribute} < :rank"

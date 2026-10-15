@@ -67,7 +67,7 @@ const rawRow = ( slug: string ): Record<string, string> => {
   return out;
 };
 
-describe( 'the Wix snapshot is read correctly', () => {
+describe( 'the catalogue snapshot is read correctly', () => {
   it( 'requires a merchandise variant and keeps distinct sizes in distinct cart lines', () => {
     window.localStorage.clear();
     const merchandise = shopProductBySlug( 'merchandise' )!;
@@ -110,8 +110,9 @@ describe( 'the Wix snapshot is read correctly', () => {
      * derived from the file would agree with whatever the file said, INCLUDING AN EMPTY ARRAY,
      * which is how a catalogue page ships blank.
      *
-     * But a literal slug list is a PER-SLUG ALLOWLIST, and `.github/workflows/catalogue-sync.yml`
-     * now commits a refreshed snapshot on its own every six hours. Adding one product in Wix would
+     * But a literal slug list is a PER-SLUG ALLOWLIST, and the scheduled catalogue publisher
+     * (`.github/workflows/aws-native-catalog-publish.yml`) commits a refreshed snapshot on its own
+     * every six hours. Adding one product to ProductsTable would
      * turn this green test red with no code change behind it, and a human would have to hand-edit
      * a list - which is the exact manual step B2 exists to remove. Everything else on the /shop/
      * path is already prefix-based (getStaticPaths enumerates SHOP_PRODUCTS, the sitemap carries
@@ -121,7 +122,7 @@ describe( 'the Wix snapshot is read correctly', () => {
      * THE BLANK-CATALOGUE PROTECTION IS KEPT, and it is what the floor is for. A derived check
      * cannot be satisfied by an empty array while `FLOOR` must also hold, so the failure the old
      * comment was defending against still fails. The floor is a LOWER BOUND, which a new product
-     * cannot cross; only a product being REMOVED from Wix can, and that is a change worth a human
+     * cannot cross; only a product being REMOVED from the catalogue can, and that is a change worth a human
      * reading the diff.
      */
     const FLOOR = 6;
@@ -132,16 +133,16 @@ describe( 'the Wix snapshot is read correctly', () => {
       // The services product (Phase O-1) is a payment vehicle bought from /submit-request/ and
       // /request-amendment/, excluded from /shop/ by id like the contribution.
       .filter( r => ( r as { id?: string } ).id !== SERVICES_PRODUCT_ID )
-      // The ₹1 test product, excluded for the same reason as the template samples (a visible
-      // catalogue test row that is not this storefront). Derived from the exported list, same
-      // as the samples above, so selling it is a one-line delete in shop.ts with no test edit.
+      // The ₹1 test product, excluded because it is a visible catalogue test row that is not
+      // this storefront. Derived from the exported list, so selling it is a one-line delete in
+      // shop.ts with no test edit.
       .filter( r => !TEST_PRODUCT_SLUGS.includes( String( r.slug ) ) )
       .map( r => r.slug as string )
       .sort();
     expect( SHOP_PRODUCTS.length ).toBeGreaterThanOrEqual( FLOOR );
     expect( [ ...SHOP_PRODUCTS.map( p => p.slug ) ].sort() ).toEqual( expected );
-    // Every slug is route-safe, because the slug IS the path segment of its page. A slug Wix would
-    // accept but a URL would not (a space, an uppercase letter, a slash) must fail here rather
+    // Every slug is route-safe, because the slug IS the path segment of its page. A slug the
+    // catalogue would accept but a URL would not (a space, an uppercase letter, a slash) must fail here rather
     // than produce a page nobody can reach.
     for ( const product of SHOP_PRODUCTS ) {
       expect( product.slug, `${product.slug} is not a route-safe slug` )
@@ -156,15 +157,15 @@ describe( 'the Wix snapshot is read correctly', () => {
     expect( names ).toEqual( [ ...names ].sort( ( a, b ) => a.localeCompare( b ) ) );
   } );
 
-  it( 'passes Wix\'s own formatted price through rather than rebuilding it', () => {
+  it( 'passes the catalogue\'s own formatted price through rather than rebuilding it', () => {
     /*
      * The rule the whole commerce architecture rests on: a price rendered here must be the string
-     * Wix would quote, not a locally formatted version of the number beside it. A reimplemented
-     * formatter is a second opinion about the amount.
+     * the catalogue would quote, not a locally formatted version of the number beside it. A
+     * reimplemented formatter is a second opinion about the amount.
      *
      * ASSERTED AGAINST THE SNAPSHOT ROW, not against a literal - changed 2026-10-04 with
      * catalogue auto-sync. A hardcoded '₹24,999.00' tests a PRICE, which the owner may change in
-     * Wix at any moment and the scheduled sync will then commit. Comparing the projection to the
+     * ProductsTable at any moment and the scheduled publisher will then commit. Comparing the projection to the
      * raw row tests the PASS-THROUGH, which is the property that must never change, and it holds
      * for every product rather than for one.
      */
@@ -180,7 +181,7 @@ describe( 'the Wix snapshot is read correctly', () => {
 
   it( 'splits the description into a tagline and body paragraphs', () => {
     // Derived from each row's own descriptionHtml rather than pinning one product's copy: the
-    // owner edits this text in Wix and the scheduled catalogue sync commits the edit, so a literal
+    // owner edits this text in ProductsTable and the scheduled publisher commits the edit, so a literal
     // sentence here would fail on a legitimate content change. `toParagraphs` has its own
     // exhaustive unit tests below; this asserts the PROJECTION uses it.
     for ( const product of SHOP_PRODUCTS ) {
@@ -191,7 +192,7 @@ describe( 'the Wix snapshot is read correctly', () => {
           .toBe( paragraphs[ 0 ] );
       }
       // Every product has a tagline and at least one body paragraph, so neither the card nor the
-      // detail page can render an empty lead. A product authored in Wix with NO description
+      // detail page can render an empty lead. A product authored with NO description
       // reaches the synthesised fallback in shop.ts rather than an empty string - which is what
       // lets a brand-new product render a complete page before anybody writes copy for it.
       expect( product.tagline.length, `${product.slug} has no tagline` ).toBeGreaterThan( 0 );
@@ -207,7 +208,7 @@ describe( 'the Wix snapshot is read correctly', () => {
   it( 'renders the fetch date in UTC, so the build cannot produce two answers', () => {
     // The snapshot timestamp is UTC. Resolving it in the visitor's zone would print a different
     // date either side of midnight for one build, which is a hydration mismatch as well as a wrong
-    // answer. The catalogue is auto-synced from Wix (every sync rewrites fetchedAt), so this test
+    // answer. The catalogue is auto-published from ProductsTable (every publish rewrites fetchedAt), so this test
     // pins the SHAPE and UTC-stability rather than a frozen date: a hardcoded date would break on
     // every legitimate refresh.
     expect( CATALOG_FETCHED_AT ).toMatch( /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/ );
@@ -416,9 +417,9 @@ describe( 'the product page', () => {
 
   it( 'never puts merchant HTML into the DOM as HTML', () => {
     /*
-     * THE ASSERTION THAT MATTERS MOST IN THIS FILE. descriptionHtml is rich text from a
-     * third-party CMS; rendering it through dangerouslySetInnerHTML would make the storefront an
-     * XSS surface that depends on Wix's sanitiser rather than ours. Every one of the seven
+     * THE ASSERTION THAT MATTERS MOST IN THIS FILE. descriptionHtml is merchant-authored rich
+     * text; rendering it through dangerouslySetInnerHTML would make the storefront an XSS surface
+     * that depends on an upstream sanitiser rather than ours. Every one of the seven
      * descriptions contains <span style="font-weight: 700">, so if the tags were passing through,
      * this would find them.
      */
@@ -457,7 +458,7 @@ describe( 'the product page', () => {
         .toBe( product.body.length + 1 );
 
       for ( const node of merchantNodes ) {
-        expect( node.innerHTML, `${product.slug} leaked a Wix span` ).not.toContain( '<span' );
+        expect( node.innerHTML, `${product.slug} leaked a merchant span` ).not.toContain( '<span' );
         expect( node.innerHTML, `${product.slug} leaked a style attribute` ).not.toContain( 'style=' );
       }
       unmount();
@@ -496,9 +497,9 @@ describe( 'the product page', () => {
      * exactly that list, so an image-less product must emit NO Product node (an incomplete one is
      * ineligible for the rich result and would trip schemacheck's "no unresolved @id references").
      *
-     * This originally asserted that EVERY product was image-less, from when all seven Wix rows
-     * reported mediaCount 0. catalogue-sync.yml re-reads Wix every six hours, and the rows now
-     * carry real media URLs, so that premise is stale. The contract being verified is the
+     * This originally asserted that EVERY product was image-less, from when all seven catalogue
+     * rows reported mediaCount 0. The scheduled publisher re-reads ProductsTable every six hours,
+     * and the rows now carry real media URLs, so that premise is stale. The contract being verified is the
      * CONDITIONAL one - gate the node on `image` - so assert it per product against the product's
      * actual image state rather than assuming the whole shelf is pictureless. The component is
      * correct: with an image it now emits a complete Product; without one it still omits it.
@@ -599,8 +600,8 @@ describe( 'the contribution product is a payment vehicle, not a shop listing', (
   /**
    * T11, SPLIT BY SOURCE, and the split is the point rather than a formality.
    *
-   * The contribution product MUST be visible in Wix, because the checkout refuses
-   * `product.visible === false` - so `scripts/fetch-wix-catalog.js` picks it up and it would
+   * The contribution product MUST be visible in the catalogue, because the checkout refuses
+   * `product.visible === false` - so `scripts/build-catalog-snapshot.py` picks it up and it would
    * otherwise appear at /shop/ with its own page and sitemap entry. The place to choose a
    * contribution is the "Contribute" block at the foot of a blog post, not a product page with an
    * "Amount" dropdown.
@@ -613,11 +614,10 @@ describe( 'the contribution product is a payment vehicle, not a shop listing', (
    *
    * WHAT THIS BLOCK STOPPED ASSERTING ON 2026-10-04, because it was pinning a retired assumption:
    * `raw.productType === 'DIGITAL'`, with a comment calling DIGITAL "what makes the checkout skip
-   * the delivery address". The live `Contribute` product is PHYSICAL - a Wix digital product with
-   * no downloadable file attached is not purchasable - and the delivery skip now keys on
-   * contribution product IDENTITY in `checkout/handler.py:_v2_catalog_items`. Asserting the
-   * product's Wix type would therefore fail against the real product AND push the next reader back
-   * towards the rule that was removed. The identity-keyed property is asserted instead.
+   * the delivery address". The live `Contribute` product is PHYSICAL, and the delivery skip now
+   * keys on contribution product IDENTITY in the checkout. Asserting the product's catalogue type
+   * would therefore fail against the real product AND push the next reader back towards the rule
+   * that was removed. The identity-keyed property is asserted instead.
    */
   it( 'appears in neither SHOP_PRODUCTS nor the generated paths', async () => {
     expect( SHOP_PRODUCTS.some( product => product.slug === CONTRIBUTION_SLUG ) ).toBe( false );
@@ -632,7 +632,7 @@ describe( 'the contribution product is a payment vehicle, not a shop listing', (
 
   it( 'is excluded by PRODUCT ID, not only by slug', () => {
     // The id is the identity the server, the cart and `shop.ts` all key on, and it cannot be
-    // edited in the Wix dashboard. The slug can, so a slug-only exclusion would put a
+    // edited in the catalogue editor. The slug can, so a slug-only exclusion would put a
     // /shop/<renamed>/ page live the next time somebody tidied the product's URL.
     const shopSource = fs.readFileSync(
       path.resolve( __dirname, '../content/shop.ts' ), 'utf8' );
@@ -669,9 +669,8 @@ describe( 'the contribution product is a payment vehicle, not a shop listing', (
       //
       // Absence is NOT a configuration problem any more, which is the change from the previous
       // revision: the product id and the variant ids are committed constants in
-      // src/config/contribution.ts, because `slim()` in scripts/fetch-wix-catalog.js emits no
-      // `variants` array and so a refresh could never supply them. All the snapshot entry buys is
-      // the /shop/ exclusion, which only matters once the entry exists.
+      // src/config/contribution.ts, so a snapshot refresh never has to supply them. All the
+      // snapshot entry buys is the /shop/ exclusion, which only matters once the entry exists.
       expect( CONTRIBUTION_RAW ).toBeNull();
       expect( CONTRIBUTION_PRODUCT ).toBeNull();
       expect( CONTRIBUTION_CONFIGURED ).toBe( true );

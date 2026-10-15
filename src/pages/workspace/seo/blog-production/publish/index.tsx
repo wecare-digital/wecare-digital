@@ -8,16 +8,17 @@
  * and this renders both.
  *
  * WHAT THE TWO BUTTONS ACTUALLY DO, because the difference is the whole design. "Release" records a
- * decision and performs no Wix write. "Publish" performs the one Wix mutation in this system.
- * Section 38 requires that processing completion never automatically mean publishing, and nothing
- * in the extraction, queue, QA or batch paths can reach either call.
+ * decision and publishes nothing. "Publish" (POST seo-tools blog-publish) is the one call that
+ * writes a post to the native blog. Section 38 requires that processing completion never
+ * automatically mean publishing, and nothing in the extraction, queue, QA or batch paths can reach
+ * either call.
  *
  * Publishing the same article twice cannot be undone - a duplicate post gets indexed, linked and
  * cited, and deleting it afterwards leaves a dead URL. A second release therefore resolves to the
  * job that already exists, and the QUEUED to PUBLISHING transition is a conditional write so two
  * operators pressing Publish at the same moment cannot both proceed.
  *
- * Publication is AWS-native. Provider-side publication controls were retired with the cutover.
+ * Publication is AWS-native: the public site re-reads the native blog API at build time.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -276,7 +277,7 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user } ) => {
                     { job.status === 'QUEUED' && (
                       <>
                         <button onClick={ () => { void publish( job.jobId ); } } disabled={ busy !== '' }
-                          aria-label={ `Publish ${ job.articleTitle || job.jobId } to Wix` }
+                          aria-label={ `Publish ${ job.articleTitle || job.jobId } to the blog` }
                           style={ { padding: '5px 12px', borderRadius: 6, border: 'none', background: '#1a3a2a', color: '#fff', cursor: 'pointer', fontSize: 12 } }>
                           { busy === `publish-${ job.jobId }` ? 'Publishing…' : 'Publish' }
                         </button>

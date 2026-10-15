@@ -4,7 +4,8 @@ HOW THIS TEST IS BUILT, AND WHY IT IS BUILT THAT WAY
 ----------------------------------------------------
 "It cannot charge again" is usually asserted as an absence - no `capture` call, no second
 `create_order` - and an absence is exactly what a NEW call slips past. A test that says "capture
-was not called" keeps passing when somebody adds `razorpay_orders.transfer` or a second Wix write.
+was not called" keeps passing when somebody adds `razorpay_orders.transfer` or a second provider
+write.
 
 So this file RECORDS every outbound provider call made while driving the whole path - hand-off ->
 claim -> prepare -> verify -> reconcile - and then asserts the recorded set EQUAL to a written-out
@@ -89,24 +90,12 @@ PERMITTED_RAZORPAY_CALLS = {
 #: reads this note.
 PERMITTED_BUT_UNREACHED = {"razorpay_orders.find_order_by_receipt"}
 
-#: AWS-NATIVE: the path makes ZERO Wix calls. The cart lives in CartTable and is priced from
-#: ProductsTable by the native engine — there is no Wix cart, no Wix product readback, no Wix
-#: delivery/calculate call. This empty set is the strongest Wix-exit guarantee on the WhatsApp
-#: order path: a single Wix call reappearing fails the equality below.
-PERMITTED_WIX_CALLS = set()
 
-#: What must NEVER appear in the Wix set. A Wix ORDER is written back after the money is proven, by
-#: `wix_writeback` from the webhook leg - not from a checkout - and a Wix CHECKOUT is the V1 path
-#: this phase does not use. `create-order` here would be an order placed before a verified capture.
-FORBIDDEN_WIX_FRAGMENTS = ("create-order", "orders", "checkout", "payments", "/v1/")
-
-
-#: The product/variant/app identifiers this file needs, inlined rather than read from the retired
-#: Wix Cart V2 fixture. The claim-basket path is AWS-native, so all that is consumed is one
-#: catalogReference (product + variant + appId) shared by the WhatsApp hand-off and website lines.
+#: The product and variant this file prices. The claim-basket path is AWS-native: the cart lives in
+#: CartTable and is priced from ProductsTable, so all that is consumed is one catalogReference
+#: (ProductsTable product + variant id) shared by the WhatsApp hand-off and the website lines.
 HANDOFF_CATALOG_REFERENCE = {
     "catalogItemId": "00d4c72b-f694-441a-a192-e16f4b192440",
-    "appId": "215238eb-22a5-4c36-9e7b-e7c08025e04e",
     "options": {"variantId": "2d072962-37c0-4821-9c02-2cc223448711"},
 }
 
@@ -135,8 +124,7 @@ def handoff_lines():
 
 def website_line_items():
     reference = fixture_reference()
-    return [{"catalogReference": {"appId": reference["appId"],
-                                  "catalogItemId": reference["catalogItemId"],
+    return [{"catalogReference": {"catalogItemId": reference["catalogItemId"],
                                   "options": {"variantId": reference["options"]["variantId"]}},
              "quantity": 1}]
 
@@ -196,7 +184,7 @@ def env(monkeypatch):
     monkeypatch.setenv("ORDERS_TABLE", ORDERS_TABLE)
     monkeypatch.setenv("APP_ENV", "development")
     # AWS-NATIVE: claim-basket / customer-cart is backed by NativeCartAdapter (CartTable +
-    # ProductsTable), not the Wix Cart V2 adapter.
+    # ProductsTable).
     monkeypatch.setenv("CHECKOUT_MODE", "AWS_NATIVE")
     monkeypatch.setenv("CART_TABLE", CART_TABLE)
     monkeypatch.setenv("PRODUCTS_TABLE", PRODUCTS_TABLE)
@@ -323,17 +311,10 @@ def test_the_whole_path_makes_exactly_the_permitted_provider_calls(env):
     _prepared, verified = drive(h, fake, request_key="request-r74-1")
     assert verified["status"] == "VERIFIED_PAID", verified
 
-    razorpay = {name for name in log.names() if name.startswith("razorpay_")}
-    # EQUALITY, not a subset. A newly added provider call fails here rather than slipping through.
-    assert razorpay == PERMITTED_RAZORPAY_CALLS
-
-    wix = {name for name in log.names() if not name.startswith("razorpay_")}
-    assert wix == PERMITTED_WIX_CALLS
-    # Over the CONSTANT as well as the observation, so widening the permitted list to admit an
-    # order-placing call fails here rather than being accepted by the equality above.
-    for fragment in FORBIDDEN_WIX_FRAGMENTS:
-        assert not [name for name in wix | PERMITTED_WIX_CALLS if fragment in name], \
-            f"a Wix {fragment} call reached a checkout that has not proven a capture"
+    # EQUALITY over EVERY recorded provider call, not a subset and not only the Razorpay ones: a
+    # newly added call to any provider fails here rather than slipping through. Razorpay is the
+    # only provider this path talks to; the cart and its price are CartTable and ProductsTable.
+    assert log.names() == PERMITTED_RAZORPAY_CALLS
 
     assert log.calls["razorpay_orders.create_order"] == 1
     assert len(rows_with(fake, ORDERS_TABLE, "")) == 1

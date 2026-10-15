@@ -1,7 +1,7 @@
-"""AWS-native gift-card provisioning contracts.
+"""Gift-card provisioning contracts.
 
-The provider SPI was retired. These tests pin the surviving native role, table,
-KMS consumer, pepper secret, and five HTTP routes.
+These tests pin the one execution role, the table's single KMS consumer, the pepper secret,
+and the five HTTP routes.
 """
 from __future__ import annotations
 
@@ -33,21 +33,28 @@ def test_only_native_gift_card_role_is_provisioned():
          roles.gift_cards_policy, roles.GIFT_CARDS_FUNCTION),
     )
     assert roles.GIFT_CARDS_ROLE == "wecare-gift-cards-role"
-    assert not hasattr(roles, "SPI_ROLE")
-    assert not hasattr(roles, "SPI_FUNCTION")
 
 
-def test_native_role_reads_only_the_neutral_pepper_secret():
+def test_native_role_reads_exactly_one_secret_the_pepper():
+    """The only secret the role may read is the store's own pepper secret id."""
+    from lambda_utils.ecommerce import gift_card_store
+
     roles = _load(ROLES_SCRIPT, "gift_roles_policy")
     policy = roles.gift_cards_policy("arn:aws:kms:us-east-1:775261844268:key/test")
-    resources = [
-        r
+    secret_resources = [
+        resource
         for statement in policy["Statement"]
-        for r in statement.get("Resource", [])
+        if any(action.startswith("secretsmanager:") for action in statement["Action"])
+        for resource in statement["Resource"]
     ]
-    joined = "\n".join(resources)
-    assert "wecare/prod/security/giftcard-pepper" in joined
-    assert "wecare/wix/" not in joined
+    assert secret_resources == [
+        "arn:aws:secretsmanager:us-east-1:775261844268:secret:"
+        f"{gift_card_store.SECRET_ID}-*"
+    ]
+    secret_actions = sorted({action for statement in policy["Statement"]
+                             for action in statement["Action"]
+                             if action.startswith("secretsmanager:")})
+    assert secret_actions == ["secretsmanager:GetSecretValue"]
 
 
 def test_table_key_policy_has_one_native_consumer():
@@ -75,13 +82,3 @@ def test_routes_expose_only_the_five_native_endpoints():
         "POST /gift-cards/{giftCardId}/disable",
         "POST /gift-cards/balance",
     }
-    source = ROUTES_SCRIPT.read_text(encoding="utf-8")
-    assert "/wix-giftcards/" not in source
-    assert "wecare-wix-giftcard-spi" not in source
-
-
-def test_retired_spi_source_is_absent():
-    assert not (ROOT / "amplify/functions/ecommerce/wix-giftcard-spi/handler.py").exists()
-    assert not (
-        ROOT / "amplify/functions/shared/lambda_utils/ecommerce/gift_card_spi_auth.py"
-    ).exists()

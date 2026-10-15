@@ -35,9 +35,9 @@ const PENDING_ACTION_KEY = 'wecare.pendingServiceAction';
 export interface PendingServiceAction {
   /** The service/product slug or line the checkout should preselect (e.g. 'submit-request'). */
   readonly kind: string;
-  /** Wix product id for the line, when the action maps to a fixed catalogue line. */
+  /** Catalogue product id for the line, when the action maps to a fixed catalogue line. */
   readonly productId?: string;
-  /** Wix variant id for the line. */
+  /** Catalogue variant id for the line. */
   readonly variantId?: string;
   /** Optional human label for UI continuity. */
   readonly label?: string;

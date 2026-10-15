@@ -12,7 +12,7 @@ import { StoredAddress } from './AddressFields';
  * THE DELIVER LINE IS `address.fullAddress`, RENDERED VERBATIM. THIS IS THE LOAD-BEARING RULE.
  * ------------------------------------------------------------------------------------------
  * `fullAddress` is derived SERVER-SIDE by `identity.address.full_address`, and that same string
- * is what reaches Wix and the invoice. Composing this line here from the six form fields would be
+ * is what reaches the order and the invoice. Composing this line here from the six form fields would be
  * a SECOND rendering of the address, with its own separator and ordering choices, that can drift
  * from the server one - and then the card would be reassuring the customer about a string nobody
  * downstream uses. So this component does no composition at all. It is also why the stored

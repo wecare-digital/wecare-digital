@@ -2,7 +2,7 @@
  * SEO Tools — AWS Blog SEO visibility, Google Indexing and PageSpeed.
  *
  * The public site is an Amplify static export. Blog content comes from the
- * SEO Tools public read API; no legacy editor/Velo endpoints are used here.
+ * SEO Tools public read API (the native blog).
  */
 import React, { useState } from 'react';
 import Layout from '../../../components/Layout';

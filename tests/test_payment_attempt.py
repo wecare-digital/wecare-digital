@@ -32,7 +32,7 @@ def _attempt(**kw):
 def test_a_new_attempt_has_no_order_fields_at_all():
     """The central rule, expressed in the data. There is nowhere to put an order number."""
     attempt = _attempt()
-    for forbidden in ('orderId', 'orderNumber', 'wixOrderId', 'receiptId', 'invoiceId'):
+    for forbidden in ('orderId', 'orderNumber', 'receiptId', 'invoiceId'):
         assert forbidden not in attempt
 
 
@@ -52,14 +52,23 @@ def test_a_new_attempt_starts_in_created():
 def test_optional_fields_are_omitted_rather_than_none():
     """Absence is what lets a conditional write assert attribute_not_exists later."""
     attempt = _attempt()
-    for optional in ('cartId', 'wixCheckoutId', 'retryOf'):
+    for optional in ('cartId', 'retryOf', 'customerUuid'):
         assert optional not in attempt
 
 
 def test_supplied_optional_fields_are_kept():
-    attempt = _attempt(cart_id='cart-1', wix_checkout_id='chk-1')
+    attempt = _attempt(cart_id='cart-1', retry_of='attempt-0', customer_uuid='WD-CUS-1')
     assert attempt['cartId'] == 'cart-1'
-    assert attempt['wixCheckoutId'] == 'chk-1'
+    assert attempt['retryOf'] == 'attempt-0'
+    assert attempt['customerUuid'] == 'WD-CUS-1'
+
+
+def test_a_new_attempt_carries_exactly_the_documented_fields():
+    """The record's whole key set, so a field added to `build` is a decision this test names."""
+    assert set(_attempt(cart_id='cart-1')) == {
+        'paymentAttemptId', 'customerId', 'referenceId', 'amountPaise', 'currency',
+        'configurationName', 'provider', 'status', pa.RANK_ATTRIBUTE, 'attemptNumber',
+        'createdAt', 'updatedAt', 'cartId'}
 
 
 # ── money ──────────────────────────────────────────────────────────────────────

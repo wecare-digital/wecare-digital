@@ -15,10 +15,9 @@ import { PRIVACY_SECTIONS, PRIVACY_INTRO } from '../content/legal/privacy';
  * ROUTING: '/privacy' is in the EXACT-MATCH allowlist in _app.tsx. Without that entry
  * this renders an empty body with HTTP 200. trailingSlash means the URL is /privacy/.
  *
- * THE REAL POLICY - 24 sections plus the sub-clauses of 3 and 10. The text originally
- * came from the old Wix site; it has since been rewritten into plain English on the
- * owner's instruction, and THIS REPO IS NOW THE SOURCE OF TRUTH - there is no upstream
- * page to sync with. src/content/legal/privacy.ts records what the rewrite changed and
+ * THE REAL POLICY - 24 sections plus the sub-clauses of 3 and 10, rewritten into plain
+ * English on the owner's instruction. THIS REPO IS THE SOURCE OF TRUTH - there is no
+ * upstream page to sync with. src/content/legal/privacy.ts records what the rewrite changed and
  * what it deliberately left alone, including why it did not invent specifics about which
  * data each service collects.
  *

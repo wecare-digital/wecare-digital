@@ -1,9 +1,8 @@
 /**
  * Privacy Policy — rewritten in plain English.
  *
- * THIS REPO IS NOW THE SOURCE OF TRUTH. The text originally came from the old Wix site,
- * which is being retired, so there is no longer an upstream to sync with and no
- * extractor to re-run. Edit this file.
+ * THIS REPO IS THE SOURCE OF TRUTH. There is no upstream to sync with and no extractor to
+ * re-run. Edit this file.
  *
  * WHAT THE REWRITE CHANGED, on owner instruction:
  *   - Active voice and short sentences. The original averaged 34 words a sentence and

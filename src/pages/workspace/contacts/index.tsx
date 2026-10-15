@@ -317,9 +317,9 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
    * labelled "Address" wrote `formBuildingName`. Both payloads gated the structured `address`
    * object on `formAddressLine1` being truthy, so `address` was permanently `undefined`,
    * `contact_address.normalize_for_storage` never ran, and `checkoutDeliveryAddress` was NEVER
-   * written from this form - which is what made every downstream reader
-   * (`payment_address.for_wix`, `for_meta_beneficiary`, `cart_v2.delivery_address`) come up
-   * empty for a CRM-created contact.
+   * written from this form - which is what made every downstream reader (the `payment_address`
+   * order projection, `for_meta_beneficiary`, the checkout's delivery address) come up empty for
+   * a CRM-created contact.
    *
    * One record keyed on the shared field list cannot develop that fault again: a field that is
    * not rendered does not exist, and the form has no field list of its own to drift from the

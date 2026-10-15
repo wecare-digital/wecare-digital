@@ -1,7 +1,7 @@
-"""Gift-card HMAC pepper is provider-neutral and fails closed.
+"""The gift-card HMAC pepper: one secret, resolved by injection, and fail-closed.
 
-The Wix credential namespace is retired. Existing cards remain valid because the
-pepper value was copied into the neutral Secrets Manager key before cutover.
+Every card key is an HMAC under the pepper VALUE, so the secret id has exactly one override
+(`GIFTCARD_PEPPER_SECRET`) and an unusable secret refuses rather than deriving a key from nothing.
 """
 import ast
 import sys
@@ -25,9 +25,29 @@ def test_explicit_native_secret_override_takes_precedence():
     assert gc.resolve_pepper_secret_id(env) == "wecare/prod/security/giftcard-pepper-staging"
 
 
-def test_no_provider_secret_fallback_exists():
-    env = {"WIX_GIFTCARD_SPI_SECRET": "wecare/wix/giftcard-spi"}
+class _RecordingEnv(dict):
+    """An env mapping that records every key the resolver asks for."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.asked = []
+
+    def get(self, key, default=None):
+        self.asked.append(key)
+        return super().get(key, default)
+
+    def __getitem__(self, key):
+        self.asked.append(key)
+        return super().__getitem__(key)
+
+
+def test_the_resolver_consults_exactly_one_env_var():
+    """`GIFTCARD_PEPPER_SECRET` is the only key read. Any other secret-looking variable in the
+    environment leaves the default in place, so the pepper cannot be redirected by accident."""
+    env = _RecordingEnv({"OTHER_GIFTCARD_SECRET": "wecare/prod/security/other",
+                         "AWS_REGION": "us-east-1"})
     assert gc.resolve_pepper_secret_id(env) == gc.SECRET_ID
+    assert env.asked == [gc.PEPPER_SECRET_ENV_KEY]
 
 
 def test_read_pepper_uses_the_injected_secret_id():

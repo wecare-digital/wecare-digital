@@ -1,7 +1,8 @@
 """Verified money persists separately from recoverable order finalization.
 
-No blind retries of external effects. Wix adapters retain PENDING markers for
-uncertain writes. Initiation and writeback gates remain independent.
+No blind retries of external effects. The internal order record is the authoritative artifact:
+`accept_paid` writes it, stages INTERNAL_ORDER_CREATED, reconciles the tenders and then stages
+ORDER_FINALIZED, the only terminal success stage. Initiation stays gated independently.
 
 The Razorpay leg is the amount the PROVIDER confirmed
 -----------------------------------------------------
@@ -10,7 +11,7 @@ PAYABLE - what the customer agreed to. `verified_captured_paise` is what Razorpa
 authenticated readback said it took. On a 100%-Razorpay order the two are equal, and
 `order_creation.reconcile_payment` proves it with an exact integer comparison. Under SPLIT TENDER
 they are not equal, and recording the payable as the Razorpay capture over-reports the charge and
-breaks Wix payment reconciliation. So the verified amount is a REQUIRED argument rather than a
+breaks payment reconciliation. So the verified amount is a REQUIRED argument rather than a
 derived one: it is never computed as the payable minus another tender, because comparing two
 numbers written by the same code in the same request proves the split was internally consistent,
 which is arithmetic rather than evidence. `gift_card_settlement.is_fully_settled` states that rule
@@ -43,25 +44,12 @@ VERIFIED_CAPTURED_PAISE_ATTR = 'verifiedCapturedPaise'
 #: entry is a literal for the same import-closure reason as above, and a test pins it to
 #: `gift_card_settlement.REDEEMED_PAISE_ATTR`.
 #:
-#: BOTH gift-card systems are listed, and listing only the first is a live defect rather than an
-#: omission:
-#:
 #:   giftCardRedeemedPaise  - gift_card_settlement.REDEEMED_PAISE_ATTR, the WECARE store's card.
-#:   wixGiftCardRedeemPaise - the Wix-NATIVE card, which is the tender the WEBSITE checkout
-#:                            actually uses. `website_checkout._bind_and_ready` writes it
-#:                            UNCONDITIONALLY, including the value 0.
 #:
-#: With only the first listed, a 150000-paise basket with 50000 redeemed and 100000 captured finds
-#: no listed leg, computes 100000 != 150000 and stages NEEDS_RECONCILIATION for EVERY split-tender
-#: website order - the one shape this graft exists for.
-#:
-#: Because `wixGiftCardRedeemPaise` is written unconditionally, PRESENCE IS NOT EVIDENCE of a
-#: second leg; a non-zero VALUE is. Every consumer here tests the value, never the key.
-#:
-#: Summing both is correct because they are two different systems with two different writers. If
-#: some future path ever wrote both for one redemption the sum would double-count and the order
-#: would fail closed, which is the right direction for a disagreement about how money arrived.
-OTHER_TENDER_PAISE_ATTRS = ('giftCardRedeemedPaise', 'wixGiftCardRedeemPaise')
+#: PRESENCE IS NOT EVIDENCE of a second leg; a non-zero VALUE is. The gift-card evidence is
+#: recorded as 0 until the card is actually debited, so every consumer here tests the value, never
+#: the key.
+OTHER_TENDER_PAISE_ATTRS = ('giftCardRedeemedPaise',)
 
 
 def _conditional(error):
@@ -126,9 +114,7 @@ def record_paid(attempts, attempt, provider_payment_id, verified_captured_paise)
 
     Zero is accepted. That is not laxity - a fully gift-card-funded order has no Razorpay leg, and
     `gift_card_settlement.is_fully_settled` requires the term to be PRESENT (`if verified is None:
-    return False`) to close `verified + redeemed == payable`. `money.positive_paise`, which
-    refuses zero, is applied at the Wix call instead, which `accept_paid` skips entirely when
-    there is no leg to record.
+    return False`) to close `verified + redeemed == payable`.
     """
     verified = integer_paise(verified_captured_paise)
     if verified is None or verified < 0:
@@ -182,15 +168,14 @@ def _tenders_reconcile(attempt, razorpay_paise):
 
 
 def cart_id(attempt, snapshot):
-    """The Cart V2 cart behind this attempt, or `''`.
+    """The cart behind this attempt, or `''`.
 
-    MEASURED: the attempt row does NOT carry `cartId` - `payment_attempt.build` writes
-    `cartId` only when a caller supplies one, and the direct-Razorpay create does not. The cart id
-    IS on the frozen snapshot as `cart.id`, which `website_checkout._bounded_snapshot` retains
-    even in its reduced projection. Both are read, in that order; neither is guessed, and an
-    absent id stages for reconciliation rather than inventing a cart to close.
+    `payment_attempt.build` writes `cartId` only when the caller supplies one: the website prepare
+    does, the WhatsApp catalog-service create does not. The cart id is ALSO on the frozen snapshot
+    as `cart.id`, which `website_checkout._bounded_snapshot` retains even in its reduced
+    projection. Both are read, in that order; neither is guessed.
     """
-    direct = str(attempt.get('cartId') or attempt.get('cartId') or '')
+    direct = str(attempt.get('cartId') or '')
     if direct:
         return direct
     cart = snapshot.get('cart') if isinstance(snapshot, dict) else None
@@ -205,8 +190,8 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
 
     `verified_captured_paise` is REQUIRED and is the provider's own confirmed capture - on the
     browser leg, `website_checkout.verify_callback`'s `CallbackResult.amount_paise`. It is what
-    reaches Wix as the Razorpay payment record, and it is what `record_paid` stores as SEAM-G13's
-    evidence. It is never the order total and never a subtraction.
+    `record_paid` stores as SEAM-G13's evidence and what `_tenders_reconcile` closes against the
+    frozen payable. It is never the order total and never a subtraction.
     """
     if not outcome.get('hasOrder') or attempt.get('checkoutMode') not in ACCEPTED_CHECKOUT_MODES:
         raise ValueError('verified standalone order identity required')
@@ -283,19 +268,18 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
     # A public number may now be returned. Its order record has actually committed.
     _stage(attempts, attempt['paymentAttemptId'], 'INTERNAL_ORDER_CREATED',
            orderId=order['orderId'], orderNumber=order['orderNumber'])
-    # The tender identity, checked BEFORE the writeback gate rather than inside it: a tender sum
-    # that does not close is a fact about money, not a fact about Wix, and it must be recorded
-    # whether or not writeback is ever enabled.
+    # The tender identity, checked AFTER the order record committed and BEFORE the terminal
+    # stage: a tender sum that does not close is a fact about money, so the order keeps its
+    # record and its number but rests at NEEDS_RECONCILIATION and never reaches ORDER_FINALIZED.
     if not _tenders_reconcile(attempt, razorpay_paise):
         _stage(attempts, attempt['paymentAttemptId'], 'NEEDS_RECONCILIATION',
                finalizationReason='TENDER_SUM_MISMATCH')
         return
-    # AWS-NATIVE TERMINAL. The internal order IS the authoritative artifact — there is no second
-    # provider ledger to write back to. The order record committed above (INTERNAL_ORDER_CREATED)
-    # and the tenders reconciled, so the order is now FINALIZED. This replaces the retired Wix
-    # writeback sequence (create Wix order / record external payment / mark Wix cart completed):
-    # native inventory was already reserved at checkout and the order carries the full line detail,
-    # so nothing external needs confirming for the order to be complete.
+    # TERMINAL. The internal order IS the authoritative artifact and there is no second ledger to
+    # write to: the order record committed above (INTERNAL_ORDER_CREATED) and the tenders
+    # reconciled, so the order is now FINALIZED. Native inventory was already reserved at
+    # checkout and the order carries the full line detail, so nothing external needs confirming
+    # for the order to be complete.
     # The attempt row is the AUTHORITATIVE finalization record (what status polls read); staging
     # it is what makes the order final and idempotent on re-entry. The order row's own
     # `finalizationStage` is mirrored to ORDER_FINALIZED, conditional on THIS attempt so a

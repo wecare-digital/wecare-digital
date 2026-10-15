@@ -1,7 +1,7 @@
 /**
  * /cart/ - the cart review page and the checkout `create` handoff.
  *
- * WHAT IT DOES. Lists the cart (name + Wix formattedPrice for DISPLAY only), lets the shopper
+ * WHAT IT DOES. Lists the cart (name + catalogue formattedPrice for DISPLAY only), lets the shopper
  * change quantities or remove lines, and on "Proceed to checkout" ensures a customer session then
  * POSTs {action:'profile'}, {action:'prepare'} and {action:'verify'} to
  * {NEXT_PUBLIC_API_BASE}/ecommerce/checkout with a Authorization: Bearer token from getSession().
@@ -65,7 +65,7 @@
  *     the gate is off, no Razorpay gateway order was created and no charge can have been made.
  *   CHECKOUT_OPTIONS_READY (gate on) -> the browser opens the Razorpay Standard Checkout hosted
  *     modal with ONLY {keyId (public), orderId (server-stored gateway order id), amountPaise
- *     (the FEAT-001 calculator total: collection+fee+GST, never the raw Wix total), currency,
+ *     (the FEAT-001 calculator total: collection+fee+GST, never a raw catalogue total), currency,
  *     prefill, paymentAttemptId}. The modal's result is POSTed back to the owned backend
  *     callback, which verifies the signature over the STORED order id and STILL requires an
  *     authoritative Razorpay capture before any paid state.
@@ -159,7 +159,7 @@ const CONTRIBUTION_HELP = `Choose one of the offered contribution amounts: ${
  *
  * IT USED TO SAY "a contribution is paid on its own", AND THAT RULE IS GONE. Owner decision,
  * 2026-10-06: a product and a contribution check out together, priced the way any single order is
- * priced -- Wix prices every line and `checkout_pricing` adds the 2.5% convenience fee plus 18%
+ * priced -- ProductsTable prices every line and `checkout_pricing` adds the 2.5% convenience fee plus 18%
  * GST on that fee over the whole collection. So there is no longer a browser-side mixed-basket
  * refusal, no notice and no disabled CTA for one.
  *
@@ -190,7 +190,7 @@ const CONTRIBUTION_NOT_PAYABLE_MESSAGE =
   'Contributions cannot be taken right now. Nothing has been charged.';
 /**
  * SECTION 2 REDEMPTION ENDPOINT. The coupon/gift-card apply/remove requests go here; the SERVER
- * decides every amount (an authoritative Wix/backend discount, an authoritative gift-card balance),
+ * decides every amount (an authoritative backend discount, an authoritative gift-card balance),
  * and this page only ever RENDERS what the server returns. The browser never computes a discount or
  * a payable, and never sends an amount - it sends a code and an action, nothing more.
  */
@@ -540,7 +540,7 @@ type RedeemKind = 'coupon' | 'giftCard';
  * WHAT IS TRUE ABOUT IT.
  *   1. Every displayed amount - the applied discount, the applied gift-card amount, the remaining
  *      payable balance - comes from the server response, never from browser arithmetic. The server
- *      is Wix/backend-authoritative; a browser-calculated discount is never trusted.
+ *      is backend-authoritative; a browser-calculated discount is never trusted.
  *   2. With the gate off / the endpoint absent / a network failure, it shows an honest unavailable
  *      state and offers no way to transact. A browser signal is never treated as proof.
  *   3. It never fetches at render/prerender time - a request happens only on an Apply/Remove click,
@@ -863,10 +863,10 @@ export default function Cart (): React.ReactElement {
    *
    * THE MEASURED BUG IT FIXES (checkout v11, from API Gateway and Lambda logs): `prepare-checkout`
    * was posted TWICE in rapid succession. The first answered 200 and reserved the cart; the second,
-   * one to three seconds later, reached Wix on that already-reserved cart, `wix_ecom` raised, and
-   * `handler.py`'s `except wix_ecom.WixEcomError` answered 502 `CATALOGUE_UNAVAILABLE` -- which
-   * this page renders as "We could not prepare this order." Every payment attempt failed that way,
-   * and the customer's own first attempt was what broke their second.
+   * one to three seconds later, hit the catalogue step on that already-reserved cart, failed, and
+   * `handler.py` answered 502 `CATALOGUE_UNAVAILABLE` -- which this page renders as "We could not
+   * prepare this order." Every payment attempt failed that way, and the customer's own first
+   * attempt was what broke their second.
    *
    * WHY THE EXISTING GUARDS DO NOT COVER IT, each for its own reason:
    *   * `disabled={ busy || ... }` is REACT STATE. `setBusy(true)` does not disable the button
@@ -876,10 +876,10 @@ export default function Cart (): React.ReactElement {
    *   * `railTerminalRef` is synchronous but answers a different question: "the rail already
    *     returned a RESULT". It is set when a payment finishes, not while one is being prepared,
    *     so it is false for the whole window this latch covers.
-   *   * The server's one-live-payment guard IS the guarantee, and it still is -- but it sits
-   *     BELOW the Wix work in `_v2_snapshot`, so the second request reaches Wix and fails as a
-   *     catalogue error before the guard can answer its designed 409. Stopping the second post is
-   *     what keeps that 502 unreachable from this page.
+   *   * The server's one-live-payment guard IS the guarantee, and it still is -- but when this was
+   *     measured it sat BELOW the catalogue step, so the second request failed as a catalogue
+   *     error before the guard could answer its designed 409. Stopping the second post is what
+   *     keeps that 502 unreachable from this page.
    *
    * A ref and not state for the reason `justSavedRef` and `resetCartRef` are: the decision is
    * made inside one invocation and must not be a render behind. Cleared in a `finally`, so a
@@ -946,12 +946,12 @@ export default function Cart (): React.ReactElement {
    * export's no-fetch-at-render property intact -- `src/test/CartRedemption.test.tsx` asserts it.
    *
    * THE CLAIMED LINES ARE MERGED INTO THE BROWSER CART, and that is the whole point of the round
-   * trip rather than a nicety. The claim merges them into the SERVER-side Wix cart, but this page
-   * renders `readCart()` and `proceed` posts `toLineItems( currentItems )` from the same storage --
-   * so a claim that returned only a count left the customer looking at an unchanged cart (a
-   * success indistinguishable from a refusal) and the next checkout reconciled the claimed lines
-   * back OUT of the Wix cart, because `_reconcile_saved_cart` makes the Wix cart match the
-   * REQUEST. `mergeClaimedLines` writes them through the same `cart.ts` helpers /shop/ uses.
+   * trip rather than a nicety. The claim merges them into the customer's SERVER-side cart, but this
+   * page renders `readCart()` and `proceed` posts `toLineItems( currentItems )` from the same
+   * storage -- so a claim that returned only a count left the customer looking at an unchanged cart
+   * (a success indistinguishable from a refusal) and the next checkout reconciled the claimed lines
+   * back OUT of the server-side cart, because the checkout makes that cart match the REQUEST.
+   * `mergeClaimedLines` writes them through the same `cart.ts` helpers /shop/ uses.
    *
    * ONE RETRY FOR A STALE SAVED CART, AND ONLY WHEN THIS CART IS EMPTY. `BASKET_CART_IN_USE` is
    * the server's `CUSTOMERCART#<phone>` pointer, which lives thirty days and SURVIVES the payment
@@ -1456,7 +1456,7 @@ export default function Cart (): React.ReactElement {
       // The ONE outcome arm that carries an action rather than only words. The excess lines are on
       // the SERVER cart, which nothing on this page can touch, so "review your cart" would name
       // an action the customer cannot perform. `resetCart` abandons the server pointer only; the
-      // browser cart is untouched and the next prepare rebuilds the Wix cart from it.
+      // browser cart is untouched and the next prepare rebuilds the server cart from it.
       setCartResetOffered( true );
       setNotice( {
         kind: 'quiet',
@@ -1752,7 +1752,7 @@ export default function Cart (): React.ReactElement {
       // The reservation was taken against a fingerprint that has since moved for a reason the
       // browser cannot observe: `intent_fingerprint` keeps `cart_revision` AND `snapshot_hash`,
       // and `checkout_pricing.basket_hash`'s own docstring records as MEASURED that the website
-      // prepare path writes to the Wix cart on every call -- so a second prepare of an UNEDITED
+      // prepare path writes to the server cart on every call -- so a second prepare of an UNEDITED
       // basket can present a different `snapshot_hash`. Every reason the browser CAN predict is
       // already handled by the basket-scoped key, so this is off the common path.
       //
@@ -1925,7 +1925,7 @@ export default function Cart (): React.ReactElement {
                           ? <Link href={ `/shop/${item.slug}/` }>{ item.name }</Link>
                           : item.name }
                       </p>
-                      {/* DISPLAY ONLY. This Wix passthrough price never reaches the server. */}
+                      {/* DISPLAY ONLY. This catalogue passthrough price never reaches the server. */}
                       <p className="cart-price" data-wc-no-translate="true">{ item.formattedPrice }</p>
                       { needsVariantSelection( item ) && (
                         /*
@@ -1997,7 +1997,7 @@ export default function Cart (): React.ReactElement {
                   a coupon would make the recorded amount differ from the amount contributed, and a
                   gift card is store credit -- spending store credit is not a contribution. Removing
                   the entry point is the cheap half; the server refusal is the authoritative half,
-                  since this panel is not the only way a coupon could ever land on a Wix cart. A
+                  since this panel is not the only way a coupon could ever land on a cart. A
                   render-time read of `items` is correct here. */}
               { !items.some( isContributionItem ) && <RedemptionPanel /> }
 
@@ -2091,7 +2091,7 @@ export default function Cart (): React.ReactElement {
                   which nothing on this page can touch, so words alone would name an action the
                   customer cannot perform. This re-posts the SAME prepare with `resetCart: true`
                   and the SAME lineItems; the browser cart is not touched, and the next prepare
-                  rebuilds the Wix cart from it. */}
+                  rebuilds the server cart from it. */}
               { cartResetOffered && !railTerminal && (
                 <p className="cart-back">
                   <button className="cart-remove" type="button" disabled={ busy }

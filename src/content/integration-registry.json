@@ -3,7 +3,7 @@
   "source": "amplify/functions/shared/lambda_utils/integrations/registry.py",
   "note": "Generated. Access is three-state on purpose: a credential existing is not a scope being granted, and VERIFIED means a real authorised read succeeded and was recorded. Nothing here claims VERIFIED.",
   "counts": {
-    "SCOPE_UNVERIFIED": 7,
+    "SCOPE_UNVERIFIED": 6,
     "CREDENTIAL_ABSENT": 1
   },
   "providers": [
@@ -122,21 +122,6 @@
       "unblock": "No adapter exists. Add webmasters.readonly to the existing OAuth client's consent screen and confirm the property is verified, then build the adapter.",
       "notes": "Search Console reports lag 2-3 days at source. Freshness here is cache age, NOT data recency - a caller must not read a fresh cache as fresh data.",
       "key": "search_console"
-    },
-    {
-      "displayName": "Retired Wix storefront",
-      "owner": "WECARE.DIGITAL retired provider",
-      "secretName": null,
-      "credentialPresent": false,
-      "access": "CREDENTIAL_ABSENT",
-      "readScopes": [],
-      "writeCapableScopes": [],
-      "writeScopeMitigation": null,
-      "maxAgeSeconds": 3600,
-      "adapterBuilt": false,
-      "unblock": "Use the AWS-native product and blog APIs; this provider is retired.",
-      "notes": "The site was deleted and its credentials are scheduled for retirement. Historical references are retained for reconciliation only.",
-      "key": "wix"
     }
   ]
 }

@@ -39,7 +39,6 @@ HANDLER = ROOT / "amplify" / "functions" / "ecommerce" / "checkout" / "handler.p
 #: is a statement about payment initiation and not about inertness. Recorded as the known set so a
 #: new one cannot arrive unnoticed.
 KNOWN_SIDE_EFFECTS_BEFORE_THE_GATE = {
-    "create_checkout",              # a live Wix write
     "allocate_payment_reference",   # reserves PAYREF# in the commerce-keys table
     "put_item",                     # writes the PaymentAttempt row
 }
@@ -138,8 +137,9 @@ def test_no_new_side_effect_creeps_in_before_the_gate(handler_ast):
     """A SUBSET assertion: the gate becoming earlier is an improvement and stays green; a new
     outbound call appearing ahead of it is how 'initiation off' stops meaning 'nothing happens'.
 
-    The three known effects are recorded rather than removed, because removing them is a handler
-    change this task does not own. What this pins is that the list cannot grow silently.
+    The two known effects are the reference reservation and the attempt row; the price itself is
+    a ProductsTable read, which writes nothing. What this pins is that the list cannot grow
+    silently.
     """
     create = _function(handler_ast, "_create")
     gate_line = _gate_line(create)

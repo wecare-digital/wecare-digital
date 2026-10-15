@@ -4,9 +4,9 @@ Why one file rather than rows spread across the existing suites
 ---------------------------------------------------------------
 Every assertion here is about a property that spans more than one module: "a payable modal always
 has paid memory behind it" touches `website_checkout`, `order_keys` and `checkout_pricing`; "only
-the verified Razorpay leg reaches Wix" touches `finalization`, `wix_writeback` and the handler.
-Filing each row under the module it happens to call first would scatter one invariant across four
-files and make a regression look like four unrelated failures.
+the verified Razorpay leg is recorded as the capture" touches `finalization` and the handler.
+Filing each row under the module it happens to call first would scatter one invariant across
+several files and make a regression look like several unrelated failures.
 
 The fake is `coupon_fake_dynamo.FakeTable` throughout, deliberately: it evaluates `OR` and
 parenthesised conditions, which every conditional claim in this change depends on.
@@ -32,9 +32,7 @@ from crm_fake_dynamo import FakeDynamo as CrmFakeDynamo  # noqa: E402
 from lambda_utils.ecommerce import checkout_pricing as cp  # noqa: E402
 from lambda_utils.ecommerce import order_keys  # noqa: E402
 from lambda_utils.ecommerce import payment_attempt  # noqa: E402
-from lambda_utils.ecommerce import purchase_intent  # noqa: E402
 from lambda_utils.ecommerce import website_checkout  # noqa: E402
-# wix_writeback removed with the Wix order writeback; the native terminal creates no Wix order.
 
 KEYS_TABLE = "stack-wecare-digital-CommerceKeys"
 ATTEMPTS_TABLE = "stack-wecare-digital-PaymentAttemptsTable"
@@ -53,16 +51,16 @@ def _keys():
     return FakeTable(key_attr="orderId")
 
 
-def _frozen(*, cart_id=CART, revision=1, line_quantity=1, redeem_paise=0,
-            gift_card_id="", extra_line_field=None, items=None):
+def _frozen(*, cart_id=CART, revision=1, line_quantity=1, collection_paise=COLLECTION_PAISE,
+            extra_line_field=None, items=None):
     """A frozen snapshot payload in `_snapshot_payload`'s exact shape."""
-    quote = cp.compute_quote(COLLECTION_PAISE)
+    quote = cp.compute_quote(collection_paise)
     if items is None:
         line = {"lineItemId": "line-1", "quantity": line_quantity,
                 "totalPrice": {"amount": "1000.00"}}
         if extra_line_field is not None:
-            # A field this build does NOT enumerate, standing in for the per-calculate residue
-            # `basket_hash` cannot vouch for.
+            # A field this build does NOT enumerate, standing in for any term `basket_hash`
+            # covers and `narrow_basket_hash` deliberately does not.
             line["physicalProperties"] = extra_line_field
         items = [line]
     payload = {
@@ -74,11 +72,6 @@ def _frozen(*, cart_id=CART, revision=1, line_quantity=1, redeem_paise=0,
         "delivery": {"title": "Standard"},
         "components": quote.components(),
         "policyVersion": quote.policy_version,
-        "payment": {
-            "wixGiftCard": {"giftCardId": gift_card_id} if gift_card_id else None,
-            "wixGiftCardRedeemPaise": int(redeem_paise),
-            "wixPayNowPaise": quote.total_payable_paise - int(redeem_paise),
-        },
     }
     return payload
 
@@ -121,7 +114,7 @@ def test_the_narrow_paid_row_resolves_when_the_fine_one_cannot():
     order_keys.record_cart_narrow_basket(table, customer_id=CUSTOMER, cart_id=CART,
                                          narrow_hash="narrow_stable", payment_attempt_id="A1",
                                          basket_hash="fine_v1")
-    # Wix moved a non-enumerated field, so the fine identity composes a different key.
+    # A non-enumerated term moved, so the fine identity composes a different key.
     assert order_keys.resolve_cart_basket(
         table, customer_id=CUSTOMER, cart_id=CART, basket_hash="fine_v2") is None
     found = order_keys.resolve_cart_narrow_basket(
@@ -273,7 +266,7 @@ def test_the_basket_hash_ignores_only_the_revision():
     assert cp.basket_hash(base) == cp.basket_hash(bumped), "the revision is the one term dropped"
 
     # Negative half: everything else still changes the identity.
-    for different in (_frozen(line_quantity=2), _frozen(redeem_paise=5000),
+    for different in (_frozen(line_quantity=2), _frozen(collection_paise=COLLECTION_PAISE + 100),
                       _frozen(cart_id="99999999-2222-3333-4444-555555555555")):
         assert cp.basket_hash(base) != cp.basket_hash(different)
     moved_address = _frozen()
@@ -305,8 +298,7 @@ def test_the_narrow_basket_hash_covers_only_contract_checked_terms():
 
     # NEGATIVE half: every enumerated term still changes it.
     for different in (_frozen(line_quantity=2),
-                      _frozen(redeem_paise=5000),
-                      _frozen(gift_card_id="gc_1"),
+                      _frozen(collection_paise=COLLECTION_PAISE + 100),
                       _frozen(cart_id="99999999-2222-3333-4444-555555555555")):
         assert cp.narrow_basket_hash(base) != cp.narrow_basket_hash(different)
 
@@ -359,87 +351,10 @@ def test_the_existing_snapshot_hash_is_unchanged_by_the_additions():
         created_at=1_700_000_000, ttl_seconds=900, items=[{"lineItemId": "line-1",
                                                            "quantity": 1}])
     assert snapshot.snapshot_hash == cp._stable_hash(snapshot.frozen_data)
-    assert "payment" not in snapshot.frozen_data, (
-        "an omitted payment block must stay omitted, or every pre-existing hash moves")
-
-
-# ── step 5: the Wix order payload, from the frozen quote ───────────────────────
-
-def _calculated():
-    return {
-        "cart": {
-            "lineItems": [{
-                "id": "line-1",
-                "name": {"original": "Thing"},
-                "source": {"catalogReference": {"catalogItemId": "prod-1"}},
-                "quantityInfo": {"confirmedQuantity": 2},
-            }],
-            "deliveryInfo": {"method": {"title": "Standard"},
-                             "address": {"city": "Kolkata"}},
-        },
-        "summary": {
-            "priceSummary": {"subtotal": {"amount": "1000.00"},
-                             "discount": {"amount": "0.00"},
-                             "delivery": {"amount": "0.00"},
-                             "tax": {"amount": "0.00"}},
-            "additionalFees": [],
-            "lineItems": [{"lineItemId": "line-1", "quantity": 2,
-                           "unitPrice": {"amount": "500.00"},
-                           "totalPrice": {"amount": "1000.00"}}],
-        },
-    }
-
-
-# (The three Wix-order-payload tests — build_wix_order_payload / _paise_money — were removed
-# with the Wix order writeback. The AWS-native terminal creates no Wix order, so there is no
-# payload to build; money-component typing is covered natively via money.positive_paise below
-# and in test_catalog_pricing.)
-
-
-# ── step 6: the calculation is exposed, not recomputed ─────────────────────────
-
-class _CountingAdapter:
-    """Counts `calculate` calls. One per checkout is the contract."""
-
-    def __init__(self):
-        self.calls = 0
-
-    def calculate(self, cart_id):
-        self.calls += 1
-        calculated = _calculated()
-        calculated.update({
-            "currency": "INR", "amountPaise": COLLECTION_PAISE, "cartId": CART,
-            "cartRevision": 3, "deliveryAddress": {"city": "Kolkata"},
-            "deliveryMethod": {"title": "Standard"},
-            "wixGiftCard": None, "wixGiftCardRedeemPaise": 0,
-            "wixPayNowPaise": cp.compute_quote(COLLECTION_PAISE).total_payable_paise,
-        })
-        return calculated
-
-
-def test_build_intent_still_calculates_exactly_once():
-    address = {"addressLine1": "12 Dalhousie Square", "city": "Kolkata",
-               "state": "West Bengal", "postalCode": "700001"}
-
-    plain = _CountingAdapter()
-    snapshot_a = purchase_intent.build_intent(
-        plain, customer_id=CUSTOMER, cart_id=CART, owned_address=address, now=1_700_000_000)
-    assert plain.calls == 1, "build_intent must still calculate exactly once"
-
-    both = _CountingAdapter()
-    snapshot_b, calculated = purchase_intent.build_intent_with_calculation(
-        both, customer_id=CUSTOMER, cart_id=CART, owned_address=address, now=1_700_000_000)
-    assert both.calls == 1
-    assert snapshot_a.snapshot_hash == snapshot_b.snapshot_hash, (
-        "the sibling must freeze the identical snapshot")
-    assert "summary" in calculated and "cart" in calculated, (
-        "the calculation must come back in build_wix_order_payload's shape")
-
-    import inspect
-    parameters = inspect.signature(purchase_intent.build_intent).parameters
-    for name in ("ttl_seconds", "quote_fn"):
-        assert name in parameters, (
-            f"{name} must stay on the public surface rather than vanish into **kwargs")
+    # Exactly the documented terms, and `_frozen` mirrors them: a new term moves every stored hash.
+    assert set(snapshot.frozen_data) == {"customer", "site", "cart", "items", "address",
+                                         "delivery", "components", "policyVersion"}
+    assert set(snapshot.frozen_data) == set(_frozen())
 
 
 # ══ GRAFT 1a — the double-charge guard, driven through the real handler ═════════
@@ -448,19 +363,16 @@ def test_build_intent_still_calculates_exactly_once():
 # directly. A test that calls the guard itself cannot detect that its only production caller
 # never reaches it, which is the failure mode this whole section exists to rule out.
 
-import copy  # noqa: E402
 import importlib.util  # noqa: E402
 
 HANDLER_PATH = ROOT / "amplify/functions/ecommerce/checkout/handler.py"
-FIXTURES = ROOT / "tests/fixtures"
 CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
 CART_TABLE = "stack-wecare-digital-CartTable"
 PRODUCTS_TABLE = "stack-wecare-digital-ProductsTable"
 PHONE = "+919330994400"
-#: AWS-native single-unit collection: the product price (native shipping is FREE by default; the
-#: old Wix fixture carried a 500 delivery). The money assertions derive the payable through
-#: `compute_quote(V2_COLLECTION_PAISE)`, a relationship that holds at the native value.
-V2_COLLECTION_PAISE = 2499900
+#: AWS-native single-unit collection: the product price (native shipping is FREE by default). The
+#: money assertions derive the payable through `compute_quote(NATIVE_COLLECTION_PAISE)`.
+NATIVE_COLLECTION_PAISE = 2499900
 OWNED_ADDRESS = {"addressLine1": "12 Dalhousie Square", "city": "Kolkata",
                  "state": "West Bengal", "postalCode": "700001"}
 
@@ -476,18 +388,17 @@ FIXTURE_PUBLIC_KEY_ID = "rzp_" + "live_" + "FIXTUREPUBLICID"
 FIXTURE_SECRET_SENTINEL = "SECRET-HALF-MUST-NEVER-APPEAR"
 
 
-def _delivery_complete():
-    return json.loads((FIXTURES / "wix_cart_v2_delivery_complete.json").read_text())
+#: The ProductsTable product and variant every rig basket names.
+PRODUCT_ID = "00d4c72b-f694-441a-a192-e16f4b192440"
+VARIANT_ID = "2d072962-37c0-4821-9c02-2cc223448711"
 
 
 def _native_product_row():
-    """ProductsTable item the native engine prices from, using the fixture's product/variant
-    UUIDs so `line_items()` resolves to one native cart line. Priced at the native single-unit
-    collection (free shipping)."""
-    ref = _delivery_complete()["cart"]["lineItems"][0]["source"]["catalogReference"]
-    return {"id": ref["catalogItemId"], "status": "active",
-            "variants": [{"sku": ref["options"]["variantId"],
-                          "priceMinor": V2_COLLECTION_PAISE, "inventory": 50}]}
+    """ProductsTable item the native engine prices from, so `line_items()` resolves to one native
+    cart line. Priced at the native single-unit collection (free shipping)."""
+    return {"id": PRODUCT_ID, "status": "active",
+            "variants": [{"sku": VARIANT_ID,
+                          "priceMinor": NATIVE_COLLECTION_PAISE, "inventory": 50}]}
 
 
 NATIVE_PRODUCT_ROW = _native_product_row()
@@ -537,91 +448,17 @@ class _MultiTable:
         return len(self.keys_with_prefix(prefix))
 
 
-class _Wix:
-    """A Cart V2 transport whose `calculate` response can be mutated per call.
-
-    `revision_mode` is the lever the double-charge rows turn:
-
-      'bump'  - `summary.cartRevision` and `cart.revision` are INCREMENTED on every calculate,
-                which is what the live path does (prepare PATCHes the cart, then calculate
-                refreshes it) and what makes `snapshot_hash` move for an unedited basket.
-      'fixed' - held constant, so the same-request-key resume is reachable at all.
-
-    `cart_v2.calculate` asserts the two are equal, so they move together or the stub is invalid.
-    """
-
-    def __init__(self, revision_mode="bump", mutate=None):
-        self.base = _delivery_complete()
-        self.revision_mode = revision_mode
-        self.mutate = mutate
-        self.calculates = 0
-        self.calls = []
-        # ── the write-back half, answered only when a row deliberately enables it ──
-        #: The `POST /ecom/v1/orders` bodies, so a test can read WHAT reached Wix.
-        self.wix_orders = []
-        #: The `add-payment` bodies, which is where the per-leg amount is observable.
-        self.wix_payments = []
-        #: The carts `mark-as-completed` closed, by cart id.
-        self.cart_completions = []
-        self.wix_order_id = "wix-order-GRAFT"
-        #: Set to an exception instance to make the next cart completion fail.
-        self.cart_completion_error = None
-
-    def __call__(self, endpoint, method="GET", body=None):
-        self.calls.append((method.upper(), endpoint))
-        # The three write-back endpoints. `wix_writeback._guarded_call` has already refused
-        # anything off its allowlist by the time a call arrives here, so these are exactly the
-        # calls the reconciliation path can make -- which is the enumeration R7.4 asks for, and
-        # it is why the stub answers no fourth endpoint.
-        if endpoint == "/ecom/v1/orders":
-            self.wix_orders.append(copy.deepcopy(body))
-            return {"order": {"id": self.wix_order_id, "currency": body["order"]["currency"], "priceSummary": copy.deepcopy(body["order"]["priceSummary"])}}
-        if endpoint.endswith("/add-payment"):
-            self.wix_payments.append(copy.deepcopy(body))
-            wix_order_id = endpoint[len("/ecom/v1/payments/orders/"):-len("/add-payment")]
-            # Echoed verbatim, so the amount Wix "confirms" is the amount we sent and the
-            # readback comparison in `record_external_payment` is a real comparison rather than
-            # a tautology against a constant.
-            return {"orderTransactions": {"orderId": wix_order_id,
-                                          "payments": copy.deepcopy(
-                                              (body or {}).get("payments") or [])}}
-        if endpoint.endswith("/mark-as-completed"):
-            if self.cart_completion_error is not None:
-                raise self.cart_completion_error
-            self.cart_completions.append(
-                endpoint[len("/ecom/v2/carts/"):-len("/mark-as-completed")])
-            return {}
-        if endpoint.startswith("/stores/v3/products/"):
-            reference = self.base["cart"]["lineItems"][0]["source"]["catalogReference"]
-            return {"product": {
-                "id": reference["catalogItemId"], "visible": True,
-                "variantsInfo": {"variants": [{
-                    "id": reference["options"]["variantId"], "visible": True,
-                    "inventoryStatus": {"inStock": True}}]}}}
-        response = copy.deepcopy(self.base)
-        if "calculate" in endpoint:
-            self.calculates += 1
-            if self.revision_mode == "bump":
-                revision = str(int(response["cart"]["revision"]) + self.calculates)
-                response["cart"]["revision"] = revision
-                response["summary"]["cartRevision"] = revision
-            if self.mutate is not None:
-                self.mutate(response, self.calculates)
-        return response
-
-
 class _Rig:
     """A loaded handler module plus its fakes, with the Razorpay client fully stubbed."""
 
-    def __init__(self, monkeypatch, *, revision_mode="bump", mutate=None,
-                 initiation_enabled=True, keys_table=None):
+    def __init__(self, monkeypatch, *, initiation_enabled=True, keys_table=None):
         monkeypatch.setenv("PAYMENT_ATTEMPTS_TABLE", ATTEMPTS_TABLE)
         monkeypatch.setenv("COMMERCE_KEYS_TABLE", KEYS_TABLE)
         monkeypatch.setenv("CONTACTS_TABLE", CONTACTS_TABLE)
         monkeypatch.setenv("ORDERS_TABLE", ORDERS_TABLE)
         monkeypatch.setenv("APP_ENV", "development")
-        # AWS-NATIVE is the only supply path. The website prepare prices from ProductsTable via
-        # native_checkout; there is no Wix cart (cart_v2) or Wix client (wix_ecom) any more.
+        # AWS-NATIVE is the only supply path: the website prepare prices from ProductsTable via
+        # native_checkout.
         monkeypatch.setenv("CHECKOUT_MODE", "AWS_NATIVE")
         monkeypatch.setenv("CART_TABLE", CART_TABLE)
         monkeypatch.setenv("PRODUCTS_TABLE", PRODUCTS_TABLE)
@@ -637,12 +474,7 @@ class _Rig:
                                CART_TABLE: "cartId", PRODUCTS_TABLE: "id"})
         if keys_table is not None:
             self.db.tables[KEYS_TABLE] = keys_table
-        # `self.wix` is retained ONLY as the source of the fixture catalogReference UUIDs that
-        # `line_items()` sends and for the no-writeback assertions (`r.wix.wix_orders == []`); no
-        # Wix transport is wired into the handler.
-        self.wix = _Wix(revision_mode=revision_mode, mutate=mutate)
         self.creates = []
-        self.checkouts = []
         self.identity = _Identity()
         self.quantity = 1
         self.mp = monkeypatch
@@ -668,12 +500,6 @@ class _Rig:
     def _no_lambda(self):
         raise AssertionError("the website prepare path must make no Lambda invoke")
 
-    def _create_checkout(self, items, **_):
-        self.checkouts.append(items)
-        return {"id": f"wix-checkout-{len(self.checkouts)}", "currency": "INR",
-                "priceSummary": {"total": {"amount": "599.00"}},
-                "lineItems": [{"productName": {"original": "Thing"}, "quantity": 1}]}
-
     def _create_order(self, *, amount_paise, receipt, notes):
         self.creates.append({"amount_paise": amount_paise, "receipt": receipt,
                              "notes": dict(notes)})
@@ -689,46 +515,14 @@ class _Rig:
 
     # -- driving ---------------------------------------------------------------
     def line_items(self):
-        reference = self.wix.base["cart"]["lineItems"][0]["source"]["catalogReference"]
         return [{"catalogReference": {
-            "appId": reference["appId"],
-            "catalogItemId": reference["catalogItemId"],
-            "options": {"variantId": reference["options"]["variantId"]}},
+            "catalogItemId": PRODUCT_ID, "options": {"variantId": VARIANT_ID}},
             "quantity": self.quantity}]
 
     def set_quantity(self, units):
-        """Change the basket COHERENTLY, so the change is the guard's subject and not a fixture bug.
-
-        `cart_v2.calculate` contract-checks that `requestedQuantity == confirmedQuantity` (or it
-        raises `CartQuantityReduced`), that the line totals sum to `priceSummary.subtotal`, and
-        that `subtotal - discount + delivery + additionalFees + tax == total`. Editing one field
-        in isolation breaks one of those and the handler answers 503 -- which would look like the
-        guard refusing when it is the stub that is inconsistent. `_require_same_basket` also
-        compares the REQUESTED quantity against what the browser asked for, so the asked quantity
-        moves with it.
-        """
+        """Change the basket the browser sends. ProductsTable prices it on the next prepare, so
+        the quantity is the guard's subject and nothing else moves."""
         self.quantity = units
-        base = self.wix.base
-        unit_paise = int(round(float(
-            base["summary"]["lineItems"][0]["unitPrice"]["amount"].replace(",", "")) * 100))
-        delivery_paise = int(round(float(
-            base["summary"]["priceSummary"]["delivery"]["amount"].replace(",", "")) * 100))
-        line_total = unit_paise * units
-        money = lambda paise: {"amount": f"{paise // 100}.{paise % 100:02d}",
-                               "convertedAmount": f"{paise // 100}.{paise % 100:02d}"}
-        base["cart"]["lineItems"][0]["quantityInfo"].update(
-            requestedQuantity=units, confirmedQuantity=units)
-        base["summary"]["lineItems"][0]["quantity"] = units
-        base["summary"]["lineItems"][0]["totalPrice"] = money(line_total)
-        base["summary"]["priceSummary"]["subtotal"] = money(line_total)
-        base["summary"]["priceSummary"]["total"] = money(line_total + delivery_paise)
-        # `paymentSummary` reconciles against the total too: with no gift card,
-        # `payNow == totalAfterGiftCards == total` or `calculate` raises
-        # "full immediate payment required". Updating the total and not these is the fixture
-        # contradicting itself.
-        payment = base["summary"].setdefault("paymentSummary", {})
-        payment["payNow"] = money(line_total + delivery_paise)
-        payment["totalAfterGiftCards"] = money(line_total + delivery_paise)
 
     def prepare(self, request_key):
         event = {
@@ -785,14 +579,6 @@ class _Rig:
 
         self.mp.setattr(self.h.razorpay_verify, "verifier_for_event", verifier)
 
-    def enable_writeback(self):
-        """No-op since the Wix order writeback was removed.
-
-        Kept as a method so callers (`_paid_flow(writeback=True)`) need no change; the AWS-native
-        terminal creates no Wix order regardless, which the `wix_orders == []` assertions verify.
-        """
-        return None
-
     # -- post-prepare row surgery, for shapes the fixtures cannot produce -----
     def attempt_row(self):
         rows = self.db.rows(ATTEMPTS_TABLE)
@@ -825,34 +611,36 @@ class _Rig:
         table.rows[matching[0]] = row
         return row
 
-    def make_split_tender(self, redeem_paise):
-        """Rewrite the three stored rows into a WIX-NATIVE SPLIT TENDER, and return the leg.
+    def make_gift_card_split(self, redeem_paise):
+        """Rewrite the stored rows into a SPLIT TENDER part-funded by a settled WECARE gift card,
+        and return the Razorpay leg.
 
-        WHY SURGERY AND NOT A FIXTURE. The split would ideally arrive the way production makes
-        it -- `tests/fixtures/wix_cart_v2_gift_card_partial.json` through `cart_v2.calculate`,
-        which sets `wixGiftCardRedeemPaise` on the frozen snapshot. `cart_v2.calculate` REFUSES
-        that cart today: that is SEAM-G1, an `xfail(strict=True)` row in
-        `tests/test_gift_card_amounts_and_gst.py` owned by the cart_v2 workstream, and clearing
-        it from here would be unmarking another workstream's marker.
-
-        So the basket is priced for real, the gateway order is created for real, and only the
-        three STORED figures are rewritten afterwards -- which is the same row shape a
-        gift-card-funded prepare would have left:
+        WHY SURGERY AND NOT A FIXTURE. The website prepare takes no second tender, so the basket is
+        priced for real, the gateway order is created for real, and only the STORED figures are
+        rewritten afterwards into the row shape a settled card leaves:
 
           attempt.amountPaise            the FULL payable, unchanged (section 8 requires it)
           attempt.razorpayChargedPaise   the leg
-          attempt.wixGiftCardRedeemPaise the other tender
+          attempt.giftCardRedeemedPaise  the other tender (`finalization.OTHER_TENDER_PAISE_ATTRS`)
+          attempt card-ladder evidence   required paise, transaction id, GC_REDEEMED rank
           PAYREF#.amountPaise            the leg (what `reconcile_payment` compares a capture to)
           GATEWAYORDER#.amountPaise      the leg (what `verify_callback` compares it to)
 
-        Everything downstream of the capture -- the two-leg gate, `_tenders_reconcile`, the
-        per-leg `record_external_payment` -- then runs on real code reading real rows.
+        Everything downstream of the capture -- the second-tender gate, `_tenders_reconcile` and
+        the recorded verified capture -- then runs on real code reading real rows.
         """
+        from lambda_utils.ecommerce import gift_card_settlement as gcs
         payable = int(self.attempt_row()["amountPaise"])
         leg = payable - int(redeem_paise)
         assert leg > 0, "a split tender still needs a positive Razorpay leg"
-        self.patch_attempt(razorpayChargedPaise=leg,
-                           wixGiftCardRedeemPaise=int(redeem_paise))
+        self.patch_attempt(**{
+            "razorpayChargedPaise": leg,
+            gcs.REQUIRED_PAISE_ATTR: int(redeem_paise),
+            gcs.REDEEMED_PAISE_ATTR: int(redeem_paise),
+            gcs.TRANSACTION_ID_ATTR: "gc-txn-fixture",
+            # The stage is derived from the RANK attribute and from nothing else.
+            gcs.RANK_ATTRIBUTE: gcs.STAGE_RANK[gcs.GC_REDEEMED],
+        })
         self.patch_row(order_keys.PAYMENT_REFERENCE_PREFIX, amountPaise=leg)
         self.patch_row(order_keys.GATEWAY_ORDER_PREFIX, amountPaise=leg)
         return leg
@@ -916,10 +704,9 @@ def test_a_revision_bump_does_not_unblock_a_paid_basket(rig):
     so two prepares of the same basket produce the SAME snapshot hash and the SAME basket identity
     by design. That makes the guard-keyed-on-basket the ONLY thing that can refuse the second
     prepare (a guard keyed on a per-prepare quote hash could not, because the hashes are equal) —
-    which assertions 2-3 pin. (Under Wix this was argued the opposite way, via a churning
-    revision; native determinism makes the same point structurally and more strongly.)
+    which assertions 2-3 pin.
     """
-    r = rig(revision_mode="bump")
+    r = rig()
     code_1, body_1 = r.prepare("K1")
     assert code_1 == 200 and body_1["status"] == "CHECKOUT_OPTIONS_READY"
     assert len(r.creates) == 1
@@ -935,7 +722,7 @@ def test_a_revision_bump_does_not_unblock_a_paid_basket(rig):
 
     # 1. The native basket identity is STABLE across prepares and matches the paid pointer, so the
     #    guard keys on it (not on a per-prepare quote hash, which is identical here by design).
-    second_snapshot, _calculated = r.h._website_snapshot(
+    second_snapshot = r.h._website_snapshot(
         r.identity, r.line_items(), int(time.time()))
     assert second_snapshot.snapshot_hash == first_hash, (
         "native cart identity is deterministic, so the two prepares of one basket must hash equal")
@@ -960,36 +747,20 @@ def test_a_revision_bump_does_not_unblock_a_paid_basket(rig):
         "a step-2a refusal must write NOTHING AT ALL, including its own request key")
 
 
-# ── (b) the moved-Wix-field durability row ─────────────────────────────────────
+# ── (b) the pointer-overwrite durability row ───────────────────────────────────
 
-def _move_a_non_enumerated_field(response, call_number):
-    """From the third calculate on, move a `summary.lineItems` field this build does not enumerate.
-
-    `physicalProperties` is inside a line item, is a raw Wix shape relayed straight into the
-    frozen payload, and is NOT one of the terms `narrow_basket_hash` names. It therefore stands
-    in for the per-calculate residue `basket_hash` cannot vouch for.
-    """
-    if call_number >= 3:
-        for line in response["summary"]["lineItems"]:
-            line["physicalProperties"] = {"weight": "1.25", "shippingGroup": "late"}
-
-
-def test_a_paid_basket_survives_both_a_pointer_overwrite_and_a_moved_wix_field(rig):
+def test_a_paid_basket_survives_a_pointer_overwrite(rig):
     """Four stages, and stage (b) must be ALLOWED or the guard refuses legitimate purchases.
 
     (a) pay basket B1.  (b) past the window, a DIFFERENT basket B2 is allowed and upserts the
-    single-slot pointer, destroying the only record that B1 was paid.  (c) B2 is abandoned into a
-    retryable state, where `may_create_order` and `is_in_flight` are both false.  (d) re-present
-    the unedited B1 with a field Wix controls moved, so `basket_hash` DIFFERS and the fine key
-    misses -- and the NARROW row is what refuses it.
+    single-slot pointer, destroying the pointer's record that B1 was paid.  (c) B2 is abandoned
+    into a retryable state, where `may_create_order` and `is_in_flight` are both false.
+    (d) re-present the unedited B1: its deterministic identity still names the paid attempt
+    through the per-basket rows, so it is refused even though the live pointer names B2.
 
-    AWS-NATIVE. The original row exercised the Wix-only "a non-enumerated raw cart field moved,
-    so `basket_hash` differs but `narrow_basket_hash` does not" path — the reason the narrow row
-    exists. The native snapshot carries NO non-enumerated raw provider fields: `basket_hash` and
-    `narrow_basket_hash` both key on the same deterministic data, so that specific divergence
-    cannot occur. What this row still proves natively is the guarantee that matters: a paid B1
-    stays blocked after a DIFFERENT basket B2 overwrites the single-slot payment pointer — the
-    paid-basket guard survives the pointer overwrite.
+    The case where `basket_hash` moves and `narrow_basket_hash` does not -- the reason the narrow
+    row exists -- is pinned at the row level by
+    `test_the_narrow_paid_row_resolves_when_the_fine_one_cannot`.
     """
     r = rig()
 
@@ -999,7 +770,7 @@ def test_a_paid_basket_survives_both_a_pointer_overwrite_and_a_moved_wix_field(r
     b1_narrow = _rows_with(r, order_keys.CART_NARROW_BASKET_PREFIX)[0]
     b1_fine = b1_narrow["basketHash"]
     assert b1_fine, "the fixture must have produced a fine identity to begin with"
-    b1_snapshot, _ = r.h._website_snapshot(r.identity, r.line_items(), int(time.time()))
+    b1_snapshot = r.h._website_snapshot(r.identity, r.line_items(), int(time.time()))
 
     # (b) Past the in-flight window a genuinely different basket (B2) is allowed — it overwrites
     #     the single-slot CART_PAYMENT pointer, which is the condition that could unblock B1.
@@ -1012,7 +783,7 @@ def test_a_paid_basket_survives_both_a_pointer_overwrite_and_a_moved_wix_field(r
     assert len(r.creates) == 2
     # B2's identity genuinely differs from B1's (anti-vacuity: the quantity change moved it).
     assert cp.narrow_basket_hash(
-        r.h._website_snapshot(r.identity, r.line_items(), int(time.time()))[0].frozen_data
+        r.h._website_snapshot(r.identity, r.line_items(), int(time.time())).frozen_data
     ) != b1_narrow["narrowBasketHash"]
 
     # (c) B2 is abandoned.
@@ -1021,7 +792,7 @@ def test_a_paid_basket_survives_both_a_pointer_overwrite_and_a_moved_wix_field(r
     # (d) Re-present the UNEDITED B1. Its deterministic identity is unchanged and still names the
     #     paid attempt, even though the live payment pointer now points at B2's row.
     r.set_quantity(1)
-    presented, _calculated = r.h._website_snapshot(
+    presented = r.h._website_snapshot(
         r.identity, r.line_items(), int(time.time()))
     assert cp.narrow_basket_hash(presented.frozen_data) == b1_narrow["narrowBasketHash"]
     assert cp.basket_hash(presented.frozen_data) == b1_fine
@@ -1083,11 +854,11 @@ def test_a_resumed_request_key_after_a_lost_pointer_write_still_guards_the_baske
     payment, must then be refused 409 CART_ALREADY_PAID -- which it can only be because #2 wrote
     them.
 
-    Run against a FIXED-revision stub, because `intent_fingerprint` carries `cart_revision`: with
-    a bumping revision, prepare #2 answers INTENT_CHANGED at step 3 and the resume is unreachable.
+    The native quote is deterministic per basket, so prepare #2 presents prepare #1's
+    `intent_fingerprint` and the resume is reachable.
     """
     hostile = _PointerHostileTable(refuse_prefix)
-    r = rig(revision_mode="fixed", keys_table=hostile)
+    r = rig(keys_table=hostile)
 
     # Prepare #1: one cart-row write is lost.
     code_1, body_1 = r.prepare("K")
@@ -1153,7 +924,7 @@ def test_a_prepare_onto_an_already_bound_order_still_writes_the_pointer(rig, ref
     all.
     """
     hostile = _PointerHostileTable(refuse_prefix)
-    r = rig(revision_mode="fixed", keys_table=hostile)
+    r = rig(keys_table=hostile)
     assert r.prepare("K")[1]["reason"] == website_checkout.CART_POINTER_SAVE_FAILED
     # Re-arm against the resume exit specifically, so the SECOND prepare is the one that fails.
     hostile.armed = True
@@ -1205,8 +976,9 @@ def test_a_paid_basket_reordered_to_a_different_address_is_refused_past_the_wind
 
     `narrow_basket_hash` ignores the address, so an address-only re-order of a paid basket
     matches narrowly FOREVER and is refused with no self-release. The two cases it cannot
-    distinguish -- "Wix moved a field we do not control" and "the shopper re-ordered the same
-    items to a different address" -- are observationally identical, and only one of them may pass.
+    distinguish -- "a term the narrow identity does not name moved" and "the shopper re-ordered
+    the same items to a different address" -- are observationally identical, and only one of them
+    may pass.
     """
     r = rig()
     assert r.prepare("K1")[1]["status"] == "CHECKOUT_OPTIONS_READY"
@@ -1234,7 +1006,7 @@ def test_a_reload_in_the_paying_tab_is_refused_not_resumed(rig):
     basket, and "no second charge" would rest entirely on Razorpay refusing a payment against an
     order already marked paid -- an external behaviour nothing here verifies.
     """
-    r = rig(revision_mode="fixed")
+    r = rig()
     assert r.prepare("K")[1]["status"] == "CHECKOUT_OPTIONS_READY"
     r.mark_paid()
     code, body = r.prepare("K")
@@ -1246,7 +1018,7 @@ def test_a_reload_in_the_paying_tab_is_refused_not_resumed(rig):
 
 def test_a_reload_on_an_unpaid_attempt_still_resumes(rig):
     """The other half, and the reason the exemption exists at all."""
-    r = rig(revision_mode="fixed")
+    r = rig()
     first = r.prepare("K")[1]
     assert first["status"] == "CHECKOUT_OPTIONS_READY"
     code, body = r.prepare("K")
@@ -1260,10 +1032,8 @@ def test_a_same_key_prepare_on_an_unchanged_native_basket_is_an_idempotent_resum
     """AWS-native: a second prepare with the SAME request key on the SAME basket is a resume, not
     an intent change. The native cart id and the intent fingerprint are deterministic over the
     basket, so re-pressing with an unchanged cart resolves onto the one in-flight attempt and
-    mints no second gateway order — 200 CHECKOUT_OPTIONS_READY. (Under Wix a churning revision
-    moved the fingerprint and produced a 409 INTENT_CHANGED here; native determinism makes the
-    idempotent resume the honest answer, and the duplicate-order guard is unaffected.)"""
-    r = rig(revision_mode="bump")
+    mints no second gateway order — 200 CHECKOUT_OPTIONS_READY."""
+    r = rig()
     assert r.prepare("K")[1]["status"] == "CHECKOUT_OPTIONS_READY"
     code, body = r.prepare("K")
     assert code == 200
@@ -1303,7 +1073,7 @@ def test_two_overlapping_prepares_on_one_basket_open_one_payable_order(rig):
     What is asserted here is the invariant, not the arm: ONE create, ONE gateway order, ONE
     reference, ONE modal.
     """
-    r = rig(revision_mode="fixed")
+    r = rig()
     inner = {}
     original = r._create_order
 
@@ -1349,7 +1119,7 @@ def test_the_gate_off_path_claims_nothing(rig):
 
 
 def test_the_gate_off_prepare_leaves_no_payable_residue(rig):
-    """The same property as the absence of anything payable, plus no stored Wix payload."""
+    """The same property as the absence of anything payable: one reservation row, nothing else."""
     r = rig(initiation_enabled=False)
     r.prepare("K1")
     assert r.db.rows(ORDERS_TABLE) == []
@@ -1469,14 +1239,12 @@ def test_a_dangling_basket_row_blocks_for_one_window_then_releases(rig):
 
 
 def test_the_in_flight_horizon_outlasts_every_quote_ttl():
-    """Three inequalities, because 900 was wrong: it EQUALS the V1 snapshot TTL."""
+    """The block outlasts the quote: one EQUAL to the website snapshot TTL would expire with it."""
     spec = importlib.util.spec_from_file_location("graft_ttl_handler", HANDLER_PATH)
     handler = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(handler)
     assert (website_checkout.CART_PAYMENT_IN_FLIGHT_SECONDS
             > handler.WEBSITE_SNAPSHOT_TTL_SECONDS)
-    assert (website_checkout.CART_PAYMENT_IN_FLIGHT_SECONDS
-            > purchase_intent.QUOTE_TTL_SECONDS)
     assert (website_checkout.CART_PAYMENT_IN_FLIGHT_SECONDS
             > website_checkout.CREATE_CLAIM_STALE_SECONDS)
     assert (website_checkout.CREATE_CLAIM_STALE_SECONDS
@@ -1597,18 +1365,17 @@ def test_the_browser_amount_and_the_attempt_amount_are_different_expressions():
 TOUCHED_PYTHON = (
     "amplify/functions/shared/lambda_utils/ecommerce/order_keys.py",
     "amplify/functions/shared/lambda_utils/ecommerce/checkout_pricing.py",
-    # (wix_writeback.py removed in the Wix exit — the native terminal creates no Wix order.)
     "amplify/functions/shared/lambda_utils/ecommerce/purchase_intent.py",
     "amplify/functions/shared/lambda_utils/ecommerce/website_checkout.py",
     "amplify/functions/shared/lambda_utils/ecommerce/finalization.py",
     "amplify/functions/ecommerce/checkout/handler.py",
     # Contribution as a product. `blog_contribution` carries the committed recognition set and a
-    # re-based exception; `customer_cart` carries `abandon`. (wix_ecom.py removed in the Wix exit.)
+    # re-based exception; `customer_cart` carries `abandon`.
     "amplify/functions/shared/lambda_utils/ecommerce/blog_contribution.py",
     "amplify/functions/shared/lambda_utils/ecommerce/customer_cart.py",
     # The provider-neutral cart contract: delivery option helpers + the exception vocabulary the
     # native path reuses. `available_delivery_options` converts an amount to paise, so the
-    # no-float and no-PII gates below cover it. (cart_v2.py removed in the Wix exit.)
+    # no-float and no-PII gates below cover it.
     "amplify/functions/shared/lambda_utils/ecommerce/cart_contract.py",
 )
 
@@ -1762,20 +1529,13 @@ def test_the_constants_match_the_modules_they_mirror():
     from lambda_utils.ecommerce import gift_card_settlement
     from lambda_utils.integrations import razorpay_orders
 
-    # (The reduced-payload mirror check was removed with wix_writeback: there is no Wix order
-    # payload to reduce on the AWS-native terminal.)
     # The verified-capture attribute, declared as an obligation by the gift-card ladder and
     # written only by finalization.
     from lambda_utils.ecommerce import finalization
     assert (finalization.VERIFIED_CAPTURED_PAISE_ATTR
             == gift_card_settlement.RAZORPAY_VERIFIED_PAISE_ATTR)
-    # Both tender legs, and the Wix-native one asserted against the literal `_bind_and_ready`
-    # actually writes -- read out of the module source, so a rename is caught.
-    assert gift_card_settlement.REDEEMED_PAISE_ATTR in finalization.OTHER_TENDER_PAISE_ATTRS
-    assert "wixGiftCardRedeemPaise" in finalization.OTHER_TENDER_PAISE_ATTRS
-    binder_source = WEBSITE_CHECKOUT_SOURCE.read_text(encoding="utf-8")
-    assert '"wixGiftCardRedeemPaise"' in binder_source, (
-        "the website producer no longer writes the attribute finalization reconciles against")
+    # The one other tender finalization reconciles, by the gift-card ladder's own name.
+    assert finalization.OTHER_TENDER_PAISE_ATTRS == (gift_card_settlement.REDEEMED_PAISE_ATTR,)
     # The checkout mode the finalizer accepts.
     assert website_checkout.CHECKOUT_MODE_WEBSITE in finalization.ACCEPTED_CHECKOUT_MODES
     assert "AWS_NATIVE" in finalization.ACCEPTED_CHECKOUT_MODES
@@ -1849,10 +1609,10 @@ def test_the_stubbed_browser_flow_yields_one_order(rig, monkeypatch):
     assert FIXTURE_SECRET_SENTINEL not in rendered
     assert "key_secret" not in rendered
     assert "keySecret" not in rendered
-    # 5. The amount is the CALCULATOR total, not the raw Wix collection.
-    expected = cp.compute_quote(V2_COLLECTION_PAISE).total_payable_paise
+    # 5. The amount is the CALCULATOR total, not the raw collection.
+    expected = cp.compute_quote(NATIVE_COLLECTION_PAISE).total_payable_paise
     assert options["amountPaise"] == expected
-    assert options["amountPaise"] != V2_COLLECTION_PAISE
+    assert options["amountPaise"] != NATIVE_COLLECTION_PAISE
 
     # ── the verify leg, with the signature and the capture readback both stubbed ──
     gateway_order_id = options["orderId"]
@@ -1923,8 +1683,7 @@ def test_no_response_or_log_can_carry_the_key_secret(rig, caplog):
 GATEWAY_ORDER_ID = "order_GRAFT_1"
 
 
-def _paid_flow(r, *, request_key="K_final", redeem_paise=0, writeback=True,
-               payment_id="pay_final_1"):
+def _paid_flow(r, *, request_key="K_final", redeem_paise=0, payment_id="pay_final_1"):
     """prepare -> (optional split surgery) -> stubbed capture. Returns `(leg, options)`.
 
     One helper so every row below starts from the SAME prepared state and differs only in the
@@ -1935,9 +1694,7 @@ def _paid_flow(r, *, request_key="K_final", redeem_paise=0, writeback=True,
     options = body["options"]
     leg = int(options["amountPaise"])
     if redeem_paise:
-        leg = r.make_split_tender(redeem_paise)
-    if writeback:
-        r.enable_writeback()
+        leg = r.make_gift_card_split(redeem_paise)
     r.stub_capture(payment_id=payment_id, amount_paise=leg)
     return leg, options
 
@@ -1966,11 +1723,10 @@ def _stage_of(r):
 # ── the baseline: the wiring reaches finalization at all ───────────────────────
 
 def test_a_website_attempt_can_be_finalized_at_all(rig):
-    """A paid website attempt runs `accept_paid` to its native terminal.
+    """A paid website attempt runs `accept_paid` to its terminal stage.
 
-    AWS-native: the internal order record IS the authoritative artifact — there is no Wix
-    writeback. After the order commits and the tenders reconcile, `accept_paid` stages
-    `ORDER_FINALIZED`. No external Wix order / payment / cart-completion call is made.
+    The internal order record IS the authoritative artifact: after it commits and the tenders
+    reconcile, `accept_paid` stages `ORDER_FINALIZED` on the attempt and mirrors it on the order.
     """
     r = rig()
     leg, options = _paid_flow(r, request_key="K_fin_1")
@@ -1983,10 +1739,7 @@ def test_a_website_attempt_can_be_finalized_at_all(rig):
     assert len(r.db.rows(ORDERS_TABLE)) == 1
     stage, reason = _stage_of(r)
     assert (stage, reason) == ("ORDER_FINALIZED", ""), (stage, reason)
-    # No Wix writeback happens any more.
-    assert r.wix.wix_orders == []
-    assert r.wix.wix_payments == []
-    assert r.wix.cart_completions == []
+    assert r.db.rows(ORDERS_TABLE)[0]["finalizationStage"] == "ORDER_FINALIZED"
     # The attempt carries the provider's own confirmed figure, not a derived one.
     assert r.attempt_row()[finalization_module().VERIFIED_CAPTURED_PAISE_ATTR] == leg
 
@@ -1994,10 +1747,9 @@ def test_a_website_attempt_can_be_finalized_at_all(rig):
 def test_the_verified_razorpay_leg_is_recorded_not_the_order_total(rig):
     """Under split tender the recorded verified capture is the provider's leg, never the total.
 
-    The money correctness this pins outlives Wix: `verified_captured_paise` is the Razorpay
-    leg's own confirmed figure, and recording the full payable instead would over-report the
-    capture. The anti-vacuity anchor is that the leg and the payable are DIFFERENT numbers. There
-    is no Wix writeback now, so the evidence lives on the attempt row, not in a Wix payment.
+    `verified_captured_paise` is the Razorpay leg's own confirmed figure, and recording the full
+    payable instead would over-report the capture. The anti-vacuity anchor is that the leg and
+    the payable are DIFFERENT numbers; the evidence lives on the attempt row.
     """
     r = rig()
     redeem = 40000
@@ -2012,60 +1764,44 @@ def test_the_verified_razorpay_leg_is_recorded_not_the_order_total(rig):
     recorded = int(r.attempt_row()[finalization_module().VERIFIED_CAPTURED_PAISE_ATTR])
     assert recorded == leg
     assert recorded != payable
-    # Native terminal; nothing written to Wix.
     assert _stage_of(r)[0] == "ORDER_FINALIZED"
-    assert r.wix.wix_orders == [] and r.wix.wix_payments == []
 
 
 def test_a_one_paise_tender_disagreement_fails_closed(rig):
-    """One paise is a mismatch. Exact integers, no tolerance, and nothing external is written.
+    """One paise is a mismatch. Exact integers, no tolerance, and the order is not finalized.
 
     The internal order record IS created -- it is evidence that money moved and must survive --
-    but `_tenders_reconcile` refuses before the write-back gate, so no Wix order, no payment
-    record and no cart completion follow.
+    but `_tenders_reconcile` refuses before the terminal stage, so the order rests at
+    NEEDS_RECONCILIATION and never reaches ORDER_FINALIZED.
     """
     r = rig()
     redeem = 40000
     leg, options = _paid_flow(r, request_key="K_fin_3", redeem_paise=redeem)
     # The other tender now claims ONE PAISE MORE than the split actually was.
-    r.patch_attempt(wixGiftCardRedeemPaise=redeem + 1)
+    from lambda_utils.ecommerce import gift_card_settlement
+    r.patch_attempt(**{gift_card_settlement.REDEEMED_PAISE_ATTR: redeem + 1})
 
     code, body = r.verify(order_id=options["orderId"], payment_id="pay_final_1")
     assert code == 200 and body["status"] == "VERIFIED_PAID", body
 
     assert len(r.db.rows(ORDERS_TABLE)) == 1, "the paid evidence must still be recorded"
     assert _stage_of(r) == ("NEEDS_RECONCILIATION", "TENDER_SUM_MISMATCH")
-    assert r.wix.wix_orders == [] and r.wix.wix_payments == []
-    assert r.wix.cart_completions == []
-
-
-def test_a_wix_funded_split_tender_order_reaches_accept_paid(rig):
-    """Leg B of the split gate must PASS a readable Wix-native tender, or the graft is unreachable.
-
-    A blanket "refuse any attempt carrying a second tender" would cancel the split-tender work
-    from its only production caller. This row is what makes the per-leg gate a decision.
-    """
-    r = rig()
-    leg, options = _paid_flow(r, request_key="K_fin_4", redeem_paise=25000)
-    assert int(r.attempt_row()["wixGiftCardRedeemPaise"]) == 25000
-
-    code, body = r.verify(order_id=options["orderId"], payment_id="pay_final_1")
-    assert code == 200 and body["status"] == "VERIFIED_PAID", body
-    assert len(r.db.rows(ORDERS_TABLE)) == 1
-    assert _stage_of(r)[0] == "ORDER_FINALIZED"
+    assert r.db.rows(ORDERS_TABLE)[0]["finalizationStage"] == "INTERNAL_ORDER_CREATED"
 
 
 def test_an_ordinary_card_free_order_with_a_zero_leg_is_not_refused(rig):
-    """`wixGiftCardRedeemPaise` is written UNCONDITIONALLY, including `0`.
+    """The second-tender gate tests the VALUE and never the key.
 
-    So the gate tests the VALUE and never the key. A presence test here would refuse every
-    ordinary card-free website order, which is the common case.
+    An ordinary website attempt carries no tender attribute at all, and tender evidence recorded
+    as 0 -- a card noted before anything is debited -- is still not a second leg. A presence test
+    would refuse such an order; it must finalize.
     """
     r = rig()
     leg, options = _paid_flow(r, request_key="K_fin_5")
-    assert "wixGiftCardRedeemPaise" in r.attempt_row(), (
-        "the producer stopped writing the attribute, so this row no longer tests presence-vs-value")
-    assert int(r.attempt_row()["wixGiftCardRedeemPaise"]) == 0
+    fin = finalization_module()
+    assert not [name for name in fin.OTHER_TENDER_PAISE_ATTRS if name in r.attempt_row()], (
+        "the website prepare takes no second tender, so it writes no tender attribute")
+    r.patch_attempt(**{name: 0 for name in fin.OTHER_TENDER_PAISE_ATTRS})
 
     code, body = r.verify(order_id=options["orderId"], payment_id="pay_final_1")
     assert code == 200 and body["status"] == "VERIFIED_PAID", body
@@ -2078,7 +1814,7 @@ def test_an_unreadable_tender_leg_is_refused(rig, caplog):
     import logging
     r = rig()
     leg, options = _paid_flow(r, request_key="K_fin_6")
-    r.patch_attempt(wixGiftCardRedeemPaise="not-a-number")
+    r.patch_attempt(**{finalization_module().OTHER_TENDER_PAISE_ATTRS[0]: "not-a-number"})
 
     with caplog.at_level(logging.ERROR):
         code, body = r.verify(order_id=options["orderId"], payment_id="pay_final_1")
@@ -2122,8 +1858,8 @@ def test_a_settled_wecare_gift_card_is_not_refused_by_the_ladder_gate(rig):
     r = rig()
     redeem = 30000
     leg, options = _paid_flow(r, request_key="K_fin_8")
-    # A WECARE card, settled, funding part of the basket. `giftCardRedeemedPaise` is the second
-    # entry in `OTHER_TENDER_PAISE_ATTRS`, so the sum closes against the payable.
+    # A WECARE card, settled, funding part of the basket. `giftCardRedeemedPaise` is the tender
+    # `OTHER_TENDER_PAISE_ATTRS` names, so the sum closes against the payable.
     r.patch_attempt(**{
         gift_card_settlement.REQUIRED_PAISE_ATTR: redeem,
         gift_card_settlement.REDEEMED_PAISE_ATTR: redeem,
@@ -2183,7 +1919,7 @@ def test_the_reconcile_verifier_resolves_a_payref_reference(rig):
     no order record.
     """
     r = rig()
-    leg, options = _paid_flow(r, request_key="K_load_1", writeback=False)
+    leg, options = _paid_flow(r, request_key="K_load_1")
     keys = r.h._keys_table()
     reference_id = r.creates[-1]["notes"]["referenceId"]
 
@@ -2317,7 +2053,7 @@ def test_two_readbacks_disagreeing_on_the_capture_write_nothing(rig, caplog):
     """
     import logging
     r = rig()
-    leg, options = _paid_flow(r, request_key="K_load_6", writeback=False)
+    leg, options = _paid_flow(r, request_key="K_load_6")
     gateway_order_id = options["orderId"]
     reference_id = r.creates[-1]["notes"]["referenceId"]
     # The two stored authorities disagree by one paise, which is the only way both comparisons
@@ -2374,7 +2110,7 @@ def test_the_closed_tab_poll_writes_exactly_one_order_record(rig):
     code_again, _ = r.status(options["paymentAttemptId"])
     assert code_again == 200
     assert len(r.db.rows(ORDERS_TABLE)) == 1
-    assert r.wix.wix_orders == []  # native terminal, no Wix writeback
+    assert _stage_of(r)[0] == "ORDER_FINALIZED"
     assert r.db.count_prefix(order_keys.ORDER_NUMBER_PREFIX) == 1
 
 
@@ -2525,8 +2261,8 @@ def test_a_float_amount_is_refused_at_every_money_boundary(value):
         payment_attempt.build(customer_id=CUSTOMER, reference_id="ref_money_1",
                               amount_paise=value, configuration_name="WEBSITE_RAZORPAY_STANDARD")
 
-    # 5. `money.positive_paise` -- the native money boundary (the former Wix _paise_money is
-    #    gone with the writeback). A float or bool is refused rather than coerced.
+    # 5. `money.positive_paise` -- the money boundary. A float or bool is refused rather than
+    #    coerced.
     from lambda_utils.ecommerce import money as _money
     with pytest.raises((TypeError, ValueError)):
         _money.positive_paise(value)
@@ -2571,7 +2307,7 @@ _DYNAMODB_ITEM_LIMIT_BYTES = 400_000
 
 
 def test_the_attempt_row_fits_one_dynamodb_item():
-    """The two blobs share ONE budget, because they are two attributes on ONE item.
+    """The stored snapshot is bounded, because it is an attribute on ONE 400 KB item.
 
     If the arithmetic is wrong the failure is specific and bad: `reserve_attempt`'s conditional
     put raises an item-size validation error AFTER `bind_gateway_order` has committed and
@@ -2582,7 +2318,8 @@ def test_the_attempt_row_fits_one_dynamodb_item():
     bug rather than a logic bug.
     """
     ceiling = website_checkout._ATTEMPT_BLOB_BUDGET_BYTES
-    floor = website_checkout._WIX_PAYLOAD_FLOOR_BYTES
+    assert ceiling < _DYNAMODB_ITEM_LIMIT_BYTES, (
+        "the budget must leave room for the rest of the row")
 
     # An oversized snapshot: many lines, each carrying detail the reduced projection drops.
     oversized_snapshot = _frozen(items=[
@@ -2593,49 +2330,19 @@ def test_the_attempt_row_fits_one_dynamodb_item():
     assert len(json.dumps(oversized_snapshot, default=str)) > ceiling, (
         "the fixture is not oversized, so nothing below exercises a reduction")
 
-    # An oversized Wix payload, with money components that must survive at ANY size.
-    price_summary = {"subtotal": {"amount": "1000.00"}, "discount": {"amount": "0.00"},
-                     "delivery": {"amount": "0.00"}, "tax": {"amount": "0.00"},
-                     "totalAdditionalFees": {"amount": "20.00"},
-                     "total": {"amount": "1020.00"}}
-    additional_fees = [{"code": "WD-CONVENIENCE", "name": "Convenience fee",
-                        "price": {"amount": "20.00"}}]
-    oversized_payload = {
-        "currency": "INR", "priceSummary": dict(price_summary),
-        "additionalFees": [dict(entry) for entry in additional_fees],
-        "lineItems": [
-            {"productName": {"original": f"Item {index}"}, "quantity": 1,
-             "catalogReference": {"catalogItemId": "p" * 200, "options": {"variantId": "v" * 200}},
-             "price": {"amount": "1000.00"}, "totalPriceAfterTax": {"amount": "1000.00"}}
-            for index in range(400)],
-    }
-    assert len(json.dumps(oversized_payload, default=str)) > ceiling
-
-    # The production ordering, verbatim: the snapshot is measured FIRST and the payload gets
-    # whatever is left, never a second ceiling of its own.
     snapshot_blob = website_checkout._bounded_snapshot(oversized_snapshot, ceiling)
-    snapshot_bytes = len(json.dumps(snapshot_blob, default=str))
-    remaining = ceiling - snapshot_bytes
-    payload_blob = website_checkout._bounded_wix_order_payload(
-        oversized_payload, max(remaining, floor))
-    payload_bytes = len(json.dumps(payload_blob, default=str))
 
-    # THE PROPERTY. Jointly bounded, so the row fits one item with room for every other field.
-    assert snapshot_bytes + payload_bytes <= ceiling + floor
-    assert snapshot_bytes + payload_bytes <= _DYNAMODB_ITEM_LIMIT_BYTES
-    # And the off-by-one this is written against: a PER-BLOB ceiling of the same size would have
-    # permitted twice it, which is how a guard written to bound an item limit comes to exceed it.
-    assert ceiling + floor < 2 * ceiling
-
-    # Both reductions are FLAGGED, and the flags mean different things.
+    # THE PROPERTY. Bounded, so the row fits one item with room for every other field.
+    assert len(json.dumps(snapshot_blob, default=str)) <= ceiling
+    # The reduction is FLAGGED, so the evidence is never mistaken for the whole record...
     assert snapshot_blob["purchasedSnapshotReduced"] is True
-    assert payload_blob[website_checkout._WIX_PAYLOAD_REDUCED_FLAG] is True
-    # A MONEY FIELD IS NEVER WHAT GETS TRIMMED.
-    assert payload_blob["priceSummary"] == price_summary
-    assert payload_blob["additionalFees"] == additional_fees
-    # `cart` is retained deliberately: `accept_paid`'s own guard is `snapshot.get('cart')`, so
-    # dropping it would REFUSE the order rather than shrink it.
+    # ...and the money and the identity survive it. `cart` is retained deliberately:
+    # `accept_paid`'s own guard is `snapshot.get('cart')`, so dropping it would REFUSE the order
+    # rather than shrink it.
     assert snapshot_blob["cart"] == oversized_snapshot["cart"]
+    assert snapshot_blob["components"] == oversized_snapshot["components"]
+    # A snapshot inside the budget is stored whole.
+    assert website_checkout._bounded_snapshot(_frozen(), ceiling) == _frozen()
 
 
 def test_an_ordinary_prepare_stores_a_row_far_inside_the_item_limit(rig):
@@ -2646,12 +2353,9 @@ def test_an_ordinary_prepare_stores_a_row_far_inside_the_item_limit(rig):
     row_bytes = len(json.dumps(r.attempt_row(), default=str))
     assert row_bytes <= _DYNAMODB_ITEM_LIMIT_BYTES
     assert not r.attempt_row()["purchasedSnapshot"].get("purchasedSnapshotReduced")
-    # Native: there is no wixOrderPayload on the row at all, so nothing to trim.
-    assert "wixOrderPayload" not in r.attempt_row()
-
-
-# The former test_a_reduced_wix_payload_is_refused_rather_than_sent was removed with the Wix
-# writeback: in AWS-native mode there is no outbound Wix order to protect from a trimmed payload.
+    # ONE blob on the row: the reviewed snapshot is the only structured attribute stored.
+    assert [name for name, value in r.attempt_row().items()
+            if isinstance(value, (dict, list))] == ["purchasedSnapshot"]
 
 
 # ══ the two residues the review named, each now pinned ═════════════════════════

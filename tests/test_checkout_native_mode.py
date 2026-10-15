@@ -1,6 +1,7 @@
-"""_website_snapshot is routed through the native supply engine (ProductsTable),
-with NO Wix call. Native is now UNCONDITIONAL: `_supply_mode()` returns AWS_NATIVE
-regardless of CHECKOUT_MODE, and the handler imports no Wix client at all.
+"""_website_snapshot is routed through the native supply engine (ProductsTable).
+
+ProductsTable is the only supply authority: whatever CHECKOUT_MODE the environment carries, the
+handler prices the basket from ProductsTable and stamps its attempts with the AWS_NATIVE marker.
 
 The handler is loaded BY PATH under a unique module name (the repo has dozens of
 handler.py files).
@@ -41,14 +42,6 @@ def _product_row():
             "variants": [{"sku": VARIANT_UUID, "priceMinor": 59900, "inventory": 5}]}
 
 
-def test_default_mode_is_aws_native(monkeypatch):
-    """The Wix exit made native UNCONDITIONAL: `_supply_mode()` returns AWS_NATIVE even with
-    CHECKOUT_MODE unset. There is no WIX_HEADLESS default anymore."""
-    h = _load()
-    monkeypatch.delenv("CHECKOUT_MODE", raising=False)
-    assert h._supply_mode() == "AWS_NATIVE"
-
-
 def test_service_prices_use_native_catalog_even_without_cutover_flags(monkeypatch):
     h = _load()
     monkeypatch.delenv("CHECKOUT_MODE", raising=False)
@@ -56,8 +49,6 @@ def test_service_prices_use_native_catalog_even_without_cutover_flags(monkeypatc
     monkeypatch.setattr(h, "_native_variant_reader", lambda: lambda _id: {
         "priceMinor": 9900, "currency": "INR", "status": "active",
     })
-    # No `_wix_request` stub: the handler no longer imports or calls Wix at all, so "native
-    # makes no Wix call" is structural rather than something a stub has to defend.
     response = h._service_prices("https://wecare.digital")
     assert response["statusCode"] == 200
     assert all(p["paise"] == 9900 for p in json.loads(response["body"])["prices"].values())
@@ -81,28 +72,17 @@ def test_service_prices_do_not_expose_catalog_failure_details(monkeypatch):
     assert "synthetic-private-diagnostic" not in response["body"]
 
 
-@pytest.mark.parametrize("val", ["AWS_NATIVE", "aws", "native"])
-def test_aws_native_mode_resolves(monkeypatch, val):
-    h = _load()
-    monkeypatch.setenv("CHECKOUT_MODE", val)
-    assert h._supply_mode() == "AWS_NATIVE"
-
-
-def test_native_snapshot_prices_from_products_table_without_wix(monkeypatch):
+def test_native_snapshot_prices_from_products_table(monkeypatch):
     h = _load()
     monkeypatch.setenv("CHECKOUT_MODE", "AWS_NATIVE")
-
-    # The handler no longer imports wix_ecom at all: "native never calls Wix" is
-    # now structural, not a stub we have to defend.
 
     # Stub the ProductsTable reader to avoid any AWS call.
     monkeypatch.setattr(h, "_native_product_reader", lambda: (lambda pid: _product_row()))
 
     line_items = [{"productId": PRODUCT_UUID, "variantId": VARIANT_UUID,
                    "quantity": 2, "requiresDelivery": True}]
-    snapshot, calculated = h._website_snapshot(_Identity(), line_items, now=1000)
+    snapshot = h._website_snapshot(_Identity(), line_items, now=1000)
 
-    assert calculated is None
     # subtotal 2 * 59900 = 119800; free delivery, inclusive tax -> collection 119800
     assert snapshot.quote.collection_before_convenience_paise == 119800
     assert snapshot.quote.total_payable_paise > 119800
@@ -117,7 +97,7 @@ def test_native_mode_ignores_client_supplied_price(monkeypatch):
     # client tries to send a tiny price; server must price from ProductsTable (59900)
     line_items = [{"productId": PRODUCT_UUID, "variantId": VARIANT_UUID,
                    "quantity": 1, "unitPricePaise": 1, "requiresDelivery": True}]
-    snapshot, _ = h._website_snapshot(_Identity(), line_items, now=1000)
+    snapshot = h._website_snapshot(_Identity(), line_items, now=1000)
     assert snapshot.quote.collection_before_convenience_paise == 59900
 
 
@@ -132,14 +112,12 @@ def test_native_quote_accepts_the_actual_storefront_catalog_reference(monkeypatc
     items = [{
         "catalogReference": {
             "catalogItemId": PRODUCT_UUID,
-            "appId": "storefront-compatibility-identifier",
             "options": {"variantId": VARIANT_UUID},
         },
         "quantity": 2,
         "unitPricePaise": 1,  # client tampering must be ignored
     }]
-    snapshot, calculated = h._website_snapshot(_Identity(), items, now=1000)
-    assert calculated is None
+    snapshot = h._website_snapshot(_Identity(), items, now=1000)
     assert snapshot.quote.collection_before_convenience_paise == 119800
     assert snapshot.frozen_data["items"] == [{
         # native line identity: lineItemId == variantId so the narrow
@@ -175,11 +153,27 @@ def _line(qty=1, *, product=PRODUCT_UUID, variant=VARIANT_UUID,
     }
 
 
+@pytest.mark.parametrize("env_mode", [None, "", "AWS_NATIVE", "aws", "native", "LEGACY"])
+def test_every_checkout_mode_env_prices_from_products_table(monkeypatch, env_mode):
+    """No CHECKOUT_MODE value selects another supply engine: the basket is priced from
+    ProductsTable and the attempt marker is the AWS_NATIVE constant either way."""
+    if env_mode is None:
+        monkeypatch.delenv("CHECKOUT_MODE", raising=False)
+    else:
+        monkeypatch.setenv("CHECKOUT_MODE", env_mode)
+    h = _load()
+    monkeypatch.setattr(h, "_native_product_reader", lambda: (lambda pid: _product_row()))
+    snapshot = h._website_snapshot(_Identity(), [_line(qty=1)], now=1000)
+    assert snapshot.quote.collection_before_convenience_paise == 59900
+    assert snapshot.frozen_data["items"][0]["unitPricePaise"] == 59900
+    assert h.CHECKOUT_MODE == "AWS_NATIVE"
+
+
 def test_same_native_basket_has_stable_cart_id_for_multiple_requests(monkeypatch):
     h = _native_env(monkeypatch, _product_row())
     lines = [_line()]
-    first, _ = h._website_snapshot(_Identity(), lines, now=1000)
-    second, _ = h._website_snapshot(_Identity(), lines, now=1018)
+    first = h._website_snapshot(_Identity(), lines, now=1000)
+    second = h._website_snapshot(_Identity(), lines, now=1018)
     assert first.cart_id == second.cart_id
     assert first.cart_revision == second.cart_revision == 0
 
@@ -187,8 +181,8 @@ def test_same_native_basket_has_stable_cart_id_for_multiple_requests(monkeypatch
 def test_line_order_does_not_create_a_second_payment_identity(monkeypatch):
     h = _native_env(monkeypatch, _product_row())
     lines_a = [_line(qty=1), _line(qty=2)]
-    a, _ = h._website_snapshot(_Identity(), lines_a, now=1000)
-    b, _ = h._website_snapshot(_Identity(), [_line(qty=3)], now=1001)
+    a = h._website_snapshot(_Identity(), lines_a, now=1000)
+    b = h._website_snapshot(_Identity(), [_line(qty=3)], now=1001)
     assert a.cart_id == b.cart_id
     assert a.quote.collection_before_convenience_paise == 3 * 59900
     assert a.frozen_data["items"] == [{
@@ -200,15 +194,15 @@ def test_line_order_does_not_create_a_second_payment_identity(monkeypatch):
 
 def test_separate_baskets_or_customers_cannot_share_payment_identity(monkeypatch):
     h = _native_env(monkeypatch, _product_row())
-    a, _ = h._website_snapshot(_Identity(), [_line(qty=1)], now=1000)
-    b, _ = h._website_snapshot(_Identity(), [_line(qty=2)], now=1001)
-    c, _ = h._website_snapshot(_Identity(customer_id="cust-2"), [_line(qty=1)], now=1002)
+    a = h._website_snapshot(_Identity(), [_line(qty=1)], now=1000)
+    b = h._website_snapshot(_Identity(), [_line(qty=2)], now=1001)
+    c = h._website_snapshot(_Identity(customer_id="cust-2"), [_line(qty=1)], now=1002)
     assert len({a.cart_id, b.cart_id, c.cart_id}) == 3
 
 
 def test_browser_cannot_force_no_delivery_or_override_aws_price(monkeypatch):
     h = _native_env(monkeypatch, _product_row())
-    snap, _ = h._website_snapshot(
+    snap = h._website_snapshot(
         _Identity(), [_line(client_price=1, claims_digital=True)], now=1000,
     )
     assert snap.frozen_data["items"][0]["unitPricePaise"] == 59900

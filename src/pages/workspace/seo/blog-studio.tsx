@@ -1070,7 +1070,7 @@ python scripts/blog_quality_v2.py validate --manifest content/conversations/batc
               So the automated checks only ever move a record <strong>down</strong>. A
               record that passes every one of them lands on <code>EDITORIAL_QA</code>.
               Reaching <code>READY_TO_PUBLISH</code> — the only status that may enter the
-              Wix queue — requires a person to have recorded the eleven human gates.
+              publish queue — requires a person to have recorded the eleven human gates.
             </p>
             <p style={ { fontSize: 13, color: '#374151', lineHeight: 1.7, margin: 0 } }>
               That applies to the AI draft on the <strong>Uploads</strong> tab without an
@@ -1113,11 +1113,11 @@ python scripts/blog_quality_v2.py validate --manifest content/conversations/batc
               Publication stays gated, and stays two-phase
             </h3>
             <p style={ { fontSize: 12, color: '#374151', lineHeight: 1.7, margin: 0 } }>
-              Nothing on this page publishes. Conversations go out through{ ' ' }
-              <code>wix_blog_migrate.py apply --mode publish</code>, whose default mode
-              mutates nothing; Gastronomy through the <code>publish</code> input on the
-              content-gate workflow. And because the public site is a static export, a
-              published post is not visible until an Amplify build re-reads Wix.
+              Nothing on this page publishes. A released article goes out from the publish
+              queue in Blog Production, where <strong>Publish</strong> calls{ ' ' }
+              <code>POST seo-tools blog-publish</code> and nothing else does. And because the
+              public site is a static export, a published post is not visible until the next
+              build re-reads the native blog API.
             </p>
           </div>
         </div>

@@ -4,9 +4,6 @@
   "metaGraphApiBase": "https://graph.facebook.com/v26.0",
   "metaAuthTemplateName": "wecare_otp",
   "metaAuthTemplateLanguage": "en",
-  "wixCatalogVersion": "V3",
-  "wixEcomOrdersVersion": "V1",
-  "wixEcomCartVersion": "V1",
   "lambdaPythonRuntime": "python3.12",
   "rejectedRuntimes": [
     "nodejs26.x",

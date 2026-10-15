@@ -14,9 +14,9 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
  *
  * so `formAddressLine1` was permanently `''`, `address` was permanently `undefined`,
  * `contact_address.normalize_for_storage` never ran, and `checkoutDeliveryAddress` was NEVER
- * written from this form. Every downstream reader - `payment_address.for_wix`,
- * `for_meta_beneficiary`, `cart_v2.delivery_address` - therefore got nothing for a CRM-created
- * contact, which is the "you have not updated the contact page" report.
+ * written from this form. Every downstream reader - the `payment_address` order projection,
+ * `for_meta_beneficiary`, the checkout's delivery address - therefore got nothing for a
+ * CRM-created contact, which is the "you have not updated the contact page" report.
  *
  * THESE TESTS ASSERT THE PAYLOAD, NOT THE SOURCE. A test that read the file for an input element
  * would have passed against a form whose input was bound to the wrong state, which is the exact

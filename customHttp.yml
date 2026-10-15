@@ -124,8 +124,7 @@ customHeaders:
       # The origin list is derived from the built export rather than guessed: fonts from
       # Google, Razorpay Checkout for payments, the Plivo Browser SDK for the softphone
       # (which is also why Permissions-Policy grants microphone=(self)), Cognito for
-      # auth, the CloudFront distribution behind /get/ for file delivery, and
-      # static.wixstatic.com for blog cover images.
+      # auth, and the CloudFront distribution behind /get/ for file delivery.
       #
       # IT IS ALMOST CERTAINLY STILL INCOMPLETE, and that is the point of shipping it
       # this way. Static analysis of a bundle cannot find an origin that is only
@@ -165,7 +164,7 @@ customHeaders:
           https://connect.facebook.net;
           style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
           font-src 'self' data: https://fonts.gstatic.com;
-          img-src 'self' data: blob: https://static.wixstatic.com
+          img-src 'self' data: blob:
           https://img.icons8.com https://*.cloudfront.net
           https://www.googletagmanager.com https://www.facebook.com;
           connect-src 'self' https://wecare.digital

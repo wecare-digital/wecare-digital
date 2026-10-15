@@ -9,12 +9,16 @@ import * as api from '../../../../api/client';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
+/**
+ * One VoiceCDRTable row as plivo-answer writes it today: the camelCase fields every reader
+ * binds to, plus the snake_case copies it still writes beside them.
+ */
 interface CDRRecord {
   id: string;
-  callId?: string;
   callUuid?: string;
   callerNumber?: string;
   destinationNumber?: string;
+  callerId?: string;
   from_number?: string;
   to_number?: string;
   direction?: string;
@@ -22,17 +26,13 @@ interface CDRRecord {
   overallCallStatus?: string;
   call_status?: string;
   hangupCause?: string;
-  hangup_cause?: string;
+  hangupStatus?: string;
   durationSec?: number;
-  duration_seconds?: number;
+  conversationDurationSec?: number;
   billableDurationSec?: number;
+  duration_seconds?: number | string;
   createdAt?: number;
-  received_at?: number;
   timestamp?: string;
-  source?: string;
-  recording?: string;
-  recordingURL?: string;
-  s3RecordingUrl?: string;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
@@ -80,9 +80,9 @@ const CallHistoryPage: React.FC<PageProps> = ({ signOut, user, embedded = false 
       if (direction !== 'all' && rowDirection !== direction) return false;
       if (!q) return true;
       return [
-        row.callId, row.callUuid, row.callerNumber, row.destinationNumber,
+        row.callUuid, row.callerId, row.callerNumber, row.destinationNumber,
         row.from_number, row.to_number, row.callType, row.overallCallStatus,
-        row.call_status, row.hangupCause, row.hangup_cause, row.source,
+        row.call_status, row.hangupCause, row.hangupStatus,
       ].some((value) => String(value || '').toLowerCase().includes(q));
     });
   }, [records, query, direction]);
@@ -141,15 +141,14 @@ const CallHistoryPage: React.FC<PageProps> = ({ signOut, user, embedded = false 
       {error && <div className="error">{error}</div>}
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Time</th><th>Direction</th><th>From</th><th>To</th><th>Type</th><th>Duration</th><th>Status</th><th>Hangup</th><th>Recording</th></tr></thead>
+          <thead><tr><th>Time</th><th>Direction</th><th>From</th><th>To</th><th>Type</th><th>Duration</th><th>Status</th><th>Hangup</th></tr></thead>
           <tbody>
-            {loading && <tr><td colSpan={9}>Loading...</td></tr>}
+            {loading && <tr><td colSpan={8}>Loading...</td></tr>}
             {!loading && rows.map(row => {
-              const when = row.createdAt || row.received_at;
-              const duration = row.billableDurationSec ?? row.durationSec ?? row.duration_seconds ?? 0;
+              const when = row.createdAt;
+              const duration = row.billableDurationSec ?? row.conversationDurationSec ?? row.durationSec ?? row.duration_seconds ?? 0;
               const status = row.overallCallStatus || row.call_status || '-';
-              const recording = row.recording || row.recordingURL || row.s3RecordingUrl;
-              return <tr key={row.id || row.callId || row.callUuid}>
+              return <tr key={row.id || row.callUuid}>
                 <td>{when ? new Date(Number(when) * 1000).toLocaleString('en-IN') : (row.timestamp || '-')}</td>
                 <td>{row.direction || '-'}</td>
                 <td>{row.callerNumber || row.from_number || '-'}</td>
@@ -157,11 +156,10 @@ const CallHistoryPage: React.FC<PageProps> = ({ signOut, user, embedded = false 
                 <td>{row.callType || '-'}</td>
                 <td>{Math.round(Number(duration))}s</td>
                 <td>{status}</td>
-                <td>{row.hangupCause || row.hangup_cause || '-'}</td>
-                <td>{recording ? <a href={recording} target="_blank" rel="noreferrer">Play</a> : '-'}</td>
+                <td>{row.hangupCause || row.hangupStatus || '-'}</td>
               </tr>;
             })}
-            {!loading && rows.length === 0 && <tr><td colSpan={9}>No call records found.</td></tr>}
+            {!loading && rows.length === 0 && <tr><td colSpan={8}>No call records found.</td></tr>}
           </tbody>
         </table>
       </div>

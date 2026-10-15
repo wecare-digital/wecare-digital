@@ -6,14 +6,13 @@ omitted rather than manufacturing a catalog match from a product name.
 from collections.abc import Mapping
 from decimal import Decimal
 
-from . import payment_attempt
+from . import meta_catalog_sync, payment_attempt
 
 PRODUCT_ID = 'df976a0a-f582-4535-b2e1-d532f348bd27'
 VARIANTS = frozenset({
     'e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b',
     'dcff995e-448c-493a-9259-f6a82ccdc2b4',
 })
-STORES_APP_ID = '215238eb-22a5-4c36-9e7b-e7c08025e04e'
 
 
 def _integer(value):
@@ -29,10 +28,9 @@ def purchase_facts(attempt):
     """Catalog analytics facts from a paid attempt, provider-neutral.
 
     Reads a small `catalogContents` list — `[{productId, variantId, quantity}, ...]` — which a
-    native checkout may attach to the attempt. The content id is emitted as
-    `wix:<productId>:<variantId>` because the native catalog PRESERVES the original product and
-    variant UUIDs (the Meta retailer-id contract), so the id a downstream pixel/CAPI event keys
-    on is unchanged by the Wix exit.
+    native checkout may attach to the attempt. Each content id is the Meta catalogue retailer id,
+    built by `meta_catalog_sync.retailer_id` (the one owner of that external contract), so the id a
+    downstream pixel/CAPI event keys on is exactly the id the published catalogue item carries.
 
     Returns None when the attempt is not a clean paid INR order, when no `catalogContents` is
     present (nothing to attribute), or when any line fails the known product/variant allowlist —
@@ -56,5 +54,6 @@ def purchase_facts(attempt):
         if (product != PRODUCT_ID or not isinstance(variant, str)
                 or variant not in VARIANTS or not quantity):
             return None
-        contents.append({'id': f'wix:{PRODUCT_ID}:{variant}', 'quantity': quantity})
+        contents.append({'id': meta_catalog_sync.retailer_id(PRODUCT_ID, variant),
+                         'quantity': quantity})
     return {'contents': contents, 'amountPaise': amount, 'currency': 'INR'}

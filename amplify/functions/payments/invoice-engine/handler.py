@@ -648,10 +648,10 @@ def get_next_sequence_preview(body: Dict, request_id: str) -> Dict:
 #
 # WHY THIS LIVES HERE AND COMPUTES NOTHING
 # ----------------------------------------
-# A Pay Flow invoice is not a Wix cart, so there is no `Calculate Cart` to ask what a coupon is
-# worth. That is the whole reason `coupon_store.discount_paise` exists and the reason this handler
-# must not grow its own answer: two places that price a coupon are two places that will eventually
-# disagree, and the customer only ever sees one of them. Everything below ASKS:
+# `coupon_store.discount_paise` is the one place a coupon is priced, for a Pay Flow invoice exactly
+# as for a cart, and this handler must not grow its own answer: two places that price a coupon are
+# two places that will eventually disagree, and the customer only ever sees one of them.
+# Everything below ASKS:
 #
 #   collection -> redemption.apply_coupon(provider=StoreRedemptionProvider)   -> discount paise
 #   total      -> redemption.verify_gift_card(...) -> redemption.build_payable -> payable paise
@@ -691,7 +691,7 @@ class RedemptionRefused(Exception):
 #:
 #: NARROWING, recorded rather than hidden: `redemption`'s vocabulary is deliberately closed and is
 #: the only thing that crosses the provider seam, so the precise `coupon_store` verdict
-#: (`USAGE_LIMIT_REACHED`, `WIX_MIRROR_INCOMPLETE`, ...) is NOT surfaced to the caller. Reading it
+#: (`USAGE_LIMIT_REACHED`, `HELD_BY_ANOTHER_CART`, ...) is NOT surfaced to the caller. Reading it
 #: here would mean a second eligibility read against the same table, by this handler, next to the
 #: one the provider already did - a second authority for the sake of a longer error string.
 #: `store_redemption_provider.validate_coupon` logs the exact verdict, so staff diagnosis is

@@ -187,8 +187,9 @@ describe( 'Blog Production dashboard contract', () => {
     const publish = read( PAGES, 'publish', 'index.tsx' );
     expect( publish ).toContain( 'publishBlogArticle' );
     expect( publish ).toContain( 'AWS-native' );
-    expect( publish ).not.toContain( 'wixWritesDisabled' );
-    expect( publish ).not.toContain( 'WIX_CREDENTIALS_DISABLED' );
+    // No provider-side kill switch (a "...WritesDisabled" flag or a "..._CREDENTIALS_DISABLED"
+    // reason) is read on this page: publishing has one path, the native blog.
+    expect( publish ).not.toMatch( /WritesDisabled|CREDENTIALS_DISABLED/ );
   } );
 
   it( 'the review page is the only one recording the source reading', () => {

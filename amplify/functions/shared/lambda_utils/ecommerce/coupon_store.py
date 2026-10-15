@@ -1,25 +1,21 @@
-"""Coupon issuance, usage counters and eligibility holds. The discount ARITHMETIC is not here.
+"""Coupon issuance, eligibility, usage counters, holds and the discount arithmetic.
 
-Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/coupons-20261001.md`, sections
-4 (data model), 5.2 (commit), 5.4 (validation) and 5.5 (invariants).
+One authority
+-------------
+The CouponsTable row is the sole authority for a coupon. This module owns **issuance** (what
+discount was promised, who may use it, how many times it has been used, and the audit trail),
+**eligibility** (`evaluate`) and the **arithmetic** (`discount_paise`). There is no second copy of
+a coupon anywhere else to reconcile against.
 
-Two authorities, and the split is the whole point
--------------------------------------------------
-This table owns **issuance**: what discount was promised, who may use it, how many times it has
-been used, and the audit trail. On the WEBSITE, Wix's `Calculate Cart` owns the **arithmetic**:
-what a given cart is actually reduced by. A coupon reaches a customer's total there only by being
-mirrored into Wix and applied to a Wix cart, where Wix reduces `summary.priceSummary.discount` and
-the smaller total arrives back through the existing (former) Wix cart calculation path.
+Two questions, asked separately
+-------------------------------
+`evaluate()` answers with a VERDICT from a closed vocabulary and never a figure. A validate
+endpoint that returned a discount would be a number a browser could quote.
 
-That is why `evaluate()` answers with a VERDICT from a closed vocabulary and never a figure. A
-validate endpoint that returned a discount would be a number a browser could quote.
-
-**One narrowing, added deliberately: `discount_paise`.** An earlier revision of this paragraph said
-nothing here returns or computes a discount amount, full stop. That is no longer true, and the
-`discount_paise` is the single native discount function: it answers "what does this coupon take
-off?" from the `KIND_AMOUNT_ATTRIBUTE` attributes on the definition this module already owns, and
-`catalog_pricing.coupon_discount_paise` prices it into the native checkout. One definition, one
-reading, not two discount engines. `evaluate` returns a verdict and never a figure.
+`discount_paise` is the single discount function: it answers "what does this coupon take off?"
+from the `KIND_AMOUNT_ATTRIBUTE` attributes on the definition this module owns. The native cart
+pricing (`catalog_pricing.coupon_discount_paise`) and the Pay Flow invoice path
+(`store_redemption_provider`) both call it. One definition, one reading, not two discount engines.
 
 One partition attribute, four row types
 ---------------------------------------
@@ -32,10 +28,9 @@ Namespaced rows on a single partition key, the same shape `order_keys` uses, bec
 uniqueness guarantee has to be a conditional write **on the partition key**. A GSI is eventually
 consistent and therefore cannot enforce a constraint.
 
-`codeUpper` is NFKC-normalised and upper-cased. Wix says the code must be unique on the site but
-does not say the comparison is case-insensitive, so we normalise for *our* key and store the exact
-`code` we sent to Wix separately. Normalising is what stops `SAVE10` and `save10` becoming two
-coupons that look like one to a customer.
+`codeUpper` is NFKC-normalised and upper-cased, and the exact `code` as issued is stored
+separately for display. Normalising is what stops `SAVE10` and `save10` becoming two coupons that
+look like one to a customer.
 
 A coupon code is NOT bearer value
 ---------------------------------
@@ -99,12 +94,7 @@ STATUS_INACTIVE = "INACTIVE"
 STATUS_EXHAUSTED = "EXHAUSTED"
 STATUSES = (STATUS_ACTIVE, STATUS_INACTIVE, STATUS_EXHAUSTED)
 
-MIRROR_PENDING = "PENDING_WIX"
-MIRROR_DONE = "MIRRORED"
-MIRROR_DELETED = "WIX_DELETED"
-MIRROR_STATES = (MIRROR_PENDING, MIRROR_DONE, MIRROR_DELETED)
-
-#: Exactly one of these defines a coupon, matching Wix's `Specification` oneOf.
+#: Exactly one of these defines a coupon.
 MONEY_OFF = "MONEY_OFF"
 PERCENT_OFF = "PERCENT_OFF"
 FIXED_PRICE = "FIXED_PRICE"
@@ -119,8 +109,8 @@ KIND_AMOUNT_ATTRIBUTE = {
     FIXED_PRICE: "fixedPricePaise",
 }
 
-#: Wix documents `Specification.code` as "Max: 20 characters", so a coupon we issue can never
-#: hit the wider bound the cart adapter applies to a hand-typed code.
+#: Our limit on an issued code: at most 20 characters, so a coupon we issue can never hit the
+#: wider bound the cart adapter applies to a hand-typed code.
 MAX_CODE_LENGTH = 20
 CODE_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
 
@@ -128,8 +118,10 @@ MAX_NAME_LENGTH = 100
 MAX_TAGS = 100
 MAX_TAG_LENGTH = 255
 
-#: Wix's own documented minimum for `startTime` / `expirationTime`, both epoch milliseconds.
-WIX_MIN_TIME_MS = 1_000_000_000_000
+#: The earliest `startTimeMs` / `expirationTimeMs` we accept, in epoch MILLISECONDS
+#: (2001-09-09). Anything smaller is almost certainly epoch seconds sent by mistake, which would
+#: otherwise issue a coupon that started - or expired - in January 1970.
+MIN_EPOCH_MS = 1_000_000_000_000
 
 #: `money.py`'s ceiling, reused rather than restated.
 MAX_PAISE = 9007199254740991
@@ -137,9 +129,8 @@ MAX_PAISE = 9007199254740991
 #: 100% in basis points.
 MAX_PERCENT_OFF_BPS = 10000
 
-#: Paise in one rupee. Every Wix-bound amount is a whole multiple of this, because the Wix
-#: coupon service's money fields are JSON `number` in decimal rupees and nothing documents a
-#: string being accepted there - see coupons section 4.2.
+#: Paise in one rupee. Coupon amounts are issued in whole rupees in this release, so every
+#: promised amount is a whole multiple of this (`SUB_RUPEE_DISCOUNT_NOT_SUPPORTED` otherwise).
 PAISE_PER_RUPEE = 100
 
 #: A hold is advisory and short-lived: it prevents the ordinary double-spend race while a
@@ -161,10 +152,6 @@ EXPIRED = "EXPIRED"
 USAGE_LIMIT_REACHED = "USAGE_LIMIT_REACHED"
 CUSTOMER_LIMIT_REACHED = "CUSTOMER_LIMIT_REACHED"
 HELD_BY_ANOTHER_CART = "HELD_BY_ANOTHER_CART"
-#: DEPRECATED. The Wix coupon mirror is retired, so this verdict is never produced any more. The
-#: constant is retained only so an older serialized reference does not NameError; it is NOT in
-#: VERDICTS and `eligibility` can no longer return it.
-WIX_MIRROR_INCOMPLETE = "WIX_MIRROR_INCOMPLETE"
 VERDICTS = (ELIGIBLE, UNKNOWN_CODE, NOT_ACTIVE, NOT_STARTED, EXPIRED, USAGE_LIMIT_REACHED,
             CUSTOMER_LIMIT_REACHED, HELD_BY_ANOTHER_CART)
 
@@ -177,11 +164,9 @@ HOLD_CONDITION = ("attribute_not_exists(activeHoldCartId) "
                   "OR activeHoldCartId = :me "
                   "OR activeHoldExpiresAtMs < :now")
 
-#: Every attribute a definition row may carry. The `wixCouponId`/`wixMirrorState` entries remain
-#: in the shape for historical rows written before the Wix mirror was retired; they are no longer
-#: written or read against Wix.
+#: Every attribute a definition row may carry.
 DEFINITION_ATTRIBUTES = (
-    KEY_ATTRIBUTE, "couponId", "code", "wixCouponId", "wixMirrorState", "name", STATUS_ATTRIBUTE,
+    KEY_ATTRIBUTE, "couponId", "code", "name", STATUS_ATTRIBUTE,
     "discountKind", "moneyOffPaise", "percentOffBps", "fixedPricePaise", "buyX", "buyY",
     "minimumSubtotalPaise", "scopeNamespace", "scopeGroupName", "scopeEntityId", "startTimeMs",
     "expirationTimeMs", "usageLimit", "limitPerCustomer", "usageCount", "limitedToOneItem",
@@ -210,7 +195,7 @@ class CouponError(ValueError):
 
 
 class CouponValidationError(CouponError):
-    """An external input was refused. Nothing reached Wix and nothing was written."""
+    """An external input was refused. Nothing was written."""
 
 
 class CouponConflict(CouponError):
@@ -279,7 +264,7 @@ def normalise_code(value: Any) -> str:
     NFKC first so a fullwidth `ＳＡＶＥ１０` collapses onto `SAVE10` instead of becoming a second
     coupon that looks identical to a customer. The charset check runs AFTER normalisation, so a
     code that only becomes legal by being normalised is still legal, and one that is illegal
-    either way is refused before it can reach Wix.
+    either way is refused before it can become a key.
     """
     if isinstance(value, bool) or not isinstance(value, str):
         raise CouponValidationError("INVALID_CODE", "a coupon code string is required")
@@ -317,7 +302,7 @@ def redeem_key(code: Any, order_id: Any) -> str:
     return PREFIX_REDEEM + normalise_code(code) + "#" + _identifier(order_id, "INVALID_ORDER_ID")
 
 
-# ── validation (coupons section 5.4) ──────────────────────────────────────────
+# ── validation ────────────────────────────────────────────────────────────────
 
 def _whole_rupee_paise(value: Any, *, field: str, allow_zero: bool = False) -> int:
     """An integer-paise amount that is a whole number of rupees, or refuse it.
@@ -327,9 +312,8 @@ def _whole_rupee_paise(value: Any, *, field: str, allow_zero: bool = False) -> i
     * a float, a bool or a fractional `Decimal` is refused BY TYPE through
       `money.positive_paise` - never coerced, never rounded;
     * a value that is not a whole multiple of 100 paise is refused as
-      `SUB_RUPEE_DISCOUNT_NOT_SUPPORTED`, because the Wix coupon service's money fields are
-      JSON `number` in decimal rupees and this release emits a whole-rupee `int` at that
-      boundary. Rounding would silently change what a customer was promised, and `2500` basis
+      `SUB_RUPEE_DISCOUNT_NOT_SUPPORTED`, because this release issues coupon amounts in whole
+      rupees. Rounding would silently change what a customer was promised, and `2500` basis
       points rounded to `25` is a different coupon from 2.5%.
     """
     if allow_zero and value == 0 and type(value) is int:
@@ -353,9 +337,9 @@ def _positive_int(value: Any, *, field: str, minimum: int = 1,
 
 
 def _epoch_ms(value: Any, *, field: str) -> int:
-    if isinstance(value, bool) or type(value) is not int or value < WIX_MIN_TIME_MS:
+    if isinstance(value, bool) or type(value) is not int or value < MIN_EPOCH_MS:
         raise CouponValidationError(
-            field, f"{field} must be epoch milliseconds >= {WIX_MIN_TIME_MS}")
+            field, f"{field} must be epoch milliseconds >= {MIN_EPOCH_MS}")
     return value
 
 
@@ -371,8 +355,8 @@ def _text(value: Any, *, field: str, maximum: int) -> str:
 def _scope(payload: Dict[str, Any], item: Dict[str, Any]) -> bool:
     """Validate the scope triple onto `item`. Returns True when a scope was supplied.
 
-    The rule is transcribed from Wix's own prose rather than inferred: `namespace` is `stores`
-    on this release, a `group` name requires an `entityId`, and site-wide means no group at all.
+    The rule: `namespace` is `stores` on this release, a `group` name requires an `entityId`,
+    and site-wide means no group at all.
     """
     namespace = payload.get("scopeNamespace")
     group = payload.get("scopeGroupName")
@@ -399,9 +383,9 @@ def _scope(payload: Dict[str, Any], item: Dict[str, Any]) -> bool:
 def _behaviour(payload: Dict[str, Any], item: Dict[str, Any]) -> str:
     """Validate exactly one discount kind onto `item`, and return it.
 
-    Exactly one, refused here rather than at Wix, because Wix's `Specification.type` is
-    read-only and derived from whichever discount field was set - so a payload carrying two
-    would be accepted by the schema and mean something nobody chose.
+    Exactly one, and the amount fields must match the declared kind. A payload carrying two
+    amounts would mean something nobody chose, so it is refused rather than resolved by
+    precedence.
     """
     kind = payload.get("discountKind")
     if kind not in DISCOUNT_KINDS:
@@ -442,9 +426,8 @@ def validate_definition(payload: Any, *, created_by: Any = None,
                         clock: Clock = _default_clock) -> Dict[str, Any]:
     """Turn an external create payload into a storable definition row, or refuse it.
 
-    Nothing here touches Wix and nothing here writes. A refusal therefore means no coupon was
-    created on either side, which is what makes the local claim the first line of defence and
-    Wix's own uniqueness rule the second.
+    Nothing here writes, so a refusal means no coupon was created. Uniqueness is decided later,
+    by `claim`'s conditional put.
     """
     if not isinstance(payload, dict):
         raise CouponValidationError("INVALID_PAYLOAD", "a coupon payload object is required")
@@ -470,7 +453,6 @@ def validate_definition(payload: Any, *, created_by: Any = None,
         "couponId": identifiers.new_uuid7(now_ms=now * 1000),
         "code": unicodedata.normalize("NFKC", payload["code"]).strip(),
         "name": _text(payload.get("name"), field="INVALID_NAME", maximum=MAX_NAME_LENGTH),
-        "wixMirrorState": MIRROR_PENDING,
         STATUS_ATTRIBUTE: STATUS_ACTIVE,
         "usageCount": 0,
         "limitedToOneItem": bool(payload.get("limitedToOneItem", False)),
@@ -532,8 +514,7 @@ def claim(table: Any, definition: Dict[str, Any]) -> bool:
     """Conditionally write the definition row. True if won, False if the code is already issued.
 
     This conditional put IS the uniqueness guarantee: the partition key is the normalised code,
-    so concurrent creates serialise in the database rather than in our code. Wix's own
-    site-level uniqueness rule is the second line of defence, never the first.
+    so concurrent creates serialise in the database rather than in our code.
     """
     key = definition.get(KEY_ATTRIBUTE)
     if not isinstance(key, str) or not key.startswith(PREFIX_DEFINITION):
@@ -612,30 +593,12 @@ def list_by_status(table: Any, status: Any, *, limit: int = 50,
             f"could not list coupons: {type(error).__name__}") from error
 
 
-def mark_mirrored(table: Any, code: Any, wix_coupon_id: Any, *,
-                  clock: Clock = _default_clock) -> Dict[str, Any]:
-    """Record the Wix id and flip the mirror state. One conditional `UpdateItem`.
-
-    Conditional on the row existing, so a mirror state can never be written for a coupon we
-    never claimed.
-    """
-    identifier = _identifier(wix_coupon_id, "INVALID_WIX_COUPON_ID")
-    return _update(
-        table, definition_key(code),
-        update="SET wixCouponId = :id, wixMirrorState = :state, updatedAt = :now",
-        condition=f"attribute_exists({KEY_ATTRIBUTE})",
-        values={":id": identifier, ":state": MIRROR_DONE, ":now": _now_seconds(clock)},
-        failure="UNKNOWN_CODE")
-
-
 def deactivate(table: Any, code: Any, *, clock: Clock = _default_clock) -> Dict[str, Any]:
-    """Mark the coupon `INACTIVE` locally. Never a delete.
+    """Mark the coupon `INACTIVE`. Never a delete.
 
-    Applied LOCALLY FIRST and only then asked of Wix, which is the opposite order from
-    creation and deliberately so: a coupon that is INACTIVE with us and still active in Wix is
-    refused by `evaluate` before `Add Coupon` is ever called, so the local state binds. The
-    reverse order would leave a window in which we believe a coupon is live and Wix has already
-    switched it off.
+    One conditional `UpdateItem` on the definition row, so the change binds at once: `evaluate`
+    refuses an INACTIVE coupon as `NOT_ACTIVE`, and no checkout or invoice can apply it after
+    this returns.
 
     There is no delete anywhere in this module for a definition or a redemption record.
     Deactivation is reversible and preserves the audit trail; deletion destroys the definition
@@ -882,11 +845,8 @@ def evaluate(definition: Optional[Dict[str, Any]], *, cart_id: Any = None,
     Keeping it pure is what lets the handler answer without a second round trip and what lets a
     test enumerate every refusal without a table at all.
 
-    AWS-native: the local DynamoDB row is the sole authority. There is no Wix mirror to
-    reconcile against, so eligibility is decided entirely from our own row — status, then the
-    time window, then the usage limits. (The former `WIX_MIRROR_INCOMPLETE` gate, which refused
-    any coupon not confirmed in Wix, is gone with the mirror; it would otherwise refuse EVERY
-    natively-created coupon.)
+    The definition row is the sole authority, so eligibility is decided entirely from it -
+    status, then the time window, then the usage limits, then another cart's live hold.
     """
     if not definition:
         return UNKNOWN_CODE
@@ -916,17 +876,17 @@ def evaluate(definition: Optional[Dict[str, Any]], *, cart_id: Any = None,
     return ELIGIBLE
 
 
-# ── the amount, for the one surface that has no Wix cart to ask ───────────────
+# ── the amount ────────────────────────────────────────────────────────────────
 
 def _amount_paise(value: Any, *, field: str, allow_zero: bool = True,
                   maximum: int = MAX_PAISE) -> int:
     """An integer-paise amount, refused BY TYPE rather than coerced.
 
     Separate from `_whole_rupee_paise`, and the difference is the whole reason this one exists:
-    that helper additionally demands a whole number of rupees, because what it validates is
-    bound for Wix's decimal-rupee money fields. A COLLECTION is not bound for Wix - it is a
-    total we already hold - and `₹123.45` is an ordinary invoice, so applying the whole-rupee
-    rule to it would refuse most real inputs.
+    that helper additionally demands a whole number of rupees, because it validates what a
+    coupon PROMISES, which this release issues in whole rupees. A COLLECTION is a total we
+    already hold, and `₹123.45` is an ordinary invoice, so applying the whole-rupee rule to it
+    would refuse most real inputs.
 
     A DynamoDB number arrives as `Decimal`, so an integral `Decimal` is accepted and converted
     through `int(Decimal(str(value)))`; a fractional one is refused rather than rounded. `bool`
@@ -952,25 +912,20 @@ def _amount_paise(value: Any, *, field: str, allow_zero: bool = True,
 def discount_paise(definition: Optional[Dict[str, Any]], *, collection_paise: Any) -> int:
     """The discount in integer paise this definition applies to one collection total.
 
-    Why this exists at all, given everything above says the amount is not ours
-    -------------------------------------------------------------------------
-    `evaluate` deliberately returns a verdict and never a figure, and that remains correct for
-    the WEBSITE: there, a coupon reaches a customer's total by being mirrored into Wix and
-    applied to a Wix cart, and the amount is Wix's answer to `Calculate Cart`. Two authorities,
-    one of them Wix's, and this module is not it.
+    The single place a coupon is priced
+    -----------------------------------
+    `evaluate` deliberately returns a verdict and never a figure; this function answers the
+    other question. Every surface that applies a coupon - the native cart pricing through
+    `catalog_pricing.coupon_discount_paise`, and Pay Flow invoices through
+    `store_redemption_provider` - asks here, so the customer sees one answer wherever the
+    coupon is used.
 
-    A Pay Flow invoice is NOT a Wix cart. There is no cart id, no catalogue line items and
-    therefore no `Calculate Cart` to ask - so on that surface the question "what is this coupon
-    worth" has no Wix answer to defer to. Minting a throwaway Wix cart per invoice was
-    considered and rejected: it needs line items an invoice does not have, it would invent
-    catalogue entries to carry an arbitrary staff-entered amount, and it would put a
-    third-party network call inside the GST invoice-numbering path, where a timeout burns a
-    sequence number on an invoice that was never raised.
-
-    So the amount is computed here, from the definition this module already owns, and NOWHERE
-    else. That is the point of the location: the attributes read below are exactly
-    `KIND_AMOUNT_ATTRIBUTE`'s values. One coupon definition, one reading of it - not two
-    discount engines.
+    The amount is computed from the definition this module already owns, and NOWHERE else. That
+    is the point of the location: the attributes read below are exactly `KIND_AMOUNT_ATTRIBUTE`'s
+    values. One coupon definition, one reading of it - not two discount engines. It is also a
+    pure computation with no network call, which matters on the invoice path: it runs before the
+    GST invoice number is reserved, where a timeout would burn a sequence number on an invoice
+    that was never raised.
 
     What it refuses, and why refusing is the correct answer
     ------------------------------------------------------
@@ -1031,14 +986,14 @@ __all__ = [
     "ELIGIBLE", "EXPIRED", "FIXED_PRICE", "FREE_SHIPPING", "HELD_BY_ANOTHER_CART",
     "HOLD_CART_ATTRIBUTE", "HOLD_CONDITION", "HOLD_EXPIRY_ATTRIBUTE", "HOLD_TTL_SECONDS",
     "KEY_ATTRIBUTE", "KIND_AMOUNT_ATTRIBUTE", "MAX_CODE_LENGTH", "MAX_PERCENT_OFF_BPS",
-    "MIRROR_DELETED", "MIRROR_DONE", "MIRROR_PENDING", "MIRROR_STATES", "MONEY_OFF",
+    "MIN_EPOCH_MS", "MONEY_OFF",
     "NOT_ACTIVE", "NOT_STARTED", "PAISE_PER_RUPEE", "PERCENT_OFF", "POLICY_VERSION",
     "PREFIX_DEFINITION", "PREFIX_HOLD", "PREFIX_REDEEM", "PREFIX_USE", "SCOPE_GROUPS",
     "SCOPE_NAMESPACE", "STATUSES", "STATUS_ACTIVE", "STATUS_ATTRIBUTE", "STATUS_EXHAUSTED",
     "STATUS_INACTIVE", "STATUS_INDEX", "TABLE_ENV_KEY", "UNKNOWN_CODE", "USAGE_LIMIT_REACHED",
-    "VERDICTS", "WIX_MIN_TIME_MS", "WIX_MIRROR_INCOMPLETE", "claim", "commit_redemption",
+    "VERDICTS", "claim", "commit_redemption",
     "create", "customer_uses", "deactivate", "definition_key", "discount_paise", "evaluate",
     "get_definition",
-    "hold", "hold_key", "list_by_status", "mark_mirrored", "normalise_code", "redeem_key",
+    "hold", "hold_key", "list_by_status", "normalise_code", "redeem_key",
     "redemption", "release", "use_key", "validate_definition",
 ]

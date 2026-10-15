@@ -28,7 +28,7 @@ from crm_fake_dynamo import FakeDynamo  # noqa: E402
 from lambda_utils.ecommerce import redemption as rd  # noqa: E402
 from lambda_utils.ecommerce import order_keys  # noqa: E402
 
-KEYS_TABLE = 'stack-wecare-digital-WixOrderIds'
+KEYS_TABLE = 'stack-wecare-digital-CommerceKeys'
 CART_REF = 'cart-abc'
 
 

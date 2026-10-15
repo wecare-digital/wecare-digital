@@ -371,10 +371,9 @@ def test_no_packaged_module_reads_a_secret_at_import_time(packaged_members):
     environment, so a rotation does not take effect until every warm sandbox recycles. The
     razorpay-webhook function was fixed for exactly this on 2026-09-19.
 
-    Asked of EVERY packaged module rather than of two named files. The narrow version inspected
-    `razorpay_orders.py` and `handler.py` only, and so did not cover `wix_ecom.py` - which is the
-    one secret `wecare-checkout-role` can actually read, and therefore the one module where this
-    regression would have a live consequence rather than a theoretical one.
+    Asked of EVERY packaged module rather than of two named files, so a module that starts
+    reading a secret is covered the day it is packaged rather than the day somebody remembers to
+    add it to a list.
     """
     readers, checked = [], 0
     assert "handler.py" in packaged_members, "the handler itself must always be packaged"
@@ -401,8 +400,8 @@ def test_no_float_arithmetic_on_the_money_path(packaged_members):
     evidence document calls out for `git archive` run from a subdirectory. A money module that is
     not in the package is the more serious defect, not the excuse to skip the check.
     """
-    # `wix_ecom.py` was retired with the Wix exit; the AWS-native money path adds
-    # `catalog_pricing.py` (coupon/tax/supply pricing). R6.1 holds over the native modules.
+    # The native money path: the fee calculator, the paise primitives, the ProductsTable supply
+    # pricing (`catalog_pricing.py`) and the gateway client.
     money = ("lambda_utils/ecommerce/checkout_pricing.py",
              "lambda_utils/ecommerce/money.py",
              "lambda_utils/ecommerce/catalog_pricing.py",

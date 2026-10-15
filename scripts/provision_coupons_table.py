@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Provision the coupons table.
 
-Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/coupons-20261001.md` section 4.
-
 Why one table with namespaced rows
 ----------------------------------
 Four row types share one partition attribute, `couponKey`:
@@ -12,8 +10,8 @@ Four row types share one partition attribute, `couponKey`:
     COUPONHOLD#<codeUpper>#<cartId>         a short-lived eligibility reservation
     COUPONREDEEM#<codeUpper>#<orderId>      idempotent terminal redemption record
 
-The same shape `stack-wecare-digital-WixOrderIds` uses, and for the same reason: the uniqueness
-guarantee has to be a conditional write ON THE PARTITION KEY. A GSI is eventually consistent, so it
+The same namespaced-row shape `order_keys` uses for the CommerceKeys table, and for the same
+reason: the uniqueness guarantee has to be a conditional write ON THE PARTITION KEY. A GSI is eventually consistent, so it
 cannot enforce a constraint, and a sort key would change the shape of every row type to serve one.
 
 Why the name is CouponsTable and not Coupon
@@ -24,8 +22,8 @@ that script's explicit map.
 
 It DOES need an `UNDECLARED_ALLOWED` allowance, and that is a different list from the one
 `provision_payment_attempts_table.py`'s docstring talks about. `PaymentAttempt` is a declared model
-in `amplify/data/resource.ts`; `Coupon` is not, deliberately - the discount arithmetic is Wix's and
-this table is the issuance record, not part of the CRM data model. So a live table with no declared
+in `amplify/data/resource.ts`; `Coupon` is not, deliberately - this table is the coupon ledger
+(definitions, usage counters, holds and redemptions), not part of the CRM data model. So a live table with no declared
 model lands in `undeclared_tables`, then in `undeclared_tables_unexpected`, and `--gate` exits
 non-zero until the allowance is added. That edit is owned by the shared-gate step, not by this
 script.
@@ -184,7 +182,7 @@ def verify() -> int:
     from lambda_utils.ecommerce import coupon_store
     sample = coupon_store.validate_definition(
         {"code": "VERIFY", "name": "verification probe", "discountKind": "MONEY_OFF",
-         "moneyOffPaise": 10000, "startTimeMs": coupon_store.WIX_MIN_TIME_MS,
+         "moneyOffPaise": 10000, "startTimeMs": coupon_store.MIN_EPOCH_MS,
          "minimumSubtotalPaise": 100000},
         clock=lambda: 1700000000)
     for attribute in (KEY_ATTRIBUTE, "status", "createdAt"):

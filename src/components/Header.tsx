@@ -46,9 +46,9 @@ interface NavColumn {
 // BOTH OF THESE USED TO BE ABSOLUTE URLS ON www.wecare.digital, AND BOTH RETURNED 404
 // ON EVERY PUBLIC PAGE. Measured: [retired public path] -> 404 and /product-page/referral-partner
 // -> 404, on both the apex and the www host. That domain serves THIS Next.js app, which
-// has no [retired public path] route and no Wix /product-page/* routes - the Wix storefront those
+// has no [retired public path] route and no /product-page/* routes - the old storefront those
 // paths assumed is not published there. The referral-partner PRODUCT is real (it exists in
-// the Wix catalog at 999.00); only the URL was wrong.
+// the catalogue at 999.00); only the URL was wrong.
 // They now point at routes that exist and return 200. [retired public path]/ and its three children are
 // real exported pages that were simply never wired into this menu.
 

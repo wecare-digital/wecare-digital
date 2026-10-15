@@ -1,9 +1,5 @@
 """`wecare-gift-cards` - issuance, the staff view, and a customer balance check. FIVE routes.
 
-Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/gift-cards-service-plugin-20261001.md`
-sections 5.3 (the code never appears in a URL), 6 (data model), 7.2 (our own routes) and 10.1 (the
-scoped role).
-
 | Route | Identity | Purpose |
 |---|---|---|
 | `POST /gift-cards` | staff | Issue a card. Generates the code and returns it **once**. |
@@ -31,8 +27,7 @@ NO CODE IN A PATH OR A QUERY, EVER
 A bearer value in a URL lands in access logs, in `Referer` headers and in browser history. The
 customer route takes `{code, pin?}` in the body; the staff reads take OUR `giftCardId`. Enforced by
 SHAPE - no route template accepts a code - and asserted by a route-enumeration test, not by
-convention. Wix's own `GiftCard.obfuscatedCode` masks the code on its side too, which is
-corroboration rather than our rule.
+convention.
 
 There is no `DELETE`. A disabled card retains its liability record.
 
@@ -66,7 +61,7 @@ from lambda_utils.response import cors_response, error_response, extract_origin,
 logger = get_logger(__name__)
 
 #: Secret NAME only. The pepper is read by reference, lazily, inside the request.
-SPI_SECRET_ID = store.resolve_pepper_secret_id(os.environ)
+PEPPER_SECRET_ID = store.resolve_pepper_secret_id(os.environ)
 
 GIFT_CARDS_TABLE = os.environ.get(store.TABLE_ENV_KEY, store.DEFAULT_TABLE_NAME)
 CUSTOMER_SESSIONS_TABLE = os.environ.get(
@@ -128,7 +123,7 @@ def _cards():
 
 
 def _read_secret(secret_id: str) -> Mapping[str, Any]:
-    """Read the SPI secret by id, at request time. No cache, deliberately.
+    """Read the pepper secret by id, at request time. No cache, deliberately.
 
     A module-scope read is frozen into a warm sandbox, so a pepper rotation would not take effect
     until every sandbox recycled. Nothing here logs the result, not even its truthiness.
@@ -140,7 +135,7 @@ def _read_secret(secret_id: str) -> Mapping[str, Any]:
 
 
 def _pepper() -> str:
-    return store.read_pepper(_read_secret, secret_id=SPI_SECRET_ID)
+    return store.read_pepper(_read_secret, secret_id=PEPPER_SECRET_ID)
 
 
 # ── identity ──────────────────────────────────────────────────────────────────

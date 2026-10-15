@@ -165,7 +165,7 @@ describe( 'rupeesFromPaise', () => {
   } );
 
   it( 'groups the rupee part Indian-style, as paymentVocabulary does', () => {
-    // Newly reachable: the figure is Wix's now, and the catastrophe rail admits up to Rs.50,000,
+    // Newly reachable: the figure is the catalogue's now, and the catastrophe rail admits up to Rs.50,000,
     // which used to render as `50000`. The grouping is applied to the ALREADY TRUNCATED whole
     // rupees, so it is formatting rather than arithmetic.
     expect( rupeesFromPaise( 123450 ) ).toBe( '1,234.50' );

@@ -469,7 +469,6 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
         .tab-header-left { display: flex; align-items: center; gap: 8px; }
         .tab-header-actions { display: flex; gap: 6px; flex-wrap: wrap; }
         .provider-badge { background: #1a3a2a; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
-        .provider-badge.legacy { background: #78350f; }
         .region-badge { background: #f3f4f6; color: #6b7280; padding: 3px 8px; border-radius: 4px; font-size: 10px; }
         .controls-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap; }
         .filter-tabs { display: flex; gap: 4px; }

@@ -19,9 +19,9 @@ import Cart from '../pages/cart';
 const [ SUBMIT ] = SERVICE_CHOICES;
 const INTENT = '01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f';
 /**
- * The LIVE Wix price, injected. `setServiceLine` takes the line paise explicitly since
+ * The LIVE catalogue price, injected. `setServiceLine` takes the line paise explicitly since
  * 2026-10-08: `src/config/services.ts` no longer declares a price (owner decision — a price is
- * editable in Wix with no deploy), so the cart row's displayed amount has to come from the live
+ * editable in the catalogue with no deploy), so the cart row's displayed amount has to come from the live
  * figure the buy box resolved. One constant here rather than a number per call, and deliberately
  * NOT 9900: a figure that happens to match the old constant could pass for the wrong reason.
  */
@@ -122,7 +122,7 @@ describe( 'the prepare body', () => {
 
   it( 'is unchanged for an ordinary basket', async () => {
     stub( [ { status: 200, body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'a' } } ] );
-    cart.addItem( { id: 'wix-abc-123', name: 'Kiosk', slug: 'kiosk', formattedPrice: '₹1.00',
+    cart.addItem( { id: 'prod-abc-123', name: 'Kiosk', slug: 'kiosk', formattedPrice: '₹1.00',
       price: '1.00', currency: 'INR', inStock: true, tagline: 't', body: [] }, 1 );
     render( <Cart /> );
     fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );

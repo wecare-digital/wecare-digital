@@ -20,12 +20,12 @@ import { CHECKOUT_PATH, goToServiceAction } from '../lib/serviceEntry';
  * untouched; this renders beneath it through ProductPage's `belowCta` slot.
  *
  * WHY A COMPONENT RATHER THAN TWO CONTENT FIELDS. Unlike /anew/'s static `price="₹599"`, a
- * service price is LIVE from Wix (owner decision 2026-10-08: a price must change with no deploy),
+ * service price is LIVE from the catalogue (owner decision 2026-10-08: a price must change with no deploy),
  * and the button has to do real work on click — resolve the session, mint a pre-payment intent,
  * and write the one service line the cart prices. None of that is expressible as a content string,
  * so it lives here and the five thin route files mount it.
  *
- * IT NEVER SENDS A PRICE AND NEVER INVENTS ONE. The amount shown is Wix's own, read through
+ * IT NEVER SENDS A PRICE AND NEVER INVENTS ONE. The amount shown is the catalogue's own, read through
  * `fetchServicePrices` (which fails closed). The amount CHARGED is decided server-side on
  * `prepare-checkout`, exactly as every other cart line. `setServiceLine` carries the live paise
  * only so the cart row has a display figure; `toLineItems` strips it before the server sees it.
@@ -184,7 +184,7 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
         setBusy( false );
         return;
       }
-      // One service line, priced for display from Wix's live paise; intent pointer stored beside
+      // One service line, priced for display from the live catalogue paise; intent pointer stored beside
       // it. `setServiceLine` writes nothing if the variant or amount is not usable.
       setServiceLine( service.variantId, outcome.intent.intentId, phase.price.paise );
       await router.push( CHECKOUT_PATH );

@@ -424,7 +424,7 @@ const InternalChatTab: React.FC = () => {
               { label: 'Voice CDR', cmd: 'show recent voice calls' },
               { label: 'AWS Billing', cmd: 'show current month billing' },
               { label: 'Invoices', cmd: 'list recent invoices' },
-              { label: 'Wix Products', cmd: 'list wix products' },
+              { label: 'Products', cmd: 'list products' },
               { label: 'Templates', cmd: 'list templates' },
               { label: 'Flow Submissions', cmd: 'list recent submit requests' },
               { label: 'Send Flow', cmd: 'send submit request flow to ' },

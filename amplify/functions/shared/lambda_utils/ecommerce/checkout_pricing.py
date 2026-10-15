@@ -2,9 +2,9 @@
 
 What this module is for
 -----------------------
-The checkout handler historically charged the bare Wix supply total. Section 7 of the owner's
-specification requires a convenience fee and GST on that fee to be added on top of the
-*authoritative approved collection total*, and it requires the amount reviewed by the customer,
+Section 7 of the owner's specification requires a convenience fee and GST on that fee to be
+added on top of the *authoritative approved collection total* (the supply total
+`catalog_pricing` computes from ProductsTable), and it requires the amount reviewed by the customer,
 the amount sent to the gateway and the amount printed on the receipt to be the SAME number. A
 single authoritative calculator is the only way those three stay equal, so there is exactly one
 here and everything else is forbidden from re-deriving the arithmetic.
@@ -19,7 +19,7 @@ The formula, verbatim from section 7
 `collectionBeforeConveniencePaise` is the authoritative approved collection total AFTER supply
 GST, discounts and delivery, and it EXCLUDES the convenience fee and its GST. It is an input to
 this module, not something this module computes: the supply GST / discount / delivery build
-belongs upstream (Wix / the catalog), and double-adding GST where catalog pricing is already
+belongs upstream (`catalog_pricing`), and double-adding GST where catalog pricing is already
 inclusive is a defect this module refuses to commit - it adds GST only to the convenience fee,
 never to the supply.
 
@@ -432,15 +432,13 @@ def _stable_hash(payload: Any) -> str:
 
 
 def basket_hash(frozen_payload: Mapping[str, Any]) -> str:
-    """Identity of the BASKET a quote was taken from, with Wix's revision counter removed.
+    """Identity of the BASKET a quote was taken from, with the cart revision removed.
 
-    `snapshot_hash` cannot answer "is this the same basket?", and the reason is measured rather
-    than theoretical. `_snapshot_payload` hashes `"cart": {"id": cart_id, "revision":
-    cart_revision}`, and the website prepare path WRITES TO THE WIX CART on every call:
-    `purchase_intent.prepare_delivery` PATCHes the cart, then the former Wix cart calculation refreshes it and
-    asserts the returned `summary.cartRevision` equals the cart's own `revision`. Wix's `revision`
-    is the optimistic-concurrency counter on that resource, so a second prepare of an UNEDITED
-    basket can present a different `snapshot_hash` — and a guard keyed on a value that may always
+    `snapshot_hash` cannot answer "is this the same basket?". `_snapshot_payload` hashes
+    `"cart": {"id": cart_id, "revision": cart_revision}`, and the revision is the cart's
+    working-document version (CartTable `updatedAt`), which moves on any write to the cart --
+    including writes that leave what is being bought unchanged. So a second prepare of an UNEDITED
+    basket can present a different `snapshot_hash`, and a guard keyed on a value that may always
     differ is a guard that never fires.
 
     Built from the SAME payload `snapshot_hash` was built from, through the SAME `_stable_hash`,
@@ -466,34 +464,22 @@ def basket_hash(frozen_payload: Mapping[str, Any]) -> str:
 
 
 def narrow_basket_hash(frozen_payload: Mapping[str, Any]) -> str:
-    """The shopper-visible basket: cart id, line ids and quantities, quote components, tender.
+    """The shopper-visible basket: cart id, line ids and quantities, quote components.
 
-    Deliberately POSITIVE where `basket_hash` is subtractive. `basket_hash` cannot prove that
-    `items` / `address` / `delivery` carry no per-calculation field, because those are Wix's raw
-    shapes straight out of the former Wix cart calculation. Everything enumerated HERE is contract-checked by
-    us on every calculate:
+    Deliberately POSITIVE where `basket_hash` is subtractive. `basket_hash` covers every frozen
+    term except the cart revision, so it cannot prove that `items` / `address` / `delivery` carry
+    no field that moves between two quotes of one basket. Everything enumerated HERE is a value
+    the native pricing path controls:
 
-      * `{lineItemId: quantity}` — `calculate` raises unless it equals the cart's own
-        `quantityInfo.confirmedQuantity` per line, and unless the line totals sum to
-        `priceSummary.subtotal`;
+      * `{lineItemId: quantity}` — the line identity (the variant id, see
+        `native_checkout.quote_native_cart`) and the quantity priced from ProductsTable;
       * `components` — our own `quote.components()`, computed by `compute_quote` from the
-        authoritative collection total, not relayed from Wix;
-      * the tender split — `calculate` raises unless `payNow == total - redeem`,
-        `totalAfterGiftCards == payNow` and the card is bound to the cart by id.
+        authoritative collection total.
 
-    So a per-calculation field cannot enter this hash. It is COARSER than `basket_hash` — it
-    ignores the address, the delivery method and every non-enumerated line-item field — which is
-    why it is used ONLY TO REFUSE and never to allow. Returns "" when the payload carries no
-    usable line items, meaning "no narrow identity available", which the guard treats as "cannot
-    help" and falls back to `basket_hash` alone.
-
-    The tender terms are deliberately included. `components` is derived from the COLLECTION total,
-    which a gift card does not change — only the split does — so with the tender excluded, a
-    basket paid with a gift card and the same items later paid WITHOUT one would hash equal and be
-    refused permanently. Including the three reconciled integers keeps the identity deterministic
-    per basket while keeping that purchase payable. The risk traded for is nil in the dangerous
-    direction: more terms can only make the narrow hash DIFFER more readily, and a difference
-    never becomes a pass.
+    It is COARSER than `basket_hash` — it ignores the address, the delivery choice and every
+    non-enumerated line-item field — which is why it is used ONLY TO REFUSE and never to allow.
+    Returns "" when the payload carries no usable line items, meaning "no narrow identity
+    available", which the guard treats as "cannot help" and falls back to `basket_hash` alone.
     """
     if not isinstance(frozen_payload, Mapping):
         raise PricingError("basket identity requires the frozen snapshot payload")
@@ -512,21 +498,12 @@ def narrow_basket_hash(frozen_payload: Mapping[str, Any]) -> str:
         if not line_id:
             return ""
         lines.append([line_id, line.get("quantity")])
-    payment = frozen_payload.get("payment")
-    payment = payment if isinstance(payment, Mapping) else {}
-    card = payment.get("wixGiftCard")
-    card = card if isinstance(card, Mapping) else {}
     return _stable_hash({
         "cart": cart_id,
-        # Sorted, so a reordered `summary.lineItems` is the SAME basket. `_snapshot_payload`
-        # preserves Wix's order deliberately for the quote hash; here order is not identity.
+        # Sorted, so reordered lines are the SAME basket. `_snapshot_payload` preserves line
+        # order deliberately for the quote hash; here order is not identity.
         "lines": sorted(lines, key=lambda pair: pair[0]),
         "components": frozen_payload.get("components"),
-        # The money split, by the three values `calculate` reconciles. `obfuscatedCode` and
-        # `appId` are deliberately NOT here: they are raw Wix strings and not amounts.
-        "tender": {"giftCardId": str(card.get("giftCardId") or ""),
-                   "redeemPaise": payment.get("wixGiftCardRedeemPaise"),
-                   "payNowPaise": payment.get("wixPayNowPaise")},
     })
 
 
@@ -576,9 +553,8 @@ class QuoteSnapshot:
 
 def _snapshot_payload(*, customer_id: str, site: Any, cart_id: str, cart_revision: int,
                       items: Any, address: Any, delivery: Any,
-                      quote: CheckoutQuote, policy_version: str,
-                      payment: Any = None) -> Dict[str, Any]:
-    payload = {
+                      quote: CheckoutQuote, policy_version: str) -> Dict[str, Any]:
+    return {
         "customer": customer_id,
         "site": site,
         "cart": {"id": cart_id, "revision": cart_revision},
@@ -588,12 +564,6 @@ def _snapshot_payload(*, customer_id: str, site: Any, cart_id: str, cart_revisio
         "components": quote.components(),
         "policyVersion": policy_version,
     }
-    # Payment/tender data is optional so pre-existing snapshot callers keep the exact same hash.
-    # Cart V2 website checkout supplies it when Wix calculated a gift-card split; binding that
-    # split into the immutable snapshot prevents a later callback from settling a different tender.
-    if payment is not None:
-        payload["payment"] = payment
-    return payload
 
 
 def build_snapshot(*,
@@ -606,8 +576,7 @@ def build_snapshot(*,
                    site: Any = None,
                    items: Any = None,
                    address: Any = None,
-                   delivery: Any = None,
-                   payment: Any = None) -> QuoteSnapshot:
+                   delivery: Any = None) -> QuoteSnapshot:
     """Freeze a reviewed quote into an immutable snapshot with a stable hash.
 
     The hash covers the customer, site, cart id and revision, the item list (order preserved),
@@ -625,7 +594,7 @@ def build_snapshot(*,
     payload = _snapshot_payload(
         customer_id=customer_id, site=site, cart_id=cart_id, cart_revision=cart_revision,
         items=items, address=address, delivery=delivery, quote=quote,
-        policy_version=quote.policy_version, payment=payment,
+        policy_version=quote.policy_version,
     )
     snapshot_hash = _stable_hash(payload)
 

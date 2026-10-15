@@ -28,7 +28,7 @@ export default function BlogIndex ( props: BlogIndexPageProps ) {
 }
 
 // Static-export content refresh marker: 2026-09-28 Gastronomy batch 001.
-// Publishing to Wix changes the source of truth; a new frontend build snapshots
+// Publishing to the native blog changes the source of truth; a new frontend build snapshots
 // the latest published posts into /blog/, /blog/page/N/ and /post/[slug]/ static pages.
 export const getStaticProps: GetStaticProps<BlogIndexPageProps> = async () => ( {
   props: await blogIndexProps( 1 ),

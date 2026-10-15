@@ -54,9 +54,8 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'lambda-outbound-sms', category: 'SMS / Email / Voice', name: 'Outbound SMS', description: 'Send SMS via AWS Pinpoint / SNS.', path: 'amplify/functions/messaging/outbound-sms/handler.py', type: 'lambda' },
   { id: 'lambda-outbound-email', category: 'SMS / Email / Voice', name: 'Outbound Email', description: 'Send email via AWS SES.', path: 'amplify/functions/messaging/outbound-email/handler.py', type: 'lambda' },
   { id: 'lambda-sms-aws', category: 'SMS / Email / Voice', name: 'SMS AWS', description: 'AWS Pinpoint SMS inbound handler.', path: 'amplify/functions/messaging/sms-aws/handler.py', type: 'lambda' },
-  // exist, for a retired provider whose Lambda is absent from the account.
   { id: 'lambda-voice-aws', category: 'SMS / Email / Voice', name: 'Voice AWS', description: 'AWS Connect voice call handler.', path: 'amplify/functions/messaging/voice-aws/handler.py', type: 'lambda' },
-  { id: 'lambda-outbound-voice', category: 'SMS / Email / Voice', name: 'Outbound Voice', description: 'Outbound voice calls via AWS Connect.', path: 'amplify/functions/messaging/outbound-voice/handler.py', type: 'lambda' },
+  { id: 'lambda-plivo-answer', category: 'SMS / Email / Voice', name: 'Plivo Answer', description: 'Plivo PSTN voice webhooks; writes the voice CDR.', path: 'amplify/functions/messaging/plivo-answer/handler.py', type: 'lambda' },
 
   // ── AI Lambdas ──
   { id: 'lambda-ai-kb', category: 'AI', name: 'AI Query KB', description: 'Query Amazon Bedrock Knowledge Base for RAG-based responses.', path: 'amplify/functions/ai/ai-query-kb/handler.py', type: 'lambda' },

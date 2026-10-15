@@ -74,16 +74,13 @@ def test_stock_activation_is_explicit(native):
     assert h._website_order_creator(snapshot()) is h.razorpay_orders.create_order
 
 
-def test_stock_gate_refuses_legacy_pricing(native):
-    """The reservation guard still refuses to run against anything but AWS-native pricing.
-
-    Native is now UNCONDITIONAL: `_supply_mode()` returns AWS_NATIVE regardless of CHECKOUT_MODE,
-    so setting the legacy CHECKOUT_MODE=WIX_HEADLESS env no longer flips the mode. The money
-    invariant the test guards — reserving stock only under native pricing — is kept by exercising
-    the guard directly: if `_supply_mode()` were ever non-native, `_website_order_creator` must
-    raise rather than reserve against a price it did not compute.
-    """
+@pytest.mark.parametrize("frozen", [{}, {"items": []}, {"items": "not-a-list"}])
+def test_stock_is_reserved_only_against_the_server_frozen_basket(native, frozen):
+    """Stock is reserved against the lines the server priced and froze, never anything else. A
+    snapshot with no frozen basket is refused before a reservation or a gateway call is built."""
     h, patch = native
-    patch.setattr(h, "_supply_mode", lambda: "WIX_HEADLESS")
-    with pytest.raises(ValueError, match="AWS-native"):
-        h._website_order_creator(snapshot())
+    patch.setattr(h.native_inventory_txn, "reserve_basket",
+                  lambda *a, **k: pytest.fail("stock reserved"))
+    patch.setattr(h.razorpay_orders, "create_order", lambda **kw: pytest.fail("gateway called"))
+    with pytest.raises(ValueError, match="frozen basket"):
+        h._website_order_creator(SimpleNamespace(frozen_data=frozen))

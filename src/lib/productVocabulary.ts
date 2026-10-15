@@ -31,11 +31,6 @@ export const channelDescription = {
   push: 'Web and mobile push notifications',
 } as const;
 
-export const historicalProvider = {
-  payu: 'PayU (historical)',
-  pinpoint: 'Pinpoint (historical)',
-} as const;
-
 /** Empty and error states, so "nothing here" and "we could not load" stay distinct. */
 export const state = {
   empty: 'Nothing here yet',

@@ -633,10 +633,8 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
   };
 
   // Send test IVR SMS
-  // One provider, so no provider argument. The retired second branch posted a raw
-  // DLT template id and sender header to select a prohibited provider; both the
-  // provider choice and the raw regulatory ids are now resolved server-side from
-  // a template key.
+  // One provider (AWS End User Messaging), so no provider argument. The DLT
+  // regulatory ids are resolved server-side from a template key.
   const sendTestSms = async ( provider: 'aws' = 'aws' ) => {
     if ( !smsTestPhone ) { toast.error( 'Enter a phone number' ); return; }
     setSmsTestSending( provider );

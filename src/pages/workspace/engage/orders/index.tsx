@@ -115,7 +115,7 @@ function statusColor ( status: string ): { bg: string; fg: string } {
     failed: { bg: '#fee2e2', fg: '#991b1b' }, refunded: { bg: '#f3e8ff', fg: '#6b21a8' },
     open: { bg: '#dbeafe', fg: '#1e40af' }, in_progress: { bg: '#fef3c7', fg: '#92400e' },
     resolved: { bg: '#d1fae5', fg: '#065f46' }, closed: { bg: '#f3f4f6', fg: '#374151' },
-    none: { bg: '#f3f4f6', fg: '#6b7280' }, wix: { bg: '#e0e7ff', fg: '#3730a3' },
+    none: { bg: '#f3f4f6', fg: '#6b7280' },
     manual: { bg: '#fef3c7', fg: '#92400e' }, shopify: { bg: '#d1fae5', fg: '#065f46' },
     flow: { bg: '#f3e8ff', fg: '#6b21a8' },
   };

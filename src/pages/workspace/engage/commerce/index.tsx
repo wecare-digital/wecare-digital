@@ -31,9 +31,10 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api
  * empty catalog; the feed list silently set to empty; and Save-feed reported "Feed
  * save failed", blaming the save for a route that was never there.
  *
- * Both panels stay, with their headings and copy, because the capability is real on
- * Meta's side and someone has to be told why it is not wired here. A missing
- * capability stated once is cheaper than a control that quietly does nothing.
+ * The catalog panel stays, with its heading, because the capability is real on Meta's
+ * side and someone has to be told why it is not wired here. A missing capability stated
+ * once is cheaper than a control that quietly does nothing. Native ProductsTable → Meta
+ * catalog sync lives on the Meta tab of /workspace/commerce/catalog.
  */
 const CATALOG_SYNC_UNAVAILABLE = 'Meta catalog product listing and feed sync are not available on this deployment: /wa-business/catalog-products and /wa-business/catalog-feed have no live route.';
 
@@ -234,20 +235,6 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                          (each row with a "+ Bill" action) were here. All of them drove
                          /wa-business/catalog-products, which has no live route, so the
                          list was permanently empty and read as an empty catalog. */ }
-                    <p style={ muted }>{ CATALOG_SYNC_UNAVAILABLE }</p>
-                </div>
-
-                <div style={ card }>
-                    <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } }>
-                        <h2 style={ h2 }>Catalog data feed (Wix → Meta auto-sync)</h2>
-                    </div>
-                    <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' } }>
-                        The intended arrangement: paste the Wix Facebook-channel feed URL, and Meta fetches it daily to keep <b>{ activeWaba.catalog }</b> in sync — product name, price and availability changes flowing through automatically. The URL holds a secret token; treat it like a password.
-                    </p>
-                    { /* The feed URL input, Save-feed and Sync-now were here. They drove
-                         /wa-business/catalog-feed and /wa-business/catalog-feed/fetch,
-                         neither of which has a live route, and the save reported "Feed save
-                         failed" — which blamed the save rather than the missing route. */ }
                     <p style={ muted }>{ CATALOG_SYNC_UNAVAILABLE }</p>
                 </div>
 

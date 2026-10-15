@@ -46,7 +46,6 @@ const WEBHOOK_FIELDS = [
 const EXISTING_WEBHOOKS = [
   { name: 'Inbound Messages', url: 'https://wecare.digital/api/whatsapp-inbound', fields: [ 'messages' ], lambda: 'wecare-inbound-whatsapp-handler', status: 'active', verification: 'Server-side' },
   { name: 'WhatsApp Unified (Calls + Messages)', url: 'https://wecare.digital/api/whatsapp', fields: [ 'messages', 'calls' ], lambda: 'wecare-whatsapp-calling', status: 'active', verification: 'Server-side' },
-  { name: 'Voice CDR Webhook', url: 'https://wecare.digital/api/voice-cdr-webhook', fields: [ 'CDR', 'ALL' ], lambda: 'wecare-voice-cdr-webhook', status: 'active', verification: 'Server-side' },
 ];
 
 const META_WEBHOOK_CONFIG = {

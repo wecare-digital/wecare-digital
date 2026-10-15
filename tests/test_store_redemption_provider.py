@@ -11,9 +11,9 @@ Three of them are the ones worth reading twice:
   provider. The emptiness of that class IS the "one coupon system" guarantee - a provider that
   computes is a second discount engine wearing the Protocol's clothes, and prose would not stop
   someone adding one.
-* `test_an_unmirrored_coupon_applies_on_its_own_authority` pins the AWS-native direction: the
-  local DynamoDB row is the sole authority, so an active coupon applies regardless of any legacy
-  Wix mirror state. The Wix coupon mirror is retired, so there is no second surface to disagree.
+* `test_a_freshly_created_coupon_applies_with_no_further_write` pins the single authority: the
+  CouponsTable row is the only copy of a coupon, so `create` alone makes it priceable and
+  applying it is exact-key reads only.
 * `test_the_composed_order_is_coupon_then_fee_then_gift_card` asserts D1 and M6 together: the
   convenience fee is computed on the DISCOUNTED collection, the gift card is subtracted from the
   FINAL total, and `redemption_paise + razorpay_payable_paise == authoritative_total_paise`
@@ -95,14 +95,9 @@ def coupon_payload(**overrides):
     return {key: value for key, value in base.items() if value is not None}
 
 
-def issue_coupon(store: FakeTable, *, mirrored: bool = True, **overrides):
-    """A created coupon, mirrored unless the test is about an unmirrored one."""
-    definition = cs.create(store, coupon_payload(**overrides), created_by="staff-1",
-                           clock=clock(NOW))
-    if mirrored:
-        return cs.mark_mirrored(store, definition["code"],
-                                "wix-" + definition["code"].lower(), clock=clock(NOW))
-    return definition
+def issue_coupon(store: FakeTable, **overrides):
+    """A created coupon. Creation alone makes it applicable: the row is the sole authority."""
+    return cs.create(store, coupon_payload(**overrides), created_by="staff-1", clock=clock(NOW))
 
 
 def issue_card(store: FakeTable, *, value_paise: int = 300000, code: str = CARD_CODE, **extra):
@@ -144,7 +139,7 @@ def test_every_coupon_verdict_other_than_eligible_maps_to_a_typed_reason():
 
 # ── coupons ───────────────────────────────────────────────────────────────────
 
-def test_an_eligible_mirrored_coupon_yields_the_amount_the_store_computed():
+def test_an_eligible_coupon_yields_the_amount_the_store_computed():
     coupons, cards = coupons_table(), gift_cards_table()
     issue_coupon(coupons)
     authority = provider(coupons, cards).validate_coupon(
@@ -173,18 +168,19 @@ def test_a_percent_off_coupon_is_priced_with_the_same_rounding_as_the_convenienc
     assert authority.discount_paise == cp.round_half_up(12345, 1500)
 
 
-def test_an_unmirrored_coupon_applies_on_its_own_authority():
-    """AWS-native: the local row is the sole authority. A legacy `PENDING_WIX` mirror state is
-    irrelevant — an active coupon prices and applies. (The former fail-closed-on-unmirrored
-    behaviour went with the Wix coupon mirror; it would otherwise refuse every native coupon.)"""
+def test_a_freshly_created_coupon_applies_with_no_further_write():
+    """The CouponsTable row is the sole authority, so `create` alone makes a coupon priceable:
+    nothing is written between creating a coupon and applying it, and applying it is
+    exact-key reads only."""
     coupons, cards = coupons_table(), gift_cards_table()
-    issue_coupon(coupons, mirrored=False)
-    assert cs.get_definition(coupons, "SAVE1000")["wixMirrorState"] == cs.MIRROR_PENDING
+    issue_coupon(coupons)
+    coupons.calls.clear()
     authority = provider(coupons, cards).validate_coupon(
         code="SAVE1000", collection_before_discount_paise=COLLECTION_PAISE, cart_ref=CART_REF)
     assert authority.valid is True
     assert authority.reason == redemption.COUPON_APPLIED
     assert authority.discount_paise == 100000
+    assert set(coupons.operations()) == {"get_item"}
 
 
 def test_an_unknown_code_and_a_malformed_code_answer_alike():

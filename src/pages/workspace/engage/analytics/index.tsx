@@ -83,8 +83,10 @@ const AnalyticsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
             const ans = isAnswered( m );
             if ( ans ) { answered++; durSum += ( m.duration || 0 ); }
             if ( ( new Date( m.timestamp ).getTime() || 0 ) >= wk ) week++;
+            // AWS and WhatsApp calls carry their own callType; every other voice row is a
+            // phone-network call, and PSTN voice is Plivo.
             const rawType = ( m.callType || 'other' ).toLowerCase();
-            const prov = rawType === 'aws' || rawType === 'whatsapp' ? rawType : 'legacy';
+            const prov = rawType === 'aws' || rawType === 'whatsapp' ? rawType : 'pstn';
             if ( !byProv[ prov ] ) byProv[ prov ] = { total: 0, answered: 0, durSum: 0 };
             byProv[ prov ].total++;
             if ( ans ) { byProv[ prov ].answered++; byProv[ prov ].durSum += ( m.duration || 0 ); }
@@ -104,7 +106,7 @@ const AnalyticsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     };
     const PROV_META: Record<string, { label: string; fg: string }> = {
         aws: { label: 'AWS', fg: '#1d4ed8' },
-        legacy: { label: 'Legacy calls', fg: '#6b7280' },
+        pstn: { label: 'Phone (PSTN) calls', fg: '#6b7280' },
         whatsapp: { label: 'WhatsApp', fg: '#15803d' },
     };
 

@@ -135,7 +135,6 @@ def build(*,
           configuration_name: str,
           currency: str = "INR",
           cart_id: str = "",
-          wix_checkout_id: str = "",
           retry_of: str = "",
           customer_uuid: str = "",
           attempt_number: int = 1,
@@ -185,8 +184,8 @@ def build(*,
         "createdAt": moment,
         "updatedAt": moment,
     }
-    for key, value in (("cartId", cart_id), ("wixCheckoutId", wix_checkout_id),
-                       ("retryOf", retry_of), ("customerUuid", customer_uuid)):
+    for key, value in (("cartId", cart_id), ("retryOf", retry_of),
+                       ("customerUuid", customer_uuid)):
         if value:
             record[key] = value
     return record
@@ -194,7 +193,6 @@ def build(*,
 
 def next_retry(previous: Dict[str, Any], *, reference_id: str,
                amount_paise: int, configuration_name: str,
-               wix_checkout_id: str = "",
                now: Optional[int] = None) -> Dict[str, Any]:
     """Build the successor attempt for a definitely-failed one.
 
@@ -224,7 +222,6 @@ def next_retry(previous: Dict[str, Any], *, reference_id: str,
         amount_paise=amount_paise,
         configuration_name=configuration_name,
         cart_id=str(previous.get("cartId") or ""),
-        wix_checkout_id=wix_checkout_id,
         retry_of=str(previous.get("paymentAttemptId") or ""),
         # CARRIED, unlike the amount. The amount is recalculated because prices move; the
         # customer does not change between a failed attempt and its retry, and minting a second
