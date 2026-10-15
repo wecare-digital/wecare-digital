@@ -2690,7 +2690,7 @@ const VayuLokLive: React.FC = () => {
            surrounding cards (var(--panel-r) = the shared --radius-xl), so it no longer reads as a
            square against the rounded floating card. The SHELL keeps overflow:visible so the
            floating .vl-live-air-card is never clipped; instead the radius is applied to the map's
-           VISUAL layers that fill it (canvas, placeholder, fallback, atmosphere), each with
+           VISUAL layers that fill it (canvas, placeholder and fallback), each with
            overflow:hidden, so the Google tiles/overlays and loading/fallback states clip to the
            rounded corners. isolation:isolate keeps the overlay z-stack contained; the height band
            is unchanged. */
@@ -2702,7 +2702,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live :global(.gm-style-cc),
         .vl-live :global(a[aria-label="Google Maps"]),
         .vl-live :global(img[alt="Google"]){display:none!important}
-        .vl-live-map-placeholder        .vl-live-map-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:24px;text-align:center;z-index:0;background:#eef1ed;color:var(--green)}
+        .vl-live-map-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:24px;text-align:center;z-index:0;background:#eef1ed;color:var(--green)}
         .vl-live-map-placeholder strong{font-size:15px;letter-spacing:-.01em}
         .vl-live-map-placeholder span{font-size:12.5px;color:var(--muted)}
         .vl-live-map-placeholder p{margin:4px 0 0;font-size:12px;color:var(--status)}
