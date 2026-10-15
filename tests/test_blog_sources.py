@@ -332,7 +332,7 @@ def test_uploads_go_to_the_existing_bucket_under_the_secure_root():
     assert bs.PUBLIC_ROOT_PREFIX == "o/blog-production/"
     assert bs.SECURE_ROOT_PREFIX == "secure/blog-production/"
     assert bs.ROOT_PREFIX == bs.SECURE_ROOT_PREFIX
-    assert bs.PREFIX == "secure/blog-production/sources/pdf/"
+    assert bs.PREFIX == "secure/blog-production/01-sources/"
 
 
 def test_every_prefix_sits_under_the_one_root():
@@ -389,7 +389,7 @@ def test_source_detail_mints_a_short_lived_secure_download_url(env):
     env["s3"].objects[key] = payload
     detail = env["bs"].source_detail(source_id)
     assert detail["sourceUrl"].startswith(
-        "https://s3.example/secure/blog-production/sources/pdf/")
+        "https://s3.example/secure/blog-production/01-sources/conversations/")
     assert detail["sourceUrlExpiresInSeconds"] == env["bs"].UPLOAD_URL_TTL
     assert env["s3"].presigned[-1]["operation"] == "get_object"
 
@@ -403,7 +403,7 @@ def test_register_presigns_a_put_per_pdf(env):
         "admin", q.CATEGORIES)
     assert len(result["sources"]) == 1
     entry = result["sources"][0]
-    assert entry["uploadUrl"].startswith("https://s3.example/secure/blog-production/sources/pdf/")
+    assert entry["uploadUrl"].startswith("https://s3.example/secure/blog-production/01-sources/conversations/")
     assert entry["status"] == "PENDING_UPLOAD"
     assert env["s3"].presigned[0]["operation"] == "put_object"
     assert env["s3"].presigned[0]["ContentType"] == "application/pdf"
