@@ -56,11 +56,10 @@
  * names, and styled-jsx does not shield a page from those.
  */
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import PageMeta from '../../components/PageMeta';
-import BrandBadge from '../../components/BrandBadge';
 import PublicShare from '../../components/PublicShare';
-import RotatingPill from '../../components/RotatingPill';
+import RotatingHero from '../../components/RotatingHero';
 import VayuLokApprovedGlobe from '../../components/VayuLokApprovedGlobe';
 import VayuLokLive from '../../components/VayuLokLive';
 
@@ -139,17 +138,6 @@ const VayuLokPage: React.FC = () => {
     { word: 'History', tint: '#fef9c3', dot: '#ca8a04' },
     { word: 'Heatmap', tint: '#fbe6d4', dot: '#c2591b' },
   ];
-  const [ shown, setShown ] = useState( false );
-
-  useEffect( () => {
-    // The entrance wipe and the dot pop are one-shot, so this does not need an
-    // observer the way the Grahak OS page's multiple sections do. The rotation, the
-    // width re-measure and all the pill CSS now live in RotatingPill; this page keeps
-    // only the one-shot `shown` flag that drives the pill's entrance via `phase`.
-    const id = window.setTimeout( () => setShown( true ), 60 );
-    return () => window.clearTimeout( id );
-  }, [] );
-
   return (
     <>
       {/* THIS PAGE'S TITLE AND DESCRIPTION WERE THE THINNEST ON THE SITE, measured against
@@ -173,83 +161,31 @@ const VayuLokPage: React.FC = () => {
         image={ VAYULOK_SOCIAL_CARD }
       />
 
-      {/* A SECTION, NOT A MAIN, and that is deliberate. VayuLokLive below renders its own
-          main.vl-live-shell, and HTML permits exactly one non-hidden main per document -
-          two of them is what tools/audit/htmlcheck.js flags at HIGH and what
-          src/test/PublicPageHero.test.tsx asserts against for the other public pages.
-          The component's markup is not ours to change, so the single main landmark is the
-          live section and the hero is a labelled region above it. Landmark navigation and
-          skip-to-content therefore land on the live widget, which is this page's primary
-          interactive content, not on the headline. Purely semantic: every rule in the
-          style block below selects .vl-shell by class, so nothing moves on screen. */}
-      <section className="vl-shell" aria-label="VayuLok">
-        <div className={ `vl-layout ${shown ? 'show' : ''}`.trim() }>
-          <div className="vl-hero-grid">
-            <div className="vl-hero-copy">
-              {/* Same component as the Grahak OS hero and the home page, so the three
-                  pills cannot drift apart. The wrapper carries the spacing because
-                  styled-jsx cannot style a composite component from here. */}
-              <div className="vl-eyebrow">
-                <BrandBadge label="VayuLok by WECARE.DIGITAL" />
-              </div>
-
-              <h1 className="vl-head">
-                <span className="vl-head-line vl-head-line-one">
-                  <span>Bharat</span>{ ' ' }
-                  <RotatingPill words={ cycleWords } phase={ shown ? 'shown' : 'armed' } />
-                </span>
-                <span className="vl-head-line vl-head-line-two">
-                  <span className="vl-head-tail">Intelligence</span>
-                </span>
-              </h1>
-
-              {/* HERO SUBTEXT, matching the Grahak OS hero's .hero-sub treatment
-                  (20px / 400 / rgba(0,0,0,.898) / line-height 1.4 / -.125px, capped
-                  width). Two sentences by design: the first names the familiar thing
-                  (town-level forecasts), the second draws the contrast that is the
-                  product's whole point - VayuLok reports the air and weather for the
-                  exact spot you are in, not the city average. Brand cased VayuLok to
-                  match every other reference in the repo. */}
-              <p className="vl-sub">Forecasts cover cities. VayuLok reads your street &mdash; live air and weather, exactly where you are.</p>
-            </div>
-
-            <div className="vl-hero-visual">
-              <VayuLokApprovedGlobe />
-            </div>
+      <main className="vl-page">
+        <RotatingHero
+          insideMain
+          noShare
+          ariaLabel="VayuLok"
+          badgeLabel="VayuLok by WECARE.DIGITAL"
+          frame="Bharat intelligence"
+          words={ cycleWords }
+          sub="Forecasts cover cities. VayuLok reads your street — live air and weather, exactly where you are."
+        >
+          <div className="vl-hero-visual">
+            <VayuLokApprovedGlobe />
           </div>
+        </RotatingHero>
+
+        {/* The live air/weather application stays directly below the shared product hero.
+            VayuLokLive no longer owns a second <main>; this page owns the one primary
+            landmark so the same Header -> unified hero -> content -> Footer structure
+            applies here as it does to every other public product page. */}
+        <VayuLokLive />
+
+        <div className="vl-share-wrap">
+          <PublicShare />
         </div>
-      </section>
-
-      {/* LIVE CONTENT, DIRECTLY BELOW THE HERO - which is what the .vl-shell note beside
-          the padding rule has described ever since the forced 100vh came off, and what
-          this file's own header describes. The markup went missing in a revert of the
-          "Filling the Gap" globe, leaving both comments pointing at a section that was no
-          longer rendered. Restored here as a SIBLING of the hero, not a child: the
-          component's own root wraps a main.vl-live-shell, and nesting that inside another
-          main would be invalid - which is also why the hero above is a section.
-          src/test/VayuLokLivePageWiring.test.tsx guards this placement; the section has
-          already been lost twice to edits of the surrounding markup.
-          A PLAIN STATIC IMPORT, deliberately not next/dynamic. VayuLokLive touches
-          window, document and google only inside effects and in helpers that return
-          early on typeof window === 'undefined', so it prerenders safely under the
-          output:'export' build. ssr:false would merely empty this section out of the
-          exported HTML for no SSR gain. It is self-styling under a vl-live- scope, so
-          it needs no wrapper and no rule here. (The map stack is loaded by injecting the
-          Maps JS <script> inside an effect, after mount; the component imports no deck.gl -
-          both the AQI and PM2.5 heatmaps are Google ImageMapType tile overlays.)
-          WHAT THE KEYLESS PATH ACTUALLY RENDERS. With NEXT_PUBLIC_GOOGLE_BROWSER_KEY unset,
-          which is every CI and sandbox run, the component injects no Maps JS, mounts no
-          interactive canvas, shows no live air or weather panels and issues no fetch
-          calls. It renders a self-contained placeholder (no iframe, no remote asset) where
-          the canvas would be, so this path contacts no third party. */}
-      <VayuLokLive />
-
-      {/* Subscribe + Share. VayuLokLive and .vl-shell are full-bleed, so the block is wrapped in
-          a 1300px/24px measure (vl-layout's own measure) with the sitewide 96px/64px bottom
-          rhythm, so it aligns with the hero content and ends consistently with every other page. */}
-      <div className="vl-share-wrap">
-        <PublicShare />
-      </div>
+      </main>
 
 
       <style jsx>{`
