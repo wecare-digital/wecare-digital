@@ -492,7 +492,7 @@ def test_a_run_is_recorded_with_its_report_in_s3(env):
     result = env["bv"].run(published["sourceId"], "operator")
     record = env["bv"].get(result["verificationRunId"])
     assert record["recordType"] == env["bv"].RECORD_TYPE
-    assert record["bodyKey"].startswith("secure/blog-production/verification/")
+    assert record["bodyKey"].startswith("secure/blog-production/03-work/verification/")
     report = json.loads(env["s3"].objects[record["bodyKey"]].decode())
     assert len(report["results"]) == 13
     assert report["sourceId"] == published["sourceId"]
