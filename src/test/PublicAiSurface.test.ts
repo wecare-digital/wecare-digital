@@ -58,7 +58,7 @@ const publicPageMeta = (): Map<string, string> => {
   const end = appSource.indexOf( '\nconst ', start + 10 );
   const block = appSource.slice( start, end === -1 ? undefined : end );
   const entries = new Map<string, string>();
-  for ( const match of block.matchAll( /^\s*'(\/[a-z0-9-]+)'\s*:\s*\{[^}]*description:\s*'((?:[^'\\]|\\.)*)'/gm ) ) {
+  for ( const match of block.matchAll( /^\s*'(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)'\s*:\s*\{[^}]*description:\s*'((?:[^'\\]|\\.)*)'/gm ) ) {
     entries.set( match[ 1 ], match[ 2 ].replace( /\\'/g, "'" ) );
   }
   expect( entries.size, 'parsed no PUBLIC_PAGE_META entries — this guard needs updating' ).toBeGreaterThan( 5 );
@@ -81,7 +81,7 @@ const publicExact = (): Set<string> => {
     .split( '\n' )
     .filter( line => !line.trim().startsWith( '//' ) )
     .join( '\n' );
-  return new Set( Array.from( block.matchAll( /'(\/[a-z0-9-]*)'/g ) ).map( m => m[ 1 ] ) );
+  return new Set( Array.from( block.matchAll( /'(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)'/g ) ).map( m => m[ 1 ] ) );
 };
 
 /**
