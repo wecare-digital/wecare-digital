@@ -7,6 +7,7 @@ VayuLok is intentionally a browser-driven Google Maps experience.
 `NEXT_PUBLIC_GOOGLE_BROWSER_KEY` is the credential used by the public VayuLok page for:
 
 - Maps JavaScript API
+- Places API (New) — Autocomplete only
 - Geocoding API
 - Time Zone API
 - Air Quality API
@@ -23,7 +24,7 @@ The map is a static visualization surface.
 - Initial destination is Shillong.
 - The initial camera is centered on India.
 - Search/recent places are the only location-selection paths.
-- Destination search is submit-driven: typing makes no provider call; Enter, the search action, or a completed voice transcript performs one Geocoding lookup. VayuLok does not use Places (New) or the Autocomplete Data API.
+- Destination search uses Places (New) Autocomplete Data API for suggestions only, with debounce/session tokens. Selecting a suggestion resolves through one Geocoding lookup. VayuLok does not call Place Details, Text Search, Nearby Search, photos, contact data, or atmosphere fields.
 - Search/recent-place selection recenters the camera to the chosen destination.
 - Direct drag, touch/pinch, wheel/zoom, double-click zoom and keyboard map movement are disabled.
 - Direct canvas gestures never trigger geocoding, Air Quality, or Weather refreshes.
@@ -37,7 +38,7 @@ Provider/API failures must remain visible as unavailable/error states; they must
 
 Amplify reads the build-time browser key from the existing WECARE.DIGITAL Maps secret and exports it as `NEXT_PUBLIC_GOOGLE_BROWSER_KEY`.
 
-Any Google Cloud key-policy change for this feature must keep the browser key enabled for the five APIs listed above. Do not reintroduce a mandatory VayuLok server relay without an explicit product decision, because that previously caused repeated live breakage.
+Any Google Cloud key-policy change for this feature must keep the browser key enabled for the six APIs listed above. Do not reintroduce a mandatory VayuLok server relay without an explicit product decision, because that previously caused repeated live breakage.
 
 ## Acceptance
 
@@ -47,7 +48,7 @@ On a deployed `*.wecare.digital` origin:
 2. Confirm the map is non-interactive: drag/pinch/wheel/keyboard input does not move it or trigger location lookup.
 3. Search for a city and confirm the map recenters and refreshes Air Quality and Weather data.
 4. Confirm the Air and Weather tabs show their live current conditions, forecasts and history for the selected place.
-5. Confirm typing in destination search makes no network location lookup until explicit submit.
+5. Confirm destination typing returns autocomplete suggestions, and selecting one performs Geocoding without any Place Details fetch.
 6. Switch to Weather and confirm the map shows the local sky/cloud wash and animated wind-circulation layer, driven by the already-fetched Weather payload rather than a separate weather-tile product.
 
 
@@ -58,4 +59,4 @@ Weather remains a first-class VayuLok section. Current Weather, hourly/daily for
 
 ## 2026-10-16 cost-control update
 
-VayuLok no longer uses Places (New) or the Autocomplete Data API. Search uses Google Geocoding only on explicit submit, so there is no per-keystroke autocomplete billing. Weather-map presentation is rendered locally from the existing Weather current-conditions payload (cloud cover, rain state, day/night, wind speed and direction); it does not request a separate weather tile layer.
+VayuLok uses only the Places (New) Autocomplete Data API for suggestions. It does not request Place Details or other higher-cost Places data SKUs. Suggestion selection resolves with Geocoding. Weather-map presentation is rendered locally from the existing Weather current-conditions payload (cloud cover, rain state, day/night, wind speed and direction); it does not request a separate weather tile layer.
