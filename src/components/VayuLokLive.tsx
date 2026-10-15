@@ -1516,6 +1516,7 @@ const VayuLokLive: React.FC = () => {
       host.addEventListener( 'pointerdown', markMapInteraction, { passive: true } );
       host.addEventListener( 'touchstart', markMapInteraction, { passive: true } );
       host.addEventListener( 'wheel', markMapInteraction, { passive: true } );
+      host.addEventListener( 'keydown', markMapInteraction, true );
 
       const commitVisibleCenter = async () => {
         if ( cancelled || !mapInteractionRef.current ) return;
@@ -1620,6 +1621,7 @@ const VayuLokLive: React.FC = () => {
         host.removeEventListener( 'pointerdown', markMapInteraction );
         host.removeEventListener( 'touchstart', markMapInteraction );
         host.removeEventListener( 'wheel', markMapInteraction );
+        host.removeEventListener( 'keydown', markMapInteraction, true );
         if ( atmosphereFrameRef.current !== null ) {
           cancelAnimationFrame( atmosphereFrameRef.current );
           atmosphereFrameRef.current = null;
