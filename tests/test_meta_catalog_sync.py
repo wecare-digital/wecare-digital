@@ -120,12 +120,29 @@ def test_a_retailer_id_round_trips(products):
 
 
 def test_the_retailer_id_shape_is_the_documented_one():
-    """`<prefix>:<productId>:<variantId>`. The 77 also pins the prefix's length: the live Meta
-    catalogue and inbound WhatsApp orders already carry ids of exactly this shape."""
+    """`<prefix>:<productId>:<variantId>` stays below Meta's retailer-id ceiling."""
     value = sync.retailer_id(TEST_PRODUCT, TEST_VARIANT)
     assert value == f"{PREFIX}:{TEST_PRODUCT}:{TEST_VARIANT}"
-    assert len(value) == 77
-    assert 77 < sync.RETAILER_ID_MAX_LENGTH
+    assert len(value) == len(PREFIX) + 1 + 36 + 1 + 36
+    assert len(value) < sync.RETAILER_ID_MAX_LENGTH
+
+
+def test_new_ids_are_written_with_wecare_digital_namespace():
+    """All new catalogue ids use the owner-approved WECARE.DIGITAL namespace."""
+    assert sync.RETAILER_PREFIX == "WECARE.DIGITAL"
+    value = sync.retailer_id(TEST_PRODUCT, TEST_VARIANT)
+    assert value.startswith("WECARE.DIGITAL:")
+    assert not value.lower().startswith("wix:")
+
+
+def test_legacy_wix_ids_still_resolve_during_catalogue_migration():
+    """Existing Meta items and in-flight carts remain readable until migration completes."""
+    assert "wix" in sync.LEGACY_RETAILER_PREFIXES
+    legacy = f"wix:{TEST_PRODUCT}:{TEST_VARIANT}"
+    assert sync.parse_retailer_id(legacy) == (TEST_PRODUCT, TEST_VARIANT)
+    assert sync.parse_retailer_id(
+        f"WECARE.DIGITAL:{TEST_PRODUCT}:{TEST_VARIANT}"
+    ) == (TEST_PRODUCT, TEST_VARIANT)
 
 
 def test_case_is_normalised_so_one_item_cannot_fork_into_two():
@@ -691,3 +708,28 @@ def test_request_variants_use_their_own_locked_catalog_artwork():
         assert by_variant[variant_id]["image_url"] == expected_image
         assert "/wd-catalog-live/" in expected_image
         assert expected_image.endswith("-4096.png")
+
+
+def test_namespace_migration_creates_wecare_digital_items_and_retires_legacy(desired):
+    """Migration is additive/non-deleting and becomes idempotent after legacy retirement."""
+    legacy = [
+        dict(
+            _meta_row(item),
+            retailer_id=item["retailer_id"].replace("WECARE.DIGITAL:", "wix:", 1),
+        )
+        for item in desired
+    ]
+    plan = sync.diff(desired, legacy)
+    assert len(plan.create) == len(desired)
+    assert len(plan.retire) == len(legacy)
+    assert plan.update == []
+    assert plan.foreign == []
+    assert all(item["retailer_id"].startswith("WECARE.DIGITAL:") for item in plan.create)
+    assert all(
+        item["retailer_id"].startswith("wix:")
+        and item["availability"] == sync.OUT_OF_STOCK
+        for item in plan.retire
+    )
+
+    retired = [dict(row, availability=sync.OUT_OF_STOCK) for row in legacy]
+    assert sync.diff(desired, [_meta_row(item) for item in desired] + retired).is_empty
