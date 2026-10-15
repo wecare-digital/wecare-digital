@@ -49,6 +49,8 @@ export interface ShopProduct {
    * images uploaded in catalog and scripts/build-catalog-snapshot.py extended to capture the URL.
    */
   image?: string;
+  /** Canonical public destination for this product. Defaults to /shop/<slug>/. */
+  canonicalPath?: string;
   /**
    * The bold opening line of the catalog description - the product's own one-line statement of what it
    * does, which is what a card in a grid needs and what a meta description should open with.
@@ -70,6 +72,9 @@ interface RawProduct {
   visible?: boolean;
   descriptionHtml?: string;
   image?: string;
+  canonicalPath?: string;
+  websiteEnabled?: boolean;
+  metaEnabled?: boolean;
 }
 
 /** U+0001, which cannot appear in catalog rich text and is not whitespace, so \s+ leaves it alone. */
@@ -220,6 +225,7 @@ const project = ( raw: RawProduct ): ShopProduct => {
     // Spread, not `image: raw.image || undefined`, so a product with no image has no `image` KEY
     // at all. ShopProductHead gates the Product node on the field's presence.
     ...( raw.image ? { image: String( raw.image ) } : {} ),
+    ...( raw.canonicalPath ? { canonicalPath: String( raw.canonicalPath ) } : {} ),
     tagline,
     body,
   };
@@ -362,4 +368,4 @@ export const shopPageTitle = ( product: ShopProduct ): string =>
 
 /** '/shop/kiosk/' - trailingSlash is on, so the canonical form carries one. */
 export const shopProductPath = ( product: ShopProduct ): string =>
-  '/shop/' + product.slug + '/';
+  product.canonicalPath || ( '/shop/' + product.slug + '/' );
