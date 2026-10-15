@@ -87,9 +87,9 @@ PERMITTED_RAZORPAY_CALLS_REPLAY = frozenset({'GET /v1/payments/{id}'})
 
 # ── permitted META calls ─────────────────────────────────────────────────────
 #
-# TWO entries, not three. `_lookup_reference_id_from_meta` makes NO Graph call - read in full it
-# is an `InvoicesTable` scan with a misleading docstring - so there is no second Meta lookup site
-# to account for.
+# TWO entries, not three. The webhook's referenceId recovery (`_reference_id_from_stored_binding`)
+# makes NO Graph call - it is one `GATEWAYORDER#` GetItem on the commerce-keys table - so there is
+# no second Meta lookup site to account for.
 #
 # No `POST`/`DELETE` on `/{waba}/payment_configurations`. Payment-configuration mutation is a
 # standing refusal, and this enumeration proves it is ABSENT rather than merely unused.

@@ -120,7 +120,7 @@ MAX_SOURCE_BYTES = int(os.environ.get("BLOG_SOURCE_MAX_BYTES", str(40 * 1024 * 1
 #: How many sources one worker invocation handles before chaining. Sized so the batch
 #: finishes well inside the 120s function timeout even when every PDF is large.
 WORKER_BATCH = int(os.environ.get("BLOG_WORKER_BATCH", "5"))
-MAX_REGISTER_BATCH = 1000
+REGISTER_CHUNK_SIZE = 1000
 
 RECORD_TYPE = "blogSource"
 
@@ -376,19 +376,16 @@ def _view(item: Dict[str, Any]) -> Dict[str, Any]:
 # ── Phase 1: register and presign ───────────────────────────────────────────────
 
 def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> Dict[str, Any]:
-    """Create or resolve up to 1,000 source records and presign each new PDF.
+    """Create or resolve an arbitrary number of source records and presign each new PDF.
 
-    Validation and identity derivation happen before any write. Existing records are then
-    resolved with BatchGetItem and new/retryable rows are written through DynamoDB's batch
-    writer. That keeps a 1,000-source request bounded instead of doing 1,000 GetItem +
-    1,000 PutItem network round-trips inside one API request.
+    There is no product/business ceiling on the total source count. AWS request payload and
+    Lambda runtime limits still exist, so clients should stream very large imports as repeated
+    calls; DynamoDB/SQS work remains internally chunked. `REGISTER_CHUNK_SIZE` is therefore
+    an efficiency hint, not a rejection threshold.
     """
     entries = body.get("sources")
     if not isinstance(entries, list) or not entries:
         raise ValueError("sources must be a non-empty array")
-    if len(entries) > MAX_REGISTER_BATCH:
-        raise ValueError(f"at most {MAX_REGISTER_BATCH} sources per request")
-
     batch_id = str(body.get("batchId") or "").strip()
     batch: Dict[str, Any] = {}
     if batch_id:
@@ -494,9 +491,15 @@ def register(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> D
     logger.info(json.dumps({
         "event": "blog_sources_registered", "actor": actor, "count": len(registered),
         "new": sum(1 for row in registered if not row["alreadyKnown"]),
-        "maxBatch": MAX_REGISTER_BATCH,
+        "unlimitedBulk": True,
+        "transportChunkSize": REGISTER_CHUNK_SIZE,
     }))
-    return {"sources": registered, "bucket": BUCKET, "maxBatch": MAX_REGISTER_BATCH}
+    return {
+        "sources": registered,
+        "bucket": BUCKET,
+        "unlimitedBulk": True,
+        "transportChunkSize": REGISTER_CHUNK_SIZE,
+    }
 
 
 # ── Phase 2: confirm the bytes arrived, then hand off ────────────────────────────
@@ -513,9 +516,6 @@ def confirm(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     ids = body.get("sourceIds")
     if not isinstance(ids, list) or not ids:
         raise ValueError("sourceIds must be a non-empty array")
-    if len(ids) > MAX_REGISTER_BATCH:
-        raise ValueError(f"at most {MAX_REGISTER_BATCH} sourceIds per request")
-
     requested = [str(value).strip() for value in ids if str(value or "").strip()]
     records = storage.get_typed_many(requested, RECORD_TYPE)
     confirmed: List[str] = []
@@ -592,7 +592,7 @@ def confirm(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
         "event": "blog_sources_confirmed", "actor": actor, "confirmed": len(confirmed),
         "missing": len(missing), "unknown": len(unknown), "workerStarted": started,
         "queued": queued["queued"], "queueConfigured": queued["configured"],
-        "maxBatch": MAX_REGISTER_BATCH,
+        "unlimitedBulk": True, "transportChunkSize": REGISTER_CHUNK_SIZE,
     }))
     return {
         "confirmed": confirmed, "missingUpload": missing, "unknownSourceId": unknown,
@@ -925,18 +925,19 @@ def _draft_record(record: Dict[str, Any], extract: Any, q, bp) -> Dict[str, Any]
 # ── Reporting ───────────────────────────────────────────────────────────────────
 
 def status_report(limit: int = 0, batch_id: str = "") -> Dict[str, Any]:
-    """Counts across every source, or one batch's.
+    """Return exact counts plus a bounded list projection.
 
-    `limit=0` means all of them, and it goes through the paginating helper rather than
-    `list_sources`, which clamps at 500. The old default silently reported on the most recent
-    500 sources in a system specified to hold thousands - the number looked plausible, which
-    is what made it dangerous.
+    Total volume is unbounded, but an HTTP response is not. Counts are therefore computed from
+    the full paginated source set while `limit` only controls how many compact rows are returned
+    to the UI. A 50,000-source production run can still say "50,000 total" without trying to send
+    50,000 rows through API Gateway in one response.
     """
     if batch_id:
         import blog_batches
-        rows = blog_batches.batch_sources(batch_id, limit=limit)
+        rows = blog_batches.batch_sources(batch_id, limit=0)
     else:
-        rows = storage.scan_by_record_type(RECORD_TYPE, limit=limit)
+        rows = storage.scan_by_record_type(RECORD_TYPE, limit=0)
+
     by_status: Dict[str, int] = {}
     by_category: Dict[str, int] = {}
     for row in rows:
@@ -944,14 +945,18 @@ def status_report(limit: int = 0, batch_id: str = "") -> Dict[str, Any]:
         category = str(row.get("category") or "")
         if category:
             by_category[category] = by_category.get(category, 0) + 1
+
+    visible = rows[:limit] if limit > 0 else rows
     return {
         "total": len(rows),
+        "shown": len(visible),
+        "truncated": len(visible) < len(rows),
         "byStatus": dict(sorted(by_status.items())),
         "byCategory": dict(sorted(by_category.items())),
         "pending": sum(1 for row in rows if row.get("status") == UPLOADED),
         "extracted": sum(1 for row in rows if row.get("status") == EXTRACTED),
         "failed": sum(1 for row in rows if row.get("status") == EXTRACTION_FAILED),
-        "sources": [_view(row) for row in rows],
+        "sources": [_view(row) for row in visible],
     }
 
 

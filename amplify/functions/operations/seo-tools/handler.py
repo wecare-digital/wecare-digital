@@ -506,7 +506,7 @@ def _route_get(path: str, event: Dict[str, Any], origin: str):
             'catalogIndexKey': blog_catalog.CATALOG_INDEX_KEY,
             'productionMasterKey': blog_catalog.PRODUCTION_MASTER_KEY,
             'governedCategories': list(blog_catalog.GOVERNED_CATEGORIES),
-            'maxBulkItems': blog_catalog.MAX_BULK_ITEMS,
+            'unlimitedBulk': blog_catalog.UNLIMITED_BULK,
         }, origin)
     if path.endswith('/blog-batches'):
         # `?rollup=none` skips the per-batch source count, which is a real cost switch: each
@@ -781,8 +781,6 @@ def _route_post(path: str, body: Dict[str, Any], actor: str, origin: str):
         job_ids = body.get('jobIds')
         if not isinstance(job_ids, list) or not job_ids:
             raise ValueError('jobIds must be a non-empty array')
-        if len(job_ids) > blog_catalog.MAX_BULK_ITEMS:
-            raise ValueError(f'at most {blog_catalog.MAX_BULK_ITEMS} publish jobs per request')
         wanted = [str(value or '').strip() for value in job_ids if str(value or '').strip()]
         jobs = storage.get_typed_many(wanted, blog_publish.RECORD_TYPE)
         queued_ids = []

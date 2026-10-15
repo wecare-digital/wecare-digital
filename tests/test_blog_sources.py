@@ -482,13 +482,19 @@ def test_register_refuses_an_oversized_file(env):
                            "admin", q.CATEGORIES)
 
 
-def test_register_refuses_an_empty_or_oversized_batch(env):
+def test_register_refuses_empty_but_has_no_fixed_source_count_ceiling(env):
     with pytest.raises(ValueError, match="non-empty"):
         env["bs"].register({"category": "Conversations", "sources": []}, "admin", q.CATEGORIES)
-    too_many = [_pdf_entry(sample_pdf(), f"{n}.pdf") for n in range(env["bs"].MAX_REGISTER_BATCH + 1)]
-    with pytest.raises(ValueError, match="at most"):
-        env["bs"].register({"category": "Conversations", "sources": too_many},
-                           "admin", q.CATEGORIES)
+
+    many = [
+        {"sourceType": "url", "url": f"https://example.com/source/{n}"}
+        for n in range(env["bs"].REGISTER_CHUNK_SIZE + 1)
+    ]
+    result = env["bs"].register(
+        {"category": "Conversations", "sources": many}, "admin", q.CATEGORIES)
+    assert len(result["sources"]) == env["bs"].REGISTER_CHUNK_SIZE + 1
+    assert result["unlimitedBulk"] is True
+    assert result["transportChunkSize"] == env["bs"].REGISTER_CHUNK_SIZE
 
 
 # ── Confirm ─────────────────────────────────────────────────────────────────────

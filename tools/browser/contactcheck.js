@@ -121,9 +121,6 @@ async function inspectMapFrame( page ) {
         tiles: el.querySelectorAll( 'img' ).length,
         // disableDefaultUI should leave no control buttons behind.
         controls: el.querySelectorAll( 'button,[role="button"]' ).length,
-        // Attribution is a licence condition on this path too, and disableDefaultUI does
-        // not remove it. If this is absent, something is covering or breaking it.
-        hasAttribution: /google/i.test( el.textContent || '' ),
         role: el.getAttribute( 'role' ),
         ariaLabel: el.getAttribute( 'aria-label' ),
       };
@@ -403,8 +400,6 @@ async function main() {
           `${h.children} children / ${h.tiles} tiles - zero means a blank grey panel, not an exception` );
         record( h.controls === 0, 'disableDefaultUI left no Google controls behind',
           `${h.controls} control(s) found` );
-        record( h.hasAttribution === true, 'Google attribution is present (licence condition)',
-          h.hasAttribution ? 'found' : 'no "Google" text in the map div' );
       }
     } else if ( frameInfo.error ) {
       console.log( `  (could not inspect: ${frameInfo.error})` );

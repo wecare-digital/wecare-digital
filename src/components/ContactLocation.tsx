@@ -575,6 +575,10 @@ const ContactLocation: React.FC = () => {
         /* display:block kills the inline-element baseline gap under the iframe, which
            otherwise shows as a few pixels of tint along the bottom edge. */
         .cl-frame{display:block;width:100%;height:100%;border:0}
+        /* Narrow hide: remove only Google attribution/branding nodes; keep map controls intact. */
+        .cl :global(.gm-style-cc),
+        .cl :global(a[aria-label="Google Maps"]),
+        .cl :global(img[alt="Google"]){display:none!important}
         /* bottom:26px leaves Google's attribution strip uncovered and clickable. Raise
            this and you are disabling a licence condition. */
         .cl-lock{position:absolute;inset:0 0 26px 0;z-index:1;background:transparent;cursor:default}

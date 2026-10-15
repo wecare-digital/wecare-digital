@@ -8,13 +8,13 @@
  *    one request because API Gateway cuts a Lambda integration off at 30 seconds:
  *    registration returns URLs without touching bytes, the browser carries the bytes
  *    outside our compute entirely, and extraction runs in an async worker that chains.
- *    Good for an interactive batch — tens of sources, with per-source status visible.
+ *    The live path has no product-level source-count ceiling. Large selections are split
+ *    into bounded API chunks, S3 uploads run with bounded parallelism, and confirmations
+ *    are chunked again before extraction is handed to SQS.
  *
- * 2. BULK LEDGER (the CLI). `scripts/blog_ingest.py --work-order <file>` reads a work
- *    order exported from here and does the whole run locally against the committed
- *    ledger. That is the path that has actually delivered 340 articles, and it is the one
- *    to use for thousands of sources: it is resumable, parallel, and does not depend on a
- *    browser tab staying open.
+ * 2. BULK LEDGER (the CLI). `scripts/blog_ingest.py --work-order <file>` remains an
+ *    optional offline/resumable path for operators who do not want to keep a browser tab
+ *    open. It is not a higher-capacity path: both routes may represent an unbounded total.
  *
  * The browser's own contribution to both paths is the SHA-256. It is computed here over
  * the selected bytes with WebCrypto, and it is the record id on the backend — so
@@ -27,6 +27,7 @@
  * page renders verdicts it was given.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import {
@@ -82,6 +83,24 @@ const SOURCE_STATUSES = [
 const IN_FLIGHT_STATUSES: readonly string[] = [ 'PENDING_UPLOAD', 'UPLOADED', 'EXTRACTING' ];
 
 const POLL_INTERVAL_MS = 4000;
+
+/**
+ * "Unlimited" means no application-level total ceiling, not one giant HTTP request.
+ * These bounds protect API payload size, browser memory/network pressure, and the 15-minute
+ * lifetime of presigned PUT URLs while allowing the loop to continue for any total count.
+ */
+const INTAKE_CHUNK_SIZE = 250;
+const CONFIRM_CHUNK_SIZE = 250;
+const UPLOAD_CONCURRENCY = 6;
+const SOURCE_LIST_LIMIT = 500;
+
+interface UploadProgress {
+  total: number;
+  registered: number;
+  uploaded: number;
+  confirmed: number;
+  failed: number;
+}
 
 interface PickedFile {
   name: string;
@@ -192,6 +211,36 @@ async function putPresigned ( uploadUrl: string, file: File ): Promise<boolean> 
  * root this degrades to no link instead of a dead one. A URL source was never uploaded and
  * carries its own address in `sourceRef`, which is the same document.
  */
+function chunked<T> ( values: T[], size: number ): T[][] {
+  const chunks: T[][] = [];
+  for ( let start = 0; start < values.length; start += size )
+  {
+    chunks.push( values.slice( start, start + size ) );
+  }
+  return chunks;
+}
+
+/** Bounded browser-side fan-out. No worker starts another worker; every slot pulls one item. */
+async function mapWithConcurrency<T, R> (
+  values: T[],
+  concurrency: number,
+  worker: ( value: T ) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>( values.length );
+  let next = 0;
+  const slots = Array.from( { length: Math.min( Math.max( 1, concurrency ), values.length ) },
+    async () => {
+      while ( true )
+      {
+        const index = next++;
+        if ( index >= values.length ) return;
+        results[ index ] = await worker( values[ index ] );
+      }
+    } );
+  await Promise.all( slots );
+  return results;
+}
+
 function reviewLink ( row: BlogSourceView ): string {
   if ( row.sourceUrl ) return row.sourceUrl;
   return row.sourceType === 'url' && /^https?:\/\//i.test( row.sourceRef ) ? row.sourceRef : '';
@@ -223,6 +272,7 @@ function parseUrls ( raw: string ): string[] {
 }
 
 const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdatedAt, ledgerPresent } ) => {
+  const router = useRouter();
   const [ tab, setTab ] = useState<Tab>( 'uploads' );
   const [ files, setFiles ] = useState<PickedFile[]>( [] );
   const [ urlText, setUrlText ] = useState( '' );
@@ -230,9 +280,16 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
   const [ articleClass, setArticleClass ] = useState<ArticleClass>( 'ARCHIVE_DERIVED' );
   const [ hashing, setHashing ] = useState( false );
   const [ uploading, setUploading ] = useState( false );
+  const [ uploadProgress, setUploadProgress ] = useState<UploadProgress>( {
+    total: 0, registered: 0, uploaded: 0, confirmed: 0, failed: 0,
+  } );
   const [ log, setLog ] = useState<string[]>( [] );
   const [ dragging, setDragging ] = useState( false );
   const [ sources, setSources ] = useState<BlogSourceView[]>( [] );
+  const [ sourceRollup, setSourceRollup ] = useState<Record<string, number>>( {} );
+  const [ sourceTotal, setSourceTotal ] = useState( 0 );
+  const [ sourceShown, setSourceShown ] = useState( 0 );
+  const [ sourceTruncated, setSourceTruncated ] = useState( false );
   const [ aiDraftEnabled, setAiDraftEnabled ] = useState( false );
   const [ maxSourceBytes, setMaxSourceBytes ] = useState( 0 );
   const [ drafts, setDrafts ] = useState<Record<string, BlogDraftResponse>>( {} );
@@ -250,8 +307,12 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
   const refresh = useCallback( async () => {
     try
     {
-      const data = await listBlogSources();
+      const data = await listBlogSources( SOURCE_LIST_LIMIT );
       setSources( Array.isArray( data.sources ) ? data.sources : [] );
+      setSourceRollup( data.byStatus || {} );
+      setSourceTotal( Number( data.total || 0 ) );
+      setSourceShown( Number( data.shown || data.sources?.length || 0 ) );
+      setSourceTruncated( Boolean( data.truncated ) );
       setAiDraftEnabled( Boolean( data.aiDraftEnabled ) );
       setMaxSourceBytes( Number( data.maxSourceBytes || 0 ) );
       setApiError( '' );
@@ -264,6 +325,16 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
   }, [] );
 
   useEffect( () => { void refresh(); }, [ refresh ] );
+
+  useEffect( () => {
+    if ( !router.isReady ) return;
+    const raw = Array.isArray( router.query.category )
+      ? router.query.category[ 0 ]
+      : router.query.category;
+    if ( !raw ) return;
+    const match = CATEGORIES.find( value => value.toLowerCase() === String( raw ).toLowerCase() );
+    if ( match ) setCategory( match );
+  }, [ router.isReady, router.query.category ] );
 
   const inFlight = useMemo(
     () => sources.filter( ( row ) => IN_FLIGHT_STATUSES.includes( row.status ) ).length,
@@ -342,89 +413,191 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
   const total = files.length + urls.length;
 
   /**
-   * Register, upload, confirm — the three phases, in order.
+   * Register, upload, confirm — still the same three phases, now streamed in bounded chunks.
    *
-   * The PUTs run one at a time on purpose. The bytes go direct to S3, so there is no
-   * Lambda concurrency to win by parallelising, and a serial loop keeps the activity log
-   * readable and a partial failure attributable to one named file.
+   * There is deliberately no total-count check. INTAKE_CHUNK_SIZE and CONFIRM_CHUNK_SIZE
+   * are transport bounds only; the outer loops continue until the entire selection is done.
+   * S3 PUTs use bounded parallelism so a 500-file selection is much faster without opening
+   * hundreds of simultaneous sockets or making one failure obscure the rest.
    */
   const sendToPipeline = useCallback( async () => {
     if ( total === 0 || uploading ) return;
     setUploading( true );
+    setUploadProgress( { total, registered: 0, uploaded: 0, confirmed: 0, failed: 0 } );
+
+    const successfulPdfHashes = new Set<string>();
+    const successfulUrls = new Set<string>();
+    let registeredCount = 0;
+    let uploadedCount = 0;
+    let confirmedCount = 0;
+    let failedCount = 0;
+
+    const requests = [
+      ...files.map( item => ( {
+        key: `pdf:${ item.sha256 }`,
+        pdfHash: item.sha256,
+        url: '',
+        request: {
+          sourceType: 'pdf' as const,
+          fileName: item.name,
+          sha256: item.sha256,
+          bytes: item.size,
+          category: item.category,
+          articleClass: item.articleClass,
+        },
+      } ) ),
+      ...urls.map( url => ( {
+        key: `url:${ url }`,
+        pdfHash: '',
+        url,
+        request: {
+          sourceType: 'url' as const, url, category, articleClass,
+        },
+      } ) ),
+    ];
+
+    const bySourceId = new Map<string, PickedFile>(
+      files.map( item => [ `blogsrc_${ item.sha256 }`, item ] ) );
+    const byName = new Map<string, PickedFile>(
+      files.map( item => [ item.name, item ] ) );
+
     try
     {
-      const registered = await registerBlogSources( {
-        category,
-        articleClass,
-        sources: [
-          ...files.map( ( item ) => ( {
-            sourceType: 'pdf' as const,
-            fileName: item.name,
-            sha256: item.sha256,
-            bytes: item.size,
-            category: item.category,
-            articleClass: item.articleClass,
-          } ) ),
-          ...urls.map( ( url ) => ( {
-            sourceType: 'url' as const, url, category, articleClass,
-          } ) ),
-        ],
-      } );
-      addLog( `${ registered.sources.length } source(s) registered against ${ registered.bucket }` );
+      const requestChunks = chunked( requests, INTAKE_CHUNK_SIZE );
+      addLog( `Starting ${ total } source(s) in ${ requestChunks.length } transport chunk(s); `
+        + `up to ${ UPLOAD_CONCURRENCY } PDF upload(s) in parallel` );
 
-      // Both keys, because a registration can be matched by either. `sourceId` is the
-      // reliable one (it is derived from the digest); `sourceRef` is the fallback.
-      const byId = new Map( files.map( ( item ) => [ `blogsrc_${ item.sha256 }`, item.file ] ) );
-      const byName = new Map( files.map( ( item ) => [ item.name, item.file ] ) );
-
-      const confirmable: string[] = [];
-      for ( const entry of registered.sources )
+      for ( let chunkIndex = 0; chunkIndex < requestChunks.length; chunkIndex += 1 )
       {
-        if ( entry.alreadyKnown )
+        const requestChunk = requestChunks[ chunkIndex ];
+        let registered;
+        try
         {
-          addLog( `Already known, no re-upload: ${ entry.sourceRef } (${ entry.status })` );
+          registered = await registerBlogSources( {
+            category,
+            articleClass,
+            sources: requestChunk.map( item => item.request ),
+          } );
+        } catch ( error: any )
+        {
+          failedCount += requestChunk.length;
+          setUploadProgress( {
+            total, registered: registeredCount, uploaded: uploadedCount,
+            confirmed: confirmedCount, failed: failedCount,
+          } );
+          addLog( `Registration chunk ${ chunkIndex + 1 } failed: ${ error?.message || 'error' }` );
           continue;
         }
-        if ( !entry.uploadUrl )
+
+        registeredCount += registered.sources.length;
+        setUploadProgress( previous => ( {
+          ...previous, registered: registeredCount, failed: failedCount,
+        } ) );
+        addLog( `Registered chunk ${ chunkIndex + 1 }/${ requestChunks.length }: `
+          + `${ registered.sources.length } source(s); unlimited bulk = `
+          + `${ registered.unlimitedBulk ? 'on' : 'unknown' }` );
+
+        const confirmable: string[] = [];
+        const uploadEntries = registered.sources.filter( entry => {
+          if ( entry.alreadyKnown )
+          {
+            const item = bySourceId.get( entry.sourceId );
+            if ( item ) successfulPdfHashes.add( item.sha256 );
+            else if ( entry.sourceType === 'url' ) successfulUrls.add( entry.sourceRef );
+            addLog( `Already known, no re-upload: ${ entry.sourceRef } (${ entry.status })` );
+            return false;
+          }
+          if ( !entry.uploadUrl )
+          {
+            confirmable.push( entry.sourceId );
+            if ( entry.sourceType === 'url' ) successfulUrls.add( entry.sourceRef );
+            return false;
+          }
+          return true;
+        } );
+
+        const uploadResults = await mapWithConcurrency(
+          uploadEntries,
+          UPLOAD_CONCURRENCY,
+          async entry => {
+            const picked = bySourceId.get( entry.sourceId ) || byName.get( entry.sourceRef );
+            if ( !picked )
+            {
+              addLog( `No file held for ${ entry.sourceRef } — kept for retry` );
+              return { entry, ok: false, hash: '' };
+            }
+            try
+            {
+              const ok = await putPresigned( entry.uploadUrl, picked.file );
+              addLog( ok ? `Uploaded ${ entry.sourceRef }`
+                : `Upload rejected by S3: ${ entry.sourceRef }` );
+              return { entry, ok, hash: picked.sha256 };
+            } catch ( error: any )
+            {
+              addLog( `Upload failed for ${ entry.sourceRef }: ${ error?.message || 'network error' }` );
+              return { entry, ok: false, hash: picked.sha256 };
+            }
+          },
+        );
+
+        for ( const result of uploadResults )
         {
-          // A URL source carries no bytes, so it is already UPLOADED and only needs the
-          // worker started.
-          confirmable.push( entry.sourceId );
-          continue;
+          if ( result.ok )
+          {
+            uploadedCount += 1;
+            confirmable.push( result.entry.sourceId );
+            if ( result.hash ) successfulPdfHashes.add( result.hash );
+          } else
+          {
+            failedCount += 1;
+          }
         }
-        const blob = byId.get( entry.sourceId ) || byName.get( entry.sourceRef );
-        if ( !blob )
+        setUploadProgress( {
+          total, registered: registeredCount, uploaded: uploadedCount,
+          confirmed: confirmedCount, failed: failedCount,
+        } );
+
+        for ( const confirmChunk of chunked( confirmable, CONFIRM_CHUNK_SIZE ) )
         {
-          addLog( `No file held for ${ entry.sourceRef } — re-pick it and upload again` );
-          continue;
-        }
-        const ok = await putPresigned( entry.uploadUrl, blob );
-        if ( ok )
-        {
-          confirmable.push( entry.sourceId );
-          addLog( `Uploaded ${ entry.sourceRef }` );
-        } else
-        {
-          addLog( `Upload rejected by S3: ${ entry.sourceRef }` );
+          if ( confirmChunk.length === 0 ) continue;
+          try
+          {
+            const confirmed = await confirmBlogSources( confirmChunk );
+            confirmedCount += confirmed.confirmed.length;
+            failedCount += confirmed.missingUpload.length + confirmed.unknownSourceId.length
+              + confirmed.queueFailed;
+            addLog( `${ confirmed.confirmed.length } confirmed; ${ confirmed.queued } queued for extraction` );
+            if ( confirmed.missingUpload.length > 0 )
+            {
+              addLog( `${ confirmed.missingUpload.length } source(s) had no object in S3 — kept for retry` );
+            }
+            if ( confirmed.unknownSourceId.length > 0 )
+            {
+              addLog( `${ confirmed.unknownSourceId.length } unknown sourceId(s) reported` );
+            }
+          } catch ( error: any )
+          {
+            failedCount += confirmChunk.length;
+            addLog( `Confirmation chunk failed: ${ error?.message || 'error' }` );
+          }
+          setUploadProgress( {
+            total, registered: registeredCount, uploaded: uploadedCount,
+            confirmed: confirmedCount, failed: failedCount,
+          } );
         }
       }
 
-      if ( confirmable.length > 0 )
+      // Successful files leave the selection. Failed or unconfirmed PDFs remain so the operator
+      // can press the same button again and get a fresh presigned URL without re-picking files.
+      setFiles( previous => previous.filter( item => !successfulPdfHashes.has( item.sha256 ) ) );
+      if ( successfulUrls.size > 0 )
       {
-        const confirmed = await confirmBlogSources( confirmable );
-        addLog( `${ confirmed.confirmed.length } confirmed, worker ${ confirmed.workerStarted ? 'started' : 'not started' }` );
-        if ( confirmed.missingUpload.length > 0 )
-        {
-          addLog( `${ confirmed.missingUpload.length } source(s) had no object in S3 — upload again` );
-        }
-        if ( confirmed.unknownSourceId.length > 0 )
-        {
-          addLog( `${ confirmed.unknownSourceId.length } unknown sourceId(s) reported` );
-        }
+        setUrlText( previous => parseUrls( previous )
+          .filter( value => !successfulUrls.has( value ) ).join( '\n' ) );
       }
-      setFiles( [] );
-      setUrlText( '' );
       await refresh();
+      addLog( `Intake pass complete: ${ confirmedCount } confirmed, ${ failedCount } issue(s). `
+        + `Any failed PDFs remain selected for retry.` );
     } catch ( error: any )
     {
       addLog( `Intake failed: ${ error?.message || 'error' }` );
@@ -517,11 +690,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
     }
   }, [ addLog ] );
 
-  const liveRollup = useMemo( () => {
-    const byStatus: Record<string, number> = {};
-    for ( const row of sources ) byStatus[ row.status ] = ( byStatus[ row.status ] || 0 ) + 1;
-    return byStatus;
-  }, [ sources ] );
+  const liveRollup = sourceRollup;
 
   const rollup = useMemo( () => {
     const byStatus: Record<string, number> = {};
@@ -576,10 +745,10 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
             <p style={ { fontSize: 12, color: '#374151', lineHeight: 1.7, margin: 0 } }>
               <strong>This tab uploads for real.</strong> Sources registered here go to S3,
               are extracted by a backend worker and appear below with a live status. It is
-              the right path for an interactive batch. For thousands of sources use the
-              work order at the bottom of this tab and run the CLI, which is resumable and
-              parallel — the <strong>Bulk ledger</strong> tab shows what that path has
-              already produced.
+              the primary live path for any total volume. Large selections are automatically
+              chunked for the API, uploaded to S3 with bounded parallelism, and confirmed in
+              bounded groups. The work-order CLI remains an optional offline/resumable path —
+              the <strong>Bulk ledger</strong> tab shows what that path has already produced.
             </p>
           </div>
 
@@ -734,13 +903,32 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
                 source already known by its SHA-256 is skipped rather than duplicated.
               </span>
             </div>
+            { uploadProgress.total > 0 && (
+              <div style={ {
+                marginTop: 12, padding: 10, borderRadius: 8, background: '#f9fafb',
+                display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 11,
+              } }>
+                <span><strong>{ uploadProgress.total }</strong> selected</span>
+                <span><strong>{ uploadProgress.registered }</strong> registered</span>
+                <span><strong>{ uploadProgress.uploaded }</strong> uploaded</span>
+                <span><strong>{ uploadProgress.confirmed }</strong> confirmed</span>
+                <span><strong>{ uploadProgress.failed }</strong> issues</span>
+              </div>
+            ) }
           </div>
 
           <div className="card" style={ { padding: 20, marginBottom: 16 } }>
             <div style={ { display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' } }>
-              <h2 style={ { fontSize: 14, fontWeight: 700, margin: '0 0 8px' } }>
-                Uploaded sources
-              </h2>
+              <div>
+                <h2 style={ { fontSize: 14, fontWeight: 700, margin: '0 0 2px' } }>
+                  Uploaded sources
+                </h2>
+                <div style={ { fontSize: 11, color: 'rgba(0,0,0,.54)' } }>
+                  { sourceTruncated
+                    ? `Showing ${ sourceShown } recent rows of ${ sourceTotal } total sources`
+                    : `${ sourceTotal } total source(s)` }
+                </div>
+              </div>
               <div style={ { display: 'flex', gap: 8, alignItems: 'center' } }>
                 <span style={ { fontSize: 11, color: 'rgba(0,0,0,.54)' } }>
                   { inFlight > 0
@@ -930,9 +1118,9 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
                 : `${ files.length } PDF(s) and ${ urls.length } URL(s) selected. ` }
               The exported file records each source, its category and its SHA-256, and the
               CLI re-checks that hash against the file on disk and refuses a mismatch — so a
-              wrongly selected file cannot become permanent provenance. Use this for
-              thousands of sources: it runs in parallel, survives an interruption and does
-              not need a browser tab.
+              wrongly selected file cannot become permanent provenance. This remains useful
+              for offline/resumable operation when you do not want to keep a browser tab open;
+              it is no longer a workaround for a source-count ceiling.
             </p>
             <div style={ { display: 'flex', gap: 8, flexWrap: 'wrap' } }>
               <button onClick={ download } disabled={ total === 0 }

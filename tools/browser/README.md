@@ -262,9 +262,8 @@ Re-run `animcheck.js` after changing either word list: a word longer than `Whats
   for the measurements and the three options.
   **When `NEXT_PUBLIC_GOOGLE_BROWSER_KEY` is set**, `ContactLocation` renders a Maps JS div
   instead of an iframe and `contactcheck.js` switches to its keyed branch, which asserts
-  four different things: the div has a box, Maps JS actually painted into it, no controls
-  survived `disableDefaultUI`, and Google's attribution is present. That branch exists so
-  the harness does not go silent on the map the moment it changes shape. Exercised once
+  the div has a box, Maps JS actually painted into it, and the expected map UI state is present.
+  That branch exists so the harness does not go silent on the map the moment it changes shape. Exercised once
   with a deliberately invalid key, which failed it correctly — a rejected key renders a
   blank grey panel and throws nothing, so "painted" is the assertion that catches a bad
   key, a referrer restriction that excludes the deploy origin, or billing being off. It

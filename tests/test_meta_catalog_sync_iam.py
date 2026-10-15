@@ -1,4 +1,4 @@
-"""`wecare-meta-catalog-sync-role` is four exact statements, and the shared fleet role is untouched.
+"""`wecare-meta-catalog-sync-role` is five exact statements, and the shared fleet role is untouched.
 
 PHASE W, FEAT-001. Every assertion here is EQUALITY rather than containment. A test that checks
 the policy *contains* the statements it wants passes just as happily when a third is added, which
@@ -7,8 +7,8 @@ is the wrong direction for a document whose whole value is what it leaves out - 
 
 THE SHARED ROLE IS THE POINT. `wecare-digital-lambda-role` is attached to most of the ~65-function
 fleet, so a grant there is a grant to all of them. This function reads a Meta token that can write
-to a customer-visible commerce catalogue; putting that grant on the shared role would hand it to
-sixty unrelated functions. So this file asserts the provisioner never names it -
+to a customer-visible commerce catalogue and a Wix admin API key; putting either on the shared role
+would hand both to sixty unrelated functions. So this file asserts the provisioner never names it -
 not that it does not grant anything to it, which would be weaker: a script that merely MENTIONS
 the shared role is one edit away from widening it.
 """
@@ -58,12 +58,16 @@ def provisioner():
 
 
 def test_the_policy_is_exactly_the_five_required_statements(provisioner):
-    """Native: logs + ONE Meta token secret + the approvals table + the ProductsTable change
-    stream + the native ProductsTable read.
+    """Native: logs + ONE Meta token secret + the approvals table + the ProductsTable stream + the
+    native ProductsTable read.
 
-    The catalog source is AWS-native: the function reads the ProductsTable, so the Meta token is
-    its only secret. The stream statement lets the ProductsTable change stream deliver real-time
-    sync events; the last statement grants the read-only ProductsTable access the projection needs.
+    The catalog source is AWS-native: the function reads the ProductsTable, so the Meta token is its
+    only secret, and a statement grants the read-only ProductsTable access the native projection
+    needs.
+
+    #525 made a ProductsTable change trigger the sync through a stream event-source mapping. Lambda
+    polls that stream with the function's own role, so the role needs the four stream-read
+    actions, scoped to the one stream that mapping reads and nothing else.
     """
     assert provisioner.expected_role_policy(ACCOUNT) == {
         "Version": "2012-10-17",
@@ -106,7 +110,7 @@ def test_the_policy_is_exactly_the_five_required_statements(provisioner):
                 ],
                 "Resource": [
                     f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/"
-                    "stack-wecare-digital-ProductsTable/stream/*",
+                    "stack-wecare-digital-ProductsTable/stream/2026-10-14T06:15:10.307"
                 ],
             },
             {
@@ -140,7 +144,8 @@ def test_no_forbidden_action_appears_anywhere_in_the_policy(provisioner):
     invoke. `events:` likewise - the schedule invokes it; it does not manage the schedule.
 
     Native: the ProductsTable read adds Query/Scan/BatchGetItem alongside GetItem — all read-only
-    DynamoDB actions, none forbidden, no Delete/Put/Update on the catalog table.
+    DynamoDB actions, none forbidden, no Delete/Put/Update on the catalog table. The stream
+    statement adds the four stream-read actions, which are read-only too.
     """
     actions: list[str] = []
     for statement in provisioner.expected_role_policy(ACCOUNT)["Statement"]:
@@ -218,24 +223,15 @@ def test_the_role_this_script_creates_is_its_own(provisioner):
     assert provisioner.ROLE != SHARED_FLEET_ROLE
 
 
-def test_the_schedule_is_the_only_invoke_grant_and_iam_writes_target_only_its_own_role():
-    """The scheduled EventBridge rule is the function's one provisioned caller, so the provisioner
-    adds exactly one invoke permission (for `events.amazonaws.com`) and writes IAM for its own role
-    only - no grant lands on another function's role."""
-    tree = ast.parse(SCRIPT.read_text(encoding="utf-8"), filename=str(SCRIPT))
-    calls = [node for node in ast.walk(tree)
-             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)]
-
-    grants = [call for call in calls if call.func.attr == "add_permission"]
-    assert len(grants) == 1
-    principal = {kw.arg: kw.value for kw in grants[0].keywords}["Principal"]
-    assert isinstance(principal, ast.Constant) and principal.value == "events.amazonaws.com"
-
-    iam_writes = [call for call in calls if call.func.attr in ("create_role", "put_role_policy")]
-    assert iam_writes
-    for call in iam_writes:
-        role = {kw.arg: kw.value for kw in call.keywords}["RoleName"]
-        assert isinstance(role, ast.Name) and role.id == "ROLE"
+# The Wix catalog webhook invoke grant is retired with the Wix exit: there is no
+# `wecare-wix-catalog-webhook` caller anymore (the native projection is driven by the schedule
+# backstop and the ProductsTable), so the provisioner declares no WEBHOOK_ROLE and no
+# webhook_invoke_policy. The former `test_the_invoke_grant_lands_on_the_WEBHOOKS_role...` is
+# removed because the behaviour it pinned is intentionally gone.
+def test_the_retired_wix_webhook_invoke_grant_is_gone(provisioner):
+    """The Wix catalog webhook caller is retired, so no cross-role invoke grant is provisioned."""
+    assert not hasattr(provisioner, "WEBHOOK_ROLE")
+    assert not hasattr(provisioner, "webhook_invoke_policy")
 
 
 # ── 3. no public surface ─────────────────────────────────────────────────────
@@ -276,15 +272,18 @@ def test_a_dry_run_is_the_default_and_calls_no_mutating_api(provisioner):
     assert "if not apply:" in source
 
 
-# ── 4. the gates ship closed, and this script does not open them ───────────
+# ── 4. the gates are open and auto-apply is bounded (since #525) ───────────
 
 
 def test_the_provisioned_environment_matches_the_product_scoped_rollout(provisioner):
-    """Real-time sync with bounded auto-apply; per-product metaEnabled owns catalogue scope.
+    """The gates are open, and only a bounded, non-destructive plan applies without approval.
 
-    The fixed five-variant rollout list is intentionally empty after catalog-publishing v2.
-    Background runs may auto-apply only small non-destructive plans (AUTO_APPLY_SAFE with a
-    50-change ceiling); anything destructive still needs an exact-plan approval.
+    #525 ("Restore real-time Meta catalog sync with safe auto-apply") opened the global gates on
+    purpose: sync enabled, dry run off, no forced out-of-stock. The fixed five-variant rollout list
+    stays empty because per-product metaEnabled owns catalogue scope. What still protects Meta is
+    the auto-apply bound: at most META_CATALOG_AUTO_APPLY_MAX_CHANGES creates and updates, from a
+    stream or schedule trigger only, with zero retires and zero foreign rows. Anything else still
+    needs an exact-plan approval (asserted against the handler below).
     """
     manifest = json.loads((ROOT / "config/lambda-env-manifest.json").read_text())
     live = manifest["functions"]["wecare-meta-catalog-sync"]
@@ -293,10 +292,20 @@ def test_the_provisioned_environment_matches_the_product_scoped_rollout(provisio
         "META_CATALOG_SYNC_DRY_RUN": "false",
         "META_CATALOG_SYNC_VARIANT_IDS": "",
         "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "false",
+        "META_CATALOG_AUTO_APPLY_SAFE": "true",
+        "META_CATALOG_AUTO_APPLY_MAX_CHANGES": "50",
     }
     for key, value in expected.items():
         assert provisioner.ENVIRONMENT[key] == value
         assert live[key] == value
+
+    # The bound lives in the handler; pin its shape so opening the gates cannot widen it.
+    handler = HANDLER.read_text(encoding="utf-8")
+    assert 'trigger.get("source") not in {"ddb-stream", "schedule"}' in handler
+    assert 'int(counts.get("retire", 0)) == 0' in handler
+    assert 'int(counts.get("foreign", 0)) == 0' in handler
+    assert "return value if 0 < value <= 1000 else 0" in handler
+    assert '"approval_required_for_destructive_or_unusual_plan"' in handler
 
 
 def test_the_environment_carries_secret_NAMES_and_no_value(provisioner):
@@ -304,9 +313,8 @@ def test_the_environment_carries_secret_NAMES_and_no_value(provisioner):
     enforcement hook would refuse a command carrying one - this asserts the same rule about the
     file that the hook asserts about the command line."""
     rendered = json.dumps(provisioner.ENVIRONMENT)
-    secret_names = [value for key, value in provisioner.ENVIRONMENT.items()
-                    if key.endswith("_SECRET")]
-    assert secret_names == ["wecare/meta-system-user-token"]
+    assert "wecare/meta-system-user-token" in rendered
+    assert "wecare/wix/headless-api-key" not in rendered
     for issuer_shape in ("rzp_live_", "sk-", "AIza", "ghp_", "xoxb-", "AKIA", "ASIA"):
         assert issuer_shape not in rendered
 
@@ -321,3 +329,16 @@ def test_the_handler_defaults_agree_with_the_provisioned_environment():
     assert '"META_CATALOG_ID", "1457045652952851"' in text
     assert '"META_TOKEN_SECRET", "wecare/meta-system-user-token"' in text
     assert '"META_TOKEN_FIELD", "access_token"' in text
+
+
+def test_the_stream_read_names_the_one_mapped_stream(provisioner):
+    """`stream/*` would follow any future stream on the table; a new stream is a new grant.
+
+    The live event-source mapping (c15e412f) reads exactly this stream, and the live grant on
+    the role names exactly this ARN.
+    """
+    statements = provisioner.expected_role_policy(ACCOUNT)["Statement"]
+    stream = [s for s in statements if "dynamodb:GetRecords" in s["Action"]]
+    assert len(stream) == 1
+    assert all("/stream/" in r and "*" not in r for r in stream[0]["Resource"])
+    assert stream[0]["Resource"][0].endswith("/stream/2026-10-14T06:15:10.307")
