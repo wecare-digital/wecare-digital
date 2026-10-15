@@ -57,7 +57,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import boto3
 from boto3.dynamodb.conditions import Key
 
-from lambda_utils import customer_auth, customer_session, dynamo_reads, payment_status, rate_limit
+from lambda_utils import customer_auth, customer_session, dynamo_reads, payment_status, rate_limit, shared_tables
 from lambda_utils.ecommerce import contact_address, order_channel
 from lambda_utils.identity import customer as customer_identity
 from lambda_utils.identity import customer_uuid
@@ -71,7 +71,7 @@ REGION = os.environ.get("AWS_REGION", "us-east-1")
 #: The internal order record. SINGULAR `OrderTable` - the environment variable is plural and the
 #: table is not, which is a trap worth stating rather than rediscovering: `ORDERS_TABLE` naming
 #: `stack-wecare-digital-OrdersTable` would be a ResourceNotFoundException read as a missing index.
-ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "stack-wecare-digital-OrderTable")
+ORDERS_TABLE = shared_tables.orders_table_name()
 
 #: The sparse customer-scoped index. `scripts/provision_customer_orders.py` is the single source
 #: of truth for this name and creates it; the default here is the same literal deliberately, and
@@ -79,7 +79,7 @@ ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "stack-wecare-digital-OrderTable")
 ORDERS_BY_CUSTOMER_INDEX = os.environ.get(
     "ORDERS_BY_CUSTOMER_INDEX", "customerId-createdAt-index")
 
-CONTACTS_TABLE = os.environ.get("CONTACTS_TABLE", "stack-wecare-digital-ContactsTable")
+CONTACTS_TABLE = shared_tables.contacts_table_name()
 RATE_LIMIT_TABLE = os.environ.get("RATE_LIMIT_TABLE", "stack-wecare-digital-RateLimitTable")
 
 #: INR and nothing else. Compared, never inferred from the amount and never defaulted.
