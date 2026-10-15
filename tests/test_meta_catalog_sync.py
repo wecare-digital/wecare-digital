@@ -678,3 +678,34 @@ def test_native_meta_projection_respects_product_channel_flag_and_canonical_path
     desired = sync.desired_items(projected, require_variant_price=True)
     assert len(desired) == 1
     assert desired[0]["url"] == "https://wecare.digital/special/published/"
+
+
+def test_request_variants_use_their_own_locked_catalog_artwork():
+    product = {
+        "id": sync.SERVICE_PRODUCT_ID,
+        "name": "Request",
+        "slug": "wecaredigital-services",
+        "visible": True,
+        "currency": "INR",
+        "image": "https://example.invalid/product-fallback.png",
+        "variants": [
+            {"id": variant_id, "label": copy[0], "inStock": True, "pricePaise": copy[1]}
+            for variant_id, copy in [
+                ("e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b", ("Submit Request", 9900)),
+                ("864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b", ("Request Amendment", 35000)),
+                ("db166bc8-a763-41ec-9f65-0f718f18155a", ("Drop Docs", 35000)),
+                ("dcff995e-448c-493a-9259-f6a82ccdc2b4", ("Vault", 4900)),
+                ("8ee7e325-d772-4452-a993-5c79e927d42b", ("Request Pickup", 55000)),
+            ]
+        ],
+    }
+    items = sync.desired_items([product], require_variant_price=True)
+    by_variant = {
+        sync.parse_retailer_id(item["retailer_id"])[1]: item
+        for item in items
+    }
+    assert len(by_variant) == 5
+    for variant_id, expected_image in sync.SERVICE_ARTWORK_BY_VARIANT.items():
+        assert by_variant[variant_id]["image_url"] == expected_image
+        assert "/wd-catalog-live/" in expected_image
+        assert expected_image.endswith("-4096.png")
