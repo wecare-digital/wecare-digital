@@ -245,7 +245,7 @@ response = requests.post(
           pillPrefix="across"
           words={ cycleWords }
           sub={ <>One platform for customer data, messaging, automation and campaigns, so every conversation stays connected whichever channel it starts on. Turn your WhatsApp number into your #1 revenue channel with Grahak OS.</> }
-        >
+          visual={ (
           <div className="hero-right">
               <div className="mockup-wrapper">
                 <div className="phone">
@@ -345,7 +345,8 @@ response = requests.post(
                 </div>
               </div>
             </div>
-        </RotatingHero>
+          ) }
+        />
 
         {/*
           Full-bleed tint pattern: touchpoint and capabilities sit on a #fafafa

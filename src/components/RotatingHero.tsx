@@ -84,6 +84,11 @@ interface RotatingHeroProps {
   sub?: React.ReactNode;
   /** Accessible name for the landmark. */
   ariaLabel: string;
+  /**
+   * Optional visual beside the copy. Above 1024px it is the right-hand hero column;
+   * at 1024px and below it stacks with the copy.
+   */
+  visual?: React.ReactNode;
   /** Extra content below the hero, inside the page measure. */
   children?: React.ReactNode;
   /**
@@ -127,7 +132,7 @@ interface RotatingHeroProps {
   noShare?: boolean;
 }
 
-const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, words, sub, ariaLabel, children, subordinate = false, insideMain = false, noShare = false } ) => {
+const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, words, sub, ariaLabel, visual, children, subordinate = false, insideMain = false, noShare = false } ) => {
   /**
    * 'final' is the CSS default: shutter gone, dot popped, nothing animating. 'armed' puts
    * the start state back, 'shown' plays it. Starting at 'final' is what makes the entrance
@@ -196,13 +201,14 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
   const Head = subordinate ? 'h2' : 'h1';
 
   return (
-    <Shell className="rh-shell" aria-label={ ariaLabel }>
+    <Shell className={ insideMain ? 'rh-shell is-inside-main' : 'rh-shell' } aria-label={ ariaLabel }>
       <div className={ [
         'rh-layout',
         phase === 'armed' || phase === 'shown' ? 'is-armed' : '',
         phase === 'shown' ? 'show' : '',
       ].filter( Boolean ).join( ' ' ) }>
-        <div className="rh-hero">
+        <div className={ visual ? 'rh-split' : undefined }>
+          <div className="rh-hero">
           {/* Wrapper carries the spacing. BrandBadge paints itself - styled-jsx
               cannot reach into it from here either. */}
           { badgeLabel && (
@@ -211,7 +217,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
             </div>
           ) }
 
-          <Head className="rh-head">
+          <Head className={ pillPrefix ? 'rh-head has-prefix' : 'rh-head' }>
             <span className="rh-head-line">{ frame }</span>
             <span className="rh-head-line rh-head-rotate">
               { pillPrefix && <span className="rh-head-prefix">{ pillPrefix } </span> }
@@ -220,6 +226,9 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
           </Head>
 
           { sub && <p className="rh-sub">{ sub }</p> }
+          </div>
+
+          { visual }
         </div>
 
         { children }
@@ -262,6 +271,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
           font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
           color:#1a1a1a;
         }
+        .rh-shell.is-inside-main{min-height:0}
         .rh-layout{
           width:100%;max-width:1300px;margin:0 auto;
           padding:80px 24px 48px;box-sizing:border-box;
@@ -274,6 +284,10 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
         /* align-items:flex-start replaces an align-self on the badge: without it the
            flex default stretches the pill to the full 1300px measure. */
         .rh-hero{display:flex;flex-direction:column;align-items:flex-start}
+        .rh-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:56px;align-items:center}
+        @media(max-width:1024px){
+          .rh-split{grid-template-columns:minmax(0,1fr);gap:40px}
+        }
         .rh-eyebrow{margin:0 0 20px}
 
         /* Hero h1 rung: 600, LIGHTER than the 700 section level. That inversion is
@@ -309,6 +323,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
         }
 
         @media(max-width:767px){
+          .rh-split{gap:32px}
           .rh-shell{min-height:calc(100vh - 85px);padding-top:96px}
           .rh-layout{padding:48px 16px 40px;gap:64px}
           .rh-head{line-height:1.1}
@@ -331,6 +346,9 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
            longer phrase being added later, and 280px is the narrowest device that ships. */
         @media(max-width:340px){
           .rh-head{font-size:28px}
+        }
+        @media(max-width:300px){
+          .rh-head.has-prefix{font-size:26px}
         }
         @media(max-width:480px){
         }

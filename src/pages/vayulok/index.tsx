@@ -170,11 +170,12 @@ const VayuLokPage: React.FC = () => {
           frame="Bharat intelligence"
           words={ cycleWords }
           sub="Forecasts cover cities. VayuLok reads your street — live air and weather, exactly where you are."
-        >
+          visual={ (
           <div className="vl-hero-visual">
             <VayuLokApprovedGlobe />
           </div>
-        </RotatingHero>
+          ) }
+        />
 
         {/* The live air/weather application stays directly below the shared product hero.
             VayuLokLive no longer owns a second <main>; this page owns the one primary
