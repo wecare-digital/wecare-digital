@@ -10,7 +10,6 @@ VayuLok is intentionally a browser-driven Google Maps experience.
 - Places API (New)
 - Geocoding API
 - Time Zone API
-- Weather API
 - Air Quality API
 
 The key is expected to be a website/browser key restricted to WECARE.DIGITAL origins. VayuLok must not depend on a separate `/vayulok/environment` gateway to render its core Air or Weather experience.
@@ -19,21 +18,17 @@ With Next static export the browser key is bundled into client JavaScript. Treat
 
 ## Interaction contract
 
-The map itself is a location picker.
+The map is a static visualization surface.
 
 - Initial destination is Shillong.
-- Search/recent places can jump the camera to a destination.
-- Direct drag, touch/pinch, wheel/zoom and keyboard map movement are enabled.
-- After direct map movement settles, the visible map center becomes the selected destination.
-- VayuLok reverse-geocodes that center when Geocoding is available.
-- Air Quality and Weather refresh automatically for the newly selected center.
-- A map-originated selection must not snap the camera back to the search zoom.
-
-The default information cards therefore always follow the current selected map location, whether it came from search or from direct map interaction.
+- The initial camera is centered on India.
+- Search/recent places are the only location-selection paths.
+- Search/recent-place selection recenters the camera to the chosen destination.
+- Direct drag, touch/pinch, wheel/zoom, double-click zoom and keyboard map movement are disabled.
+- Direct canvas gestures never trigger geocoding or Air Quality refreshes.
+- Air Quality refreshes for the selected search/recent-place destination.
 
 ## Failure behavior
-
-A failed optional reverse-geocode must not block environmental refresh. In that case VayuLok keeps the selected coordinates and labels the point generically.
 
 Provider/API failures must remain visible as unavailable/error states; they must not be disguised as successful empty results.
 
@@ -47,8 +42,12 @@ Any Google Cloud key-policy change for this feature must keep the browser key en
 
 On a deployed `*.wecare.digital` origin:
 
-1. Load `/vayulok/` and confirm Shillong Air/Weather appears.
-2. Drag or rotate/pan the map to a visibly different location.
-3. Release the map and confirm the displayed location/default information changes.
-4. Confirm Weather and Air Quality requests use the new center coordinates.
-5. Search for a city and confirm search still recenters and refreshes the same data.
+1. Load `/vayulok/` and confirm Shillong Air quality appears.
+2. Confirm the map is non-interactive: drag/pinch/wheel/keyboard input does not move it or trigger location lookup.
+3. Search for a city and confirm the map recenters and refreshes Air Quality data.
+4. Confirm the Air Quality card shows AQI, pollutants, forecast and history for the selected place.
+
+
+## 2026-10-15 scope update
+
+The live map surface is Air-only. Weather UI, Weather API calls, weather history/forecast state, alerts, and the local weather/storm atmosphere layer were removed to reduce page weight. Search/recent-place selection remains the only camera movement path, and the initial camera is centered on India.
