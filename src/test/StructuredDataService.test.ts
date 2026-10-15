@@ -36,7 +36,7 @@ const metaBlock = (): string => {
 /** route -> serviceType for every entry that declares one. */
 const declared = (): Map<string, string> => {
   const found = new Map<string, string>();
-  const line = /^\s*'(\/[a-z0-9-]+)'\s*:\s*\{[^}]*?serviceType:\s*'((?:[^'\\]|\\.)*)'/gm;
+  const line = /^\s*'(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)'\s*:\s*\{[^}]*?serviceType:\s*'((?:[^'\\]|\\.)*)'/gm;
   for ( const match of metaBlock().matchAll( line ) ) found.set( match[ 1 ], match[ 2 ] );
   return found;
 };
@@ -44,7 +44,7 @@ const declared = (): Map<string, string> => {
 /** Every route PUBLIC_PAGE_META lists, with or without a serviceType. */
 const allRoutes = (): string[] => {
   const found: string[] = [];
-  const line = /^\s*'(\/[a-z0-9-]+)'\s*:\s*\{\s*name:/gm;
+  const line = /^\s*'(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)'\s*:\s*\{\s*name:/gm;
   for ( const match of metaBlock().matchAll( line ) ) found.push( match[ 1 ] );
   return found;
 };
@@ -57,8 +57,11 @@ const allRoutes = (): string[] => {
  * about whether the new page really is an offering.
  */
 const OFFERINGS = [
-  '/anew', '/bharat-rx', '/clear-closure', '/dastavez', '/elsewhere', '/expo-week',
-  '/grahak-os', '/hunar', '/niji-setu', '/ritual-guru', '/vayulok',
+  '/anew', '/bharat-rx', '/clear-closure', '/dastavez',
+  '/dastavez/drafting', '/dastavez/registration', '/dastavez/legal-reference',
+  '/elsewhere/visa', '/elsewhere/trip', '/elsewhere/activities',
+  '/expo-week', '/grahak-os', '/hunar', '/niji-setu', '/ritual-guru',
+  '/ritual-guru/puja-guidance', '/ritual-guru/diy-puja-kit', '/vayulok',
 ];
 
 /**
