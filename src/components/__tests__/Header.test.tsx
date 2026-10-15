@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import Header from '../Header';
 
-const routerState = vi.hoisted( () => ( { pathname: '/' } ) );
+const routerState = vi.hoisted( () => ( { pathname: '/', asPath: '' } ) );
 vi.mock( 'next/router', () => ( { useRouter: () => routerState } ) );
 
 describe( 'Header', () => {
@@ -69,7 +69,7 @@ describe( 'Header', () => {
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
     const request = screen.getByText( 'Request' ).closest( '.nav-group' );
     expect( Array.from( request?.querySelectorAll( '.nav-item' ) || [] ).map( n => n.textContent ) )
-      .toEqual( [ 'Orders', 'Submit Request', 'Request Amendment', 'Drop Docs', 'Vault', 'Request Pickup', 'Shipments', 'Leave Review', 'Subscribe' ] );
+      .toEqual( [ 'Orders', 'Submit Request', 'Request Amendment', 'Drop Docs', 'Vault', 'Shipments', 'Track', 'Pickup Request', 'Leave Review', 'Subscribe' ] );
   } );
 
   it( 'uses menu-only search and family names find their real child destinations', () => {
@@ -92,6 +92,7 @@ describe( 'Header', () => {
 
   it( 'allows only one active destination for a child route', () => {
     routerState.pathname = '/dastavez/drafting';
+    routerState.asPath = '/dastavez/drafting/';
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
 
@@ -99,6 +100,24 @@ describe( 'Header', () => {
     expect( selected.map( link => link.textContent ) ).toEqual( [ 'Drafting' ] );
     expect( screen.getByRole( 'link', { name: 'Dastavez' } ) ).not.toHaveAttribute( 'aria-current' );
     routerState.pathname = '/';
+    routerState.asPath = '';
+  } );
+
+  it.each( [
+    [ '/shop/guided-resolution/', 'Guided Resolution' ],
+    [ '/shop/file-assist/', 'Case Submission' ],
+    [ '/shop/paperwork/', 'Paperwork' ],
+  ] )( 'selects only the concrete Clear Closure child on %s', ( asPath, label ) => {
+    routerState.pathname = '/shop/[slug]';
+    routerState.asPath = asPath;
+    render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+
+    const selected = screen.getAllByRole( 'link' ).filter( link => link.getAttribute( 'aria-current' ) === 'page' );
+    expect( selected.map( link => link.textContent ) ).toEqual( [ label ] );
+    expect( screen.getByRole( 'link', { name: 'Clear Closure' } ) ).not.toHaveAttribute( 'aria-current' );
+    routerState.pathname = '/';
+    routerState.asPath = '';
   } );
 
   it( 'removes internal Sign in, and removes retired pages', () => {
@@ -187,40 +206,44 @@ describe( 'Header', () => {
     expect( requestsCol?.textContent ).not.toContain( 'Legal Stuff' );
   } );
 
-  it( 'adds a Shipments row to the Request group, immediately above Leave Review', () => {
+  it( 'groups Track and Pickup Request under a non-clickable Shipments family', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
 
-    // Shipments is a real public page under the Request group (Section 3). THE ROUTE IS
-    // /shipments/ — the page was called "Zip" and the owner retired the name on 2026-10-02, so
-    // the route moved from /zip/ along with the page file, the sitemap entry, the
-    // PUBLIC_PAGE_META key and config/public-pages.json. The trailing slash is load-bearing
-    // (trailingSlash is set, so /shipments would redirect before resolving).
-    expect( screen.getByRole( 'link', { name: 'Shipments' } ) ).toHaveAttribute( 'href', '/shipments/' );
-    // The retired route must not come back in the menu.
-    expect( document.body.innerHTML ).not.toContain( '/zip' );
-
-    // It lives in the Request group, not somewhere else.
     const request = screen.getByText( 'Request' ).closest( '.nav-group' );
     expect( request?.textContent ).toContain( 'Shipments' );
-
-    // Order: Shipments sits immediately before Leave Review, with Subscribe as the final
-    // direct-WhatsApp action in the Request group.
-    const labels = Array.from( request?.querySelectorAll( '.nav-item' ) || [] )
-      .map( node => node.textContent );
-    expect( labels.indexOf( 'Shipments' ) ).toBe( labels.indexOf( 'Leave Review' ) - 1 );
-    expect( labels.indexOf( 'Subscribe' ) ).toBe( labels.length - 1 );
-    expect( labels.indexOf( 'Leave Review' ) ).toBe( labels.indexOf( 'Subscribe' ) - 1 );
-    // Orders remains the first row in the group.
-    expect( labels.indexOf( 'Orders' ) ).toBe( 0 );
+    expect( screen.queryByRole( 'link', { name: 'Shipments' } ) ).toBeNull();
+    expect( screen.getByRole( 'link', { name: 'Track' } ) ).toHaveAttribute( 'href', '/shipments/' );
+    expect( screen.getByRole( 'link', { name: 'Pickup Request' } ) ).toHaveAttribute( 'href', '/request-pickup/' );
   } );
 
-  it( 'marks Shipments active on its public /shipments route', () => {
-    routerState.pathname = '/shipments';
+  it( 'searching Shipments returns Track and Pickup Request only', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
-    expect( screen.getByRole( 'link', { name: 'Shipments' } ) ).toHaveAttribute( 'aria-current', 'page' );
+    fireEvent.change( screen.getByLabelText( 'Search navigation' ), { target: { value: 'shipments' } } );
+
+    expect( screen.getByRole( 'link', { name: 'Track' } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'link', { name: 'Pickup Request' } ) ).toBeInTheDocument();
+    expect( screen.queryByRole( 'link', { name: 'Shipments' } ) ).toBeNull();
+  } );
+
+  it( 'selects Track and Pickup Request independently', () => {
+    routerState.pathname = '/shipments';
+    routerState.asPath = '/shipments/';
+    const first = render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+    expect( screen.getByRole( 'link', { name: 'Track' } ) ).toHaveAttribute( 'aria-current', 'page' );
+    expect( screen.getByRole( 'link', { name: 'Pickup Request' } ) ).not.toHaveAttribute( 'aria-current' );
+    first.unmount();
+
+    routerState.pathname = '/request-pickup';
+    routerState.asPath = '/request-pickup/';
+    render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+    expect( screen.getByRole( 'link', { name: 'Pickup Request' } ) ).toHaveAttribute( 'aria-current', 'page' );
+    expect( screen.getByRole( 'link', { name: 'Track' } ) ).not.toHaveAttribute( 'aria-current' );
     routerState.pathname = '/';
+    routerState.asPath = '';
   } );
 
   it( 'exposes Subscribe as the verified direct WhatsApp action, never as a website route', () => {
@@ -234,7 +257,39 @@ describe( 'Header', () => {
       .toHaveAttribute( 'href', 'https://wa.me/message/WUDPTMYSO6XII1' );
   } );
 
-  it( 'keeps Contact before Extras and Legal Stuff', () => {
+  it( 'keeps Refer & Earn and Partner non-clickable with three child destinations', () => {
+    render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+
+    expect( screen.queryByRole( 'link', { name: 'Refer & Earn' } ) ).toBeNull();
+    expect( screen.queryByRole( 'link', { name: 'Partner' } ) ).toBeNull();
+    expect( screen.getByRole( 'link', { name: 'Merchandise' } ) ).toHaveAttribute( 'href', '/shop/merchandise/' );
+    expect( screen.getByRole( 'link', { name: 'Kiosk' } ) ).toHaveAttribute( 'href', '/shop/kiosk/' );
+    expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toHaveAttribute( 'href', '/shop/referral-partner/' );
+
+    fireEvent.change( screen.getByLabelText( 'Search navigation' ), { target: { value: 'partner' } } );
+    expect( screen.getByRole( 'link', { name: 'Merchandise' } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'link', { name: 'Kiosk' } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toBeInTheDocument();
+  } );
+
+  it( 'places Puja Guidance above DIY Puja Kit', () => {
+    render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+    const ritual = screen.getByText( 'Ritual Guru' ).closest( '.nav-tree-item' );
+    const labels = Array.from( ritual?.querySelectorAll( '.nav-item' ) || [] ).map( node => node.textContent );
+    expect( labels ).toEqual( [ 'Ritual Guru', 'Puja Guidance', 'DIY Puja Kit' ] );
+  } );
+
+  it( 'exposes standard keyboard semantics without an extra close control', () => {
+    render( <Header /> );
+    const trigger = screen.getByRole( 'button', { name: 'Open navigation' } );
+    expect( trigger ).toHaveAttribute( 'aria-keyshortcuts', 'Enter Space Escape' );
+    fireEvent.click( trigger );
+    expect( screen.queryByRole( 'button', { name: /close/i } ) ).toBeNull();
+  } );
+
+  it( 'keeps Extras above Contact and Legal Stuff', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
 
@@ -263,7 +318,7 @@ describe( 'Header', () => {
     expect( menuHtml ).not.toContain( '/perks/#rewards' );
     expect( menuHtml ).not.toContain( '/perks/#offers' );
 
-    // Restored order in this column is Refer & Earn, Contact, Extras, Legal Stuff.
+    // Approved order in this column is Refer & Earn, Extras, Contact, Legal Stuff.
     const perksCol = perksLink.closest( '.nav-col' );
     expect( perksCol?.textContent ).toContain( 'Contact' );
     expect( perksCol?.textContent ).toContain( 'Legal Stuff' );
@@ -271,9 +326,9 @@ describe( 'Header', () => {
     const contactIndex = groups.findIndex( g => g.textContent?.startsWith( 'Contact' ) );
     const perksIndex = groups.findIndex( g => g.textContent?.startsWith( 'Extras' ) );
     const legalIndex = groups.findIndex( g => g.textContent?.startsWith( 'Legal Stuff' ) );
-    expect( contactIndex ).toBeGreaterThanOrEqual( 0 );
-    expect( perksIndex ).toBe( contactIndex + 1 );
-    expect( legalIndex ).toBe( perksIndex + 1 );
+    expect( perksIndex ).toBeGreaterThanOrEqual( 0 );
+    expect( contactIndex ).toBe( perksIndex + 1 );
+    expect( legalIndex ).toBe( contactIndex + 1 );
 
     // No third-party gift-card provider name may appear in the menu.
     expect( screen.queryByText( /Gift ?Up/i ) ).toBeNull();
