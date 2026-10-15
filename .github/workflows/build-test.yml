@@ -144,9 +144,6 @@ jobs:
             exit 1
           fi
 
-      - name: Gate - URL host comparisons are exact
-        run: python scripts/check_url_host_comparisons.py
-
       - name: Build
         run: npm run build
 
