@@ -173,7 +173,7 @@ def test_a_legacy_only_customer_is_still_eligible(monkeypatch):
     contacts = FakeTable(key_attr='id')
     contacts.seed({'id': 'contact', 'phone': PHONE, 'checkoutCustomerId': OWNER})
     tables = {'stack-wecare-digital-ContactsTable': contacts,
-              'stack-wecare-digital-WixOrderIds': FakeTable(key_attr='orderId'),
+              'stack-wecare-digital-CommerceKeys': FakeTable(key_attr='orderId'),
               'stack-wecare-digital-OrderTable': orders,
               'stack-wecare-digital-ServiceRequestsTable': FakeTable(key_attr='requestId')}
     db = Mock()

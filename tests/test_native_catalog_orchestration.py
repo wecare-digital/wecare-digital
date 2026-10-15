@@ -37,7 +37,7 @@ def test_missing_order_or_paid_file_never_requests_new_payment(module, monkeypat
         files.seed({'fileId': 'already-paid', 'ownerPhone': phone[1:], 'ownerCustomerId': OWNER,
                     'status': 'active', 'vaultPaymentStatus': 'PAID', 'vaultAccessGrantId': 'existing'})
     tables = {'stack-wecare-digital-ContactsTable': contact,
-              'stack-wecare-digital-WixOrderIds': keys,
+              'stack-wecare-digital-CommerceKeys': keys,
               'stack-wecare-digital-OrderTable': orders,
               'stack-wecare-digital-SecureFilesTable': files}
     db = Mock();db.Table.side_effect=lambda name: tables[name]

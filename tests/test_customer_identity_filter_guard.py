@@ -84,7 +84,7 @@ def _drive_catalog_services(monkeypatch, subject):
     contacts = FakeTable(key_attr='id')
     contacts.seed({'id': 'contact', 'phone': PHONE, 'checkoutCustomerId': subject})
     tables = {'stack-wecare-digital-ContactsTable': contacts,
-              'stack-wecare-digital-WixOrderIds': FakeTable(key_attr='orderId'),
+              'stack-wecare-digital-CommerceKeys': FakeTable(key_attr='orderId'),
               'stack-wecare-digital-OrderTable': FakeTable(key_attr='orderId')}
     db = Mock()
     db.Table.side_effect = lambda name: tables[name]

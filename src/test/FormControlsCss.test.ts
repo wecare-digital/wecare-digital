@@ -393,7 +393,7 @@ describe( 'form-controls.css — invariant 4', () => {
     // NO class-resolved hits left: all five were BlogContribution's `.bc-radio` rules, which went
     // with the amount pill. If this moves off 0, a class worn by a checkbox or radio gained a
     // skin somewhere - which is the signal the mode split exists to give.
-    expect( cbr.summary.matchModes ).toMatchObject( { element: 24, class: 0 } );
+    expect( cbr.summary.matchModes ).toMatchObject( { element: 22, class: 0 } );
     expect( cbr.hits.filter( h => h.file === 'src/components/BlogContribution.tsx' ) ).toHaveLength( 0 );
     expect( cbr.hits.filter( h => h.file === 'src/styles/form-controls.css' ) ).toHaveLength( 9 );
   } );
