@@ -56,6 +56,7 @@ describe( 'public page consolidation contracts', () => {
   it( 'makes all seven existing request routes reachable from Contact', () => {
     render( <Contact /> );
     expect( CUSTOMERSERVICE ).toHaveLength( 7 );
+    expect( screen.getByRole( 'heading', { name: 'How can we help?', level: 2 } ) ).toHaveClass( 'request-hub-title' );
     for ( const service of CUSTOMERSERVICE ) {
       expect( screen.getByRole( 'link', { name: service.name } ) ).toHaveAttribute( 'href', `/${service.slug}/` );
     }
