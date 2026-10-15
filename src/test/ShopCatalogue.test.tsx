@@ -570,6 +570,8 @@ describe( 'the product page', () => {
     // /anew/ defines its own #webpage and #breadcrumb. If /shop/anew/ keyed its nodes off the
     // canonical it would define the same two, and schemacheck fails a page-scoped @id on two routes.
     const anew = shopProductBySlug( 'anew' ) as ShopProduct;
+    // The snapshot is refreshed from ProductsTable; say so plainly if Anew ever leaves it.
+    expect( anew, 'anew is missing from src/content/catalog-snapshot.json' ).toBeTruthy();
     expect( shopProductPath( anew ) ).toBe( '/anew/' );
     const graph = shopProductSchema( anew )[ '@graph' ];
     const page = ld( graph.find( n => ld( n )[ '@type' ] === 'ItemPage' ) );
