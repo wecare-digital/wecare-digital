@@ -37,6 +37,7 @@ import type { ShopProduct } from '../content/shop';
 
 interface ShopProductHeadProps {
   product: ShopProduct;
+  routePath?: string;
 }
 
 /**
@@ -53,8 +54,10 @@ type LdNode = Record<string, unknown>;
 
 export const shopProductSchema = (
   product: ShopProduct,
+  routePath?: string,
 ): { '@context': string; '@graph': LdNode[] } => {
-  const url = ORIGIN + shopProductPath( product );
+  const canonicalUrl = ORIGIN + shopProductPath( product );
+  const pageUrl = ORIGIN + ( routePath || shopProductPath( product ) );
   const description = shopMetaDescription( product );
 
   /**
@@ -75,16 +78,16 @@ export const shopProductSchema = (
    */
   const productNode: LdNode[] = product.image ? [ {
     '@type': 'Product',
-    '@id': url + '#product',
+    '@id': canonicalUrl + '#product',
     name: product.name,
     description: [ product.tagline, ...product.body ].join( ' ' ),
-    url,
+    url: canonicalUrl,
     image: product.image,
     brand: { '@id': ORG_ID },
     offers: {
       '@type': 'Offer',
-      '@id': url + '#offer',
-      url,
+      '@id': canonicalUrl + '#offer',
+      url: canonicalUrl,
       price: product.price,
       priceCurrency: product.currency,
       availability: product.inStock
@@ -99,17 +102,17 @@ export const shopProductSchema = (
     '@graph': [
       {
         '@type': 'ItemPage',
-        '@id': url + '#webpage',
-        url,
+        '@id': pageUrl + '#webpage',
+        url: pageUrl,
         name: product.name,
         description,
         isPartOf: { '@id': WEBSITE_ID },
         inLanguage: 'en-IN',
-        breadcrumb: { '@id': url + '#breadcrumb' },
+        breadcrumb: { '@id': pageUrl + '#breadcrumb' },
         // mainEntity ONLY when the Product exists. A reference to an @id nothing defines is a
         // dangling pointer, and schemacheck asserts there are none - so an unconditional mainEntity
         // would trade one failure for another.
-        ...( productNode.length ? { mainEntity: { '@id': url + '#product' } } : {} ),
+        ...( productNode.length ? { mainEntity: { '@id': canonicalUrl + '#product' } } : {} ),
         publisher: { '@id': ORG_ID },
       },
       {
@@ -123,11 +126,11 @@ export const shopProductSchema = (
         // is the mismatch that makes a rich result disappear SILENTLY - no error, no warning, the
         // breadcrumb simply stops being shown. The two must be edited together.
         '@type': 'BreadcrumbList',
-        '@id': url + '#breadcrumb',
+        '@id': pageUrl + '#breadcrumb',
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'Home', item: ORIGIN + '/' },
           { '@type': 'ListItem', position: 2, name: 'Shop', item: ORIGIN + '/shop/' },
-          { '@type': 'ListItem', position: 3, name: product.name, item: url },
+          { '@type': 'ListItem', position: 3, name: product.name, item: pageUrl },
         ],
       },
       ...productNode,
@@ -137,11 +140,11 @@ export const shopProductSchema = (
   return schema;
 };
 
-const ShopProductHead: React.FC<ShopProductHeadProps> = ( { product } ) => {
+const ShopProductHead: React.FC<ShopProductHeadProps> = ( { product, routePath } ) => {
   const url = ORIGIN + shopProductPath( product );
   const title = shopPageTitle( product );
   const description = shopMetaDescription( product );
-  const schema = shopProductSchema( product );
+  const schema = shopProductSchema( product, routePath );
 
   return (
     <Head>
