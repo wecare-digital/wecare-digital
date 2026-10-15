@@ -90,7 +90,10 @@ def to_shop_product(item: Dict[str, Any]) -> Dict[str, Any]:
         "id": str(item.get("id", "")),
         "name": str(item.get("title") or item.get("name") or ""),
         "slug": str(item.get("slug", "")),
-        "visible": item.get("status", "active") == "active",
+        "visible": (
+            item.get("status", "active") == "active"
+            and item.get("websiteEnabled") is not False
+        ),
         "price": _paise_to_decimal_string(price_minor),
         "formattedPrice": _formatted_inr(price_minor),
         "currency": str(item.get("currency", "INR")),
@@ -113,7 +116,7 @@ def to_shop_product(item: Dict[str, Any]) -> Dict[str, Any]:
 def build_snapshot(items: List[Dict[str, Any]]) -> Dict[str, Any]:
     products = [
         to_shop_product(it) for it in items
-        if it.get("status", "active") == "active" and it.get("websiteEnabled") is not False
+        if it.get("status", "active") != "archived"
     ]
     products.sort(key=lambda p: p["slug"])
     # The static shop's CATALOG_FETCHED_AT contract requires a UTC timestamp
