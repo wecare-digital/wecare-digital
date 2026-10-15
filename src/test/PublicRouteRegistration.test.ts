@@ -67,7 +67,7 @@ const readAllowlist = (): Set<string> => {
   // so a route added at the bottom of the map is still seen.
   const metaEnd = appSource.indexOf( '\nconst ', metaStart + 10 );
   const metaBlock = appSource.slice( metaStart, metaEnd === -1 ? undefined : metaEnd );
-  const metaRoutes = Array.from( metaBlock.matchAll( /^\s*'(\/[a-z0-9-]+)'\s*:/gm ) ).map( m => m[ 1 ] );
+  const metaRoutes = Array.from( metaBlock.matchAll( /^\s*'(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)'\s*:/gm ) ).map( m => m[ 1 ] );
 
   const gateStart = appSource.indexOf( 'const isPublic' );
   expect( gateStart, 'isPublic not found in _app.tsx - this guard needs updating' ).toBeGreaterThan( -1 );
@@ -278,13 +278,13 @@ describe( 'public route registration', () => {
     expect( exactStart, 'PUBLIC_EXACT not found in generate-sitemap.js' ).toBeGreaterThan( -1 );
     const exactBlock = sitemapSource.slice( exactStart, sitemapSource.indexOf( '] )', exactStart ) );
     const sitemapRoutes = new Set(
-      Array.from( exactBlock.matchAll( /'(\/[a-z0-9-]*)'/g ) ).map( m => m[ 1 ] )
+      Array.from( exactBlock.matchAll( /'(\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?)'/g ) ).map( m => m[ 1 ] )
     );
 
     const metaStart = appSource.indexOf( 'const PUBLIC_PAGE_META' );
     const metaEnd = appSource.indexOf( '\nconst ', metaStart + 10 );
     const metaBlock = appSource.slice( metaStart, metaEnd === -1 ? undefined : metaEnd );
-    const metaRoutes = Array.from( metaBlock.matchAll( /^\s*'(\/[a-z0-9-]+)'\s*:/gm ) ).map( m => m[ 1 ] );
+    const metaRoutes = Array.from( metaBlock.matchAll( /^\s*'(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)'\s*:/gm ) ).map( m => m[ 1 ] );
 
     const missingFromSitemap = metaRoutes.filter( route => !sitemapRoutes.has( route ) );
 

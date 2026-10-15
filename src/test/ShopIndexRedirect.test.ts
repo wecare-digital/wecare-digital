@@ -118,7 +118,7 @@ describe( 'the restored catalogue index (ITEM 1)', () => {
     const metaEnd = appSource.indexOf( '\nconst ', metaStart + 10 );
     const metaBlock = appSource.slice( metaStart, metaEnd === -1 ? undefined : metaEnd );
     const metaRoutes = Array.from(
-      metaBlock.matchAll( /^\s*'(\/[a-z0-9-]+)'\s*:/gm ),
+      metaBlock.matchAll( /^\s*'(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)'\s*:/gm ),
     ).map( match => match[ 1 ] );
     expect( metaRoutes.length, 'no routes parsed out of PUBLIC_PAGE_META' ).toBeGreaterThan( 10 );
     expect( metaRoutes ).toContain( '/shop' );

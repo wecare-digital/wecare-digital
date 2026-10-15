@@ -134,10 +134,52 @@
       "description": "Consults, appointments, reminders and records in one place."
     },
     {
-      "path": "/elsewhere",
+      "path": "/elsewhere/visa",
       "group": "services",
-      "name": "Elsewhere",
-      "description": "End-to-end travel: visas, bookings and journeys."
+      "name": "Visa",
+      "description": "Visa document preparation, application readiness and tracking."
+    },
+    {
+      "path": "/elsewhere/trip",
+      "group": "services",
+      "name": "Trip",
+      "description": "Travel planning and coordination around the people taking the trip."
+    },
+    {
+      "path": "/elsewhere/activities",
+      "group": "services",
+      "name": "Activities",
+      "description": "Travel activities selected around place, timing and itinerary."
+    },
+    {
+      "path": "/dastavez/drafting",
+      "group": "services",
+      "name": "Drafting",
+      "description": "Structured business document preparation from the facts you provide."
+    },
+    {
+      "path": "/dastavez/registration",
+      "group": "services",
+      "name": "Registration",
+      "description": "Registration paperwork and filing steps organised end to end."
+    },
+    {
+      "path": "/dastavez/legal-reference",
+      "group": "services",
+      "name": "Legal Reference",
+      "description": "Laws, judgments, rules and public source material organised around a question."
+    },
+    {
+      "path": "/ritual-guru/puja-guidance",
+      "group": "services",
+      "name": "Puja Guidance",
+      "description": "Step-by-step practical guidance for a puja you are performing yourself."
+    },
+    {
+      "path": "/ritual-guru/diy-puja-kit",
+      "group": "services",
+      "name": "DIY Puja Kit",
+      "description": "Clearly labelled puja essentials with a preparation checklist."
     },
     {
       "path": "/expo-week",

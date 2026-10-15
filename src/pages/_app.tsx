@@ -487,14 +487,22 @@ const PUBLIC_PAGE_META: Record<string, {
   // said "Medicines, consults, reminders and records" until then. Structured data that
   // promises a product the page does not offer is worse than none.
   '/bharat-rx': { name: 'Bharat Rx', type: 'WebPage', description: 'Consults, appointments, reminders and records in one place.', serviceType: 'Health consultations, appointments and records' },
-  // The eight product pages. Descriptions are shorter than the pages' own meta descriptions
-  // on purpose: this feeds WebPage.description in the schema graph, where a sentence is
-  // enough, while the <title>/<meta> pair in ProductPage.tsx does the search-result work.
-  '/elsewhere': { name: 'Elsewhere', type: 'WebPage', description: 'End-to-end travel: visas, bookings and journeys.', serviceType: 'Travel services: visas, bookings and journeys' },
+  // Product pages. Elsewhere is a category-only menu family, so there is deliberately no
+  // /elsewhere parent page. Its three real child pages are registered directly instead.
+  // Descriptions are shorter than the pages' own meta descriptions on purpose: this feeds
+  // WebPage.description in the schema graph, while ProductPage.tsx owns the search-result copy.
+  '/elsewhere/visa': { name: 'Visa', type: 'WebPage', description: 'Visa document preparation, application readiness and tracking.', serviceType: 'Visa application assistance' },
+  '/elsewhere/trip': { name: 'Trip', type: 'WebPage', description: 'Travel planning and coordination around the people taking the trip.', serviceType: 'Travel planning and coordination' },
+  '/elsewhere/activities': { name: 'Activities', type: 'WebPage', description: 'Travel activities selected around place, timing and itinerary.', serviceType: 'Travel activity planning' },
   '/expo-week': { name: 'Expo Week', type: 'WebPage', description: 'A virtual travel fair and immersive digital expo.', serviceType: 'Virtual travel fair and digital expo' },
   '/dastavez': { name: 'Dastavez', type: 'WebPage', description: 'Business documentation and registrations in India.', serviceType: 'Business documentation and company registration' },
+  '/dastavez/drafting': { name: 'Drafting', type: 'WebPage', description: 'Structured business document preparation from the facts you provide.', serviceType: 'Business document drafting' },
+  '/dastavez/registration': { name: 'Registration', type: 'WebPage', description: 'Registration paperwork and filing steps organised end to end.', serviceType: 'Business registration support' },
+  '/dastavez/legal-reference': { name: 'Legal Reference', type: 'WebPage', description: 'Laws, judgments, rules and public source material organised around a question.', serviceType: 'Legal reference research' },
   '/clear-closure': { name: 'Clear Closure', type: 'WebPage', description: 'Online dispute resolution, fully online.', serviceType: 'Online dispute resolution' },
   '/ritual-guru': { name: 'Ritual Guru', type: 'WebPage', description: 'Curated, temple-grade puja kits.', serviceType: 'Puja kit supply' },
+  '/ritual-guru/puja-guidance': { name: 'Puja Guidance', type: 'WebPage', description: 'Step-by-step practical guidance for a puja you are performing yourself.', serviceType: 'Self-led puja guidance' },
+  '/ritual-guru/diy-puja-kit': { name: 'DIY Puja Kit', type: 'WebPage', description: 'Clearly labelled puja essentials with a preparation checklist.', serviceType: 'DIY puja kit supply' },
   // Renamed twice: '[retired public path]' -> '[retired public path]' -> '/anew'. The route moved with the
   // brand name each time; neither earlier address was ever published, so there is nothing
   // to redirect from.

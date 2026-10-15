@@ -143,6 +143,16 @@ const STRUCTURAL = [
   // to be named. Its description is in PUBLIC_PAGE_META and is load-bearing: the owner
   // corrected it once because it read as a pharmacy, which Bharat Rx is not.
   { path: '/bharat-rx', group: 'services' },
+  // Nested family children are public service pages but are intentionally not entries in
+  // PRODUCTS: putting them there would turn each child into a top-level Shop catalogue card.
+  { path: '/elsewhere/visa', group: 'services' },
+  { path: '/elsewhere/trip', group: 'services' },
+  { path: '/elsewhere/activities', group: 'services' },
+  { path: '/dastavez/drafting', group: 'services' },
+  { path: '/dastavez/registration', group: 'services' },
+  { path: '/dastavez/legal-reference', group: 'services' },
+  { path: '/ritual-guru/puja-guidance', group: 'services' },
+  { path: '/ritual-guru/diy-puja-kit', group: 'services' },
 ];
 
 const STRUCTURAL_BY_PATH = new Map( STRUCTURAL.map( entry => [ entry.path, entry ] ) );
@@ -170,7 +180,7 @@ function crawlAllowlist () {
   const start = source.indexOf( 'const PUBLIC_EXACT' );
   if ( start < 0 ) refuse( 'PUBLIC_EXACT not found in scripts/generate-sitemap.js' );
   const block = withoutLineComments( source.slice( start, source.indexOf( '] )', start ) ) );
-  const found = new Set( Array.from( block.matchAll( /'(\/[a-z0-9-]*)'/g ) ).map( m => m[ 1 ] ) );
+  const found = new Set( Array.from( block.matchAll( /'(\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?)'/g ) ).map( m => m[ 1 ] ) );
   if ( found.size < 5 ) refuse( `parsed only ${found.size} entries out of PUBLIC_EXACT` );
   return found;
 }
@@ -183,7 +193,7 @@ function renderAllowlist () {
   const end = source.indexOf( '\nconst ', start + 10 );
   const block = source.slice( start, end === -1 ? undefined : end );
   const entries = new Map();
-  const line = /^\s*'(\/[a-z0-9-]+)'\s*:\s*\{\s*name:\s*'((?:[^'\\]|\\.)*)'[^}]*?description:\s*'((?:[^'\\]|\\.)*)'/gm;
+  const line = /^\s*'(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)'\s*:\s*\{\s*name:\s*'((?:[^'\\]|\\.)*)'[^}]*?description:\s*'((?:[^'\\]|\\.)*)'/gm;
   for ( const match of block.matchAll( line ) ) {
     entries.set( match[ 1 ], {
       name: match[ 2 ].replace( /\\'/g, "'" ),

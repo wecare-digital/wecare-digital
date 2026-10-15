@@ -14,9 +14,9 @@ describe( 'Grahak OS five approved visual fixes', () => {
     expect( source ).not.toContain( '.stat{' );
     expect( source ).not.toContain( '.stat span{' );
     expect( source ).not.toContain( '.stat small{' );
-    // the hero still leads with the cycling pill — now the shared RotatingPill component
-    // rather than the page's own inline .hero-cycle markup.
-    expect( source ).toContain( '<RotatingPill' );
+    // the hero now uses the same shared RotatingHero band as every other product/request page.
+    expect( source ).toContain( '<RotatingHero' );
+    expect( source ).toContain( 'insideMain' );
   } );
 
   it( 'uses the approved WECARE.DIGITAL lime and dark green color system', () => {

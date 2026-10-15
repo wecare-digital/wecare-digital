@@ -75,7 +75,7 @@ const record = ( ok, name, detail ) => {
 function readAllowlist( app ) {
   const metaStart = app.indexOf( 'const PUBLIC_PAGE_META' );
   const metaEnd = app.indexOf( '\nconst ', metaStart + 10 );
-  const meta = Array.from( app.slice( metaStart, metaEnd ).matchAll( /^\s*'(\/[a-z0-9-]+)'\s*:/gm ) ).map( m => m[ 1 ] );
+  const meta = Array.from( app.slice( metaStart, metaEnd ).matchAll( /^\s*'(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)'\s*:/gm ) ).map( m => m[ 1 ] );
 
   const literals = block => Array.from( block.matchAll( /router\.pathname === '([^']+)'/g ) ).map( m => m[ 1 ] );
   const gateAt = app.indexOf( 'const isPublic' );

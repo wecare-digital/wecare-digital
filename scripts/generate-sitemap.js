@@ -45,12 +45,17 @@ const PUBLIC_EXACT = new Set( [
   '/privacy',
   '/terms',
   '/vayulok',
-  // The eight product pages. These must stay in step with PUBLIC_PAGE_META in _app.tsx:
+  // Product pages. These must stay in step with PUBLIC_PAGE_META in _app.tsx:
   // a route missing there renders an empty body with HTTP 200, so advertising it here
   // without it there would put blank pages in front of a crawler.
   '/clear-closure',
   '/dastavez',
-  '/elsewhere',
+  '/dastavez/drafting',
+  '/dastavez/registration',
+  '/dastavez/legal-reference',
+  '/elsewhere/visa',
+  '/elsewhere/trip',
+  '/elsewhere/activities',
   '/expo-week',
   // Renamed '[retired public path]' -> '[retired public path]' -> '/anew'. Alphabetical, so it moved to the
   // top of this group.
@@ -58,6 +63,8 @@ const PUBLIC_EXACT = new Set( [
   '/hunar',
   '/niji-setu',
   '/ritual-guru',
+  '/ritual-guru/puja-guidance',
+  '/ritual-guru/diy-puja-kit',
   // The Customer service pages. Same rule as the product group above: these must stay in
   // step with PUBLIC_PAGE_META in _app.tsx, because a route advertised here but missing
   // there serves an empty body at HTTP 200 - i.e. it would put blank pages in front of a
@@ -66,7 +73,7 @@ const PUBLIC_EXACT = new Set( [
   '/leave-review',
   '/refer-and-earn',
   '/request-amendment',
-  // Request Pickup joined the group on 2026-10-10 with the fifth variant of the services
+  // Request Pickup joined the group on 2026-10-10 with the fifth variant of the Wix services
   // product. Alphabetical, so it follows /request-amendment.
   '/request-pickup',
   '/submit-request',

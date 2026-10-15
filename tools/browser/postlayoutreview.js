@@ -42,7 +42,7 @@ const { launch, gotoStable } = require( './lib/browser' );
 const REPO = path.join( __dirname, '..', '..' );
 const OUT_FILE = path.join( REPO, 'docs', 'post-layout-review.html' );
 const POST = '/post/a-page-view-is-not-a-person/';
-const HERO_SOURCE = '/elsewhere/';
+const HERO_SOURCE = '/anew/';
 
 /**
  * THE BREADCRUMB, which is common to all three options and replaces the current control.
