@@ -250,15 +250,17 @@ describe( 'Header', () => {
     expect( menuHtml ).not.toContain( '/perks/#rewards' );
     expect( menuHtml ).not.toContain( '/perks/#offers' );
 
-    // Extras sits in the SAME column as Legal Stuff, and immediately above it: the Extras group
-    // node precedes the Legal Stuff group node among that column's groups.
+    // Approved order in this column is Refer & Earn, Extras, Contact, Legal Stuff.
     const perksCol = perksLink.closest( '.nav-col' );
+    expect( perksCol?.textContent ).toContain( 'Contact' );
     expect( perksCol?.textContent ).toContain( 'Legal Stuff' );
     const groups = Array.from( perksCol?.querySelectorAll( '.nav-group' ) || [] );
     const perksIndex = groups.findIndex( g => g.textContent?.startsWith( 'Extras' ) );
+    const contactIndex = groups.findIndex( g => g.textContent?.startsWith( 'Contact' ) );
     const legalIndex = groups.findIndex( g => g.textContent?.startsWith( 'Legal Stuff' ) );
     expect( perksIndex ).toBeGreaterThanOrEqual( 0 );
-    expect( legalIndex ).toBe( perksIndex + 1 );
+    expect( contactIndex ).toBe( perksIndex + 1 );
+    expect( legalIndex ).toBe( contactIndex + 1 );
 
     // No third-party gift-card provider name may appear in the menu.
     expect( screen.queryByText( /Gift ?Up/i ) ).toBeNull();
