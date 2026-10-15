@@ -216,18 +216,8 @@ const schema = a.schema( {
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
 
-  // Table 5: Users - Platform users with RBAC roles
-  User: a
-    .model( {
-      userId: a.id().required(),
-      email: a.string().required(),
-      role: a.enum( [ 'VIEWER', 'OPERATOR', 'ADMIN' ] ),
-      createdAt: a.datetime(),
-      lastLoginAt: a.datetime(),
-    } )
-    .identifier( [ 'userId' ] )
-    .secondaryIndexes( ( index ) => [ index( 'email' ) ] )
-    .authorization( ( allow ) => [ allow.authenticated() ] ),
+  // User REMOVED 2026-10-15. Declared `UsersTable`, which had no reader or writer
+  // anywhere (staff identities live in Cognito); the empty table was deleted.
 
   // Table 6: MediaFiles - WhatsApp media metadata
   MediaFile: a
@@ -741,33 +731,9 @@ const schema = a.schema( {
       index( 'templateName' ),
     ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
-  // Table 27: SubmitRequests - WhatsApp Flow submit request submissions
-  SubmitRequest: a
-    .model( {
-      id: a.id().required(),
-      requestId: a.string().required(), // Lambda request ID
-      flowToken: a.string(),
-      phone: a.string().required(),
-      senderName: a.string(),
-      contactId: a.string(),
-      orderId: a.string().required(),
-      subject: a.string(),
-      description: a.string(),
-      paymentStatus: a.string().default( 'pending' ), // pending, captured, failed
-      paymentReferenceId: a.string(), // SR-{orderId}-{requestId}
-      paymentAmount: a.integer().default( 4900 ), // paise
-      transactionId: a.string(),
-      createdAt: a.integer(),
-      updatedAt: a.integer(),
-    } )
-    .identifier( [ 'id' ] )
-    .secondaryIndexes( ( index ) => [
-      index( 'phone' ),
-      index( 'orderId' ),
-      index( 'paymentStatus' ),
-      index( 'paymentReferenceId' ),
-    ] )
-    .authorization( ( allow ) => [ allow.authenticated() ] ),
+  // SubmitRequest REMOVED 2026-10-15. Its only live rows were flow_log events, which
+  // now go to FlowLogTable; a submission is a FlowSubmission row. The table is
+  // retired - see RETIRED in amplify/functions/shared/lambda_utils/shared_tables.py.
 
   // Table 28: ConversationHistory - AI conversation context per phone hash
   ConversationHistory: a
@@ -1215,61 +1181,15 @@ const schema = a.schema( {
     ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
-  // Table: Appointment — Booking/scheduling for consultations and service visits
-  Appointment: a
-    .model( {
-      appointmentId: a.id().required(),
-      customerPhone: a.string().required(),
-      customerName: a.string(),
-      contactId: a.string(),
-      orderId: a.string(), // optional link to order
-      appointmentType: a.string(), // consultation | service_visit | follow_up | other
-      slotDate: a.string(), // "2026-03-15"
-      slotTime: a.string(), // "10:00 AM"
-      duration: a.string(), // "30 min" | "1 hour"
-      location: a.string(), // office | virtual | home_visit
-      status: a.string().default( 'booked' ), // booked | confirmed | rescheduled | cancelled | completed | no_show
-      notes: a.string(),
-      adminNotes: a.string(),
-      assignedTo: a.string(),
-      reminderSent: a.boolean().default( false ),
-      createdAt: a.integer(),
-      updatedAt: a.integer(),
-    } )
-    .identifier( [ 'appointmentId' ] )
-    .secondaryIndexes( ( index ) => [
-      index( 'customerPhone' ),
-      index( 'slotDate' ),
-      index( 'status' ),
-    ] )
-    .authorization( ( allow ) => [ allow.authenticated() ] ),
+  // Appointment REMOVED 2026-10-15. It held a second copy of a Flow answer; the one
+  // record is the FlowSubmission row (flowCode WD_APPT), written through
+  // lambda_utils/flow_records.py. The table is retired - see RETIRED in
+  // amplify/functions/shared/lambda_utils/shared_tables.py.
 
-  // Table: RxSlot — Prescription/medical tourism slot booking
-  RxSlot: a
-    .model( {
-      rxSlotId: a.id().required(),
-      customerPhone: a.string().required(),
-      customerName: a.string(),
-      contactId: a.string(),
-      orderId: a.string(), // optional link to order
-      slotType: a.string(), // prescription | medical_tourism | lab_test | pharmacy
-      slotDate: a.string(), // "2026-03-15"
-      slotTime: a.string(), // "10:00 AM"
-      facilityName: a.string(),
-      doctorName: a.string(),
-      status: a.string().default( 'booked' ), // booked | confirmed | cancelled | completed
-      prescriptionNotes: a.string(),
-      adminNotes: a.string(),
-      createdAt: a.integer(),
-      updatedAt: a.integer(),
-    } )
-    .identifier( [ 'rxSlotId' ] )
-    .secondaryIndexes( ( index ) => [
-      index( 'customerPhone' ),
-      index( 'slotDate' ),
-      index( 'status' ),
-    ] )
-    .authorization( ( allow ) => [ allow.authenticated() ] ),
+  // RxSlot REMOVED 2026-10-15. It held a second copy of a Flow answer; the one
+  // record is the FlowSubmission row (flowCode WD_RX), written through
+  // lambda_utils/flow_records.py. The table is retired - see RETIRED in
+  // amplify/functions/shared/lambda_utils/shared_tables.py.
 
   // Table: Document — Customer document management (WhatsApp uploads, manual, web)
   Document: a
@@ -1310,51 +1230,15 @@ const schema = a.schema( {
     ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
-  // Table: EnterpriseAssist — B2B/corporate support cases
-  EnterpriseAssist: a
-    .model( {
-      caseId: a.id().required(),
-      contactPhone: a.string().required(),
-      contactName: a.string(),
-      contactEmail: a.string(),
-      accountName: a.string(), // company name
-      subject: a.string(),
-      description: a.string(),
-      priority: a.string().default( 'normal' ), // low | normal | high | urgent
-      status: a.string().default( 'open' ), // open | in_progress | resolved | closed
-      assignedTo: a.string(),
-      notes: a.string(),
-      createdAt: a.integer(),
-      updatedAt: a.integer(),
-    } )
-    .identifier( [ 'caseId' ] )
-    .secondaryIndexes( ( index ) => [
-      index( 'contactPhone' ),
-      index( 'status' ),
-    ] )
-    .authorization( ( allow ) => [ allow.authenticated() ] ),
+  // EnterpriseAssist REMOVED 2026-10-15. It held a second copy of a Flow answer; the one
+  // record is the FlowSubmission row (flowCode WD_ENT), written through
+  // lambda_utils/flow_records.py. The table is retired - see RETIRED in
+  // amplify/functions/shared/lambda_utils/shared_tables.py.
 
-  // Table: Review — Customer feedback and ratings
-  Review: a
-    .model( {
-      reviewId: a.id().required(),
-      customerPhone: a.string().required(),
-      customerName: a.string(),
-      contactId: a.string(),
-      orderId: a.string(), // optional link
-      rating: a.integer(), // 1-5
-      reviewText: a.string(),
-      category: a.string(), // service | product | delivery | support | other
-      status: a.string().default( 'submitted' ), // submitted | approved | hidden
-      createdAt: a.integer(),
-      updatedAt: a.integer(),
-    } )
-    .identifier( [ 'reviewId' ] )
-    .secondaryIndexes( ( index ) => [
-      index( 'customerPhone' ),
-      index( 'status' ),
-    ] )
-    .authorization( ( allow ) => [ allow.authenticated() ] ),
+  // Review REMOVED 2026-10-15. It held a second copy of a Flow answer; the one
+  // record is the FlowSubmission row (flowCode WD_REV / WD_IDEA), written through
+  // lambda_utils/flow_records.py. The table is retired - see RETIRED in
+  // amplify/functions/shared/lambda_utils/shared_tables.py.
 
   // Table: Faq — Customer service FAQ content
   Faq: a
@@ -1416,27 +1300,10 @@ const schema = a.schema( {
   // declaration was its only mention. The live admin audit trail is the AuditLog
   // model on stack-wecare-digital-AuditLogsTable, written through
   // lambda_utils/audit.py.
-  // Table: AmendmentHistory — Track amendments to submissions
-  AmendmentHistory: a
-    .model( {
-      amendmentId: a.id().required(),
-      submissionId: a.string().required(),
-      orderId: a.string(),
-      amendmentType: a.string().required(), // add_info | correct_details | change_type | cancel | other
-      description: a.string().required(),
-      submittedBy: a.string(), // phone or userId
-      status: a.string().default( 'submitted' ), // submitted | reviewed | applied | rejected
-      reviewedBy: a.string(),
-      reviewNotes: a.string(),
-      createdAt: a.integer(),
-      updatedAt: a.integer(),
-    } )
-    .identifier( [ 'amendmentId' ] )
-    .secondaryIndexes( ( index ) => [
-      index( 'submissionId' ),
-      index( 'orderId' ),
-    ] )
-    .authorization( ( allow ) => [ allow.authenticated() ] ),
+  // AmendmentHistory REMOVED 2026-10-15. It held a second copy of a Flow answer; the one
+  // record is the FlowSubmission row (flowCode WD_AMEND), written through
+  // lambda_utils/flow_records.py. The table is retired - see RETIRED in
+  // amplify/functions/shared/lambda_utils/shared_tables.py.
 
   // Table: FlowSubmission — All flow submissions (generic, all flow types)
   FlowSubmission: a

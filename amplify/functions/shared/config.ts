@@ -16,7 +16,8 @@ export const TABLES = {
   MESSAGES_OUTBOUND: process.env.MESSAGES_OUTBOUND_TABLE || 'stack-wecare-digital-WhatsAppOutboundTable',
   BULK_JOBS: process.env.BULK_JOBS_TABLE || 'stack-wecare-digital-BulkJobsTable',
   BULK_RECIPIENTS: process.env.BULK_RECIPIENTS_TABLE || 'stack-wecare-digital-BulkRecipientsTable',
-  USERS: process.env.USERS_TABLE || 'stack-wecare-digital-UsersTable',
+  // USERS removed 2026-10-15: `stack-wecare-digital-UsersTable` never held a user (staff
+  // identities live in Cognito) and was deleted.
   MEDIA_FILES: process.env.MEDIA_FILES_TABLE || 'stack-wecare-digital-MediaFilesTable',
   DLQ_MESSAGES: process.env.DLQ_MESSAGES_TABLE || 'stack-wecare-digital-DLQMessagesTable',
   AUDIT_LOGS: process.env.AUDIT_LOGS_TABLE || 'stack-wecare-digital-AuditLogsTable',
