@@ -59,7 +59,9 @@ const { resolveChrome } = require( './lib/browser' );
 /** Public routes plus one blog post, which is a different template from the index. */
 const ALL_ROUTES = [
   '/', '/grahak-os/', '/vayulok/', '/contact/', '/get/', '/orders/', '/bharat-rx/',
-  '/anew/', '/dastavez/', '/elsewhere/', '/expo-week/', '/niji-setu/', '/ritual-guru/',
+  '/anew/', '/dastavez/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
+  '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
+  '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/', '/niji-setu/', '/ritual-guru/',
   '/clear-closure/', '/terms/', '/privacy/', '/blog/',
   // The two routes added on 2026-09-30. Every other ProductPage route scores 100 on the four
   // categories, so these are here to prove the two new ones do too rather than to sample a
