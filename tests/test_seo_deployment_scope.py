@@ -18,6 +18,9 @@ spec.loader.exec_module(scope)
     ('amplify/functions/shared/lambda_utils/middleware.py', True),
     ('amplify/functions/shared/static_knowledge_base.py', True),
     ('amplify/functions/seo_tools_handler.py', True),
+    ('amplify/functions/shared/blog_pipeline.py', True),
+    ('scripts/blog_quality_v2.py', True),
+    ('content/conversations/corpus-index.json', True),
     ('amplify/functions/operations/seo-tools/handler.py', True),
     ('amplify/functions/operations/seo-tools/nested/unused.py', False),
 ])
