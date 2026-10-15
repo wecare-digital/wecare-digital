@@ -58,12 +58,12 @@ identifier, because an unreserved identifier handed to a caller is a duplicate w
 from __future__ import annotations
 
 import logging
-import os
 import re
 import secrets
 import time
 from typing import Any, Callable, Dict, Optional, Tuple
 
+from lambda_utils import shared_tables
 from lambda_utils.identifiers import new_uuid7
 
 logger = logging.getLogger(__name__)
@@ -648,10 +648,7 @@ def commerce_keys_table_name() -> str:
     Amplify model in `amplify/data/resource.ts` declares `wixOrderId`, which the physical table
     does not use), has TTL disabled, and held zero items.
     """
-    return os.environ.get(
-        "COMMERCE_KEYS_TABLE",
-        os.environ.get("COMMERCE_KEYS_TABLE", "stack-wecare-digital-CommerceKeys"),
-    )
+    return shared_tables.commerce_keys_table_name()
 
 
 #: Superseded name, kept for the Wix sync path.
