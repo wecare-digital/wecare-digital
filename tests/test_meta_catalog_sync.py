@@ -714,3 +714,19 @@ def test_request_variants_use_their_own_locked_catalog_artwork():
         assert by_variant[variant_id]["image_url"] == expected_image
         assert "/wd-catalog-live/" in expected_image
         assert expected_image.endswith("-4096.png")
+
+
+def test_namespace_migration_creates_current_items_and_retires_legacy_without_deleting(desired):
+    legacy = [dict(_meta_row(item), retailer_id=item["retailer_id"].replace("wecare:", "wix:", 1))
+              for item in desired]
+    plan = sync.diff(desired, legacy)
+    assert len(plan.create) == len(desired)
+    assert len(plan.retire) == len(legacy)
+    assert plan.update == []
+    assert plan.foreign == []
+    assert all(item["retailer_id"].startswith("wecare:") for item in plan.create)
+    assert all(item["retailer_id"].startswith("wix:") and item["availability"] == sync.OUT_OF_STOCK
+               for item in plan.retire)
+    # Once both namespaces are present and the old items are retired, another run is a no-op.
+    retired = [dict(row, availability=sync.OUT_OF_STOCK) for row in legacy]
+    assert sync.diff(desired, [_meta_row(item) for item in desired] + retired).is_empty

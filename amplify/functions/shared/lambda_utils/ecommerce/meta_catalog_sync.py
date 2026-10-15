@@ -28,7 +28,7 @@ THE RETAILER ID IS THE JOIN, AND IT IS NOT A NEW IDEA
 (`catalogItemId` plus `options.variantId`) that `src/lib/cart.ts` `toLineItems()` sends and
 `checkout/handler.py` `_native_quote` prices. So an order that arrives from WhatsApp carrying
 `product_retailer_id` resolves to the same ProductsTable line as an order placed on the website,
-with no mapping table to keep in step. 77 characters against Meta's 100-character limit.
+with no mapping table to keep in step. 80 characters against Meta's 100-character limit.
 
 MONEY IS INTEGER PAISE AND THERE IS NO FLOAT IN THIS FILE
 ---------------------------------------------------------
@@ -57,7 +57,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 #: `RETAILER_PREFIX` is the single namespace NEW ids are WRITTEN with. It is now the provider-
 #: neutral `wecare`. `LEGACY_RETAILER_PREFIXES` lists every namespace still READABLE on inbound,
 #: so orders placed against items published under the old `wix` spelling keep resolving while the
-#: next catalogue sync republishes the ~21 live variants under `wecare:`. Once Meta shows no
+#: next catalogue sync republishes the eligible variants under `wecare:`. Once Meta shows no
 #: `wix:` item remaining (and no in-flight `wix:` cart can arrive), drop `"wix"` from
 #: `LEGACY_RETAILER_PREFIXES` to retire the compatibility read path.
 #:
@@ -71,7 +71,7 @@ RETAILER_PREFIX = "wecare"
 #: the 2026-10-16 rename; remove it after the live Meta catalogue is fully republished.
 LEGACY_RETAILER_PREFIXES = (RETAILER_PREFIX, "wix")
 
-#: Meta's documented ceiling for `retailer_id`. A pair of UUIDs plus the prefix is 77, so this is
+#: Meta's documented ceiling for `retailer_id`. A pair of UUIDs plus the prefix is 80, so this is
 #: headroom rather than a constraint - but it is asserted rather than assumed, because a change to
 #: the catalogue's id format would otherwise fail at Meta instead of here.
 RETAILER_ID_MAX_LENGTH = 100
@@ -221,7 +221,7 @@ def retailer_id(product_id: Any, variant_id: Any) -> str:
         raise RetailerIdError("variant id is not a catalogue UUID")
     value = f"{RETAILER_PREFIX}:{product}:{variant}"
     if len(value) > RETAILER_ID_MAX_LENGTH:
-        # Unreachable with today's UUIDs (77 characters), and asserted anyway so an id format
+        # Unreachable with today's UUIDs (80 characters), and asserted anyway so an id format
         # change fails here with a readable reason instead of at Meta with a 400.
         raise RetailerIdError(
             f"retailer id is {len(value)} characters, over Meta's {RETAILER_ID_MAX_LENGTH}")
