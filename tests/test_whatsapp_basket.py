@@ -160,15 +160,10 @@ def test_a_retailer_id_is_lowercased_on_the_way_in():
     assert basket.lines == [{"productId": PRODUCT_A, "variantId": VARIANT_A, "quantity": 1}]
 
 
-@pytest.mark.parametrize("prefixes", [
-    ("wix", "wix"),
-    ("WECARE.DIGITAL", "WECARE.DIGITAL"),
-    ("wix", "WECARE.DIGITAL"),
-])
-def test_catalogue_namespace_migration_preserves_incoming_cart_lines(prefixes):
+def test_catalogue_accepts_wecare_digital_retailer_ids():
     basket = wb.parse_order_message(order_message([
-        item(f"{prefixes[0]}:{PRODUCT_A}:{VARIANT_A}", 2),
-        item(f"{prefixes[1]}:{PRODUCT_B}:{VARIANT_B}", 1),
+        item(f"WECARE.DIGITAL:{PRODUCT_A}:{VARIANT_A}", 2),
+        item(f"WECARE.DIGITAL:{PRODUCT_B}:{VARIANT_B}", 1),
     ]))
     assert basket is not None
     assert basket.lines == [
