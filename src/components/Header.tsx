@@ -101,34 +101,18 @@ interface NavColumn {
 const COLUMNS: NavColumn[] = [
   {
     sections: [
-      // HOME, in the unlabelled group at the top of the menu, because it is the one
-      // whole-site destination rather than a member of a category.
-      //
-      // SHOP JOINS IT, DIRECTLY AFTER, by that same rule: /shop/ lists every product and every
-      // service on one page, so it is an index ACROSS the categories rather than a member of one.
-      // It is the 'start' group in STRUCTURAL too, beside /, /contact and /blog.
-      // Not the Products group: that is generated from PRODUCTS, it scrolls, and an index sitting
-      // inside one category reads as a product named Shop. Not the Request group either - Shop is
-      // not a request action, and Header.test.tsx pins that group's exact label order as an owner
-      // instruction.
-      // The trailing slash on href is load-bearing (trailingSlash is set, so /shop 308s before
-      // resolving); `match` is slashless because it is compared against router.pathname, and that
-      // comparison is strict equality, so the row does not light up on /shop/[slug] or
-      // /shop/page/[page] - which is how every other row in this menu behaves.
-      { heading: '', links: [
-        { label: 'Home', href: '/', match: '/' },
-        { label: 'Shop', href: '/shop/', match: '/shop' },
-      ] },
       {
-        heading: 'Products',
+        heading: 'Shop',
+        links: [
+          { label: 'Browse All', href: '/shop/', match: '/shop' },
+        ],
+      },
+      {
+        heading: 'Products 1 of 2',
         links: [
           { label: 'Grahak OS', href: '/grahak-os/', match: '/grahak-os' },
           { label: 'VayuLok', href: '/vayulok/', match: '/vayulok' },
           { label: 'Bharat Rx', href: '/bharat-rx/', match: '/bharat-rx' },
-          { label: 'Expo Week', href: '/expo-week/', match: '/expo-week' },
-          { label: 'Anew', href: '/anew/', match: '/anew' },
-          { label: 'Hunar', href: '/hunar/', match: '/hunar' },
-          { label: 'Niji Setu', href: '/niji-setu/', match: '/niji-setu' },
         ],
       },
       {
@@ -140,6 +124,12 @@ const COLUMNS: NavColumn[] = [
         ],
       },
       {
+        heading: '',
+        links: [
+          { label: 'Expo Week', href: '/expo-week/', match: '/expo-week' },
+        ],
+      },
+      {
         heading: 'Dastavez',
         headingHref: '/dastavez/',
         links: [
@@ -147,6 +137,10 @@ const COLUMNS: NavColumn[] = [
           { label: 'Registration', href: '/dastavez/', match: '/dastavez' },
           { label: 'Legal Reference', href: '/dastavez/', match: '/dastavez' },
         ],
+      },
+      {
+        heading: 'Products 2 of 2',
+        links: [],
       },
       {
         heading: 'Clear Closure',
@@ -165,102 +159,36 @@ const COLUMNS: NavColumn[] = [
           { label: 'Puja Guidance', href: '/ritual-guru/', match: '/ritual-guru' },
         ],
       },
-    ],
-  },
-  {
-    sections: [
       {
-        // NO headingHref. "Customer service" is a group label now, not a destination - the
-        // owner's instruction is that there is no Customer service page, only the items under
-        // it. It previously linked to the external landing page, which made the heading
-        // both a category and a link and gave a visitor two things to click for one idea.
-        // Renamed from 'Customer service' on 2026-09-27 (owner instruction: remove the word
-        // everywhere it is customer-visible). It named a portal that has no page at any
-        // address - the in-repo [retired public path] route went in PR #47 on 2026-09-24 and nothing
-        // replaced it, so the label promised a destination that did not exist. The only
-        // [retired public path] route left is the ADMIN flow dashboard under /workspace/forms/.
-        // 'Requests' described what the rows beneath it do; the owner's instruction (Section 1)
-        // is the singular 'Request' as the exact customer-facing label, and never 'Get Help',
-        // 'Customer-Service', 'Customer service' or 'Help Hub'. This is a label change only - no internal
-        // `customerservice` identifier, config/public-pages.json group id, workspace route, provider
-        // template, API or historical integration id is touched.
-        heading: 'Request',
+        heading: '',
         links: [
-          // ORDERS IS FIRST, on owner instruction - it is the row customers reach for
-          // most, and it is the one real local page in this group (the others land on
-          // /contact for now), so it leads. It carries `match` and lights up on its own
-          // route. It REPLACES the old "Request Tracking" row - the two answer the
-          // same question, and offering both sends one visitor to two places for one answer.
-          //
-          // RENAMED FROM "My Order" -> "Orders" AND [retired public path]/ -> /orders/, on owner
-          // instruction, label and URL in the same change. `match` stays the slashless form
-          // because it is compared against router.pathname; `href` keeps the trailing slash or
-          // the static host 308s before resolving. The old path 301s here - see RETIRED in
-          // scripts/provision_legacy_redirects.py.
-          { label: 'Orders', href: '/orders/', match: '/orders' },
-          // FAQ removed on request. The local [retired public path] page was already deleted; this
-          // drops the menu row too, so there is no FAQ entry point left anywhere.
-          // EACH ROW NOW HAS ITS OWN PAGE. These four, plus Refer & Earn below, used to
-          // resolve to /contact/ - six labels, one destination, on every page of the site.
-          // They are public pages registered in PUBLIC_PAGE_META, NOT the authenticated
-          // [retired public path]/* routes: those render the dashboard Layout behind a Cognito session,
-          // so a public row pointing there shows an anonymous visitor a login wall.
-          { label: 'Submit Request', href: '/submit-request/', match: '/submit-request' },
-          { label: 'Request Amendment', href: '/request-amendment/', match: '/request-amendment' },
-          { label: 'Drop Docs', href: '/drop-docs/', match: '/drop-docs' },
-          // VAULT SITS DIRECTLY BELOW DROP DOCS because it is the same door in the other
-          // direction - Drop Docs sends paperwork in, Vault asks for a copy back out - and
-          // the pair only reads that way when the rows are adjacent.
-          //
-          // IT HAD TO BE TYPED HERE, unlike the products above. This group's rows are
-          // written out rather than mapped from src/content/customerservice.ts, so an entry in
-          // that file alone gives Vault a page and a sitemap line but no way to reach it
-          // from the menu. If Vault ever goes missing from the nav, this list is why.
-          { label: 'Vault', href: '/vault/', match: '/vault' },
-          // REQUEST PICKUP FOLLOWS VAULT, completing the paperwork trio: in, out, collected.
-          // TYPED HERE BY HAND for the same reason as the row above - this group's rows are
-          // written out rather than mapped from src/content/customerservice.ts, so the content
-          // entry alone would give it a page and a sitemap line and no way to reach it from the
-          // menu. If Request Pickup ever goes missing from the nav, this list is why.
-          { label: 'Request Pickup', href: '/request-pickup/', match: '/request-pickup' },
-          // SHIPMENTS SITS DIRECTLY ABOVE LEAVE REVIEW, on owner instruction: it is the single
-          // place that gathers "track it, arrange it, keep it moving" for a request, delivery or
-          // pickup, so it rounds out the request actions just before Leave Review (which was the
-          // last request row). THE ROUTE MOVED FROM /zip/ TO /shipments/ on owner instruction
-          // (2026-10-02): the page was called "Zip" and the name is gone everywhere, not just on
-          // the label. The earlier change renamed only this label and left the route, the
-          // PUBLIC_PAGE_META `name` ('Zip') and the legal copy intact, which is why the owner kept
-          // seeing "Zip" on the live site. The sitemap PUBLIC_EXACT entry,
-          // config/public-pages.json, the PUBLIC_PAGE_META key and scripts/generate-public-pages.js
-          // all moved with it. NOTE: /zip/ 404s at the origin until a CDN redirect
-          // /zip/ -> /shipments/ is added in the Amplify Console - a static export cannot emit a
-          // 301 (see the RETIRED URLS note in _app.tsx). It carries `match` and lights up on its
-          // own route. It surfaces the real request routes (orders, request-amendment, drop-docs,
-          // vault, leave-review) and renders anything with no backend (pickup/visit/
-          // delivery-status) as a clearly non-transacting affordance.
-          { label: 'Shipments', href: '/shipments/', match: '/shipments' },
-          { label: 'Leave Review', href: '/leave-review/', match: '/leave-review' },
-          { label: 'Subscribe', href: SUBSCRIBE_CTA_HREF, external: true },
-          // CONTACT MOVED OUT of Customer service into the third column (Work with us), on
-          // owner instruction - the Customer service column is now the request ACTIONS only,
-          // and Contact sits with Refer & Earn as a way to reach the company.
+          { label: 'Anew', href: '/anew/', match: '/anew' },
+          { label: 'Hunar', href: '/hunar/', match: '/hunar' },
+          { label: 'Niji Setu', href: '/niji-setu/', match: '/niji-setu' },
         ],
       },
     ],
   },
   {
     sections: [
-      // "Work with us", NOT "Company" - that word was explicitly retired from this
-      // menu, and restructuring into columns nearly reintroduced it. Not "Service"
-      // either: that would sit one column away from "Customer service" and read as the
-      // same category. This heading says who the column is for, which is the honest
-      // distinction - Customer service is for existing customers, this is for prospective
-      // referral partners.
-      // "Refer & Earn", not "Partners", on instruction. It is also the better label: it says
-      // what you get rather than what you become, and the destination is the referral-partner
-      // product page.
-      // Now a LOCAL page rather than an external link, so it carries `match` and lights up
-      // on its own route like every other row.
+      {
+        heading: 'Request',
+        links: [
+          { label: 'Orders', href: '/orders/', match: '/orders' },
+          { label: 'Submit Request', href: '/submit-request/', match: '/submit-request' },
+          { label: 'Request Amendment', href: '/request-amendment/', match: '/request-amendment' },
+          { label: 'Drop Docs', href: '/drop-docs/', match: '/drop-docs' },
+          { label: 'Vault', href: '/vault/', match: '/vault' },
+          { label: 'Request Pickup', href: '/request-pickup/', match: '/request-pickup' },
+          { label: 'Shipments', href: '/shipments/', match: '/shipments' },
+          { label: 'Leave Review', href: '/leave-review/', match: '/leave-review' },
+          { label: 'Subscribe', href: SUBSCRIBE_CTA_HREF, external: true },
+        ],
+      },
+    ],
+  },
+  {
+    sections: [
       {
         heading: 'Refer & Earn',
         headingHref: '/refer-and-earn/',
@@ -270,39 +198,16 @@ const COLUMNS: NavColumn[] = [
           { label: 'Referral', href: '/shop/referral-partner/' },
         ],
       },
-      // CONTACT HAS ITS OWN HEADING now, on owner instruction, rather than sitting as a
-      // second row under Work with us. It is its own thing - a way to reach us - so it
-      // gets its own labelled group in this column. Local page, so it carries `match`
-      // and lights up on /contact; the trailing slash is load-bearing (trailingSlash is
-      // set, so /contact would redirect before resolving).
-      { heading: 'Contact', links: [ { label: 'Contact us', href: '/contact/', match: '/contact' } ] },
-      // LEGAL STUFF LIVES HERE NOW, under Work with us. It moved out of the middle
-      // column (where it sat beneath Customer service) on owner instruction, so the third
-      // column carries the "about the company" rows - Refer & Earn plus the policies -
-      // and the middle column is purely the Customer service actions.
-      // EXTRAS SITS IMMEDIATELY ABOVE LEGAL STUFF, on owner instruction (Section 4). The GROUP
-      // HEADING is the category ("Extras"); the ROW is the page's own name, "Perks".
-      // THE ROW READ "Extras" UNDER A HEADING THAT ALSO READ "Extras" — the word printed twice,
-      // one directly beneath the other, which the owner reported as looking broken (2026-10-02).
-      // An earlier instruction had renamed the page Perks -> Extras; the owner has reversed that,
-      // so the page's customer-facing name is "Perks" again and the row says "Perks".
-      // The ROUTE/URL stays /perks/ (src/pages/perks.tsx keeps its filename, so the live URL, the
-      // sitemap PUBLIC_EXACT, config/public-pages.json, PUBLIC_PAGE_META and the gift-card CTAs in
-      // the WhatsApp/AI/SEO handlers that point at https://wecare.digital/perks/ all keep resolving
-      // — and the route already matches the name "Perks", so there is nothing to rename there).
-      // The group once carried three ANCHOR rows into /perks (Gift Cards -> #gift-cards, Rewards ->
-      // #rewards, Offers -> #offers). The owner then asked to REMOVE those gift-card / offers /
-      // rewards sections from the page, so those anchors no longer exist. Rather than leave nav
-      // rows pointing at dead #gift-cards/#rewards/#offers anchors, the group is collapsed to a
-      // single link to the /perks/ page itself. The several systems that link customers to a
-      // gift-card URL already point at https://wecare.digital/perks/ (the page, not an anchor), so
-      // they still resolve. No third-party gift-card provider name ('Gift Up'/'GiftUp'/any vendor)
-      // appears here or on the page. The /perks page is a home-styled, non-transacting landing
-      // page; it carries no working-looking buy/redeem/check-balance control.
       {
         heading: 'Extras',
         links: [
           { label: 'Perks', href: '/perks/', match: '/perks' },
+        ],
+      },
+      {
+        heading: 'Contact',
+        links: [
+          { label: 'Contact us', href: '/contact/', match: '/contact' },
         ],
       },
       {
@@ -312,11 +217,6 @@ const COLUMNS: NavColumn[] = [
           { label: 'Privacy', href: '/privacy/', match: '/privacy' },
         ],
       },
-      // ACCOUNT / SIGN IN REMOVED from the public menu on owner instruction. That "Sign
-      // in" pointed at [retired public path], which is the INTERNAL staff dashboard login (Cognito) -
-      // it does not belong in the public navigation. A fresh, customer-facing login
-      // (WhatsApp OTP, SMS/email fallback) will live on the /orders page instead, so
-      // there is deliberately no sign-in row here now.
     ],
   },
 ];
