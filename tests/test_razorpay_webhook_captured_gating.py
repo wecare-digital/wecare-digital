@@ -32,7 +32,7 @@ from lambda_utils.ecommerce import order_keys  # noqa: E402
 
 WEBHOOK_DIR = os.path.join(REPO, 'amplify', 'functions', 'payments', 'razorpay-webhook')
 
-KEYS_TABLE = 'stack-wecare-digital-WixOrderIds'
+KEYS_TABLE = 'stack-wecare-digital-CommerceKeys'
 INVOICES_TABLE = 'stack-wecare-digital-InvoicesTable'
 PAYMENTS_TABLE = 'stack-wecare-digital-PaymentsTable'
 
