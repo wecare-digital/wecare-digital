@@ -1,14 +1,14 @@
 {
   "source": "aws products-table (native catalog)",
   "catalogVersion": "AWS_NATIVE_V1",
-  "fetchedAt": "2026-10-14T10:38:49.765Z",
+  "fetchedAt": "2026-10-15T03:38:00.968Z",
   "productCount": 10,
   "products": [
     {
       "id": "121c9d57-2cc9-490b-8eed-66bf7b9c172a",
       "name": "₹1 test product",
       "slug": "1-test-product",
-      "visible": true,
+      "visible": false,
       "price": "1.00",
       "formattedPrice": "₹1.00",
       "currency": "INR",
@@ -16,6 +16,9 @@
       "descriptionHtml": "",
       "tagline": "",
       "body": [],
+      "canonicalPath": "/shop/1-test-product/",
+      "websiteEnabled": false,
+      "metaEnabled": false,
       "variants": [
         {
           "id": "c2edc783-c8fa-4b3e-a922-f7800889e56a",
@@ -36,7 +39,10 @@
       "descriptionHtml": "<p><span style=\"font-weight: 700\">Anew by WECARE.DIGITAL</span></p><p><span style=\"font-weight: 700\">Reflection into </span><em><span style=\"font-weight: 700\">clarity / action / direction / focus</span></em></p><p>A considered written reflection on a decision that matters — read in your own time, no calls.</p><p><span style=\"font-weight: 700\">Start a conversation</span></p>",
       "tagline": "<p><span style=\"font-weight: 700\">Anew by WECARE.DIGITAL</span></p><p><span style=\"font-weight: 700\">Reflection into </span><em><span style=\"font-weight: 700\">clarity / action / direction / focus</spa",
       "body": [],
-      "image": "https://d1kf2rchz7yras.cloudfront.net/o/catalog/products/839b7f3e57aa59f6df13b127e36ec776b997b07a54ecdb0573d6b6b054b03b7b.png",
+      "canonicalPath": "/anew/",
+      "websiteEnabled": true,
+      "metaEnabled": true,
+      "image": "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/anew-4096.png",
       "variants": [
         {
           "id": "750a2d69-198d-42fa-ad80-f13a19ec6603",
@@ -49,7 +55,7 @@
       "id": "8514c405-3971-4786-ad0d-15406ca23407",
       "name": "Contribute",
       "slug": "contribute",
-      "visible": true,
+      "visible": false,
       "price": "250.00",
       "formattedPrice": "₹250.00",
       "currency": "INR",
@@ -57,6 +63,9 @@
       "descriptionHtml": "",
       "tagline": "",
       "body": [],
+      "canonicalPath": "/shop/contribute/",
+      "websiteEnabled": false,
+      "metaEnabled": false,
       "image": "https://d1kf2rchz7yras.cloudfront.net/o/catalog/products/f47e664b11b282b092c5ebf64a6594e11db72724c951c704906f6db464e1f924.png",
       "variants": [
         {
@@ -68,7 +77,7 @@
     },
     {
       "id": "518f58d4-f365-4cad-83ea-215a862f84f5",
-      "name": "File Assist",
+      "name": "Case Submission",
       "slug": "file-assist",
       "visible": true,
       "price": "6999.00",
@@ -78,7 +87,10 @@
       "descriptionHtml": "<p><span style=\"font-weight: 700\">Documents prepared. Next steps coordinated.</span></p><p>You’ve already agreed on the important terms.</p><p>File Assist helps turn those decisions into organised documents — and gives you a dedicated coordinator to help keep the next steps moving.</p><p>Complete the guided questionnaire and tell us what both of you have agreed. CLEAR CLOSURE prepares the applicable documents for your review.</p><p>Your case coordinator then helps keep the practical side organised — from missing information and signatures to filing preparation and administrative follow-up.</p><p><span style=\"font-weight: 700\">File Assist helps coordinate what comes next, so you do not have to manage every practical step alone.</span></p>",
       "tagline": "<p><span style=\"font-weight: 700\">Documents prepared. Next steps coordinated.</span></p><p>You’ve already agreed on the important terms.</p><p>File Assist helps turn those decisions into organised doc",
       "body": [],
-      "image": "https://d1kf2rchz7yras.cloudfront.net/o/catalog/products/43f27e116628404c93a32798833edbe002a882d3b247f5eafd1c9b5af69d3abb.png",
+      "canonicalPath": "/shop/file-assist/",
+      "websiteEnabled": true,
+      "metaEnabled": true,
+      "image": "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/case-submission-4096.png",
       "variants": [
         {
           "id": "1960aa09-7585-4813-91b5-13b30e64d342",
@@ -99,7 +111,10 @@
       "descriptionHtml": "<p><span style=\"font-weight: 700\">Work through what is unresolved. Document what you agree.</span></p><p>You both want to move forward peacefully, but there are still a few important things to work through.</p><p>Guided Resolution gives you a structured way to discuss those issues, find common ground, and turn what you agree into clear documentation.</p><p>You receive the documentation and coordination included with File Assist, together with <span style=\"font-weight: 700\">up to 4 guided-resolution sessions</span> to help both of you work through unresolved terms.</p><p>If agreement is reached, CLEAR CLOSURE helps carry those agreed decisions forward into document preparation, review, signatures, and filing coordination.</p><p><span style=\"font-weight: 700\">The goal is to help you find a workable path forward — not to force either person to accept a settlement.</span></p>",
       "tagline": "<p><span style=\"font-weight: 700\">Work through what is unresolved. Document what you agree.</span></p><p>You both want to move forward peacefully, but there are still a few important things to work th",
       "body": [],
-      "image": "https://d1kf2rchz7yras.cloudfront.net/o/catalog/products/e127180f6d68927ac4e87ea0103cf30fa6cc74bc123b847c078d742dd50973a0.png",
+      "canonicalPath": "/shop/guided-resolution/",
+      "websiteEnabled": true,
+      "metaEnabled": true,
+      "image": "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/guided-resolution-4096.png",
       "variants": [
         {
           "id": "9a108efe-e3b9-42f2-b465-0e8470a293e4",
@@ -120,7 +135,10 @@
       "descriptionHtml": "<p><span style=\"font-weight: 700\">Put your location to work.</span></p><p>You already have the place.</p><p>A shop. An office. A store. A reception. Somewhere people already walk in, wait, ask questions, or look for something useful.</p><p>Kiosk turns that location into a WECARE.DIGITAL digital touchpoint.</p><p>Install the Android kiosk where visitors can comfortably use it to explore available WECARE.DIGITAL products and services.</p><p>When genuine eligible business is generated through your Kiosk and qualifies under the applicable Kiosk terms, you can earn commission.</p><p><span style=\"font-weight: 700\">You do not need to personally make every introduction.</span></p><p>Your location stays there. Your Kiosk can too.</p>",
       "tagline": "<p><span style=\"font-weight: 700\">Put your location to work.</span></p><p>You already have the place.</p><p>A shop. An office. A store. A reception. Somewhere people already walk in, wait, ask questio",
       "body": [],
-      "image": "https://d1kf2rchz7yras.cloudfront.net/o/catalog/products/28acab859a3eb96063561ea804983e57bab7eb6911041e6994855176f8800654.png",
+      "canonicalPath": "/shop/kiosk/",
+      "websiteEnabled": true,
+      "metaEnabled": true,
+      "image": "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/kiosk-4096.png",
       "variants": [
         {
           "id": "4d3e2b31-7888-4250-8f5a-0587344431db",
@@ -141,7 +159,10 @@
       "descriptionHtml": "<p><span style=\"font-weight: 700\">Show up. Stay remembered.</span></p><p>Some connections begin online. The good ones often continue in the real world.</p><p>At work, at a meeting, at an event, or during a conversation with someone who wants to know more about WECARE.DIGITAL, this essentials set gives you practical things you can actually use.</p><p>You receive a <span style=\"font-weight: 700\">WECARE.DIGITAL branded T-shirt, branded pen, and 50 standard company business cards</span>.</p><p>Wear the brand. Keep the pen close. Leave the right company details behind when a conversation should continue.</p><p><span style=\"font-weight: 700\">Simple, practical, and made to be used.</span></p>",
       "tagline": "<p><span style=\"font-weight: 700\">Show up. Stay remembered.</span></p><p>Some connections begin online. The good ones often continue in the real world.</p><p>At work, at a meeting, at an event, or dur",
       "body": [],
-      "image": "https://d1kf2rchz7yras.cloudfront.net/o/catalog/products/0f09c5687f1133065b35bf51a7a440d43b1f630ec47919d6a1c37fc7716b3c37.png",
+      "canonicalPath": "/shop/merchandise/",
+      "websiteEnabled": true,
+      "metaEnabled": true,
+      "image": "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/merchandise-4096.png",
       "variants": [
         {
           "id": "3788a657-9af2-4ecf-8c9b-f218669d753c",
@@ -207,7 +228,10 @@
       "descriptionHtml": "<p><span style=\"font-weight: 700\">Turn what you’ve agreed into clear, organised documentation.</span></p><p>When the important decisions are already substantially agreed, Paperwork helps you turn those decisions into clear, organised divorce documentation — one step at a time.</p><p>Answer a guided set of questions and tell us what both of you have agreed.</p><p>CLEAR CLOSURE prepares the applicable documents for your review. You check the details carefully, complete the required signatures, and then manage filing yourself or through an independent advocate.</p><p><span style=\"font-weight: 700\">Paperwork helps with documentation. It does not negotiate disagreements or represent you in court.</span></p>",
       "tagline": "<p><span style=\"font-weight: 700\">Turn what you’ve agreed into clear, organised documentation.</span></p><p>When the important decisions are already substantially agreed, Paperwork helps you turn thos",
       "body": [],
-      "image": "https://d1kf2rchz7yras.cloudfront.net/o/catalog/products/715d8d22fc9b499931ed83e2af17b2a7d4cb7720b1fddaf0bd6ed556661c236e.png",
+      "canonicalPath": "/shop/paperwork/",
+      "websiteEnabled": true,
+      "metaEnabled": true,
+      "image": "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/paperwork-4096.png",
       "variants": [
         {
           "id": "ac5cee5d-0dd1-4a1e-ac13-c3767d3fd8dd",
@@ -218,7 +242,7 @@
     },
     {
       "id": "7f3bbc75-02a4-4e4e-a023-e7074e87585f",
-      "name": "Referral Partner",
+      "name": "Referral",
       "slug": "referral-partner",
       "visible": true,
       "price": "999.00",
@@ -228,7 +252,10 @@
       "descriptionHtml": "<p><span style=\"font-weight: 700\">Make the introductions you already make count.</span></p><p>Someone asks you:</p><p><span style=\"font-weight: 700\">“Do you know someone who can help with this?”</span></p><p>You probably already have these conversations with clients, customers, businesses, friends, or people in your network.</p><p>Usually, you make the introduction and your part ends there.</p><p>Referral Partner gives the right introductions a way to create value for you too.</p><p>Join for a one-time <span style=\"font-weight: 700\">₹999 enrollment</span>. We activate your Referral Partner account and send your unique referral code and getting-started details to you on WhatsApp.</p><p>When you meet someone who could genuinely benefit from a WECARE.DIGITAL product or service, introduce them to us.</p><p>If that referral becomes qualifying business, you earn according to the applicable Referral Partner terms.</p><p><span style=\"font-weight: 700\">You bring the customer. WECARE.DIGITAL takes it from there.</span></p>",
       "tagline": "<p><span style=\"font-weight: 700\">Make the introductions you already make count.</span></p><p>Someone asks you:</p><p><span style=\"font-weight: 700\">“Do you know someone who can help with this?”</span",
       "body": [],
-      "image": "https://d1kf2rchz7yras.cloudfront.net/o/catalog/products/3b9f0dbdc5fb0e7765bcca95d0a83854a2e6cd41a47243010f2767c5d3b2aba8.png",
+      "canonicalPath": "/shop/referral-partner/",
+      "websiteEnabled": true,
+      "metaEnabled": true,
+      "image": "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/referral-4096.png",
       "variants": [
         {
           "id": "081aa95d-82e4-451c-80f2-bc076d1cdb4d",
@@ -249,6 +276,9 @@
       "descriptionHtml": "<p>Get help with your order, upload documents or access your Vault.</p>",
       "tagline": "<p>Get help with your order, upload documents or access your Vault.</p>",
       "body": [],
+      "canonicalPath": "/shop/wecaredigital-services/",
+      "websiteEnabled": true,
+      "metaEnabled": true,
       "image": "https://d1kf2rchz7yras.cloudfront.net/o/catalog/products/48f3153792ae44dc0010768e15c8e2f65b89c70f067b0203d9bc72101237da0b.png",
       "variants": [
         {
@@ -279,5 +309,5 @@
       ]
     }
   ],
-  "variantVerifiedAt": "2026-10-14T10:38:49.765Z"
+  "variantVerifiedAt": "2026-10-15T03:38:00.968Z"
 }
