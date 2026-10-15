@@ -28,6 +28,8 @@ Legend: `[x]` done and verified · `[~]` implemented, not deployed · `[ ]` not 
       Rollback file: `.scratch/iam-rollback/commerce-keys-iam-20261015T001739Z.json`.
 - [x] P0.4 Live check: `commerce-key-access` PASS (6 of 6 functions), see
       `docs/migrations/evidence/live-provider-independence-20261015.md`.
+- [ ] P0.5 Owner QA checkout of the ₹1 test product (needs a customer login and a real payment;
+      a 2026-10-15 probe showed the routes answer 401 without a session and 0 AccessDenied).
 
 ## Workstream A — Wix exit
 
@@ -72,8 +74,12 @@ Legend: `[x]` done and verified · `[~]` implemented, not deployed · `[ ]` not 
 ## Workstream C — Lightsail
 
 - [x] C.1 Toolkit repaired and tested (`tests/test_lightsail_nano_scripts.py`, 19 tests).
-- [x] C.2 Verdict NO-GO, keep Micro; capacity evidence INCOMPLETE (no guest memory data).
-- [ ] C.3 🔒 Approved host-access session to run `preflight.sh`; re-decide.
+- [x] C.2 Verdict NO-GO, keep Micro, now MEASURED: 273 MB used, 491 MB available of 916 MB, and
+      571 MB already in swap; disk 14 GB of 40 GB (`docs/migrations/evidence/lightsail-preflight-20261015.txt`).
+- [x] C.3 🔒 Approved host-access session ran `preflight.sh` 2026-10-15 01:00 UTC (port 22 for one IP,
+      short-lived certificate, closed afterwards).
+- [ ] C.4 🔒 Stop and disable the dead `sms-proxy.service` (Airtel proxy on :8899, still running)
+      and, if unused, Docker/containerd; then re-measure.
 
 ## Gate 7 — Cost
 
