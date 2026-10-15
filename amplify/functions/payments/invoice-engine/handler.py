@@ -101,7 +101,7 @@ INVOICES_TABLE = shared_tables.invoices_table_name()
 INVOICE_ITEMS_TABLE = shared_tables.invoice_items_table_name()
 INVOICE_SEQ_TABLE = shared_tables.invoice_sequence_table_name()
 INVOICE_ASSETS_TABLE = shared_tables.invoice_assets_table_name()
-INVOICE_DELIVERY_TABLE = os.environ.get('INVOICE_DELIVERY_TABLE', 'stack-wecare-digital-InvoiceDeliveryLogTable')
+INVOICE_DELIVERY_TABLE = shared_tables.invoice_delivery_table_name()
 PAYMENTS_TABLE = os.environ.get('PAYMENTS_TABLE', 'stack-wecare-digital-PaymentsTable')
 CONTACTS_TABLE = shared_tables.contacts_table_name()
 # Read through each store's own env key and default, so the invoice surface cannot end up
