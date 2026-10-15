@@ -57,21 +57,20 @@ interface SearchableNavLink extends NavLink {
  *
  * Structural headings stay on the existing small uppercase rung.
  * Every family and every destination uses the same 19px/600 navigation rung.
- * Elsewhere is a non-clickable family label; its children are the destinations.
+ * Product families can expose approved child destinations without inventing new routes.
  * Search is derived from this same graph.
  */
 const COLUMNS: NavColumn[] = [
   {
     sections: [
       {
-        heading: '',
+        heading: 'Shop',
         links: [
-          { label: 'Home', href: '/', match: '/' },
-          { label: 'Shop', href: '/shop/', match: '/shop' },
+          { label: 'Browse All', href: '/shop/', match: '/shop' },
         ],
       },
       {
-        heading: 'Products',
+        heading: 'Products 1 of 2',
         links: [
           { label: 'Grahak OS', href: '/grahak-os/', match: '/grahak-os' },
           { label: 'VayuLok', href: '/vayulok/', match: '/vayulok' },
@@ -80,9 +79,8 @@ const COLUMNS: NavColumn[] = [
             label: 'Elsewhere',
             searchTerms: [ 'travel' ],
             children: [
-              { label: 'Visa', href: '/elsewhere/visa/', match: '/elsewhere/visa', searchTerms: [ 'elsewhere' ] },
-              { label: 'Trip', href: '/elsewhere/trip/', match: '/elsewhere/trip', searchTerms: [ 'elsewhere', 'travel' ] },
-              { label: 'Activities', href: '/elsewhere/activities/', match: '/elsewhere/activities', searchTerms: [ 'elsewhere' ] },
+              { label: 'Visa Support', href: '/elsewhere/visa/', match: '/elsewhere/visa', searchTerms: [ 'elsewhere', 'visa' ] },
+              { label: 'Travel Support', href: '/elsewhere/trip/', match: '/elsewhere/trip', searchTerms: [ 'elsewhere', 'trip', 'travel' ] },
             ],
           },
           { label: 'Expo Week', href: '/expo-week/', match: '/expo-week' },
@@ -96,6 +94,15 @@ const COLUMNS: NavColumn[] = [
               { label: 'Legal Reference', href: '/dastavez/legal-reference/', match: '/dastavez/legal-reference', searchTerms: [ 'dastavez' ] },
             ],
           },
+        ],
+      },
+    ],
+  },
+  {
+    sections: [
+      {
+        heading: 'Products 2 of 2',
+        links: [
           {
             label: 'Clear Closure',
             href: '/clear-closure/',
@@ -111,8 +118,8 @@ const COLUMNS: NavColumn[] = [
             href: '/ritual-guru/',
             match: '/ritual-guru',
             children: [
-              { label: 'Puja Guidance', href: '/ritual-guru/puja-guidance/', match: '/ritual-guru/puja-guidance', searchTerms: [ 'ritual guru' ] },
               { label: 'DIY Puja Kit', href: '/ritual-guru/diy-puja-kit/', match: '/ritual-guru/diy-puja-kit', searchTerms: [ 'ritual guru' ] },
+              { label: 'Puja Guidance', href: '/ritual-guru/puja-guidance/', match: '/ritual-guru/puja-guidance', searchTerms: [ 'ritual guru' ] },
             ],
           },
           { label: 'Anew', href: '/anew/', match: '/anew' },
@@ -132,14 +139,8 @@ const COLUMNS: NavColumn[] = [
           { label: 'Request Amendment', href: '/request-amendment/', match: '/request-amendment' },
           { label: 'Drop Docs', href: '/drop-docs/', match: '/drop-docs' },
           { label: 'Vault', href: '/vault/', match: '/vault' },
-          {
-            label: 'Shipments',
-            searchTerms: [ 'track', 'pickup' ],
-            children: [
-              { label: 'Track', href: '/shipments/', searchTerms: [ 'shipments', 'tracking' ] },
-              { label: 'Pickup Request', href: '/request-pickup/', searchTerms: [ 'shipments', 'pickup' ] },
-            ],
-          },
+          { label: 'Request Pickup', href: '/request-pickup/', match: '/request-pickup' },
+          { label: 'Shipments', href: '/shipments/', match: '/shipments' },
           { label: 'Leave Review', href: '/leave-review/', match: '/leave-review' },
           { label: 'Subscribe', href: SUBSCRIBE_CTA_HREF, external: true },
         ],
@@ -151,15 +152,9 @@ const COLUMNS: NavColumn[] = [
       {
         heading: 'Refer & Earn',
         links: [
-          {
-            label: 'Partner',
-            searchTerms: [ 'refer', 'earn' ],
-            children: [
-              { label: 'Referral', href: '/shop/referral-partner/', searchTerms: [ 'partner', 'refer', 'earn' ] },
-              { label: 'Merchandise', href: '/shop/merchandise/', searchTerms: [ 'partner', 'refer', 'earn' ] },
-              { label: 'Kiosk', href: '/shop/kiosk/', searchTerms: [ 'partner', 'refer', 'earn' ] },
-            ],
-          },
+          { label: 'Merchandise', href: '/shop/merchandise/', searchTerms: [ 'refer', 'earn' ] },
+          { label: 'Kiosk', href: '/shop/kiosk/', searchTerms: [ 'refer', 'earn' ] },
+          { label: 'Referral', href: '/shop/referral-partner/', searchTerms: [ 'refer', 'earn' ] },
         ],
       },
       {
@@ -184,7 +179,6 @@ const COLUMNS: NavColumn[] = [
     ],
   },
 ];
-
 const flattenMenuLinks = (): SearchableNavLink[] => {
   const result: SearchableNavLink[] = [];
   const push = ( link: NavLink, inheritedTerms: string[] ) => {
@@ -237,7 +231,7 @@ const Header: React.FC = () => {
   const searching = term.length > 0;
 
   // Search results come only from the menu graph. Family and section names are inherited
-  // search terms, so "Elsewhere" returns Visa, Trip and Activities without a dead parent link.
+  // search terms, so "Elsewhere" returns Visa Support and Travel Support without a dead parent link.
   const filtered = useMemo( () => (
     searching ? MENU_SEARCH_LINKS.filter( link => link.searchText.includes( term ) ) : MENU_SEARCH_LINKS
   ), [ searching, term ] );
@@ -439,7 +433,7 @@ const Header: React.FC = () => {
                   { COLUMNS.map( ( column, columnIndex ) => (
                     <div key={ columnIndex } className="nav-col">
                       { column.sections.map( ( section, sectionIndex ) => {
-                        const isProducts = section.heading === 'Products';
+                        const isProducts = section.heading.startsWith( 'Products' );
                         const headingActive = Boolean(
                           section.headingHref && section.headingMatch && router.pathname === section.headingMatch
                         );
@@ -731,10 +725,10 @@ const Header: React.FC = () => {
         .nav-search::placeholder{color:rgba(0,0,0,.42)}
         .nav-search:focus-visible{border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470}
 
-        /* Three equal columns with minmax(0,1fr) rather than 1fr: a bare 1fr uses
+        /* Four equal columns with minmax(0,1fr) rather than 1fr: a bare 1fr uses
            min-content as its floor, so "Request Amendment" would force its column
            wider than a third and push the others narrow. */
-        .nav-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 20px;align-items:start}
+        .nav-cols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 20px;align-items:start}
         .nav-col{display:flex;flex-direction:column;gap:10px;min-width:0}
         .nav-results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px 20px}
 
@@ -865,7 +859,7 @@ const Header: React.FC = () => {
 
         /* The panel breaks to fewer columns before the columns get too narrow to hold
            "Request Amendment" on one line. Measured rather than guessed: at 19px/17px
-           the widest label needs ~210px of row, so three columns stop fitting inside
+           the widest label needs ~210px of row, so four columns stop fitting inside
            the 1252px measure once the viewport is under ~820px. */
         @media(max-width:1024px){.nav-cols,.nav-results{grid-template-columns:repeat(2,minmax(0,1fr))}}
         /* NOTE: .hdr-in must stay the first rule inside this media query - Header.test
