@@ -233,10 +233,13 @@ WD_LEAF_LINKS: Dict[str, Tuple[str, str]] = {
     'wd_amend': ('Request Amendment', '/request-amendment/'),
     'wd_drop_docs': ('Drop Docs', '/drop-docs/'),
     'wd_vault': ('Vault', '/vault/'),
-    'wd_shipments': ('Shipments', '/shipments/'),
+    'wd_track': ('Track', '/shipments/'),
+    'wd_pickup': ('Pickup Request', '/request-pickup/'),
     'wd_review': ('Leave Review', '/leave-review/'),
-    # Work with us
-    'wd_refer': ('Refer & Earn', '/refer-and-earn/'),
+    # Refer & Earn children
+    'wd_merchandise': ('Merchandise', '/shop/merchandise/'),
+    'wd_kiosk': ('Kiosk', '/shop/kiosk/'),
+    'wd_referral': ('Referral', '/shop/referral-partner/'),
     'wd_contact': ('Contact us', '/contact/'),
     'wd_perks': ('Perks', '/perks/'),
     # Legal
@@ -313,14 +316,44 @@ WD_LISTS: Dict[str, Dict[str, Any]] = {
             {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
         ],
     },
-    'wd_work': {
-        'body': 'Work with us',
+    'wd_shipments': {
+        'body': 'Shipments',
         'button': 'Open Menu',
-        'section': 'Work with us',
+        'section': 'Shipments',
+        'rows': [
+            {'id': 'wd_track', 'title': 'Track'},
+            {'id': 'wd_pickup', 'title': 'Pickup Request'},
+            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
+        ],
+    },
+    'wd_work': {
+        'body': 'Refer, perks and contact',
+        'button': 'Open Menu',
+        'section': 'More',
         'rows': [
             {'id': 'wd_refer', 'title': 'Refer & Earn'},
-            {'id': 'wd_contact', 'title': 'Contact us'},
             {'id': 'wd_perks', 'title': 'Perks'},
+            {'id': 'wd_contact', 'title': 'Contact us'},
+            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
+        ],
+    },
+    'wd_refer': {
+        'body': 'Refer & Earn',
+        'button': 'Open Menu',
+        'section': 'Refer & Earn',
+        'rows': [
+            {'id': 'wd_partner', 'title': 'Partner'},
+            {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
+        ],
+    },
+    'wd_partner': {
+        'body': 'Partner',
+        'button': 'Open Menu',
+        'section': 'Partner',
+        'rows': [
+            {'id': 'wd_merchandise', 'title': 'Merchandise'},
+            {'id': 'wd_kiosk', 'title': 'Kiosk'},
+            {'id': 'wd_referral', 'title': 'Referral'},
             {'id': 'wd_back', 'title': '\u2b05\ufe0f Back to menu'},
         ],
     },
