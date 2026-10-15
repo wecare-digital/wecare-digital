@@ -45,7 +45,7 @@ INVOICES = 'stack-wecare-digital-InvoicesTable'
 ITEMS = 'stack-wecare-digital-InvoiceItemsTable'
 DELIVERY = 'stack-wecare-digital-InvoiceDeliveryLogTable'
 CONTACTS = 'stack-wecare-digital-ContactsTable'
-KEYS = 'stack-wecare-digital-WixOrderIds'
+KEYS = 'stack-wecare-digital-CommerceKeys'
 ATTEMPTS = 'stack-wecare-digital-PaymentAttemptsTable'
 
 INVOICE_ID = 'inv-sendtruth-0001'

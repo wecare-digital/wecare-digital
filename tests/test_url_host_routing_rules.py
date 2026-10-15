@@ -512,7 +512,7 @@ def test_the_restored_shop_index_has_no_redirect_and_no_wildcard_near_a_product_
         "negative assertions above prove nothing - the predicate itself is broken"
     )
 
-    catalogue = json.loads((ROOT / "src/content/wix-catalog.json").read_text())
+    catalogue = json.loads((ROOT / "src/content/catalog-snapshot.json").read_text())
     slugs = [str(p["slug"]) for p in catalogue["products"] if p.get("slug")]
     assert slugs, (
         "no slugs were read from the catalogue snapshot, so the per-product loop below would "

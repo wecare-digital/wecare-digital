@@ -58,7 +58,7 @@ PROTECTED_IDS = [
     "invoices",             # financial record
     "payments",             # financial record
     "audit_logs",           # the audit trail itself
-    "wix_order_ids",        # payment idempotency anchors
+    "commerce_keys",        # payment idempotency anchors
     "whatsapp_inbox",       # customer messages
     "whatsapp_outbox",
     "submit_requests",      # flow submissions

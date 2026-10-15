@@ -120,7 +120,7 @@ def test_notification_document_and_review_sequence_is_once_only(vault_env,flow_m
     contacts=FakeTable(key_attr='id',name='contacts',indexes={'phone-index':('phone',None)})
     contacts.seed({'id':'c','phone':'+910000000000','checkoutCustomerId':ALICE,
                    'lastInboundMessageAt':int(time.time()) if open_window else 0})
-    tables={requests.name:requests, 'stack-wecare-digital-WixOrderIds':keys,
+    tables={requests.name:requests, 'stack-wecare-digital-CommerceKeys':keys,
             files.name:files,grants.name:grants,'stack-wecare-digital-ContactsTable':contacts}
     db=Mock();db.Table.side_effect=lambda name:tables[name]
     cognito=Mock();cognito.list_users.return_value={'Users':[{'Enabled':True,'Attributes':[
