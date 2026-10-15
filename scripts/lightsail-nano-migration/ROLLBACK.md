@@ -15,6 +15,10 @@ APPLY=1 CONFIRM=I-APPROVE-rollback ./rollback.sh  # move the IP back to the micr
 ./verify-nano.sh                                # 5061 open, CN=sip.wecare.digital, DNS matches
 ```
 
+After the IP is back on the micro, re-enable its timers there:
+`sudo systemctl enable --now certbot-renew.timer wecare-cert-check.timer` (and disable them on
+the nano), so certificate renewal and the daily cert check have one owner again.
+
 `sip.wecare.digital` resolves to the static IP, so moving the IP back restores the old
 path without a DNS change. The micro's Asterisk/SIP config is never modified by these
 scripts (the transfer only reads from it).
