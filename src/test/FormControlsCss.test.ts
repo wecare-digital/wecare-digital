@@ -128,6 +128,7 @@ describe( 'form-controls.css — invariant 4', () => {
       'src/pages/workspace/engage/logs/index.tsx',
       'src/pages/workspace/engage/push/index.tsx',
       'src/pages/workspace/engage/sms/index.tsx',
+      'src/pages/workspace/engage/voice-in/index.tsx',
       'src/pages/workspace/engage/whatsapp/migration.tsx',
       'src/pages/workspace/engage/whatsapp/templates.tsx',
       'src/pages/workspace/engage/whatsapp/waba-dashboard.tsx',
@@ -149,15 +150,15 @@ describe( 'form-controls.css — invariant 4', () => {
     // 83/41/29 to these figures is in this file's header, property by property.
     // 62 -> 64 ruleSets, 20 -> 21 files, 27 -> 28 geometry: ServiceBuyBox's .sbb-select adds the
     // file plus its two rule blocks (the box-property block is the geometry one).
-    expect( census.summary.ruleSets ).toBe( 64 );
-    expect( census.summary.files ).toBe( 21 );
-    expect( census.summary.geometryRuleSets ).toBe( 28 );
+    expect( census.summary.ruleSets ).toBe( 65 );
+    expect( census.summary.files ).toBe( 22 );
+    expect( census.summary.geometryRuleSets ).toBe( 29 );
     // A-global, A-module and C-injected are UNCHANGED from 1.3a. Only mechanism B moved, and
     // only because elements moved - so a regression in the global stylesheets still fails here.
     expect( census.summary.mechanisms[ 'A-global' ] ).toMatchObject( { ruleSets: 40, files: 8 } );
     expect( census.summary.mechanisms[ 'A-module' ] ).toMatchObject( { ruleSets: 0, files: 0 } );
     // 19 -> 21 ruleSets, 10 -> 11 files: ServiceBuyBox's styled-jsx .sbb-select (block + focus).
-    expect( census.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 21, files: 11 } );
+    expect( census.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 22, files: 12 } );
     expect( census.summary.mechanisms[ 'C-injected' ] ).toMatchObject( { ruleSets: 3, files: 2 } );
 
     // The allow-list entry for tokens.css no longer covers its `input, textarea` base rule, and
@@ -216,7 +217,7 @@ describe( 'form-controls.css — invariant 4', () => {
     expect( phone ).toMatch( /min-width:\s*var\(--tap-target\)/ );
   } );
 
-  it( '7. the current pairing count is 19', () => {
+  it( '7. the current pairing count is 20', () => {
     // A pairing rule is a geometry rule whose selector list names BOTH an input and a select, so
     // form-controls.css reaches one half of it and not the other - which is the criterion the
     // design uses to decide rewrite-versus-accept. It was 22 before this batch; tokens.css's
@@ -228,7 +229,7 @@ describe( 'form-controls.css — invariant 4', () => {
     // still a pairing, and still counted, because the input half is live.
     // A TWENTY-SECOND means a new pairing exists whose accept-versus-rewrite decision has not
     // been taken rather than inherited.
-    expect( census.summary.pairings ).toBe( 19 );
+    expect( census.summary.pairings ).toBe( 20 );
   } );
 
   it( '8. every global rule setting a border width or radius on a select sets 2px and 13px', () => {
@@ -368,7 +369,6 @@ describe( 'form-controls.css — invariant 4', () => {
     // very file it exists to protect.
     expect( cbr.files ).toEqual( [
       'src/pages/workspace/engage/sms/index.tsx',
-      'src/pages/workspace/engage/voice-in/index.tsx',
       'src/styles/Dashboard.css',
       'src/styles/Layout.css',
       'src/styles/Pages.css',
@@ -383,12 +383,12 @@ describe( 'form-controls.css — invariant 4', () => {
     // BlogContribution's radio = 24. form-controls.css's 9 are: the shared drawn box, the
     // checkbox radius, the radio radius, :hover, checkbox :checked, radio :checked,
     // :indeterminate, :focus, and the <=768px floor.
-    expect( cbr.summary.ruleSets ).toBe( 24 );
-    expect( cbr.summary.files ).toBe( 9 );
-    expect( cbr.summary.geometryRuleSets ).toBe( 15 );
+    expect( cbr.summary.ruleSets ).toBe( 22 );
+    expect( cbr.summary.files ).toBe( 8 );
+    expect( cbr.summary.geometryRuleSets ).toBe( 14 );
     expect( cbr.summary.mechanisms[ 'A-global' ] ).toMatchObject( { ruleSets: 21, files: 7 } );
     expect( cbr.summary.mechanisms[ 'A-module' ] ).toMatchObject( { ruleSets: 0, files: 0 } );
-    expect( cbr.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 3, files: 2 } );
+    expect( cbr.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 1, files: 1 } );
     expect( cbr.summary.mechanisms[ 'C-injected' ] ).toMatchObject( { ruleSets: 0, files: 0 } );
     // NO class-resolved hits left: all five were BlogContribution's `.bc-radio` rules, which went
     // with the amount pill. If this moves off 0, a class worn by a checkbox or radio gained a
