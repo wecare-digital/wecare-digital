@@ -69,7 +69,6 @@ DLQ_NAME = QUEUE_NAME + "-dlq"
 
 #: SQS's own hard limit on `SendMessageBatch`. Not a tuning choice.
 SEND_BATCH = 10
-MAX_BULK_ITEMS = 1000
 
 #: The event source mapping's batch size and concurrency cap. Small batches on purpose: a
 #: 40 MB PDF can take seconds, and a batch of ten of them risks the visibility timeout, at which
@@ -99,8 +98,6 @@ def configured() -> bool:
 def _send_payloads(payloads: Sequence[Dict[str, Any]], event_name: str) -> Dict[str, Any]:
     if not payloads:
         return {"queued": 0, "failed": 0, "configured": configured()}
-    if len(payloads) > MAX_BULK_ITEMS:
-        raise ValueError(f"at most {MAX_BULK_ITEMS} queue items per request")
     if not configured():
         return {"queued": 0, "failed": 0, "configured": False}
 
