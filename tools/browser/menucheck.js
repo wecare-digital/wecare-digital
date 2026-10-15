@@ -64,7 +64,13 @@ const fail = ( message ) => { throw new Error( message ); };
           return { label: node.getAttribute( 'aria-label' ) || node.textContent || node.tagName, w: rect.width, h: rect.height };
         } )
       );
-      const undersized = touchTargets.filter( item => item.h < 44 || item.w < 32 );
+      // Browser layout APIs can report a CSS 44px target as 43.99999px due to
+      // sub-pixel floating-point rounding (observed in WebKit on the 320px viewport).
+      // Keep the accessibility contract at 44x32 CSS px while allowing a tiny numeric epsilon.
+      const TARGET_EPSILON = 0.01;
+      const undersized = touchTargets.filter(
+        item => item.h < 44 - TARGET_EPSILON || item.w < 32 - TARGET_EPSILON
+      );
       if ( undersized.length ) fail( `${viewport.name}: undersized header targets ${JSON.stringify( undersized )}` );
 
       const partner = page.locator( '.nav-tree-item', { hasText: 'Partner' } ).first();
