@@ -236,7 +236,7 @@ response = requests.post(
           every other public page resolved `main`. The class is unchanged, so no CSS moves. */}
       <main className="page">
 
-        <section className={`hero anim ${armed ? 'is-armed' : <RotatingHero
+        <RotatingHero
           insideMain
           noShare
           ariaLabel="Grahak OS"
