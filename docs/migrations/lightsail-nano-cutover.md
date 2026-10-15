@@ -1,6 +1,6 @@
 # Lightsail Nano cutover
 
-## State on 2026-10-15 03:25 UTC: Nano built and verified, cutover NOT done
+## Built 2026-10-15 03:25 UTC; CUT OVER 2026-10-15 03:39 UTC (owner-approved)
 
 | | Micro (production) | Nano (candidate) |
 | --- | --- | --- |
@@ -28,26 +28,37 @@ Micro over the private network.
 to `/root/captures` (mode 600). Asterisk logs had grown to 2.4 GB with no rotation; the Nano has a
 logrotate rule.
 
-## Cutover (🔒 needs owner approval)
+## Cutover result (2026-10-15 03:39 UTC)
 
-1. Pick a quiet moment: `asterisk -rx 'core show channels count'` shows 0 active calls on the Micro.
-2. `APPLY=1 CONFIRM=I-APPROVE-cutover PRECUTOVER_VERIFIED=1 ./migrate-workload.sh --cutover`
-   stops renewal and the cert check on the Micro, moves `wecare-static-ip` to the Nano (about a
-   minute), then starts both timers on the Nano. `sip.wecare.digital` follows the IP; no Meta
-   setting, phone number or WABA registration changes.
-3. `./verify-nano.sh`: 5061 open, CN `sip.wecare.digital`, DNS equals the static IP.
-4. Owner places a real WhatsApp call: two-way audio, IVR prompt heard, call log in
-   `wecare-whatsapp-calling`.
-5. Keep the Micro running about a week. Then 🔒 delete it; only then is the $2/month saving real.
+- Pre-checks: recovery snapshot available, static IP on the Micro, 0 active calls on the Micro,
+  Nano Asterisk active with 5061 listening.
+- Renewal and cert-check timers stopped on the Micro, `wecare-static-ip` moved to the Nano in
+  8 seconds, timers started on the Nano (next certbot run 2026-10-15 15:42 UTC). The script was
+  ready to re-attach the IP to the Micro automatically if the attach had failed.
+- `verify-nano.sh` against live: 5061 open, CN `sip.wecare.digital` (to 2026-11-18), static IP
+  attached to `wecare-voice-bot-nano`, DNS `sip.wecare.digital` -> `52.3.44.165`.
+- Nano after cutover: Asterisk active, 0 calls, 174 MB used of 419 MB, swap 22 MB in use.
+  Its log's ERROR lines are one-time "unable to load optional config file" messages from
+  modules with no config (the same `/etc/asterisk` as the Micro); no runtime errors.
+- `wecare-whatsapp-calling` errors since cutover: 0.
+- The Micro keeps running on a new temporary IP (`100.52.177.46`) as the rollback target, its
+  Asterisk untouched and its timers off.
+
+## Still to do
+
+1. Owner places one real WhatsApp call: two-way audio, IVR prompt heard, call log in
+   `wecare-whatsapp-calling`. (Meta only sends SIP when a customer calls, so this cannot be
+   self-tested.)
+2. If anything is wrong: `APPLY=1 CONFIRM=I-APPROVE-rollback ./rollback.sh`, then re-enable the
+   two timers on the Micro (`ROLLBACK.md`).
+3. After about a week clean: 🔒 `aws lightsail delete-instance --instance-name wecare-voice-bot`
+   (the 2026-10-07 snapshot remains for deep rollback), then rotate the `asterisk-ivr-service`
+   keys now on the Nano, and change `scripts/aws_cost_model.py` to read the Nano bundle.
+4. `/root/captures/waba-test-5061-20261007.pcap` (459 MB) exists only on the Micro; it goes with
+   the Micro unless the owner wants it kept.
 
 ## Rollback
 
-`APPLY=1 CONFIRM=I-APPROVE-rollback ./rollback.sh` moves the static IP back to the Micro, whose
-Asterisk was never changed. Then re-enable the two timers on the Micro (see `ROLLBACK.md`).
-
-## Before deleting the Micro
-
-- The stored AWS keys (`ec2-user` profile = IAM user `asterisk-ivr-service`, and the asterisk
-  user's own profile used by `ivr_engine.py` for Lambda, Polly and S3) came across with the copy.
-  Lightsail has no instance roles, so keys stay, but rotate them and confirm least privilege.
-- `/root/captures/waba-test-5061-20261007.pcap` (459 MB) is only on the Micro. Keep or delete it.
+`APPLY=1 CONFIRM=I-APPROVE-rollback ./rollback.sh` moves the static IP back to the Micro. Then
+re-enable `certbot-renew.timer` and `wecare-cert-check.timer` on the Micro and disable them on the
+Nano (`ROLLBACK.md`).
