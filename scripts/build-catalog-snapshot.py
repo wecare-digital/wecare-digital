@@ -103,7 +103,7 @@ def to_shop_product(item: Dict[str, Any]) -> Dict[str, Any]:
         "body": [str(b) for b in body],
         "canonicalPath": str(item.get("canonicalPath") or ("/shop/" + str(item.get("slug", "")) + "/")),
         "websiteEnabled": item.get("websiteEnabled") is not False,
-        "metaEnabled": item.get("metaEnabled") is True,
+        "metaEnabled": item.get("metaEnabled") is not False,
     }
     images = item.get("imageRefs") or []
     if images:

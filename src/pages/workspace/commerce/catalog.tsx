@@ -155,7 +155,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
     setEditCatalogImageKey(p.catalogImageKey || '');
     setEditCanonicalPath(p.canonicalPath || ('/shop/' + p.slug + '/'));
     setEditWebsiteEnabled(p.websiteEnabled !== false);
-    setEditMetaEnabled(p.metaEnabled === true);
+    setEditMetaEnabled(p.metaEnabled !== false);
     setDrafts(Object.fromEntries((p.variants || []).map(v => [v.sku, {
       label: v.label || 'Standard',
       price: (v.priceMinor / 100).toFixed(2),
