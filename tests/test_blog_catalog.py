@@ -49,7 +49,7 @@ def test_sync_writes_public_catalog_and_secure_master(monkeypatch):
                         lambda record_type, **kwargs: rows.get(record_type, []))
 
     result = blog_catalog.sync()
-    assert result["maxBulkItems"] == 1000
+    assert result["unlimitedBulk"] is True
     assert blog_catalog.CATALOG_INDEX_KEY in s3.objects
     assert blog_catalog.PRODUCTION_MASTER_KEY in s3.objects
     assert blog_catalog.CATALOG_INDEX_KEY.startswith("o/blog-production/")
