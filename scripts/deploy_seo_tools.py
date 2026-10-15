@@ -36,28 +36,15 @@ DEDUP_TABLE = "stack-wecare-digital-WebhookDedup"
 ROLE_NAME = "wecare-digital-lambda-role"
 ROLE_ARN = f"arn:aws:iam::{ACCOUNT}:role/{ROLE_NAME}"
 
-#: Where uploaded blog source PDFs land: the existing `wecare-digital-get` bucket, under a
-#: new prefix on the PUBLIC root. No bucket is created by this script.
+#: Blog Production uses ONE existing bucket and two deliberately different roots.
 #:
-#: `o/` is public - CloudFront E2GP22R4BIFGQ3 serves it at `https://wecare.digital/get/o/...`
-#: with no authentication - while `secure/` is denied at the edge. This began as
-#: `secure/blog-src/` and moved to `o/` on owner instruction, confirmed a second time on
-#: 2026-09-29 to cover derived artefacts as well as sources. The exposure is bounded but
-#: real: keys are content hashes or record ids so they cannot be guessed, and listing is not
-#: public (all four public-access-block settings are on, and the bucket policy grants
-#: s3:GetObject only to the CloudFront service principal) - but every document here,
-#: including its extracted text, is readable by anyone holding the URL. These are
-#: third-party books and articles, so treat the URL as the secret.
-#:
-#: Declared above ENV_VARS because ENV_VARS reads it.
+#: Internal working material belongs under secure/blog-production/: source PDFs, extracted
+#: text, analyses, working articles, QA, repetition, publish records and verification.
+#: Public output belongs under o/blog-production/: only published post mirrors and the
+#: catalog index. No bucket is created by this script.
 SOURCE_BUCKET = "wecare-digital-get"
-#: The whole Blog Production tree. Renamed from `o/blog-src/` on 2026-09-29 while the prefix
-#: held ZERO objects, which made it a constant change rather than a data migration - and that
-#: was the last moment at which it was free. The IAM statement below is scoped to this root,
-#: so every sub-prefix (sources/, extracted/, qa/, publish-records/, verification/) is
-#: covered without widening to the bucket.
-SOURCE_PREFIX = "o/blog-production/"
-SECURE_MASTER_PREFIX = "secure/blog-production/"
+PUBLIC_BLOG_PREFIX = "o/blog-production/"
+SECURE_BLOG_PREFIX = "secure/blog-production/"
 
 #: Pure-python wheel, no compiled parts, so it zips straight into the function package -
 #: no layer, no Amazon Linux cross-compile. Pinned, and the same version
@@ -74,8 +61,8 @@ ENV_VARS = {
     "WEBHOOK_DEDUP_TABLE": DEDUP_TABLE,
     "BEDROCK_MODEL_ID": "global.anthropic.claude-sonnet-4-6",
     "COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",
-    # Blog Production storage, into the existing bucket under o/blog-production/. See
-    # SOURCE_PREFIX above for what `o/` being the public root means for these documents.
+    # Blog Production storage uses the existing bucket. Runtime code splits internal
+    # artifacts under secure/blog-production/ from public projections under o/blog-production/.
     "BLOG_SOURCE_BUCKET": SOURCE_BUCKET,
     # AI drafting costs money per call, so it is a cost flag rather than always-on.
     # Enabled here because this function ALREADY invokes Bedrock for ai-seo-audit and
@@ -340,33 +327,22 @@ def _vendor_pypdf(z: zipfile.ZipFile) -> int:
 
 
 def ensure_blog_source_perms() -> None:
-    """Additive inline policy for the blog source intake: S3 on one prefix, self-invoke.
+    """Grant the blog pipeline only its public-output and private-working prefixes.
 
-    Scoped as narrowly as the two capabilities allow, because this role is SHARED by the
-    whole fleet - a wildcard here would widen every other function too.
-
-    - S3 is limited to the public `o/blog-production/*` tree plus the internal
-      `secure/blog-production/*` production-master snapshot in the same bucket, and to the
-      pipeline uses. No DeleteObject: nothing here deletes a source, and a source is the
-      provenance record for a published article. Note this grants WRITE on a prefix of the
-      public root, so the blast radius of a bug in key construction is "publishes a file
-      publicly" rather than "overwrites something" - which is why every key is derived from a
-      content hash or a record id and cannot collide with the 273 existing objects under `o/`.
-    - lambda:InvokeFunction is limited to THIS function, which is all the async worker
-      hand-off needs. The worker is reached only through IAM, so this statement is also the
-      thing that makes the `blogWorker` branch in the handler unreachable from the internet.
+    The role may read/write both blog-production roots because one Lambda owns intake,
+    extraction, QA and public mirroring. It still has no bucket-wide grant and no DeleteObject.
     """
     iam = boto3.client("iam")
     policy = {
         "Version": "2012-10-17",
         "Statement": [
             {
-                "Sid": "BlogSourceObjects",
+                "Sid": "BlogProductionObjects",
                 "Effect": "Allow",
                 "Action": ["s3:PutObject", "s3:GetObject", "s3:HeadObject"],
                 "Resource": [
-                    f"arn:aws:s3:::{SOURCE_BUCKET}/{SOURCE_PREFIX}*",
-                    f"arn:aws:s3:::{SOURCE_BUCKET}/{SECURE_MASTER_PREFIX}*",
+                    f"arn:aws:s3:::{SOURCE_BUCKET}/{PUBLIC_BLOG_PREFIX}*",
+                    f"arn:aws:s3:::{SOURCE_BUCKET}/{SECURE_BLOG_PREFIX}*",
                 ],
             },
             {

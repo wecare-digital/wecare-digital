@@ -326,11 +326,13 @@ def _pdf_entry(payload: bytes, name: str = "given-word.pdf") -> Dict[str, Any]:
 
 # ── Prefix and bucket: the owner's instruction, asserted ────────────────────────
 
-def test_uploads_go_to_the_existing_bucket_under_the_public_root():
+def test_uploads_go_to_the_existing_bucket_under_the_secure_root():
     import blog_sources as bs
     assert bs.BUCKET == "wecare-digital-get"
-    assert bs.ROOT_PREFIX == "o/blog-production/"
-    assert bs.PREFIX == "o/blog-production/sources/pdf/"
+    assert bs.PUBLIC_ROOT_PREFIX == "o/blog-production/"
+    assert bs.SECURE_ROOT_PREFIX == "secure/blog-production/"
+    assert bs.ROOT_PREFIX == bs.SECURE_ROOT_PREFIX
+    assert bs.PREFIX == "secure/blog-production/sources/pdf/"
 
 
 def test_every_prefix_sits_under_the_one_root():
@@ -344,11 +346,11 @@ def test_every_prefix_sits_under_the_one_root():
             assert value.endswith("/"), f"{name} must be a prefix, not a key"
 
 
-def test_no_prefix_is_hand_built_from_a_literal():
-    """`media_paths` asks for keys to be composed through it, and the o/ prefix is
-    load-bearing: 61 Meta-approved template URLs name it and cannot be edited in place."""
+def test_roots_are_composed_through_media_paths():
+    """Public output and private working material must use the shared root contract."""
     source = (ROOT / "amplify/functions/operations/seo-tools/blog_sources.py").read_text()
-    assert "media_paths.public(" in source
+    assert 'media_paths.public("blog-production")' in source
+    assert 'media_paths.secure("blog-production")' in source
 
 
 def test_no_code_path_creates_a_bucket():
@@ -360,24 +362,36 @@ def test_no_code_path_creates_a_bucket():
         assert "CreateBucket" not in source, path
 
 
-def test_the_iam_policy_is_scoped_to_the_one_prefix():
+def test_the_iam_policy_is_scoped_to_the_two_blog_prefixes():
     source = (ROOT / "scripts/deploy_seo_tools.py").read_text(encoding="utf-8")
-    assert 'SOURCE_PREFIX = "o/blog-production/"' in source
-    assert '{SOURCE_BUCKET}/{SOURCE_PREFIX}*' in source
-    # A write grant on the whole bucket would reach the 249 existing public objects.
+    assert 'PUBLIC_BLOG_PREFIX = "o/blog-production/"' in source
+    assert 'SECURE_BLOG_PREFIX = "secure/blog-production/"' in source
+    assert '{SOURCE_BUCKET}/{PUBLIC_BLOG_PREFIX}*' in source
+    assert '{SOURCE_BUCKET}/{SECURE_BLOG_PREFIX}*' in source
+    # A write grant on the whole bucket would reach unrelated customer/media objects.
     assert f'arn:aws:s3:::{{SOURCE_BUCKET}}/*' not in source
 
 
-def test_an_uploaded_source_gets_an_apex_url():
+def test_an_uploaded_source_has_no_permanent_public_url():
     import blog_sources as bs
-    url = bs.source_url(bs.PREFIX + "a" * 64 + ".pdf")
-    assert url.startswith("https://wecare.digital/get/o/blog-production/sources/pdf/")
+    assert bs.source_url(bs.PREFIX + "a" * 64 + ".pdf") == ""
 
 
 def test_a_gated_key_yields_no_url_rather_than_a_dead_one():
     import blog_sources as bs
     assert bs.source_url("secure/u/x.pdf") == ""
     assert bs.source_url("") == ""
+
+
+def test_source_detail_mints_a_short_lived_secure_download_url(env):
+    payload = sample_pdf()
+    source_id, key = _registered(env, payload)
+    env["s3"].objects[key] = payload
+    detail = env["bs"].source_detail(source_id)
+    assert detail["sourceUrl"].startswith(
+        "https://s3.example/secure/blog-production/sources/pdf/")
+    assert detail["sourceUrlExpiresInSeconds"] == env["bs"].UPLOAD_URL_TTL
+    assert env["s3"].presigned[-1]["operation"] == "get_object"
 
 
 # ── Registration and resolve-before-generate ────────────────────────────────────
@@ -389,7 +403,7 @@ def test_register_presigns_a_put_per_pdf(env):
         "admin", q.CATEGORIES)
     assert len(result["sources"]) == 1
     entry = result["sources"][0]
-    assert entry["uploadUrl"].startswith("https://s3.example/o/blog-production/sources/pdf/")
+    assert entry["uploadUrl"].startswith("https://s3.example/secure/blog-production/sources/pdf/")
     assert entry["status"] == "PENDING_UPLOAD"
     assert env["s3"].presigned[0]["operation"] == "put_object"
     assert env["s3"].presigned[0]["ContentType"] == "application/pdf"

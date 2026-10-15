@@ -44,55 +44,46 @@ logger = logging.getLogger(__name__)
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 FUNCTION_NAME = os.environ.get("AWS_LAMBDA_FUNCTION_NAME", "wecare-seo-tools")
 
-#: THE PUBLIC ROOT, BY OWNER INSTRUCTION, AND THE CONSEQUENCE IS REAL.
+#: BLOG PRODUCTION HAS TWO ROOTS, AND THEY ARE A SECURITY BOUNDARY.
 #:
-#: `o/` is the public root of this bucket: CloudFront distribution E2GP22R4BIFGQ3 serves it
-#: at `https://wecare.digital/get/o/...` with no authentication. `secure/` is the gated root,
-#: denied wholesale at the edge. This prefix began as `secure/blog-src/` and was moved to
-#: `o/` on owner instruction, confirmed a second time on 2026-09-29 to cover derived
-#: artefacts too - so a source document AND its extracted text are fetchable by anyone who
-#: has the URL.
+#: Raw source documents, extracts and every pre-publication artifact are internal working
+#: material. They can contain copyrighted books, private documents, attribution notes,
+#: unpublished drafts and QA evidence, so they belong under `secure/blog-production/`.
 #:
-#: What limits the exposure, stated so nobody over-credits it:
-#:   - Keys are content hashes or record ids, so they are not guessable and not derivable
-#:     from the filename.
-#:   - Bucket listing is not public - all four public-access-block settings are on and the
-#:     bucket policy grants s3:GetObject only to the CloudFront service principal.
-#: So a source is unlisted-but-public: safe from enumeration, not safe once a URL leaks.
+#: Only intentionally public outputs belong under `o/blog-production/`: the published-post
+#: mirror and the catalog index. `blog_catalog.py` uses PUBLIC_ROOT_PREFIX for those two.
 #:
-#: That matters because these are third-party documents - books, journal articles, pages -
-#: and a public URL is a public copy. If that becomes unacceptable, the fix is to move the
-#: prefix back under `secure/` and let the existing edge deny cover it; nothing else in this
-#: module has to change, because the key is composed through `media_paths` below.
+#: This split was approved on 2026-10-15 after the first real Conversations source exposed
+#: the practical risk in the old layout: its copyright notice explicitly prohibited posting
+#: the electronic file on the web. Unlisted public URLs are still public URLs, so hash-based
+#: names are not an adequate access-control boundary.
 BUCKET = os.environ.get("BLOG_SOURCE_BUCKET", os.environ.get("SECURE_FILES_BUCKET", "wecare-digital-get"))
 
-#: Composed through `media_paths` rather than hand-built, which that module explicitly asks
-#: for: "Keep composing keys through `public` and `secure` rather than hand-building them."
-#: It also documents why `o/` is load-bearing and cannot simply be dropped.
-#:
-#: Renamed from `o/blog-src/` to `o/blog-production/` on 2026-09-29, while the prefix held
-#: ZERO objects. That made it a constant change rather than a data migration, and it is the
-#: last moment at which that was true.
 try:
     from lambda_utils import media_paths
-    ROOT_PREFIX = media_paths.public("blog-production") + "/"
+    PUBLIC_ROOT_PREFIX = media_paths.public("blog-production") + "/"
+    SECURE_ROOT_PREFIX = media_paths.secure("blog-production") + "/"
 except ImportError:  # pragma: no cover - media_paths ships in every package
-    ROOT_PREFIX = "o/blog-production/"
+    PUBLIC_ROOT_PREFIX = "o/blog-production/"
+    SECURE_ROOT_PREFIX = "secure/blog-production/"
 
-#: The layout recorded in `.kiro/steering/blog-production-s3.md`. One place, so a key is
-#: never assembled from a literal at a call site.
-PREFIX = ROOT_PREFIX + "sources/pdf/"
-URL_PREFIX = ROOT_PREFIX + "sources/url/"
-EXTRACT_PREFIX = ROOT_PREFIX + "extracted/"
-ANALYSIS_PREFIX = ROOT_PREFIX + "source-analysis/"
-WORKING_PREFIX = ROOT_PREFIX + "article-working/"
-QA_PREFIX = ROOT_PREFIX + "qa/"
+#: Backwards-compatible name for internal pipeline modules. All source and working artifacts
+#: are secure; public projections must use PUBLIC_ROOT_PREFIX explicitly.
+ROOT_PREFIX = SECURE_ROOT_PREFIX
+
+#: Internal layout. One place, so a key is never assembled from a literal at a call site.
+PREFIX = SECURE_ROOT_PREFIX + "sources/pdf/"
+URL_PREFIX = SECURE_ROOT_PREFIX + "sources/url/"
+EXTRACT_PREFIX = SECURE_ROOT_PREFIX + "extracted/"
+ANALYSIS_PREFIX = SECURE_ROOT_PREFIX + "source-analysis/"
+WORKING_PREFIX = SECURE_ROOT_PREFIX + "article-working/"
+QA_PREFIX = SECURE_ROOT_PREFIX + "qa/"
 #: Collection-level repetition, which is a property of a BATCH rather than of one article, so it
 #: gets its own prefix keyed on the batch rather than living under `qa/`.
-REPETITION_PREFIX = ROOT_PREFIX + "repetition/"
-PUBLISH_PREFIX = ROOT_PREFIX + "publish-records/"
-VERIFY_PREFIX = ROOT_PREFIX + "verification/"
-FAILURE_PREFIX = ROOT_PREFIX + "failures/"
+REPETITION_PREFIX = SECURE_ROOT_PREFIX + "repetition/"
+PUBLISH_PREFIX = SECURE_ROOT_PREFIX + "publish-records/"
+VERIFY_PREFIX = SECURE_ROOT_PREFIX + "verification/"
+FAILURE_PREFIX = SECURE_ROOT_PREFIX + "failures/"
 
 #: THE EXTRACT LIVES IN S3, NOT IN THE ITEM, AND THE REASON IS A HARD LIMIT.
 #:
@@ -282,16 +273,11 @@ def list_sources(limit: int = 500) -> List[Dict[str, Any]]:
 
 
 def source_url(key: str) -> str:
-    """The apex URL for an uploaded source, or "" when there is no key.
+    """Return a permanent public URL only for a genuinely public key.
 
-    Only meaningful because the prefix is on the public root: a reviewer working through the
-    quality standard has to read the source, and section 2 is explicit that an article may
-    not be built from a title or an excerpt. Handing them a one-click link to the actual
-    document is the difference between that rule being followed and being ticked.
-
-    Returns "" for a gated key rather than a URL that would 403, which is what
-    `media_paths.public_url` already does for exactly this reason - so if the prefix is ever
-    moved back under `secure/`, this degrades to no link instead of a dead one.
+    Production source keys are now under `secure/`, so this intentionally returns an empty
+    string for them. Batch/list responses must never contain bearer-style download URLs.
+    The authenticated single-source detail route adds a short-lived presigned URL instead.
     """
     if not key:
         return ""
@@ -300,6 +286,18 @@ def source_url(key: str) -> str:
         return media_paths.public_url(key)
     except ImportError:  # pragma: no cover
         return ""
+
+
+def source_download_url(record: Dict[str, Any]) -> str:
+    """Short-lived GET URL for an authenticated reviewer of one uploaded PDF."""
+    key = str(record.get("s3Key") or "").strip()
+    if not key or str(record.get("sourceType") or "") != "pdf":
+        return ""
+    return s3_client().generate_presigned_url(
+        "get_object",
+        Params={"Bucket": BUCKET, "Key": key},
+        ExpiresIn=UPLOAD_URL_TTL,
+    )
 
 
 def _view(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -942,6 +940,10 @@ def source_detail(record_id: str) -> Dict[str, Any]:
     if not record:
         raise LookupError("Unknown sourceId")
     view = _view(record)
+    # The list view never gets a bearer download URL. This authenticated one-record route
+    # may mint a short-lived GET URL so a reviewer can still read the original PDF.
+    view["sourceUrl"] = source_download_url(record)
+    view["sourceUrlExpiresInSeconds"] = UPLOAD_URL_TTL if view["sourceUrl"] else 0
     # Fetched from S3 rather than read off the item, because the item does not hold it.
     view["sourceExtract"] = read_extract(record)
     view["extractKey"] = str(record.get("extractKey") or "")
