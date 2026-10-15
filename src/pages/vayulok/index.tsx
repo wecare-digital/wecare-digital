@@ -34,7 +34,7 @@
  * So the rotation is no longer a pure statement of what is built. When the two
  * endpoints land, delete this caveat.
  *
- * Mechanism is lifted from the Grahak OS hero so the two pages animate identically:
+ * The hero is the shared RotatingHero, as on Grahak OS, so the two pages animate identically:
  * measured width so the pill resizes instead of snapping, a pale tint with a
  * saturated dot of the same hue swapping with the word, and the same easing and
  * 2400ms interval. The four tint/dot pairs are reused verbatim from that page - no
@@ -46,10 +46,10 @@
  * HTTP 200 - a 404 that does not look like one. next.config.js also sets
  * trailingSlash, so the URL is /vayulok/ with the slash.
  *
- * The rotating markup MUST stay inline in the return tree. styled-jsx only attaches
- * its scoping class to elements it can statically see there, so lifting the pill into
- * a variable or a child component silently drops every style and the words render
- * stacked with no pill. This is documented on the Grahak OS hero after it happened.
+ * The globe markup passed as RotatingHero's `visual` MUST stay inline in this return
+ * tree. styled-jsx only attaches its scoping class to elements it can statically see
+ * there, which is what lets .vl-hero-visual below style it; lifting it into a variable
+ * or a child component silently drops those rules.
  *
  * Every class is vl- prefixed, following pp- on the Grahak OS page and ft- in the
  * Footer. The globally imported src/styles/*.css declares unscoped rules for generic
@@ -192,26 +192,8 @@ const VayuLokPage: React.FC = () => {
       <style jsx>{`
         .vl-share-wrap{width:100%;max-width:1300px;margin:0 auto;padding:0 24px 48px;box-sizing:border-box}
         @media(max-width:767px){ .vl-share-wrap{padding:0 16px 40px} }
-        /* Header is fixed at 108px, 96px under 767px - the same offsets the home
-           page uses, so the two public shells start at the same place.
-           The font stack is declared rather than inherited, matching .page on
-           /grahak-os/ and .home-shell. The declaration stays; the reason beside it was
-           wrong and is corrected. It said the typeface came "only via the body rule in
-           @aws-amplify/ui-react's styles.css" and that Pages.css's --font-sans "has no
-           Inter in it". Measured: body's computed family is Layout.css:116's
-           'Inter', ui-sans-serif, system-ui, … and Pages.css:60 starts with 'Inter'.
-           The Amplify stylesheet is not a global import any more - see
-           src/styles/amplify-base.css. */
-        /* No min-height: the hero used to fill the viewport when it was the whole
-           page, but the live VayuLok section now renders directly below it, so a
-           forced 100vh left a ~240px empty band between the hero content and the
-           live content. The hero is now only as tall as its content; padding-top
-           still clears the fixed header. */
-        .vl-shell{padding-top:108px;box-sizing:border-box;background:#fff;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1a1a}
-        /* No flex gap: the only gap in the page is under the badge and .vl-eyebrow
-           owns it. A column gap would apply to nothing and quietly mislead whoever
-           adds the second element. */
-        .vl-layout{width:100%;max-width:1300px;margin:0 auto;padding:80px 24px 48px;box-sizing:border-box}
+        /* The hero's shell, headline, badge spacing and subtext are RotatingHero's own rh-*
+           rules. This page keeps only what is its own: the globe column and the split. */
         /* The two columns read as a deliberate, balanced pair: the copy holds a
            little under half the width and the globe a little over, with the globe
            CENTRED in its column and capped so it never dwarfs the headline. The
@@ -222,40 +204,8 @@ const VayuLokPage: React.FC = () => {
            down to 861px, where the shared split would stack at 1024px. .vl-page makes
            the selector outrank the component's own .rh-split at every width. */
         .vl-page :global(.rh-split){display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);gap:56px;align-items:center}
-        .vl-hero-copy{min-width:0}
         .vl-hero-visual{min-width:0;width:100%;display:flex;justify-content:center}
         .vl-hero-visual :global(.vag-shell){width:100%;max-width:720px}
-
-        /* Spacing only. The badge paints itself inside BrandBadge. */
-        .vl-eyebrow{margin:0 0 20px}
-
-        /* Hero h1 level from the design contract: 600 weight, not the heavier 700
-           the section level uses. That inversion - section headings heavier than the
-           h1 - is notion's and is intentional, so do not "correct" it here. */
-        .vl-head{font-size:clamp(36px,4.3vw,60px);font-weight:600;line-height:1.04;/* TRACKING IN em, NOT px. A fixed px value against a fluid clamp() font means the
-             OPTICAL tightness changes with the viewport: measured across the breakpoints it ran
-             -2.22% to -6.11% of the font size, a 2.75x spread, worst at 768-820px where the font
-             is still on its 36px floor while the tracking was chosen for 60px. -0.04em is -4% at
-             every size, and it lets both media-query overrides go - restating it per breakpoint
-             is what caused the spread. index.tsx fixed this; these three copies had not. */
-          letter-spacing:-0.04em;color:rgba(0,0,0,.95);margin:0;max-width:900px}
-        .vl-head-line{display:block}
-        .vl-head-line-one{display:flex;align-items:baseline;gap:.14em;white-space:nowrap;width:max-content;max-width:100%}
-        .vl-head-line-two{display:block;margin-top:.08em}
-        .vl-head-tail{display:inline-block;white-space:nowrap}
-
-        /* Subtext under the headline. Values ported VERBATIM from the Grahak OS
-           hero's .hero-sub (measured from notion.com): 20px / 400 / 1.4 /
-           -.125px, body ink rgba(0,0,0,.898), capped width so it reads as a lede
-           and does not run the full column. The 22px top margin clears the
-           animated pill's descender without crowding it. */
-        .vl-sub{margin:22px 0 0;max-width:430px;font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898)}
-
-        /* The rotating pill - its lozenge, dot, width glide, word fade and one-shot
-           entrance - now lives in RotatingPill, which self-scopes its own rp-* CSS. The
-           host drives the entrance by passing phase (armed -> shown via the shown flag),
-           exactly as the Grahak OS and home heroes do. styled-jsx here cannot reach a child
-           component's markup, which is why the pill owns its own styles. */
 
         @media(max-width:1024px){
           .vl-page :global(.rh-split){grid-template-columns:minmax(0,.96fr) minmax(0,1.04fr);gap:36px}
@@ -267,15 +217,7 @@ const VayuLokPage: React.FC = () => {
           .vl-hero-visual :global(.vag-shell){max-width:760px}
         }
         @media(max-width:767px){
-          .vl-shell{padding-top:96px}
-          .vl-layout{padding:48px 16px 32px}
-          .vl-head{line-height:1.1}
           .vl-page :global(.rh-split){gap:28px}
-          .vl-sub{font-size:17px;margin-top:18px;max-width:none}
-        }
-        @media(max-width:359px){
-          .vl-head{font-size:clamp(31px,9vw,36px)}
-          .vl-head-line-one{gap:.1em;transform-origin:left center}
         }
       `}</style>
     </>

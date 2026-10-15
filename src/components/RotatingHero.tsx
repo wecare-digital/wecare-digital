@@ -81,8 +81,9 @@ interface RotatingHeroProps {
   /** Accessible name for the landmark. */
   ariaLabel: string;
   /**
-   * Optional visual beside the copy. Above 1024px it is the right-hand hero column;
-   * at 1024px and below it stacks with the copy.
+   * Optional visual beside the copy. By default it is the right-hand hero column above
+   * 1024px and stacks under the copy at 1024px and below. That breakpoint is a default, not a
+   * rule: /vayulok/ keeps its globe beside the copy down to 861px (see the end of this note).
    *
    * The page's own styled-jsx still styles it. styled-jsx stamps its scope class at COMPILE
    * time on every lowercase element written inside the tree that holds the <style jsx>,
@@ -294,8 +295,8 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
         .rh-eyebrow{margin:0 0 20px}
 
         /* Hero h1 rung: 600, LIGHTER than the 700 section level. That inversion is
-           notion's and is intentional - the same guard sits on .vl-head and
-           .hero-left h1. Do not "correct" it. */
+           notion's and is intentional - the same guard sits on Home's .home-head, and
+           Grahak OS and VayuLok use this rule. Do not "correct" it. */
         .rh-head{
           font-size:clamp(36px,4.3vw,60px);font-weight:600;line-height:1.04;
           /* TRACKING IN em, NOT px. A fixed px value against a fluid clamp() font means the
