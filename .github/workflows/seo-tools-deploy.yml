@@ -13,6 +13,11 @@ on:
       - 'amplify/functions/seo_tools_handler.py'
       - 'amplify/functions/shared/lambda_utils/*.py'
       - 'amplify/functions/shared/static_knowledge_base.py'
+      - 'amplify/functions/shared/blog_pipeline.py'
+      - 'scripts/blog_quality_v2.py'
+      - 'content/conversations/corpus-index.json'
+      - 'src/content/catalog-snapshot.json'
+      - 'config/public-pages.json'
       - 'tests/test_task12_seo.py'
       - 'tests/test_current_public_page_catalog.py'
       - 'tests/test_blog_sources.py'
@@ -32,6 +37,11 @@ on:
       - 'amplify/functions/seo_tools_handler.py'
       - 'amplify/functions/shared/lambda_utils/*.py'
       - 'amplify/functions/shared/static_knowledge_base.py'
+      - 'amplify/functions/shared/blog_pipeline.py'
+      - 'scripts/blog_quality_v2.py'
+      - 'content/conversations/corpus-index.json'
+      - 'src/content/catalog-snapshot.json'
+      - 'config/public-pages.json'
       - 'tests/test_task12_seo.py'
       - 'tests/test_current_public_page_catalog.py'
       - 'tests/test_blog_sources.py'
@@ -82,6 +92,7 @@ jobs:
           tests/test_task12_seo.py
           tests/test_current_public_page_catalog.py
           tests/test_seo_deployment_scope.py
+          tests/test_seo_package_contract.py
           tests/test_blog_sources.py
           tests/test_blog_queue.py
           tests/test_blog_publish.py
@@ -103,25 +114,12 @@ jobs:
       - name: Package SEO tools Lambda
         run: |
           python - <<'PY'
-          import zipfile
           from pathlib import Path
+          from scripts.deploy_seo_tools import package
 
-          root = Path.cwd()
-          functions = root / 'amplify' / 'functions'
           out = Path('/tmp/seo-tools.zip')
-
-          with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
-              z.write(functions / 'seo_tools_handler.py', 'seo_tools_handler.py')
-              for f in sorted((functions / 'operations' / 'seo-tools').glob('*.py')):
-                  z.write(f, f'operations/seo-tools/{f.name}')
-              for f in sorted((functions / 'shared' / 'lambda_utils').glob('*.py')):
-                  z.write(f, f'shared/lambda_utils/{f.name}')
-              skb = functions / 'shared' / 'static_knowledge_base.py'
-              if skb.exists():
-                  z.write(skb, 'shared/static_knowledge_base.py')
-
+          out.write_bytes(package())
           print(f'Built {out} ({out.stat().st_size} bytes)')
-          PY
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
