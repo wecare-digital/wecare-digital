@@ -52,7 +52,7 @@ describe( 'Header', () => {
       'Grahak OS', 'VayuLok', 'Bharat Rx', 'Elsewhere', 'Visa', 'Trip', 'Activities',
       'Expo Week', 'Dastavez', 'Drafting', 'Registration', 'Legal Reference',
       'Clear Closure', 'Guided Resolution', 'Case Submission', 'Paperwork',
-      'Ritual Guru', 'DIY Puja Kit', 'Puja Guidance', 'Anew', 'Hunar', 'Niji Setu',
+      'Ritual Guru', 'Puja Guidance', 'DIY Puja Kit', 'Anew', 'Hunar', 'Niji Setu',
     ] ) expect( products?.textContent ).toContain( label );
 
     expect( screen.queryByText( 'Products 1 of 2' ) ).toBeNull();
@@ -278,6 +278,30 @@ describe( 'Header', () => {
     expect( screen.getByRole( 'link', { name: 'Kiosk' } ) ).toBeInTheDocument();
     expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toBeInTheDocument();
     expect( screen.queryByRole( 'link', { name: 'Partner' } ) ).toBeNull();
+  } );
+
+  it( 'places Puja Guidance above DIY Puja Kit', () => {
+    render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+    const ritual = screen.getByText( 'Ritual Guru' ).closest( '.nav-tree-item' );
+    const labels = Array.from( ritual?.querySelectorAll( '.nav-item' ) || [] ).map( node => node.textContent );
+    expect( labels ).toEqual( [ 'Ritual Guru', 'Puja Guidance', 'DIY Puja Kit' ] );
+  } );
+
+  it( 'keeps keyboard access standard and adds no close button', () => {
+    render( <Header /> );
+    const trigger = screen.getByRole( 'button', { name: 'Open navigation' } );
+    expect( trigger ).toHaveAttribute( 'aria-keyshortcuts', 'Enter Space Escape' );
+    fireEvent.click( trigger );
+    expect( screen.queryByRole( 'button', { name: /close/i } ) ).toBeNull();
+  } );
+
+  it( 'keeps the thin animated row divider after tree wrapping', () => {
+    const { container } = render( <Header /> );
+    const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
+    expect( css ).toContain( ".nav-item::before{content:''" );
+    expect( css ).toContain( 'transition:transform .2s cubic-bezier(.16,1,.3,1)' );
+    expect( css ).toContain( '.nav-tree-item:last-child > .nav-item:last-child::after{display:none}' );
   } );
 
   it( 'keeps Extras above Contact and Legal Stuff', () => {
