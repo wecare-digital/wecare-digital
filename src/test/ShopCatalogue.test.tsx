@@ -341,7 +341,11 @@ describe( 'the derived head strings stay inside the bounds seocheck enforces', (
     // breadcrumb item pointing at it names a URL that redirects.
     expect( shopProductPath( SYNTHETIC ) ).toBe( '/shop/sold-out-thing/' );
     for ( const product of SHOP_PRODUCTS ) {
-      expect( shopProductPath( product ) ).toMatch( /^\/shop\/[a-z0-9-]+\/$/ );
+      const path = shopProductPath( product );
+      // A product may declare its own canonical destination (catalog v2: Anew lives at /anew/);
+      // otherwise it is /shop/<slug>/. Either way: lowercase, hyphenated, trailing slash.
+      expect( path ).toMatch( /^\/(shop\/)?[a-z0-9-]+\/$/ );
+      if ( !product.canonicalPath ) expect( path ).toBe( '/shop/' + product.slug + '/' );
     }
   } );
 } );
@@ -555,8 +559,10 @@ describe( 'the product page', () => {
   it( 'names the canonical URL in the graph, never the route pattern', () => {
     // The whole reason this component owns the head: PUBLIC_PAGE_META is keyed on router.pathname,
     // which for a dynamic route is '/shop/[slug]'.
-    const json = JSON.stringify( shopProductSchema( shopProductBySlug( 'anew' ) as ShopProduct ) );
-    expect( json ).toContain( 'https://wecare.digital/shop/anew/' );
+    const anew = shopProductBySlug( 'anew' ) as ShopProduct;
+    const json = JSON.stringify( shopProductSchema( anew ) );
+    // The graph names the product's canonical URL (its declared destination, /anew/).
+    expect( json ).toContain( 'https://wecare.digital' + shopProductPath( anew ) );
     expect( json ).not.toContain( '[slug]' );
   } );
 
