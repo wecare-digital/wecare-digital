@@ -1,4 +1,5 @@
 import { PRODUCTS } from './products';
+import { PRODUCT_CHILDREN } from './productChildren';
 import { SHOP_PRODUCTS, shopProductPath } from './shop';
 
 const CATALOG_ARTWORK_BASE = 'https://wecare.digital/get/o/stream/media/m/wd-catalog-live/';
@@ -89,6 +90,20 @@ const merge = (): ShopListing[] => {
       blurb: product.blurb,
       href: `/${product.slug}/`,
       ...( APPROVED_PRODUCT_ARTWORK[ product.slug ] ? { image: APPROVED_PRODUCT_ARTWORK[ product.slug ] } : {} ),
+      source: 'product',
+    } );
+  }
+
+  // Family children are real customer-facing product pages too. They stay OUT of PRODUCTS so
+  // category-only Elsewhere never becomes a standalone card/page, but they belong on the Shop
+  // shelf as the concrete services a visitor can actually choose.
+  for ( const child of PRODUCT_CHILDREN ) {
+    const product = child.product;
+    byslug.set( product.slug, {
+      slug: product.slug,
+      name: product.name,
+      blurb: product.blurb,
+      href: child.path,
       source: 'product',
     } );
   }
