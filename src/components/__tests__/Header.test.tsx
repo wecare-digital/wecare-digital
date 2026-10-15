@@ -14,25 +14,18 @@ describe( 'Header', () => {
     expect( screen.getByRole( 'link', { name: /WECARE.DIGITAL home/i } ) ).toHaveAttribute( 'href', '/' );
   } );
 
-  it( 'restores Home and makes Shop itself the catalogue destination', () => {
-    routerState.pathname = '/';
-    render( <Header /> );
-    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
-
-    expect( screen.getByRole( 'link', { name: 'Home' } ) ).toHaveAttribute( 'href', '/' );
-    expect( screen.getByRole( 'link', { name: 'Home' } ) ).toHaveAttribute( 'aria-current', 'page' );
-    expect( screen.getByRole( 'link', { name: 'Shop' } ) ).toHaveAttribute( 'href', '/shop/' );
-    expect( screen.queryByRole( 'link', { name: 'Browse All' } ) ).toBeNull();
-  } );
-
-  it( 'selects only Shop on the /shop route', () => {
+  it( 'uses Browse All as the Shop catalogue destination', () => {
     routerState.pathname = '/shop';
+    routerState.asPath = '/shop/';
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
 
-    const selected = screen.getAllByRole( 'link' ).filter( link => link.getAttribute( 'aria-current' ) === 'page' );
-    expect( selected.map( link => link.textContent ) ).toEqual( [ 'Shop' ] );
+    expect( screen.getByText( 'Shop' ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'link', { name: 'Browse All' } ) ).toHaveAttribute( 'href', '/shop/' );
+    expect( screen.getByRole( 'link', { name: 'Browse All' } ) ).toHaveAttribute( 'aria-current', 'page' );
+    expect( screen.queryByRole( 'link', { name: 'Home' } ) ).toBeNull();
     routerState.pathname = '/';
+    routerState.asPath = '';
   } );
 
   it( 'marks Grahak OS active on its public route', () => {
@@ -42,26 +35,29 @@ describe( 'Header', () => {
     expect( screen.getByRole( 'link', { name: 'Grahak OS' } ) ).toHaveAttribute( 'aria-current', 'page' );
   } );
 
-  it( 'renders the agreed product hierarchy without 1-of-2 headings', () => {
+  it( 'renders the approved two-part product hierarchy', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
 
-    const products = screen.getByText( 'Products' ).closest( '.nav-group' );
-    expect( products ).not.toBeNull();
+    const products1 = screen.getByText( 'Products 1 of 2' ).closest( '.nav-group' );
+    const products2 = screen.getByText( 'Products 2 of 2' ).closest( '.nav-group' );
+    expect( products1 ).not.toBeNull();
+    expect( products2 ).not.toBeNull();
+
     for ( const label of [
-      'Grahak OS', 'VayuLok', 'Bharat Rx', 'Elsewhere', 'Visa', 'Trip', 'Activities',
+      'Grahak OS', 'VayuLok', 'Bharat Rx', 'Elsewhere', 'Visa Support', 'Travel Support',
       'Expo Week', 'Dastavez', 'Drafting', 'Registration', 'Legal Reference',
+    ] ) expect( products1?.textContent ).toContain( label );
+
+    for ( const label of [
       'Clear Closure', 'Guided Resolution', 'Case Submission', 'Paperwork',
-      'Ritual Guru', 'Puja Guidance', 'DIY Puja Kit', 'Anew', 'Hunar', 'Niji Setu',
-    ] ) expect( products?.textContent ).toContain( label );
+      'Ritual Guru', 'DIY Puja Kit', 'Puja Guidance', 'Anew', 'Hunar', 'Niji Setu',
+    ] ) expect( products2?.textContent ).toContain( label );
 
-    expect( screen.queryByText( 'Products 1 of 2' ) ).toBeNull();
-    expect( screen.queryByText( 'Products 2 of 2' ) ).toBeNull();
     expect( screen.queryByRole( 'link', { name: 'Elsewhere' } ) ).toBeNull();
-
-    expect( screen.getByRole( 'link', { name: 'Visa' } ) ).toHaveAttribute( 'href', '/elsewhere/visa/' );
-    expect( screen.getByRole( 'link', { name: 'Trip' } ) ).toHaveAttribute( 'href', '/elsewhere/trip/' );
-    expect( screen.getByRole( 'link', { name: 'Activities' } ) ).toHaveAttribute( 'href', '/elsewhere/activities/' );
+    expect( screen.getByRole( 'link', { name: 'Visa Support' } ) ).toHaveAttribute( 'href', '/elsewhere/visa/' );
+    expect( screen.getByRole( 'link', { name: 'Travel Support' } ) ).toHaveAttribute( 'href', '/elsewhere/trip/' );
+    expect( screen.queryByRole( 'link', { name: 'Activities' } ) ).toBeNull();
   } );
 
   it( 'keeps Request rows in the approved order', () => {
@@ -69,7 +65,7 @@ describe( 'Header', () => {
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
     const request = screen.getByText( 'Request' ).closest( '.nav-group' );
     expect( Array.from( request?.querySelectorAll( '.nav-item' ) || [] ).map( n => n.textContent ) )
-      .toEqual( [ 'Orders', 'Submit Request', 'Request Amendment', 'Drop Docs', 'Vault', 'Shipments', 'Track', 'Pickup Request', 'Leave Review', 'Subscribe' ] );
+      .toEqual( [ 'Orders', 'Submit Request', 'Request Amendment', 'Drop Docs', 'Vault', 'Request Pickup', 'Shipments', 'Leave Review', 'Subscribe' ] );
   } );
 
   it( 'uses menu-only search and family names find their real child destinations', () => {
@@ -78,9 +74,8 @@ describe( 'Header', () => {
     const search = screen.getByLabelText( 'Search navigation' );
 
     fireEvent.change( search, { target: { value: 'elsewhere' } } );
-    expect( screen.getByRole( 'link', { name: 'Visa' } ) ).toBeInTheDocument();
-    expect( screen.getByRole( 'link', { name: 'Trip' } ) ).toBeInTheDocument();
-    expect( screen.getByRole( 'link', { name: 'Activities' } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'link', { name: 'Visa Support' } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'link', { name: 'Travel Support' } ) ).toBeInTheDocument();
     expect( screen.queryByRole( 'link', { name: 'Elsewhere' } ) ).toBeNull();
 
     fireEvent.change( search, { target: { value: 'dastavez' } } );
@@ -151,7 +146,7 @@ describe( 'Header', () => {
 
     // Bharat Rx is a product, not one of the request actions. Asserted by
     // column position, because the label alone would pass wherever it sat.
-    const products = screen.getByText( 'Products' ).closest( '.nav-group' );
+    const products = screen.getByText( 'Products 1 of 2' ).closest( '.nav-group' );
     expect( products ).not.toBeNull();
     expect( products?.textContent ).toContain( 'Bharat Rx' );
 
@@ -206,48 +201,31 @@ describe( 'Header', () => {
     expect( requestsCol?.textContent ).not.toContain( 'Legal Stuff' );
   } );
 
-  it( 'groups Track and Pickup Request under a non-clickable Shipments family', () => {
+  it( 'keeps Request Pickup and Shipments as independent approved rows', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
 
-    const request = screen.getByText( 'Request' ).closest( '.nav-group' );
-    expect( request?.textContent ).toContain( 'Shipments' );
-    expect( screen.queryByRole( 'link', { name: 'Shipments' } ) ).toBeNull();
-    expect( screen.getByRole( 'link', { name: 'Track' } ) ).toHaveAttribute( 'href', '/shipments/' );
-    expect( screen.getByRole( 'link', { name: 'Pickup Request' } ) ).toHaveAttribute( 'href', '/request-pickup/' );
-
-    const labels = Array.from( request?.querySelectorAll( '.nav-item' ) || [] ).map( node => node.textContent );
-    expect( labels ).toEqual( [
-      'Orders', 'Submit Request', 'Request Amendment', 'Drop Docs', 'Vault',
-      'Shipments', 'Track', 'Pickup Request', 'Leave Review', 'Subscribe',
-    ] );
+    expect( screen.getByRole( 'link', { name: 'Request Pickup' } ) ).toHaveAttribute( 'href', '/request-pickup/' );
+    expect( screen.getByRole( 'link', { name: 'Shipments' } ) ).toHaveAttribute( 'href', '/shipments/' );
+    expect( screen.queryByRole( 'link', { name: 'Track' } ) ).toBeNull();
+    expect( screen.queryByRole( 'link', { name: 'Pickup Request' } ) ).toBeNull();
   } );
 
-  it( 'searching Shipments returns its real destinations, not a dead family link', () => {
-    render( <Header /> );
-    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
-    fireEvent.change( screen.getByLabelText( 'Search navigation' ), { target: { value: 'shipments' } } );
-
-    expect( screen.getByRole( 'link', { name: 'Track' } ) ).toBeInTheDocument();
-    expect( screen.getByRole( 'link', { name: 'Pickup Request' } ) ).toBeInTheDocument();
-    expect( screen.queryByRole( 'link', { name: 'Shipments' } ) ).toBeNull();
-  } );
-
-  it( 'selects Track and Pickup Request independently', () => {
+  it( 'selects Shipments and Request Pickup independently', () => {
     routerState.pathname = '/shipments';
     routerState.asPath = '/shipments/';
     const first = render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
-    expect( screen.getByRole( 'link', { name: 'Track' } ) ).toHaveAttribute( 'aria-current', 'page' );
-    expect( screen.getByRole( 'link', { name: 'Pickup Request' } ) ).not.toHaveAttribute( 'aria-current' );
+    expect( screen.getByRole( 'link', { name: 'Shipments' } ) ).toHaveAttribute( 'aria-current', 'page' );
+    expect( screen.getByRole( 'link', { name: 'Request Pickup' } ) ).not.toHaveAttribute( 'aria-current' );
     first.unmount();
 
     routerState.pathname = '/request-pickup';
     routerState.asPath = '/request-pickup/';
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
-    expect( screen.getByRole( 'link', { name: 'Pickup Request' } ) ).toHaveAttribute( 'aria-current', 'page' );
-    expect( screen.getByRole( 'link', { name: 'Track' } ) ).not.toHaveAttribute( 'aria-current' );
+    expect( screen.getByRole( 'link', { name: 'Request Pickup' } ) ).toHaveAttribute( 'aria-current', 'page' );
+    expect( screen.getByRole( 'link', { name: 'Shipments' } ) ).not.toHaveAttribute( 'aria-current' );
     routerState.pathname = '/';
     routerState.asPath = '';
   } );
@@ -263,32 +241,32 @@ describe( 'Header', () => {
       .toHaveAttribute( 'href', 'https://wa.me/message/WUDPTMYSO6XII1' );
   } );
 
-  it( 'keeps Refer & Earn and Partner non-clickable while their destinations remain searchable', () => {
+  it( 'keeps Refer & Earn non-clickable while its approved destinations remain searchable', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
 
     expect( screen.queryByRole( 'link', { name: 'Refer & Earn' } ) ).toBeNull();
-    expect( screen.queryByRole( 'link', { name: 'Partner' } ) ).toBeNull();
-    const partner = screen.getByText( 'Partner' ).closest( '.nav-tree-item' );
-    const partnerLabels = Array.from( partner?.querySelectorAll( '.nav-item' ) || [] ).map( node => node.textContent );
-    expect( partnerLabels ).toEqual( [ 'Partner', 'Referral', 'Merchandise', 'Kiosk' ] );
-    expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toHaveAttribute( 'href', '/shop/referral-partner/' );
+    expect( screen.queryByText( 'Partner' ) ).toBeNull();
+    const refer = screen.getByText( 'Refer & Earn' ).closest( '.nav-group' );
+    const referLabels = Array.from( refer?.querySelectorAll( '.nav-item' ) || [] ).map( node => node.textContent );
+    expect( referLabels ).toEqual( [ 'Merchandise', 'Kiosk', 'Referral' ] );
     expect( screen.getByRole( 'link', { name: 'Merchandise' } ) ).toHaveAttribute( 'href', '/shop/merchandise/' );
     expect( screen.getByRole( 'link', { name: 'Kiosk' } ) ).toHaveAttribute( 'href', '/shop/kiosk/' );
+    expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toHaveAttribute( 'href', '/shop/referral-partner/' );
 
-    fireEvent.change( screen.getByLabelText( 'Search navigation' ), { target: { value: 'partner' } } );
+    fireEvent.change( screen.getByLabelText( 'Search navigation' ), { target: { value: 'refer' } } );
     expect( screen.getByRole( 'link', { name: 'Merchandise' } ) ).toBeInTheDocument();
     expect( screen.getByRole( 'link', { name: 'Kiosk' } ) ).toBeInTheDocument();
     expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toBeInTheDocument();
     expect( screen.queryByRole( 'link', { name: 'Partner' } ) ).toBeNull();
   } );
 
-  it( 'places Puja Guidance above DIY Puja Kit', () => {
+  it( 'keeps DIY Puja Kit above Puja Guidance', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
     const ritual = screen.getByText( 'Ritual Guru' ).closest( '.nav-tree-item' );
     const labels = Array.from( ritual?.querySelectorAll( '.nav-item' ) || [] ).map( node => node.textContent );
-    expect( labels ).toEqual( [ 'Ritual Guru', 'Puja Guidance', 'DIY Puja Kit' ] );
+    expect( labels ).toEqual( [ 'Ritual Guru', 'DIY Puja Kit', 'Puja Guidance' ] );
   } );
 
   it( 'keeps keyboard access standard and adds no close button', () => {
@@ -365,7 +343,7 @@ describe( 'Header', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
     fireEvent.change( screen.getByLabelText( 'Search navigation' ), { target: { value: 'elsewhere' } } );
-    expect( screen.getByRole( 'status' ) ).toHaveTextContent( '3 menu results.' );
+    expect( screen.getByRole( 'status' ) ).toHaveTextContent( '2 menu results.' );
   } );
 
   it( 'includes vh fallback, dynamic viewport sizing and native safe-area insets', () => {
