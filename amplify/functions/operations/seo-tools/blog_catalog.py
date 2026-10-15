@@ -20,10 +20,10 @@ from typing import Any, Dict, List
 import blog_sources
 import storage
 
-PUBLIC_CATALOG_PREFIX = blog_sources.ROOT_PREFIX + "catalog/"
-PUBLIC_POST_PREFIX = blog_sources.ROOT_PREFIX + "posts/"
+PUBLIC_CATALOG_PREFIX = blog_sources.PUBLIC_ROOT_PREFIX + "catalog/"
+PUBLIC_POST_PREFIX = blog_sources.PUBLIC_ROOT_PREFIX + "posts/"
 CATALOG_INDEX_KEY = PUBLIC_CATALOG_PREFIX + "index.json"
-SECURE_MASTER_PREFIX = "secure/blog-production/"
+SECURE_MASTER_PREFIX = blog_sources.SECURE_ROOT_PREFIX
 PRODUCTION_MASTER_KEY = SECURE_MASTER_PREFIX + "production-master.json"
 
 GOVERNED_CATEGORIES = ("Conversations", "Gastronomy")
