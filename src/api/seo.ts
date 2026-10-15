@@ -57,11 +57,8 @@ export interface BlogSourceView {
   sourceType: string;
   sourceRef: string;
   /**
-   * The apex URL of an uploaded PDF, or `''`.
-   *
-   * `blog_sources.source_url` returns `''` rather than a URL that would 403, so a prefix
-   * moved back under the gated root degrades to no link instead of a dead one. Treat an
-   * empty string as "there is nothing to open", never as a bug.
+   * Empty on list responses for secure uploaded PDFs. On the authenticated single-source
+   * detail response it is a short-lived presigned GET URL. URL sources use sourceRef.
    */
   sourceUrl: string;
   status: string;
@@ -132,6 +129,8 @@ export interface BlogAiDraft {
 
 /** The single-source route adds the extract and the draft to the list projection. */
 export interface BlogSourceDetail extends BlogSourceView {
+  /** Seconds until the secure sourceUrl expires; 0 when this is not an uploaded PDF. */
+  sourceUrlExpiresInSeconds: number;
   /** The whole extracted text, fetched from S3 rather than read off the DynamoDB item. */
   sourceExtract: string;
   /**

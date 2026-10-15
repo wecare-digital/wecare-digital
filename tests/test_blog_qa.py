@@ -215,7 +215,7 @@ def test_a_qa_run_is_its_own_record_with_its_report_in_s3(env):
     record = env["bq"].get_run(result["qaRunId"])
     assert record["recordType"] == env["bq"].RUN_RECORD_TYPE
     assert record["bodyKey"] in env["s3"].objects
-    assert record["bodyKey"].startswith("o/blog-production/qa/")
+    assert record["bodyKey"].startswith("secure/blog-production/qa/")
     report = json.loads(env["s3"].objects[record["bodyKey"]].decode())
     assert report["qaRunId"] == result["qaRunId"]
     assert report["sourceId"] == source_id
