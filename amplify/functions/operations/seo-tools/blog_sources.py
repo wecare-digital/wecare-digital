@@ -516,9 +516,6 @@ def confirm(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     ids = body.get("sourceIds")
     if not isinstance(ids, list) or not ids:
         raise ValueError("sourceIds must be a non-empty array")
-    if len(ids) > MAX_REGISTER_BATCH:
-        raise ValueError(f"at most {MAX_REGISTER_BATCH} sourceIds per request")
-
     requested = [str(value).strip() for value in ids if str(value or "").strip()]
     records = storage.get_typed_many(requested, RECORD_TYPE)
     confirmed: List[str] = []
@@ -595,7 +592,7 @@ def confirm(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
         "event": "blog_sources_confirmed", "actor": actor, "confirmed": len(confirmed),
         "missing": len(missing), "unknown": len(unknown), "workerStarted": started,
         "queued": queued["queued"], "queueConfigured": queued["configured"],
-        "maxBatch": MAX_REGISTER_BATCH,
+        "unlimitedBulk": True, "transportChunkSize": REGISTER_CHUNK_SIZE,
     }))
     return {
         "confirmed": confirmed, "missingUpload": missing, "unknownSourceId": unknown,
