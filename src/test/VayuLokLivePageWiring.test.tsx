@@ -46,11 +46,11 @@ describe( 'the /vayulok page keeps the live VayuLok section wired in', () => {
     // import or the element is dropped again.
     const live = container.querySelector( 'section.vl-live' );
     expect( live ).not.toBeNull();
-    expect( live?.querySelector( 'main.vl-live-shell' ) ).not.toBeNull();
+    expect( live?.querySelector( '.vl-live-shell' ) ).not.toBeNull();
 
     // BELOW the hero, not inside it. Nesting would put the component's main inside the
     // hero, which is the arrangement the page comment rules out.
-    const hero = container.querySelector( '.vl-shell' ) as HTMLElement | null;
+    const hero = container.querySelector( '.rh-shell' ) as HTMLElement | null;
     expect( hero ).not.toBeNull();
     expect( hero?.contains( live as Node ) ).toBe( false );
     expect(
@@ -59,15 +59,16 @@ describe( 'the /vayulok page keeps the live VayuLok section wired in', () => {
     ).toBeTruthy();
   } );
 
-  it( 'carries exactly one main landmark, the live one', async () => {
+  it( 'carries exactly one main landmark owned by the VayuLok page', async () => {
     const VayuLokPage = await loadPage();
     const { container } = render( <VayuLokPage /> );
     await act( async () => { await Promise.resolve(); } );
 
-    // The hero is a section precisely so this stays at one: HTML permits a single
-    // non-hidden main per document, and VayuLokLive owns it on this page.
+    // The page owns one main; the shared RotatingHero renders as a section inside it and
+    // VayuLokLive no longer creates a nested second main.
     const mains = container.querySelectorAll( 'main' );
     expect( mains ).toHaveLength( 1 );
-    expect( mains[ 0 ].className ).toContain( 'vl-live-shell' );
+    expect( mains[ 0 ].className ).toContain( 'vl-page' );
+    expect( container.querySelector( 'section.rh-shell h1' ) ).not.toBeNull();
   } );
 } );
