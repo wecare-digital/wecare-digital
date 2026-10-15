@@ -111,8 +111,8 @@ const COLUMNS: NavColumn[] = [
             href: '/ritual-guru/',
             match: '/ritual-guru',
             children: [
-              { label: 'DIY Puja Kit', href: '/ritual-guru/diy-puja-kit/', match: '/ritual-guru/diy-puja-kit', searchTerms: [ 'ritual guru' ] },
               { label: 'Puja Guidance', href: '/ritual-guru/puja-guidance/', match: '/ritual-guru/puja-guidance', searchTerms: [ 'ritual guru' ] },
+              { label: 'DIY Puja Kit', href: '/ritual-guru/diy-puja-kit/', match: '/ritual-guru/diy-puja-kit', searchTerms: [ 'ritual guru' ] },
             ],
           },
           { label: 'Anew', href: '/anew/', match: '/anew' },
@@ -340,6 +340,7 @@ const Header: React.FC = () => {
               className="nav-trigger"
               aria-label="Open navigation"
               aria-expanded={ open }
+              aria-keyshortcuts="Enter Space Escape"
               onClick={ () => { setOpen( value => !value ); setQuery( '' ); } }
             >
               <span className="nav-arrow" aria-hidden="true" />
@@ -800,7 +801,7 @@ const Header: React.FC = () => {
         :global([dir='rtl']) .nav-menu{left:auto;right:var(--nav-menu-inset)}
         .nav-item:not(.active):hover::before,.nav-item:not(.active):focus-visible::before{transform:scaleX(1)}
         /* The last row in a group has nothing after it, so no divider. */
-        .nav-group .nav-item:last-child::after,.nav-products-scroll .nav-item:last-child::after{display:none}
+        .nav-group > .nav-item:last-child::after,.nav-tree-item:last-child > .nav-item:last-child::after,.nav-family-children .nav-item:last-child::after{display:none}
         @media(prefers-reduced-motion:reduce){.nav-item::before{transition:none}}
         /* Family children use the exact same 19px/600 navigation typography as their
            parent. Hierarchy is expressed by grouping and indentation, never smaller text. */
