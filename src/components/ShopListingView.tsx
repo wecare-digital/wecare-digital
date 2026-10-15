@@ -373,14 +373,14 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings } ) => {
             display:block;width:calc(100% + 52px);height:auto;aspect-ratio:1/1;object-fit:cover;
             margin:-26px -26px 10px;border-bottom:1px solid #e5e7eb;background:#fff;
           }
-          .shop-card-action{
+          .shop-in :global(.shop-card-action){
             display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;
             min-height:44px;margin-top:auto;padding:0 18px;border:2px solid #1a3a2a;
             border-radius:50px;background:#fff;color:#1a3a2a;font-size:16px;font-weight:600;
             text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s;
           }
-          .shop-card-action:hover{background:#d1f470;transform:translateY(-1px)}
-          .shop-card-action:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+          .shop-in :global(.shop-card-action:hover){background:#d1f470;transform:translateY(-1px)}
+          .shop-in :global(.shop-card-action:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px}
 
           /* The one card-heading rung, 22px/700/1.27/-.25px on solid black, and the one body
              rung, 20px/400/1.4/-.125px at rgba(0,0,0,.898) - the same two the blog listing and
@@ -426,8 +426,8 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings } ) => {
           /* A shadow appearing under a card is the same "something moved" cue as the lift, and the
              progress fill / arrow tints stop animating under reduced-motion too. */
           @media(prefers-reduced-motion:reduce){
-            .shop-card,.shop-card-action{transition:none}
-            .shop-card:hover,.shop-card-action:hover{transform:none;box-shadow:none}
+            .shop-card,.shop-in :global(.shop-card-action){transition:none}
+            .shop-card:hover,.shop-in :global(.shop-card-action:hover){transform:none;box-shadow:none}
             .shop-arrow,.shop-progress-fill{transition:none}
           }
         `}</style>
