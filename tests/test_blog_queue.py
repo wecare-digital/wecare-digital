@@ -505,10 +505,12 @@ def test_bulk_publish_enqueue_uses_same_queue_and_carries_actor(env):
     ]
 
 
-def test_bulk_publish_rejects_more_than_1000_queue_items(env):
-    with pytest.raises(ValueError, match="at most 1000"):
-        env["bq"].enqueue_publish(
-            [f"blogpub_{index}" for index in range(1001)], "operator")
+def test_bulk_publish_has_no_fixed_application_ceiling(env):
+    count = 1001
+    result = env["bq"].enqueue_publish(
+        [f"blogpub_{index}" for index in range(count)], "operator")
+    assert result == {"queued": count, "failed": 0, "configured": True}
+    assert len(env["sqs"].sent) == count
 
 
 def test_bulk_publish_consumer_calls_existing_publish_path(env, monkeypatch):
