@@ -88,7 +88,7 @@ unsigned request to a production ingress. That is in the confirmation queue.
 | `GET`, `POST /webhook/sinch-dlr` | `wecare-sinch-dlr` | `79g3bbufdh` |
 | `POST`, `GET`, `DELETE /voice-in/cdr` | `wecare-voice-in-cdr` | `zllr9lrg7j` |
 
-Both targets are retired-provider handlers (Sinch SMS DLR, Airtel CDR ingester).
+Both targets are retired-provider handlers (Sinch SMS DLR, a voice CDR ingester).
 The functions are gone; the public routes and integrations were left behind. No
 handler means no data loss today, but this is exactly the declarative residue the
 retirement acceptance criteria forbid, and it is a recreation path.
@@ -125,6 +125,6 @@ which is **not** among the 66 live tables.
 
 Per-source-function and per-route machine-readable inventory joined to IaC,
 permissions, tables, traffic and frontend caller; documentation queues (Plivo,
-Meta, Razorpay, Google, Bing, Wix); MCP schema inventory; SDK/packaged-runtime
+Meta, Razorpay, Google, Bing); MCP schema inventory; SDK/packaged-runtime
 matrix; browser/device matrix; cleanup dry-run. Phase 1 entry is gated on the
 confirmation queue in `docs/kiro-handoff.md`.

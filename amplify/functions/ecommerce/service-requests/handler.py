@@ -13,7 +13,7 @@ reports an order:
 
 WHAT THIS FUNCTION CANNOT DO
 ----------------------------
-It cannot move money. It imports no Razorpay, Wix or cart module and reads no secret; its role
+It cannot move money. It imports no Razorpay or cart module and reads no secret; its role
 (`scripts/provision_service_requests.py::expected_role_policy`) grants its own table, one index
 Query, a LeadingKeys-scoped GetItem on the commerce-keys table and the rate-limit counter -- and
 nothing else. Paid-ness is never a word compared here: a request is created only when the

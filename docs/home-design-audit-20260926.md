@@ -66,7 +66,7 @@ Three separate problems, not one:
 1. **150 reviews averaging 4.8 that do not exist.** Google's structured-data policy treats
    self-serving invented review markup as a manual-action risk for the whole site.
 2. **`price: "0"` contradicts the page it ships on.** The closing band promises "Know the
-   price before you commit" and the catalogue floor is ₹599 (`wix-catalog.json`, Viveka).
+   price before you commit" and the catalogue floor was ₹599 (catalogue snapshot, Viveka).
    The machine-readable version of this page says the product is free.
 3. **The `Organization` description contradicts the hero.** It reads "Enterprise WhatsApp
    Business API platform for multi-channel customer engagement" (`_app.tsx:251`, restated
@@ -188,7 +188,7 @@ ancestor; they are correctly *not* in the tab order. The header is fine.)
 This is the item `docs/grahak-os-handoff.md` and `FRONTEND_FULL_AUDIT.md` A.1 both raise,
 and it is the one still waiting on the owner: the CTA's wording and destination, and
 whether a price goes above the fold. Both are recorded as owner decisions, not agent
-guesses. Any price must derive from `src/content/wix-catalog.json` — 7 products, floor
+guesses. Any price must derive from `src/content/catalog-snapshot.json` — 7 products then, floor
 **₹599** (Viveka), next **₹999** (Referral Partner) — because a typed number goes stale
 the moment the ₹49 tier lands.
 

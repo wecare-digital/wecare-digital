@@ -13,11 +13,11 @@ WHAT IT CREATES
 | Alias | `live`, pointing at a published version |
 | Schedule | EventBridge rule `wecare-meta-catalog-sync-schedule`, six-hourly, as the BACKSTOP |
 | Permission | `events.amazonaws.com` may invoke the `live` alias, scoped to that rule's ARN |
-| Webhook grant | `lambda:InvokeFunction` on the alias, added to the WEBHOOK's own role |
+| Stream mapping | the ProductsTable change stream -> the `live` alias, the prompt trigger |
 
 NO HTTP API ROUTE, NO FUNCTION URL, NO PUBLIC SURFACE AT ALL. Nothing calls this over the
-internet. Its two callers are `wecare-wix-catalog-webhook` (an async invoke after its own JWT
-verification) and the schedule. So there is no authorizer question to answer here and
+internet. Its two triggers are the ProductsTable stream (an event-source mapping on the `live`
+alias) and the schedule. So there is no authorizer question to answer here and
 `scripts/audit_route_auth.py` has nothing to classify - which is the cheapest possible answer to
 "is this endpoint protected".
 
@@ -27,40 +27,31 @@ recreated or retargeted.
 A DEDICATED ROLE, AND THE SHARED FLEET ROLE IS NOT TOUCHED
 ----------------------------------------------------------
 `wecare-digital-lambda-role` is attached to most of the ~65-function fleet, so granting anything
-there hands it to all of them. This function gets its own role with TWO statements and nothing
-else: one `secretsmanager:GetSecretValue`, and CloudWatch Logs. No DynamoDB, no S3, no KMS, no
-`lambda:InvokeFunction`, no `iam:*`. `tests/test_meta_catalog_sync_iam.py` asserts the document by
-EQUALITY, so a fourth statement is a test failure rather than an unnoticed addition, and asserts
-this file never names the shared role.
+there hands it to all of them. This function gets its own role with five statements and nothing
+else: CloudWatch Logs, one `secretsmanager:GetSecretValue`, three item actions on the
+AgentApprovals table, and read-only access to ProductsTable and its one change stream. No S3, no
+KMS, no `lambda:InvokeFunction`, no `iam:*`. `tests/test_meta_catalog_sync_iam.py` asserts the
+document by EQUALITY, so a sixth statement is a test failure rather than an unnoticed addition,
+and asserts this file never names the shared role.
 
-TWO SECRETS, NOT ONE, AND THE SECOND IS RECORDED RATHER THAN QUIET
--------------------------------------------------------------------
-The feature brief describes this role as "the Meta token read plus CloudWatch Logs". It is one
-statement naming TWO secret ARNs, because the function reads BOTH ends of the sync:
+ONE SECRET
+----------
+The catalogue source is the AWS-native ProductsTable, read under this role, so the Meta Graph
+token (`wecare/meta-system-user-token`) is the only secret the function reads: it reads and,
+within the approval gates below, writes the Meta catalog. No `wecare/*` wildcard, which would
+include every provider credential in the account.
 
-    wecare/meta-system-user-token   the Meta Graph token, to read and (never, as shipped) write
-                                    the catalog
-    wecare/wix/headless-api-key     read by `lambda_utils.wix_ecom`, which is the request helper
-                                    the handler uses for Catalog V3
-
-Granted only the Meta token, the function cannot read Wix at all: `wix_ecom._api_key()` raises,
-every invocation ends `read_failed`, and the dry-run plan this whole feature exists to produce is
-unobtainable. So the choice was between a role that cannot work and a statement that names one
-more secret by its exact ARN. The second is still least privilege - two named secrets, no
-`wecare/*` wildcard, which would otherwise include every provider credential in the account - and
-it is the same shape `provision_wix_catalog_webhook.py` uses for its own two reads.
-
-THE SECRET ARNS ARE WILDCARDED ON THE SUFFIX, and that is not laziness: Secrets Manager appends a
+THE SECRET ARN IS WILDCARDED ON THE SUFFIX, and that is not laziness: Secrets Manager appends a
 random six-character suffix to every secret ARN, so `wecare/meta-system-user-token-*` is the only
-way to name it without reading it first. Each matches one secret, not a family.
+way to name it without reading it first. It matches one secret, not a family.
 
 THE SCHEDULE IS THE BACKSTOP, NOT THE TRIGGER
 ---------------------------------------------
 Six-hourly, at `cron(25 */6 * * ? *)` - the same cadence and the same minute as
-`.github/workflows/catalogue-sync.yml`, so the website snapshot refresh and the Meta projection
-move together rather than drifting six hours apart. The webhook invoke is what makes it prompt;
-the schedule is what makes it eventually correct if the webhook is unregistered, failing closed on
-a missing key, or simply missed an event.
+`.github/workflows/aws-native-catalog-publish.yml`, so the website snapshot refresh and the Meta
+projection move together rather than drifting six hours apart. The ProductsTable stream is what
+makes it prompt; the schedule is what makes it eventually correct if the mapping is disabled, a
+batch exhausted its retries, or an event was simply missed.
 
 OWNER-APPROVED CATALOG MIGRATION, 2026-10-09
 -----------------------------------------
@@ -68,8 +59,8 @@ The owner requested the fresh catalog and approval before new product publicatio
 ENVIRONMENT stages all five paid service variants against the fresh catalog, disabled and
 dry-run, held out of stock pending approval and native purchase QA. Inspect remains read-only.
 The exact live plan is persisted in the existing AgentApprovals table under a catalog-specific
-namespaced key. An authenticated admin approval is bound to that exact hash; any Wix/Meta drift
-changes the hash and invalidates it. Background webhook/schedule invocations cannot spend an
+namespaced key. An authenticated admin approval is bound to that exact hash; any catalogue or Meta
+drift changes the hash and invalidates it. Background stream/schedule invocations cannot spend an
 approval: apply is an explicit admin action and still requires both release gates to be opened.
 
 Usage:
@@ -101,7 +92,8 @@ LOG_GROUP = f"/aws/lambda/{FUNCTION}"
 LOG_RETENTION_DAYS = 30
 
 SCHEDULE_RULE = f"{FUNCTION}-schedule"
-#: Six-hourly at minute 25, matching `.github/workflows/catalogue-sync.yml`'s `25 */6 * * *`.
+#: Six-hourly at minute 25, matching `.github/workflows/aws-native-catalog-publish.yml`'s
+#: `25 */6 * * *`.
 SCHEDULE_EXPRESSION = "cron(25 */6 * * ? *)"
 
 #: Secret NAMES, never values. Neither is read by this script.
@@ -335,13 +327,13 @@ def ensure_function(apply: bool) -> str:
         Role=f"arn:aws:iam::{ACCOUNT_ID}:role/{ROLE}",
         Handler="handler.handler",
         Code={"ZipFile": build_package()},
-        # 120 seconds covers a paged Wix read, a paged Meta read and the diff with room to spare.
-        # It is invoked asynchronously, so nothing is waiting on it.
+        # 120 seconds covers a ProductsTable read, a paged Meta read and the diff with room to
+        # spare. It is invoked asynchronously, so nothing is waiting on it.
         Timeout=120,
         MemorySize=512,
         Architectures=["x86_64"],
         Environment={"Variables": ENVIRONMENT},
-        Description="Project owner-authorized Wix variants onto Meta, held out of stock for QA.",
+        Description="AWS ProductsTable to Meta catalogue projection, owner-approved scope.",
         Tags={"domain": "ecommerce", "purpose": "meta-catalog-sync"},
     )
     lam().get_waiter("function_active_v2").wait(FunctionName=FUNCTION)

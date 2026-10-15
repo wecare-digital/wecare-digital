@@ -3,7 +3,8 @@
 
 Why this exists
 ---------------
-On 2026-09-20, while removing Airtel, three routes were found by accident:
+On 2026-09-20, while retiring a provider integration, three routes were found by
+accident:
 
     POST   /voice-cdr-webhook              AuthorizationType=NONE
     GET    /voice-cdr-webhook              AuthorizationType=NONE
@@ -49,9 +50,9 @@ Three defects in the original version made its "0 findings" untrustworthy:
    OPEN. A `-handler` suffix is now stripped, among other aliases.
 
 3. A route whose target function no longer exists was indistinguishable from a
-   route whose source could not be located. Those are now separate classes, so
-   retired-provider residue (`wecare-sinch-dlr`, `wecare-voice-in-cdr`) is
-   reported as DANGLING rather than hiding inside UNRESOLVED.
+   route whose source could not be located. Those are now separate classes, so a
+   route left pointing at a deleted function is reported as DANGLING rather than
+   hiding inside UNRESOLVED.
 
 Marker strength
 ---------------
@@ -130,8 +131,8 @@ STRONG_MARKERS = (
 #   appsecret_proof  the Graph query parameter Meta requires on outbound calls.
 #                    On its own it classified POST /whatsapp/inbound as
 #                    "handler authenticates" while that handler verified nothing.
-#   api_key/API_KEY  in product-image-gen this is WIX_API_KEY, the outbound
-#                    credential for calling Wix.
+#   api_key/API_KEY  in product-image-gen this was an outbound provider API key,
+#                    never a check on the caller.
 #   Authorization    in all seven affected handlers this was either
 #                    "Access-Control-Allow-Headers: Content-Type,Authorization"
 #                    or an outbound `Authorization: Bearer` to a provider.
@@ -184,10 +185,11 @@ EXPECTED_PUBLIC_ROUTES = {
     # The live price shown on the four public service pages. A visitor reads it BEFORE signing
     # in -- the price is what decides whether they sign in at all -- so there is no identity to
     # authenticate. Narrow by construction: GET only, and the handler arm accepts no path
-    # parameter, no query string and no body, so nothing a caller supplies reaches Wix or a
-    # table. It cannot mutate anything, returns only Wix-live prices in integer paise, and is
-    # edge-cached for 60 seconds. POST on the same path still requires a customer session.
-    "GET /ecommerce/service-prices": "anonymous public price read. There is no customer identity to authenticate on a public service page; the arm accepts no path, query or body input, returns only Wix-live prices in integer paise, cannot mutate anything, and is edge-cached for 60 seconds",
+    # parameter, no query string and no body, so nothing a caller supplies reaches the
+    # catalog read. It cannot mutate anything, returns only live prices from the AWS-native
+    # ProductsTable in integer paise, and is edge-cached for 60 seconds. POST on the same
+    # path still requires a customer session.
+    "GET /ecommerce/service-prices": "anonymous public price read. There is no customer identity to authenticate on a public service page; the arm accepts no path, query or body input, returns only live AWS-native catalog prices in integer paise, cannot mutate anything, and is edge-cached for 60 seconds",
 }
 
 

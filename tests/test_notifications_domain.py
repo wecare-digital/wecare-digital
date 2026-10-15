@@ -11,7 +11,7 @@ something that is not a connection. CloudWatch over 14 days, at the time of writ
     whatsapp-calling  disconnect_sms_triggered     0   PROHIBITED (terminate)
     whatsapp-calling  call_wa_template_sent        0   PROHIBITED (connect = setup)
     whatsapp-calling  post_call_sent               0   PROHIBITED (post_call_sip)
-    voice-in-c2c / voice-in-obd  CDR notifications 0   PROHIBITED (CDR replay)
+    two CDR-replay ingesters (since deleted)       0   PROHIBITED (CDR replay)
 
 So the only connected-call notification reaching real customers was triggered by
 **hangup**, and the one compliant path had never fired - its claim table
@@ -334,7 +334,10 @@ class TestClaimKeys:
         with pytest.raises(keys_mod.ClaimKeyError):
             keys_mod.child_claim_key("plivo", A_LEG, bad)
 
-    @pytest.mark.parametrize("bad", ["", "airtel", "sinch", "twilio", None])
+    def test_the_call_providers_are_plivo_and_meta(self):
+        assert keys_mod.SUPPORTED_PROVIDERS == ("plivo", "meta")
+
+    @pytest.mark.parametrize("bad", ["", "unknown-carrier", "sinch", "twilio", None])
     def test_unknown_providers_are_refused(self, bad):
         with pytest.raises(keys_mod.ClaimKeyError):
             keys_mod.parent_claim_key(bad, A_LEG)

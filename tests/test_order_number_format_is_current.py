@@ -9,9 +9,9 @@ change. That is data-integrity breakage, not tidying.
 
 So two things have to be true at the same time, and this file asserts both:
 
-  * EVERY minter produces `WD-ORD-` + 8 symbols of `PUBLIC_ORDER_NUMBER_ALPHABET`. There are
-    two that matter - our own checkout, and the Wix backfill that assigns a display number
-    to orders Wix already holds. Checkout was already there; the backfill was not.
+  * The ONE minter, `order_keys.mint_public_order_number`, produces `WD-ORD-` + 8 symbols of
+    `PUBLIC_ORDER_NUMBER_ALPHABET`, and our own checkout reserves exactly that shape through
+    `reserve_public_order_number` after payment.
   * EVERY legacy shape still resolves, through the predicate that owns it.
 
 WHICH PREDICATE OWNS WHICH SHAPE, because this was documented wrongly and the wrong version
@@ -25,11 +25,11 @@ is the dangerous one to act on:
 
 `is_public_order_number` does NOT accept the spaced form and never did - its two branches are
 the current prefixed form and the bare 12-character one, both over an alphabet that excludes
-0, 1, I, L, O and U. The spaced and compact `WD-ORD` numbers the Wix path minted are 8 HEX
-characters, so `A1B2C3D4` fails that alphabet on the `1`. The predicate that owns those two
-is `is_wd_order_number`, and it is the one the Wix idempotency check and the
-reference_id refusal both call. Hence the `is_wd` column above: it had to learn the current
-form, or switching the minter would have silently broken both of them.
+0, 1, I, L, O and U. The legacy spaced and compact `WD-ORD` numbers are 8 HEX characters, so
+`A1B2C3D4` fails that alphabet on the `1`. The predicate that owns those two is
+`is_wd_order_number`, and it is the one the outbound reference_id refusal calls. Hence the
+`is_wd` column above: it had to learn the current form, or switching the minter would have
+silently broken that refusal.
 """
 
 import os
@@ -48,25 +48,16 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 from crm_fake_dynamo import FakeDynamo  # noqa: E402
 from lambda_utils.ecommerce import order_creation as oc  # noqa: E402
 from lambda_utils.ecommerce import order_keys, payment_attempt  # noqa: E402
-from lambda_utils.ecommerce import order_keys  # noqa: E402
 
-# Order-number generation moved from the removed Wix-named wix_domain module to order_keys.
-# The date arg is kept for signature compatibility but, as before, is NOT encoded into the
-# number (a public number must not leak the order date — see mint_public_order_number).
-def _generate_wd_order_number(_order_date):  # noqa: E302
-    return order_keys.mint_public_order_number()
-
-TABLE = 'stack-wecare-digital-WixOrderIds'
+TABLE = 'stack-wecare-digital-CommerceKeys'
 CUSTOMER = 'CUS_01J0000000000000000000000'
 REFERENCE = 'WD-PAY-ABCDEFGHJKMNPQ'
 TXN = 'pay_LIVE0000000001'
 AMOUNT = 59900
 NOW = 1_700_000_000
 
-ORDER_DATE = '2026-02-22T18:00:00Z'
-
 #: The two legacy shapes, as literals. Written out rather than generated, because the
-#: generator is the thing this FEAT changes - a fixture that called it would stop describing
+#: generator is the thing this FEAT changed - a fixture that called it would stop describing
 #: history the moment the minter moved, which is exactly the mistake being corrected here.
 LEGACY_BARE_TWELVE = 'KMP4X9Q2DTR7'
 LEGACY_SPACED = 'WD-ORD - A1B2C3D4 - 22-02-2026 - 23:30:00 - IST'
@@ -83,16 +74,16 @@ def _paid():
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# the minters
+# the minter
 # ════════════════════════════════════════════════════════════════════════════
 
 def test_checkout_mints_the_current_public_format(table):
-    """Our own checkout, down the real reconciliation path. It already did this.
+    """Our own checkout, down the real reconciliation path.
 
-    No production change was needed here - `order_creation._finish_numbering` reserves
-    through `reserve_public_order_number`. This is the LOCK: `test_order_creation` asserts
-    the looser `is_public_order_number`, which a legacy-shaped number would also satisfy, so
-    on its own it could not notice checkout regressing to the old form.
+    `order_creation._finish_numbering` reserves through `reserve_public_order_number`. This is
+    the LOCK: `test_order_creation` asserts the looser `is_public_order_number`, which a
+    legacy-shaped number would also satisfy, so on its own it could not notice checkout
+    regressing to the old form.
     """
     stored = payment_attempt.build(
         customer_id=CUSTOMER, reference_id=REFERENCE, amount_paise=AMOUNT,
@@ -106,66 +97,32 @@ def test_checkout_mints_the_current_public_format(table):
     assert order_keys.is_current_public_order_number(outcome.order_number)
 
 
-def test_the_wix_backfill_minter_produces_the_current_format():
-    """The one production change: the backfill generator no longer mints the old shape.
+def test_the_minter_produces_the_current_format():
+    """`WD-ORD - {UUID8} - {DD-MM-YYYY} - {HH:MM:SS} - IST` is never minted.
 
-    `WD-ORD - {UUID8} - {DD-MM-YYYY} - {HH:MM:SS} - IST` is gone. Asserted over many draws
-    because the alphabet is wider than hex: a generator still emitting 8 hex characters
-    would pass a single-draw check about two thirds of the time per character.
+    Asserted over many draws because the alphabet is wider than hex: a generator still
+    emitting 8 hex characters would pass a single-draw check about two thirds of the time per
+    character.
     """
     for _ in range(300):
-        number = _generate_wd_order_number(ORDER_DATE)
+        number = order_keys.mint_public_order_number()
         assert order_keys.is_current_public_order_number(number)
         assert ' - ' not in number
         assert 'IST' not in number
         assert not re.search(r'\d{2}-\d{2}-\d{4}', number), 'the number still carries a date'
 
 
-def test_the_backfill_number_carries_no_timestamp():
-    """Deliberate, and the reason is the same one recorded on `mint_public_order_number`.
+def test_a_minted_number_carries_no_timestamp():
+    """Deliberate, and the reason is the one recorded on `mint_public_order_number`.
 
     A public number that encodes when the order was placed leaks order volume to anyone
-    holding two of them. The `order_date` argument stays in the signature because
-    `reserve_order_number` calls every generator with it, but it no longer reaches the value.
+    holding two of them, so two numbers minted back to back share nothing time-derived.
     """
-    assert _generate_wd_order_number('2026-02-22T18:00:00Z') != \
-        _generate_wd_order_number('2026-02-22T18:00:00Z')
-    for value in ('', None, '2026-01-01', 'not-a-date'):
-        assert order_keys.is_current_public_order_number(_generate_wd_order_number(value))
-
-
-def test_a_reserved_backfill_number_is_the_current_format(table):
-    """Through `reserve_order_number`, which is what `wix-store` actually calls."""
-    number = order_keys.reserve_order_number(table, ORDER_DATE)
-    assert order_keys.is_current_public_order_number(number)
-    assert order_keys.ORDER_NUMBER_PREFIX + number in table.rows
-
-
-def test_a_backfill_collision_regenerates_without_overwriting(table):
-    """The retry loop still works, and the row that already exists is never overwritten.
-
-    The reservation is a conditional write, so a collision must be refused by DynamoDB and
-    answered with a fresh candidate - not resolved by clobbering the winner.
-    """
-    taken = order_keys.reserve_order_number(table, ORDER_DATE,
-                                            extra={'wixOrderId': 'first'})
-    scripted = iter([taken, 'WD-ORD-K4M7PQR9'])
-    got = order_keys.reserve_order_number(
-        table, ORDER_DATE, generate=lambda *a, **k: next(scripted),
-        extra={'wixOrderId': 'second'})
-
-    assert got == 'WD-ORD-K4M7PQR9'
-    assert order_keys.is_current_public_order_number(got)
-    assert table.rows[order_keys.ORDER_NUMBER_PREFIX + taken]['wixOrderId'] == 'first'
-    assert table.rows[order_keys.ORDER_NUMBER_PREFIX + got]['wixOrderId'] == 'second'
-
-
-def test_exhausting_backfill_attempts_still_fails_closed(table):
-    """A number that could not be reserved is never returned. Unchanged by the new shape."""
-    taken = order_keys.reserve_order_number(table, ORDER_DATE)
-    with pytest.raises(order_keys.OrderIdentityUnavailable):
-        order_keys.reserve_order_number(table, ORDER_DATE,
-                                        generate=lambda *a, **k: taken)
+    first = order_keys.mint_public_order_number()
+    second = order_keys.mint_public_order_number()
+    assert first != second
+    assert order_keys.is_current_public_order_number(first)
+    assert order_keys.is_current_public_order_number(second)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -183,9 +140,9 @@ def test_a_legacy_bare_twelve_character_number_still_validates():
 def test_the_legacy_spaced_and_compact_wd_numbers_still_validate():
     """Both legacy `WD-ORD` spellings, through the predicate that owns them.
 
-    `is_wd_order_number` is what `wix-store` asks before reusing a stored mapping and what
-    the outbound sender asks before refusing to send an order number as a payment reference.
-    Those two sites are the reason this must keep answering True for history.
+    `is_wd_order_number` is what the outbound sender asks before refusing to send an order
+    number as a payment reference. That site is the reason this must keep answering True for
+    history.
     """
     for legacy in (LEGACY_SPACED, LEGACY_COMPACT):
         assert order_keys.is_wd_order_number(legacy)
@@ -197,22 +154,18 @@ def test_the_legacy_spaced_and_compact_wd_numbers_still_validate():
 
 
 def test_the_current_format_is_recognised_as_a_wd_order_number():
-    """The gap that switching the minter would otherwise have opened, at two live sites.
+    """The gap that switching the minter would otherwise have opened.
 
     `_WD_ORDER_NUMBER_RE` matched 8 HEX characters, and the public alphabet runs past F. So a
-    freshly minted backfill number would have been invisible to:
-
-      * `wix-store._get_or_create_wd_order_number`, whose reuse check is this predicate - it
-        would have regenerated and overwritten the mapping on every call, which is the exact
-        defect that check was added to fix; and
-      * `outbound-whatsapp._sanitize_reference_id`, which refuses an order number as a
-        payment reference (R2.9) by asking this predicate - a 15-character `WD-ORD-K4M7PQR9`
-        is Meta-valid as a string, so it would have been handed to Meta as a reference.
+    freshly minted number would have been invisible to `outbound-whatsapp._sanitize_reference_id`,
+    which refuses an order number as a payment reference (R2.9) by asking this predicate - a
+    15-character `WD-ORD-K4M7PQR9` is Meta-valid as a string, so it would have been handed to
+    Meta as a reference.
 
     Widening, never narrowing: every legacy answer above is unchanged.
     """
     for _ in range(300):
-        assert order_keys.is_wd_order_number(_generate_wd_order_number(ORDER_DATE))
+        assert order_keys.is_wd_order_number(order_keys.mint_public_order_number())
     assert order_keys.is_wd_order_number('WD-ORD-K4M7PQR9')
 
 
@@ -234,8 +187,8 @@ def test_the_short_id_is_the_eight_distinguishing_characters_in_both_shapes():
 
     It split the legacy value on `' - '` and fell back to the first 12 characters, so a
     current-format number came out as `WD-ORD-K4M7` - a truncated prefix with the only
-    distinguishing part cut off. The Wix sync stores this value and the dropdown title shows
-    it, so the fallback had to learn the current shape when the minter moved.
+    distinguishing part cut off. The stored `shortId` and the dropdown title both show this
+    value, so the fallback had to learn the current shape when the minter moved.
     """
     from flows.orders import extract_short_id
 
@@ -246,8 +199,8 @@ def test_the_short_id_is_the_eight_distinguishing_characters_in_both_shapes():
     assert extract_short_id('some-internal-uuid-value') == 'some-interna'
 
 
-def test_the_short_id_of_a_minted_backfill_number_is_its_tail():
-    number = _generate_wd_order_number(ORDER_DATE)
+def test_the_short_id_of_a_minted_number_is_its_tail():
+    number = order_keys.mint_public_order_number()
     from flows.orders import extract_short_id
 
     short = extract_short_id(number)

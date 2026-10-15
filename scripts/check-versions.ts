@@ -12,7 +12,7 @@
  *
  * What it does NOT do
  * -------------------
- * It does not reach Meta, Wix or Google. Those versions are established by reading vendor
+ * It does not reach Meta or Google. Those versions are established by reading vendor
  * documentation and by the live probes recorded in `docs/current-environment.md`, and a
  * scraper pretending to do that would produce a number nobody could trust. For those the
  * gate enforces the weaker but honest property: a lag must carry a written reason. `--npm`

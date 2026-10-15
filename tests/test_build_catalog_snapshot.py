@@ -1,10 +1,11 @@
 """build-catalog-snapshot: ProductsTable item -> ShopProduct snapshot (pure).
 
-No AWS. Verifies the envelope matches the committed Wix snapshot, prices render
+No AWS. Verifies the envelope matches the committed snapshot, prices render
 exactly (Decimal, never float), Indian grouping, archived products are excluded,
 and variants project correctly.
 """
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -18,11 +19,13 @@ sys.modules["build_catalog_snapshot"] = bcs
 _spec.loader.exec_module(bcs)
 
 
-def test_envelope_matches_wix_snapshot_shape():
+def test_envelope_matches_the_committed_snapshot_shape():
     snap = bcs.build_snapshot([{"id": "p1", "title": "X", "slug": "x", "priceMinor": 100,
                                 "inventory": 1}])
     assert set(snap) == {"source", "catalogVersion", "fetchedAt", "productCount",
                          "products", "variantVerifiedAt"}
+    committed = json.loads((ROOT / "src/content/catalog-snapshot.json").read_text("utf-8"))
+    assert set(snap) == set(committed)
     assert snap["productCount"] == 1
     assert "native" in snap["source"]
 

@@ -1,22 +1,20 @@
 """Native cart adapter — presents the cart-operation interface `CustomerCart` expects, backed by
-the AWS-native `native_cart` (CartTable) and `native_checkout` pricing, with NO Wix.
+the AWS-native `native_cart` (CartTable) and `native_checkout` pricing.
 
 WHY THIS EXISTS. `CustomerCart.execute` (the phone-keyed lock/idempotency layer the WhatsApp
-claim-basket and website customer-cart routes drive) was written against the Wix `cart_v2.CartV2`
-adapter and calls `create / get / add / set_quantity / remove / calculate`, each returning a cart
-dict shaped `{id, revision, lineItems:[{id, quantityInfo:{confirmedQuantity}}]}`, and `calculate`
-returning `{cart, amountPaise, componentsPaise, calculationId, currency}`.
+claim-basket and website customer-cart routes drive) calls
+`create / get / add / set_quantity / remove / calculate` on an injected adapter, each returning a
+cart dict shaped `{id, revision, lineItems:[{id, quantityInfo:{confirmedQuantity}}]}`, and
+`calculate` returning `{cart, amountPaise, componentsPaise, calculationId, currency}`.
 
-This adapter satisfies that exact contract over the native store, so `CustomerCart` is unchanged
-and the Wix adapter can be deleted. It is the drop-in replacement for `cart_v2.CartV2(_wix_request)`
-in the checkout handler.
+This adapter satisfies that exact contract over the native store; the checkout handler builds one
+per request (`_native_cart_adapter`).
 
 SHAPE TRANSLATION. native_cart stores `{cartId, lineItems:[{productId, variantId, quantity,
 unitPricePaise}]}`. The `CustomerCart` layer only reads `cart["id"]`, `cart["revision"]`, and each
 line's `id` + `quantityInfo.confirmedQuantity`, so `_project` maps:
     cartId        -> id
-    updatedAt     -> revision   (monotonic working-doc revision; CustomerCart stores it, the
-                                 native store does not need Wix's revision semantics)
+    updatedAt     -> revision   (monotonic working-doc revision; CustomerCart stores it)
     variantId     -> lineItemId (the variant id IS the stable line identity natively; set_quantity
                                  / remove on CustomerCart pass a `lineItemId` which maps straight
                                  back to the variant)
@@ -55,7 +53,7 @@ class NativeCartAdapter:
     # -- shape translation -----------------------------------------------------
     @staticmethod
     def _project(cart: Mapping[str, Any]) -> Dict[str, Any]:
-        """native_cart row -> the Wix-cart shape CustomerCart reads."""
+        """native_cart row -> the cart shape CustomerCart reads."""
         lines: List[Dict[str, Any]] = []
         for ln in cart.get("lineItems", []):
             qty = int(ln["quantity"])
@@ -69,7 +67,7 @@ class NativeCartAdapter:
             "id": str(cart["cartId"]),
             # A monotonic revision for the lock layer; the native store uses updatedAt as the
             # working-doc version. Never 0 after a mutation, so CustomerCart's revision tracking
-            # advances like it did against Wix.
+            # advances with every write.
             "revision": int(cart.get("updatedAt") or 0),
             "lineItems": lines,
         }
@@ -78,8 +76,8 @@ class NativeCartAdapter:
         try:
             return native_cart.get(self.table, cart_id)
         except native_cart.CartNotFound as exc:
-            # The native equivalent of a Wix 404 on the cart resource: the pointer is worthless,
-            # so the caller DISCARDs it and creates a fresh cart (same recovery as the Wix path).
+            # The cart row is gone: the pointer is worthless, so the caller DISCARDs it and
+            # creates a fresh cart.
             raise CartGone("native cart not found", cart_id=cart_id) from exc
 
     # -- the CustomerCart adapter contract ------------------------------------

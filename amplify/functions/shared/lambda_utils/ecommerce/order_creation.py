@@ -29,7 +29,7 @@ Steps 3-5 live in `order_keys`. This module is the ordering and the comparisons.
 
 What it deliberately does not do
 --------------------------------
-It does not create the Wix order, record the Wix transaction, generate the receipt or send the
+It does not write the order record, finalize the payment attempt, generate the receipt or send the
 confirmation. Those are separate, individually guarded side effects, and folding them in here would
 mean a failure in the fifth one re-runs the first. This function's single job is: *may an order
 exist, and if so under which identifiers*. Everything downstream keys off the claim it returns and
@@ -266,7 +266,7 @@ def reconcile_payment(*,
                         provider_payment_id=provider_payment_id)
 
     try:
-        # A Wix-native gift card funds part of the FULL order total, so the amount Razorpay
+        # A redeemed gift card funds part of the FULL order total, so the amount Razorpay
         # is expected to capture can be smaller than amountPaise. Old attempts have no split field
         # and intentionally fall back to the full amount.
         expected_amount = positive_paise(

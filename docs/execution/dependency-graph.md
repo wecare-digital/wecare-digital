@@ -20,7 +20,7 @@ Phase 1  canonical inventory + documentation queues + MCP/SDK matrix    [NEXT]
    |      |        (depends on: Cognito token route, endpoint routing, session
    |      |         lifecycle, browser permissions, /plivo/dial-events)
    +-- Phase 6  internal chatbot + operations service + governed MCP
-   +-- Phase 7  growth / presence / Wix foundations
+   +-- Phase 7  growth / presence foundations
           |
 Phase 8  frontend route consolidation + tutorials
    |
@@ -54,7 +54,7 @@ SEC-ROUTE-003  extend audit_route_auth.py to both APIs + fix dir↔function mapp
       +-- SEC-ROUTE-001  /webhook/sinch-rcs   -> signature verification
       +-- SEC-ROUTE-002  POST /whatsapp/inbound -> close or verify
                 |
-                +-- PROV-AIRTEL-001 / PROV-SINCHSMS-001 dangling-route deletion
+                +-- PROV-SINCHSMS-001 dangling-route deletion
                        (A4 approval; same change window)
 ```
 

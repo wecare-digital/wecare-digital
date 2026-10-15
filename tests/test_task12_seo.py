@@ -203,8 +203,8 @@ def test_failed_blog_apply_restores_approved_state(seo_handler):
     assert payload(response)['error'] == 'Blog SEO apply failed; audit remains approved'
 
 def test_public_blog_endpoint_returns_native_posts_without_auth(seo_handler):
-    # Wix exit complete: the public blog reads from the AWS SeoToolsTable via the
-    # blog_source seam, not from an anonymous Wix visitor-token request.
+    # The public blog reads from the AWS SeoToolsTable via the blog_source seam, with no
+    # authentication.
     event = {
         'requestContext': {
             'apiId': 'api-1',
@@ -255,7 +255,7 @@ def test_public_blog_detail_reads_native_by_slug(seo_handler):
     auth.assert_not_called()
 
 
-def test_blog_audit_reads_aws_post_not_wix(seo_handler):
+def test_blog_audit_reads_the_stored_post(seo_handler):
     with patch.object(seo_handler, 'claim_admin_action', return_value=True), \
             patch.object(seo_handler, 'release_admin_audit'), \
             patch.object(seo_handler.storage, 'get_blog_post', return_value={

@@ -10,7 +10,7 @@ and cloud provider authorizations are separate.
 Kiro or Codex runs `scripts/workspace_mcp_proxy.py` as its stdio MCP client. The
 bridge uses the existing `wecare-prod` profile to sign requests to the API Gateway
 IAM route. The Lambda calls remote MCP servers only with independently authorized
-credentials. Its fixed SDK adapters read AWS, GitHub, Wix and Razorpay; Google
+credentials. Its fixed SDK adapters read AWS, GitHub and Razorpay; Google
 Cloud and Ads use separate cloud OAuth grants. GitHub Actions owns supplied-patch
 testing and committing.
 
@@ -82,7 +82,7 @@ and bounded SSE responses are supported; sessions are established separately per
 remote call. Provider content is untrusted data, and credential-named fields are
 redacted recursively, including JSON carried in text content.
 
-Wix verification reads site properties. Razorpay verification fetches at most one
+Razorpay verification fetches at most one
 order and returns only collection metadata, never customer or order content.
 Google Cloud reads only project `wecaredigitalbw`; Google Ads lists accessible
 customers using the developer token resolved inside Lambda. Google grants request

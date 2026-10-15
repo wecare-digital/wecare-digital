@@ -44,13 +44,12 @@ import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
  *     python scripts/check_data_model_drift.py --gate   declared models vs live tables
  *     python scripts/audit_data_model_drift.py --gate   table names in code vs live tables
  *
- * The first is the one that guards this file. Six models declaring tables that do
- * obsolete declarations for stores that do not exist were removed on 2026-09-24.
- * RcsMessages, AdminActionLog, ProviderDriftSnapshot) and every remaining
- * disagreement is recorded with its reason in that script rather than left to be
- * rediscovered.
+ * The first is the one that guards this file. Declarations for stores that do not
+ * exist (SmsAws, RcsMessages, AdminActionLog and ProviderDriftSnapshot among them)
+ * were removed on 2026-09-24, and every remaining disagreement is recorded with its
+ * reason in that script rather than left to be rediscovered.
  *
- * TTL is configured in `backend.ts` for 16 models, and is additionally enforced
+ * TTL is configured in `backend.ts` for 14 models, and is additionally enforced
  * on the physical tables by `scripts/_fix_ddb_ttl.py` - which is what actually
  * takes effect, since the CDK override has nothing to attach to.
  */
@@ -316,36 +315,16 @@ const schema = a.schema( {
     .identifier( [ 'configKey' ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
-  // Table 12: VoiceCalls - Voice call records (TTL: 90 days)
-  VoiceCall: a
-    .model( {
-      callId: a.id().required(),
-      contactId: a.string(),
-      phoneNumber: a.string().required(),
-      provider: a.enum( [ 'AWS', 'PLIVO', 'WHATSAPP' ] ),
-      callType: a.enum( [ 'TTS', 'AUDIO', 'IVR', 'CLICK_TO_CALL' ] ),
-      direction: a.enum( [ 'INBOUND', 'OUTBOUND' ] ),
-      status: a.enum( [ 'INITIATED', 'RINGING', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'NO_ANSWER', 'BUSY' ] ),
-      duration: a.integer().default( 0 ),
-      recordingUrl: a.string(),
-      providerCallId: a.string(),
-      createdAt: a.datetime(),
-      updatedAt: a.datetime(),
-      expiresAt: a.integer(), // TTL: Unix epoch seconds (90 days)
-    } )
-    .identifier( [ 'callId' ] )
-    .secondaryIndexes( ( index ) => [
-      index( 'contactId' ),
-      index( 'phoneNumber' ),
-    ] )
-    .authorization( ( allow ) => [ allow.authenticated() ] ),
+  // Voice call records live in three places, none of them a generic "calls" model:
+  // VoiceCDR below (PSTN, written by plivo-answer), VoiceAws (AWS End User Messaging
+  // voice) and WhatsAppCalling (Meta WhatsApp calling).
 
   // SmsAws REMOVED 2026-09-24. Declared a table `SmsAwsTable` that does not exist
   // in the account; SMS is stored in the canonical MessagesTable under
   // channel='sms' (messaging/sms-aws/handler.py `_store_message`). The three dead
   // constants naming the absent table, and the system-cleanup registry entry that
   // raised ResourceNotFound on every run, were removed in the same change.
-  // Table 17: VoiceAws - AWS Pinpoint Voice Calls (dedicated, TTL: 90 days)
+  // Table 17: VoiceAws - AWS End User Messaging voice calls (dedicated, TTL: 90 days)
   VoiceAws: a
     .model( {
       callId: a.id().required(),
@@ -396,110 +375,60 @@ const schema = a.schema( {
   // in ACCEPTED_ABSENT in scripts/audit_data_model_drift.py so a reintroduction is
   // still reported.
   // Table 13: VoiceCDR - Voice call detail records (TTL: 90 days)
-  // Inbound Number: +91 9319767034 (Mobile · Delhi) | Email: voice@wecare.digital
+  // Physical table: stack-wecare-digital-VoiceCDRTable (the model name maps to it in
+  // scripts/check_data_model_drift.py). One writer: messaging/plivo-answer
+  // `_persist_cdr`, one row per PSTN call under id `plivo#{CallUUID}`, merged forward
+  // by `cdrRank` so a late mid-call callback cannot overwrite a completed call. One
+  // reader: messaging/voice-cdr-read. The fields below are exactly what the writer
+  // stores - the live table carries these 31 attributes and no others.
   VoiceCDR: a
     .model( {
-      id: a.id().required(),
-      vmSessionId: a.string().required(), // voice session ID
-      clientCorrelationId: a.string(), // Xchange ID for searching
-      customerId: a.string(), // customer identifier/name from upstream
+      id: a.id().required(), // `plivo#{CallUUID}`
+      source: a.string(), // writer discriminator: 'plivo'
+      route: a.string(), // callback that last advanced the row: answer, hangup, events, ...
+      cdrRank: a.integer(), // lifecycle rank of that callback; never lowered
+      callUuid: a.string(), // provider call id
 
-      // Timestamps (epoch milliseconds from upstream)
-      startTime: a.integer(),
-      endTime: a.integer(),
-      callAnswerTime: a.integer(),
-      timestamp: a.string(), // upstream formatted timestamp
-
-      // Duration fields (milliseconds)
-      durationMs: a.integer(),
-      durationSec: a.float(),
-      fromWaitingTimeMs: a.integer(), // IVR wait time
-      fromWaitingTimeSec: a.float(),
-      conversationDurationMs: a.integer(), // Actual talk time
-      conversationDurationSec: a.float(),
-      billableDurationMs: a.integer(),
-      billableDurationSec: a.float(),
-
-      // Call details
+      // Parties and direction
+      callerNumber: a.string(), // From
+      destinationNumber: a.string(), // To
+      callerId: a.string(), // our number on the call (To when inbound, From when outbound)
       callType: a.enum( [ 'INBOUND', 'OUTBOUND' ] ),
-      overallCallStatus: a.string(), // Answered, Missed, Disconnected, Busy
-      hangupStatus: a.string(), // Party A, Party B, SYSTEM_INITIATED
-      hangupCause: a.string(), // SYSTEM_INITIATED, USER_INITIATED
 
-      // Phone numbers
-      callerId: a.string(), // CLI number
-      callerNumber: a.string(), // From number
-      destinationNumber: a.string(), // To number
-      calledNumber: a.string(), // inbound voice number
-      displayCliDestination: a.string(),
+      // Outcome
+      overallCallStatus: a.string(), // Answered, Missed, Busy, Ringing, In Progress
+      hangupCause: a.string(), // provider hangup cause, e.g. NORMAL_CLEARING
+      hangupStatus: a.string(), // the party that hung up (provider HangupSource)
 
-      // Status details
-      callerNumberStatus: a.string(), // Disconnected, NetworkError, NotReachable, Busy, Noanswer, Answer
-      callerNumberStatusDetails: a.string(), // SIP code details
-      destinationNumberStatus: a.string(),
-      destinationNumberStatusDetails: a.string(),
+      // Durations. Conversation and billable both track the connected call: there is
+      // no separate wait leg to subtract.
+      durationSec: a.float(),
+      durationMs: a.integer(),
+      conversationDurationSec: a.float(),
+      conversationDurationMs: a.integer(),
+      billableDurationSec: a.float(),
+      billableDurationMs: a.integer(),
 
-      // Circle and operator info
-      circleNameCaller: a.string(), // State name
-      circleNameDestination: a.string(),
-      operatorNameCaller: a.string(), // carrier/operator name
-      operatorNameDestination: a.string(),
-
-      // Recording
-      recordingURL: a.string(),
-      s3RecordingKey: a.string(),
-      s3RecordingUrl: a.string(),
-
-      // Retry info
-      retryCountCaller: a.integer(),
-      retryCountDestination: a.integer(),
-
-      // Caller/Destination names (from participants)
-      callerName: a.string(),
-      destinationName: a.string(),
-
-      // Caller duration & setup time
-      callerDuration: a.integer(), // Total caller duration in ms
-      callerDurationSec: a.float(),
-      callSetupTimeCaller: a.integer(), // Call setup time in ms
-
-      // Per-participant timing (epoch ms from participants array)
-      callerStartTime: a.integer(),
-      callerEndTime: a.integer(),
-      callerAnswerTime: a.integer(),
-      destStartTime: a.integer(),
-      destEndTime: a.integer(),
-      destAnswerTime: a.integer(),
-
-      // Audio/IVR URLs (from participants array)
-      callerAudioUrl: a.string(),
-      destinationAudioUrl: a.string(),
-
-      // OBD Campaign fields
-      campaignId: a.string(),
-      campaignName: a.string(),
-      pulseCount: a.integer(), // billing/voice pulse count
-      dtmfCapture: a.string(), // DTMF capture
-      missedDestinationNumber: a.string(), // Missed destination number
-
-      // Participants & Events (stored as JSON strings)
-      participantsJson: a.string(), // Full participants array
-      eventsJson: a.string(), // Full events array
-
-      // Derived overall call status
-      derivedOverallStatus: a.string(), // Computed from caller + destination status
-
-      // Metadata
-      participantsCount: a.integer(),
-      source: a.string().default( 'voice_cdr' ),
-      inboundNumber: a.string().default( '+919319767034' ),
-
-      createdAt: a.integer(), // Unix epoch seconds
+      // Time
+      timestamp: a.string(), // UTC, '%Y-%m-%d %H:%M:%S'
+      createdAt: a.integer(), // Unix epoch seconds, set once; the readers' sort key
       expiresAt: a.integer(), // TTL: Unix epoch seconds (90 days)
+
+      // snake_case copies the writer still stores beside the camelCase fields, so a
+      // later callback never strips them off an older row
+      call_uuid: a.string(),
+      from_number: a.string(),
+      to_number: a.string(),
+      direction: a.string(), // provider spelling: inbound, outbound, outbound-api
+      call_status: a.string(), // provider CallStatus
+      hangup_cause: a.string(),
+      hangup_source: a.string(),
+      duration_seconds: a.string(), // provider Duration / BillDuration, as sent
+      end_time: a.string(),
+      received_at: a.integer(), // Unix epoch seconds of the latest callback
     } )
     .identifier( [ 'id' ] )
     .secondaryIndexes( ( index ) => [
-      index( 'vmSessionId' ),
       index( 'callerNumber' ),
       index( 'callType' ),
     ] )
@@ -1440,9 +1369,8 @@ const schema = a.schema( {
   // ProviderDriftSnapshot REMOVED 2026-09-24. No table, and no writer: the Plivo
   // drift check in .github/workflows/plivo-drift.yml compares state and reports,
   // it does not persist snapshots. backend.ts carried a TTL entry for it, which
-  // the `if ( table )` guard silently turned into a no-op. This was the deferred
-  // item 9.2 in .kiro/work/phases-5-10/plan.md; the retired-provider surface it
-  // was waiting for is being swept now, so it goes with the rest.
+  // the `if ( table )` guard silently turned into a no-op, so it was removed with
+  // the other declarations for stores that do not exist.
   // Table: FlowLog — Audit trail for every flow screen interaction
   FlowLog: a
     .model( {

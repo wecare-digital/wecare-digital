@@ -60,7 +60,7 @@ CDN_DOMAIN = os.environ.get('CDN_DOMAIN', media_paths.CDN_DOMAIN)
 PRODUCTS_TABLE = os.environ.get('PRODUCTS_TABLE', 'stack-wecare-digital-ProductsTable')
 S3_PREFIX = media_paths.public('stack/store/products')
 
-# Image dimensions (Wix ideal: 3000x3000 for zoom)
+# Image dimensions (3000x3000, large enough for storefront zoom)
 IMG_SIZE = 3000
 
 # Country code → name mapping (ISO 3166-1 alpha-2)

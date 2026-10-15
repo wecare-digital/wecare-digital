@@ -83,8 +83,9 @@ def test_for_meta_beneficiary_refuses_non_india():
         pa.for_meta_beneficiary(_non_india(), recipient_name="X")
 
 
-def test_for_wix_india_returns_wix_shape():
-    out = pa.for_wix(_india())
+def test_a_website_payable_india_address_maps_to_the_delivery_shape():
+    pa.assert_payable(_india(), channel=pa.WEBSITE_RAZORPAY)
+    out = pa.india_address.to_delivery_address(_india())
     assert out.get("country") == "IN"
     assert "subdivision" in out
 

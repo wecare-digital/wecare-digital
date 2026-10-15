@@ -503,7 +503,7 @@ def test_an_invalid_pin_is_a_four_hundred_naming_the_postal_code(env):
 
 
 def test_an_unmapped_state_is_now_accepted_at_profile_save(env):
-    # FEAT-003: the Wix/subdivision rule moved to payment time. An unmapped state is stored here
+    # FEAT-003: the subdivision rule moved to payment time. An unmapped state is stored here
     # and refused later at checkout, not at the profile save.
     h, fake, _ = env
     seed_owned(fake)
@@ -586,9 +586,9 @@ def test_an_address_only_save_returns_the_stored_identity(env):
 def test_a_stored_address_with_an_unmapped_state_is_structurally_complete_now(env):
     # FEAT-003: from_contact is structural only, so an unmapped-state stored address is returned
     # (addressComplete true) rather than reported incomplete. Its payability — whether that state
-    # can price a Wix/Razorpay cart — is enforced at checkout via payment_address, not here. The
-    # customer is no longer bounced back to the profile form for a legacy/edge address; checkout
-    # asks them to confirm it only if it actually cannot pay.
+    # resolves to a subdivision the website Razorpay checkout can tax — is enforced at checkout
+    # via payment_address, not here. The customer is no longer bounced back to the profile form
+    # for a legacy/edge address; checkout asks them to confirm it only if it actually cannot pay.
     h, fake, _ = env
     seed_owned(fake, **{ADDRESS_ATTRIBUTE: dict(ADDRESS, state="Bangalore State")})
     resp = h.handler(event(firstName="Asha", lastName="Sengupta"), None)

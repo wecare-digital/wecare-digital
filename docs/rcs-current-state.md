@@ -110,10 +110,10 @@ surprising operational fact in this audit.
 | `src/pages/dm/rcs/{index,send,templates,campaign,inbox,logs}.tsx` | a full six-page RCS dashboard |
 | `tests/test_rcs_provider_isolation.py` | asserts Sinch stays confined to RCS |
 
-Callers of `send_rcs_ivr_notification`: `whatsapp-calling` (terminate + post_call_sip),
-`voice-in/c2c` (CDR), `voice-in/obd` (CDR). All three are trigger points the
-connected-call brief classifies as prohibited, and all three fired **0** times in the 14
-days to 2026-09-21 — so the RCS notification path has no live traffic.
+Callers of `send_rcs_ivr_notification`: `whatsapp-calling` (terminate + post_call_sip) and the
+notifications worker (`lambda_utils/notifications/worker.py`). The call trigger points are
+ones the connected-call brief classifies as prohibited, and they fired **0** times in the 14
+days to 2026-09-21 — so the RCS notification path had no live traffic.
 
 ## Sinch-side state — NOT discoverable
 

@@ -3,7 +3,7 @@
 
 What it stands up
 -----------------
-- A least-privilege execution role: logs; read of the Wix admin API key secret; read/write on the
+- A least-privilege execution role: logs; read of the Razorpay API key secret; read/write on the
   payment-attempts table and the commerce-keys (reference reservation) table; and
   `lambda:InvokeFunction` on the WhatsApp business Lambda (used for the readiness payment-config
   read and, once initiation is enabled, the in-chat order_details send). It has NO Cognito IAM
@@ -62,7 +62,7 @@ Usage:
 After first provision, normal code updates use:
     python scripts/deploy_all_lambdas.py wecare-checkout
 
-Follows .kiro/steering/secret-handling.md: the Wix key is read by reference at runtime via a
+Follows .kiro/steering/secret-handling.md: the Razorpay key is read by reference at runtime via a
 SecretId name only; no credential is ever placed on a command line or in a log.
 """
 
@@ -104,7 +104,7 @@ ROUTE_KEYS = (
     "POST /ecommerce/checkout/status",
     "POST /ecommerce/prepare-checkout",
     "POST /ecommerce/verify-callback",
-    # The ONE anonymous arm: the four public service pages read their live Wix price from it
+    # The ONE anonymous arm: the four public service pages read their live price from it
     # before a visitor has signed in. GET only, no input of any kind, and allow-listed by name in
     # `scripts/audit_route_auth.py` with its justification. `handler.handler` routes it ahead of
     # `require_customer`; every other method on this path still requires a session.
@@ -115,9 +115,9 @@ ROUTE_KEYS = (
 #:
 #: WHY A THROTTLE EXISTS ON THIS ROUTE AND NOT THE OTHERS. Every other route key above requires a
 #: proven customer session, so its volume is bounded by the number of signed-in customers. This
-#: one is reachable by anyone, and a CACHE MISS on it costs EIGHT Wix calls (`get` + `estimate`
-#: per variant) on the SAME API key the live checkout prices real baskets with -- so provider
-#: throttling induced by anonymous traffic here would reach the payment path.
+#: one is reachable by anyone, and a CACHE MISS on it scans ProductsTable inside the SAME function
+#: and behind the SAME API the live checkout prices real baskets with -- so concurrency induced by
+#: anonymous traffic here would reach the payment path.
 #:
 #: It is the second of two bounds, deliberately, because the first one is not ours. The edge in
 #: front of `/api/*` was MEASURED caching a `public, max-age` response on 2026-10-08 (see
@@ -128,9 +128,9 @@ ROUTE_KEYS = (
 #: bound that does not depend on the edge behaving.
 #:
 #: 5 rps sustained is far above any legitimate volume for a four-figure price list sitting behind
-#: a 60-second shared cache, and far below what would trouble Wix. Refusals are 429s from API
-#: Gateway, which `src/lib/servicePricing.ts` already treats as "unavailable" -- so exceeding it
-#: fails closed on the page rather than charging or guessing.
+#: a 60-second shared cache, and far below what would crowd out the live checkout. Refusals are
+#: 429s from API Gateway, which `src/lib/servicePricing.ts` already treats as "unavailable" -- so
+#: exceeding it fails closed on the page rather than charging or guessing.
 PRICE_ROUTE_KEY = "GET /ecommerce/service-prices"
 ROUTE_THROTTLE_RATE = 5.0
 ROUTE_THROTTLE_BURST = 10
@@ -157,9 +157,8 @@ DEPLOY_SOURCE_ROOT = ROOT / ".scratch" / "deploy-checkout"
 
 PAYMENT_ATTEMPTS_TABLE = "stack-wecare-digital-PaymentAttemptsTable"
 #: The commerce-key table the live function reads (`COMMERCE_KEYS_TABLE` env, and the
-#: `order_keys.commerce_keys_table_name()` default). It replaced the deleted
-#: `stack-wecare-digital-WixOrderIds` table on 2026-10-14; a test pins this literal to the
-#: resolver's default so the role, the env and the code cannot name different tables again.
+#: `order_keys.commerce_keys_table_name()` default). A test pins this literal to the resolver's
+#: default so the role, the env and the code cannot name different tables.
 COMMERCE_KEYS_TABLE = "stack-wecare-digital-CommerceKeys"
 #: Checkout pricing and inventory authority is the AWS-native ProductsTable.
 PRODUCTS_TABLE = "stack-wecare-digital-ProductsTable"
@@ -403,8 +402,9 @@ def expected_role_policy(acct: str | None = None) -> dict:
     """Least-privilege inline policy for the current checkout import closure.
 
     Kept as one pure builder so create, reconcile and tests all reason about the same document.
-    Coupons and gift cards are Wix-authoritative on the website path; the legacy custom stores are
-    not imported by checkout and therefore do not belong in this role.
+    Coupons and gift cards are owned by their own functions and roles (`wecare-coupons`,
+    `wecare-gift-cards`); their stores are not imported by checkout and therefore do not belong
+    in this role.
     """
     acct = acct or account_id()
     return {
@@ -1142,8 +1142,8 @@ def verify(members: dict | None = None, source_note: str = "") -> int:
     print(f"routes on {API_ID}: {len(routes)} total, stage {STAGE}")
 
     # The throttle on the ONE anonymous route, read back rather than assumed. This is the bound on
-    # Wix read volume that does not depend on the `/api/*` edge continuing to cache, so an absent
-    # or loosened cap is a real finding and not a cosmetic one — see PRICE_ROUTE_KEY above.
+    # ProductsTable read volume that does not depend on the `/api/*` edge continuing to cache, so
+    # an absent or loosened cap is a real finding and not a cosmetic one — see PRICE_ROUTE_KEY.
     applied_throttle = route_throttle()
     if (applied_throttle.get("ThrottlingRateLimit") != ROUTE_THROTTLE_RATE
             or applied_throttle.get("ThrottlingBurstLimit") != ROUTE_THROTTLE_BURST):
@@ -1151,7 +1151,7 @@ def verify(members: dict | None = None, source_note: str = "") -> int:
             f"{PRICE_ROUTE_KEY} is not throttled at {ROUTE_THROTTLE_RATE} rps / "
             f"{ROUTE_THROTTLE_BURST} burst (live: {applied_throttle or 'no route setting'}) — "
             f"the anonymous price read is the only route here reachable without a session, and "
-            f"each cache miss costs 8 Wix calls on the checkout's own API key")
+            f"each cache miss scans ProductsTable inside the live checkout function")
     else:
         print(f"route throttle {PRICE_ROUTE_KEY}: {ROUTE_THROTTLE_RATE} rps / "
               f"{ROUTE_THROTTLE_BURST} burst")

@@ -31,6 +31,10 @@ from pathlib import Path
 import boto3
 from botocore.exceptions import ClientError
 
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import provider_allowlist  # noqa: E402
+
 REGION = "us-east-1"
 ACCOUNT = "775261844268"
 TXT = Path.home() / "aws-new-keys-SAVE-THEN-DELETE.txt"
@@ -49,14 +53,16 @@ WEBHOOKS = [
      "X-Hub-Signature-256", "CONFIGURED at provider"),
     ("Plivo voice IVR", "POST", "/plivo/answer", "wecare-plivo-answer",
      "optional ?token= (PLIVO_ANSWER_TOKEN); Plivo does not sign answer_url", "CONFIGURED at provider"),
-    ("Sinch SMS DLR", "POST", "/webhook/sinch-dlr", "wecare-sinch-dlr", "unsigned callback", "route live"),
     ("Sinch RCS", "POST", "/webhook/sinch-rcs", "wecare-rcs-dlr", "unsigned callback", "route live"),
-    ("Airtel IQ SMS inbound", "POST", "/sms-in/airtel", "wecare-sms-in-airtel", "unsigned callback", "route live"),
-    ("Airtel IQ voice C2C", "POST", "/voice-in/c2c", "wecare-voice-in-c2c", "unsigned callback", "route live"),
-    ("Airtel IQ voice CDR", "POST", "/voice-in/cdr", "wecare-voice-in-cdr", "unsigned callback", "route live"),
-    ("Airtel IQ voice OBD", "POST", "/voice-in/obd", "wecare-voice-in-obd", "unsigned callback", "route live"),
-    ("Voice CDR", "POST", "/voice-cdr-webhook", "wecare-voice-cdr-read", "unsigned callback", "route live"),
 ]
+
+
+def unapproved_rows() -> list[str]:
+    """Registry rows that are not approved webhook routes. The registry may only describe
+    endpoints scripts/provider_allowlist.py approves, so a row for a provider that is not
+    on the allow-list is refused rather than published as `route live`."""
+    return [f"{method} {path}" for _prov, method, path, _fn, _auth, _status in WEBHOOKS
+            if not provider_allowlist.webhook_route_ok(path)]
 
 
 def fp(v: str) -> str:
@@ -222,6 +228,11 @@ def write_parameter(dry: bool) -> str:
 
 def main() -> int:
     dry = "--dry-run" in sys.argv
+    refused = unapproved_rows()
+    if refused:
+        print("refusing to write: not approved webhook routes: " + ", ".join(refused),
+              file=sys.stderr)
+        return 1
     if "--verify-aws-keys" in sys.argv:
         print("=== Owner-only AWS key consistency check ===")
         for line in verify_aws_keys():

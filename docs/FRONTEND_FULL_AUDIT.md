@@ -45,7 +45,7 @@ Confirmed by reading source:
 → These ship as real routes and (`task`) appear in the sidebar with a "Soon" badge. **Recommendation:** remove from build/nav until real, or gate behind a feature flag. Shipping empty routes hurts UX and SEO.
 
 ## C. Real, well-built pages (leave them)
-`index` (home, needs CTA fixes), `store/` (full Wix CRUD — products/orders/collections/bulk),
+`index` (home, needs CTA fixes), `store/` (products/orders/collections/bulk),
 `dm/channels/` (clean launcher hub), `dm/inbox` (unified cross-channel), `dm/whatsapp/*` (deep feature set),
 `seo/*` (functional tools), `pay/*`, `service/*`, `contacts/`, `forms/`, `link/`. These use the shared
 `Layout`, `Tabs`, `Table`, `EmptyState`, `Spinner`, toast, and `api/client.ts` — good consistency.

@@ -4,7 +4,7 @@ The six editable SVG masters, preview and manifest remain in this directory. The
 4096px PNG release payloads are stored under the existing bucket/object keys in
 manifest.json rather than duplicated in the source checkout. This externalization
 preserves the approved raster bytes; it does not change service availability,
-catalog approval, Wix product identity or any customer route.
+catalog approval, product identity or any customer route.
 
 Each product records imageSha256/imageBytes and its imageKey/imageUrl. The version
 segment in a key is a design-release convention, not proof of S3 object immutability.
@@ -20,5 +20,5 @@ font availability and renderer versions can affect raster output. The localSourc
 and sourceSha256 fields identify the retained editable masters; previewSha256
 identifies the retained preview.
 
-Catalog/Wix assignment and approval remain separate work. Existing remote artwork
+Catalog/product assignment and approval remain separate work. Existing remote artwork
 objects and their manifest URLs are retained; no frontend image path is changed.

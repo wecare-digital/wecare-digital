@@ -27,8 +27,8 @@ TABLE = 'stack-wecare-digital-CommerceKeys'
 
 @pytest.fixture
 def table():
-    # The live table's key is `orderId` (measured via DescribeTable), even though the Amplify
-    # model declares `wixOrderId`. Tests bind to the physical truth.
+    # The live table's key is `orderId` (measured via DescribeTable), the same identifier the
+    # Amplify `CommerceKey` model declares. Tests bind to the physical truth.
     return FakeDynamo(keys={TABLE: 'orderId'}).Table(TABLE)
 
 
@@ -539,7 +539,7 @@ def test_no_reservation_row_carries_a_ttl(table):
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# legacy WD numbers, for orders synced from Wix
+# recognising every WD-ORD spelling (the outbound reference_id guard depends on it)
 # ════════════════════════════════════════════════════════════════════════════
 
 def test_is_wd_order_number_matches_the_format_actually_generated():
@@ -568,12 +568,13 @@ def test_is_wd_order_number_rejects_non_order_numbers(value):
     assert not order_keys.is_wd_order_number(value)
 
 
-def test_legacy_reservation_still_fails_closed(table):
-    """Used by the Wix sync path for orders that already exist and are already paid."""
-    table.parent.arm_failure(TABLE, 'put_item', FakeClientError('ProvisionedThroughputExceeded'))
-    with pytest.raises(order_keys.OrderIdentityUnavailable):
-        order_keys.reserve_order_number(table, '2026-02-22T18:00:00Z')
-    assert table.parent.count(TABLE) == 0
+def test_the_legacy_order_number_entry_points_are_gone():
+    """Order numbers are minted only after payment, through `reserve_public_order_number`."""
+    assert not hasattr(order_keys, 'reserve_order_number')
+    assert not hasattr(order_keys, 'order_ids_table_name')
+    assert 'reserve_order_number' not in order_keys.__all__
+    assert 'order_ids_table_name' not in order_keys.__all__
+    assert 'commerce_keys_table_name' in order_keys.__all__
 
 
 def test_recover_crash_between_provider_claim_and_attempt_claim(table):

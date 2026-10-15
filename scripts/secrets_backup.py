@@ -76,14 +76,22 @@ REQUIRED_SECRET_IDS = [
     "wecare/agent-connector-token",
 ]
 
-# Retired provider credentials must never re-enter a newly generated archive,
-# including after a recovery-window restoration of an old secret.
-RETIRED_SECRET_PREFIXES = ("wecare/wix/",)
+def approved_secret(name: str) -> bool:
+    """Only a secret the provider allow-list approves enters a new archive.
+
+    Positive on purpose, like `scripts/provider_allowlist.py` itself: a retired
+    provider's credential - including one restored inside its recovery window -
+    is simply not approved, so it never re-enters a newly generated archive.
+    Exclusions are reported by NAME in the run summary, never silently dropped.
+    """
+    import provider_allowlist  # scripts/, next to this file
+
+    return provider_allowlist.vault_owner(name)[0] is not None
 
 
-def backup_secret_ids(discovered: set[str], required: list[str]) -> list[str]:
-    return sorted(name for name in discovered | set(required)
-                  if not name.startswith(RETIRED_SECRET_PREFIXES))
+def backup_secret_ids(discovered: set[str], required: list[str],
+                      approved=approved_secret) -> list[str]:
+    return sorted(name for name in discovered | set(required) if approved(name))
 
 
 def fp(v: object) -> str:
@@ -159,6 +167,9 @@ def gather() -> tuple[dict, list[str]]:
     secret_ids = backup_secret_ids(discovered, REQUIRED_SECRET_IDS)
     summary.append(f"  discovered {len(discovered)} secret(s) in {ACCOUNT}; "
                    f"backing up {len(secret_ids)}")
+    excluded = sorted((discovered | set(REQUIRED_SECRET_IDS)) - set(secret_ids))
+    if excluded:
+        summary.append("  EXCLUDED, not on the provider allow-list: " + ", ".join(excluded))
     if missing_required:
         summary.append("  WARNING required secret(s) absent from the account: "
                        + ", ".join(missing_required))

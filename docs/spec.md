@@ -6,15 +6,10 @@ Spec-Driven Development artifact. This is the document the brief calls `spec.md`
 
 | Document | What it holds | Do not duplicate it here |
 |---|---|---|
-| [`docs/current-environment.md`](current-environment.md) | Phase 0 read-only inventory: 65 Lambdas, 79 tables, 361 routes, live Meta/SES/Google/Wix state, 19 gaps | the inventory |
+| [`docs/current-environment.md`](current-environment.md) | Phase 0 read-only inventory: 65 Lambdas, 79 tables, 361 routes, live Meta/SES/Google state, 19 gaps | the inventory |
 | [`docs/compatibility.md`](compatibility.md) | vendor capability and version matrix | the version matrix |
-| [`.kiro/specs/whatsapp-wix-commerce/requirements.md`](../.kiro/specs/whatsapp-wix-commerce/requirements.md) | **R0–R18**: Wix credential unblock, order numbers, webhooks, idempotency, cart/checkout, money, payment reconciliation, inventory, billing, tracking, admin, timeline, fulfillment, state machine, commerce security, observability, gates | the commerce requirements |
+| [`docs/design.md`](design.md) | how these requirements and the native AWS commerce flow (catalog, cart, checkout, payment, billing) are built | the design |
 | **this file** | **CI / OTP / ADR / SESS / ACC / PUB / VER**: customer identity, phone and email verification, address capture, sessions, account area, public web and page composition, version and test strategy | — |
-
-Two requirement namespaces, one program. `R*` is commerce. The prefixes in this file are
-everything the brief asks for that `R*` does not reach. They are deliberately **not**
-numbered `R19+`: a single series split across two files, owned at different times, is how a
-registry ends up with two conflicting truths.
 
 Requirement state is tracked in [`docs/execution/requirement-registry.md`](execution/requirement-registry.md),
 which remains the one place state changes.
@@ -23,7 +18,7 @@ which remains the one place state changes.
 
 Let a person arrive at `wecare.digital` on a phone, register with a WhatsApp number and an
 email address, prove control of both, give a real deliverable address, and end up with
-exactly one account — then browse a Wix catalog, buy, pay inside WhatsApp, and track the
+exactly one account — then browse the native catalog, buy, pay inside WhatsApp, and track the
 order from either the website or the chat thread. Staff see every one of those steps.
 
 ## Non-goals
@@ -33,7 +28,7 @@ order from either the website or the chat thread. Staff see every one of those s
 - A utility-CSS retrofit. Tailwind is **not installed** (verified). Mobile-first work is
   CSS in the existing hand-written token system.
 - Replacing the invoice engine. 16 routes, 5 tables, a per-FY statutory sequence and
-  GSTIN/HSN fields. Wix Invoices has none of that.
+  GSTIN/HSN fields.
 - Rebuilding the WhatsApp OTP transport. Cognito `CUSTOM_AUTH` against
   `us-east-1_46ULYuukt` already works against a live APPROVED template.
 - Rotating, reading or revoking any provider credential. `MANUAL_OWNER_ACTION`.
@@ -393,30 +388,28 @@ None of `/account*` exists.
 3 of the brief's 23 public routes exist (`/`, `/blog`, `/contact`), 1 exists at a different
 path (`/post/[slug]`), 19 do not. There is no page-composition system.
 
-## PUB-1 — Wix stays canonical
+## PUB-1 — AWS is canonical
 
-1. Wix SHALL remain the source of truth for products, blog posts, categories, tags and
-   Wix-controlled commerce entities.
+1. `ProductsTable` SHALL be the source of truth for products and variants (prices as integer
+   `priceMinor` paise); `SeoToolsTable` SHALL be the source of truth for blog posts,
+   categories and tags.
 2. AWS SHALL own customer identity, OTP challenges, WhatsApp orchestration, payment
    reconciliation, page composition, tracking authorisation, audit events and operational
    state.
-3. Page composition SHALL store **references** to Wix content, never copies. A cached copy
-   is a cache and SHALL be labelled and invalidated as one.
+3. Page composition SHALL store **references** to products and posts, never copies. A cached
+   copy is a cache and SHALL be labelled and invalidated as one.
 
-## PUB-2 — Adapter boundaries
+## PUB-2 — Read boundaries
 
-1. `WixCatalogAdapter` SHALL expose `searchProducts`, `queryProducts`, `getProduct`,
-   `getProductBySlug`, `getProductVariants`, `getProductsByIds`, `getProductsByCategory`,
-   `getFeaturedProducts`, `getLatestProducts`, `checkProductAvailability`.
-2. `WixBlogAdapter` SHALL expose `queryPosts`, `getPost`, `getPostBySlug`, `getLatestPosts`,
-   `getFeaturedPosts`, `getPostsByCategory`, `getPostsByTag`, `getPostsByIds`.
-3. No page component SHALL call Wix directly. The browser SHALL never hold a Wix credential.
-4. The existing boundary SHALL be extended, not replaced: every Wix call already funnels
-   through one Lambda, with 13 pure transforms in `lambda_utils/ecommerce/wix_domain.py` and
-   a typed client proxy in `src/api/client.ts`.
+1. The storefront SHALL read products from `src/content/catalog-snapshot.json`, generated
+   from `ProductsTable` by `scripts/build-catalog-snapshot.py`; staff edits SHALL go through
+   `wecare-native-catalog-admin` (`/native-catalog/products`).
+2. Public blog reads SHALL go through `wecare-seo-tools` at `/seo-tools/blog-public` and
+   `/seo-tools/blog-public/{slug}` (`src/lib/public-blog.ts`).
+3. No page component SHALL hold a credential or call a datastore directly.
+4. Prices SHALL be computed server-side only, by `catalog_pricing` and
+   `checkout_pricing.compute_quote`; a client-supplied price SHALL be ignored.
 5. Only published, public blog posts SHALL appear publicly.
-6. Wix Blog is **not called anywhere today**; this is new integration, and its availability
-   on the site is `BLOCKED` behind the missing credential.
 
 ## PUB-3 — Dynamic page composition
 
@@ -427,7 +420,7 @@ path (`/post/[slug]`), 19 do not. There is no page-composition system.
    `PRODUCT_FEATURE`, `PRODUCT_CATEGORY`, `BLOG_GRID`, `BLOG_CAROUSEL`, `BLOG_FEATURE`,
    `BLOG_CATEGORY`, `BLOG_TAG`, `CTA`, `FAQ`, `TESTIMONIALS`, `CUSTOM`.
 4. An unknown section type SHALL render nothing and SHALL NOT break the page.
-5. A section referencing deleted Wix content SHALL degrade gracefully, not 500.
+5. A section referencing a deleted product or post SHALL degrade gracefully, not 500.
 
 ## PUB-4 — Routes
 
@@ -575,21 +568,20 @@ path (`/post/[slug]`), 19 do not. There is no page-composition system.
 | 23, 24, 25, 26 | ACC-1 |
 | 27, 28 | PUB-2 |
 | 29, 30 | PUB-3, PUB-1 |
-| 31, 32, 33 | `R2`, `R4`, `R7` |
-| 34 | `R8` |
-| 35 | `R9`, `R10` |
-| 36 | `R11` |
+| 31, 32, 33 | `docs/design.md` §8 checkout, §9 payment reconciliation |
+| 34 | `docs/design.md` ADR-7 inventory |
+| 35 | `docs/design.md` ADR-8, §11 billing |
+| 36 | `docs/design.md` §12 fulfillment (not built) |
 | 37–44 | PUB-5 |
 | 45, 46 | PUB-8 |
 | 47 | PUB-6 |
-| 48 | PUB-7, `R16` |
+| 48 | PUB-7 |
 | 49 | `docs/current-environment.md` |
 | 50, 51 | VER-1 |
 | 52, 53, 54, 55 | VER-3 |
-| 56 | VER-4, `R18` |
+| 56 | VER-4 |
 
 Criteria **19 and 21** cannot be satisfied until `places.googleapis.com` is added to the
-Google key and the key is split. Criteria **27, 28, 29, 30** and all of `R5`–`R10` cannot be
-satisfied until `R0` — the Wix credential — is closed by the owner. Criterion **4** is
+Google key and the key is split. Criterion **4** is
 satisfied at the provider today and verified live. Criterion **8**'s sender is verified
 today; only the application path is missing.

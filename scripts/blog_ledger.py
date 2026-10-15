@@ -145,7 +145,6 @@ class LedgerRow:
     title: str = ""
     batchFile: str = ""
     #: Post-publication, filled by the publish and verify steps.
-    wixPostId: str = ""
     publishedAt: str = ""
     verifiedAt: str = ""
     error: str = ""

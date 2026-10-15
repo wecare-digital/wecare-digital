@@ -43,12 +43,12 @@ No triage result may:
 
 - write human gate PASS values;
 - change a record to `READY_TO_PUBLISH`;
-- publish to Wix;
+- publish anything;
 - convert source wording cosmetically;
 - remove required attribution to make copy appear original.
 
-The existing `scripts/conversations_batch.py` remains the only Conversations orchestrator
-in front of `scripts/wix_blog_migrate.py`.
+Publication belongs to AWS-native Blog Studio. `scripts/conversations_batch.py` validates
+and audits Conversations batches and writes no post.
 
 ## Current 1,212-source triage
 

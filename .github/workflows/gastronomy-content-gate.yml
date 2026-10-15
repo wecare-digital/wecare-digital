@@ -6,6 +6,7 @@ on:
     paths:
       - 'content/gastronomy/**'
       - 'scripts/gastronomy_batch.py'
+      - 'scripts/blog_native_contract.py'
       - 'tests/test_gastronomy_batch.py'
       - '.github/workflows/gastronomy-content-gate.yml'
   push:
@@ -13,6 +14,7 @@ on:
     paths:
       - 'content/gastronomy/**'
       - 'scripts/gastronomy_batch.py'
+      - 'scripts/blog_native_contract.py'
       - 'tests/test_gastronomy_batch.py'
       - '.github/workflows/gastronomy-content-gate.yml'
   workflow_dispatch:
@@ -64,7 +66,7 @@ jobs:
     needs: validate
     runs-on: ubuntu-26.04
     steps:
-      - name: Refuse retired provider publication
+      - name: Refuse publication from this workflow
         run: |
-          echo "::error::This workflow is validation-only. Wix publishing is retired; publish through the AWS-native Blog Studio workflow."
+          echo "::error::This workflow is validation-only. Publish approved content through AWS-native Blog Studio."
           exit 1

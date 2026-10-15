@@ -6,12 +6,11 @@ Companion to [`current-environment.md`](current-environment.md),
 `775261844268` / `us-east-1`, Meta's published changelogs, and the live site.
 
 **Why a third file.** Four Kiro sessions worked this brief against one shared working tree.
-`whatsapp-wix-commerce` is owned by `sess_a140bc76`, and its document set
-(`current-environment.md`, `spec.md`, `design.md`, `tasks.md`, `security.md`, `operations.md`,
-`compatibility.md`) is the authority. This file **adds only findings that appear in none of
-them** — each one was checked before inclusion — and it re-rules and restates nothing. Written
-as a separate file for the same reason `addendum.md` was: an append to a file another session is
-actively editing is silently lost.
+The Phase 0 document set (`current-environment.md`, `spec.md`, `design.md`, `tasks.md`,
+`security.md`, `operations.md`, `compatibility.md`) is the authority. This file **adds only
+findings that appear in none of them** — each one was checked before inclusion — and it
+re-rules and restates nothing. Written as a separate file for the same reason `addendum.md`
+was: an append to a file another session is actively editing is silently lost.
 
 Every row below is `LIVE` (measured against the account, the provider, or the live site during
 this session) or `DOC` (read from current official vendor documentation during this session).
@@ -72,40 +71,7 @@ not a config change. Also present outside the fleet: `src/pages/_app.tsx:1022` a
 
 `DOC` + `LIVE`.
 
-## 3. A SEO audit path that reports success while measuring nothing
-
-**Severity: LOW, but it is a false signal, which is worse than a gap.**
-
-`amplify/functions/operations/seo-tools/wix.py:174-175` — `page_seo()` fetches
-`SITE_BASE + '/_functions/seohead?path=…'`. That is a **Velo endpoint on the retired Wix Editor
-site**. `SITE_BASE` is `https://wecare.digital`, which is now the Amplify-hosted Next.js export.
-
-Measured live:
-
-```
-GET https://wecare.digital/_functions/seohead?path=%2F
-  301 -> https://wecare.digital/_functions/seohead/?path=%2F
-  404, content-type text/html, 52,447 bytes   <- the Amplify 404-200 home page
-  json.loads -> JSONDecodeError
-```
-
-`public_json()` at `:165-171` catches `Exception` and returns `{}`. So:
-
-- `page_seo()` returns `{}` for every path.
-- `list_site_pages()` (`:185-197`) returns **all 37 `SITE_PAGES`** with empty titles,
-  descriptions, keywords and JSON-LD, and `hasJsonLd: False` throughout.
-- `GET /seo-tools/site-pages` therefore looks like a working audit of 37 pages that all happen
-  to have no SEO.
-- `_page_audit` (`handler.py:198`) and `_page_clean` (`:218`) both consume it, so a page audit is
-  scored against a blank baseline.
-
-Same shape as the fail-open rate limiter already fixed in this repo: a caught exception made
-"broken" indistinguishable from "empty". No test covers it — `grep` for `list_site_pages`,
-`page_seo` or `seohead` under `tests/` returns nothing.
-
-`LIVE`.
-
-## 4. Four alarms that can never fire
+## 3. Four alarms that can never fire
 
 **Severity: LOW.** 42 metric alarms exist, all `OK`. Four of them watch resources that do not
 exist, so they read as coverage that is not there:
@@ -119,36 +85,7 @@ exist, so they read as coverage that is not there:
 
 `LIVE` `DescribeAlarms` + `ListFunctions` + `GetApis`.
 
-## 5. `xout.wecare.digital` does not serve content, and that is correct
-
-The brief names `https://xout.wecare.digital/` as the published Wix target. Measured:
-
-```
-dig  -> pointing.wixdns.net, cdn1.wixdns.net, td-ccm-neg-87-45.wixdns.net, 34.149.87.45
-HTTP -> 404
-```
-
-Wix-hosted, and 404 at the root. That is the **expected** shape for an editorless headless site:
-it serves APIs, not pages. Recorded so nobody treats the 404 as a fault or as evidence the wrong
-site id is configured. `LIVE`.
-
-## 6. The Wix order number is not atomic
-
-**Severity: MEDIUM.** `amplify/functions/ecommerce/wix-store/handler.py:733-769`,
-`_get_or_create_wd_order_number`:
-
-- `put_item` is called with **no `ConditionExpression`** (`:753-759`), so two concurrent callers
-  can both write, and the second silently wins.
-- The exception path (`:767-769`) returns `_generate_wd_order_number(order_date)` **without
-  storing it**, so a caller can receive a number that no record holds.
-
-Neither uniqueness nor immutability holds. The repo already contains the correct pattern in
-`payments/invoice-engine/handler.py:405-432`, where the GST series is protected by an
-`attribute_not_exists(invoiceId)` claim derived from `(referenceId, paymentId)` — and the comment
-there records that an unconditional write once let a racing duplicate burn a real GST sequence
-number. Same defect, same fix, different file. `LIVE` repo read.
-
-## 7. SES engagement tracking is on for an account that sends OTP mail
+## 4. SES engagement tracking is on for an account that sends OTP mail
 
 **Severity: LOW.** `sesv2 GetAccount` reports:
 
@@ -164,7 +101,7 @@ Whether Cognito OTP mail actually carries a pixel is still unverified and needs 
 message inspected. Account posture for context: production access enabled, `HEALTHY`, 50,000/day,
 14/s, 0 sent in the last 24h. `LIVE`.
 
-## 8. `live` alias coverage is 58 of 65
+## 5. `live` alias coverage is 58 of 65
 
 The release contract in `.kiro/steering/lambda-snapstart-deploy.md` only binds where the alias
 exists. Measured sequentially with **0 call errors** — a concurrent count that swallows failures
@@ -181,7 +118,7 @@ reports this wrong, which has happened before:
 For those 7, `update-function-code` takes effect immediately. The steering's dated snapshot said
 53/9 and then 58/7; the count drifts as aliases are provisioned, so re-derive it. `LIVE`.
 
-## 9. A pitfall when verifying WAF association
+## 6. A pitfall when verifying WAF association
 
 `wafv2 ListResourcesForWebACL` defaults `ResourceType` to **`APPLICATION_LOAD_BALANCER`**. Called
 without it against `wecare-cognito-waf` it returns an empty list, which reads as "associated with
@@ -208,13 +145,10 @@ from a default-parameter call. `LIVE`.
 |---|---|---|---|
 | 1 | v26.0 avoidance reason unsubstantiated; commerce surfaces vanish from **all** versions | **HIGH** | **2026-10-27** |
 | 2 | Graph version not centrally configurable — 9 hardcoded, incl. the main sender | **HIGH** | blocks §1 |
-| 3 | SEO page audit measures nothing and reports success | LOW | — |
-| 4 | 4 alarms can never fire | LOW | — |
-| 5 | `xout.wecare.digital` 404 is expected, not a fault | INFORMATIONAL | — |
-| 6 | Wix order number write is unconditional and can return an unstored number | MEDIUM | — |
-| 7 | SES engagement tracking on an OTP-sending account | LOW | — |
-| 8 | `live` alias on 58 of 65; 7 deploy immediately | INFORMATIONAL | — |
-| 9 | `ListResourcesForWebACL` default hides Cognito association | INFORMATIONAL | — |
+| 3 | 4 alarms can never fire | LOW | — |
+| 4 | SES engagement tracking on an OTP-sending account | LOW | — |
+| 5 | `live` alias on 58 of 65; 7 deploy immediately | INFORMATIONAL | — |
+| 6 | `ListResourcesForWebACL` default hides Cognito association | INFORMATIONAL | — |
 
 §1 and §2 are the only ones with a date attached. Everything else is a correctness or
 signal-quality item with no external clock.

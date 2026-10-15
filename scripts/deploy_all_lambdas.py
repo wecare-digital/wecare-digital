@@ -213,14 +213,14 @@ SPECS: List[Spec] = [
         "auth/customer-registration",
         provisioned_by="python scripts/provision_customer_registration.py",
     ),
-    # Customer checkout for the headless WhatsApp/Razorpay flow. Resolves the authoritative Wix
-    # eCom total (integer paise), gates on a live payment-readiness readback, reserves a
+    # Customer checkout for the headless WhatsApp/Razorpay flow. Resolves the authoritative
+    # ProductsTable total (integer paise), gates on a live payment-readiness readback, reserves a
     # PaymentAttempt, and hands off to the in-chat order_details path — creating NO order and NO
     # charge (an order exists only after the razorpay-webhook reconciliation verifies a capture).
     # Payment initiation is on by source and remains fail-closed behind live readiness. First
     # creation is owned by scripts/provision_checkout.py. NOT
     # standalone: it imports lambda_utils.customer_auth, payment_readiness, ecommerce.order_keys,
-    # ecommerce.payment_attempt, wix_ecom, response and logging.
+    # ecommerce.payment_attempt, the ecommerce.native_* pricing modules, response and logging.
     Spec(
         "wecare-checkout",
         "ecommerce/checkout",
@@ -241,7 +241,7 @@ SPECS: List[Spec] = [
     ),
     # Phase O-1 service requests (Submit Request / Request Amendment): the pre-payment intent,
     # the customer's own request list, and activation from the razorpay-webhook hint. It moves
-    # no money - it imports no Razorpay, Wix or cart module and reads no secret. First creation
+    # no money - it imports no Razorpay or cart module and reads no secret. First creation
     # is owned by scripts/provision_service_requests.py, which also creates its table, two GSIs
     # and the dedicated least-privilege role. NOT standalone: it imports lambda_utils
     # customer_auth, customer_session, rate_limit, ecommerce.service_request_store/
@@ -271,7 +271,7 @@ SPECS: List[Spec] = [
     # Coupon issuance and eligibility. Owns stack-wecare-digital-CouponsTable. AWS-native: the
     # local row is the sole authority and `coupon_store.discount_paise` prices the discount on
     # the native checkout path. NOT standalone: it imports lambda_utils.customer_auth, response,
-    # logging and ecommerce.coupon_store (no Wix).
+    # logging and ecommerce.coupon_store.
     Spec(
         "wecare-coupons",
         "ecommerce/coupons",
@@ -281,7 +281,7 @@ SPECS: List[Spec] = [
                        "python scripts/provision_coupons_routes.py",
     ),
     # Gift-card issuance, balance and holds. Owns stack-wecare-digital-GiftCardsTable, which is
-    # a LIABILITY ledger: the balance of record lives here, never in Wix. NOT standalone.
+    # a LIABILITY ledger: the balance of record lives here and nowhere else. NOT standalone.
     Spec(
         "wecare-gift-cards",
         "ecommerce/gift-cards",
@@ -289,11 +289,10 @@ SPECS: List[Spec] = [
                        "python scripts/provision_gift_cards_roles.py && "
                        "python scripts/provision_gift_card_routes.py",
     ),
-    # (wecare-wix-catalog-webhook removed in the Wix exit: catalogue source is AWS ProductsTable
-    # and a DynamoDB stream drives meta-catalog-sync; the Wix webhook receiver is retired.)
-    # The AWS-native catalogue -> Meta projection (formerly PHASE W). Invoked asynchronously by the
-    # webhook above after its verification, with a six-hourly EventBridge schedule as the
-    # backstop. No HTTP API route and no function URL: it has no public surface at all.
+    # The AWS-native catalogue -> Meta projection (formerly PHASE W). Invoked by the ProductsTable
+    # change stream through an event-source mapping on its `live` alias, with a six-hourly
+    # EventBridge schedule as the backstop. No HTTP API route and no function URL: it has no
+    # public surface at all.
     #
     # IT WRITES TO A CUSTOMER-VISIBLE META COMMERCE CATALOG - an item created there appears in
     # WhatsApp - AND IT SHIPS WITH BOTH GATES CLOSED. `META_CATALOG_SYNC_ENABLED` is "false" and
@@ -423,7 +422,6 @@ SPECS: List[Spec] = [
     Spec("wecare-invoice-engine", "payments/invoice-engine", extra_dirs=("fonts",),
          extra_files=("receipt_layout.py",)),
     # --- ecommerce ---
-    # (wecare-wix-store removed in the Wix exit: the storefront catalogue is AWS-native.)
     Spec("wecare-product-image-gen", "ecommerce/product-image-gen"),
     Spec("wecare-catalog-management", "ecommerce/catalog-management"),
 ]

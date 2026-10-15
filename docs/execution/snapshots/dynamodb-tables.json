@@ -1,6 +1,6 @@
 {
   "note": "Refresh with scripts/check_data_model_drift.py --snapshot",
-  "count": 77,
+  "count": 76,
   "tables": [
     "stack-wecare-digital-AIInteractionsTable",
     "stack-wecare-digital-AIProviderPolicyTable",
@@ -70,7 +70,6 @@
     "stack-wecare-digital-ThreadOwnershipTable",
     "stack-wecare-digital-VoiceAwsTable",
     "stack-wecare-digital-VoiceCDRTable",
-    "stack-wecare-digital-VoiceCalls",
     "stack-wecare-digital-WebhookDedup",
     "stack-wecare-digital-WhatsAppCallingTable",
     "stack-wecare-digital-WhatsAppGroupTable",

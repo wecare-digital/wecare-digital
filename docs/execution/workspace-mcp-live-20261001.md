@@ -62,7 +62,7 @@ real provider token exchange/refresh and a successful supplied-patch workflow
 were not live-tested. Their fixture tests passed. Keep code-job dispatch disabled
 until workflow authorization and the bounded write path are deliberately tested.
 
-Wix, Razorpay, Google Cloud, Google Ads and Meta Ads remain pending cloud adapters;
+Razorpay, Google Cloud, Google Ads and Meta Ads remain pending cloud adapters;
 Plivo and Sinch remain documentation-only entries. Registry presence is not an
 authenticated cloud connection.
 

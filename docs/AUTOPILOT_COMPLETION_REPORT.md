@@ -125,11 +125,11 @@ tracking. These are build efforts requiring product decisions, not autonomous in
 ## ROUND 2 — additional safe improvements (executed & verified)
 
 - **PITR backup coverage 59% → 92%** (`scripts/_enable_pitr.py`). Enabled Point-in-Time
-  Recovery on 21 business-data tables that lacked it (ScheduledMessages, OBDCampaigns,
-  BulkRecipients, SmsOutbound, Sms/Airtel*, Voice*, WhatsAppVoice/Group, CallNotifications,
+  Recovery on 21 business-data tables that lacked it (ScheduledMessages,
+  BulkRecipients, SmsOutbound, Sms*, Voice*, WhatsAppVoice/Group, CallNotifications,
   AdClickAttribution, LinkClicks, ShortLinks, SystemEvent, AIInteractions, AIProviderPolicy,
   PushTokens, DLTTemplates). Now **58/63 tables have PITR**; the 5 remaining are intentionally
-  skipped caches/ephemeral (CatalogCache, WixOrders/ProductsCache, RateLimit, DLQMessages).
+  skipped caches/ephemeral (CatalogCache, RateLimit, DLQMessages, and two since-deleted caches).
 - **Cost anomaly detection** (`scripts/_create_cost_anomaly.py`) — ML per-service monitor
   → daily email digest to `one@wecare.digital` on anomalies ≥ $20 impact. Guess-free (no
   fixed budget). Closes the "no cost monitoring" gap.
@@ -187,7 +187,6 @@ a real failed message before it can run unattended.
 ### Still needs a 2-min human dashboard check before I remove them (payment-critical)
 - `razorpay-webhook` / `payu-webhook` Function URLs — confirm Razorpay/PayU POST to the API
   Gateway route (not the lambda-url host), then the redundant URLs can be deleted.
-- `voice-in-cdr` URL — confirm the CDR provider isn't using it, then lock/remove.
 
 ## FINAL: everything safely-completable is DONE
 Remaining items are all gated by a hard blocker: **supervised live cutover** (Lambda alias+canary

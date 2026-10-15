@@ -1906,8 +1906,7 @@
           "RAZORPAY_MID",
           "RAZORPAY_UPI_ID",
           "SECRETS_REFRESHED_AT",
-          "SUBMIT_REQUESTS_TABLE",
-          "WIX_ORDER_IDS_TABLE"
+          "SUBMIT_REQUESTS_TABLE"
         ],
         "snapstart": "None",
         "aliases": [

@@ -1,6 +1,7 @@
 # WECARE.DIGITAL blog migration standard
 
-Wix Blog on the headless site is the content source of truth.
+The native blog is the content source of truth: posts live in `SeoToolsTable` and are
+served by `wecare-seo-tools` at `/seo-tools/blog-public` and `/seo-tools/blog-public/{slug}`.
 
 ## Editorial reference
 
@@ -28,9 +29,8 @@ That standard means the upgrade is primarily editing, cadence, paragraph structu
 and selective emphasis.
 
 **These two quotes are a dated snapshot, read from live on 2026-09-28, not a
-frozen contract.** Wix Blog is the content source of truth (above), so an editor
-revising the post there is authoritative and these lines go stale rather than the
-post going wrong. They previously read:
+frozen contract.** The live post is authoritative, so an editor revising it makes
+these lines go stale rather than the post going wrong. They previously read:
 
 > Once balance is distinguished, you do not need to rediscover it every time.
 >
@@ -40,20 +40,19 @@ which is what `seo-tools-deploy.yml` asserted verbatim. When the post was edited
 that assertion failed and blocked the `wecare-seo-tools` deploy — a Lambda that
 had shipped fine — so the deploy gate no longer pins prose. It now asserts only
 what this document fixes as a *rule*: author, category, slug, no cover or inline
-media, and that substantive prose came back at all. Re-read the live post before
-quoting these lines as current:
-
-    python scripts/wix_blog_probe.py --slug integrity-honoring-our-word
+media, and that substantive prose came back at all. Re-read the live post
+(`GET /seo-tools/blog-public/integrity-honoring-our-word`) before quoting these
+lines as current.
 
 ## Fixed publication rules
 
 - Author: **Anew by WECARE.DIGITAL**
 - Default category: **Conversations**
 - Tags: **1-3** precise distinctions actually present in the article
-- Preserve the original Wix Editor slug only as `sourceSlug` migration history
+- Preserve an original source slug only as `sourceSlug` history
 - Every new Anew article gets a fresh `slug` that reflects the revised article/SEO framing
-- Preserve the original first-published date only as `sourcePublishedDate` migration history
-- Do not send `sourcePublishedDate` to Wix as the new article's `firstPublishedDate`; Wix assigns the fresh publication date when the new post is published
+- Preserve the original first-published date only as `sourcePublishedDate` history; never
+  publish it as the new article's publication date
 - Every post gets a unique, source-faithful SEO title and meta description
 - Canonical frontend URL: `https://wecare.digital/post/[slug]/`
 - No hero image
@@ -64,26 +63,14 @@ quoting these lines as current:
 - Publisher in structured data: WECARE.DIGITAL
 - Visible editorial author: Anew by WECARE.DIGITAL
 
+The source slug and source publication date are retained for auditability and optional
+redirect planning only. They are not reused as the identity or date of the fresh post.
+
 ## Pipeline safety
 
-`scripts/wix_blog_migrate.py` accepts only already-approved manifests.
+Bulk intake: `POST /seo-tools/blog-sources` returns presigned PUTs to `wecare-digital-get`
+under `secure/blog-production/01-sources/`, and `POST /seo-tools/blog-sources/confirm`
+hands the uploaded files to an asynchronous worker. `scripts/blog_ingest.py` is the CLI.
 
-Its default mode is validation-only. Creating drafts requires
-`--mode draft`. Publishing requires the explicit `--mode publish`.
-
-The script rejects media fields and Ricos image/gallery/GIF/video/audio nodes.
-Wix bulk creation is chunked at 20 posts per request, matching the API limit.
-
-The migration pipeline does **not** generate editorial copy. Editorial upgrades are
-reviewed/generated upstream and passed to the script as an approved manifest. This
-keeps "content generation" separate from "content publication" and prevents a batch
-publisher from inventing or broadening an article during migration.
-
-## Old-to-new traceability
-
-`migration/blog/old-to-new-map.json` is the canonical migration crosswalk. It records
-the source post ID, old Wix Editor slug, new Anew slug, historical source publication
-date, and migration status for all 109 source posts.
-
-The source slug and source publication date are retained for auditability and optional
-redirect planning only. They are not reused as the identity/date of the fresh Anew post.
+Keep content generation separate from content publication: drafts are reviewed before they
+are published, and a batch publisher never invents or broadens an article.

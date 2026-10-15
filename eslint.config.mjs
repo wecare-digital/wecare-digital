@@ -50,14 +50,14 @@ export default [
       // existed, and `npx eslint src/components/Footer.tsx` passed the whole time.
       // Measured: removing the probes restored 0 errors / 182 warnings exactly.
       '.scratch/**',
-      // NOTE: there was a 'docs/reference/**' ignore here for a vendored copy of Wix's
-      // own Next.js headless examples. That tree has been deleted, so the ignore went
+      // NOTE: there was a 'docs/reference/**' ignore here for a vendored copy of a vendor's
+      // Next.js headless examples. That tree has been deleted, so the ignore went
       // with it rather than being left behind as inert config.
       //
       // DO NOT re-add a blanket ignore if you vendor reference code again. That is what
       // hid the real problem last time: the tree was excluded from ESLint and tsc, so it
       // looked handled - but CodeQL still scans the whole repository, and it raised a
-      // high-severity "clear text storage of sensitive information" alert on the Wix
+      // high-severity "clear text storage of sensitive information" alert on the vendor
       // demo's localStorage OAuth write, which then blocked a pull request on code that
       // was never built or shipped. Lint/type exclusions do not make third-party code
       // invisible to security scanning.

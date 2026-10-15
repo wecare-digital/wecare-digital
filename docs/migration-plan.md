@@ -1,8 +1,8 @@
 # Migration plan — Unified Communications Platform
 
-From the baseline in `current-communications-architecture.md` to the target in
-`provider-policy.md`. Staged so that each stage is independently deployable,
-independently verifiable, and independently revertible.
+From the baseline in `current-communications-architecture.md` to the provider set
+declared in `scripts/provider_allowlist.py`. Staged so that each stage is
+independently deployable, independently verifiable, and independently revertible.
 
 Baseline commit `41dc41c2`. Account `775261844268`, `us-east-1`, branch `stack`.
 
@@ -21,11 +21,10 @@ These come from how the system actually fails, not from preference.
    (`current-communications-architecture.md` §5). Rewiring callers before
    collapsing those five copies means rewiring against a moving target.
 
-3. **AWS India sending is proven before Airtel is removed.** Airtel is the
-   primary India sender today. `wecare-sms-aws` has `DryRun`
-   (`sms-aws/handler.py:426-428`), which validates origination identity, DLT
-   parameters and destination **without delivering**. Use it, plus one real send
-   to a controlled number, before deleting the incumbent.
+3. **AWS India sending is proven before any sender is removed.** `wecare-sms-aws`
+   has `DryRun` (`sms-aws/handler.py:426-428`), which validates origination
+   identity, DLT parameters and destination **without delivering**. Use it, plus
+   one real send to a controlled number, before deleting a sending path.
 
 4. ~~The IAM region gap is closed before India cutover.~~ **Checked, not a
    blocker.** `iam-policies.ts:94-105` reads as `us-east-1`-only, but
@@ -57,27 +56,27 @@ These come from how the system actually fails, not from preference.
 
 ---
 
-## Stage 1 — CI provider-policy gate
+## Stage 1 — CI provider gate
 
-**Build:** `scripts/check-provider-policy.sh` (§44).
+**Built:** `scripts/provider_allowlist.py` (the single allow-list of approved
+providers) and `scripts/check_provider_allowlist.py` (the gate), run by
+`.github/workflows/provider-allowlist.yml` (§44). It is a **positive** gate: any
+external host, SDK, secret prefix, provider id, env namespace or channel Lambda
+that the allow-list does not declare fails CI.
 
-Fails on: any Airtel runtime reference; a Sinch SMS sender; Sinch voice or
-WhatsApp; a Plivo SMS sender; an SMS path resolving to anything but AWS; Sinch
-RCS used outside India.
+Rules include: SMS only through AWS End User Messaging (`sms-transport`); the
+Sinch transport addresses the RCS channel only (`rcs-transport`); Plivo REST
+calls are voice resources only; voice, SMS and RCS Lambdas are exactly the
+supported set (`channel-lambdas`); UPI collection addresses are Razorpay-issued
+(`upi-vpa`).
 
-Allows: Sinch India RCS under the approved paths, historical records, and
-migration documentation.
+**Scope:** runtime code — `amplify/**`, `src/**`, `config/**`, `public/**`, the
+hosting config and the `dependencies` of `package.json`. Tests, documentation,
+comments and docstrings are skipped, so historical prose cannot fail it.
 
-**Important design point:** the gate must distinguish *runtime code* from
-*documentation and historical data*, or it will fail on this very plan. Scope it
-to `amplify/functions/**` and `src/**`, excluding `docs/**`, `.kiro/**` and test
-fixtures that assert historical behaviour.
+**Verify:** `python scripts/check_provider_allowlist.py` exits `0`.
 
-**Verify:** the gate must **fail** at baseline (Airtel and Sinch SMS are present)
-and pass only when Stage 3 completes. Land it wired to CI but non-blocking, then
-flip it to blocking at the end of Stage 3.
-
-**Rollback:** delete the script and the workflow step. No runtime impact.
+**Rollback:** remove the workflow step. No runtime impact.
 
 ---
 
@@ -102,20 +101,18 @@ limits. Then `DryRun` sends for an Indian and a non-Indian destination.
 
 ---
 
-## Stage 3 — Rewire callers, then remove Sinch SMS and Airtel
+## Stage 3 — Rewire callers, then remove non-AWS SMS senders
 
 Order within the stage matters: rewire first, delete second, so every deletion is
 of something already unused.
 
 **3a — rewire every SMS caller** to `CommunicationOrchestrator → SmsService`:
 
-| Caller | Currently |
+| Caller | Path |
 |---|---|
-| `wecare-plivo-answer` | `wecare-sms-aws:live` — already correct, just move behind the interface |
-| `wecare-whatsapp-calling` | Airtel sync + AWS fallback + AWS international |
-| `wecare-wix-store` | `wecare-sms-in-airtel` |
-| `wecare-voice-in-c2c`, `wecare-voice-in-obd` | branch on Indian vs not |
-| `wecare-bulk-worker`, `wecare-agent-action-group`, `wecare-ai-generate-response` | `wecare-outbound-sms` |
+| `wecare-plivo-answer` | `wecare-sms-aws:live` — move behind the interface |
+| `wecare-whatsapp-calling` | `lambda_utils.comms.notify` → AWS End User Messaging, every country |
+| `wecare-bulk-worker`, `wecare-agent-action-group`, `wecare-ai-generate-response` | `wecare-outbound-sms` → `wecare-sms-aws` |
 | `src/api/client.ts` `sendSinchSms()` | forces the Sinch branch |
 
 **3b — delete Sinch SMS** (§9). Full list in
@@ -123,21 +120,19 @@ of something already unused.
 `wecare/sinch/sms` has no `oauth_token` and `outbound-sms/handler.py:315`
 hard-fails without one. Deleting it removes a broken dependency.
 
-**3c — delete Airtel SMS** (§2). Full list in `provider-inventory.md` §5.1.
-Includes **scrubbing the plaintext Airtel credentials** from the docstring at
-`sms-in/airtel/handler.py:20-23,49-55`.
+**3c — delete SNS `publish` and classic Pinpoint `send_messages`** from
+`outbound-sms/handler.py`; neither is DLT-capable for India.
 
 **Preserve:** the DLT template registry in DynamoDB
 (`stack-wecare-digital-DLTTemplates`) and its content. It is provider-independent
-regulatory data and is needed by AWS sending. Only the Airtel *transport* goes.
+regulatory data and is needed by AWS sending. Only the *transport* changes.
 
-**Verify:** full test suite; `check-provider-policy.sh` now passes and flips to
-blocking; real India send via AWS `ap-south-1`; real international send via
-`us-east-1`; delivery receipts arriving.
+**Verify:** full test suite; `check_provider_allowlist.py` passes in CI; real
+India send via AWS `ap-south-1`; real international send via `us-east-1`;
+delivery receipts arriving.
 
-**Rollback:** revert the commits. Airtel and Sinch credentials remain in Secrets
-Manager throughout this stage — no secret is deleted until a later, separately
-confirmed step.
+**Rollback:** revert the commits. No secret is deleted in this stage; secret
+deletion is a later, separately confirmed step.
 
 ---
 
@@ -150,9 +145,8 @@ provider-neutral `RcsTemplate` model (§13); `SinchRcsTemplateImporter` and
 **Read-only:** the importer must not modify Sinch templates. Initial sync pulls
 `rcsmenu`, `rcsorder`, `waalert` into the internal model.
 
-**Also:** delete the two dead helpers (`sinch_rcs.py:399-452`) and the duplicate
-`_is_rcs_enabled()` at `voice-in/cdr/handler.py:1307`. Repoint the India RCS
-fallback to **AWS SMS `ap-south-1`** (§11) — never Sinch SMS.
+**Also:** delete the two dead helpers (`sinch_rcs.py:399-452`). Repoint the India
+RCS fallback to **AWS SMS `ap-south-1`** (§11) — never Sinch SMS.
 
 **Rollback:** the existing `sinch_rcs.py` entry point stays functional throughout.
 
@@ -203,7 +197,7 @@ channel = RCS, country IN      -> Sinch RCS    -> fallback AWS SMS ap-south-1
 channel = RCS, eligible non-IN -> AWS RCS      -> fallback AWS SMS
 ```
 
-There must be **no** code path `SMS → Sinch`, `SMS → Plivo`, `SMS → Airtel`.
+There must be **no** code path `SMS → Sinch` or `SMS → Plivo`; SMS goes to AWS only.
 
 The follow-up engine (§40) uses the identical rules — it is a caller of the
 orchestrator, not a parallel implementation.
@@ -301,8 +295,8 @@ approval exists. Do not report it complete before then.
 ## Stage 11 — Dashboard
 
 Provider cards per §41; a dedicated AWS SMS card per §42; India RCS and
-International RCS shown **separately** per §43. Remove Sinch SMS, Plivo SMS and
-Airtel as selectable provider options. Never display credentials.
+International RCS shown **separately** per §43. Offer only allow-listed providers
+as selectable options — never Sinch SMS or Plivo SMS. Never display credentials.
 
 The SMS card's *delivery rate* depends on Stage 2's delivery-receipt consumer. If
 that is not in place, the card must say so rather than show an optimistic number.
@@ -313,8 +307,9 @@ that is not in place, the card must say so rather than show an optimistic number
 
 `.env.example` per §45 (none exists today), all §46 scripts, all §47 docs.
 
-No runtime configuration for `AIRTEL_*`, `SINCH_SMS_*`, `SINCH_VOICE_*`,
-`SINCH_WHATSAPP_*`, `PLIVO_SMS_*`. Scripts must never print credential values.
+No runtime configuration outside the allow-listed env namespaces (`env-namespaces`
+rule) — in particular no `SINCH_SMS_*`, `SINCH_VOICE_*`, `SINCH_WHATSAPP_*` or
+`PLIVO_SMS_*`. Scripts must never print credential values.
 
 ---
 
@@ -325,13 +320,12 @@ Prove, with commands and output rather than assertion:
 ```
 Sinch SMS senders                 0
 Plivo SMS senders                 0
-Airtel runtime references         0
 distinct SMS providers            1   (AWS End User Messaging)
 India SMS                         AWS ap-south-1
 international SMS                 AWS us-east-1 (or explicit override)
 RCS India                         Sinch -> fallback AWS SMS ap-south-1
 RCS international                 AWS us-east-1 -> fallback AWS SMS
-check-provider-policy.sh          exit 0
+check_provider_allowlist.py       exit 0
 full test suite                   pass
 ```
 
@@ -343,9 +337,8 @@ Then the §55 per-subsystem report using the required status vocabulary.
 
 | Item | Why deferred |
 |---|---|
-| **Airtel voice removal** (C2C/OBD/CDR) | Larger than Airtel SMS: three Lambdas, three secrets, four DynamoDB models, four webhook endpoints and their own dashboards. §1 assigns PSTN voice to Plivo, so this is required, but it is a separate migration with its own cutover and rollback. |
 | **Secret deletion** | Deleting a secret needs pointwise confirmation. Secrets stay until nothing reads them and the change has been live long enough to trust. |
-| **Lightsail retirement** | An **outcome** of Stage 3 (removes the `:8899` Airtel proxy) plus Stage 7d (moves the SIP media leg). Not an input. Do not delete before both land and a real call is verified. |
+| **Lightsail retirement** | An **outcome** of Stage 7d (moves the SIP media leg). Not an input. Do not delete before it lands and a real call is verified. |
 | **Provider credential rotation** | Deferred by explicit user decision until PROJECT COMPLETE (`.kiro/steering/plaintext-source-policy.md`). Note that credentials pasted into chat are exposed and rotation is remediation, not hygiene. |
 
 ---
@@ -354,11 +347,11 @@ Then the §55 per-subsystem report using the required status vocabulary.
 
 | Risk | Mitigation |
 |---|---|
-| India SMS stops at cutover because IAM is `us-east-1`-scoped | Verify the live role and `DryRun` before removing Airtel |
+| India SMS stops because IAM is `us-east-1`-scoped | Verify the live role and `DryRun` in `ap-south-1` before any sender change |
 | Unregistered DLT content sent to Indian numbers | Keep the hard 422 gate; never soften `_resolve_dlt_template` |
 | Two SMS per call after the SIP repoint | Choose one owner in 7b *before* 7c/7d |
 | Repoint breaks WhatsApp calling on a live business number | Test Option A on the secondary number first; roll back via `wecare/meta/whatsapp-sip` |
 | E.164 misdelivery to the wrong country | `_format_e164` already fixed; keep its tests |
 | Migration regresses while in flight | Stage 1 gate lands first |
 | Silent success with no delivery | Origination identity stays pinned off the simulator number |
-| Deleting Lightsail too early | Blocked until Stage 3 and 7d both verified |
+| Deleting Lightsail too early | Blocked until 7d is verified with a real call |

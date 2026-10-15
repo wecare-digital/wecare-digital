@@ -1,6 +1,7 @@
 name: UI labels
 
-# Infrastructure names must not leak into ordinary UI.
+# Infrastructure names must not leak into ordinary UI, and a provider named on a screen
+# must be one the platform actually uses.
 #
 # The brief requires a provider-neutral product vocabulary, with exact provider and
 # resource names confined to authorised Technical Details surfaces. Measured on
@@ -8,11 +9,9 @@ name: UI labels
 # DynamoDB table names, 46 ARNs and a raw API Gateway id — and, worse than the
 # disclosure, a set of statements that were simply false:
 #
-#   * ten screens described the SMS channel as "AWS Pinpoint + Airtel IQ". SMS goes
-#     through AWS End User Messaging, and Airtel is a prohibited provider whose
-#     functions, secrets, routes and tables are all gone from the account.
-#   * the webhook inventory listed lambda `wecare-sms-in-airtel` with status `active`.
-#     That function does not exist.
+#   * ten screens described the SMS channel with providers that were not carrying it.
+#     SMS goes through AWS End User Messaging only.
+#   * the webhook inventory listed a messaging Lambda as `active` that did not exist.
 #   * the SEO tools page told operators to deploy `wecare-seo-platform`. That function
 #     does not exist either; the only SEO function is `wecare-seo-tools`.
 #   * public <meta> descriptions and keywords advertised our Lambda, DynamoDB, S3,
@@ -25,14 +24,13 @@ name: UI labels
 #
 # MODE: blocking on EVERY severity, since 2026-09-24.
 #
-# High severity is a resource identifier, or a retired provider presented as current —
-# a disclosure or a lie. Medium is a bare service word such as "Bedrock" in a tooltip:
-# a vocabulary problem rather than a defect.
+# High severity is a resource identifier, or a provider name that is not on the
+# allow-list — a disclosure or a false statement. Medium is a bare service word such as
+# "Bedrock" in a tooltip: a vocabulary problem rather than a defect.
 #
-# It ran HIGH-only while 20 medium violations stood, the same staging provider-policy.yml
-# used — advisory until the count reaches zero, then flip. A gate that fails on day one
-# for something nobody intends to fix this week gets switched off, and a switched-off
-# gate protects nothing.
+# It ran HIGH-only while 20 medium violations stood — advisory until the count reaches
+# zero, then flip. A gate that fails on day one for something nobody intends to fix this
+# week gets switched off, and a switched-off gate protects nothing.
 #
 # The count is now zero: 8 labels reworded, 3 files authorised with a stated reason, and
 # one false positive fixed in the scanner (`Cognito: {` inside Amplify.configure is an
@@ -41,14 +39,16 @@ name: UI labels
 #
 # `--strict` is retained as a no-op alias so an older local command still works.
 #
-# If this job fails on your PR you have put a table name, ARN, function name, execute-api
-# URL or retired provider into ordinary product UI. Either use
-# src/lib/productVocabulary.ts, or — if the screen is genuinely a Technical Details
-# surface for operators — add it to AUTHORISED_SURFACES in the script with a reason.
+# PROVIDER NAMES ARE AN ALLOW-LIST. "via X", "powered by X", `provider: 'X'`, "X + Y" and
+# the values of a provider-named declaration must name a provider or product term that
+# scripts/provider_allowlist.py approves — the same list the source and live provider
+# gates read. There is no list of forbidden names and no "historical" exemption.
 #
-# A retired provider MAY be named where it labels historical data: an old call record
-# really was carried by Airtel and the row has to say something. The scan allows it when
-# the same line carries a historical marker, so write 'Airtel (historical)'.
+# If this job fails on your PR you have put a table name, ARN, function name, execute-api
+# URL or an unapproved provider name into ordinary product UI. Either use
+# src/lib/productVocabulary.ts, or — if the screen is genuinely a Technical Details
+# surface for operators — add it to AUTHORISED_SURFACES in the script with a reason. A
+# provider that is genuinely in use is approved in scripts/provider_allowlist.py, not here.
 
 on:
   push:
@@ -92,7 +92,7 @@ jobs:
       # the dead origin until 2026-09-26. It survived because nothing in this repo
       # configured it, so there was no diff for anyone to review.
       #
-      # SCOPE, and the same caveat provider-policy.yml carries: `--repo` scans SOURCE
+      # SCOPE, and the same caveat provider-allowlist.yml carries: `--repo` scans SOURCE
       # ONLY and needs no credentials, which is why it runs here. A clean tree is not
       # a clean account — the defect above lived entirely in the account. The estate
       # sweep over S3, API Gateway, Lambda env and CloudFront needs AWS credentials:
@@ -111,8 +111,8 @@ jobs:
           {
             echo '### Product vocabulary'
             echo ''
-            echo 'Mode: **blocking on HIGH severity**. High means a resource identifier'
-            echo 'or a retired provider presented as current.'
+            echo 'Mode: **blocking on every severity**. High means a resource identifier'
+            echo 'or a provider name that is not on the allow-list.'
             echo ''
             echo '```'
             python scripts/check_ui_labels.py || true

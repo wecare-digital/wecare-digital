@@ -2,16 +2,13 @@
 
 Companion to [`current-environment.md`](current-environment.md) and
 [`compatibility.md`](compatibility.md). Measured **2026-09-26** against account
-`775261844268` / `us-east-1`, Google project `wecaredigitalbw`, and the live Wix site.
+`775261844268` / `us-east-1` and Google project `wecaredigitalbw`.
 
-Three Phase 0 documents now exist because three Kiro sessions worked this brief against one
-shared working tree. Per `.kiro/steering/multi-session-parallel-agents.md` a spec belongs to
-one session — `whatsapp-wix-commerce` is owned by `sess_a140bc76` — so this file **adds
-measured facts and does not restate, re-rule or overwrite** either of the other two. It was
-written as a separate file rather than appended because `current-environment.md` was
+This file **adds measured facts and does not restate, re-rule or overwrite** the other two.
+It was written as a separate file rather than appended because `current-environment.md` was
 rewritten mid-session by its author, and an append would have been silently lost.
 
-The discovery pass itself changed nothing. One finding was then **fixed** — §2, the
+The discovery pass itself changed nothing. One finding was then **fixed** — §1, the
 unprotected customer Cognito pool — and that is marked below. No secret value was read at
 any point; `get-secret-value` was never called, from any surface.
 
@@ -19,95 +16,18 @@ any point; `get-secret-value` was never called, from any surface.
 
 | § | Finding | Status |
 |---|---|---|
-| 1 | Three `BLOCKED` Wix rows resolvable without a credential | ✅ **RESOLVED** — `scripts/probe_wix_capabilities.py` |
-| 1 | Which Wix site the committed id names (gap G2) | ✅ **ANSWERED** — Wix reports the host as `xout.wecare.digital` |
-| 1 | Wix's own published/draft *flag* for that site | ⏳ **PENDING** — admin scope only; downgrade G2 to `LOW` |
-| 2 | Customer Cognito pool had no web ACL | ✅ **FIXED 2026-09-26** — associated and read back; 8 regression tests |
-| 2 | OTP abuse control is per-IP only | ⏳ **PENDING** — spec gap G5, per-phone counter in the handler |
-| 2 | HTTP API cannot take a WAF | ⚠️ **DESIGN DECISION REQUIRED** — service limit, not an omission |
-| 3 | Blog build fail-open | ➖ **NOT REQUIRED** — already guarded; my `HIGH` rating was wrong |
-| 4 | No `ap-south-1` EUM origination identity | ⏳ **PENDING** |
-| 4 | `whatsapp-payments-india-reference.md` is 0 bytes | ⏳ **PENDING** — spec task 1.5, owned elsewhere |
-| 4 | `scripts/fetch-wix-catalog.js` on the Catalog V1 reader, and unrunnable | ✅ **FIXED 2026-09-26** — ported to V3, credential removed, 20 tests |
-| 4 | `scripts/check_secrets_live.py` on the Catalog V1 reader | ⏳ **PENDING** — owned by another session this run |
-| 4 | No CSP on the public site | ⏳ **PENDING** |
-| 4 | Google key spans browser + server; Places (New) not allowlisted | ⛔ **OWNER-ONLY** — credential work in GCP |
+| 1 | Customer Cognito pool had no web ACL | ✅ **FIXED 2026-09-26** — associated and read back; 8 regression tests |
+| 1 | OTP abuse control is per-IP only | ⏳ **PENDING** — spec gap G5, per-phone counter in the handler |
+| 1 | HTTP API cannot take a WAF | ⚠️ **DESIGN DECISION REQUIRED** — service limit, not an omission |
+| 2 | Blog build fail-open | ➖ **NOT REQUIRED** — already guarded; my `HIGH` rating was wrong |
+| 3 | No `ap-south-1` EUM origination identity | ⏳ **PENDING** |
+| 3 | `whatsapp-payments-india-reference.md` is 0 bytes | ⏳ **PENDING** — spec task 1.5, owned elsewhere |
+| 3 | No CSP on the public site | ⏳ **PENDING** |
+| 3 | Google key spans browser + server; Places (New) not allowlisted | ⛔ **OWNER-ONLY** — credential work in GCP |
 
 ---
 
-## 1. Three `BLOCKED` Wix rows are resolvable today, without the owner minting anything
-
-`current-environment.md` §7 and `compatibility.md` §3 hold catalog version, installed apps
-and Invoices availability as `BLOCKED` pending the admin credential. That is correct for
-**admin** reads. It is not correct for **capability**, and the distinction matters because
-it currently blocks design decisions that do not need to wait.
-
-`WIX_CLIENT_ID` is the public half of the headless OAuth client. Wix exchanges it for an
-anonymous **visitor** token with no secret involved — the same thing a page load does. That
-is enough to settle all three rows. Reproducible:
-
-```bash
-python scripts/probe_wix_capabilities.py          # human-readable
-python scripts/probe_wix_capabilities.py --json   # machine-readable
-```
-
-| Row | Previously | Measured | Evidence |
-|---|---|---|---|
-| **Catalog version** | `BLOCKED` | **`CATALOG_V3`** | `POST /stores/v1/products/query` → **HTTP 428**, `applicationError.code = CATALOG_V3_CALLING_CATALOG_V1_API`, message "your site is using CATALOG_V3". Wix states the version itself |
-| **Wix Stores** | `BLOCKED` | **INSTALLED** | products, inventory, categories, customizations, brands all `200` on `/stores/v3/*` and `/categories/v1/*` |
-| **Wix Blog** | "absent by grep" | **INSTALLED, 571 posts** | `/blog/v3/posts/query` → `metaData.total = 571`; `/blog/v3/categories` → `200` |
-| **Wix eCommerce** | `BLOCKED` | **INSTALLED, admin scope required** | `/ecom/v1/carts/current` → `404 OWNED_CART_NOT_FOUND` (app present, no cart yet), `/ecom/v1/orders/search` → `403 READ_ORDER_FORBIDDEN` (app present, scope short) |
-| **Wix Invoices** | `BLOCKED` | **NOT AVAILABLE** | `/invoices/v2/invoices` → **404**. Corroborates the existing decision to keep the homegrown 5-table invoice engine |
-| **Checkout handoff** | "absent by grep" | **REACHABLE** | `/_api/redirects-api/v1/redirect-session` → `400` listing `ecomCheckout` as a valid session type. Probed with a deliberately invalid payload so nothing was created |
-
-Catalog content is thin: **7 products, 1 category, 3 customizations, 0 brands.** A commerce
-launch needs that populated; it is an owner/content task, not engineering.
-
-### Gap G2 (unverified Wix site) is largely answered — Wix names the host itself
-
-`current-environment.md` G2 rates the site id `HIGH` and unverified, on the grounds that
-matching a Lambda env var to a committed constant only proves the repo is self-consistent,
-not that the id names the published site rather than the draft. That reasoning is sound.
-Three measured facts answer most of it:
-
-- The visitor token minted from the committed `WIX_CLIENT_ID` returns **live catalog and
-  blog data**, so the client points at a real, content-bearing site.
-- Wix's own scope error names the site id: `PERMISSION_DENIED` on `/site-properties/v4`
-  reads *"Unauthorized to perform site-settings.view on site
-  `fcd82f0c-9572-49c7-acfb-88fb05042ece`"* — the committed `WIX_SITE_ID`. The public client
-  and the committed site id belong to each other, measured rather than assumed.
-- **Wix reports the site's host as `xout.wecare.digital`.** Every product carries
-  `url.url`, which Wix builds from the site's own primary domain. All seven read
-  `https://xout.wecare.digital/product-page/<slug>`. The probe now reports this as
-  `wixReportedSiteHost`.
-
-That last point is the one that matters. G2's evidence for doubt was that the brief names
-the published site's URL as `https://xout.wecare.digital/` and that URL returns **404**.
-Wix now independently states that the site behind the committed id *is* the one at
-`xout.wecare.digital` — and the other document already measured that DNS for that host
-delegates to Wix (`pointing.wixdns.net`). Two sides agree on the identification.
-
-**The 404 is consistent with the architecture, not evidence against the id.** The Wix
-Editor site is retired and this repo owns every page; a headless site serves its data over
-`wixapis.com` and need not serve HTML at its own domain. A 404 at the Wix-hosted front door
-is the expected state, not a mismatch.
-
-What remains open is narrower still: Wix's *own* published/draft flag for this site, which
-only `POST /site-list/v2/sites/query` or `/site-properties/v4` returns, both admin-scoped.
-Recommend G2 be restated `LOW` / `WIX_PUBLISHED_FLAG_REQUIRES_ADMIN_SCOPE` — the site is
-identified; only its status field is unread.
-
-### One correction to offer
-
-`current-environment.md` §7 lists "`WIX_CLIENT_ID` is committed and unused". Committed and
-unused **by application code** — accurate. But it is a live, working credential, not dead
-configuration, and a visitor session is the documented path for public catalog reads in a
-static export. Worth knowing before the design reaches for admin scope where visitor scope
-would do.
-
----
-
-## 2. WAF: the customer-facing pool was the one without protection — now fixed
+## 1. WAF: the customer-facing pool was the one without protection — now fixed
 
 `current-environment.md` G8 records "no WebACL on `zllr9lrg7j`". Both halves of that need a
 correction, and the corrected version is a more serious finding.
@@ -159,7 +79,7 @@ authoritative check.
 
 ---
 
-## 3. The blog fail-open is real but already guarded — withdrawing my own finding
+## 2. The blog fail-open is real but already guarded — withdrawing my own finding
 
 I first recorded this as a `HIGH` unmitigated gap. That was wrong, and the correction is
 worth more than the original claim.
@@ -203,13 +123,12 @@ site, not `out/`.**
 
 ---
 
-## 4. Smaller measured items not in the other two documents
+## 3. Smaller measured items not in the other two documents
 
 | Item | Severity | Measured |
 |---|---|---|
 | **No `ap-south-1` EUM origination identity** | `MEDIUM` | `describe-phone-numbers` in `ap-south-1` returns **empty**; `us-east-1` has `+18444891209` (TOLL_FREE) and `+14255556333` (SIMULATOR). India SMS depends on DLT plus sender registration — verify before relying on India SMS as an OTP fallback |
 | **`.kiro/steering/whatsapp-payments-india-reference.md` is 0 bytes** | `LOW` | Injected into every session as an empty rule. Either write it or delete it; an empty steering file is worse than none because it reads as coverage |
-| `scripts/check_secrets_live.py:188` uses the Catalog V1 compatibility reader | `MEDIUM` | Calls `stores-reader/v1/products/query`, which still returns `200` on a V3 site, so it fails silently rather than loudly. Left alone this run: another session was editing that file. `scripts/fetch-wix-catalog.js` had the same defect and is now fixed — see §5 |
 | No CSP on the public site | `MEDIUM` | `wecare.digital` returns HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` — and no `Content-Security-Policy` |
 | 6 retired-provider CloudFormation stacks | `LOW` | `wecare-elevenlabs-{init,mcp,mcp-enable,call-hooks,postcall-sms}` and `wecare-temp-code-inspector`, all 2026-09-19. Retirement candidates; deletion needs pointwise confirmation |
 | 8 stale `chatgpt/*` Amplify branches | `LOW` | Auto-build disabled on all 8; `stack` is the only PRODUCTION branch |
@@ -218,62 +137,11 @@ site, not `out/`.**
 
 ---
 
-## 5. `scripts/fetch-wix-catalog.js`: ported to Catalog V3, and the credential removed
-
-The script that produces the committed catalog snapshot was on the V1 compatibility reader
-**and could not run at all.** It required `WIX_API_KEY` — an account-scoped admin bearer
-token — and `wecare/wix/headless-api-key` holds 0 versions. Its own header carried the
-deferral: *"mapping those fields without inspecting a real v3 response would be guesswork.
-Inspect one v3 payload first, then port slim()."*
-
-A real V3 payload for all seven products was inspected via the visitor token, and the port
-is mapped against it rather than against documentation.
-
-**The credential is gone, not relocated.** The header's outstanding TODO said the key
-"must come from AWS Secrets Manager". The better answer is that reading seven public
-product names and prices needs no admin credential: the public `WIX_CLIENT_ID` mints a
-visitor token, which is the scope a storefront page has. Least privilege, and it runs today
-with nothing to provision.
-
-**Verified against the previous snapshot, old versus new:**
-
-| Check | Result |
-|---|---|
-| Products | 7 → 7, same slugs |
-| Prices | identical on all 7, numerically **and** as formatted strings (`₹599.00` …) |
-| `descriptionHtml` | byte-length identical on all 7 |
-| `name`, `visible`, `inStock`, `optionCount`, `mediaCount` | unchanged |
-| **`variantCount`** | **was `0` for all 7 — now 1,1,1,10,1,1,1** |
-| Secret-shape scan of the output | 0 matches |
-
-**`variantCount` was silently wrong.** The V1 reader did not return the variants array, so
-every product recorded zero variants. `merchandise` has ten. A snapshot reporting zero
-variants for a ten-variant product is worse than one omitting the field, and nothing in the
-old code could have noticed.
-
-Schema changes are not a drop-in and are documented in the script header. The two worth
-repeating: `price` is now a **decimal string** because V3 returns money as a string on
-purpose and coercing it to a float is a decision nobody made; and `discountedPrice` is
-**gone** rather than remapped, because V3's `compareAtPriceRange` is the opposite idea — the
-higher struck-through "was" price — so carrying the name forward would invert the meaning at
-some future call site.
-
-`tests/test_wix_catalog_snapshot.py` — 20 tests, offline — locks the schema, the V3
-endpoint, cursor paging, the field projections V3 omits by default, and the absence of any
-credential or tenant identifier in the committed output. Verified RED on a simulated revert
-to V1-plus-admin-key, GREEN restored. One of those tests guards the others: the
-comment-stripping fixture is itself asserted to leave real code behind, because a substring
-is trivially absent from an empty string.
-
----
-
-## 6. Reproducing everything in this document
+## 4. Reproducing everything in this document
 
 ```bash
-python scripts/probe_wix_capabilities.py      # Wix capability + site host, no credential
 python scripts/provision_waf.py --verify      # WAF association, per resource
-node   scripts/fetch-wix-catalog.js           # catalog snapshot, no credential
-python -m pytest tests/test_waf_coverage.py tests/test_wix_catalog_snapshot.py
+python -m pytest tests/test_waf_coverage.py
 python scripts/generate_runtime_inventory.py  # Lambda, routes, tables, traffic
 python scripts/session_map.py                 # who else is writing to this tree
 aws sts get-caller-identity                   # must report 775261844268

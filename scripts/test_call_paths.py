@@ -21,7 +21,8 @@ A real inbound WhatsApp call to +91 93309 94400 drives two separate paths:
 
   1. WEBHOOK leg  -> Meta posts call events to POST /whatsapp
                      (wecare-whatsapp-calling). On DISCONNECT this is what
-                     sends the Airtel SMS and the Sinch RCS notification.
+                     sends the follow-up SMS (AWS End User Messaging) and the
+                     Sinch RCS notification.
   2. MEDIA leg    -> Meta opens a SIP leg to calling.sip.servers[0], which
                      today is sip.wecare.digital (the Lightsail Asterisk box),
                      NOT Plivo. If and when it is repointed at Plivo, Plivo
@@ -35,9 +36,9 @@ a synthetic test rather than a real SIP call.
 
 DUPLICATE SMS WARNING
 ---------------------
-Both legs can send a post-call SMS on the same call, from different providers:
+Both legs can send a post-call SMS on the same call, from different functions:
 
-  wecare-whatsapp-calling  _send_disconnect_sms   -> Airtel IQ, ivr-default DLT
+  wecare-whatsapp-calling  _send_disconnect_sms   -> AWS End User Messaging, ivr-default DLT
   wecare-plivo-answer      _send_post_call_sms    -> wecare-sms-aws, ivr-default
 
 POST_CALL_SMS_ENABLED is currently true on plivo-answer. If you repoint Meta at
@@ -216,7 +217,7 @@ CHECKS = [
     ("webhook", "RCS notification attempted (on disconnect)",
      "/aws/lambda/wecare-whatsapp-calling", "wa_call_rcs_notification",
      "the Sinch RCS leg ran; check rcs_sent=true inside the event"),
-    ("webhook", "Airtel disconnect SMS attempted",
+    ("webhook", "Disconnect SMS attempted",
      "/aws/lambda/wecare-whatsapp-calling", "disconnect_sms",
      "the webhook-leg SMS ran"),
     ("media", "Plivo fetched the IVR XML",

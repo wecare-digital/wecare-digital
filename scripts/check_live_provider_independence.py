@@ -1,24 +1,27 @@
 #!/usr/bin/env python3
-"""Read-only Gate 4/5 evidence: the LIVE account no longer depends on Wix, and every function
-that reads the commerce-key table is actually allowed to.
+"""Read-only Gate 4/5 evidence for what `scripts/check_provider_policy_live.py` cannot see.
 
-Why a live check exists beside `scripts/check-wix-policy.sh`: the policy gate scans source. A
-merge does not remove Lambda env keys frozen into a published alias version, an API route, an IAM
-grant or a secret, and on 2026-10-14 it did not notice that two dedicated roles still granted only
-the deleted `WixOrderIds` table while their functions had moved to `CommerceKeys`.
+That gate applies the provider allow-list (`scripts/provider_allowlist.py`) to the account as
+`list_functions` and `list_secrets` return it: each function's `$LATEST` environment and every
+active secret. Three things sit outside that view:
+
+  - a published version keeps the environment it was published with, so an env update on
+    `$LATEST` does not change what a `live` alias runs;
+  - a secret scheduled for deletion is not listed by default, and can still be restored;
+  - an IAM grant on a DynamoDB table outlives the table: on 2026-10-14 two dedicated roles still
+    granted only a deleted table while their functions had moved to `CommerceKeys`.
 
 Checks (each PASS/FAIL with evidence):
-  lambda-names         no function whose name contains "wix"
-  lambda-env-keys      no WIX_* env key on $LATEST or on any alias's published version
-  lambda-env-hosts     no env value naming a Wix host (key names reported, values never)
-  api-routes           no HTTP API route path containing "wix"
-  secrets              no Secrets Manager entry under wecare/wix/ (planned deletion included)
-  dynamodb-tables      no table whose name contains "wix"
+  lambda-env           every environment on $LATEST and on each alias's published version passes
+                       the allow-list (the same rules: `check_provider_policy_live.check_env`)
+  secrets              every Secrets Manager name, planned deletion included, is on the allow-list
   iam-dangling-tables  no customer IAM statement grants a DynamoDB table that does not exist
   commerce-key-access  every function with COMMERCE_KEYS_TABLE (on its live alias) can GetItem
                        that table under its own role (iam:SimulatePrincipalPolicy)
 
-Never calls GetSecretValue. Never prints an environment value. Exit 0 = all PASS, 1 = any FAIL.
+Never calls GetSecretValue and never prints a credential: an env finding names the KEY, plus the
+host, secret name or selector value when that value is itself the finding.
+Exit 0 = all PASS, 1 = any FAIL.
 
     python scripts/check_live_provider_independence.py
     python scripts/check_live_provider_independence.py --json out.json --markdown out.md
@@ -34,11 +37,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+
+import provider_allowlist as allow  # noqa: E402
+from check_provider_policy_live import check_env  # noqa: E402
+
 ACCOUNT = "775261844268"
 REGION = "us-east-1"
-API_ID = "zllr9lrg7j"
-WIX = re.compile(r"wix", re.I)
-WIX_HOST = re.compile(r"wixapis\.com|wixstatic\.com|(^|[./])wix\.com", re.I)
 TABLE_ARN = re.compile(r"^arn:aws:dynamodb:[a-z0-9-]+:\d{12}:table/([A-Za-z0-9_.-]+)$")
 
 
@@ -84,46 +91,30 @@ class LiveAudit:
         return out
 
     # ── individual checks ────────────────────────────────────────────────────────────────────
-    def lambda_names(self) -> Check:
-        hits = [f["FunctionName"] for f in self.functions() if WIX.search(f["FunctionName"])]
-        return Check("lambda-names", not hits,
-                     f"{len(self.functions())} functions, {len(hits)} Wix-named", hits)
-
-    def lambda_env(self) -> tuple[Check, Check]:
-        key_hits, host_hits = [], []
+    def lambda_env(self) -> Check:
+        hits = []
         configs = [(f["FunctionName"], "$LATEST", f) for f in self.functions()]
         configs += self.alias_configs()
         for name, qualifier, cfg in configs:
             env = (cfg.get("Environment") or {}).get("Variables") or {}
-            for key, value in env.items():
-                if key.upper().startswith("WIX_"):
-                    key_hits.append(f"{name}:{qualifier} {key}")
-                if isinstance(value, str) and WIX_HOST.search(value):
-                    host_hits.append(f"{name}:{qualifier} {key}")
-        detail = f"{len(configs)} configurations ($LATEST + alias versions)"
-        return (Check("lambda-env-keys", not key_hits, detail, sorted(set(key_hits))),
-                Check("lambda-env-hosts", not host_hits, detail, sorted(set(host_hits))))
-
-    def api_routes(self) -> Check:
-        routes = list(_pages(self.c["apigatewayv2"].get_routes, "Items", "NextToken",
-                             "NextToken", ApiId=API_ID))
-        hits = [r["RouteKey"] for r in routes if WIX.search(r["RouteKey"])]
-        return Check("api-routes", not hits, f"{len(routes)} routes on {API_ID}", hits)
+            for _kind, _fn, reference, _why in check_env(name, env):
+                hits.append(f"{name}:{qualifier} {reference}")
+        return Check("lambda-env", not hits,
+                     f"{len(configs)} configurations ($LATEST + alias versions)",
+                     sorted(set(hits)))
 
     def secrets(self) -> Check:
         names = [s["Name"] for s in _pages(self.c["secretsmanager"].list_secrets, "SecretList",
                                            "NextToken", "NextToken",
                                            IncludePlannedDeletion=True)]
-        hits = [n for n in names if n.lower().startswith("wecare/wix/")]
-        return Check("secrets", not hits, f"{len(names)} secrets incl. planned deletion", hits)
+        hits = sorted(n for n in names if allow.vault_owner(n)[0] is None)
+        return Check("secrets", not hits,
+                     f"{len(names)} secrets incl. planned deletion, {len(hits)} not approved",
+                     hits)
 
     def tables(self) -> set[str]:
         return set(_pages(self.c["dynamodb"].list_tables, "TableNames",
                           "ExclusiveStartTableName", "LastEvaluatedTableName"))
-
-    def dynamodb_tables(self, tables: set[str]) -> Check:
-        hits = sorted(t for t in tables if WIX.search(t))
-        return Check("dynamodb-tables", not hits, f"{len(tables)} tables", hits)
 
     def iam_dangling_tables(self, tables: set[str]) -> Check:
         iam = self.c["iam"]
@@ -200,11 +191,8 @@ class LiveAudit:
             return value
 
         tables = timed("dynamodb list", self.tables)
-        checks.append(timed("lambda-names", self.lambda_names))
-        checks.extend(timed("lambda-env", self.lambda_env))
-        checks.append(timed("api-routes", self.api_routes))
+        checks.append(timed("lambda-env", self.lambda_env))
         checks.append(timed("secrets", self.secrets))
-        checks.append(self.dynamodb_tables(tables))
         checks.append(timed("iam-dangling-tables", lambda: self.iam_dangling_tables(tables)))
         checks.append(timed("commerce-key-access", self.commerce_key_access))
         return checks
@@ -234,7 +222,7 @@ def main(argv=None) -> int:
 
     cfg = Config(retries={"max_attempts": 10, "mode": "adaptive"})
     clients = {n: boto3.client(n, region_name=REGION, config=cfg)
-               for n in ("lambda", "apigatewayv2", "secretsmanager", "dynamodb", "iam", "sts")}
+               for n in ("lambda", "secretsmanager", "dynamodb", "iam", "sts")}
     when = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     checks = LiveAudit(clients).run(
         progress=lambda m: print(f"[{datetime.now(timezone.utc):%H:%M:%S}] {m}",

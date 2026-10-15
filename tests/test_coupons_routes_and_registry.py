@@ -1,7 +1,7 @@
 """The seven coupon routes: who authenticates them, and what the integration points at.
 
-Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/coupons-20261001.md` sections 5.1
-and 5.1.1, and the test list in section 7 (tests 62-64).
+Design reference: the coupons and gift-cards design note of 2026-10-01 (`coupons-20261001.md`),
+sections 5.1 and 5.1.1, and the test list in section 7 (tests 62-64).
 
 Test 65 - that all three new functions resolve in `deploy_all_lambdas.SPECS` - is now here, added
 by the shared-gate step alongside the `scripts/deploy_all_lambdas.py` edit it asserts. It lives in
@@ -157,8 +157,9 @@ def test_the_validate_route_is_rate_limited_and_the_others_need_not_be():
 
 
 def test_the_validate_route_returns_a_verdict_and_no_amount():
-    """The security boundary. The amount is Wix's answer to Calculate Cart; a validate endpoint
-    returning a discount figure would become a number a browser could quote."""
+    """The security boundary. The amount is the checkout's to compute (`coupon_store.discount_paise`
+    on the native checkout path); a validate endpoint returning a discount figure would become a
+    number a browser could quote."""
     validate = _function("_validate")
     returned = [node for node in ast.walk(validate) if isinstance(node, ast.Return)]
     assert returned
@@ -171,7 +172,7 @@ def test_the_validate_route_returns_a_verdict_and_no_amount():
 
 def test_there_is_no_delete_route():
     """Deactivation is reversible and preserves the audit trail; deletion destroys the
-    definition a settled order references. Wix's `delete-a-coupon` is deliberately not wired."""
+    definition a settled order references, so no delete is wired, deliberately."""
     assert not [route for route in DOCUMENTED_ROUTES if route.startswith("DELETE")]
     assert "DELETE" not in str(DOCUMENTED_ROUTES)
 

@@ -1,29 +1,26 @@
-"""AWS-native cart CRUD on CartTable — the native replacement for Wix Cart V2.
+"""AWS-native cart CRUD on CartTable.
 
-The former Wix cart module created/mutated a cart inside Wix. This module keeps the
-cart in the AWS `CartTable` and resolves every line's price SERVER-SIDE from
-`ProductsTable` at add time, so a client-supplied price is never trusted (the same
-guarantee the Wix path had, where Wix priced the cart). It produces lines that
-convert directly to `catalog_pricing.CatalogLine`, so `price_cart` can quote the
-cart without any Wix round-trip.
+This module keeps the cart in the AWS `CartTable` and resolves every line's price
+SERVER-SIDE from `ProductsTable` at add time, so a client-supplied price is never
+trusted. It produces lines that convert directly to `catalog_pricing.CatalogLine`,
+so `price_cart` can quote the cart with no external call.
 
-Operations mirror the former Wix cart surface the checkout uses:
+Operations (driven by `native_cart_adapter.NativeCartAdapter` for `CustomerCart`):
     create(items)            -> new cart row
     add(cart_id, item)       -> add/merge a line
     set_quantity(cart_id, variant_id, qty)
     remove(cart_id, variant_id)
-    get(cart_id)             -> cart row (CartGone-equivalent: returns None)
+    get(cart_id)             -> cart row (raises CartNotFound when absent)
     to_catalog_lines(cart)   -> [CatalogLine] for pricing
+
+The checkout's native quote also prices its lines through `_unit_price_paise`.
 
 Design, consistent with the rest of the library:
   - integer paise only (prices from ProductsTable `priceMinor`); no float,
-  - quantity 1..100000 per line (same bound as the former Wix cart / catalog_pricing),
+  - quantity 1..100000 per line (same bound as catalog_pricing),
   - the table + product reader are INJECTED (no boto3, no secret here),
   - cart is a short-lived working doc with a TTL (CartTable reaps abandoned carts);
     the ORDER is the durable artifact, never the cart.
-
-NOT WIRED until CHECKOUT_MODE=AWS_NATIVE. The checkout handler keeps using Wix
-Cart V2 until the owner-gated cutover.
 """
 from __future__ import annotations
 
@@ -45,7 +42,7 @@ class NativeCartError(RuntimeError):
 
 
 class CartNotFound(LookupError):
-    """The cart id does not exist (the native equivalent of the former Wix cart's CartGone)."""
+    """The cart id does not exist. `NativeCartAdapter` maps it to `cart_contract.CartGone`."""
 
 
 def _int_qty(value: Any) -> int:

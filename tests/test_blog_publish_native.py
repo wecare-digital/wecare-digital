@@ -1,6 +1,6 @@
-"""Native blog publish: BLOG_SOURCE=aws writes a published blogPost record via
-storage.create_blog_post (the record the native read path serves), returning the
-same {postId, postUrl} shape as the Wix writer — and never calling Wix.
+"""Native blog publish: writes a published blogPost record via storage.create_blog_post
+(the record the native read path serves) and returns the {postId, postUrl} shape
+`publish` records.
 """
 import sys
 from pathlib import Path
@@ -15,13 +15,11 @@ import storage  # noqa: E402
 
 
 def test_blog_source_is_unconditionally_aws(monkeypatch):
-    # WIX EXIT COMPLETE: the Wix publish path and its credential/kill-switch handling
-    # were removed with the Wix Lambdas, so the blog WRITE always goes to the AWS-native
-    # store. _blog_source_is_aws() is True regardless of any legacy BLOG_SOURCE value —
-    # there is no Wix target left to route to.
+    # The blog WRITE always goes to the AWS-native store: _blog_source_is_aws() is True
+    # whatever a stale BLOG_SOURCE value says, because no flag is consulted.
     monkeypatch.delenv("BLOG_SOURCE", raising=False)
     assert blog_publish._blog_source_is_aws() is True
-    for val in ("aws", "AWS", "dynamodb", "native", "wix", "WIX", "anything"):
+    for val in ("aws", "AWS", "dynamodb", "native", "legacy", "anything"):
         monkeypatch.setenv("BLOG_SOURCE", val)
         assert blog_publish._blog_source_is_aws() is True
 
@@ -38,8 +36,8 @@ def test_write_native_persists_published_post_and_returns_shape(monkeypatch):
                 "rebuildRequired": True}
 
     monkeypatch.setattr(storage, "create_blog_post", fake_create_blog_post)
-    # If the native writer ever imported/called wix, the test would surface it; we assert
-    # the result shape and the mapping instead.
+    # The native store is the only write target, so the result shape and the field mapping
+    # are what is asserted.
     record = {"category": "Conversations"}
     draft = {"title": "A Native Post", "slug": "a-native-post",
              "contentMarkdown": "# Heading\n\nBody.", "seoTitle": "A Native Post | WeCare",

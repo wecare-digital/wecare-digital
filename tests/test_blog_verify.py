@@ -16,9 +16,9 @@ than none, because the report keeps saying "verified".
 publication, and verifying against it would report a failure for an article that went live exactly
 as approved.
 
-WIX EXIT: publishing writes to the AWS-native store via `storage.create_blog_post`, so a live post
-now carries a native `blog_<hex>` id (under `id`) and only markdown `content` - there is no Wix
-rich-content node tree. The live-post fixture mirrors the native read shape (`storage._blog_view`).
+Publishing writes to the AWS-native store via `storage.create_blog_post`, so a live post carries
+a native `blog_<hex>` id (under `id`) and markdown `content` - there is no rich-content node tree.
+The live-post fixture mirrors the native read shape (`storage.get_blog_post`).
 `blog_verify.run()` reads the live post back through the native public seam
 `blog_source.get_blog_post_by_slug` - the same source the live site serves, filtered to published
 only. These tests patch that call and feed it the native shape so the expectations align with the
@@ -78,7 +78,6 @@ def env(monkeypatch):
     #: that call and return the native read shape so the thirteen are checked against the native
     #: contract.
     monkeypatch.setattr(blog_source, "get_blog_post_by_slug", lambda slug: live.get(slug))
-    monkeypatch.setenv("WIX_BLOG_AUTHOR_NAME", q.AUTHOR)
     bg.reset_corpus_cache()
     index = q.CorpusIndex()
     index.add({"slug": "an-unrelated-article", "title": "Something else entirely",
@@ -153,8 +152,7 @@ def _published(env, batch_id: str = "", header: str = "THE GIVEN WORD") -> Dict[
     #: "post-1". `_write_native` -> `storage.create_blog_post` mints `blog_<uuid>` and the
     #: job records it, and the native read seam returns that same id for this slug - so
     #: POST_ID_MATCHES compares the recorded id against the id the read returns, which is the
-    #: honest invariant. Seeding "post-1" here was the stale Wix response shape and is what
-    #: made the assertion mismatch under native publish.
+    #: honest invariant. A fixed seeded id would not match what the native publish recorded.
     env["live"][slug] = _live_post(slug, draft, id=str(published["postId"]))
     return {"sourceId": source_id, "slug": slug, "draft": draft, "jobId": job["jobId"],
             "postId": str(published["postId"])}
@@ -162,11 +160,11 @@ def _published(env, batch_id: str = "", header: str = "THE GIVEN WORD") -> Dict[
 
 def _live_post(slug: str, draft: Dict[str, Any], **overrides: Any) -> Dict[str, Any]:
     """The native public read shape for a correctly published post, mirroring
-    `storage._blog_view`.
+    `storage.get_blog_post`.
 
     The id defaults to the native `blog_<hex>` shape but is overridden by `_published` with the id
     the publish actually recorded, so a correct post matches on POST_ID_MATCHES. The body is
-    markdown under `content`/`contentText`; the native store has no Wix rich-content node tree, so
+    markdown under `content`/`contentText`; the native store has no rich-content node tree, so
     `richContent` is empty - `verify_post` reads the body from `content`, and NO_MEDIA_NODES /
     NO_LEGACY_MARKUP see an empty tree exactly as the native store serves it.
     """
@@ -246,7 +244,7 @@ def test_a_mismatched_field_fails_its_own_assertion(env, field, value, assertion
     assert result["status"] == "FAILED"
 
 
-def test_a_wix_appended_slug_suffix_is_its_own_failure(env):
+def test_a_numeric_slug_suffix_is_its_own_failure(env):
     """A suffixed slug means another post already held the URL - a duplication problem wearing
     a routing problem's clothes, which is why it is not folded into CANONICAL_MATCHES."""
     published = _published(env)
@@ -272,9 +270,9 @@ def test_a_truncated_body_fails_body_intact(env):
 
 
 def test_a_normalisation_in_the_body_still_passes(env):
-    """Wix round-trips prose through Ricos, which can normalise a quote or collapse a space.
-    Requiring an exact match would fail every correct post, and a check that fails on
-    correctness gets switched off."""
+    """Storing and serving a body can normalise a quote or collapse a space. Requiring an exact
+    match would fail every correct post, and a check that fails on correctness gets switched
+    off."""
     published = _published(env)
     round_tripped = q.strip_markdown(GOOD_BODY).replace("  ", " ").replace("'", "\u2019")
     env["live"][published["slug"]]["content"] = round_tripped
@@ -283,7 +281,8 @@ def test_a_normalisation_in_the_body_still_passes(env):
 
 
 def test_a_media_node_in_the_live_post_fails(env):
-    """Section 27. Wix can accept a node the compiler never emitted, or a later edit can add one."""
+    """Section 27. A live record can carry a node the publish never wrote: a later edit can add
+    one."""
     published = _published(env)
     env["live"][published["slug"]]["richContent"] = {
         "nodes": [{"type": "IMAGE", "imageData": {"image": {"id": "x"}}}]}
@@ -305,13 +304,11 @@ def test_legacy_markup_in_the_live_post_fails(env):
 
 
 def test_a_trailing_slash_is_not_a_canonical_failure(env):
-    """The two URL builders agree TODAY, and the tolerance is there so they may stop.
+    """The two URL builders differ on the trailing slash, and the tolerance absorbs it.
 
-    `wix._blog_view` builds `/post/<slug>/` and `q.expected_canonical` also ends with a slash, so
-    there is no mismatch to absorb right now - the original version of this test claimed there was
-    and failed on its own premise. The tolerance still earns its place: either builder changing its
-    trailing slash would otherwise make CANONICAL_MATCHES fail on every correct post, and a check
-    that fails on correctness gets switched off.
+    The native post view (`storage.get_blog_post`) serves `/post/<slug>` while
+    `q.expected_canonical` ends with a slash. Without the tolerance CANONICAL_MATCHES would fail on
+    every correct post, and a check that fails on correctness gets switched off.
     """
     assert q.expected_canonical("a-slug").endswith("/")
     assert env["bv"]._same_url("https://wecare.digital/post/a-slug/",
@@ -435,16 +432,11 @@ def test_an_article_with_no_signoff_reference_still_verifies(env):
 def test_verification_reads_the_native_published_only_view(env):
     """It proves the article is actually PUBLIC rather than merely created.
 
-    WIX EXIT COMPLETE: there is no longer a public-vs-authenticated token distinction - there is
-    one AWS-native store. The invariant that mattered survives: verification reads through the
-    PUBLISHED-only view (`storage.get_blog_post(slug, published_only=True)`, which the public read
-    seam `blog_source.get_blog_post_by_slug` serves), so an article that exists only as a draft is
+    There is one AWS-native store, and verification reads it through the PUBLISHED-only view
+    (`storage.get_blog_post(slug, published_only=True)`, which the public read seam
+    `blog_source.get_blog_post_by_slug` serves), so an article that exists only as a draft is
     invisible to verification exactly as it is to a reader. A draft read would otherwise report
     "verified" on a post nobody can reach.
-
-    The old test drove a Wix public-vs-authenticated token distinction and asserted verification
-    still worked while the kill switch was on. Both the second token and the kill switch are gone,
-    so this asserts the one native fact underneath: the read seam filters to published only.
     """
     import storage
 
@@ -597,9 +589,8 @@ def test_a_verification_run_does_not_count_as_a_source(env):
 def test_verification_makes_no_post_mutation(env):
     """Verification reads the live post and records its own run; it must never write a post.
 
-    WIX EXIT: this used to assert no Wix `draft-posts` mutation was issued. Natively the only way
-    to write a post is `storage.create_blog_post` (the publish writer), so the native form of the
-    invariant is that a verification run never calls it.
+    The publish path writes a post through `storage.create_blog_post`, so the invariant is that a
+    verification run never calls it.
     """
     published = _published(env)
     env["store"].calls.clear()

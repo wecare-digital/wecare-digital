@@ -2,11 +2,11 @@
 
 WHY VERIFY AT ALL, WHEN THE PUBLISH REPORTED SUCCESS.
 
-Because a successful write is not evidence of a correct post. Wix can accept a draft and publish
-something different from what was sent: it appends a numeric suffix to a slug that collides, it
-drops rich-content nodes it does not recognise, it silently truncates an excerpt, and a category id
-that no longer exists is accepted without error and simply not applied. Every one of those leaves
-a live article that a reader sees and no record mentions.
+Because a successful write is not evidence of a correct post. A store can accept a post and serve
+something different from what was approved: a slug that collides can come back with a numeric
+suffix, a body can be normalised or truncated on the way in, the record can be edited after
+publication, and a category that no longer exists can be accepted without error and simply not
+applied. Every one of those leaves a live article that a reader sees and no record mentions.
 
 So publication is not the end of the pipeline. Reading the post back and checking it against what
 was approved is, and the result is recorded next to the publish record rather than inferred.
@@ -60,7 +60,7 @@ ASSERTIONS: Tuple[Tuple[str, str], ...] = (
     ("POST_IS_LIVE", "the slug resolves to a public post"),
     ("POST_ID_MATCHES", "the live post is the one the publish recorded"),
     ("TITLE_MATCHES", "the live title is the approved title"),
-    ("SLUG_MATCHES", "Wix did not append a suffix to the slug"),
+    ("SLUG_MATCHES", "the published slug carries no numeric suffix"),
     ("BODY_INTACT", "the live body is the approved body"),
     ("BODY_HASH_MATCHES_SIGNOFF", "what went live is what was signed off"),
     ("NO_MEDIA_NODES", "section 27: no image, gallery, video, audio or embed survived"),
@@ -72,10 +72,10 @@ ASSERTIONS: Tuple[Tuple[str, str], ...] = (
     ("AUTHOR_MATCHES", "section 8: the live post is attributed to the Anew author"),
 )
 
-#: Slug suffix Wix appends on a collision. The reason SLUG_MATCHES exists as its own assertion
-#: rather than being folded into CANONICAL_MATCHES: a suffixed slug is a DIFFERENT and specific
-#: failure - it means another post already held the URL, which is a duplication problem wearing a
-#: routing problem's clothes.
+#: The numeric suffix a slug collision leaves behind. The reason SLUG_MATCHES exists as its own
+#: assertion rather than being folded into CANONICAL_MATCHES: a suffixed slug is a DIFFERENT and
+#: specific failure - it means another post already held the URL, which is a duplication problem
+#: wearing a routing problem's clothes.
 _SLUG_SUFFIX = re.compile(r"-\d{1,3}$")
 
 #: Section 27. The same set the migration gate refuses, so a node that could never have been
@@ -86,9 +86,9 @@ MEDIA_NODES = ("IMAGE", "GALLERY", "GIF", "VIDEO", "AUDIO", "EMBED", "FILE")
 LEGACY_MARKUP = (r"<font\b", r"<span\b", r"<div\b", r"<table\b", r"style\s*=", r"font-size",
                  r"font-family", r"&nbsp;", r"color\s*:\s*#", r"<br\s*/?>", r"<center\b")
 
-#: How close the live body has to be to the approved one. Not 1.0: Wix round-trips prose through
-#: Ricos and back to text, which can normalise a quote character or collapse a double space. A
-#: shingle overlap this high cannot hide a missing paragraph, which is the failure that matters.
+#: How close the live body has to be to the approved one. Not 1.0: storing and serving a body can
+#: legitimately normalise a quote character or collapse a double space. A shingle overlap this
+#: high cannot hide a missing paragraph, which is the failure that matters.
 BODY_SIMILARITY_MIN = 0.97
 
 
@@ -114,10 +114,11 @@ def _result(name: str, outcome: str, expected: Any = "", found: Any = "",
 
 
 def _text_of(rich: Any, fallback: str) -> str:
-    """Plain text from the live post, preferring `contentText` and falling back to Ricos.
+    """Plain text from the live post: its stored body, falling back to a rich-content tree.
 
-    Wix's `contentText` is the flattened body and is what a search engine reads, so it is the
-    right thing to compare. The Ricos walk is the fallback for a post that predates it.
+    The native post view serves the stored body as `content` (and `contentText`), which is what a
+    reader and a search engine get, so it is the right thing to compare. The `richContent` walk
+    is the fallback for a record that carries only a structured body.
     """
     if str(fallback or "").strip():
         return str(fallback)
@@ -175,8 +176,8 @@ def verify_post(live: Optional[Dict[str, Any]], expected: Dict[str, Any],
     elif _SLUG_SUFFIX.sub("", live_slug) == wanted_slug:
         out.append(_result(
             "SLUG_MATCHES", FAIL, wanted_slug, live_slug,
-            "Wix appended a numeric suffix, which means another post already held this URL - "
-            "a duplication problem, not a routing one"))
+            "the published slug carries a numeric suffix, which means another post already "
+            "held this URL - a duplication problem, not a routing one"))
     else:
         out.append(_result("SLUG_MATCHES", FAIL, wanted_slug, live_slug))
 
@@ -200,8 +201,8 @@ def verify_post(live: Optional[Dict[str, Any]], expected: Dict[str, Any],
         import hashlib
         live_hash = hashlib.sha256(
             " ".join(q.strip_markdown(live_text).split()).encode("utf-8")).hexdigest()
-        #: Compared on SIMILARITY as well, because the round-trip through Ricos legitimately
-        #: changes bytes. An exact match is reported when it happens; otherwise the body check
+        #: Compared on SIMILARITY as well, because storing and serving a body can legitimately
+        #: change bytes. An exact match is reported when it happens; otherwise the body check
         #: above is the substantive one and this records that the hash moved.
         out.append(_result(
             "BODY_HASH_MATCHES_SIGNOFF",
@@ -338,8 +339,7 @@ def run(source_id: str, actor: str) -> Dict[str, Any]:
     #: A read failure is an OUTCOME, not an exception to propagate. "the store is unreachable"
     #: and "the post is not there" are different facts and the report has to say which.
     #: Reads back through the SAME native seam the public site serves (blog_source ->
-    #: storage, published-only), so verification checks what readers actually get — not a
-    #: decommissioned Wix path.
+    #: storage, published-only), so verification checks what readers actually get.
     live: Optional[Dict[str, Any]] = None
     read_error = ""
     try:

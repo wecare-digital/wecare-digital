@@ -57,9 +57,9 @@ BOT_ID = "69e0b2c980cbf50614ffa5fd"
 USERNAME = "wecaretrans"
 DEFAULT_TEMPLATE = "rcsmenu"
 
-#: Functions that opt in to RCS with SINCH_RCS_ENABLED=true. Confirmed on the live aliases.
-RCS_ENABLED_FUNCTIONS = ("wecare-voice-in-c2c", "wecare-voice-in-obd",
-                         "wecare-whatsapp-calling")
+#: Functions that opt in to RCS with SINCH_RCS_ENABLED=true, as recorded in
+#: config/lambda-env-manifest.json.
+RCS_ENABLED_FUNCTIONS = ("wecare-whatsapp-calling",)
 
 
 def code_only(path: Path) -> str:
@@ -283,6 +283,14 @@ class TestNonSecretConfiguration:
         assert "SINCH_RCS_ENABLED" in code_only(SINCH)
         assert sinch_rcs.is_rcs_enabled() is False, (
             "with the flag unset the sender must be off; it is an opt-in")
+
+    def test_the_recorded_opt_ins_are_the_specified_ones(self):
+        import json
+
+        manifest = json.loads((ROOT / "config" / "lambda-env-manifest.json").read_text())
+        opted_in = tuple(sorted(fn for fn, env in manifest["functions"].items()
+                                if env.get("SINCH_RCS_ENABLED") == "true"))
+        assert opted_in == RCS_ENABLED_FUNCTIONS
 
 
 class TestRecipientIdentity:

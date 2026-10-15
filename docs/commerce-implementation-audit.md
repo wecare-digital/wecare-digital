@@ -25,13 +25,12 @@ remove**. I looked for a pre-payment order number and there isn't one.
 | WhatsApp OTP (§8) | **IMPLEMENTED** (Cognito CUSTOM_AUTH) |
 | OTP challenge store, hashed + peppered (§8) | **IMPLEMENTED** |
 | Email OTP send from `one@wecare.digital` (§9) | **PARTIAL** — primitive exists, send path does not |
-| Wix storefront cart/checkout API (§14) | **PARTIAL** — only `/products` is exposed |
+| Storefront cart/checkout API (§14) | **IMPLEMENTED** since this audit — native `wecare-checkout` (`/ecommerce/checkout`, `/ecommerce/prepare-checkout`, `/ecommerce/verify-callback`), `CartTable`, `ProductsTable` pricing |
 | Customer checkout UI, 12 steps (§4, §12) | **NOT IMPLEMENTED** |
 | Website payment states (§28) | **NOT IMPLEMENTED** |
 | Retry UX (§29) | **NOT IMPLEMENTED** |
 | Order tracking page (§42) | **NOT IMPLEMENTED** |
 | Payment history vs order history (§43, §44) | **NOT IMPLEMENTED** (frontend) |
-| Wix `client_credentials` auth | **EXTERNAL CONFIGURATION REQUIRED** |
 
 ---
 
@@ -101,13 +100,13 @@ a signal to verify, not proof — exactly §33.6.
 | Payment status mapping | `lambda_utils/payment_status.py` |
 | Invoice/receipt | `payments/invoice-engine/` |
 | Receipt links | `lambda_utils/receipt_links.py` |
-| Wix domain logic | `.../ecommerce/wix_domain.py` |
+| Native pricing, cart and stock | `.../ecommerce/catalog_pricing.py`, `checkout_pricing.py`, `native_cart.py`, `native_inventory_txn.py` |
 | Customer identity | `lambda_utils/customer_auth.py` |
 
 ### Test coverage already in place
 
-`pytest --collect-only -k "payment or order or checkout or wix or razorpay or otp"` →
-**706 of 5324 tests**. Named files include `test_order_creation.py`, `test_payment_attempt.py`,
+`pytest --collect-only -k "payment or order or checkout or razorpay or otp"` selects the
+payment and order suites. Named files include `test_order_creation.py`, `test_payment_attempt.py`,
 `test_order_keys.py`, `test_payment_reconciliation_safety.py`,
 `test_razorpay_webhook_order_creation.py`, `test_payment_readiness.py`, `test_otp_challenge.py`,
 `test_payment_vocabulary_at_decision_points.py`.
@@ -138,44 +137,27 @@ all, so it needs a store regardless."* So the **store and verify primitive exist
 is the SESv2 send from `one@wecare.digital` with configuration set `wecare-digital`, and the branded
 template.
 
-### c. Two live order-number formats — §20's "exactly 12 characters" is true of new orders only
+### c. Legacy order numbers — §20's "exactly 12 characters" is true of new orders only
 
-`order_keys.is_wd_order_number()` documents itself as accepting "a legacy WD order number in
-**either live format**", and `wix-store/handler.py::_generate_wd_order_number` emits
-`WD-ORD - A1B2C3D4 - …` — note the space at index 6, which a previous `startswith('WD-ORD-')`
-check never matched, making the reuse test dead code and reissuing every order number on every
-refresh of the orders view. That bug is fixed; the **two formats remain**.
+New, post-paid orders get a 12-character number from `order_keys.reserve_order_number` via
+`order_creation` (alphabet `23456789ABCDEFGHJKMNPQRSTVWXYZ`), which matches §20.
+`order_keys.is_wd_order_number()` still accepts the legacy `WD-ORD - XXXXXXXX - …` format —
+note the space at index 6 — because historical orders carry it.
 
-So there are two numbering systems live:
-
-| Path | Format | When |
-|---|---|---|
-| `order_keys.reserve_order_number` via `order_creation` | 12 chars, `23456789ABCDEFGHJKMNPQRSTVWXYZ` | new, post-paid orders — matches §20 |
-| `wix-store::_wd_order_number` | `WD-ORD - XXXXXXXX - …` | assigning a number to an order that already exists in Wix |
-
-**This is not a violation of the no-order-before-payment rule** — the second path runs against
-orders that already exist in Wix and is a display/backfill concern, and it now reserves under
-`ORDERNO#` with a conditional write before returning, failing closed if DynamoDB is unavailable.
-
-It **is** a deviation from §20's format contract that anyone writing §56's tests ("orderNumber is
+That is a deviation from §20's format contract that anyone writing §56's tests ("orderNumber is
 exactly 12 characters, allowed alphabet only") will trip over immediately: those assertions will
 fail against historical orders. Decide explicitly whether §56 applies to new orders only, or
 whether legacy numbers are migrated. Do not "fix" it by loosening the 12-character rule.
 
-### d. Wix storefront HTTP surface (§14)
+### d. Storefront HTTP surface (§14) — closed since this audit
 
-`wix-store/handler.py` exposes only `'/products'`. There is no cart or checkout route, so the
-frontend has nothing to read an authoritative total from yet. §13 and §26 depend on this.
+Native `wecare-checkout` now computes the authoritative total server-side from `ProductsTable`
+(`catalog_pricing` → `checkout_pricing.compute_quote`, integer paise), which §13 and §26
+depend on.
 
 ---
 
 ## 3. Stale spec material
-
-`.kiro/specs/whatsapp-wix-commerce/tasks.md`: **24 complete, 90 open.** The open list still contains
-items that are demonstrably done — e.g. 3.1 "reuse WebhookDedup, add no parallel table" and 3.2
-"replace read-then-write uniqueness with conditional writes" are both visible in
-`order_keys.py`/`order_creation.py`. **The task list under-reports the implementation**, which is the
-opposite of the usual drift and matters because it invites rebuilding.
 
 `.kiro/steering/PAYMENT-AUDIT-REPORT.md` is dated **2026-03-30** and says "Razorpay + PayU Only".
 §30 says **Razorpay only, do not restore PayU** — so that document is stale on gateway policy and
@@ -188,11 +170,8 @@ against current Meta docs before any payload change (§32).
 
 From the spec's own open list plus this session's findings:
 
-1. **R0.9 — rotate the Wix key**, recorded as "pasted into a chat transcript".
-2. **R0.10 — confirm the Wix site id** before any order write.
-3. **6.1 — migrate to `client_credentials`**; the API-key path is a fallback.
-4. **Google Cloud production access** for `wecaredigitalbw` — unrelated to payments but blocks Ads/Search Console.
-5. **Meta payment configuration must belong to the sending WABA** (§31) — verify live, do not take the value from the stale steering doc.
+1. **Google Cloud production access** for `wecaredigitalbw` — unrelated to payments but blocks Ads/Search Console.
+2. **Meta payment configuration must belong to the sending WABA** (§31) — verify live, do not take the value from the stale steering doc.
 
 ---
 
@@ -202,8 +181,7 @@ Smallest reviewable steps, reusing everything above.
 
 1. **Assert the invariants that already hold** (§49.1–49.8) as explicit tests, before touching
    anything. If any fails, that is the real bug and it is cheaper to find now.
-2. **Wix checkout read API** — add cart/checkout routes to `wix-store`, so an authoritative total
-   exists over HTTP. Nothing else can be correct without it.
+2. ~~Checkout read API~~ — done: native `wecare-checkout` exposes the authoritative total.
 3. **Email OTP send** — wire `otp_challenge` to SESv2 from `one@wecare.digital`.
 4. **Frontend, in slices**, following `.kiro/skills/new-public-page/SKILL.md` and the measured home
    design rungs: phone → OTP → name → email → OTP → address → review → pay → states → retry.

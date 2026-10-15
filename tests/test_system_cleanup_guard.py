@@ -62,7 +62,8 @@ PROTECTED_IDS = [
     "whatsapp_inbox",       # customer messages
     "whatsapp_outbox",
     "submit_requests",      # flow submissions
-    "messages_legacy",
+    "messages",             # the canonical all-channel MessagesTable
+    "dlt_templates",        # TRAI DLT registry: regulatory data
     "conversation_history",
     "invoice_items",
     "invoice_sequence",
@@ -400,10 +401,37 @@ def test_auto_discovery_is_gone(mod, monkeypatch):
     assert not any(r["id"].startswith(("auto_tbl_", "auto_s3_")) for r in data["resources"])
 
 
-def test_only_the_four_allow_listed_tables_are_selectable(mod, monkeypatch):
+def test_only_the_allow_listed_tables_are_selectable(mod, monkeypatch):
     data, _, _ = preview(mod, monkeypatch)
     selectable = sorted(r["table"] for r in data["resources"] if r["selectable"])
     assert selectable == sorted(mod.CLEANUP_ALLOWLIST)
+
+
+def test_the_allow_list_is_the_two_self_rebuilding_tables(mod):
+    """Each one repopulates without anyone intervening; nothing else qualifies."""
+    assert mod.CLEANUP_ALLOWLIST == {
+        "stack-wecare-digital-RateLimitTable",
+        "stack-wecare-digital-TemplateAnalyticsTable",
+    }
+
+
+def test_the_dlt_registry_is_protected_regulatory_data(mod):
+    """DLT templates record portal-approved content; nothing would repopulate them."""
+    table = "stack-wecare-digital-DLTTemplates"
+    assert table not in mod.CLEANUP_ALLOWLIST
+    assert table in mod.PROTECTED_TABLES
+    assert mod._table_protected_reason(table)
+    with pytest.raises(mod.CleanupRefused):
+        mod._wipe_table(table)
+
+
+def test_every_registry_entry_names_a_table_the_account_has(mod):
+    """A registry row for a table that does not exist reports a count of -1 forever."""
+    snapshot = json.loads((ROOT / "docs/execution/snapshots/dynamodb-tables.json").read_text())
+    live = set(snapshot["tables"])
+    missing = sorted(res["table"] for res in mod.CLEANUP_RESOURCES.values()
+                     if res["type"] == "dynamodb" and res["table"] not in live)
+    assert missing == []
 
 
 @pytest.mark.parametrize("res_id", PROTECTED_IDS)

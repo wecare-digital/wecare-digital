@@ -5,10 +5,10 @@ The public site is a static export. It builds by fetching every post from this L
 `/blog-public/<slug>` route, so that route is the seam between the CMS and the published page.
 Enriching the response here means the frontend changes NOTHING: `src/pages/post/[slug].tsx`
 already renders `post.jsonLd.faqSchema` when it has `mainEntity` entries, and has done for some
-time. The only reason no FAQ has ever appeared is that `wix.py::_blog_view` hardcodes
-`'jsonLd': {}` — Wix is the post source and carries no schema of ours.
+time. The post itself carries only the `jsonLd` stored on its `blogPost` record; an approved
+FAQ lives in a separate `audit` record, so it never reached the page on its own.
 
-So the chain already existed end to end and was cut in exactly one place. This is that place.
+So the chain already existed end to end and was missing exactly one link. This is that link.
 
     ai.py  -> generates faqSchema        (already existed)
     handler._run_audit -> stores it as an `audit` record, status pending_review

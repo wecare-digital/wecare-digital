@@ -7,7 +7,7 @@ READ-ONLY. Never mutates AWS. Two inputs, both reproducible:
    `docs/migrations/evidence/cost-explorer-20261014.json`): gross usage by service and usage type,
    plus the credit lines, read with four GetCostAndUsage calls on 2026-10-14. This script makes
    NO Cost Explorer call itself (each one costs $0.01 and CE calls were a September cost driver).
-2. Recorded counts (secrets, Lightsail bundle, billed snapshot size), optionally refreshed with
+2. Recorded counts (secrets, Lightsail bundles, billed snapshot size), optionally refreshed with
    `--live` using free read-only list/describe calls.
 
 Usage:
@@ -53,8 +53,10 @@ RECORDED = {
     "active_secrets": 19,
     "scheduled_deletion_secrets": 9,
     "reference_active_secrets_20261012": 22,
-    "wix_secrets_deleted_20261014": 3,   # force-deleted 2026-10-14 (CloudTrail)
-    "lightsail_bundle": "micro_3_0",
+    "secrets_deleted_20261014": 3,       # force-deleted 2026-10-14 (CloudTrail)
+    # Every running Lightsail instance (live 2026-10-15): the Nano serves sip.wecare.digital since
+    # the 03:39 UTC cutover; the Micro stays running as the rollback standby until it is deleted.
+    "lightsail_bundles": ["micro_3_0", "nano_3_0"],
     "snapshot_billed_gb": 5.3,           # CE USE1-SnapshotUsage, GB-month
     "cloudwatch_alarms": 73,
     "kms_customer_keys": 4,
@@ -78,9 +80,9 @@ def live_counts() -> dict:
         out["scheduled_deletion_secrets"] = int(_aws([
             "secretsmanager", "list-secrets", "--include-planned-deletion", "--max-results",
             "100", "--query", "length(SecretList[?DeletedDate!=null])"]))
-        out["lightsail_bundle"] = _aws([
-            "lightsail", "get-instance", "--instance-name", "wecare-voice-bot",
-            "--query", "instance.bundleId"])
+        # All instances, not one name: keeps working after the Micro is deleted.
+        out["lightsail_bundles"] = sorted(_aws([
+            "lightsail", "get-instances", "--query", "instances[].bundleId"]).split())
         out["cloudwatch_alarms"] = int(_aws([
             "cloudwatch", "describe-alarms", "--query", "length(MetricAlarms)"]))
     except (subprocess.CalledProcessError, ValueError) as exc:  # pragma: no cover
@@ -156,9 +158,22 @@ def levers(counts: dict, m: dict, *, amplify_build_reduction: float = 0.5,
                              m["amplify_egress_usd"]["2026-09"])
     alarms = counts["cloudwatch_alarms"]
     snapshot = round(counts["snapshot_billed_gb"] * LIGHTSAIL_SNAPSHOT_USD_PER_GB_MONTH, 2)
+    # The Micro -> Nano saving is REALISED only once the Micro stops billing (ROLLBACK.md).
+    bundles = counts["lightsail_bundles"]
+    on_nano, micro_billing = "nano_3_0" in bundles, "micro_3_0" in bundles
+    nano_notes = [f"Snapshot storage ${snapshot:.2f}/mo either way."]
+    if on_nano and not micro_billing:
+        nano_label, nano_decision = "REALISED", "done: the Nano serves SIP and the Micro is deleted"
+    elif on_nano:
+        nano_label = "POTENTIAL"
+        nano_decision = "cut over 2026-10-15; realised when the Micro rollback standby is deleted"
+        nano_notes.insert(0, f"Until then both bill ${LIGHTSAIL_MICRO_USD + LIGHTSAIL_NANO_USD:.2f}"
+                             "/mo, prorated hourly.")
+    else:
+        nano_label, nano_decision = "POTENTIAL", "Nano not built; see lightsail-nano-feasibility.md"
     return [
-        Lever("wix_secrets_deleted", "REALISED",
-              -round(counts["wix_secrets_deleted_20261014"] * SECRET_STORAGE_USD_PER_MONTH, 2),
+        Lever("secrets_deleted", "REALISED",
+              -round(counts["secrets_deleted_20261014"] * SECRET_STORAGE_USD_PER_MONTH, 2),
               "done 2026-10-14 (force-deleted; no recovery window)",
               ["Counted against the 2026-10-12 reference of "
                f"{counts['reference_active_secrets_20261012']} active secrets."]),
@@ -193,11 +208,10 @@ def levers(counts: dict, m: dict, *, amplify_build_reduction: float = 0.5,
               [f"{counts['kms_customer_keys']} CMKs = "
                f"${counts['kms_customer_keys'] * KMS_CMK_USD_PER_MONTH:.2f}/mo; one protects 6 "
                "secrets, the other three were not usage-audited here."]),
-        Lever("lightsail_nano", "POTENTIAL", -(LIGHTSAIL_MICRO_USD - LIGHTSAIL_NANO_USD),
-              "NO-GO today (RAM unmeasured); see lightsail-nano-feasibility.md",
-              [f"One-time overlap ${LIGHTSAIL_NANO_USD:.2f} for a month of dual running, plus "
-               "engineering and call-test time.", f"Snapshot storage ${snapshot:.2f}/mo either way."]),
-        Lever("lightsail_retire", "POTENTIAL", -LIGHTSAIL_MICRO_USD,
+        Lever("lightsail_nano", nano_label, -(LIGHTSAIL_MICRO_USD - LIGHTSAIL_NANO_USD),
+              nano_decision, nano_notes),
+        Lever("lightsail_retire", "POTENTIAL",
+              -(LIGHTSAIL_NANO_USD if on_nano else LIGHTSAIL_MICRO_USD),
               "not authorised: needs an approved SIP media replacement first",
               [f"Snapshot retention would remain ${snapshot:.2f}/mo if kept."]),
         Lever("cost_explorer_calls", "HISTORICAL", 0.0, "already fixed; not counted again",

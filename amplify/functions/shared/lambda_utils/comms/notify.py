@@ -2,26 +2,27 @@
 
 Several call paths used to hand-roll this behavior. Each copy inlined its own
 Indian-number test, DLT template id, sender id and target selection. Centralizing
-the send removes transport selection from business code and gives DLT one source of truth.
-reintroduced.
+the send removes transport selection from business code and gives DLT one source
+of truth: every notification SMS goes to `wecare-sms-aws`, which sends it through
+AWS End User Messaging.
 
-This module replaces all four with one call:
+One call does it:
 
     from lambda_utils.comms.notify import send_notification_sms
 
     send_notification_sms(phone, body, dlt_template_key='ivr-default',
-                          campaign='c2c-cdr', request_id=request_id)
+                          campaign='post-call', request_id=request_id)
 
 Why invoke a Lambda rather than call AwsSmsProvider directly
 ------------------------------------------------------------
 `AwsSmsProvider` is the real sender and `wecare-sms-aws` is the only function
-that runs it. Calling the provider in-process from four more functions would mean
-granting `sms-voice:SendTextMessage` to four more execution roles and giving four
-more functions a direct path to the SMS API. Keeping the send behind one function
+that runs it. Calling the provider in-process from every caller would mean
+granting `sms-voice:SendTextMessage` to every caller's execution role and giving
+each of them a direct path to the SMS API. Keeping the send behind one function
 keeps least privilege intact and keeps one audit point.
 
-This mirrors what `plivo-answer` already does, which is the reference
-implementation for a compliant caller.
+This mirrors what `plivo-answer` does for its post-call SMS, which is the
+reference implementation for a compliant caller.
 
 Asynchronous by default
 -----------------------

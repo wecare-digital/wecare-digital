@@ -11,9 +11,9 @@ The consequence is the thing worth testing. A run in which every single document
 zero Lambda errors, so from the existing alarms it is indistinguishable from a run in which every
 document succeeded.
 
-THE TEST THAT CARRIES THIS FILE is `test_a_refusal_never_pages_anybody`. A refusal is an operator
-having switched Wix writes off. Paging somebody because the switch they threw is working is how a
-channel gets ignored, and an ignored channel is worth less than no channel.
+THE TEST THAT CARRIES THIS FILE is `test_a_refusal_never_pages_anybody`. A refusal is an
+operator's own decision, not a defect. Paging somebody because the switch they threw is working is
+how a channel gets ignored, and an ignored channel is worth less than no channel.
 """
 from __future__ import annotations
 
@@ -238,13 +238,12 @@ def test_the_verification_failure_event_is_the_one_the_filter_counts():
 
 
 def test_the_publish_failure_event_is_emitted_and_the_refusal_is_gone():
-    """The failure event the alarm counts is emitted, and the refusal event no longer exists.
+    """The failure event the alarm counts is emitted, and no refusal event exists.
 
-    WIX EXIT COMPLETE: native publishing has no Wix credential and no kill switch, so a publish is
-    never REFUSED - a write either PUBLISHED or FAILED. The alarm still counts `blog_publish_failed`
-    (a write that did not succeed), but `blog_publish_refused` is not emitted anywhere any more, so
-    there is no refusal event for a filter to accidentally count. This used to assert both events
-    coexisted; it now guards that the refusal event stays gone rather than quietly returning.
+    Native publishing has no credential to revoke and no kill switch, so a publish is never
+    REFUSED - a write either PUBLISHED or FAILED. The alarm counts `blog_publish_failed` (a write
+    that did not succeed), and `blog_publish_refused` is emitted nowhere, so there is no refusal
+    event for a filter to accidentally count.
     """
     module = deploy_module()
     events = { name: ev for name, ev, *_ in module.LOG_ALARMS }
@@ -255,7 +254,7 @@ def test_the_publish_failure_event_is_emitted_and_the_refusal_is_gone():
 
 
 def test_a_refusal_never_pages_anybody():
-    """THE test. A refusal is an operator having switched Wix writes off.
+    """THE test. A refusal is an operator's own decision, not a defect.
 
     Paging somebody because the switch they threw is working is how a channel gets ignored, and an
     ignored channel is worth less than no channel. The filter patterns are exact strings, so this
@@ -267,16 +266,6 @@ def test_a_refusal_never_pages_anybody():
         assert "refused" not in event, f"{name} counts a refusal: {event}"
     source = ( ROOT / "scripts" / "deploy_seo_tools.py" ).read_text(encoding="utf-8")
     assert "blog_publish_refused" not in source.split("def provision_alarms", 1)[1]
-
-
-# WIX EXIT: test_the_refusal_and_the_failure_are_genuinely_different_paths was removed. It asserted
-# that `publish()` consults the Wix kill switch (`writes_disabled()`) before the `_claim`, so a
-# refusal makes no attempt at all and cannot be reached by the exception handler that records a
-# failure. Native publishing has no Wix credential and no kill switch: there is no `writes_disabled`
-# check and no REFUSED state, so a write either PUBLISHED or FAILED. The behaviour this test
-# protected no longer exists. The surviving half - that a refusal event is never counted or emitted
-# - is covered by test_a_refusal_never_pages_anybody and
-# test_the_publish_failure_event_is_emitted_and_the_refusal_is_gone above.
 
 
 # ── Naming stays in the house convention ────────────────────────────────────────

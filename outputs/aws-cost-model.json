@@ -4,8 +4,11 @@
     "active_secrets": 19,
     "scheduled_deletion_secrets": 9,
     "reference_active_secrets_20261012": 22,
-    "wix_secrets_deleted_20261014": 3,
-    "lightsail_bundle": "micro_3_0",
+    "secrets_deleted_20261014": 3,
+    "lightsail_bundles": [
+      "micro_3_0",
+      "nano_3_0"
+    ],
     "snapshot_billed_gb": 5.3,
     "cloudwatch_alarms": 73,
     "kms_customer_keys": 4
@@ -82,7 +85,7 @@
   },
   "levers": [
     {
-      "name": "wix_secrets_deleted",
+      "name": "secrets_deleted",
       "label": "REALISED",
       "monthly_delta": -1.2,
       "decision": "done 2026-10-14 (force-deleted; no recovery window)",
@@ -150,16 +153,16 @@
       "name": "lightsail_nano",
       "label": "POTENTIAL",
       "monthly_delta": -2.0,
-      "decision": "NO-GO today (RAM unmeasured); see lightsail-nano-feasibility.md",
+      "decision": "cut over 2026-10-15; realised when the Micro rollback standby is deleted",
       "notes": [
-        "One-time overlap $5.00 for a month of dual running, plus engineering and call-test time.",
+        "Until then both bill $12.00/mo, prorated hourly.",
         "Snapshot storage $0.27/mo either way."
       ]
     },
     {
       "name": "lightsail_retire",
       "label": "POTENTIAL",
-      "monthly_delta": -7.0,
+      "monthly_delta": -5.0,
       "decision": "not authorised: needs an approved SIP media replacement first",
       "notes": [
         "Snapshot retention would remain $0.27/mo if kept."

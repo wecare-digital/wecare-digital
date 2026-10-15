@@ -57,7 +57,7 @@
       "Properties": {
         "DistributionConfig": {
           "Enabled": true,
-          "Comment": "Redirect unused WECARE subdomains and retired Wix hosts to home",
+          "Comment": "Redirect unused WECARE subdomains to home",
           "Aliases": [
             "*.wecare.digital"
           ],

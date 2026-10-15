@@ -30,7 +30,7 @@ Regenerate rather than edit. Both derive from the live account plus the reposito
 | `docs/execution/dependency-graph.md`, `feature-flag-register.md`, `phase-XX-status.md` | present |
 | `docs/kiro-handoff.md` | current position |
 | `docs/frontend-route-retirement.md` | 23 Amplify rules, 18 of them 301, 4 probed live |
-| `docs/prohibited-provider-retirement.md` | PayU / Airtel / Sinch-SMS retirement |
+| `docs/prohibited-provider-retirement.md` | Sinch-SMS route retirement and orphaned integrations (appended by `scripts/retire_orphan_integrations.py`) |
 | `docs/notification-retirement-manifest.md` | legacy notification domain |
 | `docs/protected-resource-register.md` | protected Meta / Plivo / payment identifiers |
 
@@ -44,7 +44,7 @@ links from the execution records for no gain, so these stay where they are.
 | `docs/meta-whatsapp-audit.md` | `docs/meta-whatsapp/` — `FEATURE_BUILD_MATRIX.md`, `META_GATED_FEATURES.md`, `ENVIRONMENT_VARIABLES.md`, `SECURITY_CHECKLIST.md`, `LIVE_SMOKE_TEST_PLAN.md`; plus `docs/WHATSAPP_PLATFORM_MODULE_MAP.md`, `docs/WHATSAPP_FLOWS_IMPLEMENTATION.md`, `docs/WHATSAPP_TEMPLATE_BUILDER.md` |
 | `docs/plivo-pstn-audit.md` | `docs/superpowers/specs/2026-09-19-plivo-pstn-browser-sdk-design.md`, plus `scripts/plivo-reconcile` and the `plivo-drift` / `plivo-verification` workflows |
 | `docs/backend-function-data-map.md` | `docs/service-implementation-matrix.md` (generated) and `docs/BACKEND_FULL_AUDIT.md` |
-| `docs/cleanup-and-storage-manifest.md` | `docs/AWS_CONSOLIDATION_AUDIT.md`, `docs/AWS_COST_CONTROL.md`, `docs/deleted-routes-*.json` |
+| `docs/cleanup-and-storage-manifest.md` | `docs/AWS_CONSOLIDATION_AUDIT.md`, `docs/AWS_COST_CONTROL.md` |
 | `docs/agent-tool-policy.md` | enforced in code: `governance.py` refuses 18 APPLY tools. The code is the policy; a prose copy would drift from it |
 
 ## Does not exist, and why
@@ -64,7 +64,7 @@ its absence, because it stops the next person checking.
 | `docs/whatsapp-india-razorpay-audit.md` | The payment path is implemented and tested against fixtures with no live charge. The per-page documentation audit was not done, and the exposed Razorpay credential family remains `MANUAL_OWNER_ACTION` |
 | `docs/screen-device-compatibility.md` | Requires a physical device matrix. Native packaging is **POST-PROJECT** by `00-current-owner-overrides.md`, so this is deferred by owner decision, not skipped |
 | `docs/frontend-design-language.md` | Enforced by `check_design_drift.py` and `check_ui_labels.py`, both blocking. The prose document does not exist |
-| `docs/plivo-documentation-coverage.md` companions (`docs/growth-wix-audit.md`, `docs/sdk-runtime-mcp-inventory.md`) | Same pattern: they are documentation-crawl deliverables, not implementation gaps |
+| `docs/plivo-documentation-coverage.md` companion (`docs/sdk-runtime-mcp-inventory.md`) | Same pattern: they are documentation-crawl deliverables, not implementation gaps |
 
 ## How to read this
 

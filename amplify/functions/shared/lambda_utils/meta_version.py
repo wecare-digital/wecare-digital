@@ -1,6 +1,6 @@
 """The one place the Meta Graph API version is decided.
 
-Spec tasks R1.1-R1.3 (`.kiro/specs/whatsapp-wix-commerce`).
+Spec tasks R1.1-R1.3 of the WhatsApp commerce spec under `.kiro/specs/`.
 
 WHAT THIS REPLACES. `META_API_VERSION = 'v25.0'` was declared at module scope in
 **eleven** handlers -- five reading the environment with a hard-coded default, six not

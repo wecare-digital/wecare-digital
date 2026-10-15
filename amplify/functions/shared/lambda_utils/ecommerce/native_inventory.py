@@ -1,8 +1,7 @@
 """AWS-native inventory validation and atomic stock reservation.
 
-Replaces the inventory half of the former Wix cart (whose calculation validated stock
-against Wix) with a server-authoritative check against `ProductsTable` and an
-atomic reservation on the commerce-keys table, mirroring `order_keys`' idioms
+A server-authoritative stock check against `ProductsTable` and an atomic
+reservation on the commerce-keys table, mirroring `order_keys`' idioms
 (conditional writes, idempotency, release/rollback).
 
 WHY RESERVATION, NOT JUST A CHECK. A bare "is there stock?" read before payment
@@ -21,8 +20,11 @@ Integer units only. No float. The module holds no boto3 client and reads no
 secret — the table is injected — so it is unit-testable offline, matching the
 rest of the ecommerce library.
 
-NOT WIRED until checkout runs native (CHECKOUT_MODE=AWS_NATIVE). This is the
-inventory primitive the native cart calls; wiring it is a Phase-4 step.
+WHAT IS LIVE. `validate_lines` (and its `OutOfStock`) runs on every native quote via
+`native_checkout.quote_native_cart`. The checkout reserves stock through
+`native_inventory_txn.reserve_basket`, which commits the claim and the decrement in
+one transaction; `reserve`/`release` here are the earlier two-write primitives and
+have no production caller.
 """
 from __future__ import annotations
 

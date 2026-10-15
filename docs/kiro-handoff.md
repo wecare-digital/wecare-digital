@@ -25,7 +25,7 @@ pytest                                  3429 passed   (3424 before this session)
 vitest                                   224 passed
 tsc --noEmit                             clean
 npm run build                            ok, 536 sitemap URLs (520 blog posts)
-check-provider-policy.sh                 OK 8/8
+check_provider_allowlist.py              OK
 check_provider_policy_live.py            OK          <- was FAILING at HEAD
 check_data_model_drift.py --gate          PASSED     <- was FAILING at HEAD
 audit_data_model_drift.py --gate          OK, 0 missing
@@ -146,7 +146,7 @@ genuinely open. See `requirement-registry.md` §2026-09-25.
 
 ## Recorded gaps that were already closed
 
-The gap list in `.kiro/work/phases-5-10/plan.md` is partly stale. Re-verified closed:
+The earlier phase gap list (now in git history) is partly stale. Re-verified closed:
 
 | Gap | State at 2026-09-25 |
 |---|---|
@@ -157,7 +157,6 @@ The gap list in `.kiro/work/phases-5-10/plan.md` is partly stale. Re-verified cl
 | 7 phantom models | `PHANTOM MODELS` now reports **0**. `RateLimitTracker` was never one — the physical table drops the "Tracker" and `EXPLICIT_TABLE` maps it |
 | `_money_amount` passed a non-numeric price through | Closed — validates via `Decimal` and returns `''`, which also repairs the caller's fallback chain |
 | 40–48 Dependabot alerts | 0 open |
-| `origin` cross-request leak in `wix-store` | Genuinely closed. `global origin` at 241 and the reset at 337 are both inside `handler` (next `def` at 339), so the reset does hit the global |
 
 ## Open, and honest about it
 
@@ -195,7 +194,7 @@ Each is one action, and none is engineering hiding behind a label.
 ```bash
 .venv/bin/python -m pytest -q                          # 3429
 npm test && npm run typecheck && npm run build
-bash scripts/check-provider-policy.sh                  # 8/8
+.venv/bin/python scripts/check_provider_allowlist.py    # source allow-list gate
 .venv/bin/python scripts/check_provider_policy_live.py  # live estate
 .venv/bin/python scripts/check_data_model_drift.py --gate
 .venv/bin/python scripts/audit_data_model_drift.py --gate

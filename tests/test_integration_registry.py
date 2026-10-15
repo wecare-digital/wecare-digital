@@ -11,9 +11,8 @@ the repo's actual state disagree:
     Business Profile        4            wecare/seo/google-oauth
     Bing Webmaster         14            wecare/bing/api
     Meta Ads / CTWA        26            wecare/meta-system-user-token
-    Wix                    31            env fallback, no secret
 
-So three of the eight have no adapter at all, and one of those has no credential
+So three of the seven have no adapter at all, and one of those has no credential
 either. There was no registry of any kind.
 
 The three decisions this module exists to enforce
@@ -51,7 +50,7 @@ if str(SHARED) not in sys.path:
 from lambda_utils.integrations import registry as reg  # noqa: E402
 
 EXPECTED = ("google_ads", "ga4", "search_console", "business_profile",
-            "play_reporting", "bing_webmaster", "meta_ads", "wix")
+            "play_reporting", "bing_webmaster", "meta_ads")
 
 
 # ==========================================================================
@@ -150,15 +149,6 @@ def test_the_providers_with_a_credential_name_a_real_secret():
     }
     for key, secret in expected.items():
         assert reg.resolve(key).secret_name == secret
-
-
-def test_retired_provider_has_no_runtime_credential_or_scope():
-    provider = reg.resolve("wix")
-    assert provider.secret_name == ""
-    assert provider.access == reg.ACCESS_CREDENTIAL_ABSENT
-    assert provider.read_scopes == ()
-    assert provider.adapter_built is False
-    assert "retired" in provider.unblock
 
 
 def test_an_unknown_provider_is_refused_not_defaulted():

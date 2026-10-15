@@ -1,4 +1,4 @@
-"""Bind one private file to one verified Wix Vault purchase; never charge."""
+"""Bind one private file to one verified Vault purchase; never charge."""
 import hashlib
 import time
 from lambda_utils import customer_auth
@@ -86,7 +86,7 @@ def grant_access(requests, keys, files, grants, event):
     entitlement_id = 'vault-entitlement#' + row['customerId'] + '#' + file['fileId']
     grant = {'grantId': gid, 'fileId': file['fileId'], 'ownerPhone': file['ownerPhone'],
              'customerId': row['customerId'], 'orderId': oid, 'reference': ref,
-             'requestId': row['requestId'], 'source': 'wix_vault', 'paid': True,
+             'requestId': row['requestId'], 'source': 'vault_purchase', 'paid': True,
              'consumed': False, 'entitlementId': entitlement_id, 'createdAt': now}
     entitlement = {'grantId': entitlement_id, 'recordType': 'VAULT_ENTITLEMENT',
                    'entitlementState': 'ACTIVE', 'customerId': row['customerId'],

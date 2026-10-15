@@ -21,7 +21,7 @@ require the staff principal's own verified OAuth grant; native desktop tokens
 are not copied into AWS. Other providers expose their current fixed verification
 read or documentation discovery, not unrestricted provider data collections.
 
-Fresh IAM-backed live verification: AWS, GitHub, Wix and Razorpay passed; Plivo
+Fresh IAM-backed live verification: AWS, GitHub and Razorpay passed; Plivo
 and Sinch documentation discovery passed. Meta Social, WhatsApp and Meta Ads
 remain unverified in AWS; all three current dynamic-client starts were refused
 by Meta. Google Cloud and Google Ads still need this cloud principal's consent.

@@ -7,7 +7,7 @@
 # (IVR prompts, the ivr_engine.py AGI, TLS copies), /var/spool/asterisk, the asterisk and
 # wecare-cert-check systemd units, the cert-check script, /etc/letsencrypt, the ec2-user AWS profile
 # the cert check uses, and the system python site-packages (boto3 for the AGI). What is NOT copied:
-# 2.4 GB of logs, Docker/containerd, the retired Airtel proxy, the disabled bot folders, ffmpeg.
+# 2.4 GB of logs, Docker/containerd, the retired :8899 SIP proxy, the disabled bot folders, ffmpeg.
 #
 # Secrets (TLS key, SIP and AWS credentials) stream prod -> nano through the operator's own SSH
 # sessions (`ssh prod tar | ssh nano tar`); no copy lands on the operator's disk and nothing is printed.
@@ -85,6 +85,9 @@ EOF
 set -e
 ldconfig
 install -d -o asterisk -g asterisk -m 755 /var/log/asterisk /var/cache/asterisk /var/run/asterisk
+# The cert check runs as ec2-user and appends here. Logs are not copied and /var/log is root-only,
+# so without this file the check fails (it did on the first Nano run, 2026-10-15 07:15 UTC).
+[ -e /var/log/cert-expiry.log ] || install -o ec2-user -g ec2-user -m 644 /dev/null /var/log/cert-expiry.log
 chown -R asterisk:asterisk /etc/asterisk /var/lib/asterisk /var/spool/asterisk /usr/lib/asterisk
 printf '%s\n' '/var/log/asterisk/messages /var/log/asterisk/full /var/log/asterisk/queue_log {' \
   '    weekly' '    rotate 4' '    missingok' '    notifempty' '    compress' '    delaycompress' \

@@ -64,8 +64,8 @@ logger = logging.getLogger(__name__)
 #: It is deliberately NOT added to `finalization.ACCEPTED_CHECKOUT_MODES`. The native leg settles
 #: through `order_creation.reconcile_payment`, which never reads the field; keeping it out means
 #: that if anyone later routes a native attempt into `finalization.accept_paid` it raises
-#: 'verified standalone order identity required' rather than running the Wix write-back sequence
-#: against an attempt that has no Wix cart. The exclusion is a guard, not an omission.
+#: 'verified standalone order identity required' rather than running the website finalization
+#: sequence against an attempt that has no cart. The exclusion is a guard, not an omission.
 WA_NATIVE_CHECKOUT_MODE = 'WHATSAPP_NATIVE_PG'
 
 #: WABA1's phone id, and the ONLY sender permitted to take a payment.
@@ -438,7 +438,7 @@ def reserve(client: Any, keys_table: Any, attempts_table: Any, *,
         now=request['now'])
     attempt = payment_attempt.transition(
         attempt, payment_attempt.PAYMENT_READINESS_CHECKED, now=request['now'])
-    # `cartId` is deliberately omitted - there is no Wix cart on this leg, and
+    # `cartId` is deliberately omitted - there is no cart on this leg, and
     # `payment_attempt.build` already defaults it away.
     attempt.update(checkoutMode=WA_NATIVE_CHECKOUT_MODE,
                    channel=order_channel.CHANNEL_WHATSAPP,

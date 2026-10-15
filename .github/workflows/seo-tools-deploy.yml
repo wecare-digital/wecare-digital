@@ -1,6 +1,6 @@
 name: SEO tools Lambda
 
-# Public blog reads use Wix Headless anonymous OAuth via the public client ID.
+# Public blog reads are served from the AWS-native SeoToolsTable.
 # Pull requests run focused tests only. A push to stack deploys and then invokes
 # the real Lambda to verify the approved Integrity post end to end.
 
@@ -153,10 +153,9 @@ jobs:
           PY
 
       - name: Verify the AWS-native blog corpus and representative articles
-        # The SEO Lambda serves DynamoDB content/contentText after BLOG_SOURCE=aws.
-        # Checking Wix richContent.nodes here was a false failure after the 2026-10-14
-        # cutover; this instead verifies 1,400+ unique slugs, full pagination, and
-        # real article bodies at the start, middle and end of the index.
+        # The SEO Lambda serves SeoToolsTable content/contentText. This verifies
+        # 1,400+ unique slugs, full pagination, and real article bodies at the start,
+        # middle and end of the index.
         run: |
           python scripts/verify_seo_blog_lambda_native.py \
             --function "$FUNCTION" \

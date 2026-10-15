@@ -4,7 +4,7 @@
 Non-destructive by construction:
 
   * Targets ONLY the webhook whose url is wecare.digital/api/razorpay-webhook.
-    The Wix webhook is never touched.
+    Any other webhook on the account is never touched.
   * Razorpay's update REPLACES the events map, so this sends the UNION of what is
     already enabled plus what is missing. Nothing is unsubscribed.
   * `secret` is deliberately omitted from the payload, so the existing webhook

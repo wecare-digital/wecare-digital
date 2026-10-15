@@ -1,24 +1,20 @@
 """India address + GST place-of-supply resolution (provider-neutral).
 
-The India subdivision table, `india_subdivision`,
-`gst_state_code` and `UnmappableAddress` are NOT Wix-specific — they are the GST
-place-of-supply logic the AWS-native checkout pricing depends on, so they live here
-under a neutral name. `to_delivery_address` validates and normalizes the delivery shape used by the checkout adapter.
+The India subdivision table, `india_subdivision`, `gst_state_code` and `UnmappableAddress` are
+the GST place-of-supply logic the AWS-native checkout pricing depends on.
+`to_delivery_address` validates and normalizes the delivery shape that the website payability
+gate (`payment_address.assert_payable`) checks.
 
-WHY A BRIDGE AND NOT A PASSTHROUGH
-----------------------------------
-This is a headless architecture. The customer, the authentication, the profile and the
-address all belong to us; Wix was a catalogue and a price engine reached over HTTP. So the
-address that reached Cart V2 was OUR data, converted at the boundary -- nothing here added a
-field to a Wix-hosted checkout page, and no customer was ever routed to a Wix payment surface.
-
+THE OWNED SHAPE AND THE DELIVERY SHAPE
+--------------------------------------
 `lambda_utils.identity.address` is the owned shape (`addressLine1`, `city`, `state`,
-`postalCode`, `countryCode`, ...). Wix uses different names and, critically, a different
-*type* for the one field that decides tax.
+`postalCode`, `countryCode`, ...). The normalized delivery shape uses different names
+(`country`, `subdivision`, `addressLine`) and, critically, a different *type* for the one
+field that decides tax.
 
 THE FIELD THAT DECIDES TAX, AND WHY THIS MODULE REFUSES RATHER THAN GUESSES
 ---------------------------------------------------------------------------
-Wix's `subdivision` is an ISO 3166-2 code (`IN-WB`), not a name (`West Bengal`). In India the
+`subdivision` is an ISO 3166-2 code (`IN-WB`), not a name (`West Bengal`). In India the
 delivery address IS the place of supply: it decides whether a supply is intra-state
 (CGST + SGST) or inter-state (IGST). Seller GSTIN `19AAFFW7196L1Z8` is state code 19, West
 Bengal -- see `checkout_pricing.SELLER_GSTIN`.
@@ -43,9 +39,10 @@ from lambda_utils.identity import address as owned_address
 
 #: ISO 3166-2 subdivision codes for India, with the GST state code each one carries.
 #:
-#: Two values per entry on purpose. The ISO code is what Wix wants; the GST state code is the
-#: two-digit prefix of a GSTIN, and it is what decides intra- versus inter-state supply. Keeping
-#: them in one table means the two can never disagree about the same state.
+#: Two values per entry on purpose. The ISO code is the delivery shape's `subdivision`; the GST
+#: state code is the two-digit prefix of a GSTIN, and it is what decides intra- versus
+#: inter-state supply. Keeping them in one table means the two can never disagree about the
+#: same state.
 #:
 #: 28 states and 8 union territories. Keys are lowercase for lookup; the canonical name is not
 #: stored because nothing here renders a state -- `identity.address.full_address` already owns
@@ -111,11 +108,11 @@ _ISO_SUBDIVISION_RE = re.compile(r"^[A-Z]{2}-[A-Z0-9]{1,3}$")
 
 
 class UnmappableAddress(ValueError):
-    """The owned address cannot be converted into a complete Wix address.
+    """The owned address cannot be converted into a complete delivery address.
 
-    Raised instead of emitting a partial address. A Cart V2 calculation performed against an
-    incomplete address still returns a number, and that number would be wrong rather than
-    absent, which is the failure this whole module exists to prevent.
+    Raised instead of emitting a partial address. A price computed against an incomplete
+    address still returns a number, and that number would be wrong rather than absent, which
+    is the failure this whole module exists to prevent.
     """
 
 
@@ -133,17 +130,16 @@ def india_subdivision(state: Any) -> tuple:
         raise UnmappableAddress(
             f"no ISO 3166-2 subdivision is mapped for the Indian state {str(state or '')!r}. "
             f"The subdivision is the place of supply and decides the CGST/SGST versus IGST "
-            f"split, so this refuses rather than sending an address Wix would price with the "
-            f"wrong tax. Add the state to INDIA_SUBDIVISIONS."
+            f"split, so this refuses rather than pricing the supply with the wrong tax. "
+            f"Add the state to INDIA_SUBDIVISIONS."
         )
     return resolved
 
 
 def to_delivery_address(owned: Dict[str, Any]) -> Dict[str, Any]:
-    """Convert an owned structured address into the Cart V2 `deliveryInfo.address` shape.
+    """Convert an owned structured address into the normalized delivery-address shape.
 
-    Field mapping, from the Cart V2 migration mapping's Checkout V1 -> Cart V2 table
-    (`shippingInfo.shippingDestination.address` -> `deliveryInfo.address`):
+    Field mapping:
 
         countryCode   -> country       (ISO 3166-1 alpha-2)
         state         -> subdivision   (ISO 3166-2, resolved not guessed)
@@ -151,8 +147,6 @@ def to_delivery_address(owned: Dict[str, Any]) -> Dict[str, Any]:
         postalCode    -> postalCode
         addressLine1  -> addressLine
         addressLine2  -> addressLine2
-
-    https://dev.wix.com/docs/api-reference/business-solutions/e-commerce/purchase-flow/cart-v2/migration-mapping
 
     The owned address is normalised first, so this inherits `identity.address`'s own minimum
     (`addressLine1`, `city`, `postalCode`) rather than re-stating it. Raises
@@ -200,7 +194,7 @@ def gst_state_code(owned: Dict[str, Any]) -> Optional[str]:
     try:
         normalized = owned_address.normalize_address(owned)
     except owned_address.InvalidAddress as error:
-        # Normalised to this module's own error. A caller at the Wix boundary should have one
+        # Normalised to this module's own error. A caller should have one
         # exception type to handle: leaking `InvalidAddress` from here and `UnmappableAddress`
         # from `to_delivery_address` for the same bad input would mean two except clauses for one
         # failure, and whichever was forgotten would surface as a 500.

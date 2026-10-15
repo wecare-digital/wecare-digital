@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Provision the AWS-native product catalog table — the Wix Stores replacement.
+"""Provision the AWS-native product catalog table, the storefront's catalogue of record.
 
 Mirrors scripts/provision_gift_cards_table.py (the repo's boto3 provisioning
 convention; the backend is NOT deployed via `ampx pipeline-deploy` — see
@@ -10,15 +10,14 @@ cost/complexity.
 
 Shape (consumed by catalog_pricing / native_cart / native_checkout /
 meta-catalog-sync _native_products):
-    PK  id                     the Wix product UUID, preserved (Meta retailer-id contract)
+    PK  id                     the product UUID, never reissued (Meta retailer-id contract)
     GSI slug-updatedAt-index   public /shop/<slug> lookup, newest first
     GSI status-updatedAt-index active | archived listing
     GSI category-updatedAt-index category listing
 Item attrs (schemaless, written by the seed): title, slug, priceMinor (int paise),
 currency, inventory, variants[], categories[], imageRefs[], tagline,
 descriptionHtml, status, sourceId, updatedAt. A DynamoDB stream (NEW_AND_OLD_IMAGES)
-is enabled so product changes can drive meta-catalog-sync natively (replacing the
-Wix catalog webhook).
+is enabled so product changes drive meta-catalog-sync.
 
 Usage:
     python scripts/provision_products_table.py            # dry run (default)

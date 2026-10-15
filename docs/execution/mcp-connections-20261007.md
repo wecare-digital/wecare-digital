@@ -3,8 +3,8 @@
 Base: 88f1a087e2e5e876ee3b100522b496142d5b0839, stack.
 Account: 775261844268; region us-east-1; runtime live version 10.
 
-A0_READ: all eleven providers checked through the owner's signed-in dashboard.
-AWS, GitHub, Wix, Razorpay, Google Cloud and Google Ads passed account reads.
+A0_READ: all registry providers checked through the owner's signed-in dashboard.
+AWS, GitHub, Razorpay, Google Cloud and Google Ads passed account reads.
 Google access tokens renewed automatically. Plivo and Sinch passed documentation
 discovery only. Meta Social, WhatsApp and Meta Ads returned remote HTTP 401
 authorization challenges. No permission expansion or new provider credential was

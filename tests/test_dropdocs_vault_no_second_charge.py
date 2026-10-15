@@ -10,12 +10,12 @@ payment paths at an identical price, one of which is reached by a route whose na
 charged twice for one service.
 
 The locker is reused by Phase O-2 for **storage and privacy only**. Drop Docs and Vault are
-paid once, on the one checkout, through ``prepare-checkout`` -> ``cart_v2.calculate`` ->
-Razorpay -> ``verify-callback``/``razorpay-webhook``. So the guarantee needed here is an
-absence, and absences regress silently. This file makes it an enumeration at the HTTP seam
-(``urllib.request.urlopen``, which is how BOTH ``razorpay_orders`` and ``razorpay_verify``
-reach Razorpay) rather than a claim in a docstring, in the shape
-``tests/test_one_service_money_path.py`` case (b) uses.
+paid once, on the one checkout, through ``prepare-checkout`` ->
+``native_checkout.quote_native_cart`` -> Razorpay -> ``verify-callback``/``razorpay-webhook``.
+So the guarantee needed here is an absence, and absences regress silently. This file makes it
+an enumeration at the HTTP seam (``urllib.request.urlopen``, which is how BOTH
+``razorpay_orders`` and ``razorpay_verify`` reach Razorpay) rather than a claim in a docstring,
+in the shape ``tests/test_one_service_money_path.py`` case (b) uses.
 
 It also pins the posture the absence depends on: both flags ``false`` in the manifest, and
 an IAM document that reads one public prefix and cannot delete anything anywhere.
@@ -127,8 +127,8 @@ def test_a_a_vault_request_makes_zero_provider_calls(monkeypatch):
         intent = store.request_intent(table, _identity(), VAULT, PUBLIC_ID)
 
     assert intent["kind"] == VAULT
-    # `None`, since 2026-10-08: Wix prices the line at checkout, so an intent carries no amount.
-    # Which strengthens this test's own point rather than weakening it -- there is now no figure
+    # `None`: the checkout prices the line from ProductsTable, so an intent carries no amount.
+    # Which strengthens this test's own point rather than weakening it -- there is no figure
     # anywhere on the pre-payment path that could be mistaken for something that was charged.
     assert intent["amountPaise"] is None
     assert intent["currency"] == "INR"

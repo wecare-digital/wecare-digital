@@ -4,12 +4,11 @@
 What this cleans up
 -------------------
 Measured 2026-09-28 on HTTP API `zllr9lrg7j`: **112 integrations for 65 routed targets**.
-47 had no route attached at all, and four of those pointed at Lambda functions that no
-longer exist:
+47 had no route attached at all, and several of those pointed at Lambda functions that no
+longer exist, among them:
 
     wecare-outbound-voice        deleted with the voice provider retirement
     wecare-sinch-dlr             Sinch messaging is a PROHIBITED provider here
-    wecare-sms-in-airtel         Airtel messaging is a PROHIBITED provider here
     wecare-elevenlabs-webhook    deleted with the TTS retirement
 
 Why bother, given none of them is reachable
@@ -35,8 +34,8 @@ trusted from the report, because this repo runs parallel sessions and a route cr
 between the two would otherwise be orphaned by this script.
 
 Every integration is exported to `docs/execution/snapshots/` first, in full, so any
-deletion can be reconstructed with `create_integration`. The four
-prohibited-provider ones are additionally appended to
+deletion can be reconstructed with `create_integration`. The
+retired-provider ones are additionally appended to
 `docs/prohibited-provider-retirement.md`, which is where the standing authorization
 requires retired-provider surfaces to be recorded before removal.
 
@@ -67,7 +66,6 @@ RETIREMENT_DOC = ROOT / "docs/prohibited-provider-retirement.md"
 RETIRED_PROVIDERS = {
     "wecare-outbound-voice": "voice provider retirement",
     "wecare-sinch-dlr": "Sinch messaging - prohibited provider",
-    "wecare-sms-in-airtel": "Airtel messaging - prohibited provider",
     "wecare-elevenlabs-webhook": "ElevenLabs TTS retirement",
 }
 

@@ -9,22 +9,26 @@ call was a `Get*`/`List*`/`Describe*`; the two Meta facts were obtained by invok
 existing read-only Lambda routes, which hold their own credential and return no token.
 No secret value was read, and `secretsmanager get-secret-value` was never called.
 
-## Relationship to the other Phase 0 document, and to the session that owns it
+## Current provider architecture
 
-`docs/compatibility.md` and `.kiro/specs/whatsapp-wix-commerce/requirements.md` were
-produced by a **different, currently-live Kiro session** (`sess_a140bc76`, the registered
-owner of spec `whatsapp-wix-commerce`; five warm sessions share this working tree). Per
-`.kiro/steering/multi-session-parallel-agents.md` rule 5, a spec belongs to one session, so
-this document **does not restate, re-rule or overwrite** either of those files.
+The measured tables below are dated; this summary is the current architecture every section
+is read against:
 
-It does two things they do not:
+| Capability | Current implementation |
+|---|---|
+| Commerce | native AWS: `ProductsTable` catalogue, `CartTable`, the `CommerceKeys` table, `OrderTable`, and native checkout (`wecare-checkout`) paid through Razorpay |
+| Blog | native: posts live in `SeoToolsTable` and are served by `wecare-blog-public` |
+| Voice | Plivo PSTN, AWS End User Messaging voice, and Meta WhatsApp calling |
+| SMS | AWS End User Messaging, registered under TRAI DLT |
+| RCS | Sinch India |
 
-1. **Closes three rows they had to leave `⛔ BLOCKED` or unmeasured** — live Meta WABA and
-   template state, the Amazon SES sender identity, and the Google Maps Platform key.
-2. **Withdraws one `✅` they awarded without evidence** — the Wix single-site claim.
+## Relationship to the other Phase 0 document
 
-Where the two documents agree, this one cites theirs rather than duplicating it. The one
-place they disagree is called out explicitly in §8.
+`docs/compatibility.md` records vendor capability and versions. This document **does not
+restate, re-rule or overwrite** it. It closes three rows that document had to leave
+`⛔ BLOCKED` or unmeasured — live Meta WABA and template state, the Amazon SES sender
+identity, and the Google Maps Platform key. Where the two documents agree, this one cites
+theirs rather than duplicating it.
 
 ## Evidence classes
 
@@ -51,11 +55,9 @@ forward on trust.
 | IAM principal | global | `arn:aws:iam::775261844268:user/wecare-admin` | long-term key auth via `AWS_PROFILE=wecare-prod` | YES | none — do not use browser login |
 | Google Cloud project | global | `wecaredigitalbw` (`756034744787`) | Maps / Places / Translate / Vision | YES | see §6 — key restrictions are wrong |
 | Meta WABA | n/a | `2094615664435155` "WECARE.DIGITAL" | WhatsApp sender + payments | YES | none |
-| Wix account | n/a | `15f02319-40ff-4288-b8e6-69c791adae5e` | commerce backend | YES | credential is empty — §7 |
 
 `AWS_INVENTORY_REQUIRES_RUNTIME_VERIFICATION` is **not** raised: the connector enumerated
-every service asked of it. The blocked items in this document are Wix-side and are blocked
-by a **missing credential**, not by a permissions limit.
+every service asked of it.
 
 ---
 
@@ -79,7 +81,7 @@ by a **missing credential**, not by a permissions limit.
 | Cognito | `us-east-1` | `us-east-1_cSx0RHCIR` `WECARE.DIGITAL` | staff/admin | YES | MFA `OPTIONAL`, password min **8**, deletion protection ON |
 | Cognito | `us-east-1` | `us-east-1_46ULYuukt` `WECARE.DIGITAL-CUSTOMERS` | customers, phone-keyed `CUSTOM_AUTH` | YES | MFA `OFF`, password min 16, **deletion protection INACTIVE**, 1 user |
 | WAFv2 | `us-east-1` | **none** | n/a | NO | `wecare-cognito-waf` (REGIONAL, both pools) and `wecare-amplify-waf` (CLOUDFRONT) were **deleted 2026-09-28** by owner cost decision. 0 web ACLs in either scope |
-| Secrets Manager | `us-east-1` | 25 secrets | all provider credentials | YES | `wecare/wix/headless-api-key` holds **0 versions** |
+| Secrets Manager | `us-east-1` | 25 secrets | all provider credentials | YES | none |
 | CloudFormation | `us-east-1` | no stacks in a live state | n/a | n/a | infrastructure is Amplify Gen 2 + scripts, not CFN stacks |
 
 Two `⚠️` corrections to the owner-overrides snapshot in
@@ -98,8 +100,6 @@ Reusable as-is — do not rebuild:
   `amplify/functions/core/secure-files/handler.py::_customer_identity`.
 - The phone-normalisation pair (`normaliseMobile` in TS, `_normalise_phone` in Python) —
   they must stay byte-identical.
-- The Wix Catalog V3 / eCom V1 bridge and its pure transform layer
-  (`lambda_utils/ecommerce/wix_domain.py`, 13 unit-testable functions).
 - Real webhook idempotency (`lambda_utils/webhook_dedup.py`, `idempotency.py`) and the
   `WebhookDedup` table's atomic conditional claim.
 - The invoice engine: 16 `/invoices*` routes, 5 tables, per-FY statutory sequence.
@@ -118,8 +118,9 @@ Absent, confirmed by grep returning zero and by the 79-table list:
 - Email verification of any kind.
 - Cookie/CSRF sessions. Customer sessions are a 60-minute Cognito access token in
   `sessionStorage`; there is no session table and no rotation.
-- Cart, checkout, `commerceOrderNumber`, and `trackingToken` — all four return zero matches
-  repo-wide. Order tracking today is keyed on a guessable `orderId`.
+- `trackingToken` — zero matches repo-wide at this snapshot. Order tracking was keyed on a
+  guessable `orderId`. (Cart and checkout have since been built natively — see the current
+  provider architecture above.)
 - Any structured address entity. Addresses are flat strings on Contact/Order; no
   `googlePlaceId`, no lat/lng, no verification state.
 - Any page-composition system. `PageSectionRenderer`/`sectionType` return zero matches.
@@ -142,8 +143,7 @@ Two structural constraints that shape every customer-facing requirement in the b
 
 - **`output: 'export'` means there is no server.** Every dynamic path needs
   `getStaticPaths` or client-side fetch against API Gateway. A `trackingToken` can never be
-  validated in the frontend, and the Wix SDK's `OAuthStrategy` + `middleware.js` visitor
-  pattern in the vendored reference templates cannot be copied.
+  validated in the frontend.
 - **Redirects and headers live in Amplify `customRules`** (23 of them), not
   `next.config.js`. The catch-all is `404-200`, which is why `_app.tsx` corrects the
   address bar with `history.replaceState`.
@@ -300,48 +300,20 @@ inventory, not as a pattern to copy.
 
 ---
 
-## 7. Wix — confirmed off four ways; site identity is *not* unambiguous
+## 7. Commerce and blog — native AWS
 
-`docs/compatibility.md` §4 established the credential state and this run **independently
-confirms it**: `wecare/wix/headless-api-key` exists with `VersionIdsToStages` empty
-(**0 versions**), `LastAccessedDate: null`, not scheduled for deletion; and
-`wecare-wix-store` has `WIX_CREDENTIALS_DISABLED=true` with **no `WIX_API_KEY_SECRET` in
-its environment at all**. That finding stands, and the unblock sequence belongs to the
-owning session's §R0.
+Commerce and the blog run entirely on AWS. There is no third-party commerce or blog backend,
+and no Lambda, route, secret or table for one.
 
-| RESOURCE | REGION | NAME | PURPOSE | REUSABLE? | ACTION REQUIRED |
-|---|---|---|---|---|---|
-| Wix account | n/a | `15f02319-40ff-4288-b8e6-69c791adae5e` | commerce backend | YES | none |
-| Wix site (configured) | n/a | `fcd82f0c-9572-49c7-acfb-88fb05042ece` | catalog/orders target | YES | **owner-confirmed 2026-09-30** (headless client `197cd718-…`); R0.10 closed |
-| Wix Lambda | `us-east-1` | `wecare-wix-store` (`live`) | Catalog V3 + eCom V1 bridge | YES | credential + kill switch |
-| Wix caches | `us-east-1` | `WixProductsCache`, `WixOrdersCache`, `WixOrderIds` | read cache | YES | none |
-
-**Withdrawing one `✅`.** `docs/compatibility.md` records the site id as
-"✅ single site, no ambiguity". That is not supportable:
-
-- The brief §2 states there are **two** WECARE.DIGITAL Wix sites — one published, one
-  draft — and warns explicitly not to blindly select one.
-- The brief gives the published site's public URL as `https://xout.wecare.digital/`.
-  Measured this session, that URL returns **HTTP 404**, although DNS does delegate to Wix
-  (`pointing.wixdns.net`, `cdn1.wixdns.net`, `34.149.87.45`). So the brief's "Status:
-  Published" does not hold at the address the brief supplies.
-- Matching a Lambda env var to a committed constant proves the repo is **self-consistent**.
-  It does not prove the id names the published site rather than the draft one. Only
-  `POST /site-list/v2/sites/query` would settle that, and it needs the credential that does
-  not exist.
-
-That row was `⛔ BLOCKED` / **`WIX_SITE_REQUIRES_RUNTIME_VERIFICATION`** at the time of
-writing, because no credential existed to run `site-list/v2` and a self-consistent config is
-not proof. **Resolved 2026-09-30:** the owner confirmed in the Wix dashboard that
-`fcd82f0c-9572-49c7-acfb-88fb05042ece` is the live headless project (headless client
-`197cd718-e4ec-4e2e-b380-46c297eb18a2`), and `scripts/resolve_wix_site_id.py` independently
-showed an order written with this credential can only land on `fcd82f0c` (matrix row 427). R0.10
-is closed. Catalog version, installed apps and Invoices availability remain as separately
-recorded.
-
-Absent from the Wix integration, by grep: Wix **Blog** API, Wix **Invoices** API, Wix
-**Cart**, Wix **Checkout**, `redirect-session`, and any OAuth `client_credentials` exchange
-(`WIX_CLIENT_ID` is committed and unused). `@wix/sdk` is not installed.
+| RESOURCE | REGION | NAME | PURPOSE |
+|---|---|---|---|
+| DynamoDB | `us-east-1` | `stack-wecare-digital-ProductsTable` | product catalogue (products, variants, prices, media refs) |
+| DynamoDB | `us-east-1` | `stack-wecare-digital-CartTable` | customer carts |
+| DynamoDB | `us-east-1` | `stack-wecare-digital-CommerceKeys` | commerce idempotency and order-number keys |
+| DynamoDB | `us-east-1` | `stack-wecare-digital-OrderTable` | orders, created only after verified payment |
+| Lambda | `us-east-1` | `wecare-checkout` (`live`) | native checkout; payment through Razorpay |
+| DynamoDB | `us-east-1` | `stack-wecare-digital-SeoToolsTable` | blog posts |
+| Lambda | `us-east-1` | `wecare-blog-public` (`live`) | public blog read API |
 
 ---
 
@@ -352,8 +324,6 @@ turned out to be already satisfied, and they are recorded as such.
 
 | # | Gap | Sev | Current | Desired | Auto-fixable |
 |---|---|---|---|---|---|
-| G1 | Wix credential absent (0 versions), kill switch on, no env pointer | `CRITICAL` | Wix fully off | client secret stored + OAuth verified | NO — owner mints it once in the Wix dashboard |
-| G2 | Target Wix site unverified against the published/draft pair; `xout.wecare.digital` returns 404 | `HIGH` | id self-consistent only | `site-list/v2` confirms the published site | NO — needs G1 |
 | G3 | Single Google key spans browser + backend + ~50 APIs, with non-referrer referrer entries | `HIGH` | one unified browser key | separate browser and server keys, least privilege | Partly — key work is Google-console + gcloud |
 | G4 | Key omits `places.googleapis.com`; code calls deprecated legacy Places | `HIGH` | legacy Autocomplete | Places API (New) + Address Validation | YES once G3 lands |
 | G5 | No OTP at rest: unhashed, in-session only; no resend counter, no send-side rate limit; the one limiter fails open | `HIGH` | Cognito-session OTP | `otpHash`, TTL, attempt/resend counters, per-phone and per-IP limits | YES |
@@ -361,11 +331,11 @@ turned out to be already satisfied, and they are recorded as such.
 | G7 | No email verification path | `HIGH` | none | email OTP from the already-verified `one@wecare.digital` | YES |
 | G8 | 361 routes, 0 authorizers, all `NONE`; **no WebACL anywhere** since 2026-09-28 | `HIGH` | handler-level auth only | explicit auth strategy. **WAF is no longer part of the target** — the owner deleted both ACLs and withdrew the requirement | Partly |
 | G9 | Tracking authorised by guessable `orderId`; no `trackingToken` | `HIGH` | `[retired public path 282d0fd5]/{orderId}` | high-entropy opaque token, hash at rest | YES |
-| G10 | No cart, checkout, or `commerceOrderNumber` | `HIGH` | greenfield | Wix cart/checkout + unique order number marker | YES (needs G1) |
+| G10 | No cart or checkout at this snapshot | `HIGH` | greenfield | native cart and checkout | **CLOSED** — native `CartTable`, `CommerceKeys`, `OrderTable` and `wecare-checkout` (§7) |
 | G11 | Customer session is a 60-min token in `sessionStorage`; no CSRF, rotation or revocation | `MEDIUM` | bearer token in tab storage | documented decision or HttpOnly cookie + CSRF | YES — but `output:'export'` constrains it |
 | G12 | Graph version reaches runtime 3 ways (env default, module constant, URL literal) | `MEDIUM` | `v25.0`, uncentralised | one configurable source | YES |
 | G13 | No structured address entity | `MEDIUM` | flat strings | `CustomerAddress` with `googlePlaceId` + lat/lng + confirmation | YES |
-| G14 | No page-composition system | `MEDIUM` | hard-coded components | section types storing Wix references | YES |
+| G14 | No page-composition system | `MEDIUM` | hard-coded components | typed page sections | YES |
 | G15 | Frontend is desktop-first (`max-width` queries), no breakpoint tokens | `MEDIUM` | ad-hoc queries | mobile-first scale per brief §30-31 | YES |
 | G16 | No E2E or cross-browser tests; `@playwright/test` not installed | `MEDIUM` | vitest + pytest only | Playwright across Chromium/WebKit/Firefox | YES |
 | G17 | Customer pool deletion protection `INACTIVE`; staff password min 8 | `LOW` | as measured | protection on; stronger policy | YES |
@@ -377,22 +347,20 @@ turned out to be already satisfied, and they are recorded as such.
 Worth stating so nobody rebuilds them: §4 canonical WhatsApp sender (live, APPROVED,
 GREEN), the §5 approved `AUTHENTICATION` template, §8's authorised `one@wecare.digital`
 sender (verified, DKIM `SUCCESS`, production access, correct SPF/DKIM/DMARC posture), §19
-passwordless WhatsApp sign-in (live via `CUSTOM_AUTH`), §24's Catalog V3 adapter boundary,
-§37's webhook idempotency primitives, and §38's invoice/receipt generation.
+passwordless WhatsApp sign-in (live via `CUSTOM_AUTH`), §37's webhook idempotency
+primitives, and §38's invoice/receipt generation.
 
 ### Brief baselines that did not survive verification
 
-Three were already recorded by the owning session and this run agrees: `v26.0` (rejected in
-favour of `v25.0`), Astro (the storefront is Next.js 16), and the Wix API key (OAuth
-`client_credentials` preferred). One more, from §31/§62: **Tailwind is not installed**, so
-the responsive rebuild is CSS work in the existing hand-written system, not a utility-class
-retrofit.
+Two were already recorded and this run agrees: `v26.0` (rejected in favour of `v25.0`) and
+Astro (the storefront is Next.js 16). One more, from §31/§62: **Tailwind is not installed**,
+so the responsive rebuild is CSS work in the existing hand-written system, not a
+utility-class retrofit.
 
 Latest published versions checked this session, for the compatibility matrix the brief §60
 asks for: `next 16.3.6` (repo `^16.2.9`), `typescript 7.0.2` (repo `^6.0.3`, a **major**
 behind), `vitest 5.0.2`, `aws-cdk-lib 2.271.0` (repo pinned `2.270.0`),
-`@playwright/test 1.63.0`, `@wix/sdk 1.21.16`. Local toolchain: Node `v24.21.0` (`.nvmrc`
-`24`), npm `11.19.0`.
+`@playwright/test 1.63.0`. Local toolchain: Node `v24.21.0` (`.nvmrc` `24`), npm `11.19.0`.
 
 ---
 
@@ -415,9 +383,6 @@ aws sesv2 list-email-identities
 aws sesv2 get-account --query '[ProductionAccessEnabled,SendQuota]'
 aws secretsmanager list-secrets --query 'length(SecretList)'
 aws amplify list-apps --query 'apps[].[appId,name]'
-
-# Wix credential state, without reading any value
-.venv/bin/python scripts/set_wix_credential.py --status
 
 # Google key restrictions, without reading the key string
 gcloud services api-keys list --format='json(displayName,restrictions)'
