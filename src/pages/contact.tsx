@@ -46,7 +46,7 @@ const CYCLE_WORDS: CycleWord[] = [
 const ContactPage: React.FC = () => (
   <>
     <PageMeta
-      title="Contact — WECARE.DIGITAL"
+      title="Contact | WECARE.DIGITAL"
       description="Submit a request, amend or track an existing one, drop documents, or leave a review."
       path="/contact/"
     />
@@ -64,9 +64,10 @@ const ContactPage: React.FC = () => (
           reason the query is plain text rather than a place_id. */}
       <ContactLocation />
 
-      {/* THE CAPABILITY STRIP HAS MOVED TO THE HOME PAGE, at the owner's request. It used
-          to sit here as <ContactCapabilities /> - the seven things the arrival map can do.
-          It is now src/components/PlatformCapabilities.tsx and renders on '/'.
+      {/* THE CAPABILITY STRIP LEFT THIS PAGE, at the owner's request. It used to sit here as
+          <ContactCapabilities /> - the seven things the arrival map can do - and moved to the
+          home page as PlatformCapabilities, which has since been removed as well (there is no
+          src/components/PlatformCapabilities.tsx any more).
           This page is better for it: /contact/ is where someone goes to reach us, and a
           seven-item platform showcase underneath the address competed with that job. */}
     </RotatingHero>

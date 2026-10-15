@@ -1885,7 +1885,7 @@ export default function Cart (): React.ReactElement {
   return (
     <>
       <Head>
-        <title>Your cart — WECARE.DIGITAL</title>
+        <title>Your cart | WECARE.DIGITAL</title>
         {/* Customer-session, per-person: never indexed. */}
         <meta name="robots" content="noindex,nofollow" />
       </Head>

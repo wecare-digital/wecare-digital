@@ -649,7 +649,7 @@ export default function OrdersPage (): React.ReactElement {
   return (
     <>
       <PageMeta
-        title="Your orders — WECARE.DIGITAL"
+        title="Your orders | WECARE.DIGITAL"
         description="Sign in on WhatsApp to see what you have bought from WECARE.DIGITAL, each order's payment status, and the details we have on file."
         path="/orders/"
       />

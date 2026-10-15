@@ -125,7 +125,7 @@ const PerksPage: React.FC = () => {
   return (
     <>
       <PageMeta
-        title="Perks — WECARE.DIGITAL"
+        title="Perks | WECARE.DIGITAL"
         description="A little extra for the people we look after. An honest, uncluttered place for the small thank-yous we send your way, and nothing here asks for payment."
         path="/perks/"
       />

@@ -91,6 +91,7 @@ import { ConfirmProvider } from '../contexts/ConfirmContext';
 import { initCapacitor, isNative } from '../lib/capacitor';
 import { VERIFICATION } from '../config/analytics';
 import { ORGANIZATION, WEBSITE, ORG_ID, ld } from '../lib/schema';
+import { breadcrumbTrail } from '../content/breadcrumbTrails';
 
 /**
  * Plain-English labels for the MFA chooser.
@@ -642,6 +643,7 @@ const getPublicPageSchema = ( pathname: string ) => {
   // trailingSlash is set, so the canonical URL carries the slash. Breadcrumb items
   // must match the canonical or they describe a URL that redirects.
   const url = `${SITE}${pathname}/`;
+  const trail = breadcrumbTrail( pathname );
   /**
    * The Service node, only where PUBLIC_PAGE_META names a serviceType - see the note there for
    * which routes do and, more importantly, which deliberately do not.
@@ -687,10 +689,20 @@ const getPublicPageSchema = ( pathname: string ) => {
       {
         '@type': 'BreadcrumbList',
         '@id': `${url}#breadcrumb`,
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE}/` },
-          { '@type': 'ListItem', position: 2, name: meta.name, item: url },
-        ],
+        // THE VISIBLE TRAIL WHERE THE PAGE RENDERS ONE. 30-seo.md requires this list to mirror
+        // the visible breadcrumb exactly; the product and family pages render Home / Shop /
+        // [Parent /] Name, and this emitted Home / Name for them until 2026-10-16. Both now
+        // read src/content/breadcrumbTrails.ts. The current page (no href) is `url`. Routes
+        // with no visible trail keep the two-item default.
+        itemListElement: trail
+          ? trail.map( ( crumb, index ) => ( {
+            '@type': 'ListItem', position: index + 1, name: crumb.label,
+            item: crumb.href ? `${SITE}${crumb.href}` : url,
+          } ) )
+          : [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE}/` },
+            { '@type': 'ListItem', position: 2, name: meta.name, item: url },
+          ],
       },
       // Filtered rather than conditionally spread into the array, so the routes with no
       // serviceType emit exactly the two nodes they emitted before and nothing is reordered.

@@ -43,9 +43,10 @@ Disallow: /api/
 # service, settings and task.
 #
 # /engage/ was itself the former /dm/, by way of /workspace/ for about twenty minutes,
-# and is now /workspace/engage/. Every old prefix 301s in the Amplify custom rules and a
-# crawler following any of them lands here on this Disallow, which is the intended
-# outcome. /api/ stays separate because it is a live root path, not a moved one.
+# and is now /workspace/engage/. The old prefixes no longer redirect: the Amplify rules
+# keep only www -> apex and /zip -> /shipments/ (scripts/provision_legacy_redirects.py),
+# so an old prefix gets the 404 page. /api/ stays separate because it is a live root
+# path, not a moved one.
 Disallow: /workspace/
 
 # ── AI crawlers and answer engines ────────────────────────────────────────────────
