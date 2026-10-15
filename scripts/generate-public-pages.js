@@ -180,7 +180,7 @@ function crawlAllowlist () {
   const start = source.indexOf( 'const PUBLIC_EXACT' );
   if ( start < 0 ) refuse( 'PUBLIC_EXACT not found in scripts/generate-sitemap.js' );
   const block = withoutLineComments( source.slice( start, source.indexOf( '] )', start ) ) );
-  const found = new Set( Array.from( block.matchAll( /'(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)'/g ) ).map( m => m[ 1 ] ) );
+  const found = new Set( Array.from( block.matchAll( /'(\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?)'/g ) ).map( m => m[ 1 ] ) );
   if ( found.size < 5 ) refuse( `parsed only ${found.size} entries out of PUBLIC_EXACT` );
   return found;
 }
