@@ -1,6 +1,7 @@
 /**
  * Appointments Admin Page — [retired public path]/appointments
- * AppointmentTable: status management, filters, detail panel
+ * Appointments are FlowSubmission rows (flowCode WD_APPT): status management, filters,
+ * detail panel
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import MaybeLayout from '../../../../components/MaybeLayout';
