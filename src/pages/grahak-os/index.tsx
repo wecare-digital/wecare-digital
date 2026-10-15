@@ -6,9 +6,8 @@
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import PageMeta from '../../components/PageMeta';
-import BrandBadge from '../../components/BrandBadge';
 import PublicShare from '../../components/PublicShare';
-import RotatingPill from '../../components/RotatingPill';
+import RotatingHero from '../../components/RotatingHero';
 
 const GrahakOsPage: React.FC = () => {
   const [visible, setVisible] = useState<Set<string>>(new Set());
@@ -237,36 +236,16 @@ response = requests.post(
           every other public page resolved `main`. The class is unchanged, so no CSS moves. */}
       <main className="page">
 
-        <section className={`hero anim ${armed ? 'is-armed' : ''} ${show('hero') ? 'show' : ''}`} id="hero">
-          <div className="hero-content">
-            <div className="hero-left">
-              {/* Shared with the home page, so it lives in BrandBadge rather than
-                  twice in two stylesheets. It self-styles: styled-jsx would not
-                  reach a composite component's class names from here, which is the
-                  same reason BrandLockup owns its block. The wrapper exists purely
-                  to carry the spacing, since that is the one thing the page rather
-                  than the component should decide. */}
-              <div className="hero-eyebrow">
-                <BrandBadge label="Grahak OS · by WECARE.DIGITAL" />
-              </div>
-              <h1>
-                Reach customers<br />across{ ' ' }
-                <RotatingPill
-                  words={ cycleWords }
-                  phase={ show( 'hero' ) ? 'shown' : ( armed ? 'armed' : 'final' ) }
-                  blockBelow={ 375 }
-                />
-              </h1>
-              {/* The channel list came out. The headline directly above this cycles
-                  WhatsApp, SMS, Email and Voice one at a time, so naming all four again in
-                  the next breath repeated the element immediately above it - and the same
-                  list appears again in the strip and once more under Trusted by Meta. The
-                  four pillars stay, because this is the one place on the page that should
-                  state them; api-desc used to restate them and no longer does. */}
-              <p>One platform for customer data, messaging, automation and campaigns, so every conversation stays connected whichever channel it starts on.</p>
-              <p className="hero-sub">Turn your WhatsApp number into your #1 revenue channel with Grahak OS.</p>
-            </div>
-            <div className="hero-right">
+        <section className={`hero anim ${armed ? 'is-armed' : <RotatingHero
+          insideMain
+          noShare
+          ariaLabel="Grahak OS"
+          badgeLabel="Grahak OS by WECARE.DIGITAL"
+          frame="Reach customers across"
+          words={ cycleWords }
+          sub={ <>One platform for customer data, messaging, automation and campaigns, so every conversation stays connected whichever channel it starts on. Turn your WhatsApp number into your #1 revenue channel with Grahak OS.</> }
+        >
+          <div className="hero-right">
               <div className="mockup-wrapper">
                 <div className="phone">
                   <div className="phone-header">
@@ -365,11 +344,7 @@ response = requests.post(
                 </div>
               </div>
             </div>
-          </div>
-        </section>
-
-        {/*
-          Full-bleed tint pattern: touchpoint and capabilities sit on a #fafafa
+        </RotatingHero>point and capabilities sit on a #fafafa
           canvas that has to reach both window edges, so the 1300px measure moves
           off the section and onto .pp-inner while the section itself goes 100vw
           with a centring negative margin. Every class this pattern introduces is
