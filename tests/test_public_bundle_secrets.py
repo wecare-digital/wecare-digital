@@ -320,7 +320,12 @@ def test_the_gate_runs_in_the_amplify_build_after_the_build():
     cmds = spec["frontend"]["phases"]["build"]["commands"]
     gate = [i for i, c in enumerate(cmds) if "verify_public_bundle_secrets" in c]
     assert gate, "the credential gate is missing from amplify.yml"
-    assert cmds.index("npm run build") < gate[0], "the gate must run after the build"
+    # MATCHED AS A SUBSTRING, not the whole command: the build line now exports
+    # NEXT_PUBLIC_GOOGLE_BROWSER_KEY from Secrets Manager and then runs `npm run build` in the
+    # same shell command, so an exact cmds.index("npm run build") no longer finds it.
+    build = [i for i, c in enumerate(cmds) if "npm run build" in c]
+    assert build, "the build step is missing from amplify.yml"
+    assert build[0] < gate[0], "the gate must run after the build"
 
     pre = spec["frontend"]["phases"]["preBuild"]["commands"]
     assert any("python3 --version" in c for c in pre), \
