@@ -52,7 +52,7 @@ describe( 'Header', () => {
       'Grahak OS', 'VayuLok', 'Bharat Rx', 'Elsewhere', 'Visa', 'Trip', 'Activities',
       'Expo Week', 'Dastavez', 'Drafting', 'Registration', 'Legal Reference',
       'Clear Closure', 'Guided Resolution', 'Case Submission', 'Paperwork',
-      'Ritual Guru', 'DIY Puja Kit', 'Puja Guidance', 'Anew', 'Hunar', 'Niji Setu',
+      'Ritual Guru', 'Puja Guidance', 'DIY Puja Kit', 'Anew', 'Hunar', 'Niji Setu',
     ] ) expect( products?.textContent ).toContain( label );
 
     expect( screen.queryByText( 'Products 1 of 2' ) ).toBeNull();
@@ -215,9 +215,15 @@ describe( 'Header', () => {
     expect( screen.queryByRole( 'link', { name: 'Shipments' } ) ).toBeNull();
     expect( screen.getByRole( 'link', { name: 'Track' } ) ).toHaveAttribute( 'href', '/shipments/' );
     expect( screen.getByRole( 'link', { name: 'Pickup Request' } ) ).toHaveAttribute( 'href', '/request-pickup/' );
+
+    const labels = Array.from( request?.querySelectorAll( '.nav-item' ) || [] ).map( node => node.textContent );
+    expect( labels ).toEqual( [
+      'Orders', 'Submit Request', 'Request Amendment', 'Drop Docs', 'Vault',
+      'Shipments', 'Track', 'Pickup Request', 'Leave Review', 'Subscribe',
+    ] );
   } );
 
-  it( 'searching Shipments returns Track and Pickup Request only', () => {
+  it( 'searching Shipments returns its real destinations, not a dead family link', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
     fireEvent.change( screen.getByLabelText( 'Search navigation' ), { target: { value: 'shipments' } } );
@@ -257,7 +263,7 @@ describe( 'Header', () => {
       .toHaveAttribute( 'href', 'https://wa.me/message/WUDPTMYSO6XII1' );
   } );
 
-  it( 'keeps Refer & Earn and Partner non-clickable with three child destinations', () => {
+  it( 'keeps Refer & Earn and Partner non-clickable while their destinations remain searchable', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
 
@@ -271,6 +277,7 @@ describe( 'Header', () => {
     expect( screen.getByRole( 'link', { name: 'Merchandise' } ) ).toBeInTheDocument();
     expect( screen.getByRole( 'link', { name: 'Kiosk' } ) ).toBeInTheDocument();
     expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toBeInTheDocument();
+    expect( screen.queryByRole( 'link', { name: 'Partner' } ) ).toBeNull();
   } );
 
   it( 'places Puja Guidance above DIY Puja Kit', () => {
@@ -281,7 +288,7 @@ describe( 'Header', () => {
     expect( labels ).toEqual( [ 'Ritual Guru', 'Puja Guidance', 'DIY Puja Kit' ] );
   } );
 
-  it( 'exposes standard keyboard semantics without an extra close control', () => {
+  it( 'uses standard keyboard semantics without an extra close control', () => {
     render( <Header /> );
     const trigger = screen.getByRole( 'button', { name: 'Open navigation' } );
     expect( trigger ).toHaveAttribute( 'aria-keyshortcuts', 'Enter Space Escape' );
