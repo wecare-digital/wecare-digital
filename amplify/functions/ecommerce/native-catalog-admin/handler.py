@@ -252,9 +252,14 @@ def _update(table, product_id: str, body: dict[str, Any], who: str
     if "seoDescription" in body:
         updates["seoDescription"] = _text(body["seoDescription"], "seoDescription", 600)
     if "catalogImageKey" in body:
-        key = _catalog_image_key(body["catalogImageKey"])
-        updates["catalogImageKey"] = key
-        updates["imageRefs"] = [_catalog_image_url(key)]
+        raw_key = body["catalogImageKey"]
+        if isinstance(raw_key, str) and not raw_key.strip():
+            updates["catalogImageKey"] = ""
+            updates["imageRefs"] = []
+        else:
+            key = _catalog_image_key(raw_key)
+            updates["catalogImageKey"] = key
+            updates["imageRefs"] = [_catalog_image_url(key)]
     if "canonicalPath" in body:
         updates["canonicalPath"] = _canonical_path(body["canonicalPath"])
     if "websiteEnabled" in body:
