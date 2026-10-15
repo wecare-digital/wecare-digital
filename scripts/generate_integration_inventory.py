@@ -36,6 +36,11 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT = ROOT / "src/content/integration-registry.json"
 sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 
+#: Retired providers. The registry keeps their entries so reconciliation code can still
+#: resolve the key, but nobody can connect them, so the dashboard snapshot leaves them out.
+#: Kept here rather than in registry.py because that file ships inside the Lambda package.
+RETIRED = frozenset({"wix"})
+
 
 def build() -> dict:
     from lambda_utils.integrations import registry
@@ -45,6 +50,8 @@ def build() -> dict:
 
     providers = []
     for key, entry in described.items():
+        if key in RETIRED:
+            continue
         record = dict(entry) if isinstance(entry, dict) else {"access": entry}
         record["key"] = key
         record["unblock"] = waiting.get(key)

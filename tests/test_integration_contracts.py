@@ -253,11 +253,17 @@ class TestTheRegistryStillDoesNotFetch:
 
     def test_the_generated_frontend_snapshot_agrees_with_the_registry(self):
         # The UI renders a generated snapshot; if it drifts, the dashboard shows a
-        # connection state that is no longer true.
+        # connection state that is no longer true. Retired providers still resolve in
+        # the registry but the generator leaves them out of the snapshot on purpose.
         import json
+        if str(ROOT / "scripts") not in sys.path:
+            sys.path.insert(0, str(ROOT / "scripts"))
+        import generate_integration_inventory as inventory
+
+        assert inventory.RETIRED <= set(ALL_KEYS), "a retired key is not in the registry"
         snapshot = json.loads(
             (ROOT / "src/content/integration-registry.json").read_text())
-        assert {p["key"] for p in snapshot["providers"]} == set(ALL_KEYS)
+        assert {p["key"] for p in snapshot["providers"]} == set(ALL_KEYS) - inventory.RETIRED
         for entry in snapshot["providers"]:
             assert entry["access"] == reg.resolve(entry["key"]).access, (
                 f"{entry['key']} differs between the registry and the committed snapshot; "
