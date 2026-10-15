@@ -81,7 +81,7 @@ const publicExact = (): Set<string> => {
     .split( '\n' )
     .filter( line => !line.trim().startsWith( '//' ) )
     .join( '\n' );
-  return new Set( Array.from( block.matchAll( /'(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)'/g ) ).map( m => m[ 1 ] ) );
+  return new Set( Array.from( block.matchAll( /'(\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?)'/g ) ).map( m => m[ 1 ] ) );
 };
 
 /**
