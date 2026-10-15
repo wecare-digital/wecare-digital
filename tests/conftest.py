@@ -61,7 +61,7 @@ def isolate_handler_imports():
 
 
 # The seo-tools handler directory lays its modules out as bare-name siblings on sys.path -
-# storage.py, blog_sources.py, seo_engine.py, wix.py and so on - and several test files import
+# storage.py, blog_sources.py, seo_engine.py, faq.py and so on - and several test files import
 # them under those bare names (`import storage`, `import blog_sources as bs`) or force-load them
 # with importlib.util + `sys.modules[name] = mod` (see tests/test_seo_engine.py._load). Because the
 # names are bare, the FIRST file to load one wins the sys.modules slot for the whole session, and a

@@ -42,8 +42,8 @@ def test_support_is_not_scaled_but_usage_is(measured):
 
 def test_labels_keep_potential_separate_from_realised(mod, measured):
     levers = {lv.name: lv for lv in mod.levers(dict(mod.RECORDED), measured)}
-    assert levers["wix_secrets_deleted"].label == "REALISED"
-    assert levers["wix_secrets_deleted"].monthly_delta == pytest.approx(-1.20)
+    assert levers["secrets_deleted"].label == "REALISED"
+    assert levers["secrets_deleted"].monthly_delta == pytest.approx(-1.20)
     assert levers["cost_explorer_calls"].label == "HISTORICAL"
     assert levers["cost_explorer_calls"].monthly_delta == 0.0
     assert levers["lightsail_nano"].label == "POTENTIAL"

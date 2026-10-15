@@ -196,8 +196,9 @@ def customer_id_from_attributes(attributes: Dict[str, Any]) -> str:
 
     NOTHING TO MIGRATE, MEASURED RATHER THAN ASSUMED. On 2026-10-02 every table that could hold
     a customer-keyed row was empty: CustomerSessionsTable 0, OrderTable 0, PaymentAttemptsTable
-    0 (it has a `customerId-index`), WixOrderIds 0, WixOrdersCache 0. So this is a clean
-    cut-over, not an identity migration.
+    0 (it has a `customerId-index`), the commerce-keys table 0 (now
+    `stack-wecare-digital-CommerceKeys`) and the legacy order-cache table 0 (since deleted). So
+    this is a clean cut-over, not an identity migration.
 
     THE SHAPE CHANGES, AND THAT IS DELIBERATE. `lambda_utils.identity.customer` defines the
     customer identity concept as `CUS_<ULID>` and `is_customer_id` validates that shape. A

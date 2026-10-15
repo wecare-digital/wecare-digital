@@ -50,7 +50,7 @@ included: clients use the IAM stdio bridge or a current staff bearer token.
 After merge: deploy the new stack, register the HTTPS Meta callback, complete each
 cloud consent, run authorized provider reads, verify GitHub runtime permissions,
 configure the OIDC artifact-read repository variable and enable code jobs only in
-reviewed IaC. Wix/Razorpay/Google Cloud/Google Ads/Meta Ads remain pending adapters;
+reviewed IaC. Razorpay/Google Cloud/Google Ads/Meta Ads remain pending adapters;
 Plivo/Sinch remain documentation-only records. Backend/deployment code changes and
 provider mutations are outside the first-release supplied-patch allowlist.
 

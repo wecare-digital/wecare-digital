@@ -10,7 +10,7 @@ order history, or produce a receipt.
 
 So this is the only entity that exists before money moves. It deliberately has no `orderId` or
 `orderNumber` attribute - the order identity lives in the reservation ledger
-(`stack-wecare-digital-WixOrderIds`, reached through `order_keys.commerce_keys_table_name`) and is
+(`stack-wecare-digital-CommerceKeys`, reached through `order_keys.commerce_keys_table_name`) and is
 minted only after a provider readback confirms capture. Keeping the two apart is what makes "an
 order does not exist until payment is authoritatively verified as paid" a property of the shape
 rather than a matter of discipline.

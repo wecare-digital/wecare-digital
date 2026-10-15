@@ -781,8 +781,8 @@ SAFE_PRINT_CALLS = {
 #: The subset of reducers whose contract is to keep a BOUNDED TAIL of a phone number or an
 #: email, where returning part of the input is the prescribed behaviour rather than a
 #: defect -- `mask_phone` is `clean[:3] + '****' + clean[-4:]` by design. A credential
-#: fingerprint has the opposite contract: `set_wix_credential.py::fingerprint` states it
-#: outright, "never print a prefix or a suffix of a credential - an issuer prefix plus a
+#: fingerprint has the opposite contract, and the repository's credential tooling states it
+#: outright: "never print a prefix or a suffix of a credential - an issuer prefix plus a
 #: length is a meaningful head start". So the slice check below exempts these and only
 #: these.
 BOUNDED_TAIL_MASKERS = {

@@ -401,8 +401,8 @@ def test_a_replay_with_a_different_amount_is_refused_by_record_paid(webhook, fak
 
 
 def test_accept_paid_still_refuses_a_native_attempt(fake):
-    """T-T18, H7's boundary. Adding `record_paid` must NOT open the Wix write-back path: a native
-    attempt has no Wix cart, so `accept_paid` has to keep raising."""
+    """T-T18, H7's boundary. Adding `record_paid` must NOT open the website finalization path: a
+    native attempt has no cart, so `accept_paid` has to keep raising."""
     from lambda_utils.ecommerce import finalization
     attempt = _seed_native(fake)
     assert wpr.WA_NATIVE_CHECKOUT_MODE not in finalization.ACCEPTED_CHECKOUT_MODES

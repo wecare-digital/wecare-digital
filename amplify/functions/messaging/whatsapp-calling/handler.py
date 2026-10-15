@@ -1134,7 +1134,7 @@ def _handle_post_call_sip(event: Dict, request_id: str) -> Dict[str, Any]:
     if not caller_phone.startswith('+'):
         caller_phone = f'+{caller_phone}'
 
-    # Unified-timeline breadcrumb — makes the SIP call show in [retired public path]/calls,
+    # Unified-timeline breadcrumb — makes the SIP call show on the Calls page,
     # the unified inbox (channel=voice), and Contact 360. Non-blocking.
     try:
         _bc_contact = _lookup_contact_id_for_inbox(caller_phone)

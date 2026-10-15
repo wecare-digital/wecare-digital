@@ -699,8 +699,6 @@ and update `PENDING_ENV_DEPLOY`.
 
 ## Related
 
-- `.kiro/specs/whatsapp-wix-commerce/requirements.md:24` — the original v25.0 pin and its
-  now-corrected reason
 - `packages/config/vendorVersions.ts:85-119` — the 2026-09-26 analysis this audit confirms
   and extends, including `lagExpiresOn`
 - `tests/test_meta_version.py` — the 18 existing invariants (18 passed, 2026-10-01)

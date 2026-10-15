@@ -333,13 +333,13 @@ ALL_MESSAGES = DETERMINISTIC + [pytest.param(FREE_FORM, id='text_free_form')]
 # CART_ORDER IS DELIBERATELY ABSENT, AND THAT IS A PHASE W DECISION, NOT A GAP. Phase W
 # deleted the inbound handler's in-thread catalogue payment path -- the one that repriced the
 # basket locally with a float 2% convenience fee and sent its own `order_details` Review &
-# Pay -- and replaced it with a hand-off to the website cart, where Wix is the single pricing
-# authority. The replacement is gated behind `WA_CATALOG_ORDERS_ENABLED`, SHIPPED OFF, so a
-# WhatsApp catalogue order is an intentional silent no-op until the owner opens the flag and
-# QAs it. See `_handle_cart_order` and `_catalog_orders_enabled` in the handler, whose
-# docstring states the posture outright: "OFF MEANS NOTHING HAPPENS AT ALL ... Not 'reply
-# with a shop link instead', because a silent no-op is the only state provably free of
-# customer-visible effect."
+# Pay -- and replaced it with a hand-off to the website cart, where the native checkout is the
+# single pricing authority. The replacement is gated behind `WA_CATALOG_ORDERS_ENABLED`,
+# SHIPPED OFF, so a WhatsApp catalogue order is an intentional silent no-op until the owner
+# opens the flag and QAs it. See `_handle_cart_order` and `_catalog_orders_enabled` in the
+# handler, whose docstring states the posture outright: "OFF MEANS NOTHING HAPPENS AT ALL
+# ... Not 'reply with a shop link instead', because a silent no-op is the only state provably
+# free of customer-visible effect."
 #
 # Retired by Phase W; Phase P2 must re-derive its catalogue-order expectations against
 # the website hand-off model, not the old mint+send.
@@ -490,11 +490,11 @@ class TestTheMoneyPath:
 
         THAT PATH WAS DELETED ON PURPOSE, and it is the defect this release set out to
         remove: it repriced the basket in the handler with a float 2% convenience fee, a
-        second pricing authority disagreeing with Wix over the same cart. Phase W replaced it
-        with a hand-off to the website cart, where Wix prices the basket once, and gated the
-        replacement behind `WA_CATALOG_ORDERS_ENABLED` -- shipped OFF, matching the standing
-        posture that the WhatsApp commerce send surface stays closed until the owner opens
-        the flag and QAs to the nominated QA recipient.
+        second pricing authority disagreeing with the website checkout over the same cart.
+        Phase W replaced it with a hand-off to the website cart, where the native checkout
+        prices the basket once, and gated the replacement behind `WA_CATALOG_ORDERS_ENABLED`
+        -- shipped OFF, matching the standing posture that the WhatsApp commerce send surface
+        stays closed until the owner opens the flag and QAs to the nominated QA recipient.
 
         So a silent no-op here is the correct CLOSED state, not a regression, and this test
         pins it rather than leaving a hole where the old assertions were. The precondition is

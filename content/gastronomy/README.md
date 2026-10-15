@@ -2,19 +2,18 @@
 
 This directory is the durable state for WECARE.DIGITAL Gastronomy publishing.
 
-Current live Wix baseline: **454 published Gastronomy posts**. The historical Git sequence is verified through GAST-340; the 114 newer live posts must be reconciled to source IDs before assigning the next GAST sequence.
+Current live baseline: **454 published Gastronomy posts** (`progress.json` `live_verified_posts`). The historical Git sequence is verified through GAST-340; the 114 newer live posts must be reconciled to source IDs before assigning the next GAST sequence.
 
 ## Production model
 
 - Editorial manifests may contain **1-150 posts**.
 - 150 is a maximum production-unit size, not a content target.
 - Never invent filler to reach 150.
-- Wix mutations remain internally chunked to **20 posts per API request**.
-- Publication is idempotent by slug: already-published slugs are skipped.
-- New publishing/audit runs require **quality_version: 2**.
-- Historical v1 manifests remain valid as repository history but cannot be newly published through the v2 gate.
+- Publication happens in AWS-native Blog Studio, not here. The native store refuses a second post under an existing slug.
+- Audit runs require **quality_version: 2**.
+- Historical v1 manifests remain valid as repository history but cannot pass the v2 audit gate.
 - The working branch is **gastronomy-quality**.
-- The GitHub workflow has a concurrency lock so only one Gastronomy Wix publishing run mutates the site at a time.
+- The GitHub workflow validates only; its retired `publish` input fails explicitly.
 
 ## Source-specific neutrality and privacy
 
@@ -101,7 +100,7 @@ Non-recipe article types may include:
 
 Non-recipe articles are not forced into artificial Ingredients/Method sections.
 
-## Validation and publishing
+## Validation and audit
 
 Validate:
 
@@ -109,16 +108,15 @@ Validate:
 python scripts/gastronomy_batch.py validate --manifest <v2-manifest>
 ```
 
-Publishing and live audit remain separate gates:
+Besides the editorial rules, validation checks each record against the AWS-native blog contract (`scripts/blog_native_contract.py`): a slug the store keeps unchanged, a body under the store's item limit, and only Markdown the post page renders. Recipe structure is read the way the page reads it: `## Ingredients` and `## Method` headings, `- ` ingredient lines, one block per line.
+
+After Blog Studio publishes, audit the live posts:
 
 ```bash
-python scripts/gastronomy_batch.py publish --manifest <manifest>
 python scripts/gastronomy_batch.py audit --manifest <manifest>
 ```
 
-Publication requires a v2 manifest.
-
-The audit checks live Wix output after publication, including source/privacy leakage and formatting corruption.
+The audit requires a v2 manifest. It reads each post back through the public read route of `wecare-seo-tools` and checks metadata, recipe structure, source/privacy leakage and formatting corruption.
 
 ## Governing rule
 
@@ -135,9 +133,8 @@ For each newly uploaded or linked PDF:
 4. Preserve legitimate culinary geography and established food terminology through `allowed_public_terms`.
 5. Prepare independent WECARE.DIGITAL articles.
 6. Validate a manifest containing **1-150 articles**.
-7. Publish only records that pass the source/privacy, attribution, metadata, structure, and safety gates.
-8. Wix writes remain internally chunked at 20.
-9. Read every published record back before treating it as verified.
-10. Start a fresh source profile when the next PDF/publisher is supplied.
+7. Release for publication in Blog Studio only records that pass the source/privacy, attribution, metadata, structure, and safety gates.
+8. Audit every published record before treating it as verified.
+9. Start a fresh source profile when the next PDF/publisher is supplied.
 
 The quality gate targets source leakage, privacy/provenance, attribution, real content corruption, and relevant safety issues. It does **not** attempt to rewrite ordinary cooking prose simply for stylistic preference.

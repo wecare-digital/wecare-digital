@@ -6,8 +6,8 @@ build contract for native in-chat WhatsApp payments. It supersedes the 2026-10-0
 
 ## The channel model (owner, 2026-10-02)
 
-Website and WhatsApp are two **channels** over **one shared backend**. Shared: Wix
-products (one catalogue), blogs, coupons, the order table, the customer table +
+Website and WhatsApp are two **channels** over **one shared backend**. Shared:
+products (one native catalogue, `ProductsTable`), blogs, coupons, the order table, the customer table +
 records + management, and the order pages. The **only** per-channel difference is the
 payment surface:
 
@@ -88,7 +88,7 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
   `total_amount.value == subtotal + tax + shipping - discount` (enforce, fail closed).
 - `type`: `physical-goods` (needs `beneficiaries` for shipping) or `digital-goods`.
 - Catalog mode: `order.catalog_id` + `items[].retailer_id` (our
-  `wix:<productId>:<variantId>` from meta_catalog_sync). Non-catalog mode: items need
+  `<RETAILER_PREFIX>:<productId>:<variantId>` from `meta_catalog_sync`). Non-catalog mode: items need
   `country_of_origin`, `importer_name`, `importer_address`.
 - `order.status = "pending"` (only allowed value on send). Optional `expiration`
   (min 300s). Optional `order.type = "quick_pay"` to show only "Pay Now".

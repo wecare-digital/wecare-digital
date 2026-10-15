@@ -167,7 +167,7 @@ class KeysTable(FakeTable):
     """The commerce-keys table (`orderId` partition), READ-ONLY to the service-requests Lambda."""
 
     def __init__(self) -> None:
-        super().__init__(key_attr="orderId", name="stack-wecare-digital-WixOrderIds")
+        super().__init__(key_attr="orderId", name="stack-wecare-digital-CommerceKeys")
 
     def writes(self) -> List[str]:
         return [name for name, _ in self.calls if name != "get_item"]

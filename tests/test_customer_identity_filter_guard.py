@@ -111,7 +111,6 @@ def _drive_checkout(monkeypatch, subject):
     monkeypatch.setenv('CONTACTS_TABLE', 'contacts')
     monkeypatch.setenv('WHATSAPP_CATALOG_SERVICES_ENABLED', 'true')
     module = _load('checkout_filter_guard', 'amplify/functions/ecommerce/checkout/handler.py')
-    # Native catalog-service path: no Wix writeback gate to enable.
     token = 'A' * 24
     keys = FakeTable(key_attr='orderId')
     keys.seed({'orderId': catalog.SESSION_PREFIX + token, 'status': 'PREPARING_PAYMENT',

@@ -34,9 +34,10 @@ from typing import Any, Dict, List, Optional, Tuple
 #: The fields a re-audit would actually read. If every one of these is byte-identical, the model
 #: has already been asked this exact question and answered it.
 #:
-#: `content` is included for blog posts and absent for pages - a page audit reads the live SEO
-#: values from Wix rather than a body. Missing keys hash as empty, so a page and a post with the
-#: same title do not collide: `pageType` is part of the payload.
+#: `content` is included for blog posts and absent for pages - a page audit reads the page's SEO
+#: values from the public build inputs (`page_catalog.page_seo`) rather than a body. Missing keys
+#: hash as empty, so a page and a post with the same title do not collide: `pageType` is part of
+#: the payload.
 _FIELDS = ('title', 'content', 'excerpt', 'seoTitle', 'metaDescription', 'category')
 
 

@@ -31,11 +31,11 @@ no billing/shipping pair — `identity.address.build_addresses` is therefore not
 Razorpay collects nothing from us and a second address would be unused state that can disagree
 with the first.
 
-`recipientName` is derived and never stored: the former Wix address builder emits exactly
-`{country, subdivision, city, postalCode, addressLine[, addressLine2]}` and the former Wix
-cart's delivery-address check **refuses unknown fields** outright (its `ADDRESS_FIELDS`
+`recipientName` is derived and never stored: `india_address.to_delivery_address` emits exactly
+`{country, subdivision, city, postalCode, addressLine[, addressLine2]}` and
+`cart_contract.delivery_address` **refuses unknown fields** outright (its `ADDRESS_FIELDS`
 allow-list, the `unknown = set(address) - set(ADDRESS_FIELDS)` check and its raise),
-so a `recipientName` could not reach Wix even if it were stored. The
+so a `recipientName` could not reach the cart even if it were stored. The
 recipient is `firstName + " " + lastName` off the same row.
 
 AUTOCOMPLETE METADATA IS DROPPED, BY CONSTRUCTION RATHER THAN BY A DELETION PASS
@@ -109,7 +109,7 @@ _RULES = {
 def normalize_for_storage(raw: Any) -> Dict[str, Any]:
     """The address to store, or raise `UnusableAddress` naming the code and (usually) the field.
 
-    Three steps, in this order (FEAT-003 removed the India PIN check and the Wix-mappability
+    Three steps, in this order (FEAT-003 removed the India PIN check and the delivery-mappability
     check — those are PAYMENT rules now, owned by `payment_address` and run at pay time):
 
     1. `raw` is a non-empty dict                      -> `ADDRESS_REQUIRED`
@@ -126,7 +126,7 @@ def normalize_for_storage(raw: Any) -> Dict[str, Any]:
     `identity.address._clean` opens `" ".join(str(value or "").split())` and raises only on an
     over-long result: it does not refuse a non-scalar, it **stringifies** it. On a required field
     that is invisible, because step 2 already refused the request. On an optional field it is not —
-    handing `raw` down would store `addressLine2 = "{'long_name': 'Flat 3B'}"`, which the Wix
+    handing `raw` down would store `addressLine2 = "{'long_name': 'Flat 3B'}"`, which the
     delivery address would pass straight through and `full_address` would print on the identity
     card. So `_text` coerces every field once, before step 3 sees it.
 
@@ -160,7 +160,7 @@ def normalize_for_storage(raw: Any) -> Dict[str, Any]:
     except owned_address.InvalidAddress:
         raise UnusableAddress("INVALID_ADDRESS") from None
 
-    # Storage is INTERNATIONAL (FEAT-003). The India PIN rule and the Wix-mappability rule that
+    # Storage is INTERNATIONAL (FEAT-003). The India PIN rule and the delivery-mappability rule that
     # used to live here are PAYMENT rules, not storage rules — they moved to `payment_address`
     # and run at pay time against the paying channel. Keeping them here would make storage
     # India-only and reject a valid international address at save time. `payment_address` is the
@@ -173,8 +173,8 @@ def from_contact(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
 
     FEAT-003 weakened this guarantee deliberately: a dict this returns is **structurally valid**
     (required fields present, lengths bounded, a real country code, a normalisable owned-address).
-    It is NO LONGER guaranteed to be acceptable to the former Wix address builder — storage is now international and
-    the India/Wix place-of-supply question moved to `payment_address`. Ask *that* module whether a
+    It is NO LONGER guaranteed to map to the delivery shape — storage is now international and
+    the India place-of-supply question moved to `payment_address`. Ask *that* module whether a
     returned address can actually pay on a given channel; see `payable_for` below for a caller that
     wants one answer covering both "no address stored" and "stored but unpayable here".
     """

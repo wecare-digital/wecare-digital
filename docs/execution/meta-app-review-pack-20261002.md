@@ -252,7 +252,7 @@ src/pages/workspace/engage/whatsapp/ctwa-ads.tsx,
 amplify/functions/ecommerce/catalog-management/handler.py,
 amplify/functions/messaging/marketing-ads/handler.py,
 config/workspace-mcp.json and workspace-mcp handler. The commerce/catalog page
-is Wix Headless commerce; do not show it as proof of Meta catalog operations.
+is website commerce; do not show it as proof of Meta catalog operations.
 
 Screenshot of the actual review page was saved separately. It is evidence of
 the requirements on the form, not an end-to-end screencast. No review-ready

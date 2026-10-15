@@ -65,7 +65,6 @@ const TTL_CONFIG: Record<string, string> = {
   Message: 'expiresAt',
   DLQMessage: 'expiresAt',
   AuditLog: 'expiresAt',
-  VoiceCall: 'expiresAt',
   VoiceAws: 'expiresAt',
   VoiceCDR: 'expiresAt',
   WhatsAppVoice: 'expiresAt',

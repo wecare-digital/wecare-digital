@@ -63,18 +63,6 @@
         }
       }
     },
-    "wix": {
-      "isError": false,
-      "value": {
-        "status": "verified",
-        "provider": "wix",
-        "read": {
-          "siteId": "fcd82f0c-9572-49c7-acfb-88fb05042ece",
-          "mode": "read-only",
-          "sitePropertiesReadable": true
-        }
-      }
-    },
     "plivo": {
       "isError": false,
       "value": {

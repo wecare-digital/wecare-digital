@@ -4,15 +4,16 @@ from decimal import Decimal
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'amplify/functions/shared'))
+from lambda_utils.ecommerce import meta_catalog_sync
 from lambda_utils.ecommerce.catalog_analytics import purchase_facts, PRODUCT_ID, VARIANTS
 
 
 def paid():
     """A paid native attempt carrying the provider-neutral `catalogContents` list.
 
-    Post Wix-exit the analytics facts are projected from `catalogContents`
-    (`[{productId, variantId, quantity}]`) rather than a Wix order payload. The product/variant
-    UUIDs are the ones the native catalog preserves, so the emitted content id is unchanged.
+    The analytics facts are projected from `catalogContents` (`[{productId, variantId,
+    quantity}]`). The product/variant UUIDs are ProductsTable keys, so each emitted content id is
+    the Meta catalogue retailer id for that pair.
     """
     variant = sorted(VARIANTS)[0]
     return {'status': 'PAYMENT_PAID', 'orderNumber': 'WD-ORD-QATEST01',
@@ -25,7 +26,8 @@ def test_paid_facts_use_frozen_variant_and_captured_total_without_customer_data(
     row = paid()
     row.update(customerPhone='+919999999999', customerId='private-customer')
     facts = purchase_facts(row)
-    assert facts == {'contents': [{'id': f'wix:{PRODUCT_ID}:{sorted(VARIANTS)[0]}', 'quantity': 1}],
+    content_id = meta_catalog_sync.retailer_id(PRODUCT_ID, sorted(VARIANTS)[0])
+    assert facts == {'contents': [{'id': content_id, 'quantity': 1}],
                      'amountPaise': 5300, 'currency': 'INR'}
 
 

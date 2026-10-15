@@ -1,6 +1,6 @@
 # Vendor capability and version compatibility
 
-Phase 0 output for the WhatsApp + Wix Headless conversational commerce build.
+Phase 0 output for the WhatsApp conversational commerce build.
 Measured against account `775261844268` / `us-east-1` on **2026-09-26**.
 
 Two things this document refuses to do: report a documented-but-unmeasured fact as
@@ -97,76 +97,22 @@ including the payment-lookup call). A single configurable source does not exist,
 prompt's "must be upgradeable without rewriting business logic" requirement is currently
 **unmet**.
 
-## 3. Wix
+## 3. Commerce and blog — native AWS
 
-| Item | Value | Evidence | State |
-|---|---|---|---|
-| Account id | `15f02319-40ff-4288-b8e6-69c791adae5e` | `LIVE` matches live Lambda env | ✅ |
-| Headless site id | `fcd82f0c-9572-49c7-acfb-88fb05042ece` | `LIVE` matches live Lambda env and `src/config/wix.ts` | ✅ single site, no ambiguity |
-| OAuth client id | `197cd718-e4ec-4e2e-b380-46c297eb18a2` | `REPO` | ✅ declared, **unused** |
-| Auth mechanism, current | permanent admin API key, `Authorization: <raw key>` | `REPO` `wix-store/handler.py:81-123, 344-357` | ⚠️ older mechanism |
-| Auth mechanism, recommended | OAuth `client_credentials` → short-lived access token | `DOC` Wix: client credentials are the recommended way to authorize admin operations in a headless project | ✅ spec targets this |
-| Stores Catalog | V3 in Lambda code (`/stores/v3/products/{search,query,query-variants}`, `/stores/v3/inventory-items/query`) | `REPO` | ⚠️ capability not re-verified against the site |
-| eCommerce Orders | **V1 is LATEST** for this family — read/search/patch (`/ecom/v1/orders/*`), 7 call sites | `DOC` + `REPO` | ✅ implemented, **not** deprecated |
-| Order Transactions | **V1 is LATEST** — read (`/ecom/v1/transactions/orders/{id}`), 2 sites; plus 3 `/ecom/v1/payments/.../add-payment` sites in `wix_writeback` | `DOC` + `REPO` | ⚠️ write-back gated off; **no** payment recording live |
-| Order Fulfillments | **V1 is LATEST** — read (`/ecom/v1/fulfillments/orders/{id}`), 2 sites | `DOC` + `REPO` | ✅ implemented |
-| Cart / Checkout | **PRESENT, and this row previously said "absent", which was false.** Checkout V1 at `lambda_utils/wix_ecom.py:153` (`POST /ecom/v1/checkouts`) and `:211` (`GET /ecom/v1/checkouts/{id}`). Cart **V2** at `lambda_utils/ecommerce/cart_v2.py` (`/ecom/v2/carts/*`) | `REPO` grep, re-run 2026-10-01 | ⚠️ V2 implemented and tested, **opt-in** behind `WIX_CART_V2_ENABLED` (absent on every function, so absence keeps V1); Checkout V1 is what serves |
-| Invoices v4 / Receipts v1 | **absent**; invoicing is homegrown (`payments/invoice-engine` + 5 tables + per-FY sequence) | `REPO` | ❌ decision required, see `design.md` |
-| Site capability probe | not possible this session | `BLOCKED` no usable Wix credential exists — see §4 | ⛔ |
+Commerce and the blog have no third-party backend, so there is no external commerce or blog API
+version to track here.
 
-### `/ecom/v1` is six APIs sharing a prefix, not one deprecated API
+| Item | Implementation | State |
+|---|---|---|
+| Catalogue | `stack-wecare-digital-ProductsTable` | ✅ native |
+| Cart | `stack-wecare-digital-CartTable` | ✅ native |
+| Order identity / idempotency keys | `stack-wecare-digital-CommerceKeys` | ✅ native |
+| Orders | `stack-wecare-digital-OrderTable`, written only after verified payment | ✅ native |
+| Checkout | `wecare-checkout`, payment through Razorpay | ✅ native |
+| Invoices / receipts | homegrown: `payments/invoice-engine` + 5 tables + per-FY sequence | ✅ native |
+| Blog | posts in `stack-wecare-digital-SeoToolsTable`, served by `wecare-blog-public` | ✅ native |
 
-Corrected 2026-10-01. The rows above used to read as though `/ecom/v1` were a single version to
-migrate off. It is the prefix shared by six separate Wix eCommerce APIs, and **only two are in the
-2027-02-01 removal**: eCommerce Cart and eCommerce Checkout, which Cart V2 replaces by combining
-them into one Cart entity. Orders, Order Transactions and Order Fulfillments are current, carry no
-deprecation notice, and appear nowhere in the Cart V2 migration mapping — for them V1 *is* latest.
-
-Of this repo's 16 `/ecom/v1` call sites in `amplify/`, **2** are in the removal (both Checkout V1,
-both in `lambda_utils/wix_ecom.py`) and **14** are not. Migrating the 14 is not possible — Cart V2
-has no order search — and deleting them would break live staff order management. They are
-deliberately untouched.
-
-| Family | `amplify/` call sites | Removed 2027-02-01? |
-|---|---:|---|
-| Checkout V1 (`/ecom/v1/checkouts…`) | 2 | **Yes** — migrated to Cart V2, V1 retained behind the gate |
-| Orders (`/ecom/v1/orders…`) | 7 | No |
-| Order Transactions (`…/transactions…`, `…/add-payment`) | 5 | No |
-| Order Fulfillments (`/ecom/v1/fulfillments…`) | 2 | No |
-
-Sources:
-[Purchase Flow: Introduction](https://dev.wix.com/docs/api-reference/business-solutions/e-commerce/purchase-flow/introduction),
-[Cart V2: Migration Guide](https://dev.wix.com/docs/api-reference/business-solutions/e-commerce/purchase-flow/cart-v2/migration-guide),
-[Cart V2: Migration Mapping](https://dev.wix.com/docs/api-reference/business-solutions/e-commerce/purchase-flow/cart-v2/migration-mapping),
-[About Orders](https://dev.wix.com/docs/api-reference/business-solutions/e-commerce/orders/introduction).
-Content was rephrased for compliance with licensing restrictions.
-
-**Catalog version, installed apps and Invoices availability cannot be verified**, because
-every probe needs a credential the account does not currently hold. The prompt's §0 items
-4-7 are therefore `BLOCKED`, not satisfied. Treating "the code calls V3" as proof the site
-*is* V3 would be exactly the kind of inference this document exists to prevent.
-
-## 4. Credential state — the blocking finding
-
-| Location | Expected | Actual | Evidence |
-|---|---|---|---|
-| Secrets Manager `wecare/wix/headless-api-key` | holds the credential | **exists but holds no value**: `versionCount: 0`, no `AWSCURRENT`, `get_secret_value` → `ResourceNotFoundException`, `LastAccessedDate: None` | `LIVE` `describe-secret` + `set_wix_credential.py --status` |
-| `wecare-wix-store` env `WIX_API_KEY_SECRET` | secret name | **absent** | `LIVE` `get-function-configuration` |
-| `wecare-wix-store` env `WIX_CREDENTIALS_DISABLED` | unset when live | `true` | `LIVE` |
-| `scripts/set_wix_credential.py` `SECRET_NAME` | `wecare/wix/headless-api-key` | was `wecare/wix/headless` — a name that has never existed | `LIVE` fixed 2026-09-26 |
-| `~/aws-new-keys-SAVE-THEN-DELETE.txt` | may hold the key | **0** `IST.`-prefixed tokens; only a reference to the retired secret name `wecare/wix-api-key` | `LIVE` shape-only scan, no values rendered |
-| Retired `wecare/wix-api-key` | n/a | not present among the account's 25 secrets | `LIVE` `list-secrets` |
-
-So Wix is off **four** independent ways, and the credential is not recoverable from any
-authorized location. Only the owner can mint a new one in the Wix dashboard, which shows
-an API key exactly once at creation. This is `MANUAL_OWNER_ACTION`; see the unblock
-sequence in `.kiro/specs/whatsapp-wix-commerce/requirements.md` §R0.
-
-`docs/wix-headless.md` separately records that the previous key was pasted into a chat and
-must be treated as compromised, which is consistent with it having been removed
-deliberately and the empty container created on 2026-09-24 as a placeholder.
-
-## 5. Frontend
+## 4. Frontend
 
 | Item | Value | Evidence | State |
 |---|---|---|---|
@@ -174,12 +120,11 @@ deliberately and the empty container created on 2026-09-24 as a placeholder.
 | Hosting | Amplify app `d22dm4b0jn71jw` | `REPO` | ✅ |
 | Server-side code | **none** — static export has no server, so no middleware and no route handlers | `REPO` `next.config.js` | ⚠️ constrains tracking-token handling |
 
-The static export is load-bearing for the design: the Wix SDK's `OAuthStrategy` +
-`middleware.js` visitor-session pattern in the vendored reference templates **cannot be
-copied**, and a tracking token cannot be validated in the frontend. Both must move into
-Lambda. `design.md` §Tracking security depends on this.
+The static export is load-bearing for the design: there is no server-side session layer in
+the frontend, and a tracking token cannot be validated there. Both live in Lambda.
+`design.md` §Tracking security depends on this.
 
-## 6. Drift watch
+## 5. Drift watch
 
 Re-derive before each phase rather than trusting this table.
 
@@ -188,7 +133,6 @@ Re-derive before each phase rather than trusting this table.
 | Function count / runtimes | 64, all `python3.12` | `aws lambda list-functions --query 'Functions[].Runtime'` |
 | HTTP APIs | 1 (`zllr9lrg7j`) | `aws apigatewayv2 get-apis` |
 | Functions with a `live` alias | drifts as aliases are provisioned | `ListFunctions` + `ListAliases`, sequentially, reporting the error total |
-| Wix credential state | empty container | `python scripts/set_wix_credential.py --status` |
 | Secret inventory | 25 | `aws secretsmanager list-secrets` |
 | Meta payment configs | 2 per WABA, dated 2026-08-23 | `/whatsapp-business/payment-config/check` with an admin token |
 | Graph version | `v25.0`, v26.0 rejected | `grep -rn META_API_VERSION amplify/` |

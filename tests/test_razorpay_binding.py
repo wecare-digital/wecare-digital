@@ -75,9 +75,9 @@ from lambda_utils.ecommerce import order_keys  # noqa: E402
 from lambda_utils.ecommerce.checkout_pricing import compute_quote, build_snapshot  # noqa: E402
 from lambda_utils.integrations import razorpay_orders as ro  # noqa: E402
 
-KEYS_TABLE = 'stack-wecare-digital-WixOrderIds'
+KEYS_TABLE = 'stack-wecare-digital-CommerceKeys'
 CUSTOMER = 'CUS_website_001'
-# A raw Wix collection total; the gateway amount must be the calculator total ON TOP of this.
+# The basket's raw collection total; the gateway amount must be the calculator total ON TOP of this.
 COLLECTION_PAISE = 100000  # ₹1000.00 before convenience fee + GST
 
 
@@ -131,7 +131,7 @@ def test_disabled_gate_creates_no_gateway_order():
     assert order_keys.resolve_gateway_order(table, 'order_WEBSITE1') is None
 
 
-def test_gateway_amount_equals_calculator_total_not_raw_wix_total():
+def test_gateway_amount_equals_calculator_total_not_raw_collection_total():
     table = _keys()
     now = int(time.time())
     snap = _snapshot(now)

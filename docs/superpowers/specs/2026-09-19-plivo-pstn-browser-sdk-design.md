@@ -5,7 +5,7 @@ Status: Approved design; implementation not yet authorized by this document
 
 ## Objective
 
-Replace the active Airtel voice and SMS implementation and all Sinch SMS paths with a provider-safe communications architecture. Plivo owns PSTN voice and browser calling, AWS End User Messaging owns SMS, Sinch is restricted to India RCS, AWS owns non-India RCS, and Meta continues to own WhatsApp messaging and WhatsApp Calling through the existing Lightsail Asterisk server.
+A provider-safe communications architecture with no Sinch SMS path. Plivo owns PSTN voice and browser calling, AWS End User Messaging owns SMS, Sinch is restricted to India RCS, AWS owns non-India RCS, and Meta continues to own WhatsApp messaging and WhatsApp Calling through the existing Lightsail Asterisk server.
 
 This design deliberately separates Plivo PSTN/browser calling from Meta WhatsApp Calling. The Lightsail Asterisk instance must remain because it terminates Meta WhatsApp Calling at `sip.wecare.digital:5061`; it is not part of the Plivo browser softphone path.
 
@@ -20,13 +20,12 @@ This design deliberately separates Plivo PSTN/browser calling from Meta WhatsApp
 | Non-India RCS | AWS End User Messaging RCS |
 | WhatsApp messaging | Meta directly |
 | WhatsApp Calling | Meta to `sip.wecare.digital:5061` to Lightsail Asterisk |
-| Airtel | Discontinued from active runtime, infrastructure, UI, IAM, secrets, scripts and monitoring |
 | Sinch SMS | Prohibited |
 | Sinch Voice or WhatsApp | Prohibited |
 | Plivo SMS | Prohibited |
 | SNS SMS and legacy Amazon Pinpoint SMS | Prohibited; use AWS End User Messaging |
 
-Historical Airtel call and message records remain read-only until they are exported, checksummed, retained according to policy, and separately approved for deletion. Removing a provider from active use must not destroy audit history.
+Removing a provider from active use must not destroy audit history: its call and message records are exported, checksummed and retained according to policy before any deletion is separately approved.
 
 ## Existing Plivo Invariants
 
@@ -72,7 +71,7 @@ WhatsApp caller
   -> existing WhatsApp call flow
 ```
 
-Do not insert Plivo, Sinch or Airtel into this flow, and do not delete Lightsail/Asterisk.
+Do not insert Plivo or Sinch into this flow, and do not delete Lightsail/Asterisk.
 
 ## Connected-Call Notifications
 
@@ -126,7 +125,7 @@ Use provider-neutral records:
 - `PstnRecordingAudit`: access, playback, export and deletion events.
 - `ProviderDriftSnapshot`: desired/actual redacted state, differences and reconciliation status.
 
-Existing `AirtelSMS`, `AirtelC2C` and provider-specific CDR data must be exposed through read-only compatibility/import views until retention decisions are complete. Do not silently relabel legacy Airtel events as Plivo events.
+Do not silently relabel another provider's legacy call or message events as Plivo events.
 
 ## Internal Product Information Architecture
 
@@ -158,18 +157,18 @@ Cost views separate estimates from actual CDR charges and show both legs. Seed e
 
 ## Removal and Migration Rules
 
-Inventory every Airtel and prohibited Sinch SMS reference before deleting. Remove active Lambdas, API routes, UI tabs, API clients, registry entries, IAM grants, proxy port `8899`, deploy scripts, alarms, runtime environment variables and secrets only after dependency checks. Remove provider choices from current runtime UI while retaining clearly labeled legacy history.
+Inventory every prohibited-provider reference before deleting. Remove active Lambdas, API routes, UI tabs, API clients, registry entries, IAM grants, proxy port `8899`, deploy scripts, alarms, runtime environment variables and secrets only after dependency checks. Remove provider choices from current runtime UI while retaining clearly labeled legacy history.
 
-Consolidate SMS behind one AWS End User Messaging adapter with explicit region and DLT routing. Restrict the Sinch client and credentials to the India RCS module. Remove SNS SMS and legacy Pinpoint SMS. Add compile-time/lint/policy tests that reject Airtel runtime identifiers, Sinch SMS/Voice/WhatsApp, Plivo SMS, SNS SMS and legacy Pinpoint SMS use.
+Consolidate SMS behind one AWS End User Messaging adapter with explicit region and DLT routing. Restrict the Sinch client and credentials to the India RCS module. Remove SNS SMS and legacy Pinpoint SMS. Enforce the provider set with the positive allow-list gate (`scripts/provider_allowlist.py`, `scripts/check_provider_allowlist.py`), which rejects Sinch SMS/Voice/WhatsApp, Plivo SMS, SNS SMS, legacy Pinpoint SMS and any undeclared provider.
 
-The current provider policy scan reports 160 findings and the CI workflow incorrectly expects failure. Reduce findings to zero, then change the workflow from `--expect-fail` to a real blocking gate. Add a general CI workflow for frontend tests/typecheck, Python tests, provider policy, dependency/security checks and infrastructure synthesis/validation.
+The allow-list gate runs as a blocking CI check in `.github/workflows/provider-allowlist.yml`. Add a general CI workflow for frontend tests/typecheck, Python tests, provider policy, dependency/security checks and infrastructure synthesis/validation.
 
 ## Delivery Stages and Production Gates
 
 1. Capture inventory, architecture decision records, baselines and rollback plans; add regression tests before behavior changes.
 2. Complete the AWS SMS adapter and India/non-India/DLT tests.
 3. Eliminate Sinch SMS and isolate Sinch to India RCS.
-4. Remove Airtel active voice/SMS paths while preserving historical data.
+4. Remove every non-approved voice/SMS path while preserving historical data.
 5. Make Plivo callbacks/resources declarative, close fail-open diagnostics, add inspect/plan/apply and scheduled drift checks.
 6. Add provider-neutral models and APIs.
 7. Add the Browser SDK softphone behind a disabled feature flag and fix deployed microphone policy.
@@ -189,8 +188,8 @@ The pre-change baseline is 883 passing Python tests, 29 passing frontend tests a
 
 Acceptance requires:
 
-- Zero provider-policy findings and a blocking CI gate.
-- No active Airtel code/resource/secret/IAM/UI/proxy route, with legacy audit data retained.
+- `scripts/check_provider_allowlist.py` passing as a blocking CI gate.
+- No active code, resource, secret, IAM grant, UI or proxy route for a retired provider.
 - No Sinch SMS, Sinch Voice/WhatsApp or Plivo SMS call sites or credentials.
 - No SNS SMS or legacy Pinpoint SMS runtime path.
 - Correct AWS SMS routing and mandatory India DLT validation.

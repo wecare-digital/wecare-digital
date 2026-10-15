@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Provision `wecare-coupons-role` and the function's log group.
 
-Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/coupons-20261001.md` section 6.
+Design reference: the coupons and gift-cards design note of 2026-10-01 (`coupons-20261001.md`),
+section 6.
 
 Its OWN role, never the shared fleet role
 -----------------------------------------
 `wecare-digital-lambda-role` is attached to the whole fleet, so a statement added there grants
-every other function the same access. Everything below is scoped to one function, one table, one
-index and one secret.
+every other function the same access. Everything below is scoped to one function: its own table
+and index, the two bounded authentication tables, and its own log group.
 
 What it deliberately does NOT have
 ----------------------------------
@@ -16,7 +17,8 @@ What it deliberately does NOT have
 * Customer authentication reads and touches the session table; rate limiting updates
   only its own table. These permissions do not grant session creation or deletion.
 * No `dynamodb:*`, no `DeleteTable`, no wildcard action or resource.
-* No Razorpay credential read. Nothing in this function's import closure reaches a gateway.
+* No Secrets Manager read at all. Nothing in this function's import closure reads a secret or
+  reaches a payment gateway, so a credential grant would be privilege for code that cannot use it.
 
 `DeleteItem` is present for exactly one reason: releasing a `COUPONHOLD#` row. An IAM policy
 cannot be narrowed below item granularity, so the restriction that actually holds is in code -
@@ -54,7 +56,6 @@ LOG_RETENTION_DAYS = 30
 
 COUPONS_TABLE = "stack-wecare-digital-CouponsTable"
 STATUS_INDEX = "status-index"
-WIX_API_KEY_SECRET = "wecare/wix/headless-api-key"
 
 #: Five actions, enumerated rather than globbed so the policy reads as the capability list it is.
 TABLE_ACTIONS = ("dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem",
@@ -67,16 +68,6 @@ def table_arn() -> str:
 
 def index_arn() -> str:
     return f"{table_arn()}/index/{STATUS_INDEX}"
-
-
-def secret_arn() -> str:
-    """The secret ARN pattern. A NAME, never a value.
-
-    The trailing `-*` is Secrets Manager's six-character suffix, which is part of the ARN and is
-    not known until the secret is created - so the wildcard is the documented way to name one
-    secret, not a widening to all of them.
-    """
-    return f"arn:aws:secretsmanager:{REGION}:{ACCOUNT_ID}:secret:{WIX_API_KEY_SECRET}-*"
 
 
 def trust_policy() -> dict:
@@ -131,12 +122,6 @@ def least_privilege_policy() -> dict:
                 "Effect": "Allow",
                 "Action": ["cognito-idp:AdminListGroupsForUser", "cognito-idp:AdminGetUser"],
                 "Resource": [f"arn:aws:cognito-idp:{REGION}:{ACCOUNT_ID}:userpool/us-east-1_cSx0RHCIR"],
-            },
-            {
-                "Sid": "ReadWixApiKey",
-                "Effect": "Allow",
-                "Action": ["secretsmanager:GetSecretValue"],
-                "Resource": [secret_arn()],
             },
             {
                 "Sid": "OwnLogGroup",

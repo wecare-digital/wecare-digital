@@ -96,8 +96,8 @@ _lambda_client = None  # built on first use only; see `_provision_customer_login
 # to it. But FEAT-003 lets the CRM WRITE it through the shared validator - `_create` and `_update`
 # accept a top-level `address` dict, run `contact_address.normalize_for_storage` (structural,
 # international), and write `ATTRIBUTE`/`UPDATED_ATTRIBUTE` on success or return 400 naming the
-# field on `UnusableAddress`. Storage is structural only now, so a stored address is no longer
-# guaranteed Wix-mappable; the place-of-supply / payability question moved to `payment_address`
+# field on `UnusableAddress`. Storage is structural only now, so a stored address is not
+# guaranteed to be payable; the place-of-supply / payability question moved to `payment_address`
 # and runs at pay time (an unpayable stored address becomes the recoverable
 # `409 DELIVERY_DETAILS_REQUIRED` at checkout, via the shared gate). Two writers now - checkout and
 # the CRM - but both go through the one validator, so a hand-curated address and a checkout-captured

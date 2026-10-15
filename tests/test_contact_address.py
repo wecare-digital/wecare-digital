@@ -109,7 +109,7 @@ def test_an_integer_postal_code_is_stringified_and_stored():
 
 
 def test_an_integer_country_code_defaults_rather_than_raising_attribute_error():
-    # `_text` makes 91 the string "91". FEAT-003: storage no longer runs the Wix-mappability
+    # `_text` makes 91 the string "91". FEAT-003: storage no longer runs the delivery-mappability
     # check, so this is accepted at storage; the countryCode is coerced to the "91" string,
     # upper-cased and length-bounded to two chars. The payability of such an address is a
     # payment_address question, not a storage one.
@@ -171,7 +171,7 @@ def test_storage_accepts_an_unresolvable_indian_state_now():
     assert out["state"] == "Bangalore State"
 
 
-def test_a_state_alias_the_tax_table_knows_is_still_wix_mappable():
+def test_a_state_alias_the_tax_table_knows_still_maps_to_a_delivery_subdivision():
     out = contact_address.normalize_for_storage(address(state="Orissa", postalCode="751001"))
     assert india_address.to_delivery_address(out)["subdivision"] == "IN-OR"
 
@@ -209,8 +209,8 @@ def test_autocomplete_metadata_never_enters_the_stored_address():
 
 
 def test_an_unknown_nested_key_is_dropped_rather_than_refused():
-    # A recorded divergence from `cart_v2.delivery_address`, which refuses unknown fields:
-    # nothing reads the dropped keys, and refusing them would reject browser autofill extras.
+    # Dropped rather than refused: nothing reads the unknown keys, and refusing them would reject
+    # browser autofill extras.
     out = contact_address.normalize_for_storage(address(
         addressId="addr-1", recipientName="Asha Sen", sameAsBilling=True))
     assert "addressId" not in out
@@ -281,7 +281,7 @@ def test_from_contact_returns_a_structurally_valid_legacy_row_but_payable_for_re
     assert err is not None and err.code == "UNMAPPABLE_STATE" and err.field == "state"
 
 
-def test_whatever_from_contact_returns_is_something_to_wix_address_accepts():
+def test_whatever_from_contact_returns_maps_to_the_delivery_shape():
     row = {"id": "contact-1", contact_address.ATTRIBUTE: address()}
     loaded = contact_address.from_contact(row)
     assert india_address.to_delivery_address(loaded)["subdivision"] == "IN-KA"

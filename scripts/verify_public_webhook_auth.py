@@ -59,10 +59,6 @@ PROBES = [
     # All reads, so each is inert whether or not the guard holds.
     ("short-link management, no token", "GET", "/links", None, 401,
      "link enumeration was anonymous; a listing leaks every destination"),
-    ("obd campaigns, no token", "GET", "/voice-in/obd", None, 401,
-     "campaign read was anonymous"),
-    ("c2c calls, no token", "GET", "/voice-in/c2c", None, 401,
-     "call history read was anonymous"),
     ("bulk worker status, no token", "GET", "/bulk/worker", None, 401,
      "leaked SEND_MODE anonymously"),
     ("product image preview, no token", "GET", "/store/preview-product-image",
@@ -120,8 +116,8 @@ PROBES = [
 # curl call returned in under a second.
 #
 # Redirects are NOT followed. urllib follows them by default, which turned the
-# short-link probes into a 200 from the Wix fallback page and hid the 302 that is
-# the actual thing under test.
+# short-link probes into a 200 from the site's fallback page and hid the 302 that
+# is the actual thing under test.
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None

@@ -120,7 +120,8 @@ def submitted(table, keys, customer=ALICE):
 def test_an_intent_is_not_a_request(table):
     intent = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     assert sr.INTENT_ID_RE.match(intent["intentId"])
-    # `amountPaise` is None: an intent is pre-payment, and Wix prices the line at checkout.
+    # `amountPaise` is None: an intent is pre-payment, and checkout prices the line from
+    # ProductsTable.
     # The frozen original order travels on the wire too, so the browser can show WHICH order the
     # request is for before anything is charged. Still an exact shape, not a superset check.
     assert intent == {"intentId": intent["intentId"], "kind": "SUBMIT_REQUEST",
@@ -483,9 +484,9 @@ def test_an_abandoned_intent_paid_later_still_activates(table, keys):
 @pytest.mark.parametrize("override,reason", [
     ({"customer": BOB}, "CUSTOMER_MISMATCH"),
     ({"variant": AMEND, "kind": "REQUEST_AMENDMENT"}, "VARIANT_MISMATCH"),
-    # AMOUNT_MISMATCH is now a SHAPE failure, not a value disagreement: Wix owns the price, so
-    # there is no committed figure left to differ from. `9901` used to be the case here and is
-    # now a perfectly ordinary price. What still refuses is a recorded amount that cannot have
+    # AMOUNT_MISMATCH is now a SHAPE failure, not a value disagreement: ProductsTable owns the
+    # price, so there is no committed figure left to differ from. `9901` used to be the case here
+    # and is now a perfectly ordinary price. What still refuses is a recorded amount that cannot have
     # been charged -- absent, zero, or outside the catastrophe rail. The reason code is kept
     # verbatim so existing PAID_SERVICE_UNMATCHED alerts and runbooks still match.
     ({"paise": None}, "AMOUNT_MISMATCH"),
@@ -638,7 +639,7 @@ def test_the_store_imports_no_boto3_and_no_money_mover():
             imported.update(alias.name for alias in node.names)
         elif isinstance(node, ast.Import):
             imported.update(alias.name for alias in node.names)
-    banned = {"boto3", "botocore", "razorpay_orders", "razorpay_verify", "wix_ecom",
-              "wix_writeback", "finalization", "order_creation", "urllib", "requests"}
+    banned = {"boto3", "botocore", "razorpay_orders", "razorpay_verify", "website_checkout",
+              "native_inventory_txn", "finalization", "order_creation", "urllib", "requests"}
     assert not {name.split(".")[0] for name in imported} & banned
     assert not {name.split(".")[-1] for name in imported} & banned

@@ -12,11 +12,11 @@ Covers every Lambda, table, AWS resource, and secret, with gaps + a phased plan 
 
 ## 1. Lambda functions (by domain)
 **Core (5):** contacts (`[retired public path 44011e36]`), messages-read (`/messages`), messages-delete, faq-handler (`[retired public path 1965ee0f]`), url-shortener (`[retired public path 21d99b11]`).
-**Messaging (24):** inbound-whatsapp (`/webhook/whatsapp`, 512MB/120s), outbound-whatsapp (SQS+API), whatsapp-business-api (`/wa-business/*`), whatsapp-calling, whatsapp-voice, whatsapp-templates, template-management, waba-management, outbound-sms, sms-aws, sms-in-airtel, outbound-email, outbound-voice, voice-aws, voice-in-c2c/obd/cdr, voice-cdr-read, scheduled-messages (EventBridge), template-analytics, ad-attribution, push-notifications, meta-analytics, media-cleanup.
+**Messaging (24):** inbound-whatsapp (`/webhook/whatsapp`, 512MB/120s), outbound-whatsapp (SQS+API), whatsapp-business-api (`/wa-business/*`), whatsapp-calling, whatsapp-voice, whatsapp-templates, template-management, waba-management, outbound-sms, sms-aws, outbound-email, voice-aws, voice-cdr-read, plivo-answer, pstn-softphone, scheduled-messages (EventBridge), template-analytics, ad-attribution, push-notifications, meta-analytics, media-cleanup.
 **AI (4):** ai-generate-response (Bedrock), ai-query-kb (KB), ai-config-management, agent-action-group (Bedrock Agent).
 **Payments (4):** razorpay-webhook, payu-webhook, payments-read, invoice-engine (8 tables).
 **Operations (7):** bulk-job-create, bulk-job-control, bulk-worker (SQS, 512MB/300s), dlq-replay, billing (AWS Health + Support/Trusted Advisor; Cost Explorer removed 2026-09-28), system-cleanup (EventBridge daily), sla-engine.
-**Ecommerce (2):** wix-store, product-image-gen.
+**Ecommerce:** checkout, native-catalog-admin, coupons, gift-cards, customer-orders, customer-invoice, meta-catalog-sync, product-image-gen.
 **Other core-dir (~8):** auth-middleware, automation-rules, conversation-meta, service-api, rcs-send, rcs-dlr, sinch-dlr, catalog-management.
 
 Findings:
@@ -32,7 +32,6 @@ The app's own infra map + some handlers reference table names that DON'T match l
 | `FAQTable` / env `FAQ_TABLE=…-FAQTable` | `FaqTable` | faq-handler may write to a non-existent table |
 | `AuditLog` / `AuditLogTable` (service_api.py) | `AuditLogsTable` | audit writes silently fail |
 | `RateLimitTracker` | `RateLimitTable` | (backend.ts TTL bug already removed) |
-| `OBDCampaignTable` | `OBDCampaigns` | OBD writes may fail |
 | `AdAttributionTable` | `AdClickAttributionTable` | ad-attribution writes may fail |
 | `TemplateTable` | (none — templates live in Meta) | dead reference |
 **Action:** grep each handler's real `os.environ.get(..., default)` and confirm the deployed env var overrides the wrong default. This is the #1 correctness risk found.
@@ -40,12 +39,12 @@ The app's own infra map + some handlers reference table names that DON'T match l
 ## 3. DynamoDB tables (~61) — grouped
 **Core:** `ContactsTable` (GSIs: phone, email, bsuid — used by 7 fns), `UsersTable`, `SystemConfigTable`, `FaqTable`, `ShortLinksTable`/`LinkClicksTable`, `MediaFilesTable`.
 **Messages:** `MessagesTable` (unified timeline), `WhatsAppInbound/Outbound` (TTL, GSIs), `WhatsAppCalling`, `WhatsAppVoice`, `WhatsAppGroup`, `ScheduledMessages`, `RcsMessages`(?).
-**SMS/Voice:** `SmsAws`, `AirtelSMS`, `SmsInAirtel`, `SmsOutbound`, `DLTTemplates`, `VoiceAws`, `AirtelC2C`, `VoiceCDR`, `VoiceCalls`, `OBDCampaigns`.
+**SMS/Voice:** `SmsAws`, `SmsOutbound`, `DLTTemplates`, `VoiceAws`, `VoiceCDR`, `VoiceCalls`.
 **Payments:** `Payments`, `Invoices`, `InvoiceItems`, `InvoiceAssets`, `InvoiceDeliveryLog`, `InvoiceSequence`, `Razorpay/PayUWebhookLog`.
 **Flows/Service:** `SubmitRequests`, `FlowRegistry`, `FlowSubmission`, `FlowLog`, `Order`, `Appointment`, `RxSlot`, `Document`, `EnterpriseAssist`, `Review`, `RequestStatusHistory`, `CallNotifications`.
 **AI:** `ConversationHistory`, `AIInteractions`.
 **Ops/Analytics:** `BulkJobs`, `BulkRecipients`, `DLQMessages`, `AuditLogs`, `RateLimit`, `SystemEvent`, `TemplateAnalytics`, `AdClickAttribution`, `CatalogCache`.
-**Ecom/Wix:** `WixProductsCache`, `WixOrdersCache`, `WixOrderIds`.
+**Commerce:** `Products`, `Cart`, `CommerceKeys`, `PaymentAttempts`, `Coupons`, `GiftCards`.
 
 Status: **TTL enabled on 19** (fixed this cycle); **PITR ON** (key tables); most per-channel tables are low-traffic/empty (NOT dead — have writers). Consolidation target ~61 → ~35–40 (see `AWS_CONSOLIDATION_AUDIT.md`).
 Per-table risks: single-table GSIs mostly fine; verify **PAY_PER_REQUEST** billing on all (throttle-free).
@@ -61,7 +60,7 @@ Per-table risks: single-table GSIs mostly fine; verify **PAY_PER_REQUEST** billi
 - **KMS:** keys present. (Rotation de-scoped by owner.)
 
 ## 5. Secrets Manager (11) — all used, well-namespaced
-`meta-app-secret`, `meta-system-user-token` (rotated Apr), `airtel-iq`, `airtel/obd`, `airtel/c2c`, `airtel/sms`, `flow-private-key`, `seo/google-oauth`, `wix-api-key`, `sinch/sms`, `sinch/rcs`.
+`meta-app-secret`, `meta-system-user-token` (rotated Apr), `flow-private-key`, `seo/google-oauth`, `sinch/sms`, `sinch/rcs`; retired-provider secrets are deleted (`docs/security.md`).
 - **Gap:** static tokens, no auto-rotation (most are external-provider tokens that can't auto-rotate). **Action:** monitor `LastAccessedDate` for stale secrets; ensure least-privilege resource policies. No secrets in code (all via Secrets Manager) — good.
 
 ## 6. Gaps summary (backend)

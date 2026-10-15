@@ -6,7 +6,7 @@ and mark the live read `WAITING_FOR_OWNER`**. Record scopes, ownership, quota, f
 provider request IDs where available."
 
 So the owner-blocked half is a legitimate closing state, and what was missing was the
-first half: nothing exercised the contract. `registry.py` described eight providers and
+first half: nothing exercised the contract. `registry.py` described every provider and
 `ReadResult` defined how a read must report itself, and **no test drove either**. A contract
 nobody runs is a docstring.
 
@@ -19,7 +19,7 @@ The five things the prompt names, and why each is checked
 * **ownership** — a registry without it cannot answer "who do we ask" when a read starts
   failing.
 * **scopes** — and read-only separated from write-capable, because a scope that happens to
-  read as read-only is how a write capability gets granted by accident. Two of the eight
+  read as read-only is how a write capability gets granted by accident. Two of the seven
   are only offered write-capable, and the registry's job is to make that visible, not to
   pretend it is safe.
 * **quota** — as used/limit, not a percentage. "Can I make 400 more calls today" is the
@@ -52,8 +52,8 @@ VAGUE = ("tbd", "todo", "investigate", "look into", "unknown", "figure out", "n/
 
 
 class TestTheRegistryDescribesEveryProviderFully:
-    def test_there_are_eight(self):
-        assert len(ALL_KEYS) == 8, ALL_KEYS
+    def test_there_are_seven(self):
+        assert len(ALL_KEYS) == 7, ALL_KEYS
 
     @pytest.mark.parametrize("key", ALL_KEYS)
     def test_ownership_is_recorded(self, key):
@@ -150,7 +150,7 @@ class TestWriteCapableScopesAreVisibleRatherThanHidden:
             f"is how a write capability gets granted while looking read-only")
 
     def test_at_least_one_provider_admits_a_write_capable_scope(self):
-        # The registry's docstring says two of the eight are in this position. If this ever
+        # The registry's docstring says two of the seven are in this position. If this ever
         # finds none, either the providers changed or somebody quietly moved a scope into
         # read_scopes to make the list look clean.
         with_write = [k for k in ALL_KEYS if reg.resolve(k).write_capable_scopes]
@@ -228,7 +228,7 @@ class TestTheReadResultContract:
 
     @pytest.mark.parametrize("key", ALL_KEYS)
     def test_every_provider_can_produce_a_describable_result(self, key):
-        # The contract has to hold for all eight, not just the one with an adapter.
+        # The contract has to hold for all seven, not just the one with an adapter.
         described = reg.ReadResult(provider=key, request_id="", fetched_at=NOW).describe(
             now=NOW)
         assert described["provider"] == key
@@ -253,17 +253,16 @@ class TestTheRegistryStillDoesNotFetch:
 
     def test_the_generated_frontend_snapshot_agrees_with_the_registry(self):
         # The UI renders a generated snapshot; if it drifts, the dashboard shows a
-        # connection state that is no longer true. Retired providers still resolve in
-        # the registry but the generator leaves them out of the snapshot on purpose.
+        # connection state that is no longer true. Every registry entry is in the snapshot.
         import json
         if str(ROOT / "scripts") not in sys.path:
             sys.path.insert(0, str(ROOT / "scripts"))
         import generate_integration_inventory as inventory
 
-        assert inventory.RETIRED <= set(ALL_KEYS), "a retired key is not in the registry"
+        assert not hasattr(inventory, "RETIRED"), "the snapshot carries every registry entry"
         snapshot = json.loads(
             (ROOT / "src/content/integration-registry.json").read_text())
-        assert {p["key"] for p in snapshot["providers"]} == set(ALL_KEYS) - inventory.RETIRED
+        assert {p["key"] for p in snapshot["providers"]} == set(ALL_KEYS)
         for entry in snapshot["providers"]:
             assert entry["access"] == reg.resolve(entry["key"]).access, (
                 f"{entry['key']} differs between the registry and the committed snapshot; "

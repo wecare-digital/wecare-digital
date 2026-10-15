@@ -4,7 +4,7 @@ What these tests defend
 -----------------------
 The mechanism (hashing, throttling, the ordered begin/complete flow) is tested in
 test_otp_challenge / test_otp_throttle / test_registration. This file tests the *handler's*
-obligations at the HTTP boundary (Section 59 of the Wix-Velo prompt):
+obligations at the HTTP boundary:
 
 - the OTP never appears in a response or a log;
 - `request` returns the same shape whether or not the number is a customer (no enumeration);

@@ -1,8 +1,6 @@
 {
   "anomalies": {
-    "errors7d": {
-      "wecare-wix-catalog-webhook": 1.0
-    },
+    "errors7d": {},
     "liveButNotInDeployMap": [
       "wecare-docs-scraper",
       "wecare-get-miss-redirect",
@@ -152,7 +150,6 @@
       "/whatsapp/inbound",
       "/whatsapp/template-management",
       "/whatsapp/voice",
-      "/wix-catalog-webhook",
       "/workspace/mcp-iam"
     ],
     "zeroInvocations7d": [
@@ -192,11 +189,11 @@
     ]
   },
   "counts": {
-    "functions": 76,
+    "functions": 74,
     "httpApis": 1,
-    "routes": 384,
-    "tables": 85,
-    "withLiveAlias": 69
+    "routes": 381,
+    "tables": 82,
+    "withLiveAlias": 67
   },
   "frontendCallersByRoutePath": {
     "/agent-tool": [],
@@ -1316,15 +1313,6 @@
       "src/test/PublicRouteRegistration.test.ts",
       "src/test/UncontrolledSelectState.test.tsx"
     ],
-    "/wix-catalog-webhook": [],
-    "/wix-store/{proxy+}": [
-      "src/api/client.ts",
-      "src/pages/workspace/commerce/catalog.tsx",
-      "src/pages/workspace/dashboard/code-repo.tsx",
-      "src/pages/workspace/dashboard/index.tsx",
-      "src/pages/workspace/dashboard/system-architecture.tsx",
-      "src/pages/workspace/engage/whatsapp/webhooks.tsx"
-    ],
     "/workspace/mcp": [
       "src/lib/workspace-mcp.test.ts",
       "src/lib/workspace-mcp.ts",
@@ -1913,16 +1901,12 @@
         "PAYMENT_WABA_ID",
         "RAZORPAY_SECRET_ID",
         "SECRETS_REFRESHED_AT",
-        "SENDER_FUNCTION",
-        "WIX_API_KEY_SECRET",
-        "WIX_CART_V2_ENABLED",
-        "WIX_SITE_ID"
+        "SENDER_FUNCTION"
       ],
       "envSensitiveNames": [
         "COMMERCE_KEYS_TABLE",
         "RAZORPAY_SECRET_ID",
-        "SECRETS_REFRESHED_AT",
-        "WIX_API_KEY_SECRET"
+        "SECRETS_REFRESHED_AT"
       ],
       "errors24h": 0.0,
       "errors7d": 0.0,
@@ -2925,14 +2909,11 @@
         "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK",
         "META_CATALOG_SYNC_VARIANT_IDS",
         "META_TOKEN_FIELD",
-        "META_TOKEN_SECRET",
-        "WIX_API_KEY_SECRET",
-        "WIX_SITE_ID"
+        "META_TOKEN_SECRET"
       ],
       "envSensitiveNames": [
         "META_TOKEN_FIELD",
-        "META_TOKEN_SECRET",
-        "WIX_API_KEY_SECRET"
+        "META_TOKEN_SECRET"
       ],
       "errors24h": 0.0,
       "errors7d": 0.0,
@@ -3042,8 +3023,6 @@
       "codeSha256": "UU2bVLmpjUDcr/v4kjQLZ1PGNRs+AX67CBBvYaJlvsg=",
       "deadLetterArn": null,
       "envNames": [
-        "AIRTEL_IQ_ENTITY_ID",
-        "AIRTEL_IQ_SOURCE_ADDRESS",
         "AWS_ACCOUNT_ID",
         "CONTACTS_TABLE",
         "LOG_LEVEL",
@@ -3342,14 +3321,10 @@
       "codeSha256": "tsz/BCq1Yo9PjJnL6gMD3FaXl3+ys12nGM7sbpN94rs=",
       "deadLetterArn": null,
       "envNames": [
-        "CREDENTIAL_PURGE_EPOCH",
-        "WIX_ACCOUNT_ID",
-        "WIX_CREDENTIALS_DISABLED",
-        "WIX_SITE_ID"
+        "CREDENTIAL_PURGE_EPOCH"
       ],
       "envSensitiveNames": [
-        "CREDENTIAL_PURGE_EPOCH",
-        "WIX_CREDENTIALS_DISABLED"
+        "CREDENTIAL_PURGE_EPOCH"
       ],
       "errors24h": 0.0,
       "errors7d": 0.0,
@@ -3725,17 +3700,10 @@
         "FAQ_AI_GENERATION",
         "LOG_LEVEL",
         "SEO_TOOLS_TABLE",
-        "WEBHOOK_DEDUP_TABLE",
-        "WIX_ACCOUNT_ID",
-        "WIX_BLOG_AUTHOR_NAME",
-        "WIX_BLOG_CLIENT_ID",
-        "WIX_CLIENT_ID",
-        "WIX_CREDENTIALS_DISABLED",
-        "WIX_SITE_ID"
+        "WEBHOOK_DEDUP_TABLE"
       ],
       "envSensitiveNames": [
-        "CREDENTIAL_PURGE_EPOCH",
-        "WIX_CREDENTIALS_DISABLED"
+        "CREDENTIAL_PURGE_EPOCH"
       ],
       "errors24h": 0.0,
       "errors7d": 0.0,
@@ -4355,10 +4323,7 @@
         "RAZORPAY_MID",
         "RAZORPAY_UPI_ID",
         "SECRETS_REFRESHED_AT",
-        "SUBMIT_REQUESTS_TABLE",
-        "WIX_ORDERS_CACHE_TABLE",
-        "WIX_ORDER_IDS_TABLE",
-        "WIX_SITE_URL"
+        "SUBMIT_REQUESTS_TABLE"
       ],
       "envSensitiveNames": [
         "FLOW_PRIVATE_KEY_PASSPHRASE",
@@ -4690,97 +4655,6 @@
       "snapStart": "None",
       "sourcePath": "amplify/functions/messaging/whatsapp-voice",
       "timeoutSec": 30
-    },
-    {
-      "aliases": {
-        "live": "9"
-      },
-      "architectures": [
-        "x86_64"
-      ],
-      "codeSha256": "JnJfnz3Zd0xzZcQUxfQRVXkb/nDB2BY6n3ZNwdm3Js4=",
-      "deadLetterArn": null,
-      "envNames": [
-        "CATALOGUE_DISPATCH_EVENT",
-        "GITHUB_REPOSITORY",
-        "GITHUB_TOKEN_SECRET_ID"
-      ],
-      "envSensitiveNames": [
-        "GITHUB_TOKEN_SECRET_ID"
-      ],
-      "errors24h": 0.0,
-      "errors7d": 1.0,
-      "eventSources": [],
-      "function": "wecare-wix-catalog-webhook",
-      "hasLiveAlias": true,
-      "inDeployMap": true,
-      "invocations24h": 1358.0,
-      "invocations7d": 1621.0,
-      "lastModified": "2026-10-07T09:45:45.000+0000",
-      "layers": [
-        "cryptography-python312:1"
-      ],
-      "logRetentionDays": 30,
-      "memoryMb": 128,
-      "packageType": "Zip",
-      "role": "wecare-wix-catalog-webhook-role",
-      "routeCount": 1,
-      "routes": [
-        "POST /wix-catalog-webhook"
-      ],
-      "runtime": "python3.12",
-      "snapStart": "None",
-      "sourcePath": "amplify/functions/ecommerce/wix-catalog-webhook",
-      "timeoutSec": 15
-    },
-    {
-      "aliases": {
-        "live": "37"
-      },
-      "architectures": [
-        "x86_64"
-      ],
-      "codeSha256": "oidx2+S1gKK/cugQkllFhtfZYu9LjBur4Tp/Pomn/Vc=",
-      "deadLetterArn": null,
-      "envNames": [
-        "ADMIN_MFA_REQUIRED",
-        "CONTACTS_TABLE",
-        "LOG_LEVEL",
-        "WIX_ACCOUNT_ID",
-        "WIX_API_BASE_URL",
-        "WIX_API_KEY_SECRET",
-        "WIX_CART_V2_ENABLED",
-        "WIX_ORDERS_CACHE_TABLE",
-        "WIX_ORDER_IDS_TABLE",
-        "WIX_PRODUCTS_CACHE_TABLE",
-        "WIX_SITE_ID"
-      ],
-      "envSensitiveNames": [
-        "WIX_API_KEY_SECRET"
-      ],
-      "errors24h": 0.0,
-      "errors7d": 0.0,
-      "eventSources": [],
-      "function": "wecare-wix-store",
-      "hasLiveAlias": true,
-      "inDeployMap": true,
-      "invocations24h": 2.0,
-      "invocations7d": 5.0,
-      "lastModified": "2026-10-08T12:02:06.000+0000",
-      "layers": [],
-      "logRetentionDays": 30,
-      "memoryMb": 256,
-      "packageType": "Zip",
-      "role": "wecare-digital-lambda-role",
-      "routeCount": 2,
-      "routes": [
-        "GET /wix-store/{proxy+}",
-        "POST /wix-store/{proxy+}"
-      ],
-      "runtime": "python3.12",
-      "snapStart": "None",
-      "sourcePath": "amplify/functions/ecommerce/wix-store",
-      "timeoutSec": 60
     },
     {
       "aliases": {
@@ -6456,15 +6330,6 @@
       "apiName": "wecare-digital-api",
       "authorizationType": "NONE",
       "qualifier": "live",
-      "routeId": "qfek1l4",
-      "routeKey": "GET /wix-store/{proxy+}",
-      "targetFunction": "wecare-wix-store"
-    },
-    {
-      "apiId": "zllr9lrg7j",
-      "apiName": "wecare-digital-api",
-      "authorizationType": "NONE",
-      "qualifier": "live",
       "routeId": "wpy94ev",
       "routeKey": "GET /workspace/mcp/oauth/callback",
       "targetFunction": "wecare-workspace-mcp"
@@ -8029,24 +7894,6 @@
     {
       "apiId": "zllr9lrg7j",
       "apiName": "wecare-digital-api",
-      "authorizationType": "NONE",
-      "qualifier": "live",
-      "routeId": "swuks1l",
-      "routeKey": "POST /wix-catalog-webhook",
-      "targetFunction": "wecare-wix-catalog-webhook"
-    },
-    {
-      "apiId": "zllr9lrg7j",
-      "apiName": "wecare-digital-api",
-      "authorizationType": "NONE",
-      "qualifier": "live",
-      "routeId": "9ixgehg",
-      "routeKey": "POST /wix-store/{proxy+}",
-      "targetFunction": "wecare-wix-store"
-    },
-    {
-      "apiId": "zllr9lrg7j",
-      "apiName": "wecare-digital-api",
       "authorizationType": "AWS_IAM",
       "qualifier": "live",
       "routeId": "btu2u41",
@@ -8370,9 +8217,6 @@
     "stack-wecare-digital-WhatsAppOutboundTable",
     "stack-wecare-digital-WhatsAppPhonesTable",
     "stack-wecare-digital-WhatsAppVoiceTable",
-    "stack-wecare-digital-WixOrderIds",
-    "stack-wecare-digital-WixOrdersCache",
-    "stack-wecare-digital-WixProductsCache",
     "wecare-workspace-mcp"
   ]
 }

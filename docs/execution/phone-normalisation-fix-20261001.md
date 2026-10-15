@@ -137,7 +137,7 @@ That function has **no `live` alias**, so `$LATEST` serves immediately.
 
 This change edited `lambda_utils/customer_session.py` — a top-level `*.py`, inside the glob — so
 the push that carried these commits deployed it. Run `36874922132` (head_sha `805c7517`) reached
-AWS at 14:16:00Z and failed only at the later live-Wix verification step, well after the deploy
+AWS at 14:16:00Z and failed only at a later live verification step, well after the deploy
 step succeeded. Run `36877743960` (head_sha `e455c87e`) deployed again at 14:37:45Z and is what
 `$LATEST` carries today, `CHw4cX6xTz0Kc36gW7zv5Kd6kokHStawGZwRA6NKxBU=`.
 

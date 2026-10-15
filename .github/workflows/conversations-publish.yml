@@ -1,18 +1,16 @@
 name: Conversations publish
-# The production orchestrator for Conversations publication, replacing an external
-# scheduler that nobody in this repository could see, resume or audit.
+# Validation and live audit for Conversations batches, checked against the AWS-native blog
+# contract (scripts/blog_native_contract.py).
 #
-# VALIDATION AND AUDIT ONLY. Provider publication has moved to AWS-native Blog Studio.
-# The legacy publish input is retained only so old dispatch callers fail explicitly instead of
-# silently doing nothing or reviving a retired provider path.
+# NOTHING HERE PUBLISHES. Publication belongs to AWS-native Blog Studio, where an operator
+# releases a signed-off article and wecare-seo-tools performs the write. The `publish`
+# input is kept only so an old dispatch that still sets it fails loudly instead of silently
+# doing nothing.
 #
-# MUTATION REQUIRES AN EXPLICIT DISPATCH. A push or a pull request can only validate. The
-# publish job additionally requires the `publish` input to be flipped to true, which is the
-# same shape the Gastronomy gate uses and is the run-level human gate.
-#
-# The record-level human gate is enforced inside the runner: only records whose eleven
-# `gate` answers a human has recorded reach READY_TO_PUBLISH, and only READY_TO_PUBLISH
-# records are sent. A manifest full of ungated records publishes nothing.
+# A push or a pull request can only validate. `validate` reports the READY_TO_PUBLISH queue:
+# only records whose eleven `gate` answers a human has recorded reach it, so a manifest full
+# of ungated records queues nothing. The audit reads published posts back through the
+# public read route of wecare-seo-tools and needs a dispatch naming a manifest.
 
 on:
   pull_request:
@@ -21,7 +19,7 @@ on:
       - 'content/conversations/**'
       - 'scripts/conversations_batch.py'
       - 'scripts/conversations_archive_triage.py'
-      - 'scripts/wix_blog_migrate.py'
+      - 'scripts/blog_native_contract.py'
       - 'scripts/blog_quality_v2.py'
       - 'scripts/blog_ledger.py'
       - 'tests/test_conversations_batch.py'
@@ -33,6 +31,7 @@ on:
       - 'content/conversations/**'
       - 'scripts/conversations_batch.py'
       - 'scripts/conversations_archive_triage.py'
+      - 'scripts/blog_native_contract.py'
       - 'tests/test_conversations_batch.py'
       - 'tests/test_conversations_archive_triage.py'
       - '.github/workflows/conversations-publish.yml'
@@ -41,7 +40,7 @@ on:
       manifest:
         # Optional so the workflow can be dispatched as a validate-only smoke run before
         # any manifest exists. A path that is NAMED but missing still fails loudly; only a
-        # deliberately blank input skips. Publishing without one is refused below.
+        # deliberately blank input skips. The audit runs only when one is named.
         description: 'Batch manifest path. Blank validates the committed batches only.'
         required: false
         default: ''
@@ -62,11 +61,8 @@ on:
         default: true
         type: boolean
 
-# THE LOCK IS THE POINT. Publishing is idempotent by slug, but idempotence is decided by
-# reading the live corpus first - so two runs overlapping between one run's read and its
-# write can both conclude the same post is missing and both create it. A duplicate
-# published article is the one failure here that cannot be undone afterwards, so runs
-# queue rather than overlap, and nothing is cancelled mid-publish.
+# Runs queue rather than overlap. Nothing here writes to the live blog, so the lock only
+# keeps two dispatched audits from interleaving their reports.
 concurrency:
   group: conversations-publish
   cancel-in-progress: false
@@ -84,12 +80,10 @@ jobs:
           python-version: '3.12'
 
       - name: Install validation dependencies
-        # boto3 is needed even though this job holds no AWS role: the runner compiles each
-        # body through wix_blog_migrate's Ricos compiler, and that module imports boto3 at
-        # module scope. Compiling is pure and reaches no AWS API.
+        # pytest only. This job holds no AWS role and validation needs no AWS SDK: the
+        # native contract is checked on the committed Markdown itself.
         run: |
-          python -m pip install --disable-pip-version-check \
-            pytest==9.1.1 boto3==1.43.98
+          python -m pip install --disable-pip-version-check pytest==9.1.1
 
       - name: Runner contract tests
         run: |
@@ -125,14 +119,14 @@ jobs:
     needs: validate
     runs-on: ubuntu-26.04
     steps:
-      - name: Refuse retired provider publication
+      - name: Refuse publication from this workflow
         run: |
-          echo "::error::Wix publication is retired. Publish approved content through AWS-native Blog Studio."
+          echo "::error::This workflow does not publish. Publish approved content through AWS-native Blog Studio."
           exit 1
 
   audit-only:
-    # An audit with no publish, for re-verifying a batch or rebuilding a lost VERIFIED
-    # checkpoint from live state.
+    # Reads a dispatched batch back off the live site. The role only needs to invoke the
+    # public read route of wecare-seo-tools; the audit writes nothing to AWS.
     if: github.event_name == 'workflow_dispatch' && inputs.publish == false && inputs.audit == true && inputs.manifest != ''
     needs: validate
     runs-on: ubuntu-26.04

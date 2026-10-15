@@ -296,7 +296,7 @@ export const IAM_POLICIES = {
     ],
   },
 
-  // S3 permissions (for non-WhatsApp S3 access — voice recordings, OBD uploads, etc.)
+  // S3 permissions (for non-WhatsApp S3 access — voice recordings, product images, bulk-job files, etc.)
   s3: {
     Version: '2012-10-17',
     Statement: [
@@ -383,7 +383,7 @@ export const FUNCTION_POLICIES: Record<string, string[]> = {
   'wecare-outbound-email': [ 'common', 'email', 'sqs' ],
   'wecare-sms-aws': [ 'common', 'sms' ],
 
-  // === Voice (AWS Pinpoint) ===
+  // === Voice (AWS End User Messaging) ===
   'wecare-voice-aws': [ 'common', 'sms' ],
 
   // === PSTN voice (Plivo) ===
@@ -400,9 +400,8 @@ export const FUNCTION_POLICIES: Record<string, string[]> = {
   'wecare-plivo-answer': [ 'common', 'secrets', 'lambdaInvoke' ],
 
   // === Voice operations ===
-  'wecare-voice-cdr-webhook': [ 'common', 's3' ],          // CDR webhook (primary route)
+  // Reads (and, on DELETE, clears) VoiceCDRTable. plivo-answer is its only writer.
   'wecare-voice-cdr-read': [ 'common' ],
-  'wecare-voice-calls-read': [ 'common' ],                  // alias of voice-cdr-read
 
   // === Scheduled & Bulk ===
   'wecare-scheduled-messages': [ 'common', 'lambdaInvoke' ],

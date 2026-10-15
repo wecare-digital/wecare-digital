@@ -62,7 +62,7 @@ def contacts(monkeypatch):
 def test_the_crm_declares_the_same_attribute_names_the_checkout_writes(contacts):
     """One definition of the two names, in two places that must never drift.
 
-    `core/contacts` does not import `contact_address` - that would pull `wix_address` and the
+    `core/contacts` does not import `contact_address` - that would pull `india_address` and the
     India tax tables into a CRM handler for two string constants - so the names are repeated
     locally and pinned HERE instead. A rename on the write side fails this test rather than
     silently blanking a column.

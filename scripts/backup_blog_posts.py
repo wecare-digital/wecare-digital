@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Full off-DynamoDB backup of every blogPost record (read-only).
 
-Insurance before any Wix deletion: dumps all `recordType=blogPost` items from
+Insurance before any bulk blog change: dumps all `recordType=blogPost` items from
 `stack-wecare-digital-SeoToolsTable` to a single JSON file with a per-record
 sha256 and a manifest (count, total bytes, min/median/max content length, any
-empty/duplicate slugs). READ-ONLY — never writes to DynamoDB or Wix.
+empty/duplicate slugs). READ-ONLY — never writes to DynamoDB.
 
 Usage:
     python scripts/backup_blog_posts.py                       # -> outputs/blog-backup-<ts>.json

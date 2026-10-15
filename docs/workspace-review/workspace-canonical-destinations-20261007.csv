@@ -2,7 +2,7 @@ Existing route,Canonical destination,Audit decision,Preservation or gap,Current 
 /workspace/access,Settings / Your account,Keep account control,Account/access and security settings remain distinct from customer WhatsApp OTP.,src/pages/workspace/access/index.tsx
 /workspace/access/security,Settings / Your account,Keep account control,Account/access and security settings remain distinct from customer WhatsApp OTP.,src/pages/workspace/access/security.tsx
 /workspace/admin,Settings / Platform,Keep redirect; de-list,Intentional compatibility redirect; do not count as an independent feature.,src/pages/workspace/admin/index.tsx
-/workspace/commerce/catalog,Catalog,Canonical catalog,Wix products/orders/collections and sync are real API workflows; make selected product/order actions explicit.,src/pages/workspace/commerce/catalog.tsx
+/workspace/commerce/catalog,Catalog,Canonical catalog,Native products/orders/collections and sync are real API workflows; make selected product/order actions explicit.,src/pages/workspace/commerce/catalog.tsx
 /workspace/commerce,Catalog,Defer flagged home,Commerce module defaults OFF. Current app/branch env does not enable it; preserve working catalog/commerce routes.,src/pages/workspace/commerce/index.tsx
 /workspace/contacts,Contacts,Canonical contacts,Contact list/import/edit are core; selected contact owns conversation/order/payment context.,src/pages/workspace/contacts/index.tsx
 /workspace/dashboard/code-repo,Settings / Platform,Move to developer docs,"Static code registry, not a GitHub browser; maintain one generated source inventory.",src/pages/workspace/dashboard/code-repo.tsx
@@ -21,7 +21,7 @@ Existing route,Canonical destination,Audit decision,Preservation or gap,Current 
 /workspace/engage/automation,Settings / Automation & AI,Keep; consistent pattern,Preserve current capability and remove redundant shell/navigation; backend health remains unverified end to end.,src/pages/workspace/engage/automation/index.tsx
 /workspace/engage/broadcast,Campaigns,Keep operational view,Audience/send and delivery logs are complementary tasks; reuse data and filters rather than duplicate stores.,src/pages/workspace/engage/broadcast/index.tsx
 /workspace/engage/channels,Settings / Channels,Merge navigation hub,Channel entry grid is useful navigation but not backend channel health.,src/pages/workspace/engage/channels/index.tsx
-/workspace/engage/commerce,Catalog,Keep contextual tools,WhatsApp native catalog/order/payment actions differ from Wix product inventory; link records rather than merge models.,src/pages/workspace/engage/commerce/index.tsx
+/workspace/engage/commerce,Catalog,Keep contextual tools,WhatsApp native catalog/order/payment actions differ from the website product inventory; link records rather than merge models.,src/pages/workspace/engage/commerce/index.tsx
 /workspace/engage/contact-360,Contacts,Merge into detail,Useful customer context; open from selected contact rather than another list destination.,src/pages/workspace/engage/contact-360/index.tsx
 /workspace/engage/content,Campaigns,Merge resource views,Template aggregation should reuse canonical channel template lists.,src/pages/workspace/engage/content/index.tsx
 /workspace/engage/cost,Campaigns,Keep labeled estimate,"Volume times editable rates is a planning estimate, not actual invoice or Cost Explorer.",src/pages/workspace/engage/cost/index.tsx

@@ -1,6 +1,6 @@
 # Service implementation matrix
 
-**Generated** by `scripts/generate_service_matrix.py` from `docs/execution/runtime-inventory.json` (`2026-09-26T01:13:09+00:00`), region `us-east-1`.
+**Generated** by `scripts/generate_service_matrix.py` from `docs/execution/runtime-inventory.json` (`2026-10-08T22:39:47+00:00`), region `us-east-1`.
 
 Do not hand-edit. Regenerate:
 
@@ -13,11 +13,11 @@ python scripts/generate_service_matrix.py
 
 | | Measured |
 |---|---:|
-| functions | 65 |
-| routes | 361 |
-| tables | 79 |
-| functions with a `live` alias | 58 |
-| functions in the deploy map | 62 |
+| functions | 74 |
+| routes | 381 |
+| tables | 82 |
+| functions with a `live` alias | 67 |
+| functions in the deploy map | 69 |
 
 ## Read this before drawing conclusions
 
@@ -30,71 +30,80 @@ python scripts/generate_service_matrix.py
 
 | Function | Source | Deploy owner | `live` | Routes | Inv 7d | Err 7d | Log ret. | Event sources |
 |---|---|---|:-:|--:|--:|--:|--:|---|
-| `stack-wecare-url-shortener` | `amplify/functions/core/url-shortener` | `deploy_all_lambdas.py` | yes | 7 | 607 | 0 | 30 | — |
-| `wecare-ad-attribution` | `amplify/functions/messaging/ad-attribution` | `deploy_all_lambdas.py` | **no** | 0 | 3 | 0 | 30 | — |
-| `wecare-agent-action-group` | `amplify/functions/ai/agent-action-group` | `deploy_all_lambdas.py` | yes | 1 | 13 | 0 | 30 | — |
-| `wecare-ai-config-management` | `amplify/functions/ai/ai-config-management` | `deploy_all_lambdas.py` | yes | 17 | 1 | 0 | 30 | — |
-| `wecare-ai-generate-response` | `amplify/functions/ai/ai-generate-response` | `deploy_all_lambdas.py` | yes | 3 | 52 | 0 | 30 | — |
+| `stack-wecare-url-shortener` | `amplify/functions/core/url-shortener` | `deploy_all_lambdas.py` | yes | 6 | 50 | 0 | 30 | — |
+| `wecare-ad-attribution` | `amplify/functions/messaging/ad-attribution` | `deploy_all_lambdas.py` | **no** | 0 | 0 | 0 | 30 | — |
+| `wecare-agent-action-group` | `amplify/functions/ai/agent-action-group` | `deploy_all_lambdas.py` | yes | 1 | 0 | 0 | 30 | — |
+| `wecare-ai-config-management` | `amplify/functions/ai/ai-config-management` | `deploy_all_lambdas.py` | yes | 17 | 0 | 0 | 30 | — |
+| `wecare-ai-generate-response` | `amplify/functions/ai/ai-generate-response` | `deploy_all_lambdas.py` | yes | 3 | 4 | 0 | 30 | — |
 | `wecare-ai-query-kb` | `amplify/functions/ai/ai-query-kb` | `deploy_all_lambdas.py` | yes | 1 | 0 | 0 | 30 | — |
 | `wecare-auth-middleware` | `amplify/functions/core/auth-middleware` | `deploy_all_lambdas.py` | yes | 1 | 0 | 0 | 30 | — |
-| `wecare-automation-rules` | `amplify/functions/core/automation-rules` | `deploy_all_lambdas.py` | yes | 6 | 55 | 0 | 90 | — |
-| `wecare-billing` | `amplify/functions/operations/billing` | `deploy_all_lambdas.py` | yes | 2 | 43 | 0 | 30 | — |
+| `wecare-automation-rules` | `amplify/functions/core/automation-rules` | `deploy_all_lambdas.py` | yes | 6 | 40 | 0 | 90 | — |
+| `wecare-billing` | `amplify/functions/operations/billing` | `deploy_all_lambdas.py` | yes | 2 | 464 | 0 | 30 | — |
 | `wecare-bulk-job-control` | `amplify/functions/operations/bulk-job-control` | `deploy_all_lambdas.py` | yes | 2 | 0 | 0 | 30 | — |
 | `wecare-bulk-job-create` | `amplify/functions/operations/bulk-job-create` | `deploy_all_lambdas.py` | yes | 5 | 0 | 0 | 30 | — |
-| `wecare-bulk-worker` | `amplify/functions/operations/bulk-worker` | `deploy_all_lambdas.py` | yes | 1 | 36 | 0 | 30 | stack-wecare-digital-bulk-queue |
-| `wecare-catalog-management` | `amplify/functions/ecommerce/catalog-management` | `deploy_all_lambdas.py` | yes | 0 | 0 | 0 | 30 | — |
-| `wecare-cognito-custom-message` | `amplify/functions/auth/cognito-custom-message` | `deploy_all_lambdas.py` | yes | 0 | 6 | 0 | 30 | — |
-| `wecare-contacts` | `amplify/functions/core/contacts` | `deploy_all_lambdas.py` | yes | 7 | 2283 | 0 | 30 | — |
-| `wecare-conversation-meta` | `amplify/functions/core/conversation-meta` | `deploy_all_lambdas.py` | yes | 7 | 227 | 0 | 90 | — |
-| `wecare-crm` | `amplify/functions/core/crm` | `deploy_all_lambdas.py` | yes | 12 | 27 | 0 | 30 | — |
-| `wecare-customer-whatsapp-auth` | `amplify/functions/auth/customer-whatsapp-auth` | `deploy_all_lambdas.py` | yes | 0 | 58 | **1** | 30 | — |
+| `wecare-bulk-worker` | `amplify/functions/operations/bulk-worker` | `deploy_all_lambdas.py` | yes | 1 | 0 | 0 | 30 | stack-wecare-digital-bulk-queue |
+| `wecare-catalog-management` | `amplify/functions/ecommerce/catalog-management` | `deploy_all_lambdas.py` | yes | 0 | 4 | 0 | 30 | — |
+| `wecare-checkout` | `amplify/functions/ecommerce/checkout` | `deploy_all_lambdas.py` | yes | 5 | 242 | 0 | 30 | — |
+| `wecare-cognito-custom-message` | `amplify/functions/auth/cognito-custom-message` | `deploy_all_lambdas.py` | yes | 0 | 10 | 0 | 30 | — |
+| `wecare-contacts` | `amplify/functions/core/contacts` | `deploy_all_lambdas.py` | yes | 7 | 3098 | 0 | 30 | — |
+| `wecare-conversation-meta` | `amplify/functions/core/conversation-meta` | `deploy_all_lambdas.py` | yes | 7 | 199 | 0 | 90 | — |
+| `wecare-coupons` | `amplify/functions/ecommerce/coupons` | `deploy_all_lambdas.py` | yes | 7 | 15 | 0 | 30 | — |
+| `wecare-crm` | `amplify/functions/core/crm` | `deploy_all_lambdas.py` | yes | 12 | 0 | 0 | 30 | — |
+| `wecare-customer-orders` | `amplify/functions/ecommerce/customer-orders` | `deploy_all_lambdas.py` | yes | 1 | 10 | 0 | 30 | — |
+| `wecare-customer-profile` | `amplify/functions/auth/customer-profile` | `deploy_all_lambdas.py` | yes | 2 | 4 | 0 | 30 | — |
+| `wecare-customer-session` | `amplify/functions/ecommerce/customer-session` | `deploy_all_lambdas.py` | yes | 1 | 46 | 0 | 30 | — |
+| `wecare-customer-whatsapp-auth` | `amplify/functions/auth/customer-whatsapp-auth` | `deploy_all_lambdas.py` | yes | 0 | 55 | 0 | 30 | — |
 | `wecare-dlq-replay` | `amplify/functions/operations/dlq-replay` | `deploy_all_lambdas.py` | yes | 3 | 0 | 0 | 30 | — |
-| `wecare-docs-scraper` | `—` | GitHub Actions (container image) | **no** | 4 | 14 | 0 | 90 | — |
+| `wecare-docs-scraper` | `—` | GitHub Actions (container image) | **no** | 4 | 7 | 0 | 90 | — |
+| `wecare-email-verification` | `amplify/functions/auth/email-verification` | `deploy_all_lambdas.py` | yes | 2 | 50 | 0 | 30 | — |
 | `wecare-faq-handler` | `amplify/functions/core/faq-handler` | `deploy_all_lambdas.py` | yes | 1 | 0 | 0 | 30 | — |
 | `wecare-get-miss-redirect` | `—` | own deployer (Lambda@Edge, associates by version) | **no** | 0 | 0 | 0 | 30 | — |
-| `wecare-inbound-whatsapp` | `amplify/functions/messaging/inbound-whatsapp-handler` | `deploy_all_lambdas.py` | yes | 1 | 1109 | **9** | 30 | — |
-| `wecare-invoice-engine` | `amplify/functions/payments/invoice-engine` | `deploy_all_lambdas.py` | yes | 17 | 2 | 0 | 30 | — |
+| `wecare-inbound-whatsapp` | `amplify/functions/messaging/inbound-whatsapp-handler` | `deploy_all_lambdas.py` | yes | 1 | 1360 | 0 | 30 | — |
+| `wecare-invoice-engine` | `amplify/functions/payments/invoice-engine` | `deploy_all_lambdas.py` | yes | 17 | 39 | 0 | 30 | — |
 | `wecare-marketing-ads` | `amplify/functions/messaging/marketing-ads` | `deploy_all_lambdas.py` | yes | 2 | 2 | 0 | 90 | — |
+| `wecare-mcp` | `—` | **none — unpatchable** | yes | 1 | 39 | 0 | 30 | — |
 | `wecare-media-cleanup` | `amplify/functions/messaging/media-cleanup` | `deploy_all_lambdas.py` | yes | 1 | 7 | 0 | 30 | — |
 | `wecare-messages-delete` | `amplify/functions/core/messages-delete` | `deploy_all_lambdas.py` | yes | 3 | 0 | 0 | 30 | — |
-| `wecare-messages-read` | `amplify/functions/core/messages-read` | `deploy_all_lambdas.py` | yes | 1 | 2321 | 0 | 30 | — |
+| `wecare-messages-read` | `amplify/functions/core/messages-read` | `deploy_all_lambdas.py` | yes | 1 | 3517 | 0 | 30 | — |
 | `wecare-meta-analytics` | `amplify/functions/messaging/meta-analytics` | `deploy_all_lambdas.py` | yes | 0 | 0 | 0 | 30 | — |
-| `wecare-meta-business-agent` | `amplify/functions/messaging/meta-business-agent` | `deploy_all_lambdas.py` | yes | 2 | 1 | 0 | 90 | — |
-| `wecare-notification-worker` | `amplify/functions/messaging/notification-worker` | `deploy_all_lambdas.py` | yes | 0 | 4 | 0 | 30 | — |
-| `wecare-outbound-email` | `amplify/functions/messaging/outbound-email` | `deploy_all_lambdas.py` | yes | 1 | 1 | 0 | 30 | — |
-| `wecare-outbound-sms` | `amplify/functions/messaging/outbound-sms` | `deploy_all_lambdas.py` | yes | 1 | 1 | 0 | 30 | — |
-| `wecare-outbound-whatsapp` | `amplify/functions/messaging/outbound-whatsapp` | `deploy_all_lambdas.py` | yes | 1 | 617 | 0 | 30 | — |
-| `wecare-partner-onboarding` | `amplify/functions/messaging/partner-onboarding` | `deploy_all_lambdas.py` | yes | 21 | 3 | 0 | 90 | — |
+| `wecare-meta-business-agent` | `amplify/functions/messaging/meta-business-agent` | `deploy_all_lambdas.py` | yes | 2 | 0 | 0 | 90 | — |
+| `wecare-meta-catalog-sync` | `amplify/functions/ecommerce/meta-catalog-sync` | `deploy_all_lambdas.py` | yes | 0 | 1376 | 0 | 30 | — |
+| `wecare-notification-worker` | `amplify/functions/messaging/notification-worker` | `deploy_all_lambdas.py` | yes | 0 | 0 | 0 | 30 | — |
+| `wecare-outbound-email` | `amplify/functions/messaging/outbound-email` | `deploy_all_lambdas.py` | yes | 1 | 0 | 0 | 30 | — |
+| `wecare-outbound-sms` | `amplify/functions/messaging/outbound-sms` | `deploy_all_lambdas.py` | yes | 1 | 0 | 0 | 30 | — |
+| `wecare-outbound-whatsapp` | `amplify/functions/messaging/outbound-whatsapp` | `deploy_all_lambdas.py` | yes | 1 | 1215 | 0 | 30 | — |
+| `wecare-partner-onboarding` | `amplify/functions/messaging/partner-onboarding` | `deploy_all_lambdas.py` | yes | 21 | 0 | 0 | 90 | — |
 | `wecare-partner-token-refresh` | `amplify/functions/messaging/partner-token-refresh` | `deploy_all_lambdas.py` | **no** | 0 | 7 | 0 | 90 | — |
 | `wecare-payments-read` | `amplify/functions/payments/payments-read` | `deploy_all_lambdas.py` | yes | 2 | 0 | 0 | 30 | — |
-| `wecare-plivo-answer` | `amplify/functions/messaging/plivo-answer` | `deploy_all_lambdas.py` | yes | 5 | 217 | 0 | 30 | — |
-| `wecare-product-image-gen` | `amplify/functions/ecommerce/product-image-gen` | `deploy_all_lambdas.py` | yes | 3 | 36 | 0 | 30 | — |
-| `wecare-pstn-softphone` | `amplify/functions/messaging/pstn-softphone` | `deploy_all_lambdas.py` | yes | 5 | 5 | 0 | 30 | — |
-| `wecare-push-notifications` | `amplify/functions/messaging/push-notifications` | `deploy_all_lambdas.py` | yes | 2 | 3 | 0 | 30 | — |
-| `wecare-razorpay-webhook` | `amplify/functions/payments/razorpay-webhook` | `deploy_all_lambdas.py` | yes | 2 | 5143 | 0 | 30 | — |
-| `wecare-rcs-dlr` | `amplify/functions/messaging/rcs-dlr` | `deploy_all_lambdas.py` | yes | 2 | 791 | 0 | 90 | — |
-| `wecare-rcs-send` | `amplify/functions/messaging/rcs-send` | `deploy_all_lambdas.py` | yes | 3 | 420 | 0 | 90 | — |
-| `wecare-scheduled-messages` | `amplify/functions/messaging/scheduled-messages` | `deploy_all_lambdas.py` | yes | 3 | 2018 | 0 | 30 | — |
-| `wecare-secure-files` | `amplify/functions/core/secure-files` | `deploy_all_lambdas.py` | yes | 8 | 63 | 0 | 30 | — |
-| `wecare-seo-tools` | `—` | `scripts/deploy_seo_tools.py` | **no** | 2 | 47876 | **2** | 30 | — |
+| `wecare-plivo-answer` | `amplify/functions/messaging/plivo-answer` | `deploy_all_lambdas.py` | yes | 5 | 108 | 0 | 30 | — |
+| `wecare-product-image-gen` | `amplify/functions/ecommerce/product-image-gen` | `deploy_all_lambdas.py` | yes | 3 | 0 | 0 | 30 | — |
+| `wecare-pstn-softphone` | `amplify/functions/messaging/pstn-softphone` | `deploy_all_lambdas.py` | yes | 5 | 0 | 0 | 30 | — |
+| `wecare-push-notifications` | `amplify/functions/messaging/push-notifications` | `deploy_all_lambdas.py` | yes | 2 | 0 | 0 | 30 | — |
+| `wecare-razorpay-webhook` | `amplify/functions/payments/razorpay-webhook` | `deploy_all_lambdas.py` | yes | 1 | 18 | 0 | 30 | — |
+| `wecare-rcs-dlr` | `amplify/functions/messaging/rcs-dlr` | `deploy_all_lambdas.py` | yes | 2 | 1390 | 0 | 90 | — |
+| `wecare-rcs-send` | `amplify/functions/messaging/rcs-send` | `deploy_all_lambdas.py` | yes | 3 | 1095 | 0 | 90 | — |
+| `wecare-scheduled-messages` | `amplify/functions/messaging/scheduled-messages` | `deploy_all_lambdas.py` | yes | 3 | 2016 | 0 | 30 | — |
+| `wecare-secure-files` | `amplify/functions/core/secure-files` | `deploy_all_lambdas.py` | yes | 10 | 4 | 0 | 30 | — |
+| `wecare-seo-tools` | `—` | `scripts/deploy_seo_tools.py` | **no** | 2 | 592646 | 0 | 30 | wecare-blog-ingest |
 | `wecare-service-api` | `amplify/functions/core/service-api` | `deploy_all_lambdas.py` | yes | 0 | 0 | 0 | 30 | — |
-| `wecare-site-language` | `amplify/functions/core/site-language` | `deploy_all_lambdas.py` | yes | 5 | 11658 | 0 | 30 | — |
+| `wecare-service-requests` | `amplify/functions/ecommerce/service-requests` | `deploy_all_lambdas.py` | yes | 2 | 6 | 0 | 30 | — |
+| `wecare-site-language` | `amplify/functions/core/site-language` | `deploy_all_lambdas.py` | yes | 3 | 88190 | 0 | 30 | — |
 | `wecare-sla-engine` | `amplify/functions/operations/sla-engine` | `deploy_all_lambdas.py` | **no** | 0 | 0 | 0 | 30 | — |
-| `wecare-sms-aws` | `amplify/functions/messaging/sms-aws` | `deploy_all_lambdas.py` | yes | 9 | 95 | 0 | 30 | — |
-| `wecare-system-cleanup` | `amplify/functions/operations/system-cleanup` | `deploy_all_lambdas.py` | yes | 3 | 16 | 0 | 30 | — |
+| `wecare-sms-aws` | `amplify/functions/messaging/sms-aws` | `deploy_all_lambdas.py` | yes | 9 | 49 | 0 | 30 | — |
+| `wecare-system-cleanup` | `amplify/functions/operations/system-cleanup` | `deploy_all_lambdas.py` | yes | 3 | 14 | 0 | 30 | — |
 | `wecare-template-analytics` | `amplify/functions/messaging/template-analytics` | `deploy_all_lambdas.py` | yes | 3 | 0 | 0 | 30 | — |
 | `wecare-url-shortener` | `amplify/functions/core/url-shortener` | `deploy_all_lambdas.py` | **no** | 0 | 0 | 0 | 90 | — |
-| `wecare-voice-aws` | `amplify/functions/messaging/voice-aws` | `deploy_all_lambdas.py` | yes | 8 | 3 | 0 | 30 | — |
-| `wecare-voice-cdr-read` | `amplify/functions/messaging/voice-cdr-read` | `deploy_all_lambdas.py` | yes | 2 | 2 | 0 | 30 | — |
-| `wecare-voice-in-c2c` | `amplify/functions/messaging/voice-in/c2c` | `deploy_all_lambdas.py` | yes | 4 | 40 | 0 | 30 | — |
-| `wecare-voice-in-obd` | `amplify/functions/messaging/voice-in/obd` | `deploy_all_lambdas.py` | yes | 12 | 39 | 0 | 30 | — |
-| `wecare-waba-management` | `amplify/functions/messaging/waba-management` | `deploy_all_lambdas.py` | yes | 14 | 8 | 0 | 30 | — |
-| `wecare-whatsapp-business-api` | `amplify/functions/messaging/whatsapp-business-api` | `deploy_all_lambdas.py` | yes | 94 | 8080 | 0 | 30 | — |
-| `wecare-whatsapp-calling` | `amplify/functions/messaging/whatsapp-calling` | `deploy_all_lambdas.py` | yes | 11 | 1655 | 0 | 30 | — |
+| `wecare-voice-aws` | `amplify/functions/messaging/voice-aws` | `deploy_all_lambdas.py` | yes | 8 | 0 | 0 | 30 | — |
+| `wecare-voice-cdr-read` | `amplify/functions/messaging/voice-cdr-read` | `deploy_all_lambdas.py` | yes | 2 | 0 | 0 | 30 | — |
+| `wecare-voice-in-c2c` | `amplify/functions/messaging/voice-in/c2c` | `deploy_all_lambdas.py` | yes | 4 | 0 | 0 | 30 | — |
+| `wecare-voice-in-obd` | `amplify/functions/messaging/voice-in/obd` | `deploy_all_lambdas.py` | yes | 12 | 0 | 0 | 30 | — |
+| `wecare-waba-management` | `amplify/functions/messaging/waba-management` | `deploy_all_lambdas.py` | yes | 14 | 0 | 0 | 30 | — |
+| `wecare-whatsapp-business-api` | `amplify/functions/messaging/whatsapp-business-api` | `deploy_all_lambdas.py` | yes | 94 | 110 | 0 | 30 | — |
+| `wecare-whatsapp-calling` | `amplify/functions/messaging/whatsapp-calling` | `deploy_all_lambdas.py` | yes | 11 | 1278 | 0 | 30 | — |
 | `wecare-whatsapp-template-management` | `amplify/functions/messaging/whatsapp-template-management` | `deploy_all_lambdas.py` | yes | 5 | 0 | 0 | 30 | — |
-| `wecare-whatsapp-templates` | `amplify/functions/messaging/whatsapp-templates` | `deploy_all_lambdas.py` | yes | 12 | 24 | 0 | 30 | — |
-| `wecare-whatsapp-voice` | `amplify/functions/messaging/whatsapp-voice` | `deploy_all_lambdas.py` | yes | 9 | 35 | 0 | 30 | — |
-| `wecare-wix-store` | `amplify/functions/ecommerce/wix-store` | `deploy_all_lambdas.py` | yes | 2 | 7 | 0 | 30 | — |
+| `wecare-whatsapp-templates` | `amplify/functions/messaging/whatsapp-templates` | `deploy_all_lambdas.py` | yes | 12 | 25 | 0 | 30 | — |
+| `wecare-whatsapp-voice` | `amplify/functions/messaging/whatsapp-voice` | `deploy_all_lambdas.py` | yes | 9 | 40 | 0 | 30 | — |
+| `wecare-workspace-mcp` | `—` | **none — unpatchable** | yes | 3 | 633 | 0 | 14 | — |
 
 ## Routes, and the frontend that calls them
 
@@ -107,8 +116,7 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 | `DELETE /links/{code}` | live | NONE | `design-reference.tsx`, `index.tsx` |
 | `GET /links` | live | NONE | `design-reference.tsx`, `index.tsx` |
 | `GET /links/{code}` | live | NONE | `design-reference.tsx`, `index.tsx` |
-| `GET /r/{code}` | live | NONE | `client.ts`, `seo.ts`, `BottomNav.tsx`, `Header.tsx` +65 |
-| `GET /{code}` | live | NONE | — none |
+| `GET /r/{code}` | live | NONE | `client.ts`, `seo.ts`, `BottomNav.tsx`, `FloatingAgent.tsx` +169 |
 | `POST /links` | live | NONE | `design-reference.tsx`, `index.tsx` |
 | `PUT /links/{code}` | live | NONE | `design-reference.tsx`, `index.tsx` |
 
@@ -128,7 +136,7 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 | `GET /ai/fallbacks` | live | NONE | `client.ts` |
 | `GET /ai/fallbacks/{lang}` | live | NONE | `client.ts` |
 | `GET /ai/interactions` | live | NONE | `client.ts` |
-| `GET /ai/internal/config` | live | NONE | `page.tsx`, `index.tsx` |
+| `GET /ai/internal/config` | live | NONE | `index.tsx`, `internal-agent.tsx` |
 | `GET /ai/languages` | live | NONE | `client.ts` |
 | `GET /ai/prompts` | live | NONE | `client.ts` |
 | `GET /ai/prompts/{lang}` | live | NONE | `client.ts` |
@@ -137,7 +145,7 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 | `PUT /ai/botflow` | live | NONE | `index.tsx` |
 | `PUT /ai/config` | live | NONE | `client.ts`, `InfraTab.tsx`, `lambda-functions.tsx`, `system-architecture.tsx` |
 | `PUT /ai/fallbacks/{lang}` | live | NONE | `client.ts` |
-| `PUT /ai/internal/config` | live | NONE | `page.tsx`, `index.tsx` |
+| `PUT /ai/internal/config` | live | NONE | `index.tsx`, `internal-agent.tsx` |
 | `PUT /ai/prompts/{lang}` | live | NONE | `client.ts` |
 
 ### `wecare-ai-generate-response`
@@ -175,8 +183,8 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `GET /billing` | live | NONE | `client.ts`, `InfraTab.tsx`, `code-repo.tsx`, `index.tsx` +4 |
-| `POST /billing` | live | NONE | `client.ts`, `InfraTab.tsx`, `code-repo.tsx`, `index.tsx` +4 |
+| `GET /billing` | live | NONE | `client.ts`, `InfraTab.tsx`, `code-repo.tsx`, `index.tsx` +5 |
+| `POST /billing` | live | NONE | `client.ts`, `InfraTab.tsx`, `code-repo.tsx`, `index.tsx` +5 |
 
 ### `wecare-bulk-job-control`
 
@@ -201,17 +209,27 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 |---|---|---|---|
 | `GET /bulk/worker` | live | NONE | — none |
 
+### `wecare-checkout`
+
+| Route | Qualifier | Gateway auth | Frontend files |
+|---|---|---|---|
+| `GET /ecommerce/service-prices` | live | NONE | `services.ts`, `servicePricing.ts`, `ServiceRequestPurchase.test.tsx` |
+| `POST /ecommerce/checkout` | live | NONE | `contribution.ts`, `cart.ts`, `cart.tsx`, `status.tsx` +1 |
+| `POST /ecommerce/checkout/status` | live | NONE | `status.tsx`, `success.tsx` |
+| `POST /ecommerce/prepare-checkout` | live | NONE | `BlogContribution.tsx`, `contribution.ts`, `services.ts`, `whatsappBasket.ts` +4 |
+| `POST /ecommerce/verify-callback` | live | NONE | `BlogContribution.tsx`, `cart.tsx`, `CartCheckout.test.tsx` |
+
 ### `wecare-contacts`
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `DELETE [retired public path 44011e36]` | live | NONE | `client.ts`, `RichTextEditor.tsx`, `SearchModal.tsx`, `InfraTab.tsx` +16 |
-| `DELETE [retired public path 44011e36]/{contactId}` | live | NONE | `client.ts`, `RichTextEditor.tsx`, `SearchModal.tsx`, `InfraTab.tsx` +16 |
-| `GET [retired public path 44011e36]` | live | NONE | `client.ts`, `RichTextEditor.tsx`, `SearchModal.tsx`, `InfraTab.tsx` +16 |
-| `GET [retired public path 44011e36]/search` | live | NONE | — none |
-| `POST [retired public path 44011e36]` | live | NONE | `client.ts`, `RichTextEditor.tsx`, `SearchModal.tsx`, `InfraTab.tsx` +16 |
-| `PUT [retired public path 44011e36]` | live | NONE | `client.ts`, `RichTextEditor.tsx`, `SearchModal.tsx`, `InfraTab.tsx` +16 |
-| `PUT [retired public path 44011e36]/{contactId}` | live | NONE | `client.ts`, `RichTextEditor.tsx`, `SearchModal.tsx`, `InfraTab.tsx` +16 |
+| `DELETE /contacts` | live | NONE | `client.ts`, `RichTextEditor.tsx`, `SearchModal.tsx`, `InfraTab.tsx` +24 |
+| `DELETE /contacts/{contactId}` | live | NONE | `client.ts`, `RichTextEditor.tsx`, `SearchModal.tsx`, `InfraTab.tsx` +24 |
+| `GET /contacts` | live | NONE | `client.ts`, `RichTextEditor.tsx`, `SearchModal.tsx`, `InfraTab.tsx` +24 |
+| `GET /contacts/search` | live | NONE | — none |
+| `POST /contacts` | live | NONE | `client.ts`, `RichTextEditor.tsx`, `SearchModal.tsx`, `InfraTab.tsx` +24 |
+| `PUT /contacts` | live | NONE | `client.ts`, `RichTextEditor.tsx`, `SearchModal.tsx`, `InfraTab.tsx` +24 |
+| `PUT /contacts/{contactId}` | live | NONE | `client.ts`, `RichTextEditor.tsx`, `SearchModal.tsx`, `InfraTab.tsx` +24 |
 
 ### `wecare-conversation-meta`
 
@@ -224,6 +242,18 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 | `OPTIONS /inbox/meta/{conversationId}/note` | live | NONE | — none |
 | `POST /inbox/meta/{conversationId}/note` | live | NONE | — none |
 | `PUT /inbox/meta/{conversationId}` | live | NONE | `client.ts`, `index.tsx` |
+
+### `wecare-coupons`
+
+| Route | Qualifier | Gateway auth | Frontend files |
+|---|---|---|---|
+| `GET /coupons` | live | NONE | — none |
+| `GET /coupons/{code}` | live | NONE | — none |
+| `POST /coupons` | live | NONE | — none |
+| `POST /coupons/hold` | live | NONE | — none |
+| `POST /coupons/release` | live | NONE | — none |
+| `POST /coupons/validate` | live | NONE | — none |
+| `POST /coupons/{code}/deactivate` | live | NONE | — none |
 
 ### `wecare-crm`
 
@@ -242,11 +272,30 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 | `POST /crm/leads` | live | NONE | — none |
 | `POST /crm/leads/{leadId}/convert` | live | NONE | — none |
 
+### `wecare-customer-orders`
+
+| Route | Qualifier | Gateway auth | Frontend files |
+|---|---|---|---|
+| `POST /ecommerce/my-orders` | live | NONE | `orders.tsx`, `OrdersPage.test.tsx` |
+
+### `wecare-customer-profile`
+
+| Route | Qualifier | Gateway auth | Frontend files |
+|---|---|---|---|
+| `OPTIONS /customer/profile` | live | NONE | `CheckoutProfile.tsx`, `CheckoutProfile.test.tsx`, `CheckoutProfileModes.test.tsx` |
+| `POST /customer/profile` | live | NONE | `CheckoutProfile.tsx`, `CheckoutProfile.test.tsx`, `CheckoutProfileModes.test.tsx` |
+
+### `wecare-customer-session`
+
+| Route | Qualifier | Gateway auth | Frontend files |
+|---|---|---|---|
+| `POST /ecommerce/customer-session` | live | NONE | `customerAuth.ts`, `CustomerSessionRestore.test.ts`, `SignInMessages.test.tsx` |
+
 ### `wecare-dlq-replay`
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `GET /dlq` | live | NONE | `client.ts`, `InfraTab.tsx`, `lambda-functions.tsx`, `system-architecture.tsx` |
+| `GET /dlq` | live | NONE | `client.ts`, `InfraTab.tsx`, `lambda-functions.tsx`, `system-architecture.tsx` +1 |
 | `GET /dlq/replay` | live | NONE | `client.ts`, `InfraTab.tsx`, `lambda-functions.tsx`, `system-architecture.tsx` |
 | `POST /dlq/replay` | live | NONE | `client.ts`, `InfraTab.tsx`, `lambda-functions.tsx`, `system-architecture.tsx` |
 
@@ -254,16 +303,23 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `GET [retired public path a2557b8d]/changelog` | $LATEST | NONE | `index.tsx` |
-| `GET [retired public path a2557b8d]/sources` | $LATEST | NONE | `index.tsx` |
-| `POST [retired public path a2557b8d]/scrape` | $LATEST | NONE | `index.tsx` |
-| `POST [retired public path a2557b8d]/sources` | $LATEST | NONE | `index.tsx` |
+| `GET /docs/changelog` | $LATEST | NONE | `index.tsx` |
+| `GET /docs/sources` | $LATEST | NONE | `index.tsx` |
+| `POST /docs/scrape` | $LATEST | NONE | `index.tsx` |
+| `POST /docs/sources` | $LATEST | NONE | `index.tsx` |
+
+### `wecare-email-verification`
+
+| Route | Qualifier | Gateway auth | Frontend files |
+|---|---|---|---|
+| `OPTIONS /auth/email-verification` | live | NONE | `CheckoutProfile.tsx`, `CheckoutProfile.test.tsx`, `CheckoutProfileModes.test.tsx` |
+| `POST /auth/email-verification` | live | NONE | `CheckoutProfile.tsx`, `CheckoutProfile.test.tsx`, `CheckoutProfileModes.test.tsx` |
 
 ### `wecare-faq-handler`
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `GET [retired public path 1965ee0f]` | live | NONE | `client.ts`, `Header.tsx`, `InfraTab.tsx`, `navigation.ts` +12 |
+| `GET /faq` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `code-repo.tsx` +7 |
 
 ### `wecare-inbound-whatsapp`
 
@@ -276,11 +332,11 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
 | `DELETE /invoices/clear-all` | live | NONE | `index.tsx` |
-| `DELETE /invoices/{invoiceId}` | live | NONE | `client.ts`, `InfraTab.tsx`, `PayTab.tsx`, `index.tsx` +2 |
-| `GET /invoices` | live | NONE | `client.ts`, `InfraTab.tsx`, `PayTab.tsx`, `index.tsx` +2 |
-| `GET /invoices/{invoiceId}` | live | NONE | `client.ts`, `InfraTab.tsx`, `PayTab.tsx`, `index.tsx` +2 |
+| `DELETE /invoices/{invoiceId}` | live | NONE | `client.ts`, `InfraTab.tsx`, `index.tsx`, `lambda-functions.tsx` +2 |
+| `GET /invoices` | live | NONE | `client.ts`, `InfraTab.tsx`, `index.tsx`, `lambda-functions.tsx` +2 |
+| `GET /invoices/{invoiceId}` | live | NONE | `client.ts`, `InfraTab.tsx`, `index.tsx`, `lambda-functions.tsx` +2 |
 | `GET /invoices/{invoiceId}/delivery-log` | live | NONE | — none |
-| `POST /invoices` | live | NONE | `client.ts`, `InfraTab.tsx`, `PayTab.tsx`, `index.tsx` +2 |
+| `POST /invoices` | live | NONE | `client.ts`, `InfraTab.tsx`, `index.tsx`, `lambda-functions.tsx` +2 |
 | `POST /invoices/clear-all` | live | NONE | `index.tsx` |
 | `POST /invoices/from-payment` | live | NONE | — none |
 | `POST /invoices/next-sequence` | live | NONE | — none |
@@ -291,7 +347,7 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 | `POST /invoices/{invoiceId}/remark` | live | NONE | — none |
 | `POST /invoices/{invoiceId}/send-payment-link` | live | NONE | — none |
 | `POST /invoices/{invoiceId}/send-whatsapp` | live | NONE | — none |
-| `PUT /invoices/{invoiceId}` | live | NONE | `client.ts`, `InfraTab.tsx`, `PayTab.tsx`, `index.tsx` +2 |
+| `PUT /invoices/{invoiceId}` | live | NONE | `client.ts`, `InfraTab.tsx`, `index.tsx`, `lambda-functions.tsx` +2 |
 
 ### `wecare-marketing-ads`
 
@@ -299,6 +355,12 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 |---|---|---|---|
 | `ANY /marketing-ads` | live | NONE | `client.ts`, `ctwa-ads.tsx` |
 | `OPTIONS /marketing-ads` | live | NONE | `client.ts`, `ctwa-ads.tsx` |
+
+### `wecare-mcp`
+
+| Route | Qualifier | Gateway auth | Frontend files |
+|---|---|---|---|
+| `ANY /mcp` | live | NONE | `WorkflowTerminal.tsx`, `navigation.ts`, `workspace-mcp.test.ts`, `workspace-mcp.ts` +4 |
 
 ### `wecare-media-cleanup`
 
@@ -310,21 +372,21 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `DELETE /messages` | live | NONE | `client.ts`, `AddressMessageComposer.tsx`, `ContactMessageComposer.tsx`, `LocationRequestComposer.tsx` +17 |
+| `DELETE /messages` | live | NONE | `client.ts`, `AddressMessageComposer.tsx`, `ContactMessageComposer.tsx`, `LocationRequestComposer.tsx` +18 |
 | `DELETE /messages/clear-all` | live | NONE | `index.tsx` |
-| `DELETE /messages/{messageId}` | live | NONE | `client.ts`, `AddressMessageComposer.tsx`, `ContactMessageComposer.tsx`, `LocationRequestComposer.tsx` +17 |
+| `DELETE /messages/{messageId}` | live | NONE | `client.ts`, `AddressMessageComposer.tsx`, `ContactMessageComposer.tsx`, `LocationRequestComposer.tsx` +18 |
 
 ### `wecare-messages-read`
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `GET /messages` | live | NONE | `client.ts`, `AddressMessageComposer.tsx`, `ContactMessageComposer.tsx`, `LocationRequestComposer.tsx` +17 |
+| `GET /messages` | live | NONE | `client.ts`, `AddressMessageComposer.tsx`, `ContactMessageComposer.tsx`, `LocationRequestComposer.tsx` +18 |
 
 ### `wecare-meta-business-agent`
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `ANY /meta-agent` | live | NONE | `client.ts`, `navigation.ts`, `index.tsx`, `ai-agent.tsx` +2 |
+| `ANY /meta-agent` | live | NONE | `client.ts`, `navigation.ts`, `index.tsx`, `ai-agent.tsx` +3 |
 | `POST /agent-tool` | live | NONE | — none |
 
 ### `wecare-outbound-email`
@@ -392,9 +454,9 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `GET /store/preview-product-image` | live | NONE | — none |
-| `POST /store/convert-flag` | live | NONE | — none |
-| `POST /store/generate-product-image` | live | NONE | — none |
+| `GET /store/preview-product-image` | live | NONE | `catalog.tsx` |
+| `POST /store/convert-flag` | live | NONE | `catalog.tsx` |
+| `POST /store/generate-product-image` | live | NONE | `catalog.tsx` |
 
 ### `wecare-pstn-softphone`
 
@@ -417,7 +479,6 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `POST /payments/webhook` | live | NONE | — none |
 | `POST /razorpay-webhook` | live | NONE | `code-repo.tsx`, `index.tsx`, `system-architecture.tsx` |
 
 ### `wecare-rcs-dlr`
@@ -439,17 +500,19 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `DELETE /scheduled` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +2 |
-| `GET /scheduled` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +2 |
-| `POST /scheduled` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +2 |
+| `DELETE /scheduled` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +4 |
+| `GET /scheduled` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +4 |
+| `POST /scheduled` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +4 |
 
 ### `wecare-secure-files`
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `GET /secure-files` | live | NONE | `client.ts` |
+| `GET /secure-files` | live | NONE | `client.ts`, `navigation.ts`, `ConfirmContext.test.tsx`, `NativeDialogs.test.tsx` |
+| `GET /secure-files/dropdocs/{requestId}/documents` | live | NONE | — none |
 | `GET /secure-files/mine` | live | NONE | `client.ts` |
 | `GET /secure-files/{fileId}/download` | live | NONE | — none |
+| `POST /secure-files/dropdocs/attach` | live | NONE | — none |
 | `POST /secure-files/upload-init` | live | NONE | `client.ts` |
 | `POST /secure-files/{fileId}/confirm` | live | NONE | — none |
 | `POST /secure-files/{fileId}/order` | live | NONE | — none |
@@ -460,18 +523,23 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `ANY /seo-tools` | $LATEST | NONE | `seo.ts`, `InstructionsContent.tsx`, `public-blog.ts`, `index.tsx` +1 |
-| `ANY /seo-tools/{proxy+}` | $LATEST | NONE | `seo.ts`, `InstructionsContent.tsx`, `public-blog.ts`, `index.tsx` +1 |
+| `ANY /seo-tools` | $LATEST | NONE | `seo.ts`, `InstructionsContent.tsx`, `public-blog.ts`, `index.tsx` +5 |
+| `ANY /seo-tools/{proxy+}` | $LATEST | NONE | `seo.ts`, `InstructionsContent.tsx`, `public-blog.ts`, `index.tsx` +5 |
+
+### `wecare-service-requests`
+
+| Route | Qualifier | Gateway auth | Frontend files |
+|---|---|---|---|
+| `POST /services/my-requests` | live | NONE | `serviceRequests.ts`, `OrdersRequests.test.tsx`, `ServiceRequestPurchase.test.tsx` |
+| `POST /services/request-intent` | live | NONE | `serviceRequests.ts`, `ServiceRequestPurchase.test.tsx` |
 
 ### `wecare-site-language`
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `GET /site-language/languages` | live | NONE | — none |
-| `GET /site-language/voices` | live | NONE | — none |
-| `OPTIONS /site-language/{proxy+}` | live | NONE | `SupportWidget.tsx` |
+| `GET /site-language/languages` | live | NONE | `rtlLanguage.test.tsx` |
+| `OPTIONS /site-language/{proxy+}` | live | NONE | `SupportWidget.tsx`, `rtlLanguage.test.tsx` |
 | `POST /site-language/translate` | live | NONE | — none |
-| `POST /site-language/tts` | live | NONE | — none |
 
 ### `wecare-sms-aws`
 
@@ -491,9 +559,9 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `GET /system-cleanup` | live | NONE | `client.ts`, `code-repo.tsx`, `index.tsx`, `system-architecture.tsx` |
-| `OPTIONS /system-cleanup` | live | NONE | `client.ts`, `code-repo.tsx`, `index.tsx`, `system-architecture.tsx` |
-| `POST /system-cleanup` | live | NONE | `client.ts`, `code-repo.tsx`, `index.tsx`, `system-architecture.tsx` |
+| `GET /system-cleanup` | live | NONE | `client.ts`, `capacitor.ts`, `code-repo.tsx`, `index.tsx` +1 |
+| `OPTIONS /system-cleanup` | live | NONE | `client.ts`, `capacitor.ts`, `code-repo.tsx`, `index.tsx` +1 |
+| `POST /system-cleanup` | live | NONE | `client.ts`, `capacitor.ts`, `code-repo.tsx`, `index.tsx` +1 |
 
 ### `wecare-template-analytics`
 
@@ -520,29 +588,29 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `DELETE /voice-cdr-read` | live | NONE | `index.tsx` |
-| `GET /voice-cdr-read` | live | NONE | `index.tsx` |
+| `DELETE /voice-cdr-read` | live | NONE | `SystemTab.tsx`, `index.tsx` |
+| `GET /voice-cdr-read` | live | NONE | `SystemTab.tsx`, `index.tsx` |
 
 ### `wecare-voice-in-c2c`
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `DELETE /voice-in/c2c` | live | NONE | `index.tsx`, `index.tsx`, `webhooks.tsx` |
+| `DELETE /voice-in/c2c` | live | NONE | `index.tsx`, `system-architecture.tsx`, `index.tsx`, `webhooks.tsx` |
 | `DELETE /voice-in/c2c/clear-logs` | live | NONE | — none |
-| `GET /voice-in/c2c` | live | NONE | `index.tsx`, `index.tsx`, `webhooks.tsx` |
-| `POST /voice-in/c2c` | live | NONE | `index.tsx`, `index.tsx`, `webhooks.tsx` |
+| `GET /voice-in/c2c` | live | NONE | `index.tsx`, `system-architecture.tsx`, `index.tsx`, `webhooks.tsx` |
+| `POST /voice-in/c2c` | live | NONE | `index.tsx`, `system-architecture.tsx`, `index.tsx`, `webhooks.tsx` |
 
 ### `wecare-voice-in-obd`
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `DELETE /voice-in/obd` | live | NONE | `index.tsx`, `index.tsx`, `webhooks.tsx` |
+| `DELETE /voice-in/obd` | live | NONE | `index.tsx`, `system-architecture.tsx`, `index.tsx`, `webhooks.tsx` |
 | `DELETE /voice-in/obd/audio-library` | live | NONE | `index.tsx` |
 | `DELETE /voice-in/obd/clear-logs` | live | NONE | — none |
-| `GET /voice-in/obd` | live | NONE | `index.tsx`, `index.tsx`, `webhooks.tsx` |
+| `GET /voice-in/obd` | live | NONE | `index.tsx`, `system-architecture.tsx`, `index.tsx`, `webhooks.tsx` |
 | `GET /voice-in/obd/audio-library` | live | NONE | `index.tsx` |
 | `OPTIONS /voice-in/obd/audio-library` | live | NONE | `index.tsx` |
-| `POST /voice-in/obd` | live | NONE | `index.tsx`, `index.tsx`, `webhooks.tsx` |
+| `POST /voice-in/obd` | live | NONE | `index.tsx`, `system-architecture.tsx`, `index.tsx`, `webhooks.tsx` |
 | `POST /voice-in/obd/audio-library` | live | NONE | `index.tsx` |
 | `POST /voice-in/obd/create` | live | NONE | — none |
 | `POST /voice-in/obd/tts` | live | NONE | — none |
@@ -555,24 +623,24 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 |---|---|---|---|
 | `DELETE /waba/media/{mediaId}` | live | NONE | `client.ts` |
 | `DELETE /waba/tags` | live | NONE | `client.ts` |
-| `GET /waba` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `code-repo.tsx` +4 |
+| `GET /waba` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `code-repo.tsx` +6 |
 | `GET /waba/events` | live | NONE | `client.ts` |
 | `GET /waba/media/{mediaId}` | live | NONE | `client.ts` |
 | `GET /waba/phone/{phoneNumberId}` | live | NONE | `client.ts` |
 | `GET /waba/tags` | live | NONE | `client.ts` |
-| `GET /waba/{wabaId}` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `code-repo.tsx` +4 |
-| `POST /waba` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `code-repo.tsx` +4 |
+| `GET /waba/{wabaId}` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `code-repo.tsx` +6 |
+| `POST /waba` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `code-repo.tsx` +6 |
 | `POST /waba/conversational-components` | live | NONE | `client.ts` |
 | `POST /waba/media` | live | NONE | `client.ts` |
 | `POST /waba/tags` | live | NONE | `client.ts` |
-| `PUT /waba` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `code-repo.tsx` +4 |
+| `PUT /waba` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `code-repo.tsx` +6 |
 | `PUT /waba/{wabaId}/events` | live | NONE | — none |
 
 ### `wecare-whatsapp-business-api`
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `ANY /wa-business/{proxy+}` | live | NONE | `client.ts`, `ProductMessageComposer.tsx`, `InfraTab.tsx`, `index.tsx` +4 |
+| `ANY /wa-business/{proxy+}` | live | NONE | `client.ts`, `ProductMessageComposer.tsx`, `InfraTab.tsx`, `index.tsx` +5 |
 | `DELETE /wa-business/assigned-users` | live | NONE | — none |
 | `DELETE /wa-business/faq/{faqId}` | live | NONE | — none |
 | `DELETE /wa-business/flows` | live | NONE | — none |
@@ -671,17 +739,17 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `DELETE /whatsapp` | live | NONE | `client.ts`, `EmbeddedSignupPanel.tsx`, `Layout.tsx`, `SearchModal.tsx` +40 |
+| `DELETE /whatsapp` | live | NONE | `client.ts`, `EmbeddedSignupPanel.tsx`, `Layout.tsx`, `SearchModal.tsx` +50 |
 | `DELETE /whatsapp/calling` | live | NONE | `navigation.ts`, `system-architecture.tsx` |
-| `DELETE /whatsapp/{proxy+}` | live | NONE | `client.ts`, `EmbeddedSignupPanel.tsx`, `Layout.tsx`, `SearchModal.tsx` +40 |
-| `GET /whatsapp` | live | NONE | `client.ts`, `EmbeddedSignupPanel.tsx`, `Layout.tsx`, `SearchModal.tsx` +40 |
-| `GET /whatsapp-calling` | live | NONE | `code-repo.tsx`, `lambda-functions.tsx`, `system-architecture.tsx` |
+| `DELETE /whatsapp/{proxy+}` | live | NONE | `client.ts`, `EmbeddedSignupPanel.tsx`, `Layout.tsx`, `SearchModal.tsx` +50 |
+| `GET /whatsapp` | live | NONE | `client.ts`, `EmbeddedSignupPanel.tsx`, `Layout.tsx`, `SearchModal.tsx` +50 |
+| `GET /whatsapp-calling` | live | NONE | `code-repo.tsx`, `lambda-functions.tsx`, `system-architecture.tsx`, `calling.tsx` |
 | `GET /whatsapp/calling` | live | NONE | `navigation.ts`, `system-architecture.tsx` |
-| `GET /whatsapp/{proxy+}` | live | NONE | `client.ts`, `EmbeddedSignupPanel.tsx`, `Layout.tsx`, `SearchModal.tsx` +40 |
-| `POST /whatsapp` | live | NONE | `client.ts`, `EmbeddedSignupPanel.tsx`, `Layout.tsx`, `SearchModal.tsx` +40 |
-| `POST /whatsapp-calling` | live | NONE | `code-repo.tsx`, `lambda-functions.tsx`, `system-architecture.tsx` |
+| `GET /whatsapp/{proxy+}` | live | NONE | `client.ts`, `EmbeddedSignupPanel.tsx`, `Layout.tsx`, `SearchModal.tsx` +50 |
+| `POST /whatsapp` | live | NONE | `client.ts`, `EmbeddedSignupPanel.tsx`, `Layout.tsx`, `SearchModal.tsx` +50 |
+| `POST /whatsapp-calling` | live | NONE | `code-repo.tsx`, `lambda-functions.tsx`, `system-architecture.tsx`, `calling.tsx` |
 | `POST /whatsapp/calling` | live | NONE | `navigation.ts`, `system-architecture.tsx` |
-| `POST /whatsapp/{proxy+}` | live | NONE | `client.ts`, `EmbeddedSignupPanel.tsx`, `Layout.tsx`, `SearchModal.tsx` +40 |
+| `POST /whatsapp/{proxy+}` | live | NONE | `client.ts`, `EmbeddedSignupPanel.tsx`, `Layout.tsx`, `SearchModal.tsx` +50 |
 
 ### `wecare-whatsapp-template-management`
 
@@ -697,18 +765,18 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `DELETE /whatsapp/templates` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +1 |
+| `DELETE /whatsapp/templates` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +3 |
 | `DELETE /whatsapp/templates/send-media` | live | NONE | `client.ts` |
-| `DELETE /whatsapp/templates/{templateName}` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +1 |
-| `GET /whatsapp/templates` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +1 |
+| `DELETE /whatsapp/templates/{templateName}` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +3 |
+| `GET /whatsapp/templates` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +3 |
 | `GET /whatsapp/templates/send-media` | live | NONE | `client.ts` |
-| `GET /whatsapp/templates/{templateId}` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +1 |
-| `POST /whatsapp/templates` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +1 |
+| `GET /whatsapp/templates/{templateId}` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +3 |
+| `POST /whatsapp/templates` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +3 |
 | `POST /whatsapp/templates/carousel` | live | NONE | `client.ts` |
 | `POST /whatsapp/templates/carousel-media` | live | NONE | `client.ts` |
 | `POST /whatsapp/templates/media` | live | NONE | `client.ts` |
 | `POST /whatsapp/templates/send-media` | live | NONE | `client.ts` |
-| `PUT /whatsapp/templates/{templateId}` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +1 |
+| `PUT /whatsapp/templates/{templateId}` | live | NONE | `client.ts`, `InfraTab.tsx`, `navigation.ts`, `lambda-functions.tsx` +3 |
 
 ### `wecare-whatsapp-voice`
 
@@ -724,12 +792,13 @@ Grouped by target function. `auth` is the API Gateway `authorizationType`; `NONE
 | `POST /whatsapp/voice` | live | NONE | — none |
 | `PUT /whatsapp-voice/language-config` | live | NONE | `client.ts` |
 
-### `wecare-wix-store`
+### `wecare-workspace-mcp`
 
 | Route | Qualifier | Gateway auth | Frontend files |
 |---|---|---|---|
-| `GET /wix-store/{proxy+}` | live | NONE | `client.ts`, `code-repo.tsx`, `index.tsx`, `system-architecture.tsx` +2 |
-| `POST /wix-store/{proxy+}` | live | NONE | `client.ts`, `code-repo.tsx`, `index.tsx`, `system-architecture.tsx` +2 |
+| `ANY /workspace/mcp` | live | JWT | `workspace-mcp.test.ts`, `workspace-mcp.ts`, `MCPConnections.test.tsx` |
+| `GET /workspace/mcp/oauth/callback` | live | NONE | `workspace-mcp.test.ts`, `workspace-mcp.ts`, `MCPConnections.test.tsx` |
+| `POST /workspace/mcp-iam` | live | AWS_IAM | — none |
 
 ## Anomalies carried from the inventory
 
@@ -737,14 +806,14 @@ Counts only. The inventory holds the detail and the justifications.
 
 | Anomaly | Count |
 |---|--:|
-| `errors7d` | 3 |
-| `liveButNotInDeployMap` | 3 |
+| `errors7d` | 0 |
+| `liveButNotInDeployMap` | 5 |
 | `logRetentionUnknown` | 0 |
 | `logsNeverExpire` | 0 |
 | `noLiveAliasButHasRoutes` | 2 |
-| `noRoutesNoEventSourceNoTraffic` | 6 |
+| `noRoutesNoEventSourceNoTraffic` | 7 |
 | `routesTargetingLatest` | 6 |
 | `routesToAbsentFunction` | 0 |
-| `routesWithoutFrontendCaller` | 117 |
-| `zeroInvocations7d` | 16 |
+| `routesWithoutFrontendCaller` | 118 |
+| `zeroInvocations7d` | 33 |
 

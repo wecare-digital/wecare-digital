@@ -9,7 +9,7 @@ ever know about removals somebody wrote down.
 This script asks the opposite question, and takes its list from Google rather than from
 us: "which URLs is Google still SHOWING, that we answer with a 404?" Those are the ones
 losing accumulated ranking, and the repo has no record of most of them because they were
-Wix-era pages that never existed in this codebase at all.
+pages of the previous site that never existed in this codebase at all.
 
 The distinction is load-bearing. A 404 is the correct answer for a page that was deleted
 because it was wrong. It is the WRONG answer for a page that was replaced, because a 404
@@ -18,7 +18,7 @@ thing a new export cannot regenerate on its own.
 
 THE PROPERTY THAT MATTERS IS THE www ONE. There are two Search Console properties:
 
-    https://www.wecare.digital/    480 days of history   the Wix-era site
+    https://www.wecare.digital/    480 days of history   the previous site
     https://wecare.digital/        created 2026-09-30    the current export, no backfill
 
 Reading only the apex property shows zero impressions and invites the conclusion that the

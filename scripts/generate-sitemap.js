@@ -66,7 +66,7 @@ const PUBLIC_EXACT = new Set( [
   '/leave-review',
   '/refer-and-earn',
   '/request-amendment',
-  // Request Pickup joined the group on 2026-10-10 with the fifth variant of the Wix services
+  // Request Pickup joined the group on 2026-10-10 with the fifth variant of the services
   // product. Alphabetical, so it follows /request-amendment.
   '/request-pickup',
   '/submit-request',

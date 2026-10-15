@@ -18,11 +18,9 @@ against account 775261844268 (us-east-1). Repository changes for this plan are o
 
 | Area | State | Evidence |
 | --- | --- | --- |
-| Blog | AWS-native, 1,421 posts reconciled | `final-wix-retained-evidence-reconciliation-20261014.md` |
-| Catalog / storefront | ProductsTable authoritative (10 / 23); media on CloudFront | same |
+| Blog | AWS-native (`SeoToolsTable`), 1,421 posts | public blog API 200 with 1,421 posts (A.6 verification below) |
+| Catalog / storefront | ProductsTable authoritative (10 / 23); media on CloudFront | `.kiro/specs/aws-native-consolidation/tasks.md` A.2 |
 | Checkout | `AWS_NATIVE`, live v53; IAM drift fixed 2026-10-15 | `evidence/live-provider-independence-20261015.md` |
-| Wix cloud surface | functions, routes, tables, secrets, DNS gone | live check PASS on 5 of 8 checks |
-| Wix residue | 1 rollback alias with WIX_* env; 1 WIX_* env key; 1 dangling grant | same |
 | Meta catalog sync | disabled (`META_CATALOG_SYNC_ENABLED=false`); no stream trigger | Lambda config |
 | Secrets | 19 active; shared role reads all of them | `secrets-access-matrix.md` |
 | Lightsail | NO-GO, keep Micro | `lightsail-nano-feasibility.md` |
@@ -38,45 +36,36 @@ Each change ran on its own, was verified, and has a saved rollback in the main c
 | 05:47 | P0: `remediate_commerce_keys_iam.py --apply` on 3 inline policies | 17/17 SimulatePrincipalPolicy cases; live check `commerce-key-access` PASS | `--rollback .scratch/iam-rollback/commerce-keys-iam-20261015T001739Z.json --confirm I-APPROVE-COMMERCE-KEYS-IAM-ROLLBACK` |
 | 05:48 | A.8: deleted `NativeCommerceCatalogRead` from `wecare-meta-catalog-sync-role` | meta-sync Scan/GetItem on ProductsTable still allowed | `put-role-policy` with the saved document |
 | 05:49 | A.6: deleted alias `wecare-seo-tools:blog-rollback-20261014` | public blog API 200, 1,421 posts | `create-alias --function-version 1` and re-add the 2 saved permissions |
-| 05:47* | A.7: `WIX_ORDER_IDS_TABLE` removed (v116, by another session) | live check `lambda-env-keys` PASS | `update-alias live` to v115 |
 | 05:56 | B-1a: managed policy `wecare-shared-role-secret-guard` attached to `wecare-digital-lambda-role` | 11/11 simulated cases; 0 errors on razorpay-webhook, whatsapp-business-api, invoice-engine | `shared_role_secret_guard.py --rollback --confirm I-APPROVE-SHARED-ROLE-SECRET-GUARD-ROLLBACK` |
 | 05:58 | `wecare/meta/payments` scheduled for deletion, then restored the same minute | `DeletedDate` null | n/a: it is referenced by `.env.local.example` as the payment-config mapping, so it stays |
 | 06:00 | Deletion protection on ProductsTable and CommerceKeys | `DeletionProtectionEnabled=True` | `update-table --no-deletion-protection-enabled` |
 
 Live check after the changes (`evidence/live-provider-independence-20261015.md`): 7 of 8 PASS.
-The remaining FAIL lists two non-Wix dangling grants (email verification → missing
+The remaining FAIL lists two dangling grants (email verification → missing
 `CustomersTable`; an Amplify data role → missing `Contact-…-NONE`), outside this program.
 
 ## Execution order
 
-1. **P0 — Commerce-key IAM (do first, alone).**
-2. Workstream A residue (A.6–A.8), one change each.
+1. **P0 — Commerce-key IAM** — done 2026-10-15.
+2. Workstream A residue (A.6–A.8) — done 2026-10-15.
 3. Secrets B-0, then B-1, B-2, B-3/B-4, B-5, one change each.
 4. Meta catalog sync enablement (separate owner decision; Meta writes).
 5. Lightsail host-access session, then re-decide (independent release).
 6. Month-end cost re-measure.
 
-## P0 — Commerce-key IAM drift 🔒
+## P0 — Commerce-key IAM drift 🔒 — done 2026-10-15
 
-**What is broken.** `wecare-checkout:live` (v53) and `wecare-service-requests:live` (v6) read
-`stack-wecare-digital-CommerceKeys`, but their dedicated roles still grant only the deleted
-`stack-wecare-digital-WixOrderIds`. IAM simulator: checkout `PutItem`/`GetItem` on CommerceKeys
-→ implicitDeny; checkout `UpdateItem` on ProductsTable → implicitDeny (stock reservation is on:
-`NATIVE_STOCK_RESERVATION_ENABLED=true`); service-requests `GetItem` on CommerceKeys →
-implicitDeny. Consequence: the next website or WhatsApp checkout fails closed, and paid service
-activation fails. No customer failure is logged yet (2 checkout invocations since the cutover,
-0 orders in OrderTable). Rolling back the functions is not possible: the old table is deleted.
+`wecare-checkout:live` and `wecare-service-requests:live` read
+`stack-wecare-digital-CommerceKeys`, and checkout's stock reservation updates ProductsTable
+(`NATIVE_STOCK_RESERVATION_ENABLED=true`). Their three inline policies now match the IaC homes,
+including invoke on `wecare-outbound-whatsapp` (+`:live`) for checkout and `GetItem` on
+OrderTable (`ReadOriginalOwnedOrder`) for service-requests. DeleteItem stays withheld everywhere.
 
-**Change (three inline policies, from the IaC homes):**
+Re-check for drift at any time (read-only plan: diff + Access Analyzer + 17 simulations):
 
 ```bash
-.venv/bin/python scripts/remediate_commerce_keys_iam.py            # plan: diff + Access Analyzer + 17 simulations
-.venv/bin/python scripts/remediate_commerce_keys_iam.py --apply --confirm I-APPROVE-COMMERCE-KEYS-IAM
+.venv/bin/python scripts/remediate_commerce_keys_iam.py
 ```
-
-The apply also adds two grants the IaC already declares and live lacks: invoke on
-`wecare-outbound-whatsapp` (+`:live`) for checkout, and `GetItem` on OrderTable
-(`ReadOriginalOwnedOrder`) for service-requests. DeleteItem stays withheld everywhere.
 
 **Verify:** the script re-simulates the roles; then
 `scripts/check_live_provider_independence.py` must report `commerce-key-access` PASS. An owner
@@ -86,15 +75,11 @@ QA checkout (no real charge unless separately approved) confirms end to end.
 I-APPROVE-COMMERCE-KEYS-IAM-ROLLBACK` restores the saved documents (which re-breaks checkout;
 use only if the new grants misbehave).
 
-## Workstream A residue 🔒
+## Workstream A residue 🔒 — done 2026-10-15
 
-| Step | Change | Verify | Rollback |
-| --- | --- | --- | --- |
-| A.6 | `aws lambda delete-alias --function-name wecare-seo-tools --name blog-rollback-20261014` | live check `lambda-env-keys` no longer lists seo-tools | `create-alias` to version 1 (still published) |
-| A.7 | remove `WIX_ORDER_IDS_TABLE` from `wecare-whatsapp-business-api` env through its deploy path, publish, move `live`; then `scripts/env_manifest.py --export` | live check `lambda-env-keys` PASS | move `live` back to v114 |
-| A.8 | `aws iam delete-role-policy --role-name wecare-meta-catalog-sync-role --policy-name NativeCommerceCatalogRead` (save the document first) | live check `iam-dangling-tables` no longer lists it | `put-role-policy` with the saved document |
+A.6–A.8 were applied one change each; see the table above for verification and rollback.
 
-Remaining dangling grants outside Wix (not part of this program, listed for the owner):
+Remaining dangling grants (not part of this program, listed for the owner):
 `wecare-email-verification-role` → missing `stack-wecare-digital-CustomersTable`, and an Amplify
 data role → missing `Contact-…-NONE`.
 
@@ -116,7 +101,7 @@ re-decide. Any Nano attempt follows `lightsail-nano-cutover.md` with
 - **Payment:** P0 is fixed in IAM; an owner QA checkout (no real charge unless approved) is still the end-to-end proof.
 - **Security:** root access keys in daily automation; 61 functions can read every secret; the
   exposed PAT is still valid as far as metadata shows; agents have force-deleted secrets without
-  a recovery window (Wix and Airtel, 2026-10-14).
+  a recovery window (retired providers, 2026-10-14; see `docs/security.md`).
 - **Data:** the credential backup is 18 days old and has no lifecycle; CommerceKeys and
   ProductsTable have deletion protection off (PITR on).
 - **SEO:** builds are green again; the static blog export must keep all 1,421 posts.

@@ -7,16 +7,17 @@ A customer taps "Send cart" in the WhatsApp catalogue and Meta delivers a `messa
 customer's own client assembled, carrying prices that client happened to be showing. This module
 turns it into a HAND-OFF - a phone-bound row naming variants and integer quantities and nothing
 else - which the authenticated `claim-basket` action on `ecommerce/checkout` merges into the
-customer's Wix cart. Pricing then happens exactly once, on the website leg, in
-`checkout_pricing.compute_quote`, from a collection Wix itself calculated.
+customer's native cart (`CustomerCart`, backed by CartTable). Pricing then happens exactly once,
+on the website leg, in `checkout_pricing.compute_quote`, from a collection the native
+ProductsTable quote calculated.
 
 WHY `item_price` IS IGNORED ENTIRELY, WHICH IS THE WHOLE POINT OF THE MODULE
 ---------------------------------------------------------------------------
 The path this replaces read `float(pi.get('item_price'))` and built a total from it: 18% GST added
-to the goods (which Wix has already included), supply GST re-added per item, a convenience fee
-logged at 2% against the 2.5% the rest of the system charges, and every `retailer_id` rewritten to
-`ITEM_1..n` so a line could never be resolved back to the Wix variant it came from. Four separate
-ways to produce a number that disagreed with the website's.
+to the goods (which the catalogue price already includes), supply GST re-added per item, a
+convenience fee logged at 2% against the 2.5% the rest of the system charges, and every
+`retailer_id` rewritten to `ITEM_1..n` so a line could never be resolved back to the catalogue
+variant it came from. Four separate ways to produce a number that disagreed with the website's.
 
 The fix is not a corrected second calculator. There is no total here at all:
 
@@ -32,12 +33,13 @@ there being exactly one place a payable can come from.
 
 WHY THE RETAILER ID IS THE JOIN KEY
 -----------------------------------
-`meta_catalog_sync.retailer_id` publishes `wix:<productId>:<variantId>`, which is exactly the
-`catalogReference` pair (`catalogItemId` plus `options.variantId`) that the former Wix cart's catalog-item builder
-wants and that `src/lib/cart.ts` sends from the browser. So a line ordered in WhatsApp and the
-same line ordered on the website resolve to one Wix cart line with no mapping table in between.
-`parse_retailer_id` returning `None` is therefore the only "we cannot price this" answer this
-module needs, and it is taken from that module rather than re-derived here.
+The catalogue retailer id (`meta_catalog_sync.retailer_id`) encodes exactly the ProductsTable
+`productId`/`variantId` pair that `cart_contract.catalog_item` accepts and that `src/lib/cart.ts`
+sends from the browser as a `catalogReference` (`catalogItemId` plus `options.variantId`). So a
+line ordered in WhatsApp and the same line ordered on the website resolve to one cart line with
+no mapping table in between. `parse_retailer_id` returning `None` is therefore the only "we
+cannot price this" answer this module needs, and it is taken from that module rather than
+re-derived here.
 
 PURE BY CONSTRUCTION
 --------------------
@@ -120,7 +122,8 @@ TOKEN_BYTES = 24
 #: An unclaimed hand-off stops being claimable after this long. Seven days: long enough that a
 #: customer who sends a cart on Friday and signs in on Monday is not told their basket is gone,
 #: short enough that a stale catalogue price is re-quoted rather than inherited (it is re-quoted
-#: in any case - Wix prices the cart at claim time - so this bound is about intent, not money).
+#: in any case - the native cart prices every line from ProductsTable when it is claimed - so this
+#: bound is about intent, not money).
 #:
 #: ENFORCED BY THIS APPLICATION, NOT BY DYNAMODB. CommerceKeys carries no TTL by design: it holds
 #: immutable financial and idempotency records, and `initiation.py`'s own docstring says so
@@ -132,16 +135,17 @@ HANDOFF_LIFETIME_SECONDS = 7 * 24 * 3600
 #: Quantity bounds. The floor is 1 because an absent, zero or negative quantity in a cart message
 #: still means the customer put the item in their cart - dropping the line would silently shorten
 #: their order, and asking Meta what it meant is not an option. The ceiling is 100, which is well
-#: inside the former Wix cart's catalog-item 1..100000 bound and is a deliberate CLAMP rather than a refusal:
+#: inside `cart_contract.catalog_item`'s 1..100000 bound and is a deliberate CLAMP rather than a
+#: refusal:
 #: a chat basket asking for more than a hundred of one variant is far more likely a client defect
 #: than an order, and clamping keeps the rest of the basket claimable. The clamp is reported on
 #: the `Basket` so the handler can log that it happened.
 QUANTITY_FLOOR = 1
 QUANTITY_CEILING = 100
 
-#: Wix's own cart line ceiling, mirrored so a 300-line message cannot produce a row that
-#: the former Wix cart's create would then refuse ("create requires 1 to 100 catalog items"). Lines
-#: beyond this are dropped and counted, never silently merged into the ones that fit.
+#: The cart's own line ceiling, mirrored so a 300-line message cannot produce a row that
+#: `CustomerCart.execute`'s create would then refuse ("1 to 100 items required"). Lines beyond
+#: this are dropped and counted, never silently merged into the ones that fit.
 LINE_CEILING = 100
 
 #: Our own numbers, digits only. A hand-off must never be built for one of these senders, and the
@@ -164,15 +168,15 @@ _E164_RE = re.compile(r"\+[1-9][0-9]{7,14}")
 
 
 class Basket:
-    """A parsed catalogue order: resolvable Wix lines, and a count of what was dropped.
+    """A parsed catalogue order: resolvable catalogue lines, and a count of what was dropped.
 
     Immutable-by-convention value object with `__slots__`, in the style of
     `notifications.events.ConnectedCallEvent`: holding one is the assertion that every line in it
     resolved through `meta_catalog_sync.parse_retailer_id`, so nothing downstream re-checks.
 
     `lines` is a list of `{"productId", "variantId", "quantity"}` dicts - EXACTLY the key set
-    the former Wix cart's catalog-item builder accepts and refuses anything else for, so the claim action can pass
-    them to `CustomerCart.ensure` unchanged rather than translating a third shape.
+    `cart_contract.catalog_item` accepts and refuses anything else for, so the claim action can
+    pass them to `CustomerCart.ensure` unchanged rather than translating a third shape.
     """
 
     __slots__ = ("lines", "catalog_id", "message_id", "dropped", "clamped")
@@ -232,7 +236,7 @@ def parse_order_message(message: Mapping[str, Any]) -> Optional[Basket]:
     items = order.get("product_items")
     items = items if isinstance(items, (list, tuple)) else []
 
-    # Insertion-ordered, so the Wix cart lists the lines in the order the customer built them.
+    # Insertion-ordered, so the cart lists the lines in the order the customer built them.
     merged: Dict[Tuple[str, str], int] = {}
     dropped = 0
     clamped_keys: set = set()
@@ -254,7 +258,7 @@ def parse_order_message(message: Mapping[str, Any]) -> Optional[Basket]:
         if reference in merged:
             merged[reference] = merged[reference] + quantity
         elif len(merged) >= LINE_CEILING:
-            # Past Wix's cart ceiling. Dropped rather than merged into another line, so the row
+            # Past the cart's line ceiling. Dropped rather than merged into another line, so the row
             # never claims a quantity the customer did not ask for.
             dropped += 1
         else:
@@ -434,7 +438,7 @@ def claimable(row: Optional[Mapping[str, Any]], phone: Any, now: int) -> bool:
        `+15559876543210` the same customer.
     2. UNCLAIMED. `claimedAt` absent. The durable guarantee is the conditional update the caller
        performs, not this check - two concurrent claims both pass here and only one wins the
-       write. This exists so the ordinary second claim is refused without a wasted Wix call.
+       write. This exists so the ordinary second claim is refused without a wasted cart write.
     3. UNEXPIRED. `expiresAt > now`, the same strict comparison `customer_cart.resolve` makes, so
        an expired basket reads as absent to both.
     """
@@ -477,11 +481,11 @@ def build_claim_pointer(row: Mapping[str, Any], customer_id: Any, *, now: int, c
     still inside the pointer's thirty days and had `whatsapp` stamped on the second order - on the
     attempt, the `PAYREF#` row, the order row, the `/orders` tag and the GST invoice's
     `Source:` line. A mislabelled order cannot be told apart from a real one afterwards.
-    Recording the Wix cart the lines were merged INTO makes the pointer describe one basket rather
+    Recording the cart the lines were merged INTO makes the pointer describe one basket rather
     than one customer, so it stops answering the moment that cart is gone.
 
     The value is the cart id `CustomerCart.ensure` returned, which has already been through
-    the former Wix cart's identifier normaliser - so both sides of the comparison in `active_claim` are the same
+    `cart_contract.identifier` - so both sides of the comparison in `active_claim` are the same
     lowercased UUID rather than two spellings of one cart.
     """
     return {
@@ -499,7 +503,7 @@ def build_claim_pointer(row: Mapping[str, Any], customer_id: Any, *, now: int, c
 def _cart_key(cart_id: Any) -> str:
     """A cart id reduced to the one comparable form. `''` for anything that is not one.
 
-    Lowercased and stripped rather than validated through the former Wix cart's identifier normaliser, because that
+    Lowercased and stripped rather than validated through `cart_contract.identifier`, because that
     raises and `active_claim` must not - and because a value that is not a cart id at all simply
     fails to match, which is the answer either way.
     """
@@ -515,7 +519,7 @@ def active_claim(pointer: Optional[Mapping[str, Any]], now: int, *,
     then answers `website` - the asymmetric default that under-claims the WhatsApp channel rather
     than mislabelling a website order.
 
-    `cart_id` is the customer's CURRENT Wix cart, and a mismatch takes exactly that same degraded
+    `cart_id` is the customer's CURRENT cart, and a mismatch takes exactly that same degraded
     path rather than a distinct one: the pointer was written for the cart the hand-off was merged
     into, so a different cart is a different basket and is NOT the WhatsApp one however recently
     the claim happened. An absent or unresolvable cart is also a mismatch - `''` never equals a
@@ -542,7 +546,7 @@ def active_claim(pointer: Optional[Mapping[str, Any]], now: int, *,
 def catalog_items(row: Mapping[str, Any]) -> List[Dict[str, Any]]:
     """`[{productId, variantId, quantity}]` from a stored row, re-validated on the way out.
 
-    DynamoDB hands integers back as `Decimal`, which the former Wix cart's catalog-item builder refuses outright
+    DynamoDB hands integers back as `Decimal`, which `cart_contract.catalog_item` refuses outright
     (`type(quantity) is not int`). So the quantity is re-made with `int()` here - `int(Decimal)`
     is exact for a whole number and raises for nothing a quantity can legitimately be - and the
     bounds are re-applied, because the row was written by a different Lambda and a reader that

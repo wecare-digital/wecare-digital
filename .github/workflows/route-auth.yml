@@ -15,8 +15,8 @@ name: Route auth
 #     from the unauthenticated request body.
 #   * POST /whatsapp/inbound accepted an unsigned Meta webhook envelope and
 #     honoured action=create_invoice before any authorization.
-#   * Seven handlers - url-shortener, voice-in/c2c, voice-in/obd,
-#     product-image-gen, media-cleanup, bulk-worker, ai-generate-response -
+#   * Seven handlers - url-shortener, product-image-gen, media-cleanup,
+#     bulk-worker, ai-generate-response and two voice handlers since retired -
 #     contained no caller check whatsoever. The audit had called them
 #     authenticated because it accepted `Authorization` as evidence, and in every
 #     one of them that string was a CORS allow-header or an OUTBOUND provider
@@ -30,8 +30,8 @@ name: Route auth
 #   live-gate    needs AWS read access, so it runs on push to stack, on a schedule
 #                and on demand - never on a pull request, for the reason set out on
 #                the job itself. It catches the case source cannot see: a route
-#                added or re-pointed in the console, which is exactly how the five
-#                dangling prohibited-provider routes survived.
+#                added or re-pointed in the console, which is exactly how five
+#                dangling routes to deleted functions survived.
 #
 # If source-gate fails on your PR you have added an HTTP route whose handler has
 # no require_auth, no signature verification and no shared-secret check. Add one,

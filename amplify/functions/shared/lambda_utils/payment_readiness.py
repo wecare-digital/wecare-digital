@@ -46,7 +46,9 @@ The UPI VPA question — RESOLVED the same way
 `wecaredigitalbh511413.rzp@rxairtel` (the code fallback in `constants.ts`, and the `WECAREUPI`
 handle on both live configs) is AUTHORITATIVE. The live-env `[retired UPI VPA]` was stale
 and was corrected in the manifest. A stale VPA does not error — it silently collects elsewhere —
-which is exactly why it is pinned to the value Meta reports.
+which is exactly why it is pinned to the value Meta reports. The part after `@` is the UPI bank
+handle Razorpay issued with the VPA; it names the settling bank, not any messaging or voice
+provider, and is part of the value.
 
 Fail closed, and say why
 ------------------------

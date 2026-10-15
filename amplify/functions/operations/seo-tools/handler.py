@@ -79,16 +79,16 @@ def _response(status: int, body: Dict[str, Any], origin: str):
 
 # The fields a caller may ask for. An allowlist rather than "any key present on the
 # record", so `?fields=` cannot be used to probe for internal fields that a future
-# _blog_view might add.
+# version of the native post view (`storage.get_blog_post`) might add.
 _PUBLIC_POST_FIELDS = frozenset({
     'slug', 'title', 'excerpt', 'category', 'publishedDate', 'modifiedDate',
     'authorName', 'coverImage', 'url', 'tags', 'seoTitle', 'metaDescription',
     'focusKeyword', 'keywords', 'hashtags', 'robots', 'jsonLd', 'id',
 })
 
-# Five minutes at the edge, matching the Lambda-side TTL in wix.py so the two layers
-# cannot disagree about how stale the corpus may be. stale-while-revalidate lets a CDN
-# serve the old copy while it refreshes, which is the correct trade for a blog index.
+# Five minutes at the edge and one in the browser; the native read itself is uncached
+# (DynamoDB on every request). stale-while-revalidate lets a CDN serve the old copy
+# while it refreshes, which is the correct trade for a blog index.
 _BLOG_CACHE_CONTROL = 'public, max-age=60, s-maxage=300, stale-while-revalidate=600'
 
 
@@ -138,8 +138,8 @@ def _cacheable(status: int, body: Dict[str, Any], origin: str, event: Dict[str, 
     That only helps a client that actually sends If-None-Match - and Node's global fetch,
     which is what the build uses, does NOT by default. So this is groundwork plus a real
     win for the CDN and for any caller that opts in, NOT the fix for the traffic volume.
-    The fix for the volume is the memo in src/lib/public-blog.ts and the per-sandbox
-    caches in wix.py; this is the third layer, not the first.
+    The fix for the volume is the memo in src/lib/public-blog.ts; this is the second
+    layer, not the first.
 
     Deliberately NOT using cors_response for the 304: a 304 MUST NOT carry a body, and
     cors_response always json.dumps one and sets Content-Type.
@@ -809,7 +809,7 @@ def _route_post(path: str, body: Dict[str, Any], actor: str, origin: str):
         return _response(200, {'ok': True, **blog_verify.run(source_id, actor)}, origin)
 
     if path.endswith('/blog-publish/release'):
-        # Records a decision. Performs NO Wix write - publishing is a separate call, because
+        # Records a decision. Performs NO publish write - publishing is a separate call, because
         # section 38 requires that processing completion never automatically mean publishing.
         source_id = str(body.get('sourceId') or '').strip()
         if not source_id:
@@ -829,7 +829,7 @@ def _route_post(path: str, body: Dict[str, Any], actor: str, origin: str):
         if not job_id:
             raise ValueError('jobId is required')
         # DELIBERATELY NOT IDEMPOTENCY-CLAIMED, and this is the one route where that looks
-        # wrong. It is the only Wix mutation in the system, so a claim is the obvious reflex.
+        # wrong. It is the only write that puts a post live, so a claim is the obvious reflex.
         #
         # It was there, and the first live run caught it doing harm. The claim keys on the
         # request body, and the body is just `{jobId}` - so the FIRST attempt records the claim
@@ -1098,7 +1098,7 @@ def handler(event: Dict[str, Any], context: Optional[Any]):
                 # This is the seam between the CMS and the published page: the static export
                 # builds by fetching this endpoint per post, and src/pages/post/[slug].tsx
                 # already renders post.jsonLd.faqSchema. So the frontend needs no change - the
-                # chain existed end to end and was cut only by wix.py hardcoding jsonLd to {}.
+                # approved FAQ lives in an audit record, and this is where it joins the post.
                 #
                 # NOT ON THE LIST ROUTE. faqSchema is read by the post page alone; the index
                 # renders cards from seven fields and never touches it. Enriching the list would

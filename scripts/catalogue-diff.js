@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 /**
- * Did the Wix catalogue actually CHANGE, or did the clock?
+ * Did the catalogue snapshot actually CHANGE, or did the clock?
  *
  * Usage
  *   node scripts/catalogue-diff.js <before.json> <after.json>
  *
  * Exits 0 either way and reports on stdout. When `GITHUB_OUTPUT` is set it also writes
- * `changed`, `added`, `removed`, `modified` and `summary` as step outputs, so
- * `.github/workflows/catalogue-sync.yml` can branch on a fact rather than parse a log.
+ * `changed`, `added`, `removed`, `modified` and `summary` as step outputs, so a
+ * workflow can branch on a fact rather than parse a log.
  *
  * WHY THIS EXISTS, AND IT IS NOT TIDINESS
  * ---------------------------------------
- * `scripts/fetch-wix-catalog.js` stamps `fetchedAt` and `variantVerifiedAt` with
- * `new Date().toISOString()` on EVERY run. So `git diff --quiet src/content/wix-catalog.json`
- * is true on every single run, including the overwhelmingly common one where Wix returned
- * byte-identical products. Measured 2026-10-04: two consecutive fetches minutes apart
+ * `scripts/build-catalog-snapshot.py` stamps `fetchedAt` and `variantVerifiedAt` with the
+ * current time on EVERY run. So `git diff -- src/content/catalog-snapshot.json` reports a
+ * change on every single run, including the overwhelmingly common one where the catalogue
+ * returned byte-identical products. Measured 2026-10-04: two consecutive fetches minutes apart
  * produced a 2-line diff, both lines a timestamp.
  *
  * A scheduled sync wired to a raw `git diff` would therefore:
@@ -31,9 +31,10 @@
  * WHAT COUNTS AS A CHANGE IS DELIBERATELY EVERYTHING ELSE
  * ------------------------------------------------------
  * A price edit, a description edit, a slug rename, a variant appearing or disappearing, a
- * product hidden in Wix, `productCount` moving - all of it. The per-product comparison is a
- * deep compare of the whole row, not a chosen subset, because a subset is a guess about which
- * Wix fields matter and the site renders more of them than anyone will remember to list.
+ * product hidden in the catalogue, `productCount` moving - all of it. The per-product
+ * comparison is a deep compare of the whole row, not a chosen subset, because a subset is a
+ * guess about which fields matter and the site renders more of them than anyone will remember
+ * to list.
  *
  * NEITHER FILE IS WRITTEN. This script reads and reports; the workflow decides.
  */
@@ -66,8 +67,9 @@ function read( file ) {
  * Deep structural equality over JSON values.
  *
  * Written out rather than `JSON.stringify(a) === JSON.stringify(b)` because stringify is
- * KEY-ORDER SENSITIVE: Wix is under no obligation to serialise a product's fields in the same
- * order twice, and an order flip would read as a catalogue change and trigger a build.
+ * KEY-ORDER SENSITIVE: the catalogue source is under no obligation to serialise a product's
+ * fields in the same order twice, and an order flip would read as a catalogue change and trigger
+ * a build.
  */
 function deepEqual( a, b ) {
   if ( a === b ) return true;
@@ -133,8 +135,8 @@ export function compare( before, after ) {
   if ( meta ) parts.push( 'catalogue metadata changed' );
 
   const summary = changed
-    ? `Wix catalogue: ${parts.join( '; ' )}`
-    : 'Wix catalogue: no change (only the fetch timestamps moved)';
+    ? `Catalogue: ${parts.join( '; ' )}`
+    : 'Catalogue: no change (only the fetch timestamps moved)';
 
   return { changed, added, removed, modified, meta, summary };
 }

@@ -1,8 +1,8 @@
 """The WhatsApp catalogue order, parsed into lines and quantities with no money anywhere.
 
 These tests exist to pin the REMOVAL as much as the addition. The path this module replaces read
-Meta's `item_price` as a `float`, added 18% GST to goods Wix had already taxed, re-added supply GST
-per item and logged a 2% fee - so the assertions that matter most here are the negative ones: no
+Meta's `item_price` as a `float`, added 18% GST to goods whose catalogue price already included
+it, re-added supply GST per item and logged a 2% fee - so the assertions that matter most here are the negative ones: no
 float literal, no `float()` call, no money key on the row, and an `item_price` of any size making
 no difference at all to what gets stored.
 """
@@ -18,11 +18,12 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, os.path.join(str(ROOT), "amplify", "functions", "shared"))
 
+from lambda_utils.ecommerce import meta_catalog_sync  # noqa: E402
 from lambda_utils.ecommerce import order_channel, whatsapp_basket as wb  # noqa: E402
 
 MODULE_PATH = (ROOT / "amplify/functions/shared/lambda_utils/ecommerce/whatsapp_basket.py")
 
-#: Two real-shaped Wix UUID pairs. `meta_catalog_sync.parse_retailer_id` anchors on the UUID
+#: Two real-shaped catalogue UUID pairs. `meta_catalog_sync.parse_retailer_id` anchors on the UUID
 #: pattern, so these have to be well-formed or every line would be dropped for the wrong reason.
 PRODUCT_A = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa"
 VARIANT_A = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb"
@@ -34,7 +35,14 @@ CUSTOMER_PHONE = "919876543210"
 
 
 def retailer(product_id: str, variant_id: str) -> str:
-    return f"wix:{product_id}:{variant_id}"
+    """The catalogue retailer id, built by the sync that publishes it rather than re-spelled."""
+    return meta_catalog_sync.retailer_id(product_id, variant_id)
+
+
+def raw_retailer(*segments: str) -> str:
+    """A retailer id under our prefix, exactly as given and unnormalised, for the cases that test
+    the parser's own tolerance (case) or its refusals (broken ids, extra segments)."""
+    return ":".join((meta_catalog_sync.RETAILER_PREFIX,) + segments)
 
 
 def order_message(items, *, message_id="wamid.HBgMOTE5ODc2NTQzMjEwFQIAEhgg", catalog_id="cat-1"):
@@ -51,7 +59,7 @@ def item(retailer_id, quantity=1, **extra):
 # ── parsing ───────────────────────────────────────────────────────────────────
 
 
-def test_two_wix_lines_become_one_handoff_with_integer_quantities_and_no_money():
+def test_two_catalogue_lines_become_one_handoff_with_integer_quantities_and_no_money():
     basket = wb.parse_order_message(order_message([
         item(retailer(PRODUCT_A, VARIANT_A), 2, item_price=499, currency="INR"),
         item(retailer(PRODUCT_B, VARIANT_B), 1, item_price=1299, currency="INR"),
@@ -61,8 +69,8 @@ def test_two_wix_lines_become_one_handoff_with_integer_quantities_and_no_money()
         {"productId": PRODUCT_A, "variantId": VARIANT_A, "quantity": 2},
         {"productId": PRODUCT_B, "variantId": VARIANT_B, "quantity": 1},
     ]
-    # `is` on the type, not `isinstance`: `cart_v2.catalog_item` refuses anything whose quantity is
-    # not exactly `int`, and `True` is an `int` subclass.
+    # `is` on the type, not `isinstance`: `cart_contract.catalog_item` refuses anything whose
+    # quantity is not exactly `int`, and `True` is an `int` subclass.
     assert all(type(line["quantity"]) is int for line in basket.lines)
 
     row = wb.build_handoff(basket, CUSTOMER_PHONE, token="tok-1", now=1_700_000_000)
@@ -81,12 +89,12 @@ def test_two_wix_lines_become_one_handoff_with_integer_quantities_and_no_money()
                         "sourceMessageId", "catalogId", "createdAt", "expiresAt"}
 
 
-def test_a_non_wix_retailer_id_is_dropped_and_counted():
+def test_a_retailer_id_that_is_not_ours_is_dropped_and_counted():
     basket = wb.parse_order_message(order_message([
         item(retailer(PRODUCT_A, VARIANT_A), 1),
-        item("WD-PARTNER-UP", 3),                       # catalog-builder SKU, not ours
-        item("wix:not-a-uuid:also-not", 1),             # our prefix, broken ids
-        item(f"wix:{PRODUCT_B}:{VARIANT_B}:extra", 1),  # an extra segment
+        item("WD-PARTNER-UP", 3),                              # catalog-builder SKU, not ours
+        item(raw_retailer("not-a-uuid", "also-not"), 1),       # our prefix, broken ids
+        item(raw_retailer(PRODUCT_B, VARIANT_B, "extra"), 1),  # an extra segment
     ]))
     assert basket is not None
     assert [line["productId"] for line in basket.lines] == [PRODUCT_A]
@@ -145,10 +153,11 @@ def test_one_variant_sent_twice_is_summed_not_duplicated():
 
 
 def test_a_retailer_id_is_lowercased_on_the_way_in():
-    """`meta_catalog_sync.retailer_id` publishes lowercase, and `cart_v2.identifier` lowercases
-    too, so an upper-case id from Meta must resolve to the same Wix line rather than forking it."""
+    """`meta_catalog_sync.retailer_id` publishes lowercase, and `cart_contract.identifier`
+    lowercases too, so an upper-case id from Meta must resolve to the same cart line rather than
+    forking it."""
     basket = wb.parse_order_message(order_message([
-        item(retailer(PRODUCT_A.upper(), VARIANT_A.upper()), 1)]))
+        item(raw_retailer(PRODUCT_A.upper(), VARIANT_A.upper()), 1)]))
     assert basket is not None
     assert basket.lines == [{"productId": PRODUCT_A, "variantId": VARIANT_A, "quantity": 1}]
 
@@ -300,7 +309,7 @@ def test_a_token_is_unguessable_and_comes_from_secrets():
 # ── the claimed-channel pointer ───────────────────────────────────────────────
 
 
-#: The Wix cart a claim merged its lines into. Lowercase, because `cart_v2.identifier` lowercases
+#: The cart a claim merged its lines into. Lowercase, because `cart_contract.identifier` lowercases
 #: whatever `CustomerCart.ensure` returns and both sides of the comparison must be one spelling.
 CLAIMED_CART = "11111111-2222-3333-4444-555555555555"
 
@@ -373,12 +382,13 @@ def test_a_malformed_pointer_degrades_to_no_claim_rather_than_raising():
                            cart_id=CLAIMED_CART) is None
 
 
-# ── stored row -> Wix cart items ──────────────────────────────────────────────
+# ── stored row -> cart items ──────────────────────────────────────────────────
 
 
 def test_catalog_items_remakes_a_decimal_quantity_as_a_real_int():
-    """DynamoDB returns numbers as `Decimal`, and `cart_v2.catalog_item` refuses anything whose
-    quantity is not exactly `int` - so a stored row handed straight to Wix would be rejected."""
+    """DynamoDB returns numbers as `Decimal`, and `cart_contract.catalog_item` refuses anything
+    whose quantity is not exactly `int` - so a stored row handed straight to the cart would be
+    rejected."""
     from decimal import Decimal
     items = wb.catalog_items({"lines": [
         {"productId": PRODUCT_A, "variantId": VARIANT_A, "quantity": Decimal("3")},

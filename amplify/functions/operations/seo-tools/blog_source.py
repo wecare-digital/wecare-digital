@@ -1,20 +1,17 @@
 """One seam that decides WHERE the public blog is read from.
 
-WIX EXIT COMPLETE. AWS is now the sole source of the public blog: published
-`blogPost` records are read from the SeoToolsTable via `storage.list_blog_posts`
-/ `storage.get_blog_post` (published-only). The Wix branch and the `BLOG_SOURCE`
-flag are gone — the `wecare-wix-store` / `wecare-wix-catalog-webhook` Lambdas and
-the Wix blog read path were retired in the Wix exit, so there is nothing left to
-dispatch to and no rollback target to keep a flag for.
+AWS is the sole source of the public blog: published `blogPost` records are read
+from the SeoToolsTable via `storage.list_blog_posts` / `storage.get_blog_post`
+(published-only). There is no source flag and no other store to dispatch to, so
+nothing here reads the environment.
 
 The seam is kept (rather than inlining `storage` at every call site) so that the
 public read surface stays named in one place and the handler/frontend route shape
 (`src/lib/public-blog.ts`) is untouched. `using_aws()` is retained and always
 returns True for any caller that still asks.
 
-History: this used to default to `BLOG_SOURCE=wix` and dispatch to an anonymous
-Wix visitor-token read; AWS was proven authoritative (1,421 published posts in
-SeoToolsTable == live API total) before the Wix path was removed.
+AWS was proven authoritative (1,421 published posts in SeoToolsTable == live API
+total) before it became the only read path.
 """
 from __future__ import annotations
 

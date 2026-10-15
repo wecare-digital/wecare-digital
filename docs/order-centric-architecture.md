@@ -10,7 +10,7 @@ Everything ties to Order ID:
 - Payments → orderId
 - Admin Order Management → orderId
 - Status history → orderId
-- External sync (Wix/manual/future) → orderId
+- Native checkout and manual orders → orderId
 
 ## Order ID Format
 
@@ -21,7 +21,7 @@ Everything ties to Order ID:
 ## Tables
 
 ### OrdersTable (PK: orderId)
-Central order store for all sources (Wix, manual, Shopify, future).
+Central order store for all sources (native checkout, manual, future).
 GSIs: customerPhone, source, orderStatus.
 
 ### FlowSubmissionTable (PK: submissionId)
@@ -82,7 +82,6 @@ Fields: submissionId, orderId, oldStatus, newStatus, changedBy, notes, changedAt
 - Detail panel with full order info + all linked submissions
 - Status update controls for both orders and submissions
 - Manual order creation
-- Wix sync
 
 ### 6. Status history audit trail
 **Root cause**: No audit trail for status changes.
@@ -97,7 +96,6 @@ Fields: submissionId, orderId, oldStatus, newStatus, changedBy, notes, changedAt
 | GET | /orders/:id/submissions | Get all submissions for an order |
 | PATCH | /orders/:id/update-status | Update order status |
 | POST | /orders | Create manual order |
-| POST | /orders/sync | Sync orders from Wix |
 | POST | /requests/submit | Submit a new request (via flow) |
 | GET | [retired public path 282d0fd5]/:orderId | Track order status (via flow) |
 

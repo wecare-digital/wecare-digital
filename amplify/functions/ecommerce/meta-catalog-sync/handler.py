@@ -96,7 +96,8 @@ META_BATCH_CHUNK = 100
 #: Durable owner-approval records share the existing authorization table, but use a namespaced
 #: key so they can never collide with agent tool-plan approvals. Rows intentionally omit the
 #: table's expiresTtl attribute: a catalog decision is an audit record, not a 15-minute bearer
-#: approval. Exact current-plan binding still makes any Wix/Meta drift invalidate the approval.
+#: approval. Exact current-plan binding still makes any ProductsTable/Meta drift invalidate the
+#: approval.
 CATALOG_APPROVALS_TABLE = os.environ.get(
     "META_CATALOG_APPROVALS_TABLE", "stack-wecare-digital-AgentApprovalsTable")
 CATALOG_APPROVAL_KEY_PREFIX = "META_CATALOG_SYNC#"
@@ -485,7 +486,7 @@ def _native_products(scanner=None) -> List[Dict[str, Any]]:
     Per-variant `pricePaise` is emitted as integer paise directly from the native
     `priceMinor`, which is exactly what `require_variant_price=True` needs — so a
     native product with priced variants is accepted, and one missing a variant price
-    is refused, identically to the Wix path.
+    is refused before any Meta write.
     """
     from decimal import Decimal
 
@@ -530,7 +531,7 @@ def _native_products(scanner=None) -> List[Dict[str, Any]]:
                 "inStock": bool(_paise(v.get("inventory"))),
             }
             # A priced variant carries pricePaise; an unpriced one omits it, so
-            # desired_items(require_variant_price=True) refuses it exactly as the Wix path does.
+            # desired_items(require_variant_price=True) refuses it rather than guessing a price.
             vp = v.get("priceMinor")
             if vp is not None:
                 variant["pricePaise"] = _paise(vp)
@@ -655,13 +656,13 @@ def _trigger(event: Any) -> Dict[str, str]:
             "entityId": str(event.get("entityId") or "")}
 
 
-def handler(event, context, *, wix_requester=None, graph_requester=None,
+def handler(event, context, *, graph_requester=None,
             secret_reader=None, approval_store=None):  # noqa: ARG001 - Lambda signature
     """Compute the AWS ProductsTable -> Meta plan and write only if both gates are open.
 
-    `wix_requester` remains an ignored compatibility keyword for older test/caller fixtures; no
-    provider-store request is possible from this handler. Active injection points resolve inside
-    the function so monkeypatches remain effective.
+    The catalogue is read from ProductsTable only (`_native_products`), and the only API outside
+    AWS that this handler calls is Meta Graph. Injection points resolve inside the function so
+    monkeypatches remain effective.
     """
     reader = secret_reader or _read_secret
     graph = graph_requester or _graph_request

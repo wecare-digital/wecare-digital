@@ -131,16 +131,15 @@ ROLES = [
     "GitHubActions-wecare-digital-public-surface",
     "GitHubActions-wecare-digital-public-surface-read",
     "GitHubActions-wecare-digital-plivo-drift",
-    # The AWS-native catalog deploy/publish/media roles, declared by the catalogue-cutover
-    # workflows (native-catalog-admin-deploy.yml, aws-native-catalog-publish.yml,
-    # catalog-media-migrate.yml). Registered here so they get the SAME repo-pinned OIDC trust
-    # document as every other role rather than whatever their creator hand-wrote.
+    # The AWS-native catalog deploy/publish roles, declared by the catalogue workflows
+    # (native-catalog-admin-deploy.yml, aws-native-catalog-publish.yml). Registered here so
+    # they get the SAME repo-pinned OIDC trust document as every other role rather than
+    # whatever their creator hand-wrote.
     "GitHubActions-wecare-native-catalog-deploy",
     "GitHubActions-wecare-native-catalog-reader",
-    "GitHubActions-wecare-product-media-migration",
-    # The selected runtime-deploy role, declared by wix-exit-runtime-deploy.yml. Registered
-    # here so it gets the SAME repo-pinned OIDC trust document as every other role rather than
-    # whatever its creator hand-wrote.
+    # The selected runtime-deploy role, declared by .github/workflows/runtime-deploy.yml.
+    # Registered here so it gets the SAME repo-pinned OIDC trust document as every other role
+    # rather than whatever its creator hand-wrote.
     "GitHubActions-wecare-runtime-deploy",
 ]
 

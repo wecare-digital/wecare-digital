@@ -258,7 +258,7 @@ def _profile(identity: customer_auth.CustomerIdentity) -> Optional[Dict[str, Any
         # `from_contact` re-validates the stored map and never raises, so an address written
         # before a rule tightened degrades to "no address on file" rather than to a 500. It is
         # never a re-composition of the six address fields: `fullAddress` is derived server-side
-        # and is the same string that reaches Wix and the invoice.
+        # and is the same string that reaches the invoice.
         address = contact_address.from_contact(owned)
         return {
             "name": (str(owned.get("name") or "").strip()

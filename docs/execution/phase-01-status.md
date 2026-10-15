@@ -68,7 +68,7 @@ expected so the anomaly list keeps its signal.
 
 ## Still to do in this phase
 
-- Provider documentation queues: Plivo, Meta, Razorpay, Google, Bing, Wix, each
+- Provider documentation queues: Plivo, Meta, Razorpay, Google, Bing, each
   with the per-page result fields the brief specifies.
 - MCP schema inventory — both Meta servers remain unauthenticated pending the
   owner adding the OAuth redirect URIs.

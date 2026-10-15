@@ -64,7 +64,7 @@ misled every reader so far. Re-verify with the harness, not with this table.
    now reports 0 vulnerabilities.** It had been 5 (4 moderate, 1 high).
 
    Everything earlier revisions of this file said about this was stale, which is worth
-   noting because it was stated with confidence: there was no `@wix/cli` finding and no
+   noting because it was stated with confidence: there was no
    `tar` finding in the audit at all, and nothing about `plivo-browser-sdk`,
    `wasm-pack` or `binary-install`. **Re-run `npm audit` rather than trusting any
    description of it, including this one.**
@@ -77,8 +77,8 @@ misled every reader so far. Re-verify with the harness, not with this table.
    `npm audit fix` was NOT the answer: its `fixAvailable` proposed dropping
    `@aws-amplify/backend-cli` from **1.10.0 to 0.11.1**, a major *downgrade* to a 0.x
    line, because every 1.x release is inside the advisory range. 1.10.0 is the newest
-   published version, so there was nothing to upgrade to — the same shape as the old
-   `@wix/cli` note, and the same trap.
+   published version, so there was nothing to upgrade to — a `fixAvailable` that is a
+   downgrade is a trap, not a fix.
 
    The fix was to patch the two **leaf** packages instead, via `overrides` in
    `package.json`: `mysql2` 3.9.9 → **3.24.4** (clears the `<=3.23.0` range) and
@@ -365,12 +365,8 @@ these pages personally and rejected several agent drafts on substance:
   still hand-written per page, and two are thin: `/vayulok/` is titled "VayuLok by
   WECARE.DIGITAL" and described as "VayuLok - Bharat Air Intelligence, by WECARE.DIGITAL.",
   neither of which says what it does.
-- **Product schema from `src/content/wix-catalog.json`**, once the commerce decisions below
-  are made.
-- **Reconcile the two Wix API versions.** `scripts/fetch-wix-catalog.js` uses
-  `stores-reader/v1`; `amplify/functions/ecommerce/wix-store/handler.py` uses `stores/v3`
-  in 17 places. Inspect a real v3 payload before mapping — the field shapes are not mapped,
-  and v3 adds price ranges and cursor paging.
+- **Product schema from `src/content/catalog-snapshot.json`** (generated from
+  `ProductsTable` by `scripts/build-catalog-snapshot.py`).
 - **The catalog snapshot will not scale.** 7 products is 9,500 bytes; the owner expects
   ~4,000, which is 5–6MB of committed JSON. That needs a `ProductsTable`, a scheduled
   `catalog-sync` Lambda and DynamoDB Streams fan-out, not a bigger file.
@@ -384,17 +380,10 @@ these pages personally and rejected several agent drafts on substance:
 - **A Google Maps API key.** Blocks the last red harness assertion, and blocks recolouring
   the red pin to lime. There is no `AIza` key anywhere in the tree or in
   `git log --all -S AIza`, and `.env.example:58` has it commented out.
-- **Wix product images.** All 7 products report `mediaCount: 0` on both API versions, which
-  blocks the Meta WhatsApp catalog entirely.
 - **`productType`.** All 7 products are `physical`; 4 of them are services. Google Merchant
   will reject those.
-- **A join key for commerce.** Every SKU is empty. Recommendation: the Wix `id` UUID, with
-  `slug` used only for URLs.
 - **Turn off "Automatically delete head branches".** The working branch has now been
   recreated **seven** times, which has cost two near-reverts and one 28-file conflict.
-- **Rotate the Wix API key.** It was pasted into a chat transcript and is account-scoped,
-  so it cannot be referrer-restricted. Move it to Secrets Manager under the existing
-  `WIX_API_KEY_SECRET` pattern.
 
 - ~~`_document.tsx` sets an `X-Frame-Options` meta tag.~~ **Deleted.** It gave zero
   protection, since browsers honour XFO only as a header, and it logged an error on every
@@ -555,7 +544,7 @@ Measured on this branch, based on `stack` at `80a877f9`, Node 24.19.0. The harne
 npm run build                        # exit 0; then:
 npx tsc --noEmit                     # 0 errors
 npx vitest run                       # 152 passed / 13 files
-./scripts/check-provider-policy.sh   # no violations
+.venv/bin/python scripts/check_provider_allowlist.py   # no violations
 npx eslint .                         # 225e/63w — red, pre-existing
 node tools/browser/animcheck.js      # 18/18
 node tools/browser/typecheck.js      # 3/3

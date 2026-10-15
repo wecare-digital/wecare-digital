@@ -43,7 +43,6 @@ procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
 --- SERVICES (is this Asterisk + anything else?) ---
   asterisk.service           loaded active running Asterisk PBX
   gssproxy.service           loaded active running GSSAPI Proxy Daemon
-  sms-proxy.service          loaded active running Airtel SMS Proxy
 --- LISTENING SOCKETS (expect 5061 TLS, RTP range; flag :8899 legacy proxy) ---
 udp   UNCONN 0      0                             0.0.0.0:41657      0.0.0.0:*    users:(("asterisk",pid=3536615,fd=9))     
 udp   UNCONN 0      0                                [::]:58545         [::]:*    users:(("asterisk",pid=3536615,fd=10))    

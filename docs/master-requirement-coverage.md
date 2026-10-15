@@ -27,7 +27,7 @@ Everything in this section was run on 2026-09-25, not carried forward.
 | `vitest` | **224 passed** |
 | `tsc --noEmit` | clean |
 | `npm run build` | ok, 536 sitemap URLs (520 blog posts) |
-| `check-provider-policy.sh` | OK 8/8 |
+| `check_provider_allowlist.py` | OK |
 | `check_provider_policy_live.py` | **OK** — was FAILING at this HEAD before this session |
 | `check_data_model_drift.py --gate` | **PASSED** — was FAILING at this HEAD before this session |
 | `audit_data_model_drift.py --gate` | OK, 0 tables named by code but absent |
@@ -54,8 +54,8 @@ highest *proven* state, with the evidence that proves it.
 
 | Requirement group | State | Proof |
 |---|---|---|
-| Provider ownership | `LIVE_VERIFIED` | Source gate 8/8 and the live-estate gate both pass. 361 routes scanned across 4 pages; Sinch confined to India RCS |
-| Prohibited providers (PayU / Airtel / Sinch SMS / Plivo SMS) | `DEPLOYED` | No prohibited Lambda, route or table live. Six secrets scheduled for deletion; **`DEPLOYED`, not `LIVE_VERIFIED`, until permanent absence after the recovery window**. Razorpay `rxairtel` VPA preserved byte-for-byte |
+| Provider ownership | `LIVE_VERIFIED` | Source gate (`check_provider_allowlist.py`) and the live-estate gate both pass. 361 routes scanned across 4 pages; Sinch confined to India RCS |
+| Prohibited providers (PayU / Sinch SMS / Plivo SMS) | `DEPLOYED` | No prohibited Lambda, route or table live; the allow-list gate blocks reintroduction. Retired-provider secrets: [`docs/security.md`](security.md#retired-provider-credentials). **`DEPLOYED`, not `LIVE_VERIFIED`, until every scheduled deletion is permanently absent after its recovery window**. Razorpay UPI VPA preserved byte-for-byte |
 | Protected Meta assets | `LIVE_VERIFIED` | Never deregistered, re-registered or migrated. `docs/protected-resource-register.md` |
 | WhatsApp messaging | `DEPLOYED` | Stage-prefix defect fixed, signed ingress live, `wamid` status lifecycle reconciled. Handset round trip needs a live-send flag that is deliberately absent |
 | WhatsApp Calling | `DEPLOYED` | Meta → `sip.wecare.digital:5061` → Asterisk preserved. Connected-event normalisation built; QA call not authorised |
@@ -75,7 +75,7 @@ highest *proven* state, with the evidence that proves it.
 | MCP / SDK inventory | `DEPLOYED` / `WAITING_FOR_OWNER` | Meta MCP needs two redirect URIs; Razorpay MCP blocked on the provider's `client_secret_post` |
 | Internal chatbot + governed operations | `DEPLOYED` | Versioned READ/PLAN/APPLY catalogue; **18 APPLY tools refused in `governance.py`** |
 | Growth and presence APIs | `DEPLOYED` / `WAITING_FOR_OWNER` | 88 fixture-driven contract tests; 7 of 8 providers `SCOPE_UNVERIFIED` pending owner access |
-| Wix commerce / site | `DEPLOYED` | Existing site preserved, no duplicate created. Domain layer lifted; equivalence proven over 64 golden cases, 0 differences |
+| Commerce / site | `DEPLOYED` | Native AWS commerce: `ProductsTable`, `CartTable`, `CommerceKeys`, `OrderTable`, Razorpay checkout, coupons and gift cards; blog in `SeoToolsTable` ([`docs/design.md`](design.md) §6–§11) |
 | Security / compliance | `DEPLOYED` | Raw-body signatures, 0 open routes, MFA staged. **No WAF** — both WebACLs deleted 2026-09-28 by owner cost decision, so the "enforcing on both carrying surfaces" claim is retired. Admin *data-path* proof blocked — §4 |
 | Cleanup / storage | `DEPLOYED` | Route, dependency and bundle cleanup with manifests and rollback |
 | Deployment / operations | `DEPLOYED` | 65 functions, 0 alias drift (re-measured 2026-09-26), snapshots for rollback, 5/5 CI green |
@@ -127,17 +127,15 @@ pending — the equivalence claim was just unfounded.
 
 ## 3. Registry rows the registry is owed
 
-These 19 rows read `DISCOVERED` as of 2026-09-21 and are contradicted by later
+These rows read `DISCOVERED` as of 2026-09-21 and are contradicted by later
 evidence. Listing them is how the contradiction gets recorded instead of hidden.
 
 | Row | Registry says | Evidence since |
 |---|---|---|
 | `SEC-MFA-001` | `DISCOVERED` | MFA implemented; Cognito `OPTIONAL` with TOTP + email + SMS. Enforcement staged at `warn` on purpose |
 | `SEC-WAF-001` | `WITHDRAWN` | Was `DISCOVERED` with 2 WebACLs live and enforcement proven by a blocked request. Both deleted 2026-09-28 by owner cost decision; the requirement was withdrawn in `00-current-owner-overrides.md` rather than left failing |
-| `SEC-ROUTE-007` | `DISCOVERED` | Airtel CDR branch behind `require_auth`; dead ingester removed in `91488c94` |
 | `SEC-ROUTE-008` | `DISCOVERED` | Still genuinely open — blocked on Admin group membership (§4) |
-| `PROV-GATE-001` | `DISCOVERED` | Live-estate gate exists and passes; source gate 8/8 |
-| `PROV-AIRTEL-002` | `DISCOVERED` | Needs re-measurement of the deployed env keys on `wecare-voice-in-c2c` |
+| `PROV-GATE-001` | `DISCOVERED` | Live-estate gate exists and passes; source gate `check_provider_allowlist.py` passes |
 | `WAC-001` | `DISCOVERED` | Calling ingress deployed; QA call not authorised |
 | `NOTIF-OWN-001`, `NOTIF-LEGACY-001` | `DISCOVERED` | Duplicate producer resolved; legacy senders removed |
 | `NOTIF-STORE-001`, `-003`, `-004` | `DISCOVERED` | Domain tables provisioned; drift gate now passes with both new tables recorded |
@@ -201,7 +199,7 @@ Using the program weights from `bw-crm.md` §00 and its milestone credits
 | PSTN Voice, Browser SDK | 14 | `DEPLOYED` | 10.5 |
 | Payments, contacts, CRM | 10 | `DEPLOYED` | 7.5 |
 | Governed MCP / dashboard AI | 8 | `DEPLOYED` | 6.0 |
-| Growth APIs and Wix | 7 | `DEPLOYED` | 5.25 |
+| Growth APIs and commerce | 7 | `DEPLOYED` | 5.25 |
 | Frontend IA / design / tutorials | 8 | `DEPLOYED`, vocabulary `LIVE_VERIFIED` | 6.3 |
 | Android/iOS | 4 | `WAITING_FOR_OWNER`, POST-PROJECT | 4.0 by override |
 | Tests, observability, deployment, DR | 6 | `DEPLOYED` | 4.5 |

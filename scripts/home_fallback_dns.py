@@ -2,6 +2,8 @@
 
 The distribution is provisioned by amplify/infra/home-fallback.json. Cut over
 only after CloudFront reports Deployed; never change explicit service records.
+Both names are owned by the alias records this module writes, so any existing
+CNAME there is unexpected and refuses the change rather than being replaced.
 Call apply(client, domain, existing) after saving existing to a rollback file.
 """
 
@@ -22,10 +24,7 @@ def changes(domain: str, existing: list[dict]) -> list[dict]:
             if record["Type"] in ("A", "AAAA") and record.get("AliasTarget", {}).get("DNSName", "").rstrip(".") != domain:
                 raise ValueError("Unexpected existing address; rediscover before changing DNS")
             if record["Type"] == "CNAME":
-                values = [v["Value"].rstrip(".") for v in record.get("ResourceRecords", [])]
-                if values != ["pointing.wixdns.net"]:
-                    raise ValueError("Unexpected existing CNAME; rediscover before changing DNS")
-                result.append({"Action": "DELETE", "ResourceRecordSet": record})
+                raise ValueError("Unexpected existing CNAME; rediscover before changing DNS")
         for kind in ("A", "AAAA"):
             desired = {"Name": name, "Type": kind, "AliasTarget": {
                 "HostedZoneId": CLOUDFRONT_ZONE_ID, "DNSName": domain + ".",

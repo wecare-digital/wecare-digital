@@ -16,11 +16,9 @@ moments, and the queue is exactly where the gap lives.
 automatically mean publishing. Enforced by grepping the modules, because that is the kind of
 convenience somebody adds later.
 
-WIX EXIT: publishing writes to the AWS-native store via `storage.create_blog_post`, not Wix.
-There is no Wix credential and no kill switch in native mode, so a publish is NEVER REFUSED - a
-write that does not succeed is always FAILED. The old `FakeWix` harness and the kill-switch /
-Ricos-compiler / draft-posts tests that asserted Wix-specific behaviour were removed or rewritten
-against the native fake below.
+Publishing writes to the AWS-native store via `storage.create_blog_post`. There is no external
+credential and no kill switch on that path, so a publish is NEVER REFUSED - a write that does not
+succeed is always FAILED. Every test here runs against the native fake below.
 """
 from __future__ import annotations
 
@@ -56,8 +54,8 @@ class FakeStore:
     test that drives the real native read seam (`storage.get_blog_post` /
     `blog_source.get_blog_post_by_slug`) reads back the exact record this write produced.
 
-    `raise_on_write` models a native-store failure - the FAILED path - since there is no Wix
-    rejection to model any more.
+    `raise_on_write` models a native-store failure - the FAILED path, the only way a publish
+    does not succeed.
     """
 
     def __init__(self) -> None:
@@ -130,7 +128,6 @@ def env(monkeypatch):
     monkeypatch.setattr(bs, "s3_client", lambda: s3)
     monkeypatch.setattr(bs, "lambda_client", lambda: lam)
     monkeypatch.setattr(bs, "BUCKET", "wecare-digital-get")
-    monkeypatch.setenv("WIX_BLOG_AUTHOR_NAME", "Anew by WECARE.DIGITAL")
     bg.reset_corpus_cache()
     index = q.CorpusIndex()
     index.add({"slug": "an-unrelated-article", "title": "Something else entirely",
@@ -286,8 +283,8 @@ def test_a_queued_job_can_be_withdrawn(env):
 
 
 def test_a_published_job_cannot_be_withdrawn(env):
-    """A live post comes down through Wix, which is outside this module's authority.
-    Pretending otherwise would be a lie told to an operator during an incident."""
+    """A live post comes down through the native blog store, which is outside this module's
+    authority. Pretending otherwise would be a lie told to an operator during an incident."""
     source_id = _signed(env)
     job = env["bp"].release(source_id, "operator")
     env["bp"].publish(job["jobId"], "operator")
@@ -319,9 +316,9 @@ def test_publishing_writes_once_and_records_the_post(env):
 
 def test_the_published_body_is_the_approved_markdown(env):
     """Native: the approved draft markdown is written as-is to the store, and the native read
-    path renders it. The old Ricos compiler is gone, so what matters now is that the body that
-    goes to `storage.create_blog_post` is exactly the signed-off markdown - no second compiler
-    sits between the approval and the live post to drift from it.
+    path renders it. What matters is that the body that goes to `storage.create_blog_post` is
+    exactly the signed-off markdown - no compiler sits between the approval and the live post to
+    drift from it.
     """
     source_id = _signed(env)
     job = env["bp"].release(source_id, "operator")
@@ -333,12 +330,10 @@ def test_the_published_body_is_the_approved_markdown(env):
     assert body["status"] == "published"
 
 
-# Section 27 "no image/gallery/video node reaches the post" was a Wix-rich-content (Ricos)
-# invariant: it inspected the compiled Wix draft-post node tree. The native store persists the
+# Section 27 "no image/gallery/video node reaches the post": the native store persists the
 # approved markdown directly with no rich-content compile, so there is no node tree to inspect
-# here. The surviving media/legacy-markup guarantee against the LIVE post is asserted natively in
-# test_blog_verify.py (NO_MEDIA_NODES / NO_LEGACY_MARKUP). The Ricos-compiler test was removed in
-# the Wix exit.
+# here. The media/legacy-markup guarantee against the LIVE post is asserted in
+# test_blog_verify.py (NO_MEDIA_NODES / NO_LEGACY_MARKUP).
 
 
 def test_publishing_updates_the_pipeline_and_writes_the_record(env):
@@ -415,21 +410,13 @@ def test_an_unknown_job_is_refused(env):
 
 # ── A write that does not succeed is FAILED ─────────────────────────────────────
 #
-# WIX EXIT: the eight kill-switch / REFUSED tests that used to live here
-# (test_the_kill_switch_records_refused_not_failed, test_a_refusal_writes_no_publish_record,
-# test_a_refusal_is_not_retried_automatically, test_the_refusal_is_not_attempted_at_all,
-# test_a_switch_flipped_mid_flight_is_still_a_refusal,
-# test_a_genuine_wix_failure_is_not_reported_as_the_switch, test_a_wix_rejection_records_failed,
-# test_a_retry_after_a_refusal_is_not_blocked) asserted a concept that no longer exists: the Wix
-# `WIX_CREDENTIALS_DISABLED` kill switch and its distinct REFUSED state. Native publishing has no
-# Wix credential and no kill switch, so a publish is never REFUSED - a write either PUBLISHED or
-# FAILED. The REFUSED-specific tests were removed in the Wix exit; the surviving invariant - a
-# write that does not succeed is recorded as FAILED and not retried - is asserted natively below.
+# Native publishing has no credential to revoke and no kill switch, so a publish is never
+# REFUSED: a write either PUBLISHED or FAILED, and a FAILED write is not retried.
 
 
 def test_a_store_rejection_records_failed(env):
-    """A native-store write that raises is recorded as FAILED (never a refusal, which no longer
-    exists), carries the error, and is not retried."""
+    """A native-store write that raises is recorded as FAILED (never as a refusal), carries the
+    error, and is not retried."""
     source_id = _signed(env)
     job = env["bp"].release(source_id, "operator")
     env["store"].raise_on_write = True
@@ -537,18 +524,8 @@ def test_the_publish_route_is_not_idempotency_claimed(env):
             "after a refusal, and the conditional state claim already covers double-submit")
 
 
-# WIX EXIT: test_a_retry_after_a_refusal_is_not_blocked was removed - it drove the Wix
-# `WIX_CREDENTIALS_DISABLED` kill switch to produce a REFUSED job and asserted a fresh release
-# could follow. There is no kill switch and no REFUSED state in native mode. The source-agnostic
-# half of that behaviour (a non-QUEUED job must be released again before it can publish) is
-# covered by test_a_failed_publish_is_not_retried_automatically above.
-
-# WIX EXIT: test_the_only_wix_mutation_is_in_the_publish_path was removed - it grepped the
-# `blog_*.py` modules for the Wix `bulk/draft-posts` mutation path and asserted only
-# blog_publish.py contained it. No file contains that string any more (the Wix writer was
-# deleted), so the invariant is purely about Wix and now meaningless. The native equivalent -
-# only the publish path writes a post - is demonstrated by the "written exactly once" assertion
-# in test_publishing_writes_once_and_records_the_post and by test_the_batch_worker_cannot_publish.
+# Only the publish path writes a post: demonstrated by the "written exactly once" assertion in
+# test_publishing_writes_once_and_records_the_post and by test_the_batch_worker_cannot_publish.
 
 
 def test_publishing_is_not_a_model_writable_field(env):
@@ -645,9 +622,3 @@ def test_a_publish_job_does_not_count_as_a_source(env):
     source_id = _signed(env, batch_id, "ONE")
     env["bp"].release(source_id, "operator")
     assert env["bb"].rollup(batch_id)["sources"] == 1
-
-
-# WIX EXIT: test_the_ricos_compiler_is_packaged_for_the_lambda was removed - it asserted the
-# deploy package bundled `wix_blog_migrate.py` (the Ricos markdown->rich-content compiler). That
-# module was deleted in the Wix exit; the native publish path stores markdown directly and needs
-# no compiler packaged. The invariant is purely about Wix and is now meaningless.

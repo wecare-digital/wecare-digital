@@ -144,9 +144,6 @@ warm sandbox serves.
 # Inventory. Names only; never fetch a value.
 aws secretsmanager list-secrets --query 'SecretList[].Name' --output text | tr '\t' '\n' | sort
 
-# Wix credential state, without reading it
-.venv/bin/python scripts/set_wix_credential.py --status
-
 # After changing a secret, recycle its consumers so warm sandboxes stop serving the old value
 .venv/bin/python scripts/refresh_secret_consumers.py <secret-id>
 .venv/bin/python scripts/check_secrets_live.py
@@ -266,8 +263,6 @@ matters only if the number has to be re-registered, which is owner-only work.
 5. Alignment. The domain is `DMARC p=reject` with MTA-STS `enforce`, so an unaligned message
    **hard-bounces**; it does not go to spam. Run `scripts/verify-email-auth.ps1` and treat a
    non-zero exit as do-not-proceed.
-6. Never set `aspf=s`. Wix/SendGrid sends with envelope-from `sg.wecare.digital` against
-   header From `wecare.digital`, and only relaxed SPF alignment lets that pass.
 
 ### Address autocomplete returning nothing
 
@@ -320,9 +315,10 @@ Money has moved. Treat as urgent, and do not retry blindly.
 2. Confirm the payment at the provider before touching order state.
 3. If amount or currency mismatched, reconciliation **failed closed** — that is correct
    behaviour, and the mismatch is the thing to investigate.
-4. If Wix was unavailable, the order is in a recoverable state: retry from the admin surface.
-   Retries are idempotent; the same event resolves to the same order.
-5. Never create a second Wix order and never call a Wix API that would charge again.
+4. If the Razorpay readback was unavailable, the order is in a recoverable state: a redelivered
+   webhook or the browser verify path (`/ecommerce/verify-callback`) completes it. Retries are
+   idempotent; the `CommerceKeys` claims resolve the same payment to the same order.
+5. Never create a second order or a new Razorpay charge for a captured payment.
    Recording a payment is not collecting one.
 
 ### Rollback
@@ -394,12 +390,6 @@ Inherited, outside this build's scope, and recorded so they are not rediscovered
   `WAFInvalidParameterException`. Rate limiting therefore comes from per-route throttling plus the
   handler-level `RateLimitTable`, unless the API is moved behind CloudFront. Do not raise a
   ticket to "attach a WebACL to the HTTP API" — it will not succeed.
-- **Wix is live as of 2026-09-26.** The credential is stored, Catalog V3 is measured rather
-  than inferred (`/stores/v1/*` returns HTTP 428 `CATALOG_V3_CALLING_CATALOG_V1_API`), and the
-  site holds 7 products and 571 blog posts. Two things follow. **Wix Invoices is NOT
-  available** — `/invoices/v2/invoices` returns 404, which corroborates keeping the homegrown
-  engine. And the catalog is **thin**: 7 products, 1 category, 0 brands. A commerce launch
-  needs that populated, which is content work, not engineering.
 - **SES DKIM anomaly:** three Easy DKIM tokens are listed as current but AWS publishes a key
   for only one. SES signs with one selector per message, so one published key is sufficient
   and status is `SUCCESS`. Unverified: which selector SES actually uses. Confirm by reading

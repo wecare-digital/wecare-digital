@@ -73,12 +73,7 @@
     "dimension": 4096,
     "pngHeadVerified": 6,
     "publicCdnHead200": 6,
-    "svgUploaded": 6,
-    "wixOrMetaAssignment": "Wix four service choices assigned; Meta blocked",
-    "wixMediaManagerUploaded": 6,
-    "wixServiceChoiceAssignmentsVerified": 4,
-    "wixVariantIdsAndPricesPreserved": true,
-    "wixCdnHead200": 6
+    "svgUploaded": 6
   },
   "qa": {
     "contactExists": true,
@@ -101,7 +96,6 @@
     "intendedDataset": "4554612361454941",
     "datasetProviderConnection": "NOT VERIFIED",
     "wabaCatalogConnections": "NOT VERIFIED",
-    "wixWriteback": "flags unset/off",
     "sdkCleanup": "latest owner authorizes scoped cleanup; exact inventory/apply not performed in this audit"
   },
   "flows": {
@@ -127,7 +121,6 @@
     "A/B/P/R native action binding",
     "Definite-terminal payment retry/resume and paid recovery",
     "Encrypted private picker ingestion/CRM projection",
-    "Safe site-bound Wix writeback enablement",
     "Permanent QA account binding and actual owner-paid end-to-end delivery"
   ],
   "auditFollowup": {
@@ -244,7 +237,6 @@
         "operations/seo-tools/seo_freshness.py",
         "operations/seo-tools/seo_refresh.py",
         "operations/seo-tools/storage.py",
-        "operations/seo-tools/wix.py",
         "shared/lambda_utils/__init__.py",
         "shared/lambda_utils/appsecret.py",
         "shared/lambda_utils/audit.py",
@@ -286,7 +278,6 @@
         "shared/lambda_utils/rcs_status.py",
         "shared/lambda_utils/receipt_links.py",
         "shared/lambda_utils/response.py",
-        "shared/lambda_utils/retired_store.py",
         "shared/lambda_utils/sinch_rcs.py",
         "shared/lambda_utils/sinch_signature.py",
         "shared/lambda_utils/system_events.py",
@@ -299,8 +290,6 @@
         "shared/lambda_utils/wa_status.py",
         "shared/lambda_utils/webhook_dedup.py",
         "shared/lambda_utils/whatsapp_types.py",
-        "shared/lambda_utils/wix_ecom.py",
-        "shared/lambda_utils/wix_guard.py",
         "shared/static_knowledge_base.py"
       ],
       "sourceDifferences": [],
@@ -379,9 +368,7 @@
           "deleted": [],
           "freshCreated": false,
           "sdkDisconnect": "pending explicit updated confirmation",
-          "readOnlyInspect": "read_failed; applied 0",
-          "wixWebhookDelivery": "received; catalog sync read_failed",
-          "wixWriteback": "disabled; writeback and confirmed-contract flags absent"
+          "readOnlyInspect": "read_failed; applied 0"
         },
         "flows": {
           "submitRequestPaid": {
@@ -406,7 +393,6 @@
           "Approve concrete permanent-deletion targets at action time",
           "Create and share fresh catalog after authorized cleanup",
           "Persist owner approval queue and actions for new or changed catalog entries",
-          "Assign artworks to approved Meta catalog entries; Wix assignment complete",
           "Validate amendment and document draft ownership and fulfillment",
           "Enable native services only after writeback and payment prerequisites pass",
           "Run real customer Submit Request and Vault QA",
@@ -585,9 +571,7 @@
     "controls": {
       "SECURE_FILES_PAYMENT_ENABLED": "false",
       "VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED": "unset",
-      "WHATSAPP_CATALOG_SERVICES_ENABLED": "unset",
-      "WIX_WRITEBACK_ENABLED": "unset",
-      "WIX_ECOM_WRITE_CONFIRMED": "unset"
+      "WHATSAPP_CATALOG_SERVICES_ENABLED": "unset"
     },
     "liveReadback": {
       "submitFlow": "1107164111921876 PUBLISHED",
@@ -659,34 +643,6 @@
         "flowId": "1578178897413815",
         "screen": "FEEDBACK"
       }
-    },
-    "wix": {
-      "productId": "df976a0a-f582-4535-b2e1-d532f348bd27",
-      "revision": "5",
-      "visible": true,
-      "inStock": true,
-      "variants": [
-        {
-          "name": "Submit Request",
-          "id": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b",
-          "priceInr": "99.00"
-        },
-        {
-          "name": "Request Amendment",
-          "id": "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b",
-          "priceInr": "99.00"
-        },
-        {
-          "name": "Drop Docs",
-          "id": "db166bc8-a763-41ec-9f65-0f718f18155a",
-          "priceInr": "350.00"
-        },
-        {
-          "name": "Vault",
-          "id": "dcff995e-448c-493a-9259-f6a82ccdc2b4",
-          "priceInr": "49.00"
-        }
-      ]
     },
     "releaseControls": "closed",
     "realCustomerPaymentPerformed": false,

@@ -18,16 +18,31 @@ question is not "does this file mention DynamoDB" but "is this file allowed to".
 
 Two refinements that stop it being noise
 ----------------------------------------
-**Comments and imports are stripped first.** `SEO.tsx` mentions Airtel in a comment
-that says Airtel is retired, and reporting that as a leak would be reporting the
-documentation as the defect - the same trap `test_contact_key_wiring.code_only`
-exists for. Prose describing a retired provider is not a use of it.
+**Comments and imports are stripped first.** A comment that records why a provider was
+removed is documentation, and reporting it as a leak would be reporting the record of the
+fix as the defect - the same trap `test_contact_key_wiring.code_only` exists for.
 
 **A string must be user-visible to count.** An API path in a fetch call is not a
 label; a heading is. The scan therefore ignores `src/api/` and anything inside an
 import specifier, and it distinguishes a bare service word from a resource identifier
 - `DynamoDB` in a code comment is nothing, `stack-wecare-digital-ContactsTable`
 rendered in a heading is a leak.
+
+Provider names are an allow-list
+--------------------------------
+A provider named on an ordinary screen must be one the platform actually uses, so the
+names a screen may display come from `scripts/provider_allowlist.py` - the same
+allow-list the source and live provider gates read. Three shapes put a provider name in
+front of a user, and in each the name must be on that list:
+
+    attribution     "via X", "powered by X", "provided by X" ...
+    provider field  provider: 'X', providerName="X", carrier: 'X' ...
+    provider lists  "X + Y" where one part is an approved provider, and the values of a
+                    declaration named for providers (`const PROVIDER_LABELS = {...}`)
+
+There is no list of names that must not appear and no exemption for a "historical"
+label: a name that is not approved fails wherever it is shown, and data recorded under
+a provider that is no longer used is displayed through the product vocabulary instead.
 
 Usage
 -----
@@ -45,6 +60,10 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+
+import provider_allowlist  # noqa: E402
 
 # Surfaces authorised to name infrastructure, each with the reason it is exempt.
 # Adding an entry here is a deliberate decision that this screen is a technical
@@ -112,8 +131,6 @@ PATTERNS = {
     # switched off rather than fixed.
     "lambda_function": (
         r"\bwecare-(?!digital\b)[a-z0-9]+(?:-[a-z0-9]+)+\b(?<!-widget)", "high"),
-    # Retired providers: naming one in product UI implies it is still in use.
-    "retired_provider": (r"\b(Airtel|PayU|Pinpoint)\b", "high"),
     # Bare service words: lower severity, because "Bedrock" in a tooltip is a
     # vocabulary problem rather than an actionable disclosure.
     "aws_service_word": (
@@ -161,12 +178,106 @@ def relevant_files():
         yield rel, path
 
 
-# A retired provider may be NAMED when the same line marks it as past. Reading old
-# rows tagged `airtel` is legitimate and the label has to say something; what is not
-# allowed is describing a retired provider as current, which is what
-# "AWS Pinpoint + Airtel IQ" did on the SMS channel card.
-HISTORICAL_MARKERS = re.compile(
-    r"histor|legacy|retired|deprecat|archive|former|previous|migrated|past", re.I)
+# --------------------------------------------------------------------------------------
+# Provider names: positive. A provider shown in ordinary UI must be on the allow-list.
+# --------------------------------------------------------------------------------------
+#: Display names a screen may use for a provider, plus product terms ("via SMS").
+APPROVED_LABELS = provider_allowlist.ui_labels()
+#: Provider identifiers a provider field may carry (`provider: 'meta-social'`).
+APPROVED_IDS = provider_allowlist.provider_ids()
+#: First words of approved provider labels. A joined list ("X + Y") is only a provider
+#: list when one of its parts starts with one of these.
+PROVIDER_WORDS = frozenset(label.split()[0] for p in provider_allowlist.PROVIDERS
+                           for label in p.ui_labels)
+#: Words that may follow an approved name without changing who it names.
+GENERIC_TAIL = frozenset({"API", "APIs", "SDK", "Console", "Dashboard", "Integration",
+                          "Account", "App", "Platform", "Webhook", "Webhooks"})
+#: A capitalised determiner or pronoun opens ordinary prose, not a name.
+NOT_A_NAME = frozenset({"a", "an", "the", "this", "that", "these", "those", "your", "our",
+                        "their", "my", "his", "her", "its", "any", "all", "each", "every",
+                        "no", "one", "some"})
+
+_NAME = r"[A-Z][A-Za-z0-9]*(?:[.&-][A-Za-z0-9]+)*"
+_PHRASE = _NAME + r"(?: " + _NAME + r")*"
+ATTRIBUTION = re.compile(
+    r"\b(?:via|powered by|provided by|carried by|delivered by|processed by|hosted by"
+    r"|served by|operated by)\s+(" + _PHRASE + r")")
+#: `provider: 'X'`, `provider="X"` or the JSX expression `provider={'X'}`. An object value
+#: (`"provider": { "@id": ... }` in JSON-LD) is structure, not a name, and is not read.
+PROVIDER_FIELD = re.compile(
+    r"""\b(?:provider|providerName|providerLabel|carrier|vendor|gateway|poweredBy)['"]?\s*"""
+    r"""(?:[:=]\s*(['"`])(?P<plain>[^'"`\n]{1,80})\1"""
+    r"""|=\s*\{\s*(['"`])(?P<jsx>[^'"`\n]{1,80})\3\s*\})""")
+#: A provider stack written as "X + Y". Only `+`: an ampersand or slash in a title joins
+#: features ("Invoices & WhatsApp Pay"), not carriers.
+JOINED = re.compile(r"(" + _PHRASE + r")((?:\s*\+\s*" + _PHRASE + r")+)")
+PROVIDER_DECLARATION = re.compile(
+    r"\b(?:const|let|var)\s+(\w*(?:provider|PROVIDER|Provider|carrier|CARRIER|Carrier"
+    r"|vendor|VENDOR|Vendor|gateway|GATEWAY|Gateway)\w*)\s*(?::[^=\n]+)?=\s*([\[{])")
+
+
+def approved_label(phrase: str) -> bool:
+    """True when ``phrase`` names an approved provider or product term.
+
+    Exact first; then with generic trailing words removed, so "Razorpay Integration" is
+    Razorpay, while "AWS Acme" is not AWS: a product name AWS does not carry under that
+    label is not approved by the word in front of it.
+    """
+    phrase = " ".join(phrase.split())
+    if phrase in APPROVED_LABELS or phrase in APPROVED_IDS:
+        return True
+    words = phrase.split()
+    while len(words) > 1 and words[-1] in GENERIC_TAIL:
+        words.pop()
+        if " ".join(words) in APPROVED_LABELS:
+            return True
+    return False
+
+
+def _block(code: str, start: int, opener: str) -> str:
+    """The bracketed literal starting at ``start`` (depth-counted)."""
+    closer = "}" if opener == "{" else "]"
+    depth = 0
+    for i in range(start, min(len(code), start + 20000)):
+        if code[i] == opener:
+            depth += 1
+        elif code[i] == closer:
+            depth -= 1
+            if depth == 0:
+                return code[start:i + 1]
+    return code[start:start + 20000]
+
+
+def provider_name_findings(code: str):
+    """(offset, rule, shown name) for every unapproved provider name in UI copy."""
+    out = []
+    for m in ATTRIBUTION.finditer(code):
+        phrase = m.group(1)
+        if phrase.split()[0].lower() in NOT_A_NAME:
+            continue
+        if not approved_label(phrase):
+            out.append((m.start(1), "provider_label", phrase))
+    for m in PROVIDER_FIELD.finditer(code):
+        group = "plain" if m.group("plain") is not None else "jsx"
+        value = m.group(group).strip()
+        if value and not approved_label(value):
+            parts = [p.strip() for p in re.split(r"\s*[+&/,]\s*", value) if p.strip()]
+            if not parts or not all(approved_label(p) for p in parts):
+                out.append((m.start(group), "provider_label", value))
+    for m in JOINED.finditer(code):
+        parts = [m.group(1)] + [p for p in re.split(r"\s*\+\s*", m.group(2)) if p]
+        if not any(part.split()[0] in PROVIDER_WORDS for part in parts):
+            continue
+        for part in parts:
+            if not approved_label(part):
+                out.append((m.start(), "provider_label", part))
+    for m in PROVIDER_DECLARATION.finditer(code):
+        body = _block(code, m.start(2), m.group(2))
+        for value in re.findall(r"""['"`]([^'"`\n]{1,80})['"`]""", body):
+            if not approved_label(value.strip()):
+                out.append((m.start(), "provider_label", value.strip()))
+    return out
+
 
 def is_config_object_key(line_text: str, word: str) -> bool:
     """True for `Cognito: {` on its own line — an SDK config key, not a label.
@@ -193,12 +304,6 @@ def scan():
                 line_no = code[:match.start()].count("\n") + 1
                 line_text = lines[line_no - 1] if line_no <= len(lines) else ""
 
-                # A retired provider adjacent to a historical marker is a correct
-                # label, not a leak. `label: 'Airtel (historical)'` is the shape we
-                # want people to write.
-                if name == "retired_provider" and HISTORICAL_MARKERS.search(line_text):
-                    continue
-
                 # An object KEY introducing a block is code, not a label. This scanner
                 # reads UI copy, and `Cognito: {` inside `Amplify.configure()` is the
                 # SDK's own required key - there is no wording to change, and the only
@@ -212,6 +317,11 @@ def scan():
                     "file": rel, "line": line_no, "rule": name,
                     "severity": severity, "match": match.group(0)[:60],
                 })
+        for offset, rule, shown in provider_name_findings(code):
+            violations.append({
+                "file": rel, "line": code[:offset].count("\n") + 1, "rule": rule,
+                "severity": "high", "match": shown[:60],
+            })
     return violations
 
 
@@ -249,12 +359,13 @@ def main() -> int:
                     print(f"     ... and {len(items) - 8} more")
             print(f"\n{len(violations)} violation(s). Either move the label into the "
                   f"product vocabulary, or add the file to AUTHORISED_SURFACES with a "
-                  f"reason if it is genuinely a Technical Details surface.")
+                  f"reason if it is genuinely a Technical Details surface. A provider "
+                  f"name must be one scripts/provider_allowlist.py approves.")
 
     # MEDIUM IS NOW BLOCKING TOO, as of 2026-09-24.
     #
-    # It was high-only while 20 medium violations stood, on the same staging as
-    # provider-policy.yml: run advisory until the count reaches zero, then flip. A gate
+    # It was high-only while 20 medium violations stood, on the same staging the provider
+    # gate used: run advisory until the count reaches zero, then flip. A gate
     # that fails on day one for something nobody is going to fix this week gets switched
     # off, which is worse than a gate that starts narrow.
     #

@@ -71,28 +71,14 @@ ACCEPTED_ABSENT: dict[str, str] = {
         "named it were removed on 2026-09-21; kept here so a reintroduction is "
         "still reported rather than silently accepted.",
 
-    # Cleared 2026-09-24. These three were the last of the six NOTIF-STORE-004
-    # findings. The other three were fixed by correcting or deleting the name:
-    # SmsAwsTable (three dead constants plus a cleanup-registry entry that raised
-    # ResourceNotFound on every run), and wix-store (a Lambda name written with the
-    # DynamoDB table prefix, so every invoke from service-api and
-    # whatsapp-business-api failed - neither sets WIX_STORE_FUNCTION, so the wrong
-    # default was what ran).
-    "stack-wecare-digital-AirtelC2CTable":
-        "Deleted 2026-09-20 with the Airtel retirement. Still named by five sites "
-        "in messaging/voice-in/c2c because they READ history, and the module's job "
-        "was to keep that history reachable - the data is gone, not the intent. "
-        "Those reads no longer raise: they return 410 with storeAbsent via "
-        "lambda_utils/retired_store, so the absence is reported as the deliberate "
-        "end state rather than as a 500. Kept here so re-pointing live code at this "
-        "name is still flagged.",
-    "stack-wecare-digital-AirtelSMSTable":
-        "Deleted 2026-09-20 with the Airtel retirement. lambda_utils/comms/"
-        "legacy_history.py exists solely to read it and is reachable from a live "
-        "sms-aws route. Its four paths now return storeAbsent instead of raising, "
-        "and counts_by_provider deliberately does NOT report total=0/exact=True - "
-        "that output is the checksum a deletion decision is justified against, so "
-        "'zero rows, exactly' would read as evidence there was nothing to lose.",
+    # NOTIF-STORE-004, cleared 2026-09-24. The other findings in that set were fixed by
+    # correcting or deleting the name: three dead SmsAwsTable constants plus a
+    # cleanup-registry entry that raised ResourceNotFound on every run, and a Lambda name
+    # written with the table prefix so that every invoke using its default failed.
+    #
+    # Stores deleted with a provider retirement are deliberately NOT listed here. No code
+    # names them any more, so a reintroduced name is reported MISSING like any other -
+    # an allowance for a retired store would only keep its name alive in the gate.
     "stack-wecare-digital-SystemConfig":
         "Not a read. It is an entry in system-cleanup's PROTECTED_TABLES deny-list, "
         "alongside the correctly-named SystemConfigTable. A protection entry for a "

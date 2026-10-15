@@ -1,10 +1,10 @@
-"""blog_source reads the public blog from AWS only (Wix exit complete).
+"""blog_source reads the public blog from AWS only.
 
-The Wix branch and the BLOG_SOURCE flag were removed when the Wix blog path was
-retired. The contract now: every public read goes to the DynamoDB-backed storage
-reader with published_only, the full corpus is never truncated at 500, and no Wix
-module is imported at all.
+The contract: every public read goes to the DynamoDB-backed storage reader with
+published_only, the full corpus is never truncated at 500, no environment flag
+selects a source, and `storage` is the module's only dependency.
 """
+import ast
 import sys
 from pathlib import Path
 
@@ -28,9 +28,13 @@ def spies(monkeypatch):
     return calls
 
 
-def test_source_is_always_aws(monkeypatch):
-    # Even with a legacy BLOG_SOURCE still set in the environment, the source is AWS.
-    monkeypatch.setenv("BLOG_SOURCE", "wix")
+@pytest.mark.parametrize("value", [None, "", "aws", "anything-else"])
+def test_source_is_always_aws(monkeypatch, value):
+    # Whatever a stale BLOG_SOURCE says - or if it is absent - the source is AWS.
+    if value is None:
+        monkeypatch.delenv("BLOG_SOURCE", raising=False)
+    else:
+        monkeypatch.setenv("BLOG_SOURCE", value)
     assert blog_source.source() == "aws"
     assert blog_source.using_aws() is True
 
@@ -43,9 +47,16 @@ def test_reads_route_to_storage_published_only(spies):
     assert spies["aws_slug"] == ("my-slug", True)
 
 
-def test_no_wix_module_imported():
-    """The Wix exit removed the dependency entirely."""
-    assert not hasattr(blog_source, "wix"), "blog_source must not import the Wix client"
+def test_storage_is_the_only_dependency():
+    """The public read surface depends on the native store and nothing else."""
+    tree = ast.parse((SEO_DIR / "blog_source.py").read_text(encoding="utf-8"))
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".")[0])
+    assert imported == {"__future__", "typing", "storage"}
 
 
 def test_complete_aws_corpus_is_not_truncated_at_500(monkeypatch):

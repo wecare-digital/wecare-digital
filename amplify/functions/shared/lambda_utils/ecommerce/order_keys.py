@@ -160,20 +160,18 @@ _LEGACY_PUBLIC_ORDER_NUMBER_RE = re.compile(
 
 _DEFAULT_ATTEMPTS = 5
 
-# Accepts every `WD-ORD` spelling this system has ever written. THREE, and the third was
-# added when the Wix minter moved to the current format:
+# Accepts every `WD-ORD` spelling this system has ever written. THREE:
 #
-#   1. the spaced display form the Wix sync used to generate ('WD-ORD - A1B2C3D4 - ...'),
-#   2. the compact form the Order table's `orderId` uses ('WD-ORD-A1B2C3D4'), both 8 HEX, and
+#   1. the legacy spaced display form ('WD-ORD - A1B2C3D4 - ...'),
+#   2. the legacy compact form ('WD-ORD-A1B2C3D4'), both 8 HEX, and
 #   3. the CURRENT public form, whose tail is 8 symbols of PUBLIC_ORDER_NUMBER_ALPHABET.
 #
 # One pattern deliberately - the bug this replaced was a `startswith` that silently
 # recognised only one of them. Branch 3 exists because the alphabet runs past F, so a
-# hex-only pattern did not match a number the Wix path had just minted. Two live sites ask
-# this question and BOTH fail in the dangerous direction when the answer is wrongly False:
-# `wix-store._get_or_create_wd_order_number` reuses a stored mapping only if it matches, and
-# `outbound-whatsapp._sanitize_reference_id` refuses to send an order number to Meta as a
-# payment reference only if it matches.
+# hex-only pattern did not match a freshly minted number. The live caller fails in the
+# dangerous direction when the answer is wrongly False: `outbound-whatsapp._sanitize_reference_id`
+# refuses to send an order number to Meta as a payment reference only if it matches, and a
+# spaced number it failed to recognise would be stripped into a Meta-valid reference instead.
 #
 # WIDENING ONLY. Every legacy value this accepted before is still accepted.
 _WD_ORDER_NUMBER_RE = re.compile(
@@ -266,8 +264,8 @@ def is_wd_order_number(value: Any) -> bool:
     """True for a `WD-ORD` order number in any format this system has written.
 
     Both legacy spellings - spaced and compact, 8 hex - and the current `WD-ORD-` + 8 form.
-    Replaces `startswith('WD-ORD-')`, which never matched the spaced format the generator
-    used to produce and so made the reuse check dead code.
+    Replaces `startswith('WD-ORD-')`, which never matched the spaced format the old generator
+    produced.
 
     Not the same question as `is_public_order_number`. This one asks "is this string one of
     our order numbers", including the hex-tailed legacy values that fall outside the public
@@ -640,66 +638,15 @@ def resolve_order_for_payment(table: Any, payment_attempt_id: str, *,
 
 
 def commerce_keys_table_name() -> str:
-    """The provisioned table holding these rows. TTL must stay disabled on it.
+    """The provisioned CommerceKeys table holding these rows. TTL must stay disabled on it.
 
-    Indirected through an env var so the rows can move to a dedicated table without a code
-    change. It currently defaults to the order-id mapping table, which was chosen because it is
-    already provisioned, is keyed on a single string partition (`orderId`, measured - note the
-    Amplify model in `amplify/data/resource.ts` declares `wixOrderId`, which the physical table
-    does not use), has TTL disabled, and held zero items.
+    Resolved by `shared_tables` from the COMMERCE_KEYS_TABLE env var, so the rows can move to a
+    dedicated table without a code change. The physical table is keyed on a single string
+    partition, `orderId`, which every key prefix in this module namespaces. The Amplify model in
+    `amplify/data/resource.ts` declares `CommerceKey{orderId, cartId, wdOrderNumber}` on the same
+    `orderId` identifier.
     """
     return shared_tables.commerce_keys_table_name()
-
-
-#: Superseded name, kept for the Wix sync path.
-order_ids_table_name = commerce_keys_table_name
-
-
-# ── legacy: WD order numbers for orders synced from Wix ─────────────────────────
-
-def reserve_order_number(table: Any,
-                         order_date: str = "",
-                         *,
-                         key_attr: str = "orderId",
-                         generate: Optional[Callable[[str], str]] = None,
-                         attempts: int = _DEFAULT_ATTEMPTS,
-                         extra: Optional[Dict[str, Any]] = None) -> str:
-    """Reserve a legacy WD-ORD number for an order that already exists in Wix.
-
-    This is NOT the checkout path. It serves `wix-store`'s sync and backfill, which assign a
-    display number to orders Wix already holds and has already collected payment for - so no
-    order is being created here and the order-after-payment rule is not in play.
-
-    New orders created by our own checkout get `reserve_public_order_number` instead.
-    """
-    if generate is None:
-        # Self-contained: the WD order number is minted by order_keys itself. This used to
-        # default to a Wix-named helper that only delegated back to
-        # mint_public_order_number — a circular dependency on a Wix-named module. With Wix
-        # retired, order numbering has one home: here. (order_date stays in the signature for
-        # the external `generate` contract but is not encoded into the number — see
-        # mint_public_order_number on why a public number must not leak the order date.)
-        generate = lambda _order_date: mint_public_order_number()  # noqa: E731
-
-    now = int(time.time())
-    for attempt in range(1, max(1, attempts) + 1):
-        candidate = generate(order_date)
-        item = {
-            "kind": "ORDER_NUMBER_RESERVATION",
-            "orderNumber": candidate,
-            "reservedAt": now,
-        }
-        if extra:
-            item.update(extra)
-        if _claim_row(table, key_attr, ORDER_NUMBER_PREFIX + candidate, item):
-            return candidate
-        logger.warning(
-            "order number collision on attempt %d/%d; regenerating", attempt, attempts
-        )
-
-    raise OrderIdentityUnavailable(
-        "exhausted %d attempts reserving an order number" % attempts
-    )
 
 
 # ── durable capture quarantine: a recoverable intake row, not an alert ──────────
@@ -984,7 +931,7 @@ REQUEST_KEY_PREFIX = "REQUESTKEY#"
 #: The persisted binding of a created Razorpay gateway order to the attempt/account/mode/amount
 #: it was created for. Written BEFORE checkout options are exposed to the browser, so a callback
 #: can be checked against the stored order id/account/mode/amount rather than anything the browser
-#: relayed. A Razorpay GATEWAY order is NOT an internal/Wix purchase order and carries no public
+#: relayed. A Razorpay GATEWAY order is NOT an internal purchase order and carries no public
 #: order number — that exists only after an authoritative capture. These are different objects.
 GATEWAY_ORDER_PREFIX = "GATEWAYORDER#"
 
@@ -1376,7 +1323,7 @@ def resolve_invoice_delivery(table: Any, invoice_id: str, *, channel: str = "wha
 
 # ── one live payable attempt per cart, and durable per-basket paid memory ───────
 
-#: The customer's most recent PAYABLE attempt for one Cart V2 cart, so a create can resolve
+#: The customer's most recent PAYABLE attempt for one native cart, so a create can resolve
 #: before it generates a second gateway order for a basket that already has one.
 #:
 #: WHY A POINTER ROW AND NOT A QUERY. PaymentAttemptsTable is keyed on `paymentAttemptId` alone
@@ -1406,7 +1353,7 @@ CART_BASKET_KIND = "CART_BASKET_PAID_POINTER"
 #: subtractive and may carry a per-calculate field, so a lookup keyed on it can MISS for an
 #: unedited basket — and the cart pointer's narrow veto cannot cover that, because the veto only
 #: runs when the POINTER names a paid attempt, and the pointer is a single slot a later attempt
-#: upserts. Two keys, two chances, and the narrow one cannot be polluted by a field Wix controls.
+#: upserts. Two keys, two chances, and the narrow one cannot be polluted by a per-calculate field.
 CART_NARROW_BASKET_PREFIX = "CARTNARROW#"
 CART_NARROW_BASKET_KIND = "CART_NARROW_BASKET_PAID_POINTER"
 
@@ -1710,7 +1657,7 @@ def claim_cart_narrow_basket(table: Any, *, customer_id: str, cart_id: str,
 #: The authoritative record of ONE voluntary blog contribution. Written at initiation time (before
 #: the gateway order is created, so a later `payment.captured` has a stored amount/post to bind
 #: the credit to) and advanced to a settled state only after an authoritative capture readback.
-#: It is NOT an order and mints NO public order number: a contribution never becomes a Wix Store
+#: It is NOT an order and mints NO public order number: a contribution never becomes a catalogue
 #: product or purchase order. It carries ONLY the authoritative fields Section 5 requires -
 #: opaque ids, the blog post id/slug, integer paise, currency, the attempt/gateway/payment ids,
 #: the verified/captured state, timestamps and a refund-state slot. No customer PII.
@@ -2163,9 +2110,7 @@ __all__ = [
     "record_order_number_on_claim",
     "resolve_order_for_payment",
     "resolve_order_for_provider_payment",
-    "reserve_order_number",
     "commerce_keys_table_name",
-    "order_ids_table_name",
     "QUARANTINE_PREFIX",
     "TOPUP_INTENT_PREFIX",
     "TOPUP_CREDIT_PREFIX",

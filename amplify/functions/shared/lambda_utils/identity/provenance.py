@@ -83,7 +83,6 @@ SOURCE_TRUST: Dict[str, str] = {
     # Somebody else's address book.
     "GOOGLE_PEOPLE": IMPORTED,
     "CSV_IMPORT": IMPORTED,
-    "WIX": IMPORTED,
     # Our own guesswork.
     "DERIVED": INFERRED,
 }

@@ -1,40 +1,34 @@
-"""AWS-native supply pricing — the one integer Wix still owns, computed natively.
+"""AWS-native supply pricing — the checkout's collection total, from ProductsTable.
 
-WHAT THIS REPLACES, EXACTLY.
-Today the checkout's "collection total" (subtotal − discount + delivery +
-additionalFees + supply tax) is computed by Wix: the former Wix cart calculation
-returns a `priceSummary` and the former Wix eCom client's authoritative-total reader
-reads `priceSummary.total.amount`. That single integer, `collection_before_convenience
-_paise`, is then handed to the ALREADY-NATIVE `checkout_pricing.compute_quote`,
-which adds the convenience fee + GST-on-fee and produces the amount Razorpay
-charges. So the only thing Wix still owns on the money path is the supply total.
+WHAT THIS COMPUTES, EXACTLY.
+The checkout's "collection total" (subtotal − discount + delivery + additionalFees +
+supply tax) is computed here from the authoritative ProductsTable prices.
+`authoritative_total_paise` returns that single integer,
+`collection_before_convenience_paise`, which `native_checkout.quote_native_cart`
+hands to `checkout_pricing.compute_quote`; that adds the convenience fee +
+GST-on-fee and produces the amount Razorpay charges. Everything downstream
+(`compute_quote`, `website_checkout`, `order_creation`, `finalization`) reads the
+frozen quote built from it.
 
-This module computes that supply total from an AWS product catalog, producing the
-SAME `priceSummary` shape and enforcing the SAME identity the former Wix cart
-calculation asserts, so the output is a drop-in for `authoritative_total_paise` and nothing
-downstream (`compute_quote`, `website_checkout`, `order_creation`, `finalization`)
-has to change.
-
-INVARIANTS (identical to the Wix contract the former Wix cart calculation re-validates):
+INVARIANTS:
     sum(line.total_paise)            == subtotal_paise
     subtotal - discount + delivery + additional_fees + tax == total
     every amount is a nonnegative integer number of paise (never float)
     prices are authoritative server-side; a client-supplied price is ignored.
 
-This module is PURE and has NO AWS/Wix I/O: it takes already-resolved catalog
-lines (price + quantity from the authoritative ProductsTable read, done by the
-caller) and a tax/discount/delivery input, and returns a priceSummary. That keeps
-it unit-testable with synthetic fixtures and keeps the catalog read, which is
-I/O, in one place. It is NOT wired into any handler yet — flipping checkout to use
-it is CHECKOUT_MODE=AWS_NATIVE, an owner-gated production change.
+This module is PURE and has NO I/O: it takes already-resolved catalog lines
+(price + quantity from the authoritative ProductsTable read, done by the caller)
+and a tax/discount/delivery input, and returns a `PriceSummary`. That keeps it
+unit-testable with synthetic fixtures and keeps the catalog read, which is I/O,
+in one place. `native_checkout` is the production caller.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, List, Mapping, Optional, Sequence
 
-from lambda_utils.ecommerce.money import Money, positive_paise
+from lambda_utils.ecommerce.money import positive_paise
 
 
 class CatalogPricingError(ValueError):
@@ -64,13 +58,13 @@ def _nonneg_paise(value: Any, what: str) -> int:
 class CatalogLine:
     """One resolved, authoritative line. `unit_price_paise` comes from the
     ProductsTable read, NEVER from the client. `quantity` is 1..100000, matching
-    the bound the former Wix cart's resolved-catalog-lines check enforces."""
+    the per-line bound the checkout's native quote enforces."""
 
     product_id: str
     variant_id: str
     quantity: int
     unit_price_paise: int
-    requires_delivery: bool = True  # fail-closed to physical, like Cart V2
+    requires_delivery: bool = True  # fail-closed to physical
 
     def __post_init__(self) -> None:
         if not self.product_id or not self.variant_id:
@@ -86,9 +80,8 @@ class CatalogLine:
 
 @dataclass(frozen=True)
 class PriceSummary:
-    """The same shape Wix's priceSummary carries, in integer paise. `as_wix_shape`
-    renders the exact decimal-string envelope `authoritative_total_paise` reads, so
-    the native path can feed the identical downstream code."""
+    """The supply price summary, in integer paise. `authoritative_total_paise`
+    reads its `total_paise`."""
 
     subtotal_paise: int
     discount_paise: int
@@ -105,23 +98,9 @@ class PriceSummary:
 
     @property
     def total_paise(self) -> int:
-        # The Wix identity, computed once and asserted by construction.
+        # The total identity, computed once and asserted by construction.
         return (self.subtotal_paise - self.discount_paise + self.delivery_paise
                 + self.additional_fees_paise + self.tax_paise)
-
-    def as_wix_shape(self) -> Dict[str, Dict[str, str]]:
-        """Render as Wix's `priceSummary` so the former Wix eCom client's
-        authoritative-total reader and any `priceSummary`-shaped consumer accept it unchanged."""
-        def amt(p: int) -> Dict[str, str]:
-            return {"amount": Money(p).to_wix()}
-        return {
-            "subtotal": amt(self.subtotal_paise),
-            "discount": amt(self.discount_paise),
-            "shipping": amt(self.delivery_paise),
-            "additionalFees": amt(self.additional_fees_paise),
-            "tax": amt(self.tax_paise),
-            "total": amt(self.total_paise),
-        }
 
 
 def build_price_summary(
@@ -134,7 +113,7 @@ def build_price_summary(
 ) -> PriceSummary:
     """Compute the authoritative supply priceSummary from resolved catalog lines.
 
-    `subtotal = sum(line.total_paise)` — the same per-line identity Cart V2 checks.
+    `subtotal = sum(line.total_paise)` — the per-line identity every summary carries.
     All adjustments are inputs (resolved upstream: coupon via
     `coupon_store.discount_paise`, delivery via the shipping resolver, tax via the
     place-of-supply GST build). This function owns the ARITHMETIC and the
@@ -171,9 +150,9 @@ def supply_tax_paise(
     reconciliation — so the supply tax and the fee tax share one arithmetic and
     one rounding rule. No float.
 
-    THE TAX BASIS IS EXPLICIT AND MATTERS. The current Wix catalog prices are
-    GST-INCLUSIVE (shop.ts documents `formattedPrice` as Wix's own inclusive
-    string). So the native path must NOT add GST on top of an inclusive price —
+    THE TAX BASIS IS EXPLICIT AND MATTERS. The current ProductsTable catalog
+    prices are GST-INCLUSIVE. So the native path must NOT add GST on top of an
+    inclusive price —
     that is the double-tax defect `checkout_pricing` already refuses for the fee.
     This helper assumes a GST-EXCLUSIVE `taxable_paise`; a caller holding
     inclusive prices passes `gst_bps=0` (tax already in the line price) and the
@@ -220,16 +199,12 @@ def coupon_discount_paise(
 ) -> int:
     """Native coupon discount for a cart, from the AWS-authoritative definition.
 
-    THIS REPLACES WIX CALCULATE CART for the website coupon path. Today the
-    discount a customer actually receives on the website is computed by Wix (the
-    coupon is mirrored into Wix and Wix reduces `priceSummary.discount`). The
-    AWS-authoritative *definition* already lives in `coupon_store`, and
-    `coupon_store.discount_paise` already renders a discount from it (used today
-    for invoices, which have no Wix cart). This function is the single bridge that
-    lets the native checkout path render the SAME discount against the native
-    subtotal — so the discount is decided by the AWS definition, never by the
-    browser, preserving the "validate returns a verdict, pricing is server-side"
-    boundary.
+    The AWS-authoritative coupon *definition* lives in `coupon_store`, and
+    `coupon_store.discount_paise` renders a discount from it (Pay Flow invoices use
+    the same renderer). This function is the single bridge that lets the native
+    checkout path render that SAME discount against the native subtotal — so the
+    discount is decided by the AWS definition, never by the browser, preserving
+    the "validate returns a verdict, pricing is server-side" boundary.
 
     `coupon_definition` is the already-loaded, already-ELIGIBLE definition row
     (eligibility is `coupon_store.evaluate`'s separate job; this is arithmetic
@@ -264,9 +239,9 @@ def price_cart(
     """End-to-end native cart pricing: subtotal from lines, discount from the AWS
     coupon definition, plus delivery/fees/tax → the authoritative supply summary.
 
-    This is the native equivalent of a full former-Wix cart calculation, minus the Wix
-    round-trip. The resulting `total_paise` is the exact integer
-    `checkout_pricing.compute_quote` expects, so the native checkout path is:
+    This is the full native cart calculation. The resulting `total_paise` is the
+    exact integer `checkout_pricing.compute_quote` expects, so the native checkout
+    path is:
 
         summary = price_cart(lines, coupon_definition=..., delivery_paise=...)
         collection = authoritative_total_paise(summary)
@@ -284,8 +259,8 @@ def price_cart(
 
 
 def authoritative_total_paise(summary: PriceSummary) -> int:
-    """The native counterpart of the former Wix eCom client's authoritative-total reader: the single
-    integer `checkout_pricing.compute_quote` consumes as
-    `collection_before_convenience_paise`. Validated as a clean whole paise, same
-    as the Wix path refuses a fractional-paise total."""
+    """The authoritative supply total: the single integer
+    `checkout_pricing.compute_quote` consumes as
+    `collection_before_convenience_paise`. Validated as a clean whole paise; a
+    fractional-paise total is refused."""
     return _nonneg_paise(summary.total_paise, "total_paise")

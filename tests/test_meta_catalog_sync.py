@@ -1,33 +1,26 @@
-"""The Wix -> Meta projection, pinned against the committed snapshot.
+"""The ProductsTable -> Meta projection, pinned against the committed snapshot.
 
 PHASE W, FEAT-001. The module under test is pure, so every assertion here runs with no
 credential, no network and no AWS client - which is the whole reason the retailer-id contract and
 the diff live in a module separate from the Lambda.
 
-THE FIXTURE IS THE REAL CATALOGUE, NOT A HAND-WRITTEN ONE. `src/content/wix-catalog.json` is the
-committed Wix snapshot (10 products, refreshed 2026-10-10), and `_slim_product` in the handler
-projects the live V3 payload onto exactly that shape - so a test against the snapshot is a test
-against the live input shape, not an approximation of it. A hand-written fixture would agree with
-whatever this module happened to do.
+THE FIXTURE IS THE REAL CATALOGUE, NOT A HAND-WRITTEN ONE. `src/content/catalog-snapshot.json` is
+the committed storefront snapshot that `scripts/build-catalog-snapshot.py` generates from
+ProductsTable (10 products, fetched 2026-10-15). Publish eligibility is judged separately on
+`tests/fixtures/products-table-20261015.json` through the handler's own `_native_products`, the
+read the Lambda actually performs. A hand-written fixture would agree with whatever this module
+happened to do.
 
-WHAT THE 23 IS. Ten products, every one of them real, and one Meta item per Wix VARIANT gives 23:
+WHAT THE 21 IS. Ten products are in the snapshot and two are not projected: the Rs.1 test product
+(excluded by slug) and Contribute, which the catalogue currently marks hidden (`visible: false`,
+`metaEnabled: false`). The other eight give one Meta item per VARIANT:
 
     Request (services)  5     Kiosk               1     Paperwork    1
     Merchandise        10     Referral Partner    1     Anew         1
-    Contribute          1     Guided Resolution   1     File Assist  1
-                                                        Rs1 test     1
+                              Guided Resolution   1     File Assist  1
 
-THE ARITHMETIC USED TO START AT 22 AND SUBTRACT TWELVE. The Wix store template's twelve demo
-products (Baseball Cap, Crew T-Shirt and so on) were live, `visible: true` rows that the snapshot
-carried and `is_syncable` filtered out. They were DELETED IN WIX before the 2026-10-10 refresh, so
-the snapshot no longer contains them and the subtraction has nothing left to subtract. The
-exclusion lists stay exactly as they are - see `test_the_template_exclusion_survives_their_deletion`
-for why removing them would be the wrong lesson to draw.
-
-WHAT ELSE THAT REFRESH MOVED, because several numbers below are measurements rather than choices:
-the services product was RENAMED in Wix from `WECARE.DIGITAL Services` to `Request`, gained a
-fifth variant (`Request Pickup`), went from out of stock to in stock on every row, had its stale
-`Request Amendment` price corrected from 99 to 350, and now carries one linked image for each of its five service variants.
+These are measurements rather than choices, so a snapshot refresh that moves one of them fails
+here and is reviewed instead of silently changing what the WhatsApp catalogue would carry.
 """
 
 from __future__ import annotations
@@ -47,9 +40,14 @@ from lambda_utils.ecommerce import meta_catalog_sync as sync  # noqa: E402
 MODULE = ROOT / "amplify/functions/shared/lambda_utils/ecommerce/meta_catalog_sync.py"
 SNAPSHOT = ROOT / "src/content/catalog-snapshot.json"
 
-#: Two real ids from the snapshot, so the round-trip is tested on values Wix actually emitted.
+#: Two real ids from the snapshot (the Rs.1 test product and its variant), so the round-trip is
+#: tested on values the catalogue actually holds.
 TEST_PRODUCT = "121c9d57-2cc9-490b-8eed-66bf7b9c172a"
 TEST_VARIANT = "c2edc783-c8fa-4b3e-a922-f7800889e56a"
+
+#: The live retailer-id namespace, read from the module rather than restated, so this file builds
+#: every id the way production does.
+PREFIX = sync.RETAILER_PREFIX
 
 CONTRIBUTE = sync.CONTRIBUTION_PRODUCT_ID
 
@@ -107,8 +105,8 @@ def test_a_retailer_id_round_trips(products):
     """The join key must survive the trip, for every variant of every real product.
 
     This is the property the whole feature rests on: a WhatsApp order carries
-    `product_retailer_id`, and the only way it resolves to a Wix line is if parsing returns the
-    pair that was used to build it.
+    `product_retailer_id`, and the only way it resolves to a catalogue line is if parsing returns
+    the pair that was used to build it.
     """
     pairs = 0
     for product in products:
@@ -122,20 +120,24 @@ def test_a_retailer_id_round_trips(products):
 
 
 def test_the_retailer_id_shape_is_the_documented_one():
-    assert sync.retailer_id(TEST_PRODUCT, TEST_VARIANT) == f"wix:{TEST_PRODUCT}:{TEST_VARIANT}"
-    assert len(sync.retailer_id(TEST_PRODUCT, TEST_VARIANT)) == 77
+    """`<prefix>:<productId>:<variantId>`. The 77 also pins the prefix's length: the live Meta
+    catalogue and inbound WhatsApp orders already carry ids of exactly this shape."""
+    value = sync.retailer_id(TEST_PRODUCT, TEST_VARIANT)
+    assert value == f"{PREFIX}:{TEST_PRODUCT}:{TEST_VARIANT}"
+    assert len(value) == 77
     assert 77 < sync.RETAILER_ID_MAX_LENGTH
 
 
 def test_case_is_normalised_so_one_item_cannot_fork_into_two():
-    """Meta's retailer id is case-sensitive; Wix emits canonical lowercase.
+    """Meta's retailer id is case-sensitive; the catalogue stores canonical lowercase.
 
     So an upper-case id arriving from anywhere must land on the SAME retailer id, or the catalogue
     would carry the same variant twice and an order could resolve to either.
     """
     assert (sync.retailer_id(TEST_PRODUCT.upper(), TEST_VARIANT.upper())
             == sync.retailer_id(TEST_PRODUCT, TEST_VARIANT))
-    assert (sync.parse_retailer_id(f"WIX:{TEST_PRODUCT.upper()}:{TEST_VARIANT.upper()}")
+    assert (sync.parse_retailer_id(
+        f"{PREFIX.upper()}:{TEST_PRODUCT.upper()}:{TEST_VARIANT.upper()}")
             == (TEST_PRODUCT, TEST_VARIANT))
 
 
@@ -162,11 +164,11 @@ def test_a_non_uuid_part_is_refused_rather_than_normalised(product_id, variant_i
     "htlu35lrs1",                           # the live SKU `inbound-whatsapp-handler` cites
     "",
     None,
-    "wix",
-    "wix:",
-    f"wix:{TEST_PRODUCT}",                  # prefix, one UUID, no variant
-    f"wix:{TEST_PRODUCT}:{TEST_VARIANT}:x",  # an extra segment
-    f"wix:{TEST_PRODUCT}:not-a-uuid",
+    PREFIX,
+    f"{PREFIX}:",
+    f"{PREFIX}:{TEST_PRODUCT}",                   # prefix, one UUID, no variant
+    f"{PREFIX}:{TEST_PRODUCT}:{TEST_VARIANT}:x",  # an extra segment
+    f"{PREFIX}:{TEST_PRODUCT}:not-a-uuid",
     f"shop:{TEST_PRODUCT}:{TEST_VARIANT}",  # a different prefix
     f"{TEST_PRODUCT}:{TEST_VARIANT}",       # no prefix at all
     123,
@@ -183,43 +185,27 @@ def test_anything_that_is_not_ours_parses_to_None(value):
 # ── 2. which rows are syncable ───────────────────────────────────────────────
 
 
-def test_the_template_exclusion_survives_their_deletion(products):
-    """Parity with `/shop/`. Publishing a store template's demo products to a customer-visible
-    WhatsApp catalogue would offer Baseball Caps and Ceramic Flower Vases for sale.
+def test_only_the_test_product_and_hidden_rows_are_excluded(products):
+    """Two exclusions and no more: the Rs.1 test product, by slug, and `visible: false`.
 
-    THIS TEST USED TO ASSERT THE TWELVE WERE PRESENT IN THE SNAPSHOT and excluded from there. They
-    were deleted in Wix before the 2026-10-10 refresh, so that is no longer a fact about the
-    snapshot and asserting it would fail for the right reason about the wrong thing.
-
-    WHAT IS ASSERTED INSTEAD, and why the lists are NOT deleted along with the products: the
-    exclusion is a DENY-LIST, and a deny-list is worth keeping precisely when its entries are
-    absent. `.github/workflows/catalogue-sync.yml` refreshes the snapshot unattended, and
-    re-creating a demo product in the Wix dashboard - or restoring the template - would put the row
-    straight back without anybody reviewing it. So the lists keep their twelve entries and this
-    checks the guard still rejects each one ON SIGHT, by id and by slug, rather than checking that
-    there is currently something for it to reject.
+    Checked on every committed row and on a row the catalogue has never seen, so an id- or
+    slug-based deny-list cannot quietly reappear inside `is_syncable`: any other row is projected
+    on its own flags.
     """
-    assert len(sync.WIX_TEMPLATE_SAMPLE_PRODUCT_IDS) == 12
-    assert len(sync.WIX_TEMPLATE_SAMPLE_SLUGS) == 12
-
-    live = {product["id"] for product in products}
-    for sample in sync.WIX_TEMPLATE_SAMPLE_PRODUCT_IDS:
-        assert sample not in live, (
-            f"{sample} is back in the snapshot - a template sample was re-created in Wix")
-        # Presented as a row Wix could return tomorrow. `visible` is deliberately true: the guard
-        # must turn it away on identity, not because it happens to be hidden.
-        assert sync.is_syncable({"id": sample, "slug": "anything", "visible": True}) is False
-    for slug in sync.WIX_TEMPLATE_SAMPLE_SLUGS:
-        assert sync.is_syncable(
-            {"id": "00000000-0000-4000-8000-000000000000", "slug": slug,
-             "visible": True}) is False
-
-
-def test_a_sample_is_excluded_by_SLUG_even_when_its_id_changed():
-    """The id is checked first and the slug second, so re-creating a demo product in Wix - which
-    gives it a new id - does not silently republish it."""
+    for product in products:
+        is_test_product = product["slug"] in sync.TEST_PRODUCT_SLUGS
+        assert sync.is_syncable(product) is (
+            product.get("visible") is not False and not is_test_product), product["slug"]
+        assert sync.is_syncable({**product, "visible": True}) is (not is_test_product)
     assert sync.is_syncable({"id": "00000000-0000-4000-8000-000000000000",
-                             "slug": "baseball-cap"}) is False
+                             "slug": "a-new-product", "visible": True}) is True
+
+
+def test_the_test_product_is_excluded_by_slug_and_not_by_id():
+    """Its real id is reused below as a fixture under neutral slugs, which must stay syncable."""
+    assert sync.is_syncable({"id": TEST_PRODUCT, "slug": "1-test-product",
+                             "visible": True}) is False
+    assert sync.is_syncable({"id": TEST_PRODUCT, "slug": "x", "visible": True}) is True
 
 
 def test_the_contribution_product_is_retained_but_not_meta_syncable(products):
@@ -235,8 +221,9 @@ def test_the_contribution_product_is_retained_but_not_meta_syncable(products):
 
 
 def test_a_hidden_product_is_excluded_but_an_ABSENT_visible_is_not():
-    """Identity against `False`, not truthiness. Wix omits `visible` on some reads, and treating
-    absence as hidden would empty the catalogue on a shape change rather than fail loudly."""
+    """Identity against `False`, not truthiness. A row read without `visible` must not be hidden:
+    treating absence as hidden would empty the catalogue on a shape change rather than fail
+    loudly."""
     assert sync.is_syncable({"id": TEST_PRODUCT, "slug": "x", "visible": False}) is False
     assert sync.is_syncable({"id": TEST_PRODUCT, "slug": "x"}) is True
     assert sync.is_syncable({"id": TEST_PRODUCT, "slug": "x", "visible": True}) is True
@@ -259,9 +246,12 @@ def test_the_items_are_the_expected_products_and_variant_counts(products, desire
     assert sum(EXPECTED_ITEMS_BY_SLUG.values()) == EXPECTED_ITEM_COUNT
 
 
-def test_no_template_sample_reaches_the_desired_catalogue(desired):
+def test_exactly_the_syncable_products_reach_the_desired_catalogue(products, desired):
     groups = {item["item_group_id"] for item in desired}
-    assert groups.isdisjoint(set(sync.WIX_TEMPLATE_SAMPLE_PRODUCT_IDS))
+    assert groups == {product["id"] for product in products
+                      if sync.is_syncable(product) and product.get("variants")}
+    assert CONTRIBUTE not in groups
+    assert TEST_PRODUCT not in groups
 
 
 def test_every_item_carries_the_contract_fields(desired):
@@ -294,15 +284,11 @@ def test_a_multi_variant_product_carries_its_label_and_a_single_one_does_not(des
 
 
 def test_stock_state_is_projected_and_the_out_of_stock_branch_is_still_pinned(desired):
-    """Two halves, because the snapshot stopped carrying an out-of-stock row.
+    """Two halves, because the snapshot carries no out-of-stock row.
 
-    Until the 2026-10-10 refresh all four service variants were `inStock: false` in Wix and this
-    read that straight off the projection. Every variant Wix now returns is in stock: the services
-    product was restocked, and the two out-of-stock template samples (Crew T-Shirt Medium,
-    Hydrating Eye Serum) were deleted upstream along with the other ten.
-
-    So the OUT_OF_STOCK branch has no live example left, and it is asserted on a constructed row
-    rather than dropped. The mapping is the thing under test; a branch with no test at all is how
+    Every variant in the committed snapshot is in stock, the five service variants included. So
+    the OUT_OF_STOCK branch has no live example, and it is asserted on a constructed row rather
+    than dropped. The mapping is the thing under test; a branch with no test at all is how
     `availability` would quietly start reporting a sold-out item as buyable.
     """
     services = [i for i in desired
@@ -445,7 +431,7 @@ def test_a_changed_field_lands_in_update_carrying_the_meta_id(desired):
 
 
 def test_a_REMOVED_variant_is_RETIRED_and_never_deleted(desired):
-    """THE ASSERTION THIS FILE EXISTS FOR, alongside the 24.
+    """THE ASSERTION THIS FILE EXISTS FOR, alongside the item count.
 
     A customer's WhatsApp cart holds `product_retailer_id`. Delete the item and the hand-off
     cannot resolve the line at all, which fails at checkout - after the customer has committed.
@@ -499,12 +485,13 @@ def test_a_foreign_retailer_id_is_reported_and_never_touched(desired):
     assert all("WD-PARTNER-UP" != item.get("retailer_id") for item in touched)
 
 
-def test_a_wix_prefixed_but_malformed_id_is_foreign_rather_than_retired(desired):
+def test_a_prefixed_but_malformed_id_is_foreign_rather_than_retired(desired):
     """Ours in intention, unidentifiable in fact. Modifying it blind could overwrite an item we
     cannot name, so it goes to the bucket that does nothing."""
-    rows = [{"id": "meta-broken", "retailer_id": "wix:not-a-uuid:also-not"}]
+    broken = f"{PREFIX}:not-a-uuid:also-not"
+    rows = [{"id": "meta-broken", "retailer_id": broken}]
     plan = sync.diff(desired, rows)
-    assert plan.foreign == ["wix:not-a-uuid:also-not"]
+    assert plan.foreign == [broken]
     assert plan.counts()["retire"] == 0
 
 
@@ -519,8 +506,8 @@ def test_the_plan_fingerprint_is_stable_under_reordering(desired):
 # ── 6. the blockers ──────────────────────────────────────────────────────────
 
 
-#: MEASURED from the 2026-10-11 snapshot: nine of the ten syncable products carry
-#: Wix media. Only the ₹1 test product is still imageless, so it is the sole Meta blocker.
+#: MEASURED from the native ProductsTable read (the 2026-10-15 fixture): every syncable product
+#: carries an `imageRefs` image, so nothing is blocked.
 EXPECTED_BLOCKED = []
 
 
@@ -528,10 +515,10 @@ def test_remaining_imageless_product_is_blocked_and_every_service_item_has_a_pic
         native_products):
     """Pin the catalogue review gate to the native ProductsTable read.
 
-    Meta rejects imageless items. The 2026-10-11 refresh carries media for every syncable
-    product except the ₹1 test product, including distinct linked artwork for all five Request
-    service variants. The test names that one remaining blocker explicitly so a future Wix media
-    change is reviewed rather than silently changing publish eligibility.
+    Meta rejects imageless items. Every syncable product in the 2026-10-15 ProductsTable read
+    carries an image, the Request services product included, so all five service items have a
+    picture. The expectation is written out so a future media change is reviewed rather than
+    silently changing publish eligibility.
     """
     products = native_products
     desired = sync.desired_items(products, require_variant_price=True)
@@ -593,8 +580,8 @@ def test_the_module_is_pure_at_import():
     """No boto3, no urllib, no os, no time. Every dependency is an argument.
 
     Asserted on the imports rather than on behaviour, because the failure mode is subtle: a module
-    that reads one environment variable at import is no longer decidable offline, and the 24-item
-    assertion above would start depending on how the test process was launched.
+    that reads one environment variable at import is no longer decidable offline, and the
+    item-count assertion above would start depending on how the test process was launched.
     """
     tree = ast.parse(MODULE.read_text(encoding="utf-8"), filename=str(MODULE))
     imported = set()
@@ -618,12 +605,12 @@ def test_the_module_logs_nothing_at_all():
 def test_variant_artwork_and_public_product_link_survive_meta_projection():
     product = {
         "id": TEST_PRODUCT, "slug": "wecaredigital-services", "name": "Services",
-        "price": "99.00", "image": "https://static.wixstatic.com/media/shared.png",
+        "price": "99.00", "image": "https://wecare.digital/get/o/public/shared.png",
         "variants": [{"id": TEST_VARIANT, "label": "Submit Request", "inStock": True,
-                      "image": "https://static.wixstatic.com/media/submit.png"}],
+                      "image": "https://wecare.digital/get/o/public/submit.png"}],
     }
     item = sync.desired_items([product])[0]
-    assert item["image_url"] == "https://static.wixstatic.com/media/submit.png"
+    assert item["image_url"] == "https://wecare.digital/get/o/public/submit.png"
     assert sync.meta_payload(item)["url"] == "https://wecare.digital/shop/wecaredigital-services/"
     previous = {**item, "url": "https://wecare.digital/"}
     assert len(sync.diff([item], [previous]).update) == 1

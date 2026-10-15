@@ -144,7 +144,7 @@ Measured consequences, all live until 2026-09-28:
 | Invoice PDFs lost their logo and monospace font | `stream/media/m/wecare-digital.png` and `stream/media/fonts/DejaVuSansMono.ttf` are absent at the root, present under `o/` |
 | Document downloads returned a dead URL | `DOCS_S3_BUCKET` was `wecare-digital-media` live and `wecare-digital-documents` in code — **neither bucket exists** — and the stored `storageKey` lacked `o/` |
 | `system-cleanup` deleted nothing, reporting success | all 11 TTL prefixes plus `S3_ROOT_PREFIX` targeted `stack/` at the root, which holds zero objects |
-| Wix product-image upload raised `NameError` | `S3_PRODUCT_PREFIX` was referenced but never defined anywhere in the repo |
+| Product-image upload raised `NameError` | `S3_PRODUCT_PREFIX` was referenced but never defined anywhere in the repo |
 
 None of these raised an alarm, and the reason is uncomfortable: a key written to the
 bucket root still serves **HTTP 200** on the apex host. Verified by probe — a key at the

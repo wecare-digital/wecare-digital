@@ -90,9 +90,8 @@ That number is **not** a deletion list, for three reasons measured rather than a
 Before any route is deleted it needs: the integration and caller resolved, traffic
 evidence over a stated window, a signed-webhook-versus-unintended-public
 classification, and an exported route + integration JSON for rollback — the same gate
-`docs/prohibited-provider-retirement.md` applies to provider surfaces. Two dangling
-routes were removed that way in September, and the deletions are recorded in
-`docs/deleted-routes-*.json`.
+`docs/prohibited-provider-retirement.md` applies to provider surfaces. Route exports for
+rollback are written to `docs/execution/snapshots/`.
 
 ### The 117, classified (OPS-002, 2026-09-25)
 
@@ -108,7 +107,7 @@ Classified by evidence rather than by name. **42**, not 117, are even candidates
 And even that 42 is not a deletion list:
 
 * **34** are `/wa-business/*` on `wecare-whatsapp-business-api` — appointments, reviews, FAQ, flow tooling, username management. A block that uniform points at one of two causes, and they need opposite actions: either the WhatsApp Business admin UI reaches them through a path-building helper the textual join cannot see, or those capabilities are backend-only and never had a UI. Resolve which before touching any of them.
-* **4** are `/voice-in/obd/{create,upload-audio,upload-csv,clear-logs}`, which **deliberately answer** `_retired_campaign_endpoint` — an explicit "this capability was retired" response rather than a 404, so an operator sees why it vanished. Present on purpose.
+* **4** were campaign endpoints of the retired outbound-dialler Lambda; they have since been deleted with it.
 * **3** are `/store/*` on `wecare-product-image-gen`, and `/voice-aws/send` is a send path.
 
 So the honest count is: **0 proven dead**, 42 needing a caller resolved, and a method that structurally cannot see template-literal or Python callers. Reproduce with the classifier logic against

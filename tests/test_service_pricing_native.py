@@ -1,4 +1,4 @@
-"""Native service pricing returns the SAME contract as the Wix service_pricing,
+"""Native service pricing serves the `GET /ecommerce/service-prices` contract,
 reading priceMinor from an injected ProductsTable reader. Fail-closed per slug.
 """
 import sys
@@ -15,7 +15,7 @@ def _reader(prices_by_variant):
     return lambda variant: prices_by_variant.get(variant)
 
 
-def test_contract_shape_matches_wix_module():
+def test_every_public_slug_is_priced_in_integer_paise():
     # every offered variant priced
     by_variant = {v: {"priceMinor": 9900, "currency": "INR", "status": "active"}
                   for v in service_requests.SERVICE_VARIANT_BY_KIND.values()}
