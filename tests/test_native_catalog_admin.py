@@ -311,4 +311,5 @@ def test_new_product_cannot_publish_a_channel_before_activation(field):
     }
     response = mod.handle_request(event(method="POST", body=body), table)
     assert response["statusCode"] == 400
-    assert table.items == {}
+    assert set(table.items) == {"product-123"}
+    assert table.items["product-123"] == seeded()

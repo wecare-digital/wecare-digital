@@ -59,7 +59,6 @@ CONTRIBUTE = sync.CONTRIBUTION_PRODUCT_ID
 EXPECTED_ITEMS_BY_SLUG = {
     "wecaredigital-services": 5,
     "merchandise": 10,
-    "contribute": 1,
     "kiosk": 1,
     "referral-partner": 1,
     "guided-resolution": 1,
@@ -68,7 +67,7 @@ EXPECTED_ITEMS_BY_SLUG = {
     "anew": 1,
 }
 
-EXPECTED_ITEM_COUNT = 22
+EXPECTED_ITEM_COUNT = 21
 
 
 @pytest.fixture(scope="module")
@@ -223,19 +222,15 @@ def test_a_sample_is_excluded_by_SLUG_even_when_its_id_changed():
                              "slug": "baseball-cap"}) is False
 
 
-def test_the_contribution_product_is_INCLUDED(products):
-    """Deliberately different from `/shop/`, which hides it from the grid.
-
-    `shop.ts` `isContributionRow` keeps it out of the GRID because the place to choose a
-    contribution is the block at the foot of a blog post. It is still a real sellable product
-    reached by direct cart reference, and the owner's catalogue list names it - so the WhatsApp
-    catalogue carries it and its amount variants.
-
-    ONE AMOUNT SINCE 2026-10-10. It carried three - Rs.100 / Rs.250 / Rs.500 - until the owner
-    deleted two of the variants in Wix, and the refreshed snapshot reports `variantCount: 1`.
+def test_the_contribution_product_is_retained_but_not_meta_syncable(products):
+    """The payment vehicle stays in the snapshot for cart identity, but catalog v2 explicitly
+    disables website and Meta publication. A hidden row must therefore remain known without
+    becoming a customer-visible WhatsApp catalogue item.
     """
     contribute = next(p for p in products if p["id"] == CONTRIBUTE)
-    assert sync.is_syncable(contribute) is True
+    assert contribute["visible"] is False
+    assert contribute["metaEnabled"] is False
+    assert sync.is_syncable(contribute) is False
     assert len(contribute["variants"]) == 1
 
 
@@ -678,3 +673,34 @@ def test_native_meta_projection_respects_product_channel_flag_and_canonical_path
     desired = sync.desired_items(projected, require_variant_price=True)
     assert len(desired) == 1
     assert desired[0]["url"] == "https://wecare.digital/special/published/"
+
+
+def test_request_variants_use_their_own_locked_catalog_artwork():
+    product = {
+        "id": sync.SERVICE_PRODUCT_ID,
+        "name": "Request",
+        "slug": "wecaredigital-services",
+        "visible": True,
+        "currency": "INR",
+        "image": "https://example.invalid/product-fallback.png",
+        "variants": [
+            {"id": variant_id, "label": copy[0], "inStock": True, "pricePaise": copy[1]}
+            for variant_id, copy in [
+                ("e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b", ("Submit Request", 9900)),
+                ("864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b", ("Request Amendment", 35000)),
+                ("db166bc8-a763-41ec-9f65-0f718f18155a", ("Drop Docs", 35000)),
+                ("dcff995e-448c-493a-9259-f6a82ccdc2b4", ("Vault", 4900)),
+                ("8ee7e325-d772-4452-a993-5c79e927d42b", ("Request Pickup", 55000)),
+            ]
+        ],
+    }
+    items = sync.desired_items([product], require_variant_price=True)
+    by_variant = {
+        sync.parse_retailer_id(item["retailer_id"])[1]: item
+        for item in items
+    }
+    assert len(by_variant) == 5
+    for variant_id, expected_image in sync.SERVICE_ARTWORK_BY_VARIANT.items():
+        assert by_variant[variant_id]["image_url"] == expected_image
+        assert "/wd-catalog-live/" in expected_image
+        assert expected_image.endswith("-4096.png")
