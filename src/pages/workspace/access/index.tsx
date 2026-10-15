@@ -3,7 +3,7 @@
  * URL: https://wecare.digital/workspace/access/
  * 
  * This page shows the login form (via _app.tsx Authenticator).
- * After successful login, redirects to /dashboard.
+ * After successful login, redirects to /workspace/dashboard.
  */
 
 import React, { useEffect } from 'react';

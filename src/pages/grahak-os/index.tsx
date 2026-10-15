@@ -160,7 +160,7 @@ response = requests.post(
           og:locale / twitter:card / twitter:image tags that used to be duplicated here come
           from _app.tsx with identical values. */}
       <PageMeta
-        title="Grahak OS by WECARE.DIGITAL - Customer Engagement Platform"
+        title="Grahak OS - Customer Engagement Platform"
         description="Grahak OS is the customer engagement product in WECARE.DIGITAL, unifying WhatsApp, SMS, Email, Voice, automation and customer data in one experience."
         path="/grahak-os/"
       />

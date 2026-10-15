@@ -1,3 +1,4 @@
+import ClosingBand from '../components/public/ClosingBand';
 /**
  * Home — the company page.
  *
@@ -158,17 +159,8 @@ const CYCLE_WORDS = [
 const HomePage: React.FC = () => {
   const [ shown, setShown ] = useState( false );
 
-  // The closing band reveals when it scrolls into view. Unlike the hero's one-shot
-  // timeout, this cannot fire on a timer: the section sits below the fold, so a timed
-  // reveal would play to an empty viewport and be over before anyone scrolled to it.
-  //
-  // NO REACT STATE FOR THIS ONE, deliberately - see the effect below. The reveal is a
-  // visual side-effect with no bearing on what React renders, so it is driven by
-  // classList on the node itself.
-  const closeRef = useRef<HTMLElement | null>( null );
-
   // The hero's entrance is armed through this node, for the same reason the closing band is
-  // armed through closeRef: the class that hides the start state must be added by JavaScript,
+  // armed inside ClosingBand: the class that hides the start state must be added by JavaScript,
   // never shipped in the markup, or the pill is blank whenever the script does not run.
   const layoutRef = useRef<HTMLDivElement | null>( null );
 
@@ -202,53 +194,10 @@ const HomePage: React.FC = () => {
     return () => window.clearTimeout( id );
   }, [] );
 
-  useEffect( () => {
-    const el = closeRef.current;
-    if ( !el ) return;
-
-    // THE ANIMATION IS OPT-IN, NOT OPT-OUT, and that inversion is the important part.
-    //
-    // The first version of this rendered the band hidden (opacity:0) and added an "in"
-    // class to reveal it. That makes JavaScript load-bearing for reading the page: if the
-    // bundle fails, IntersectionObserver is missing, or the effect throws, the closing
-    // section is permanently invisible. An entrance effect must never be the reason
-    // content cannot be read.
-    //
-    // So the CSS now ships the FINAL state - everything visible - and this effect adds
-    // .is-armed to hide the start state only once it knows it can animate. No JS, no
-    // observer, or reduced motion all leave the band fully readable, and the effect is
-    // purely additive.
-    //
-    // It also uses classList rather than setState on purpose. This is a visual
-    // side-effect that does not change what React renders, which is exactly the case the
-    // react-hooks/set-state-in-effect rule exists to steer away from state; driving the
-    // DOM directly is the documented use for an effect, and it avoids a cascading render
-    // on every scroll into view.
-    if ( typeof IntersectionObserver === 'undefined' ) return;
-    if ( window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ) return;
-
-    el.classList.add( 'is-armed' );
-
-    const io = new IntersectionObserver(
-      entries => {
-        if ( entries.some( e => e.isIntersecting ) ) {
-          el.classList.add( 'is-in' );
-          io.disconnect(); // One-shot: it is an entrance, not a scroll effect.
-        }
-      },
-      // 18% visible before it plays, so the reveal is not already finished by the time
-      // the section is properly on screen.
-      { threshold: 0.18 }
-    );
-    io.observe( el );
-
-    return () => io.disconnect();
-  }, [] );
-
   // The hero's rotation, its width re-measure and all the pill CSS now live in
   // RotatingPill. This page keeps only the one-shot `shown` flag (armed via layoutRef in
   // the entrance effect above) that drives the shared pill's reveal through its `phase`
-  // prop, and the SEPARATE closing-band IntersectionObserver effect.
+  // prop. ClosingBand owns its separate scroll reveal.
 
   return (
     <>
@@ -454,74 +403,11 @@ const HomePage: React.FC = () => {
               and the streaming panel - so a third loop would compete with both. This
               reveals once when it comes into view: the lime rule draws itself across and
               the three lines stagger in behind it, which lands the argument and then stops. */}
-          <section className="home-close" aria-labelledby="home-close-title" ref={ closeRef }>
-            <div className="home-close-panel">
-              {/* THIS WAS SELLING A PLATFORM TO A CTO. It said "you do not buy a platform
-                  and then wait months to use it", offered "a WhatsApp number that answers, a
-                  queue that holds", and promised "nothing to migrate", "no second support
-                  queue", "no rebuild". Migration, queues and rebuilds are procurement
-                  language: they assume the reader is buying infrastructure and has an
-                  engineering team to point at it.
-                  That is the wrong audience for this page. The headline above is "Everyday
-                  services for travel / rituals / documents", and the old wecare.digital site
-                  is explicit about who it serves - everyday Bharat, individuals as much as
-                  businesses, with the promise that needs get easier to access, understand and
-                  manage. So this now speaks to one person who wants one thing done, and the
-                  three lines are that site's own "Tap. Track. Done." written out. */}
-              <p className="home-close-eyebrow">Everyday Bharat</p>
-              <h2 className="home-close-title" id="home-close-title">
-                Start with what you need today.
-              </h2>
-              {/* THE CONTEXT CLAIM IS DELIBERATELY GONE FROM HERE, and so is the second
-                  sentence of the title above. The page was saying "we remember what you
-                  already told us" FOUR times: the flow section's first beat, this title,
-                  this lead (twice over), and the first point below. Two of those were
-                  near-verbatim - "what you’ve already shared" appeared here and in that
-                  beat, and "start from scratch" here against "starting over" there. A fifth
-                  instance was already deleted in 4d5dcba7. It is now stated twice: once in
-                  the flow beat that owns it, once in the point below.
-                  The replacement says something the page does not say anywhere else - that
-                  you can buy one thing without committing to a bundle - which is what a
-                  closing band is for. It also does NOT summarise the three points beneath
-                  it, which is the mistake just corrected in the flow section's lead. */}
-              <p className="home-close-lead">
-                Bring us what’s next. Think it, say it, send it — in your language, your way.
-                It starts moving the moment you send it.
-              </p>
-              <span className="home-close-rule" aria-hidden="true" />
-              <ul className="home-close-points">
-                {/* "Know the price before you commit" leads, and that order is the point:
-                    it is the only concrete, falsifiable promise on the page, and it was
-                    sitting last. NOTE it is still a promise with nothing behind it - no
-                    price appears anywhere on this page. Do not hardcode one here: the
-                    catalog floor is ₹599 today (Viveka) and the owner expects ₹49 once
-                    several thousand more products are loaded, so any number typed into this
-                    copy starts drifting immediately. Derive it from src/content/catalog.json
-                    instead, then it cannot lie. */}
-                <li>Know the price before you commit.</li>
-                <li>Tell us once. We remember the context.</li>
-                <li>See where everything stands.</li>
-              </ul>
-              {/* A PLAIN <a>, AND IT MUST STAY ONE. This was briefly next/link to silence
-                  @next/next/no-html-link-for-pages, and that silently destroyed the button:
-                  styled-jsx only attaches its scoping class to lowercase DOM tags, never to
-                  a capitalised component, because it cannot know whether the component
-                  forwards className to a DOM node. <Link className="home-close-cta"> therefore
-                  rendered class="home-close-cta" with no jsx- scope, the compiled
-                  .jsx-xxx.home-close-cta rule matched nothing, and the lime pill rendered as
-                  bare text under the last bullet. Lint passed the whole time.
-                  Do not "fix" this back. The alternatives are worse: an inner <span> carrying
-                  the class moves the pill off the focusable element and breaks the focus ring,
-                  and :global() would leak this rule out of the component. Every other CTA on
-                  the public pages - ProductPage, ContactLocation, the header logo - is a plain
-                  <a> for the same reason, and on a static export a full page load is the right
-                  behaviour anyway. The cost used to be "one known eslint error, accepted here
-                  rather than traded for a broken control" - it is now a recorded exemption at
-                  the site, which says the same thing without leaving the lint gate red. */}
-              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-              <a className="home-close-cta" href="/contact/">Tell us what you need</a>
-            </div>
-          </section>
+          <ClosingBand id="home-close" eyebrow="Everyday Bharat"
+            title="Start with what you need today."
+            lead="Bring us what’s next. Think it, say it, send it — in your language, your way. It starts moving the moment you send it."
+            points={ [ 'Know the price before you commit.', 'Tell us once. We remember the context.', 'See where everything stands.' ] }
+            href="/contact/" action="Tell us what you need" />
 
           {/* The common Contribute + Subscribe + Share block, as the last child of .home-layout so it inherits the
               page's own 1300px measure and the 96px flex rhythm - identical to the measure every
@@ -676,250 +562,6 @@ const HomePage: React.FC = () => {
            treatment than the closing-band list beside it (which was #1a3a2a green). Both
            lists are now on the one neutral body colour so the two sections read as siblings. */
         .home-flow-list span{display:block;font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898)}
-
-        /* THE CLOSING BAND. NO margin-top - that was a measured bug, not a style choice.
-           .home-layout is a flex column with gap:96px, so every direct child is already
-           96px from its neighbour. This rule used to add margin-top:96px on top of that
-           gap, and the two are additive: the measured distance from .home-flow to
-           .home-close was 192px while hero-to-flow was 96px, so the closing band sat at
-           double the page's rhythm. The gap owns the spacing; sections do not. */
-        /* (no .home-close rule of its own - see above) */
-
-        /* A tinted panel rather than plain page, because this is the one block on the page
-           asking for a decision and it should read as a different surface from the argument
-           above it. Same 14px radius and same rgba(209,244,112,.22) tint the rest of the
-           site uses for own-surface lime - no new colour. */
-        .home-close-panel{
-          padding:clamp(28px,4vw,56px);
-          border:2px solid #d1f470;border-radius:14px;
-          background:rgba(209,244,112,.22);
-        }
-
-        .home-close-eyebrow{
-          margin:0 0 14px;font-size:12px;font-weight:700;
-          letter-spacing:.08em;text-transform:uppercase;color:#1a3a2a;
-        }
-        /* Section h2 on the contract's 700 rung - heavier than the hero h1's 600, which is
-           the inversion the whole site uses. Same clamp as the other section headings so
-           they read as siblings. */
-        .home-close-title{
-          margin:0 0 16px;max-width:19ch;
-          font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;
-          letter-spacing:-1.2px;color:rgba(0,0,0,.95);
-        }
-        /* The one body level: 20px/400/1.4/-.125px. max-width in ch, not px, so the measure
-           stays ~62 characters whatever the clamp does to the heading beside it. */
-        .home-close-lead{
-          margin:0;max-width:62ch;
-          font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;
-          color:rgba(0,0,0,.898);
-        }
-
-        /* READ THE .is-armed PATTERN BEFORE CHANGING ANY OF THIS.
-           Every rule below ships its FINAL, visible state as the default. .is-armed is
-           added by JavaScript only when it has confirmed it can animate, and that is what
-           hides the start state; .is-in then plays the reveal. The effect is therefore
-           additive, and no JS / no IntersectionObserver / reduced motion all leave this
-           section fully readable instead of stuck at opacity:0. */
-
-        /* THE RULE DRAWS ITSELF. transform:scaleX is the whole animation - it is
-           compositor-only, so it cannot cause layout on any frame, which animating width
-           would do 60 times a second. transform-origin:left makes it grow from the left
-           edge rather than the centre. */
-        .home-close-rule{
-          display:block;height:3px;margin:30px 0;background:#d1f470;
-          transform-origin:left center;
-          transition:transform .62s cubic-bezier(.22,.61,.36,1);
-        }
-        .home-close.is-armed .home-close-rule{transform:scaleX(0)}
-        .home-close.is-armed.is-in .home-close-rule{transform:scaleX(1)}
-
-        /* max-width IS A GUARD, NOT A VISIBLE CHANGE. The three strings are short - the
-           longest is 38 characters - so at 1280 each li box ran the full 1126px while its text
-           occupied about 300px, and capping it moves nothing today. It is here because the lead
-           directly above is capped at 62ch and the title at 19ch, so this list was the one text
-           block on the band with no measure at all: the first point that grows past ~75
-           characters would have set a line nearly twice the measure of the lead above it.
-           Same 62ch as .home-close-lead, because both sit on the same 20px/400 body rung. */
-        .home-close-points{margin:0;padding:0;max-width:62ch;list-style:none;display:flex;flex-direction:column;gap:12px}
-        /* ON THE SITE'S ONE BODY RUNG: 20px/400/1.4/-.125px, byte for byte the same
-           declaration as .home-sub, .home-flow-lead, .home-close-lead and the flow
-           section's beat bodies - six elements on this page alone.
-           THIS USED TO BE 17px/600 under a comment calling it "the card-heading rung at
-           its small end ... claims, not body copy, so they sit above the 16px secondary
-           level". Both halves of that were wrong once measured: 17px is the site's BASE
-           body size, not a card-heading rung (that rung is 22px/700, which is what the
-           flow beats' titles use), and there is no 16px secondary level on this page to
-           sit above - 17/600 was simply off the ladder, and after the flow beats moved up
-           to 22/700 + 20/400 it became the smallest text in the closing band.
-           WHY 400 AND NOT 700. The flow beats earn 22px/700 because a 20px/400 body line
-           follows each one and supplies the contrast; these points have no body line, so
-           three consecutive bold lines under a 40px/700 h2 would have no internal contrast
-           and would rival the heading. Weight is not what marks them as claims - the tick,
-           the lime rule above them and the #1a3a2a colour are, which is exactly how the
-           flow section separates its own lead (rgba(0,0,0,.898)) from its beat bodies
-           (rgba(0,0,0,.54)) while both sit on this same 20/400 rung.
-           20px/600 was considered and rejected: it exists nowhere on the site, and
-           inventing a rung is the thing the h2 unification was done to stop. */
-        .home-close-points li{
-          /* padding-inline-start: the 26px is room for the tick, which moves to the other
-             edge under rtl along with the ::before below. */
-          position:relative;padding-inline-start:26px;
-          /* Body rung at the neutral colour rgba(0,0,0,.898), matching .home-close-lead,
-             .home-flow-lead, .home-sub and the flow-beat bodies. It was #1a3a2a (brand
-             green), which made this list a different treatment from the flow list in
-             section 2 (that list was grey .54). Both lists are now unified on the one
-             neutral body colour so the two sections read as the same kind of thing. The
-             lime tick, the lime rule above and the tinted panel still mark these as
-             claims - colour is no longer what does that work. */
-          font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898);
-          transition:opacity .5s ease,transform .5s ease;
-        }
-        /* A tick drawn with two borders on a rotated box: no asset, no request, cannot 404 -
-           the same technique as the map pin.
-           top follows the line box, it is not a free parameter. At 17px/1.45 the box was
-           24.65px tall and top:6px centred the tick on the x-height; at 20px/1.4 the box is
-           28px, so the same optical position is 7px. Measured, not scaled by eye. */
-        /* THE TICKS CARRY BAND 2'S THREE COLOURS - option 2B from docs/accent-review. All
-           three were #1a3a2a until 2026-09-28, and the point is to tie the closing band's
-           claims to the beats above them.
-
-           MEASURED ON THE PANEL, NOT ON WHITE. This list sits on .home-close-panel, which is
-           rgba(209,244,112,.22) over white and composites to #f5fde0 - a pale yellow-green, so
-           a warm mark loses more contrast here than it would on the page:
-
-             #3da35a green    3.04:1
-             #2563eb blue     4.92:1
-             #9849e8 purple   4.49:1
-             #1a3a2a previous 11.89:1
-             #f0a818 amber    1.94:1   <- which is why the requested amber is not here
-
-           Amber was in the request and in the mock, and on this panel it renders as a smudge
-           beside two solid ticks. Band 2's bars dropped it for the same reason on plain white
-           (2.04:1), so the two sections use the same three values and the set stays coherent.
-
-           THE ORDER MATCHES BAND 2 DELIBERATELY: green, blue, purple, top to bottom in both.
-           These are three different claims, not the same three claims, so the colours are not
-           an encoding - they are a family resemblance. If a colour ever comes to mean a
-           specific thing, it needs a second non-colour signal.
-
-           Contrast is lower than the 11.89:1 it replaces, and that is the cost of the change.
-           1.4.11 is not engaged - each line reads completely without its tick - but the ticks
-           should still be seen, which is why every value clears 3:1 and the weakest is called
-           out here rather than discovered later. */
-        .home-close-points li:nth-child(2)::before{border-left-color:#2563eb;border-bottom-color:#2563eb}
-        .home-close-points li:nth-child(3)::before{border-left-color:#9849e8;border-bottom-color:#9849e8}
-        .home-close-points li::before{
-          /* inset-inline-start keeps the tick on the reader's starting edge, matching the
-             padding above. The two BORDERS stay physical deliberately: rotated -45deg they
-             draw a tick, and a tick is a glyph with a settled shape rather than a
-             direction - mirroring it would produce a backwards mark that reads as an error
-             cross at small sizes. */
-          content:'';position:absolute;inset-inline-start:2px;top:7px;
-          width:11px;height:6px;
-          border-left:2.5px solid #3da35a;border-bottom:2.5px solid #3da35a;
-          transform:rotate(-45deg);
-        }
-        .home-close.is-armed .home-close-points li{opacity:0;transform:translateY(8px)}
-        .home-close.is-armed.is-in .home-close-points li{opacity:1;transform:none}
-        /* Staggered behind the rule, which finishes at .62s. Three 90ms steps read as one
-           settling movement rather than three separate events. */
-        .home-close.is-armed.is-in .home-close-points li:nth-child(1){transition-delay:.34s}
-        .home-close.is-armed.is-in .home-close-points li:nth-child(2){transition-delay:.43s}
-        .home-close.is-armed.is-in .home-close-points li:nth-child(3){transition-delay:.52s}
-
-        /* Full-strength lime with #1a3a2a type: the contract's own-surface pairing.
-           THE BORDER IS #1a3a2a, NOT #d1f470, AND THE OLD REASONING HERE WAS THE DEFECT.
-           This comment used to read: "Solid lime on the tinted panel still separates because
-           the panel is the same hue at 22% - the button is the saturated version of its own
-           background, which is why it needs no shadow at rest." Being the same hue is exactly
-           what removes the separation. Composited, #d1f470 against this panel's
-           rgba(209,244,112,.22) over white measures 1.18:1, and WCAG 1.4.11 wants 3:1 for the
-           boundary of a control. The 2px border was the same lime as the fill, so it
-           contributed nothing and the button's shape was carried almost entirely by its label -
-           on the ONLY action on this page.
-           #1a3a2a takes that boundary to 11.85:1. It is not a new colour: it is this button's
-           own text colour and the eyebrow's colour in this same panel, so the palette is
-           untouched and the fill stays the lime affordance used site-wide.
-           It also repairs :hover below, which swaps the fill to #fff and previously left a
-           near-invisible lime outline on a pale tint, with translateY and the shadow doing all
-           the work of saying "button".
-           Re-measure with: node tools/browser/closeprobe.js - it asserts both ratios.
-           (No backticks in this comment, deliberately: it sits inside a style jsx template
-           literal, where one stray backtick ends the literal. Writing the command in backticks
-           here is what broke the build once already - see the same warning above
-           .home-flow-title.) */
-        .home-close-cta{
-          display:inline-flex;align-items:center;min-height:52px;margin-top:32px;
-          padding:0 28px;border:2px solid #1a3a2a;border-radius:50px;
-          background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;
-          transition:opacity .5s ease,transform .5s ease,background-color .2s,box-shadow .2s;
-        }
-        /* THE ARMED STATE HIDES THIS BUTTON FROM SIGHT WITHOUT REMOVING IT FROM THE PAGE, and
-           getting that distinction right took two goes.
-           It was opacity:0 alone, which left a Tab stop on a control nobody could see: focus
-           landed, the ring drew at 1697px down the page, and there was nothing there to look
-           at. The fix for that was visibility:hidden, which does remove an element from the tab
-           order - and it removed it from the ACCESSIBILITY TREE with it, which turned one defect
-           into a worse one. Measured: cta.focus() returned false while armed, and the whole tab
-           cycle from page load was five stops - logo, nav trigger, the terminal's Pause, footer
-           logo, WhatsApp - and then wrapped to the body. The page's only call to action was in
-           none of them. Because Tab could not reach it, Tab could not scroll it into view
-           either, so the IntersectionObserver that reveals the band never fired from keyboard
-           navigation: a reader using Tab alone could never get to it at all.
-           So opacity:0 is back for the hiding, and the original objection is answered directly
-           instead - FOCUS REVEALS IT. Sequential focus navigation scrolls the focused element
-           into view, so Tab brings the band on screen, the :focus rule below makes the button
-           visible in the same moment, and the observer fires too. The ring can no longer draw on
-           something invisible, because focusing it is what makes it visible.
-           pointer-events:none for the other half: opacity:0 leaves an element clickable, and a
-           button nobody can see must not be clickable. Keyboard focus is unaffected by it. */
-        .home-close.is-armed .home-close-cta{opacity:0;transform:translateY(8px);pointer-events:none}
-        .home-close.is-armed.is-in .home-close-cta{opacity:1;transform:none;pointer-events:auto;transition-delay:.62s}
-        /* AFTER .is-in on purpose: same specificity, so source order decides, and focus must
-           always win. transition:none because this is an accessibility escape hatch rather than
-           an entrance - a reader who has just tabbed to a control should see it now, not fade it
-           in over half a second. */
-        .home-close.is-armed .home-close-cta:focus{opacity:1;transform:none;pointer-events:auto;transition:none}
-        .home-close-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-        /* THE FOCUS RING IS OPAQUE. It was rgba(26,58,42,.22), which over this panel's lime
-           tint composites to 1.51:1 against the 3:1 WCAG 1.4.11 asks of a focus indicator -
-           on the only focusable element inside <main> on the whole page, so a keyboard visitor
-           got one Tab stop and almost no sign they had reached it. Dropping the alpha gives
-           11.85:1.
-           outline-offset:3px STAYS, and it is now load-bearing rather than decorative: the
-           border above is the same #1a3a2a, so the 3px band of panel tint between them is what
-           keeps the ring legible as a ring instead of reading as a thicker border. */
-        .home-close-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-
-        @media(prefers-reduced-motion:reduce){
-          /* Belt and braces. The effect already never arms under reduced motion - the JS
-             returns before adding .is-armed - so these rules are the guard for the case
-             where the preference changes after arming, when the class is already on the
-             node. They kill the movement without hiding anything. */
-          .home-close-rule,.home-close-points li,.home-close-cta{transition:none}
-          .home-close.is-armed .home-close-rule{transform:scaleX(1)}
-          .home-close.is-armed .home-close-points li,
-          .home-close.is-armed .home-close-cta{opacity:1;transform:none}
-          /* pointer-events too, or a reduced-motion visitor whose preference changed after
-             arming would get a CTA that is visible and focusable but not clickable. */
-          .home-close.is-armed .home-close-cta{pointer-events:auto}
-          .home-close-cta:hover{transform:none}
-        }
-
-        @media(max-width:767px){
-          /* No margin-top here either. .home-layout's gap drops to 64px at this
-             breakpoint, so the narrow-screen rhythm is already handled by the parent - the
-             margin that used to be here made it 128px. */
-          .home-close-title{max-width:none}
-          /* NO font-size OVERRIDE ON THE LEAD HERE. There was one - font-size:18px - and it
-             applied to .home-close-lead only, so at 390px this section's lead measured 18px
-             while .home-flow-lead directly above it stayed 20px: the same body rung
-             rendering at two sizes on one page, which is the defect the h2 unification
-             fixed at the heading level. The body rung has no mobile step anywhere else on
-             the site (.home-sub and .home-flow-lead both hold 20px down to 320px), so the
-             override was the outlier, not the rule. */
-        }
 
         @media(max-width:1024px){
           .home-flow{grid-template-columns:minmax(0,1fr);gap:32px}

@@ -45,12 +45,8 @@ interface BlogSearchProps {
  * interface below. The name stays BlogSearch - see the note there.
  *
  * TWO MODES, ONE COMPONENT, AND THE REASON IS WHERE THE DATA IS.
- * On /blog/ every published post is already in the page - the index is statically generated
- * with the whole list - so searching is a filter over something already loaded and should
- * happen as you type, with no navigation. On a post page that list does not exist, so the same
- * box has to be a form that navigates to /blog/?q=... and lets the index do the work. Rather
- * than two components that look identical and drift, this takes the controlled props when the
- * consumer can filter and falls back to a GET form when it cannot.
+ * Blog listings start with one static page and load the shared search index client-side.
+ * Controlled props filter that index; a post page uses the GET form to /blog/?q= instead.
  *
  * IT IS A REAL <form> IN BOTH MODES, not a bare input. That is what makes Enter work, what
  * gives the on-screen keyboard a search key on a phone, and what keeps the no-JavaScript path

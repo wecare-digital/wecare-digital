@@ -109,15 +109,12 @@ describe( 'SearchModal behaviour', () => {
     expect( screen.getByText( /CORS Settings/i ) ).toBeInTheDocument();
   } );
 
-  it( 'disambiguates same-named pages by their parent section', () => {
-    // More than one entry is called "Inbox" - the sidebar stream and the WhatsApp
-    // settings page. Without the parent as a subtitle they are indistinguishable in
-    // a flat result list, which is why getAllNavItems carries `parent`.
-    const inboxes = getAllNavItems().filter( ( i ) => /inbox/i.test( i.label ) );
-    expect( inboxes.length ).toBeGreaterThan( 1 );
-    expect( inboxes.some( ( i ) => !!i.parent ) ).toBe( true );
+  it( 'lists the inbox once and keeps parent context for settings destinations', () => {
+    const inboxes = getAllNavItems().filter( item => /inbox/i.test( item.label ) );
+    expect( inboxes ).toHaveLength( 1 );
+    expect( getAllNavItems().filter( item => item.parent ).length ).toBeGreaterThan( 0 );
     render( <SearchModal isOpen onClose={ () => undefined } /> );
     fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'inbox' } } );
-    expect( screen.getAllByText( /Inbox/ ).length ).toBeGreaterThan( 0 );
+    expect( screen.getAllByRole( 'option' ).filter( option => option.querySelector( '.search-result-title' )?.textContent?.includes( 'Inbox' ) ) ).toHaveLength( 1 );
   } );
 } );

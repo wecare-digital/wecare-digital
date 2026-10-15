@@ -1,3 +1,4 @@
+import { buildPageTitle } from '../lib/page-title';
 import React from 'react';
 import Head from 'next/head';
 import { shopListingPageHref } from '../content/shopProducts';
@@ -58,7 +59,7 @@ interface ShopListingHeadProps {
 
 const ShopListingHead: React.FC<ShopListingHeadProps> = ( { page, totalPages } ) => {
   const canonical = `${ORIGIN}${shopListingPageHref( page )}`;
-  const title = `Shop, page ${page} of ${totalPages} | WECARE.DIGITAL`;
+  const title = buildPageTitle( `Shop, page ${page} of ${totalPages}` );
   const description = `${BASE_DESCRIPTION} Page ${page} of ${totalPages}.`;
 
   const schema = {
@@ -85,20 +86,7 @@ const ShopListingHead: React.FC<ShopListingHeadProps> = ( { page, totalPages } )
         breadcrumb: { '@id': `${canonical}#breadcrumb` },
         publisher: { '@id': ORG_ID },
       },
-      {
-        // ITEM FOR ITEM WHAT ShopListingView RENDERS. A graph describing a trail the page does
-        // not render makes the rich result disappear with no error at all, which is why the two
-        // are edited together. The view now renders a two-item [Home, Shop] trail on every page
-        // (the whole shelf is one rail; there is no visible "Page N" crumb), so the graph is the
-        // same two items. The page number still lives in the title, description and canonical,
-        // which is what keeps each paginated URL distinct without claiming a crumb nobody sees.
-        '@type': 'BreadcrumbList',
-        '@id': `${canonical}#breadcrumb`,
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: `${ORIGIN}/` },
-          { '@type': 'ListItem', position: 2, name: 'Shop', item: SHOP_ROOT },
-        ],
-      },
+
     ],
   };
 
@@ -106,27 +94,27 @@ const ShopListingHead: React.FC<ShopListingHeadProps> = ( { page, totalPages } )
     <Head>
       <title>{ title }</title>
       <meta name="description" content={ description } />
-      <link rel="canonical" href={ canonical } />
+      <link rel="canonical" key="canonical" href={ canonical } />
       { page > 1 && <link rel="prev" href={ `${ORIGIN}${shopListingPageHref( page - 1 )}` } /> }
       { page < totalPages && <link rel="next" href={ `${ORIGIN}${shopListingPageHref( page + 1 )}` } /> }
-      <meta property="og:type" content="website" />
-      <meta property="og:title" content={ title } />
-      <meta property="og:description" content={ description } />
-      <meta property="og:url" content={ canonical } />
+      <meta property="og:type" key="og:type" content="website" />
+      <meta property="og:title" key="og:title" content={ title } />
+      <meta property="og:description" key="og:description" content={ description } />
+      <meta property="og:url" key="og:url" content={ canonical } />
       {/* WRITTEN OUT AS DIRECT CHILDREN OF <Head>, not pulled into a helper component.
           next/head reads its direct children to build the tag list, so wrapping these in a
           component makes them vanish silently. The values come from config/share.ts, so there is
           still one source for what the card IS.
           og:image:secure_url alongside og:image is for the older Facebook scrapers that look for
           it specifically; the URL is https either way. */}
-      <meta property="og:image" content={ SOCIAL_CARD_URL } />
-      <meta property="og:image:secure_url" content={ SOCIAL_CARD_URL } />
-      <meta property="og:image:type" content={ SOCIAL_CARD_TYPE } />
-      <meta property="og:image:width" content={ SOCIAL_CARD_W } />
-      <meta property="og:image:height" content={ SOCIAL_CARD_H } />
-      <meta property="og:image:alt" content={ SOCIAL_CARD_ALT } />
-      <meta property="og:site_name" content="WECARE.DIGITAL" />
-      <meta property="og:locale" content="en_IN" />
+      <meta property="og:image" key="og:image" content={ SOCIAL_CARD_URL } />
+      <meta property="og:image:secure_url" key="og:image:secure_url" content={ SOCIAL_CARD_URL } />
+      <meta property="og:image:type" key="og:image:type" content={ SOCIAL_CARD_TYPE } />
+      <meta property="og:image:width" key="og:image:width" content={ SOCIAL_CARD_W } />
+      <meta property="og:image:height" key="og:image:height" content={ SOCIAL_CARD_H } />
+      <meta property="og:image:alt" key="og:image:alt" content={ SOCIAL_CARD_ALT } />
+      <meta property="og:site_name" key="og:site_name" content="WECARE.DIGITAL" />
+      <meta property="og:locale" key="og:locale" content="en_IN" />
       <meta name="twitter:card" content={ SHARE_CARD_TYPE } />
       <meta name="twitter:title" content={ title } />
       <meta name="twitter:description" content={ description } />

@@ -1,3 +1,5 @@
+import { blogCrumbs, breadcrumbSchema } from '../lib/breadcrumbs';
+import { buildPageTitle } from '../lib/page-title';
 import React from 'react';
 import Head from 'next/head';
 import { blogPageHref } from './BlogIndexView';
@@ -119,12 +121,11 @@ const BlogIndexHead: React.FC<BlogIndexHeadProps> = ( { page, totalPages, topic,
      * Gastronomy at page one - and a canonical means "index that URL instead of me", so the 66
      * posts listed only on pages 2 to 4 would have had no indexable page linking to them. That is
      * the exact mistake the note above records for /blog/page/N/; it applies here unchanged. */
-    const streamFirst = `${ORIGIN}${topicHref}`;
     const url = `${ORIGIN}${blogPageHref( page, topicHref )}`;
     const onFirst = page <= 1;
     const title = onFirst
-      ? `${topic} | WECARE.DIGITAL Blog`
-      : `${topic} — page ${page} of ${totalPages} | WECARE.DIGITAL Blog`;
+      ? buildPageTitle( topic )
+      : buildPageTitle( `${topic} — page ${page} of ${totalPages}` );
     const base = `${count ?? ''} ${count === 1 ? 'post' : 'posts'} on ${topic}, from WECARE.DIGITAL.`.trim();
     // A distinct description per page: several pages sharing one is what reads as duplicate
     // content in a results list, which is the reasoning the /blog/ branch records.
@@ -146,26 +147,7 @@ const BlogIndexHead: React.FC<BlogIndexHeadProps> = ( { page, totalPages, topic,
           // mainEntity names a collection and then declines to say what is in it.
           ...( streamList ? { mainEntity: { '@id': `${url}#itemlist` } } : {} ),
         },
-        {
-          '@type': 'BreadcrumbList',
-          '@id': `${url}#breadcrumb`,
-          // The category always points at the stream's FIRST page, and a page number is a fourth
-          // crumb beyond it - the same shape the /blog/ branch below uses, where "Page N" is
-          // appended rather than replacing "Blog". A trail whose category crumb pointed at page 3
-          // would describe the stream as living there.
-          itemListElement: onFirst
-            ? [
-              { '@type': 'ListItem', position: 1, name: 'Home', item: `${ORIGIN}/` },
-              { '@type': 'ListItem', position: 2, name: 'Blog', item: `${ORIGIN}/blog/` },
-              { '@type': 'ListItem', position: 3, name: topic, item: streamFirst },
-            ]
-            : [
-              { '@type': 'ListItem', position: 1, name: 'Home', item: `${ORIGIN}/` },
-              { '@type': 'ListItem', position: 2, name: 'Blog', item: `${ORIGIN}/blog/` },
-              { '@type': 'ListItem', position: 3, name: topic, item: streamFirst },
-              { '@type': 'ListItem', position: 4, name: `Page ${page}`, item: url },
-            ],
-        },
+        breadcrumbSchema( blogCrumbs( page, topic, topicHref ), url ),
         // Appended by a filtered spread so a page with no posts emits exactly the two nodes it
         // emitted before, in the same order.
         ...( streamList ? [ streamList ] : [] ),
@@ -233,8 +215,8 @@ const BlogIndexHead: React.FC<BlogIndexHeadProps> = ( { page, totalPages, topic,
   const first = page === 1;
 
   const title = first
-    ? 'Blog | WECARE.DIGITAL'
-    : `Blog — page ${page} of ${totalPages} | WECARE.DIGITAL`;
+    ? buildPageTitle( 'Blog' )
+    : buildPageTitle( `Blog — page ${page} of ${totalPages}` );
   const description = first
     ? DESCRIPTION
     : `${DESCRIPTION} Page ${page} of ${totalPages}.`;
@@ -271,22 +253,7 @@ const BlogIndexHead: React.FC<BlogIndexHeadProps> = ( { page, totalPages, topic,
           breadcrumb: { '@id': `${canonical}#breadcrumb` },
           ...( blogList ? { mainEntity: { '@id': `${canonical}#itemlist` } } : {} ),
         },
-      {
-        '@type': 'BreadcrumbList',
-        '@id': `${canonical}#breadcrumb`,
-        // The tail must be the canonical, slash included, or the breadcrumb describes a
-        // URL that redirects. trailingSlash is on for this export.
-        itemListElement: first
-          ? [
-            { '@type': 'ListItem', position: 1, name: 'Home', item: `${ORIGIN}/` },
-            { '@type': 'ListItem', position: 2, name: 'Blog', item: blogRoot },
-          ]
-          : [
-            { '@type': 'ListItem', position: 1, name: 'Home', item: `${ORIGIN}/` },
-            { '@type': 'ListItem', position: 2, name: 'Blog', item: blogRoot },
-            { '@type': 'ListItem', position: 3, name: `Page ${page}`, item: canonical },
-          ],
-      },
+      breadcrumbSchema( blogCrumbs( page ), canonical ),
       ...( blogList ? [ blogList ] : [] ),
     ],
   };

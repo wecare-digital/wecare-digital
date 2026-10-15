@@ -1,3 +1,4 @@
+import { buildPageTitle } from '../../lib/page-title';
 /**
  * Customer-owned order confirmation. A URL is never payment evidence: this page
  * requires an authenticated status read, PAYMENT_PAID and a server order number.
@@ -51,7 +52,7 @@ export default function CheckoutSuccess (): React.ReactElement {
   return (
     <>
       <Head>
-        <title>{heading} — WECARE.DIGITAL</title>
+        <title>{ buildPageTitle( heading ) }</title>
         <meta name="robots" content="noindex,nofollow" />
       </Head>
       <RotatingHero

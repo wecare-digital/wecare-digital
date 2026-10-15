@@ -1,5 +1,7 @@
 import React from 'react';
-import PageMeta from '../components/PageMeta';
+import PageShell from '../components/public/PageShell';
+import Link from 'next/link';
+import { CUSTOMERSERVICE } from '../content/customerservice';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
 import ContactLocation from '../components/ContactLocation';
 
@@ -45,11 +47,6 @@ const CYCLE_WORDS: CycleWord[] = [
 
 const ContactPage: React.FC = () => (
   <>
-    <PageMeta
-      title="Contact — WECARE.DIGITAL"
-      description="Submit a request, amend or track an existing one, drop documents, or leave a review."
-      path="/contact/"
-    />
     <RotatingHero
       ariaLabel="Contact WECARE.DIGITAL"
       badgeLabel="Requests by WECARE.DIGITAL"
@@ -62,7 +59,23 @@ const ContactPage: React.FC = () => (
           keyless - it needs no Google credential at all, so nothing has to be restricted,
           rotated or kept out of the built page. See that file's header for the measured
           reason the query is plain text rather than a place_id. */}
+      <PageShell title="Contact" description="Submit a request, amend or track an existing one, drop documents, or leave a review."
+        canonical="/contact/" crumbs={ [ { name: 'Home', href: '/' }, { name: 'Contact' } ] }>
+        <section aria-labelledby="request-hub-title" className="request-hub">
+          <h2 id="request-hub-title">How can we help?</h2>
+          <ul>{ CUSTOMERSERVICE.map( service => <li key={ service.slug }>
+            <Link href={ `/${service.slug}/` }>{ service.name }</Link>
+            <p>{ service.description }</p>
+          </li> ) }</ul>
+        </section>
+      </PageShell>
       <ContactLocation />
+      <style jsx>{`
+        .request-hub ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px;list-style:none;margin:24px 0;padding:0}
+        .request-hub li{padding:24px;border:1px solid #d1f470;border-radius:14px}
+        .request-hub li :global(a){display:inline-block;font-size:22px;font-weight:700;color:#1a3a2a;min-height:44px}
+        .request-hub p{font-size:20px;line-height:1.4;margin:8px 0 0}
+      `}</style>
 
       {/* THE CAPABILITY STRIP HAS MOVED TO THE HOME PAGE, at the owner's request. It used
           to sit here as <ContactCapabilities /> - the seven things the arrival map can do.

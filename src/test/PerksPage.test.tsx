@@ -48,14 +48,13 @@ describe( 'Perks page', () => {
     // The sanctioned reuse surface, as on /shipments/, /shop, /blog and the product pages.
     expect( src ).toContain( "from '../components/RotatingHero'" );
     expect( src ).toContain( '<RotatingHero' );
-    // The home page's one-shot scroll-reveal mechanism, armed via classList with the final state
-    // shipped as the CSS default so it degrades to fully-visible without JS.
-    expect( src ).toContain( 'IntersectionObserver' );
-    expect( src ).toContain( 'is-armed' );
-    expect( src ).toContain( 'threshold: 0.18' );
-    // Reduced motion is honoured (both the JS early-return and a CSS media query).
-    expect( src ).toContain( 'prefers-reduced-motion: reduce' );
-    expect( src ).toContain( 'prefers-reduced-motion:reduce' );
+    expect( src ).toContain( '<ClosingBand' );
+    const shared = fs.readFileSync( path.join( process.cwd(), 'src/components/public/ClosingBand.tsx' ), 'utf8' );
+    expect( shared ).toContain( 'IntersectionObserver' );
+    expect( shared ).toContain( 'is-armed' );
+    expect( shared ).toContain( 'threshold: 0.18' );
+    expect( shared ).toContain( 'prefers-reduced-motion: reduce' );
+    expect( shared ).toContain( 'prefers-reduced-motion:reduce' );
   } );
 
   it( 'removed the gift-card, offers and rewards sections and their anchors', () => {

@@ -1,3 +1,5 @@
+import { buildPageTitle } from '../lib/page-title';
+import { breadcrumbSchema } from '../lib/breadcrumbs';
 ﻿/**
  * WECARE.DIGITAL
  * Simplified auth - just wrap protected pages with Authenticator
@@ -438,7 +440,8 @@ const serviceSchema = {
 };
 
 /**
- * Per-route WebPage + BreadcrumbList for the PUBLIC pages, as a single @graph.
+ * Per-route WebPage/Service graph for public pages. A keyed breadcrumb script lets
+ * PageShell supply the same trail it renders without emitting a second BreadcrumbList.
  *
  * Why this exists: every public page was emitting the same five site-level entities
  * and nothing that identified the page itself, so Google had no per-URL description of
@@ -589,19 +592,8 @@ const PUBLIC_PAGE_META: Record<string, {
   '/perks': { name: 'Perks', type: 'WebPage', description: 'A little extra for the people we look after. An honest, uncluttered place for the small thank-yous we send your way, and nothing here asks for payment.' },
 };
 
-/**
- * RETIRED URLS: now handled at the CDN, not in the code.
- *
- * [retired public path] and /product-page/* were previously kept alive by an in-repo client-side
- * redirect (src/components/RetiredUrl.tsx + these RETIRED_ROUTES entries), because a
- * static export cannot emit a server 301 and Amplify Hosting redirects are console-managed.
- *
- * On owner instruction those stubs were REMOVED. The routes no longer exist in the export,
- * so a request for them now 404s at the origin UNLESS a CDN-level 301 is configured in the
- * Amplify Console (Rewrites and redirects: [retired public path] -> /contact/ and /product-page/<*>
- * -> /contact/). That console redirect is the owner's responsibility and is the correct,
- * single place for it. NOTE: any [retired public path] or /product-page link already delivered in a
- * WhatsApp message will break until that console 301 exists.
+/** Public redirect changes use scripts/provision_legacy_redirects.py and its ratified list.
+ * Fetch live rules and plan before applying; static route refactors must preserve that ruleset.
  */
 const SITE = 'https://wecare.digital';
 
@@ -684,16 +676,8 @@ const getPublicPageSchema = ( pathname: string ) => {
         // to what it was on the routes that have no Service.
         ...( service ? { mainEntity: { '@id': `${url}#service` } } : {} ),
       },
-      {
-        '@type': 'BreadcrumbList',
-        '@id': `${url}#breadcrumb`,
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE}/` },
-          { '@type': 'ListItem', position: 2, name: meta.name, item: url },
-        ],
-      },
       // Filtered rather than conditionally spread into the array, so the routes with no
-      // serviceType emit exactly the two nodes they emitted before and nothing is reordered.
+      // serviceType emit only the WebPage node; PageShell supplies its keyed breadcrumb separately.
       ...( service ? [ service ] : [] ),
     ],
   };
@@ -998,7 +982,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
               product. It was the <title> for all 15 public routes, so the company home page
               was titled as a WhatsApp CRM. Kept short enough to survive truncation and
               worded to match the og/twitter/description copy below. */}
-          <title>Everyday AI, built for Bharat | WECARE.DIGITAL</title>
+          <title>{ buildPageTitle( router.pathname === '/shop' ? 'Shop' : 'Everyday AI, built for Bharat' ) }</title>
           {/* THE INTER LINKS LIVE IN _document.tsx ONLY. They were declared here as well,
               and _document.tsx renders on every route, so the built head carried the Inter
               stylesheet TWICE - two render-blocking requests for one font - plus duplicate
@@ -1176,6 +1160,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
             <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( serviceSchema ) } } />
           ) }
           <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( getPublicPageSchema( router.pathname ) ) } } />
+          { PUBLIC_PAGE_META[ router.pathname ] && <script key="public-breadcrumbs" type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( breadcrumbSchema( [ { name: 'Home', href: '/' }, { name: PUBLIC_PAGE_META[ router.pathname ].name } ], `${router.pathname}/` ) ) } } /> }
         </Head>
         ) }
         {/* NO DIRECT gtag.js HERE - BY POLICY, and it was being violated.

@@ -229,7 +229,6 @@ export const settingsConfig: SettingsGroup[] = [
       // and does not evaluate IAM — so the signed-in person must be able to reach
       // this. Burying it would work against the admin-MFA target.
       { path: '/workspace/access/security', label: 'Sign-in & MFA' },
-      { path: '/workspace/access', label: 'Access' },
     ],
   },
   {
@@ -238,7 +237,6 @@ export const settingsConfig: SettingsGroup[] = [
     icon: 'whatsapp',
     hint: 'WABA setup, templates, flows, calling',
     items: [
-      { path: '/workspace/engage/whatsapp', label: 'WhatsApp Inbox' },
       { path: '/workspace/engage/whatsapp/waba-dashboard', label: 'WABA Dashboard' },
       { path: '/workspace/engage/whatsapp/embedded-signup', label: 'Connect WABA' },
       { path: '/workspace/engage/whatsapp/connected-accounts', label: 'Connected Accounts' },
@@ -368,7 +366,6 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/dashboard/system-architecture', label: 'Architecture snapshot' },
       { path: '/workspace/dashboard/lambda-functions', label: 'Lambda Functions' },
       { path: '/workspace/dashboard/code-repo', label: 'Code Repo' },
-      { path: '/workspace/dashboard/waba-usernames', label: 'WABA Usernames' },
       { path: '/workspace/dashboard/wa-graph-tools', label: 'WA Graph Tools' },
       { path: '/workspace/dashboard/cors-settings', label: 'CORS Settings' },
       { path: '/workspace/dashboard/design-reference', label: 'Design Reference' },
@@ -385,7 +382,6 @@ export const settingsConfig: SettingsGroup[] = [
       // menu entry leading to a promise is exactly the failure mode the Growth/Commerce
       // comment above set out to avoid — a flagged-off page that explains itself is real
       // content, "coming soon" is not.
-      { path: '/workspace/docs', label: 'Docs' },
     ],
   },
 ];

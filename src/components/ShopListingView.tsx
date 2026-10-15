@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import RotatingHero, { type CycleWord } from './RotatingHero';
-import Breadcrumbs from './Breadcrumbs';
+import PageShell from './public/PageShell';
 import BlogSearch from './BlogSearch';
 import { cycle } from '../content/products';
 import { type ShopListing } from '../content/shopProducts';
@@ -69,7 +69,7 @@ interface ShopListingViewProps {
   totalPages: number;
 }
 
-const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings } ) => {
+const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, totalPages } ) => {
   /**
    * READ ?q= ON FIRST RENDER, because BlogSearch's no-JavaScript path is a GET form that
    * navigates to /shop/?q=... and because a search result page should be linkable. Done in a
@@ -184,9 +184,10 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings } ) => {
       ariaLabel="WECARE.DIGITAL shop"
     >
       <div className="shop-in">
-        <Breadcrumbs
-          items={ [ { label: 'Home', href: '/' }, { label: 'Shop' } ] }
-        />
+        <PageShell title={ page === 1 ? 'Shop' : `Shop, page ${page} of ${totalPages}` }
+          description={ page === 1 ? 'Browse WECARE.DIGITAL products and services.' : `Every WECARE.DIGITAL product and service on one page, each linking to its own page. Page ${page} of ${totalPages}.` }
+          canonical={ page === 1 ? '/shop/' : `/shop/page/${page}/` }
+          crumbs={ [ { name: 'Home', href: '/' }, { name: 'Shop' } ] } />
 
         {/* Live mode, and the count's denominator is the WHOLE shelf: "3 of 15" is the true
             answer about what was searched. The five strings are the only thing that differs from
