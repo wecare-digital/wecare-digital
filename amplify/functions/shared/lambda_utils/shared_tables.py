@@ -18,6 +18,7 @@ place their names are decided:
     invoice items    InvoiceItemsTable             invoice line         INVOICE_ITEMS_TABLE
     invoice assets   InvoiceAssetsTable            private receipt      INVOICE_ASSETS_TABLE
     invoice sequence InvoiceSequenceTable          statutory sequence   INVOICE_SEQ_TABLE
+    invoice delivery InvoiceDeliveryLogTable        receipt delivery      INVOICE_DELIVERY_TABLE
     payment attempts PaymentAttemptsTable          payment attempt      PAYMENT_ATTEMPTS_TABLE
     commerce keys    CommerceKeys                   idempotency/binding  COMMERCE_KEYS_TABLE
 
@@ -91,6 +92,8 @@ INVOICES = SharedTable('invoices', 'INVOICES_TABLE', 'InvoicesTable', 'invoiceId
 INVOICE_ITEMS = SharedTable('invoice_items', 'INVOICE_ITEMS_TABLE', 'InvoiceItemsTable', 'itemId')
 INVOICE_ASSETS = SharedTable('invoice_assets', 'INVOICE_ASSETS_TABLE', 'InvoiceAssetsTable', 'assetId')
 INVOICE_SEQUENCE = SharedTable('invoice_sequence', 'INVOICE_SEQ_TABLE', 'InvoiceSequenceTable', 'sequenceId')
+INVOICE_DELIVERY = SharedTable('invoice_delivery', 'INVOICE_DELIVERY_TABLE',
+                               'InvoiceDeliveryLogTable', 'invoiceId')
 PAYMENT_ATTEMPTS = SharedTable('payment_attempts', 'PAYMENT_ATTEMPTS_TABLE',
                                'PaymentAttemptsTable', 'paymentAttemptId')
 COMMERCE_KEYS = SharedTable('commerce_keys', 'COMMERCE_KEYS_TABLE', 'CommerceKeys', 'orderId')
@@ -98,7 +101,7 @@ COMMERCE_KEYS = SharedTable('commerce_keys', 'COMMERCE_KEYS_TABLE', 'CommerceKey
 #: Every shared store, in the order the module docstring lists them.
 SHARED: Tuple[SharedTable, ...] = (
     CONTACTS, ORDERS, FLOW_SUBMISSIONS, FLOW_LOGS, STATUS_HISTORY, FLOW_DRAFTS,
-    INVOICES, INVOICE_ITEMS, INVOICE_ASSETS, INVOICE_SEQUENCE,
+    INVOICES, INVOICE_ITEMS, INVOICE_ASSETS, INVOICE_SEQUENCE, INVOICE_DELIVERY,
     PAYMENT_ATTEMPTS, COMMERCE_KEYS)
 
 #: Folded table -> the table its rows live in now. A test asserts no runtime module names a
@@ -151,6 +154,10 @@ def invoice_assets_table_name() -> str:
 
 def invoice_sequence_table_name() -> str:
     return INVOICE_SEQUENCE.name()
+
+
+def invoice_delivery_table_name() -> str:
+    return INVOICE_DELIVERY.name()
 
 
 def payment_attempts_table_name() -> str:
