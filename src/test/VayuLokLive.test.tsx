@@ -389,6 +389,7 @@ let rec: MapsRecorder;
 async function selectMumbai() {
   const input = await screen.findByRole( 'combobox' );
   fireEvent.change( input, { target: { value: 'Mumbai' } } );
+  fireEvent.keyDown( input, { key: 'Enter' } );
   // The suggestion <li> commits the selection on `onPointerDown` (pointer events are the
   // component's chosen interaction so a touch/mouse tap recentres before blur closes the
   // list). fireEvent.mouseDown dispatches a `mousedown` event, which never invokes a React
@@ -1219,6 +1220,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     // No active option before any results, so no activedescendant is advertised.
     expect( input.getAttribute( 'aria-activedescendant' ) ).toBeFalsy();
     fireEvent.change( input, { target: { value: 'Mumbai' } } );
+    fireEvent.keyDown( input, { key: 'Enter' } );
     const option = await screen.findByRole( 'option', { name: /Mumbai/i } );
     await waitFor( () =>
       expect( input.getAttribute( 'aria-activedescendant' ) ).toBe( option.id ) );
@@ -1735,55 +1737,27 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( body.customLocalAqis ).toBeUndefined();
   } );
 
-  it( 'fires the place autocomplete on the fast 120ms debounce - not immediately, and not on the old 300ms lag', async () => {
-    // PINS "auto-complete should work very quickly". The component debounces the Autocomplete
-    // Data API request by SEARCH_DEBOUNCE_MS (120ms): one request per settled keystroke, but
-    // snappy. This test asserts the actual TIMING via fake timers so a regression back to the
-    // old 300ms value FAILS CI (the request would not have fired by ~120ms), and removing the
-    // debounce entirely ALSO fails (the request would fire before the sub-threshold advance).
-    //
-    // The initial map-ready phase relies on requestAnimationFrame (tilesloaded) + awaited
-    // importLibrary + waitFor, which are fragile under fake timers, so we drive map-ready on
-    // REAL timers and only switch to fake timers around the debounce window. runSearch is async
-    // (it awaits ensurePlacesLibrary -> importLibrary('places') before calling
-    // fetchAutocompleteSuggestions), so we advance with advanceTimersByTimeAsync to flush both
-    // the debounce timer AND the awaited autocomplete promise chain.
+  it( 'does not call a provider while typing and geocodes once on explicit submit', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     render( <VayuLokLive /> );
 
-    // Map-ready boundary on real timers: the combobox renders only after tilesloaded flips mapReady.
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     const input = await screen.findByRole( 'combobox' );
 
-    // Fresh recorder slate, then switch to fake timers for the debounce window only.
-    rec.autocompleteCalls.length = 0;
-    vi.useFakeTimers();
-    try {
-      fireEvent.change( input, { target: { value: 'Mumbai' } } );
+    rec.geocodeCalls.length = 0;
+    fireEvent.change( input, { target: { value: 'Mumbai' } } );
+    await new Promise( resolve => setTimeout( resolve, 180 ) );
 
-      // Immediately after the keystroke the debounce timer is still pending: no request yet.
-      expect( rec.autocompleteCalls ).toHaveLength( 0 );
+    // Cost control: typing alone must never hit Places or Geocoding.
+    expect( rec.autocompleteCalls ).toHaveLength( 0 );
+    expect( rec.geocodeCalls ).toHaveLength( 0 );
 
-      // Just UNDER the 120ms threshold the request must STILL not have fired. If the debounce
-      // were removed, a request would already be queued here; if it were present but 120ms,
-      // 100ms is not enough to cross it.
-      await vi.advanceTimersByTimeAsync( 100 );
-      expect( rec.autocompleteCalls ).toHaveLength( 0 );
-
-      // Shortly after crossing 120ms the request fires. The extra advance also flushes the
-      // awaited importLibrary('places') + fetchAutocompleteSuggestions microtasks so the call
-      // is recorded. A 300ms debounce would NOT have fired by this point, failing the test.
-      await vi.advanceTimersByTimeAsync( 40 );
-      expect( rec.autocompleteCalls.length ).toBeGreaterThan( 0 );
-      // The request is intentionally worldwide: no India-only region or viewport restriction.
-      const req = rec.autocompleteCalls.at( -1 ) || {};
-      expect( req.includedRegionCodes ).toBeUndefined();
-      expect( req.locationRestriction ).toBeUndefined();
-      expect( req.region ).toBeUndefined();
-    } finally {
-      vi.useRealTimers();
-    }
+    fireEvent.keyDown( input, { key: 'Enter' } );
+    await waitFor( () => expect(
+      rec.geocodeCalls.some( req => req.address === 'Mumbai' ),
+    ).toBe( true ) );
+    expect( rec.autocompleteCalls ).toHaveLength( 0 );
   } );
 
 
@@ -1842,8 +1816,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const input = screen.getByRole( 'combobox' ) as HTMLInputElement;
     await waitFor( () => expect( input.value ).toBe( 'কলকাতা' ) );
     await waitFor( () => expect(
-      rec.autocompleteCalls.some( req => req.input === 'কলকাতা' ),
+      rec.geocodeCalls.some( req => req.address === 'কলকাতা' ),
     ).toBe( true ) );
+    expect( rec.autocompleteCalls ).toHaveLength( 0 );
   } );
 
   it( 'reopens typed autocomplete on focus and selects suggestions with pointer input', async () => {
@@ -1857,7 +1832,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const option = await screen.findByRole( 'option', { name: /Mumbai/i } );
     expect( option ).toBeTruthy();
 
-    // Close results, then refocus while the query remains. Focus should re-open/re-run search.
+    // Close results, then refocus while the query remains. Focus should re-open cached results
+    // without making another provider request.
     fireEvent.keyDown( input, { key: 'Escape' } );
     expect( input.getAttribute( 'aria-expanded' ) ).toBe( 'false' );
     fireEvent.focus( input );
@@ -1879,6 +1855,25 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     expect( fetchSpy.mock.calls.some( call => requestUrl( call[ 0 ] as RequestInfo | URL )?.hostname === 'pollen.googleapis.com' ) ).toBe( false );
     expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
+  } );
+
+  it( 'renders a local weather sky and wind-circulation visual without weather tile requests', async () => {
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+    await waitFor( () => expect( screen.getByRole( 'tab', { name: 'Weather' } ) ).toBeTruthy() );
+    fireEvent.click( screen.getByRole( 'tab', { name: 'Weather' } ) );
+
+    await waitFor( () => expect( container.querySelector( '.vl-live-weather-visual' ) ).not.toBeNull() );
+    expect( container.querySelectorAll( '.vl-live-wind-path' ).length ).toBeGreaterThanOrEqual( 6 );
+    expect( fetchSpy.mock.calls.some( call => {
+      const url = requestUrl( call[ 0 ] as RequestInfo | URL );
+      return Boolean( url && /tile/i.test( url.hostname + url.pathname ) && /weather/i.test( url.hostname + url.pathname ) );
+    } ) ).toBe( false );
   } );
 
   it( 'does not render the removed map layer or selected-location pills', async () => {
