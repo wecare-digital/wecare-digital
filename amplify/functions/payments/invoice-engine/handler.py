@@ -35,7 +35,7 @@ from lambda_utils.response import cors_response, cors_headers, options_response,
 from lambda_utils.audit import record_audit
 from lambda_utils.logging import get_logger
 from lambda_utils.privacy import mask_phone  # a full number must never reach CloudWatch
-from lambda_utils import media_paths
+from lambda_utils import media_paths, shared_tables
 # Aliased: `payment_status` is a local parameter in the invoice renderers below, holding the raw
 # stored word. `pay_status` is the module that says what the word means.
 from lambda_utils import payment_status as pay_status
@@ -97,13 +97,13 @@ dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 s3 = boto3.client('s3', region_name='us-east-1')
 lambda_client = boto3.client('lambda', region_name='us-east-1')
 
-INVOICES_TABLE = os.environ.get('INVOICES_TABLE', 'stack-wecare-digital-InvoicesTable')
-INVOICE_ITEMS_TABLE = os.environ.get('INVOICE_ITEMS_TABLE', 'stack-wecare-digital-InvoiceItemsTable')
-INVOICE_SEQ_TABLE = os.environ.get('INVOICE_SEQ_TABLE', 'stack-wecare-digital-InvoiceSequenceTable')
-INVOICE_ASSETS_TABLE = os.environ.get('INVOICE_ASSETS_TABLE', 'stack-wecare-digital-InvoiceAssetsTable')
+INVOICES_TABLE = shared_tables.invoices_table_name()
+INVOICE_ITEMS_TABLE = shared_tables.invoice_items_table_name()
+INVOICE_SEQ_TABLE = shared_tables.invoice_sequence_table_name()
+INVOICE_ASSETS_TABLE = shared_tables.invoice_assets_table_name()
 INVOICE_DELIVERY_TABLE = os.environ.get('INVOICE_DELIVERY_TABLE', 'stack-wecare-digital-InvoiceDeliveryLogTable')
 PAYMENTS_TABLE = os.environ.get('PAYMENTS_TABLE', 'stack-wecare-digital-PaymentsTable')
-CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')
+CONTACTS_TABLE = shared_tables.contacts_table_name()
 # Read through each store's own env key and default, so the invoice surface cannot end up
 # pointed at a different table from the `/coupons/*` and `/gift-cards/*` routes.
 COUPONS_TABLE = os.environ.get(coupon_store.TABLE_ENV_KEY, coupon_store.DEFAULT_TABLE_NAME)
@@ -117,10 +117,8 @@ MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 # Declared here rather than relied on from a code default, so the manifest describes the
 # dependency instead of the default hiding it. `reserve` writes both from this function, which
 # has never touched either before.
-PAYMENT_ATTEMPTS_TABLE = os.environ.get('PAYMENT_ATTEMPTS_TABLE',
-                                        'stack-wecare-digital-PaymentAttemptsTable')
-COMMERCE_KEYS_TABLE = os.environ.get('COMMERCE_KEYS_TABLE',
-                                     order_keys.commerce_keys_table_name())
+PAYMENT_ATTEMPTS_TABLE = shared_tables.payment_attempts_table_name()
+COMMERCE_KEYS_TABLE = shared_tables.commerce_keys_table_name()
 
 #: The approved WhatsApp payment template, with ONE home.
 #:
