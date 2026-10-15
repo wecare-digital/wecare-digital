@@ -1240,7 +1240,13 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     contact = payment.get('contact', '')
     email = payment.get('email', '')
     description = payment.get('description', '')
-    notes = payment.get('notes', {})
+    # Razorpay serialises EMPTY notes as a JSON array (`"notes": []` in its own sample payloads),
+    # not as an object. Every read below is a `.get`, so a capture carrying no notes raised
+    # AttributeError at the referenceId lookup: a 500 on every Razorpay retry, and a capture that
+    # never reached the quarantine below. Anything that is not an object carries no notes.
+    notes = payment.get('notes')
+    if not isinstance(notes, dict):
+        notes = {}
 
     # Partner prepaid wallet top-up (customer-service): if this payment was created for
     # a wallet top-up, credit the tenant's wallet and stop (not an invoice payment).
@@ -1286,19 +1292,12 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
         if desc.upper().startswith('WD'):
             reference_id = desc
     
-    # If still not found, try Meta Payment Lookup API using the Razorpay order_id
-    # The reference_id is always in the Meta payment record even if Razorpay notes are empty
-    if not reference_id and order_id:
-        try:
-            reference_id = _lookup_reference_id_from_meta(order_id, contact, request_id)
-        except Exception as lookup_err:
-            # A17: type only. A lookup error message can echo request content.
-            logger.warning(json.dumps({
-                'event': 'meta_lookup_for_ref_failed',
-                'orderId': order_id,
-                'error': type(lookup_err).__name__,
-                'requestId': request_id,
-            }))
+    # Still none: resolve it from an EXACT stored binding of the Razorpay order id, or not at all.
+    # A phone number, an amount or "the customer's pending invoice" is never evidence of which
+    # purchase a payment is for. An unattributed capture falls through to the durable quarantine
+    # below - recorded and recoverable, never guessed. See `_reference_id_from_stored_binding`.
+    if not reference_id:
+        reference_id = _reference_id_from_stored_binding(order_id, payment_id, request_id)
 
     # A17: the receipt of the event is worth recording, but the event body is not evidence and
     # must not be dumped. Log only a correlation id (referenceId), the stage, the requestId, and
@@ -1900,54 +1899,96 @@ def _handle_payment_failed(event_data: Dict, request_id: str) -> None:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# META PAYMENT LOOKUP FOR REFERENCE_ID RECOVERY
+# REFERENCE_ID RECOVERY: AN EXACT STORED BINDING, NEVER A GUESS
 # ═══════════════════════════════════════════════════════════════════
 
-def _lookup_reference_id_from_meta(razorpay_order_id: str, contact_phone: str, request_id: str) -> str:
-    """When Razorpay notes don't contain referenceId, try to find it via Meta Payment Lookup.
-    
-    Strategy: scan our PaymentsTable or InboundTable for a payment_request record
-    that matches the customer phone, then use its referenceId to call Meta Lookup API.
-    If Meta confirms the payment is captured for that referenceId, we have our match.
-    
-    Fallback: scan InvoicesTable for pending invoices for this customer phone.
+def _reference_id_from_stored_binding(razorpay_order_id: str, payment_id: str,
+                                      request_id: str) -> str:
+    """The referenceId a capture without `notes.referenceId` EXACTLY belongs to, or ''.
+
+    Attribution is by identifier, never by resemblance. The one key consulted is the capture's
+    Razorpay `order_id`, read against the `GATEWAYORDER#<order_id>` binding on the commerce-keys
+    table (`order_keys.resolve_gateway_order`, one consistent GetItem). Only this system writes
+    that row, and it records a `referenceId` on two paths: `website_checkout._bind_and_ready` when
+    our checkout creates the gateway order, and `meta_payment_binding.bind_attempt` once Meta has
+    confirmed which gateway order paid a native reference. It is keyed by the order id and claimed
+    conditionally, once, so a match is exact by construction and there is never a second
+    candidate to choose between.
+
+    What this replaced, so nobody re-derives it as a convenience: `_lookup_reference_id_from_meta`
+    scanned InvoicesTable filtered only by status and returned the referenceId of the FIRST
+    pending invoice whose `customerPhone` matched the payment's `contact`. A customer with two
+    pending invoices could have the payment attributed to the other one, and that referenceId
+    then drove reconciliation, the invoice-paid write and the customer's confirmation. Downstream
+    checks refuse most wrong guesses but not all: `reconcile_payment` answers ORDER_ALREADY_EXISTS
+    for an attempt that already has an order BEFORE it contacts the provider, so a guess landing
+    on an already-ordered reference read as a verified success and settled the wrong invoice.
+    Its docstring also promised a Meta Payment Lookup confirmation; no such call was ever made.
+
+    Deliberately NOT consulted:
+
+      * the payment's `contact`, `email` or amount. None of them identifies a purchase: two
+        pending invoices for one phone at one price is an ordinary repeat order.
+      * InvoicesTable. No current writer records a Razorpay order id on an invoice (the legacy
+        `providerOrderId` / `order_id` fields `_verified_legacy_invoice` reads have none), the
+        payment ids that do land there (`paymentId`, `providerPaymentId`) are recorded only once
+        a payment is already settled, and nothing indexes any of them. Matching there would be a
+        full scan for values a first delivery cannot carry.
+      * Meta. Its Payment Lookup is keyed by OUR reference, which is the unknown here; the native
+        leg binds through `meta_payment_binding` once a reference is known.
+      * the entity's `invoice_id`, or a payment-link id (which a `payment.captured` entity does
+        not carry). Nothing here stores either, so neither can be matched exactly.
+
+    Returns '' when there is no order id, no binding, a binding that names no reference (a blog
+    contribution's carries `contributionId` instead), or the binding cannot be read. An unreadable
+    binding means "we do not know" and is never widened into an answer from a weaker source. Each
+    '' is logged as ONE structured `reference_id_unattributed` event carrying provider ids and a
+    reason only (no contact, notes, email or amount), and the caller then parks the capture via
+    `_quarantine_unverified_capture`: the durable `CAPTUREQUARANTINE#<paymentId>` row that
+    `scripts/reconcile_captures.py` lists, beside the `RazorpayWebhookLogTable` audit row that
+    `handler` writes before dispatch. Recorded and recoverable, never guessed.
+
+    A match only SELECTS which stored reference to reconcile and proves nothing about money; it
+    gives a forged event nothing it could not already claim through `notes.referenceId`.
+    Everything after it is unchanged, including the provider readback and the exact
+    amount/currency comparison `reconcile_payment` makes against the attempt.
+
+    Never raises.
     """
-    clean_phone = (contact_phone or '').replace('+', '').replace(' ', '').replace('-', '')
-    if not clean_phone:
-        return ''
-    
-    # Normalize to 10-digit Indian local
-    local_phone = clean_phone[2:] if clean_phone.startswith('91') and len(clean_phone) == 12 else (clean_phone[-10:] if len(clean_phone) >= 10 else clean_phone)
-    
-    try:
-        # Check InvoicesTable for pending invoices for this customer
-        inv_table = dynamodb.Table(INVOICES_TABLE)
-        # Scan for pending invoices (not ideal but reference_id recovery is rare)
-        result = inv_table.scan(
-            FilterExpression='#st IN (:s1, :s2, :s3)',
-            ExpressionAttributeNames={'#st': 'status'},
-            ExpressionAttributeValues={':s1': 'created', ':s2': 'pending_payment', ':s3': 'sent'},
-        )
-        for inv in result.get('Items', []):
-            inv_phone = (inv.get('customerPhone', '') or '').replace('+', '').replace(' ', '').replace('-', '')
-            inv_local = inv_phone[2:] if inv_phone.startswith('91') and len(inv_phone) == 12 else (inv_phone[-10:] if len(inv_phone) >= 10 else inv_phone)
-            if inv_local == local_phone and inv.get('referenceId'):
-                ref = inv['referenceId']
+    order_id = str(razorpay_order_id or '')
+    reason = 'no_provider_order_id'
+    error_type = ''
+    if order_id:
+        try:
+            binding = order_keys.resolve_gateway_order(
+                dynamodb.Table(order_keys.commerce_keys_table_name()), order_id)
+            reference_id = str((binding or {}).get('referenceId') or '')
+            if reference_id:
                 logger.info(json.dumps({
-                    'event': 'reference_id_recovered_from_invoice',
-                    'referenceId': ref,
-                    'invoiceId': inv.get('invoiceId', ''),
-                    'razorpayOrderId': razorpay_order_id,
+                    'event': 'reference_id_recovered',
+                    'source': 'gateway_order_binding',
+                    'referenceId': reference_id,
+                    'paymentId': payment_id,
+                    'razorpayOrderId': order_id,
+                    'stage': 'reference_recovery',
                     'requestId': request_id,
                 }))
-                return ref
-    except Exception as e:
-        logger.warning(json.dumps({
-            'event': 'reference_id_recovery_scan_error',
-            'error': str(e),
-            'requestId': request_id,
-        }))
-    
+                return reference_id
+            reason = 'binding_has_no_reference' if binding else 'no_stored_binding'
+        except Exception as exc:  # noqa: BLE001
+            # Type only. A ClientError message can echo request content.
+            reason = 'binding_unavailable'
+            error_type = type(exc).__name__
+
+    logger.warning(json.dumps({
+        'event': 'reference_id_unattributed',
+        'reason': reason,
+        'error': error_type or None,
+        'paymentId': payment_id,
+        'razorpayOrderId': order_id or None,
+        'stage': 'reference_recovery',
+        'requestId': request_id,
+    }))
     return ''
 
 
