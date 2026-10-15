@@ -41,7 +41,13 @@ describe( 'product family child pages', () => {
 
     const header = read( 'src/components/Header.tsx' );
     expect( header ).toContain( "label: 'Elsewhere'" );
-    expect( header ).not.toMatch( /label:\s*'Elsewhere'[\s\S]{0,120}?href:/ );
+    // Elsewhere's own keys run from its label to its children array. The children carry hrefs
+    // of their own, so a fixed-width window past the label would read the Visa link as Elsewhere's.
+    const ownKeys = header.match( /label:\s*'Elsewhere',([\s\S]*?)children:/ );
+    expect( ownKeys, 'Elsewhere must stay a family with children' ).not.toBeNull();
+    expect( ownKeys![ 1 ] ).not.toMatch( /\bhref\s*:/ );
+    // And nothing in the menu links to a standalone /elsewhere/ page.
+    expect( header ).not.toMatch( /href:\s*'\/elsewhere\/?'/ );
   } );
 
   it( 'keeps Puja Guidance above DIY Puja Kit in the menu', () => {

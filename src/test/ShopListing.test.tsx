@@ -117,8 +117,10 @@ describe( 'the merged shelf', () => {
 
   it( 'points every card at a page file that exists', () => {
     for ( const listing of SHOP_LISTINGS ) {
+      // A product card's href is its route: top-level (/anew/ -> src/pages/anew.tsx) or a family
+      // child (/elsewhere/visa/ -> src/pages/elsewhere/visa.tsx). The slug alone cannot say which.
       const file = listing.source === 'product'
-        ? `src/pages/${listing.slug}.tsx`
+        ? `src/pages${listing.href.replace( /\/$/, '' )}.tsx`
         : 'src/pages/shop/[slug].tsx';
       expect(
         fs.existsSync( path.join( ROOT, file ) ),
@@ -312,7 +314,7 @@ describe( 'searching the shelf', () => {
     }
 
     // A blurb word that is in no product NAME, so this can only pass through the blurb.
-    fireEvent.change( field, { target: { value: 'visas' } } );
+    fireEvent.change( field, { target: { value: 'preparation' } } );
     const byBlurb = Array.from( container.querySelectorAll( 'a.shop-card-action' ) );
     expect( byBlurb.map( link => link.getAttribute( 'href' ) ).map( samePath ) )
       .toContain( '/elsewhere/visa' );
@@ -320,9 +322,9 @@ describe( 'searching the shelf', () => {
     /*
      * THE NEWLINE JOIN, ASSERTED. The fields are joined with '\n' rather than a space, so a query
      * made of the end of the name and the start of the blurb cannot match. With a space join,
-     * "Elsewhere" + "Travel, visas..." gives "elsewhere travel", which no product says.
+     * "Activities" + "Things to do..." gives "activities things", which no product says.
      */
-    fireEvent.change( field, { target: { value: 'elsewhere travel' } } );
+    fireEvent.change( field, { target: { value: 'activities things' } } );
     expect( container.querySelectorAll( 'article.shop-card' ) ).toHaveLength( 0 );
     expect( container.querySelector( '.shop-empty' )!.textContent )
       .toBe( 'No products match that search.' );
