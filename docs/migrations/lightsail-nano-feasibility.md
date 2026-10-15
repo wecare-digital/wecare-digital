@@ -1,73 +1,62 @@
 # Lightsail Micro→Nano feasibility
 
 Instance `wecare-voice-bot` · us-east-1a · Amazon Linux 2023 · `micro_3_0` (1 GB RAM, 2 vCPU,
-40 GB) · running since 2026-03-18 · static IP `52.3.44.165` (`wecare-static-ip`, attached) ·
-recovery snapshot `wecare-voice-bot-backup-20261007` (available, from `micro_3_0`).
-Bundle prices from live `get-bundles`: `micro_3_0` $7/mo, `nano_3_0` $5/mo (0.5 GB, 2 vCPU,
-20 GB, 1 TB transfer).
+40 GB) · up 206 days · static IP `52.3.44.165` (`wecare-static-ip`) · recovery snapshot
+`wecare-voice-bot-backup-20261007` (available). Bundle prices from live `get-bundles`:
+`micro_3_0` $7/mo, `nano_3_0` $5/mo (0.5 GB, 2 vCPU, 20 GB).
 
-## Verdict: NO-GO — keep Micro (capacity evidence INCOMPLETE)
+## Verdict: NO-GO — keep Micro (measured 2026-10-15)
 
-Re-measured read-only on 2026-10-14. The decisive input, guest memory under call load, still
-cannot be collected from here, so the safe default stands.
+The in-guest preflight ran at 2026-10-15 01:00 UTC through an owner-approved access session
+(port 22 opened for one IP only, Lightsail short-lived SSH certificate, host key pinned, port
+closed and key material deleted afterwards). Raw, redacted output:
+[`evidence/lightsail-preflight-20261015.txt`](evidence/lightsail-preflight-20261015.txt).
 
-## Measured evidence (2026-10-14, read-only)
+| Measurement | Micro today | What Nano offers | Fits? |
+| --- | --- | --- | --- |
+| RAM in use by processes | 273 MB used, 491 MB available of 916 MB | about 450 MB usable of 512 MB | no headroom |
+| Swap in use | **571 MB of a 1 GB swapfile** | same swapfile possible | already paging |
+| Asterisk resident memory | 85 MB | — | fits on its own |
+| Other resident processes | dockerd 22 MB, containerd 13 MB, SSM agent 12 MB, journal 54 MB, Python proxy 9 MB | — | removable in part |
+| Disk used | 14 GB of 40 GB | 20 GB | tight (6 GB margin) |
+| CPU | load 0.01; 14-day avg 0.94% | 2 vCPU | yes |
+| OOM history | none found | — | — |
 
-| Check | Result | Source |
-| --- | --- | --- |
-| Firewall | tcp 80, 443, 5061 and udp 10000-60000 open to 0.0.0.0/0; tcp 22 and 8899 not open | `get-instance-port-states` |
-| SIP/TLS 5061 | reachable; cert CN=`sip.wecare.digital`, Let's Encrypt, valid to 2026-11-18 | `openssl s_client` |
-| DNS | `sip.wecare.digital` → `52.3.44.165` | `dig` |
-| Cert monitor | `Wecare/SIP CertDaysToExpiry` publishing daily (35 on 10-13); alarm at ≤10 days is OK | CloudWatch |
-| SSH 22 / proxy 8899 | not reachable from outside | `nc` |
-| CPU (14 days) | avg 0.94%, max 5.36%, burst capacity 100% | `get-instance-metric-data` |
-| Status checks (14 days) | 0 failures | same |
-| Disk used | about 5.3 GB (snapshot billed at 5.3 GB-month) — fits 20 GB if that holds | Cost Explorer `USE1-SnapshotUsage` |
-| Memory, swap, OOM, Asterisk RSS | **UNKNOWN** — no CloudWatch agent, no SSM agent, SSH closed | — |
-| Calling traffic | `wecare-whatsapp-calling` 13-35 invocations/day this week (120-355 the week before) | Lambda metrics |
+The box already keeps 571 MB in swap on 1 GB of RAM. Halving RAM would push the live calling
+path into heavier paging, so the move is not safe today. Low CPU does not change that.
 
-## Workload now on the box
+## Findings from the preflight
 
-1. **Asterisk serving `sip.wecare.digital`**: the SIP media leg for WhatsApp Calling on both
-   WABAs (last recorded Meta calling settings: `sip.wecare.digital:5061`). Still required.
-2. **Airtel SMS proxy on :8899**: retired. The firewall port is closed, no Lambda environment
-   references the box, and the four Airtel secrets were deleted on 2026-10-14. `preflight.sh`
-   reports whether anything still listens locally.
-3. Cert renewal plus the daily cert-check call into `wecare-whatsapp-calling`.
+1. **The Airtel SMS proxy is still running.** `sms-proxy.service` ("Airtel SMS Proxy") is active
+   and a Python process listens on `0.0.0.0:8899`. The Lightsail firewall blocks 8899 from
+   outside, the Airtel secrets were deleted on 2026-10-14 and no Lambda references the box, so
+   it serves nothing. Stopping and disabling it is a separate approved change.
+2. **Docker and containerd run** with no listening service of their own; they hold about 35 MB.
+3. **Asterisk 22.8.2**, built from source on 2026-03-22 (no RPM). A Nano would need the same
+   build reproduced by hand; Amazon Linux 2023 has no Asterisk package.
+4. **Certificates renew automatically:** `certbot-renew.timer` is active (last run 2026-10-14
+   18:37 UTC, next 2026-10-15 09:31 UTC); `/etc/letsencrypt/renewal/sip.wecare.digital.conf` exists.
+5. **PJSIP endpoints `1001` and `1002`** are configured and currently unavailable (no registered
+   softphone), which is expected between calls.
+6. The SSM agent is installed and running, but the instance is not registered with Systems
+   Manager, so this preflight needed SSH.
 
-Low CPU alone does not justify Nano. Nano halves RAM to 512 MB; Asterisk with TLS, certbot and
-the OS can approach that. Without `free -m`, swap and OOM history under real call load the fit
-is unproven.
+## What would make Nano possible later
 
-## What would change the verdict
-
-Run `scripts/lightsail-nano-migration/preflight.sh` on the box through an approved access
-session (Lightsail browser SSH; port 22 stays closed). Then:
-
-- **GO** if `MemAvailable` stays well above the Asterisk + TLS working set with swap, disk
-  fits 20 GB with margin, there is no OOM history, and the installed Asterisk version can be
-  reproduced on a fresh AL2023 nano (AL2023 has no Asterisk package).
-- **CONDITIONAL GO** if it fits only with swap or trimming.
-- **NO-GO** otherwise.
+Remove the dead proxy, Docker and containerd (about 65 MB resident), trim the journal, then
+re-measure during real calls. GO only if swap use falls well below 100 MB and `available`
+memory stays above roughly 250 MB under load. Even then the saving is $2/month against
+rebuilding Asterisk from source on a live calling path.
 
 ## Retirement option
 
-**Not a retirement candidate today.** Retirement needs the SIP media leg replaced by a
-separately approved design and accepted with real calls. No other provider is assumed
-authorised here.
+Not a retirement candidate: WhatsApp Calling audio for both numbers still terminates on this
+Asterisk. Retirement needs a separately approved SIP media replacement accepted with real calls.
 
-## Cost (from `scripts/aws_cost_model.py`)
+## Cost
 
-| Option | Monthly | Notes |
-| --- | --- | --- |
-| Keep Micro | $7.00 + $0.27 snapshot | current |
-| Fresh Nano after cutover | $5.00 + $0.27 | −$2.00 POTENTIAL; +$5 one-time for a month of overlap |
-| Retire Lightsail | $0 (+$0.27 if the snapshot is kept) | needs an approved replacement first |
-
-A $2/month delta does not justify migration risk on a live calling path until the memory
-evidence exists. The saving is not realised until the Micro stops billing.
-
-The scripts in `scripts/lightsail-nano-migration/` were repaired on 2026-10-14: `APPLY=1`
-previously never left dry-run, the remote-to-remote `rsync` could not run, checksums were never
-compared, and there was no rollback script. `tests/test_lightsail_nano_scripts.py` now covers
-the gates against a stub AWS CLI.
+| Option | Monthly |
+| --- | --- |
+| Keep Micro | $7.00 + $0.27 snapshot |
+| Nano after cutover | $5.00 + $0.27 (−$2.00 POTENTIAL, +$5 one-time overlap) |
+| Retire | $0 (+$0.27 if the snapshot is kept), not authorised |
