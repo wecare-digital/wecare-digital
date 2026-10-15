@@ -98,6 +98,9 @@ def to_shop_product(item: Dict[str, Any]) -> Dict[str, Any]:
         "descriptionHtml": description,
         "tagline": str(item.get("tagline") or item.get("seoDescription") or ""),
         "body": [str(b) for b in body],
+        "canonicalPath": str(item.get("canonicalPath") or ("/shop/" + str(item.get("slug", "")) + "/")),
+        "websiteEnabled": item.get("websiteEnabled") is not False,
+        "metaEnabled": item.get("metaEnabled") is True,
     }
     images = item.get("imageRefs") or []
     if images:
@@ -110,7 +113,7 @@ def to_shop_product(item: Dict[str, Any]) -> Dict[str, Any]:
 def build_snapshot(items: List[Dict[str, Any]]) -> Dict[str, Any]:
     products = [
         to_shop_product(it) for it in items
-        if it.get("status", "active") != "archived"
+        if it.get("status", "active") == "active" and it.get("websiteEnabled") is not False
     ]
     products.sort(key=lambda p: p["slug"])
     # The static shop's CATALOG_FETCHED_AT contract requires a UTC timestamp
