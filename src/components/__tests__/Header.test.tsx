@@ -146,7 +146,7 @@ describe( 'Header', () => {
 
     // Bharat Rx is a product, not one of the request actions. Asserted by
     // column position, because the label alone would pass wherever it sat.
-    const products = screen.getByText( 'Products' ).closest( '.nav-group' );
+    const products = screen.getByText( 'Products 1 of 2' ).closest( '.nav-group' );
     expect( products ).not.toBeNull();
     expect( products?.textContent ).toContain( 'Bharat Rx' );
 
@@ -201,48 +201,31 @@ describe( 'Header', () => {
     expect( requestsCol?.textContent ).not.toContain( 'Legal Stuff' );
   } );
 
-  it( 'groups Track and Pickup Request under a non-clickable Shipments family', () => {
+  it( 'keeps Request Pickup and Shipments as independent approved rows', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
 
-    const request = screen.getByText( 'Request' ).closest( '.nav-group' );
-    expect( request?.textContent ).toContain( 'Shipments' );
-    expect( screen.queryByRole( 'link', { name: 'Shipments' } ) ).toBeNull();
-    expect( screen.getByRole( 'link', { name: 'Track' } ) ).toHaveAttribute( 'href', '/shipments/' );
-    expect( screen.getByRole( 'link', { name: 'Pickup Request' } ) ).toHaveAttribute( 'href', '/request-pickup/' );
-
-    const labels = Array.from( request?.querySelectorAll( '.nav-item' ) || [] ).map( node => node.textContent );
-    expect( labels ).toEqual( [
-      'Orders', 'Submit Request', 'Request Amendment', 'Drop Docs', 'Vault',
-      'Shipments', 'Track', 'Pickup Request', 'Leave Review', 'Subscribe',
-    ] );
+    expect( screen.getByRole( 'link', { name: 'Request Pickup' } ) ).toHaveAttribute( 'href', '/request-pickup/' );
+    expect( screen.getByRole( 'link', { name: 'Shipments' } ) ).toHaveAttribute( 'href', '/shipments/' );
+    expect( screen.queryByRole( 'link', { name: 'Track' } ) ).toBeNull();
+    expect( screen.queryByRole( 'link', { name: 'Pickup Request' } ) ).toBeNull();
   } );
 
-  it( 'searching Shipments returns its real destinations, not a dead family link', () => {
-    render( <Header /> );
-    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
-    fireEvent.change( screen.getByLabelText( 'Search navigation' ), { target: { value: 'shipments' } } );
-
-    expect( screen.getByRole( 'link', { name: 'Track' } ) ).toBeInTheDocument();
-    expect( screen.getByRole( 'link', { name: 'Pickup Request' } ) ).toBeInTheDocument();
-    expect( screen.queryByRole( 'link', { name: 'Shipments' } ) ).toBeNull();
-  } );
-
-  it( 'selects Track and Pickup Request independently', () => {
+  it( 'selects Shipments and Request Pickup independently', () => {
     routerState.pathname = '/shipments';
     routerState.asPath = '/shipments/';
     const first = render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
-    expect( screen.getByRole( 'link', { name: 'Track' } ) ).toHaveAttribute( 'aria-current', 'page' );
-    expect( screen.getByRole( 'link', { name: 'Pickup Request' } ) ).not.toHaveAttribute( 'aria-current' );
+    expect( screen.getByRole( 'link', { name: 'Shipments' } ) ).toHaveAttribute( 'aria-current', 'page' );
+    expect( screen.getByRole( 'link', { name: 'Request Pickup' } ) ).not.toHaveAttribute( 'aria-current' );
     first.unmount();
 
     routerState.pathname = '/request-pickup';
     routerState.asPath = '/request-pickup/';
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
-    expect( screen.getByRole( 'link', { name: 'Pickup Request' } ) ).toHaveAttribute( 'aria-current', 'page' );
-    expect( screen.getByRole( 'link', { name: 'Track' } ) ).not.toHaveAttribute( 'aria-current' );
+    expect( screen.getByRole( 'link', { name: 'Request Pickup' } ) ).toHaveAttribute( 'aria-current', 'page' );
+    expect( screen.getByRole( 'link', { name: 'Shipments' } ) ).not.toHaveAttribute( 'aria-current' );
     routerState.pathname = '/';
     routerState.asPath = '';
   } );
@@ -271,19 +254,19 @@ describe( 'Header', () => {
     expect( screen.getByRole( 'link', { name: 'Kiosk' } ) ).toHaveAttribute( 'href', '/shop/kiosk/' );
     expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toHaveAttribute( 'href', '/shop/referral-partner/' );
 
-    fireEvent.change( screen.getByLabelText( 'Search navigation' ), { target: { value: 'partner' } } );
+    fireEvent.change( screen.getByLabelText( 'Search navigation' ), { target: { value: 'refer' } } );
     expect( screen.getByRole( 'link', { name: 'Merchandise' } ) ).toBeInTheDocument();
     expect( screen.getByRole( 'link', { name: 'Kiosk' } ) ).toBeInTheDocument();
     expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toBeInTheDocument();
     expect( screen.queryByRole( 'link', { name: 'Partner' } ) ).toBeNull();
   } );
 
-  it( 'places Puja Guidance above DIY Puja Kit', () => {
+  it( 'keeps DIY Puja Kit above Puja Guidance', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
     const ritual = screen.getByText( 'Ritual Guru' ).closest( '.nav-tree-item' );
     const labels = Array.from( ritual?.querySelectorAll( '.nav-item' ) || [] ).map( node => node.textContent );
-    expect( labels ).toEqual( [ 'Ritual Guru', 'Puja Guidance', 'DIY Puja Kit' ] );
+    expect( labels ).toEqual( [ 'Ritual Guru', 'DIY Puja Kit', 'Puja Guidance' ] );
   } );
 
   it( 'keeps keyboard access standard and adds no close button', () => {
