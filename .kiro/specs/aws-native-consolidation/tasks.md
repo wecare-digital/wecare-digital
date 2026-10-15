@@ -88,8 +88,12 @@ Legend: `[x]` done and verified · `[~]` implemented, not deployed · `[ ]` not 
       `sip.wecare.digital`, 171 MB used of 419 MB. See `docs/migrations/lightsail-nano-cutover.md`.
 - [x] C.8 🔒 Cutover done 2026-10-15 03:39 UTC: static IP on the Nano in 8 s, timers moved,
       verify-nano.sh PASS, 0 calling errors. Micro on standby for rollback.
-- [ ] C.8b Owner real WhatsApp call (audio both ways, IVR, call log).
-- [ ] C.9 🔒 After about a week clean: delete the Micro; rotate the copied `asterisk-ivr-service` keys.
+- [x] C.8a 🔒 Post-cutover fixes 2026-10-15: cert-check log file, IVR key rotated on the Nano
+      (old key kept for the Micro), certbot dry-run OK, IVR S3 moved to `wecare-digital-get`
+      `secure/` with least-privilege IAM, post-call hook proven by loopback. Cost model reads all
+      Lightsail instances. See `docs/migrations/lightsail-nano-cutover.md`.
+- [ ] C.8b Owner real WhatsApp call (audio both ways, IVR, call log, recording in S3).
+- [ ] C.9 🔒 After about a week clean: delete the Micro; delete the old `asterisk-ivr-service` key.
 
 ## Gate 7 — Cost
 

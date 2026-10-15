@@ -23,6 +23,12 @@ the nano), so certificate renewal and the daily cert check have one owner again.
 path without a DNS change. The micro's Asterisk/SIP config is never modified by these
 scripts (the transfer only reads from it).
 
+Since 2026-10-15 the Micro differs from the Nano in two ways: it still uses the old
+`asterisk-ivr-service` key (so that key must stay active until the Micro is deleted), and its
+IVR still targets the deleted `app.wecare.digital` bucket, so after a rollback recordings stop
+uploading. A restore from the 2026-10-07 snapshot has both gaps too; once the old key is deleted,
+install the current key there before relying on it.
+
 ## Deeper rollback (micro degraded)
 
 Restore from the known-good snapshot (creates a NEW micro; billable; owner-approved):

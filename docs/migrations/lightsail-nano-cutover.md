@@ -70,6 +70,15 @@ The Nano's firewall was never opened. Both firewalls were re-read afterwards and
   `.scratch/iam-rollback/`). Self-test as the `asterisk` user: cache write/read and recording
   write work; reading a recording, writing to `o/` or elsewhere in `secure/`, listing and
   deleting are all denied; test objects answered 302 at `wecare.digital/get/` and were deleted.
+- **Recordings upload after MixMonitor closes the file (08:15 UTC).** Uploading from the `h`
+  extension ran while MixMonitor still held the file open: a 6-second test call (temporary
+  self-test context, `Milliwatt` tone) uploaded 65,580 of 96,684 bytes with a zero data-size
+  WAV header. Now `MixMonitor(...,,/usr/local/bin/wecare-ivr-upload-recording ...)` uploads
+  once the file is closed (skips header-only files, logs to the journal as `wecare-ivr-rec`), and
+  the AGI only records the gated key as `recordingUrl`. Re-test: the S3 copy matched the finished
+  file byte for byte (SHA-256), header complete, 302 at the edge. The self-test context was then
+  removed; the live dialplan differs from `extensions.conf.bak.20261015T0815Z` by that one
+  MixMonitor line (AGI backup `ivr_engine.py.bak.20261015T0815Z`). All test recordings deleted.
 - **Post-call hook proven on the Nano.** A local loopback call (`Local/c2b-sip@whatsapp`, no
   caller number, no Meta leg) ran the `h` extension, uploaded its recording and reached
   `wecare-whatsapp-calling` as `post_call_sip` (`no callerPhone`, so nothing was sent). It is the
@@ -83,8 +92,7 @@ The Nano's firewall was never opened. Both firewalls were re-read afterwards and
    `wecare-whatsapp-calling`. Because the post-call hook now fires, the call should also leave a
    Calls-page breadcrumb, an object in `secure/u/whatsapp/calls/`, and (toggle
    `whatsapp_calling_postcall_wa` is unset, so default on) the post-call menu text to the caller.
-   Then compare the S3 recording with the local file: the AGI uploads from the `h` extension,
-   which can run before MixMonitor closes the file, so the copy may be truncated.
+   The recording lands in S3 a few seconds after hangup (`journalctl -t wecare-ivr-rec`).
 2. If anything is wrong: `APPLY=1 CONFIRM=I-APPROVE-rollback ./rollback.sh`, then re-enable the
    two timers on the Micro (`ROLLBACK.md`). The Micro still has the old IVR config (dead bucket).
 3. After about a week clean: 🔒 `aws lightsail delete-instance --instance-name wecare-voice-bot`
