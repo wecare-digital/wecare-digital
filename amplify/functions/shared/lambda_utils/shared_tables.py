@@ -21,6 +21,8 @@ place their names are decided:
     invoice delivery InvoiceDeliveryLogTable        receipt delivery      INVOICE_DELIVERY_TABLE
     payment attempts PaymentAttemptsTable          payment attempt      PAYMENT_ATTEMPTS_TABLE
     commerce keys    CommerceKeys                   idempotency/binding  COMMERCE_KEYS_TABLE
+    products         ProductsTable                  catalog authority     PRODUCTS_TABLE
+    carts            CartTable                      working cart          CART_TABLE
 
 The env names are the ones the live Lambdas already carry, so resolving through here changes
 no deployed value. When an env var is absent the name is built from `TABLE_PREFIX` (what
@@ -97,12 +99,14 @@ INVOICE_DELIVERY = SharedTable('invoice_delivery', 'INVOICE_DELIVERY_TABLE',
 PAYMENT_ATTEMPTS = SharedTable('payment_attempts', 'PAYMENT_ATTEMPTS_TABLE',
                                'PaymentAttemptsTable', 'paymentAttemptId')
 COMMERCE_KEYS = SharedTable('commerce_keys', 'COMMERCE_KEYS_TABLE', 'CommerceKeys', 'orderId')
+PRODUCTS = SharedTable('products', 'PRODUCTS_TABLE', 'ProductsTable', 'id')
+CARTS = SharedTable('carts', 'CART_TABLE', 'CartTable', 'cartId')
 
 #: Every shared store, in the order the module docstring lists them.
 SHARED: Tuple[SharedTable, ...] = (
     CONTACTS, ORDERS, FLOW_SUBMISSIONS, FLOW_LOGS, STATUS_HISTORY, FLOW_DRAFTS,
     INVOICES, INVOICE_ITEMS, INVOICE_ASSETS, INVOICE_SEQUENCE, INVOICE_DELIVERY,
-    PAYMENT_ATTEMPTS, COMMERCE_KEYS)
+    PAYMENT_ATTEMPTS, COMMERCE_KEYS, PRODUCTS, CARTS)
 
 #: Folded table -> the table its rows live in now. A test asserts no runtime module names a
 #: key of this map, so a writer cannot quietly reopen a second store.
@@ -166,3 +170,11 @@ def payment_attempts_table_name() -> str:
 
 def commerce_keys_table_name() -> str:
     return COMMERCE_KEYS.name()
+
+
+def products_table_name() -> str:
+    return PRODUCTS.name()
+
+
+def carts_table_name() -> str:
+    return CARTS.name()
