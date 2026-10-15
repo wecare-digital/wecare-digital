@@ -230,7 +230,8 @@ describe( 'the listing page', () => {
      * The explicit action stays a Next <Link>; the article must therefore remain a real DOM node
      * rather than drifting back into an all-card link that would prevent future secondary actions.
      */
-    expect( block ).not.toContain( ':global(.shop-card' );
+    expect( block ).not.toContain( ':global(.shop-card){' );
+    expect( block ).toContain( ':global(.shop-card-action)' );
     // Amber was measured at 2.04:1 on a 3px stroke and rejected; the spine set is three hues.
     expect( block ).not.toContain( '#f0a818' );
     expect( block ).not.toContain( '#fef3c7' );
