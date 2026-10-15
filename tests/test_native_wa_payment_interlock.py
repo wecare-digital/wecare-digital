@@ -39,7 +39,7 @@ ENGINE_DIR = os.path.join(REPO, 'amplify', 'functions', 'payments', 'invoice-eng
 INVOICES = 'stack-wecare-digital-InvoicesTable'
 ITEMS = 'stack-wecare-digital-InvoiceItemsTable'
 DELIVERY = 'stack-wecare-digital-InvoiceDeliveryLogTable'
-KEYS = 'stack-wecare-digital-WixOrderIds'
+KEYS = 'stack-wecare-digital-CommerceKeys'
 ATTEMPTS = 'stack-wecare-digital-PaymentAttemptsTable'
 
 INVOICE_ID = 'inv-interlock-0001'
