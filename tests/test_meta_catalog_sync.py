@@ -81,6 +81,26 @@ def desired(products):
     return sync.desired_items(products)
 
 
+#: Live ProductsTable rows (2026-10-15) limited to what the handler's `_native_products()` reads.
+#: Media lives on ProductsTable `imageRefs` (CloudFront), not in the display-only storefront
+#: snapshot, so publish eligibility is judged on the native read the Lambda actually performs.
+NATIVE_ROWS = ROOT / "tests/fixtures/products-table-20261015.json"
+HANDLER = ROOT / "amplify/functions/ecommerce/meta-catalog-sync/handler.py"
+
+
+@pytest.fixture(scope="module")
+def native_products():
+    import copy
+    import importlib.util
+    name = "wecare_meta_catalog_sync_handler_for_catalog_tests"
+    spec = importlib.util.spec_from_file_location(name, HANDLER)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    rows = json.loads(NATIVE_ROWS.read_text(encoding="utf-8"))["items"]
+    return module._native_products(scanner=lambda: copy.deepcopy(rows))
+
+
 # ── 1. the retailer-id contract ──────────────────────────────────────────────
 
 
@@ -510,14 +530,16 @@ EXPECTED_BLOCKED = []
 
 
 def test_remaining_imageless_product_is_blocked_and_every_service_item_has_a_picture(
-        desired, products):
-    """Pin the catalogue review gate to the committed Wix snapshot.
+        native_products):
+    """Pin the catalogue review gate to the native ProductsTable read.
 
     Meta rejects imageless items. The 2026-10-11 refresh carries media for every syncable
     product except the ₹1 test product, including distinct linked artwork for all five Request
     service variants. The test names that one remaining blocker explicitly so a future Wix media
     change is reviewed rather than silently changing publish eligibility.
     """
+    products = native_products
+    desired = sync.desired_items(products, require_variant_price=True)
     assert sync.blockers(desired) == EXPECTED_BLOCKED
     assert len(EXPECTED_BLOCKED) == 0
 
