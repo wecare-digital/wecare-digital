@@ -90,3 +90,10 @@ def test_order_record_declares_one_order_table_for_every_channel():
     source = _src("amplify/functions/shared/lambda_utils/ecommerce/order_record.py")
     assert "OrderTable holds every order, whatever surface it came from" in source
     assert "return shared_tables.ORDERS.name()" in source
+
+
+def test_payment_identity_has_one_commerce_keys_resolver():
+    source = _src("amplify/functions/shared/lambda_utils/ecommerce/order_keys.py")
+    assert "from lambda_utils import shared_tables" in source
+    assert "return shared_tables.commerce_keys_table_name()" in source
+    assert 'os.environ.get("COMMERCE_KEYS_TABLE"' not in source
