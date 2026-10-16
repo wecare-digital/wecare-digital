@@ -123,9 +123,6 @@ describe( 'form-controls.css — invariant 4', () => {
       // ServiceBuyBox's order-target picker (.sbb-select) is a skinned <select>, added with the
       // dual-channel "Continue to checkout" work. A legitimate new entry on this allow-list.
       'src/components/ServiceBuyBox.tsx',
-      // VayuLok's currency converter uses a deliberately skinned native <select>; its
-      // two rules are frozen in control-skin-census.json and belong on this inventory.
-      'src/components/VayuLokLive.tsx',
       'src/components/cart/CartPage.tsx',
       'src/components/dashboard/tabs/AppBuilderTab.tsx',
       'src/pages/workspace/engage/logs/index.tsx',
