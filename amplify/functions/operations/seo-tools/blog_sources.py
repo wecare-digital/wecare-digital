@@ -187,7 +187,7 @@ PIPELINE_FIELDS: Tuple[str, ...] = (
     "analysisId", "analysisVersion", "sourceReviewedFully",
     "templateId", "templateVersion",
     "qaRunId", "qaStatus", "signoffId", "signedOffBy",
-    "publishStatus", "publishedAt", "postId", "postUrl",
+    "publishStatus", "publishedAt", "revisedAt", "postId", "postUrl",
     "backendVerifyStatus", "backendVerifiedAt",
     "siteBuildStatus", "siteBuildJobId", "siteBuildGeneration", "siteDeployedAt",
     "siteVerifyStatus", "siteVerifiedAt",
