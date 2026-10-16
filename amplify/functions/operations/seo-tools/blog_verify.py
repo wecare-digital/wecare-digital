@@ -529,6 +529,6 @@ def pending_verification(batch_id: str = "") -> List[str]:
         pipeline = row.get("pipeline") or {}
         if str(pipeline.get("publishStatus") or "") not in ("PUBLISHED", "VERIFIED"):
             continue
-        if not str(pipeline.get("verifyStatus") or ""):
+        if str(pipeline.get("backendVerifyStatus") or "") != "VERIFIED":
             out.append(str(row["id"]))
     return out
