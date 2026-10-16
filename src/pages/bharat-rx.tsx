@@ -178,11 +178,13 @@ const BharatRxPage: React.FC = () => (
              the quiet now comes from size and surface, not faded ink, so a statement that has to
              be read is legible. 1px static, per the rule: 1px static, 2px hoverable. */
           .brx-commerce{
-            margin:18px 0 0;padding:14px 16px;border:1px solid #e5e7eb;border-radius:12px;
-            background:#fcfdfb;font-size:14px;line-height:1.5;color:rgba(0,0,0,.72);
+            margin:22px 0 0;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
+            background:#fcfdfb;font-size:17px;font-weight:400;line-height:1.55;
+            letter-spacing:-.05px;color:rgba(0,0,0,.898);
           }
+          .brx-commerce strong{color:#1a3a2a;font-weight:700}
           .brx-commerce p{margin:0}
-          .brx-commerce p + p{margin-top:6px}
+          .brx-commerce p + p{margin-top:12px}
           .brx-note{
             margin:34px 0 0;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
             background:#fcfdfb;
