@@ -102,6 +102,21 @@ describe( 'Header', () => {
       .toEqual( [ 'Orders', 'Submit Request', 'Request Amendment', 'Drop Docs', 'Vault', 'Shipments', 'Track', 'Pickup Request', 'Leave Review', 'Subscribe' ] );
   } );
 
+  it( 'keeps Blog published but hides it from public navigation and navigation search', () => {
+    render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+
+    const extras = screen.getByText( 'Extras' ).closest( '.nav-group' );
+    expect( extras ).not.toBeNull();
+    expect( extras?.textContent ).toContain( 'Perks' );
+    expect( extras?.textContent ).not.toContain( 'Blog' );
+    expect( screen.queryByRole( 'link', { name: 'Blog' } ) ).toBeNull();
+
+    const search = screen.getByLabelText( 'Search navigation' );
+    fireEvent.change( search, { target: { value: 'blog' } } );
+    expect( screen.queryByRole( 'link', { name: 'Blog' } ) ).toBeNull();
+  } );
+
   it( 'uses menu-only search and family names find their real child destinations', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
