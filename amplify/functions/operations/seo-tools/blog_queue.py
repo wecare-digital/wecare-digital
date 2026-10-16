@@ -140,6 +140,58 @@ def enqueue(source_ids: Sequence[str], reason: str = "") -> Dict[str, Any]:
     )
 
 
+def _send_one(payload: Dict[str, Any], event_name: str, delay_seconds: int = 0) -> Dict[str, Any]:
+    if not configured():
+        return {"queued": 0, "failed": 0, "configured": False}
+    try:
+        sqs_client().send_message(
+            QueueUrl=QUEUE_URL,
+            MessageBody=json.dumps(payload, separators=(",", ":")),
+            DelaySeconds=max(0, min(int(delay_seconds or 0), 900)),
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(json.dumps({
+            "event": event_name + "_failed", "error": type(exc).__name__,
+        }))
+        return {"queued": 0, "failed": 1, "configured": True}
+    logger.info(json.dumps({"event": event_name, "queued": 1, "failed": 0}))
+    return {"queued": 1, "failed": 0, "configured": True}
+
+
+def enqueue_site_build(generation: int, actor: str, delay_seconds: int = 0) -> Dict[str, Any]:
+    return _send_one(
+        {"action": "site-build", "generation": int(generation), "actor": str(actor or "site-bridge")},
+        "blog_site_build_enqueued", delay_seconds)
+
+
+def enqueue_site_check(job_id: str, attempt: int = 1, delay_seconds: int = 0) -> Dict[str, Any]:
+    return _send_one(
+        {"action": "site-check", "jobId": str(job_id), "attempt": int(attempt)},
+        "blog_site_check_enqueued", delay_seconds)
+
+
+def enqueue_site_verify(source_ids: Sequence[str], job_id: str, attempt: int = 1,
+                        delay_seconds: int = 0) -> Dict[str, Any]:
+    ids = [str(value) for value in source_ids if str(value or "").strip()]
+    failed_ids: List[str] = []
+    queued = 0
+    for source_id in ids:
+        result = _send_one(
+            {"action": "site-verify", "sourceId": source_id, "jobId": str(job_id),
+             "attempt": int(attempt), "actor": "site-bridge"},
+            "blog_site_verify_enqueued", delay_seconds)
+        if int(result.get("queued") or 0) == 1:
+            queued += 1
+        else:
+            failed_ids.append(source_id)
+    return {
+        "queued": queued,
+        "failed": len(failed_ids),
+        "configured": configured(),
+        "failedSourceIds": failed_ids,
+    }
+
+
 def enqueue_publish(job_ids: Sequence[str], actor: str, reason: str = "bulk-publish") -> Dict[str, Any]:
     """Fan out publish work for jobs that were already explicitly released.
 
@@ -201,6 +253,62 @@ def consume(event: Dict[str, Any]) -> Dict[str, Any]:
         message_id = str(record.get("messageId") or "")
         payload = _payload_of(record)
         action = str(payload.get("action") or "extract").strip().lower()
+
+        if action == "site-build":
+            try:
+                import blog_site_bridge
+                result = blog_site_bridge.start_build(
+                    str(payload.get("actor") or "site-bridge"))
+                state = str(result.get("status") or "UNKNOWN")
+                outcomes["SITE_BUILD_" + state] = outcomes.get("SITE_BUILD_" + state, 0) + 1
+            except Exception:  # noqa: BLE001
+                logger.exception("site build trigger failed")
+                outcomes["SITE_BUILD_RAISED"] = outcomes.get("SITE_BUILD_RAISED", 0) + 1
+                if message_id:
+                    failures.append({"itemIdentifier": message_id})
+            continue
+
+        if action == "site-check":
+            try:
+                import blog_site_bridge
+                result = blog_site_bridge.check_build(
+                    str(payload.get("jobId") or ""),
+                    int(payload.get("attempt") or 1))
+                state = str(result.get("status") or "UNKNOWN")
+                outcomes["SITE_CHECK_" + state] = outcomes.get("SITE_CHECK_" + state, 0) + 1
+            except (LookupError, ValueError) as exc:
+                outcomes["SITE_CHECK_REJECTED"] = outcomes.get("SITE_CHECK_REJECTED", 0) + 1
+                logger.warning(json.dumps({
+                    "event": "blog_site_check_rejected", "error": str(exc)[:300],
+                }))
+            except Exception:  # noqa: BLE001
+                logger.exception("site build check failed")
+                outcomes["SITE_CHECK_RAISED"] = outcomes.get("SITE_CHECK_RAISED", 0) + 1
+                if message_id:
+                    failures.append({"itemIdentifier": message_id})
+            continue
+
+        if action == "site-verify":
+            try:
+                import blog_site_bridge
+                result = blog_site_bridge.verify_article(
+                    str(payload.get("sourceId") or ""),
+                    str(payload.get("jobId") or ""),
+                    int(payload.get("attempt") or 1),
+                    str(payload.get("actor") or "site-bridge"))
+                state = str(result.get("status") or "UNKNOWN")
+                outcomes["SITE_VERIFY_" + state] = outcomes.get("SITE_VERIFY_" + state, 0) + 1
+            except (LookupError, ValueError) as exc:
+                outcomes["SITE_VERIFY_REJECTED"] = outcomes.get("SITE_VERIFY_REJECTED", 0) + 1
+                logger.warning(json.dumps({
+                    "event": "blog_site_verify_rejected", "error": str(exc)[:300],
+                }))
+            except Exception:  # noqa: BLE001
+                logger.exception("site verification message failed")
+                outcomes["SITE_VERIFY_RAISED"] = outcomes.get("SITE_VERIFY_RAISED", 0) + 1
+                if message_id:
+                    failures.append({"itemIdentifier": message_id})
+            continue
 
         if action == "publish":
             job_id = str(payload.get("jobId") or "").strip()
