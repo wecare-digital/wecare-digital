@@ -1097,7 +1097,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   // The compact fallback list is provider-safe and keeps the control usable if that catalogue
   // request is temporarily unavailable. No browser-wide Intl catalogue is exposed.
   const [ currencyCodes, setCurrencyCodes ] = useState<string[]>( FALLBACK_CURRENCY_CODES );
-  const [ currencyCatalogStatus, setCurrencyCatalogStatus ] = useState<'idle' | 'loading' | 'ready' | 'error'>( 'idle' );
   const [ currencyOpenSide, setCurrencyOpenSide ] = useState<CurrencySide | null>( null );
   const [ currencyActive, setCurrencyActive ] = useState( 0 );
   const currencyCodeSet = useMemo( () => new Set( currencyCodes ), [ currencyCodes ] );
@@ -1165,6 +1164,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const utilityAutocompleteTokenRef = useRef<unknown>( null );
   const fxRateCache = useRef<Record<string, FxRateState>>( {} );
   const fxRequestSeqRef = useRef( 0 );
+  const currencyCatalogLoadedRef = useRef( false );
   // The google.maps.ImageMapType instance for the continuous AQI heatmap tile overlay
   // (FEAT-001). Attached by DEFAULT once the KEYED map is initialized (layer defaults to
   // 'AQI'), pushed onto map.overlayMapTypes, and detached idempotently on toggle-off /
@@ -2656,37 +2656,34 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   useEffect( () => {
     if ( toolTab !== 'currency' ) return;
     void loadFxRate( fxBase, fxQuote );
+  }, [ toolTab, fxBase, fxQuote, loadFxRate ] );
 
-    if ( currencyCatalogStatus !== 'idle' ) return;
-    const ac = new AbortController();
-    setCurrencyCatalogStatus( 'loading' );
+  useEffect( () => {
+    if ( toolTab !== 'currency' || currencyCatalogLoadedRef.current ) return;
+    currencyCatalogLoadedRef.current = true;
     void fetch( `${FX_API_BASE}/currencies`, {
-      signal: ac.signal,
       cache: 'no-store',
       headers: { Accept: 'application/json' },
     } )
       .then( async response => response.ok ? response.json() : null )
       .then( data => {
-        if ( ac.signal.aborted ) return;
         const rows = Array.isArray( data ) ? data : [];
         const codes = rows
           .map( row => typeof row?.iso_code === 'string' ? row.iso_code.toUpperCase() : '' )
           .filter( code => /^[A-Z]{3}$/.test( code ) );
-        if ( codes.length ) {
-          const preferred = [ 'USD', 'INR' ];
-          const seen = new Set<string>();
-          const ordered = [ ...preferred, ...codes ].filter( code => codes.includes( code ) && !seen.has( code ) && seen.add( code ) );
-          setCurrencyCodes( ordered );
-          setCurrencyCatalogStatus( 'ready' );
-        } else {
-          setCurrencyCatalogStatus( 'error' );
+        if ( !codes.length ) {
+          currencyCatalogLoadedRef.current = false;
+          return;
         }
+        const preferred = [ 'USD', 'INR' ];
+        const seen = new Set<string>();
+        const ordered = [ ...preferred, ...codes ].filter( code => codes.includes( code ) && !seen.has( code ) && seen.add( code ) );
+        setCurrencyCodes( ordered );
       } )
       .catch( () => {
-        if ( !ac.signal.aborted ) setCurrencyCatalogStatus( 'error' );
+        currencyCatalogLoadedRef.current = false;
       } );
-    return () => ac.abort();
-  }, [ toolTab, fxBase, fxQuote, loadFxRate, currencyCatalogStatus ] );
+  }, [ toolTab ] );
 
 
   const chooseUtilityPlace = useCallback( async ( slot: UtilityPlaceSlot, result: SearchResult ) => {
