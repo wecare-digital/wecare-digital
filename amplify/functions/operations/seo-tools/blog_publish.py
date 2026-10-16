@@ -307,7 +307,8 @@ def publish(job_ref: str, actor: str) -> Dict[str, Any]:
             publishedAt=now, error="")
     blog_sources.update_pipeline(
         source_id, publishStatus=PUBLISHED, publishedAt=now,
-        postId=result["postId"], postUrl=result["postUrl"])
+        postId=result["postId"], postUrl=result["postUrl"],
+        verifyStatus="SITE_BUILD_PENDING")
     try:
         import blog_article_work
         blog_article_work.set_intent_status(source_id, "PUBLISHED", actor)
@@ -328,11 +329,34 @@ def publish(job_ref: str, actor: str) -> Dict[str, Any]:
             "event": "blog_s3_post_mirror_failed", "sourceId": source_id,
             "postId": result.get("postId", ""), "error": type(exc).__name__,
         }))
+    bridge = {"siteBuildStatus": "SITE_BUILD_PENDING", "scheduled": False, "coalesced": True}
+    try:
+        import blog_site_bridge
+        bridge = blog_site_bridge.note_published(source_id, actor)
+        try:
+            import blog_article_work
+            blog_article_work.set_intent_status(source_id, "SITE_BUILD_PENDING", actor)
+        except Exception:
+            logger.exception("article-work site-build state sync failed")
+    except Exception as exc:  # noqa: BLE001
+        # The native post is already published. A bridge hand-off failure must not invite a
+        # second publish, which could create a duplicate. Leave the article pending and surface
+        # the bridge error for the reconciliation route to recover.
+        logger.exception("blog site-build bridge hand-off failed")
+        bridge = {
+            "siteBuildStatus": "SITE_BUILD_PENDING",
+            "scheduled": False,
+            "coalesced": False,
+            "error": f"{type(exc).__name__}: {str(exc)[:300]}",
+        }
     logger.info(json.dumps({
         "event": "blog_published", "jobId": job_ref, "sourceId": source_id,
-        "actor": actor, "postId": result["postId"], "slug": job.get("articleSlug", "")}))
+        "actor": actor, "postId": result["postId"], "slug": job.get("articleSlug", ""),
+        "siteBuildStatus": bridge.get("siteBuildStatus", "")}))
     return {**_view(get(job_ref) or job), "published": True, **result,
-            "note": "Published. Run verification to confirm what actually went live."}
+            "siteBuild": bridge,
+            "note": ("Published to the native store. The automatic site-build bridge will "
+                     "rebuild and final-verify the static website before VERIFIED.")}
 
 
 def _blog_source_is_aws() -> bool:
