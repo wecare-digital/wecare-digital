@@ -230,25 +230,25 @@ const NAV_ICON_PATHS: Record<string, string> = {
   Home: 'M3 11.5 12 4l9 7.5V21h-6v-6H9v6H3Z',
   Shop: 'M6 8h12l1 13H5L6 8Zm3 0V6a3 3 0 0 1 6 0v2',
   'Grahak OS': 'M8 3h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm2 15h4',
-  VayuLok: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 0c2.4 2.2 3.7 5.2 3.7 9S14.4 18.8 12 21m0-18C9.6 5.2 8.3 8.2 8.3 12s1.3 6.8 3.7 9M3.5 9h17M3.5 15h17',
-  'Bharat Rx': 'M9 4h6v5h5v6h-5v5H9v-5H4V9h5Z',
+  VayuLok: 'M460-160q-50 0-85-35t-35-85h80q0 17 11.5 28.5T460-240q17 0 28.5-11.5T500-280q0-17-11.5-28.5T460-320H80v-80h380q50 0 85 35t35 85q0 50-35 85t-85 35ZM80-560v-80h540q26 0 43-17t17-43q0-26-17-43t-43-17q-26 0-43 17t-17 43h-80q0-59 40.5-99.5T620-840q59 0 99.5 40.5T760-700q0 59-40.5 99.5T620-560H80Zm660 320v-80q26 0 43-17t17-43q0-26-17-43t-43-17H80v-80h660q59 0 99.5 40.5T880-380q0 59-40.5 99.5T740-240Z',
+  'Bharat Rx': 'M345-120q-94 0-159.5-65.5T120-345q0-45 17-86t49-73l270-270q32-32 73-49t86-17q94 0 159.5 65.5T840-615q0 45-17 86t-49 73L504-186q-32 32-73 49t-86 17Zm266-286 107-106q20-20 31-47t11-56q0-60-42.5-102.5T615-760q-29 0-56 11t-47 31L406-611l205 205ZM345-200q29 0 56-11t47-31l106-107-205-205-107 106q-20 20-31 47t-11 56q0 60 42.5 102.5T345-200Z',
   Elsewhere: 'm3 12 18-7-7 18-2-7-7-2Z',
   'Expo Week': 'M5 5h14v16H5ZM8 3v4m8-4v4M5 10h14',
   Dastavez: 'M7 3h7l5 5v13H7ZM14 3v5h5M10 13h6m-6 4h6',
   'Clear Closure': 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-4-9 2.5 2.5L16 9',
   'Ritual Guru': 'm12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6ZM18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8Z',
   Anew: 'M20 7v5h-5M4 17v-5h5M6.5 8A7 7 0 0 1 18 7l2 5M17.5 16A7 7 0 0 1 6 17l-2-5',
-  Hunar: 'M14 6 6 14l4 4 8-8M15 4l5 5',
-  'Niji Setu': 'M7 10V8a5 5 0 0 1 10 0v2M5 10h14v11H5Z',
+  Hunar: 'm387-412 35-114-92-74h114l36-112 36 112h114l-93 74 35 114-92-71-93 71ZM240-40v-309q-38-42-59-96t-21-115q0-134 93-227t227-93q134 0 227 93t93 227q0 61-21 115t-59 96v309l-240-80-240 80Zm240-280q100 0 170-70t70-170q0-100-70-170t-170-70q-100 0-170 70t-70 170q0 100 70 170t170 70ZM320-159l160-41 160 41v-124q-35 20-75.5 31.5T480-240q-44 0-84.5-11.5T320-283v124Zm160-62Z',
+  'Niji Setu': 'M480-200q-106 0-184.5-68.5T203-440H80v-80h123q14-103 92.5-171.5T480-760q106 0 184.5 68.5T757-520h123v80H757q-14 103-92.5 171.5T480-200Zm0-80q83 0 141.5-58.5T680-480q0-83-58.5-141.5T480-680q-83 0-141.5 58.5T280-480q0 83 58.5 141.5T480-280Zm-80-60h160q17 0 28.5-11.5T600-380v-120q0-17-11.5-28.5T560-540v-36q0-35-23-59.5T480-660q-33 0-56.5 23.5T400-580v40q-17 0-28.5 11.5T360-500v120q0 17 11.5 28.5T400-340Zm80-70q-13 0-21.5-8.5T450-440q0-13 8.5-21.5T480-470q13 0 21.5 8.5T510-440q0 13-8.5 21.5T480-410Zm-40-130v-40q0-17 11.5-28.5T480-620q17 0 28.5 11.5T520-580v40h-80Zm40 100Z',
   Orders: 'M5 5h14v16H5ZM8 3v4m8-4v4M8 11h8m-8 4h5',
-  'Submit Request': 'M5 4h14v16H5ZM12 8v8m-4-4h8',
+  'Submit Request': 'M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h360v80H200v560h560v-360h80v360q0 33-23.5 56.5T760-120H200Zm120-160v-80h320v80H320Zm0-120v-80h320v80H320Zm0-120v-80h320v80H320Zm360-80v-80h-80v-80h80v-80h80v80h80v80h-80v80h-80Z',
   'Request Amendment': 'M5 19h4l10-10-4-4L5 15Zm8-12 4 4',
   'Drop Docs': 'M7 3h8l4 4v14H7ZM15 3v5h4M12 17V11m-3 3 3-3 3 3',
-  Vault: 'M7 10V8a5 5 0 0 1 10 0v2M5 10h14v11H5Zm7 4v3',
+  Vault: 'M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z',
   Shipments: 'M3 7h11v10H3Zm11 4h4l3 3v3h-7ZM7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
   'Leave Review': 'M4 4h16v12H9l-5 4Zm4 5h8m-8 4h5',
   Subscribe: 'M12 21a2.5 2.5 0 0 0 2.4-2h-4.8A2.5 2.5 0 0 0 12 21Zm6-5H6l1.5-2V9a4.5 4.5 0 0 1 9 0v5Z',
-  Partner: 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8-1a2.5 2.5 0 1 0 0-5M2.5 20v-2c0-3 2.5-5 5.5-5s5.5 2 5.5 5v2M14 14c3.5.2 5.5 1.7 5.5 4.5V20',
+  Partner: 'M475-160q4 0 8-2t6-4l328-328q12-12 17.5-27t5.5-30q0-16-5.5-30.5T817-607L647-777q-11-12-25.5-17.5T591-800q-15 0-30 5.5T534-777l-11 11 74 75q15 14 22 32t7 38q0 42-28.5 70.5T527-522q-20 0-38.5-7T456-550l-75-74-175 175q-3 3-4.5 6.5T200-435q0 8 6 14.5t14 6.5q4 0 8-2t6-4l136-136 56 56-135 136q-3 3-4.5 6.5T285-350q0 8 6 14t14 6q4 0 8-2t6-4l136-135 56 56-135 136q-3 2-4.5 6t-1.5 8q0 8 6 14t14 6q4 0 7.5-1.5t6.5-4.5l136-135 56 56-136 136q-3 3-4.5 6.5T454-180q0 8 6.5 14t14.5 6Zm-1 80q-37 0-65.5-24.5T375-166q-34-5-57-28t-28-57q-34-5-56.5-28.5T206-336q-38-5-62-33t-24-66q0-20 7.5-38.5T149-506l232-231 131 131q2 3 6 4.5t8 1.5q9 0 15-5.5t6-14.5q0-4-1.5-8t-4.5-6L398-777q-11-12-25.5-17.5T342-800q-15 0-30 5.5T285-777L144-635q-9 9-15 21t-8 24q-2 12 0 24.5t8 23.5l-58 58q-17-23-25-50.5T40-590q2-28 14-54.5T87-692l141-141q24-23 53.5-35t60.5-12q31 0 60.5 12t52.5 35l11 11 11-11q24-23 53.5-35t60.5-12q31 0 60.5 12t52.5 35l169 169q23 23 35 53t12 61q0 31-12 60.5T873-437L545-110q-14 14-32.5 22T474-80Zm-99-560Z',
   Perks: 'M4 9h16v12H4ZM12 9v12M4 13h16M7 9c-2.5-2.5 1.5-5.5 5 0m5-0c2.5-2.5-1.5-5.5-5 0',
   'Contact us': 'M3 6h18v12H3Zm0 1 9 6 9-6',
   Terms: 'M7 3h10v18H7ZM10 8h4m-4 4h4m-4 4h4',
@@ -257,11 +257,21 @@ const NAV_ICON_PATHS: Record<string, string> = {
 const SECTION_ICON_PATHS: Record<string, string> = {
   Products: 'M4 7 12 3l8 4-8 4ZM4 12l8 4 8-4M4 17l8 4 8-4',
   Request: 'M6 3h12v18H6ZM9 7h6M9 11h6M9 15h4',
-  'Refer & Earn': 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8-1a2.5 2.5 0 1 0 0-5M2.5 20v-2c0-3 2.5-5 5.5-5s5.5 2 5.5 5v2M14 14c3.5.2 5.5 1.7 5.5 4.5V20',
+  'Refer & Earn': 'M500-482q29-32 44.5-73t15.5-85q0-44-15.5-85T500-798q60 8 100 53t40 105q0 60-40 105t-100 53Zm220 322v-120q0-36-16-68.5T662-406q51 18 94.5 46.5T800-280v120h-80Zm80-280v-80h-80v-80h80v-80h80v80h80v80h-80v80h-80Zm-480-40q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM0-160v-112q0-34 17.5-62.5T64-378q62-31 126-46.5T320-440q66 0 130 15.5T576-378q29 15 46.5 43.5T640-272v112H0Zm320-400q33 0 56.5-23.5T400-640q0-33-23.5-56.5T320-720q-33 0-56.5 23.5T240-640q0 33 23.5 56.5T320-560ZM80-240h480v-32q0-11-5.5-20T540-306q-54-27-109-40.5T320-360q-56 0-111 13.5T100-306q-9 5-14.5 14T80-272v32Zm240-400Zm0 400Z',
   Extras: 'm12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z',
   Contact: 'M3 6h18v12H3Zm0 1 9 6 9-6',
   'Legal Stuff': 'M12 3 19 6v5c0 4.7-2.8 8.2-7 10-4.2-1.8-7-5.3-7-10V6Z',
 };
+const MATERIAL_NAV_ICON_LABELS = new Set( [
+  'VayuLok',
+  'Bharat Rx',
+  'Hunar',
+  'Niji Setu',
+  'Submit Request',
+  'Vault',
+  'Partner',
+] );
+const MATERIAL_SECTION_ICON_LABELS = new Set( [ 'Refer & Earn' ] );
 const FALLBACK_NAV_ICON_PATH = 'M5 5h14v14H5Zm4 4h6m-6 4h6';
 const SUBNAV_ICON_PATH = 'M6 7v5a5 5 0 0 0 5 5h7m-3-3 3 3-3 3';
 const ROW_CHEVRON_PATH = 'm9 6 6 6-6 6';
@@ -525,7 +535,12 @@ const Header: React.FC = () => {
                       aria-current={ isActive( link ) ? 'page' : undefined }
                       onClick={ event => handleNavClick( event, link ) }
                     >
-                      <svg className="nav-row-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <svg
+                        className={ `nav-row-icon ${MATERIAL_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
+                        viewBox={ MATERIAL_NAV_ICON_LABELS.has( link.label ) ? '0 -960 960 960' : '0 0 24 24' }
+                        aria-hidden="true"
+                        focusable="false"
+                      >
                         <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
                       </svg>
                       <span className="nav-item-label">{ link.label }</span>
@@ -555,7 +570,12 @@ const Header: React.FC = () => {
                               onClick={ close }
                             >
                               { sectionIconPath && (
-                                <svg className="nav-section-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <svg
+                                  className={ `nav-section-icon ${MATERIAL_SECTION_ICON_LABELS.has( section.heading ) ? 'nav-section-icon-material' : ''}`.trim() }
+                                  viewBox={ MATERIAL_SECTION_ICON_LABELS.has( section.heading ) ? '0 -960 960 960' : '0 0 24 24' }
+                                  aria-hidden="true"
+                                  focusable="false"
+                                >
                                   <path d={ sectionIconPath } />
                                 </svg>
                               ) }
@@ -565,7 +585,12 @@ const Header: React.FC = () => {
                           : (
                             <span className="nav-group-label">
                               { sectionIconPath && (
-                                <svg className="nav-section-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <svg
+                                  className={ `nav-section-icon ${MATERIAL_SECTION_ICON_LABELS.has( section.heading ) ? 'nav-section-icon-material' : ''}`.trim() }
+                                  viewBox={ MATERIAL_SECTION_ICON_LABELS.has( section.heading ) ? '0 -960 960 960' : '0 0 24 24' }
+                                  aria-hidden="true"
+                                  focusable="false"
+                                >
                                   <path d={ sectionIconPath } />
                                 </svg>
                               ) }
@@ -588,7 +613,12 @@ const Header: React.FC = () => {
                                 aria-current={ isActive( link ) ? 'page' : undefined }
                                 onClick={ event => handleNavClick( event, link ) }
                               >
-                                <svg className="nav-row-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <svg
+                                  className={ `nav-row-icon ${MATERIAL_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
+                                  viewBox={ MATERIAL_NAV_ICON_LABELS.has( link.label ) ? '0 -960 960 960' : '0 0 24 24' }
+                                  aria-hidden="true"
+                                  focusable="false"
+                                >
                                   <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
                                 </svg>
                                 <span className="nav-item-label">{ link.label }</span>
@@ -600,7 +630,12 @@ const Header: React.FC = () => {
                               </a>
                             ) : (
                               <span className="nav-item nav-family-label">
-                                <svg className="nav-row-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <svg
+                                  className={ `nav-row-icon ${MATERIAL_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
+                                  viewBox={ MATERIAL_NAV_ICON_LABELS.has( link.label ) ? '0 -960 960 960' : '0 0 24 24' }
+                                  aria-hidden="true"
+                                  focusable="false"
+                                >
                                   <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
                                 </svg>
                                 <span className="nav-item-label">{ link.label }</span>
@@ -918,6 +953,7 @@ const Header: React.FC = () => {
            touch more tracking so the caps stay legible. */
         .nav-group-label{display:flex;align-items:center;gap:7px;padding:6px 12px 4px;font-size:12px;font-weight:700;letter-spacing:.06em;color:#1a3a2a;text-transform:uppercase}
         .nav-section-icon{width:17px;height:17px;flex:0 0 17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+        .nav-section-icon-material{fill:currentColor;stroke:none}
 
         /* PRODUCTS SCROLL. Only the Products group. The catalogue is meant to reach 100+
            entries, so its list is capped and scrolls rather than making the whole panel
@@ -1006,6 +1042,7 @@ const Header: React.FC = () => {
         .nav-item{position:relative;display:flex;align-items:center;gap:9px;min-height:46px;padding:0 12px;font-size:19px;font-weight:600;color:#1a3a2a;text-decoration:none;border-radius:8px}
         .nav-row-icon,.nav-sub-icon,.nav-row-chevron{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
         .nav-row-icon{width:20px;height:20px;flex:0 0 20px;stroke-width:1.9}
+        .nav-row-icon-material{fill:currentColor;stroke:none}
         .nav-sub-icon{width:17px;height:17px;flex:0 0 17px;stroke-width:1.8;opacity:.82}
         .nav-row-chevron{width:17px;height:17px;flex:0 0 17px;margin-inline-start:auto;stroke-width:1.9;opacity:.72}
         .nav-item-label{min-width:0}
