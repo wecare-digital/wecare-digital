@@ -461,7 +461,7 @@ def detail(job_ref: str) -> Dict[str, Any]:
 def batch_publish_state(batch_id: str) -> Dict[str, Any]:
     """Publication across a wave, derived from the source rows."""
     import blog_batches
-    sources = blog_batches.batch_sources(batch_id)
+    sources = blog_batches.batch_articles(batch_id)
     statuses: Dict[str, int] = {}
     for row in sources:
         status = str((row.get("pipeline") or {}).get("publishStatus") or "")
@@ -489,7 +489,7 @@ def releasable_in_batch(batch_id: str) -> List[Dict[str, Any]]:
     import blog_batches
     import blog_qa
     out: List[Dict[str, Any]] = []
-    for row in blog_batches.batch_sources(batch_id):
+    for row in blog_batches.batch_articles(batch_id):
         source_id = str(row["id"])
         ok, reason = blog_qa.releasable(source_id)
         job = open_job(source_id)
