@@ -667,6 +667,18 @@ def verify_static_surfaces(source_id: str, job_id: str) -> Dict[str, Any]:
     rss_status, rss = fetched["rss"]
     canonical_no_slash = canonical.rstrip("/")
 
+    search_has_slug = False
+    if search_status == 200:
+        try:
+            payload = json.loads(search)
+            search_has_slug = any(
+                str(post.get("slug") or "") == slug
+                for post in (payload.get("posts") or [])
+                if isinstance(post, dict)
+            )
+        except (TypeError, ValueError):
+            search_has_slug = False
+
     results = [
         _result("STATIC_POST_200", page_status == 200, "HTTP 200", str(page_status)),
         _result("STATIC_TITLE_PRESENT", title in page_body, title,
@@ -679,7 +691,7 @@ def verify_static_surfaces(source_id: str, job_id: str) -> Dict[str, Any]:
                 sitemap_status == 200 and (canonical in sitemap or canonical_no_slash in sitemap),
                 canonical, f"HTTP {sitemap_status}"),
         _result("SEARCH_INDEX_CONTAINS_POST",
-                search_status == 200 and f'"slug":"{slug}"' in search,
+                search_status == 200 and search_has_slug,
                 slug, f"HTTP {search_status}"),
         _result("RSS_CONTAINS_POST",
                 rss_status == 200 and (canonical in rss or canonical_no_slash in rss),
