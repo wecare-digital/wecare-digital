@@ -26,6 +26,7 @@ on:
       - 'tests/test_blog_qa.py'
       - 'tests/test_blog_publish.py'
       - 'tests/test_blog_verify.py'
+      - 'tests/test_blog_site_bridge.py'
       - 'tests/test_blog_repetition.py'
       - 'tests/test_blog_catalog.py'
       - 'tests/test_blog_production.py'
@@ -54,6 +55,7 @@ on:
       - 'tests/test_blog_qa.py'
       - 'tests/test_blog_publish.py'
       - 'tests/test_blog_verify.py'
+      - 'tests/test_blog_site_bridge.py'
       - 'tests/test_blog_repetition.py'
       - 'tests/test_blog_catalog.py'
       - 'tests/test_blog_production.py'
@@ -107,6 +109,7 @@ jobs:
           tests/test_blog_qa.py
           tests/test_blog_publish.py
           tests/test_blog_verify.py
+          tests/test_blog_site_bridge.py
           tests/test_blog_repetition.py
           tests/test_blog_catalog.py
           tests/test_blog_production.py
