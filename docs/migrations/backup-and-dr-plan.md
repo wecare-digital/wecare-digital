@@ -369,11 +369,17 @@ Mirror the Lightsail migration discipline that is already proven in this repo:
 2. **Compliance-mode Vault Lock on the backup account's vault** — strongest insider
    control, irreversible, deliberate owner decision
    (`provision_backup_account_side.py --apply --compliance-lock`, run in 991322955408).
-3. **Finish `table_backup_defaults.apply` rollout** to the remaining table scripts.
-3. **Quarterly restore drills** for S3 and secrets (DynamoDB is done).
-4. Keep the GCP mirror current; re-run the independence checks in CI.
+3. **Finish `table_backup_defaults.apply` rollout** to the remaining table scripts
+   (agent-approvals, gift-cards, payment-attempts, products, thread-ownership,
+   service-requests, and the table-creating domain scripts; coupons is the template).
+4. **Quarterly restore drills** for S3 and secrets (DynamoDB is done).
+5. Keep the GCP mirror current; re-run the independence checks in CI.
 
-All core protections are now live: Cognito deletion protection, DynamoDB PITR, S3
-versioning + cross-region replication, a scheduled AWS Backup plan, a Cognito export,
-a current credential backup with weekly refresh, and a proven restore drill. What
-remains is hardening (Vault Lock, cross-account) and recurring drills.
+Every core protection is now live and verified, including the full cross-account
+layer: Cognito deletion protection, DynamoDB PITR, S3 versioning with BOTH
+cross-region and cross-account replication, a scheduled AWS Backup plan under a
+governance Vault Lock with cross-account copies into a dedicated backup account, a
+Cognito export, a current credential backup with weekly refresh, and a proven
+restore drill. What remains is housekeeping: the pre-existing-media backfill into
+the cross-account bucket, finishing the `table_backup_defaults` rollout, the
+optional irreversible compliance-mode lock, and recurring S3/secrets drills.

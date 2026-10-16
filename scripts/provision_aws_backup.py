@@ -273,12 +273,50 @@ def ensure_notifications(apply: bool) -> None:
         print(f"  would set vault notifications -> {SNS_ARN.split(':')[-1]}")
 
 
+def ensure_vault_lock_governance(apply: bool) -> None:
+    """Apply GOVERNANCE-mode Vault Lock (reversible).
+
+    Governance mode blocks deletion of recovery points and shortening of
+    retention for everyone EXCEPT a principal holding the explicit
+    backup:*GovernanceLock*/DeleteBackupVaultLockConfiguration permissions — so it
+    stops accidents and most malicious deletes while remaining removable by an
+    administrator. Compliance mode would make it irreversible for everyone
+    including the root account, which is a separate, deliberate owner decision and
+    is intentionally NOT offered by this flag.
+
+    MinRetentionDays=35 matches the daily rule; MaxRetentionDays=366 leaves the
+    monthly 365-day rule room. ChangeableForDays is omitted (governance locks take
+    effect immediately and stay removable; the cooling-off period is a
+    compliance-mode concept).
+    """
+    c = backup()
+    cur = c.describe_backup_vault(BackupVaultName=VAULT)
+    if cur.get("Locked"):
+        print(f"  vault lock: already locked "
+              f"(min={cur.get('MinRetentionDays')} max={cur.get('MaxRetentionDays')})")
+        return
+    print("  vault lock: NOT locked")
+    if apply:
+        c.put_backup_vault_lock_configuration(
+            BackupVaultName=VAULT,
+            MinRetentionDays=35,
+            MaxRetentionDays=366,
+        )
+        after = c.describe_backup_vault(BackupVaultName=VAULT)
+        print(f"    GOVERNANCE lock applied (locked={after.get('Locked')}, "
+              f"min={after.get('MinRetentionDays')}, max={after.get('MaxRetentionDays')}) "
+              "— reversible by an administrator")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--plan", action="store_true")
     g.add_argument("--apply", action="store_true")
     g.add_argument("--verify", action="store_true")
+    ap.add_argument("--lock-governance", action="store_true",
+                    help="also apply reversible GOVERNANCE-mode Vault Lock "
+                         "(use with --apply)")
     args = ap.parse_args()
     apply = args.apply
 
@@ -307,6 +345,9 @@ def main() -> int:
                    for t in tags):
                 tagged += 1
         print(f"tables tagged     : {tagged}/{len(project_tables(d))}")
+        v = c.describe_backup_vault(BackupVaultName=VAULT)
+        print(f"vault locked      : {v.get('Locked')} "
+              f"(min={v.get('MinRetentionDays')}, max={v.get('MaxRetentionDays')})")
         return 0
 
     print(f"=== AWS Backup provisioning ({'APPLY' if apply else 'PLAN'}) ===")
@@ -319,7 +360,12 @@ def main() -> int:
     if pid:
         ensure_selection(apply, pid)
     ensure_notifications(apply)
-    print("\nVault Lock NOT applied (irreversible in compliance mode; owner decision).")
+    if args.lock_governance:
+        print("\n--- Vault Lock (governance) ---")
+        ensure_vault_lock_governance(apply)
+    else:
+        print("\nVault Lock not requested. Add --lock-governance for the reversible "
+              "lock; compliance (irreversible) mode is a separate owner decision.")
     print("done." if apply else "plan only — nothing changed.")
     return 0
 
