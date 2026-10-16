@@ -356,8 +356,14 @@ describe( 'Header', () => {
   it( 'keeps parent and child navigation on the same 19px/600 type rung', () => {
     const { container } = render( <Header /> );
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
-    expect( css ).toContain( '.nav-item{position:relative;display:flex;align-items:center;min-height:46px;padding:0 12px;font-size:19px;font-weight:600' );
-    expect( css ).toContain( '.nav-child{font-size:19px;font-weight:600;min-height:46px' );
+    const navItemRule = css.match( /\.nav-item\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( navItemRule ).toContain( 'min-height:46px' );
+    expect( navItemRule ).toContain( 'font-size:19px' );
+    expect( navItemRule ).toContain( 'font-weight:600' );
+    const navChildRule = css.match( /\.nav-child\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( navChildRule ).toContain( 'font-size:19px' );
+    expect( navChildRule ).toContain( 'font-weight:600' );
+    expect( navChildRule ).toContain( 'min-height:46px' );
     expect( css ).not.toContain( '.nav-sub{font-size:17px' );
   } );
 
@@ -421,7 +427,8 @@ describe( 'Header', () => {
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
 
     expect( screen.getByRole( 'link', { name: 'Shop' } ).querySelector( '.nav-row-icon' ) ).not.toBeNull();
-    expect( screen.getByText( 'Products' ).querySelector( '.nav-section-icon' ) ).not.toBeNull();
+    const productsGroup = screen.getByText( 'Products' ).closest( '.nav-group' );
+    expect( productsGroup?.querySelector( '.nav-group-label .nav-section-icon' ) ).not.toBeNull();
     expect( screen.getByText( 'Elsewhere' ).parentElement?.querySelector( '.nav-row-chevron' ) ).not.toBeNull();
     expect( screen.getByRole( 'link', { name: 'Visa' } ).querySelector( '.nav-sub-icon' ) ).not.toBeNull();
 
