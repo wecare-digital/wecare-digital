@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180" role="img" aria-label="WhatsApp QR placeholder">
+  <!--
+    PLACEHOLDER — NOT A REAL, SCANNABLE QR.
+    Replace this file with the real WhatsApp Business QR for wa.me/message/APDM5HUWH26SG1
+    (Meta's createQrCode / qr_image_url, PNG or SVG). This stand-in is deliberately drawn as
+    an obvious placeholder (centred camera glyph + label) rather than a fake QR matrix, so no
+    one mistakes an unscannable pattern for a working code. The <img> that renders it is
+    decorative (alt=""); the "Get Started on WhatsApp" button beside it is the real control.
+  -->
+  <rect width="180" height="180" rx="12" fill="#ffffff"/>
+  <!-- QR finder-pattern hints at the four-ish corners, purely decorative -->
+  <g fill="none" stroke="#d1d5db" stroke-width="4">
+    <rect x="14" y="14" width="34" height="34" rx="4"/>
+    <rect x="132" y="14" width="34" height="34" rx="4"/>
+    <rect x="14" y="132" width="34" height="34" rx="4"/>
+  </g>
+  <g fill="#d1d5db">
+    <rect x="24" y="24" width="14" height="14" rx="2"/>
+    <rect x="142" y="24" width="14" height="14" rx="2"/>
+    <rect x="24" y="142" width="14" height="14" rx="2"/>
+  </g>
+  <!-- centre WhatsApp-ish disc + label -->
+  <circle cx="90" cy="86" r="26" fill="rgba(209,244,112,.35)"/>
+  <path d="M90 72a14 14 0 0 0-12 21l-2 7 7-2a14 14 0 1 0 7-26z" fill="none" stroke="#1a3a2a" stroke-width="3" stroke-linejoin="round"/>
+  <text x="90" y="150" text-anchor="middle" font-family="Inter, -apple-system, sans-serif" font-size="11" font-weight="600" fill="#9ca3af">QR to be added</text>
+</svg>

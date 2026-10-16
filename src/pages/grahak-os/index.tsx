@@ -586,6 +586,45 @@ response = requests.post(
           </div>
         </section>
 
+        {/* OTP / VERIFICATIONS — the last add-on section before the closer. Modelled on Meta's
+            own "Verifications" use case ("multi-factor authentication or one-time passwords"),
+            written in our voice and grounded in the real multichannel send: an OTP is just an
+            outbound message on the same canonical rail the rest of the page describes.
+            Two columns: copy on the left, a scan-to-start QR on the right. The QR encodes the
+            same wa.me click-to-chat short link the hero and API CTAs use, so a desktop reader
+            can start on their phone without typing. The QR IMAGE is a drop-in slot: swap the
+            placeholder <img> src for the real WhatsApp Business QR (Meta's createQrCode /
+            qr_image_url for this number) when it is generated - everything else is in place.
+            The lime WhatsApp button stays below the QR so the section still works on a phone,
+            where you cannot scan your own screen. id 'otp' is registered with the reveal
+            machinery (.anim + show('otp')); the failsafe timer reveals it like every section. */}
+        <section className={`gos-otp anim ${armed ? 'is-armed' : ''} ${show('otp') ? 'show' : ''}`} id="otp">
+          <div className="pp-inner">
+            <div className="gos-otp-grid">
+              <div className="gos-otp-copy">
+                <span className="gos-otp-eyebrow">OTPs &amp; Verifications</span>
+                <h2 className="gos-otp-head">Verify customers in seconds</h2>
+                <p className="gos-otp-sub">Send one-time passwords and login codes over WhatsApp — delivered where your customers already are, read in seconds, with no separate SMS gateway to wire up. The same outbound rail carries OTPs, order updates and campaigns, so every code lands in the one history the workspace reads.</p>
+                <a className="gos-otp-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
+              </div>
+              <div className="gos-otp-visual">
+                {/* SCAN-TO-START QR. Placeholder until the real WhatsApp Business QR is dropped
+                    in: replace the src with the generated qr_image_url (or an inline SVG) for
+                    wa.me/message/APDM5HUWH26SG1. Kept decorative (alt="" + aria-hidden) because
+                    the adjacent button is the accessible path to the same destination; a screen
+                    reader user cannot scan a QR, so the button is the real control and the QR
+                    must not announce a second, unusable one. */}
+                <div className="gos-qr-card">
+                  <div className="gos-qr-frame">
+                    <img className="gos-qr-img" src="/images/grahak-os-whatsapp-qr.svg" alt="" aria-hidden="true" width="180" height="180" loading="lazy" />
+                  </div>
+                  <span className="gos-qr-label">Scan to chat on WhatsApp</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className={`gos-closer anim ${armed ? 'is-armed' : ''} ${show('gos-closer') ? 'show' : ''}`} id="gos-closer">
           {/* Explicit break so the product name lands alone on the last line. Needs a
               br rather than the pre-line trick .section-header h2 uses, because
@@ -837,6 +876,39 @@ response = requests.post(
           .trust-content{display:flex;flex-direction:column;align-items:flex-start;gap:16px;min-width:0}
 
           /* ===== Closing statement (Notion-style display type + motion) ===== */
+          /* ===== OTP / Verifications section ===== */
+          /* 60px vertical rhythm, matching touchpoint / api / strip / trust. Plain white
+             between the grey capability band above and the closer below. */
+          .gos-otp{padding:60px 0;background:#fff}
+          /* Two columns: copy left, QR right, same 56px gutter and left-aligned start as the
+             hero and API grids so the section sits on the page's vertical line. */
+          .gos-otp-grid{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center}
+          .gos-otp-copy{display:flex;flex-direction:column;align-items:flex-start;max-width:520px}
+          /* Eyebrow uses the touchpoint-pill label colour on a faint lime tint - the nav/
+             active hover tint already in the palette, no new token. */
+          .gos-otp-eyebrow{display:inline-block;font-size:13px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:#1a3a2a;background:rgba(209,244,112,.3);padding:6px 12px;border-radius:50px;margin:0 0 18px}
+          /* Section-heading rung, same as .section-header h2 / .api-info h2. */
+          .gos-otp-head{font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;letter-spacing:-1.2px;color:rgba(0,0,0,.95);margin:0 0 16px}
+          /* The single body rung the page allows: 20px/400/1.4/-.125px. */
+          .gos-otp-sub{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0 0 28px}
+          /* Reuses the hero WhatsApp pill treatment (.gos-wa-cta): full lime, dark-green edge
+             and type, 52px target, white-on-hover lift. */
+          .gos-otp-cta{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s}
+          .gos-otp-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+          .gos-otp-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+          /* QR column: a bordered card centring the code + a caption, right-aligned on the
+             grid so it reads as the companion to the copy. The 1px #e5e7eb hairline is the
+             shared static-card weight (static, not interactive, so no 2px/lime hover). */
+          .gos-otp-visual{display:flex;justify-content:center}
+          .gos-qr-card{display:flex;flex-direction:column;align-items:center;gap:16px;padding:28px;border:1px solid #e5e7eb;border-radius:20px;background:#fff}
+          .gos-qr-frame{width:180px;height:180px;display:flex;align-items:center;justify-content:center;background:#fafafa;border-radius:12px;overflow:hidden}
+          .gos-qr-img{width:180px;height:180px;object-fit:contain;display:block}
+          .gos-qr-label{font-size:15px;font-weight:600;color:rgba(0,0,0,.6);letter-spacing:-.1px}
+          @media(prefers-reduced-motion:reduce){ .gos-otp-cta{transition:background-color .2s} .gos-otp-cta:hover{transform:none;box-shadow:none} }
+          @media(max-width:1024px){ .gos-otp{padding:50px 0} .gos-otp-grid{grid-template-columns:1fr;gap:36px} .gos-otp-copy{max-width:100%} .gos-otp-visual{justify-content:flex-start} }
+          @media(max-width:767px){ .gos-otp{padding:44px 0} }
+          @media(max-width:480px){ .gos-otp{padding:36px 0} .gos-qr-card{padding:22px} }
+
           /* 1100 -> 1300 measure and 96/112 -> 60/80 padding, so this section is measured
              and spaced like every other one. The extra 36px of top padding was the only
              thing making the closer a special case in the rhythm, and 80px at the bottom
