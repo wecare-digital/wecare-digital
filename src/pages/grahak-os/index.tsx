@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import PageMeta from '../../components/PageMeta';
 import PublicShare from '../../components/PublicShare';
+import ProductBuyBox from '../../components/ProductBuyBox';
 import RotatingHero from '../../components/RotatingHero';
 
 const GrahakOsPage: React.FC = () => {
@@ -260,6 +261,31 @@ response = requests.post(
           pillPrefix="across"
           words={ cycleWords }
           sub={ <>One platform for customer data, messaging, automation and campaigns, so every conversation stays connected whichever channel it starts on. Turn your WhatsApp number into your #1 revenue channel with Grahak OS.</> }
+          children={ (
+            // PRICE + DUAL CTA, the /anew/ pattern reproduced inline because this page is
+            // bespoke and does not go through ProductPage. Rendered through RotatingHero's
+            // `children` slot, which sits inside .rh-layout (the hero's own content measure)
+            // but OUTSIDE the .rh-split two-column row - so it is a valid block container
+            // (ProductBuyBox renders a <div>, which a <p> like .rh-sub may not hold) and it
+            // starts on the same left edge as the hero copy.
+            // TWO DOORS, SAME AS /anew/: a primary WhatsApp pill ("Get Started on WhatsApp →",
+            // full lime) beside the secondary website checkout pill ProductBuyBox renders
+            // ("Continue to checkout →", white with a dark-green edge). The WhatsApp link is
+            // Grahak OS's own click-to-chat short link, the same one the API section's
+            // "see it on WhatsApp" CTA uses.
+            // ProductBuyBox is mounted with showPrice=false so the ₹899 below is the only
+            // price shown; it checks out the real catalogue line for 'grahak-os' if one is
+            // listed in src/config/productCheckout.ts, else the shared ₹1 placeholder (what
+            // every product page does today). ₹899 is DISPLAY ONLY - the server reprices on
+            // prepare - until that catalogue line exists. No catalogue image, by owner choice.
+            <div className="gos-buy">
+              <div className="gos-ctas">
+                <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
+                <ProductBuyBox slug="grahak-os" showPrice={ false } />
+              </div>
+              <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · Grahak OS · billed as one line</span></p>
+            </div>
+          ) }
           visual={ (
           <div className="hero-right">
               <div className="mockup-wrapper">
@@ -406,22 +432,21 @@ response = requests.post(
               <p className="api-desc">One POST per channel and a bearer token. Every message lands in the same canonical store the workspace reads, so your API traffic and your inbox are never two separate histories.</p>
               {/* "In action" link, placed on the side OPPOSITE the code panel - the left
                   .api-info column - so the row reads "here is the API, and here is it
-                  running". The destination is Meta's own WhatsApp Business Platform demo
-                  (their Jasper's Market retail bot), not a page of ours: Grahak OS is
-                  BUILT ON that platform, so the honest "see it in action" is Meta's live
-                  demo rather than a mock we assemble. External, so rel + target are set.
+                  running". The destination is our own WhatsApp click-to-chat short link
+                  (wa.me/message/...), so "see it in action" opens a real conversation
+                  with us on WhatsApp - the platform the product is about - rather than a
+                  mock we assemble. External, so rel + target are set.
                   Lime pill in the page's own #d1f470 with dark-green text, matching the
-                  .pp-tab.active treatment, so the CTA is clearly ours even though the
-                  destination is Meta's. */}
+                  .pp-tab.active treatment. */}
               <div className="api-action">
                 <h3 className="api-action-head">See the WhatsApp Business Platform in action</h3>
                 <a
                   className="api-action-link"
-                  href="https://business.whatsapp.com/products/business-platform"
+                  href="https://wa.me/message/APDM5HUWH26SG1"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  View the live demo
+                  See it on WhatsApp
                   <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path d="M6 3h7v7h-1.5V5.56L4.56 12.5 3.5 11.44 10.44 4.5H6z" fill="currentColor"/></svg>
                 </a>
               </div>
@@ -689,6 +714,46 @@ response = requests.post(
           .hero-left p{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0 0 18px;max-width:400px}
           .hero-left p.hero-sub{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0;max-width:400px}
 
+          /* PRICE + DUAL CTA, rendered through RotatingHero's `children` slot so it sits in
+             the hero's own content measure (.rh-layout), one flex row below the two-column
+             split and starting on the same left edge as the hero copy. Its markup is written
+             in THIS page's return, so styled-jsx scopes these .gos-* rules to it (the same
+             reason the hero pill's own styles had to move into RotatingPill - styled-jsx only
+             reaches markup it can see statically).
+             Placement is DELIBERATELY NOT a negative pull up into the hero's empty left-column
+             space. The split is align-items:center with a 638px mockup column, so the empty
+             space under the short left copy is ~200px at 1440px and changes with both the
+             mockup height and the viewport - a margin tuned to it would be exactly the eyeball
+             geometry this file warns against and would drift the moment the mockup resizes.
+             Instead the margin cancels part of a FIXED quantity: RotatingHero sets .rh-layout
+             to a column flex with gap:96px, so this block lands 96px below the split; -56px
+             nets a calm 40px gap. That 40px is a fixed relationship to a fixed flex gap, not a
+             function of the mockup, so it holds at every width. Below 767px the hero stacks and
+             the gap is 64px, so -24px nets the same 40px. Verified against a render of the real
+             .rh-layout / .rh-split structure with the 638px mockup column at 1440px. */
+          .gos-buy{margin:-56px 0 0}
+          @media(max-width:767px){ .gos-buy{margin:-24px 0 0} }
+          /* The two pills on one baseline-aligned row, wrapping rather than overflowing on a
+             narrow viewport. ProductBuyBox renders its own .pbb wrapper (column, margin-top:12px);
+             the override below strips that top margin and the gos-ctas gap owns the spacing so
+             the WhatsApp pill and the checkout pill line up as a pair, exactly like /anew/. */
+          .gos-ctas{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+          .gos-ctas :global(.pbb){margin-top:0}
+          /* Primary WhatsApp pill: full-lime, the page's one allowed lime surface for the
+             primary action - mirrors ProductPage's .pdp-cta so the WhatsApp door and the
+             checkout door read as a matched pair. 52px min target matches the checkout pill. */
+          .gos-wa-cta{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s}
+          .gos-wa-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+          .gos-wa-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+          /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
+             above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
+          .gos-price{display:block;margin-top:22px;font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
+          .gos-price-unit{font-size:16px;font-weight:400;color:rgba(0,0,0,.6);letter-spacing:-.125px}
+          @media(prefers-reduced-motion:reduce){
+            .gos-wa-cta{transition:background-color .2s}
+            .gos-wa-cta:hover{transform:none;box-shadow:none}
+          }
+
           /* The rotating channel pill - its lozenge, dot, width glide, word fade,
              entrance and the narrow-width "drop to its own line below 375px" fix - now
              lives in RotatingPill, which self-scopes its own rp-* CSS and takes the
@@ -851,16 +916,21 @@ response = requests.post(
              mirrored in Arabic - so this one follows the document instead of being locked.
              Measured at 260px out of position under rtl before the change. */
           .phone{position:absolute;inset-inline-start:0;top:28px;width:56%;max-width:320px;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.12)}
-          /* WhatsApp's own header teal (#075e54), not the brand's #1a3a2a. This is a
-             SIMULATION of WhatsApp, so the chrome should read as WhatsApp's rather than
-             as a custom green panel - the flat dark-forest block was the single biggest
-             tell that this was a brand mockup and not a real thread. #075e54 is the value
-             from WhatsApp's published palette. */
-          .phone-header{background:#075e54;padding:12px 14px;display:flex;align-items:center;gap:10px}
-          /* Avatar reads as a contact photo, not a flat tile the same colour as the
-             header behind it. A lighter teal disc with the business initial separates it
-             from the bar so the lockup looks like a real chat row. */
-          .avatar{width:40px;height:40px;background:#128c7e;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;box-shadow:0 0 0 2px rgba(255,255,255,.15)}
+          /* WhatsApp's own header teal (#128c7e), not the brand's flat #1a3a2a. This is a
+             SIMULATION of WhatsApp, so the chrome should read as WhatsApp's rather than as a
+             custom green panel - the flat dark-forest block was the single biggest tell that
+             this was a brand mockup and not a real thread. #128c7e is from WhatsApp's published
+             palette (teal green).
+             NOT #075e54. That darker WhatsApp green is RETIRED by name in the design contract
+             (scripts/check_design_drift.py RETIRED_COLOURS) and the drift gate rejects it in
+             real CSS - an earlier pass used it here and failed the gate. #128c7e is the
+             non-retired WhatsApp header green and reads the same at this size. */
+          .phone-header{background:#128c7e;padding:12px 14px;display:flex;align-items:center;gap:10px}
+          /* Avatar reads as a contact photo, not a flat tile the same colour as the header
+             behind it. The brand dark green #1a3a2a disc with the business initial separates it
+             from the #128c7e bar so the lockup looks like a real chat row; #1a3a2a is the
+             contract's success/brand green (allowed), not a retired value. */
+          .avatar{width:40px;height:40px;background:#1a3a2a;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;box-shadow:0 0 0 2px rgba(255,255,255,.15)}
           .contact-info{flex:1;display:flex;flex-direction:column}
           .contact-name{color:#fff;font-size:17px;font-weight:600}
           .contact-status{color:rgba(255,255,255,.7);font-size:13px}
