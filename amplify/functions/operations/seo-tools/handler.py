@@ -820,6 +820,14 @@ def _route_post(path: str, body: Dict[str, Any], actor: str, origin: str):
         # after fixing something, and each run is its own record of a moment.
         return _response(200, {'ok': True, **blog_verify.run(source_id, actor)}, origin)
 
+    if path.endswith('/blog-publish/revise'):
+        source_id = str(body.get('sourceId') or '').strip()
+        if not source_id:
+            raise ValueError('sourceId is required')
+        # A revision never creates a second URL/post. It mutates the already-published native
+        # post in place, but only after fresh QA/sign-off over the exact revised body.
+        return _response(200, {'ok': True, **blog_publish.revise(source_id, actor)}, origin)
+
     if path.endswith('/blog-publish/release'):
         # Records a decision. Performs NO publish write - publishing is a separate call, because
         # section 38 requires that processing completion never automatically mean publishing.

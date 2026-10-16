@@ -64,6 +64,38 @@ class FakeStore:
         self.error = "the native blog store rejected the post"
         self._seq = 0
 
+    def update_blog_post(self, slug, body, actor, expected_post_id=''):
+        import storage
+        rows = [
+            item for item in storage.list_slug_records(slug)
+            if item.get("recordType") == "blogPost"
+        ]
+        if not rows:
+            raise LookupError("Blog post not found")
+        raw = rows[0]
+        if expected_post_id and raw.get("id") != expected_post_id:
+            raise ValueError("the live slug belongs to a different post id")
+        if str(body.get("slug") or slug) != slug:
+            raise ValueError("a published revision cannot change the post slug")
+        raw.update({
+            "updatedAt": storage.now_iso(),
+            "title": str(body.get("title") or ""),
+            "content": str(body.get("content") or ""),
+            "seoTitle": str(body.get("seoTitle") or ""),
+            "metaDescription": str(body.get("metaDescription") or ""),
+            "category": str(body.get("category") or ""),
+            "tags": body.get("tags") or [],
+            "version": int(raw.get("version") or 1) + 1,
+            "updatedBy": actor,
+        })
+        storage.put_record(raw)
+        return {
+            "postId": raw["id"], "slug": slug, "title": raw["title"],
+            "status": raw.get("status") or "published", "url": raw["url"],
+            "version": raw["version"], "updatedAt": raw["updatedAt"],
+            "rebuildRequired": True,
+        }
+
     def create_blog_post(self, body, actor):
         self.calls.append({"body": body, "actor": actor})
         if self.raise_on_write:
@@ -125,6 +157,7 @@ def env(monkeypatch):
     store = FakeStore()
     monkeypatch.setattr(storage, "table", lambda: table)
     monkeypatch.setattr(storage, "create_blog_post", store.create_blog_post)
+    monkeypatch.setattr(storage, "update_blog_post", store.update_blog_post)
     monkeypatch.setattr(bs, "s3_client", lambda: s3)
     monkeypatch.setattr(bs, "lambda_client", lambda: lam)
     monkeypatch.setattr(bs, "BUCKET", "wecare-digital-get")
@@ -406,6 +439,82 @@ def test_a_revocation_after_release_blocks_the_publish(env):
 def test_an_unknown_job_is_refused(env):
     with pytest.raises(LookupError, match="Unknown jobId"):
         env["bp"].publish("blogpub_nope", "operator")
+
+
+# ── Published revisions ─────────────────────────────────────────────────────────
+
+
+def _resign_after_edit(env, source_id: str):
+    qa = env["bq"].run(source_id, "qa-revision")
+    import blog_qa
+    return env["bq"].sign_off({
+        "qaRunId": qa["qaRunId"],
+        "gates": {name: "PASS" for name in q.HUMAN_GATES},
+        "declarations": {name: expected for name, expected in blog_qa.DECLARATIONS},
+        "statement": ("Reviewed the revised published article in full against the source, "
+                      "QA report, corpus comparison and publication standard.")},
+        "editor-revision")
+
+
+def test_revision_requires_fresh_qa_and_signoff(env):
+    source_id = _signed(env)
+    job = env["bp"].release(source_id, "operator")
+    env["bp"].publish(job["jobId"], "operator")
+    draft = dict(env["bs"].get_source(source_id)["draftRecord"])
+    draft["contentMarkdown"] += "\n\nThis is the newly approved editorial revision."
+    env["table"].items[source_id]["draftRecord"] = env["storage"]._clean(draft)
+
+    with pytest.raises(ValueError, match="revision cannot be published"):
+        env["bp"].revise(source_id, "operator")
+
+
+def test_revision_preserves_post_identity_and_versions_in_place(env, monkeypatch):
+    source_id = _signed(env)
+    job = env["bp"].release(source_id, "operator")
+    first = env["bp"].publish(job["jobId"], "operator")
+    original_post = env["storage"].get_blog_post(job["articleSlug"])
+    original_published_at = original_post["publishedDate"]
+
+    draft = dict(env["bs"].get_source(source_id)["draftRecord"])
+    draft["contentMarkdown"] += "\n\nThis is the newly approved editorial revision."
+    env["table"].items[source_id]["draftRecord"] = env["storage"]._clean(draft)
+    _resign_after_edit(env, source_id)
+
+    import blog_site_bridge
+    monkeypatch.setattr(blog_site_bridge, "note_published", lambda sid, actor: {
+        "siteBuildStatus": "SITE_BUILD_PENDING", "scheduled": True, "generation": 2})
+
+    revised = env["bp"].revise(source_id, "operator")
+    live = env["storage"].get_blog_post(job["articleSlug"])
+
+    assert revised["revised"] is True
+    assert revised["postId"] == first["postId"] == live["id"]
+    assert live["slug"] == job["articleSlug"]
+    assert live["publishedDate"] == original_published_at
+    assert live["content"].endswith("newly approved editorial revision.")
+    assert revised["version"] == 2
+    assert env["bs"].get_source(source_id)["pipeline"]["verifyStatus"] == "SITE_BUILD_PENDING"
+    revisions = [
+        item for item in env["table"].items.values()
+        if item.get("recordType") == env["bp"].REVISION_RECORD_TYPE
+    ]
+    assert len(revisions) == 1
+    assert revisions[0]["postId"] == first["postId"]
+    assert revisions[0]["bodyKey"] in env["s3"].objects
+
+
+def test_revision_cannot_change_the_live_slug(env, monkeypatch):
+    source_id = _signed(env)
+    job = env["bp"].release(source_id, "operator")
+    env["bp"].publish(job["jobId"], "operator")
+    draft = dict(env["bs"].get_source(source_id)["draftRecord"])
+    draft["contentMarkdown"] += "\n\nA signed revision with a changed URL."
+    draft["slug"] = "a-different-live-url"
+    env["table"].items[source_id]["draftRecord"] = env["storage"]._clean(draft)
+    _resign_after_edit(env, source_id)
+
+    with pytest.raises(ValueError, match="cannot change the live slug"):
+        env["bp"].revise(source_id, "operator")
 
 
 # ── A write that does not succeed is FAILED ─────────────────────────────────────

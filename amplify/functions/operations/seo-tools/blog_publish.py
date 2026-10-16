@@ -398,6 +398,178 @@ def _write_native(record: Dict[str, Any], draft: Dict[str, Any], actor: str) -> 
     return {"postId": result["postId"], "postUrl": result["url"]}
 
 
+REVISION_RECORD_TYPE = "blogPublishRevision"
+
+
+def revision_record_key(source_id: str, revision_id: str) -> str:
+    return blog_sources.work_key_for_id(
+        source_id, f"publish/revisions/{revision_id}.json")
+
+
+def _revision_body(record: Dict[str, Any], draft: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "title": str(draft.get("title") or "").strip(),
+        "slug": str(draft.get("slug") or "").strip(),
+        "content": draft.get("contentMarkdown") or "",
+        "status": "published",
+        "category": str(record.get("category") or draft.get("category") or "").strip(),
+        "tags": draft.get("tagLabels") or draft.get("tags") or [],
+        "hashtags": draft.get("hashtags") or [],
+        "excerpt": str(draft.get("excerpt") or "").strip(),
+        "coverImage": str(draft.get("coverImage") or "").strip(),
+        "authorName": str(draft.get("authorName") or "").strip(),
+        "seoTitle": str(draft.get("seoTitle") or "").strip(),
+        "metaDescription": str(draft.get("metaDescription") or "").strip(),
+        "focusKeyword": str(draft.get("focusKeyword") or "").strip(),
+        "secondaryKeywords": draft.get("secondaryKeywords") or [],
+        "jsonLd": draft.get("jsonLd") or {},
+    }
+
+
+def revise(source_id: str, actor: str) -> Dict[str, Any]:
+    """Replace one live post with a freshly QA'd/signed revision, preserving URL identity.
+
+    Revision is deliberately separate from publish: a published job remains immutable evidence
+    of the first release, while every revision gets its own durable record and exact body hash.
+    """
+    import blog_gate
+    import blog_qa
+
+    record = blog_sources.get_source(source_id)
+    if not record:
+        raise LookupError("Unknown sourceId")
+    pipeline = record.get("pipeline") or {}
+    if str(pipeline.get("publishStatus") or "") != PUBLISHED:
+        raise ValueError("only an already-published article can be revised")
+
+    post_id = str(pipeline.get("postId") or "")
+    post_url = str(pipeline.get("postUrl") or "")
+    if not post_id or not post_url:
+        raise ValueError("published article is missing its native post identity")
+
+    ok, reason = blog_qa.releasable(source_id)
+    if not ok:
+        raise ValueError(f"this revision cannot be published: {reason}")
+    signoff = blog_qa.current_signoff(source_id) or {}
+    draft = dict(record.get("draftRecord") or {})
+    body_hash = blog_gate.body_sha256(draft)
+    if str(signoff.get("bodySha256") or "") != body_hash:
+        raise ValueError("the current sign-off does not cover this revision body")
+
+    slug = str(draft.get("slug") or "").strip()
+    if not slug:
+        raise ValueError("revision slug is required")
+    if not post_url.rstrip("/").endswith("/post/" + slug):
+        raise ValueError("a published revision cannot change the live slug")
+
+    result = storage.update_blog_post(
+        slug, _revision_body(record, draft), actor, expected_post_id=post_id)
+    now = storage.now_iso()
+    revision_id = "blogrev_" + uuid.uuid4().hex
+    document = {
+        "revisionId": revision_id,
+        "sourceId": source_id,
+        "postId": post_id,
+        "postUrl": post_url,
+        "revisionVersion": int(result.get("version") or 0),
+        "revisedAt": now,
+        "revisedBy": actor,
+        "qaRunId": str(signoff.get("qaRunId") or ""),
+        "signoffId": str(signoff.get("id") or ""),
+        "bodySha256": body_hash,
+        "slug": slug,
+        "title": str(draft.get("title") or ""),
+        "category": str(record.get("category") or ""),
+    }
+    key = revision_record_key(source_id, revision_id)
+    blog_sources.s3_client().put_object(
+        Bucket=blog_sources.BUCKET,
+        Key=key,
+        Body=json.dumps(document, ensure_ascii=False, indent=2).encode("utf-8"),
+        ContentType="application/json; charset=utf-8",
+    )
+    storage.put_record({
+        "id": revision_id,
+        "recordType": REVISION_RECORD_TYPE,
+        "createdAt": now,
+        "updatedAt": now,
+        "slug": source_id,
+        "sourceId": source_id,
+        "postId": post_id,
+        "postUrl": post_url,
+        "revisionVersion": int(result.get("version") or 0),
+        "bodySha256": body_hash,
+        "qaRunId": str(signoff.get("qaRunId") or ""),
+        "signoffId": str(signoff.get("id") or ""),
+        "bodyKey": key,
+        "revisedBy": actor,
+    })
+
+    blog_sources.update_pipeline(
+        source_id,
+        publishStatus=PUBLISHED,
+        revisedAt=now,
+        postId=post_id,
+        postUrl=post_url,
+        backendVerifyStatus="",
+        backendVerifiedAt="",
+        siteBuildStatus="SITE_BUILD_PENDING",
+        siteBuildJobId="",
+        siteBuildGeneration=0,
+        siteDeployedAt="",
+        siteVerifyStatus="SITE_BUILD_PENDING",
+        siteVerifiedAt="",
+        verifyStatus="SITE_BUILD_PENDING",
+        verifiedAt="",
+    )
+    try:
+        import blog_article_work
+        blog_article_work.set_intent_status(source_id, "SITE_BUILD_PENDING", actor)
+    except Exception:
+        logger.exception("article-work revision state sync failed")
+
+    try:
+        import blog_catalog
+        blog_catalog.write_published_post(
+            record, draft, {"postId": post_id, "postUrl": post_url}, actor)
+    except Exception:
+        logger.exception("revised blog S3 mirror failed")
+
+    bridge = {"siteBuildStatus": "SITE_BUILD_PENDING", "scheduled": False}
+    try:
+        import blog_site_bridge
+        bridge = blog_site_bridge.note_published(source_id, actor)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("revised article site-build hand-off failed")
+        bridge = {
+            "siteBuildStatus": "SITE_BUILD_PENDING",
+            "scheduled": False,
+            "error": f"{type(exc).__name__}: {str(exc)[:300]}",
+        }
+
+    logger.info(json.dumps({
+        "event": "blog_revised",
+        "sourceId": source_id,
+        "revisionId": revision_id,
+        "postId": post_id,
+        "version": int(result.get("version") or 0),
+        "actor": actor,
+    }))
+    return {
+        "sourceId": source_id,
+        "revisionId": revision_id,
+        "postId": post_id,
+        "postUrl": post_url,
+        "version": int(result.get("version") or 0),
+        "revised": True,
+        "revisedAt": now,
+        "bodySha256": body_hash,
+        "siteBuild": bridge,
+        "note": ("Revised the existing native post in place. Final VERIFIED returns only after "
+                 "the automatic static-site rebuild and verification pass."),
+    }
+
+
 def _write_record(source_id: str, job: Dict[str, Any], draft: Dict[str, Any],
                   actor: str) -> None:
     """The durable publish record: what went live, from what, approved by whom."""
