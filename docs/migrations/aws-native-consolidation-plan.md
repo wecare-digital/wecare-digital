@@ -5,6 +5,20 @@ Tool-neutral plan (Codex, Kiro or a human). The checkbox mirror for Kiro is
 against account 775261844268 (us-east-1). Repository changes for this plan are on branch
 `feat/aws-consolidation-master-20261014`; nothing in it is deployed.
 
+## Fresh audit correction — 2026-10-16
+
+The original proposal below is a dated execution record, not an instruction to repeat
+cutovers. Current requirements and design are in `.kiro/specs/aws-native-consolidation/`.
+Fresh metadata shows 74 Lambda functions, 76 active tables, 375 HTTP routes, 7 buckets,
+20 active and 8 pending-deletion secrets, and a running `wecare-voice-bot-nano`.
+ProductsTable, CommerceKeys and CartTable have deletion protection enabled. The Meta
+product-stream mapping is enabled, the approved 21-item migration uses `WECARE.DIGITAL:`,
+and strict consumers are deployed. One historical Contribute item remains outside that
+migration. The blog-ingest DLQ has one message and recent missing `blog_pipeline` errors;
+package inspection/repair is needed before redrive. Backup retention and credential
+rotation remain separate owner-coordinated actions. Do not reintroduce a retired backend
+or create a parallel blog store from the old pre-cutover proposal.
+
 ## Working rules
 
 - Several agents share one working tree. Never `git checkout` another branch in it, never stage
@@ -21,9 +35,9 @@ against account 775261844268 (us-east-1). Repository changes for this plan are o
 | Blog | AWS-native (`SeoToolsTable`), 1,421 posts | public blog API 200 with 1,421 posts (A.6 verification below) |
 | Catalog / storefront | ProductsTable authoritative (10 / 23); media on CloudFront | `.kiro/specs/aws-native-consolidation/tasks.md` A.2 |
 | Checkout | `AWS_NATIVE`, live v53; IAM drift fixed 2026-10-15 | `evidence/live-provider-independence-20261015.md` |
-| Meta catalog sync | disabled (`META_CATALOG_SYNC_ENABLED=false`); no stream trigger | Lambda config |
-| Secrets | 19 active; shared role reads all of them | `secrets-access-matrix.md` |
-| Lightsail | NO-GO, keep Micro | `lightsail-nano-feasibility.md` |
+| Meta catalog sync | native product stream enabled; approved branded migration complete | fresh metadata, 2026-10-16 |
+| Secrets | 20 active / 8 pending deletion; reader matrix is dated evidence | fresh metadata, 2026-10-16 |
+| Lightsail | Nano running; Micro cutover/retirement completed | fresh metadata and `lightsail-nano-cutover.md` |
 | Cost | $101.30 gross in Sep, 100% credited | `aws-cost-optimization.md` |
 
 ## Applied on 2026-10-15 (owner approval: "complete all")
@@ -103,7 +117,7 @@ re-decide. Any Nano attempt follows `lightsail-nano-cutover.md` with
   exposed PAT is still valid as far as metadata shows; agents have force-deleted secrets without
   a recovery window (retired providers, 2026-10-14; see `docs/security.md`).
 - **Data:** the credential backup is 18 days old and has no lifecycle; CommerceKeys and
-  ProductsTable have deletion protection off (PITR on).
+  ProductsTable now have deletion protection enabled; backup retention is still an owner decision.
 - **SEO:** builds are green again; the static blog export must keep all 1,421 posts.
 - **Voice:** the SIP certificate expires 2026-11-18; renewal is expected around 2026-10-19 and
   the alarm fires at ≤10 days.

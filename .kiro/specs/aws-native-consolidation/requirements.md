@@ -1,107 +1,49 @@
-# Requirements — AWS-Native Consolidation & Cost Optimization
+# Requirements — AWS-native consolidation
 
-Status: DRAFT (audit complete; implementation staged behind owner-approval gates)
-Account: 775261844268 · Region: us-east-1 · Amplify app: d22dm4b0jn71jw (wecare.digital)
-Default/prod branch: `stack` · Working branch: `feat/aws-native-consolidation`
+Reconciled 2026-10-16 against stack `568bd4d2`, repository source, the full production
+export and live AWS metadata. Account 775261844268; primary region us-east-1;
+Amplify app `d22dm4b0jn71jw`. Counts and operational findings are dated observations,
+not permanent acceptance criteria. See `tasks.md` for the historical execution record.
 
-This spec governs three independent workstreams that share AWS infrastructure,
-credentials, and deployment workflows. They MUST NOT be combined into one
-production deployment. Each has its own cutover and rollback.
+## Current architecture and acceptance criteria
 
-- **Workstream A — Complete Wix removal** (blog + commerce → AWS-native).
-- **Workstream B — Secrets Manager consolidation** (cost + least-privilege).
-- **Workstream C — Lightsail Micro→Nano** feasibility / retirement.
+### A1 — Native blog
+- Published content uses the existing `stack-wecare-digital-SeoToolsTable` and native
+  storage modules. Do not create a parallel BlogPostsTable based on the obsolete design.
+- Preserve published and draft records, rich content, author/category metadata, slugs,
+  timestamps, SEO fields and media references.
+- Preserve public list/detail reads and authenticated admin editing/publishing.
+- A production build must fail on an incomplete API read rather than publish an empty
+  or truncated blog. The fresh export contains 1,421 posts.
 
-## Verified current state (evidence, 2026-10-14)
+### A2 — Native catalog and commerce
+- `stack-wecare-digital-ProductsTable` supplies catalog products, variants, integer-paise
+  prices, inventory and metadata. Generate the storefront snapshot from this store.
+- Reuse the existing cart, orders, payment attempts, reservation, refund and reconciliation
+  implementation. Preserve idempotency, payment verification and owned customer history.
+- Keep Razorpay payment identifiers, prices and settlement behavior unchanged.
+- Preserve deletion protection on ProductsTable, CommerceKeys and CartTable.
 
-- 77 Lambda functions, 85 DynamoDB tables, 7 S3 buckets, 1 Amplify app,
-  1 Lightsail `micro_3_0` instance (`wecare-voice-bot`, 1GB/2vCPU/40GB,
-  static IP `52.3.44.165`, snapshot `wecare-voice-bot-backup-20261007`).
-- 22 active Secrets Manager secrets; 13 already scheduled for deletion.
-- **Wix is still the authoritative runtime backend for BOTH blog and commerce.**
-  There is no AWS-native blog store or product catalog-of-record. The AWS layer
-  is a thin proxy/cache in front of Wix plus a DynamoDB SEO audit/draft pipeline.
-- `wecare/wix/headless-api-key` was accessed 2026-10-14 — the Wix path is live.
-- The commerce *transaction* backend (payment_attempt, order_keys, order_creation,
-  razorpay-webhook) is already AWS-native and verified; it only reads totals from
-  and writes orders back to Wix.
+### A3 — Meta publication
+- Sync reads the native product catalog. New retailer IDs use `WECARE.DIGITAL:`;
+  consumers accept only this namespace after the approved migration.
+- Preserve approval, inspection, dry-run and inventory gates. The product stream mapping
+  is enabled; do not describe sync as permanently disabled.
+- The approved 21-item migration does not resolve the separate historical Contribute
+  item. Establish publication eligibility and obtain a product decision before changing it.
 
-## Glossary of statuses
+### A4 — URL, presentation and export integrity
+- Preserve public paths, menu style, canonical URLs, metadata, JSON-LD, RSS, sitemap,
+  image paths and the complete blog search index.
+- Apply CON1 Phase 1 without silently deciding C3/C5/C6/C8/C10/C15/C18/W8.
+- Route retirement follows a separate traffic, callback and dependency audit after Phase 1.
+- Build and Route auth remain informational workflows as explicitly requested by the owner.
 
-COMPLETED · IMPLEMENTED_NOT_DEPLOYED · VERIFIED_IN_TEST · READY_FOR_OWNER_APPROVAL ·
-BLOCKED · NOT_STARTED.
-
----
-
-## Workstream A — Wix removal
-
-### Requirement A1 — AWS is authoritative for the blog
-**User story:** As the site owner, I want blog content stored and served from AWS
-so the public blog keeps working if every Wix endpoint becomes unreachable.
-
-#### Acceptance criteria
-1. WHEN the public blog list/detail is requested THEN the content SHALL be served
-   from an AWS-native store (DynamoDB + S3), with no runtime call to any
-   `wixapis.com` host.
-2. WHEN `WIX_CREDENTIALS_DISABLED=true` AND all Wix hosts are network-blocked
-   THEN `npm run build` SHALL still produce a non-empty blog and sitemap.
-3. The AWS blog store SHALL hold published posts, drafts, rich content, authors,
-   categories, tags, media refs, timestamps, slugs, SEO title/description,
-   canonical URLs, and redirect info.
-4. The existing admin Blog Studio SHALL create/edit/delete/publish against the
-   AWS store with no loss of current functionality.
-5. The export that seeds the store SHALL reconcile against fresh authoritative
-   Wix counts (published + draft) with a checksum report.
-
-### Requirement A2 — AWS is authoritative for the product catalog
-#### Acceptance criteria
-1. The AWS catalog SHALL hold products, variants/options, SKUs, prices (integer
-   minor units), currency, inventory, categories, images, draft/active/archived
-   state, SEO URLs, and tax classification.
-2. WHEN the shop static pages are generated THEN the catalog artifact SHALL be
-   produced from AWS, not from a committed Wix snapshot.
-3. `src/content/wix-catalog.json` SHALL NOT remain a permanently authoritative
-   Wix snapshot after cutover.
-4. Content/catalog publishing SHALL NOT require a whole-site Amplify rebuild for
-   routine scheduled polling.
-
-### Requirement A3 — Provider-independent commerce
-#### Acceptance criteria
-1. Server-side pricing, discounts, taxes, shipping, inventory validation, stock
-   reservation, checkout prep, order creation/finalization, customer history,
-   refund reconciliation, and fulfillment transitions SHALL have AWS-native
-   implementations that do not require Wix.
-2. The authoritative payment amount SHALL come from the AWS catalog/cart, never
-   from client-supplied prices, in integer minor units (INR paise).
-3. Checkout and webhook processing SHALL be idempotent; no duplicate charges or
-   orders; payment-signature verification preserved; order finalized only after
-   confirmed payment state (except explicitly supported non-prepaid flows).
-4. Existing Razorpay and Meta integrations SHALL be preserved. No second
-   independent payment settlement flow SHALL be created.
-
-### Requirement A4 — Meta/WhatsApp catalog sync reads AWS
-#### Acceptance criteria
-1. `wecare-meta-catalog-sync` SHALL read the AWS-native catalog.
-2. Existing catalog identity, approved products, variant mappings, inventory
-   correctness, and approval/dry-run gates SHALL be preserved.
-3. The Wix catalog-webhook dependency SHALL be removed only after AWS-native
-   product-change events are proven to drive sync.
-
-### Requirement A5 — SEO & URL preservation
-#### Acceptance criteria
-1. `/blog`, `/post/[slug]`, `/shop`, `/shop/[slug]` URLs SHALL be preserved.
-2. Metadata, canonical URLs, JSON-LD, sitemap, RSS, search index, image paths,
-   and redirects SHALL be preserved; an old-vs-new URL diff SHALL show no mass
-   404s.
-3. A content-API failure SHALL NOT cause an empty blog to be published.
-
-### Requirement A6 — Cutover gate
-WHEN all of A1–A5 are proven, source data reconciled, historical orders
-accessible, and production verified to operate with Wix API access blocked, THEN
-and only then SHALL Wix services be revoked/canceled — and only with owner
-approval.
-
----
+### A5 — Operational readiness
+- Report actual build, test, browser and AWS results. A green source test suite does not
+  establish a healthy production deployment or an empty dead-letter queue.
+- Confirm deployed package dependencies before replaying failed ingestion work.
+- Preserve rollback packages/versions and configuration for each production repair.
 
 ## Workstream B — Secrets consolidation
 
@@ -133,26 +75,16 @@ approval.
 2. If the existing shared library already satisfies this, broad refactoring SHALL
    be avoided.
 
-### Requirement B4 — Wix secret retirement (gated)
-#### Acceptance criteria
-1. `wecare/wix/headless-api-key`, `wecare/wix/catalog-webhook`,
-   `wecare/wix/app-oauth` SHALL remain until Workstream A passes acceptance.
-2. After approval: consumers removed, deployment vars removed, IAM grants removed,
-   provider access disabled, no remaining callers verified, deletion scheduled
-   with a recovery window, and production confirmed to no longer need them.
-3. Force-delete without a recovery window SHALL NOT occur unless separately and
-   explicitly approved.
+### Requirement B4 — Retired credential dependencies
+1. Retired provider credentials SHALL NOT be recreated or reintroduced through deployment defaults.
+2. Retirement requires a consumer inventory, IaC reconciliation, recovery-window review,
+   and production verification. Historical evidence is not a current runtime dependency.
+3. Force-delete without a recovery window requires separate explicit approval.
 
 ### Requirement B5 — IAM cleanup
-#### Acceptance criteria
-1. Wix-specific grants (e.g. GetSecretValue on `wecare/wix/headless-api-key`) on
-   `wecare-checkout-role`, `wecare-meta-catalog-sync-role`,
-   `wecare-wix-catalog-webhook-role`, `wecare-digital-lambda-role` SHALL be
-   removed only after confirming the apps no longer need them.
-2. The shared Lambda execution role SHALL NOT be deleted/disabled.
-3. Non-Wix grants (payment, Meta, logging, infra) SHALL be preserved.
-4. IAM changes SHALL be reconciled through IaC so obsolete access does not
-   reappear on next deploy.
+1. Remove obsolete grants only after verifying consumers and the effective policy set.
+2. Preserve the shared execution role and unrelated payment, Meta, logging and infrastructure access.
+3. Reconcile changes through IaC so obsolete access does not return on deployment.
 
 ### Requirement B6 — Backup hygiene
 #### Acceptance criteria
@@ -174,44 +106,21 @@ approval.
 
 ---
 
-## Workstream C — Lightsail Micro→Nano
+## Workstream C — Active voice host
 
-### Requirement C1 — Evidence-based capacity verdict
-#### Acceptance criteria
-1. A read-only capacity audit (free -m, df -h, lsblk, vmstat, ps, systemctl, ss,
-   Asterisk status, swap/OOM history, cert renewal) SHALL be collected IF
-   authorized host access exists; otherwise the assessment SHALL be marked
-   INCOMPLETE. Low CPU alone SHALL NOT justify a downgrade.
-2. Active service inventory SHALL distinguish required (Asterisk/SIP for Meta
-   WhatsApp Calling) from legacy (Airtel SMS proxy on :8899).
+- The fresh live metadata shows `wecare-voice-bot-nano` running on `nano_3_0`, with the
+  existing static IP attached. The old Micro migration is historical, not a pending downgrade.
+- Preserve Asterisk/SIP, TLS, customer numbers, WABA identity and Meta Calling settings.
+- Keep the retired SMS proxy absent. Required Plivo voice, AWS messaging and Sinch RCS
+  integrations are independent of that retired proxy.
+- Guest memory, swap, OOM, service and certificate health require authorized host evidence;
+  API instance state alone does not prove them healthy.
+- Backup/retention decisions and destructive host changes require explicit authorization.
 
-### Requirement C2 — Fresh-Nano migration, never in-place downgrade
-#### Acceptance criteria
-1. Because Lightsail cannot restore a larger snapshot onto a smaller bundle, the
-   plan SHALL provision a FRESH nano and migrate workload/config/certs/data.
-2. Scripts SHALL live in `scripts/lightsail-nano-migration/`, be idempotent where
-   possible, support dry-run, validate params, verify account/region, embed no
-   secrets, perform no unauthorized destructive ops, checksum transfers, and
-   include a rollback runbook.
+## Cross-workstream rules
 
-### Requirement C3 — Gated cutover
-#### Acceptance criteria
-1. The static IP SHALL move only during an approved cutover; Micro SHALL be kept
-   for rollback until acceptance; retirement SHALL be a separate approved step.
-2. No silent changes to customer phone numbers, WABA registration, or Meta
-   Calling settings.
-
----
-
-## Cross-workstream & cost
-
-### Requirement X1 — Sequencing safety
-Audits → CI → Wix export/archive → AWS blog/catalog data → store/checkout →
-e2e tests → gated Wix cutover → Wix secret/IAM cleanup → unrelated secret
-consolidation → Lightsail (independent) → final cost audit. Shared-infra
-invariants in design §Shared rules.
-
-### Requirement X2 — Honest cost model
-A deterministic script (`scripts/aws_cost_model.py`) SHALL compute every cost
-figure; POTENTIAL and REALISED savings SHALL be reported separately; marginal
-recurring savings SHALL be shown against migration effort.
+- Read-only audits do not fetch secret values. Keep provider credentials isolated by
+  consumer domain and rotation lifecycle; never create one shared mega-secret.
+- Do not combine unrelated credential, payment and voice changes in one deployment.
+- Preserve existing users, customer data, historical invoices, media, hosting and recovery data.
+- Record potential and realised cost savings separately using `scripts/aws_cost_model.py`.

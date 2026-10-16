@@ -1,5 +1,7 @@
 # Secrets access matrix
 
+Historical IAM reader snapshot; the removed catalog-webhook provisioning script is not a current consumer. Regenerate the full IAM matrix before changing permissions.
+
 Generated 2026-10-15T00:33:13Z by `scripts/secrets_access_matrix.py` from live metadata only (ListSecrets, IAM policy documents, Lambda configuration). No secret value was read.
 
 Active: **20**. Scheduled for deletion: **8** (not billed; not counted as new savings).
@@ -50,7 +52,7 @@ IAM readers = roles whose policies allow `secretsmanager:GetSecretValue` on a pa
 - `wecare/bing/api`: `.env.local.example`, `amplify/functions/shared/lambda_utils/integrations/registry.py`, `src/config/analytics.ts`, `src/content/integration-registry.json`
 - `wecare/config/webhook-registry`: `amplify/infra/webhook-registry-migration.json`, `scripts/sync_webhook_registry.py`
 - `wecare/flow-private-key`: `wecare-whatsapp-business-api.FLOW_PRIVATE_KEY_SECRET`, `.env.local.example`, `amplify/functions/messaging/whatsapp-business-api/handler.py`, `config/lambda-env-manifest.json`, `scripts/secrets_backup.py`, `src/pages/workspace/dashboard/system-architecture.tsx`
-- `wecare/github-pat`: `amplify/functions/ai/workspace-mcp/handler.py`, `amplify/infra/workspace-mcp.json`, `scripts/google-cloud-setup.sh`, `scripts/provision_wix_catalog_webhook.py`
+- `wecare/github-pat`: `amplify/functions/ai/workspace-mcp/handler.py`, `amplify/infra/workspace-mcp.json`, `scripts/google-cloud-setup.sh`
 - `wecare/google-maps`: `.github/workflows/build-test.yml`, `amplify/functions/messaging/whatsapp-templates/handler.py`, `scripts/audit_secrets_structure.py`, `scripts/block_catastrophic.py`, `scripts/check_secrets_live.py`, `scripts/maintenance_report.py`, `scripts/provision_vayulok_environment.py`, `scripts/secrets_backup.py`, `scripts/store_provider_secret.py`, `scripts/verify_public_bundle_secrets.py`, `scripts/verify_secret_hook.py`
 - `wecare/google/ads`: `.env.local.example`, `amplify/functions/ai/workspace-mcp/handler.py`, `amplify/functions/ai/workspace-mcp/provider_adapters.py`, `amplify/functions/shared/lambda_utils/integrations/registry.py`, `amplify/infra/workspace-mcp.json`, `scripts/check_secrets_live.py`, `scripts/google_products_pull.py`, `scripts/store_provider_secret.py`, `src/config/analytics.ts`, `src/content/integration-registry.json`
 - `wecare/google/cloud`: `wecare-site-language.SITE_LANGUAGE_GOOGLE_SECRET`, `.env.example`, `.github/workflows/build-test.yml`, `amplify/functions/core/site-language/handler.py`, `amplify/functions/core/vayulok-environment/handler.py`, `amplify/functions/core/vayulok-environment/resource.ts`, `amplify/functions/messaging/whatsapp-templates/handler.py`, `config/lambda-env-manifest.json`, `scripts/audit_secrets_structure.py`, `scripts/check_secrets_live.py`, `scripts/deploy_site_language.py`, `scripts/provision_maps_server_key.py` (+3 more)

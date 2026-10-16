@@ -1,5 +1,20 @@
 # Tasks — AWS-Native Consolidation & Cost Optimization
 
+## Fresh reconciliation — 2026-10-16
+
+Live metadata: 74 Lambda functions, 76 DynamoDB tables (all ACTIVE), 375 HTTP routes,
+7 S3 buckets, 20 active and 8 pending-deletion secrets, one running Nano. ProductsTable,
+CommerceKeys and CartTable have deletion protection enabled. The Meta product-stream
+mapping is enabled; the approved 21-item branded migration and strict consumer rollout
+are complete. One historical Contribute item remains a separate publication decision.
+The blog-ingest DLQ has one message; recent failures identify missing `blog_pipeline`.
+
+The record below is historical evidence from October 14/15. It must not be used as a
+current inventory or to rerun already completed cutovers. `requirements.md` and
+`design.md` now describe the current architecture.
+
+## Historical execution record
+
 Status as of 2026-10-15 06:05 IST (owner-approved changes applied 05:47-06:00 IST), measured against the live account (775261844268 / us-east-1)
 and `origin/stack` 4ee023cc. The tool-neutral plan with approval commands and rollback is
 `docs/migrations/aws-native-consolidation-plan.md` (Codex reads that one); keep both in sync.
