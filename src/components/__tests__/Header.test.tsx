@@ -385,18 +385,21 @@ describe( 'Header', () => {
     expect( css ).toContain( '.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto' );
   } );
 
-  it( 'uses the existing Material Symbols font for an icon-only Products continuation cue', () => {
+  it( 'keeps the Products continuation cue in its own row with the supplied Google double-chevron', () => {
     const { container } = render( <Header /> );
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
 
-    expect( css ).toContain( ".nav-products-more-icon{display:flex;align-items:center;justify-content:center;width:34px;height:26px" );
-    expect( css ).toContain( "font-family:'Material Symbols Rounded'" );
-    expect( css ).toContain( '.nav-products-more{position:absolute;left:50%;bottom:-4px' );
-    expect( css ).toContain( 'width:44px;height:44px' );
-    expect( css ).toContain( 'color:#d1f470' );
+    expect( css ).toContain( '.nav-products-cue-row{height:44px;display:flex;align-items:center;justify-content:center;flex:0 0 44px}' );
+    expect( css ).toContain( '.nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px' );
+    expect( css ).toContain( '.nav-products-more-icon{display:block;width:24px;height:24px;fill:currentColor}' );
+    expect( css ).toContain( 'color:#78921e' );
     expect( css ).toContain( '.nav-products-more:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 5px #1a3a2a}' );
-    expect( css ).toContain( '.nav-products-more{display:none}' );
+    expect( css ).toContain( '.nav-products-cue-row{display:none}' );
+    expect( css ).not.toContain( '.nav-products-more{position:absolute' );
     expect( css ).not.toContain( 'More products' );
+
+    const source = container.innerHTML;
+    expect( source ).toContain( 'M480-200 240-440l42-42 198 198 198-198 42 42-240 240' );
   } );
 
   it( 'uses the approved public header dimensions and brand navigation colors', () => {
