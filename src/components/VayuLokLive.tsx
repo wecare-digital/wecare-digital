@@ -4407,7 +4407,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
             <div className="vl-live-tools-right">
               <div className="vl-live-tools-head">
                 <h3>Route</h3>
-                <p>Driving time, driving distance and direct distance for one From → To pair.</p>
+                <p>Time and distance, at a glance.</p>
               </div>
 
               <article className="vl-live-tool-card is-route-tool" aria-label="Route tool">
