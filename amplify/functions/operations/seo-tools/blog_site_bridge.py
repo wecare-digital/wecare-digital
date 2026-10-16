@@ -447,6 +447,9 @@ def start_build(actor: str = "site-bridge") -> Dict[str, Any]:
             "event": "blog_site_build_check_schedule_failed",
             "jobId": job_id, "generation": generation, "queue": queued,
         }))
+        return _fail_build(
+            job_id,
+            "Amplify build started, but its completion check could not be queued")
 
     logger.info(json.dumps({
         "event": "blog_site_build_started", "jobId": job_id,
@@ -856,14 +859,24 @@ def verify_article(source_id: str, job_id: str, attempt: int = 1,
         queued = blog_queue.enqueue_site_verify(
             [source_id], job_id, attempt=attempt + 1,
             delay_seconds=VERIFY_RETRY_DELAY_SECONDS)
-        logger.info(json.dumps({
-            "event": "blog_site_verify_retry",
-            "sourceId": source_id, "jobId": job_id, "attempt": attempt,
-            "failedAssertions": site.get("failedAssertions") or [],
-        }))
-        return {
-            "sourceId": source_id, "jobId": job_id, "status": "RETRYING",
-            "attempt": attempt, "site": site, "queue": queued,
+        if int(queued.get("queued") or 0) == 1:
+            logger.info(json.dumps({
+                "event": "blog_site_verify_retry",
+                "sourceId": source_id, "jobId": job_id, "attempt": attempt,
+                "failedAssertions": site.get("failedAssertions") or [],
+            }))
+            return {
+                "sourceId": source_id, "jobId": job_id, "status": "RETRYING",
+                "attempt": attempt, "site": site, "queue": queued,
+            }
+        # There is no retry if the retry message itself did not enter SQS. Fall through and
+        # record a terminal failure so verifyRemaining is decremented and the generation closes.
+        site = {
+            **site,
+            "failedAssertions": list(site.get("failedAssertions") or [])
+                                + ["SITE_VERIFY_RETRY_QUEUE"],
+            "failed": int(site.get("failed") or 0) + 1,
+            "verified": False,
         }
 
     success = backend_ok and site_ok
