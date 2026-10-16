@@ -221,3 +221,17 @@ def test_only_bridge_can_move_article_to_final_verified(env, monkeypatch):
     ]
     assert len(reports) == 1
     assert reports[0]["status"] == "VERIFIED"
+
+
+
+def test_deploy_uses_managed_policy_for_amplify_bridge():
+    """The shared role is already at its aggregate inline-policy byte ceiling."""
+    source = (ROOT / "scripts" / "deploy_seo_tools.py").read_text(encoding="utf-8")
+    assert 'AMPLIFY_BRIDGE_POLICY_NAME = "wecare-blog-site-bridge-amplify"' in source
+    assert '"amplify:StartJob", "amplify:GetJob"' in source
+    assert 'branches/{AMPLIFY_BRANCH}/jobs/*' in source
+    assert "attach_role_policy" in source
+    # The Amplify actions must not be added back to the already-full source-intake inline policy.
+    intake = source.split("def ensure_blog_source_perms()", 1)[1].split(
+        "def ensure_blog_site_bridge_perms()", 1)[0]
+    assert "amplify:StartJob" not in intake
