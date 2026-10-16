@@ -62,6 +62,11 @@ def _openai_key() -> str:
     return _join("sk", "-", "proj", "-", "b7Kq2Xn" * 6)
 
 
+def _aws_key() -> str:
+    """Synthetic AWS-shaped value assembled at runtime, never stored literally."""
+    return _join("AK", "IA", "AB12", "CD34", "EF56", "GH78")
+
+
 BENIGN_GOOGLE = _google_key("browserkey0")
 SERVER_GOOGLE = _google_key("serverkey0")
 
@@ -189,6 +194,36 @@ def test_the_aws_documentation_example_key_is_not_a_finding(export):
     failures, _ = _scan(export, "page-mno.js")
 
     assert failures == []
+
+
+def test_unknown_aws_credential_shape_still_fails(export):
+    """The numcodecs exception must not weaken the default AWS credential gate."""
+    value = _aws_key()
+    _write(export, "page-aws.js", f'var k="{value}";')
+
+    failures, allowed = _scan(export, "page-aws.js")
+
+    assert [f["kind"] for f in failures] == ["aws access key"]
+    assert allowed == []
+
+
+def test_exact_benign_aws_fingerprint_can_be_allowlisted(export, monkeypatch):
+    """Only an exact verified fingerprint may bypass the AWS-shaped token gate."""
+    value = _aws_key()
+    monkeypatch.setitem(vpbs.BENIGN_AWS_FINGERPRINTS,
+                        vpbs.fingerprint(value), "synthetic dependency fixture")
+    _write(export, "page-codec.js", f'var k="{value}";')
+
+    failures, allowed = _scan(export, "page-codec.js")
+
+    assert failures == []
+    assert allowed == []
+
+
+def test_verified_numcodecs_fingerprints_are_pinned():
+    assert {
+        "1cbb1adb8621", "7fb6cb4173b3", "25b3c9880103", "a319dbdf2041",
+    } <= set(vpbs.BENIGN_AWS_FINGERPRINTS)
 
 
 def test_numcodecs_false_positive_exception_is_exact_and_fingerprint_only():
