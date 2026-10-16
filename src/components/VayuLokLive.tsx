@@ -94,7 +94,7 @@ const FALLBACK_CURRENCY_CODES = [
   'CNY', 'KRW', 'THB', 'NZD', 'BRL', 'ZAR', 'SAR', 'IDR', 'MYR', 'HKD',
 ];
 
-const CURRENCY_CODES = ( () => {
+function supportedCurrencyCodes(): string[] {
   try {
     const values = ( Intl as unknown as { supportedValuesOf?: ( key: string ) => string[] } ).supportedValuesOf?.( 'currency' );
     if ( Array.isArray( values ) && values.length ) {
@@ -103,7 +103,7 @@ const CURRENCY_CODES = ( () => {
     }
   } catch { /* use the compact fallback list */ }
   return FALLBACK_CURRENCY_CODES;
-} )();
+}
 
 // Continuous AQI heatmap TILE overlay (the organic, blob-shaped pollution cloud from the
 // reference). The AQI "Heatmap" switch paints Google's Air Quality heatmapTiles onto the
@@ -1187,6 +1187,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ fxAmount, setFxAmount ] = useState( '1000' );
   const [ fxBase, setFxBase ] = useState( 'INR' );
   const [ fxQuote, setFxQuote ] = useState( 'GBP' );
+  // Keep the static export and first browser render identical. Node and Chromium
+  // can ship different ICU currency tables, so expand the list only after mount.
+  const [ currencyCodes, setCurrencyCodes ] = useState<string[]>( FALLBACK_CURRENCY_CODES );
   const [ fxRate, setFxRate ] = useState<FxRateState | null>( null );
   const [ fxLoading, setFxLoading ] = useState( false );
   const [ fxError, setFxError ] = useState( false );
@@ -1271,6 +1274,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     setClockNow( Date.now() );
     const timer = window.setInterval( () => setClockNow( Date.now() ), 30_000 );
     return () => window.clearInterval( timer );
+  }, [] );
+
+  useEffect( () => {
+    setCurrencyCodes( supportedCurrencyCodes() );
   }, [] );
 
   useEffect( () => {
@@ -4244,7 +4251,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                     } }
                     aria-label="From currency"
                   >
-                    { CURRENCY_CODES.map( code => <option key={ code } value={ code }>{ code }</option> ) }
+                    { currencyCodes.map( code => <option key={ code } value={ code }>{ code }</option> ) }
                   </select>
                 </label>
                 <button type="button" className="vl-live-tool-swap is-horizontal" onClick={ swapFxPair } aria-label="Swap currencies">⇄</button>
@@ -4260,7 +4267,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                     } }
                     aria-label="To currency"
                   >
-                    { CURRENCY_CODES.map( code => <option key={ code } value={ code }>{ code }</option> ) }
+                    { currencyCodes.map( code => <option key={ code } value={ code }>{ code }</option> ) }
                   </select>
                 </label>
               </div>
