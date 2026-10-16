@@ -21,7 +21,8 @@ for anything **live or secret**. So this kit is split cleanly:
 **In git (this repo) — the rebuild material:**
 
 - All application code — `src/` (Next.js frontend).
-- All **78 Lambda handlers** — `amplify/functions/**` across 9 domains.
+- All **78 Lambda handlers** — `amplify/functions/**` across 8 domains (plus the
+  bundled `shared` library).
 - All infrastructure definitions — `amplify/*.ts` (CDK) and the
   `scripts/provision_*.py` fleet (boto3).
 - The portable fleet deployer — `scripts/deploy_all_lambdas.py`.
@@ -145,7 +146,7 @@ The full phased approach is in `../backup-and-dr-plan.md` §7. The short version
 
 ## Keeping this kit honest
 
-This README names counts (78 handlers, 9 domains) that are true at the time of
+This README names counts (78 handlers, 8 domains) that are true at the time of
 writing but will drift. The living sources of truth are:
 
 - `scripts/deploy_all_lambdas.py --list` — the real function map.
@@ -154,3 +155,25 @@ writing but will drift. The living sources of truth are:
 Trust those two over any number written here. If you add a Lambda, it belongs in
 the `SPECS` list with its `provisioned_by` script — that is what keeps it inside
 the recovery path automatically, instead of being a function nobody can redeploy.
+
+### This kit checks itself
+
+Staleness is not left to memory. Two mechanisms keep this kit matching reality:
+
+- **`scripts/check_recovery_kit_drift.py`** re-derives the handler count, the
+  domain list, and the table/secret counts from source and compares them to what
+  this README and `../architecture.md` claim. Run it any time; use `--gate` in CI
+  (exit 1 on a hard mismatch — handler count or domain list — exit 0 otherwise):
+  ```bash
+  python scripts/check_recovery_kit_drift.py          # report
+  python scripts/check_recovery_kit_drift.py --gate   # CI gate
+  ```
+- **Hook `.kiro/hooks/warn-recovery-kit-drift.json`** runs that check
+  automatically after you save a Lambda `handler.py`, a `provision_*.py`, the
+  deploy map, or any `amplify/*.ts`, and warns (non-blocking) when the docs have
+  fallen behind. So the moment you add or move a function, you are reminded to
+  refresh the two docs — the kit cannot silently rot.
+
+When the check flags a table/secret count, re-run `aws_account_inventory.py` first
+(the snapshot it compares against lags the account), then update the "~N" figures
+here and in `../architecture.md`.
