@@ -510,6 +510,7 @@ def test_revision_cannot_change_the_live_slug(env, monkeypatch):
     draft = dict(env["bs"].get_source(source_id)["draftRecord"])
     draft["contentMarkdown"] += "\n\nA signed revision with a changed URL."
     draft["slug"] = "a-different-live-url"
+    draft["canonical"] = q.expected_canonical(draft["slug"])
     env["table"].items[source_id]["draftRecord"] = env["storage"]._clean(draft)
     _resign_after_edit(env, source_id)
 
