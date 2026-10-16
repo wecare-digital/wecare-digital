@@ -106,15 +106,33 @@ live reader before letting the deletion complete.
 
 ---
 
-## 4. Route authorization — 373 of 375 routes have no authorizer
+## 4. Route authorization — RESOLVED, posture is sound (verified 2026-10-16)
 
-Only one authorizer exists account-wide. This is likely by design (most handlers
-do their own in-code auth / are intentionally public), but a 373-wide "none" is
-worth an explicit confirmation rather than an assumption. **Recommendation:**
-cross-check against `scripts/audit_route_auth.py` / the existing
-`route-auth-audit` evidence and record which routes are *intentionally* public vs
-in-handler-gated, so the gap is documented truth, not a blind spot. Not a
-mutation — a documentation/verification task.
+The raw inventory's "373/375 no authorizer" is **in-handler auth by design**, not
+a gap. `scripts/audit_route_auth.py` run live against the HTTP API
+(`zllr9lrg7j`, 375 routes) reports **0 OPEN** (no auth at either layer):
+
+- **341** — gateway `NONE`, handler authenticates via
+  `lambda_utils.middleware.require_auth`.
+- **2** — gateway-authorized.
+- **8** — intentionally public, each with a documented reason: `ANY /mcp`
+  (read-only MCP over public content), `GET /ecommerce/service-prices`
+  (anonymous price read, no input, cannot mutate), `GET /r/{code}` (short-link
+  redirect), `GET|POST /webhook/sinch-rcs` (GET health probe; POST carries HMAC),
+  `GET /workspace/mcp/oauth/callback` (PKCE + one-use state), `POST
+  /auth/email-verification` (email-OTP door, no write), `POST /auth/validate`
+  (token validation — authenticating it would be circular).
+- **0 DANGLING**, **2 UNRESOLVED** — `GET /seo-tools/blog-public` and
+  `/{proxy+}` → `wecare-blog-public`. Checked by hand: this is the AWS-native
+  **public blog read** path (consolidation req A1 wants anonymous blog reads);
+  the function is read-only and unauthenticated **by design**. The "unresolved"
+  is only a source-path naming gap in the audit script (the deployed function's
+  code isn't under a `blog_public`-named repo path), not a missing auth.
+
+**Verdict:** no action needed on route auth. Keep `audit_route_auth.py` in CI
+(it already runs in `.github/workflows/route-auth.yml`) so a future `NONE` route
+without in-handler auth is caught the way the 2026-09-20 `voice-cdr-webhook`
+hole was.
 
 ---
 
@@ -193,16 +211,15 @@ Already realised: Wix secret deletions (−$1.20), Lightsail Nano (−$2.00).
 
 ## 7. Repo-side cleanup candidates
 
-- **`scripts/aws_cost_model.py` live-count bug.** `--live` fails with
-  `invalid literal for int() with base 10: '50\n22'` and silently falls back to
-  recorded counts — a count query returns two lines and the parser expects one.
-  Low-risk fix (take the right line / sum). This one *is* local and reversible;
-  worth fixing directly.
-- **Audit evidence sprawl.** ~40 audit/inventory docs under `docs/` and
-  `docs/execution/`, several dated and overlapping (`AWS_CONSOLIDATION_AUDIT.md`,
-  `BACKEND_FULL_AUDIT.md`, `FRONTEND_*_AUDIT.md`, multiple `*-inventory.md`).
-  Candidate for a single index that marks which are current vs. superseded,
-  rather than deleting measured evidence.
+- **`scripts/aws_cost_model.py` live-count bug — FIXED this pass.** `--live`
+  crashed with `invalid literal for int(): '50\n22'` because `length(...)` queries
+  on paginated ListSecrets/DescribeAlarms print one number per page. Now counts
+  ARNs/names across pages; 6 tests pass. Committed.
+- **Audit evidence sprawl — INDEXED this pass.** ~40 audit/inventory docs under
+  `docs/`. Rather than delete measured evidence, built `docs/audit-doc-index.md`
+  classifying each as CURRENT / SUPERSEDED (with its replacement) / POINT-IN-TIME.
+  Superseded living docs flagged: `AWS_COST_CONTROL.md`,
+  `AWS_CONSOLIDATION_AUDIT.md`, `FRONTEND_DUPLICATION_AUDIT.md`.
 - **`.venv` absent on this host.** Steering `10-project.md` assumes a repo at
   `/Users/wecaredigital/wecare-digital` with a `.venv`; on this machine the git
   root is the workspace itself and no `.venv` exists. This audit used a throwaway
@@ -229,6 +246,20 @@ reverse and waits for explicit approval.
 4. Clean the stale IAM grants (5a/5b) and the dangling alarm (5c) via IaC —
    small, approve as a batch.
 5. Classify / confirm-delete the 4 unlisted secrets (3b).
-6. Document route-auth intent (4) — verification, no mutation.
-7. Owner cost decisions + credit-balance check (6).
-8. Shared-role allow-list via customer-managed policies (3a / B-1b).
+6. Route-auth intent (4) — **DONE**: verified 0 OPEN routes; posture sound.
+7. Audit-doc sprawl — **DONE**: `docs/audit-doc-index.md` (current/superseded/
+   point-in-time). Scripts dead-code: left to deliberate per-script owner review.
+8. Owner cost decisions + credit-balance check (6).
+9. Shared-role allow-list via customer-managed policies (3a / B-1b).
+
+## Done autonomously this session (local, reversible)
+
+- Fixed `scripts/aws_cost_model.py` pagination bug (6 tests pass).
+- Diagnosed the blog-ingest DLQ alarm to root cause (stale deploy).
+- Verified route-auth posture (0 OPEN) with `audit_route_auth.py`.
+- Built `docs/audit-doc-index.md`.
+- Wrote owner runbooks: B-0 root keys, GitHub PAT rotation.
+- Refreshed `docs/execution/aws-inventory.json` from a live run.
+
+Everything production-mutating or credential-related is left staged for owner
+approval, per the safety rules — not auto-executed even in Autopilot.
