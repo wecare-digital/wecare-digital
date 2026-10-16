@@ -392,8 +392,8 @@ describe( 'Header', () => {
     expect( css ).toContain( '.nav-products-cue-row{height:44px;display:flex;align-items:center;justify-content:flex-end;flex:0 0 44px;padding-inline-end:4px' );
     expect( css ).toContain( '.nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px' );
     expect( css ).toContain( 'border-radius:50%;background:#d1f470;color:#1a3a2a' );
-    expect( css ).toContain( '.nav-products-more:hover{background:#1a3a2a;color:#d1f470}' );
-    expect( css ).toContain( "font-family:'Material Symbols Rounded'" );
+    expect( css ).not.toContain( '.nav-products-more:hover{' );
+    expect( css ).toContain( '.nav-products-more-icon{display:block;width:26px;height:26px;fill:currentColor}' );
     expect( css ).toContain( '.nav-products-cue-row{display:none}' );
     expect( css ).not.toContain( '.nav-products-more{position:absolute' );
     expect( css ).not.toContain( 'More products' );
@@ -423,7 +423,9 @@ describe( 'Header', () => {
     try {
       fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
       const cue = screen.getByRole( 'button', { name: 'Scroll to more products' } );
-      expect( cue.textContent ).toBe( 'keyboard_double_arrow_down' );
+      expect( cue.textContent ).toBe( '' );
+      expect( cue.querySelector( 'svg.nav-products-more-icon path' )?.getAttribute( 'd' ) )
+        .toContain( 'M480-200 240-440l42-42 198 198' );
     } finally {
       matchMedia.mockRestore();
       if ( scrollHeight ) Object.defineProperty( HTMLElement.prototype, 'scrollHeight', scrollHeight );
@@ -469,13 +471,13 @@ describe( 'Header', () => {
      * that they were separate declarations drifting apart.
      */
     expect( css ).toContain( ".nav-trigger:hover,.nav-trigger:focus-visible,.nav-trigger[aria-expanded='true']" );
-    expect( css ).toContain( 'background:#d1f470;border-color:#1a3a2a;border-width:2px' );
+    expect( css ).toContain( 'background:#d1f470;outline:none' );
     // The dark fill is GONE as a declaration, not merely overridden. Comments stripped first:
     // the rule above cites #1a3a2a as the border colour and documents the fill it replaced, and
     // a substring search cannot tell a citation from a declaration.
     expect( css.replace( /\/\*[\s\S]*?\*\//g, '' ) ).not.toContain( 'background:#1a3a2a' );
-    // border-width is transitioned, or the 1px -> 2px step snaps while the colours glide.
-    expect( css ).toContain( 'border-width .18s ease' );
+    // The trigger is borderless in every visual state; only its background animates.
+    expect( css ).not.toContain( 'border-width .18s ease' );
 
     /*
      * THE FOCUS RING IS TWO-TONE, AND BOTH STOPS ARE LOAD-BEARING.
@@ -507,16 +509,19 @@ describe( 'Header', () => {
 
     // The main dropdown control now uses the Google Material keyboard_arrow_down glyph.
     const trigger = screen.getByRole( 'button', { name: 'Open navigation' } );
-    const triggerIcon = trigger.querySelector( '.nav-trigger-icon' );
+    const triggerIcon = trigger.querySelector( 'svg.nav-trigger-icon' );
     expect( triggerIcon ).not.toBeNull();
-    expect( triggerIcon?.textContent ).toBe( 'keyboard_arrow_down' );
+    expect( triggerIcon?.textContent ).toBe( '' );
     expect( triggerIcon?.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
-    expect( css ).toContain( ".nav-trigger-icon{display:block;margin:0;color:#1a3a2a;font-family:'Material Symbols Rounded'" );
+    expect( triggerIcon?.querySelector( 'path' )?.getAttribute( 'd' ) )
+      .toBe( 'M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z' );
+    expect( css ).toContain( '.nav-trigger-icon{display:block;width:27px;height:27px;margin:0;fill:#1a3a2a' );
     expect( css ).toContain( ".nav-trigger[aria-expanded='true'] .nav-trigger-icon{transform:rotate(180deg)}" );
     expect( css.replace( /\/\*[\s\S]*?\*\//g, '' ) ).not.toContain( '.nav-arrow{' );
 
     // The main dropdown panel keeps its radius/background/shadow but no longer draws an outer
     // grey border or lime top rule.
+    expect( css ).toContain( '.nav-trigger{min-width:46px;min-height:46px;background:#f4f7ee;border:0' );
     expect( css ).toContain( 'background:#fcfdfb;border:0;border-radius:14px' );
     expect( css.replace( /\/\*[\s\S]*?\*\//g, '' ) ).not.toContain( 'border-top:3px solid #d1f470' );
   } );
