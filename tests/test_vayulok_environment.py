@@ -231,6 +231,24 @@ def test_route_drive_rejects_extra_cost_controls(mod):
     upstream.assert_not_called()
 
 
+def test_route_drive_missing_endpoint_is_a_400_not_a_server_error(mod):
+    with patch.object(mod, "_google_json") as upstream:
+        resp = mod.handler(
+            event(
+                {
+                    "operation": "route_drive",
+                    "originLatitude": 22.5726,
+                    "originLongitude": 88.3639,
+                    "destinationLatitude": 23.5204,
+                }
+            ),
+            None,
+        )
+    assert resp["statusCode"] == 400
+    assert body(resp)["error"] == "invalid_request"
+    upstream.assert_not_called()
+
+
 def test_route_drive_cache_key_is_endpoint_specific(mod):
     first = mod._cache_key(
         "route_drive",
