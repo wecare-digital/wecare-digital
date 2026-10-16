@@ -1828,6 +1828,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( utilitySearches ).toHaveLength( 4 );
     for ( const utilitySearch of utilitySearches ) {
       expect( utilitySearch.getAttribute( 'aria-autocomplete' ) ).toBe( 'list' );
+    }
+    // The field we just searched owns live suggestions, so it is correctly expanded.
+    // The other three independent utility searches remain closed.
+    expect( input.getAttribute( 'aria-expanded' ) ).toBe( 'true' );
+    for ( const utilitySearch of utilitySearches.filter( field => field !== input ) ) {
       expect( utilitySearch.getAttribute( 'aria-expanded' ) ).toBe( 'false' );
     }
   } );
@@ -1855,7 +1860,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( fxCalls() ).toHaveLength( 1 );
     expect( await screen.findByText( /£17\.8/ ) ).toBeTruthy();
 
-    const fromCurrency = screen.getByRole( 'searchbox', { name: 'From currency' } ) as HTMLInputElement;
+    // The currency-code input owns a datalist, which gives it the implicit combobox role.
+    const fromCurrency = screen.getByRole( 'combobox', { name: 'From currency' } ) as HTMLInputElement;
     fireEvent.change( fromCurrency, { target: { value: 'USD' } } );
     expect( fromCurrency.value ).toBe( 'USD' );
   } );
@@ -1874,7 +1880,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       onerror: ( () => void ) | null = null;
       onresult: ( ( event: { results: Array<Array<{ transcript: string }>> } ) => void ) | null = null;
       constructor() { speech = this; }
-      start() { this.onstart?.(); }
+      start() { speech = this; this.onstart?.(); }
       stop() { this.onend?.(); }
       abort() { /* cleanup only */ }
     }
