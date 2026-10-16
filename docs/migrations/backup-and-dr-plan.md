@@ -352,14 +352,24 @@ Mirror the Lightsail migration discipline that is already proven in this repo:
 - [x] **S3 cross-region replication** — `wecare-digital-get` →
   `wecare-digital-get-replica-usw2` (us-west-2) via
   `scripts/provision_s3_replication.py`.
+- [x] **Cross-ACCOUNT backup (2026-10-16)** — dedicated backup account
+  `991322955408` (WECARE DIGITAL BHARATWORKS) joined org `o-plhlfh8drl`. Two
+  off-account copies: AWS Backup cross-account copy of every recovery point into the
+  backup account's vault (own governance Vault Lock; prod may copy-in, not delete),
+  and S3 cross-account replication of the media bucket with destination ownership.
+  `provision_cross_account_backup.py` + `provision_backup_account_side.py` +
+  `provision_s3_replication_xacct.py`. This is the protection against losing the
+  production account itself.
 
 **Open:**
 
-1. **Vault Lock** on the backup vault (owner decision — irreversible in compliance
-   mode). Bake PITR + the `backup=daily` tag into every `provision_*_table.py`.
-2. **Cross-ACCOUNT** replication/backup copy once a second AWS account exists — the
-   only protection against a compromise of the primary account. Also run a one-time
-   S3 Batch Replication job to backfill the media objects that predate CRR.
+1. **Backfill pre-existing media into the cross-account bucket** (replication copies
+   only new writes; the us-west-2 region replica is already fully backfilled, so no
+   media is unprotected meanwhile).
+2. **Compliance-mode Vault Lock on the backup account's vault** — strongest insider
+   control, irreversible, deliberate owner decision
+   (`provision_backup_account_side.py --apply --compliance-lock`, run in 991322955408).
+3. **Finish `table_backup_defaults.apply` rollout** to the remaining table scripts.
 3. **Quarterly restore drills** for S3 and secrets (DynamoDB is done).
 4. Keep the GCP mirror current; re-run the independence checks in CI.
 
