@@ -20,9 +20,10 @@ describe( 'Header', () => {
   it( 'links the navigation trigger to its controlled menu for assistive technology', () => {
     render( <Header /> );
     const trigger = screen.getByRole( 'button', { name: 'Open navigation' } );
+    expect( trigger ).toHaveAttribute( 'aria-controls', 'public-navigation-menu' );
+    fireEvent.click( trigger );
     const menu = screen.getByRole( 'navigation', { name: 'Public navigation' } );
     expect( menu ).toHaveAttribute( 'id', 'public-navigation-menu' );
-    expect( trigger ).toHaveAttribute( 'aria-controls', 'public-navigation-menu' );
   } );
 
   it( 'opens external menu destinations through Capacitor Browser in a native app shell', async () => {
@@ -407,7 +408,8 @@ describe( 'Header', () => {
     const { container } = render( <Header /> );
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
     expect( css ).toContain( 'width:min(760px,var(--nav-menu-available-width,760px))' );
-    expect( css ).not.toContain( 'calc(100vw - 256px)' );
+    const cssWithoutComments = css.replace( /\/\*[\s\S]*?\*\//g, '' );
+    expect( cssWithoutComments ).not.toContain( 'calc(100vw - 256px)' );
     expect( css ).toContain( 'max-height:calc(100vh - 140px)' );
     expect( css ).toContain( 'max-height:calc(100dvh - 140px - env(safe-area-inset-bottom, 0px))' );
     expect( css ).toContain( 'env(safe-area-inset-left,0px)' );
