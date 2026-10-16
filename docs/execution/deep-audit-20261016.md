@@ -144,11 +144,28 @@ it's unreferenced, then remove.
 
 Surfaced by the fresh inventory crosschecks (`docs/execution/aws-inventory.json`):
 
-- **`wecare-blog-ingest-dlq-depth` is in ALARM.** The blog-ingest dead-letter
-  queue has depth — messages are failing into the DLQ. This is a live
-  operational signal, not stale config; investigate what is failing on the
-  blog-ingest path (ties to the recent `fix: restore blog ingestion package`
-  commit). Not a mutation to make here — a thing to triage.
+- **`wecare-blog-ingest-dlq-depth` is in ALARM — DIAGNOSED 2026-10-16.** The DLQ
+  holds **1 message** (threshold `>0`): source `blogsrc_b2b75d…` =
+  `A New Model of Integrity … .pdf`, dead-lettered after 5 retries on 2026-10-15
+  07:16–07:40 UTC. CloudWatch logs give the exact cause:
+  `ModuleNotFoundError: No module named 'blog_pipeline'` at `blog_sources.py:689`
+  (`import blog_pipeline as bp`).
+
+  Root cause is a **stale deployment, not a code bug.** The live `wecare-seo-tools`
+  bundle (deployed 2026-10-15 08:25 UTC, 339 KB) is missing `blog_pipeline.py`,
+  `blog_quality_v2.py`, and vendored `pypdf` — it predates the #570 packaging fix.
+  Verified by downloading the live code (only `seo_tools_handler.py` at root) and
+  by building from current `stack`, which correctly yields a 1.5 MB zip with all
+  three via `scripts/deploy_seo_tools.package()`. The source record is still
+  `status=UPLOADED` with an empty `error` because the import failed before `_fail`
+  could record it.
+
+  **Resolution (🔒 owner — both are production mutations, low-risk, well-tested):**
+  1. Redeploy `wecare-seo-tools` from current `stack` (the SEO-tools deploy
+     workflow). `tests/test_seo_package_contract.py` gates this exact regression.
+  2. Then redrive the one DLQ message (admin `blog_queue.redrive()` via the
+     seo-tools route) so the PDF re-extracts. Do not redrive before the redeploy
+     or it fails a 6th time.
 - **`wecare-ddb-throttle-UsersTable` watches a deleted table.** Its dimension
   `TableName=stack-wecare-digital-UsersTable` points at a table that no longer
   exists, so the alarm can never evaluate meaningfully. Delete the alarm (same
@@ -206,7 +223,9 @@ reverse and waits for explicit approval.
 1. **B-0 root keys** — highest blast radius, do first.
 2. Fix the cost-model live-count bug — **DONE in this pass** (local, reversible;
    `scripts/aws_cost_model.py`, 6 tests pass).
-3. Triage the firing `wecare-blog-ingest-dlq-depth` alarm (5c) — live signal.
+3. Firing `wecare-blog-ingest-dlq-depth` alarm (5c) — **DIAGNOSED**: stale
+   `wecare-seo-tools` deploy missing `blog_pipeline`. Owner: redeploy, then
+   redrive the 1 DLQ message.
 4. Clean the stale IAM grants (5a/5b) and the dangling alarm (5c) via IaC —
    small, approve as a batch.
 5. Classify / confirm-delete the 4 unlisted secrets (3b).
