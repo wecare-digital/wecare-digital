@@ -651,7 +651,7 @@
 
     // Default selection + live refresh, exactly like the GPU path. selectCity
     // handles the panel, accent and the (keyless-safe) first fetch.
-    selectCity(DEFAULT_CITY);
+    selectCity(DEFAULT_CITY,false);
     const def=layer.querySelector(`.fallback-dot[data-city="${DEFAULT_CITY}"]`);
     if(def){def.classList.add('is-active');def.setAttribute('aria-pressed','true');}
     setInterval(refreshLiveData,10*60*1000);
@@ -1244,7 +1244,7 @@
     const ids=cityData.size?[...cityData.keys()]:[selectedCity||DEFAULT_CITY];
     await Promise.allSettled(ids.map(loadCityData));
   }
-  function selectCity(cityId){
+  function selectCity(cityId,notifySelection=true){
     if(!CITY_BY_ID.has(cityId))return;
     // Re-selecting the city that is already active is the RETRY gesture: a
     // previous attempt that failed outright was never cached, so this refetches.
@@ -1271,7 +1271,7 @@
     if(cityData.has(cityId))setCityMeta(cityId,ageLabel(cityData.get(cityId).fetchedAt));
     if(!cityData.has(cityId))loadCityData(cityId);
     const meta=CITY_BY_ID.get(cityId);
-    if(meta)notifyParent('select-location',{city:{id:meta.id,name:meta.name,lat:meta.lat,lng:meta.lon},mode:activeLayer});
+    if(notifySelection&&meta)notifyParent('select-location',{city:{id:meta.id,name:meta.name,lat:meta.lat,lng:meta.lon},mode:activeLayer});
   }
   toggle.addEventListener('click', () => {
     activeLayer = activeLayer === 'weather' ? 'air' : 'weather';
@@ -1283,10 +1283,22 @@
     notifyParent('mode',{mode:activeLayer});
   });
 
+  window.addEventListener('message',e=>{
+    if(e.origin!==window.location.origin||e.data?.source!=='vayulok-page')return;
+    if(e.data?.type==='mode'&&(e.data.mode==='air'||e.data.mode==='weather')&&e.data.mode!==activeLayer){
+      activeLayer=e.data.mode;
+      const weatherOn=activeLayer==='weather';
+      toggle.setAttribute('aria-checked',String(weatherOn));
+      stage.dataset.layer=activeLayer;
+      layerTarget=weatherOn?1:0;
+      renderCityData();
+    }
+  });
+
   // The globe's home rotation faces India, so Delhi is the sensible default
   // selection. selectCity also performs its first (and only) fetch.
   buildMarkers();
-  selectCity(DEFAULT_CITY);
+  selectCity(DEFAULT_CITY,false);
   notifyParent('mode',{mode:activeLayer});
   setInterval(refreshLiveData, 10 * 60 * 1000);
   setInterval(refreshCityMeta, 30 * 1000);
