@@ -9,6 +9,7 @@ import { SHOP_PRODUCTS, shopProductBySlug } from '../../content/shop';
 import type { ShopProduct } from '../../content/shop';
 import { addItem } from '../../lib/cart';
 import Select from '../../components/ui/Select';
+import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, PRODUCT_SKU_BY_SLUG } from '../../content/productCommerce';
 
 /**
  * /shop/<slug>/ - one page per catalogue item.
@@ -45,6 +46,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
   // no-JS load still shows a coherent page.
   const [ variantId, setVariantId ] = useState<string>( '' );
   const [ added, setAdded ] = useState<boolean>( false );
+  const sku = PRODUCT_SKU_BY_SLUG[ product.slug ];
 
   const onAdd = useCallback( (): void => {
     addItem( product, 1, variantId || undefined );
@@ -75,6 +77,9 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             {/* The price sits with the action, not in the top band. data-wc-no-translate because a
                 translated "₹24,999.00" is a different number in a different grouping convention. */}
             <p className="shopd-price" data-wc-no-translate="true">{ product.formattedPrice }</p>
+            { sku && (
+              <p className="shopd-sku" data-wc-no-translate="true"><strong>SKU:</strong> { sku }</p>
+            ) }
 
             { !product.inStock && (
               <p className="shopd-oos" role="status">Not available right now.</p>
@@ -136,6 +141,12 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
                 lime surface is already spent on the button above. Shortened on owner instruction
                 with nothing dropped: where the price came from, who decides the amount, and that
                 nothing is charged. */}
+            { sku && (
+              <div className="shopd-policy">
+                <strong>{ PRODUCT_POLICY_TITLE }</strong>
+                <p>{ PRODUCT_POLICY_TEXT }</p>
+              </div>
+            ) }
             <p className="shopd-note">
               Review your final total in the cart before payment.
             </p>
@@ -189,6 +200,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;
             color:#1a3a2a;margin:0;font-variant-numeric:tabular-nums;
           }
+          .shopd-sku{margin:10px 0 0;font-size:13px;line-height:1.3;color:rgba(0,0,0,.54);letter-spacing:.04em;text-transform:uppercase}
           .shopd-oos{margin:12px 0 0;font-size:16px;font-weight:700;line-height:1.4;color:rgba(0,0,0,.54)}
 
           .shopd-about{margin:0}
@@ -219,6 +231,11 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              site reads the same: near-white #fcfdfb surface, 1px hairline, 14px radius, 22px
              padding, legal-copy type 17px/400/1.55/-.05px on rgba(0,0,0,.898). Was a transparent
              16px/faded aside. 1px static, per the rule: 1px static, 2px hoverable. */
+          .shopd-policy{
+            margin:18px 0 0;padding:14px 16px;border:1px solid #e5e7eb;border-radius:12px;
+            background:#fcfdfb;font-size:14px;line-height:1.5;color:rgba(0,0,0,.72);
+          }
+          .shopd-policy p{margin:6px 0 0}
           .shopd-note{
             margin:34px 0 0;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
             background:#fcfdfb;
