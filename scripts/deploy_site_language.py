@@ -38,7 +38,6 @@ ALIAS_NAME = "live"
 # request origin and never follows a redirect to satisfy CORS.
 ALLOWED_ORIGINS = [
     "https://wecare.digital",
-    "https://www.wecare.digital",
 ]
 
 # Throttle applied to the site-language routes ONLY.
