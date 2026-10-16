@@ -224,6 +224,47 @@ const flattenMenuLinks = (): SearchableNavLink[] => {
 
 const MENU_SEARCH_LINKS = flattenMenuLinks();
 
+/* Visual-only icon lookup. Kept separate from COLUMNS so the navigation data schema,
+   labels, order, URLs and hierarchy remain unchanged. */
+const NAV_ICON_PATHS: Record<string, string> = {
+  Home: 'M3 11.5 12 4l9 7.5V21h-6v-6H9v6H3Z',
+  Shop: 'M6 8h12l1 13H5L6 8Zm3 0V6a3 3 0 0 1 6 0v2',
+  'Grahak OS': 'M8 3h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm2 15h4',
+  VayuLok: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 0c2.4 2.2 3.7 5.2 3.7 9S14.4 18.8 12 21m0-18C9.6 5.2 8.3 8.2 8.3 12s1.3 6.8 3.7 9M3.5 9h17M3.5 15h17',
+  'Bharat Rx': 'M9 4h6v5h5v6h-5v5H9v-5H4V9h5Z',
+  Elsewhere: 'm3 12 18-7-7 18-2-7-7-2Z',
+  'Expo Week': 'M5 5h14v16H5ZM8 3v4m8-4v4M5 10h14',
+  Dastavez: 'M7 3h7l5 5v13H7ZM14 3v5h5M10 13h6m-6 4h6',
+  'Clear Closure': 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-4-9 2.5 2.5L16 9',
+  'Ritual Guru': 'm12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6ZM18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8Z',
+  Anew: 'M20 7v5h-5M4 17v-5h5M6.5 8A7 7 0 0 1 18 7l2 5M17.5 16A7 7 0 0 1 6 17l-2-5',
+  Hunar: 'M14 6 6 14l4 4 8-8M15 4l5 5',
+  'Niji Setu': 'M7 10V8a5 5 0 0 1 10 0v2M5 10h14v11H5Z',
+  Orders: 'M5 5h14v16H5ZM8 3v4m8-4v4M8 11h8m-8 4h5',
+  'Submit Request': 'M5 4h14v16H5ZM12 8v8m-4-4h8',
+  'Request Amendment': 'M5 19h4l10-10-4-4L5 15Zm8-12 4 4',
+  'Drop Docs': 'M7 3h8l4 4v14H7ZM15 3v5h4M12 17V11m-3 3 3-3 3 3',
+  Vault: 'M7 10V8a5 5 0 0 1 10 0v2M5 10h14v11H5Zm7 4v3',
+  Shipments: 'M3 7h11v10H3Zm11 4h4l3 3v3h-7ZM7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
+  'Leave Review': 'M4 4h16v12H9l-5 4Zm4 5h8m-8 4h5',
+  Subscribe: 'M12 21a2.5 2.5 0 0 0 2.4-2h-4.8A2.5 2.5 0 0 0 12 21Zm6-5H6l1.5-2V9a4.5 4.5 0 0 1 9 0v5Z',
+  Partner: 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8-1a2.5 2.5 0 1 0 0-5M2.5 20v-2c0-3 2.5-5 5.5-5s5.5 2 5.5 5v2M14 14c3.5.2 5.5 1.7 5.5 4.5V20',
+  Perks: 'M4 9h16v12H4ZM12 9v12M4 13h16M7 9c-2.5-2.5 1.5-5.5 5 0m5-0c2.5-2.5-1.5-5.5-5 0',
+  'Contact us': 'M3 6h18v12H3Zm0 1 9 6 9-6',
+  Terms: 'M7 3h10v18H7ZM10 8h4m-4 4h4m-4 4h4',
+  Privacy: 'M12 3 19 6v5c0 4.7-2.8 8.2-7 10-4.2-1.8-7-5.3-7-10V6Z',
+};
+const SECTION_ICON_PATHS: Record<string, string> = {
+  Products: 'M4 7 12 3l8 4-8 4ZM4 12l8 4 8-4M4 17l8 4 8-4',
+  Request: 'M6 3h12v18H6ZM9 7h6M9 11h6M9 15h4',
+  'Refer & Earn': 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8-1a2.5 2.5 0 1 0 0-5M2.5 20v-2c0-3 2.5-5 5.5-5s5.5 2 5.5 5v2M14 14c3.5.2 5.5 1.7 5.5 4.5V20',
+  Extras: 'm12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z',
+  Contact: 'M3 6h18v12H3Zm0 1 9 6 9-6',
+  'Legal Stuff': 'M12 3 19 6v5c0 4.7-2.8 8.2-7 10-4.2-1.8-7-5.3-7-10V6Z',
+};
+const FALLBACK_NAV_ICON_PATH = 'M5 5h14v14H5Zm4 4h6m-6 4h6';
+const SUBNAV_ICON_PATH = 'M6 7v5a5 5 0 0 0 5 5h7m-3-3 3 3-3 3';
+const ROW_CHEVRON_PATH = 'm9 6 6 6-6 6';
 
 const Header: React.FC = () => {
   const [ open, setOpen ] = useState( false );
@@ -483,7 +524,12 @@ const Header: React.FC = () => {
                       className={ `nav-item ${isActive( link ) ? 'active' : ''}`.trim() }
                       aria-current={ isActive( link ) ? 'page' : undefined }
                       onClick={ event => handleNavClick( event, link ) }
-                    >{ link.label }</a>
+                    >
+                      <svg className="nav-row-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
+                      </svg>
+                      <span className="nav-item-label">{ link.label }</span>
+                    </a>
                   ) ) }
                   { !filtered.length && <p className="nav-empty">No matching page.</p> }
                   </div>
@@ -499,6 +545,7 @@ const Header: React.FC = () => {
                         const headingActive = Boolean(
                           section.headingHref && section.headingMatch && router.pathname === section.headingMatch
                         );
+                        const sectionIconPath = SECTION_ICON_PATHS[ section.heading ];
                         const label = section.heading && ( section.headingHref
                           ? (
                             <a
@@ -506,9 +553,25 @@ const Header: React.FC = () => {
                               className={ `nav-group-label nav-group-link ${headingActive ? 'active' : ''}`.trim() }
                               aria-current={ headingActive ? 'page' : undefined }
                               onClick={ close }
-                            >{ section.heading }</a>
+                            >
+                              { sectionIconPath && (
+                                <svg className="nav-section-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                  <path d={ sectionIconPath } />
+                                </svg>
+                              ) }
+                              <span>{ section.heading }</span>
+                            </a>
                           )
-                          : <span className="nav-group-label">{ section.heading }</span>
+                          : (
+                            <span className="nav-group-label">
+                              { sectionIconPath && (
+                                <svg className="nav-section-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                  <path d={ sectionIconPath } />
+                                </svg>
+                              ) }
+                              <span>{ section.heading }</span>
+                            </span>
+                          )
                         );
 
                         const items = section.links.map( link => (
@@ -524,9 +587,29 @@ const Header: React.FC = () => {
                                 className={ `nav-item ${isActive( link ) ? 'active' : ''}`.trim() }
                                 aria-current={ isActive( link ) ? 'page' : undefined }
                                 onClick={ event => handleNavClick( event, link ) }
-                              >{ link.label }</a>
+                              >
+                                <svg className="nav-row-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                  <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
+                                </svg>
+                                <span className="nav-item-label">{ link.label }</span>
+                                { link.children?.length ? (
+                                  <svg className="nav-row-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d={ ROW_CHEVRON_PATH } />
+                                  </svg>
+                                ) : null }
+                              </a>
                             ) : (
-                              <span className="nav-item nav-family-label">{ link.label }</span>
+                              <span className="nav-item nav-family-label">
+                                <svg className="nav-row-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                  <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
+                                </svg>
+                                <span className="nav-item-label">{ link.label }</span>
+                                { link.children?.length ? (
+                                  <svg className="nav-row-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d={ ROW_CHEVRON_PATH } />
+                                  </svg>
+                                ) : null }
+                              </span>
                             ) }
 
                             { link.children?.map( child => child.href && (
@@ -536,7 +619,12 @@ const Header: React.FC = () => {
                                 className={ `nav-item nav-child ${isActive( child ) ? 'active' : ''}`.trim() }
                                 aria-current={ isActive( child ) ? 'page' : undefined }
                                 onClick={ event => handleNavClick( event, child ) }
-                              >{ child.label }</a>
+                              >
+                                <svg className="nav-sub-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                  <path d={ NAV_ICON_PATHS[ child.label ] || SUBNAV_ICON_PATH } />
+                                </svg>
+                                <span className="nav-item-label">{ child.label }</span>
+                              </a>
                             ) ) }
                           </div>
                         ) );
@@ -828,7 +916,8 @@ const Header: React.FC = () => {
            (the brand's deep green, NOT the grassy #3da35a a first pass used - that
            bright green clashed with the palette), weight 700, UPPERCASE, with a
            touch more tracking so the caps stay legible. */
-        .nav-group-label{display:block;padding:6px 12px 4px;font-size:12px;font-weight:700;letter-spacing:.06em;color:#1a3a2a;text-transform:uppercase}
+        .nav-group-label{display:flex;align-items:center;gap:7px;padding:6px 12px 4px;font-size:12px;font-weight:700;letter-spacing:.06em;color:#1a3a2a;text-transform:uppercase}
+        .nav-section-icon{width:17px;height:17px;flex:0 0 17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 
         /* PRODUCTS SCROLL. Only the Products group. The catalogue is meant to reach 100+
            entries, so its list is capped and scrolls rather than making the whole panel
@@ -883,9 +972,10 @@ const Header: React.FC = () => {
            There is no pill, circle, label or shadow: just the double chevron. */
         .nav-products-cue-row{height:44px;display:flex;align-items:center;justify-content:flex-end;flex:0 0 44px;padding-inline-end:4px;box-sizing:border-box}
         .nav-products-cue-row.is-hidden{visibility:hidden;pointer-events:none}
-        .nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:#d1f470;color:#1a3a2a;cursor:pointer}
+        .nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:#d1f470;color:#0f2a1d;cursor:pointer;transition:background-color .16s ease,transform .16s ease,box-shadow .16s ease}
+        .nav-products-more:hover{background:#c5ed51;transform:translateY(-1px) scale(1.06);box-shadow:0 4px 12px rgba(26,58,42,.16)}
         .nav-products-more:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 5px #1a3a2a}
-        .nav-products-more-icon{display:block;width:26px;height:26px;fill:currentColor}
+        .nav-products-more-icon{display:block;width:31px;height:31px;fill:currentColor;transform:scaleX(1.08);transform-origin:center}
         /* The Customer service heading is a link, so it needs an affordance the plain
            headings do not have - without one it looks like the same inert label. */
         .nav-group-link{color:#1a3a2a;text-decoration:none;border-radius:8px}
@@ -913,7 +1003,12 @@ const Header: React.FC = () => {
            and 46px still clears the 44px minimum touch target. */
         /* position:relative so the divider hairline and the animated sweep (::after /
            ::before below) can be absolutely positioned within each row. */
-        .nav-item{position:relative;display:flex;align-items:center;min-height:46px;padding:0 12px;font-size:19px;font-weight:600;color:#1a3a2a;text-decoration:none;border-radius:8px}
+        .nav-item{position:relative;display:flex;align-items:center;gap:9px;min-height:46px;padding:0 12px;font-size:19px;font-weight:600;color:#1a3a2a;text-decoration:none;border-radius:8px}
+        .nav-row-icon,.nav-sub-icon,.nav-row-chevron{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+        .nav-row-icon{width:20px;height:20px;flex:0 0 20px;stroke-width:1.9}
+        .nav-sub-icon{width:17px;height:17px;flex:0 0 17px;stroke-width:1.8;opacity:.82}
+        .nav-row-chevron{width:17px;height:17px;flex:0 0 17px;margin-inline-start:auto;stroke-width:1.9;opacity:.72}
+        .nav-item-label{min-width:0}
         /* ACTIVE AND HOVER MUST READ AS DIFFERENT STATES. They were both the same
            rgba(209,244,112,.22) pale tint, so the current page ("you are here") looked
            identical to whatever row the mouse was over - you could not tell which page
@@ -951,7 +1046,7 @@ const Header: React.FC = () => {
            parent. Hierarchy is expressed by grouping and indentation, never smaller text. */
         .nav-tree-item.has-children + .nav-tree-item{margin-top:6px}
         .nav-family-label{cursor:default}
-        .nav-child{font-size:19px;font-weight:600;min-height:46px;padding-inline-start:24px}
+        .nav-child{font-size:19px;font-weight:600;min-height:46px;padding-inline-start:24px;gap:8px}
 
         /* The panel breaks to fewer columns before the columns get too narrow to hold
            "Request Amendment" on one line. Measured rather than guessed: at 19px/17px
@@ -989,6 +1084,7 @@ const Header: React.FC = () => {
         @media(prefers-reduced-motion:reduce){
           .nav-menu{transition:none}
           .nav-trigger-icon{transition:none}
+          .nav-products-more{transition:none}
         }
       `}</style>
     </header>

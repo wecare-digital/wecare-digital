@@ -385,15 +385,33 @@ describe( 'Header', () => {
     expect( css ).toContain( '.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto' );
   } );
 
+  it( 'adds visual icons without changing the navigation schema or labels', () => {
+    const { container } = render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+
+    expect( screen.getByRole( 'link', { name: 'Shop' } ).querySelector( '.nav-row-icon' ) ).not.toBeNull();
+    expect( screen.getByText( 'Products' ).querySelector( '.nav-section-icon' ) ).not.toBeNull();
+    expect( screen.getByText( 'Elsewhere' ).parentElement?.querySelector( '.nav-row-chevron' ) ).not.toBeNull();
+    expect( screen.getByRole( 'link', { name: 'Visa' } ).querySelector( '.nav-sub-icon' ) ).not.toBeNull();
+
+    expect( screen.getByRole( 'link', { name: 'Shop' } ) ).toHaveAttribute( 'href', '/shop/' );
+    expect( screen.getByRole( 'link', { name: 'Visa' } ) ).toHaveAttribute( 'href', '/elsewhere/visa/' );
+
+    const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
+    expect( css ).toContain( '.nav-row-icon{width:20px;height:20px' );
+    expect( css ).toContain( '.nav-sub-icon{width:17px;height:17px' );
+    expect( css ).toContain( '.nav-row-chevron{width:17px;height:17px' );
+  } );
+
   it( 'right-aligns the Products continuation cue and uses the Google double-arrow icon', () => {
     const { container } = render( <Header /> );
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
 
     expect( css ).toContain( '.nav-products-cue-row{height:44px;display:flex;align-items:center;justify-content:flex-end;flex:0 0 44px;padding-inline-end:4px' );
     expect( css ).toContain( '.nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px' );
-    expect( css ).toContain( 'border-radius:50%;background:#d1f470;color:#1a3a2a' );
-    expect( css ).not.toContain( '.nav-products-more:hover{' );
-    expect( css ).toContain( '.nav-products-more-icon{display:block;width:26px;height:26px;fill:currentColor}' );
+    expect( css ).toContain( 'border-radius:50%;background:#d1f470;color:#0f2a1d' );
+    expect( css ).toContain( '.nav-products-more:hover{background:#c5ed51;transform:translateY(-1px) scale(1.06)' );
+    expect( css ).toContain( '.nav-products-more-icon{display:block;width:31px;height:31px;fill:currentColor' );
     expect( css ).toContain( '.nav-products-cue-row{display:none}' );
     expect( css ).not.toContain( '.nav-products-more{position:absolute' );
     expect( css ).not.toContain( 'More products' );
