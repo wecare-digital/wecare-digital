@@ -97,7 +97,8 @@ def run_id() -> str:
 
 
 def body_key(source_id: str, verification_run_id: str) -> str:
-    return f"{blog_sources.VERIFY_PREFIX}{source_id}/{verification_run_id}.json"
+    return blog_sources.work_key_for_id(
+        source_id, f"verification/{source_id}/{verification_run_id}.json")
 
 
 def assertion_ids() -> Tuple[str, ...]:
@@ -382,6 +383,7 @@ def run(source_id: str, actor: str) -> Dict[str, Any]:
         "slug": source_id,
         "sourceId": source_id,
         "batchId": record.get("batchId") or blog_sources.NO_BATCH,
+        "category": str(record.get("category") or ""),
         "bodyKey": key,
         "articleSlug": wanted["slug"],
         "postId": wanted["postId"],
