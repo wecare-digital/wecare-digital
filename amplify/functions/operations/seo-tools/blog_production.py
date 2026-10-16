@@ -20,6 +20,7 @@ import json
 import logging
 import re
 import uuid
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from botocore.exceptions import ClientError
@@ -45,13 +46,13 @@ WORK_PREFIX = blog_sources.SECURE_ROOT_PREFIX + "03-work/"
 CHECKPOINT_PREFIX = blog_sources.SECURE_ROOT_PREFIX + "04-checkpoints/"
 
 INTENT_STATUSES = (
-    "PLANNED", "SAMPLE_PENDING", "SAMPLE_APPROVED", "DRAFTED",
-    "QA_READY", "HUMAN_REVIEW", "APPROVED", "HOLD", "PUBLISHED",
+    "PLANNED", "SAMPLE_PENDING", "SAMPLE_APPROVED", "DRAFTED", "QA_READY",
+    "HUMAN_REVIEW", "SIGNED_OFF", "RELEASED", "HOLD", "PUBLISHED", "VERIFIED",
 )
-EDITORIAL_TERMINAL = frozenset({"HUMAN_REVIEW", "APPROVED", "HOLD", "PUBLISHED"})
+CHATGPT_WRITABLE_STATUSES = frozenset({"DRAFTED", "QA_READY", "HOLD"})
 
 PROMPT_VERSIONS = {
-    "Conversations": "CONV-2026-10-15-v1",
+    "Conversations": "CONV-2026-10-16-v2",
     "Gastronomy": "GAST-2026-10-15-v1",
 }
 
@@ -112,16 +113,7 @@ def control_id(category: str) -> str:
     return f"blogcontrol_{_slug(category)}"
 
 
-def master_key(category: str) -> str:
-    return f"{MASTERS_PREFIX}{_slug(category)}/master-current.json"
-
-
-def prompt_key(category: str) -> str:
-    return f"{MASTERS_PREFIX}{_slug(category)}/prompt-current.md"
-
-
-def policy_key(category: str) -> str:
-    return f"{MASTERS_PREFIX}{_slug(category)}/quality-policy.json"
+def master_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/current/master.json",,,def prompt_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/current/editorial-master.md",,,def policy_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/current/quality-policy.json",,,def legacy_master_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/master-current.json",,,def legacy_prompt_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/prompt-current.md",,,def legacy_policy_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/quality-policy.json",,,def master_history_root(category: str, prompt_sha256: str) -> str:,    version = PROMPT_VERSIONS[_category(category)],    return f"{MASTERS_PREFIX}{_slug(category)}/history/{version}-{prompt_sha256[:12]}/"
 
 
 def checkpoint_key(category: str) -> str:
@@ -134,6 +126,10 @@ def work_root(category: str, source_id: str) -> str:
 
 def manifest_key(category: str, source_id: str) -> str:
     return work_root(category, source_id) + "opportunity-manifest.json"
+
+
+def dedupe_key(category: str, source_id: str) -> str:
+    return work_root(category, source_id) + "dedupe-report.json"
 
 
 def sample_key(category: str, source_id: str, intent_id: str) -> str:
@@ -173,6 +169,18 @@ def _read_json(key: str) -> Dict[str, Any]:
     except Exception:  # noqa: BLE001 - absent checkpoint/master is a normal first-run state
         return {}
 
+
+def _editorial_master_text(category: str) -> str:
+    category = _category(category)
+    if category == "Conversations":
+        path = Path(__file__).with_name("conversations-production-master.md")
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+    return PROMPTS[category]
+
+
+def _prompt_sha256(category: str) -> str:
+    return hashlib.sha256(_editorial_master_text(category).encode("utf-8")).hexdigest()
 
 def _policy(category: str) -> Dict[str, Any]:
     import blog_catalog
@@ -219,10 +227,12 @@ def ensure_control(category: str, actor: str) -> Dict[str, Any]:
 def _master_document(category: str, actor: str) -> Dict[str, Any]:
     control = ensure_control(category, actor)
     now = storage.now_iso()
+    prompt_sha = _prompt_sha256(category)
     return {
         "category": category,
         "masterVersion": control.get("masterVersion", "1"),
-        "promptVersion": control.get("promptVersion", PROMPT_VERSIONS[category]),
+        "promptVersion": PROMPT_VERSIONS[category],
+        "promptSha256": prompt_sha,
         "updatedAt": now,
         "aiMode": AI_MODE,
         "paidAiBackend": False,
@@ -234,53 +244,78 @@ def _master_document(category: str, actor: str) -> Dict[str, Any]:
         "sourcePrefix": blog_sources.category_source_prefix(category),
         "workPrefix": f"{WORK_PREFIX}{_slug(category)}/",
         "checkpointKey": checkpoint_key(category),
+        "editorialMasterKey": prompt_key(category),
+        "qualityPolicyKey": policy_key(category),
         "qualityPolicy": _policy(category),
         "continuationRule": (
             "A new ChatGPT session must read AWS control/master/checkpoint state before work."
         ),
     }
 
-
 def initialize(actor: str) -> Dict[str, Any]:
-    """Create the two category controls and the durable master/checkpoint artifacts.
-
-    Idempotent: current master/prompt/policy files are deliberate projections of the current
-    code policy. No paid model is called and no source/article state is advanced.
-    """
+    """Project the current master and preserve a content-addressed immutable history."""
     categories: Dict[str, Any] = {}
     for category in CATEGORIES:
         control = ensure_control(category, actor)
+        wanted_version = PROMPT_VERSIONS[category]
+        if str(control.get("promptVersion") or "") != wanted_version:
+            storage.table().update_item(
+                Key={"id": control["id"]},
+                UpdateExpression=(
+                    "SET promptVersion = :p, approvedPromptVersion = :empty, "
+                    "masterVersion = :m, updatedAt = :u, lastActor = :a"
+                ),
+                ExpressionAttributeValues={
+                    ":p": wanted_version, ":empty": "", ":m": "2",
+                    ":u": storage.now_iso(), ":a": actor,
+                },
+            )
+            control = get_control(category)
+
+        editorial_master = _editorial_master_text(category)
+        prompt_sha = hashlib.sha256(editorial_master.encode("utf-8")).hexdigest()
         master = _master_document(category, actor)
-        _put_json(master_key(category), master)
-        _put_text(prompt_key(category), PROMPTS[category])
-        _put_json(policy_key(category), {
+        policy_doc = {
             "category": category,
-            "promptVersion": PROMPT_VERSIONS[category],
+            "promptVersion": wanted_version,
+            "promptSha256": prompt_sha,
             "policy": _policy(category),
             "updatedAt": storage.now_iso(),
-        })
+        }
+
+        # Current canonical projection.
+        _put_json(master_key(category), master)
+        _put_text(prompt_key(category), editorial_master)
+        _put_json(policy_key(category), policy_doc)
+
+        # Compatibility projections for existing callers/tools.
+        _put_json(legacy_master_key(category), master)
+        _put_text(legacy_prompt_key(category), editorial_master)
+        _put_json(legacy_policy_key(category), policy_doc)
+
+        # Content-addressed history: changing content creates a new key even if somebody
+        # forgets to bump a version, which matters because bucket versioning is suspended.
+        history_root = master_history_root(category, prompt_sha)
+        _put_json(history_root + "master.json", master)
+        _put_text(history_root + "editorial-master.md", editorial_master)
+        _put_json(history_root + "quality-policy.json", policy_doc)
+
         current = _read_json(checkpoint_key(category))
         if not current:
             current = {
-                "category": category,
-                "stage": "IDLE",
-                "sourceId": "",
-                "intentId": "",
-                "promptVersion": control.get("promptVersion", PROMPT_VERSIONS[category]),
-                "updatedAt": storage.now_iso(),
+                "category": category, "stage": "IDLE", "sourceId": "", "intentId": "",
+                "promptVersion": wanted_version, "updatedAt": storage.now_iso(),
                 "nextAction": "CLAIM_NEXT_SOURCE",
             }
             _put_json(checkpoint_key(category), current)
         categories[category] = {
-            "control": _control_view(control),
-            "masterKey": master_key(category),
-            "promptKey": prompt_key(category),
-            "policyKey": policy_key(category),
-            "checkpointKey": checkpoint_key(category),
+            "control": _control_view(get_control(category)),
+            "masterKey": master_key(category), "promptKey": prompt_key(category),
+            "policyKey": policy_key(category), "masterHistoryRoot": history_root,
+            "promptSha256": prompt_sha, "checkpointKey": checkpoint_key(category),
         }
     return {"initialized": True, "aiMode": AI_MODE, "paidAiBackend": False,
             "categories": categories}
-
 
 def get_control(category: str) -> Dict[str, Any]:
     category = _category(category)
@@ -319,7 +354,9 @@ def _eligible_sources(category: str) -> List[Dict[str, Any]]:
         row for row in rows
         if row.get("category") == category
         and row.get("status") == blog_sources.EXTRACTED
-        and _source_editorial_status(row) not in ("EDITORIAL_COMPLETE", "HOLD")
+        and _source_editorial_status(row) not in (
+            "ARTICLE_PRODUCTION_COMPLETE", "EDITORIAL_REVIEW_COMPLETE",
+            "PIPELINE_COMPLETE", "EDITORIAL_COMPLETE", "HOLD")
     ]
     out.sort(key=lambda row: (str(row.get("createdAt") or ""), str(row.get("id") or "")))
     return out
@@ -342,7 +379,9 @@ def claim_next_source(category: str, actor: str) -> Dict[str, Any]:
     current_id = str(control.get("currentSourceId") or "")
     if current_id:
         current = blog_sources.get_source(current_id)
-        if current and _source_editorial_status(current) not in ("EDITORIAL_COMPLETE", "HOLD"):
+        if current and _source_editorial_status(current) not in (
+                "ARTICLE_PRODUCTION_COMPLETE", "EDITORIAL_REVIEW_COMPLETE",
+                "PIPELINE_COMPLETE", "EDITORIAL_COMPLETE", "HOLD"):
             return {"claimed": False, "source": blog_sources.source_detail(current_id),
                     "control": _control_view(control), "note": "existing source resumed"}
 
