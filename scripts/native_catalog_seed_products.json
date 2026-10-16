@@ -1,0 +1,92 @@
+{
+  "_comment": [
+    "SEED DEFINITIONS for native catalogue product rows, consumed by scripts/seed_native_catalog.py.",
+    "These are the product pages that mount <ProductBuyBox> but have NO catalogue row yet, so their",
+    "checkout still falls back to the shared ₹1 placeholder. Give each a REAL priceMinor (integer",
+    "PAISE: ₹899 = 89900) and run the seed script with staff Cognito auth to create the rows, then",
+    "paste the returned productId/variantId into src/config/productCheckout.ts PRODUCT_CHECKOUT.",
+    "",
+    "anew is NOT listed here: it already has a real catalogue row and is wired up in productCheckout.ts.",
+    "",
+    "priceMinor rules (from amplify/functions/ecommerce/native-catalog-admin/handler.py _minor):",
+    "  - integer paise only, 0 .. 100000000. ₹899.00 -> 89900, ₹599.00 -> 59900.",
+    "A product is created as status:draft with channels OFF. To make it buyable + visible you then",
+    "PATCH status:active + an approved catalogImageKey (a *-4096.png under wd-catalog-live/) +",
+    "websiteEnabled:true. The seed script can do create-only, or create+activate when --activate is",
+    "passed AND catalogImageKey is set for the product."
+  ],
+  "products": [
+    {
+      "slug": "grahak-os",
+      "title": "Grahak OS by WECARE.DIGITAL",
+      "canonicalPath": "/grahak-os/",
+      "priceMinor": 89900,
+      "catalogImageKey": "",
+      "variantLabel": "Standard"
+    },
+    {
+      "slug": "bharat-rx",
+      "title": "Bharat Rx",
+      "canonicalPath": "/bharat-rx/",
+      "priceMinor": null,
+      "catalogImageKey": "",
+      "variantLabel": "Standard"
+    },
+    {
+      "slug": "clear-closure",
+      "title": "Clear Closure",
+      "canonicalPath": "/clear-closure/",
+      "priceMinor": null,
+      "catalogImageKey": "",
+      "variantLabel": "Standard"
+    },
+    {
+      "slug": "dastavez",
+      "title": "Dastavez",
+      "canonicalPath": "/dastavez/",
+      "priceMinor": null,
+      "catalogImageKey": "",
+      "variantLabel": "Standard"
+    },
+    {
+      "slug": "expo-week",
+      "title": "Expo Week",
+      "canonicalPath": "/expo-week/",
+      "priceMinor": null,
+      "catalogImageKey": "",
+      "variantLabel": "Standard"
+    },
+    {
+      "slug": "hunar",
+      "title": "Hunar",
+      "canonicalPath": "/hunar/",
+      "priceMinor": null,
+      "catalogImageKey": "",
+      "variantLabel": "Standard"
+    },
+    {
+      "slug": "niji-setu",
+      "title": "Niji Setu",
+      "canonicalPath": "/niji-setu/",
+      "priceMinor": null,
+      "catalogImageKey": "",
+      "variantLabel": "Standard"
+    },
+    {
+      "slug": "refer-and-earn",
+      "title": "Refer and Earn",
+      "canonicalPath": "/refer-and-earn/",
+      "priceMinor": null,
+      "catalogImageKey": "",
+      "variantLabel": "Standard"
+    },
+    {
+      "slug": "ritual-guru",
+      "title": "Ritual Guru",
+      "canonicalPath": "/ritual-guru/",
+      "priceMinor": null,
+      "catalogImageKey": "",
+      "variantLabel": "Standard"
+    }
+  ]
+}
