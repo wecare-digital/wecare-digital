@@ -34,9 +34,10 @@ function pageVoiceLocale (): string {
 
 interface VoiceSearchMicProps {
   onTranscript: ( transcript: string ) => void;
+  ariaLabel?: string;
 }
 
-const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript } ) => {
+const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript, ariaLabel = 'Search by voice' } ) => {
   const [ supported, setSupported ] = useState( false );
   const [ listening, setListening ] = useState( false );
   const recognitionRef = useRef<VoiceRecognitionLike | null>( null );
@@ -101,8 +102,8 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript } ) => {
       <button
         type="button"
         className={ `voice-search-mic ${listening ? 'is-listening' : ''}`.trim() }
-        aria-label={ listening ? 'Stop voice search' : 'Search by voice' }
-        title={ listening ? 'Stop voice search' : 'Search by voice' }
+        aria-label={ listening ? `Stop ${ariaLabel.toLowerCase()}` : ariaLabel }
+        title={ listening ? `Stop ${ariaLabel.toLowerCase()}` : ariaLabel }
         aria-pressed={ listening }
         data-voice-search-mic="true"
         onClick={ toggle }
