@@ -83,6 +83,26 @@ function pm25Severity( pm25: number ): Sev {
 // SKU) while feeling immediate rather than the previous 300ms lag. The session-token reuse
 // (autocompleteTokenRef) behavior is unchanged; only the settle delay is shorter.
 const SEARCH_DEBOUNCE_MS = 120;
+const WORLD_SEARCH_DEBOUNCE_MS = 120;
+const WORLD_SEARCH_MIN_CHARS = 3;
+const FX_API_BASE = 'https://api.frankfurter.dev/v2';
+const FX_RATE_TTL_MS = 6 * 60 * 60 * 1000;
+
+const FALLBACK_CURRENCY_CODES = [
+  'INR', 'USD', 'EUR', 'GBP', 'AED', 'JPY', 'SGD', 'AUD', 'CAD', 'CHF',
+  'CNY', 'KRW', 'THB', 'NZD', 'BRL', 'ZAR', 'SAR', 'IDR', 'MYR', 'HKD',
+];
+
+const CURRENCY_CODES = ( () => {
+  try {
+    const values = ( Intl as unknown as { supportedValuesOf?: ( key: string ) => string[] } ).supportedValuesOf?.( 'currency' );
+    if ( Array.isArray( values ) && values.length ) {
+      const preferred = new Set( FALLBACK_CURRENCY_CODES );
+      return [ ...FALLBACK_CURRENCY_CODES, ...values.filter( code => !preferred.has( code ) ) ];
+    }
+  } catch { /* use the compact fallback list */ }
+  return FALLBACK_CURRENCY_CODES;
+} )();
 
 // Continuous AQI heatmap TILE overlay (the organic, blob-shaped pollution cloud from the
 // reference). The AQI "Heatmap" switch paints Google's Air Quality heatmapTiles onto the
@@ -367,7 +387,23 @@ interface LocationTimeState {
   timeZoneId: string;
   timeZoneName: string;
   shortLabel: string;
-  source: 'default' | 'google';
+  source: 'default' | 'google' | 'fixed';
+}
+
+interface WorldTimeDestination {
+  name: string;
+  addr: string;
+  lat: number;
+  lng: number;
+  time: LocationTimeState;
+}
+
+interface FxRateState {
+  base: string;
+  quote: string;
+  rate: number;
+  date: string;
+  ts: number;
 }
 
 const DEFAULT_LOCATION_TIME: LocationTimeState = {
@@ -375,6 +411,19 @@ const DEFAULT_LOCATION_TIME: LocationTimeState = {
   timeZoneName: 'India Standard Time',
   shortLabel: 'IST',
   source: 'default',
+};
+
+const DEFAULT_WORLD_TIME_DESTINATION: WorldTimeDestination = {
+  name: 'London',
+  addr: 'United Kingdom',
+  lat: 51.5072,
+  lng: -0.1276,
+  time: {
+    timeZoneId: 'Europe/London',
+    timeZoneName: 'United Kingdom Time',
+    shortLabel: 'Local',
+    source: 'fixed',
+  },
 };
 interface WeatherState {
   temp?: number;
@@ -777,6 +826,19 @@ function formatLocationDate( now: number, timeZoneId: string ): string {
   }
 }
 
+function formatCurrencyValue( value: number, currency: string ): string {
+  if ( !Number.isFinite( value ) ) return '';
+  try {
+    return new Intl.NumberFormat( 'en-IN', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: Math.abs( value ) >= 100 ? 2 : 4,
+    } ).format( value );
+  } catch {
+    return `${currency} ${value.toLocaleString( 'en-IN', { maximumFractionDigits: 4 } )}`;
+  }
+}
+
 function formatHistoryStamp( value: number, timeZoneId: string, zoneLabel: string ): string {
   try {
     const parts = new Intl.DateTimeFormat( 'en-CA', {
@@ -1022,6 +1084,23 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ results, setResults ] = useState<SearchResult[]>( [] );
   const [ open, setOpen ] = useState( false );
   const [ active, setActive ] = useState( -1 );
+
+  // Useful tools: a city-only world-time search and an on-demand FX reference rate.
+  const [ worldQuery, setWorldQuery ] = useState( '' );
+  const [ worldResults, setWorldResults ] = useState<SearchResult[]>( [] );
+  const [ worldOpen, setWorldOpen ] = useState( false );
+  const [ worldActive, setWorldActive ] = useState( -1 );
+  const [ worldSearchStatus, setWorldSearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable'>( 'idle' );
+  const [ worldDestination, setWorldDestination ] = useState<WorldTimeDestination>( DEFAULT_WORLD_TIME_DESTINATION );
+  const [ worldSwapped, setWorldSwapped ] = useState( false );
+
+  const [ fxAmount, setFxAmount ] = useState( '1000' );
+  const [ fxBase, setFxBase ] = useState( 'INR' );
+  const [ fxQuote, setFxQuote ] = useState( 'GBP' );
+  const [ fxRate, setFxRate ] = useState<FxRateState | null>( null );
+  const [ fxLoading, setFxLoading ] = useState( false );
+  const [ fxError, setFxError ] = useState( false );
+
   // Bumped by the map-failed "Try again" button to re-run the map init + timeout effects.
   const [ mapInitNonce, setMapInitNonce ] = useState( 0 );
 
@@ -1074,6 +1153,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const weatherHistoryCache = useRef<Record<string, { ts: number; rows: WeatherHour[] }>>( {} );
   const timeZoneCache = useRef<Record<string, LocationTimeState>>( {} );
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
+  const worldSearchTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
+  const worldAutocompleteTokenRef = useRef<unknown>( null );
+  const fxRateCache = useRef<Record<string, FxRateState>>( {} );
+  const fxRequestSeqRef = useRef( 0 );
   // The google.maps.ImageMapType instance for the continuous AQI heatmap tile overlay
   // (FEAT-001). Attached by DEFAULT once the KEYED map is initialized (layer defaults to
   // 'AQI'), pushed onto map.overlayMapTypes, and detached idempotently on toggle-off /
@@ -2311,6 +2394,232 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     } | null;
   }, [] );
 
+
+  const runWorldSearch = useCallback( async ( text: string ) => {
+    const input = text.trim();
+    if ( !MAPS_KEY || input.length < WORLD_SEARCH_MIN_CHARS ) {
+      setWorldResults( [] );
+      setWorldOpen( false );
+      setWorldActive( -1 );
+      setWorldSearchStatus( 'idle' );
+      return;
+    }
+    setWorldSearchStatus( 'searching' );
+    const lib = await ensurePlacesLibrary();
+    const Auto = lib?.AutocompleteSuggestion as {
+      fetchAutocompleteSuggestions?: ( req: Record<string, unknown> ) => Promise<{ suggestions?: unknown[] }>;
+    } | undefined;
+    const Token = lib?.AutocompleteSessionToken as ( new () => unknown ) | undefined;
+    if ( !Auto?.fetchAutocompleteSuggestions || !Token ) {
+      setWorldSearchStatus( 'unavailable' );
+      return;
+    }
+    try {
+      if ( !worldAutocompleteTokenRef.current ) worldAutocompleteTokenRef.current = new Token();
+      const out = await Auto.fetchAutocompleteSuggestions( {
+        input,
+        sessionToken: worldAutocompleteTokenRef.current,
+        includedPrimaryTypes: [ '(cities)' ],
+      } );
+      const mapped: SearchResult[] = ( Array.isArray( out?.suggestions ) ? out.suggestions : [] )
+        .map( suggestion => {
+          const prediction = ( suggestion as { placePrediction?: SearchResult['prediction'] & {
+            mainText?: { text?: string; toString?: () => string };
+            secondaryText?: { text?: string; toString?: () => string };
+            text?: { toString?: () => string };
+          } } )?.placePrediction;
+          if ( !prediction ) return null;
+          const name = prediction.mainText?.text
+            || prediction.mainText?.toString?.()
+            || prediction.text?.toString?.()
+            || 'City';
+          const addr = prediction.secondaryText?.text
+            || prediction.secondaryText?.toString?.()
+            || '';
+          return { name: String( name ), addr: String( addr ), prediction };
+        } )
+        .filter( Boolean )
+        .slice( 0, 5 ) as SearchResult[];
+      setWorldResults( mapped );
+      setWorldActive( mapped.length ? 0 : -1 );
+      setWorldOpen( mapped.length > 0 );
+      setWorldSearchStatus( mapped.length ? 'idle' : 'no-results' );
+    } catch {
+      worldAutocompleteTokenRef.current = null;
+      setWorldResults( [] );
+      setWorldOpen( false );
+      setWorldActive( -1 );
+      setWorldSearchStatus( 'unavailable' );
+    }
+  }, [ ensurePlacesLibrary ] );
+
+  const chooseWorldDestination = useCallback( async ( result: SearchResult ) => {
+    const gc = await ensureGeocoder();
+    const geocode = gc?.geocode?.bind( gc );
+    if ( !geocode ) {
+      setWorldSearchStatus( 'unavailable' );
+      return;
+    }
+    let placeId = result.prediction?.placeId;
+    if ( !placeId ) {
+      try { placeId = result.prediction?.toPlace?.()?.id; } catch { /* address fallback below */ }
+    }
+    const resolved = await new Promise<PlaceState | null>( resolve => {
+      geocode(
+        placeId ? { placeId } : { address: result.addr || result.name },
+        ( rows: unknown[] | null, status: string ) => {
+          if ( status !== 'OK' || !Array.isArray( rows ) || !rows.length ) {
+            resolve( null );
+            return;
+          }
+          const row = rows[ 0 ] as {
+            formatted_address?: string;
+            geometry?: { location?: { lat: () => number; lng: () => number } };
+          };
+          const lat = row.geometry?.location?.lat?.();
+          const lng = row.geometry?.location?.lng?.();
+          if ( !Number.isFinite( lat ) || !Number.isFinite( lng ) ) {
+            resolve( null );
+            return;
+          }
+          resolve( {
+            name: row.formatted_address?.split( ',' )[ 0 ] || result.name,
+            addr: row.formatted_address || result.addr || result.name,
+            lat: lat as number,
+            lng: lng as number,
+          } );
+        },
+      );
+    } );
+    if ( !resolved ) {
+      setWorldSearchStatus( 'unavailable' );
+      return;
+    }
+
+    const cacheKey = `${resolved.lat.toFixed( 4 )},${resolved.lng.toFixed( 4 )}`;
+    let zone = timeZoneCache.current[ cacheKey ] || null;
+    if ( !zone ) {
+      const timestamp = Math.floor( Date.now() / 1000 );
+      const params = new URLSearchParams( {
+        location: `${resolved.lat},${resolved.lng}`,
+        timestamp: String( timestamp ),
+        key: MAPS_KEY,
+      } );
+      try {
+        const response = await fetch( `https://maps.googleapis.com/maps/api/timezone/json?${params.toString()}`, { cache: 'no-store' } );
+        const data = response.ok ? await response.json() : null;
+        if ( data?.status === 'OK' && typeof data?.timeZoneId === 'string' ) {
+          const timeZoneName = typeof data.timeZoneName === 'string' ? data.timeZoneName : data.timeZoneId;
+          zone = {
+            timeZoneId: data.timeZoneId,
+            timeZoneName,
+            shortLabel: timeZoneShortLabel( data.timeZoneId, timeZoneName ),
+            source: 'google',
+          };
+          timeZoneCache.current[ cacheKey ] = zone;
+        }
+      } catch { /* keep existing destination if Time Zone cannot resolve */ }
+    }
+    if ( !zone ) {
+      setWorldSearchStatus( 'unavailable' );
+      return;
+    }
+
+    setWorldDestination( {
+      name: resolved.name,
+      addr: resolved.addr,
+      lat: resolved.lat,
+      lng: resolved.lng,
+      time: zone,
+    } );
+    setWorldSwapped( false );
+    setWorldQuery( '' );
+    setWorldResults( [] );
+    setWorldOpen( false );
+    setWorldActive( -1 );
+    setWorldSearchStatus( 'idle' );
+    worldAutocompleteTokenRef.current = null;
+  }, [ ensureGeocoder ] );
+
+  const onWorldQueryChange = ( e: React.ChangeEvent<HTMLInputElement> ) => {
+    const value = e.target.value;
+    setWorldQuery( value );
+    if ( worldSearchTimer.current ) clearTimeout( worldSearchTimer.current );
+    const trimmed = value.trim();
+    if ( trimmed.length < WORLD_SEARCH_MIN_CHARS ) {
+      worldAutocompleteTokenRef.current = null;
+      setWorldResults( [] );
+      setWorldOpen( false );
+      setWorldActive( -1 );
+      setWorldSearchStatus( 'idle' );
+      return;
+    }
+    worldSearchTimer.current = setTimeout( () => { void runWorldSearch( value ); }, WORLD_SEARCH_DEBOUNCE_MS );
+  };
+
+  const loadFxRate = useCallback( async ( base: string, quote: string ) => {
+    const pair = `${base}/${quote}`;
+    if ( base === quote ) {
+      const same: FxRateState = { base, quote, rate: 1, date: new Date().toISOString().slice( 0, 10 ), ts: Date.now() };
+      fxRateCache.current[ pair ] = same;
+      setFxRate( same );
+      setFxError( false );
+      return;
+    }
+    const cached = fxRateCache.current[ pair ];
+    if ( cached && Date.now() - cached.ts < FX_RATE_TTL_MS ) {
+      setFxRate( cached );
+      setFxError( false );
+      return;
+    }
+    const seq = ++fxRequestSeqRef.current;
+    setFxLoading( true );
+    setFxError( false );
+    try {
+      const response = await fetch(
+        `${FX_API_BASE}/rate/${encodeURIComponent( base.toLowerCase() )}/${encodeURIComponent( quote.toLowerCase() )}`,
+        { cache: 'no-store', headers: { Accept: 'application/json' } },
+      );
+      const data = response.ok ? await response.json() : null;
+      const rate = Number( data?.rate );
+      if ( !Number.isFinite( rate ) || rate <= 0 ) throw new Error( 'invalid rate' );
+      const next: FxRateState = {
+        base,
+        quote,
+        rate,
+        date: typeof data?.date === 'string' ? data.date : new Date().toISOString().slice( 0, 10 ),
+        ts: Date.now(),
+      };
+      fxRateCache.current[ pair ] = next;
+      if ( seq === fxRequestSeqRef.current ) setFxRate( next );
+    } catch {
+      if ( seq === fxRequestSeqRef.current ) setFxError( true );
+    } finally {
+      if ( seq === fxRequestSeqRef.current ) setFxLoading( false );
+    }
+  }, [] );
+
+  const swapFxPair = () => {
+    const nextBase = fxQuote;
+    const nextQuote = fxBase;
+    setFxBase( nextBase );
+    setFxQuote( nextQuote );
+    if ( fxRate && fxRate.base === fxBase && fxRate.quote === fxQuote && fxRate.rate > 0 ) {
+      const reciprocal: FxRateState = {
+        base: nextBase,
+        quote: nextQuote,
+        rate: 1 / fxRate.rate,
+        date: fxRate.date,
+        ts: Date.now(),
+      };
+      fxRateCache.current[ `${nextBase}/${nextQuote}` ] = reciprocal;
+      setFxRate( reciprocal );
+      setFxError( false );
+    } else {
+      void loadFxRate( nextBase, nextQuote );
+    }
+  };
+
   const runSearch = useCallback( async ( text: string ) => {
     if ( !MAPS_KEY || !text.trim() ) {
       setResults( [] );
@@ -2536,6 +2845,30 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const locationZoneLabel = locationTime.source === 'google'
     ? locationTime.shortLabel
     : 'IST default';
+
+  const destinationZoneLabel = timeZoneShortLabel( worldDestination.time.timeZoneId, worldDestination.time.timeZoneName );
+  const currentWorldSide = {
+    name: place.name,
+    clock: locationClock,
+    date: locationDate,
+    zone: locationZoneLabel,
+  };
+  const destinationWorldSide = {
+    name: worldDestination.name,
+    clock: formatLocationClock( clockNow, worldDestination.time.timeZoneId ),
+    date: formatLocationDate( clockNow, worldDestination.time.timeZoneId ),
+    zone: destinationZoneLabel,
+  };
+  const worldFrom = worldSwapped ? destinationWorldSide : currentWorldSide;
+  const worldTo = worldSwapped ? currentWorldSide : destinationWorldSide;
+
+  const fxNumericAmount = Number( fxAmount );
+  const fxConverted = fxRate
+    && fxRate.base === fxBase
+    && fxRate.quote === fxQuote
+    && Number.isFinite( fxNumericAmount )
+    ? fxNumericAmount * fxRate.rate
+    : null;
 
   return (
     <section className="vl-live" aria-label="VayuLok conditions">
@@ -3492,6 +3825,183 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
             </div>
           </section>
         </div>
+
+        <section className="vl-live-tools" aria-labelledby="vl-live-tools-title">
+          <div className="vl-live-tools-head">
+            <div>
+              <h3 id="vl-live-tools-title">Useful tools</h3>
+              <p>Quick conversions for the place you’re viewing.</p>
+            </div>
+          </div>
+
+          <div className="vl-live-tools-grid">
+            <article className="vl-live-tool-card" aria-labelledby="vl-live-world-time-title">
+              <div className="vl-live-tool-card-head">
+                <div>
+                  <span className="vl-live-tool-kicker">World time</span>
+                  <h4 id="vl-live-world-time-title">Time converter</h4>
+                </div>
+                <button
+                  type="button"
+                  className="vl-live-tool-info"
+                  aria-label="About the world time converter"
+                  data-tip="Uses the destination’s official time zone and daylight-saving rules."
+                >i</button>
+              </div>
+
+              <div className="vl-live-world-search">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 3a6.5 6.5 0 1 0 3.94 11.67L18.77 20 20 18.77l-5.33-5.33A6.5 6.5 0 0 0 9.5 3Zm0 2A4.5 4.5 0 1 1 5 9.5 4.5 4.5 0 0 1 9.5 5Z"/></svg>
+                <input
+                  type="search"
+                  role="combobox"
+                  value={ worldQuery }
+                  onChange={ onWorldQueryChange }
+                  onFocus={ () => { if ( worldResults.length ) setWorldOpen( true ); } }
+                  onKeyDown={ e => {
+                    if ( e.key === 'Escape' ) {
+                      setWorldOpen( false );
+                      setWorldSearchStatus( 'idle' );
+                    } else if ( e.key === 'ArrowDown' && worldOpen ) {
+                      e.preventDefault(); setWorldActive( i => Math.min( i + 1, worldResults.length - 1 ) );
+                    } else if ( e.key === 'ArrowUp' && worldOpen ) {
+                      e.preventDefault(); setWorldActive( i => Math.max( 0, i - 1 ) );
+                    } else if ( e.key === 'Enter' && worldOpen && worldActive >= 0 ) {
+                      e.preventDefault(); void chooseWorldDestination( worldResults[ worldActive ] );
+                    }
+                  } }
+                  aria-label="Choose destination city"
+                  aria-controls="vl-live-world-results"
+                  aria-expanded={ worldOpen }
+                  aria-activedescendant={ worldOpen && worldActive >= 0 ? `vl-live-world-option-${worldActive}` : undefined }
+                  placeholder="Choose destination…"
+                  autoComplete="off"
+                />
+                { worldSearchStatus === 'searching' && <span className="vl-live-world-search-status" role="status">Searching…</span> }
+                { worldOpen && worldResults.length > 0 && (
+                  <ul className="vl-live-world-results" id="vl-live-world-results" role="listbox" aria-label="Destination cities">
+                    { worldResults.map( ( result, idx ) => (
+                      <li
+                        key={ `${result.name}-${result.addr}-${idx}` }
+                        id={ `vl-live-world-option-${idx}` }
+                        role="option"
+                        aria-selected={ worldActive === idx }
+                        className={ worldActive === idx ? 'is-active' : '' }
+                        onPointerDown={ e => { e.preventDefault(); void chooseWorldDestination( result ); } }
+                        onMouseEnter={ () => setWorldActive( idx ) }
+                      >
+                        <strong>{ result.name }</strong>
+                        { result.addr && <span>{ result.addr }</span> }
+                      </li>
+                    ) ) }
+                  </ul>
+                ) }
+                { worldSearchStatus === 'no-results' && worldQuery.trim().length >= WORLD_SEARCH_MIN_CHARS && (
+                  <span className="vl-live-world-empty" role="status">No matching city found.</span>
+                ) }
+                { worldSearchStatus === 'unavailable' && (
+                  <span className="vl-live-world-empty" role="status">Destination search is temporarily unavailable.</span>
+                ) }
+              </div>
+
+              <div className="vl-live-world-pair">
+                <div className="vl-live-world-place">
+                  <span>From</span>
+                  <strong>{ worldFrom.name }</strong>
+                  <b data-wc-no-translate="true">{ worldFrom.clock } · { worldFrom.zone }</b>
+                  <small data-wc-no-translate="true">{ worldFrom.date }</small>
+                </div>
+                <button type="button" className="vl-live-tool-swap" onClick={ () => setWorldSwapped( value => !value ) } aria-label="Swap displayed time zones">⇅</button>
+                <div className="vl-live-world-place">
+                  <span>To</span>
+                  <strong>{ worldTo.name }</strong>
+                  <b data-wc-no-translate="true">{ worldTo.clock } · { worldTo.zone }</b>
+                  <small data-wc-no-translate="true">{ worldTo.date }</small>
+                </div>
+              </div>
+            </article>
+
+            <article className="vl-live-tool-card" aria-labelledby="vl-live-currency-title">
+              <div className="vl-live-tool-card-head">
+                <div>
+                  <span className="vl-live-tool-kicker">Currency</span>
+                  <h4 id="vl-live-currency-title">Currency converter</h4>
+                </div>
+                <button
+                  type="button"
+                  className="vl-live-tool-info"
+                  aria-label="About the currency converter"
+                  data-tip="Reference exchange rate. Banks, cards and cash exchanges may add fees or spreads."
+                >i</button>
+              </div>
+
+              <label className="vl-live-fx-amount">
+                <span>Amount</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  inputMode="decimal"
+                  value={ fxAmount }
+                  onChange={ e => setFxAmount( e.target.value ) }
+                  onFocus={ () => { if ( !fxRate || fxRate.base !== fxBase || fxRate.quote !== fxQuote ) void loadFxRate( fxBase, fxQuote ); } }
+                  aria-label="Amount to convert"
+                />
+              </label>
+
+              <div className="vl-live-fx-pair" aria-label="Currency pair">
+                <label>
+                  <span>From</span>
+                  <select
+                    value={ fxBase }
+                    onChange={ e => {
+                      const next = e.target.value;
+                      setFxBase( next );
+                      setFxRate( null );
+                      void loadFxRate( next, fxQuote );
+                    } }
+                    aria-label="From currency"
+                  >
+                    { CURRENCY_CODES.map( code => <option key={ code } value={ code }>{ code }</option> ) }
+                  </select>
+                </label>
+                <button type="button" className="vl-live-tool-swap is-horizontal" onClick={ swapFxPair } aria-label="Swap currencies">⇄</button>
+                <label>
+                  <span>To</span>
+                  <select
+                    value={ fxQuote }
+                    onChange={ e => {
+                      const next = e.target.value;
+                      setFxQuote( next );
+                      setFxRate( null );
+                      void loadFxRate( fxBase, next );
+                    } }
+                    aria-label="To currency"
+                  >
+                    { CURRENCY_CODES.map( code => <option key={ code } value={ code }>{ code }</option> ) }
+                  </select>
+                </label>
+              </div>
+
+              <div className="vl-live-fx-result" aria-live="polite">
+                { fxLoading ? (
+                  <span>Loading reference rate…</span>
+                ) : fxError ? (
+                  <span>Reference rate is temporarily unavailable.</span>
+                ) : fxConverted != null ? (
+                  <>
+                    <strong data-wc-no-translate="true">{ formatCurrencyValue( fxConverted, fxQuote ) }</strong>
+                    <small data-wc-no-translate="true">
+                      1 { fxBase } = { fxRate?.rate.toLocaleString( 'en-IN', { maximumFractionDigits: 6 } ) } { fxQuote }
+                      { fxRate?.date ? ` · ${fxRate.date}` : '' }
+                    </small>
+                  </>
+                ) : (
+                  <span>Tap the amount or choose a currency to load the reference rate.</span>
+                ) }
+              </div>
+            </article>
+          </div>
+        </section>
       </div>
 
       { pollutantTip && activePollutant && (
@@ -3566,6 +4076,49 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
            collapses to a single region that the map shell fills edge to edge. */
         .vl-live-workspace{display:block}
         .vl-live-map-region{min-width:0}
+
+        .vl-live-tools{margin-top:28px;padding-top:28px;border-top:1px solid var(--hair)}
+        .vl-live-tools-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px}
+        .vl-live-tools-head h3{margin:0;color:#000;font-size:24px;font-weight:700;line-height:1.2;letter-spacing:-.35px}
+        .vl-live-tools-head p{margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
+        .vl-live-tools-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+        .vl-live-tool-card{position:relative;min-width:0;padding:20px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff}
+        .vl-live-tool-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+        .vl-live-tool-kicker{display:block;margin-bottom:4px;color:var(--green);font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+        .vl-live-tool-card h4{margin:0;color:#000;font-size:20px;font-weight:700;line-height:1.25;letter-spacing:-.25px}
+        .vl-live-tool-info{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;width:32px;height:32px;border:0;border-radius:50%;background:var(--lime);color:var(--green);font-size:14px;font-weight:800;cursor:help}
+        .vl-live-tool-info::after{content:attr(data-tip);position:absolute;z-index:30;right:0;top:calc(100% + 9px);width:min(260px,70vw);padding:9px 11px;border:1px solid var(--hair);border-radius:10px;background:#fff;color:var(--status);box-shadow:0 8px 22px rgba(26,58,42,.12);font-size:11px;font-weight:600;line-height:1.4;text-align:left;opacity:0;pointer-events:none;transform:translateY(-3px);transition:opacity .15s,transform .15s}
+        .vl-live-tool-info:hover::after,.vl-live-tool-info:focus-visible::after{opacity:1;transform:none}
+        .vl-live-world-search{position:relative;display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:center;gap:8px;margin-top:18px;border-bottom:1px solid var(--hair)}
+        .vl-live-world-search>svg{width:18px;height:18px;fill:var(--green)}
+        .vl-live-world-search>input{min-width:0;height:42px;padding:0;border:0;background:transparent;color:#000;font-size:15px;font-weight:600}
+        .vl-live-world-search>input::placeholder{color:var(--muted);font-weight:500}
+        .vl-live-world-search:focus-within{border-bottom-color:var(--green);box-shadow:0 1px 0 var(--green)}
+        .vl-live-world-search-status{color:var(--muted);font-size:10px;font-weight:700}
+        .vl-live-world-results{position:absolute;z-index:28;top:calc(100% + 7px);left:0;right:0;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:12px;background:#fff;box-shadow:0 12px 28px rgba(26,58,42,.14)}
+        .vl-live-world-results li{display:flex;flex-direction:column;gap:2px;padding:10px 11px;border-radius:8px;cursor:pointer}
+        .vl-live-world-results li.is-active,.vl-live-world-results li:hover{background:var(--lime-tint)}
+        .vl-live-world-results strong{color:#000;font-size:13px;font-weight:700}
+        .vl-live-world-results span{color:var(--muted);font-size:11px}
+        .vl-live-world-empty{position:absolute;top:calc(100% + 7px);left:0;right:0;z-index:27;padding:10px 12px;border:1px solid var(--hair);border-radius:10px;background:#fff;color:var(--muted);font-size:11px;box-shadow:0 10px 24px rgba(26,58,42,.10)}
+        .vl-live-world-pair{display:grid;grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr);align-items:center;gap:12px;margin-top:20px}
+        .vl-live-world-place{display:flex;min-width:0;flex-direction:column;gap:3px}
+        .vl-live-world-place>span,.vl-live-fx-amount>span,.vl-live-fx-pair label>span{color:var(--muted);font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+        .vl-live-world-place>strong{overflow:hidden;color:#000;font-size:16px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}
+        .vl-live-world-place>b{color:var(--green);font-size:13px;font-weight:700;white-space:nowrap}
+        .vl-live-world-place>small{color:var(--muted);font-size:10.5px;font-weight:600}
+        .vl-live-tool-swap{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);font-size:18px;font-weight:800;line-height:1}
+        .vl-live-tool-swap.is-horizontal{font-size:17px}
+        .vl-live-fx-amount{display:flex;flex-direction:column;gap:4px;margin-top:18px;border-bottom:1px solid var(--hair)}
+        .vl-live-fx-amount input{width:100%;height:48px;padding:0;border:0;background:transparent;color:#000;font-size:28px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+        .vl-live-fx-pair{display:grid;grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr);align-items:end;gap:12px;margin-top:18px}
+        .vl-live-fx-pair label{display:flex;min-width:0;flex-direction:column;gap:5px}
+        .vl-live-fx-pair select{width:100%;height:40px;padding:0 26px 0 0;border:0;border-bottom:1px solid var(--hair);border-radius:0;background:transparent;color:#000;font-size:15px;font-weight:700}
+        .vl-live-fx-pair select:focus-visible{outline:3px solid var(--green);outline-offset:3px}
+        .vl-live-fx-result{display:flex;min-height:66px;flex-direction:column;justify-content:center;gap:5px;margin-top:18px;padding-top:16px;border-top:1px solid var(--hair)}
+        .vl-live-fx-result>strong{color:#000;font-size:26px;font-weight:700;letter-spacing:-.45px}
+        .vl-live-fx-result>small{color:var(--muted);font-size:11px;font-weight:600}
+        .vl-live-fx-result>span{color:var(--muted);font-size:12px;line-height:1.45}
 
         /* ── FLOATING AIR QUALITY CARD ───────────────────────────────────────────────
            A white, rounded, home-system card floating over the full-bleed map's top-left corner,
@@ -3955,6 +4508,15 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         @media(prefers-reduced-motion:reduce){
           .vl-live *{scroll-behavior:auto!important;transition:none!important}
           .vl-live-cloud-field,.vl-live-wind-path,.vl-live-vortex{animation:none!important}
+        }
+
+        @media(max-width:760px){
+          .vl-live-tools{margin-top:22px;padding-top:22px}
+          .vl-live-tools-grid{grid-template-columns:1fr}
+          .vl-live-tool-card{padding:18px}
+          .vl-live-world-pair,.vl-live-fx-pair{grid-template-columns:minmax(0,1fr) 36px minmax(0,1fr);gap:9px}
+          .vl-live-world-place>b{font-size:12px}
+          .vl-live-tools-head h3{font-size:22px}
         }
       `}</style>
     </section>
