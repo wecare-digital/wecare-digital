@@ -1356,23 +1356,15 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       const host = await waitForHost();
       if ( cancelled || !host ) return;
 
-      // WITH loading=async, the google.maps NAMESPACE exists on script load but its
-      // constructors (Map, Marker, ...) are NOT populated until the relevant library
-      // is imported. Calling `new google.maps.Map()` directly throws
-      // "Map is not a constructor". The modern loader requires importLibrary().
-      // We await the maps/marker/places libraries, then construct. Fall back to the
-      // legacy namespace for any older loader that already populated it.
+      // WITH loading=async, the google.maps namespace can exist before the Map
+      // constructor is populated. First paint imports ONLY the maps library.
+      // Marker waits for tile readiness; Places waits for typing; Geocoding waits
+      // for an actual suggestion selection. Fall back to a legacy Map constructor
+      // only for older loaders that already populated it.
       type MapsCtors = {
         Map: new ( el: HTMLElement, opts: Record<string, unknown> ) => unknown;
-        Marker: new ( opts: Record<string, unknown> ) => unknown;
-        Geocoder: new () => unknown;
-        places?: Record<string, unknown>;
       };
-      // Import each library INDEPENDENTLY. A Promise.all here meant that if any one
-      // import rejected (e.g. 'marker' under a loader that bundles it differently),
-      // the whole block hit the catch and the map silently never built - exactly the
-      // blank-canvas-no-error symptom. The map library is the only one that is
-      // required; marker and places are best-effort and must not block the map.
+      // The maps library is the only library allowed on the critical map path.
       const imp = async ( name: string ): Promise<Record<string, unknown> | null> => {
         try {
           return typeof g.importLibrary === 'function' ? await g.importLibrary( name ) : null;
@@ -1425,18 +1417,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
       const motionListeners: { remove?: () => void }[] = [];
 
-      // OPTIONAL LIBRARIES LOAD AFTER MAP CONSTRUCTION, IN PARALLEL. Search can still call
-      // ensurePlacesLibrary/ensureGeocoder if the user types before these finish; Google's
-      // importLibrary de-duplicates those requests. None of this delays the first map tiles.
-      void Promise.all( [ imp( 'marker' ), imp( 'places' ), imp( 'geocoding' ) ] ).then(
-        ( [ markerLib, placesLib, geocodingLib ] ) => {
-          if ( cancelled ) return;
-          markerCtorRef.current = ( markerLib as { Marker?: MapsCtors['Marker'] } | null )?.Marker || legacy.Marker || null;
-          placesLibRef.current = ( placesLib as unknown as MapsCtors['places'] ) || legacy.places || null;
-          const GeocoderCtor = ( geocodingLib as { Geocoder?: MapsCtors['Geocoder'] } | null )?.Geocoder || legacy.Geocoder;
-          if ( GeocoderCtor && !geocoder.current ) geocoder.current = new GeocoderCtor();
-        },
-      );
+      // No optional Google library is prefetched here. Keeping marker/Places/Geocoding
+      // off the critical path reduces JS/network work while the base map is painting.
 
       // No direct map-selection listeners: the canvas is intentionally non-interactive.
       // Search/recent-place selection owns all location and camera changes.
@@ -2214,49 +2196,81 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   }, [ place, historyRange, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
-     RECENTRE the map + move the marker when the place changes (after the map exists). */
+     RECENTRE the map + move the marker when the place changes (after the map exists).
+     The marker library is deliberately imported only after base tiles are ready, so it
+     never competes with first paint. */
   useEffect( () => {
-    const w = window as unknown as { google?: { maps?: unknown } };
-    const map = mapRef.current as {
-      setCenter?: ( p: { lat: number; lng: number } ) => void;
-      setZoom?: ( zoom: number ) => void;
-      fitBounds?: ( bounds: { north: number; south: number; east: number; west: number }, padding?: number ) => void;
-    } | null;
-    if ( !map || !w.google?.maps || !hasSelection ) return;
+    if ( !mapReady || !hasSelection || typeof window === 'undefined' ) return;
+    let cancelled = false;
 
-    if ( !markerRef.current && markerCtorRef.current ) {
-      const MarkerCtor = markerCtorRef.current;
-      // Normal Material location marker, created lazily after the first valid selection.
-      markerRef.current = new MarkerCtor( {
-        position: { lat: place.lat, lng: place.lng },
-        map,
-        title: place.name,
-        icon: LOCATION_MARKER_ICON,
-      } );
-    }
-    const marker = markerRef.current as {
-      setPosition?: ( p: { lat: number; lng: number } ) => void;
-      setTitle?: ( t: string ) => void;
-      setMap?: ( m: unknown ) => void;
-    } | null;
-    if ( place !== framedPlaceRef.current ) {
-      // Search/recent-place selection owns the camera; direct map interaction is disabled.
-      if ( place.viewport && map.fitBounds ) map.fitBounds( place.viewport, 56 );
-      else {
-        map.setCenter?.( { lat: place.lat, lng: place.lng } );
-        map.setZoom?.( 14 );
+    const syncPlace = async () => {
+      const w = window as unknown as { google?: { maps?: {
+        importLibrary?: ( name: string ) => Promise<Record<string, unknown>>;
+        Marker?: new ( opts: Record<string, unknown> ) => unknown;
+      } } };
+      const map = mapRef.current as {
+        setCenter?: ( p: { lat: number; lng: number } ) => void;
+        setZoom?: ( zoom: number ) => void;
+        fitBounds?: ( bounds: { north: number; south: number; east: number; west: number }, padding?: number ) => void;
+      } | null;
+      if ( !map || !w.google?.maps ) return;
+
+      if ( !markerRef.current ) {
+        let MarkerCtor = markerCtorRef.current;
+        if ( !MarkerCtor ) {
+          try {
+            const markerLib = w.google.maps.importLibrary
+              ? await w.google.maps.importLibrary( 'marker' )
+              : null;
+            if ( cancelled ) return;
+            MarkerCtor = ( markerLib as { Marker?: new ( opts: Record<string, unknown> ) => unknown } | null )?.Marker
+              || w.google.maps.Marker
+              || null;
+            markerCtorRef.current = MarkerCtor;
+          } catch {
+            MarkerCtor = w.google.maps.Marker || null;
+            markerCtorRef.current = MarkerCtor;
+          }
+        }
+        if ( MarkerCtor && !cancelled ) {
+          markerRef.current = new MarkerCtor( {
+            position: { lat: place.lat, lng: place.lng },
+            map,
+            title: place.name,
+            icon: LOCATION_MARKER_ICON,
+          } );
+        }
       }
-      framedPlaceRef.current = place;
-    }
-    marker?.setMap?.( map );
-    marker?.setPosition?.( { lat: place.lat, lng: place.lng } );
-    marker?.setTitle?.( place.name );
+
+      if ( cancelled ) return;
+      const marker = markerRef.current as {
+        setPosition?: ( p: { lat: number; lng: number } ) => void;
+        setTitle?: ( t: string ) => void;
+        setMap?: ( m: unknown ) => void;
+      } | null;
+
+      if ( place !== framedPlaceRef.current ) {
+        // Search selection owns the camera; direct map interaction is disabled.
+        if ( place.viewport && map.fitBounds ) map.fitBounds( place.viewport, 56 );
+        else {
+          map.setCenter?.( { lat: place.lat, lng: place.lng } );
+          map.setZoom?.( 14 );
+        }
+        framedPlaceRef.current = place;
+      }
+      marker?.setMap?.( map );
+      marker?.setPosition?.( { lat: place.lat, lng: place.lng } );
+      marker?.setTitle?.( place.name );
+    };
+
+    void syncPlace();
+    return () => { cancelled = true; };
   }, [ place, mapReady, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
      SEARCH - modern Places Autocomplete Data API with one session token per query/
-     selection session. This avoids legacy Text Search on every keystroke and is
-     intentionally worldwide. Geocoding remains only as an unavailable-Places fallback. */
+     selection session. Places loads only after settled typing; Geocoding loads only
+     after the visitor selects a suggestion. No Place Details fields are requested. */
   const ensurePlacesLibrary = useCallback( async (): Promise<Record<string, unknown> | null> => {
     if ( placesLibRef.current ) return placesLibRef.current;
     const w = window as unknown as { google?: { maps?: { importLibrary?: ( name: string ) => Promise<Record<string, unknown>>; places?: Record<string, unknown> } } };
@@ -2271,10 +2285,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     }
   }, [] );
 
-  // Obtain a Geocoder the same way the map init effect does: via importLibrary('geocoding')
-  // under the modern loader, falling back to a pre-populated namespace Geocoder only for an
-  // older loader. Mirrors ensurePlacesLibrary so the search geocoding fallback never depends
-  // on legacy.Geocoder being seeded on google.maps. Caches into geocoder.current.
+  // Geocoding is intentionally lazy: it is not imported with the map or while typing.
+  // It loads only after a suggestion is selected, then stays cached in geocoder.current.
   const ensureGeocoder = useCallback( async (): Promise<{
     geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
   } | null> => {
