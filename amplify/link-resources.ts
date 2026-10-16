@@ -139,7 +139,6 @@ export function addLinkResources(stack: Stack) {
       // to the apex, and a redirecting host is never a usable allowed origin.
       allowOrigins: [
         'https://wecare.digital',
-        'https://www.wecare.digital',
       ],
       allowMethods: [
         apigatewayv2.CorsHttpMethod.GET,
