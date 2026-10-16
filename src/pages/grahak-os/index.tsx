@@ -608,12 +608,15 @@ response = requests.post(
                 <a className="gos-otp-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
               </div>
               <div className="gos-otp-visual">
-                {/* SCAN-TO-START QR. Placeholder until the real WhatsApp Business QR is dropped
-                    in: replace the src with the generated qr_image_url (or an inline SVG) for
-                    wa.me/message/APDM5HUWH26SG1. Kept decorative (alt="" + aria-hidden) because
-                    the adjacent button is the accessible path to the same destination; a screen
-                    reader user cannot scan a QR, so the button is the real control and the QR
-                    must not announce a second, unusable one. */}
+                {/* SCAN-TO-START QR. A REAL, VERIFIED code for wa.me/message/APDM5HUWH26SG1 -
+                    generated and round-trip decoded back to that exact URL (see
+                    .kiro/artifacts/qrgen.py + qrverify.py). Dark brand green #1a3a2a modules for
+                    scanner contrast; the lime brand accent is on the card frame, not inside the
+                    code, because lime finder eyes would be too low-contrast to scan. Kept
+                    decorative (alt="" + aria-hidden) because the adjacent button is the
+                    accessible path to the same destination - a screen reader user cannot scan a
+                    QR, so the button is the real control and the QR must not announce a second,
+                    unusable one. */}
                 <div className="gos-qr-card">
                   <div className="gos-qr-frame">
                     <img className="gos-qr-img" src="/images/grahak-os-whatsapp-qr.svg" alt="" aria-hidden="true" width="180" height="180" loading="lazy" />
@@ -900,8 +903,12 @@ response = requests.post(
              grid so it reads as the companion to the copy. The 1px #e5e7eb hairline is the
              shared static-card weight (static, not interactive, so no 2px/lime hover). */
           .gos-otp-visual{display:flex;justify-content:center}
-          .gos-qr-card{display:flex;flex-direction:column;align-items:center;gap:16px;padding:28px;border:1px solid #e5e7eb;border-radius:20px;background:#fff}
-          .gos-qr-frame{width:180px;height:180px;display:flex;align-items:center;justify-content:center;background:#fafafa;border-radius:12px;overflow:hidden}
+          /* Lime brand accent lives on the CARD, not inside the QR: the code's modules stay
+             dark #1a3a2a for scanner contrast (lime finder eyes would read ~1.3:1 and fail),
+             so "our style" is expressed by the card's faint lime tint and lime-tinted frame
+             instead. rgba(209,244,112,.3) is the existing nav/active tint - no new token. */
+          .gos-qr-card{display:flex;flex-direction:column;align-items:center;gap:16px;padding:28px;border:2px solid #d1f470;border-radius:20px;background:linear-gradient(180deg,rgba(209,244,112,.12),#fff)}
+          .gos-qr-frame{width:180px;height:180px;display:flex;align-items:center;justify-content:center;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(26,58,42,.08)}
           .gos-qr-img{width:180px;height:180px;object-fit:contain;display:block}
           .gos-qr-label{font-size:15px;font-weight:600;color:rgba(0,0,0,.6);letter-spacing:-.1px}
           @media(prefers-reduced-motion:reduce){ .gos-otp-cta{transition:background-color .2s} .gos-otp-cta:hover{transform:none;box-shadow:none} }
