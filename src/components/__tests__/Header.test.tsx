@@ -389,8 +389,12 @@ describe( 'Header', () => {
     const { container } = render( <Header /> );
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
 
-    expect( css ).toContain( ".nav-products-more-icon{font-family:'Material Symbols Rounded'" );
+    expect( css ).toContain( ".nav-products-more-icon{display:flex;align-items:center;justify-content:center;width:34px;height:26px" );
+    expect( css ).toContain( "font-family:'Material Symbols Rounded'" );
+    expect( css ).toContain( '.nav-products-more{position:absolute;left:50%;bottom:-4px' );
+    expect( css ).toContain( 'width:44px;height:44px' );
     expect( css ).toContain( 'color:#d1f470' );
+    expect( css ).toContain( '.nav-products-more:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 5px #1a3a2a}' );
     expect( css ).toContain( '.nav-products-more{display:none}' );
     expect( css ).not.toContain( 'More products' );
   } );
