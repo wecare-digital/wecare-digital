@@ -2,6 +2,20 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+/**
+ * Read one CSS rule by selector without pinning declaration order. Public-page style tests
+ * should guard the properties that define the visual contract, not the byte-for-byte
+ * serialization of an entire styled-jsx rule.
+ */
+function cssRuleFor( source: string, selector: string ): string {
+  const clean = source.replace( /\/\*[\s\S]*?\*\//g, '' );
+  const marker = selector + '{';
+  const start = clean.indexOf( marker );
+  if ( start < 0 ) return '';
+  const bodyStart = start + marker.length;
+  const end = clean.indexOf( '}', bodyStart );
+  return end < 0 ? '' : clean.slice( bodyStart, end );
+}
 describe( 'Grahak OS five approved visual fixes', () => {
   const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
   const source = readFileSync( pagePath, 'utf8' );
@@ -19,9 +33,32 @@ describe( 'Grahak OS five approved visual fixes', () => {
     expect( source ).toContain( 'insideMain' );
   } );
 
-  it( 'uses the approved WECARE.DIGITAL lime and dark green color system', () => {
+  it( 'uses the approved WECARE.DIGITAL color system and canonical logo avatar', () => {
     expect( source ).toContain( '.phone-header{background:#128c7e' );
-    expect( source ).toContain( '.avatar{width:40px;height:40px;background:#1a3a2a' );
+
+    // The phone mock now uses the canonical WECARE.DIGITAL mark as a real contact-photo DP.
+    // Guard the semantic pieces independently so harmless CSS reordering or added declarations
+    // cannot break the suite the way the retired exact-string assertion did.
+    const avatarRule = cssRuleFor( source, '.avatar' );
+    expect( avatarRule ).toContain( 'width:40px' );
+    expect( avatarRule ).toContain( 'height:40px' );
+    expect( avatarRule ).toContain( 'background:#fff' );
+    expect( avatarRule ).toContain( 'border-radius:50%' );
+    expect( avatarRule ).toContain( 'overflow:hidden' );
+    expect( avatarRule ).toContain( 'box-shadow:0 0 0 2px rgba(255,255,255,.6)' );
+
+    const avatarImageRule = cssRuleFor( source, '.avatar-img' );
+    expect( avatarImageRule ).toContain( 'width:84%' );
+    expect( avatarImageRule ).toContain( 'height:84%' );
+    expect( avatarImageRule ).toContain( 'object-fit:contain' );
+
+    const avatarMarkup = source.match( /<div className="avatar">([\s\S]*?)<\/div>/ )?.[ 1 ] || '';
+    expect( avatarMarkup ).toContain( 'className="avatar-img"' );
+    expect( avatarMarkup ).toContain( 'src="https://wecare.digital/get/o/stream/media/m/wecaredigital.png"' );
+    expect( avatarMarkup ).toContain( 'alt=""' );
+    expect( avatarMarkup ).toContain( 'aria-hidden="true"' );
+    expect( avatarMarkup ).not.toContain( '>W<' );
+
     expect( source ).toContain( '.verified-badge{width:18px;height:18px;background:#25d366' );
     expect( source ).toContain( '.msg.sent{background:#d9fdd3' );
     // Renamed .tab -> .pp-tab so the page owns the control outright: the bare .tab
