@@ -1226,13 +1226,27 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     setSearchStatus( 'idle' );
   }, [ externalLocation ] );
 
+  // Reset inspected history only when its identity really changes. Resetting on every array
+  // reference change races with a click that lands as an async history response settles.
   useEffect( () => {
     setHistoryInspectIdx( null );
-  }, [ airHistory ] );
+  }, [ place.lat, place.lng, historyRange ] );
+
+  useEffect( () => {
+    setHistoryInspectIdx( current => (
+      current != null && current >= airHistory.length ? null : current
+    ) );
+  }, [ airHistory.length ] );
 
   useEffect( () => {
     setWeatherHistoryInspectIdx( null );
-  }, [ weatherHistory ] );
+  }, [ place.lat, place.lng ] );
+
+  useEffect( () => {
+    setWeatherHistoryInspectIdx( current => (
+      current != null && current >= weatherHistory.length ? null : current
+    ) );
+  }, [ weatherHistory.length ] );
 
   useEffect( () => {
     setAirForecastInspectIdx( 0 );
