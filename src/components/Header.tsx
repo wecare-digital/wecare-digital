@@ -229,6 +229,7 @@ const Header: React.FC = () => {
   const [ open, setOpen ] = useState( false );
   const [ query, setQuery ] = useState( '' );
   const [ showProductsMore, setShowProductsMore ] = useState( false );
+  const [ productsOverflowing, setProductsOverflowing ] = useState( false );
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement | null>( null );
   const triggerRef = useRef<HTMLButtonElement | null>( null );
@@ -243,7 +244,7 @@ const Header: React.FC = () => {
     searching ? MENU_SEARCH_LINKS.filter( link => link.searchText.includes( term ) ) : MENU_SEARCH_LINKS
   ), [ searching, term ] );
 
-  const close = useCallback( () => { setOpen( false ); setQuery( '' ); setShowProductsMore( false ); }, [] );
+  const close = useCallback( () => { setOpen( false ); setQuery( '' ); setShowProductsMore( false ); setProductsOverflowing( false ); }, [] );
 
   // Escape closes from anywhere, an outside pointerdown dismisses, AND the menu closes
   // when the mouse LEAVES it (hover-out), on owner request. None of these existed
@@ -339,22 +340,27 @@ const Header: React.FC = () => {
   useEffect( () => {
     if ( !open || searching || typeof window === 'undefined' ) {
       setShowProductsMore( false );
+      setProductsOverflowing( false );
       return undefined;
     }
     if ( !window.matchMedia( '(min-width: 768px)' ).matches ) {
       setShowProductsMore( false );
+      setProductsOverflowing( false );
       return undefined;
     }
 
     const scroller = rootRef.current?.querySelector<HTMLElement>( '.nav-products-scroll' );
     if ( !scroller ) {
       setShowProductsMore( false );
+      setProductsOverflowing( false );
       return undefined;
     }
 
     const update = () => {
+      const overflow = scroller.scrollHeight - scroller.clientHeight > 2;
       const remaining = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
-      setShowProductsMore( remaining > 2 );
+      setProductsOverflowing( overflow );
+      setShowProductsMore( overflow && remaining > 2 );
     };
 
     update();
@@ -540,15 +546,26 @@ const Header: React.FC = () => {
                               ? (
                                 <>
                                   <div className="nav-products-scroll">{ items }</div>
-                                  { showProductsMore && (
-                                    <button
-                                      type="button"
-                                      className="nav-products-more"
-                                      aria-label="Scroll to more products"
-                                      onClick={ scrollProductsForward }
-                                    >
-                                      <span className="nav-products-more-icon" aria-hidden="true">keyboard_arrow_down</span>
-                                    </button>
+                                  { productsOverflowing && (
+                                    <div className={ `nav-products-cue-row ${showProductsMore ? '' : 'is-hidden'}`.trim() }>
+                                      <button
+                                        type="button"
+                                        className="nav-products-more"
+                                        aria-label="Scroll to more products"
+                                        aria-hidden={ !showProductsMore }
+                                        tabIndex={ showProductsMore ? 0 : -1 }
+                                        onClick={ scrollProductsForward }
+                                      >
+                                        <svg
+                                          className="nav-products-more-icon"
+                                          viewBox="0 -960 960 960"
+                                          aria-hidden="true"
+                                          focusable="false"
+                                        >
+                                          <path d="M480-200 240-440l42-42 198 198 198-198 42 42-240 240Zm0-253L240-693l42-42 198 198 198-198 42 42-240 240Z" />
+                                        </svg>
+                                      </button>
+                                    </div>
                                   ) }
                                 </>
                               )
@@ -818,7 +835,7 @@ const Header: React.FC = () => {
            is a ceiling, not a fixed height - so nothing changes until the list is long.
            Cap is ~6 rows (6 x 46px = 276px), kept deliberately short so the open menu
            stays compact. */
-        .nav-group-products{min-height:0;position:relative}
+        .nav-group-products{min-height:0}
         /* The heading stays PINNED above its own scrolling list. Sticky against the
            scroll container's top; the #fcfdfb backer stops list rows showing through the
            label as they pass under it. z-index clears the rows. */
@@ -858,16 +875,17 @@ const Header: React.FC = () => {
              either half - src/test/ScrollbarDeclarations.test.ts pins the file set. */
           scrollbar-width:thin;
         }
-        /* ICON-ONLY CONTINUATION CUE. Google Material Symbols Rounded is already loaded
-           site-wide in _document.tsx, so this adds no dependency or asset request. The
-           visible capsule stays intentionally tiny while its transparent interaction target
-           clears the 44px minimum used by the cross-browser menu contract. The dark-green
-           capsule gives the requested light-lime chevron enough contrast against the near-white
-           menu. There is no visible label; aria-label carries the action for assistive tech. */
-        .nav-products-more{position:absolute;left:50%;bottom:-4px;z-index:3;display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;transform:translateX(-50%);border:0;border-radius:12px;background:transparent;color:#d1f470;cursor:pointer}
-        .nav-products-more:hover .nav-products-more-icon{background:#0f2a1d}
+        /* GOOGLE DOUBLE-DOWN CUE. The exact path comes from the Google Material icon supplied
+           for this change. It lives in a dedicated row BELOW the scrolling list instead of
+           floating over it, so product names can never sit underneath the affordance.
+           The button keeps a 44px interaction target while the visible icon stays only 24px.
+           There is no pill, circle, label or shadow: just the double chevron. */
+        .nav-products-cue-row{height:44px;display:flex;align-items:center;justify-content:center;flex:0 0 44px}
+        .nav-products-cue-row.is-hidden{visibility:hidden;pointer-events:none}
+        .nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:0;border-radius:10px;background:transparent;color:#78921e;cursor:pointer}
+        .nav-products-more:hover{color:#1a3a2a}
         .nav-products-more:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 5px #1a3a2a}
-        .nav-products-more-icon{display:flex;align-items:center;justify-content:center;width:34px;height:26px;border:1px solid #1a3a2a;border-radius:999px;background:rgba(26,58,42,.94);box-shadow:0 3px 10px rgba(26,58,42,.18);font-family:'Material Symbols Rounded';font-weight:600;font-style:normal;font-size:22px;line-height:1;letter-spacing:normal;text-transform:none;white-space:nowrap;word-wrap:normal;direction:ltr;font-feature-settings:'liga';font-variation-settings:'FILL' 0,'wght' 600,'GRAD' 0,'opsz' 24}
+        .nav-products-more-icon{display:block;width:24px;height:24px;fill:currentColor}
         /* The Customer service heading is a link, so it needs an affordance the plain
            headings do not have - without one it looks like the same inert label. */
         .nav-group-link{color:#1a3a2a;text-decoration:none;border-radius:8px}
@@ -950,7 +968,7 @@ const Header: React.FC = () => {
            variable - symmetric, therefore direction-neutral, therefore no rtl override
            needed. It still has to beat the base rule's compiled :lang() selector, which the
            extra .hdr-in ancestor class does. */
-        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - env(safe-area-inset-bottom,0px))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:19px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto;background:transparent;padding:0;border-radius:0}.nav-products-more{display:none}}
+        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - env(safe-area-inset-bottom,0px))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:19px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto;background:transparent;padding:0;border-radius:0}.nav-products-cue-row{display:none}.nav-products-more{display:none}}
 
         /* ROOM FOR THE SHOPPING BAG ON THE NARROWEST DEVICE THAT SHIPS, derived rather than
            nudged. Measured on the built header at 280px (Galaxy Fold, folded) before the bag
