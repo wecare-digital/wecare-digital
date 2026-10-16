@@ -1911,6 +1911,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( css ).toContain( '.vl-live-tool-card{position:relative;min-width:0;flex:1;padding:24px' );
     expect( css ).toContain( '.vl-live-route-pair{display:grid;grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr);align-items:start' );
     expect( css ).toContain( '.vl-live-route-result{display:flex;min-height:82px' );
+    expect( css ).toContain( '.vl-live-route-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}' );
+    expect( css ).toContain( '.vl-live-route-metrics>div:first-child{grid-column:1/-1}' );
 
     const routePair = container.querySelector( '.vl-live-route-pair' );
     expect( routePair?.children ).toHaveLength( 3 );
@@ -1927,7 +1929,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
     expect( screen.getByRole( 'heading', { name: 'Route' } ) ).toBeTruthy();
-    expect( screen.getByText( 'Driving time, driving distance and direct distance for one From → To pair.' ) ).toBeTruthy();
+    expect( screen.getByText( 'Time and distance, at a glance.' ) ).toBeTruthy();
+    expect( screen.queryByRole( 'heading', { name: 'From → To' } ) ).toBeNull();
     expect( screen.queryByRole( 'tablist', { name: 'Route or distance' } ) ).toBeNull();
 
     const routeCalls = () => fetchSpy.mock.calls.filter( call =>

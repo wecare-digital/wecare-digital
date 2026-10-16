@@ -4412,7 +4412,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
               <article className="vl-live-tool-card is-route-tool" aria-label="Route tool">
                 <div className="vl-live-tool-panel">
-                  <h4>From → To</h4>
                   <div className="vl-live-route-pair">
                     { ( [ 'route-from', 'route-to' ] as const ).map( slot => {
                       const selected = slot === 'route-from' ? routeFrom : routeTo;
@@ -5047,6 +5046,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-world-place>b{font-size:17px}
           .vl-live-fx-pair{grid-template-columns:minmax(0,1fr) 36px minmax(0,1fr);gap:10px}
           .vl-live-fx-pair .vl-live-tool-swap{margin-top:8px}
+          .vl-live-route-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+          .vl-live-route-metrics>div:first-child{grid-column:1/-1}
         }
       `}</style>
     </section>
