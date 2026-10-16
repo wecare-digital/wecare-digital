@@ -723,6 +723,9 @@ def save_sample(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     sample_hash = hashlib.sha256(raw).hexdigest()
     key = sample_key(category, source_id, intent_ref)
     _put_json(key, {**payload, "sampleSha256": sample_hash})
+    import blog_article_work
+    work_ref = str(intent.get("articleWorkId") or blog_article_work.work_id(intent_ref))
+    blog_article_work.apply_article(work_ref, article, actor, editorial_status="SAMPLE_PENDING")
     storage.table().update_item(
         Key={"id": intent_ref},
         UpdateExpression="SET #s = :s, sampleKey = :k, sampleSha256 = :h, updatedAt = :u",
@@ -787,6 +790,9 @@ def approve_sample(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
         ExpressionAttributeNames={"#s": "status"},
         ExpressionAttributeValues={":s": "SAMPLE_APPROVED", ":u": now},
     )
+    import blog_article_work
+    work_ref = str(intent.get("articleWorkId") or blog_article_work.work_id(intent_ref))
+    blog_article_work.set_intent_status(work_ref, "SAMPLE_APPROVED", actor)
     storage.table().update_item(
         Key={"id": control_id(category)},
         UpdateExpression=(
@@ -809,42 +815,54 @@ def approve_sample(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
 
 
 def save_article(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
+    """Persist ChatGPT editorial work onto the independent article-work child.
+
+    This route cannot write protected downstream states. SIGNED_OFF/RELEASED/PUBLISHED/VERIFIED
+    are earned only by the mature QA/publish/verify modules.
+    """
     category = _category(body.get("category"))
     intent_ref = str(body.get("intentId") or "").strip()
     status = str(body.get("status") or "DRAFTED").strip().upper()
     article = body.get("article")
-    if status not in INTENT_STATUSES:
-        raise ValueError(f"status must be one of {list(INTENT_STATUSES)}")
+    if status not in CHATGPT_WRITABLE_STATUSES:
+        raise ValueError(
+            f"ChatGPT article writes may use only {sorted(CHATGPT_WRITABLE_STATUSES)}")
     if not isinstance(article, dict) or not str(article.get("contentMarkdown") or "").strip():
         raise ValueError("article with contentMarkdown is required")
     intent = storage.get_typed(intent_ref, INTENT_RECORD_TYPE)
     if not intent or intent.get("category") != category:
         raise LookupError("Unknown article intent")
+
+    import blog_article_work
     source_id = str(intent.get("sourceId") or "")
+    work_ref = str(intent.get("articleWorkId") or blog_article_work.work_id(intent_ref))
+    if not blog_article_work.get(work_ref):
+        blog_article_work.ensure_for_intent(intent_ref, actor)
+    result = blog_article_work.apply_article(work_ref, article, actor, editorial_status=status)
+
     now = storage.now_iso()
     payload = {
-        "category": category,
-        "sourceId": source_id,
-        "intentId": intent_ref,
-        "status": status,
+        "category": category, "sourceId": source_id, "intentId": intent_ref,
+        "articleWorkId": work_ref, "status": status,
         "promptVersion": get_control(category).get("promptVersion", ""),
-        "updatedAt": now,
-        "updatedBy": actor,
-        "article": article,
-        "qa": body.get("qa") if isinstance(body.get("qa"), dict) else {},
+        "updatedAt": now, "updatedBy": actor, "article": article,
+        "editorialQa": body.get("qa") if isinstance(body.get("qa"), dict) else {},
     }
     key = article_key(category, source_id, intent_ref)
     raw = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
-    body_hash = hashlib.sha256(raw).hexdigest()
-    _put_json(key, {**payload, "bodySha256": body_hash})
+    artifact_hash = hashlib.sha256(raw).hexdigest()
+    _put_json(key, {**payload, "artifactSha256": artifact_hash,
+                    "articleBodySha256": result["bodySha256"]})
     storage.table().update_item(
         Key={"id": intent_ref},
         UpdateExpression=(
-            "SET #s = :s, workKey = :k, bodySha256 = :h, updatedAt = :u, updatedBy = :a"
+            "SET #s = :s, workKey = :k, articleWorkId = :w, bodySha256 = :h, "
+            "updatedAt = :u, updatedBy = :a"
         ),
         ExpressionAttributeNames={"#s": "status"},
         ExpressionAttributeValues={
-            ":s": status, ":k": key, ":h": body_hash, ":u": now, ":a": actor,
+            ":s": status, ":k": key, ":w": work_ref, ":h": result["bodySha256"],
+            ":u": now, ":a": actor,
         },
     )
     storage.table().update_item(
@@ -856,8 +874,9 @@ def save_article(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
             ":i": intent_ref, ":s": status, ":u": now, ":a": actor,
         },
     )
-    return {"intentId": intent_ref, "status": status, "workKey": key, "bodySha256": body_hash}
-
+    parent = blog_article_work.refresh_parent_status(source_id, actor)
+    return {**result, "intentId": intent_ref, "status": status, "workKey": key,
+            "articleWorkId": work_ref, "parentProgress": parent}
 
 def checkpoint(category: str, body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     category = _category(category)
@@ -915,6 +934,7 @@ def checkpoint(category: str, body: Dict[str, Any], actor: str) -> Dict[str, Any
 
 
 def complete_source(category: str, source_id: str, actor: str) -> Dict[str, Any]:
+    """Release the ChatGPT editorial lane after article production, not after publication."""
     category = _category(category)
     source_id = str(source_id or "").strip()
     if not source_id:
@@ -922,20 +942,29 @@ def complete_source(category: str, source_id: str, actor: str) -> Dict[str, Any]
     control = get_control(category)
     if str(control.get("currentSourceId") or "") != source_id:
         raise ValueError("sourceId is not the category's current editorial source")
+
+    import blog_article_work
+    state = blog_article_work.progress(source_id)
     intents = intents_for_source(source_id)
-    nonterminal = [
-        row for row in intents if str(row.get("status") or "PLANNED") not in EDITORIAL_TERMINAL
-    ]
-    if nonterminal:
+    if intents and not state["articleProductionComplete"]:
+        remaining = max(0, state["articles"] - state["drafted"] - state["held"])
         raise ValueError(
-            f"{len(nonterminal)} article intents are not yet at HUMAN_REVIEW/APPROVED/HOLD/PUBLISHED"
-        )
+            f"{remaining} article work item(s) are not drafted or held; "
+            "HUMAN_REVIEW alone never completes a source")
+    if not intents:
+        source = blog_sources.get_source(source_id) or {}
+        if not str(source.get("opportunityManifestKey") or ""):
+            raise ValueError("a source cannot complete before an opportunity manifest exists")
 
     now = storage.now_iso()
     storage.table().update_item(
         Key={"id": source_id},
-        UpdateExpression="SET editorialStatus = :s, editorialCompletedAt = :u, editorialCompletedBy = :a",
-        ExpressionAttributeValues={":s": "EDITORIAL_COMPLETE", ":u": now, ":a": actor},
+        UpdateExpression=(
+            "SET editorialStatus = :s, editorialCompletedAt = :u, editorialCompletedBy = :a"
+        ),
+        ExpressionAttributeValues={
+            ":s": "ARTICLE_PRODUCTION_COMPLETE", ":u": now, ":a": actor,
+        },
     )
     try:
         storage.table().update_item(
@@ -956,10 +985,16 @@ def complete_source(category: str, source_id: str, actor: str) -> Dict[str, Any]
 
     checkpoint(category, {
         "stage": "IDLE", "sourceId": "", "intentId": "",
-        "completedSourceId": source_id, "nextAction": "CLAIM_NEXT_SOURCE",
+        "completedSourceId": source_id,
+        "completion": "ARTICLE_PRODUCTION_COMPLETE",
+        "nextAction": "CLAIM_NEXT_SOURCE",
     }, actor)
-    return {"completed": True, "sourceId": source_id, "nextAction": "CLAIM_NEXT_SOURCE"}
-
+    return {
+        "completed": True, "completion": "ARTICLE_PRODUCTION_COMPLETE",
+        "sourceId": source_id, "progress": state, "nextAction": "CLAIM_NEXT_SOURCE",
+        "note": ("ChatGPT production is complete. Human QA/release/publish/verification "
+                 "continue independently and may advance the parent to PIPELINE_COMPLETE."),
+    }
 
 def _counts(category: str) -> Dict[str, Any]:
     sources = [
@@ -978,10 +1013,15 @@ def _counts(category: str) -> Dict[str, Any]:
     for row in intents:
         key = str(row.get("status") or "PLANNED")
         by_intent[key] = by_intent.get(key, 0) + 1
+    works = [
+        row for row in storage.scan_by_record_type("blogArticleWork", limit=0)
+        if row.get("category") == category
+    ]
     return {
         "sources": len(sources),
         "sourceEditorialStatus": dict(sorted(by_source.items())),
         "intents": len(intents),
+        "articleWork": len(works),
         "intentStatus": dict(sorted(by_intent.items())),
         "extractedWaiting": len(_eligible_sources(category)),
     }
@@ -996,6 +1036,11 @@ def resume(category: str) -> Dict[str, Any]:
         blog_sources.source_detail(current_source_id) if current_source_id else None
     )
     current_intents = intents_for_source(current_source_id) if current_source_id else []
+    if current_source_id:
+        import blog_article_work
+        current_work = blog_article_work.list_for_source(current_source_id)
+    else:
+        current_work = []
     next_candidates = _eligible_sources(category)
     return {
         "category": category,
@@ -1004,11 +1049,13 @@ def resume(category: str) -> Dict[str, Any]:
         "checkpoint": checkpoint_doc,
         "currentSource": current_source,
         "currentIntents": current_intents,
+        "currentArticleWork": current_work,
         "nextSourceId": (
             str(next_candidates[0].get("id") or "") if next_candidates else ""
         ),
         "masterKey": master_key(category),
         "promptKey": prompt_key(category),
+        "promptSha256": _prompt_sha256(category),
         "policyKey": policy_key(category),
         "checkpointKey": checkpoint_key(category),
         "aiMode": AI_MODE,
