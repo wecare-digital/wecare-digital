@@ -1032,6 +1032,63 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( container.innerHTML ).not.toContain( 'dc2626' );
   } );
 
+  it( 'keeps a clicked Weather history detail open when the history array settles again', async () => {
+    const baseFetch = environmentFetch();
+    let resolveHistory: ( value: Response ) => void = () => {};
+    const delayedHistory = new Promise<Response>( resolve => { resolveHistory = resolve; } );
+    const fetchSpy = vi.fn( ( input: RequestInfo | URL, init?: RequestInit ) => {
+      if ( requestIs( input, 'weather.googleapis.com', '/v1/history/hours' ) ) {
+        return delayedHistory;
+      }
+      return baseFetch( input, init );
+    } );
+    vi.stubGlobal( 'fetch', fetchSpy );
+
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+    fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
+
+    // Let the rest of Weather render first, then deliver history.
+    await waitFor( () => expect( container.querySelector( '[aria-label="Weather details"]' ) ).not.toBeNull() );
+    resolveHistory( {
+      ok: true,
+      json: async () => ( {
+        historyHours: [ {
+          interval: { startTime: new Date().toISOString() },
+          temperature: { degrees: 26 },
+          feelsLikeTemperature: { degrees: 27 },
+          relativeHumidity: 68,
+          dewPoint: { degrees: 19 },
+          airPressure: { meanSeaLevelMillibars: 1009 },
+          wind: { speed: { value: 8, unit: 'KILOMETERS_PER_HOUR' }, direction: { degrees: 90 } },
+          cloudCover: 35,
+          weatherCondition: { description: { text: 'Mostly sunny' } },
+        } ],
+      } ),
+    } as Response );
+
+    const historyCard = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-wx-hist-item' );
+      expect( el ).not.toBeNull();
+      return el as HTMLButtonElement;
+    } );
+
+    fireEvent.click( historyCard );
+    const detail = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-wx-history .vl-live-air-forecast-detail' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    expect( detail.textContent ).toContain( 'Feels' );
+
+    // A user click must not be cleared merely because Weather history state received a new
+    // array reference for the same selected place.
+    await act( async () => { await Promise.resolve(); } );
+    expect( container.querySelector( '.vl-live-wx-history .vl-live-air-forecast-detail' ) ).not.toBeNull();
+  } );
+
   it( 'adds a humanised moon phase to the daily astronomy when a 10-day row is expanded', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
