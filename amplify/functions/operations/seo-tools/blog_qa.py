@@ -199,6 +199,14 @@ def run(source_id: str, actor: str) -> Dict[str, Any]:
     }
     storage.put_record(stored)
     blog_sources.update_pipeline(source_id, qaRunId=qa_run, qaStatus=document["verdict"])
+    try:
+        import blog_article_work
+        blog_article_work.set_intent_status(source_id, "HUMAN_REVIEW", actor)
+        parent_id = str(record.get("parentSourceId") or "")
+        if parent_id:
+            blog_article_work.refresh_parent_status(parent_id, actor)
+    except Exception:  # noqa: BLE001 - QA evidence must survive a ledger-sync failure
+        logger.exception("article-work QA state sync failed")
     logger.info(json.dumps({
         "event": "blog_qa_run", "sourceId": source_id, "qaRunId": qa_run, "actor": actor,
         "verdict": document["verdict"], "blocking": len(assessment["blocking"]),
@@ -432,6 +440,14 @@ def sign_off(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     }
     storage.put_record(stored)
     blog_sources.update_pipeline(source_id, signoffId=record_id, signedOffBy=actor)
+    try:
+        import blog_article_work
+        blog_article_work.set_intent_status(source_id, "SIGNED_OFF", actor)
+        parent_id = str(record.get("parentSourceId") or "")
+        if parent_id:
+            blog_article_work.refresh_parent_status(parent_id, actor)
+    except Exception:  # noqa: BLE001 - sign-off remains authoritative
+        logger.exception("article-work sign-off state sync failed")
 
     assessment = blog_gate.assess_draft(record, draft, with_corpus=True)
     blog_gate.persist_assessment(source_id, draft, assessment)
