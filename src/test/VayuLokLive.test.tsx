@@ -544,6 +544,12 @@ function environmentFetch() {
         } ),
       } as Response );
     }
+    if ( requestIs( input, 'api.frankfurter.dev', '/v2/rate/inr/gbp' ) ) {
+      return Promise.resolve( {
+        ok: true,
+        json: async () => ( { date: '2026-10-15', base: 'INR', quote: 'GBP', rate: 0.0089 } ),
+      } as Response );
+    }
     if ( requestIs( input, 'weather.googleapis.com', '/v1/currentConditions' ) ) {
       return Promise.resolve( {
         ok: true,
@@ -1789,6 +1795,58 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     }
   } );
 
+
+
+  it( 'renders compact useful tools and keeps world-time search city-only after three characters', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    expect( screen.getByRole( 'heading', { name: 'Useful tools' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'heading', { name: 'Time converter' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'heading', { name: 'Currency converter' } ) ).toBeTruthy();
+
+    const input = screen.getByRole( 'combobox', { name: 'Choose destination city' } );
+    rec.autocompleteCalls.length = 0;
+
+    fireEvent.change( input, { target: { value: 'Lo' } } );
+    await act( async () => { await new Promise( resolve => setTimeout( resolve, 160 ) ); } );
+    expect( rec.autocompleteCalls ).toHaveLength( 0 );
+
+    fireEvent.change( input, { target: { value: 'Lon' } } );
+    await waitFor( () => expect( rec.autocompleteCalls.length ).toBeGreaterThan( 0 ) );
+    const req = rec.autocompleteCalls.at( -1 ) || {};
+    expect( req.input ).toBe( 'Lon' );
+    expect( req.includedPrimaryTypes ).toEqual( [ '(cities)' ] );
+    expect( req.includedRegionCodes ).toBeUndefined();
+    expect( req.locationRestriction ).toBeUndefined();
+  } );
+
+  it( 'loads a currency pair only on converter interaction and calculates amounts locally', async () => {
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const fxCalls = () => fetchSpy.mock.calls.filter( call =>
+      requestIs( call[ 0 ] as RequestInfo | URL, 'api.frankfurter.dev', '/v2/rate/inr/gbp' ),
+    );
+    expect( fxCalls() ).toHaveLength( 0 );
+
+    const amount = screen.getByRole( 'spinbutton', { name: 'Amount to convert' } );
+    fireEvent.focus( amount );
+
+    await waitFor( () => expect( fxCalls() ).toHaveLength( 1 ) );
+    expect( await screen.findByText( /£8\.9/ ) ).toBeTruthy();
+
+    fireEvent.change( amount, { target: { value: '2000' } } );
+    expect( fxCalls() ).toHaveLength( 1 );
+    expect( await screen.findByText( /£17\.8/ ) ).toBeTruthy();
+  } );
 
   it( 'uses the active site language for voice search and sends the transcript through the existing place search', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
