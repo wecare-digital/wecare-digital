@@ -280,8 +280,8 @@ REFERENCES: tuple = (
     Reference("brand-profiles", "Organisation profile links (JSON-LD sameAs, footers).",
               domains=("linkedin.com", "twitter.com", "x.com")),
     Reference("public-assets", ("Keyless public content: country flag images for product "
-                                "art, an icon CDN allowed by the CSP, open weather data."),
-              domains=("flagcdn.com", "img.icons8.com", "api.open-meteo.com")),
+                                "art, icon/CDN assets and open meteorological datasets."),
+              domains=("flagcdn.com", "img.icons8.com", "api.open-meteo.com", "source.coop")),
     Reference("reference-rates", ("Keyless public daily currency reference rates. The browser "
                                   "sends only the selected currency pair, never the amount."),
               domains=("frankfurter.dev",)),
@@ -299,6 +299,8 @@ LIBRARIES: tuple = (
     Library("next", "Web framework and static export.", npm=("next",)),
     Library("capacitor", "Native mobile shell for the web app.", npm=("@capacitor/*",)),
     Library("deck.gl", "Map and globe rendering.", npm=("@deck.gl/*",)),
+    Library("zarrita", "Browser reader for chunked NOAA GFS Zarr wind-vector data.",
+            npm=("zarrita", "@zarrita/*", "numcodecs")),
     Library("pillow", "Image rendering (Lambda layer).", pip=("pillow",), imports=("PIL",)),
     Library("cryptography", "Flows encryption and signatures (Lambda layer).",
             pip=("cryptography",), imports=("cryptography",)),
