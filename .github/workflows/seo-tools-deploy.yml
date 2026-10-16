@@ -22,7 +22,11 @@ on:
       - 'tests/test_current_public_page_catalog.py'
       - 'tests/test_blog_sources.py'
       - 'tests/test_blog_queue.py'
+      - 'tests/test_blog_analysis.py'
+      - 'tests/test_blog_qa.py'
       - 'tests/test_blog_publish.py'
+      - 'tests/test_blog_verify.py'
+      - 'tests/test_blog_repetition.py'
       - 'tests/test_blog_catalog.py'
       - 'tests/test_blog_production.py'
       - 'scripts/deploy_seo_tools.py'
@@ -46,7 +50,11 @@ on:
       - 'tests/test_current_public_page_catalog.py'
       - 'tests/test_blog_sources.py'
       - 'tests/test_blog_queue.py'
+      - 'tests/test_blog_analysis.py'
+      - 'tests/test_blog_qa.py'
       - 'tests/test_blog_publish.py'
+      - 'tests/test_blog_verify.py'
+      - 'tests/test_blog_repetition.py'
       - 'tests/test_blog_catalog.py'
       - 'tests/test_blog_production.py'
       - 'scripts/deploy_seo_tools.py'
@@ -95,7 +103,11 @@ jobs:
           tests/test_seo_package_contract.py
           tests/test_blog_sources.py
           tests/test_blog_queue.py
+          tests/test_blog_analysis.py
+          tests/test_blog_qa.py
           tests/test_blog_publish.py
+          tests/test_blog_verify.py
+          tests/test_blog_repetition.py
           tests/test_blog_catalog.py
           tests/test_blog_production.py
           -q
