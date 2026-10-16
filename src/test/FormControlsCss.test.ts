@@ -151,17 +151,17 @@ describe( 'form-controls.css — invariant 4', () => {
     // The counts are asserted SEPARATELY from the file set, so a new rule added to an
     // already-allowed file is caught as well as a new file. The arithmetic from 1.3a's frozen
     // 83/41/29 to these figures is in this file's header, property by property.
-    // VayuLok's FX native select adds one file plus two styled-jsx rule blocks, one geometric.
-    // The frozen census fixture records the current full-tree totals below.
-    expect( census.summary.ruleSets ).toBe( 67 );
-    expect( census.summary.files ).toBe( 23 );
-    expect( census.summary.geometryRuleSets ).toBe( 30 );
+    // VayuLok's former native FX select was removed; the census is back to the
+    // post-ServiceBuyBox totals and should stay frozen until a deliberate control-skin change.
+    expect( census.summary.ruleSets ).toBe( 65 );
+    expect( census.summary.files ).toBe( 22 );
+    expect( census.summary.geometryRuleSets ).toBe( 29 );
     // A-global, A-module and C-injected are UNCHANGED from 1.3a. Only mechanism B moved, and
     // only because elements moved - so a regression in the global stylesheets still fails here.
     expect( census.summary.mechanisms[ 'A-global' ] ).toMatchObject( { ruleSets: 40, files: 8 } );
     expect( census.summary.mechanisms[ 'A-module' ] ).toMatchObject( { ruleSets: 0, files: 0 } );
-    // ServiceBuyBox and VayuLok together bring styled-jsx to the frozen totals below.
-    expect( census.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 24, files: 13 } );
+    // ServiceBuyBox remains the last styled-jsx select addition after VayuLok removed its native select.
+    expect( census.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 22, files: 12 } );
     expect( census.summary.mechanisms[ 'C-injected' ] ).toMatchObject( { ruleSets: 3, files: 2 } );
 
     // The allow-list entry for tokens.css no longer covers its `input, textarea` base rule, and
