@@ -276,6 +276,8 @@ const FALLBACK_NAV_ICON_PATH = 'M5 5h14v14H5Zm4 4h6m-6 4h6';
 const SUBNAV_ICON_PATH = 'M6 7v5a5 5 0 0 0 5 5h7m-3-3 3 3-3 3';
 const ROW_CHEVRON_PATH = 'm9 6 6 6-6 6';
 
+const PUBLIC_NAV_ID = 'public-navigation-menu';
+
 const Header: React.FC = () => {
   const [ open, setOpen ] = useState( false );
   const [ query, setQuery ] = useState( '' );
@@ -296,6 +298,39 @@ const Header: React.FC = () => {
   ), [ searching, term ] );
 
   const close = useCallback( () => { setOpen( false ); setQuery( '' ); setShowProductsMore( false ); setProductsOverflowing( false ); }, [] );
+
+  // Derive the desktop panel width from its actual viewport position instead of a hard-coded
+  // allowance for the brand lockup. This keeps the menu safe if the logo, type size, locale or
+  // header spacing changes later. Mobile uses its fixed safe-area insets and ignores this value.
+  const syncMenuAvailableWidth = useCallback( () => {
+    if ( typeof window === 'undefined' ) return;
+    const root = rootRef.current;
+    if ( !root ) return;
+    const box = root.getBoundingClientRect();
+    const direction = window.getComputedStyle( root ).direction;
+    const edgeGap = 24;
+    const available = direction === 'rtl'
+      ? box.right - edgeGap
+      : window.innerWidth - box.left - edgeGap;
+    root.style.setProperty( '--nav-menu-available-width', `${Math.max( 0, Math.floor( available ) )}px` );
+  }, [] );
+
+  useEffect( () => {
+    if ( !open || typeof window === 'undefined' ) return undefined;
+    syncMenuAvailableWidth();
+    window.addEventListener( 'resize', syncMenuAvailableWidth );
+
+    const observed = rootRef.current?.closest<HTMLElement>( '.hdr-in' ) || rootRef.current;
+    const observer = typeof ResizeObserver !== 'undefined' && observed
+      ? new ResizeObserver( syncMenuAvailableWidth )
+      : null;
+    if ( observer && observed ) observer.observe( observed );
+
+    return () => {
+      window.removeEventListener( 'resize', syncMenuAvailableWidth );
+      observer?.disconnect();
+    };
+  }, [ open, syncMenuAvailableWidth ] );
 
   // Escape closes from anywhere, an outside pointerdown dismisses, AND the menu closes
   // when the mouse LEAVES it (hover-out), on owner request. None of these existed
@@ -493,14 +528,22 @@ const Header: React.FC = () => {
               className="nav-trigger"
               aria-label="Open navigation"
               aria-expanded={ open }
+              aria-controls={ PUBLIC_NAV_ID }
               aria-keyshortcuts="Enter Space Escape"
-              onClick={ () => { if ( open ) close(); else { setOpen( true ); setQuery( '' ); } } }
+              onClick={ () => {
+                if ( open ) close();
+                else {
+                  syncMenuAvailableWidth();
+                  setOpen( true );
+                  setQuery( '' );
+                }
+              } }
             >
               <svg className="nav-trigger-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                 <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
               </svg>
             </button>
-            <nav className={ `nav-menu ${open ? 'open' : ''}` } aria-label="Public navigation">
+            <nav id={ PUBLIC_NAV_ID } className={ `nav-menu ${open ? 'open' : ''}` } aria-label="Public navigation">
               {/* Not autofocused. The language panel autofocuses its search because
                   searching is the only way to use it, but this menu is readable at a
                   glance - popping the on-screen keyboard over the whole catalogue on a
@@ -869,15 +912,13 @@ const Header: React.FC = () => {
            positioning overflowing on a narrow window before the mobile rule takes
            over.
 
-           THAT 256 IS COUPLED TO THE BRAND LOCKUP'S WIDTH, and it has now been wrong
-           twice. The panel's left edge is wherever the lockup plus the trigger ends:
-           a first attempt reserved 176px from a guessed 152px offset and overflowed
-           by 4px at 900px wide; measuring gave 180px, so it became 208; then the logo
-           was sized up from 60px to 68px, the offset moved to 225px, and 208 overflowed
-           again at 768-960px. 225 + 24px of gutter is 249, taken to 256.
-           So: if BrandLockup's logo height or type size changes, THIS NUMBER MOVES.
-           Re-measure it, do not nudge it - the width sweep in megamenu.js is what
-           catches it, and it caught both of these.
+           DESKTOP WIDTH IS MEASURED FROM THE ACTUAL TRIGGER POSITION. Older versions
+           subtracted a hard-coded 256px from 100vw to approximate the brand lockup plus
+           trigger offset. That value broke whenever the lockup size changed. The component
+           now writes --nav-menu-available-width from getBoundingClientRect(), keeps a 24px
+           viewport gutter, and refreshes it while open on resize/header ResizeObserver.
+           RTL measures from the opposite edge. The browser sweep still verifies that the
+           resulting panel never leaves the viewport.
 
            max-height CLEARS THE WHATSAPP BUTTON GEOMETRICALLY, which is the only way
            to clear it. #wecarewa-widget is injected by an external script at
@@ -922,7 +963,7 @@ const Header: React.FC = () => {
            NO BACKTICKS IN THIS COMMENT: it sits inside a styled-jsx template literal, and a
            single backtick closes it - turning the rest of the stylesheet into JSX and failing
            the build hundreds of lines later with an unrelated-looking "Unexpected token". */
-        .nav-menu{--nav-menu-inset:0px;position:absolute;top:calc(100% + 8px);left:var(--nav-menu-inset);right:auto;z-index:1002;width:min(760px,calc(100vw - 256px));max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - env(safe-area-inset-bottom, 0px));overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;background:#fcfdfb;border:0;border-radius:14px;padding:14px;opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .2s,transform .2s,visibility 0s linear .2s;box-shadow:0 8px 28px rgba(0,0,0,.10)}
+        .nav-menu{--nav-menu-inset:0px;position:absolute;top:calc(100% + 8px);left:var(--nav-menu-inset);right:auto;z-index:1002;width:min(760px,var(--nav-menu-available-width,760px));max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - env(safe-area-inset-bottom, 0px));overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;background:#fcfdfb;border:0;border-radius:14px;padding:14px;opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .2s,transform .2s,visibility 0s linear .2s;box-shadow:0 8px 28px rgba(0,0,0,.10)}
         .nav-menu.open{opacity:1;visibility:visible;transform:translateY(0);transition:opacity .2s,transform .2s,visibility 0s}
 
         /* Search field. Sized off the language panel's input rather than a new set of

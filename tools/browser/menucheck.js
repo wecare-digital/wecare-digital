@@ -27,6 +27,8 @@ const VIEWPORTS = [
   { name: 'desktop', width: 1280, height: 900 },
   { name: 'phone', width: 390, height: 844 },
   { name: 'narrow-phone', width: 320, height: 700 },
+  { name: 'folded-phone', width: 280, height: 653 },
+  { name: 'folded-landscape', width: 653, height: 280 },
   { name: 'wide-short', width: 880, height: 360 },
 ];
 
@@ -47,8 +49,14 @@ const fail = ( message ) => { throw new Error( message ); };
       await page.waitForTimeout( 40 );
 
       if ( await trigger.getAttribute( 'aria-expanded' ) !== 'true' ) fail( `${viewport.name}: trigger did not open` );
+      if ( await trigger.getAttribute( 'aria-controls' ) !== 'public-navigation-menu' ) {
+        fail( `${viewport.name}: trigger is not linked to the public navigation menu` );
+      }
 
       const menu = page.getByRole( 'navigation', { name: 'Public navigation' } );
+      if ( await menu.getAttribute( 'id' ) !== 'public-navigation-menu' ) {
+        fail( `${viewport.name}: public navigation id is missing or changed` );
+      }
       const box = await menu.boundingBox();
       if ( !box || box.height < 120 ) fail( `${viewport.name}: menu too short or invisible` );
       if ( box.x < -1 || box.x + box.width > viewport.width + 1 ) fail( `${viewport.name}: horizontal menu overflow` );

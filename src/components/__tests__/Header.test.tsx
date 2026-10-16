@@ -1,10 +1,13 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Header from '../Header';
 
 const routerState = vi.hoisted( () => ( { pathname: '/', asPath: '' } ) );
 vi.mock( 'next/router', () => ( { useRouter: () => routerState } ) );
+
+const browserOpen = vi.hoisted( () => vi.fn( async () => undefined ) );
+vi.mock( '@capacitor/browser', () => ( { Browser: { open: browserOpen } } ) );
 
 describe( 'Header', () => {
   it( 'shows the shared WECARE.DIGITAL brand', () => {
@@ -12,6 +15,32 @@ describe( 'Header', () => {
     expect( screen.getByText( /WECARE/ ) ).toBeInTheDocument();
     expect( screen.getByText( 'DIGITAL' ) ).toBeInTheDocument();
     expect( screen.getByRole( 'link', { name: /WECARE.DIGITAL home/i } ) ).toHaveAttribute( 'href', '/' );
+  } );
+
+  it( 'links the navigation trigger to its controlled menu for assistive technology', () => {
+    render( <Header /> );
+    const trigger = screen.getByRole( 'button', { name: 'Open navigation' } );
+    const menu = screen.getByRole( 'navigation', { name: 'Public navigation' } );
+    expect( menu ).toHaveAttribute( 'id', 'public-navigation-menu' );
+    expect( trigger ).toHaveAttribute( 'aria-controls', 'public-navigation-menu' );
+  } );
+
+  it( 'opens external menu destinations through Capacitor Browser in a native app shell', async () => {
+    const nativeWindow = window as typeof window & { Capacitor?: { isNativePlatform?: () => boolean } };
+    nativeWindow.Capacitor = { isNativePlatform: () => true };
+    browserOpen.mockClear();
+
+    try {
+      render( <Header /> );
+      fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+      fireEvent.click( screen.getByRole( 'link', { name: 'Subscribe' } ) );
+
+      await waitFor( () => expect( browserOpen ).toHaveBeenCalledTimes( 1 ) );
+      expect( browserOpen.mock.calls[ 0 ]?.[ 0 ] ).toEqual( { url: expect.any( String ) } );
+      expect( screen.getByRole( 'button', { name: 'Open navigation' } ) ).toHaveAttribute( 'aria-expanded', 'false' );
+    } finally {
+      delete nativeWindow.Capacitor;
+    }
   } );
 
   it( 'restores Home and makes Shop itself the catalogue destination', () => {
@@ -374,9 +403,11 @@ describe( 'Header', () => {
     expect( screen.getByRole( 'status' ) ).toHaveTextContent( '3 menu results.' );
   } );
 
-  it( 'includes vh fallback, dynamic viewport sizing and native safe-area insets', () => {
+  it( 'uses measured desktop menu width plus vh fallback, dynamic viewport sizing and native safe-area insets', () => {
     const { container } = render( <Header /> );
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
+    expect( css ).toContain( 'width:min(760px,var(--nav-menu-available-width,760px))' );
+    expect( css ).not.toContain( 'calc(100vw - 256px)' );
     expect( css ).toContain( 'max-height:calc(100vh - 140px)' );
     expect( css ).toContain( 'max-height:calc(100dvh - 140px - env(safe-area-inset-bottom, 0px))' );
     expect( css ).toContain( 'env(safe-area-inset-left,0px)' );
