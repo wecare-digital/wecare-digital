@@ -8,6 +8,7 @@ import Head from 'next/head';
 import PageMeta from '../../components/PageMeta';
 import PublicShare from '../../components/PublicShare';
 import RotatingHero from '../../components/RotatingHero';
+import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, PRODUCT_SKU_BY_SLUG } from '../../content/productCommerce';
 
 const GrahakOsPage: React.FC = () => {
   const [visible, setVisible] = useState<Set<string>>(new Set());
@@ -591,6 +592,10 @@ response = requests.post(
               <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
             </div>
             <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span></p>
+            <div className="gos-commerce">
+              <p data-wc-no-translate="true"><strong>SKU:</strong> { PRODUCT_SKU_BY_SLUG['grahak-os'] }</p>
+              <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }</p>
+            </div>
           </div>
         </section>
 
@@ -835,6 +840,12 @@ response = requests.post(
           .gos-closer-buy{margin-top:30px;display:flex;flex-direction:column;align-items:center}
           .gos-closer-buy .gos-ctas{justify-content:center}
           .gos-closer-buy .gos-price{text-align:center}
+          .gos-commerce{
+            margin-top:18px;max-width:700px;padding:14px 16px;border:1px solid #e5e7eb;border-radius:12px;
+            background:#fcfdfb;font-size:14px;line-height:1.5;color:rgba(0,0,0,.72);text-align:left;
+          }
+          .gos-commerce p{margin:0}
+          .gos-commerce p + p{margin-top:6px}
           /* Hero h1 level, exactly: clamp(36px,4.3vw,60px) / 600 / -2.2px.
              It was clamp(38px,6vw,84px), which at any viewport above ~630px rendered
              LARGER than the hero headline and inverted the page's hierarchy - the closing
