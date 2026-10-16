@@ -268,7 +268,7 @@ response = requests.post(
             // but OUTSIDE the .rh-split two-column row - so it is a valid block container
             // (ProductBuyBox renders a <div>, which a <p> like .rh-sub may not hold) and it
             // starts on the same left edge as the hero copy.
-            // TWO DOORS, SAME AS /anew/: a primary WhatsApp pill ("Continue on WhatsApp →",
+            // TWO DOORS, SAME AS /anew/: a primary WhatsApp pill ("Get Started on WhatsApp →",
             // full lime) beside the secondary website checkout pill ProductBuyBox renders
             // ("Continue to checkout →", white with a dark-green edge). The WhatsApp link is
             // Grahak OS's own click-to-chat short link, the same one the API section's
@@ -280,7 +280,7 @@ response = requests.post(
             // prepare - until that catalogue line exists. No catalogue image, by owner choice.
             <div className="gos-buy">
               <div className="gos-ctas">
-                <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Continue on WhatsApp &#8594;</a>
+                <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
                 <ProductBuyBox slug="grahak-os" showPrice={ false } />
               </div>
               <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · Grahak OS · billed as one line</span></p>
@@ -916,16 +916,21 @@ response = requests.post(
              mirrored in Arabic - so this one follows the document instead of being locked.
              Measured at 260px out of position under rtl before the change. */
           .phone{position:absolute;inset-inline-start:0;top:28px;width:56%;max-width:320px;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.12)}
-          /* WhatsApp's own header teal (#075e54), not the brand's #1a3a2a. This is a
-             SIMULATION of WhatsApp, so the chrome should read as WhatsApp's rather than
-             as a custom green panel - the flat dark-forest block was the single biggest
-             tell that this was a brand mockup and not a real thread. #075e54 is the value
-             from WhatsApp's published palette. */
-          .phone-header{background:#075e54;padding:12px 14px;display:flex;align-items:center;gap:10px}
-          /* Avatar reads as a contact photo, not a flat tile the same colour as the
-             header behind it. A lighter teal disc with the business initial separates it
-             from the bar so the lockup looks like a real chat row. */
-          .avatar{width:40px;height:40px;background:#128c7e;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;box-shadow:0 0 0 2px rgba(255,255,255,.15)}
+          /* WhatsApp's own header teal (#128c7e), not the brand's flat #1a3a2a. This is a
+             SIMULATION of WhatsApp, so the chrome should read as WhatsApp's rather than as a
+             custom green panel - the flat dark-forest block was the single biggest tell that
+             this was a brand mockup and not a real thread. #128c7e is from WhatsApp's published
+             palette (teal green).
+             NOT #075e54. That darker WhatsApp green is RETIRED by name in the design contract
+             (scripts/check_design_drift.py RETIRED_COLOURS) and the drift gate rejects it in
+             real CSS - an earlier pass used it here and failed the gate. #128c7e is the
+             non-retired WhatsApp header green and reads the same at this size. */
+          .phone-header{background:#128c7e;padding:12px 14px;display:flex;align-items:center;gap:10px}
+          /* Avatar reads as a contact photo, not a flat tile the same colour as the header
+             behind it. The brand dark green #1a3a2a disc with the business initial separates it
+             from the #128c7e bar so the lockup looks like a real chat row; #1a3a2a is the
+             contract's success/brand green (allowed), not a retired value. */
+          .avatar{width:40px;height:40px;background:#1a3a2a;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;box-shadow:0 0 0 2px rgba(255,255,255,.15)}
           .contact-info{flex:1;display:flex;flex-direction:column}
           .contact-name{color:#fff;font-size:17px;font-weight:600}
           .contact-status{color:rgba(255,255,255,.7);font-size:13px}
