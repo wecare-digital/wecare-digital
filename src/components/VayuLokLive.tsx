@@ -4190,15 +4190,15 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                 <div className="vl-live-world-place">
                   <span>From</span>
                   <strong>{ worldFrom.name }</strong>
-                  <b data-wc-no-translate="true">{ worldFrom.clock } · { worldFrom.zone }</b>
-                  <small data-wc-no-translate="true">{ worldFrom.date }</small>
+                  <b data-wc-no-translate="true" suppressHydrationWarning>{ worldFrom.clock } · { worldFrom.zone }</b>
+                  <small data-wc-no-translate="true" suppressHydrationWarning>{ worldFrom.date }</small>
                 </div>
                 <button type="button" className="vl-live-tool-swap" onClick={ () => setWorldSwapped( value => !value ) } aria-label="Swap displayed time zones">⇅</button>
                 <div className="vl-live-world-place">
                   <span>To</span>
                   <strong>{ worldTo.name }</strong>
-                  <b data-wc-no-translate="true">{ worldTo.clock } · { worldTo.zone }</b>
-                  <small data-wc-no-translate="true">{ worldTo.date }</small>
+                  <b data-wc-no-translate="true" suppressHydrationWarning>{ worldTo.clock } · { worldTo.zone }</b>
+                  <small data-wc-no-translate="true" suppressHydrationWarning>{ worldTo.date }</small>
                 </div>
               </div>
             </article>
