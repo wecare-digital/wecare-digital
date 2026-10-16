@@ -48,7 +48,7 @@ Deliberately NOT included, each for a measured reason:
   and a scheme-qualified mention would make this file fail that gate). Both are
   NXDOMAIN, `RETIRED_HOSTS` refuses them, and an allow-list entry for a name nobody
   owns is a standing offer to whoever claims it next.
-* `https://www.wecare.digital` - measured 2026-10-06: **302 to the apex**. A browser
+* `https://wecare.digital` - measured 2026-10-06: **302 to the apex**. A browser
   compares `Access-Control-Allow-Origin` against the literal request origin and never
   follows a redirect, so a redirecting host cannot be a usable allowed origin. The
   same reasoning that put the apex first in `lambda_utils/response.py`.
