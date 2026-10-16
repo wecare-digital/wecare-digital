@@ -2631,12 +2631,12 @@
         "contentType": "text/html"
       },
       {
-        "url": "https://www.wecare.digital/",
+        "url": "https://wecare.digital/",
         "status": 200,
         "terminal": "https://wecare.digital/",
         "hops": [
           {
-            "url": "https://www.wecare.digital/",
+            "url": "https://wecare.digital/",
             "status": 301,
             "location": "https://wecare.digital/"
           },
@@ -2650,12 +2650,12 @@
         "contentType": "text/html"
       },
       {
-        "url": "https://www.wecare.digital/shop/",
+        "url": "https://wecare.digital/shop/",
         "status": 200,
         "terminal": "https://wecare.digital/shop/",
         "hops": [
           {
-            "url": "https://www.wecare.digital/shop/",
+            "url": "https://wecare.digital/shop/",
             "status": 301,
             "location": "https://wecare.digital/shop/"
           },
