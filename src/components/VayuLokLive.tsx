@@ -88,20 +88,11 @@ const FX_API_BASE = 'https://api.frankfurter.dev/v2';
 const FX_RATE_TTL_MS = 6 * 60 * 60 * 1000;
 
 const FALLBACK_CURRENCY_CODES = [
-  'INR', 'USD', 'EUR', 'GBP', 'AED', 'JPY', 'SGD', 'AUD', 'CAD', 'CHF',
+  'USD', 'INR', 'EUR', 'GBP', 'AED', 'JPY', 'SGD', 'AUD', 'CAD', 'CHF',
   'CNY', 'KRW', 'THB', 'NZD', 'BRL', 'ZAR', 'SAR', 'IDR', 'MYR', 'HKD',
 ];
 
-function supportedCurrencyCodes(): string[] {
-  try {
-    const values = ( Intl as unknown as { supportedValuesOf?: ( key: string ) => string[] } ).supportedValuesOf?.( 'currency' );
-    if ( Array.isArray( values ) && values.length ) {
-      const preferred = new Set( FALLBACK_CURRENCY_CODES );
-      return [ ...FALLBACK_CURRENCY_CODES, ...values.filter( code => !preferred.has( code ) ) ];
-    }
-  } catch { /* use the compact fallback list */ }
-  return FALLBACK_CURRENCY_CODES;
-}
+type CurrencySide = 'base' | 'quote';
 // Continuous AQI heatmap TILE overlay (the organic, blob-shaped pollution cloud from the
 // reference). The AQI "Heatmap" switch paints Google's Air Quality heatmapTiles onto the
 // map's overlayMapTypes as a google.maps.ImageMapType, replacing the old discrete deck.gl
@@ -1098,13 +1089,16 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ worldSource, setWorldSource ] = useState<WorldTimeDestination | null>( null );
   const [ worldDestination, setWorldDestination ] = useState<WorldTimeDestination>( DEFAULT_WORLD_TIME_DESTINATION );
 
-  const [ fxBase, setFxBase ] = useState( 'INR' );
-  const [ fxQuote, setFxQuote ] = useState( 'GBP' );
-  const [ fxBaseInput, setFxBaseInput ] = useState( 'INR' );
-  const [ fxQuoteInput, setFxQuoteInput ] = useState( 'GBP' );
-  // Node and browsers can expose different Intl currency tables. Render the stable fallback list
-  // first, then expand it after mount so the datalist cannot trigger a hydration mismatch.
+  const [ fxBase, setFxBase ] = useState( 'USD' );
+  const [ fxQuote, setFxQuote ] = useState( 'INR' );
+  const [ fxBaseInput, setFxBaseInput ] = useState( 'USD' );
+  const [ fxQuoteInput, setFxQuoteInput ] = useState( 'INR' );
+  // Currency choices come from the rate provider itself when the Currency tab is opened.
+  // The compact fallback list is provider-safe and keeps the control usable if that catalogue
+  // request is temporarily unavailable. No browser-wide Intl catalogue is exposed.
   const [ currencyCodes, setCurrencyCodes ] = useState<string[]>( FALLBACK_CURRENCY_CODES );
+  const [ currencyOpenSide, setCurrencyOpenSide ] = useState<CurrencySide | null>( null );
+  const [ currencyActive, setCurrencyActive ] = useState( 0 );
   const currencyCodeSet = useMemo( () => new Set( currencyCodes ), [ currencyCodes ] );
   const [ fxRate, setFxRate ] = useState<FxRateState | null>( null );
   const [ fxLoading, setFxLoading ] = useState( false );
@@ -1170,6 +1164,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const utilityAutocompleteTokenRef = useRef<unknown>( null );
   const fxRateCache = useRef<Record<string, FxRateState>>( {} );
   const fxRequestSeqRef = useRef( 0 );
+  const currencyCatalogLoadedRef = useRef( false );
   // The google.maps.ImageMapType instance for the continuous AQI heatmap tile overlay
   // (FEAT-001). Attached by DEFAULT once the KEYED map is initialized (layer defaults to
   // 'AQI'), pushed onto map.overlayMapTypes, and detached idempotently on toggle-off /
@@ -1186,7 +1181,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
   useEffect( () => {
     setClockNow( Date.now() );
-    setCurrencyCodes( supportedCurrencyCodes() );
     const timer = window.setInterval( () => setClockNow( Date.now() ), 30_000 );
     return () => window.clearInterval( timer );
   }, [] );
@@ -2664,6 +2658,33 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     void loadFxRate( fxBase, fxQuote );
   }, [ toolTab, fxBase, fxQuote, loadFxRate ] );
 
+  useEffect( () => {
+    if ( toolTab !== 'currency' || currencyCatalogLoadedRef.current ) return;
+    currencyCatalogLoadedRef.current = true;
+    void fetch( `${FX_API_BASE}/currencies`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    } )
+      .then( async response => response.ok ? response.json() : null )
+      .then( data => {
+        const rows = Array.isArray( data ) ? data : [];
+        const codes = rows
+          .map( row => typeof row?.iso_code === 'string' ? row.iso_code.toUpperCase() : '' )
+          .filter( code => /^[A-Z]{3}$/.test( code ) );
+        if ( !codes.length ) {
+          currencyCatalogLoadedRef.current = false;
+          return;
+        }
+        const preferred = [ 'USD', 'INR' ];
+        const seen = new Set<string>();
+        const ordered = [ ...preferred, ...codes ].filter( code => codes.includes( code ) && !seen.has( code ) && seen.add( code ) );
+        setCurrencyCodes( ordered );
+      } )
+      .catch( () => {
+        currencyCatalogLoadedRef.current = false;
+      } );
+  }, [ toolTab ] );
+
 
   const chooseUtilityPlace = useCallback( async ( slot: UtilityPlaceSlot, result: SearchResult ) => {
     ++utilitySearchSeqRef.current;
@@ -2747,26 +2768,75 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     }
   };
 
-  const onCurrencyInputChange = ( side: 'base' | 'quote', value: string ) => {
+  const currencySuggestions = useMemo( () => {
+    if ( !currencyOpenSide ) return [];
+    const input = ( currencyOpenSide === 'base' ? fxBaseInput : fxQuoteInput ).trim().toUpperCase();
+    const committed = currencyOpenSide === 'base' ? fxBase : fxQuote;
+    const other = currencyOpenSide === 'base' ? fxQuote : fxBase;
+    const query = input === committed ? '' : input;
+    const matches = currencyCodes.filter( code =>
+      code !== other && ( !query || code.startsWith( query ) || code.includes( query ) ),
+    );
+    if ( !query && matches.includes( committed ) ) {
+      return [ committed, ...matches.filter( code => code !== committed ) ].slice( 0, 8 );
+    }
+    return matches.slice( 0, 8 );
+  }, [ currencyOpenSide, currencyCodes, fxBase, fxBaseInput, fxQuote, fxQuoteInput ] );
+
+  const chooseCurrency = ( side: CurrencySide, code: string ) => {
+    if ( !currencyCodeSet.has( code ) ) return;
+    if ( side === 'base' ) {
+      setFxBase( code );
+      setFxBaseInput( code );
+    } else {
+      setFxQuote( code );
+      setFxQuoteInput( code );
+    }
+    setFxRate( null );
+    setCurrencyOpenSide( null );
+    setCurrencyActive( 0 );
+  };
+
+  const onCurrencyInputChange = ( side: CurrencySide, value: string ) => {
     const normalized = value.toUpperCase().replace( /[^A-Z]/g, '' ).slice( 0, 3 );
     if ( side === 'base' ) setFxBaseInput( normalized );
     else setFxQuoteInput( normalized );
-    if ( !currencyCodeSet.has( normalized ) ) return;
-
-    if ( side === 'base' ) {
-      setFxBase( normalized );
-      setFxRate( null );
-      void loadFxRate( normalized, fxQuote );
-    } else {
-      setFxQuote( normalized );
-      setFxRate( null );
-      void loadFxRate( fxBase, normalized );
-    }
+    setCurrencyOpenSide( side );
+    setCurrencyActive( 0 );
   };
 
-  const normalizeCurrencyInput = ( side: 'base' | 'quote' ) => {
-    if ( side === 'base' && !currencyCodeSet.has( fxBaseInput ) ) setFxBaseInput( fxBase );
-    if ( side === 'quote' && !currencyCodeSet.has( fxQuoteInput ) ) setFxQuoteInput( fxQuote );
+  const normalizeCurrencyInput = ( side: CurrencySide ) => {
+    const input = side === 'base' ? fxBaseInput : fxQuoteInput;
+    if ( currencyCodeSet.has( input ) ) {
+      chooseCurrency( side, input );
+      return;
+    }
+    if ( side === 'base' ) setFxBaseInput( fxBase );
+    else setFxQuoteInput( fxQuote );
+    setCurrencyOpenSide( null );
+    setCurrencyActive( 0 );
+  };
+
+  const onCurrencyKeyDown = ( side: CurrencySide, e: React.KeyboardEvent<HTMLInputElement> ) => {
+    if ( e.key === 'Escape' ) {
+      e.preventDefault();
+      if ( side === 'base' ) setFxBaseInput( fxBase );
+      else setFxQuoteInput( fxQuote );
+      setCurrencyOpenSide( null );
+      setCurrencyActive( 0 );
+      return;
+    }
+    if ( !currencySuggestions.length ) return;
+    if ( e.key === 'ArrowDown' ) {
+      e.preventDefault();
+      setCurrencyActive( index => Math.min( index + 1, currencySuggestions.length - 1 ) );
+    } else if ( e.key === 'ArrowUp' ) {
+      e.preventDefault();
+      setCurrencyActive( index => Math.max( 0, index - 1 ) );
+    } else if ( e.key === 'Enter' ) {
+      e.preventDefault();
+      chooseCurrency( side, currencySuggestions[ currencyActive ] );
+    }
   };
 
   const runSearch = useCallback( async ( text: string ) => {
@@ -4108,40 +4178,98 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                 <div className="vl-live-tool-panel" role="tabpanel" id="vl-live-tool-currency-panel" aria-labelledby="vl-live-tool-currency-tab">
                   <h4>Currency rate</h4>
                   <div className="vl-live-fx-pair" aria-label="Currency pair">
-                    <label className="vl-live-fx-currency">
-                      <span className="vl-live-sr-only">Base currency</span>
+                    <div className="vl-live-utility-search vl-live-fx-search">
                       <input
                         type="search"
-                        list="vl-live-currency-codes"
+                        role="combobox"
                         value={ fxBaseInput }
                         onChange={ e => onCurrencyInputChange( 'base', e.target.value ) }
+                        onFocus={ e => {
+                          setCurrencyOpenSide( 'base' );
+                          setCurrencyActive( 0 );
+                          e.currentTarget.select();
+                        } }
                         onBlur={ () => normalizeCurrencyInput( 'base' ) }
+                        onKeyDown={ e => onCurrencyKeyDown( 'base', e ) }
                         aria-label="Base currency"
+                        aria-controls="vl-live-fx-base-results"
+                        aria-autocomplete="list"
+                        aria-expanded={ currencyOpenSide === 'base' && currencySuggestions.length > 0 }
+                        aria-activedescendant={ currencyOpenSide === 'base' && currencySuggestions.length ? `vl-live-fx-base-option-${currencyActive}` : undefined }
+                        placeholder="Search currency"
                         autoComplete="off"
+                        autoCorrect="off"
                         spellCheck={ false }
                       />
-                    </label>
+                      { currencyOpenSide === 'base' && currencySuggestions.length > 0 && (
+                        <ul className="vl-live-utility-results" id="vl-live-fx-base-results" role="listbox" aria-label="Available base currencies">
+                          { currencySuggestions.map( ( code, idx ) => (
+                            <li
+                              key={ `base-${code}` }
+                              id={ `vl-live-fx-base-option-${idx}` }
+                              role="option"
+                              aria-selected={ currencyActive === idx }
+                              className={ currencyActive === idx ? 'is-active' : '' }
+                              onPointerDown={ e => { e.preventDefault(); chooseCurrency( 'base', code ); } }
+                              onMouseEnter={ () => setCurrencyActive( idx ) }
+                            >
+                              <strong data-wc-no-translate="true">{ code }</strong>
+                            </li>
+                          ) ) }
+                        </ul>
+                      ) }
+                      { currencyOpenSide === 'base' && !currencySuggestions.length && (
+                        <span className="vl-live-utility-empty" role="status">Currency not available.</span>
+                      ) }
+                    </div>
 
                     <button type="button" className="vl-live-tool-swap is-horizontal" onClick={ swapFxPair } aria-label="Swap currencies">⇄</button>
 
-                    <label className="vl-live-fx-currency">
-                      <span className="vl-live-sr-only">Quote currency</span>
+                    <div className="vl-live-utility-search vl-live-fx-search">
                       <input
                         type="search"
-                        list="vl-live-currency-codes"
+                        role="combobox"
                         value={ fxQuoteInput }
                         onChange={ e => onCurrencyInputChange( 'quote', e.target.value ) }
+                        onFocus={ e => {
+                          setCurrencyOpenSide( 'quote' );
+                          setCurrencyActive( 0 );
+                          e.currentTarget.select();
+                        } }
                         onBlur={ () => normalizeCurrencyInput( 'quote' ) }
+                        onKeyDown={ e => onCurrencyKeyDown( 'quote', e ) }
                         aria-label="Quote currency"
+                        aria-controls="vl-live-fx-quote-results"
+                        aria-autocomplete="list"
+                        aria-expanded={ currencyOpenSide === 'quote' && currencySuggestions.length > 0 }
+                        aria-activedescendant={ currencyOpenSide === 'quote' && currencySuggestions.length ? `vl-live-fx-quote-option-${currencyActive}` : undefined }
+                        placeholder="Search currency"
                         autoComplete="off"
+                        autoCorrect="off"
                         spellCheck={ false }
                       />
-                    </label>
+                      { currencyOpenSide === 'quote' && currencySuggestions.length > 0 && (
+                        <ul className="vl-live-utility-results" id="vl-live-fx-quote-results" role="listbox" aria-label="Available quote currencies">
+                          { currencySuggestions.map( ( code, idx ) => (
+                            <li
+                              key={ `quote-${code}` }
+                              id={ `vl-live-fx-quote-option-${idx}` }
+                              role="option"
+                              aria-selected={ currencyActive === idx }
+                              className={ currencyActive === idx ? 'is-active' : '' }
+                              onPointerDown={ e => { e.preventDefault(); chooseCurrency( 'quote', code ); } }
+                              onMouseEnter={ () => setCurrencyActive( idx ) }
+                            >
+                              <strong data-wc-no-translate="true">{ code }</strong>
+                            </li>
+                          ) ) }
+                        </ul>
+                      ) }
+                      { currencyOpenSide === 'quote' && !currencySuggestions.length && (
+                        <span className="vl-live-utility-empty" role="status">Currency not available.</span>
+                      ) }
+                    </div>
                   </div>
-
-                  <datalist id="vl-live-currency-codes">
-                    { currencyCodes.map( code => <option key={ code } value={ code } /> ) }
-                  </datalist>
 
                   <div className="vl-live-fx-result" aria-live="polite">
                     { fxLoading ? (
@@ -4282,11 +4410,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-tool-swap.is-horizontal{margin-top:8px;font-size:17px}
 
         .vl-live-fx-pair{align-items:center}
-        .vl-live-fx-currency{display:block;min-width:0}
-        .vl-live-fx-currency>input{width:100%;height:52px;padding:0 28px 0 2px;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.18px;font-family:inherit;outline:none;text-transform:uppercase;transition:border-color .2s,box-shadow .2s}
-        .vl-live-fx-currency>input::placeholder{color:rgba(0,0,0,.44)}
-        .vl-live-fx-currency>input::-webkit-search-cancel-button,.vl-live-fx-currency>input::-webkit-search-decoration{display:none;-webkit-appearance:none}
-        .vl-live-fx-currency>input:focus-visible{outline:none;border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470}
+        .vl-live-fx-search>input{padding-right:2px;text-transform:uppercase}
         .vl-live-fx-result{display:flex;min-height:82px;flex-direction:column;justify-content:center;gap:6px;margin-top:var(--vl-section-gap);padding-top:var(--vl-section-pad);border-top:1px solid var(--hair)}
         .vl-live-fx-result>strong{color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
         .vl-live-fx-result>small{color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
