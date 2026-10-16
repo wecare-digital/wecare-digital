@@ -14,6 +14,14 @@ describe( 'Header', () => {
     expect( screen.getByRole( 'link', { name: /WECARE.DIGITAL home/i } ) ).toHaveAttribute( 'href', '/' );
   } );
 
+  it( 'links the navigation trigger to its controlled menu for assistive technology', () => {
+    render( <Header /> );
+    const trigger = screen.getByRole( 'button', { name: 'Open navigation' } );
+    const menu = screen.getByRole( 'navigation', { name: 'Public navigation' } );
+    expect( menu ).toHaveAttribute( 'id', 'public-navigation-menu' );
+    expect( trigger ).toHaveAttribute( 'aria-controls', 'public-navigation-menu' );
+  } );
+
   it( 'restores Home and makes Shop itself the catalogue destination', () => {
     routerState.pathname = '/';
     render( <Header /> );
@@ -374,9 +382,11 @@ describe( 'Header', () => {
     expect( screen.getByRole( 'status' ) ).toHaveTextContent( '3 menu results.' );
   } );
 
-  it( 'includes vh fallback, dynamic viewport sizing and native safe-area insets', () => {
+  it( 'uses measured desktop menu width plus vh fallback, dynamic viewport sizing and native safe-area insets', () => {
     const { container } = render( <Header /> );
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
+    expect( css ).toContain( 'width:min(760px,var(--nav-menu-available-width,760px))' );
+    expect( css ).not.toContain( 'calc(100vw - 256px)' );
     expect( css ).toContain( 'max-height:calc(100vh - 140px)' );
     expect( css ).toContain( 'max-height:calc(100dvh - 140px - env(safe-area-inset-bottom, 0px))' );
     expect( css ).toContain( 'env(safe-area-inset-left,0px)' );
