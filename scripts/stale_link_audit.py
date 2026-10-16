@@ -67,7 +67,7 @@ def internal_hrefs(html: str) -> set[str]:
             continue
         if low.startswith("http"):
             if not (low.startswith(SITE) or low.startswith("http://wecare.digital")
-                    or low.startswith("https://www.wecare.digital")):
+                    ):
                 continue
             h = h.split("wecare.digital", 1)[1] or "/"
         if not h.startswith("/"):
