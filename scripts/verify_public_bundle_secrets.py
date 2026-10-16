@@ -162,6 +162,16 @@ NEVER_PUBLIC = {
 AWS_DOC_EXAMPLE = "AKI" + "A" + "IOSFODNN7EXAMPLE"
 FILLER = re.compile(r"(.)\1{19,}")
 
+# Public byte-table constants from numcodecs 0.3.2's generated Blosc/Zstd WASM
+# wrappers. A fingerprint-only diagnostic on the installed package proved these exact
+# four matches originate in node_modules/numcodecs/dist/{blosc,zstd}.js. They are
+# published library bytes, not credentials. Keep this set exact: adding a new value
+# requires the same provenance proof; the AWS credential regex itself stays strict.
+BENIGN_AWS_FINGERPRINTS = {
+    "1cbb1adb8621", "7fb6cb4173b3",  # numcodecs/dist/blosc.js
+    "25b3c9880103", "a319dbdf2041",  # numcodecs/dist/zstd.js
+}
+
 # Text-ish payloads only. Fonts, images and source maps of binary assets cannot
 # carry a credential that a browser would read as configuration, and scanning
 # them makes the check slow enough that someone will switch it off.
@@ -169,7 +179,9 @@ SCAN_SUFFIXES = {".js", ".mjs", ".cjs", ".json", ".html", ".css", ".txt", ".xml"
 
 
 def benign(match: str) -> bool:
-    return match == AWS_DOC_EXAMPLE or bool(FILLER.search(match))
+    if match == AWS_DOC_EXAMPLE or bool(FILLER.search(match)):
+        return True
+    return fingerprint(match) in BENIGN_AWS_FINGERPRINTS
 
 
 def scan_file(path: Path, rel: str) -> tuple[list[dict], list[dict]]:
