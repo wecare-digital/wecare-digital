@@ -56,3 +56,46 @@ current provider surface) is satisfied with these two items correctly retained.
 Searched without excluding directories. Docs still contain historical Wix/Airtel
 mentions by design (archival evidence); the program scopes removal to the current
 *application/runtime*, which is clean.
+
+---
+
+# CLOSEOUT — Deep Audit #7 is CLOSED (2026-10-16)
+
+Final targeted re-verification (no build loops run), confirming the end state:
+
+- `retired_store` / `legacy_history` / deep-store / provider-tombstone modules — **0 files** (WX §7/§8 satisfied; the compatibility layer is gone).
+- Wix-named schema fields (`WixOrderIds`, `WIX_ORDER_IDS_TABLE`, `wixOrderId`, `wixCartId`, generic `wix*`) — **0** (WX §9 satisfied).
+- Wix/Airtel AI tool descriptions (`get_wix_*`, `airtel c2c/call`) — **0** (WX §13 satisfied).
+- Live AWS Lambdas / DynamoDB tables / Secrets named `wix`/`airtel` — **0**.
+
+The program's "Definition of Done" is met. The WX document is **closed**. The
+items below are **not** reopeners — they are the honest residual list: justified
+exceptions, optional improvements, and one documented migration gap.
+
+## A. Pending actions (justified exceptions — KEEP, do not "fix")
+
+| # | Item | Action | Why |
+| --- | --- | --- | --- |
+| A1 | `RETAILER_PREFIX = "wix"` (`meta_catalog_sync.py:62`) | **KEEP** | It is Meta's `product_retailer_id` namespace. Every live Meta catalog item and every inbound WhatsApp catalog order carries `wix:<productId>:<variantId>`. The module explicitly documents it as an external contract. Changing it ≠ cleanup; it breaks the Meta↔ProductsTable join and inbound order resolution. |
+| A2 | UPI VPA `…rzp@rxairtel` (4 files) | **KEEP** | Razorpay UPI address; `rxairtel` is the Airtel Payments **Bank** handle, not the voice/SMS provider. Editing breaks payment routing. |
+
+## B. Improvement opportunities (optional, owner-gated, NOT required for closeout)
+
+| # | Improvement | Effort / risk | Note |
+| --- | --- | --- | --- |
+| B1 | Re-key the Meta retailer-id namespace off the `wix:` spelling to a neutral prefix (e.g. `wd:`). | High / high-risk | A real Meta catalog migration: publish new ids, carry in-flight WhatsApp carts across, retire old ids. **Cannot run while `META_CATALOG_SYNC_ENABLED=false`.** Only worth doing if the `wix:` string itself is objectionable; functionally it is already provider-neutral. Needs owner approval + a cutover window. |
+| B2 | Rename the UPI VPA variable/comment context so `rxairtel` reads less like the provider. | Low / none | Pure readability; the value cannot change (it is the live payment address). A one-line comment "(Airtel Payments Bank handle, not the Airtel comms provider)" at `constants.ts:112` would stop a future agent flagging it. |
+| B3 | Add a lint/CI guard: fail if a NEW `wix`/`airtel` provider token appears in `src/`+`functions/` (allowlisting A1/A2). | Low / none | Prevents regression. `scripts/check-wix-policy.sh` already exists for runtime; extend its allowlist to cover these two exceptions so the zero-reference state is enforced, not just verified once. |
+
+## C. Gaps (known, documented — not defects)
+
+| # | Gap | Status |
+| --- | --- | --- |
+| C1 | The `wix:` retailer prefix is a lingering *spelling* of a provider name in an active contract. | **Documented, accepted.** The code comment at `meta_catalog_sync.py:38-55` already explains the contract and the migration cost. No runtime Wix dependency exists behind it. Tracked as improvement B1 if the owner ever wants the spelling gone. |
+| C2 | Historical Wix/Airtel mentions remain in `docs/`. | **By design.** WX scopes removal to the current application/runtime (clean); docs retain archival evidence. `docs/audit-doc-index.md` marks which are superseded. |
+
+## Verdict
+
+**WX / Deep Audit #7: COMPLETE and CLOSED.** No pending *cleanup* work. Two
+justified exceptions kept (A1/A2), three optional improvements noted (B1-B3), two
+documented non-defect gaps (C1/C2). Next: CON1 (pages consolidation).
