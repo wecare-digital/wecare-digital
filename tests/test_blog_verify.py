@@ -515,26 +515,25 @@ def test_a_failure_is_recorded_and_not_retried(env):
     assert len(env["bv"].history(published["sourceId"])) == 2
 
 
-def test_a_passing_run_moves_the_article_to_verified(env):
-    """The only status transition in this system earned by reading the live site."""
+def test_a_passing_backend_run_does_not_claim_static_site_verification(env):
+    """Native-store verification is necessary, but final VERIFIED belongs to the site bridge."""
     published = _published(env)
-    before = env["bs"].get_source(published["sourceId"])
-    assert before["articleStatus"] != "VERIFIED"
     env["bv"].run(published["sourceId"], "operator")
     after = env["bs"].get_source(published["sourceId"])
-    assert after["articleStatus"] == "VERIFIED"
-    assert after["draftRecord"]["status"] == "VERIFIED"
-    assert after["pipeline"]["verifyStatus"] == "VERIFIED"
-    assert after["pipeline"]["verifiedAt"]
+    assert after["articleStatus"] != "VERIFIED"
+    assert after["pipeline"]["backendVerifyStatus"] == "VERIFIED"
+    assert after["pipeline"]["backendVerifiedAt"]
+    assert after["pipeline"]["verifyStatus"] != "VERIFIED"
 
 
-def test_a_failing_run_does_not_move_the_article(env):
+def test_a_failing_backend_run_stays_separate_from_final_site_status(env):
     published = _published(env)
     env["live"][published["slug"]]["authorName"] = "Somebody Else"
     env["bv"].run(published["sourceId"], "operator")
     after = env["bs"].get_source(published["sourceId"])
     assert after["articleStatus"] != "VERIFIED"
-    assert after["pipeline"]["verifyStatus"] == "FAILED"
+    assert after["pipeline"]["backendVerifyStatus"] == "FAILED"
+    assert after["pipeline"]["verifyStatus"] != "VERIFIED"
 
 
 def test_the_report_is_proxied_not_linked(env):
@@ -562,8 +561,8 @@ def test_the_batch_state_counts_published_but_unverified(env):
 
     env["bv"].run(first["sourceId"], "operator")
     state = env["bv"].batch_verify_state(batch_id)
-    assert state["verified"] == 1
-    assert state["awaitingVerification"] == 1
+    assert state["verified"] == 0
+    assert state["awaitingVerification"] == 2
     assert state["runs"] == 1
 
 
