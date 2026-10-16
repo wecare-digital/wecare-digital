@@ -260,19 +260,10 @@ response = requests.post(
           pillPrefix="across"
           words={ cycleWords }
           sub={ <>One platform for customer data, messaging, automation and campaigns, so every conversation stays connected whichever channel it starts on. Turn your WhatsApp number into your #1 revenue channel with Grahak OS.</> }
-          children={ (
-            // HERO CTA. One primary WhatsApp pill ("Get Started on WhatsApp →") in the hero's
-            // own content measure, via RotatingHero's `children` slot (sits inside .rh-layout
-            // but outside the .rh-split two-column row, so it starts on the hero copy's left
-            // edge). The paid website-checkout pill (ProductBuyBox "Continue to checkout →")
-            // was REMOVED on owner instruction - WhatsApp is the only entry point now. The
-            // ₹899 price line lives in the closer at the bottom (see #gos-closer).
-            <div className="gos-buy">
-              <div className="gos-ctas">
-                <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
-              </div>
-            </div>
-          ) }
+          {/* NO hero CTA. The "Get Started on WhatsApp" pill was removed from the hero on owner
+              instruction, so the hero is just the headline, sub and mockup; the single call to
+              action (WhatsApp pill + ₹899 price) lives in the closer at the bottom
+              (#gos-closer). RotatingHero's `children` slot is left unset. */}
           visual={ (
           <div className="hero-right">
               <div className="mockup-wrapper">
@@ -723,27 +714,10 @@ response = requests.post(
           .hero-left p{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0 0 18px;max-width:400px}
           .hero-left p.hero-sub{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0;max-width:400px}
 
-          /* PRICE + DUAL CTA, rendered through RotatingHero's children slot so it sits in
-             the hero's own content measure (.rh-layout), one flex row below the two-column
-             split and starting on the same left edge as the hero copy. Its markup is written
-             in THIS page's return, so styled-jsx scopes these .gos-* rules to it (the same
-             reason the hero pill's own styles had to move into RotatingPill - styled-jsx only
-             reaches markup it can see statically).
-             Placement is DELIBERATELY NOT a negative pull up into the hero's empty left-column
-             space. The split is align-items:center with a 638px mockup column, so the empty
-             space under the short left copy is ~200px at 1440px and changes with both the
-             mockup height and the viewport - a margin tuned to it would be exactly the eyeball
-             geometry this file warns against and would drift the moment the mockup resizes.
-             Instead the margin cancels part of a FIXED quantity: RotatingHero sets .rh-layout
-             to a column flex with gap:96px, so this block lands 96px below the split; -56px
-             nets a calm 40px gap. That 40px is a fixed relationship to a fixed flex gap, not a
-             function of the mockup, so it holds at every width. Below 767px the hero stacks and
-             the gap is 64px, so -24px nets the same 40px. Verified against a render of the real
-             .rh-layout / .rh-split structure with the 638px mockup column at 1440px. */
-          .gos-buy{margin:-56px 0 0}
-          @media(max-width:767px){ .gos-buy{margin:-24px 0 0} }
-          /* The CTA row. Now holds just the one WhatsApp pill (the paid checkout pill was
-             removed), wrapping rather than overflowing on a narrow viewport. */
+          /* The hero no longer has a CTA (the .gos-buy block was removed on owner instruction),
+             so the .gos-* CTA rules below now style ONLY the closer's buy block. */
+          /* The CTA row - one WhatsApp pill, wrapping rather than overflowing on a narrow
+             viewport. */
           .gos-ctas{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
           /* Primary WhatsApp pill: full-lime, the page's one allowed lime surface for the
              primary action - mirrors ProductPage's .pdp-cta. 52px min target. */
@@ -955,11 +929,11 @@ response = requests.post(
              non-retired WhatsApp header green and reads the same at this size. */
           .phone-header{background:#128c7e;padding:12px 14px;display:flex;align-items:center;gap:10px}
           /* Avatar reads as a contact photo, not a flat tile the same colour as the header
-             behind it. Now a WHITE disc holding the WECARE.DIGITAL logo mark as the DP (the
-             transparent brand asset reads correctly on white, per BrandAssets), with a 2px
-             white ring to lift it off the #128c7e header bar. The logo is contained with a
-             little inset so the mark is not cropped by the circle. */
-          .avatar{width:40px;height:40px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:0 0 auto;box-shadow:0 0 0 2px rgba(255,255,255,.6)}
+             behind it. A LIME #d1f470 disc (the site's brand lime, owner choice) holds the
+             WECARE.DIGITAL logo mark as the DP - the mark is dark green and reads clearly on
+             lime, and lime pops off the #128c7e header bar. 2px white ring lifts the disc off
+             the bar; the logo is contained with a little inset so it is not cropped. */
+          .avatar{width:40px;height:40px;background:#d1f470;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:0 0 auto;box-shadow:0 0 0 2px rgba(255,255,255,.6)}
           .avatar-img{width:84%;height:84%;object-fit:contain;display:block}
           .contact-info{flex:1;display:flex;flex-direction:column}
           .contact-name{color:#fff;font-size:17px;font-weight:600}
