@@ -3922,8 +3922,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         <section className="vl-live-tools" aria-labelledby="vl-live-tools-title">
           <div className="vl-live-tools-layout">
             <div className="vl-live-tools-head">
-              <h3 id="vl-live-tools-title">Useful tools</h3>
-              <p>Time and money, anywhere.</p>
+              <h3 id="vl-live-tools-title">Local time &amp; currency</h3>
+              <p>Compare time zones and reference exchange rates.</p>
             </div>
 
             <article className="vl-live-tool-card" aria-label="Time and currency tools">
