@@ -47,24 +47,9 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-#: The retailer-id namespace. New Meta catalogue items are branded with WECARE.DIGITAL.
-#: Existing live items and in-flight WhatsApp carts may still carry the historical `wix:`
-#: namespace, so inbound parsing remains backward-compatible during migration. New writes MUST
-#: use only `WECARE.DIGITAL:`.
-#:
-#: The migration is deliberately non-deleting: an approved sync creates the new
-#: `WECARE.DIGITAL:` items and retires matching legacy `wix:` items by marking them out of
-#: stock. Once the live Meta catalogue and all in-flight carts no longer contain legacy ids,
-#: `"wix"` can be removed from `LEGACY_RETAILER_PREFIXES`.
-#:
-#: Known namespaces mark an item as OURS. An item whose retailer id carries none of them was
-#: created independently (for example by the Meta catalog builder) and this sync reports it as
-#: foreign and never touches it.
+#: The retailer-id namespace. WECARE.DIGITAL is the only namespace this projection owns.
+#: Both writes and reads use this namespace. Any other prefix is foreign and is never modified.
 RETAILER_PREFIX = "WECARE.DIGITAL"
-
-#: Prefixes accepted on READ. Values are lowercase because `parse_retailer_id` normalises input
-#: before comparison; `retailer_id` still writes the branded `RETAILER_PREFIX` exactly.
-LEGACY_RETAILER_PREFIXES = (RETAILER_PREFIX.lower(), "wix")
 
 #: Meta's documented ceiling for `retailer_id`. A pair of UUIDs plus the prefix is 88, so this is
 #: headroom rather than a constraint - but it is asserted rather than assumed, because a change to
@@ -239,7 +224,7 @@ def parse_retailer_id(value: Any) -> Optional[Tuple[str, str]]:
     if len(parts) != 3:
         return None
     prefix, product, variant = parts
-    if prefix not in LEGACY_RETAILER_PREFIXES:
+    if prefix != RETAILER_PREFIX.lower():
         return None
     if not _UUID_RE.match(product) or not _UUID_RE.match(variant):
         return None
@@ -655,7 +640,6 @@ def diff(desired: Sequence[Mapping[str, Any]],
 
 __all__ = [
     "RETAILER_PREFIX",
-    "LEGACY_RETAILER_PREFIXES",
     "RETAILER_ID_MAX_LENGTH",
     "IN_STOCK",
     "OUT_OF_STOCK",
