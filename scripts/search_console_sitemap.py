@@ -144,7 +144,7 @@ DEFAULT_SITEMAP = f"{SITE}/sitemap.xml"
 CANDIDATE_PROPERTIES = [
     "sc-domain:wecare.digital",
     f"{SITE}/",
-    "https://www.wecare.digital/",
+    "https://wecare.digital/",
 ]
 
 API = "https://searchconsole.googleapis.com/webmasters/v3"
