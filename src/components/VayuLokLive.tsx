@@ -3006,12 +3006,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         const lonStopIdx = Math.min( 1440, Math.ceil( ( lonMax + 180 ) / NOAA_WIND_GRID_DEGREES ) + 1 );
         const rawLonCount = Math.max( 1, lonStopIdx - lonStartIdx );
         const lonStride = Math.max( 1, Math.ceil( rawLonCount / NOAA_WIND_TARGET_COLS ) );
-        const selection = [
+        const selection: ( number | ReturnType<typeof zarr.slice> | null )[] = [
           initIndex,
           leadIndex,
           zarr.slice( latStartIdx, latStopIdx, latStride ),
           zarr.slice( lonStartIdx, lonStopIdx, lonStride ),
-        ] as const;
+        ];
         const [ uView, vView ] = await Promise.all( [
           zarr.get( uArr, selection ),
           zarr.get( vArr, selection ),
