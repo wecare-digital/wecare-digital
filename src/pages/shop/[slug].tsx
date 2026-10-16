@@ -232,10 +232,12 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              padding, legal-copy type 17px/400/1.55/-.05px on rgba(0,0,0,.898). Was a transparent
              16px/faded aside. 1px static, per the rule: 1px static, 2px hoverable. */
           .shopd-policy{
-            margin:18px 0 0;padding:14px 16px;border:1px solid #e5e7eb;border-radius:12px;
-            background:#fcfdfb;font-size:14px;line-height:1.5;color:rgba(0,0,0,.72);
+            margin:22px 0 0;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
+            background:#fcfdfb;font-size:17px;font-weight:400;line-height:1.55;
+            letter-spacing:-.05px;color:rgba(0,0,0,.898);
           }
-          .shopd-policy p{margin:6px 0 0}
+          .shopd-policy strong{color:#1a3a2a;font-weight:700}
+          .shopd-policy p{margin:12px 0 0}
           .shopd-note{
             margin:34px 0 0;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
             background:#fcfdfb;
