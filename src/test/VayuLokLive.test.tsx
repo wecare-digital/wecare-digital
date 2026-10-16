@@ -2,71 +2,6 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
-/* ---------------------------------------------------------------------------------------
-   deck.gl REGRESSION GUARD (formerly FEAT-002 dynamic-import mocks)
-   ---------------------------------------------------------------------------------------
-   The component NO LONGER imports deck.gl: both the AQI and PM2.5 heatmaps are Google
-   ImageMapType tile overlays, and the old GoogleMapsOverlay/ScatterplotLayer dot-grid path
-   (plus its grid fetch/cache) has been removed. These vi.mock factories and the recorder are
-   kept as a REGRESSION GUARD: the component must never attach a deck.gl overlay, which the
-   assertions `deckRec.overlaySetMapCalls.some(Boolean) === false` verify. If deck.gl is ever
-   reintroduced the recorder will capture it; if these packages are later removed from the
-   dependency tree, delete this block and those two assertions together. */
-const deckRec = vi.hoisted( () => ( {
-  overlaySetMapCalls: [] as unknown[],   // every arg passed to overlay.setMap(...)
-  overlaySetPropsCalls: [] as { layers: unknown[] }[],
-  overlayInstances: 0,
-  scatterProps: [] as Record<string, any>[], // props of every ScatterplotLayer constructed
-  reset() {
-    this.overlaySetMapCalls = [];
-    this.overlaySetPropsCalls = [];
-    this.overlayInstances = 0;
-    this.scatterProps = [];
-  },
-} ) );
-
-vi.mock( '@deck.gl/google-maps', () => {
-  class FakeGoogleMapsOverlay {
-    _layers: unknown[] = [];
-    constructor( _opts?: Record<string, unknown> ) { deckRec.overlayInstances += 1; }
-    setMap( map: unknown ) { deckRec.overlaySetMapCalls.push( map ); }
-    setProps( props: { layers: unknown[] } ) {
-      this._layers = props.layers;
-      deckRec.overlaySetPropsCalls.push( props );
-    }
-  }
-  return { GoogleMapsOverlay: FakeGoogleMapsOverlay };
-} );
-
-vi.mock( '@deck.gl/layers', () => {
-  class FakeScatterplotLayer {
-    props: Record<string, any>;
-    constructor( props: Record<string, any> ) {
-      this.props = props;
-      deckRec.scatterProps.push( props );
-    }
-  }
-  return { ScatterplotLayer: FakeScatterplotLayer };
-} );
-
-/* Approved v8 spatial-dot palette. Real values determine the band; VayuLok caps
-   the visual ramp at warm amber instead of introducing a red product accent. */
-const VAYULOK_AQI_FILLS: Record<string, [ number, number, number, number ]> = {
-  good: [ 61, 163, 90, 210 ],
-  sat: [ 209, 244, 112, 210 ],
-  mod: [ 232, 197, 71, 210 ],
-  poor: [ 201, 138, 46, 210 ],
-  worst: [ 201, 138, 46, 210 ],
-};
-function isRedDominant( fill: [ number, number, number, number ] ): boolean {
-  return fill[ 0 ] > 200 && fill[ 1 ] < 80 && fill[ 2 ] < 80;
-}
-function matchesVayuLokRamp( fill: [ number, number, number, number ] ): boolean {
-  return Object.values( VAYULOK_AQI_FILLS ).some(
-    ramp => ramp[ 0 ] === fill[ 0 ] && ramp[ 1 ] === fill[ 1 ] && ramp[ 2 ] === fill[ 2 ],
-  );
-}
-
 /* Return the declaration body ("{...}") of the rule that applies to `selector`, whether that
    selector owns a standalone block or sits ANYWHERE inside a comma-separated group. The component
    shares one "ONE ACTION-ICON SYSTEM" rule across several selectors (e.g.
@@ -468,16 +403,9 @@ afterEach( () => {
   vi.useRealTimers();
 } );
 
-// Reset the deck.gl recorder BEFORE each test. Doing it in beforeEach (rather than only in
-// afterEach) means a prior test's unmount-cleanup setMap(null) - which fires during React
-// Testing Library's own afterEach, after any reset there - cannot leak into this test.
-beforeEach( () => {
-  deckRec.reset();
-} );
-
 // A fetch stub that answers the Air Quality currentConditions:lookup (the grid + center
 // sample) with a real-shaped payload and refuses everything else. `aqi` drives the parsed
-// severity band; the stub is used by the deck.gl / gating tests below.
+// severity band; the stub is used by the map-overlay gating tests below.
 function requestUrl( input: RequestInfo | URL ): URL | null {
   try { return new URL( String( input ) ); } catch { return null; }
 }
@@ -1258,15 +1186,14 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( heatSwitch.querySelector( 'svg' )?.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
     expect( heatSwitch.querySelector( 'path' )?.getAttribute( 'd' )?.length ).toBeGreaterThan( 100 );
     expect( screen.queryByRole( 'switch', { name: 'Weather storm overlay' } ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-wind-canvas' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-wind-source' ) ).toBeNull();
     // DEFAULT-ON: the AQI heatmap tile overlay is wired onto the map BY DEFAULT, with no
     // click required, as soon as the keyed map is ready.
     await waitFor( () => {
       expect( rec.imageMapTypeOpts.length ).toBeGreaterThan( 0 );
       expect( rec.overlayPushes.length ).toBeGreaterThan( 0 );
     } );
-    // AQI tiles do not paint deck.gl scatter dots.
-    expect( deckRec.overlaySetMapCalls.some( value => Boolean( value ) ) ).toBe( false );
-
     // One of the recorded ImageMapTypes is the AQI heatmap: its getTileUrl returns a Google
     // Air Quality heatmap tile URL on the UAQI_RED_GREEN map type, carrying the key.
     const aqiOpts = rec.imageMapTypeOpts.find( o => {
