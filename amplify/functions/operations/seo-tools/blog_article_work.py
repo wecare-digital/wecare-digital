@@ -223,6 +223,11 @@ def apply_article(work_ref: str, article: Dict[str, Any], actor: str,
 
     candidate = dict(record.get("draftRecord") or {})
     candidate.update(_clean_editorial_payload(article))
+    # Editing a previously published/verified article creates a NEW editorial candidate.
+    # The quality engine deliberately never rewinds PUBLISHED/VERIFIED on validation, so
+    # carrying that old draft status forward would make a revised body look pre-verified.
+    if str(candidate.get("status") or "").upper() in {"PUBLISHED", "VERIFIED"}:
+        candidate["status"] = "EDITORIAL_QA"
     candidate["category"] = str(record.get("category") or q.DEFAULT_CATEGORY)
     candidate["author"] = q.AUTHOR
     candidate["authorName"] = q.AUTHOR
