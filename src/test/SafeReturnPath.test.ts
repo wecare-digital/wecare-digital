@@ -2,7 +2,7 @@
  * `safeLocalReturnPath` decides where a customer lands after signing in.
  *
  * WHY THESE CASES AND NOT A HAPPY PATH. The regex this module replaces
- * (`src/pages/account/sign-in.tsx`, measured 2026-10-01) passed review while accepting two
+ * (`src/components/account/SignInPage.tsx`, measured 2026-10-01) passed review while accepting two
  * values that matter, and both are asserted below as named cases rather than folded into a
  * list, so a future loosening names its own victim in the failure output:
  *
@@ -291,7 +291,7 @@ describe( 'safeLocalReturnPath — the gap is closed and the validator is wired 
      * reaches directly, with no OTP step to return from. So a hand-written or externally-supplied
      * `?return=/shop/` still falls back to /cart/.
      *
-     * No in-app flow is affected: src/pages/cart.tsx is the only producer of a `return` value and
+     * No in-app flow is affected: src/components/cart/CartPage.tsx is the only producer of a `return` value and
      * it produces /cart/. The seven product pages were never allowlist members either - a return
      * path is one of a few fixed destinations, not an arbitrary product URL.
      */
@@ -335,7 +335,7 @@ describe( 'safeLocalReturnPath — the gap is closed and the validator is wired 
       .filter( ( rel ) => !SELF.includes( rel ) )
       .filter( ( rel ) => fs.readFileSync( path.join( process.cwd(), rel ), 'utf8' ).includes( 'safeLocalReturnPath' ) );
 
-    const signIn = path.join( 'src', 'pages', 'account', 'sign-in.tsx' );
+    const signIn = path.join( 'src', 'components', 'account', 'SignInPage.tsx' );
     expect( callers, 'the customer sign-in page must validate its return path through this module' )
       .toContain( signIn );
 

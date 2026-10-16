@@ -40,7 +40,7 @@ const CYCLE_WORDS: CycleWord[] = [
 const TermsPage: React.FC = () => (
   <>
     <PageMeta
-      title="Terms of Service | WECARE.DIGITAL"
+      title="Terms of Service"
       description="The agreement between you and WECARE.DIGITAL when you use our services: orders, payments, refunds, delivery, professional services and dispute resolution."
       path="/terms/"
     />

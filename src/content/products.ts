@@ -1,3 +1,4 @@
+import { buildPageTitle } from '../lib/page-title';
 import type { CycleWord } from '../components/RotatingHero';
 import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
 
@@ -129,7 +130,7 @@ export const PRODUCTS: ProductDef[] = [
     slug: 'expo-week',
     name: 'Expo Week',
     blurb: 'A virtual travel fair you can walk through from home.',
-    title: 'Expo Week — India\'s virtual travel fair | WECARE.DIGITAL',
+    title: buildPageTitle( 'Expo Week — India\'s virtual travel fair' ),
     description:
       'Expo Week by WECARE.DIGITAL — a virtual travel fair and immersive digital expo. Explore beaches, mountains, hidden gems and global icons, and plan from home.',
     frame: 'Explore',
@@ -151,7 +152,7 @@ export const PRODUCTS: ProductDef[] = [
     slug: 'dastavez',
     name: 'Dastavez',
     blurb: 'Business documentation and registrations in India.',
-    title: 'Dastavez — business documentation and registrations | WECARE.DIGITAL',
+    title: buildPageTitle( 'Dastavez — business documentation and registrations' ),
     description:
       'Dastavez by WECARE.DIGITAL — affordable business documentation, registrations and paralegal support in India, done reliably with minimal effort from you.',
     frame: 'Paperwork without the',
@@ -175,7 +176,7 @@ export const PRODUCTS: ProductDef[] = [
     slug: 'clear-closure',
     name: 'Clear Closure',
     blurb: 'Settle a dispute online, without a courtroom.',
-    title: 'Clear Closure — online dispute resolution | WECARE.DIGITAL',
+    title: buildPageTitle( 'Clear Closure — online dispute resolution' ),
     description:
       'Clear Closure by WECARE.DIGITAL — an online dispute resolution (ODR) platform. Resolve matters faster, more flexibly and at lower cost, fully online.',
     frame: 'Disputes resolved',
@@ -199,7 +200,7 @@ export const PRODUCTS: ProductDef[] = [
     slug: 'ritual-guru',
     name: 'Ritual Guru',
     blurb: 'Temple-grade puja kits, packed in small batches.',
-    title: 'Ritual Guru — temple-grade puja kits | WECARE.DIGITAL',
+    title: buildPageTitle( 'Ritual Guru — temple-grade puja kits' ),
     description:
       'Ritual Guru by WECARE.DIGITAL — curated, temple-grade puja kits for festivals, vrats, housewarmings and daily worship, packed in small batches and clearly labelled.',
     frame: 'Puja kits for',
@@ -230,7 +231,7 @@ export const PRODUCTS: ProductDef[] = [
     slug: 'anew',
     name: 'Anew',
     blurb: 'A second look at a decision that matters.',
-    title: 'Anew — a second look at a decision | WECARE.DIGITAL',
+    title: buildPageTitle( 'Anew — a second look at a decision' ),
     description:
       'Share a decision you’re weighing and receive a written reflection — what matters most, what’s driving it, what deserves another look. No calls; read in your own time.',
     frame: 'Reflection into',
@@ -303,7 +304,7 @@ export const PRODUCTS: ProductDef[] = [
     slug: 'hunar',
     name: 'Hunar',
     blurb: 'Skills, CV and the pitch that carries them.',
-    title: 'Hunar — skills, CV profiles and professional identity | WECARE.DIGITAL',
+    title: buildPageTitle( 'Hunar — skills, CV profiles and professional identity' ),
     description:
       'Hunar by WECARE.DIGITAL — sharpen a CV, build a skills profile, and get the short pitch that introduces you. Written to be read by a person in under a minute.',
     frame: 'Sharpen your',
@@ -336,7 +337,7 @@ export const PRODUCTS: ProductDef[] = [
     slug: 'niji-setu',
     name: 'Niji Setu',
     blurb: 'A QR code that reaches you on a masked call.',
-    title: 'Niji Setu — a QR code that reaches you privately | WECARE.DIGITAL',
+    title: buildPageTitle( 'Niji Setu — a QR code that reaches you privately' ),
     description:
       'Niji Setu by WECARE.DIGITAL — a QR code people scan to reach you on a masked call. Your real number is never shown and never shared.',
     frame: 'Your number stays',

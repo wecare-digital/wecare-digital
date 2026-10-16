@@ -5,7 +5,7 @@ Why this gate exists
 Phase 1 landed as four features that never share a file. Three of them agree on a contract by
 restating it:
 
-* ``ecommerce/checkout``'s ``action:"profile"`` reply (FEAT-002) is what ``src/pages/cart.tsx``
+* ``ecommerce/checkout``'s ``action:"profile"`` reply (FEAT-002) is what ``src/components/cart/CartPage.tsx``
   parses as ``ProfileReply`` and projects onto ``CheckoutProfileValue`` (FEAT-003/FEAT-004);
 * ``auth/customer-profile``'s save reply (FEAT-001) is projected onto the SAME
   ``CheckoutProfileValue`` by ``CheckoutProfile.tsx``, so a returning customer and a
@@ -42,7 +42,7 @@ from lambda_utils.ecommerce import contact_address  # noqa: E402
 
 CHECKOUT = ROOT / "amplify/functions/ecommerce/checkout/handler.py"
 CUSTOMER_PROFILE = ROOT / "amplify/functions/auth/customer-profile/handler.py"
-CART = ROOT / "src/pages/cart.tsx"
+CART = ROOT / "src/components/cart/CartPage.tsx"
 PROFILE_COMPONENT = ROOT / "src/components/CheckoutProfile.tsx"
 ADDRESS_FIELDS = ROOT / "src/components/AddressFields.tsx"
 

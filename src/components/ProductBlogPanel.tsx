@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { BlogCard } from '../lib/public-blog';
+import { loadBlogCardIndex } from '../lib/blog-card-index';
 import BlogTags from './BlogTags';
 import RssIcon from './RssIcon';
 import VoiceSearchMic from './VoiceSearchMic';
@@ -25,7 +26,7 @@ import VoiceSearchMic from './VoiceSearchMic';
  *
  * REUSES THE BLOG'S OWN DATA SHAPE. The cards are BlogCard (src/lib/public-blog.ts), the same
  * projection /blog/ renders and the same one search already matches on - title, excerpt, category,
- * tags, publishedDate. Nothing new is fetched; anew.tsx hands these in from getStaticProps.
+ * tags, publishedDate. Anew supplies a small static seed; the shared blog index supplies the complete list after hydration.
  *
  * THE SEARCH BOX keeps the borderless live-search treatment and now carries the same shared
  * lime voice mic as the menu, VayuLok and the other public search surfaces.
@@ -41,6 +42,8 @@ import VoiceSearchMic from './VoiceSearchMic';
 
 export interface ProductBlogPanelProps {
   cards: BlogCard[];
+  /** Complete category names enable progressive loading for the Anew static seed. */
+  categories?: string[];
   /** Panel heading. */
   heading?: string;
 }
@@ -68,13 +71,28 @@ function cardTags ( card: BlogCard ): string[] {
     .slice( 0, CARD_TAGS );
 }
 
-const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = 'From the blog' } ) => {
+const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCards, categories: initialCategories, heading = 'From the blog' } ) => {
+  const [ allCards, setAllCards ] = useState<BlogCard[] | null>( null );
+  const [ failed, setFailed ] = useState( false );
+  const [ attempt, setAttempt ] = useState( 0 );
+  useEffect( () => {
+    if ( !initialCategories ) return;
+    let active = true;
+    loadBlogCardIndex().then( cards => {
+      // The generator emits an empty index when its API source is unavailable. Keep the
+      // prerendered seed and expose retry rather than replacing useful cards with nothing.
+      if ( !cards.length && initialCards.length ) throw new Error( 'Blog index unavailable' );
+      if ( active ) { setAllCards( cards ); setFailed( false ); }
+    } ).catch( () => { if ( active ) setFailed( true ); } );
+    return () => { active = false; };
+  }, [ initialCategories, attempt ] );
+  const cards = allCards ?? initialCards;
   // The real categories present in the data, sorted. No "All" - owner instruction.
   const categories = useMemo<string[]>( () => {
-    const set = new Set<string>();
+    const set = new Set<string>( initialCategories );
     for ( const c of cards ) if ( c.category ) set.add( c.category );
     return Array.from( set ).sort( ( a, b ) => a.localeCompare( b ) );
-  }, [ cards ] );
+  }, [ cards, initialCategories ] );
 
   const [ category, setCategory ] = useState<string>( () => categories[ 0 ] || '' );
   const [ query, setQuery ] = useState<string>( '' );
@@ -226,6 +244,10 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         <VoiceSearchMic onTranscript={ transcript => { setQuery( transcript ); resetToFirstPage(); } } />
       </div>
 
+      { initialCategories && !allCards && <p role="status">
+        { failed ? <>More posts could not be loaded. <button type="button" onClick={ () => setAttempt( value => value + 1 ) }>Try again</button> </> : 'Loading more posts… ' }
+        <Link href="/blog/">Browse the blog</Link>
+      </p> }
       {/* THE SWIPEABLE PAGER. The track is a horizontal scroll-snap container: each child .pbp-page
           is one viewport wide, so a touch swipe snaps page to page natively, and the arrow buttons
           / arrow keys drive the same scrollTo. Each page is its own vertical scroller, so swiping

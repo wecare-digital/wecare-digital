@@ -1,3 +1,4 @@
+import { buildPageTitle } from '../lib/page-title';
 /**
  * The shop catalogue, read from the AWS ProductsTable-derived static snapshot.
  *
@@ -365,7 +366,7 @@ export const shopMetaDescription = ( product: ShopProduct ): string => {
  * ceiling. The longest of the seven as written is 62.
  */
 export const shopPageTitle = ( product: ShopProduct ): string =>
-  product.name + ' — price and what it includes | WECARE.DIGITAL';
+  buildPageTitle( product.name + ' — price and what it includes' );
 
 /** The route a product renders on: '/shop/kiosk/'. trailingSlash is on, so it carries one. */
 export const shopRoutePath = ( product: ShopProduct ): string => '/shop/' + product.slug + '/';

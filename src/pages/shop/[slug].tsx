@@ -1,3 +1,4 @@
+import { shopProductCrumbs } from '../../lib/breadcrumbs';
 import React, { useCallback, useState } from 'react';
 import Link from 'next/link';
 import type { GetStaticPaths, GetStaticProps } from 'next';
@@ -64,12 +65,8 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
               was removed on 2026-10-04 when the catalogue index was withdrawn and that href 301'd to
               home. The owner restored the index, so /shop/ resolves at 200 again and the Shop crumb
               points at a real listing. ShopProductHead's BreadcrumbList must carry the same three
-              items, or the rendered trail and the structured-data graph disagree. */}
-          <Breadcrumbs items={ [
-            { label: 'Home', href: '/' },
-            { label: 'Shop', href: '/shop/' },
-            { label: product.name },
-          ] } />
+              items from the shared shopProductCrumbs helper. */}
+          <Breadcrumbs items={ shopProductCrumbs( product.name ).map( ( { name, href } ) => ( { label: name, href } ) ) } />
 
           {/* aria-label, because this is an unlabelled region otherwise - the page's only heading
               is the h1 in the band above it. section.pdp names itself the same way on the fourteen

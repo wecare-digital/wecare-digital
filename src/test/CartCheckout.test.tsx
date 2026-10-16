@@ -1664,7 +1664,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
      * INTENT_CHANGED latches and issues no third post") is proved behaviourally below.
      */
     const source = fs.readFileSync(
-      path.resolve( __dirname, '../pages/cart.tsx' ), 'utf8' );
+      path.resolve( __dirname, '../components/cart/CartPage.tsx' ), 'utf8' );
     // No retry flag of any shape - unbounded, or vestigial and pretending to bound something.
     // Matched on DECLARATION and ASSIGNMENT rather than on the bare word, because the comment that
     // records why the flag went necessarily names it.
@@ -1702,7 +1702,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
      * `proceed` would measure the wrapper and pass vacuously.
      */
     const source = fs.readFileSync(
-      path.resolve( __dirname, '../pages/cart.tsx' ), 'utf8' );
+      path.resolve( __dirname, '../components/cart/CartPage.tsx' ), 'utf8' );
     const runAt = source.indexOf( 'const runCheckout = useCallback(' );
     expect( runAt ).toBeGreaterThan( 0 );
     const clearAt = source.indexOf( 'resetCartRef.current = false;', runAt );
@@ -1743,7 +1743,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
      * and the status-failure cases above prove the behaviour - this proves the mechanism, so a
      * future edit cannot quietly reintroduce the stale read while the tests still pass.
      */
-    const source = fs.readFileSync( path.resolve( __dirname, '../pages/cart.tsx' ), 'utf8' );
+    const source = fs.readFileSync( path.resolve( __dirname, '../components/cart/CartPage.tsx' ), 'utf8' );
     expect( source ).toMatch( /let status = profileStatus;/ );
     // The branch now carries the BASKET condition too: a missing address blocks only a basket that
     // needs delivery, while a missing identity (`mode === 'create'`) blocks every basket. `mode`
@@ -2161,7 +2161,7 @@ describe( 'two clicks cannot post two prepares - the measured live blocker', () 
     // A source pin, because the guarantee is structural rather than observable: `runCheckout` has
     // fourteen `return` statements, and a latch checked inside it would need every one of them to
     // clear the flag. Pinning the shape stops a later edit "simplifying" the wrapper away.
-    const source = fs.readFileSync( path.resolve( __dirname, '../pages/cart.tsx' ), 'utf8' );
+    const source = fs.readFileSync( path.resolve( __dirname, '../components/cart/CartPage.tsx' ), 'utf8' );
     const wrapper = source.slice( source.indexOf( 'const proceed = useCallback' ) );
     expect( wrapper ).toMatch( /if \( proceedInFlightRef\.current \)/ );
     expect( wrapper ).toMatch( /proceedInFlightRef\.current = true;/ );
@@ -2633,7 +2633,7 @@ describe( 'the request key is scoped to the basket, and rotates once on INTENT_C
 describe( 'the money-row controls pair their focus ring with their focus outline', () => {
   it( 'declares a box-shadow wherever a money-row :focus-visible rule sets an outline', () => {
     const source = fs.readFileSync(
-      path.resolve( __dirname, '../pages/cart.tsx' ), 'utf8' );
+      path.resolve( __dirname, '../components/cart/CartPage.tsx' ), 'utf8' );
     const CONTROLS = [ 'cart-qty', 'cart-amount-select' ];
     const rules = [ ...source.matchAll( /([^{}\n]*:focus-visible[^{]*)\{([^}]*)\}/g ) ];
     const checked: string[] = [];
@@ -2653,7 +2653,7 @@ describe( 'the money-row controls pair their focus ring with their focus outline
     // `.cart-option:focus-visible` rule in cart.tsx would match nothing after 2f, so its
     // ABSENCE is the assertion, paired with the shared file really declaring the ring.
     const source = fs.readFileSync(
-      path.resolve( __dirname, '../pages/cart.tsx' ), 'utf8' );
+      path.resolve( __dirname, '../components/cart/CartPage.tsx' ), 'utf8' );
     const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
     expect( code ).not.toMatch( /\.cart-option:focus/ );
     const shared = fs.readFileSync(

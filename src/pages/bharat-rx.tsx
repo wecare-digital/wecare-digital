@@ -58,7 +58,7 @@ const WHATSAPP_CTA = whatsappKeywordLink( 'Bharat Rx' );
 const BharatRxPage: React.FC = () => (
   <>
     <PageMeta
-      title="Bharat Rx | WECARE.DIGITAL"
+      title="Bharat Rx"
       description="Bharat Rx by WECARE.DIGITAL — book a consult or appointment with a qualified professional, with reminders and records kept in one place."
       path="/bharat-rx/"
     />

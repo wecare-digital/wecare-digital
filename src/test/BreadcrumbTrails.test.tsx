@@ -51,7 +51,7 @@ describe( 'the product-family trails', () => {
   it( 'covers every ProductPage that renders a visible trail, and nothing else', () => {
     const withCrumbs = walk( PAGES )
       .filter( f => f.endsWith( '.tsx' ) && !f.includes( `${path.sep}workspace${path.sep}` ) )
-      .filter( f => /\bcrumbs=\{/.test( fs.readFileSync( f, 'utf8' ) ) )
+      .filter( f => /\bcrumbs=\{ breadcrumbTrail\(/.test( fs.readFileSync( f, 'utf8' ) ) )
       .map( f => '/' + path.relative( PAGES, f ).replace( /\\/g, '/' ).replace( /(\/index)?\.tsx$/, '' ) );
     expect( withCrumbs.sort() ).toEqual( [ ...routes ].sort() );
   } );
@@ -100,12 +100,9 @@ describe( 'the product-family trails', () => {
   } );
 
   it( 'is what _app.tsx builds the BreadcrumbList from', () => {
-    const fn = APP.slice( APP.indexOf( 'const getPublicPageSchema' ) );
-    const body = fn.slice( 0, fn.indexOf( '\n};' ) );
     expect( APP ).toContain( "import { breadcrumbTrail } from '../content/breadcrumbTrails';" );
-    expect( body ).toContain( 'const trail = breadcrumbTrail( pathname );' );
-    expect( body ).toContain( 'itemListElement: trail' );
-    expect( body ).toContain( 'item: crumb.href ? `${SITE}${crumb.href}` : url' );
+    expect( APP ).toContain( 'key="public-breadcrumbs"' );
+    expect( APP ).toContain( 'breadcrumbSchema( breadcrumbTrail( router.pathname )?.map( ( { label, href } ) => ( { name: label, href } ) )' );
   } );
 
   it( 'normalises the trailing slash and hands out copies', () => {

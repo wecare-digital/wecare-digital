@@ -37,7 +37,7 @@ const CYCLE_WORDS: CycleWord[] = [
 const PrivacyPage: React.FC = () => (
   <>
     <PageMeta
-      title="Privacy Policy | WECARE.DIGITAL"
+      title="Privacy Policy"
       description="How WECARE.DIGITAL collects, uses, stores, shares and protects personal data — what we collect, why, who it is shared with, how long we keep it, and your rights."
       path="/privacy/"
     />

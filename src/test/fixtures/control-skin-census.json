@@ -502,8 +502,8 @@
   "files": [
     "src/components/AddressFields.tsx",
     "src/components/ServiceBuyBox.tsx",
+    "src/components/cart/CartPage.tsx",
     "src/components/dashboard/tabs/AppBuilderTab.tsx",
-    "src/pages/cart.tsx",
     "src/pages/workspace/engage/logs/index.tsx",
     "src/pages/workspace/engage/push/index.tsx",
     "src/pages/workspace/engage/sms/index.tsx",
@@ -640,6 +640,54 @@
       ]
     },
     {
+      "classes": [
+        "cart-amount-select"
+      ],
+      "decls": "min-width:96px;min-height:var(--control-h); padding-block:0;padding-inline-start:var(--control-px); padding-inline-end:var(--control-arrow-pad); border:var(--control-border-w) solid var(--control-border); border-radius:var(--control-radius); font-family:inherit;font-size:16px;color:var(--control-fg); background-color:var(--control-bg);",
+      "file": "src/components/cart/CartPage.tsx",
+      "geometry": true,
+      "line": 2265,
+      "mech": "B-styledjsx",
+      "mode": "class",
+      "pairing": false,
+      "props": {
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "padding-block": false
+      },
+      "sel": ".cart-amount-select",
+      "spec": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "classes": [
+        "cart-amount-select"
+      ],
+      "decls": "outline:3px solid var(--accent) !important;outline-offset:2px; box-shadow:var(--focus-ring);",
+      "file": "src/components/cart/CartPage.tsx",
+      "geometry": false,
+      "line": 2276,
+      "mech": "B-styledjsx",
+      "mode": "class",
+      "pairing": false,
+      "props": {
+        "box-shadow": false,
+        "outline": true,
+        "outline-offset": false
+      },
+      "sel": ".cart-amount-select:focus-visible",
+      "spec": [
+        0,
+        2,
+        0
+      ]
+    },
+    {
       "classes": [],
       "decls": "padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; color: #1a1a1a; background: #fff; min-height: 44px; font-family: inherit;",
       "file": "src/components/dashboard/tabs/AppBuilderTab.tsx",
@@ -682,54 +730,6 @@
         0,
         2,
         1
-      ]
-    },
-    {
-      "classes": [
-        "cart-amount-select"
-      ],
-      "decls": "min-width:96px;min-height:var(--control-h); padding-block:0;padding-inline-start:var(--control-px); padding-inline-end:var(--control-arrow-pad); border:var(--control-border-w) solid var(--control-border); border-radius:var(--control-radius); font-family:inherit;font-size:16px;color:var(--control-fg); background-color:var(--control-bg);",
-      "file": "src/pages/cart.tsx",
-      "geometry": true,
-      "line": 2264,
-      "mech": "B-styledjsx",
-      "mode": "class",
-      "pairing": false,
-      "props": {
-        "border": false,
-        "border-radius": false,
-        "font-size": false,
-        "min-height": false,
-        "padding-block": false
-      },
-      "sel": ".cart-amount-select",
-      "spec": [
-        0,
-        1,
-        0
-      ]
-    },
-    {
-      "classes": [
-        "cart-amount-select"
-      ],
-      "decls": "outline:3px solid var(--accent) !important;outline-offset:2px; box-shadow:var(--focus-ring);",
-      "file": "src/pages/cart.tsx",
-      "geometry": false,
-      "line": 2275,
-      "mech": "B-styledjsx",
-      "mode": "class",
-      "pairing": false,
-      "props": {
-        "box-shadow": false,
-        "outline": true,
-        "outline-offset": false
-      },
-      "sel": ".cart-amount-select:focus-visible",
-      "spec": [
-        0,
-        2,
-        0
       ]
     },
     {

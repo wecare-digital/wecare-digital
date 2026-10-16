@@ -4,6 +4,7 @@
  */
 
 import Head from 'next/head';
+import { buildPageTitle } from '../lib/page-title';
 
 interface SEOProps {
   title: string;
@@ -15,6 +16,7 @@ interface SEOProps {
 }
 
 const BASE_URL = 'https://wecare.digital';
+const SITE_NAME = 'WECARE.DIGITAL';
 /**
  * The branded 16:9 card, NOT the square mark — and for the same measured reason as in
  * _app.tsx, where the full note lives. In short: this fed og:image and twitter:image with
@@ -30,7 +32,6 @@ const BASE_URL = 'https://wecare.digital';
    already live at 86,123 bytes and inside every limit. twitter:card below is already "summary",
    which is the correct frame for a 1:1 image - so this file needed only the URL changed. */
 const DEFAULT_IMAGE = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png';
-const SITE_NAME = 'WECARE.DIGITAL';
 
 // Default keywords for all pages
 const DEFAULT_KEYWORDS = 'WhatsApp Business API, WhatsApp CRM, bulk messaging, SMS API, email marketing, voice calls, Razorpay payments, customer engagement, multi-channel CRM, WECARE.DIGITAL, Stack CRM';
@@ -43,7 +44,7 @@ export default function SEO({
   noindex = false,
   ogImage = DEFAULT_IMAGE 
 }: SEOProps) {
-  const fullTitle = `${title} | ${SITE_NAME}`;
+  const fullTitle = buildPageTitle( title );
   const allKeywords = keywords ? `${keywords}, ${DEFAULT_KEYWORDS}` : DEFAULT_KEYWORDS;
   
   return (

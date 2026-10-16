@@ -206,7 +206,7 @@ describe( 'Get page', () => {
     // styles, which jsdom does not provide.
     const fs = require( 'node:fs' );
     const path = require( 'node:path' );
-    const src = fs.readFileSync( path.join( process.cwd(), 'src/pages/get.tsx' ), 'utf8' );
+    const src = fs.readFileSync( path.join( process.cwd(), 'src/components/get/GetPage.tsx' ), 'utf8' );
     // CSS COMMENTS ARE STRIPPED FIRST, deliberately. The rule that replaced the red one documents
     // the three values it removed, so asserting against the raw block would match that comment and
     // fail — punishing the explanation rather than the defect. What must be absent is a red
@@ -214,9 +214,9 @@ describe( 'Get page', () => {
     const styleBlock = src.slice( src.indexOf( '<style jsx>' ) ).replace( /\/\*[\s\S]*?\*\//g, '' );
     expect( styleBlock ).not.toMatch( /#fee2e2|#ef4444|#7f1d1d/ );
     // And the shared components are imported rather than reimplemented.
-    expect( src ).toContain( "from '../components/PhoneField'" );
-    expect( src ).toContain( "from '../components/PillButton'" );
-    expect( src ).toContain( "from '../components/RotatingHero'" );
+    expect( src ).toContain( "from '../PhoneField'" );
+    expect( src ).toContain( "from '../PillButton'" );
+    expect( src ).toContain( "from '../RotatingHero'" );
     // Chrome is mounted centrally in _app.tsx; a page must never import it.
     expect( src ).not.toMatch( /components\/(Header|Footer|SupportWidget|Layout)'/ );
   } );

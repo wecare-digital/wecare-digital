@@ -2380,7 +2380,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
     if ( !next ) {
       const gc = await ensureGeocoder();
-      if ( !gc?.geocode ) {
+      const geocode = gc?.geocode?.bind( gc );
+      if ( !geocode ) {
         setSearchStatus( 'unavailable' );
         return;
       }
@@ -2389,7 +2390,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         try { placeId = r.prediction?.toPlace?.()?.id; } catch { /* address fallback below */ }
       }
       next = await new Promise<PlaceState | undefined>( resolve => {
-        gc.geocode(
+        geocode(
           placeId ? { placeId } : { address: r.addr || r.name },
           ( rows: unknown[] | null, status: string ) => {
             if ( status !== 'OK' || !Array.isArray( rows ) || !rows.length ) {

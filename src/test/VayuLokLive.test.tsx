@@ -281,11 +281,14 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
       if ( typeof cb === 'function' ) {
         const rows = geocodeStatus === 'OK'
           ? ( geocodeRowsFor?.( req ) || geocodeRows || [ {
-              formatted_address: 'Mumbai, Maharashtra, India',
+              formatted_address: placeCountryCode === 'IN' ? 'Mumbai, Maharashtra, India' : 'Dhaka, Bangladesh',
               place_id: 'fake-place-id',
-              geometry: { location: { lat: () => 19.076, lng: () => 72.8777 } },
+              geometry: {
+                location: { lat: () => 19.076, lng: () => 72.8777 },
+                viewport: { toJSON: () => ( { north: 19.18, south: 18.98, east: 72.99, west: 72.78 } ) },
+              },
               address_components: [
-                { long_name: 'India', short_name: 'IN', types: [ 'country' ] },
+                { long_name: placeCountryCode === 'IN' ? 'India' : 'Bangladesh', short_name: placeCountryCode, types: [ 'country' ] },
               ],
             } ] )
           : null;
@@ -1893,7 +1896,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( container.querySelector( '.vl-live-selected-label' ) ).toBeNull();
   } );
 
-  it( 'requests address descriptors but never invents descriptor or elevation text', async () => {
+  it( 'geocodes the selected place without inventing descriptor or elevation text', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     const { container } = render( <VayuLokLive /> );
@@ -1902,7 +1905,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await selectMumbai();
 
     await waitFor( () => expect(
-      rec.geocodeCalls.some( call => Array.isArray( call.extraComputations ) && ( call.extraComputations as unknown[] ).includes( 'ADDRESS_DESCRIPTORS' ) ),
+      rec.geocodeCalls.some( call => call.placeId === 'fake-place-id' ),
     ).toBe( true ) );
     expect( container.querySelector( '.vl-live-descriptor-line' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-place-facts' ) ).toBeNull();

@@ -1,3 +1,5 @@
+import { blogCrumbs } from '../lib/breadcrumbs';
+import { loadBlogCardIndex } from '../lib/blog-card-index';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { BlogCard } from '../lib/public-blog';
@@ -92,7 +94,7 @@ export const HERO_WORDS: CycleWord[] = [
 /** Where the full post list lives. Written post-build, beside the page it serves. Fetched once
  *  on mount now that "show every post" is the default rather than a search action. The name is
  *  kept for continuity with scripts/generate-blog-search-index.js, which writes it. */
-const FULL_INDEX_URL = '/blog/search-index.json';
+
 
 /* The feed scripts/generate-blog-rss.js writes post-build lives at /blog/rss.xml. The visible
  * affordance is now the icon-only <RssIcon> at the foot of the page (components/RssIcon.tsx, which
@@ -193,11 +195,9 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
   useEffect( () => {
     if ( requested.current ) return;
     requested.current = true;
-    fetch( FULL_INDEX_URL, { headers: { Accept: 'application/json' } } )
-      .then( r => ( r.ok ? r.json() : Promise.reject( new Error( String( r.status ) ) ) ) )
-      .then( ( body: { posts?: BlogCard[] } ) => {
-        if ( !Array.isArray( body?.posts ) ) throw new Error( 'shape' );
-        setAllCards( body.posts );
+    loadBlogCardIndex()
+      .then( cards => {
+        setAllCards( cards );
         setIndexState( 'ready' );
       } )
       .catch( () => {
@@ -264,21 +264,10 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
       ariaLabel="WECARE.DIGITAL blog"
     >
       <div className="blog-shell">
-        {/* ITEM FOR ITEM WHAT BlogIndexHead's BreadcrumbList SAYS. A topic stream is Home / Blog /
-            <Topic>, with "Page N" a fourth crumb beyond it, and the topic crumb links the
-            stream's first page once it is not the current one. Until 2026-10-16 a topic page
-            rendered Home / Blog - marking Blog as the current page - while its JSON-LD named the
-            topic, which is the mismatch 30-seo.md rules out. /blog/ itself is unchanged. */}
-        <Breadcrumbs
-          items={ [
-            { label: 'Home', href: '/' },
-            ...( streamBase === '/blog/'
-              ? [ page > 1 ? { label: 'Blog', href: '/blog/' } : { label: 'Blog' } ]
-              : [ { label: 'Blog', href: '/blog/' },
-                page > 1 ? { label: activeCategory, href: streamBase } : { label: activeCategory } ] ),
-            ...( page > 1 ? [ { label: `Page ${page}` } ] : [] ),
-          ] }
-        />
+        <Breadcrumbs items={ blogCrumbs( page,
+          activeCategory && activeCategory !== defaultCategory ? activeCategory : undefined,
+          activeCategory && activeCategory !== defaultCategory ? `/blog/topic/${topicSlug( activeCategory )}/` : undefined
+        ).map( ( { name, href } ) => ( { label: name, href } ) ) } />
         {/* BORDERLESS LIVE SEARCH over the WHOLE corpus - the same field as the /anew/ panel
             (ProductBlogPanel .pbp-search): no inner border, one quiet bottom hairline, the shared
             lime voice mic, and no submit button, filtering as you type. A real sr-only label gives it an accessible

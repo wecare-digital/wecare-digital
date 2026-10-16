@@ -1,3 +1,4 @@
+import { buildPageTitle } from '../lib/page-title';
 import type { CycleWord } from '../components/RotatingHero';
 import type { ProductDef } from './products';
 /*
@@ -90,7 +91,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
     slug: 'submit-request',
     name: 'Submit Request',
     blurb: 'Get help with your existing order.',
-    title: 'Submit a request | WECARE.DIGITAL',
+    title: buildPageTitle( 'Submit a request' ),
     description:
       'Raise a request for an existing WECARE.DIGITAL order. Select your order, explain what needs attention and follow its progress.',
     frame: 'Get help with',
@@ -112,7 +113,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
     slug: 'request-amendment',
     name: 'Request Amendment',
     blurb: 'Change a detail on something already in motion.',
-    title: 'Request an amendment | WECARE.DIGITAL',
+    title: buildPageTitle( 'Request an amendment' ),
     description:
       'Change a date, a detail or the scope of a request already with WECARE.DIGITAL. What can be amended, and what depends on someone else.',
     frame: 'Change the',
@@ -136,7 +137,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
     slug: 'drop-docs',
     name: 'Drop Docs',
     blurb: 'Send the paperwork a request needs, once.',
-    title: 'Drop documents | WECARE.DIGITAL',
+    title: buildPageTitle( 'Drop documents' ),
     description:
       'Send documents to WECARE.DIGITAL for a request already under way - what is usually needed, how it is handled, and what not to send.',
     frame: 'Send the',
@@ -195,7 +196,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
     slug: 'vault',
     name: 'Vault',
     blurb: 'Get a copy of a document we hold for you.',
-    title: 'Vault — download your documents | WECARE.DIGITAL',
+    title: buildPageTitle( 'Vault — download your documents' ),
     description:
       'Ask WECARE.DIGITAL for a copy of a document held against one of your requests - what is kept, how long it is kept, and how a copy is released to you.',
     frame: 'Get back your',
@@ -246,7 +247,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
     slug: 'request-pickup',
     name: 'Request Pickup',
     blurb: 'Have the paperwork a request needs collected.',
-    title: 'Request a pickup | WECARE.DIGITAL',
+    title: buildPageTitle( 'Request a pickup' ),
     description:
       'Ask WECARE.DIGITAL to collect documents for a request already under way - what to have ready, how a collection is arranged, and what depends on a courier.',
     frame: 'Collect your',
@@ -270,7 +271,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
     slug: 'leave-review',
     name: 'Leave Review',
     blurb: 'Say how it actually went.',
-    title: 'Leave a review | WECARE.DIGITAL',
+    title: buildPageTitle( 'Leave a review' ),
     description:
       'Tell WECARE.DIGITAL how something went - what is useful to say, what happens to a complaint, and how feedback is used.',
     frame: 'Rate the',
@@ -308,7 +309,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
     slug: 'refer-and-earn',
     name: 'Refer & Earn',
     blurb: 'Introduce someone who would find this useful.',
-    title: 'Refer and earn | WECARE.DIGITAL',
+    title: buildPageTitle( 'Refer and earn' ),
     description:
       'Introduce someone to WECARE.DIGITAL - how a referral is recorded, what is recognised, and what depends on the outcome.',
     frame: 'Refer a',
