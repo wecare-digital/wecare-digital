@@ -18,7 +18,7 @@ thing a new export cannot regenerate on its own.
 
 THE PROPERTY THAT MATTERS IS THE www ONE. There are two Search Console properties:
 
-    https://www.wecare.digital/    480 days of history   the previous site
+    https://wecare.digital/    480 days of history   the previous site
     https://wecare.digital/        created 2026-09-30    the current export, no backfill
 
 Reading only the apex property shows zero impressions and invites the conclusion that the
@@ -52,7 +52,7 @@ SA = "automation@wecaredigitalbw.iam.gserviceaccount.com"
 SCOPE = "https://www.googleapis.com/auth/webmasters"
 
 APEX = "https://wecare.digital"
-PROPERTIES = ["https://www.wecare.digital/", "https://wecare.digital/"]
+PROPERTIES = ["https://wecare.digital/"]
 
 #: GSC keeps 16 months. Ask for more and the API silently clamps, which is fine, but an
 #: explicit window makes the report reproducible.
