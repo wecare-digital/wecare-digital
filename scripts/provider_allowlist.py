@@ -282,6 +282,9 @@ REFERENCES: tuple = (
     Reference("public-assets", ("Keyless public content: country flag images for product "
                                 "art, an icon CDN allowed by the CSP, open weather data."),
               domains=("flagcdn.com", "img.icons8.com", "api.open-meteo.com")),
+    Reference("reference-rates", ("Keyless public daily currency reference rates. The browser "
+                                  "sends only the selected currency pair, never the amount."),
+              domains=("frankfurter.dev",)),
     Reference("developer-references", "Public API collections linked from operator screens.",
               domains=("postman.com",)),
     Reference("reserved", ("RFC 2606 / RFC 6761 documentation and local names. They never "
