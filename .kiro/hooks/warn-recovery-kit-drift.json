@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Warn when recovery kit drifts from the platform",
+      "trigger": "PostFileSave",
+      "description": "After a Lambda handler, provision_*.py, deploy_all_lambdas.py, or amplify/*.ts file is saved, runs check_recovery_kit_drift.py and warns (non-blocking) if the recovery-kit/architecture docs no longer match the live function/domain layout.",
+      "matcher": "amplify/functions/.*/handler\\.py$|scripts/provision_.*\\.py$|scripts/deploy_all_lambdas\\.py$|amplify/.*\\.ts$",
+      "action": {
+        "type": "command",
+        "command": "D=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; [ -f \"$D/scripts/check_recovery_kit_drift.py\" ] || exit 0; out=$(cd \"$D\" && python3 scripts/check_recovery_kit_drift.py --gate 2>/dev/null); rc=$?; if [ \"$rc\" -eq 1 ]; then printf '\\nRECOVERY-KIT DRIFT: you changed a Lambda/provision/infra file and the recovery docs no longer match the platform.\\n%s\\nRefresh docs/migrations/recovery-kit/README.md and architecture.md (and re-run scripts/aws_account_inventory.py if a table/secret count moved).\\n\\n' \"$out\" >&2; fi; exit 0",
+        "timeout": 30
+      }
+    }
+  ]
+}
