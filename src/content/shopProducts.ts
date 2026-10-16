@@ -1,6 +1,7 @@
 import { PRODUCTS } from './products';
 import { PRODUCT_CHILDREN } from './productChildren';
 import { SHOP_PRODUCTS, shopProductPath } from './shop';
+import { PRODUCT_SKU_BY_SLUG } from './productCommerce';
 
 const CATALOG_ARTWORK_BASE = 'https://wecare.digital/get/o/stream/media/m/wd-catalog-live/';
 const APPROVED_PRODUCT_ARTWORK: Readonly<Record<string, string>> = {
@@ -52,6 +53,8 @@ export interface ShopListing {
   name: string;
   /** One scannable line. From ProductDef.blurb or ShopProduct.tagline, verbatim. */
   blurb: string;
+  /** Public 8-character SKU, shown on the Shop card and matching detail page. */
+  sku?: string;
   /** The EXISTING detail page. '/anew/' for a ProductDef, '/shop/kiosk/' for a catalog row. */
   href: string;
   /**
@@ -88,6 +91,7 @@ const merge = (): ShopListing[] => {
       slug: product.slug,
       name: product.name,
       blurb: product.blurb,
+      ...( PRODUCT_SKU_BY_SLUG[ product.slug ] ? { sku: PRODUCT_SKU_BY_SLUG[ product.slug ] } : {} ),
       href: `/${product.slug}/`,
       ...( APPROVED_PRODUCT_ARTWORK[ product.slug ] ? { image: APPROVED_PRODUCT_ARTWORK[ product.slug ] } : {} ),
       source: 'product',
@@ -103,6 +107,7 @@ const merge = (): ShopListing[] => {
       slug: product.slug,
       name: product.name,
       blurb: product.blurb,
+      ...( PRODUCT_SKU_BY_SLUG[ product.slug ] ? { sku: PRODUCT_SKU_BY_SLUG[ product.slug ] } : {} ),
       href: child.path,
       source: 'product',
     } );
@@ -114,6 +119,7 @@ const merge = (): ShopListing[] => {
       slug: product.slug,
       name: product.name,
       blurb: product.tagline,
+      ...( PRODUCT_SKU_BY_SLUG[ product.slug ] ? { sku: PRODUCT_SKU_BY_SLUG[ product.slug ] } : {} ),
       // The existing helper, so the trailing-slash canonical form is not spelled twice.
       href: shopProductPath( product ),
       formattedPrice: product.formattedPrice,
