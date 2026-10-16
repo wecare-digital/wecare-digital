@@ -472,10 +472,28 @@ function environmentFetch() {
         } ),
       } as Response );
     }
-    if ( requestIs( input, 'api.frankfurter.dev', '/v2/rate/inr/gbp' ) ) {
+    if ( requestIs( input, 'api.frankfurter.dev', '/v2/currencies' ) ) {
       return Promise.resolve( {
         ok: true,
-        json: async () => ( { date: '2026-10-15', base: 'INR', quote: 'GBP', rate: 0.0089 } ),
+        json: async () => ( [
+          { iso_code: 'USD', name: 'United States Dollar' },
+          { iso_code: 'INR', name: 'Indian Rupee' },
+          { iso_code: 'EUR', name: 'Euro' },
+          { iso_code: 'GBP', name: 'British Pound' },
+          { iso_code: 'JPY', name: 'Japanese Yen' },
+        ] ),
+      } as Response );
+    }
+    if ( requestIs( input, 'api.frankfurter.dev', '/v2/rate/usd/inr' ) ) {
+      return Promise.resolve( {
+        ok: true,
+        json: async () => ( { date: '2026-10-15', base: 'USD', quote: 'INR', rate: 83.25 } ),
+      } as Response );
+    }
+    if ( requestIs( input, 'api.frankfurter.dev', '/v2/rate/eur/inr' ) ) {
+      return Promise.resolve( {
+        ok: true,
+        json: async () => ( { date: '2026-10-15', base: 'EUR', quote: 'INR', rate: 97.1 } ),
       } as Response );
     }
     if ( requestIs( input, 'weather.googleapis.com', '/v1/currentConditions' ) ) {
@@ -965,12 +983,15 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( panel.textContent ).toContain( 'Humidity' );
     expect( panel.textContent ).toContain( 'Wind' );
     expect( panel.textContent ).toContain( 'Day range' );
-    // Hourly forecast strip with 24h/48h range.
-    expect( panel.querySelector( '.vl-live-air-forecast-strip' ) ).not.toBeNull();
+    // Hourly forecast + 10-day forecast are intentionally lazy after the Weather tab opens.
+    await waitFor( () => expect( panel.querySelector( '.vl-live-air-forecast-strip' ) ).not.toBeNull() );
     expect( within( panel ).getByRole( 'group', { name: 'Weather forecast range' } ) ).toBeTruthy();
-    // Google defaults daily pageSize to 5; VayuLok explicitly asks for 10 and renders all ten.
-    expect( panel.querySelectorAll( '.vl-live-wx-daily-row' ).length ).toBe( 10 );
-    const dailyCall = fetchSpy.mock.calls.find( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/forecast/days' ) );
+    await waitFor( () => expect( panel.querySelectorAll( '.vl-live-wx-daily-row' ).length ).toBe( 10 ) );
+    const dailyCall = await waitFor( () => {
+      const call = fetchSpy.mock.calls.find( item => requestIs( item[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/forecast/days' ) );
+      expect( call ).toBeTruthy();
+      return call!;
+    } );
     expect( String( dailyCall?.[ 0 ] ) ).toContain( 'days=10' );
     expect( String( dailyCall?.[ 0 ] ) ).toContain( 'pageSize=10' );
     const googleDataCalls = fetchSpy.mock.calls.filter( call => {
@@ -1801,11 +1822,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( css ).toContain( 'font-size:var(--vl-body-size)' );
   } );
 
-  it( 'shows a compact currency-rate view with no amount or place fields', async () => {
+  it( 'uses Local-time-style currency search with provider-backed suggestions and USD/INR defaults', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
-    render( <VayuLokLive /> );
+    const { container } = render( <VayuLokLive /> );
 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
@@ -1817,19 +1838,40 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     fireEvent.click( within( toolTabs ).getByRole( 'tab', { name: 'Currency' } ) );
 
     const fxCalls = () => fetchSpy.mock.calls.filter( call =>
-      requestIs( call[ 0 ] as RequestInfo | URL, 'api.frankfurter.dev', '/v2/rate/inr/gbp' ),
+      requestIs( call[ 0 ] as RequestInfo | URL, 'api.frankfurter.dev', '/v2/rate/usd/inr' ),
     );
     await waitFor( () => expect( fxCalls() ).toHaveLength( 1 ) );
+    await waitFor( () => expect(
+      fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'api.frankfurter.dev', '/v2/currencies' ) ),
+    ).toBe( true ) );
 
     const base = screen.getByRole( 'combobox', { name: 'Base currency' } ) as HTMLInputElement;
     const quote = screen.getByRole( 'combobox', { name: 'Quote currency' } ) as HTMLInputElement;
-    expect( base.value ).toBe( 'INR' );
-    expect( quote.value ).toBe( 'GBP' );
-    expect( await screen.findByText( /1 INR = 0\.0089 GBP/ ) ).toBeTruthy();
-    expect( screen.getByText( /Latest reference rate · 2026-10-15/ ) ).toBeTruthy();
-
-    fireEvent.change( base, { target: { value: 'USD' } } );
     expect( base.value ).toBe( 'USD' );
+    expect( quote.value ).toBe( 'INR' );
+    expect( base.hasAttribute( 'list' ) ).toBe( false );
+    expect( quote.hasAttribute( 'list' ) ).toBe( false );
+    expect( await screen.findByText( /1 USD = 83\.25 INR/ ) ).toBeTruthy();
+
+    fireEvent.focus( base );
+    await waitFor( () => expect( base.getAttribute( 'aria-expanded' ) ).toBe( 'true' ) );
+    const list = screen.getByRole( 'listbox', { name: 'Available base currencies' } );
+    expect( within( list ).getByRole( 'option', { name: 'USD' } ) ).toBeTruthy();
+    expect( within( list ).getByRole( 'option', { name: 'EUR' } ) ).toBeTruthy();
+    expect( within( list ).queryByRole( 'option', { name: 'INR' } ) ).toBeNull();
+
+    fireEvent.change( base, { target: { value: 'EU' } } );
+    const eur = await screen.findByRole( 'option', { name: 'EUR' } );
+    fireEvent.pointerDown( eur );
+    expect( base.value ).toBe( 'EUR' );
+    await waitFor( () => expect(
+      fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'api.frankfurter.dev', '/v2/rate/eur/inr' ) ),
+    ).toBe( true ) );
+
+    const css = Array.from( container.querySelectorAll( 'style' ) ).map( style => style.textContent || '' ).join( '\n' );
+    expect( css ).toContain( '.vl-live-utility-search>input{width:100%;height:52px' );
+    expect( css ).toContain( 'border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent' );
+    expect( css ).toContain( '.vl-live-fx-search>input{padding-right:2px;text-transform:uppercase}' );
   } );
 
   it( 'uses the active site language for voice search and sends the transcript through the existing place search', async () => {
