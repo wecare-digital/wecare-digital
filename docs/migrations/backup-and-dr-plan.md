@@ -318,19 +318,32 @@ Mirror the Lightsail migration discipline that is already proven in this repo:
   `ENABLED` (`scripts/enable_dynamodb_pitr.py --verify`). The script is idempotent;
   re-run `--apply` after provisioning a new table. Still to do: bake PITR into every
   `provision_*_table.py` so new tables are covered at creation, not after.
+- [x] **S3 versioning on `wecare-digital-get`** — was `Suspended` (overwrites/deletes
+  unrecoverable) while a 90-day noncurrent-expiry lifecycle rule already existed.
+  Enabled via `scripts/enable_s3_versioning.py --apply`; `--verify` confirms
+  `Enabled`. Cost stays bounded by the existing expiry rule.
+- [x] **Credential backup refreshed** — the local + S3 encrypted artifact was from
+  2026-09-26; 10 secrets had changed since (incl. payment credentials). Rebuilt with
+  `scripts/secrets_backup.py create` and independently re-verified
+  (`verify_backup_artifact.py`: ciphertext-only, decrypts, 0 plaintext markers).
+  Note: `wecare/google-api-key` and `wecare/openai/api` are scheduled for deletion
+  (DeletedDate 2026-10-07) and are correctly excluded; drop them from
+  `REQUIRED_SECRET_IDS` once their deletion finalises to silence the run warning.
 
 **Open:**
 
-1. **S3 versioning + a lifecycle for noncurrent versions** on `wecare-digital-get`.
-2. **One AWS Backup plan** (tag-selected, daily + monthly, Vault Lock) covering
-   DynamoDB and S3, reporting to the existing SNS topic.
-3. **Cognito user export** job to the encrypted backup bucket.
-4. **Schedule** secrets `upload` + verify + GCP mirror refresh.
-5. **Write and run the first restore drill**, record the result under `docs/execution/`.
-6. **S3 → second account/region replication** for the off-primary copy.
-7. Keep the GCP mirror current as standing exit insurance; re-run the independence
+1. **One AWS Backup plan** (tag-selected, daily + monthly, Vault Lock) covering
+   DynamoDB and S3, reporting to the existing SNS topic. (No backup plan exists yet;
+   PITR covers continuous recovery but not long-retention monthly snapshots.)
+2. **Cognito user export** job to the encrypted backup bucket.
+3. **Schedule** secrets `create`/`upload` + verify + GCP mirror refresh, so the
+   artifact never drifts 20 days behind the account again.
+4. **Write and run the first restore drill**, record the result under `docs/execution/`.
+5. **S3 → second account/region replication** for the off-primary copy.
+6. Keep the GCP mirror current as standing exit insurance; re-run the independence
    checks in CI.
 
-The two highest-value, fully reversible protections (Cognito deletion protection
-and DynamoDB PITR) are now in place. The open items harden and automate. The
-migration section (7) is insurance you keep warm, not a project you have to run.
+The highest-value, fully reversible protections (Cognito deletion protection,
+DynamoDB PITR, S3 versioning) are now in place, and the credential backup is current.
+The open items harden and automate. The migration section (7) is insurance you keep
+warm, not a project you have to run.
