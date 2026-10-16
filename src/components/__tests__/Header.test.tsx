@@ -385,18 +385,17 @@ describe( 'Header', () => {
     expect( css ).toContain( '.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto' );
   } );
 
-  it( 'right-aligns the Products continuation cue and uses the Google double-arrow icon', () => {
+  it( 'right-aligns the Products cue without a hover inversion and keeps the Google double-arrow SVG', () => {
     const { container } = render( <Header /> );
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
 
     expect( css ).toContain( '.nav-products-cue-row{height:44px;display:flex;align-items:center;justify-content:flex-end;flex:0 0 44px;padding-inline-end:4px' );
     expect( css ).toContain( '.nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px' );
     expect( css ).toContain( 'border-radius:50%;background:#d1f470;color:#1a3a2a' );
-    expect( css ).toContain( '.nav-products-more:hover{background:#1a3a2a;color:#d1f470}' );
-    expect( css ).toContain( "font-family:'Material Symbols Rounded'" );
+    expect( css ).not.toContain( '.nav-products-more:hover{' );
+    expect( css ).toContain( '.nav-products-more-icon{display:block;width:26px;height:26px;fill:currentColor}' );
     expect( css ).toContain( '.nav-products-cue-row{display:none}' );
     expect( css ).not.toContain( '.nav-products-more{position:absolute' );
-    expect( css ).not.toContain( 'More products' );
 
     const matchMedia = vi.spyOn( window, 'matchMedia' ).mockImplementation( query => ( {
       media: query,
@@ -423,7 +422,11 @@ describe( 'Header', () => {
     try {
       fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
       const cue = screen.getByRole( 'button', { name: 'Scroll to more products' } );
-      expect( cue.textContent ).toBe( 'keyboard_double_arrow_down' );
+      const icon = cue.querySelector( 'svg.nav-products-more-icon' );
+      expect( icon ).not.toBeNull();
+      expect( icon?.querySelector( 'path' )?.getAttribute( 'd' ) )
+        .toContain( 'M480-200 240-440l42-42 198 198' );
+      expect( cue.textContent ).toBe( '' );
     } finally {
       matchMedia.mockRestore();
       if ( scrollHeight ) Object.defineProperty( HTMLElement.prototype, 'scrollHeight', scrollHeight );
@@ -433,90 +436,28 @@ describe( 'Header', () => {
     }
   } );
 
-  it( 'uses the approved public header dimensions and brand navigation colors', () => {
+  it( 'uses borderless menu chrome with an SVG header chevron', () => {
     const { container } = render( <Header /> );
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
 
     expect( css ).toContain( 'box-sizing:border-box;height:108px' );
     expect( css ).toContain( '@media(max-width:767px){.hdr-in{height:96px' );
 
-    /*
-     * THE TRIGGER'S ACTIVE STATE INVERTS NOW. This asserted
-     *   .nav-trigger[aria-expanded='true']{background:rgba(209,244,112,.22)}
-     * and that value is exactly what was wrong with it. Over the white header that tint
-     * composites to rgb(245,253,224), which measures 1.032:1 against the chip's own #f4f7ee - an
-     * RGB move of 15 out of a possible 441. The test was pinning a state change that was not
-     * perceptible, which is how it survived a report of "no hover effect".
-     *
-     * Lime cannot carry it as a FILL either: lime is a LIGHT colour, so measured against #f4f7ee
-     * the solid #d1f470 still only reaches 1.15:1. That measurement has not changed and is why
-     * the state is never a lime tint.
-     *
-     * WHAT DID CHANGE, AND WHY THIS NO LONGER PINS #1a3a2a AS THE FILL. The first fix inverted
-     * the whole chip, and the owner reported the result as "on select too much green" - filling
-     * all 2116px² of a 46x46 chip with dark green made this the heaviest element in a header
-     * that otherwise holds a wordmark and some text. Correct about the measurement, wrong about
-     * the mass.
-     *
-     * So the luminance step moved to the EDGE and the fill was freed to be lime. #1a3a2a against
-     * the resting #cfe0a6 border is 8.84:1, at 2px; dark area falls to 352px², 16.6% of what the
-     * inversion painted. Three signals now carry "open" - the border darkens, the fill brightens,
-     * and the chevron rotates - so the hue-only objection to a lime fill is answered by the two
-     * that are not hue. The five options and their computed numbers are in
-     * docs/menu-icon-options.md; this is G4.
-     *
-     * Asserted as one rule covering all three states, because the original defect was partly
-     * that they were separate declarations drifting apart.
-     */
+    expect( css ).toContain( '.nav-trigger{min-width:46px;min-height:46px;background:#f4f7ee;border:0' );
     expect( css ).toContain( ".nav-trigger:hover,.nav-trigger:focus-visible,.nav-trigger[aria-expanded='true']" );
-    expect( css ).toContain( 'background:#d1f470;border-color:#1a3a2a;border-width:2px' );
-    // The dark fill is GONE as a declaration, not merely overridden. Comments stripped first:
-    // the rule above cites #1a3a2a as the border colour and documents the fill it replaced, and
-    // a substring search cannot tell a citation from a declaration.
-    expect( css.replace( /\/\*[\s\S]*?\*\//g, '' ) ).not.toContain( 'background:#1a3a2a' );
-    // border-width is transitioned, or the 1px -> 2px step snaps while the colours glide.
-    expect( css ).toContain( 'border-width .18s ease' );
-
-    /*
-     * THE FOCUS RING IS TWO-TONE, AND BOTH STOPS ARE LOAD-BEARING.
-     *
-     * It was a single box-shadow at rgba(26,58,42,.2), which composites to rgb(200,209,199)
-     * over the header and measures 1.44:1 against it - under the 3:1 WCAG 1.4.11 asks of a
-     * focus indicator. The rule above also sets outline:none, so that faint shadow was the
-     * entire ring.
-     *
-     * Opaque #1a3a2a on its own did not fix it when the chip inverted, and the two-tone ring is
-     * kept now that the chip goes LIME rather than dark - because it has to work against both.
-     * A dark green ring drawn tight against a lime chip does have an edge, so the white spacer is
-     * less critical than it was; but the same pair is what makes the ring survive whichever fill
-     * this control ends up with, which is exactly the durability that earned it. The 3px of dark
-     * green outside measures 12.48:1 against the white header.
-     *
-     * Do not collapse this to one stop in either direction.
-     */
+    expect( css ).toContain( 'background:#d1f470;outline:none' );
+    expect( css ).not.toContain( 'border-width .18s ease' );
     expect( css ).toContain( '.nav-trigger:focus-visible{box-shadow:0 0 0 2px #fff,0 0 0 5px #1a3a2a}' );
-    // Comments stripped before the negative check: the rule above documents the value it
-    // replaced, and a substring search cannot tell a citation from a declaration. Banning
-    // the string outright would mean deleting the measurement that justifies the fix.
-    expect( css.replace( /\/\*[\s\S]*?\*\//g, '' ) ).not.toContain( 'rgba(26,58,42,.2)' );
-    // THE CHEVRON NO LONGER RECOLOURS, and the absence is asserted. It had to flip to lime when
-    // the chip went dark underneath it; on a lime chip the same #1a3a2a glyph is 10.04:1, so the
-    // rule is deleted rather than left setting a colour to the colour it already has.
-    expect( css.replace( /\/\*[\s\S]*?\*\//g, '' ) )
-      .not.toContain( 'border-right-color:#d1f470' );
 
-    // The main dropdown control now uses the Google Material keyboard_arrow_down glyph.
     const trigger = screen.getByRole( 'button', { name: 'Open navigation' } );
-    const triggerIcon = trigger.querySelector( '.nav-trigger-icon' );
+    const triggerIcon = trigger.querySelector( 'svg.nav-trigger-icon' );
     expect( triggerIcon ).not.toBeNull();
-    expect( triggerIcon?.textContent ).toBe( 'keyboard_arrow_down' );
-    expect( triggerIcon?.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
-    expect( css ).toContain( ".nav-trigger-icon{display:block;margin:0;color:#1a3a2a;font-family:'Material Symbols Rounded'" );
+    expect( triggerIcon?.querySelector( 'path' )?.getAttribute( 'd' ) )
+      .toBe( 'M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z' );
+    expect( trigger.textContent ).toBe( '' );
+    expect( css ).toContain( '.nav-trigger-icon{display:block;width:27px;height:27px;margin:0;fill:#1a3a2a' );
     expect( css ).toContain( ".nav-trigger[aria-expanded='true'] .nav-trigger-icon{transform:rotate(180deg)}" );
-    expect( css.replace( /\/\*[\s\S]*?\*\//g, '' ) ).not.toContain( '.nav-arrow{' );
 
-    // The main dropdown panel keeps its radius/background/shadow but no longer draws an outer
-    // grey border or lime top rule.
     expect( css ).toContain( 'background:#fcfdfb;border:0;border-radius:14px' );
     expect( css.replace( /\/\*[\s\S]*?\*\//g, '' ) ).not.toContain( 'border-top:3px solid #d1f470' );
   } );
