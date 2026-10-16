@@ -592,7 +592,7 @@ def source_state(source_id: str) -> Dict[str, Any]:
 def batch_qa_state(batch_id: str) -> Dict[str, Any]:
     """How far a whole wave has got through QA, derived from the source rows."""
     import blog_batches
-    sources = blog_batches.batch_sources(batch_id)
+    sources = blog_batches.batch_articles(batch_id)
     runs = blog_batches.batch_records(batch_id, record_type=RUN_RECORD_TYPE)
     signoffs = blog_batches.batch_records(batch_id, record_type=SIGNOFF_RECORD_TYPE)
     by_verdict: Dict[str, int] = {}
