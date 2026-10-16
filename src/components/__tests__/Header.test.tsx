@@ -1,10 +1,13 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Header from '../Header';
 
 const routerState = vi.hoisted( () => ( { pathname: '/', asPath: '' } ) );
 vi.mock( 'next/router', () => ( { useRouter: () => routerState } ) );
+
+const browserOpen = vi.hoisted( () => vi.fn( async () => undefined ) );
+vi.mock( '@capacitor/browser', () => ( { Browser: { open: browserOpen } } ) );
 
 describe( 'Header', () => {
   it( 'shows the shared WECARE.DIGITAL brand', () => {
@@ -20,6 +23,24 @@ describe( 'Header', () => {
     const menu = screen.getByRole( 'navigation', { name: 'Public navigation' } );
     expect( menu ).toHaveAttribute( 'id', 'public-navigation-menu' );
     expect( trigger ).toHaveAttribute( 'aria-controls', 'public-navigation-menu' );
+  } );
+
+  it( 'opens external menu destinations through Capacitor Browser in a native app shell', async () => {
+    const nativeWindow = window as typeof window & { Capacitor?: { isNativePlatform?: () => boolean } };
+    nativeWindow.Capacitor = { isNativePlatform: () => true };
+    browserOpen.mockClear();
+
+    try {
+      render( <Header /> );
+      fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+      fireEvent.click( screen.getByRole( 'link', { name: 'Subscribe' } ) );
+
+      await waitFor( () => expect( browserOpen ).toHaveBeenCalledTimes( 1 ) );
+      expect( browserOpen.mock.calls[ 0 ]?.[ 0 ] ).toEqual( { url: expect.any( String ) } );
+      expect( screen.getByRole( 'button', { name: 'Open navigation' } ) ).toHaveAttribute( 'aria-expanded', 'false' );
+    } finally {
+      delete nativeWindow.Capacitor;
+    }
   } );
 
   it( 'restores Home and makes Shop itself the catalogue destination', () => {
