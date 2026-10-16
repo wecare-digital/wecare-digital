@@ -2975,64 +2975,19 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       west = normalizeLongitude( west as number );
       east = normalizeLongitude( east as number );
 
-      const zarr = await import( 'zarrita' );
+      const { loadNoaaWindGrid } = await import( '../lib/noaaWindZarr' );
       if ( cancelled || seq !== windRequestSeqRef.current ) return;
-      const store = new zarr.FetchStore( NOAA_GFS_ZARR_BASE, {
-        fetch( request: Request ) {
-          return fetch( request, { signal: controller.signal } );
-        },
+      const segments = await loadNoaaWindGrid( {
+        baseUrl: NOAA_GFS_ZARR_BASE,
+        north: north as number,
+        south: south as number,
+        west,
+        east,
+        gridDegrees: NOAA_WIND_GRID_DEGREES,
+        targetRows: NOAA_WIND_TARGET_ROWS,
+        targetCols: NOAA_WIND_TARGET_COLS,
+        signal: controller.signal,
       } );
-      const root = zarr.root( store );
-      const uArr = await zarr.open( root.resolve( 'wind_u_10m' ), { kind: 'array' } );
-      const vArr = await zarr.open( root.resolve( 'wind_v_10m' ), { kind: 'array' } );
-      if ( cancelled || seq !== windRequestSeqRef.current ) return;
-
-      const initIndex = uArr.shape[ 0 ] - 1;
-      const leadIndex = 0;
-      const latMin = Math.min( north, south );
-      const latMax = Math.max( north, south );
-      const latStartIdx = Math.max( 0, Math.floor( ( latMin + 90 ) / NOAA_WIND_GRID_DEGREES ) );
-      const latStopIdx = Math.min( 721, Math.ceil( ( latMax + 90 ) / NOAA_WIND_GRID_DEGREES ) + 1 );
-      const rawLatCount = Math.max( 1, latStopIdx - latStartIdx );
-      const latStride = Math.max( 1, Math.ceil( rawLatCount / NOAA_WIND_TARGET_ROWS ) );
-
-      const lonIntervals: Array<[number, number]> = west <= east
-        ? [ [ west, east ] ]
-        : [ [ west, 179.75 ], [ -180, east ] ];
-
-      const segments: WindGridSegment[] = [];
-      for ( const [ lonMin, lonMax ] of lonIntervals ) {
-        const lonStartIdx = Math.max( 0, Math.floor( ( lonMin + 180 ) / NOAA_WIND_GRID_DEGREES ) );
-        const lonStopIdx = Math.min( 1440, Math.ceil( ( lonMax + 180 ) / NOAA_WIND_GRID_DEGREES ) + 1 );
-        const rawLonCount = Math.max( 1, lonStopIdx - lonStartIdx );
-        const lonStride = Math.max( 1, Math.ceil( rawLonCount / NOAA_WIND_TARGET_COLS ) );
-        const selection = [
-          initIndex,
-          leadIndex,
-          zarr.slice( latStartIdx, latStopIdx, latStride ),
-          zarr.slice( lonStartIdx, lonStopIdx, lonStride ),
-        ] as const;
-        const [ uView, vView ] = await Promise.all( [
-          zarr.get( uArr, selection ),
-          zarr.get( vArr, selection ),
-        ] );
-        if ( cancelled || seq !== windRequestSeqRef.current ) return;
-        const latCount = uView.shape[ 0 ];
-        const lonCount = uView.shape[ 1 ];
-        const u = Float32Array.from( uView.data as ArrayLike<number> );
-        const v = Float32Array.from( vView.data as ArrayLike<number> );
-        segments.push( {
-          latStart: -90 + latStartIdx * NOAA_WIND_GRID_DEGREES,
-          latStep: NOAA_WIND_GRID_DEGREES * latStride,
-          latCount,
-          lonStart: -180 + lonStartIdx * NOAA_WIND_GRID_DEGREES,
-          lonStep: NOAA_WIND_GRID_DEGREES * lonStride,
-          lonCount,
-          u,
-          v,
-        } );
-      }
-
       if ( cancelled || seq !== windRequestSeqRef.current || !segments.length ) return;
       windGridRef.current = segments;
       setWindFieldReady( true );
