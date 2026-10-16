@@ -452,6 +452,77 @@ def intents_for_source(source_id: str) -> List[Dict[str, Any]]:
     return [storage._json_safe(row) for row in rows]
 
 
+def _word_set(value: Any) -> set[str]:
+    return set(re.findall(r"[a-z0-9']+", _normalise(value)))
+
+
+def _word_jaccard(left: Any, right: Any) -> float:
+    a, b = _word_set(left), _word_set(right)
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
+def _manifest_dedupe_context(category: str) -> Dict[str, Any]:
+    """Current published + reserved state used to record deterministic manifest evidence."""
+    published = [
+        row for row in storage.list_blog_posts(
+            published_only=True, limit=0, include_content=False)
+        if str(row.get("category") or "") == category
+    ]
+    intents = [
+        row for row in storage.scan_by_record_type(INTENT_RECORD_TYPE, limit=0)
+        if str(row.get("category") or "") == category
+    ]
+    return {"published": published, "intents": intents}
+
+
+def _intent_dedupe_evidence(raw: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    import blog_quality_v2 as q
+
+    title = str(raw.get("title") or "").strip()
+    slug = q.slugify(title) if title else ""
+    distinction = str(raw.get("centralDistinction") or "").strip()
+    promise = str(raw.get("readerPromise") or "").strip()
+    exact_slug, exact_title, near_title = [], [], []
+    for post in context["published"]:
+        pslug = str(post.get("slug") or "")
+        ptitle = str(post.get("title") or "")
+        if slug and pslug == slug:
+            exact_slug.append({"slug": pslug, "title": ptitle})
+        if title and _normalise(ptitle) == _normalise(title):
+            exact_title.append({"slug": pslug, "title": ptitle})
+        similarity = _word_jaccard(title, ptitle) if title and ptitle else 0.0
+        if similarity >= 0.80 and _normalise(ptitle) != _normalise(title):
+            near_title.append({"slug": pslug, "title": ptitle,
+                               "similarity": round(similarity, 3)})
+
+    near_intents = []
+    for prior in context["intents"]:
+        dsim = _word_jaccard(distinction, prior.get("centralDistinction"))
+        psim = _word_jaccard(promise, prior.get("readerPromise"))
+        if dsim >= 0.55 or psim >= 0.70:
+            near_intents.append({
+                "intentId": prior.get("id", ""), "title": prior.get("title", ""),
+                "distinctionSimilarity": round(dsim, 3),
+                "readerPromiseSimilarity": round(psim, 3),
+            })
+
+    return {
+        "candidateTitle": title, "candidateSlug": slug,
+        "exactPublishedSlug": exact_slug, "exactPublishedTitle": exact_title,
+        "nearPublishedTitle": sorted(near_title, key=lambda x: x["similarity"], reverse=True)[:10],
+        "nearReservedIntents": sorted(
+            near_intents,
+            key=lambda x: max(x["distinctionSimilarity"], x["readerPromiseSimilarity"]),
+            reverse=True)[:10],
+        "hardCollision": bool(exact_slug),
+        "note": (
+            "Deterministic evidence only. ChatGPT must still decide conceptual duplication; "
+            "body-level corpus comparison runs again during QA."
+        ),
+    }
+
 def submit_manifest(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     category = _category(body.get("category"))
     source_id = str(body.get("sourceId") or "").strip()
@@ -468,18 +539,23 @@ def submit_manifest(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     raw_intents = body.get("intents")
     if not isinstance(raw_intents, list):
         raise ValueError("intents must be an array")
-    duplicate_count = max(0, int(body.get("duplicateCount") or 0))
+    declared_duplicate = max(0, int(body.get("duplicateCount") or 0))
     rejected_count = max(0, int(body.get("rejectedCount") or 0))
     hold_count = max(0, int(body.get("holdCount") or 0))
     potential_count = int(body.get("potentialCount") or
-                          (len(raw_intents) + duplicate_count + rejected_count + hold_count))
-    minimum = len(raw_intents) + duplicate_count + rejected_count + hold_count
+                          (len(raw_intents) + declared_duplicate + rejected_count + hold_count))
+    minimum = len(raw_intents) + declared_duplicate + rejected_count + hold_count
     if potential_count < minimum:
         raise ValueError("potentialCount cannot be smaller than accounted opportunities")
 
+    import blog_article_work
+    context = _manifest_dedupe_context(category)
     now = storage.now_iso()
     created: List[Dict[str, Any]] = []
     resolved: List[Dict[str, Any]] = []
+    dedupe_items: List[Dict[str, Any]] = []
+    backend_duplicate = 0
+
     for index, raw in enumerate(raw_intents, start=1):
         if not isinstance(raw, dict):
             raise ValueError(f"intents[{index - 1}] must be an object")
@@ -489,89 +565,117 @@ def submit_manifest(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
         if len(distinction) < 8 or len(promise) < 8:
             raise ValueError(
                 f"intents[{index - 1}] needs centralDistinction and readerPromise")
+
+        evidence = _intent_dedupe_evidence(raw, context)
         iid = intent_id(category, distinction, promise)
+        evidence["intentId"] = iid
+        evidence["ordinal"] = index
+        dedupe_items.append(evidence)
+
+        if evidence["hardCollision"]:
+            backend_duplicate += 1
+            resolved.append({
+                "intentId": iid, "sourceId": source_id, "status": "DUPLICATE",
+                "created": False, "reason": "EXACT_PUBLISHED_SLUG",
+                "matches": evidence["exactPublishedSlug"],
+            })
+            continue
+
         existing = storage.get_typed(iid, INTENT_RECORD_TYPE)
         if existing:
+            backend_duplicate += 1
             resolved.append({
                 "intentId": iid, "sourceId": existing.get("sourceId", ""),
                 "status": existing.get("status", ""), "created": False,
+                "reason": "EXISTING_INTENT_FINGERPRINT",
             })
             continue
+
         record = {
-            "id": iid,
-            "recordType": INTENT_RECORD_TYPE,
-            "createdAt": now,
-            "updatedAt": now,
-            "slug": source_id,
-            "sourceId": source_id,
+            "id": iid, "recordType": INTENT_RECORD_TYPE, "createdAt": now, "updatedAt": now,
+            "slug": source_id, "sourceId": source_id,
             "batchId": source.get("batchId") or blog_sources.NO_BATCH,
-            "category": category,
-            "ordinal": index,
+            "category": category, "ordinal": index,
             "title": str(raw.get("title") or "").strip(),
-            "centralDistinction": distinction,
-            "readerPromise": promise,
+            "centralDistinction": distinction, "readerPromise": promise,
             "distinctPurpose": purpose,
             "articleType": str(raw.get("articleType") or "").strip(),
             "fingerprint": _intent_fingerprint(category, distinction, promise),
-            "status": "PLANNED",
-            "workKey": article_key(category, source_id, iid),
-            "createdBy": actor,
-            "error": "",
+            "status": "PLANNED", "workKey": article_key(category, source_id, iid),
+            "dedupeEvidence": evidence, "createdBy": actor, "error": "",
         }
         try:
             storage.table().put_item(
-                Item=storage._clean(record),
-                ConditionExpression="attribute_not_exists(id)",
-            )
-            created.append(record)
+                Item=storage._clean(record), ConditionExpression="attribute_not_exists(id)")
         except ClientError as error:
             if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
                 raise
             existing = storage.get_typed(iid, INTENT_RECORD_TYPE) or {}
+            backend_duplicate += 1
             resolved.append({
                 "intentId": iid, "sourceId": existing.get("sourceId", ""),
                 "status": existing.get("status", ""), "created": False,
+                "reason": "CONCURRENT_EXISTING_INTENT",
             })
+            continue
+
+        work = blog_article_work.ensure(source, record, actor)
+        storage.table().update_item(
+            Key={"id": iid},
+            UpdateExpression="SET articleWorkId = :w, updatedAt = :u",
+            ExpressionAttributeValues={":w": work["id"], ":u": storage.now_iso()},
+        )
+        record["articleWorkId"] = work["id"]
+        created.append(record)
+        context["intents"].append(record)
+
+    duplicate_count = declared_duplicate + backend_duplicate
+    dedupe_document = {
+        "category": category, "sourceId": source_id, "generatedAt": now,
+        "generatedBy": actor, "publishedCorpusChecked": len(context["published"]),
+        "reservedIntentsChecked": len(context["intents"]),
+        "declaredDuplicateCount": declared_duplicate,
+        "backendDuplicateCount": backend_duplicate, "items": dedupe_items,
+        "semanticDecisionOwner": "CHATGPT_EXTERNAL",
+        "bodyLevelRecheck": "QA_WITH_LIVE_CORPUS",
+    }
+    dkey = _put_json(dedupe_key(category, source_id), dedupe_document)
 
     manifest = {
-        "category": category,
-        "sourceId": source_id,
-        "generatedAt": now,
-        "generatedBy": actor,
-        "promptVersion": get_control(category).get("promptVersion", ""),
+        "category": category, "sourceId": source_id, "generatedAt": now,
+        "generatedBy": actor, "promptVersion": get_control(category).get("promptVersion", ""),
+        "dedupeReportKey": dkey,
         "counts": {
-            "potential": potential_count,
-            "duplicate": duplicate_count,
-            "rejected": rejected_count,
-            "hold": hold_count,
-            "netNewRequested": len(raw_intents),
-            "netNewReserved": len(created),
+            "potential": potential_count, "duplicate": duplicate_count,
+            "declaredDuplicate": declared_duplicate, "backendDuplicate": backend_duplicate,
+            "rejected": rejected_count, "hold": hold_count,
+            "netNewRequested": len(raw_intents), "netNewReserved": len(created),
             "resolvedExisting": len(resolved),
         },
         "notes": str(body.get("notes") or "").strip(),
         "intents": [
             {
-                "intentId": row["id"], "ordinal": row["ordinal"], "title": row["title"],
+                "intentId": row["id"], "articleWorkId": row.get("articleWorkId", ""),
+                "ordinal": row["ordinal"], "title": row["title"],
                 "centralDistinction": row["centralDistinction"],
                 "readerPromise": row["readerPromise"],
-                "distinctPurpose": row["distinctPurpose"],
-                "articleType": row["articleType"],
-            }
-            for row in created
+                "distinctPurpose": row["distinctPurpose"], "articleType": row["articleType"],
+            } for row in created
         ],
         "resolvedExisting": resolved,
     }
     key = _put_json(manifest_key(category, source_id), manifest)
 
-    stage = "SAMPLE_REQUIRED"
+    stage = "SAMPLE_REQUIRED" if created else "NO_NET_NEW_ARTICLES"
     storage.table().update_item(
         Key={"id": source_id},
         UpdateExpression=(
-            "SET editorialStatus = :s, opportunityManifestKey = :k, "
+            "SET editorialStatus = :s, opportunityManifestKey = :k, dedupeReportKey = :dk, "
             "opportunityCount = :p, netNewArticleCount = :n, updatedAt = :u"
         ),
         ExpressionAttributeValues={
-            ":s": stage, ":k": key, ":p": potential_count, ":n": len(created), ":u": now,
+            ":s": stage, ":k": key, ":dk": dkey, ":p": potential_count,
+            ":n": len(created), ":u": now,
         },
     )
     storage.table().update_item(
@@ -583,18 +687,18 @@ def submit_manifest(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
         "stage": stage, "sourceId": source_id, "intentId": "",
         "potentialCount": potential_count, "netNewCount": len(created),
         "duplicateCount": duplicate_count, "rejectedCount": rejected_count,
-        "nextAction": "CREATE_SAMPLE",
+        "dedupeReportKey": dkey,
+        "nextAction": "CREATE_SAMPLE" if created else "COMPLETE_SOURCE_NO_NET_NEW",
     }, actor)
     return {
-        "manifestKey": key,
-        "counts": manifest["counts"],
+        "manifestKey": key, "dedupeReportKey": dkey, "counts": manifest["counts"],
         "createdIntents": [
-            {"intentId": row["id"], "ordinal": row["ordinal"], "title": row["title"]}
+            {"intentId": row["id"], "articleWorkId": row.get("articleWorkId", ""),
+             "ordinal": row["ordinal"], "title": row["title"]}
             for row in created
         ],
         "resolvedExisting": resolved,
     }
-
 
 def save_sample(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     category = _category(body.get("category"))
