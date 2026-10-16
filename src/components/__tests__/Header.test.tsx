@@ -385,6 +385,16 @@ describe( 'Header', () => {
     expect( css ).toContain( '.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto' );
   } );
 
+  it( 'uses the existing Material Symbols font for an icon-only Products continuation cue', () => {
+    const { container } = render( <Header /> );
+    const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
+
+    expect( css ).toContain( ".nav-products-more-icon{font-family:'Material Symbols Rounded'" );
+    expect( css ).toContain( 'color:#d1f470' );
+    expect( css ).toContain( '.nav-products-more{display:none}' );
+    expect( css ).not.toContain( 'More products' );
+  } );
+
   it( 'uses the approved public header dimensions and brand navigation colors', () => {
     const { container } = render( <Header /> );
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
