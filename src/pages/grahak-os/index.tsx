@@ -253,8 +253,9 @@ response = requests.post(
 
         {/* NO hero CTA. The "Get Started on WhatsApp" pill was removed from the hero on owner
             instruction, so the hero is just the headline, sub and mockup; the single call to
-            action (WhatsApp pill + ₹899 price) lives in the closer at the bottom
-            (#gos-closer). RotatingHero's children slot is left unset. */}
+            action (WhatsApp pill + ₹899 price) lives in the closer at the bottom (#gos-closer).
+            RotatingHero's children slot is left unset. This note sits before the element because
+            a JSX comment cannot appear between an element's attributes. */}
         <RotatingHero
           insideMain
           noShare
