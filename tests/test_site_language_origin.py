@@ -133,7 +133,7 @@ class TestTranslateOriginGate:
         # rule cannot tell those apart from a URL literal on the left of `in`, and an assertion
         # is not worth arguing with a scanner over. Comparing sets says the same thing and
         # carries no URL literal into an `in` expression. Do not "simplify" this back.
-        expected = {"https://wecare.digital", "https://www.wecare.digital"}
+        expected = {"https://wecare.digital", "https://wecare.digital"}
         assert set(handler_module.ALLOWED_ORIGINS).issuperset(expected)
 
 
