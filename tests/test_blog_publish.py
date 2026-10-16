@@ -456,6 +456,19 @@ def test_a_failed_publish_is_not_retried_automatically(env):
     assert env["store"].calls == []
 
 
+def test_legacy_publish_record_remains_readable(env):
+    source_id = _signed(env)
+    key = env["bp"].legacy_record_key(source_id)
+    env["s3"].objects[key] = json.dumps({
+        "sourceId": source_id,
+        "postId": "legacy_post",
+        "category": "Conversations",
+    }).encode("utf-8")
+    record = env["bp"].read_record(source_id)
+    assert record["postId"] == "legacy_post"
+    assert record["category"] == "Conversations"
+
+
 def test_a_record_write_failure_does_not_report_a_failed_publish(env, monkeypatch):
     """The post is already live. Reporting failure invites a second attempt, which is the one
     wrong answer in this direction."""
