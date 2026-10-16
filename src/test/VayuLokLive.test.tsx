@@ -1805,10 +1805,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
     expect( screen.getByRole( 'heading', { name: 'Useful tools' } ) ).toBeTruthy();
-    expect( screen.getByRole( 'heading', { name: 'Time converter' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'heading', { name: 'Compare local time' } ) ).toBeTruthy();
     expect( screen.getByRole( 'heading', { name: 'Currency converter' } ) ).toBeTruthy();
+    expect( screen.getByText( 'Time and money, anywhere.' ) ).toBeTruthy();
 
-    const input = screen.getByRole( 'combobox', { name: 'Choose destination city' } );
+    const input = screen.getByRole( 'combobox', { name: 'World time to place' } );
     rec.autocompleteCalls.length = 0;
 
     fireEvent.change( input, { target: { value: 'Lo' } } );
@@ -1819,9 +1820,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.autocompleteCalls.length ).toBeGreaterThan( 0 ) );
     const req = rec.autocompleteCalls.at( -1 ) || {};
     expect( req.input ).toBe( 'Lon' );
-    expect( req.includedPrimaryTypes ).toEqual( [ '(cities)' ] );
+    expect( req.includedPrimaryTypes ).toBeUndefined();
     expect( req.includedRegionCodes ).toBeUndefined();
     expect( req.locationRestriction ).toBeUndefined();
+
+    expect( screen.getAllByPlaceholderText( 'Search city or pincode' ) ).toHaveLength( 4 );
   } );
 
   it( 'loads a currency pair only on converter interaction and calculates amounts locally', async () => {
@@ -1846,6 +1849,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     fireEvent.change( amount, { target: { value: '2000' } } );
     expect( fxCalls() ).toHaveLength( 1 );
     expect( await screen.findByText( /£17\.8/ ) ).toBeTruthy();
+
+    const fromCurrency = screen.getByRole( 'searchbox', { name: 'From currency' } ) as HTMLInputElement;
+    fireEvent.change( fromCurrency, { target: { value: 'USD' } } );
+    expect( fromCurrency.value ).toBe( 'USD' );
   } );
 
   it( 'uses the active site language for voice search and sends the transcript through the existing place search', async () => {
@@ -2068,10 +2075,11 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const inputRule = css.match( /\.vl-live-search-field input\{[^}]*\}/ )?.[ 0 ] || '';
     expect( inputRule ).toContain( 'border-bottom:1px solid #e5e7eb' );
     expect( inputRule ).toContain( 'border:0' );
-    expect( inputRule ).toContain( 'font-size:16px' );
+    expect( inputRule ).toContain( 'font-size:17px' );
     expect( inputRule ).toContain( 'font-weight:400' );
     expect( inputRule ).toContain( 'background:transparent' );
     expect( inputRule ).toContain( 'padding:0 44px 0 2px' );
+    expect( inputRule ).toContain( 'height:52px' );
     // LIGHT focus treatment: a thin dark-green bottom border + a subtle lime accent line, NOT a
     // heavy rectangular outline around the whole field.
     const inputFocus = css.match( /\.vl-live-search-field input:focus-visible\{[^}]*\}/ )?.[ 0 ] || '';
@@ -2101,6 +2109,14 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( searchWrapRule ).toContain( 'box-shadow:none' );
     expect( searchWrapRule ).toContain( 'z-index:30' );
     expect( searchWrapRule ).not.toContain( 'grid-area:1/1' );
+
+    const utilityInputRule = css.match( /\.vl-live-utility-search>input\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( utilityInputRule ).toContain( 'height:52px' );
+    expect( utilityInputRule ).toContain( 'font-size:17px' );
+    expect( utilityInputRule ).toContain( 'padding:0 44px 0 2px' );
+    expect( utilityInputRule ).toContain( 'border-bottom:1px solid #e5e7eb' );
+    expect( utilityInputRule ).toContain( 'background:transparent' );
+    expect( utilityInputRule ).not.toContain( 'border-radius:13px' );
 
     // The map region, shell AND the search surface now render on every path - search is no longer
     // gated on mapReady, so it is usable while the map loads or if it fails.

@@ -71,20 +71,34 @@ def _aws(args: list[str]) -> str:
                           capture_output=True, text=True, check=True).stdout.strip()
 
 
+def _count_lines(text: str) -> int:
+    """Count non-empty whitespace-separated tokens.
+
+    Must not use a server-side ``length(...)`` query here: when ListSecrets
+    paginates (the account has >100 secret entries once planned deletions are
+    included), the CLI evaluates the query per page and prints one number per
+    page, so a scalar ``int()`` sees e.g. ``"50\n22"`` and raises. Counting the
+    ARNs the CLI emits across all pages is pagination-safe.
+    """
+    return len(text.split())
+
+
 def live_counts() -> dict:
     out = dict(RECORDED)
     try:
-        out["active_secrets"] = int(_aws([
-            "secretsmanager", "list-secrets", "--max-results", "100",
-            "--query", "length(SecretList[?DeletedDate==null])"]))
-        out["scheduled_deletion_secrets"] = int(_aws([
-            "secretsmanager", "list-secrets", "--include-planned-deletion", "--max-results",
-            "100", "--query", "length(SecretList[?DeletedDate!=null])"]))
+        out["active_secrets"] = _count_lines(_aws([
+            "secretsmanager", "list-secrets",
+            "--query", "SecretList[?DeletedDate==null].ARN"]))
+        out["scheduled_deletion_secrets"] = _count_lines(_aws([
+            "secretsmanager", "list-secrets", "--include-planned-deletion",
+            "--query", "SecretList[?DeletedDate!=null].ARN"]))
         # All instances, not one name: keeps working after the Micro is deleted.
         out["lightsail_bundles"] = sorted(_aws([
             "lightsail", "get-instances", "--query", "instances[].bundleId"]).split())
-        out["cloudwatch_alarms"] = int(_aws([
-            "cloudwatch", "describe-alarms", "--query", "length(MetricAlarms)"]))
+        # describe-alarms paginates at 50/page, so length(MetricAlarms) prints
+        # one number per page (e.g. "50\n22"); count the names across all pages.
+        out["cloudwatch_alarms"] = _count_lines(_aws([
+            "cloudwatch", "describe-alarms", "--query", "MetricAlarms[].AlarmName"]))
     except (subprocess.CalledProcessError, ValueError) as exc:  # pragma: no cover
         print(f"warning: live pull failed, using recorded counts: {exc}", file=sys.stderr)
     return out

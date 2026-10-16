@@ -73,7 +73,9 @@ Legend: `[x]` done and verified · `[~]` implemented, not deployed · `[ ]` not 
 
 - [x] B.1 Access matrix and findings (`secrets-consolidation.md`).
 - [x] B.2 Shared helper meets B5 (`lambda_utils/secrets_access.py`, 12 tests); no refactor.
-- [ ] B.3 🔒 B-0 stop using root access keys for automation.
+- [ ] B.3 🔒 B-0 stop using root access keys for automation. Live-confirmed 2026-10-16:
+      `AccountAccessKeysPresent=1` and `wecare-prod` resolves to `:root`. Owner runbook with
+      verify + rollback: `docs/migrations/b0-retire-root-access-keys.md` (Plan A recommended).
 - [~] B.4 🔒 B-1a applied: managed policy `wecare-shared-role-secret-guard` denies `github-pat`,
       `backup/recovery-passphrase` and `aws/iam-access-keys` to the shared role (CloudTrail: no
       shared-role reader in 90 days). The full allow-list rewrite (B-1b) is still open; the role's
