@@ -398,19 +398,42 @@ describe( 'Header', () => {
     expect( css ).not.toContain( '.nav-products-more{position:absolute' );
     expect( css ).not.toContain( 'More products' );
 
-    // The cue is intentionally conditional: it exists only after the Products rail
-    // proves it actually overflows. jsdom has no layout, so provide measured geometry
-    // and fire the same scroll signal the component listens to before inspecting the SVG.
-    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
-    const scroller = container.querySelector<HTMLElement>( '.nav-products-scroll' );
-    expect( scroller ).not.toBeNull();
-    Object.defineProperty( scroller!, 'scrollHeight', { configurable: true, value: 500 } );
-    Object.defineProperty( scroller!, 'clientHeight', { configurable: true, value: 230 } );
-    Object.defineProperty( scroller!, 'scrollTop', { configurable: true, writable: true, value: 0 } );
-    fireEvent.scroll( scroller! );
+    // The cue is intentionally desktop-only and conditional on measured overflow.
+    // The shared jsdom matchMedia shim returns false for every query, so opt this test
+    // into the desktop branch before opening the menu and provide real scroll geometry.
+    const matchMedia = vi.spyOn( window, 'matchMedia' ).mockImplementation( query => ( {
+      media: query,
+      matches: query.includes( 'min-width: 768px' ),
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    } as unknown as MediaQueryList ) );
 
-    const cue = screen.getByRole( 'button', { name: 'Scroll to more products' } );
-    expect( cue.innerHTML ).toContain( 'M480-200 240-440l42-42 198 198 198-198 42 42-240 240' );
+    const scrollHeight = Object.getOwnPropertyDescriptor( HTMLElement.prototype, 'scrollHeight' );
+    const clientHeight = Object.getOwnPropertyDescriptor( HTMLElement.prototype, 'clientHeight' );
+    Object.defineProperty( HTMLElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get () { return this.classList?.contains( 'nav-products-scroll' ) ? 500 : 0; },
+    } );
+    Object.defineProperty( HTMLElement.prototype, 'clientHeight', {
+      configurable: true,
+      get () { return this.classList?.contains( 'nav-products-scroll' ) ? 230 : 0; },
+    } );
+
+    try {
+      fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+      const cue = screen.getByRole( 'button', { name: 'Scroll to more products' } );
+      expect( cue.innerHTML ).toContain( 'M480-200 240-440l42-42 198 198 198-198 42 42-240 240' );
+    } finally {
+      matchMedia.mockRestore();
+      if ( scrollHeight ) Object.defineProperty( HTMLElement.prototype, 'scrollHeight', scrollHeight );
+      else delete ( HTMLElement.prototype as Partial<HTMLElement> ).scrollHeight;
+      if ( clientHeight ) Object.defineProperty( HTMLElement.prototype, 'clientHeight', clientHeight );
+      else delete ( HTMLElement.prototype as Partial<HTMLElement> ).clientHeight;
+    }
   } );
 
   it( 'uses the approved public header dimensions and brand navigation colors', () => {
