@@ -191,6 +191,16 @@ def test_the_aws_documentation_example_key_is_not_a_finding(export):
     assert failures == []
 
 
+def test_numcodecs_false_positive_exception_is_exact_and_fingerprint_only():
+    """Only the four public WASM-wrapper byte constants proven by the one-off
+    dependency diagnostic may bypass the AWS-shape check. A future codec/version
+    must repeat that provenance check rather than widening the regex."""
+    assert vpbs.BENIGN_AWS_FINGERPRINTS == {
+        "1cbb1adb8621", "7fb6cb4173b3",
+        "25b3c9880103", "a319dbdf2041",
+    }
+
+
 def test_repeated_character_filler_is_not_a_finding(export):
     """The repo's own hook tests use runs of one character as stand-in values."""
     filler = _join("AI", "za", "A" * 35)
