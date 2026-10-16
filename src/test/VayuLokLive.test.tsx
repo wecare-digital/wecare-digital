@@ -1797,7 +1797,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
 
 
-  it( 'renders compact useful tools and keeps world-time search city-only after three characters', async () => {
+  it( 'renders the final useful-tools search family and keeps worldwide place search behind the three-character debounce', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     render( <VayuLokLive /> );
@@ -1824,7 +1824,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( req.includedRegionCodes ).toBeUndefined();
     expect( req.locationRestriction ).toBeUndefined();
 
-    expect( screen.getAllByPlaceholderText( 'Search city or pincode' ) ).toHaveLength( 4 );
+    const utilitySearches = screen.getAllByPlaceholderText( 'Search city or pincode' );
+    expect( utilitySearches ).toHaveLength( 4 );
+    for ( const utilitySearch of utilitySearches ) {
+      expect( utilitySearch.getAttribute( 'aria-autocomplete' ) ).toBe( 'list' );
+      expect( utilitySearch.getAttribute( 'aria-expanded' ) ).toBe( 'false' );
+    }
   } );
 
   it( 'loads a currency pair only on converter interaction and calculates amounts locally', async () => {
@@ -2117,6 +2122,10 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( utilityInputRule ).toContain( 'border-bottom:1px solid #e5e7eb' );
     expect( utilityInputRule ).toContain( 'background:transparent' );
     expect( utilityInputRule ).not.toContain( 'border-radius:13px' );
+    const utilityFocusRule = css.match( /\.vl-live-utility-search>input:focus-visible\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( utilityFocusRule ).toContain( 'border-bottom-color:#1a3a2a' );
+    expect( utilityFocusRule ).toContain( '0 1px 0 0 #d1f470' );
+    expect( utilityFocusRule ).toContain( 'outline:none' );
 
     // The map region, shell AND the search surface now render on every path - search is no longer
     // gated on mapReady, so it is usable while the map loads or if it fails.
