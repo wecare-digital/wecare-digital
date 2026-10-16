@@ -25,8 +25,8 @@ truth and its own restore path.
 |---|-------|----------------|-----------------|------------------|
 | 1 | Application code | this git repo (`src/`, `amplify/`, `scripts/`, `tests/`) | git | No — git has full history |
 | 2 | Infrastructure definition | `amplify/*.ts` (CDK) + `scripts/provision_*.py` (boto3) | git | No — re-runnable |
-| 3 | Runtime data | DynamoDB (~77 live tables), S3 (`wecare-digital-get`) | **AWS only** | **Yes — unrecoverable without a backup** |
-| 4 | Secrets | AWS Secrets Manager (~30 secrets) | AWS, mirrored to GCP + encrypted file | Partially protected |
+| 3 | Runtime data | DynamoDB (~76 live tables), S3 (`wecare-digital-get`) | **AWS only** | **Yes — unrecoverable without a backup** |
+| 4 | Secrets | AWS Secrets Manager (~28 secrets) | AWS, mirrored to GCP + encrypted file | Partially protected |
 | 5 | Identity | Cognito user pool | **AWS only** | **Yes — users unrecoverable** |
 
 The important truth: **layers 1 and 2 are already safe** (they are in git and are

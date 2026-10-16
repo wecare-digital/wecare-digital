@@ -51,9 +51,10 @@ Lambdas behind one shared HTTP API.
 
 ## Data layer
 
-- **DynamoDB** — ~77 live tables under the `stack-wecare-digital-*` naming scheme,
-  addressed by Lambdas via physical name through `os.environ`. TTL enforced on the
-  physical tables; PITR is the recovery mechanism (see the DR plan).
+- **DynamoDB** — ~76 live tables under the `stack-wecare-digital-*` naming scheme
+  (snapshot 2026-10-16; ~47 of them empty), addressed by Lambdas via physical name
+  through `os.environ`. TTL enforced on the physical tables; PITR is the recovery
+  mechanism (see the DR plan).
 - **S3 `wecare-digital-get`** — two roots: `o/` (public: `o/stack/` transactional
   data, `o/public/` Meta-fetched media, `o/stream/` static assets) and `secure/`
   (gated, presigned-only).
@@ -80,7 +81,7 @@ Lambdas behind one shared HTTP API.
 
 ## Secrets + observability
 
-- **Secrets Manager** (~30 secrets) → encrypted file + S3 copy + one-way GCP mirror.
+- **Secrets Manager** (~28 secrets) → encrypted file + S3 copy + one-way GCP mirror.
 - **CloudTrail** management-event trail with log-file validation; **CloudWatch**
   dashboard + per-Lambda and DLQ alarms.
 
@@ -110,13 +111,13 @@ flowchart TD
   API --> L[~78 Python Lambdas<br/>live aliases · SnapStart<br/>9 domains]
   AUTH[Cognito pool<br/>us-east-1_cSx0RHCIR] -. RBAC groups .-> L
 
-  L --> DDB[(DynamoDB ~77 tables<br/>stack-wecare-digital-*)]
+  L --> DDB[(DynamoDB ~76 tables<br/>stack-wecare-digital-*)]
   L --> S3
   L --> SQS[SQS queues<br/>inbound/bulk/outbound DLQ]
   SQS --> L
   EB[EventBridge schedules] --> L
   L --> BR[Amazon Bedrock<br/>AI models]
-  L --> SM[Secrets Manager<br/>~30 secrets]
+  L --> SM[Secrets Manager<br/>~28 secrets]
   L -->|API calls| External
 
   L --> CW[CloudWatch alarms]

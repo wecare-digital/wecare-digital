@@ -47,7 +47,7 @@ diagram — now lives in its own standalone reference:
 
 In one line: a multi-channel messaging + commerce system on AWS — Amplify-hosted
 Next.js front end, CloudFront + S3 media, one shared HTTP API fronting ~78 Python
-Lambdas, Cognito identity (referenced, not managed), ~77 DynamoDB tables, SQS +
+Lambdas, Cognito identity (referenced, not managed), ~76 DynamoDB tables, SQS +
 EventBridge async, Bedrock AI, and direct provider integrations
 (WhatsApp/Razorpay/Plivo/Google) that survive a cloud move.
 
