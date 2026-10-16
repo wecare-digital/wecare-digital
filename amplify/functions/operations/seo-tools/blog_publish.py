@@ -32,6 +32,10 @@ the stored markdown directly, so there is no rich-content compile step.
 The duplicate-publish guarantees are source-agnostic and unchanged: the resolve-before-generate
 release, the conditional QUEUED -> PUBLISHING claim, the publish-time releasability and body-hash
 re-checks, and the "a record-write failure never reports a failed publish" rule all still hold.
+
+Published revisions use a separate path: fresh QA/sign-off is required, the existing native post
+is updated in place, URL identity is immutable, and final VERIFIED is re-earned through the
+automatic static-site build bridge.
 """
 from __future__ import annotations
 
