@@ -1724,17 +1724,22 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
 
 
-  it( 'renders the final useful-tools search family and keeps worldwide place search behind the three-character debounce', async () => {
+  it( 'renders one Air/Weather-style tools card with Local time and Currency tabs', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
-    render( <VayuLokLive /> );
+    const { container } = render( <VayuLokLive /> );
 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
     expect( screen.getByRole( 'heading', { name: 'Useful tools' } ) ).toBeTruthy();
-    expect( screen.getByRole( 'heading', { name: 'Compare local time' } ) ).toBeTruthy();
-    expect( screen.getByRole( 'heading', { name: 'Currency converter' } ) ).toBeTruthy();
     expect( screen.getByText( 'Time and money, anywhere.' ) ).toBeTruthy();
+
+    const toolTabs = screen.getByRole( 'tablist', { name: 'Local time or currency' } );
+    const localTimeTab = within( toolTabs ).getByRole( 'tab', { name: 'Local time' } );
+    const currencyTab = within( toolTabs ).getByRole( 'tab', { name: 'Currency' } );
+    expect( localTimeTab ).toHaveAttribute( 'aria-selected', 'true' );
+    expect( currencyTab ).toHaveAttribute( 'aria-selected', 'false' );
+    expect( screen.getByRole( 'heading', { name: 'Compare local time' } ) ).toBeTruthy();
 
     const input = screen.getByRole( 'combobox', { name: 'World time to place' } );
     rec.autocompleteCalls.length = 0;
@@ -1752,19 +1757,16 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( req.locationRestriction ).toBeUndefined();
 
     const utilitySearches = screen.getAllByPlaceholderText( 'Search city or pincode' );
-    expect( utilitySearches ).toHaveLength( 4 );
-    for ( const utilitySearch of utilitySearches ) {
-      expect( utilitySearch.getAttribute( 'aria-autocomplete' ) ).toBe( 'list' );
-    }
-    // The field we just searched owns live suggestions, so it is correctly expanded.
-    // The other three independent utility searches remain closed.
-    expect( input.getAttribute( 'aria-expanded' ) ).toBe( 'true' );
-    for ( const utilitySearch of utilitySearches.filter( field => field !== input ) ) {
-      expect( utilitySearch.getAttribute( 'aria-expanded' ) ).toBe( 'false' );
-    }
+    expect( utilitySearches ).toHaveLength( 2 );
+    utilitySearches.forEach( field => expect( field.getAttribute( 'aria-autocomplete' ) ).toBe( 'list' ) );
+
+    const css = Array.from( container.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
+    expect( css ).toContain( '.vl-live-tools-layout{display:grid;grid-template-columns:minmax(220px,1fr) minmax(0,560px)' );
+    expect( css ).toContain( 'font-size:var(--vl-card-heading-size)' );
+    expect( css ).toContain( 'font-size:var(--vl-body-size)' );
   } );
 
-  it( 'loads a currency pair only on converter interaction and calculates amounts locally', async () => {
+  it( 'shows a compact currency-rate view with no amount or place fields', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
@@ -1772,25 +1774,26 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
+    expect( screen.queryByRole( 'spinbutton', { name: 'Amount to convert' } ) ).toBeNull();
+    expect( screen.queryByRole( 'combobox', { name: 'Currency from place' } ) ).toBeNull();
+    expect( screen.queryByRole( 'combobox', { name: 'Currency to place' } ) ).toBeNull();
+
+    const toolTabs = screen.getByRole( 'tablist', { name: 'Local time or currency' } );
+    fireEvent.click( within( toolTabs ).getByRole( 'tab', { name: 'Currency' } ) );
+
     const fxCalls = () => fetchSpy.mock.calls.filter( call =>
       requestIs( call[ 0 ] as RequestInfo | URL, 'api.frankfurter.dev', '/v2/rate/inr/gbp' ),
     );
-    expect( fxCalls() ).toHaveLength( 0 );
-
-    const amount = screen.getByRole( 'spinbutton', { name: 'Amount to convert' } );
-    fireEvent.focus( amount );
-
     await waitFor( () => expect( fxCalls() ).toHaveLength( 1 ) );
-    expect( await screen.findByText( /£8\.9/ ) ).toBeTruthy();
 
-    fireEvent.change( amount, { target: { value: '2000' } } );
-    expect( fxCalls() ).toHaveLength( 1 );
-    expect( await screen.findByText( /£17\.8/ ) ).toBeTruthy();
+    const base = screen.getByRole( 'combobox', { name: 'Base currency' } ) as HTMLInputElement;
+    const quote = screen.getByRole( 'combobox', { name: 'Quote currency' } ) as HTMLInputElement;
+    expect( base.value ).toBe( 'INR' );
+    expect( quote.value ).toBe( 'GBP' );
+    expect( await screen.findByText( /1 INR =/ ) ).toBeTruthy();
 
-    // The currency-code input owns a datalist, which gives it the implicit combobox role.
-    const fromCurrency = screen.getByRole( 'combobox', { name: 'From currency' } ) as HTMLInputElement;
-    fireEvent.change( fromCurrency, { target: { value: 'USD' } } );
-    expect( fromCurrency.value ).toBe( 'USD' );
+    fireEvent.change( base, { target: { value: 'USD' } } );
+    expect( base.value ).toBe( 'USD' );
   } );
 
   it( 'uses the active site language for voice search and sends the transcript through the existing place search', async () => {
