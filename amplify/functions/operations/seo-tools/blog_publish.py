@@ -156,6 +156,11 @@ def release(source_id: str, actor: str) -> Dict[str, Any]:
     }
     storage.put_record(stored)
     blog_sources.update_pipeline(source_id, publishStatus=QUEUED)
+    try:
+        import blog_article_work
+        blog_article_work.set_intent_status(source_id, "RELEASED", actor)
+    except Exception:  # noqa: BLE001 - release record remains authoritative
+        logger.exception("article-work release state sync failed")
     logger.info(json.dumps({
         "event": "blog_publish_released", "sourceId": source_id, "jobId": stored["id"],
         "actor": actor, "slug": stored["articleSlug"]}))
@@ -302,6 +307,14 @@ def publish(job_ref: str, actor: str) -> Dict[str, Any]:
     blog_sources.update_pipeline(
         source_id, publishStatus=PUBLISHED, publishedAt=now,
         postId=result["postId"], postUrl=result["postUrl"])
+    try:
+        import blog_article_work
+        blog_article_work.set_intent_status(source_id, "PUBLISHED", actor)
+        parent_id = str(record.get("parentSourceId") or "")
+        if parent_id:
+            blog_article_work.refresh_parent_status(parent_id, actor)
+    except Exception:  # noqa: BLE001 - a live post must never be reported failed by ledger sync
+        logger.exception("article-work publish state sync failed")
     _write_record(source_id, {**job, "status": PUBLISHED, "publishedAt": now, **result},
                   draft, actor)
     try:

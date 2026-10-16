@@ -401,6 +401,14 @@ def run(source_id: str, actor: str) -> Dict[str, Any]:
         #: The only status transition in this system earned by reading the live site rather than
         #: by asserting something about a draft. Section 33 owns it, and it needs exactly this.
         _mark_verified(source_id, record)
+        try:
+            import blog_article_work
+            blog_article_work.set_intent_status(source_id, "VERIFIED", actor)
+            parent_id = str(record.get("parentSourceId") or "")
+            if parent_id:
+                blog_article_work.refresh_parent_status(parent_id, actor)
+        except Exception:  # noqa: BLE001 - verification evidence remains authoritative
+            logger.exception("article-work verification state sync failed")
     logger.info(json.dumps({
         "event": "blog_verified" if summary["verified"] else "blog_verification_failed",
         "sourceId": source_id, "verificationRunId": verification_run, "actor": actor,

@@ -565,9 +565,9 @@ def _route_get(path: str, event: Dict[str, Any], origin: str):
             'jobStatuses': list(blog_publish.JOB_STATUSES),
             'queue': blog_publish.queue(status=_query(event, 'status'),
                                         limit=int(_query(event, 'limit', '0') or 0)),
-            # Whether a publish would be refused before it is attempted. An operator looking at
-            # a queue needs to know the writes are switched off without pressing anything.
-            'providerWritesRetired': True,
+            # AWS-native blog writes are the active publisher; the retired-provider flag is kept
+            # in the response for client compatibility, but is explicitly false.
+            'providerWritesRetired': False,
         }
         if batch_ref:
             payload['batchState'] = blog_publish.batch_publish_state(batch_ref)
