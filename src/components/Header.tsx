@@ -228,6 +228,7 @@ const MENU_SEARCH_LINKS = flattenMenuLinks();
 const Header: React.FC = () => {
   const [ open, setOpen ] = useState( false );
   const [ query, setQuery ] = useState( '' );
+  const [ showProductsMore, setShowProductsMore ] = useState( false );
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement | null>( null );
   const triggerRef = useRef<HTMLButtonElement | null>( null );
@@ -330,6 +331,53 @@ const Header: React.FC = () => {
     if ( row.top < box.top ) scroller.scrollTop -= box.top - row.top;
     else if ( row.bottom > box.bottom ) scroller.scrollTop += row.bottom - box.bottom;
   }, [ currentPath, open, searching ] );
+
+  // The desktop Products rail is intentionally capped at five rows. A scrollbar alone is
+  // easy to miss inside a compact mega-menu, so expose one small icon-only continuation cue
+  // while content remains below the fold. The cue is derived from real scroll geometry, not
+  // product count, so it stays correct if row heights or the catalogue hierarchy change.
+  useEffect( () => {
+    if ( !open || searching || typeof window === 'undefined' ) {
+      setShowProductsMore( false );
+      return undefined;
+    }
+    if ( !window.matchMedia( '(min-width: 768px)' ).matches ) {
+      setShowProductsMore( false );
+      return undefined;
+    }
+
+    const scroller = rootRef.current?.querySelector<HTMLElement>( '.nav-products-scroll' );
+    if ( !scroller ) {
+      setShowProductsMore( false );
+      return undefined;
+    }
+
+    const update = () => {
+      const remaining = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+      setShowProductsMore( remaining > 2 );
+    };
+
+    update();
+    scroller.addEventListener( 'scroll', update, { passive: true } );
+    window.addEventListener( 'resize', update );
+    return () => {
+      scroller.removeEventListener( 'scroll', update );
+      window.removeEventListener( 'resize', update );
+    };
+  }, [ currentPath, open, searching ] );
+
+  const scrollProductsForward = useCallback( () => {
+    if ( typeof window === 'undefined' ) return;
+    const scroller = rootRef.current?.querySelector<HTMLElement>( '.nav-products-scroll' );
+    if ( !scroller ) return;
+
+    const reduceMotion = typeof window.matchMedia === 'function'
+      && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
+    scroller.scrollBy( {
+      top: Math.max( 46, scroller.clientHeight - 46 ),
+      behavior: reduceMotion ? 'auto' : 'smooth',
+    } );
+  }, [] );
 
   // Internal destinations stay inside the site/WebView. In a Capacitor shell an external
   // destination is handed to the native browser instead of being trapped inside the WebView.
@@ -489,7 +537,21 @@ const Header: React.FC = () => {
                           <div key={ section.heading || sectionIndex } className={ `nav-group ${isProducts ? 'nav-group-products' : ''}`.trim() }>
                             { label }
                             { isProducts
-                              ? <div className="nav-products-scroll">{ items }</div>
+                              ? (
+                                <>
+                                  <div className="nav-products-scroll">{ items }</div>
+                                  { showProductsMore && (
+                                    <button
+                                      type="button"
+                                      className="nav-products-more"
+                                      aria-label="Scroll to more products"
+                                      onClick={ scrollProductsForward }
+                                    >
+                                      <span className="nav-products-more-icon" aria-hidden="true">keyboard_arrow_down</span>
+                                    </button>
+                                  ) }
+                                </>
+                              )
                               : items }
                           </div>
                         );
@@ -756,7 +818,7 @@ const Header: React.FC = () => {
            is a ceiling, not a fixed height - so nothing changes until the list is long.
            Cap is ~6 rows (6 x 46px = 276px), kept deliberately short so the open menu
            stays compact. */
-        .nav-group-products{min-height:0}
+        .nav-group-products{min-height:0;position:relative}
         /* The heading stays PINNED above its own scrolling list. Sticky against the
            scroll container's top; the #fcfdfb backer stops list rows showing through the
            label as they pass under it. z-index clears the rows. */
@@ -796,6 +858,15 @@ const Header: React.FC = () => {
              either half - src/test/ScrollbarDeclarations.test.ts pins the file set. */
           scrollbar-width:thin;
         }
+        /* ICON-ONLY CONTINUATION CUE. Google Material Symbols Rounded is already loaded
+           site-wide in _document.tsx, so this adds no dependency or asset request. The
+           visual is intentionally tiny: the dark-green capsule exists only to give the
+           requested light-lime chevron enough contrast against the near-white menu.
+           There is no visible label; aria-label carries the action for assistive tech. */
+        .nav-products-more{position:absolute;left:50%;bottom:5px;z-index:3;display:flex;align-items:center;justify-content:center;width:34px;height:26px;padding:0;transform:translateX(-50%);border:1px solid #1a3a2a;border-radius:999px;background:rgba(26,58,42,.94);color:#d1f470;box-shadow:0 3px 10px rgba(26,58,42,.18);cursor:pointer}
+        .nav-products-more:hover{background:#0f2a1d}
+        .nav-products-more:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+        .nav-products-more-icon{font-family:'Material Symbols Rounded';font-weight:600;font-style:normal;font-size:22px;line-height:1;letter-spacing:normal;text-transform:none;white-space:nowrap;word-wrap:normal;direction:ltr;font-feature-settings:'liga';font-variation-settings:'FILL' 0,'wght' 600,'GRAD' 0,'opsz' 24}
         /* The Customer service heading is a link, so it needs an affordance the plain
            headings do not have - without one it looks like the same inert label. */
         .nav-group-link{color:#1a3a2a;text-decoration:none;border-radius:8px}
@@ -878,7 +949,7 @@ const Header: React.FC = () => {
            variable - symmetric, therefore direction-neutral, therefore no rtl override
            needed. It still has to beat the base rule's compiled :lang() selector, which the
            extra .hdr-in ancestor class does. */
-        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - env(safe-area-inset-bottom,0px))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:19px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto;background:transparent;padding:0;border-radius:0}}
+        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - env(safe-area-inset-bottom,0px))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:19px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto;background:transparent;padding:0;border-radius:0}.nav-products-more{display:none}}
 
         /* ROOM FOR THE SHOPPING BAG ON THE NARROWEST DEVICE THAT SHIPS, derived rather than
            nudged. Measured on the built header at 280px (Galaxy Fold, folded) before the bag
