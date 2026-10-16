@@ -31,15 +31,13 @@ import VoiceSearchMic from './VoiceSearchMic';
  * map area is a LOCAL .vl-live-map-placeholder - plain text over a muted panel, no src and
  * no remote asset - so this path contacts no third party at all, not even Google.
  *
- * DEFAULT-ON MAP VISUALS. The keyed map paints (a) Google's continuous AQI heatmap tiles
- * (UAQI_RED_GREEN), (b) documented US/EU precipitation tiles in Weather mode, and (c) a
- * real NOAA GFS 10 m global wind-vector field rendered as particles over the visible map.
- * Outside US/EU precipitation coverage, the local atmospheric fallback still supplies
- * day/night sky and cloud/rain context from the selected place's live Google Weather values.
- * No fabricated cyclone, radar or wind tile endpoint is used. On the KEYLESS path no
- * ImageMapType or wind reader is mounted and zero third-party calls fire. Both the AQI
- * (UAQI_RED_GREEN) and PM2.5 (PM25_INDIGO_PERSIAN) heatmaps are Google ImageMapType tile
- * overlays - there is no deck.gl dot overlay or sampled grid anymore.
+ * MAP VISUALS. The keyed map paints Google's continuous AQI/PM2.5 heatmap tiles and the
+ * documented Google US/EU precipitation tiles in Weather mode. Outside precipitation coverage,
+ * the lightweight local atmospheric treatment supplies day/night sky and cloud/rain context from
+ * the selected place's Google Weather values. The former Source Cooperative / NOAA GFS particle
+ * layer was removed because it added a separate public-data transport, Zarr decoding and a
+ * continuous canvas animation to the public page. VayuLok no longer mounts any non-Google map
+ * data layer or deck.gl overlay.
  *
  * SELF-STYLING via styled-jsx with a vl-live- scope. styled-jsx only attaches its scoping
  * class to markup it can statically see, so every element stays INLINE in this component's
@@ -141,93 +139,6 @@ const AQI_HEATMAP_TILE_BASE = 'https://airquality.googleapis.com/v1/mapTypes';
 const WEATHER_MAP_TILE_BASE = 'https://weather.googleapis.com/v1/mapTypes';
 const US_PRECIPITATION_MAP_TYPE = 'US_PRECIPITATION_CURRENT';
 const EU_PRECIPITATION_MAP_TYPE = 'EU_PRECIPITATION_CURRENT';
-const NOAA_GFS_ZARR_BASE = 'https://data.source.coop/dynamical/noaa-gfs-forecast/v0.2.7.zarr';
-const NOAA_WIND_GRID_DEGREES = 0.25;
-const NOAA_WIND_TARGET_COLS = 46;
-const NOAA_WIND_TARGET_ROWS = 30;
-const NOAA_WIND_PARTICLES_DESKTOP = 560;
-const NOAA_WIND_PARTICLES_MOBILE = 280;
-
-interface WindGridSegment {
-  latStart: number;
-  latStep: number;
-  latCount: number;
-  lonStart: number;
-  lonStep: number;
-  lonCount: number;
-  u: Float32Array;
-  v: Float32Array;
-}
-
-interface WindParticle {
-  x: number;
-  y: number;
-  age: number;
-  maxAge: number;
-}
-
-function normalizeLongitude( lng: number ): number {
-  let out = ( ( lng + 180 ) % 360 + 360 ) % 360 - 180;
-  if ( out === -180 && lng > 0 ) out = 180;
-  return out;
-}
-
-function mercatorWorldPoint( lat: number, lng: number, zoom: number ): { x: number; y: number } {
-  const scale = 256 * 2 ** zoom;
-  const sin = Math.sin( Math.max( -85.05112878, Math.min( 85.05112878, lat ) ) * Math.PI / 180 );
-  return {
-    x: ( normalizeLongitude( lng ) + 180 ) / 360 * scale,
-    y: ( 0.5 - Math.log( ( 1 + sin ) / ( 1 - sin ) ) / ( 4 * Math.PI ) ) * scale,
-  };
-}
-
-function mercatorLatLngAtPixel(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  centerLat: number,
-  centerLng: number,
-  zoom: number,
-): { lat: number; lng: number } {
-  const scale = 256 * 2 ** zoom;
-  const center = mercatorWorldPoint( centerLat, centerLng, zoom );
-  const worldX = center.x + x - width / 2;
-  const worldY = center.y + y - height / 2;
-  const lng = normalizeLongitude( worldX / scale * 360 - 180 );
-  const n = Math.PI - 2 * Math.PI * worldY / scale;
-  const lat = 180 / Math.PI * Math.atan( 0.5 * ( Math.exp( n ) - Math.exp( -n ) ) );
-  return { lat, lng };
-}
-
-function windAt( segments: WindGridSegment[], lat: number, lng: number ): { u: number; v: number } | null {
-  const xLng = normalizeLongitude( lng );
-  for ( const segment of segments ) {
-    const latF = ( lat - segment.latStart ) / segment.latStep;
-    const lonF = ( xLng - segment.lonStart ) / segment.lonStep;
-    if ( latF < 0 || lonF < 0 || latF > segment.latCount - 1 || lonF > segment.lonCount - 1 ) continue;
-    const y0 = Math.max( 0, Math.min( segment.latCount - 1, Math.floor( latF ) ) );
-    const x0 = Math.max( 0, Math.min( segment.lonCount - 1, Math.floor( lonF ) ) );
-    const y1 = Math.min( segment.latCount - 1, y0 + 1 );
-    const x1 = Math.min( segment.lonCount - 1, x0 + 1 );
-    const ty = latF - y0;
-    const tx = lonF - x0;
-    const at = ( values: Float32Array, yy: number, xx: number ) => values[ yy * segment.lonCount + xx ];
-    const bilinear = ( values: Float32Array ) => {
-      const a = at( values, y0, x0 );
-      const b = at( values, y0, x1 );
-      const c = at( values, y1, x0 );
-      const d = at( values, y1, x1 );
-      if ( ![ a, b, c, d ].every( Number.isFinite ) ) return NaN;
-      return a * ( 1 - tx ) * ( 1 - ty ) + b * tx * ( 1 - ty ) + c * ( 1 - tx ) * ty + d * tx * ty;
-    };
-    const u = bilinear( segment.u );
-    const v = bilinear( segment.v );
-    if ( Number.isFinite( u ) && Number.isFinite( v ) ) return { u, v };
-  }
-  return null;
-}
-
 // The storm look is rendered locally as SVG/CSS over the live map and is driven by Google
 // Weather values already fetched for the selected place. Google Weather map tiles currently
 // cover only documented US/EU precipitation products, so there is intentionally no fabricated
@@ -1146,7 +1057,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ mapVisible, setMapVisible ] = useState( false );
   const [ mapReady, setMapReady ] = useState( false );
   const [ mapFailed, setMapFailed ] = useState( false );
-  const [ windFieldReady, setWindFieldReady ] = useState( false );
   const [ searchStatus, setSearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable'>( 'idle' );
 
   const [ air, setAir ] = useState<AirState | null>( null );
@@ -1292,16 +1202,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   //
   // NOTE: Google's heatmap MapType enum exposes global UAQI and PM2.5 plus regional AQI palettes;
   // it does NOT expose PM10/NO2/O3 pollutant heatmap tiles. Keep AQI + PM2.5 only rather than
-  // inventing unsupported map types. The earlier deck.gl
-  // GoogleMapsOverlay dot-grid (and its grid fetch/cache/abort refs) was superseded and has
-  // been removed - deck.gl is no longer imported or used anywhere in this component.
+  // inventing unsupported map types. The retired deck.gl and NOAA/Zarr paths are no longer part
+  // of this component or its dependency tree.
   const heatmapOverlayRef = useRef<unknown>( null );
   const weatherOverlayRef = useRef<unknown>( null );
-  const windCanvasRef = useRef<HTMLCanvasElement | null>( null );
-  const windGridRef = useRef<WindGridSegment[]>( [] );
-  const windAnimationRef = useRef<number | null>( null );
-  const windParticlesRef = useRef<WindParticle[]>( [] );
-  const windRequestSeqRef = useRef( 0 );
   const alertBoundaryFeaturesRef = useRef<unknown[]>( [] );
   const [ activeAlertBoundaryId, setActiveAlertBoundaryId ] = useState<string | null>( null );
 
@@ -2307,7 +2211,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   }, [ place, hasSelection ] );
 
   useEffect( () => {
-    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
+    if ( detailTab !== 'weather' || !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
     const ac = new AbortController();
     const { lat, lng } = place;
     const historyKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}`;
@@ -2343,10 +2247,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     };
     void run();
     return () => ac.abort();
-  }, [ place, hasSelection ] );
+  }, [ detailTab, place, hasSelection ] );
 
   useEffect( () => {
-    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
+    if ( detailTab !== 'air' || !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
     const ac = new AbortController();
     const { lat, lng } = place;
     // Reset paging whenever the place/range changes so the pinned "current" bubble
@@ -2411,7 +2315,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     };
     void run().catch( () => { if ( !ac.signal.aborted ) setHistoryLoading( false ); } );
     return () => ac.abort();
-  }, [ place, historyRange, hasSelection ] );
+  }, [ detailTab, place, historyRange, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
      RECENTRE the map + move the marker when the place changes (after the map exists).
@@ -3058,190 +2962,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   }, [ weather, regionalWeatherMapType ] );
 
 
-  useEffect( () => {
-    if ( detailTab !== 'weather' || !mapReady || !mapVisible || typeof window === 'undefined' ) {
-      windGridRef.current = [];
-      windParticlesRef.current = [];
-      setWindFieldReady( false );
-      if ( windAnimationRef.current != null ) cancelAnimationFrame( windAnimationRef.current );
-      windAnimationRef.current = null;
-      const canvas = windCanvasRef.current;
-      canvas?.getContext( '2d' )?.clearRect( 0, 0, canvas.width, canvas.height );
-      return;
-    }
-
-    let cancelled = false;
-    const seq = ++windRequestSeqRef.current;
-    const controller = new AbortController();
-
-    const map = mapRef.current as {
-      getCenter?: () => { lat?: () => number; lng?: () => number } | null;
-      getZoom?: () => number | undefined;
-      getBounds?: () => {
-        getNorthEast?: () => { lat?: () => number; lng?: () => number };
-        getSouthWest?: () => { lat?: () => number; lng?: () => number };
-      } | null;
-    } | null;
-
-    const load = async () => {
-      const canvas = windCanvasRef.current;
-      const shell = canvas?.parentElement;
-      if ( !canvas || !shell || !map ) return;
-      await new Promise<void>( resolve => requestAnimationFrame( () => resolve() ) );
-      if ( cancelled ) return;
-
-      const rect = shell.getBoundingClientRect();
-      const width = Math.max( 1, Math.round( rect.width ) );
-      const height = Math.max( 1, Math.round( rect.height ) );
-      const dpr = Math.min( 2, Math.max( 1, window.devicePixelRatio || 1 ) );
-      canvas.width = Math.round( width * dpr );
-      canvas.height = Math.round( height * dpr );
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-
-      const centerRaw = map.getCenter?.();
-      const centerLat = centerRaw?.lat?.() ?? place.lat;
-      const centerLng = centerRaw?.lng?.() ?? place.lng;
-      const zoom = map.getZoom?.() ?? 4;
-
-      const bounds = map.getBounds?.();
-      const ne = bounds?.getNorthEast?.();
-      const sw = bounds?.getSouthWest?.();
-      let north = ne?.lat?.();
-      let east = ne?.lng?.();
-      let south = sw?.lat?.();
-      let west = sw?.lng?.();
-
-      if ( ![ north, east, south, west ].every( Number.isFinite ) ) {
-        const topLeft = mercatorLatLngAtPixel( 0, 0, width, height, centerLat, centerLng, zoom );
-        const bottomRight = mercatorLatLngAtPixel( width, height, width, height, centerLat, centerLng, zoom );
-        north = topLeft.lat;
-        west = topLeft.lng;
-        south = bottomRight.lat;
-        east = bottomRight.lng;
-      }
-
-      north = Math.min( 90, Math.max( -90, north as number ) );
-      south = Math.min( 90, Math.max( -90, south as number ) );
-      west = normalizeLongitude( west as number );
-      east = normalizeLongitude( east as number );
-
-      const { loadNoaaWindGrid } = await import( '../lib/noaaWindZarr' );
-      if ( cancelled || seq !== windRequestSeqRef.current ) return;
-      const segments = await loadNoaaWindGrid( {
-        baseUrl: NOAA_GFS_ZARR_BASE,
-        north: north as number,
-        south: south as number,
-        west,
-        east,
-        gridDegrees: NOAA_WIND_GRID_DEGREES,
-        targetRows: NOAA_WIND_TARGET_ROWS,
-        targetCols: NOAA_WIND_TARGET_COLS,
-        signal: controller.signal,
-      } );
-      if ( cancelled || seq !== windRequestSeqRef.current || !segments.length ) return;
-      windGridRef.current = segments;
-      setWindFieldReady( true );
-
-      const prefersReducedMotion = window.matchMedia?.( '(prefers-reduced-motion: reduce)' )?.matches ?? false;
-      const particleCount = width < 760 ? NOAA_WIND_PARTICLES_MOBILE : NOAA_WIND_PARTICLES_DESKTOP;
-      windParticlesRef.current = Array.from( { length: particleCount }, () => ( {
-        x: Math.random() * width,
-        y: Math.random() * height,
-        age: Math.floor( Math.random() * 80 ),
-        maxAge: 70 + Math.floor( Math.random() * 70 ),
-      } ) );
-
-      const ctx = canvas.getContext( '2d' );
-      if ( !ctx ) return;
-      ctx.setTransform( dpr, 0, 0, dpr, 0, 0 );
-      ctx.clearRect( 0, 0, width, height );
-
-      const respawn = ( particle: WindParticle ) => {
-        particle.x = Math.random() * width;
-        particle.y = Math.random() * height;
-        particle.age = 0;
-        particle.maxAge = 70 + Math.floor( Math.random() * 70 );
-      };
-
-      const drawFrame = () => {
-        if ( cancelled || seq !== windRequestSeqRef.current ) return;
-        const grids = windGridRef.current;
-        ctx.save();
-        ctx.globalCompositeOperation = 'destination-in';
-        ctx.fillStyle = prefersReducedMotion ? 'rgba(0,0,0,0.70)' : 'rgba(0,0,0,0.91)';
-        ctx.fillRect( 0, 0, width, height );
-        ctx.restore();
-
-        ctx.save();
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.lineWidth = width < 760 ? 0.85 : 1.05;
-        ctx.lineCap = 'round';
-
-        for ( const particle of windParticlesRef.current ) {
-          if ( particle.age > particle.maxAge || particle.x < 0 || particle.y < 0 || particle.x > width || particle.y > height ) {
-            respawn( particle );
-          }
-          const geo = mercatorLatLngAtPixel( particle.x, particle.y, width, height, centerLat, centerLng, zoom );
-          const vector = windAt( grids, geo.lat, geo.lng );
-          if ( !vector ) {
-            respawn( particle );
-            continue;
-          }
-          const speed = Math.hypot( vector.u, vector.v );
-          const cosLat = Math.max( 0.18, Math.cos( geo.lat * Math.PI / 180 ) );
-          const simSeconds = prefersReducedMotion ? 0 : 115;
-          const nextLat = geo.lat + vector.v * simSeconds / 111_320;
-          const nextLng = geo.lng + vector.u * simSeconds / ( 111_320 * cosLat );
-          const p0 = mercatorWorldPoint( geo.lat, geo.lng, zoom );
-          const p1 = mercatorWorldPoint( nextLat, nextLng, zoom );
-          let dx = p1.x - p0.x;
-          const worldWidth = 256 * 2 ** zoom;
-          if ( dx > worldWidth / 2 ) dx -= worldWidth;
-          if ( dx < -worldWidth / 2 ) dx += worldWidth;
-          const dy = p1.y - p0.y;
-          const gain = prefersReducedMotion ? 0 : Math.max( 1.4, Math.min( 3.8, 1.5 + speed / 12 ) );
-          const nextX = particle.x + dx * gain;
-          const nextY = particle.y + dy * gain;
-
-          const alpha = Math.max( 0.20, Math.min( 0.78, 0.20 + speed / 28 ) );
-          ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed( 3 )})`;
-          ctx.beginPath();
-          ctx.moveTo( particle.x, particle.y );
-          ctx.lineTo( prefersReducedMotion ? particle.x + dx * 5 : nextX, prefersReducedMotion ? particle.y + dy * 5 : nextY );
-          ctx.stroke();
-
-          if ( !prefersReducedMotion ) {
-            particle.x = nextX;
-            particle.y = nextY;
-            particle.age += 1;
-          }
-        }
-        ctx.restore();
-
-        if ( !prefersReducedMotion ) windAnimationRef.current = requestAnimationFrame( drawFrame );
-      };
-
-      drawFrame();
-    };
-
-    void load().catch( () => {
-      if ( !cancelled && seq === windRequestSeqRef.current ) {
-        windGridRef.current = [];
-        windParticlesRef.current = [];
-        setWindFieldReady( false );
-        const canvas = windCanvasRef.current;
-        canvas?.getContext( '2d' )?.clearRect( 0, 0, canvas.width, canvas.height );
-      }
-    } );
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-      if ( windAnimationRef.current != null ) cancelAnimationFrame( windAnimationRef.current );
-      windAnimationRef.current = null;
-    };
-  }, [ detailTab, mapReady, mapVisible, place.lat, place.lng, place.viewport ] );
 
   const liveHealthPersonas = useMemo( () => {
     const recommendations = air?.healthRecommendations;
@@ -3389,20 +3109,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                   <div className="vl-live-sky-wash" />
                   <div className="vl-live-cloud-field"><i /><i /><i /><i /></div>
                 </div>
-              ) }
-
-              { detailTab === 'weather' && mapVisible && (
-                <>
-                  <canvas
-                    ref={ windCanvasRef }
-                    className={ `vl-live-wind-canvas ${windFieldReady ? 'is-ready' : ''}` }
-                    aria-label="NOAA GFS 10 metre global wind field"
-                    role="img"
-                  />
-                  { windFieldReady && (
-                    <span className="vl-live-wind-source" data-wc-no-translate="true">NOAA GFS · 10 m wind</span>
-                  ) }
-                </>
               ) }
 
               {/* FLOATING AIR QUALITY CARD. Overlays the map in the top-left corner, inset so
@@ -4984,9 +4690,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-cloud-field i:nth-child(1){width:42%;height:28%;left:-4%;top:8%}.vl-live-cloud-field i:nth-child(2){width:48%;height:32%;right:-8%;top:18%}
         .vl-live-cloud-field i:nth-child(3){width:38%;height:26%;left:24%;top:44%}.vl-live-cloud-field i:nth-child(4){width:44%;height:30%;right:4%;bottom:0}
         @keyframes vl-live-cloud-drift{from{transform:translate3d(-2%,0,0)}to{transform:translate3d(3%,1.5%,0)}}
-        .vl-live-wind-canvas{position:absolute;inset:0;z-index:7;width:100%;height:100%;border-radius:var(--panel-r);opacity:0;pointer-events:none;transition:opacity .22s ease}
-        .vl-live-wind-canvas.is-ready{opacity:.92}
-        .vl-live-wind-source{position:absolute;right:12px;bottom:28px;z-index:13;padding:4px 7px;border-radius:999px;background:rgba(255,255,255,.82);color:rgba(26,58,42,.78);font-size:9px;font-weight:750;letter-spacing:.05em;line-height:1;text-transform:uppercase;pointer-events:none;backdrop-filter:blur(4px)}
         /* Narrow live test: hide only Google attribution/branding nodes; do not touch map controls. */
         .vl-live :global(.gm-style-cc),
         .vl-live :global(a[aria-label="Google Maps"]),
