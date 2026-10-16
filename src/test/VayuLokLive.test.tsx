@@ -1433,7 +1433,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     } );
   } );
 
-  it( 'uses real 24-hour weather history and requests 96 hours of AQ forecast', async () => {
+  it( 'keeps Weather long-range requests off the Air path, then loads them only after Weather is opened', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
@@ -1442,18 +1442,19 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await selectMumbai();
 
-    await waitFor( () => expect(
-      fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/history/hours' ) ),
-    ).toBe( true ) );
-
     const airForecastCall = await waitFor( () => {
       const call = fetchSpy.mock.calls.find( call => requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/forecast' ) );
       expect( call ).toBeTruthy();
       return call!;
     } );
+
+    expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/history/hours' ) ) ).toBe( false );
+    expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/forecast/hours' ) ) ).toBe( false );
+    expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/forecast/days' ) ) ).toBe( false );
+
     const init = airForecastCall[ 1 ] as RequestInit;
     const body = JSON.parse( String( init.body ) );
-    expect( body.pageSize ).toBe( 96 );
+    expect( body.pageSize ).toBe( 24 );
     expect( body.extraComputations ).toEqual( expect.arrayContaining( [
       'LOCAL_AQI',
       'POLLUTANT_CONCENTRATION',
@@ -1463,10 +1464,15 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     ] ) );
     const start = new Date( body.period.startTime ).getTime();
     const end = new Date( body.period.endTime ).getTime();
-    // 95 hours, NOT 96: Google's forecast:lookup rejects an exactly-96-hour period with HTTP 400
-    // ("time period is not supported"); 95h still returns ~96 hourly rows. Requesting 96h was the
-    // cause of the forecast rendering empty in production.
-    expect( Math.round( ( end - start ) / 3_600_000 ) ).toBe( 95 );
+    expect( Math.round( ( end - start ) / 3_600_000 ) ).toBe( 23 );
+
+    fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
+    await waitFor( () => expect(
+      fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/history/hours' ) ),
+    ).toBe( true ) );
+    await waitFor( () => expect(
+      fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/forecast/days' ) ),
+    ).toBe( true ) );
   } );
 
   it( 'requests the India CPCB local AQI (customLocalAqis ind_cpcb) on the currentConditions:lookup air call', async () => {
@@ -1524,6 +1530,21 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     fireEvent.click( within( forecastRange ).getByRole( 'button', { name: '96h' } ) );
     expect( within( forecastRange ).getByRole( 'button', { name: '96h' } ) ).toHaveAttribute( 'aria-pressed', 'true' );
     await waitFor( () => expect( container.querySelectorAll( '.vl-live-air-forecast-card' ).length ).toBe( 96 ) );
+    const forecast96Call = await waitFor( () => {
+      const calls = fetchSpy.mock.calls.filter( call => requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/forecast' ) );
+      const call = calls.find( candidate => {
+        const raw = ( candidate[ 1 ] as RequestInit | undefined )?.body;
+        if ( !raw ) return false;
+        const body = JSON.parse( String( raw ) );
+        return body.pageSize === 96;
+      } );
+      expect( call ).toBeTruthy();
+      return call!;
+    } );
+    const forecast96Body = JSON.parse( String( ( forecast96Call[ 1 ] as RequestInit ).body ) );
+    const forecast96Start = new Date( forecast96Body.period.startTime ).getTime();
+    const forecast96End = new Date( forecast96Body.period.endTime ).getTime();
+    expect( Math.round( ( forecast96End - forecast96Start ) / 3_600_000 ) ).toBe( 95 );
     const forecastDetail = container.querySelector( '.vl-live-air-forecast-detail' );
     expect( forecastDetail?.textContent ).toContain( 'Dominant' );
     expect( forecastDetail?.textContent ).toContain( 'Local / Universal' );
@@ -1541,6 +1562,16 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( within( historyRange ).queryByRole( 'button', { name: '30d' } ) ).toBeNull();
     expect( within( historyRange ).getByRole( 'button', { name: '24h' } ) ).toBeTruthy();
     expect( within( historyRange ).getByRole( 'button', { name: '7d' } ) ).toBeTruthy();
+    expect( within( historyRange ).getByRole( 'button', { name: '24h' } ) ).toHaveAttribute( 'aria-pressed', 'true' );
+    fireEvent.click( within( historyRange ).getByRole( 'button', { name: '7d' } ) );
+    await waitFor( () => {
+      const calls = fetchSpy.mock.calls.filter( call => requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/history' ) );
+      const has168 = calls.some( call => {
+        const raw = ( call[ 1 ] as RequestInit | undefined )?.body;
+        return raw ? JSON.parse( String( raw ) ).hours === 168 : false;
+      } );
+      expect( has168 ).toBe( true );
+    } );
     fireEvent.click( within( historyRange ).getByRole( 'button', { name: '24h' } ) );
     await waitFor( () => {
       const calls = fetchSpy.mock.calls.filter( call => requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/history' ) );
@@ -1724,15 +1755,15 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
 
 
-  it( 'renders one Air/Weather-style tools card with Local time and Currency tabs', async () => {
+  it( 'renders the Local time/Currency card on the left and starts autocomplete after two characters', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     const { container } = render( <VayuLokLive /> );
 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
-    expect( screen.getByRole( 'heading', { name: 'Useful tools' } ) ).toBeTruthy();
-    expect( screen.getByText( 'Time and money, anywhere.' ) ).toBeTruthy();
+    expect( screen.getByRole( 'heading', { name: 'Local time & currency' } ) ).toBeTruthy();
+    expect( screen.getByText( 'Compare time zones and reference exchange rates.' ) ).toBeTruthy();
 
     const toolTabs = screen.getByRole( 'tablist', { name: 'Local time or currency' } );
     const localTimeTab = within( toolTabs ).getByRole( 'tab', { name: 'Local time' } );
@@ -1744,14 +1775,15 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const input = screen.getByRole( 'combobox', { name: 'World time to place' } );
     rec.autocompleteCalls.length = 0;
 
-    fireEvent.change( input, { target: { value: 'Lo' } } );
-    await act( async () => { await new Promise( resolve => setTimeout( resolve, 160 ) ); } );
+    fireEvent.focus( input );
+    fireEvent.change( input, { target: { value: 'L' } } );
+    await act( async () => { await new Promise( resolve => setTimeout( resolve, 90 ) ); } );
     expect( rec.autocompleteCalls ).toHaveLength( 0 );
 
-    fireEvent.change( input, { target: { value: 'Lon' } } );
+    fireEvent.change( input, { target: { value: 'Lo' } } );
     await waitFor( () => expect( rec.autocompleteCalls.length ).toBeGreaterThan( 0 ) );
     const req = rec.autocompleteCalls.at( -1 ) || {};
-    expect( req.input ).toBe( 'Lon' );
+    expect( req.input ).toBe( 'Lo' );
     expect( req.includedPrimaryTypes ).toBeUndefined();
     expect( req.includedRegionCodes ).toBeUndefined();
     expect( req.locationRestriction ).toBeUndefined();
@@ -1760,8 +1792,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( utilitySearches ).toHaveLength( 2 );
     utilitySearches.forEach( field => expect( field.getAttribute( 'aria-autocomplete' ) ).toBe( 'list' ) );
 
+    expect( container.querySelector( '.vl-live-tools-left .vl-live-tool-card' ) ).not.toBeNull();
+    expect( container.querySelector( '.vl-live-tools-right' ) ).not.toBeNull();
+
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
-    expect( css ).toContain( '.vl-live-tools-layout{display:grid;grid-template-columns:minmax(220px,1fr) minmax(0,560px)' );
+    expect( css ).toContain( '.vl-live-tools-layout{display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr)' );
     expect( css ).toContain( 'font-size:var(--vl-card-heading-size)' );
     expect( css ).toContain( 'font-size:var(--vl-body-size)' );
   } );
@@ -1790,7 +1825,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const quote = screen.getByRole( 'combobox', { name: 'Quote currency' } ) as HTMLInputElement;
     expect( base.value ).toBe( 'INR' );
     expect( quote.value ).toBe( 'GBP' );
-    expect( await screen.findByText( /1 INR =/ ) ).toBeTruthy();
+    expect( await screen.findByText( /1 INR = 0\.0089 GBP/ ) ).toBeTruthy();
+    expect( screen.getByText( /Latest reference rate · 2026-10-15/ ) ).toBeTruthy();
 
     fireEvent.change( base, { target: { value: 'USD' } } );
     expect( base.value ).toBe( 'USD' );

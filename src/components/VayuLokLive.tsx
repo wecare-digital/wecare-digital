@@ -82,8 +82,8 @@ function pm25Severity( pm25: number ): Sev {
 // SKU) while feeling immediate rather than the previous 300ms lag. The session-token reuse
 // (autocompleteTokenRef) behavior is unchanged; only the settle delay is shorter.
 const SEARCH_DEBOUNCE_MS = 120;
-const WORLD_SEARCH_DEBOUNCE_MS = 120;
-const WORLD_SEARCH_MIN_CHARS = 3;
+const WORLD_SEARCH_DEBOUNCE_MS = 65;
+const WORLD_SEARCH_MIN_CHARS = 2;
 const FX_API_BASE = 'https://api.frankfurter.dev/v2';
 const FX_RATE_TTL_MS = 6 * 60 * 60 * 1000;
 
@@ -1062,13 +1062,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   // nothing when the forecast:lookup request fails. 'idle' is the pre-selection resting state.
   const [ airForecastStatus, setAirForecastStatus ] = useState<'idle' | 'loading' | 'success' | 'empty' | 'error'>( 'idle' );
   const [ airHistory, setAirHistory ] = useState<AirPoint[]>( [] );
-  // Default to the 168-hour (7-day) window so the Hourly History chart spans ~a week. The
-  // history fetch effect keys on this value and only fetches on the keyed path (no key =>
-  // no fetch => airHistory stays [], and the chart renders its honest empty shell).
-  // User-facing history is 24h or 7d (default 7d). The 30-day/720 option was removed from the UI;
-  // the backend history:lookup still accepts larger windows, but the component no longer requests
-  // one, so the state is narrowed to the two offered ranges.
-  const [ historyRange, setHistoryRange ] = useState<24 | 168>( 168 );
+  // Start with 24h history for a lighter first load; 7d remains available on demand.
+  // The 30-day/720 option stays removed from the UI.
+  const [ historyRange, setHistoryRange ] = useState<24 | 168>( 24 );
   const [ historyLoading, setHistoryLoading ] = useState( false );
   const [ dataLoading, setDataLoading ] = useState( false );
   const [ coreError, setCoreError ] = useState( false );
@@ -1113,6 +1109,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ fxRate, setFxRate ] = useState<FxRateState | null>( null );
   const [ fxLoading, setFxLoading ] = useState( false );
   const [ fxError, setFxError ] = useState( false );
+  const [ deferredDataReady, setDeferredDataReady ] = useState( false );
 
   // Bumped by the map-failed "Try again" button to re-run the map init + timeout effects.
   const [ mapInitNonce, setMapInitNonce ] = useState( 0 );
@@ -1155,7 +1152,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   // Cache the last fetched values per "lat,lng" so re-selecting a place bills nothing.
   const cache = useRef<Record<string, { ts: number; air: AirState | null; weather: WeatherState | null; pollen: PollenRow[] | null }>>( {} );
   const forecastCache = useRef<Record<string, {
-    ts: number;
+    airTs?: number;
+    airHours?: 24 | 48 | 96;
+    weatherTs?: number;
     hourly: WeatherHour[];
     daily: WeatherDay[];
     alerts: WeatherAlertRow[];
@@ -1190,6 +1189,22 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     setCurrencyCodes( supportedCurrencyCodes() );
     const timer = window.setInterval( () => setClockNow( Date.now() ), 30_000 );
     return () => window.clearInterval( timer );
+  }, [] );
+
+  // Keep first paint light. Forecast/history panels are below the immediate "Now" experience,
+  // so start those larger requests only when the browser has breathing room.
+  useEffect( () => {
+    if ( typeof window === 'undefined' ) return;
+    const idleWindow = window as typeof window & {
+      requestIdleCallback?: ( cb: () => void, options?: { timeout?: number } ) => number;
+      cancelIdleCallback?: ( id: number ) => void;
+    };
+    if ( idleWindow.requestIdleCallback ) {
+      const id = idleWindow.requestIdleCallback( () => setDeferredDataReady( true ), { timeout: 1800 } );
+      return () => idleWindow.cancelIdleCallback?.( id );
+    }
+    const id = window.setTimeout( () => setDeferredDataReady( true ), 450 );
+    return () => window.clearTimeout( id );
   }, [] );
 
   useEffect( () => {
@@ -1900,29 +1915,42 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   /* Extended forecast/history calls are separate from current conditions so a slow
      long-range endpoint never blocks the "Now" experience. */
   useEffect( () => {
-    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
+    if ( !deferredDataReady || !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
     const ac = new AbortController();
     const { lat, lng } = place;
     const forecastKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}`;
     const cachedForecast = forecastCache.current[ forecastKey ];
     const FORECAST_TTL_MS = 30 * 60 * 1000;
-    if ( cachedForecast && Date.now() - cachedForecast.ts < FORECAST_TTL_MS ) {
+
+    if (
+      detailTab === 'air'
+      && cachedForecast?.airTs
+      && cachedForecast.airHours === airForecastHours
+      && Date.now() - cachedForecast.airTs < FORECAST_TTL_MS
+    ) {
+      setAirForecast( cachedForecast.airForecast );
+      setAirForecastStatus( cachedForecast.airForecast.length ? 'success' : 'empty' );
+      setForecastFetchedAt( cachedForecast.airTs );
+      return () => ac.abort();
+    }
+    if ( detailTab === 'weather' && cachedForecast?.weatherTs && Date.now() - cachedForecast.weatherTs < FORECAST_TTL_MS ) {
       setWeatherHourly( cachedForecast.hourly );
       setWeatherDaily( cachedForecast.daily );
       setWeatherAlerts( cachedForecast.alerts );
       setWeatherAlertStatus( cachedForecast.alertStatus );
-      setAirForecast( cachedForecast.airForecast );
-      setAirForecastStatus( cachedForecast.airForecast.length ? 'success' : 'empty' );
-      setForecastFetchedAt( cachedForecast.ts );
+      setForecastFetchedAt( cachedForecast.weatherTs );
       return () => ac.abort();
     }
 
-    setWeatherHourly( [] );
-    setWeatherDaily( [] );
-    setWeatherAlerts( [] );
-    setWeatherAlertStatus( 'loading' );
-    setAirForecast( [] );
-    setAirForecastStatus( 'loading' );
+    if ( detailTab === 'air' ) {
+      setAirForecast( [] );
+      setAirForecastStatus( 'loading' );
+    } else {
+      setWeatherHourly( [] );
+      setWeatherDaily( [] );
+      setWeatherAlerts( [] );
+      setWeatherAlertStatus( 'loading' );
+    }
     const forecastStore: {
       hourly: WeatherHour[];
       daily: WeatherDay[];
@@ -2116,12 +2144,11 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       const start = new Date();
       start.setUTCMinutes( 0, 0, 0 );
       start.setUTCHours( start.getUTCHours() + 1 );
-      // Google's forecast:lookup rejects an EXACTLY-96-hour period with HTTP 400
-      // "The specified time period is not supported" - the supported window tops out at 95h.
-      // A 95-hour period still returns ~96 hourly rows, which fully covers the 24/48/96h UI
-      // ranges, so request 95h to stay inside the limit. (Measured against the live API: 96h =>
-      // 400, 95h => 200 with 96 rows.) This is the fix for the forecast rendering empty in prod.
-      const end = new Date( start.getTime() + 95 * 60 * 60 * 1000 );
+      // Fetch only the range the visitor asked for. The API period is one hour shorter than
+      // the row count (24 rows => 23h span, 96 rows => 95h span), which also avoids Google's
+      // unsupported exact-96-hour boundary.
+      const forecastSpanHours = airForecastHours - 1;
+      const end = new Date( start.getTime() + forecastSpanHours * 60 * 60 * 1000 );
       const res = await fetch(
         'https://airquality.googleapis.com/v1/forecast:lookup?key=' + encodeURIComponent( MAPS_KEY ),
         {
@@ -2132,7 +2159,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           body: JSON.stringify( {
             location: { latitude: lat, longitude: lng },
             period: { startTime: start.toISOString(), endTime: end.toISOString() },
-            pageSize: 96,
+            pageSize: airForecastHours,
             universalAqi: true,
             ...localAqiOverride( place.regionCode ),
             extraComputations: [
@@ -2177,17 +2204,37 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       }
     };
 
-    void Promise.allSettled( [ loadHourly(), loadDaily(), loadAlerts(), loadAirForecast() ] ).then( () => {
+    const tasks = detailTab === 'air'
+      ? [ loadAirForecast() ]
+      : [ loadHourly(), loadDaily(), loadAlerts() ];
+
+    void Promise.allSettled( tasks ).then( () => {
       if ( ac.signal.aborted ) return;
       const fetchedAt = Date.now();
-      forecastCache.current[ forecastKey ] = { ts: fetchedAt, ...forecastStore };
+      const previous = forecastCache.current[ forecastKey ] || {
+        hourly: [],
+        daily: [],
+        alerts: [],
+        alertStatus: 'idle' as const,
+        airForecast: [],
+      };
+      forecastCache.current[ forecastKey ] = detailTab === 'air'
+        ? { ...previous, airTs: fetchedAt, airHours: airForecastHours, airForecast: forecastStore.airForecast }
+        : {
+            ...previous,
+            weatherTs: fetchedAt,
+            hourly: forecastStore.hourly,
+            daily: forecastStore.daily,
+            alerts: forecastStore.alerts,
+            alertStatus: forecastStore.alertStatus,
+          };
       setForecastFetchedAt( fetchedAt );
     } );
     return () => ac.abort();
-  }, [ place, hasSelection ] );
+  }, [ deferredDataReady, detailTab, place, hasSelection, airForecastHours ] );
 
   useEffect( () => {
-    if ( detailTab !== 'weather' || !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
+    if ( !deferredDataReady || detailTab !== 'weather' || !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
     const ac = new AbortController();
     const { lat, lng } = place;
     const historyKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}`;
@@ -2223,10 +2270,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     };
     void run();
     return () => ac.abort();
-  }, [ detailTab, place, hasSelection ] );
+  }, [ deferredDataReady, detailTab, place, hasSelection ] );
 
   useEffect( () => {
-    if ( detailTab !== 'air' || !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
+    if ( !deferredDataReady || detailTab !== 'air' || !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
     const ac = new AbortController();
     const { lat, lng } = place;
     // Reset paging whenever the place/range changes so the pinned "current" bubble
@@ -2291,7 +2338,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     };
     void run().catch( () => { if ( !ac.signal.aborted ) setHistoryLoading( false ); } );
     return () => ac.abort();
-  }, [ detailTab, place, historyRange, hasSelection ] );
+  }, [ deferredDataReady, detailTab, place, historyRange, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
      RECENTRE the map + move the marker when the place changes (after the map exists).
@@ -2611,6 +2658,11 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       if ( seq === fxRequestSeqRef.current ) setFxLoading( false );
     }
   }, [] );
+
+  useEffect( () => {
+    if ( toolTab !== 'currency' ) return;
+    void loadFxRate( fxBase, fxQuote );
+  }, [ toolTab, fxBase, fxQuote, loadFxRate ] );
 
 
   const chooseUtilityPlace = useCallback( async ( slot: UtilityPlaceSlot, result: SearchResult ) => {
@@ -3921,12 +3973,13 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
         <section className="vl-live-tools" aria-labelledby="vl-live-tools-title">
           <div className="vl-live-tools-layout">
-            <div className="vl-live-tools-head">
-              <h3 id="vl-live-tools-title">Local time &amp; currency</h3>
-              <p>Compare time zones and reference exchange rates.</p>
-            </div>
+            <div className="vl-live-tools-left">
+              <div className="vl-live-tools-head">
+                <h3 id="vl-live-tools-title">Local time &amp; currency</h3>
+                <p>Compare time zones and reference exchange rates.</p>
+              </div>
 
-            <article className="vl-live-tool-card" aria-label="Time and currency tools">
+              <article className="vl-live-tool-card" aria-label="Time and currency tools">
               <div className="vl-live-tool-toggle" role="tablist" aria-label="Local time or currency">
                 <button
                   type="button"
@@ -3946,10 +3999,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                   aria-controls="vl-live-tool-currency-panel"
                   aria-selected={ toolTab === 'currency' }
                   className={ `vl-live-tool-toggle-btn is-currency ${toolTab === 'currency' ? 'is-active' : ''}`.trim() }
-                  onClick={ () => {
-                    setToolTab( 'currency' );
-                    if ( !fxRate || fxRate.base !== fxBase || fxRate.quote !== fxQuote ) void loadFxRate( fxBase, fxQuote );
-                  } }
+                  onClick={ () => setToolTab( 'currency' ) }
                 >
                   <i className="vl-live-tool-toggle-dot" aria-hidden="true" />Currency
                 </button>
@@ -3969,6 +4019,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           value={ utilityQueries[ 'world-from' ] }
                           onChange={ e => onUtilityQueryChange( 'world-from', e.target.value ) }
                           onFocus={ () => {
+                            void ensurePlacesLibrary();
                             const value = utilityQueries[ 'world-from' ];
                             if ( value.trim().length >= WORLD_SEARCH_MIN_CHARS ) void runUtilityPlaceSearch( 'world-from', value );
                           } }
@@ -4015,6 +4066,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           value={ utilityQueries[ 'world-to' ] }
                           onChange={ e => onUtilityQueryChange( 'world-to', e.target.value ) }
                           onFocus={ () => {
+                            void ensurePlacesLibrary();
                             const value = utilityQueries[ 'world-to' ];
                             if ( value.trim().length >= WORLD_SEARCH_MIN_CHARS ) void runUtilityPlaceSearch( 'world-to', value );
                           } }
@@ -4098,8 +4150,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       <span>Reference rate is temporarily unavailable.</span>
                     ) : fxRate && fxRate.base === fxBase && fxRate.quote === fxQuote ? (
                       <>
-                        <strong data-wc-no-translate="true">1 { fxBase } = { formatCurrencyValue( fxRate.rate, fxQuote ) }</strong>
-                        <small data-wc-no-translate="true">{ fxRate.date ? `Reference rate · ${fxRate.date}` : 'Reference rate' }</small>
+                        <strong data-wc-no-translate="true">
+                          1 { fxBase } = { fxRate.rate.toLocaleString( 'en-IN', { maximumFractionDigits: 6 } ) } { fxQuote }
+                        </strong>
+                        <small data-wc-no-translate="true">{ fxRate.date ? `Latest reference rate · ${fxRate.date}` : 'Latest reference rate' }</small>
                       </>
                     ) : (
                       <span>Select currencies to load the reference rate.</span>
@@ -4107,7 +4161,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                   </div>
                 </div>
               ) }
-            </article>
+              </article>
+            </div>
+            <div className="vl-live-tools-right" aria-hidden="true" />
           </div>
         </section>
       </div>
@@ -4186,10 +4242,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-map-region{min-width:0}
 
         .vl-live-tools{margin-top:28px;padding-top:28px;border-top:1px solid var(--hair)}
-        .vl-live-tools-layout{display:grid;grid-template-columns:minmax(220px,1fr) minmax(0,560px);align-items:start;gap:48px}
-        .vl-live-tools-head{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding-top:4px}
+        .vl-live-tools-layout{display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr);align-items:start;gap:48px}
+        .vl-live-tools-left{min-width:0}
+        .vl-live-tools-right{min-height:1px}
+        .vl-live-tools-head{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:16px}
         .vl-live-tools-head h3{margin:0;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
-        .vl-live-tools-head p{max-width:360px;margin:0;color:var(--body);font-size:var(--vl-body-size);font-weight:var(--vl-body-weight);line-height:var(--vl-body-lh);letter-spacing:var(--vl-body-track)}
+        .vl-live-tools-head p{max-width:520px;margin:0;color:var(--body);font-size:var(--vl-body-size);font-weight:var(--vl-body-weight);line-height:var(--vl-body-lh);letter-spacing:var(--vl-body-track)}
         .vl-live-tool-card{position:relative;min-width:0;padding:24px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;filter:drop-shadow(0 8px 18px rgba(26,58,42,.06))}
         .vl-live-tool-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
         .vl-live-tool-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:16px;font-weight:700;letter-spacing:-.15px}
@@ -4620,8 +4678,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
         @media(max-width:760px){
           .vl-live-tools{margin-top:22px;padding-top:22px}
-          .vl-live-tools-layout{grid-template-columns:1fr;gap:18px}
-          .vl-live-tools-head{padding-top:0}
+          .vl-live-tools-layout{grid-template-columns:1fr;gap:0}
+          .vl-live-tools-right{display:none}
           .vl-live-tools-head p{font-size:17px}
           .vl-live-tool-card{padding:20px}
           .vl-live-world-pair{grid-template-columns:1fr;gap:14px}
