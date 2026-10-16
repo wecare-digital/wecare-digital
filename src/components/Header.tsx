@@ -165,6 +165,7 @@ const COLUMNS: NavColumn[] = [
       {
         heading: 'Extras',
         links: [
+          { label: 'Blog', href: '/blog/', match: '/blog', searchTerms: [ 'articles', 'posts', 'guides' ] },
           { label: 'Perks', href: '/perks/', match: '/perks' },
         ],
       },
