@@ -645,6 +645,17 @@ function environmentFetch() {
         } ),
       } as Response );
     }
+    if ( requestIs( input, 'wecare.digital', '/api/vayulok/environment' ) ) {
+      const requestBody = JSON.parse( String( _init?.body || '{}' ) );
+      if ( requestBody.operation === 'route_drive' ) {
+        return Promise.resolve( {
+          ok: true,
+          json: async () => ( {
+            routes: [ { duration: '5400s', distanceMeters: 123400 } ],
+          } ),
+        } as Response );
+      }
+    }
     return Promise.resolve( { ok: false, json: async () => ( {} ) } as Response );
   } );
 }
@@ -1867,7 +1878,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( req.locationRestriction ).toBeUndefined();
 
     const utilitySearches = screen.getAllByPlaceholderText( 'Search city or pincode' );
-    expect( utilitySearches ).toHaveLength( 2 );
+    expect( utilitySearches ).toHaveLength( 4 );
     utilitySearches.forEach( field => expect( field.getAttribute( 'aria-autocomplete' ) ).toBe( 'list' ) );
 
     expect( container.querySelector( '.vl-live-tools-left .vl-live-tool-card' ) ).not.toBeNull();
@@ -1877,6 +1888,59 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( css ).toContain( '.vl-live-tools-layout{display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr)' );
     expect( css ).toContain( 'font-size:var(--vl-card-heading-size)' );
     expect( css ).toContain( 'font-size:var(--vl-body-size)' );
+  } );
+
+  it( 'renders Route/Distance on the right and calls routing only after Check route', async () => {
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    expect( screen.getByRole( 'heading', { name: 'Route & distance' } ) ).toBeTruthy();
+    expect( screen.getByText( 'Check driving time or direct distance between two places.' ) ).toBeTruthy();
+
+    const tabs = screen.getByRole( 'tablist', { name: 'Route or distance' } );
+    expect( within( tabs ).getByRole( 'tab', { name: 'Route' } ) ).toHaveAttribute( 'aria-selected', 'true' );
+    expect( within( tabs ).getByRole( 'tab', { name: 'Distance' } ) ).toHaveAttribute( 'aria-selected', 'false' );
+
+    const routeCalls = () => fetchSpy.mock.calls.filter( call =>
+      requestIs( call[ 0 ] as RequestInfo | URL, 'wecare.digital', '/api/vayulok/environment' ),
+    );
+    expect( routeCalls() ).toHaveLength( 0 );
+
+    const from = screen.getByRole( 'combobox', { name: 'From place for route' } );
+    fireEvent.change( from, { target: { value: 'Mu' } } );
+    fireEvent.pointerDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+
+    const to = screen.getByRole( 'combobox', { name: 'To place for route' } );
+    fireEvent.change( to, { target: { value: 'Mu' } } );
+    fireEvent.pointerDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+
+    expect( routeCalls() ).toHaveLength( 0 );
+    const check = screen.getByRole( 'button', { name: 'Check route' } );
+    expect( check ).not.toBeDisabled();
+    fireEvent.click( check );
+
+    await waitFor( () => expect( routeCalls() ).toHaveLength( 1 ) );
+    const sent = JSON.parse( String( ( routeCalls()[ 0 ][ 1 ] as RequestInit ).body ) );
+    expect( sent.operation ).toBe( 'route_drive' );
+    expect( sent.originLatitude ).toBeCloseTo( 19.076 );
+    expect( sent.originLongitude ).toBeCloseTo( 72.8777 );
+    expect( sent.destinationLatitude ).toBeCloseTo( 19.076 );
+    expect( sent.destinationLongitude ).toBeCloseTo( 72.8777 );
+
+    expect( await screen.findByText( '1 hr 30 min' ) ).toBeTruthy();
+    expect( screen.getByText( '123 km' ) ).toBeTruthy();
+    expect( screen.getByText( 'Approximate driving time · traffic not included' ) ).toBeTruthy();
+
+    fireEvent.click( within( tabs ).getByRole( 'tab', { name: 'Distance' } ) );
+    expect( await screen.findByText( '0.0 km' ) ).toBeTruthy();
+    expect( screen.getByText( 'Straight-line distance · no route request' ) ).toBeTruthy();
+    expect( routeCalls() ).toHaveLength( 1 );
+
+    expect( container.querySelector( '.vl-live-tools-right .vl-live-tool-card' ) ).not.toBeNull();
   } );
 
   it( 'uses Local-time-style currency search with provider-backed suggestions and USD/INR defaults', async () => {
