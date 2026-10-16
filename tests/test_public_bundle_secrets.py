@@ -210,8 +210,11 @@ def test_unknown_aws_credential_shape_still_fails(export):
 def test_exact_benign_aws_fingerprint_can_be_allowlisted(export, monkeypatch):
     """Only an exact verified fingerprint may bypass the AWS-shaped token gate."""
     value = _aws_key()
-    monkeypatch.setitem(vpbs.BENIGN_AWS_FINGERPRINTS,
-                        vpbs.fingerprint(value), "synthetic dependency fixture")
+    monkeypatch.setattr(
+        vpbs,
+        "BENIGN_AWS_FINGERPRINTS",
+        { *vpbs.BENIGN_AWS_FINGERPRINTS, vpbs.fingerprint(value) },
+    )
     _write(export, "page-codec.js", f'var k="{value}";')
 
     failures, allowed = _scan(export, "page-codec.js")
