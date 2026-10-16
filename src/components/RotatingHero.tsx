@@ -76,6 +76,8 @@ interface RotatingHeroProps {
   /** Optional fixed prefix rendered on the second line immediately before the rotating pill. */
   pillPrefix?: string;
   words: CycleWord[];
+  /** Optional remount key for the rotating pill when an external mode must become the first word. */
+  pillKey?: React.Key;
   /** The single body line under the headline. Optional. */
   sub?: React.ReactNode;
   /** Accessible name for the landmark. */
@@ -136,7 +138,7 @@ interface RotatingHeroProps {
   noShare?: boolean;
 }
 
-const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, words, sub, ariaLabel, visual, children, subordinate = false, insideMain = false, noShare = false } ) => {
+const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, words, pillKey, sub, ariaLabel, visual, children, subordinate = false, insideMain = false, noShare = false } ) => {
   /**
    * 'final' is the CSS default: shutter gone, dot popped, nothing animating. 'armed' puts
    * the start state back, 'shown' plays it. Starting at 'final' is what makes the entrance
@@ -225,7 +227,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
             <span className="rh-head-line">{ frame }</span>
             <span className="rh-head-line rh-head-rotate">
               { pillPrefix && <span className="rh-head-prefix">{ pillPrefix } </span> }
-              <RotatingPill words={ words } phase={ phase } />
+              <RotatingPill key={ pillKey } words={ words } phase={ phase } />
             </span>
           </Head>
 

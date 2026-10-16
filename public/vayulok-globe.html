@@ -472,7 +472,15 @@
   const cityPinEls=new Map();
   const cityData = new Map();
   let selectedCity=null;
+  let focusCity=null;
+  let focusCandidate=null;
+  let focusCandidateSince=0;
+  const FOCUS_STABLE_MS=650;
   const IDLE_READING='Select a city for a live reading';
+
+  function notifyParent(type,payload={}){
+    try{window.parent?.postMessage({source:'vayulok-globe',type,...payload},window.location.origin);}catch(_){ }
+  }
 
   // Layer + motion state is declared up here (ahead of the WebGL setup) so the
   // no-WebGL2 fallback — which runs before the GPU path would — can reuse the
@@ -638,11 +646,12 @@
       toggle.setAttribute('aria-checked',String(weatherOn));
       stage.dataset.layer=activeLayer;
       renderCityData();
+      notifyParent('mode',{mode:activeLayer});
     });
 
     // Default selection + live refresh, exactly like the GPU path. selectCity
     // handles the panel, accent and the (keyless-safe) first fetch.
-    selectCity(DEFAULT_CITY);
+    selectCity(DEFAULT_CITY,false);
     const def=layer.querySelector(`.fallback-dot[data-city="${DEFAULT_CITY}"]`);
     if(def){def.classList.add('is-active');def.setAttribute('aria-pressed','true');}
     setInterval(refreshLiveData,10*60*1000);
@@ -1235,7 +1244,7 @@
     const ids=cityData.size?[...cityData.keys()]:[selectedCity||DEFAULT_CITY];
     await Promise.allSettled(ids.map(loadCityData));
   }
-  function selectCity(cityId){
+  function selectCity(cityId,notifySelection=true){
     if(!CITY_BY_ID.has(cityId))return;
     // Re-selecting the city that is already active is the RETRY gesture: a
     // previous attempt that failed outright was never cached, so this refetches.
@@ -1261,6 +1270,8 @@
     renderCityData();
     if(cityData.has(cityId))setCityMeta(cityId,ageLabel(cityData.get(cityId).fetchedAt));
     if(!cityData.has(cityId))loadCityData(cityId);
+    const meta=CITY_BY_ID.get(cityId);
+    if(notifySelection&&meta)notifyParent('select-location',{city:{id:meta.id,name:meta.name,lat:meta.lat,lng:meta.lon},mode:activeLayer});
   }
   toggle.addEventListener('click', () => {
     activeLayer = activeLayer === 'weather' ? 'air' : 'weather';
@@ -1269,12 +1280,26 @@
     stage.dataset.layer = activeLayer;
     layerTarget=weatherOn?1:0;
     renderCityData();
+    notifyParent('mode',{mode:activeLayer});
+  });
+
+  window.addEventListener('message',e=>{
+    if(e.origin!==window.location.origin||e.data?.source!=='vayulok-page')return;
+    if(e.data?.type==='mode'&&(e.data.mode==='air'||e.data.mode==='weather')&&e.data.mode!==activeLayer){
+      activeLayer=e.data.mode;
+      const weatherOn=activeLayer==='weather';
+      toggle.setAttribute('aria-checked',String(weatherOn));
+      stage.dataset.layer=activeLayer;
+      layerTarget=weatherOn?1:0;
+      renderCityData();
+    }
   });
 
   // The globe's home rotation faces India, so Delhi is the sensible default
   // selection. selectCity also performs its first (and only) fetch.
   buildMarkers();
-  selectCity(DEFAULT_CITY);
+  selectCity(DEFAULT_CITY,false);
+  notifyParent('mode',{mode:activeLayer});
   setInterval(refreshLiveData, 10 * 60 * 1000);
   setInterval(refreshCityMeta, 30 * 1000);
 
@@ -1357,6 +1382,8 @@
     const h = stage.clientHeight || 1;
     selectedScreen=null;
     const phone=mobileMql.matches;
+    let centerBest=null;
+    let centerScore=Infinity;
     // Pass 1 — writes only: project every capital and place its marker.
     for (const city of cities) {
       // A capital not in the mobile subset is CSS-hidden on the phone disc; keep
@@ -1378,6 +1405,11 @@
       const x = (xNdc + 1) * 0.5 * w;
       const y = (1 - yNdc) * 0.5 * h;
       const visible=p[2]>0.08&&x>-40&&x<w+40&&y>-40&&y<h+40;
+      if(visible){
+        const dx=x-w*.5,dy=y-h*.5;
+        const score=(dx*dx)+(dy*dy);
+        if(score<centerScore){centerScore=score;centerBest=city;}
+      }
       // A pin counts as "on the near face" (so its leader may draw) only when it
       // is comfortably in front — p[2]>0.08 is the same near-face test the
       // visibility flag uses, so the leader hides exactly when the pin does.
@@ -1403,12 +1435,39 @@
         }
       }
     }
+    // A stable centre-facing city becomes the globe PREVIEW. This updates the info
+    // pill as the Earth rotates, but does not notify the parent or move the large map.
+    const now=performance.now();
+    const nextFocus=centerBest?.id||null;
+    if(nextFocus!==focusCandidate){
+      focusCandidate=nextFocus;
+      focusCandidateSince=now;
+    }else if(nextFocus&&nextFocus!==focusCity&&now-focusCandidateSince>=FOCUS_STABLE_MS){
+      focusCity=nextFocus;
+      const prior=selectedCity;
+      selectedCity=focusCity;
+      renderCityData();
+      if(!cityData.has(focusCity))loadCityData(focusCity);
+      // Keep the explicit selected marker styling independent of auto preview.
+      selectedCity=prior;
+      const meta=CITY_BY_ID.get(focusCity);
+      if(meta&&panelNameEl)panelNameEl.textContent=meta.name;
+      if(panelLayerEl)panelLayerEl.textContent=activeLayer==='air'?'AIR QUALITY':'WEATHER';
+      const previewData=cityData.get(focusCity);
+      if(previewData){
+        const saved=selectedCity;selectedCity=focusCity;renderCityData();selectedCity=saved;
+      }else{
+        if(panelReadingEl){panelReadingEl.dataset.state='loading';panelReadingEl.textContent='Loading live data…';}
+        if(panelMetaEl)panelMetaEl.textContent='LIVE · CONNECTING';
+      }
+    }
+
     // Pass 2 — reads only: resolve label collisions. The expanded pill claims
     // its box first, then each visible collapsed chip in registry order claims
     // its own or is hidden. Reads are grouped after all writes so the frame
     // costs a single forced layout.
     const claimed=[];
-    const activeCity=selectedCity?cities.find(c=>c.id===selectedCity):null;
+    const activeCity=(focusCity||selectedCity)?cities.find(c=>c.id===(focusCity||selectedCity)):null;
     if(activeCity&&activeCity.visible)claimed.push(activeCity.card.getBoundingClientRect());
     for(const city of cities){
       if(!city.visible||city===activeCity){city.pendingOcclude=false;continue;}
@@ -1419,6 +1478,7 @@
     }
     // Pass 3 — writes only.
     for(const city of cities){
+      city.el.classList.toggle('is-active',city.id===(focusCity||selectedCity));
       if(city.occluded!==city.pendingOcclude){
         city.occluded=city.pendingOcclude;
         city.el.classList.toggle('is-occluded',city.pendingOcclude);

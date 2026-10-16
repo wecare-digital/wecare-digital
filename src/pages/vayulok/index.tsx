@@ -86,6 +86,14 @@ function vayulokJsonLd(): Record<string, unknown>[] {
 
 
 const VayuLokPage: React.FC = () => {
+  const [ mode, setMode ] = React.useState<'air' | 'weather'>( 'air' );
+  const [ globeLocation, setGlobeLocation ] = React.useState<{
+    name: string;
+    addr?: string;
+    lat: number;
+    lng: number;
+    regionCode?: string;
+  } | null>( null );
   // Order is hue rhythm as much as grouping. Air + Pollen are what is in the air,
   // Weather + Forecast are conditions, Solar is the adjacent service, Heatmap is the
   // view rather than a subject. Sequencing them this way leaves only one adjacent
@@ -109,14 +117,22 @@ const VayuLokPage: React.FC = () => {
   // unbuilt), so advertising them in the hero overstated the product. They are replaced by two
   // real, prominent features. "Conditions" replaces the unsupported Pollen promise while
   // accurately covering the live Air current-condition experience.
-  const cycleWords = [
-    { word: 'Air', tint: '#e0f7c8', dot: '#3da35a' },
-    { word: 'Weather', tint: '#dbeafe', dot: '#2563eb' },
-    { word: 'Forecast', tint: '#ede9fe', dot: '#9849e8' },
-    { word: 'Conditions', tint: '#e0f7c8', dot: '#3da35a' },
-    { word: 'History', tint: '#fef9c3', dot: '#ca8a04' },
-    { word: 'Heatmap', tint: '#fbe6d4', dot: '#c2591b' },
-  ];
+  const capabilityWords = {
+    air: { word: 'Air', tint: '#e0f7c8', dot: '#3da35a' },
+    weather: { word: 'Weather', tint: '#dbeafe', dot: '#2563eb' },
+    forecast: { word: 'Forecast', tint: '#ede9fe', dot: '#9849e8' },
+    conditions: { word: 'Conditions', tint: '#e0f7c8', dot: '#3da35a' },
+    history: { word: 'History', tint: '#fef9c3', dot: '#ca8a04' },
+    heatmap: { word: 'Heatmap', tint: '#fbe6d4', dot: '#c2591b' },
+  };
+  const cycleWords = mode === 'weather'
+    ? [ capabilityWords.weather, capabilityWords.forecast, capabilityWords.conditions, capabilityWords.history, capabilityWords.heatmap, capabilityWords.air ]
+    : [ capabilityWords.air, capabilityWords.conditions, capabilityWords.history, capabilityWords.heatmap, capabilityWords.weather, capabilityWords.forecast ];
+
+  const countryForGlobeCity = ( id: string ): string | undefined => ( {
+    delhi: 'IN', bengaluru: 'IN', dubai: 'AE', moscow: 'RU', london: 'GB',
+    beijing: 'CN', tokyo: 'JP', singapore: 'SG', sydney: 'AU', washington: 'US', saopaulo: 'BR',
+  } as Record<string, string> )[ id ];
   return (
     <>
       {/* THIS PAGE'S TITLE AND DESCRIPTION WERE THE THINNEST ON THE SITE, measured against
@@ -148,10 +164,23 @@ const VayuLokPage: React.FC = () => {
           badgeLabel="VayuLok by WECARE.DIGITAL"
           frame="Bharat intelligence"
           words={ cycleWords }
+          pillKey={ mode }
           sub="VayuLok reads your chosen place — live air quality and weather, with forecast, history and heatmap."
           visual={ (
           <div className="vl-hero-visual">
-            <VayuLokApprovedGlobe />
+            <VayuLokApprovedGlobe
+              mode={ mode }
+              onModeChange={ setMode }
+              onSelectLocation={ city => {
+                setGlobeLocation( {
+                  name: city.name,
+                  addr: city.name,
+                  lat: city.lat,
+                  lng: city.lng,
+                  regionCode: countryForGlobeCity( city.id ),
+                } );
+              } }
+            />
           </div>
           ) }
         />
@@ -160,7 +189,7 @@ const VayuLokPage: React.FC = () => {
             VayuLokLive no longer owns a second <main>; this page owns the one primary
             landmark so the same Header -> unified hero -> content -> Footer structure
             applies here as it does to every other public product page. */}
-        <VayuLokLive />
+        <VayuLokLive mode={ mode } onModeChange={ setMode } externalLocation={ globeLocation } />
 
         <div className="vl-share-wrap">
           <PublicShare />
