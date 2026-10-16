@@ -434,7 +434,7 @@ def _service_prices(origin: str) -> Dict[str, Any]:
     # `Access-Control-Allow-Origin: *`, NOT the origin `cors_headers` reflects, and the
     # measurement is what forces it rather than a preference. In the same run the origin's
     # `Vary: Origin` was STRIPPED (`vary: Accept-Encoding` is what reached the client), and a
-    # request carrying `Origin: https://www.wecare.digital` was served the cached apex
+    # request carrying `Origin: https://wecare.digital` was served the cached apex
     # `Access-Control-Allow-Origin: https://wecare.digital`. A browser rejects that, so
     # `fetchServicePrices` would fail closed and every `www` visitor would read "temporarily
     # unavailable" with no way to buy. A shared cache cannot hand the wrong origin a response
