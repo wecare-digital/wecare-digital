@@ -365,7 +365,7 @@ def ensure_blog_source_perms() -> None:
                 "Action": ["amplify:StartJob", "amplify:GetJob"],
                 "Resource": (
                     f"arn:aws:amplify:{REGION}:{ACCOUNT}:apps/"
-                    f"d22dm4b0jn71jw/branches/stack"
+                    f"d22dm4b0jn71jw/branches/stack/jobs/*"
                 ),
             },
         ],
