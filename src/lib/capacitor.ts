@@ -128,7 +128,7 @@ export function initDeepLinks(navigate: (path: string) => void) {
     // links already in the wild, not a live route. See PROTECTED_TABLES in
     // operations/system-cleanup for why those codes must keep resolving.
     const isApexShortLink =
-      (url.hostname === 'wecare.digital' || url.hostname === 'www.wecare.digital')
+      url.hostname === 'wecare.digital'
       && /^\/r\/.+/.test(url.pathname);
 
     if (url.hostname === 'r.wecare.digital' || isApexShortLink) {
