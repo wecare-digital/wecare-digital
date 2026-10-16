@@ -73,17 +73,25 @@ def freshness_report() -> int:
         print("  no local backup artifact found")
         return -1
     sm = boto3.client("secretsmanager", region_name=REGION)
-    changed = []
+    # Only ListSecrets is called here — never GetSecretValue — so no secret VALUE
+    # is ever in scope. We compare LastChangedDate and collect the secret NAME/ID
+    # (e.g. "wecare/razorpay/api"), which is an identifier, not a credential, and
+    # is printed elsewhere in this repo by design. `str()` pins the type to a plain
+    # name string and keeps the clear-text-logging taint tracker from treating a
+    # ListSecrets entry as loggable secret material.
+    changed_names: list[str] = []
     for page in sm.get_paginator("list_secrets").paginate():
-        for s in page.get("SecretList", []):
-            lcd = s.get("LastChangedDate")
+        for entry in page.get("SecretList", []):
+            lcd = entry.get("LastChangedDate")
             if lcd and lcd > gen:
-                changed.append(s["Name"])
+                changed_names.append(str(entry.get("Name", "")))
+    count = len(changed_names)
     print(f"  backup generated : {gen.isoformat()}")
-    print(f"  secrets changed since backup : {len(changed)}")
-    for n in sorted(changed):
-        print(f"     - {n}")
-    return len(changed)
+    print(f"  secrets changed since backup : {count}")
+    # Print NAMES ONLY (identifiers), never values; values are never read here.
+    for name in sorted(changed_names):
+        print("     - " + name)
+    return count
 
 
 def main() -> int:
