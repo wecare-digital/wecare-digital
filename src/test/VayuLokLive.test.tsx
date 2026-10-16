@@ -390,7 +390,7 @@ async function loadComponent() {
 let rec: MapsRecorder;
 
 async function selectMumbai() {
-  const input = await screen.findByRole( 'combobox' );
+  const input = await screen.findByPlaceholderText( 'Search a city or pincode' );
   fireEvent.change( input, { target: { value: 'Mumbai' } } );
   // The suggestion <li> commits the selection on `onPointerDown` (pointer events are the
   // component's chosen interaction so a touch/mouse tap recentres before blur closes the
