@@ -188,6 +188,71 @@ def test_response_adds_basic_security_headers(mod):
     assert resp["headers"]["X-Content-Type-Options"] == "nosniff"
 
 
+def test_route_drive_uses_server_owned_essentials_request(mod):
+    with patch.object(mod, "_google_json", return_value={"routes": [{"duration": "3600s", "distanceMeters": 100000}]}) as upstream:
+        result = mod._dispatch(
+            "route_drive",
+            {
+                "originLatitude": 22.5726,
+                "originLongitude": 88.3639,
+                "destinationLatitude": 23.5204,
+                "destinationLongitude": 87.3119,
+            },
+        )
+    assert result["routes"][0]["distanceMeters"] == 100000
+    assert upstream.call_args.args[0] == "https://routes.googleapis.com/directions/v2:computeRoutes"
+    assert upstream.call_args.kwargs["method"] == "POST"
+    assert upstream.call_args.kwargs["field_mask"] == "routes.duration,routes.distanceMeters"
+    body = upstream.call_args.kwargs["body"]
+    assert body["travelMode"] == "DRIVE"
+    assert body["routingPreference"] == "TRAFFIC_UNAWARE"
+    assert body["computeAlternativeRoutes"] is False
+    assert body["origin"]["location"]["latLng"] == {"latitude": 22.5726, "longitude": 88.3639}
+    assert body["destination"]["location"]["latLng"] == {"latitude": 23.5204, "longitude": 87.3119}
+
+
+def test_route_drive_rejects_extra_cost_controls(mod):
+    with patch.object(mod, "_google_json") as upstream:
+        resp = mod.handler(
+            event(
+                {
+                    "operation": "route_drive",
+                    "originLatitude": 22.5726,
+                    "originLongitude": 88.3639,
+                    "destinationLatitude": 23.5204,
+                    "destinationLongitude": 87.3119,
+                    "trafficAware": True,
+                }
+            ),
+            None,
+        )
+    assert resp["statusCode"] == 400
+    assert "unexpected field" in body(resp)["detail"]
+    upstream.assert_not_called()
+
+
+def test_route_drive_cache_key_is_endpoint_specific(mod):
+    first = mod._cache_key(
+        "route_drive",
+        {
+            "originLatitude": 22.5726,
+            "originLongitude": 88.3639,
+            "destinationLatitude": 23.5204,
+            "destinationLongitude": 87.3119,
+        },
+    )
+    second = mod._cache_key(
+        "route_drive",
+        {
+            "originLatitude": 22.5726,
+            "originLongitude": 88.3639,
+            "destinationLatitude": 28.6139,
+            "destinationLongitude": 77.2090,
+        },
+    )
+    assert first != second
+
+
 def test_weather_request_is_server_owned_and_has_no_key_in_url(mod):
     with patch.object(mod, "_google_json", return_value={"ok": True}) as upstream:
         result = mod._dispatch(
