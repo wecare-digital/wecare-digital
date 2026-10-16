@@ -66,8 +66,8 @@ ENV_VARS = {
     "BLOG_SOURCE_BUCKET": SOURCE_BUCKET,
     # Static blog delivery bridge. Publishing writes the native store immediately; the site
     # remains a static export, so one coalesced Amplify build turns a wave into real /post pages.
-    "BLOG_SITE_AMPLIFY_APP_ID": "d22dm4b0jn71jw",
-    "BLOG_SITE_AMPLIFY_BRANCH": "stack",
+    "AWS_AMPLIFY_APP_ID": "d22dm4b0jn71jw",
+    "AWS_AMPLIFY_BRANCH": "stack",
     "BLOG_SITE_PUBLIC_URL": "https://wecare.digital",
     "BLOG_SITE_BUILD_DELAY_SECONDS": "45",
     "BLOG_SITE_CHECK_DELAY_SECONDS": "90",
