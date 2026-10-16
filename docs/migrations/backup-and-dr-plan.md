@@ -308,19 +308,29 @@ Mirror the Lightsail migration discipline that is already proven in this repo:
 
 ## 8. Concrete next actions (in priority order)
 
-1. **Cognito deletion protection** — one setting, highest value, do today.
-2. **DynamoDB PITR on all live tables** + the per-table deletion protection, and bake
-   it into every `provision_*_table.py`.
-3. **S3 versioning + a lifecycle for noncurrent versions** on `wecare-digital-get`.
-4. **One AWS Backup plan** (tag-selected, daily + monthly, Vault Lock) covering
+**Done (2026-10-16):**
+
+- [x] **Cognito deletion protection** — pool `us-east-1_cSx0RHCIR` verified
+  `DeletionProtection=ACTIVE`. Change this field only via
+  `scripts/cognito_pool_safe_update.py` (a bare `update-user-pool` is a full
+  replace and silently resets every omitted field — see that script's header).
+- [x] **DynamoDB PITR on all live tables** — all 75 project tables now report
+  `ENABLED` (`scripts/enable_dynamodb_pitr.py --verify`). The script is idempotent;
+  re-run `--apply` after provisioning a new table. Still to do: bake PITR into every
+  `provision_*_table.py` so new tables are covered at creation, not after.
+
+**Open:**
+
+1. **S3 versioning + a lifecycle for noncurrent versions** on `wecare-digital-get`.
+2. **One AWS Backup plan** (tag-selected, daily + monthly, Vault Lock) covering
    DynamoDB and S3, reporting to the existing SNS topic.
-5. **Cognito user export** job to the encrypted backup bucket.
-6. **Schedule** secrets `upload` + verify + GCP mirror refresh.
-7. **Write and run the first restore drill**, record the result under `docs/execution/`.
-8. **S3 → second account/region replication** for the off-primary copy.
-9. Keep the GCP mirror current as standing exit insurance; re-run the independence
+3. **Cognito user export** job to the encrypted backup bucket.
+4. **Schedule** secrets `upload` + verify + GCP mirror refresh.
+5. **Write and run the first restore drill**, record the result under `docs/execution/`.
+6. **S3 → second account/region replication** for the off-primary copy.
+7. Keep the GCP mirror current as standing exit insurance; re-run the independence
    checks in CI.
 
-Items 1–3 are small, reversible, and remove most of the real risk. The rest hardens
-and automates. The migration section (7) is insurance you keep warm, not a project
-you have to run.
+The two highest-value, fully reversible protections (Cognito deletion protection
+and DynamoDB PITR) are now in place. The open items harden and automate. The
+migration section (7) is insurance you keep warm, not a project you have to run.
