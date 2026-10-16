@@ -43,7 +43,7 @@ WORKFLOW_GLOB = "amplify-custom*.json"
 # Enough of a rule list to satisfy apply(): a domain 301, something it does not own, and the
 # catch-all it refuses to write without.
 LIVE_RULES = [
-    {"source": "https://www.wecare.digital", "target": "https://wecare.digital", "status": "301"},
+    {"source": "https://wecare.digital", "target": "https://wecare.digital", "status": "301"},
     {"source": "/get/<*>", "target": "https://d1kf2rchz7yras.cloudfront.net/<*>", "status": "200"},
     {"source": "/obsolete-fixture", "target": "/replacement-fixture/", "status": "301"},
     {"source": "/<*>", "target": "/404.html", "status": "404-200"},
@@ -160,7 +160,7 @@ def test_owner_policy_preserves_rewrites_without_restoring_legacy_destinations(r
         {"source": "/<*>", "target": "/404.html", "status": "404-200"},
     ]
     removals = [
-        {"source": "https://www.wecare.digital", "target": "https://wecare.digital", "status": "301"},
+        {"source": "https://wecare.digital", "target": "https://wecare.digital", "status": "301"},
         {"source": "/obsolete-fixture-2/", "target": "/anew/", "status": "301"},
         {"source": "/obsolete-login-fixture/<*>", "target": "/workspace/obsolete-login-fixture/<*>", "status": "302"},
         {"source": "/retired", "target": "/", "status": "404"},
