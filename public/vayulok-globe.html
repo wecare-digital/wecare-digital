@@ -134,8 +134,12 @@
   .city-panel-reading[data-state='idle'],
   .city-panel-reading[data-state='loading'],
   .city-panel-reading[data-state='error']{color:rgba(26,58,42,.6);font-weight:700}
+  .city-panel-time{
+    margin-top:7px;font-size:10px;font-weight:700;line-height:1.2;
+    color:rgba(26,58,42,.64);white-space:nowrap;
+  }
   .city-panel-meta{
-    margin-top:9px;font-size:9px;font-weight:750;letter-spacing:.08em;line-height:1.1;
+    margin-top:6px;font-size:9px;font-weight:750;letter-spacing:.08em;line-height:1.1;
     text-transform:uppercase;color:rgba(26,58,42,.45);
   }
 
@@ -364,7 +368,8 @@
     .city-panel-name{font-size:14px}
     .city-panel-reading{font-size:12px;margin-top:5px}
     .city-panel-layer{margin-top:5px}
-    .city-panel-meta{margin-top:6px}
+    .city-panel-time{font-size:9.5px;margin-top:5px}
+    .city-panel-meta{margin-top:5px}
     /* The phone disc is small, so the name chip is kept compact. */
     .city-card{padding:4px 8px 5px;border-radius:999px}
     .city-name{font-size:10.5px}
@@ -423,6 +428,7 @@
         <span class="city-panel-name" id="cityPanelName">New Delhi</span>
         <span class="city-panel-layer" id="cityPanelLayer">AIR</span>
         <span class="city-panel-reading" id="cityPanelReading">Select a city for a live reading</span>
+        <span class="city-panel-time" id="cityPanelTime"></span>
         <span class="city-panel-meta" id="cityPanelMeta"></span>
       </div>
     </aside>
@@ -447,19 +453,19 @@
   // anchors — and the dense clusters (Bengaluru/Dubai near Delhi, Beijing near
   // Tokyo, Moscow, Singapore, São Paulo) are hidden. Desktop still shows all 11.
   const CITIES=[
-    {id:'delhi',       name:'New Delhi',     lat: 28.6139, lon:  77.2090, accent:'#f0a818', mobile:true},
-    {id:'bengaluru',   name:'Bengaluru',     lat: 12.9716, lon:  77.5946, accent:'#9849e8'},
-    {id:'dubai',       name:'Dubai',         lat: 25.2048, lon:  55.2708, accent:'#c98a2e'},
-    {id:'moscow',      name:'Moscow',        lat: 55.7558, lon:  37.6173, accent:'#2563eb'},
+    {id:'delhi',       name:'New Delhi',     lat: 28.6139, lon:  77.2090, timeZone:'Asia/Kolkata',       accent:'#f0a818', mobile:true},
+    {id:'bengaluru',   name:'Bengaluru',     lat: 12.9716, lon:  77.5946, timeZone:'Asia/Kolkata',       accent:'#9849e8'},
+    {id:'dubai',       name:'Dubai',         lat: 25.2048, lon:  55.2708, timeZone:'Asia/Dubai',         accent:'#c98a2e'},
+    {id:'moscow',      name:'Moscow',        lat: 55.7558, lon:  37.6173, timeZone:'Europe/Moscow',      accent:'#2563eb'},
     // London only for western Europe: at the globe's limb longitudes compress, so a
     // second capital 2.5deg away (Paris) permanently overlaps its label chip.
-    {id:'london',      name:'London',        lat: 51.5072, lon:  -0.1276, accent:'#d1f470', mobile:true},
-    {id:'beijing',     name:'Beijing',       lat: 39.9042, lon: 116.4074, accent:'#f0a818'},
-    {id:'tokyo',       name:'Tokyo',         lat: 35.6762, lon: 139.6503, accent:'#2563eb', mobile:true},
-    {id:'singapore',   name:'Singapore',     lat:  1.3521, lon: 103.8198, accent:'#3da35a'},
-    {id:'sydney',      name:'Sydney',        lat:-33.8688, lon: 151.2093, accent:'#d1f470', mobile:true},
-    {id:'washington',  name:'Washington DC', lat: 38.9072, lon: -77.0369, accent:'#3da35a', mobile:true},
-    {id:'saopaulo',    name:'São Paulo',     lat:-23.5505, lon: -46.6333, accent:'#f0a818'},
+    {id:'london',      name:'London',        lat: 51.5072, lon:  -0.1276, timeZone:'Europe/London',      accent:'#d1f470', mobile:true},
+    {id:'beijing',     name:'Beijing',       lat: 39.9042, lon: 116.4074, timeZone:'Asia/Shanghai',      accent:'#f0a818'},
+    {id:'tokyo',       name:'Tokyo',         lat: 35.6762, lon: 139.6503, timeZone:'Asia/Tokyo',         accent:'#2563eb', mobile:true},
+    {id:'singapore',   name:'Singapore',     lat:  1.3521, lon: 103.8198, timeZone:'Asia/Singapore',     accent:'#3da35a'},
+    {id:'sydney',      name:'Sydney',        lat:-33.8688, lon: 151.2093, timeZone:'Australia/Sydney',   accent:'#d1f470', mobile:true},
+    {id:'washington',  name:'Washington DC', lat: 38.9072, lon: -77.0369, timeZone:'America/New_York',   accent:'#3da35a', mobile:true},
+    {id:'saopaulo',    name:'São Paulo',     lat:-23.5505, lon: -46.6333, timeZone:'America/Sao_Paulo', accent:'#f0a818'},
   ];
   const CITY_BY_ID=new Map(CITIES.map(c=>[c.id,c]));
   const DEFAULT_CITY='delhi';
@@ -495,6 +501,7 @@
   const panelNameEl=document.getElementById('cityPanelName');
   const panelLayerEl=document.getElementById('cityPanelLayer');
   const panelReadingEl=document.getElementById('cityPanelReading');
+  const panelTimeEl=document.getElementById('cityPanelTime');
   const panelMetaEl=document.getElementById('cityPanelMeta');
   // The leader-line overlay that visually ties the panel to the selected pin.
   const leaderEl=document.getElementById('cityLeader');
@@ -656,6 +663,7 @@
     if(def){def.classList.add('is-active');def.setAttribute('aria-pressed','true');}
     setInterval(refreshLiveData,10*60*1000);
     setInterval(refreshCityMeta,30*1000);
+    setInterval(refreshCityClock,30*1000);
   }
 
   // ---------- small utilities ----------
@@ -1065,6 +1073,28 @@
     const min=Math.max(1,Math.floor(sec/60));
     return `LIVE · UPDATED ${min}M AGO`;
   }
+  function formatCityLocalDateTime(cityId,now=Date.now()){
+    const city=CITY_BY_ID.get(cityId);
+    if(!city?.timeZone)return '';
+    try{
+      const parts=new Intl.DateTimeFormat('en-US',{
+        timeZone:city.timeZone,
+        weekday:'short',
+        day:'2-digit',
+        month:'short',
+        hour:'numeric',
+        minute:'2-digit',
+        hour12:true,
+        timeZoneName:'short'
+      }).formatToParts(new Date(now));
+      const read=type=>parts.find(p=>p.type===type)?.value||'';
+      return `${read('weekday')}, ${read('day')} ${read('month')} · ${read('hour')}:${read('minute')} ${read('dayPeriod')} ${read('timeZoneName')}`.trim();
+    }catch(_){return '';}
+  }
+  function refreshCityClock(){
+    const cityId=focusCity||selectedCity||DEFAULT_CITY;
+    if(panelTimeEl)panelTimeEl.textContent=formatCityLocalDateTime(cityId);
+  }
   function refreshCityMeta(){
     for(const city of CITIES){
       if(cityData.has(city.id))setCityMeta(city.id,ageLabel(cityData.get(city.id).fetchedAt));
@@ -1139,6 +1169,7 @@
     const meta=CITY_BY_ID.get(cityId);
     if(panelNameEl)panelNameEl.textContent=meta?meta.name:'';
     if(panelLayerEl)panelLayerEl.textContent=activeLayer==='air'?'AIR QUALITY':'WEATHER';
+    refreshCityClock();
     const accent=panelAccentFor(cityId);
     panelEl.style.setProperty('--panel-accent',accent);
     panelEl.style.setProperty('--panel-accent-soft',hexToSoft(accent));
@@ -1238,11 +1269,11 @@
     }catch(err){console.warn(`Live data failed for ${cityId}`,err);setCityReading(cityId,'error','Live data unavailable · select again to retry');}
     finally{inFlight.delete(cityId);}
   }
-  // Lazy: only the selected city is ever fetched, and the interval refreshes
-  // just the cities already loaded rather than the whole registry.
+  // Refresh only what the visitor is currently seeing. Previously viewed cities
+  // remain cached and refresh naturally when they become focus again.
   async function refreshLiveData(){
-    const ids=cityData.size?[...cityData.keys()]:[selectedCity||DEFAULT_CITY];
-    await Promise.allSettled(ids.map(loadCityData));
+    const cityId=focusCity||selectedCity||DEFAULT_CITY;
+    await loadCityData(cityId);
   }
   function selectCity(cityId,notifySelection=true){
     if(!CITY_BY_ID.has(cityId))return;
@@ -1305,6 +1336,7 @@
   notifyParent('mode',{mode:activeLayer});
   setInterval(refreshLiveData, 10 * 60 * 1000);
   setInterval(refreshCityMeta, 30 * 1000);
+  setInterval(refreshCityClock, 30 * 1000);
 
   stage.addEventListener('pointerdown', e => {
     if (toggle.contains(e.target)) return;
