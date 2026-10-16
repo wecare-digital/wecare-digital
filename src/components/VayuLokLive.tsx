@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import VoiceSearchMic from './VoiceSearchMic';
+import { API_BASE } from '../config/constants';
 
 /**
  * VayuLok LIVE content, appended BELOW the rotating-word hero on /vayulok/.
@@ -378,7 +379,41 @@ interface LocationTimeState {
   source: 'default' | 'google' | 'fixed';
 }
 
-type UtilityPlaceSlot = 'world-from' | 'world-to';
+type UtilityPlaceSlot = 'world-from' | 'world-to' | 'route-from' | 'route-to';
+type RouteToolMode = 'route' | 'distance';
+
+interface RouteResultState {
+  durationSeconds: number;
+  distanceMeters: number;
+  encodedPolyline?: string;
+}
+
+function directDistanceKm( from: PlaceState, to: PlaceState ): number {
+  const toRad = ( value: number ) => value * Math.PI / 180;
+  const radiusKm = 6371.0088;
+  const lat1 = toRad( from.lat );
+  const lat2 = toRad( to.lat );
+  const dLat = lat2 - lat1;
+  const dLng = toRad( to.lng - from.lng );
+  const a = Math.sin( dLat / 2 ) ** 2
+    + Math.cos( lat1 ) * Math.cos( lat2 ) * Math.sin( dLng / 2 ) ** 2;
+  return radiusKm * 2 * Math.atan2( Math.sqrt( a ), Math.sqrt( 1 - a ) );
+}
+
+function routeDurationLabel( seconds: number ): string {
+  const totalMinutes = Math.max( 1, Math.round( seconds / 60 ) );
+  const hours = Math.floor( totalMinutes / 60 );
+  const minutes = totalMinutes % 60;
+  if ( !hours ) return `${minutes} min`;
+  if ( !minutes ) return `${hours} hr`;
+  return `${hours} hr ${minutes} min`;
+}
+
+function routeDistanceLabel( meters: number ): string {
+  if ( meters < 1000 ) return `${Math.max( 1, Math.round( meters ) )} m`;
+  const km = meters / 1000;
+  return `${km >= 100 ? Math.round( km ) : km.toFixed( 1 )} km`;
+}
 
 interface WorldTimeDestination {
   name: string;
@@ -1080,7 +1115,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   // Currency is intentionally lighter: just a searchable currency pair and its reference rate.
   const [ toolTab, setToolTab ] = useState<'time' | 'currency'>( 'time' );
   const [ utilityQueries, setUtilityQueries ] = useState<Record<UtilityPlaceSlot, string>>( {
-    'world-from': '', 'world-to': '',
+    'world-from': '', 'world-to': '', 'route-from': '', 'route-to': '',
   } );
   const [ utilityResults, setUtilityResults ] = useState<SearchResult[]>( [] );
   const [ utilityOpenSlot, setUtilityOpenSlot ] = useState<UtilityPlaceSlot | null>( null );
@@ -1088,6 +1123,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ utilitySearchStatus, setUtilitySearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable'>( 'idle' );
   const [ worldSource, setWorldSource ] = useState<WorldTimeDestination | null>( null );
   const [ worldDestination, setWorldDestination ] = useState<WorldTimeDestination>( DEFAULT_WORLD_TIME_DESTINATION );
+  const [ routeMode, setRouteMode ] = useState<RouteToolMode>( 'route' );
+  const [ routeFrom, setRouteFrom ] = useState<PlaceState | null>( null );
+  const [ routeTo, setRouteTo ] = useState<PlaceState | null>( null );
+  const [ routeResult, setRouteResult ] = useState<RouteResultState | null>( null );
+  const [ routeLoading, setRouteLoading ] = useState( false );
+  const [ routeError, setRouteError ] = useState( false );
 
   const [ fxBase, setFxBase ] = useState( 'USD' );
   const [ fxQuote, setFxQuote ] = useState( 'INR' );
@@ -2708,6 +2749,20 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       return;
     }
 
+    if ( slot === 'route-from' || slot === 'route-to' ) {
+      if ( slot === 'route-from' ) setRouteFrom( resolved );
+      else setRouteTo( resolved );
+      setRouteResult( null );
+      setRouteError( false );
+      setUtilityQueries( current => ( { ...current, [ slot ]: '' } ) );
+      setUtilityResults( [] );
+      setUtilityOpenSlot( null );
+      setUtilityActive( -1 );
+      setUtilitySearchStatus( 'idle' );
+      utilityAutocompleteTokenRef.current = null;
+      return;
+    }
+
     const zone = await resolveUtilityTimeZone( resolved );
     if ( !zone ) {
       setUtilitySearchStatus( 'unavailable' );
@@ -2757,6 +2812,51 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     utilityAutocompleteTokenRef.current = null;
     setUtilityQueries( current => ( { ...current, [ slot ]: transcript } ) );
     void runUtilityPlaceSearch( slot, transcript );
+  };
+
+  const swapRoutePlaces = () => {
+    const nextFrom = routeTo;
+    const nextTo = routeFrom;
+    setRouteFrom( nextFrom );
+    setRouteTo( nextTo );
+    setRouteResult( null );
+    setRouteError( false );
+  };
+
+  const checkRoute = async () => {
+    if ( !routeFrom || !routeTo || routeLoading ) return;
+    setRouteLoading( true );
+    setRouteError( false );
+    setRouteResult( null );
+    try {
+      const response = await fetch( `${API_BASE}/vayulok/environment`, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify( {
+          operation: 'route_drive',
+          originLatitude: routeFrom.lat,
+          originLongitude: routeFrom.lng,
+          destinationLatitude: routeTo.lat,
+          destinationLongitude: routeTo.lng,
+        } ),
+      } );
+      const data = response.ok ? await response.json() : null;
+      const row = Array.isArray( data?.routes ) ? data.routes[ 0 ] : null;
+      const distanceMeters = Number( row?.distanceMeters );
+      const durationText = typeof row?.duration === 'string' ? row.duration : '';
+      const durationSeconds = Number( durationText.replace( /s$/, '' ) );
+      if ( !Number.isFinite( distanceMeters ) || !Number.isFinite( durationSeconds ) ) throw new Error( 'invalid route' );
+      setRouteResult( {
+        distanceMeters,
+        durationSeconds,
+        ...( typeof row?.polyline?.encodedPolyline === 'string' ? { encodedPolyline: row.polyline.encodedPolyline } : {} ),
+      } );
+    } catch {
+      setRouteError( true );
+    } finally {
+      setRouteLoading( false );
+    }
   };
 
   const swapFxPair = () => {
@@ -4305,7 +4405,130 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
               ) }
               </article>
             </div>
-            <div className="vl-live-tools-right" aria-hidden="true" />
+            <div className="vl-live-tools-right">
+              <div className="vl-live-tools-head">
+                <h3>Route &amp; distance</h3>
+                <p>Check driving time or direct distance between two places.</p>
+              </div>
+
+              <article className="vl-live-tool-card" aria-label="Route and distance tool">
+                <div className="vl-live-tool-toggle" role="tablist" aria-label="Route or distance">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={ routeMode === 'route' }
+                    className={ `vl-live-tool-toggle-btn is-time ${routeMode === 'route' ? 'is-active' : ''}`.trim() }
+                    onClick={ () => setRouteMode( 'route' ) }
+                  >
+                    <i className="vl-live-tool-toggle-dot" aria-hidden="true" />Route
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={ routeMode === 'distance' }
+                    className={ `vl-live-tool-toggle-btn is-currency ${routeMode === 'distance' ? 'is-active' : ''}`.trim() }
+                    onClick={ () => setRouteMode( 'distance' ) }
+                  >
+                    <i className="vl-live-tool-toggle-dot" aria-hidden="true" />Distance
+                  </button>
+                </div>
+
+                <div className="vl-live-tool-panel">
+                  <h4>{ routeMode === 'route' ? 'Plan a route' : 'Direct distance' }</h4>
+                  <div className="vl-live-route-pair">
+                    { ( [ 'route-from', 'route-to' ] as const ).map( slot => {
+                      const selected = slot === 'route-from' ? routeFrom : routeTo;
+                      const label = slot === 'route-from' ? 'From place' : 'To place';
+                      const resultId = `vl-live-${slot}-results`;
+                      return (
+                        <div className="vl-live-route-place" key={ slot }>
+                          <span>{ label }</span>
+                          <div className="vl-live-utility-search">
+                            <input
+                              type="search"
+                              role="combobox"
+                              value={ utilityQueries[ slot ] }
+                              onChange={ e => onUtilityQueryChange( slot, e.target.value ) }
+                              onFocus={ () => {
+                                void ensurePlacesLibrary();
+                                const value = utilityQueries[ slot ];
+                                if ( value.trim().length >= WORLD_SEARCH_MIN_CHARS ) void runUtilityPlaceSearch( slot, value );
+                              } }
+                              onKeyDown={ e => onUtilityKeyDown( slot, e ) }
+                              aria-label={ `${label} for route` }
+                              aria-controls={ resultId }
+                              aria-autocomplete="list"
+                              aria-expanded={ utilityOpenSlot === slot && utilityResults.length > 0 }
+                              aria-activedescendant={ utilityOpenSlot === slot && utilityActive >= 0 ? `${resultId}-option-${utilityActive}` : undefined }
+                              placeholder="Search city or pincode"
+                              autoComplete="off"
+                              autoCorrect="off"
+                              spellCheck={ false }
+                            />
+                            <VoiceSearchMic ariaLabel={ `Search ${label.toLowerCase()} by voice` } onTranscript={ transcript => onUtilityVoice( slot, transcript ) } />
+                            { utilityOpenSlot === slot && utilityResults.length > 0 && (
+                              <ul className="vl-live-utility-results" id={ resultId } role="listbox" aria-label={ `${label} suggestions` }>
+                                { utilityResults.map( ( result, idx ) => (
+                                  <li
+                                    key={ `${slot}-${result.name}-${result.addr}-${idx}` }
+                                    id={ `${resultId}-option-${idx}` }
+                                    role="option"
+                                    aria-selected={ utilityActive === idx }
+                                    className={ utilityActive === idx ? 'is-active' : '' }
+                                    onPointerDown={ e => { e.preventDefault(); void chooseUtilityPlace( slot, result ); } }
+                                    onMouseEnter={ () => setUtilityActive( idx ) }
+                                  >
+                                    <strong>{ result.name }</strong>{ result.addr && <small>{ result.addr }</small> }
+                                  </li>
+                                ) ) }
+                              </ul>
+                            ) }
+                            { utilityOpenSlot === slot && utilitySearchStatus === 'searching' && <span className="vl-live-sr-only" role="status">Searching places…</span> }
+                            { utilityOpenSlot === slot && utilitySearchStatus === 'no-results' && <span className="vl-live-utility-empty" role="status">Place not found.</span> }
+                            { utilityOpenSlot === slot && utilitySearchStatus === 'unavailable' && <span className="vl-live-utility-empty" role="status">Search unavailable.</span> }
+                          </div>
+                          { selected && (
+                            <>
+                              <strong>{ selected.name }</strong>
+                              <small>{ selected.addr }</small>
+                            </>
+                          ) }
+                        </div>
+                      );
+                    } ) }
+                  </div>
+
+                  <button type="button" className="vl-live-route-swap" onClick={ swapRoutePlaces } aria-label="Swap route places">⇅</button>
+
+                  { routeMode === 'route' ? (
+                    <div className="vl-live-route-result" aria-live="polite">
+                      <button type="button" className="vl-live-route-check" disabled={ !routeFrom || !routeTo || routeLoading } onClick={ () => { void checkRoute(); } }>
+                        { routeLoading ? 'Checking route…' : 'Check route' }
+                      </button>
+                      { routeError && <span>Route is temporarily unavailable.</span> }
+                      { routeResult && (
+                        <>
+                          <strong data-wc-no-translate="true">{ routeDurationLabel( routeResult.durationSeconds ) }</strong>
+                          <b data-wc-no-translate="true">{ routeDistanceLabel( routeResult.distanceMeters ) }</b>
+                          <small>Approximate driving time · traffic not included</small>
+                        </>
+                      ) }
+                    </div>
+                  ) : (
+                    <div className="vl-live-route-result" aria-live="polite">
+                      { routeFrom && routeTo ? (
+                        <>
+                          <strong data-wc-no-translate="true">{ directDistanceKm( routeFrom, routeTo ).toFixed( 1 ) } km</strong>
+                          <small>Straight-line distance · no route request</small>
+                        </>
+                      ) : (
+                        <span>Select both places to compare direct distance.</span>
+                      ) }
+                    </div>
+                  ) }
+                </div>
+              </article>
+            </div>
           </div>
         </section>
       </div>
@@ -4385,8 +4608,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
         .vl-live-tools{margin-top:28px;padding-top:28px;border-top:1px solid var(--hair)}
         .vl-live-tools-layout{display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr);align-items:start;gap:48px}
-        .vl-live-tools-left{min-width:0}
-        .vl-live-tools-right{min-height:1px}
+        .vl-live-tools-left,.vl-live-tools-right{min-width:0}
         .vl-live-tools-head{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:16px}
         .vl-live-tools-head h3{margin:0;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
         .vl-live-tools-head p{max-width:520px;margin:0;color:var(--body);font-size:var(--vl-body-size);font-weight:var(--vl-body-weight);line-height:var(--vl-body-lh);letter-spacing:var(--vl-body-track)}
@@ -4429,6 +4651,18 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-fx-result>strong{color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
         .vl-live-fx-result>small{color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
         .vl-live-fx-result>span{color:var(--muted);font-size:14px;font-weight:600;line-height:1.5}
+        .vl-live-route-pair{display:grid;grid-template-columns:1fr;gap:16px;margin-top:var(--vl-heading-gap)}
+        .vl-live-route-place{display:flex;min-width:0;flex-direction:column;gap:4px}
+        .vl-live-route-place>span{color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+        .vl-live-route-place>strong{overflow:hidden;margin-top:4px;color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.18px;text-overflow:ellipsis;white-space:nowrap}
+        .vl-live-route-place>small{overflow:hidden;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35;text-overflow:ellipsis;white-space:nowrap}
+        .vl-live-route-swap{display:flex;align-items:center;justify-content:center;width:36px;height:36px;margin:12px auto 0;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);font-size:18px;font-weight:800}
+        .vl-live-route-result{display:flex;min-height:112px;flex-direction:column;justify-content:center;gap:6px;margin-top:var(--vl-section-gap);padding-top:var(--vl-section-pad);border-top:1px solid var(--hair)}
+        .vl-live-route-result>strong{color:#000;font-size:28px;font-weight:700;line-height:1.1;letter-spacing:-.45px}
+        .vl-live-route-result>b{color:var(--green);font-size:17px;font-weight:700;line-height:1.25}
+        .vl-live-route-result>small,.vl-live-route-result>span{color:var(--muted);font-size:12px;font-weight:600;line-height:1.45}
+        .vl-live-route-check{align-self:flex-start;min-height:40px;padding:0 16px;border:0;border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:14px;font-weight:750}
+        .vl-live-route-check:disabled{cursor:not-allowed;opacity:.45}
 
         /* ── FLOATING AIR QUALITY CARD ───────────────────────────────────────────────
            A white, rounded, home-system card floating over the full-bleed map's top-left corner,
@@ -4816,8 +5050,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
         @media(max-width:760px){
           .vl-live-tools{margin-top:22px;padding-top:22px}
-          .vl-live-tools-layout{grid-template-columns:1fr;gap:0}
-          .vl-live-tools-right{display:none}
+          .vl-live-tools-layout{grid-template-columns:1fr;gap:28px}
           .vl-live-tools-head p{font-size:17px}
           .vl-live-tool-card{padding:20px}
           .vl-live-world-pair{grid-template-columns:1fr;gap:14px}
