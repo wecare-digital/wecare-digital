@@ -381,7 +381,6 @@ interface LocationTimeState {
 }
 
 type UtilityPlaceSlot = 'world-from' | 'world-to' | 'route-from' | 'route-to';
-type RouteToolMode = 'route' | 'distance';
 
 interface RouteResultState {
   durationSeconds: number;
@@ -1124,7 +1123,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ utilitySearchStatus, setUtilitySearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable'>( 'idle' );
   const [ worldSource, setWorldSource ] = useState<WorldTimeDestination | null>( null );
   const [ worldDestination, setWorldDestination ] = useState<WorldTimeDestination>( DEFAULT_WORLD_TIME_DESTINATION );
-  const [ routeMode, setRouteMode ] = useState<RouteToolMode>( 'route' );
   const [ routeFrom, setRouteFrom ] = useState<PlaceState | null>( null );
   const [ routeTo, setRouteTo ] = useState<PlaceState | null>( null );
   const [ routeResult, setRouteResult ] = useState<RouteResultState | null>( null );
@@ -4408,34 +4406,13 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
             </div>
             <div className="vl-live-tools-right">
               <div className="vl-live-tools-head">
-                <h3>Route &amp; distance</h3>
-                <p>Check driving time or direct distance between two places.</p>
+                <h3>Route</h3>
+                <p>Driving time, driving distance and direct distance for one From → To pair.</p>
               </div>
 
-              <article className="vl-live-tool-card is-route-tool" aria-label="Route and distance tool">
-                <div className="vl-live-tool-toggle" role="tablist" aria-label="Route or distance">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={ routeMode === 'route' }
-                    className={ `vl-live-tool-toggle-btn is-time ${routeMode === 'route' ? 'is-active' : ''}`.trim() }
-                    onClick={ () => setRouteMode( 'route' ) }
-                  >
-                    <i className="vl-live-tool-toggle-dot" aria-hidden="true" />Route
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={ routeMode === 'distance' }
-                    className={ `vl-live-tool-toggle-btn is-currency ${routeMode === 'distance' ? 'is-active' : ''}`.trim() }
-                    onClick={ () => setRouteMode( 'distance' ) }
-                  >
-                    <i className="vl-live-tool-toggle-dot" aria-hidden="true" />Distance
-                  </button>
-                </div>
-
+              <article className="vl-live-tool-card is-route-tool" aria-label="Route tool">
                 <div className="vl-live-tool-panel">
-                  <h4>{ routeMode === 'route' ? 'Plan a route' : 'Direct distance' }</h4>
+                  <h4>From → To</h4>
                   <div className="vl-live-route-pair">
                     { ( [ 'route-from', 'route-to' ] as const ).map( slot => {
                       const selected = slot === 'route-from' ? routeFrom : routeTo;
@@ -4504,41 +4481,37 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                     } ) }
                   </div>
 
-                  { routeMode === 'route' ? (
-                    <div className="vl-live-route-result" aria-live="polite">
-                      <button
-                        type="button"
-                        className="vl-live-route-check"
-                        disabled={ !ROUTE_REQUEST_ENABLED || !routeFrom || !routeTo || routeLoading }
-                        onClick={ () => { void checkRoute(); } }
-                      >
-                        { routeLoading ? 'Checking route…' : 'Check route' }
-                      </button>
-                      { !ROUTE_REQUEST_ENABLED ? (
-                        <span className="vl-live-route-unavailable" role="status">Route is temporarily unavailable.</span>
-                      ) : routeError ? (
-                        <span className="vl-live-route-unavailable" role="status">Route is temporarily unavailable.</span>
-                      ) : null }
-                      { routeResult && (
-                        <>
+                  <div className="vl-live-route-result" aria-live="polite">
+                    <button
+                      type="button"
+                      className="vl-live-route-check"
+                      disabled={ !ROUTE_REQUEST_ENABLED || !routeFrom || !routeTo || routeLoading }
+                      onClick={ () => { void checkRoute(); } }
+                    >
+                      { routeLoading ? 'Checking route…' : 'Check route' }
+                    </button>
+                    { !ROUTE_REQUEST_ENABLED ? (
+                      <span className="vl-live-route-unavailable" role="status">Route is temporarily unavailable.</span>
+                    ) : routeError ? (
+                      <span className="vl-live-route-unavailable" role="status">Route is temporarily unavailable.</span>
+                    ) : null }
+                    { routeResult && routeFrom && routeTo && (
+                      <div className="vl-live-route-metrics">
+                        <div>
+                          <span>Driving time</span>
                           <strong data-wc-no-translate="true">{ routeDurationLabel( routeResult.durationSeconds ) }</strong>
-                          <b data-wc-no-translate="true">{ routeDistanceLabel( routeResult.distanceMeters ) }</b>
-                          <small>Approximate driving time · traffic not included</small>
-                        </>
-                      ) }
-                    </div>
-                  ) : (
-                    <div className="vl-live-route-result" aria-live="polite">
-                      { routeFrom && routeTo ? (
-                        <>
+                        </div>
+                        <div>
+                          <span>Driving distance</span>
+                          <strong data-wc-no-translate="true">{ routeDistanceLabel( routeResult.distanceMeters ) }</strong>
+                        </div>
+                        <div>
+                          <span>Direct distance</span>
                           <strong data-wc-no-translate="true">{ directDistanceKm( routeFrom, routeTo ).toFixed( 1 ) } km</strong>
-                          <small>Straight-line distance · no route request</small>
-                        </>
-                      ) : (
-                        <span>Select both places to compare direct distance.</span>
-                      ) }
-                    </div>
-                  ) }
+                        </div>
+                      </div>
+                    ) }
+                  </div>
                 </div>
               </article>
             </div>
@@ -4670,10 +4643,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-route-place>strong{overflow:hidden;margin-top:4px;color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.18px;text-overflow:ellipsis;white-space:nowrap}
         .vl-live-route-place>small{overflow:hidden;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35;text-overflow:ellipsis;white-space:nowrap}
         .vl-live-route-swap{align-self:center;justify-self:center;display:flex;align-items:center;justify-content:center;width:36px;height:36px;margin-top:30px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);font-size:17px;font-weight:800}
-        .vl-live-route-result{display:flex;min-height:82px;flex-direction:column;justify-content:center;gap:6px;margin-top:var(--vl-section-gap);padding-top:var(--vl-section-pad);border-top:1px solid var(--hair)}
-        .vl-live-route-result>strong{color:#000;font-size:28px;font-weight:700;line-height:1.1;letter-spacing:-.45px}
-        .vl-live-route-result>b{color:var(--green);font-size:17px;font-weight:700;line-height:1.25}
-        .vl-live-route-result>small,.vl-live-route-result>span{color:var(--muted);font-size:12px;font-weight:600;line-height:1.45}
+        .vl-live-route-result{display:flex;min-height:82px;flex-direction:column;justify-content:center;gap:12px;margin-top:var(--vl-section-gap);padding-top:var(--vl-section-pad);border-top:1px solid var(--hair)}
+        .vl-live-route-result>span{color:var(--muted);font-size:12px;font-weight:600;line-height:1.45}
+        .vl-live-route-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+        .vl-live-route-metrics>div{min-width:0;padding:12px 14px;border:1px solid var(--hair);border-radius:14px;background:var(--soft)}
+        .vl-live-route-metrics span{display:block;color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+        .vl-live-route-metrics strong{display:block;overflow:hidden;margin-top:4px;color:#000;font-size:20px;font-weight:700;line-height:1.2;letter-spacing:-.25px;text-overflow:ellipsis;white-space:nowrap}
         .vl-live-route-unavailable{color:var(--status)!important;font-size:13px!important;font-weight:650!important}
         .vl-live-route-check{align-self:flex-start;min-height:40px;padding:0 16px;border:0;border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:14px;font-weight:750}
         .vl-live-route-check:disabled{cursor:not-allowed;opacity:.45}

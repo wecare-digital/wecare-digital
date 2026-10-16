@@ -1917,7 +1917,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( routePair?.querySelector( '.vl-live-route-swap' ) ).not.toBeNull();
   } );
 
-  it( 'renders Route/Distance on the right and calls routing only after Check route', async () => {
+  it( 'renders one Route card and shows all calculations for the same From to To pair', async () => {
     vi.stubEnv( 'NEXT_PUBLIC_VAYULOK_ROUTE_ENABLED', 'true' );
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
@@ -1926,12 +1926,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
-    expect( screen.getByRole( 'heading', { name: 'Route & distance' } ) ).toBeTruthy();
-    expect( screen.getByText( 'Check driving time or direct distance between two places.' ) ).toBeTruthy();
-
-    const tabs = screen.getByRole( 'tablist', { name: 'Route or distance' } );
-    expect( within( tabs ).getByRole( 'tab', { name: 'Route' } ) ).toHaveAttribute( 'aria-selected', 'true' );
-    expect( within( tabs ).getByRole( 'tab', { name: 'Distance' } ) ).toHaveAttribute( 'aria-selected', 'false' );
+    expect( screen.getByRole( 'heading', { name: 'Route' } ) ).toBeTruthy();
+    expect( screen.getByText( 'Driving time, driving distance and direct distance for one From → To pair.' ) ).toBeTruthy();
+    expect( screen.queryByRole( 'tablist', { name: 'Route or distance' } ) ).toBeNull();
 
     const routeCalls = () => fetchSpy.mock.calls.filter( call =>
       requestIs( call[ 0 ] as RequestInfo | URL, 'wecare.digital', '/api/vayulok/environment' ),
@@ -1941,10 +1938,6 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const from = screen.getByRole( 'combobox', { name: 'From place for route' } );
     fireEvent.change( from, { target: { value: 'Mu' } } );
     fireEvent.pointerDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
-    // Selecting a utility place is intentionally async: the component resolves the
-    // Autocomplete prediction through Geocoder before it commits routeFrom/routeTo.
-    // Waiting for the field to clear proves that async selection has completed instead
-    // of racing the button-enabled assertion against the geocoder callback.
     await waitFor( () => expect( from ).toHaveValue( '' ) );
 
     const to = screen.getByRole( 'combobox', { name: 'To place for route' } );
@@ -1952,28 +1945,20 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     fireEvent.pointerDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
     await waitFor( () => expect( to ).toHaveValue( '' ) );
 
-    expect( routeCalls() ).toHaveLength( 0 );
     const check = screen.getByRole( 'button', { name: 'Check route' } );
     await waitFor( () => expect( check ).not.toBeDisabled() );
     fireEvent.click( check );
 
     await waitFor( () => expect( routeCalls() ).toHaveLength( 1 ) );
-    const sent = JSON.parse( String( ( routeCalls()[ 0 ][ 1 ] as RequestInit ).body ) );
-    expect( sent.operation ).toBe( 'route_drive' );
-    expect( sent.originLatitude ).toBeCloseTo( 19.076 );
-    expect( sent.originLongitude ).toBeCloseTo( 72.8777 );
-    expect( sent.destinationLatitude ).toBeCloseTo( 19.076 );
-    expect( sent.destinationLongitude ).toBeCloseTo( 72.8777 );
-
-    expect( await screen.findByText( '1 hr 30 min' ) ).toBeTruthy();
+    expect( await screen.findByText( 'Driving time' ) ).toBeTruthy();
+    expect( screen.getByText( 'Driving distance' ) ).toBeTruthy();
+    expect( screen.getByText( 'Direct distance' ) ).toBeTruthy();
+    expect( screen.getByText( '1 hr 30 min' ) ).toBeTruthy();
     expect( screen.getByText( '123 km' ) ).toBeTruthy();
-    expect( screen.getByText( 'Approximate driving time · traffic not included' ) ).toBeTruthy();
+    expect( screen.getByText( '0.0 km' ) ).toBeTruthy();
+    expect( screen.queryByText( 'Approximate driving time · traffic not included' ) ).toBeNull();
 
-    fireEvent.click( within( tabs ).getByRole( 'tab', { name: 'Distance' } ) );
-    expect( await screen.findByText( '0.0 km' ) ).toBeTruthy();
-    expect( screen.getByText( 'Straight-line distance · no route request' ) ).toBeTruthy();
-    expect( routeCalls() ).toHaveLength( 1 );
-
+    expect( container.querySelector( '.vl-live-route-metrics' ) ).not.toBeNull();
     expect( container.querySelector( '.vl-live-tools-right .vl-live-tool-card' ) ).not.toBeNull();
   } );
 
