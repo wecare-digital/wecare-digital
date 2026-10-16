@@ -424,6 +424,85 @@ def create_blog_post(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     }
 
 
+def update_blog_post(slug: str, body: Dict[str, Any], actor: str,
+                     expected_post_id: str = '') -> Dict[str, Any]:
+    """Revise one existing native blog post in place.
+
+    Published revisions keep the same post id, slug, original publishedAt and URL. This is the
+    safe counterpart to create_blog_post: a caller cannot use it to rename a URL or overwrite a
+    different post that happens to share a lookup value.
+    """
+    wanted = _slugify(str(slug or ''))
+    requested_slug = _slugify(str(body.get('slug') or wanted))
+    if requested_slug != wanted:
+        raise ValueError('a published revision cannot change the post slug')
+
+    rows = [
+        item for item in list_slug_records(wanted)
+        if item.get('recordType') == BLOG_RECORD_TYPE
+    ]
+    if not rows:
+        raise LookupError('Blog post not found')
+    raw = rows[0]
+    expected = str(expected_post_id or '').strip()
+    if expected and str(raw.get('id') or '') != expected:
+        raise ValueError('the live slug belongs to a different post id')
+
+    title = str(body.get('title') or '').strip()
+    content = str(body.get('content') or '').strip()
+    if not title or not content:
+        raise ValueError('title and content required')
+
+    status = str(body.get('status') or raw.get('status') or 'published').strip().lower()
+    if status not in {'draft', 'published'}:
+        raise ValueError('status must be draft or published')
+
+    category = str(body.get('category') or raw.get('category') or '').strip()
+    tags = [str(value).strip() for value in
+            (body.get('tagLabels') or body.get('tags') or []) if str(value).strip()]
+    hashtags = [str(value).lstrip('#').strip() for value in
+                (body.get('hashtags') or []) if str(value).strip()]
+    clean_content = re.sub(r'^#{1,3}\s+', '', content, flags=re.MULTILINE).strip()
+    excerpt = (str(body.get('excerpt') or '').strip()
+               or re.sub(r'\s+', ' ', clean_content)[:220].strip())
+
+    updated_at = now_iso()
+    raw.update({
+        'updatedAt': updated_at,
+        'title': title,
+        'excerpt': excerpt,
+        'content': content,
+        'status': status,
+        'category': category,
+        'tags': tags,
+        'hashtags': hashtags,
+        'coverImage': str(body.get('coverImage') or '').strip(),
+        'authorName': str(body.get('authorName') or raw.get('authorName')
+                          or actor or 'WECARE.DIGITAL').strip(),
+        'seoTitle': str(body.get('seoTitle') or '').strip(),
+        'metaDescription': str(body.get('metaDescription') or '').strip(),
+        'focusKeyword': str(body.get('focusKeyword') or '').strip(),
+        'secondaryKeywords': body.get('secondaryKeywords') or [],
+        'jsonLd': body.get('jsonLd') or {},
+        'robots': str(body.get('robots') or raw.get('robots')
+                      or 'index, follow, max-image-preview:large').strip(),
+        'url': f'{PUBLIC_SITE_URL}/post/{wanted}',
+        'version': int(raw.get('version') or 1) + 1,
+        'updatedBy': actor,
+    })
+    table().put_item(Item=_clean(raw))
+    return {
+        'postId': raw['id'],
+        'slug': wanted,
+        'title': title,
+        'status': status,
+        'url': raw['url'],
+        'version': int(raw['version']),
+        'updatedAt': updated_at,
+        'rebuildRequired': status == 'published',
+    }
+
+
 def clean_blog_post(slug: str, actor: str) -> Dict[str, Any]:
     post = get_blog_post(slug)
     if not post:
