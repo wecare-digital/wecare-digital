@@ -283,6 +283,11 @@ def test_chatgpt_article_write_bridges_into_the_existing_qa_record_shape(prod):
 
     child = bs.get_source(saved["articleWorkId"])
     assert child["recordType"] == "blogArticleWork"
+    assert bs.work_root_for_id(child["id"]) == (
+        f"secure/blog-production/03-work/conversations/{source_id}/")
+    assert bs.work_key_for_id(child["id"], f"qa/{child['id']}/probe.json") == (
+        f"secure/blog-production/03-work/conversations/{source_id}/"
+        f"qa/{child['id']}/probe.json")
     assert child["draftRecord"]["contentMarkdown"]
     assert child["draftRecord"].get("sourceReviewedFully", "") == ""
     assert "gate" not in child["draftRecord"]
