@@ -94,7 +94,7 @@ const FALLBACK_CURRENCY_CODES = [
   'CNY', 'KRW', 'THB', 'NZD', 'BRL', 'ZAR', 'SAR', 'IDR', 'MYR', 'HKD',
 ];
 
-const CURRENCY_CODES = ( () => {
+function supportedCurrencyCodes(): string[] {
   try {
     const values = ( Intl as unknown as { supportedValuesOf?: ( key: string ) => string[] } ).supportedValuesOf?.( 'currency' );
     if ( Array.isArray( values ) && values.length ) {
@@ -103,9 +103,7 @@ const CURRENCY_CODES = ( () => {
     }
   } catch { /* use the compact fallback list */ }
   return FALLBACK_CURRENCY_CODES;
-} )();
-
-const CURRENCY_CODE_SET = new Set( CURRENCY_CODES );
+}
 const REGION_CURRENCY_CODE: Record<string, string> = {
   IN: 'INR', US: 'USD', GB: 'GBP', AE: 'AED', JP: 'JPY', SG: 'SGD', AU: 'AUD', CA: 'CAD',
   CH: 'CHF', CN: 'CNY', KR: 'KRW', TH: 'THB', NZ: 'NZD', BR: 'BRL', ZA: 'ZAR', SA: 'SAR',
@@ -1191,7 +1189,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ mapCandidate, setMapCandidate ] = useState<PlaceState | null>( null );
   const [ addressDescriptor, setAddressDescriptor ] = useState( '' );
   const [ locationTime, setLocationTime ] = useState<LocationTimeState>( DEFAULT_LOCATION_TIME );
-  const [ clockNow, setClockNow ] = useState( () => Date.now() );
+  // Static export and the first browser render must agree. Advance to the real clock immediately
+  // after hydration; live time continues to refresh every 30 seconds.
+  const [ clockNow, setClockNow ] = useState( 0 );
 
   // Search combobox state.
   const [ query, setQuery ] = useState( '' );
@@ -1218,6 +1218,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ fxQuote, setFxQuote ] = useState( 'GBP' );
   const [ fxBaseInput, setFxBaseInput ] = useState( 'INR' );
   const [ fxQuoteInput, setFxQuoteInput ] = useState( 'GBP' );
+  // Node and browsers can expose different Intl currency tables. Render the stable fallback list
+  // first, then expand it after mount so the datalist cannot trigger a hydration mismatch.
+  const [ currencyCodes, setCurrencyCodes ] = useState<string[]>( FALLBACK_CURRENCY_CODES );
+  const currencyCodeSet = useMemo( () => new Set( currencyCodes ), [ currencyCodes ] );
   const [ fxFromPlace, setFxFromPlace ] = useState<PlaceState | null>( null );
   const [ fxToPlace, setFxToPlace ] = useState<PlaceState>( DEFAULT_FX_TO_PLACE );
   const [ fxRate, setFxRate ] = useState<FxRateState | null>( null );
@@ -1277,6 +1281,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const timeZoneCache = useRef<Record<string, LocationTimeState>>( {} );
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
   const utilitySearchTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
+  const utilitySearchSeqRef = useRef( 0 );
   const utilityAutocompleteTokenRef = useRef<unknown>( null );
   const fxRateCache = useRef<Record<string, FxRateState>>( {} );
   const fxRequestSeqRef = useRef( 0 );
@@ -1301,6 +1306,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ activeAlertBoundaryId, setActiveAlertBoundaryId ] = useState<string | null>( null );
 
   useEffect( () => {
+    setClockNow( Date.now() );
+    setCurrencyCodes( supportedCurrencyCodes() );
     const timer = window.setInterval( () => setClockNow( Date.now() ), 30_000 );
     return () => window.clearInterval( timer );
   }, [] );
@@ -2524,6 +2531,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
 
   const runUtilityPlaceSearch = useCallback( async ( slot: UtilityPlaceSlot, text: string ) => {
+    const seq = ++utilitySearchSeqRef.current;
     const input = text.trim();
     if ( !MAPS_KEY || input.length < WORLD_SEARCH_MIN_CHARS ) {
       setUtilityResults( [] );
@@ -2532,15 +2540,23 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       setUtilitySearchStatus( 'idle' );
       return;
     }
+
+    // Keep ownership on the field that launched the request so searching/no-result/error status
+    // is announced beside the correct control. aria-expanded remains tied to actual results.
+    setUtilityResults( [] );
+    setUtilityOpenSlot( slot );
+    setUtilityActive( -1 );
     setUtilitySearchStatus( 'searching' );
+
     const lib = await ensurePlacesLibrary();
+    if ( seq !== utilitySearchSeqRef.current ) return;
     const Auto = lib?.AutocompleteSuggestion as {
       fetchAutocompleteSuggestions?: ( req: Record<string, unknown> ) => Promise<{ suggestions?: unknown[] }>;
     } | undefined;
     const Token = lib?.AutocompleteSessionToken as ( new () => unknown ) | undefined;
     if ( !Auto?.fetchAutocompleteSuggestions || !Token ) {
       setUtilityResults( [] );
-      setUtilityOpenSlot( null );
+      setUtilityOpenSlot( slot );
       setUtilityActive( -1 );
       setUtilitySearchStatus( 'unavailable' );
       return;
@@ -2551,6 +2567,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         input,
         sessionToken: utilityAutocompleteTokenRef.current,
       } );
+      if ( seq !== utilitySearchSeqRef.current ) return;
       const mapped: SearchResult[] = ( Array.isArray( out?.suggestions ) ? out.suggestions : [] )
         .map( suggestion => {
           const prediction = ( suggestion as { placePrediction?: SearchResult['prediction'] & {
@@ -2572,12 +2589,13 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .slice( 0, 6 ) as SearchResult[];
       setUtilityResults( mapped );
       setUtilityActive( mapped.length ? 0 : -1 );
-      setUtilityOpenSlot( mapped.length ? slot : null );
+      setUtilityOpenSlot( slot );
       setUtilitySearchStatus( mapped.length ? 'idle' : 'no-results' );
     } catch {
+      if ( seq !== utilitySearchSeqRef.current ) return;
       utilityAutocompleteTokenRef.current = null;
       setUtilityResults( [] );
-      setUtilityOpenSlot( null );
+      setUtilityOpenSlot( slot );
       setUtilityActive( -1 );
       setUtilitySearchStatus( 'unavailable' );
     }
@@ -2654,6 +2672,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   }, [] );
 
   const onUtilityQueryChange = ( slot: UtilityPlaceSlot, value: string ) => {
+    ++utilitySearchSeqRef.current;
     setUtilityQueries( current => ( { ...current, [ slot ]: value } ) );
     if ( utilitySearchTimer.current ) clearTimeout( utilitySearchTimer.current );
     const trimmed = value.trim();
@@ -2715,6 +2734,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
 
   const chooseUtilityPlace = useCallback( async ( slot: UtilityPlaceSlot, result: SearchResult ) => {
+    ++utilitySearchSeqRef.current;
     const resolved = await resolveUtilityPlace( result );
     if ( !resolved ) {
       setUtilitySearchStatus( 'unavailable' );
@@ -2741,7 +2761,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       const mappedCurrency = currencyForRegion( resolved.regionCode );
       if ( slot === 'fx-from' ) {
         setFxFromPlace( resolved );
-        if ( mappedCurrency && CURRENCY_CODE_SET.has( mappedCurrency ) ) {
+        if ( mappedCurrency && currencyCodeSet.has( mappedCurrency ) ) {
           setFxBase( mappedCurrency );
           setFxBaseInput( mappedCurrency );
           setFxRate( null );
@@ -2749,7 +2769,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         }
       } else {
         setFxToPlace( resolved );
-        if ( mappedCurrency && CURRENCY_CODE_SET.has( mappedCurrency ) ) {
+        if ( mappedCurrency && currencyCodeSet.has( mappedCurrency ) ) {
           setFxQuote( mappedCurrency );
           setFxQuoteInput( mappedCurrency );
           setFxRate( null );
@@ -2764,10 +2784,11 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     setUtilityActive( -1 );
     setUtilitySearchStatus( 'idle' );
     utilityAutocompleteTokenRef.current = null;
-  }, [ fxBase, fxQuote, loadFxRate, resolveUtilityPlace, resolveUtilityTimeZone ] );
+  }, [ currencyCodeSet, fxBase, fxQuote, loadFxRate, resolveUtilityPlace, resolveUtilityTimeZone ] );
 
   const onUtilityKeyDown = ( slot: UtilityPlaceSlot, e: React.KeyboardEvent<HTMLInputElement> ) => {
     if ( e.key === 'Escape' ) {
+      ++utilitySearchSeqRef.current;
       setUtilityOpenSlot( null );
       setUtilitySearchStatus( 'idle' );
       return;
@@ -2822,7 +2843,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     const normalized = value.toUpperCase().replace( /[^A-Z]/g, '' ).slice( 0, 3 );
     if ( side === 'base' ) setFxBaseInput( normalized );
     else setFxQuoteInput( normalized );
-    if ( !CURRENCY_CODE_SET.has( normalized ) ) return;
+    if ( !currencyCodeSet.has( normalized ) ) return;
 
     if ( side === 'base' ) {
       setFxBase( normalized );
@@ -2836,8 +2857,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   };
 
   const normalizeCurrencyInput = ( side: 'base' | 'quote' ) => {
-    if ( side === 'base' && !CURRENCY_CODE_SET.has( fxBaseInput ) ) setFxBaseInput( fxBase );
-    if ( side === 'quote' && !CURRENCY_CODE_SET.has( fxQuoteInput ) ) setFxQuoteInput( fxQuote );
+    if ( side === 'base' && !currencyCodeSet.has( fxBaseInput ) ) setFxBaseInput( fxBase );
+    if ( side === 'quote' && !currencyCodeSet.has( fxQuoteInput ) ) setFxQuoteInput( fxQuote );
   };
 
   const runSearch = useCallback( async ( text: string ) => {
@@ -3406,12 +3427,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       : 'India Standard Time default while Google Time Zone is unavailable or loading' }
                   >
                     <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
-                    {/* clockNow is seeded from Date.now() at render, so the value baked into the
-                        static export (build time) differs from the client's value at hydration -
-                        an unavoidable, benign server/client difference React otherwise reports as
-                        hydration error #418. suppressHydrationWarning tells React to accept the
-                        client value for this node (both the dateTime and the text derive from
-                        clockNow), which is the intended mechanism for live timestamps. */}
+                    {/* The first render uses a deterministic epoch so static export and hydration
+                        agree; the mount effect immediately advances to the real clock. Suppression
+                        remains a narrow defensive guard for subsequent live timestamp updates. */}
                     <span className="vl-live-local-datetime">
                       <time dateTime={ new Date( clockNow ).toISOString() } suppressHydrationWarning>{ locationClock }</time>
                       <small suppressHydrationWarning>{ locationDate } · { locationZoneLabel }</small>
@@ -4294,7 +4312,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       onKeyDown={ e => onUtilityKeyDown( 'world-from', e ) }
                       aria-label="World time from place"
                       aria-controls="vl-live-world-from-results"
-                      aria-expanded={ utilityOpenSlot === 'world-from' }
+                      aria-autocomplete="list"
+                      aria-expanded={ utilityOpenSlot === 'world-from' && utilityResults.length > 0 }
                       aria-activedescendant={ utilityOpenSlot === 'world-from' && utilityActive >= 0 ? `vl-live-world-from-option-${utilityActive}` : undefined }
                       placeholder="Search city or pincode"
                       autoComplete="off"
@@ -4317,8 +4336,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                   </div>
                   <strong>{ worldFrom.name }</strong>
                   <small className="vl-live-place-selection">{ worldFrom.addr }</small>
-                  <b data-wc-no-translate="true">{ worldFrom.clock } · { worldFrom.zone }</b>
-                  <small data-wc-no-translate="true">{ worldFrom.date }</small>
+                  <b data-wc-no-translate="true" suppressHydrationWarning>{ worldFrom.clock } · { worldFrom.zone }</b>
+                  <small data-wc-no-translate="true" suppressHydrationWarning>{ worldFrom.date }</small>
                 </div>
 
                 <button type="button" className="vl-live-tool-swap" onClick={ swapWorldPlaces } aria-label="Swap displayed time zones">⇅</button>
@@ -4339,7 +4358,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       onKeyDown={ e => onUtilityKeyDown( 'world-to', e ) }
                       aria-label="World time to place"
                       aria-controls="vl-live-world-to-results"
-                      aria-expanded={ utilityOpenSlot === 'world-to' }
+                      aria-autocomplete="list"
+                      aria-expanded={ utilityOpenSlot === 'world-to' && utilityResults.length > 0 }
                       aria-activedescendant={ utilityOpenSlot === 'world-to' && utilityActive >= 0 ? `vl-live-world-to-option-${utilityActive}` : undefined }
                       placeholder="Search city or pincode"
                       autoComplete="off"
@@ -4362,8 +4382,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                   </div>
                   <strong>{ worldTo.name }</strong>
                   <small className="vl-live-place-selection">{ worldTo.addr }</small>
-                  <b data-wc-no-translate="true">{ worldTo.clock } · { worldTo.zone }</b>
-                  <small data-wc-no-translate="true">{ worldTo.date }</small>
+                  <b data-wc-no-translate="true" suppressHydrationWarning>{ worldTo.clock } · { worldTo.zone }</b>
+                  <small data-wc-no-translate="true" suppressHydrationWarning>{ worldTo.date }</small>
                 </div>
               </div>
             </article>
@@ -4413,7 +4433,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       onKeyDown={ e => onUtilityKeyDown( 'fx-from', e ) }
                       aria-label="Currency from place"
                       aria-controls="vl-live-fx-from-results"
-                      aria-expanded={ utilityOpenSlot === 'fx-from' }
+                      aria-autocomplete="list"
+                      aria-expanded={ utilityOpenSlot === 'fx-from' && utilityResults.length > 0 }
                       aria-activedescendant={ utilityOpenSlot === 'fx-from' && utilityActive >= 0 ? `vl-live-fx-from-option-${utilityActive}` : undefined }
                       placeholder="Search city or pincode"
                       autoComplete="off"
@@ -4430,7 +4451,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         ) ) }
                       </ul>
                     ) }
+                    { utilityOpenSlot === 'fx-from' && utilitySearchStatus === 'searching' && <span className="vl-live-sr-only" role="status">Searching places…</span> }
                     { utilityOpenSlot === 'fx-from' && utilitySearchStatus === 'no-results' && <span className="vl-live-utility-empty" role="status">Place not found.</span> }
+                    { utilityOpenSlot === 'fx-from' && utilitySearchStatus === 'unavailable' && <span className="vl-live-utility-empty" role="status">Search unavailable.</span> }
                   </div>
                   <strong className="vl-live-fx-place-name">{ fxFromDisplayPlace.name }</strong>
                   <small className="vl-live-place-selection">{ fxFromDisplayPlace.addr }</small>
@@ -4468,7 +4491,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       onKeyDown={ e => onUtilityKeyDown( 'fx-to', e ) }
                       aria-label="Currency to place"
                       aria-controls="vl-live-fx-to-results"
-                      aria-expanded={ utilityOpenSlot === 'fx-to' }
+                      aria-autocomplete="list"
+                      aria-expanded={ utilityOpenSlot === 'fx-to' && utilityResults.length > 0 }
                       aria-activedescendant={ utilityOpenSlot === 'fx-to' && utilityActive >= 0 ? `vl-live-fx-to-option-${utilityActive}` : undefined }
                       placeholder="Search city or pincode"
                       autoComplete="off"
@@ -4485,7 +4509,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         ) ) }
                       </ul>
                     ) }
+                    { utilityOpenSlot === 'fx-to' && utilitySearchStatus === 'searching' && <span className="vl-live-sr-only" role="status">Searching places…</span> }
                     { utilityOpenSlot === 'fx-to' && utilitySearchStatus === 'no-results' && <span className="vl-live-utility-empty" role="status">Place not found.</span> }
+                    { utilityOpenSlot === 'fx-to' && utilitySearchStatus === 'unavailable' && <span className="vl-live-utility-empty" role="status">Search unavailable.</span> }
                   </div>
                   <strong className="vl-live-fx-place-name">{ fxToDisplayPlace.name }</strong>
                   <small className="vl-live-place-selection">{ fxToDisplayPlace.addr }</small>
@@ -4507,7 +4533,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
               </div>
 
               <datalist id="vl-live-currency-codes">
-                { CURRENCY_CODES.map( code => <option key={ code } value={ code } /> ) }
+                { currencyCodes.map( code => <option key={ code } value={ code } /> ) }
               </datalist>
 
               <div className="vl-live-fx-result" aria-live="polite">
