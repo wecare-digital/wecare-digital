@@ -262,6 +262,9 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
                   />
                 ) }
                 <span className="shop-card-name">{ listing.name }</span>
+                { listing.sku && (
+                  <span className="shop-card-sku" data-wc-no-translate="true">SKU: { listing.sku }</span>
+                ) }
                 <span className="shop-card-tag">{ listing.blurb }</span>
                 { ( listing.formattedPrice || listing.inStock === false ) && (
                   <span className="shop-card-foot">
@@ -390,6 +393,10 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
              height of its row. */
           .shop-card-name{
             font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:#000;
+          }
+          .shop-card-sku{
+            font-size:13px;font-weight:700;line-height:1.3;letter-spacing:.04em;
+            color:rgba(0,0,0,.54);text-transform:uppercase;
           }
           .shop-card-tag{
             font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;
