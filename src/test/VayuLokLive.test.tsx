@@ -1890,6 +1890,27 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( css ).toContain( 'font-size:var(--vl-body-size)' );
   } );
 
+  it( 'keeps Route/Distance equal to the left tool card and fails route closed while backend is unavailable', async () => {
+    vi.stubEnv( 'NEXT_PUBLIC_VAYULOK_ROUTE_ENABLED', 'false' );
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    expect( screen.getByRole( 'status', { name: '' } ).textContent ).toContain( 'Route is temporarily unavailable.' );
+    expect( screen.getByRole( 'button', { name: 'Check route' } ) ).toBeDisabled();
+
+    const leftCard = container.querySelector( '.vl-live-tools-left .vl-live-tool-card' );
+    const rightCard = container.querySelector( '.vl-live-tools-right .vl-live-tool-card' );
+    expect( leftCard ).not.toBeNull();
+    expect( rightCard ).not.toBeNull();
+
+    const css = Array.from( container.querySelectorAll( 'style' ) ).map( style => style.textContent || '' ).join( '\n' );
+    expect( css ).toContain( 'grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch' );
+    expect( css ).toContain( '.vl-live-tool-card{position:relative;min-width:0;flex:1;padding:24px' );
+  } );
+
   it( 'renders Route/Distance on the right and calls routing only after Check route', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );

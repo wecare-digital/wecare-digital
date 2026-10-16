@@ -86,6 +86,7 @@ const SEARCH_DEBOUNCE_MS = 120;
 const WORLD_SEARCH_DEBOUNCE_MS = 65;
 const WORLD_SEARCH_MIN_CHARS = 2;
 const FX_API_BASE = 'https://api.frankfurter.dev/v2';
+const ROUTE_REQUEST_ENABLED = process.env.NEXT_PUBLIC_VAYULOK_ROUTE_ENABLED === 'true';
 const FX_RATE_TTL_MS = 6 * 60 * 60 * 1000;
 
 const FALLBACK_CURRENCY_CODES = [
@@ -2824,7 +2825,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   };
 
   const checkRoute = async () => {
-    if ( !routeFrom || !routeTo || routeLoading ) return;
+    if ( !ROUTE_REQUEST_ENABLED || !routeFrom || !routeTo || routeLoading ) return;
     setRouteLoading( true );
     setRouteError( false );
     setRouteResult( null );
@@ -4163,7 +4164,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                 <p>Compare time zones and reference exchange rates.</p>
               </div>
 
-              <article className="vl-live-tool-card" aria-label="Time and currency tools">
+              <article className="vl-live-tool-card is-primary-tool" aria-label="Time and currency tools">
               <div className="vl-live-tool-toggle" role="tablist" aria-label="Local time or currency">
                 <button
                   type="button"
@@ -4411,7 +4412,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                 <p>Check driving time or direct distance between two places.</p>
               </div>
 
-              <article className="vl-live-tool-card" aria-label="Route and distance tool">
+              <article className="vl-live-tool-card is-route-tool" aria-label="Route and distance tool">
                 <div className="vl-live-tool-toggle" role="tablist" aria-label="Route or distance">
                   <button
                     type="button"
@@ -4502,10 +4503,19 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
                   { routeMode === 'route' ? (
                     <div className="vl-live-route-result" aria-live="polite">
-                      <button type="button" className="vl-live-route-check" disabled={ !routeFrom || !routeTo || routeLoading } onClick={ () => { void checkRoute(); } }>
+                      <button
+                        type="button"
+                        className="vl-live-route-check"
+                        disabled={ !ROUTE_REQUEST_ENABLED || !routeFrom || !routeTo || routeLoading }
+                        onClick={ () => { void checkRoute(); } }
+                      >
                         { routeLoading ? 'Checking route…' : 'Check route' }
                       </button>
-                      { routeError && <span>Route is temporarily unavailable.</span> }
+                      { !ROUTE_REQUEST_ENABLED ? (
+                        <span className="vl-live-route-unavailable" role="status">Route is temporarily unavailable.</span>
+                      ) : routeError ? (
+                        <span className="vl-live-route-unavailable" role="status">Route is temporarily unavailable.</span>
+                      ) : null }
                       { routeResult && (
                         <>
                           <strong data-wc-no-translate="true">{ routeDurationLabel( routeResult.durationSeconds ) }</strong>
@@ -4607,12 +4617,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-map-region{min-width:0}
 
         .vl-live-tools{margin-top:28px;padding-top:28px;border-top:1px solid var(--hair)}
-        .vl-live-tools-layout{display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr);align-items:start;gap:48px}
-        .vl-live-tools-left,.vl-live-tools-right{min-width:0}
+        .vl-live-tools-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:48px}
+        .vl-live-tools-left,.vl-live-tools-right{display:flex;min-width:0;flex-direction:column}
         .vl-live-tools-head{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:16px}
         .vl-live-tools-head h3{margin:0;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
         .vl-live-tools-head p{max-width:520px;margin:0;color:var(--body);font-size:var(--vl-body-size);font-weight:var(--vl-body-weight);line-height:var(--vl-body-lh);letter-spacing:var(--vl-body-track)}
-        .vl-live-tool-card{position:relative;min-width:0;padding:24px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;filter:drop-shadow(0 8px 18px rgba(26,58,42,.06))}
+        .vl-live-tool-card{position:relative;min-width:0;flex:1;padding:24px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;filter:drop-shadow(0 8px 18px rgba(26,58,42,.06))}
         .vl-live-tool-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
         .vl-live-tool-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:16px;font-weight:700;letter-spacing:-.15px}
         .vl-live-tool-toggle-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:rgba(26,58,42,.3)}
@@ -4661,6 +4671,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-route-result>strong{color:#000;font-size:28px;font-weight:700;line-height:1.1;letter-spacing:-.45px}
         .vl-live-route-result>b{color:var(--green);font-size:17px;font-weight:700;line-height:1.25}
         .vl-live-route-result>small,.vl-live-route-result>span{color:var(--muted);font-size:12px;font-weight:600;line-height:1.45}
+        .vl-live-route-unavailable{color:var(--status)!important;font-size:13px!important;font-weight:650!important}
         .vl-live-route-check{align-self:flex-start;min-height:40px;padding:0 16px;border:0;border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:14px;font-weight:750}
         .vl-live-route-check:disabled{cursor:not-allowed;opacity:.45}
 
@@ -5050,7 +5061,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
         @media(max-width:760px){
           .vl-live-tools{margin-top:22px;padding-top:22px}
-          .vl-live-tools-layout{grid-template-columns:1fr;gap:28px}
+          .vl-live-tools-layout{grid-template-columns:1fr;align-items:start;gap:28px}
           .vl-live-tools-head p{font-size:17px}
           .vl-live-tool-card{padding:20px}
           .vl-live-world-pair{grid-template-columns:1fr;gap:14px}
