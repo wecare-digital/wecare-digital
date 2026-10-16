@@ -445,7 +445,7 @@ const Header: React.FC = () => {
               aria-keyshortcuts="Enter Space Escape"
               onClick={ () => { if ( open ) close(); else { setOpen( true ); setQuery( '' ); } } }
             >
-              <span className="nav-arrow" aria-hidden="true" />
+              <span className="nav-trigger-icon" aria-hidden="true">keyboard_arrow_down</span>
             </button>
             <nav className={ `nav-menu ${open ? 'open' : ''}` } aria-label="Public navigation">
               {/* Not autofocused. The language panel autofocuses its search because
@@ -556,14 +556,7 @@ const Header: React.FC = () => {
                                         tabIndex={ showProductsMore ? 0 : -1 }
                                         onClick={ scrollProductsForward }
                                       >
-                                        <svg
-                                          className="nav-products-more-icon"
-                                          viewBox="0 -960 960 960"
-                                          aria-hidden="true"
-                                          focusable="false"
-                                        >
-                                          <path d="M480-200 240-440l42-42 198 198 198-198 42 42-240 240Zm0-253L240-693l42-42 198 198 198-198 42 42-240 240Z" />
-                                        </svg>
+                                        <span className="nav-products-more-icon" aria-hidden="true">keyboard_double_arrow_down</span>
                                       </button>
                                     </div>
                                   ) }
@@ -729,8 +722,8 @@ const Header: React.FC = () => {
 
            NO LINES HERE, deliberately: a three-line burger was mocked in round one
            (docs/menu-mock/a4-three-lines.png) and the owner kept the chevron. */
-        .nav-arrow{width:8px;height:8px;box-sizing:border-box;margin:0;border-right:3px solid #1a3a2a;border-bottom:3px solid #1a3a2a;opacity:1;transform:translateY(-2px) rotate(45deg);transition:transform .2s,border-color .18s ease,opacity .18s ease}
-        .nav-trigger[aria-expanded='true'] .nav-arrow{transform:translateY(2px) rotate(225deg)}
+        .nav-trigger-icon{display:block;margin:0;color:#1a3a2a;font-family:'Material Symbols Rounded';font-weight:600;font-style:normal;font-size:27px;line-height:1;letter-spacing:normal;text-transform:none;white-space:nowrap;word-wrap:normal;direction:ltr;font-feature-settings:'liga';font-variation-settings:'FILL' 0,'wght' 600,'GRAD' 0,'opsz' 24;transform:rotate(0deg);transition:transform .2s}
+        .nav-trigger[aria-expanded='true'] .nav-trigger-icon{transform:rotate(180deg)}
 
         /* MEGA PANEL.
            WIDTH IS 760px, NOT THE PAGE MEASURE. It was first built at the site's
@@ -798,7 +791,7 @@ const Header: React.FC = () => {
            NO BACKTICKS IN THIS COMMENT: it sits inside a styled-jsx template literal, and a
            single backtick closes it - turning the rest of the stylesheet into JSX and failing
            the build hundreds of lines later with an unrelated-looking "Unexpected token". */
-        .nav-menu{--nav-menu-inset:0px;position:absolute;top:calc(100% + 8px);left:var(--nav-menu-inset);right:auto;z-index:1002;width:min(760px,calc(100vw - 256px));max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - env(safe-area-inset-bottom, 0px));overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;background:#fcfdfb;border:1px solid #e5e7eb;border-top:3px solid #d1f470;border-radius:14px;padding:14px;opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .2s,transform .2s,visibility 0s linear .2s;box-shadow:0 8px 28px rgba(0,0,0,.10)}
+        .nav-menu{--nav-menu-inset:0px;position:absolute;top:calc(100% + 8px);left:var(--nav-menu-inset);right:auto;z-index:1002;width:min(760px,calc(100vw - 256px));max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - env(safe-area-inset-bottom, 0px));overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;background:#fcfdfb;border:0;border-radius:14px;padding:14px;opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .2s,transform .2s,visibility 0s linear .2s;box-shadow:0 8px 28px rgba(0,0,0,.10)}
         .nav-menu.open{opacity:1;visibility:visible;transform:translateY(0);transition:opacity .2s,transform .2s,visibility 0s}
 
         /* Search field. Sized off the language panel's input rather than a new set of
@@ -880,12 +873,12 @@ const Header: React.FC = () => {
            floating over it, so product names can never sit underneath the affordance.
            The button keeps a 44px interaction target while the visible icon stays only 24px.
            There is no pill, circle, label or shadow: just the double chevron. */
-        .nav-products-cue-row{height:44px;display:flex;align-items:center;justify-content:center;flex:0 0 44px}
+        .nav-products-cue-row{height:44px;display:flex;align-items:center;justify-content:flex-end;flex:0 0 44px;padding-inline-end:4px;box-sizing:border-box}
         .nav-products-cue-row.is-hidden{visibility:hidden;pointer-events:none}
-        .nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:0;border-radius:10px;background:transparent;color:#78921e;cursor:pointer}
-        .nav-products-more:hover{color:#1a3a2a}
+        .nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:#d1f470;color:#1a3a2a;cursor:pointer;transition:background-color .18s ease,color .18s ease}
+        .nav-products-more:hover{background:#1a3a2a;color:#d1f470}
         .nav-products-more:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 5px #1a3a2a}
-        .nav-products-more-icon{display:block;width:24px;height:24px;fill:currentColor}
+        .nav-products-more-icon{display:block;font-family:'Material Symbols Rounded';font-weight:600;font-style:normal;font-size:26px;line-height:1;letter-spacing:normal;text-transform:none;white-space:nowrap;word-wrap:normal;direction:ltr;font-feature-settings:'liga';font-variation-settings:'FILL' 0,'wght' 600,'GRAD' 0,'opsz' 24}
         /* The Customer service heading is a link, so it needs an affordance the plain
            headings do not have - without one it looks like the same inert label. */
         .nav-group-link{color:#1a3a2a;text-decoration:none;border-radius:8px}
@@ -988,7 +981,7 @@ const Header: React.FC = () => {
 
         @media(prefers-reduced-motion:reduce){
           .nav-menu{transition:none}
-          .nav-arrow{transition:none}
+          .nav-trigger-icon{transition:none}
         }
       `}</style>
     </header>

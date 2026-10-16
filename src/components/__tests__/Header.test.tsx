@@ -385,22 +385,19 @@ describe( 'Header', () => {
     expect( css ).toContain( '.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto' );
   } );
 
-  it( 'keeps the Products continuation cue in its own row with the supplied Google double-chevron', () => {
+  it( 'right-aligns the Products continuation cue and uses the Google double-arrow icon', () => {
     const { container } = render( <Header /> );
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
 
-    expect( css ).toContain( '.nav-products-cue-row{height:44px;display:flex;align-items:center;justify-content:center;flex:0 0 44px}' );
+    expect( css ).toContain( '.nav-products-cue-row{height:44px;display:flex;align-items:center;justify-content:flex-end;flex:0 0 44px;padding-inline-end:4px' );
     expect( css ).toContain( '.nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px' );
-    expect( css ).toContain( '.nav-products-more-icon{display:block;width:24px;height:24px;fill:currentColor}' );
-    expect( css ).toContain( 'color:#78921e' );
-    expect( css ).toContain( '.nav-products-more:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 5px #1a3a2a}' );
+    expect( css ).toContain( 'border-radius:50%;background:#d1f470;color:#1a3a2a' );
+    expect( css ).toContain( '.nav-products-more:hover{background:#1a3a2a;color:#d1f470}' );
+    expect( css ).toContain( "font-family:'Material Symbols Rounded'" );
     expect( css ).toContain( '.nav-products-cue-row{display:none}' );
     expect( css ).not.toContain( '.nav-products-more{position:absolute' );
     expect( css ).not.toContain( 'More products' );
 
-    // The cue is intentionally desktop-only and conditional on measured overflow.
-    // The shared jsdom matchMedia shim returns false for every query, so opt this test
-    // into the desktop branch before opening the menu and provide real scroll geometry.
     const matchMedia = vi.spyOn( window, 'matchMedia' ).mockImplementation( query => ( {
       media: query,
       matches: query.includes( 'min-width: 768px' ),
@@ -426,7 +423,7 @@ describe( 'Header', () => {
     try {
       fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
       const cue = screen.getByRole( 'button', { name: 'Scroll to more products' } );
-      expect( cue.innerHTML ).toContain( 'M480-200 240-440l42-42 198 198 198-198 42 42-240 240' );
+      expect( cue.textContent ).toBe( 'keyboard_double_arrow_down' );
     } finally {
       matchMedia.mockRestore();
       if ( scrollHeight ) Object.defineProperty( HTMLElement.prototype, 'scrollHeight', scrollHeight );
@@ -508,41 +505,19 @@ describe( 'Header', () => {
     expect( css.replace( /\/\*[\s\S]*?\*\//g, '' ) )
       .not.toContain( 'border-right-color:#d1f470' );
 
-    // The dropdown control is a CSS-drawn chevron, not a text triangle. The old
-    // literal glyph rendered nothing but a font character, so its shape and
-    // weight varied by platform; two borders on a rotated box do not.
-    const trigger = container.querySelector( 'button' );
-    const arrow = container.querySelector( 'button span' );
-    expect( trigger?.textContent ).toBe( '' );
-    expect( container.textContent ).not.toContain( '▼' );
-    expect( arrow ).not.toBeNull();
-    expect( arrow?.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
+    // The main dropdown control now uses the Google Material keyboard_arrow_down glyph.
+    const trigger = screen.getByRole( 'button', { name: 'Open navigation' } );
+    const triggerIcon = trigger.querySelector( '.nav-trigger-icon' );
+    expect( triggerIcon ).not.toBeNull();
+    expect( triggerIcon?.textContent ).toBe( 'keyboard_arrow_down' );
+    expect( triggerIcon?.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
+    expect( css ).toContain( ".nav-trigger-icon{display:block;margin:0;color:#1a3a2a;font-family:'Material Symbols Rounded'" );
+    expect( css ).toContain( ".nav-trigger[aria-expanded='true'] .nav-trigger-icon{transform:rotate(180deg)}" );
+    expect( css.replace( /\/\*[\s\S]*?\*\//g, '' ) ).not.toContain( '.nav-arrow{' );
 
-    // Drawn with two 3px WECARE.DIGITAL dark-green borders on an 8px border-box, rotated 45deg,
-    // at full opacity. margin:0 defeats the global .nav-arrow{margin-left:auto} in Layout.css,
-    // which would otherwise push it off centre.
-    //
-    // 3px, NOT 2.5px, AND THE FRACTION IS THE WHOLE POINT. This previously asserted 2.5px, with
-    // a comment saying the strokes had been bumped from 2px so the chevron would stop reading as
-    // a hairline. Measured on the built page at devicePixelRatio 1,
-    // getComputedStyle('.nav-arrow').borderRightWidth was 2px: a 2.5px border rounds down on a
-    // 1x display, so the thickening existed in the stylesheet and nowhere else, and the test
-    // pinned it as though it had worked. That is the same defect as the imperceptible hover tint
-    // above - an assertion on a declared value that never reached a pixel.
-    //
-    // A whole 3px cannot be rounded away, which is why the fix is not another fraction. The
-    // .85 opacity is gone too: it was softening the one element that carries the meaning.
-    expect( css ).toContain( '.nav-arrow{width:8px;height:8px;box-sizing:border-box;margin:0' );
-    expect( css ).toContain( 'border-right:3px solid #1a3a2a' );
-    expect( css ).toContain( 'border-bottom:3px solid #1a3a2a' );
-    expect( css ).toContain( 'opacity:1;transform:translateY(-2px) rotate(45deg)' );
-    // No fractional stroke anywhere on this glyph, or the rounding trap comes back.
-    expect( css.replace( /\/\*[\s\S]*?\*\//g, '' ) ).not.toContain( '2.5px solid' );
-    expect( css ).toContain( 'transform:translateY(-2px) rotate(45deg)' );
-
-    // Open state is an exact 180deg flip of the shape (45 -> 225), on the same
-    // restrained .2s transition, still keyed off aria-expanded.
-    expect( css ).toContain( ".nav-trigger[aria-expanded='true'] .nav-arrow{transform:translateY(2px) rotate(225deg)}" );
-    expect( css ).toContain( 'transition:transform .2s' );
+    // The main dropdown panel keeps its radius/background/shadow but no longer draws an outer
+    // grey border or lime top rule.
+    expect( css ).toContain( 'background:#fcfdfb;border:0;border-radius:14px' );
+    expect( css.replace( /\/\*[\s\S]*?\*\//g, '' ) ).not.toContain( 'border-top:3px solid #d1f470' );
   } );
 } );
