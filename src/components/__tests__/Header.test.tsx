@@ -398,8 +398,19 @@ describe( 'Header', () => {
     expect( css ).not.toContain( '.nav-products-more{position:absolute' );
     expect( css ).not.toContain( 'More products' );
 
-    const source = container.innerHTML;
-    expect( source ).toContain( 'M480-200 240-440l42-42 198 198 198-198 42 42-240 240' );
+    // The cue is intentionally conditional: it exists only after the Products rail
+    // proves it actually overflows. jsdom has no layout, so provide measured geometry
+    // and fire the same scroll signal the component listens to before inspecting the SVG.
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+    const scroller = container.querySelector<HTMLElement>( '.nav-products-scroll' );
+    expect( scroller ).not.toBeNull();
+    Object.defineProperty( scroller!, 'scrollHeight', { configurable: true, value: 500 } );
+    Object.defineProperty( scroller!, 'clientHeight', { configurable: true, value: 230 } );
+    Object.defineProperty( scroller!, 'scrollTop', { configurable: true, writable: true, value: 0 } );
+    fireEvent.scroll( scroller! );
+
+    const cue = screen.getByRole( 'button', { name: 'Scroll to more products' } );
+    expect( cue.innerHTML ).toContain( 'M480-200 240-440l42-42 198 198 198-198 42 42-240 240' );
   } );
 
   it( 'uses the approved public header dimensions and brand navigation colors', () => {
