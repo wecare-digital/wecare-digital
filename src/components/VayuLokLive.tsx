@@ -4442,7 +4442,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       const label = slot === 'route-from' ? 'From place' : 'To place';
                       const resultId = `vl-live-${slot}-results`;
                       return (
-                        <div className="vl-live-route-place" key={ slot }>
+                        <React.Fragment key={ slot }>
+                          <div className="vl-live-route-place">
                           <span>{ label }</span>
                           <div className="vl-live-utility-search">
                             <input
@@ -4494,12 +4495,14 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                               <small>{ selected.addr }</small>
                             </>
                           ) }
-                        </div>
+                          </div>
+                          { slot === 'route-from' && (
+                            <button type="button" className="vl-live-route-swap" onClick={ swapRoutePlaces } aria-label="Swap route places">⇄</button>
+                          ) }
+                        </React.Fragment>
                       );
                     } ) }
                   </div>
-
-                  <button type="button" className="vl-live-route-swap" onClick={ swapRoutePlaces } aria-label="Swap route places">⇅</button>
 
                   { routeMode === 'route' ? (
                     <div className="vl-live-route-result" aria-live="polite">
@@ -4661,13 +4664,13 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-fx-result>strong{color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
         .vl-live-fx-result>small{color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
         .vl-live-fx-result>span{color:var(--muted);font-size:14px;font-weight:600;line-height:1.5}
-        .vl-live-route-pair{display:grid;grid-template-columns:1fr;gap:16px;margin-top:var(--vl-heading-gap)}
+        .vl-live-route-pair{display:grid;grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr);align-items:start;gap:12px;margin-top:var(--vl-heading-gap)}
         .vl-live-route-place{display:flex;min-width:0;flex-direction:column;gap:4px}
         .vl-live-route-place>span{color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
         .vl-live-route-place>strong{overflow:hidden;margin-top:4px;color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.18px;text-overflow:ellipsis;white-space:nowrap}
         .vl-live-route-place>small{overflow:hidden;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35;text-overflow:ellipsis;white-space:nowrap}
-        .vl-live-route-swap{display:flex;align-items:center;justify-content:center;width:36px;height:36px;margin:12px auto 0;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);font-size:18px;font-weight:800}
-        .vl-live-route-result{display:flex;min-height:112px;flex-direction:column;justify-content:center;gap:6px;margin-top:var(--vl-section-gap);padding-top:var(--vl-section-pad);border-top:1px solid var(--hair)}
+        .vl-live-route-swap{align-self:center;justify-self:center;display:flex;align-items:center;justify-content:center;width:36px;height:36px;margin-top:30px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);font-size:17px;font-weight:800}
+        .vl-live-route-result{display:flex;min-height:82px;flex-direction:column;justify-content:center;gap:6px;margin-top:var(--vl-section-gap);padding-top:var(--vl-section-pad);border-top:1px solid var(--hair)}
         .vl-live-route-result>strong{color:#000;font-size:28px;font-weight:700;line-height:1.1;letter-spacing:-.45px}
         .vl-live-route-result>b{color:var(--green);font-size:17px;font-weight:700;line-height:1.25}
         .vl-live-route-result>small,.vl-live-route-result>span{color:var(--muted);font-size:12px;font-weight:600;line-height:1.45}
