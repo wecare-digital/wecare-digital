@@ -414,7 +414,13 @@ def _write_record(source_id: str, job: Dict[str, Any], draft: Dict[str, Any],
 
 def read_record(source_id: str) -> Dict[str, Any]:
     """Read canonical publish evidence, falling back to historical shared-prefix data."""
-    for key in (record_key(source_id), legacy_record_key(source_id)):
+    keys = []
+    try:
+        keys.append(record_key(source_id))
+    except LookupError:
+        pass
+    keys.append(legacy_record_key(source_id))
+    for key in keys:
         try:
             raw = blog_sources.s3_client().get_object(
                 Bucket=blog_sources.BUCKET, Key=key)["Body"].read()
