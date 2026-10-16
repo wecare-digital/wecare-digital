@@ -289,7 +289,7 @@ response = requests.post(
                         sits on a white disc with a little padding so the mark reads as a
                         real profile photo in the thread. Decorative: alt="" + aria-hidden,
                         because .contact-name beside it already announces the business. */}
-                    <div className="avatar"><img className="avatar-img" src="https://wecare.digital/get/o/stream/media/m/wecaredigital.png" alt="" aria-hidden="true" width="40" height="40" loading="lazy" /></div>
+                    <div className="avatar"><img className="avatar-img" src="https://wecare.digital/get/o/stream/media/m/wecaredigital.png" alt="" aria-hidden="true" width="80" height="80" decoding="async" /></div>
                     <div className="contact-info">
                       {/* A company name, not copy. Without this the translation
                           widget rewrote it, so the mock WhatsApp thread showed a
@@ -935,7 +935,12 @@ response = requests.post(
              lime, and lime pops off the #128c7e header bar. 2px white ring lifts the disc off
              the bar; the logo is contained with a little inset so it is not cropped. */
           .avatar{width:40px;height:40px;background:#d1f470;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:0 0 auto;box-shadow:0 0 0 2px rgba(255,255,255,.6)}
-          .avatar-img{width:84%;height:84%;object-fit:contain;display:block}
+          /* Fill most of the disc so the 1080x1080 logo mark reads as a real profile photo
+             and stays crisp: the <img> carries intrinsic 80x80 attributes (2x the 40px disc)
+             so a 2x/retina screen maps it close to 1:1 device pixels instead of smearing a
+             1080px source down to ~34 CSS px. object-fit:contain keeps the mark uncropped;
+             the 90% box leaves a hair of lime padding around it. */
+          .avatar-img{width:90%;height:90%;object-fit:contain;display:block}
           .contact-info{flex:1;display:flex;flex-direction:column}
           .contact-name{color:#fff;font-size:17px;font-weight:600}
           .contact-status{color:rgba(255,255,255,.7);font-size:13px}

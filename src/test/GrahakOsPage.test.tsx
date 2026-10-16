@@ -48,8 +48,9 @@ describe( 'Grahak OS five approved visual fixes', () => {
     expect( avatarRule ).toContain( 'box-shadow:0 0 0 2px rgba(255,255,255,.6)' );
 
     const avatarImageRule = cssRuleFor( source, '.avatar-img' );
-    expect( avatarImageRule ).toContain( 'width:84%' );
-    expect( avatarImageRule ).toContain( 'height:84%' );
+    // Logo fills 90% of the disc (was 84%) so the DP mark reads larger and crisper.
+    expect( avatarImageRule ).toContain( 'width:90%' );
+    expect( avatarImageRule ).toContain( 'height:90%' );
     expect( avatarImageRule ).toContain( 'object-fit:contain' );
 
     const avatarMarkup = source.match( /<div className="avatar">([\s\S]*?)<\/div>/ )?.[ 1 ] || '';
