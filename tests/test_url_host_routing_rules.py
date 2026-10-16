@@ -74,7 +74,7 @@ PRE_CHANGE = SNAPSHOTS / "retired-url-rules-before-20261002.json"
 POST_REMOVAL = SNAPSHOTS / "amplify-custom-rules-after-url-host-cleanup-20261001.json"
 
 WWW_CANONICAL = {
-    "source": "https://www.wecare.digital",
+    "source": "https://wecare.digital",
     "target": "https://wecare.digital",
     "status": "301",
 }
@@ -113,7 +113,7 @@ REDIRECT_STATUSES = frozenset({"301", "302", "307", "308", "404"})
 # satisfied with an empty string is a gate somebody switches off.
 
 RATIFIED_REDIRECTS: dict[tuple[str, str, str], str] = {
-    ("https://www.wecare.digital", "https://wecare.digital", "301"):
+    ("https://wecare.digital", "https://wecare.digital", "301"):
         "Host canonicalisation, restored 2026-10-01T08:59:52Z. Source and target are bare "
         "origins with no path, which is what makes Amplify carry the request path across - "
         "measured, www /contact/ -> apex /contact/, not apex home. Evidence: "
@@ -617,7 +617,7 @@ def test_the_catch_all_is_last_and_unique_in_the_snapshot_and_in_the_write(
 def test_the_host_rule_is_first_and_carries_no_path(after):
     """Source and target are bare origins, which is what preserves the request path.
 
-    Measured after applying: `https://www.wecare.digital/contact/` -> 301 ->
+    Measured after applying: `https://wecare.digital/contact/` -> 301 ->
     `https://wecare.digital/contact/`. Had the source carried a path, www would have collapsed
     every URL onto the apex home page - worse than the duplicate-content state the rule was
     restored to fix.

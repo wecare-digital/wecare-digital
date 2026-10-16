@@ -26,7 +26,7 @@ def integrity():
 def response(status,body,event):
     origin=(event.get('headers') or {}).get('origin','')
     headers={'Content-Type':'application/json','Vary':'Origin, Accept-Encoding','X-Blog-Source':'native-aws'}
-    if origin in ('https://wecare.digital','https://www.wecare.digital'):
+    if origin in ('https://wecare.digital','https://wecare.digital'):
         headers['Access-Control-Allow-Origin']=origin
     payload=json.dumps(body,ensure_ascii=False,separators=(',',':'))
     if status==200:

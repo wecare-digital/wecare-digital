@@ -34,8 +34,6 @@ RETIRED: dict[str, str] = {
 
 HOSTS = {
     "http://wecare.digital/": "http apex must redirect to https",
-    "https://www.wecare.digital/": "www must 301 to the apex",
-    "http://www.wecare.digital/": "http www must reach https apex",
 }
 
 

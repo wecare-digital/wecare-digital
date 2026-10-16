@@ -31,7 +31,6 @@ import os as _os
 # retired legacy frontend host above.
 _PROD_ORIGINS = [
     'https://wecare.digital',
-    'https://www.wecare.digital',
 ]
 
 ALLOWED_ORIGINS = (

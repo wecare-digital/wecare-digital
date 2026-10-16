@@ -1,7 +1,7 @@
 {
   "HostedZoneId": "Z03939753QJGZ6ZD6BXO8",
   "ResourceRecordSet": {
-    "Name": "www.wecare.digital.",
+    "Name": "wecare.digital.",
     "Type": "CNAME",
     "TTL": 500,
     "ResourceRecords": [{"Value": "d2av2go6w170k.cloudfront.net"}]

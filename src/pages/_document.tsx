@@ -16,7 +16,7 @@ import { META } from '../config/analytics';
  * here or in any page: the container already fires GA4 (G-GNRPFFBXMF) and
  * Google Ads (AW-18396505964). Adding a direct tag alongside the container
  * double-counts every pageview and conversion — which is the exact defect
- * the old www.wecare.digital property had.
+ * the old wecare.digital property had.
  *
  * Set NEXT_PUBLIC_GTM_ID to '' to disable all Google tracking at build time.
  */

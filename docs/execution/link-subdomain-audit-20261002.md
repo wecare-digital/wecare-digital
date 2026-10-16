@@ -2,7 +2,7 @@
 
 Checked 2026-10-02T09:28:57.008869+05:30 (Asia/Kolkata). Read-only audit; no DNS, redirect, certificate, page or provider configuration changed.
 
-AWS account 775261844268, us-east-1. Amplify latest build 1215 succeeded for commit 863c6ebd. Route 53 public zone has 32 records, zero exact www.wecare.digital records. Existing wildcard A/AAAA records remain.
+AWS account 775261844268, us-east-1. Amplify latest build 1215 succeeded for commit 863c6ebd. Route 53 public zone has 32 records, zero exact wecare.digital records. Existing wildcard A/AAAA records remain.
 
 ## Results
 
@@ -92,8 +92,8 @@ AWS account 775261844268, us-east-1. Amplify latest build 1215 succeeded for com
 | https://retired-legacy-host.invalid/ | https://wecare.digital/ |
 | https://store.wecare.digital/ | https://wecare.digital/ |
 | https://workspace.wecare.digital/ | https://wecare.digital/ |
-| https://www.wecare.digital/ | https://wecare.digital/ |
-| https://www.wecare.digital/shop/ | https://wecare.digital/shop/ |
+| https://wecare.digital/ | https://wecare.digital/ |
+| https://wecare.digital/shop/ | https://wecare.digital/shop/ |
 | https://www.xout.wecare.digital/ | https://wecare.digital/ |
 | https://xout.wecare.digital/ | https://wecare.digital/ |
 | https://zzz-not-a-host.wecare.digital/ | https://wecare.digital/ |

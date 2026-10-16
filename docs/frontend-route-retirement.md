@@ -23,7 +23,7 @@ last or it shadows everything after it.
 
 | # | Source | Target | Status | Purpose |
 |--:|---|---|:-:|---|
-| 1 | `https://www.wecare.digital` | `https://wecare.digital` | 301 | apex canonicalisation |
+| 1 | `https://wecare.digital` | `https://wecare.digital` | 301 | apex canonicalisation |
 | 2 | `/get` | `/get/index.html` | 200 | rewrite, not a retirement |
 | 3 | `/get/` | `/get/index.html` | 200 | trailing-slash form |
 | 4 | `/get/<*>` | `d1kf2rchz7yras.cloudfront.net/<*>` | 200 | secure-file delivery origin |

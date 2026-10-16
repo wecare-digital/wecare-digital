@@ -66,7 +66,6 @@ def test_api_gateway_stage_prefix_is_normalized(mod):
     "origin",
     [
         "https://wecare.digital",
-        "https://www.wecare.digital",
         "https://preview.wecare.digital",
     ],
 )

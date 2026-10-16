@@ -521,7 +521,7 @@ def _allowed_origins() -> List[str]:
     configured = os.environ.get("MCP_ALLOWED_ORIGINS", "")
     origins = [o.strip() for o in configured.split(",") if o.strip()]
     # app.wecare.digital dropped 2026-09-28: host retired, NXDOMAIN.
-    return origins or [SITE_URL, "https://www.wecare.digital"]
+    return origins or [SITE_URL, "https://wecare.digital"]
 
 
 def _header(event: Dict[str, Any], name: str) -> str:

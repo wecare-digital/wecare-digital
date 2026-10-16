@@ -7,7 +7,7 @@ Owner instruction on 2026-10-02 explicitly requests removal of the retired merch
 - `wecare-partner-onboarding:live` moved from version 24 to version 25. The deployed archive was patched narrowly from the existing live package: API credential lookup now reads only `wecare/razorpay/api`, never `wecare/razorpay-webhook`. Deployment SHA: `3372ec0333e96cdc8ccb0be3a2db60049a65c68d4768e57a059d2ba746face99`.
 - Fresh AWS-backed Razorpay `connection_verify` returned `verified`, read-only collection count 1. This establishes that canonical API credentials authenticate; it does not establish their merchant ownership.
 - 125 focused tests passed, including canonical credential lookup success and fail-closed behavior without the webhook fallback.
-- Route 53 public zone `Z03939753QJGZ6ZD6BXO8`: deleted the exact `www.wecare.digital.` CNAME to `d2av2go6w170k.cloudfront.net`, TTL 500. Change `/change/C06297751I3QU3K63OS4O` reached `INSYNC`; zero exact www records remain.
+- Route 53 public zone `Z03939753QJGZ6ZD6BXO8`: deleted the exact `wecare.digital.` CNAME to `d2av2go6w170k.cloudfront.net`, TTL 500. Change `/change/C06297751I3QU3K63OS4O` reached `INSYNC`; zero exact www records remain.
 - The existing wildcard A/AAAA records remain (Route 53 encodes their names as `\\052.wecare.digital.`). They can still answer www queries. The apex and all public pages are unchanged. No certificates were issued, changed, or deleted.
 
 ## Credential deletion remains unverified

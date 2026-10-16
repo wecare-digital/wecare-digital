@@ -141,7 +141,7 @@ ALLOWED_ORIGINS = {
     origin.strip()
     for origin in os.environ.get(
         "SITE_LANGUAGE_ALLOWED_ORIGINS",
-        "https://www.wecare.digital,https://wecare.digital",
+        "https://wecare.digital,https://wecare.digital",
     ).split(",")
     if origin.strip()
 }
@@ -150,7 +150,7 @@ ALLOWED_ORIGINS = {
 def _origin(event: Dict[str, Any]) -> str:
     headers = event.get("headers") or {}
     candidate = headers.get("origin") or headers.get("Origin") or ""
-    return candidate if candidate in ALLOWED_ORIGINS else "https://www.wecare.digital"
+    return candidate if candidate in ALLOWED_ORIGINS else "https://wecare.digital"
 
 
 def _origin_allowed(event: Dict[str, Any]) -> bool:

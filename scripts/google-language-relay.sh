@@ -28,7 +28,7 @@
 #     reports configuration, not reachability, so it says "true" while every
 #     real call fails. Do not trust it; trust `probe`.
 #
-#   * The CORS allow-list admits exactly https://www.wecare.digital and
+#   * The CORS allow-list admits exactly https://wecare.digital and
 #     https://wecare.digital. Everything else gets 403 with no
 #     Access-Control-Allow-Origin header. That allow-list is now exactly right:
 #     the site serves from the apex, and retired-legacy-host.invalid - which the relay
@@ -54,7 +54,7 @@ GCP_PROJECT="${GCP_PROJECT:-wecaredigitalbw}"
 RELAY_URL="${RELAY_URL:-https://wecare-translation-relay-hrkl3sncxq-el.a.run.app}"
 
 # Origin the relay already trusts, so probes exercise the real allowed path.
-PROBE_ORIGIN="${PROBE_ORIGIN:-https://www.wecare.digital}"
+PROBE_ORIGIN="${PROBE_ORIGIN:-https://wecare.digital}"
 
 # The origin the site serves from. Was retired-legacy-host.invalid, which the relay
 # rejected; that host is retired and the apex is both canonical and already

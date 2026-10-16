@@ -21,7 +21,7 @@
         "AllowOrigins": [
             "https://stack.d22dm4b0jn71jw.amplifyapp.com",
             "https://app.wecare.digital",
-            "https://www.wecare.digital",
+            "https://wecare.digital",
             "https://wecare.digital",
             "http://localhost:3000"
         ],

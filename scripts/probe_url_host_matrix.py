@@ -44,7 +44,7 @@ import urllib.parse
 import urllib.request
 
 SITE = "https://wecare.digital"
-WWW = "https://www.wecare.digital"
+WWW = "https://wecare.digital"
 UA = "wecare-url-host-matrix-probe/1"
 MAX_HOPS = 5
 

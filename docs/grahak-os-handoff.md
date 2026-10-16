@@ -433,7 +433,7 @@ these pages personally and rejected several agent drafts on substance:
     rather than a timer. `.home-layout`'s `gap:96px` is the section rhythm.
 - ~~`[retired public path 1965ee0f]` and `/partners` are now in the nav but are visually off-system.~~
   **Both pages are deleted**, and the nav entries that pointed at
-  `www.wecare.digital/customerservice` and `.../product-page/referral-partner` — both of which
+  `wecare.digital/customerservice` and `.../product-page/referral-partner` — both of which
   **404'd** — now point at `/contact/`. Those two external URLs also answer again: see
   `src/components/RetiredUrl.tsx`. Note a 200 on a `[retired public path 6b3a02b3]/*` path is **not** evidence a
   route is public — those render `<Layout user onSignOut>` and are auth-gated, which is why

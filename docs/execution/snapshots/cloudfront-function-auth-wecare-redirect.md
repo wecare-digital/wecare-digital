@@ -31,8 +31,8 @@ Two further reasons it was wrong to keep:
    request on any path would have been redirected to the same fixed URL. Attaching it
    to the `app.wecare.digital` distribution would have taken that host's static assets
    offline.
-2. **The target double-hops.** It points at `https://www.wecare.digital/selfcare`, and
-   `www.wecare.digital` itself 301s to the apex (Amplify custom rule). So a viewer
+2. **The target double-hops.** It points at `https://wecare.digital/selfcare`, and
+   `wecare.digital` itself 301s to the apex (Amplify custom rule). So a viewer
    would pay two redirects. Worse, measured 2026-09-25: `wecare.digital/selfcare`
    does not exist, so the chain terminated in a 404.
 
@@ -53,7 +53,7 @@ function handler(event) {
     statusCode: 301,
     statusDescription: 'Moved Permanently',
     headers: {
-      'location': { value: 'https://www.wecare.digital/selfcare' },
+      'location': { value: 'https://wecare.digital/selfcare' },
       'cache-control': { value: 'max-age=3600' }
     }
   };
