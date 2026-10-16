@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from botocore.exceptions import ClientError
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "amplify" / "functions" / "operations" / "seo-tools"))
@@ -116,6 +117,31 @@ def test_two_publishes_coalesce_into_one_delayed_build(env):
     assert actor == "publisher"
     assert delay == env["bridge"].COALESCE_DELAY_SECONDS
     assert env["bridge"].control()["generation"] == 2
+
+
+def test_busy_amplify_branch_requeues_same_generation(env, monkeypatch):
+    source_id = env["article"]("blogwork_1", "first-post")
+    env["bridge"].note_published(source_id, "publisher")
+
+    def busy(**kwargs):
+        raise ClientError(
+            {"Error": {"Code": "LimitExceededException",
+                       "Message": "The requested branch already have pending or running jobs"}},
+            "StartJob")
+    monkeypatch.setattr(env["amplify"], "start_job", busy)
+
+    result = env["bridge"].start_build("site-bridge")
+
+    assert result["status"] == env["bridge"].PENDING
+    assert result["retryScheduled"] is True
+    assert result["generation"] == 1
+    assert env["bridge"].control()["status"] == env["bridge"].PENDING
+    row = env["bs"].get_source(source_id)
+    assert row["pipeline"]["siteBuildStatus"] == env["bridge"].PENDING
+    assert row["pipeline"]["siteBuildJobId"] == ""
+    # First message is the initial coalescing trigger; second is the branch-busy retry.
+    assert env["queued"]["build"][-1] == (
+        1, "site-bridge", env["bridge"].CHECK_DELAY_SECONDS)
 
 
 def test_one_amplify_build_snapshots_every_pending_article(env):

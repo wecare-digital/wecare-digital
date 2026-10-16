@@ -381,6 +381,71 @@ def _control_to_building(generation: int, article_count: int, job_id: str) -> No
     )
 
 
+def _amplify_branch_busy(exc: Exception) -> bool:
+    if isinstance(exc, ClientError):
+        code = str((exc.response.get("Error") or {}).get("Code") or "")
+        if code in {"LimitExceeded", "LimitExceededException"}:
+            return True
+    message = str(exc).lower()
+    return "already have pending or running jobs" in message
+
+
+def _reschedule_busy_generation(generation: int, assigned: Iterable[str],
+                                actor: str, error: str) -> Dict[str, Any]:
+    """Put a busy Amplify branch back into PENDING and retry through SQS.
+
+    Normal stack deployments share the same branch. A blog build must wait for them rather than
+    turning an ordinary branch-busy response into a terminal bridge failure.
+    """
+    for source_id in assigned:
+        blog_sources.update_pipeline(
+            source_id,
+            siteBuildStatus=PENDING,
+            siteBuildJobId="",
+            siteVerifyStatus=PENDING,
+            verifyStatus="SITE_BUILD_PENDING",
+        )
+        _set_top_level(source_id, siteBuildJobId="", siteVerifyState=PENDING)
+
+    storage.table().update_item(
+        Key={"id": CONTROL_ID},
+        UpdateExpression="SET #s = :pending, updatedAt = :u, lastError = :e",
+        ExpressionAttributeNames={"#s": "status"},
+        ExpressionAttributeValues={
+            ":pending": PENDING,
+            ":u": storage.now_iso(),
+            ":e": str(error or "")[:800],
+        },
+    )
+
+    import blog_queue
+    queued = blog_queue.enqueue_site_build(
+        generation, actor or "site-bridge", delay_seconds=CHECK_DELAY_SECONDS)
+    if int(queued.get("queued") or 0) != 1:
+        _release_schedule("Amplify branch was busy and the retry could not be queued")
+        return {
+            "status": FAILED, "started": False, "articles": len(list(assigned)),
+            "generation": generation, "retryQueue": queued,
+            "error": "Amplify branch busy; retry queue failed",
+        }
+
+    logger.info(json.dumps({
+        "event": "blog_site_build_branch_busy",
+        "generation": generation,
+        "articles": len(list(assigned)),
+        "retryDelaySeconds": CHECK_DELAY_SECONDS,
+    }))
+    return {
+        "status": PENDING,
+        "started": False,
+        "articles": len(list(assigned)),
+        "generation": generation,
+        "retryScheduled": True,
+        "retryQueue": queued,
+        "note": "Amplify branch is busy; this generation will retry automatically.",
+    }
+
+
 def start_build(actor: str = "site-bridge") -> Dict[str, Any]:
     """Claim the coalesced generation and start one Amplify release."""
     ensure_control()
@@ -424,15 +489,18 @@ def start_build(actor: str = "site-bridge") -> Dict[str, Any]:
         if not job_id:
             raise RuntimeError("Amplify StartJob returned no jobId")
     except Exception as exc:
+        error = f"{type(exc).__name__}: {str(exc)[:600]}"
+        if _amplify_branch_busy(exc):
+            return _reschedule_busy_generation(generation, assigned, actor, error)
         for source_id in assigned:
             blog_sources.update_pipeline(
                 source_id, siteBuildStatus=PENDING, siteBuildJobId="", siteVerifyStatus=PENDING)
             _set_top_level(source_id, siteBuildJobId="", siteVerifyState=PENDING)
-        _release_schedule(f"{type(exc).__name__}: {str(exc)[:600]}")
+        _release_schedule(error)
         logger.exception("blog site build start failed")
         return {
             "status": FAILED, "started": False, "articles": len(assigned),
-            "error": f"{type(exc).__name__}: {str(exc)[:400]}",
+            "error": error[:400],
         }
 
     _set_job_on_assigned(assigned, job_id, generation)
