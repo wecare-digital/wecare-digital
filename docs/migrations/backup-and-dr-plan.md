@@ -319,18 +319,40 @@ Mirror the Lightsail migration discipline that is already proven in this repo:
   re-run `--apply` after provisioning a new table. Still to do: bake PITR into every
   `provision_*_table.py` so new tables are covered at creation, not after.
 
+- [x] **S3 versioning on `wecare-digital-get`** — enabled
+  (`scripts/enable_s3_versioning.py`); overwrites/deletes recoverable, cost bounded
+  by the existing 90-day noncurrent-expiry rule.
+- [x] **Credential backup refreshed** and independently verified; it had drifted 20
+  days (10 changed secrets) before this.
+- [x] **One AWS Backup plan** — `wecare-backup-plan` (daily 35d + monthly 365d, cold
+  storage after 90d) in vault `wecare-backup-vault`, tag-based selection
+  (`backup=daily`) covering all 75 project tables + the media bucket, SNS
+  notifications to `stack-wecare-digital` on `*_FAILED`, role `wecare-backup-role`.
+  `scripts/provision_aws_backup.py` (idempotent). Vault Lock not yet applied
+  (irreversible — deliberate owner decision).
+- [x] **Cognito user export** — `scripts/export_cognito_users.py` writes attributes
+  + group membership (never passwords) SSE-KMS to the credential-backup bucket.
+- [x] **Scheduled backup refresh** — `scripts/refresh_all_backups.py` run weekly by
+  `.github/workflows/backup-refresh.yml`; SKIPPED until repo var
+  `BACKUP_REFRESH_ROLE_ARN` is set (same OIDC gating as the Plivo drift job).
+- [x] **First restore drill** — real DynamoDB PITR restore of `SiteLanguageCache`,
+  counts matched (253=253), test table deleted. See
+  `docs/execution/restore-drill-20261016.md`.
+- [x] **S3 cross-region replication** — `wecare-digital-get` →
+  `wecare-digital-get-replica-usw2` (us-west-2) via
+  `scripts/provision_s3_replication.py`.
+
 **Open:**
 
-1. **S3 versioning + a lifecycle for noncurrent versions** on `wecare-digital-get`.
-2. **One AWS Backup plan** (tag-selected, daily + monthly, Vault Lock) covering
-   DynamoDB and S3, reporting to the existing SNS topic.
-3. **Cognito user export** job to the encrypted backup bucket.
-4. **Schedule** secrets `upload` + verify + GCP mirror refresh.
-5. **Write and run the first restore drill**, record the result under `docs/execution/`.
-6. **S3 → second account/region replication** for the off-primary copy.
-7. Keep the GCP mirror current as standing exit insurance; re-run the independence
-   checks in CI.
+1. **Vault Lock** on the backup vault (owner decision — irreversible in compliance
+   mode). Bake PITR + the `backup=daily` tag into every `provision_*_table.py`.
+2. **Cross-ACCOUNT** replication/backup copy once a second AWS account exists — the
+   only protection against a compromise of the primary account. Also run a one-time
+   S3 Batch Replication job to backfill the media objects that predate CRR.
+3. **Quarterly restore drills** for S3 and secrets (DynamoDB is done).
+4. Keep the GCP mirror current; re-run the independence checks in CI.
 
-The two highest-value, fully reversible protections (Cognito deletion protection
-and DynamoDB PITR) are now in place. The open items harden and automate. The
-migration section (7) is insurance you keep warm, not a project you have to run.
+All core protections are now live: Cognito deletion protection, DynamoDB PITR, S3
+versioning + cross-region replication, a scheduled AWS Backup plan, a Cognito export,
+a current credential backup with weekly refresh, and a proven restore drill. What
+remains is hardening (Vault Lock, cross-account) and recurring drills.
