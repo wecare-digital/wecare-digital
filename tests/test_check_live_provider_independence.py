@@ -44,12 +44,16 @@ class Lambda:
 
 
 class Secrets:
-    def __init__(self, names):
+    def __init__(self, names, scheduled=()):
         self.names = names
+        #: names that carry a DeletedDate (scheduled for deletion, in the recovery window)
+        self.scheduled = set(scheduled)
 
     def list_secrets(self, IncludePlannedDeletion, **_):
         assert IncludePlannedDeletion is True
-        return {"SecretList": [{"Name": n} for n in self.names]}
+        return {"SecretList": [
+            {"Name": n, **({"DeletedDate": "2026-10-07T00:00:00Z"} if n in self.scheduled else {})}
+            for n in self.names]}
 
     def get_secret_value(self, **_):  # pragma: no cover - must never be called
         raise AssertionError("secret values must never be read")
@@ -96,7 +100,7 @@ def _table(name):
 
 
 def _clients(*, alias_env, decision, grant_table, secrets=("wecare/meta-system-user-token",),
-             tables=("stack-wecare-digital-CommerceKeys",)):
+             scheduled_secrets=(), tables=("stack-wecare-digital-CommerceKeys",)):
     role = f"arn:aws:iam::{ACCT}:role/wecare-checkout-role"
     latest = {"FunctionName": "wecare-checkout", "Role": role,
               "Environment": {"Variables": {"COMMERCE_KEYS_TABLE":
@@ -109,7 +113,7 @@ def _clients(*, alias_env, decision, grant_table, secrets=("wecare/meta-system-u
         "Sid": "Keys", "Effect": "Allow", "Action": ["dynamodb:GetItem"],
         "Resource": [_table(grant_table)]}]}},
         {("wecare-checkout-role", _table("stack-wecare-digital-CommerceKeys")): decision})
-    return {"lambda": lam, "secretsmanager": Secrets(list(secrets)),
+    return {"lambda": lam, "secretsmanager": Secrets(list(secrets), scheduled_secrets),
             "dynamodb": Dynamo(list(tables)), "iam": iam, "sts": Sts()}
 
 
@@ -152,6 +156,21 @@ def test_unapproved_hosts_and_planned_deletion_secrets_are_flagged(mod):
     assert checks["lambda-env"].evidence == ["wecare-checkout:live CDN -> media.retired-cdn.net"]
     assert all("token" not in e and "/media" not in e for e in checks["lambda-env"].evidence)
     assert checks["iam-dangling-tables"].passed and checks["commerce-key-access"].passed
+
+
+def test_unapproved_secret_scheduled_for_deletion_passes_but_is_reported(mod):
+    """A secret with no approved owner but a DeletedDate is being retired, not standing access,
+    so it must NOT fail the gate - it removes itself. It stays named in the detail line so a
+    restore does not pass unnoticed. An unapproved secret with NO DeletedDate still fails."""
+    checks = _by_name(mod.LiveAudit(_clients(
+        alias_env={"COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys"},
+        decision="allowed", grant_table="stack-wecare-digital-CommerceKeys",
+        secrets=("wecare/meta-system-user-token", "wecare/sinch/sms"),
+        scheduled_secrets=("wecare/sinch/sms",))).run())
+    assert checks["secrets"].passed
+    assert checks["secrets"].evidence == []
+    assert "wecare/sinch/sms" in checks["secrets"].detail
+    assert "scheduled for deletion" in checks["secrets"].detail
 
 
 def test_markdown_lists_every_check(mod):

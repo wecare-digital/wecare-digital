@@ -104,13 +104,21 @@ class LiveAudit:
                      sorted(set(hits)))
 
     def secrets(self) -> Check:
-        names = [s["Name"] for s in _pages(self.c["secretsmanager"].list_secrets, "SecretList",
-                                           "NextToken", "NextToken",
-                                           IncludePlannedDeletion=True)]
-        hits = sorted(n for n in names if allow.vault_owner(n)[0] is None)
-        return Check("secrets", not hits,
-                     f"{len(names)} secrets incl. planned deletion, {len(hits)} not approved",
-                     hits)
+        secrets = list(_pages(self.c["secretsmanager"].list_secrets, "SecretList",
+                              "NextToken", "NextToken", IncludePlannedDeletion=True))
+        # A secret with a DeletedDate is already scheduled for deletion (in the recovery window).
+        # It is being retired, not standing unapproved access, so it is not a finding - only an
+        # ACTIVE secret that no approved provider owns is. Scheduled ones are still reported in the
+        # detail line so a restore does not pass unnoticed. (The gate used to FAIL on them, which
+        # kept it red for secrets that remove themselves.)
+        unowned = [s["Name"] for s in secrets if allow.vault_owner(s["Name"])[0] is None]
+        scheduled = {s["Name"] for s in secrets if s.get("DeletedDate")}
+        hits = sorted(n for n in unowned if n not in scheduled)
+        retiring = sorted(n for n in unowned if n in scheduled)
+        detail = (f"{len(secrets)} secrets incl. planned deletion, {len(hits)} not approved"
+                  + (f", {len(retiring)} unapproved but scheduled for deletion: "
+                     + ", ".join(retiring) if retiring else ""))
+        return Check("secrets", not hits, detail, hits)
 
     def tables(self) -> set[str]:
         return set(_pages(self.c["dynamodb"].list_tables, "TableNames",
