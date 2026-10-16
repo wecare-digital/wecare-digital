@@ -397,20 +397,13 @@ def run(source_id: str, actor: str) -> Dict[str, Any]:
         "ranBy": actor,
     }
     storage.put_record(stored)
-    blog_sources.update_pipeline(source_id, verifyStatus=status, verifiedAt=now)
-
-    if summary["verified"]:
-        #: The only status transition in this system earned by reading the live site rather than
-        #: by asserting something about a draft. Section 33 owns it, and it needs exactly this.
-        _mark_verified(source_id, record)
-        try:
-            import blog_article_work
-            blog_article_work.set_intent_status(source_id, "VERIFIED", actor)
-            parent_id = str(record.get("parentSourceId") or "")
-            if parent_id:
-                blog_article_work.refresh_parent_status(parent_id, actor)
-        except Exception:  # noqa: BLE001 - verification evidence remains authoritative
-            logger.exception("article-work verification state sync failed")
+    # This run certifies the AWS-native public store only. The final article status is reserved
+    # for blog_site_bridge after the static Amplify page + sitemap + search + RSS all pass.
+    blog_sources.update_pipeline(
+        source_id,
+        backendVerifyStatus=status,
+        backendVerifiedAt=now if summary["verified"] else "",
+    )
     logger.info(json.dumps({
         "event": "blog_verified" if summary["verified"] else "blog_verification_failed",
         "sourceId": source_id, "verificationRunId": verification_run, "actor": actor,
@@ -418,7 +411,8 @@ def run(source_id: str, actor: str) -> Dict[str, Any]:
         "skipped": summary["skipped"], "failedAssertions": summary["failedAssertions"],
     }))
     return {**_view(stored), "report": document,
-            "note": ("Verified against the live public post."
+            "note": ("Backend public-store verification passed. Final VERIFIED is earned only "
+                     "after static-site verification."
                      if summary["verified"] else
                      "Recorded as FAILED. Nothing is retried automatically - re-reading the "
                      "same post reaches the same conclusion.")}
