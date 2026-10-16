@@ -28,7 +28,8 @@ account takeover. AWS's own guidance is to have **zero** root access keys.
 ## What already exists (so we don't build from scratch)
 
 - IAM user **`wecare-admin`** — `AdministratorAccess`, one active programmatic key
-  `AKIA3JAJU6MWNMC6TYEC` (created 2026-09-18). A usable, non-root principal.
+  (id `AKIA…TYEC`, created 2026-09-18; full id via `aws iam list-access-keys
+  --user-name wecare-admin`). A usable, non-root principal.
 - IAM user **`wecare-user`** — `AdministratorAccess`, **no** access keys
   (console/human).
 - IAM user **`asterisk-ivr-service`** — service user, no attached managed policy
