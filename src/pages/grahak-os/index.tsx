@@ -841,11 +841,13 @@ response = requests.post(
           .gos-closer-buy .gos-ctas{justify-content:center}
           .gos-closer-buy .gos-price{text-align:center}
           .gos-commerce{
-            margin-top:18px;max-width:700px;padding:14px 16px;border:1px solid #e5e7eb;border-radius:12px;
-            background:#fcfdfb;font-size:14px;line-height:1.5;color:rgba(0,0,0,.72);text-align:left;
+            margin-top:22px;max-width:700px;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
+            background:#fcfdfb;font-size:17px;font-weight:400;line-height:1.55;
+            letter-spacing:-.05px;color:rgba(0,0,0,.898);text-align:left;
           }
+          .gos-commerce strong{color:#1a3a2a;font-weight:700}
           .gos-commerce p{margin:0}
-          .gos-commerce p + p{margin-top:6px}
+          .gos-commerce p + p{margin-top:12px}
           /* Hero h1 level, exactly: clamp(36px,4.3vw,60px) / 600 / -2.2px.
              It was clamp(38px,6vw,84px), which at any viewport above ~630px rendered
              LARGER than the hero headline and inverted the page's hierarchy - the closing
