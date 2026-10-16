@@ -52,6 +52,20 @@ export const PLACEHOLDER_LINE: ProductCheckoutLine = {
  * stops using the placeholder with no change to the component.
  */
 export const PRODUCT_CHECKOUT: Readonly<Record<string, ProductCheckoutLine>> = {
+  // Anew is the first product off the ₹1 placeholder: it has a real, active, website-enabled
+  // row in the native ProductsTable (NOT Wix - this catalogue is the project's own AWS table).
+  // ids and price verified against src/content/catalog-snapshot.json (generated from the live
+  // table): productId abfdad33-…, variant 750a2d69-… "Standard", ₹599.00. formattedPrice here
+  // is DISPLAY ONLY; the checkout reprices from the row's priceMinor on prepare, so the server
+  // charges ₹599 regardless of this string. /anew/ passes showPrice={false}, so this figure is
+  // not shown twice.
+  anew: {
+    productId: 'abfdad33-b853-4aeb-b2f9-fa4051e75928',
+    variantId: '750a2d69-198d-42fa-ad80-f13a19ec6603',
+    name: 'Anew',
+    slug: 'anew',
+    formattedPrice: '\u20B9599.00',
+  },
   // elsewhere: { productId: '…', variantId: '…', name: 'Elsewhere', slug: 'elsewhere', formattedPrice: '₹…' },
 };
 
