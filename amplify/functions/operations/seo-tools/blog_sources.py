@@ -188,13 +188,19 @@ PIPELINE_FIELDS: Tuple[str, ...] = (
     "templateId", "templateVersion",
     "qaRunId", "qaStatus", "signoffId", "signedOffBy",
     "publishStatus", "publishedAt", "postId", "postUrl",
+    "backendVerifyStatus", "backendVerifiedAt",
+    "siteBuildStatus", "siteBuildJobId", "siteBuildGeneration", "siteDeployedAt",
+    "siteVerifyStatus", "siteVerifiedAt",
     "verifyStatus", "verifiedAt", "repetitionStatus",
 )
 
 
 def empty_pipeline() -> Dict[str, Any]:
     """Every stage present and empty, so a listing never has to test for a missing key."""
-    return {name: 0 if name.endswith("Version") else "" for name in PIPELINE_FIELDS}
+    return {
+        name: 0 if name.endswith("Version") or name == "siteBuildGeneration" else ""
+        for name in PIPELINE_FIELDS
+    }
 
 
 def update_pipeline(record_id: str, **updates: Any) -> Dict[str, Any]:
