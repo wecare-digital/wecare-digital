@@ -29,14 +29,12 @@ jobs:
           import urllib.parse
           import urllib.request
 
-          HOSTS = ('wecare.digital', 'www.wecare.digital',
-                   'd22dm4b0jn71jw.amplifyapp.com')
+          HOSTS = ('wecare.digital', 'd22dm4b0jn71jw.amplifyapp.com')
           URLS = (
               'https://wecare.digital/',
               'https://wecare.digital/vayulok/',
               'https://wecare.digital/vayulok/index.html',
               'https://wecare.digital/vayulok-globe.html',
-              'https://www.wecare.digital/vayulok/',
               'https://d22dm4b0jn71jw.amplifyapp.com/vayulok/',
           )
           def fetch(url):
@@ -67,25 +65,6 @@ jobs:
                   print('DNS',host,'count',len(ips),'first',ips[:2])
               except Exception as e:
                   print('DNS',host,'ERROR',type(e).__name__,str(e)[:160])
-          # Follow-free redirects reveal whether path/query data is lost at the edge.
-          class NoRedirect(urllib.request.HTTPRedirectHandler):
-              def redirect_request(self, *args, **kwargs):
-                  return None
-          no_redirect = urllib.request.build_opener(NoRedirect)
-          for path in ('/', '/vayulok/', '/contact/', '/blog/', '/shop/',
-                       '/vayulok/?probe=www-path-check'):
-              for protocol in ('https', 'http'):
-                  url = protocol + '://www.wecare.digital' + path
-                  req = urllib.request.Request(url, headers={'User-Agent': 'WECARE-Canonical-URL-Probe/1'})
-                  try:
-                      with no_redirect.open(req, timeout=12) as resp:
-                          print('WWW_HOP',url,resp.status,'to',resp.headers.get('location',''),
-                                'cache',resp.headers.get('x-cache',''))
-                  except urllib.error.HTTPError as e:
-                      print('WWW_HOP',url,e.code,'to',e.headers.get('location',''),
-                            'cache',e.headers.get('x-cache',''))
-                  except Exception as e:
-                      print('WWW_HOP',url,type(e).__name__,str(e)[:140])
           results={}
           for url in URLS:
               r=fetch(url)
@@ -142,8 +121,7 @@ jobs:
           (async () => {
             const browser = await chromium.launch({executablePath:'/usr/bin/chromium',
               args:['--no-sandbox','--disable-dev-shm-usage'], headless:true});
-            for (const url of ['https://wecare.digital/vayulok/',
-              'https://www.wecare.digital/vayulok/']) {
+            for (const url of ['https://wecare.digital/vayulok/']) {
               const page = await browser.newPage({viewport:{width:1280,height:800}});
               const failed=[];
               const consoleErrors=[];
