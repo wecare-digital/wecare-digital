@@ -1885,7 +1885,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( container.querySelector( '.vl-live-tools-right' ) ).not.toBeNull();
 
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
-    expect( css ).toContain( '.vl-live-tools-layout{display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr)' );
+    expect( css ).toContain( '.vl-live-tools-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch' );
     expect( css ).toContain( 'font-size:var(--vl-card-heading-size)' );
     expect( css ).toContain( 'font-size:var(--vl-body-size)' );
   } );
@@ -1909,6 +1909,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( style => style.textContent || '' ).join( '\n' );
     expect( css ).toContain( 'grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch' );
     expect( css ).toContain( '.vl-live-tool-card{position:relative;min-width:0;flex:1;padding:24px' );
+    expect( css ).toContain( '.vl-live-route-pair{display:grid;grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr);align-items:start' );
+    expect( css ).toContain( '.vl-live-route-result{display:flex;min-height:82px' );
+
+    const routePair = container.querySelector( '.vl-live-route-pair' );
+    expect( routePair?.children ).toHaveLength( 3 );
+    expect( routePair?.querySelector( '.vl-live-route-swap' ) ).not.toBeNull();
   } );
 
   it( 'renders Route/Distance on the right and calls routing only after Check route', async () => {
