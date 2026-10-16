@@ -144,6 +144,10 @@ DEFAULT_SITEMAP = f"{SITE}/sitemap.xml"
 CANDIDATE_PROPERTIES = [
     "sc-domain:wecare.digital",
     f"{SITE}/",
+    # The www URL-prefix GSC property still EXISTS (it holds the pre-cutover history) and is
+    # probed for telemetry. This is not a routing claim: www is retired and 404s at the
+    # wildcard fallback as of 2026-10-16. The sitemap that gets SUBMITTED is always the apex
+    # feed (DEFAULT_SITEMAP), never a www one.
     "https://www.wecare.digital/",
 ]
 

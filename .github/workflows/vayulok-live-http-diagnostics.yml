@@ -67,7 +67,11 @@ jobs:
                   print('DNS',host,'count',len(ips),'first',ips[:2])
               except Exception as e:
                   print('DNS',host,'ERROR',type(e).__name__,str(e)[:160])
-          # Follow-free redirects reveal whether path/query data is lost at the edge.
+          # www is retired (2026-10-16): every www hop below is EXPECTED to be a terminal 404
+          # from the wildcard fallback, not a redirect into the site. These rows stay as an
+          # observational guard - a www URL answering 200/301 again means www has re-become an
+          # alternate route and the retirement regressed. The job's hard verdict is computed
+          # from the APEX vayulok fetch only; the www fetches are informational.
           class NoRedirect(urllib.request.HTTPRedirectHandler):
               def redirect_request(self, *args, **kwargs):
                   return None

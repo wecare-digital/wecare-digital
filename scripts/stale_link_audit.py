@@ -66,8 +66,12 @@ def internal_hrefs(html: str) -> set[str]:
         if low.startswith("//"):
             continue
         if low.startswith("http"):
-            if not (low.startswith(SITE) or low.startswith("http://wecare.digital")
-                    or low.startswith("https://www.wecare.digital")):
+            # www is retired (2026-10-16): it 404s unconditionally at the wildcard fallback, so
+            # a www href is a BROKEN link no matter what path it carries. It used to be listed
+            # here as an apex-equivalent prefix, which normalised it to a bare path and hid it
+            # from this audit. Dropping it means a shipped www link no longer matches as an
+            # in-scope apex link and gets flagged as the stale link it now is.
+            if not (low.startswith(SITE) or low.startswith("http://wecare.digital")):
                 continue
             h = h.split("wecare.digital", 1)[1] or "/"
         if not h.startswith("/"):

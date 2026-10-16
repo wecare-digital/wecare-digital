@@ -200,7 +200,9 @@ const AWS_RESOURCES: Record<string, { arn: string; accountId: string; details?: 
     // app.wecare.digital removed 2026-09-28: the record is gone from zone
     // Z03939753QJGZ6ZD6BXO8 and the host is NXDOMAIN. Media is served from
     // wecare.digital/get instead.
-    details: [ 'wecare.digital', 'www.wecare.digital', 'mta-sts.wecare.digital', 'sip.wecare.digital' ]
+    // *.wecare.digital is a wildcard alias to the home-fallback distribution; www has no
+    // explicit record and resolves through the wildcard to a 404 (retired 2026-10-16).
+    details: [ 'wecare.digital', '*.wecare.digital', 'mta-sts.wecare.digital', 'sip.wecare.digital' ]
   },
   'Amazon VPC': {
     arn: `arn:aws:ec2:${AWS_REGION}:${AWS_ACCOUNT_ID}:vpc/*`,

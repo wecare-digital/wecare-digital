@@ -194,7 +194,14 @@ def test_owner_policy_preserves_rewrites_without_restoring_legacy_destinations(r
     # written to report.
     assert not any(r['source'].startswith('/obsolete-login-fixture') for r in approved)
     assert all("/workspace" not in r["target"] for r in approved)
-    assert approved[0] == removals[0], "the host canonicalisation must lead the approved set"
+    # www is retired (2026-10-16): it is NO LONGER approved. removals[0] is the old www -> apex
+    # 301, which the policy now drops rather than leads with - www is a dead end served by the
+    # wildcard-fallback 404, not an Amplify rule. Assert it was dropped, and that the approved
+    # set leads with the provisioner's first emitted redirect instead.
+    assert "www.wecare.digital" not in str(removals[0]["source"]) or removals[0] not in approved, (
+        "the retired www redirect is back in the approved set"
+    )
+    assert approved and approved == redirects.desired_redirects(), "approved set must match the provisioner output"
 
     # The broad net, last: it catches the same drift as everything above, but with a list diff
     # a reader has to decode rather than a message that names the offending rule.

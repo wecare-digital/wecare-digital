@@ -82,38 +82,29 @@ def matrix() -> list[dict]:
 
     # ── hosts ────────────────────────────────────────────────────────────────────────
     rows.append(_row("host", f"{SITE}/", 200, "the canonical home"))
-    rows.append(_row("host", f"{WWW}/", 200, "www must canonicalise to the apex",
-                     terminal_url=f"{SITE}/"))
-    # The row the whole host rule exists for. Restored 2026-10-01 after the redirect removal
-    # left www serving the entire site at 200 under a second hostname - duplicate content, not
-    # a redirect cleanup. The source is a bare origin, which is what preserves the path; a
-    # source with a path would collapse every www URL onto the apex home page.
-    # SAMPLE RETARGETED 2026-10-04, and this is not cosmetic. This row read `{WWW}/shop/` ->
-    # `{SITE}/shop/`. The owner has since withdrawn the catalogue index, so www /shop/ now chains
-    # 301 -> apex /shop/ -> 301 -> apex /, and the row would be SATISFIED by landing on home -
-    # which is the exact path-loss failure it exists to catch. /contact/ terminates at 200, so it
-    # still separates path preservation from path collapse. /blog/ below stays the second sample.
-    rows.append(_row("host", f"{WWW}/contact/", 200, "www must preserve the PATH, not land on home",
-                     terminal_url=f"{SITE}/contact/"))
-    rows.append(_row("host", f"{WWW}/blog/", 200, "path preservation, second sample",
-                     terminal_url=f"{SITE}/blog/"))
+    # www is RETIRED, 2026-10-16. It previously 301'd to the apex preserving path and query. The
+    # owner's policy changed: www must be a dead end, not an alternate route. www now resolves
+    # through the *.wecare.digital wildcard to the home-fallback CloudFront function
+    # (amplify/infra/home-fallback.json), which returns 404 for the www host specifically. These
+    # rows assert that TERMINAL 404 - no redirect, no terminal_url - so a www URL re-becoming a
+    # 200/301 route into the site (the duplicate-content state this change exists to prevent)
+    # fails the run.
+    rows.append(_row("host", f"{WWW}/", 404, "www must be rejected with 404, not serve or redirect"))
+    rows.append(_row("host", f"{WWW}/contact/", 404, "a www PATH must 404, not reach the apex page"))
+    rows.append(_row("host", f"{WWW}/blog/", 404, "www 404, second sample"))
     rows.append(_row("host", f"http://{SITE.split('://')[1]}/", 200,
                      "http apex reaches https apex", terminal_url=f"{SITE}/"))
     # ADDED 2026-10-01, third convergence pass. The apex IS the Cognito OAuth redirect URI:
     # src/pages/_app.tsx registers `redirectSignIn`/`redirectSignOut` as
     # NEXT_PUBLIC_APP_URL || 'https://wecare.digital/', and that URI is registered on the
     # stack-wecare-digital-web client. So the apex answering 200 is not just "the home page is
-    # up" - it is the sign-in round trip's landing surface, and these two rows say so.
-    # The second row is the one that matters: Cognito returns the authorization code in the
-    # QUERY STRING, so the www canonicalisation must carry `?code=` across or sign-in breaks for
-    # anyone who began at www. The host rule's source is a bare origin, which is what preserves
-    # both path and query; a source with a path would drop them. `zzz`-prefixed values are
-    # deliberately invalid - nothing is exchanged, the probe only measures where they land.
+    # up" - it is the sign-in round trip's landing surface, and this row says so. The OAuth
+    # redirect URI is the APEX only; www is no longer a valid entry point, so there is no www
+    # OAuth row any more - a www sign-in attempt simply 404s (asserted by the www rows above).
+    # `zzz`-prefixed values are deliberately invalid - nothing is exchanged, the probe only
+    # measures where they land.
     rows.append(_row("host", f"{SITE}/?code=zzztest&state=zzz", 200,
                      "the Cognito OAuth redirect URI itself (_app.tsx redirectSignIn)"))
-    rows.append(_row("host", f"{WWW}/?code=zzztest&state=zzz", 200,
-                     "the www 301 must preserve the OAuth ?code=, or sign-in breaks from www",
-                     terminal_url=f"{SITE}/?code=zzztest&state=zzz"))
 
     # ── the 404 fallback ─────────────────────────────────────────────────────────────
     # 404 is load-bearing and must never become 200: a non-404 status on /<*> matches

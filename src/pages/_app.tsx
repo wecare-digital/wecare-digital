@@ -1035,9 +1035,10 @@ export default function App ( { Component, pageProps }: AppProps ) {
               Rendered only when the env value is set. An empty content="" tag is worse
               than no tag: verification fails either way, but an empty one looks
               configured and stops anyone looking for the cause.
-              Note the Bing property is registered as https://www.wecare.digital/, which
-              301s to the apex this site now serves from, so the property may need
-              re-pointing at https://wecare.digital/. */}
+              Note the Bing property is registered as https://www.wecare.digital/. As of
+              2026-10-16 www no longer 301s to the apex - it is retired and 404s at the
+              wildcard fallback - so that property can no longer verify at all and MUST be
+              re-pointed at https://wecare.digital/. */}
           { VERIFICATION.google && (
             <meta name="google-site-verification" content={ VERIFICATION.google } />
           ) }

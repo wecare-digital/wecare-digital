@@ -16,38 +16,45 @@ Amplify `customRules` entry, which is the hosting layer that actually serves the
 the app-level rules **override** anything the repository implies. Verify against
 `GetApp`, never against `next.config.js`.
 
-## Live redirect rules — 23 total
+## Live redirect rules — 22 total
 
 Measured, in the order Amplify evaluates them. Order matters: the catch-all must stay
 last or it shadows everything after it.
 
+**www is no longer an Amplify rule (2026-10-16).** This table previously led with a
+`https://www.wecare.digital → https://wecare.digital` 301 "apex canonicalisation" rule.
+The owner retired www as an alternate route: it now resolves through the
+`*.wecare.digital` wildcard to the home-fallback CloudFront function
+(`amplify/infra/home-fallback.json`), which returns **404** for the www host specifically.
+That rejection lives at the wildcard layer, not in these Amplify `customRules`, so the row
+is gone from the list below.
+
 | # | Source | Target | Status | Purpose |
 |--:|---|---|:-:|---|
-| 1 | `https://www.wecare.digital` | `https://wecare.digital` | 301 | apex canonicalisation |
-| 2 | `/get` | `/get/index.html` | 200 | rewrite, not a retirement |
-| 3 | `/get/` | `/get/index.html` | 200 | trailing-slash form |
-| 4 | `/get/<*>` | `d1kf2rchz7yras.cloudfront.net/<*>` | 200 | secure-file delivery origin |
-| 5 | `[retired public path 2de923b8]/calls` | `[retired public path 2de923b8]/inbox/?channel=voice` | **301** | provider inbox → Common Inbox filter |
-| 6 | `[retired public path 2de923b8]/calls/` | `[retired public path 2de923b8]/inbox/?channel=voice` | **301** | trailing-slash form |
-| 7 | `[retired public path 2de923b8]/rcs/inbox` | `[retired public path 2de923b8]/inbox/?channel=rcs` | **301** | provider inbox → filter |
-| 8 | `[retired public path 2de923b8]/rcs/inbox/` | `[retired public path 2de923b8]/inbox/?channel=rcs` | **301** | trailing-slash form |
-| 9 | `[retired public path 2de923b8]/ses/inbox` | `[retired public path 2de923b8]/inbox/?channel=email` | **301** | provider inbox → filter |
-| 10 | `[retired public path 2de923b8]/ses/inbox/` | `[retired public path 2de923b8]/inbox/?channel=email` | **301** | trailing-slash form |
-| 11 | `[retired public path 2de923b8]/whatsapp/logs` | `[retired public path 2de923b8]/logs/?channel=whatsapp` | **301** | per-provider log page → one log page |
-| 12 | `[retired public path 2de923b8]/whatsapp/logs/` | `[retired public path 2de923b8]/logs/?channel=whatsapp` | **301** | trailing-slash form |
-| 13 | `[retired public path 2de923b8]/rcs/logs` | `[retired public path 2de923b8]/logs/?channel=rcs` | **301** | per-provider log page → one log page |
-| 14 | `[retired public path 2de923b8]/rcs/logs/` | `[retired public path 2de923b8]/logs/?channel=rcs` | **301** | trailing-slash form |
-| 15 | `[retired public path 2de923b8]/ses/logs` | `[retired public path 2de923b8]/logs/?channel=email` | **301** | per-provider log page → one log page |
-| 16 | `[retired public path 2de923b8]/ses/logs/` | `[retired public path 2de923b8]/logs/?channel=email` | **301** | trailing-slash form |
-| 17 | `[retired public path 2de923b8]/rcs/campaign` | `[retired public path 2de923b8]/broadcast/` | **301** | per-provider campaign → one broadcast |
-| 18 | `[retired public path 2de923b8]/rcs/campaign/` | `[retired public path 2de923b8]/broadcast/` | **301** | trailing-slash form |
-| 19 | `[retired public path 2de923b8]/ses/campaign` | `[retired public path 2de923b8]/broadcast/` | **301** | per-provider campaign → one broadcast |
-| 20 | `[retired public path 2de923b8]/ses/campaign/` | `[retired public path 2de923b8]/broadcast/` | **301** | trailing-slash form |
-| 21 | `[retired public path 21d99b11]/logs` | `[retired public path 21d99b11]/` | **301** | sub-page folded into its parent |
-| 22 | `[retired public path 21d99b11]/logs/` | `[retired public path 21d99b11]/` | **301** | trailing-slash form |
-| 23 | `/<*>` | `/index.html` | 404-200 | SPA catch-all. **Must stay last** |
+| 1 | `/get` | `/get/index.html` | 200 | rewrite, not a retirement |
+| 2 | `/get/` | `/get/index.html` | 200 | trailing-slash form |
+| 3 | `/get/<*>` | `d1kf2rchz7yras.cloudfront.net/<*>` | 200 | secure-file delivery origin |
+| 4 | `[retired public path 2de923b8]/calls` | `[retired public path 2de923b8]/inbox/?channel=voice` | **301** | provider inbox → Common Inbox filter |
+| 5 | `[retired public path 2de923b8]/calls/` | `[retired public path 2de923b8]/inbox/?channel=voice` | **301** | trailing-slash form |
+| 6 | `[retired public path 2de923b8]/rcs/inbox` | `[retired public path 2de923b8]/inbox/?channel=rcs` | **301** | provider inbox → filter |
+| 7 | `[retired public path 2de923b8]/rcs/inbox/` | `[retired public path 2de923b8]/inbox/?channel=rcs` | **301** | trailing-slash form |
+| 8 | `[retired public path 2de923b8]/ses/inbox` | `[retired public path 2de923b8]/inbox/?channel=email` | **301** | provider inbox → filter |
+| 9 | `[retired public path 2de923b8]/ses/inbox/` | `[retired public path 2de923b8]/inbox/?channel=email` | **301** | trailing-slash form |
+| 10 | `[retired public path 2de923b8]/whatsapp/logs` | `[retired public path 2de923b8]/logs/?channel=whatsapp` | **301** | per-provider log page → one log page |
+| 11 | `[retired public path 2de923b8]/whatsapp/logs/` | `[retired public path 2de923b8]/logs/?channel=whatsapp` | **301** | trailing-slash form |
+| 12 | `[retired public path 2de923b8]/rcs/logs` | `[retired public path 2de923b8]/logs/?channel=rcs` | **301** | per-provider log page → one log page |
+| 13 | `[retired public path 2de923b8]/rcs/logs/` | `[retired public path 2de923b8]/logs/?channel=rcs` | **301** | trailing-slash form |
+| 14 | `[retired public path 2de923b8]/ses/logs` | `[retired public path 2de923b8]/logs/?channel=email` | **301** | per-provider log page → one log page |
+| 15 | `[retired public path 2de923b8]/ses/logs/` | `[retired public path 2de923b8]/logs/?channel=email` | **301** | trailing-slash form |
+| 16 | `[retired public path 2de923b8]/rcs/campaign` | `[retired public path 2de923b8]/broadcast/` | **301** | per-provider campaign → one broadcast |
+| 17 | `[retired public path 2de923b8]/rcs/campaign/` | `[retired public path 2de923b8]/broadcast/` | **301** | trailing-slash form |
+| 18 | `[retired public path 2de923b8]/ses/campaign` | `[retired public path 2de923b8]/broadcast/` | **301** | per-provider campaign → one broadcast |
+| 19 | `[retired public path 2de923b8]/ses/campaign/` | `[retired public path 2de923b8]/broadcast/` | **301** | trailing-slash form |
+| 20 | `[retired public path 21d99b11]/logs` | `[retired public path 21d99b11]/` | **301** | sub-page folded into its parent |
+| 21 | `[retired public path 21d99b11]/logs/` | `[retired public path 21d99b11]/` | **301** | trailing-slash form |
+| 22 | `/<*>` | `/index.html` | 404-200 | SPA catch-all. **Must stay last** |
 
-**18 of the 23 are 301 retirements**, covering 9 distinct retired paths in both their
+**18 of the 22 are 301 retirements**, covering 9 distinct retired paths in both their
 bare and trailing-slash forms. Both forms are required: a static host does not treat
 `[retired public path 2de923b8]/calls` and `[retired public path 2de923b8]/calls/` as the same key, so a single rule leaves one of them 404.
 

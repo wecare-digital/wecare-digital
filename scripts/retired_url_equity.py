@@ -22,8 +22,13 @@ THE PROPERTY THAT MATTERS IS THE www ONE. There are two Search Console propertie
     https://wecare.digital/        created 2026-09-30    the current export, no backfill
 
 Reading only the apex property shows zero impressions and invites the conclusion that the
-site is invisible to Google. It is not - the history lives under www, which now 301s to
-the apex. So this script queries BOTH and merges, keyed on path.
+site is invisible to Google. It is not - the history lives under the www Search Console
+property. NOTE (2026-10-16): www no longer 301s to the apex; it is retired and now 404s at
+the *.wecare.digital wildcard fallback. The www GSC PROPERTY still exists and still holds the
+480 days of history, which is why this script keeps querying it - but any www URL that still
+shows impressions is now a 404 whose equity is being discarded, not consolidated, so it
+surfaces as RECOVERABLE here and the fix is a redirect/rewrite on the APEX, never a www
+revival. So this script queries BOTH properties and merges, keyed on path.
 
 OUTPUT is a verdict per path:
 

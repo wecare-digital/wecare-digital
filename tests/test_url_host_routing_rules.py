@@ -73,11 +73,6 @@ SNAPSHOTS = ROOT / "docs/execution/snapshots"
 PRE_CHANGE = SNAPSHOTS / "retired-url-rules-before-20261002.json"
 POST_REMOVAL = SNAPSHOTS / "amplify-custom-rules-after-url-host-cleanup-20261001.json"
 
-WWW_CANONICAL = {
-    "source": "https://www.wecare.digital",
-    "target": "https://wecare.digital",
-    "status": "301",
-}
 CATCH_ALL = {"source": "/<*>", "target": "/404.html", "status": "404-200"}
 
 # The runtime rewrites this file exists to protect, and what each one carries. Used as a
@@ -113,16 +108,14 @@ REDIRECT_STATUSES = frozenset({"301", "302", "307", "308", "404"})
 # satisfied with an empty string is a gate somebody switches off.
 
 RATIFIED_REDIRECTS: dict[tuple[str, str, str], str] = {
-    ("https://www.wecare.digital", "https://wecare.digital", "301"):
-        "Host canonicalisation, restored 2026-10-01T08:59:52Z. Source and target are bare "
-        "origins with no path, which is what makes Amplify carry the request path across - "
-        "measured, www /contact/ -> apex /contact/, not apex home. Evidence: "
-        "docs/execution/url-host-matrix-20261001.md. SAMPLE CORRECTED 2026-10-04: this reason "
-        "cited www /shop/ -> apex /shop/, which stops being a clean demonstration now that the "
-        "/shop index itself 301s - www /shop/ chains 301 -> apex /shop/ -> 301 -> apex /, so "
-        "landing on home would no longer distinguish path preservation from path loss. "
-        "/contact/ is a terminal 200, so it still tells the two apart. The path-preservation "
-        "PROPERTY is unchanged; only the sample URL moved.",
+    # THE www -> apex 301 RULE IS GONE, 2026-10-16. www was previously canonicalised to the
+    # apex by an Amplify custom rule. The owner's policy changed: www is retired and must be a
+    # dead end, not an alternate route. www now resolves through the *.wecare.digital wildcard
+    # to the home-fallback CloudFront function (amplify/infra/home-fallback.json), which returns
+    # 404 for the www host specifically. That rejection lives at the wildcard layer, NOT in the
+    # Amplify custom rules this file governs, so there is no www entry to ratify here anymore.
+    # provision_legacy_redirects.desired_redirects() no longer emits it either, so the two stay
+    # in step. See test_no_www_redirect_is_emitted below.
     ("/zip", "/shipments/", "301"):
         "RENAMED, not retired. bb1cf39b: the owner retired the product name Zip on 2026-10-02 "
         "and the page moved to /shipments/ with content unchanged. retired_url_equity.py: a 404 "
@@ -261,12 +254,13 @@ def test_every_emitted_redirect_is_ratified_and_every_ratified_redirect_is_emitt
     """
     emitted = redirects.desired_redirects()
 
-    # Stated as a requirement rather than a skip gate. Round 1 carried a helper that skipped
-    # the file when the provisioner had not yet restored the host rule; it has, so that skip
-    # could never fire again, and a skip that cannot fire is dead code hiding a real check.
-    assert WWW_CANONICAL in emitted, (
-        "the host canonicalisation rule is not emitted - without it every www URL is a "
-        "duplicate-content copy of the apex"
+    # www is retired (2026-10-16): it must NOT be emitted as an Amplify redirect. A www -> apex
+    # 301 here would re-create the competing www canonical surface the wildcard-fallback 404
+    # exists to remove. See test_no_www_redirect_is_emitted for the dedicated guard.
+    www_rules = [r for r in emitted if "www.wecare.digital" in str(r.get("source", ""))]
+    assert not www_rules, (
+        "the provisioner emits a www redirect, but www is retired and must be a dead end: "
+        + ", ".join(f"{r['status']} {r['source']} -> {r['target']}" for r in www_rules)
     )
 
     unratified = [r for r in emitted if _rule_key(r) not in RATIFIED_REDIRECTS]
@@ -345,7 +339,7 @@ def test_the_pre_change_array_reconciles_to_the_ratified_set_with_every_passthro
 
     expected = RATIFIED_RULES + [dict(r) for r in before if not redirects.is_ours(r)]
     assert client.written == expected
-    assert client.written[0] == WWW_CANONICAL, "the host rule must lead the array"
+    assert client.written[0] == RATIFIED_RULES[0], "the ratified redirects must lead the array in order"
     assert client.written[-1] == CATCH_ALL, "the 404-200 fallback must be last"
 
 
@@ -614,25 +608,24 @@ def test_the_catch_all_is_last_and_unique_in_the_snapshot_and_in_the_write(
     assert [r for r in client.written if r.get("source") == "/<*>"] == [CATCH_ALL]
 
 
-def test_the_host_rule_is_first_and_carries_no_path(after):
-    """Source and target are bare origins, which is what preserves the request path.
+def test_no_www_redirect_is_emitted(redirects):
+    """www is retired: the provisioner must emit no www redirect at all.
 
-    Measured after applying: `https://www.wecare.digital/contact/` -> 301 ->
-    `https://wecare.digital/contact/`. Had the source carried a path, www would have collapsed
-    every URL onto the apex home page - worse than the duplicate-content state the rule was
-    restored to fix.
-
-    SAMPLE CORRECTED 2026-10-04. This docstring cited `/shop/` as the measured sample. With the
-    /shop index now 301ing to home, `www /shop/` chains 301 -> `apex /shop/` -> 301 -> `apex /`,
-    so a reader checking that sample would see www traffic terminate on home - which is
-    indistinguishable from the path-LOSS failure this rule exists to prevent. `/contact/` is a
-    terminal 200, so it still separates the two. The property asserted below is unchanged.
+    REPLACES `test_the_host_rule_is_first_and_carries_no_path`, which asserted the opposite -
+    that a www -> apex 301 led the array and carried a bare origin so the request path survived.
+    The owner's policy changed on 2026-10-16: www must be a dead end, not an alternate route.
+    www now resolves through the *.wecare.digital wildcard to the home-fallback CloudFront
+    function (amplify/infra/home-fallback.json), which returns 404 for the www host. That
+    rejection is enforced at the wildcard layer, not in these Amplify custom rules, so the only
+    correct thing for the provisioner to do with www is nothing. A www rule reappearing here
+    would re-create the competing canonical surface the 404 exists to remove.
     """
-    assert after[0] == WWW_CANONICAL, f"first rule must be the host canonicalisation, found {after[0]}"
-    for field in ("source", "target"):
-        value = WWW_CANONICAL[field]
-        assert value.startswith("https://"), value
-        assert value.count("/") == 2, f"{field} must be a bare origin with no path: {value}"
+    emitted = redirects.desired_redirects()
+    www_rules = [r for r in emitted if "www.wecare.digital" in str(r.get("source", ""))]
+    assert not www_rules, (
+        "a www redirect is emitted, but www is retired and handled by the wildcard-fallback "
+        "404: " + ", ".join(f"{r['status']} {r['source']} -> {r['target']}" for r in www_rules)
+    )
 
 
 def test_the_two_committed_snapshots_differ_only_in_redirect_rules(before, after):

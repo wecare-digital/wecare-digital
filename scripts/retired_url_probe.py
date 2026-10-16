@@ -34,8 +34,11 @@ RETIRED: dict[str, str] = {
 
 HOSTS = {
     "http://wecare.digital/": "http apex must redirect to https",
-    "https://www.wecare.digital/": "www must 301 to the apex",
-    "http://www.wecare.digital/": "http www must reach https apex",
+    # www is retired (2026-10-16): the *.wecare.digital wildcard resolves it, but
+    # the home-fallback CloudFront function returns 404 so www is never an
+    # alternate route into the site. It must NOT 301 to the apex any more.
+    "https://www.wecare.digital/": "www must be rejected with 404, not redirected",
+    "http://www.wecare.digital/": "http www must reach https then 404",
 }
 
 

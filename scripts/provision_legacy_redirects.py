@@ -4,7 +4,9 @@
 Keep internal 200 rewrites and the 404-200 fallback unchanged. These serve the
 API, files, short-link service, MCP and missing-page document. The legacy filename
 is retained because the deployment workflow already invokes this entry point.
-Only www canonicalisation may redirect; the retired /access entry must stay unavailable.
+www is no longer handled here: as of 2026-10-16 it is rejected with 404 by the
+*.wecare.digital wildcard fallback (amplify/infra/home-fallback.json), not 301'd
+by an Amplify rule. The retired /access entry must stay unavailable.
 No legacy SEO, workspace or frozen-template destination may be recreated.
 
 Usage: python scripts/provision_legacy_redirects.py [--apply | --verify]
@@ -37,7 +39,15 @@ def amplify():
 
 
 def desired_redirects() -> list[dict]:
-    """The www canonicalisation and the /zip -> /shipments rename. The /shop index is restored.
+    """The /zip -> /shipments rename. The /shop index is restored; www is no longer redirected here.
+
+    WWW IS NO LONGER AN AMPLIFY REDIRECT. On 2026-10-16 the owner's policy changed: www is
+    retired and must be a dead end, not an alternate route. The *.wecare.digital wildcard
+    resolves www to the home-fallback CloudFront function (amplify/infra/home-fallback.json),
+    which returns 404 for the www host specifically. Keeping a `www -> apex 301` custom rule
+    here would re-create the competing www canonical surface the 404 exists to remove, so the
+    rule is gone from the list below.
+
 
     WHY A SECOND REDIRECT NOW EXISTS, when this module's whole posture is that retired paths
     should 404 rather than be kept alive: because /zip was not RETIRED, it was RENAMED.
@@ -78,11 +88,11 @@ def desired_redirects() -> list[dict]:
     that resolves at 200 would 301 the catalogue away the moment --apply runs.
 
     NOTE FOR WHOEVER RUNS --apply: verify() compares the live rule list against this function for
-    EXACT equality, so a live app that still carries only the www rule will report FAIL until
-    --apply has run. That FAIL is the expected pre-apply state, not a fault in this list.
+    EXACT equality, so a live app that still carries the old www -> apex 301 rule will report
+    FAIL until --apply has run and dropped it. That FAIL is the expected pre-apply state, not a
+    fault in this list.
     """
     return [
-        {"source": "https://www.wecare.digital", "target": SITE, "status": "301"},
         {"source": "/zip", "target": "/shipments/", "status": "301"},
         {"source": "/zip/", "target": "/shipments/", "status": "301"},
     ]
