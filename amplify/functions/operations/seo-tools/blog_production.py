@@ -113,7 +113,33 @@ def control_id(category: str) -> str:
     return f"blogcontrol_{_slug(category)}"
 
 
-def master_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/current/master.json",,,def prompt_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/current/editorial-master.md",,,def policy_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/current/quality-policy.json",,,def legacy_master_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/master-current.json",,,def legacy_prompt_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/prompt-current.md",,,def legacy_policy_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/quality-policy.json",,,def master_history_root(category: str, prompt_sha256: str) -> str:,    version = PROMPT_VERSIONS[_category(category)],    return f"{MASTERS_PREFIX}{_slug(category)}/history/{version}-{prompt_sha256[:12]}/"
+def master_key(category: str) -> str:
+    return f"{MASTERS_PREFIX}{_slug(category)}/current/master.json"
+
+
+def prompt_key(category: str) -> str:
+    return f"{MASTERS_PREFIX}{_slug(category)}/current/editorial-master.md"
+
+
+def policy_key(category: str) -> str:
+    return f"{MASTERS_PREFIX}{_slug(category)}/current/quality-policy.json"
+
+
+def legacy_master_key(category: str) -> str:
+    return f"{MASTERS_PREFIX}{_slug(category)}/master-current.json"
+
+
+def legacy_prompt_key(category: str) -> str:
+    return f"{MASTERS_PREFIX}{_slug(category)}/prompt-current.md"
+
+
+def legacy_policy_key(category: str) -> str:
+    return f"{MASTERS_PREFIX}{_slug(category)}/quality-policy.json"
+
+
+def master_history_root(category: str, prompt_sha256: str) -> str:
+    version = PROMPT_VERSIONS[_category(category)]
+    return f"{MASTERS_PREFIX}{_slug(category)}/history/{version}-{prompt_sha256[:12]}/"
 
 
 def checkpoint_key(category: str) -> str:
