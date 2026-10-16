@@ -294,6 +294,112 @@ def test_chatgpt_article_write_bridges_into_the_existing_qa_record_shape(prod):
     assert table.items[intent["intentId"]]["status"] == "DRAFTED"
 
 
+def test_s3_staged_article_upload_and_save(prod):
+    bp, bs, storage, table, s3 = prod
+    bp.initialize("admin")
+    source_id = _source(table)
+    bp.claim_next_source("Conversations", "editor")
+    intent = _two_intent_manifest(bp, source_id)["createdIntents"][0]
+
+    staged = bp.stage_article_upload({
+        "category": "Conversations",
+        "intentId": intent["intentId"],
+    }, "editor")
+    assert staged["articleKey"].endswith(
+        f"articles/staging/{intent['intentId']}.json")
+    assert staged["uploadUrl"].startswith("https://s3.example/")
+    assert staged["contentType"] == "application/json; charset=utf-8"
+
+    s3.objects[staged["articleKey"]] = json.dumps({
+        "article": {
+            "title": "Integrity Without Moral Verdict",
+            "slug": "integrity-without-moral-verdict",
+            "contentMarkdown": "A complete staged article body. " * 120,
+            "seoTitle": "Integrity Without Moral Verdict | WECARE.DIGITAL",
+            "metaDescription": (
+                "A staged article used to prove long-form editorial input can be loaded "
+                "from the secure work tree without bypassing normal QA gates."
+            ),
+            "tags": ["Integrity", "Workability"],
+            "articleType": "ARTICLE",
+            "centralDistinction": (
+                "Integrity can be examined through completeness before moral judgement."
+            ),
+            "distinctPurpose": (
+                "Separates practical completeness from a verdict about character."
+            ),
+        }
+    }).encode("utf-8")
+
+    saved = bp.save_article({
+        "category": "Conversations",
+        "intentId": intent["intentId"],
+        "status": "QA_READY",
+        "articleKey": staged["articleKey"],
+    }, "editor")
+    child = bs.get_source(saved["articleWorkId"])
+    assert child["draftRecord"]["contentMarkdown"].startswith(
+        "A complete staged article body.")
+    assert child["pipeline"]["publishStatus"] == ""
+    assert table.items[intent["intentId"]]["status"] == "QA_READY"
+
+
+def test_s3_staged_article_key_is_intent_scoped(prod):
+    bp, bs, storage, table, s3 = prod
+    bp.initialize("admin")
+    source_id = _source(table)
+    bp.claim_next_source("Conversations", "editor")
+    intents = _two_intent_manifest(bp, source_id)["createdIntents"]
+
+    first = intents[0]
+    other = intents[1]
+    other_key = bp.article_input_key(
+        "Conversations", source_id, other["intentId"])
+    s3.objects[other_key] = json.dumps({
+        "contentMarkdown": "This belongs to a different reserved intent."
+    }).encode("utf-8")
+
+    with pytest.raises(ValueError, match="canonical secure staging key"):
+        bp.save_article({
+            "category": "Conversations",
+            "intentId": first["intentId"],
+            "status": "DRAFTED",
+            "articleKey": other_key,
+        }, "editor")
+
+
+def test_s3_staged_article_cannot_write_protected_fields(prod):
+    bp, bs, storage, table, s3 = prod
+    bp.initialize("admin")
+    source_id = _source(table)
+    bp.claim_next_source("Conversations", "editor")
+    intent = _two_intent_manifest(bp, source_id)["createdIntents"][0]
+    staged = bp.stage_article_upload({
+        "category": "Conversations",
+        "intentId": intent["intentId"],
+    }, "editor")
+    s3.objects[staged["articleKey"]] = json.dumps({
+        "article": {
+            "title": "Safe staged article",
+            "contentMarkdown": "A complete article body. " * 120,
+            "sourceReviewedFully": "YES",
+            "gate": {"VOICE": "PASS"},
+            "status": "VERIFIED",
+        }
+    }).encode("utf-8")
+
+    saved = bp.save_article({
+        "category": "Conversations",
+        "intentId": intent["intentId"],
+        "status": "DRAFTED",
+        "articleKey": staged["articleKey"],
+    }, "editor")
+    child = bs.get_source(saved["articleWorkId"])
+    assert child["draftRecord"].get("sourceReviewedFully", "") == ""
+    assert "gate" not in child["draftRecord"]
+    assert child["draftRecord"]["status"] != "VERIFIED"
+
+
 def test_chatgpt_cannot_write_protected_publish_states(prod):
     bp, bs, storage, table, s3 = prod
     bp.initialize("admin")

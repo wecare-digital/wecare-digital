@@ -742,6 +742,10 @@ def _route_post(path: str, body: Dict[str, Any], actor: str, origin: str):
         return _response(200, {'ok': True, **blog_production.approve_sample(
             body, actor)}, origin)
 
+    if path.endswith('/blog-production/article-upload'):
+        return _response(200, {'ok': True, **blog_production.stage_article_upload(
+            body, actor)}, origin)
+
     if path.endswith('/blog-production/article'):
         return _response(200, {'ok': True, **blog_production.save_article(
             body, actor)}, origin)

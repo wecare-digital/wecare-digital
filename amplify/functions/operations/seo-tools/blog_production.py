@@ -168,6 +168,67 @@ def article_key(category: str, source_id: str, intent_id: str) -> str:
     return work_root(category, source_id) + f"articles/{intent_id}.json"
 
 
+def article_input_key(category: str, source_id: str, intent_id: str) -> str:
+    """Canonical secure staging key for one externally-authored article payload."""
+    return work_root(category, source_id) + f"articles/staging/{intent_id}.json"
+
+
+ARTICLE_INPUT_MAX_BYTES = 2 * 1024 * 1024
+
+
+def stage_article_upload(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
+    """Return a short-lived upload target for the exact reserved intent staging key."""
+    category = _category(body.get("category"))
+    intent_ref = str(body.get("intentId") or "").strip()
+    intent = storage.get_typed(intent_ref, INTENT_RECORD_TYPE)
+    if not intent or intent.get("category") != category:
+        raise LookupError("Unknown article intent")
+    source_id = str(intent.get("sourceId") or "")
+    key = article_input_key(category, source_id, intent_ref)
+    url = blog_sources.s3_client().generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": blog_sources.BUCKET,
+            "Key": key,
+            "ContentType": "application/json; charset=utf-8",
+        },
+        ExpiresIn=blog_sources.UPLOAD_URL_TTL,
+    )
+    return {
+        "intentId": intent_ref,
+        "articleKey": key,
+        "uploadUrl": url,
+        "uploadUrlExpiresInSeconds": blog_sources.UPLOAD_URL_TTL,
+        "contentType": "application/json; charset=utf-8",
+        "maxBytes": ARTICLE_INPUT_MAX_BYTES,
+        "actor": actor,
+    }
+
+
+def _article_from_staging(category: str, intent: Dict[str, Any], article_key_ref: str) -> Dict[str, Any]:
+    intent_ref = str(intent.get("id") or "")
+    source_id = str(intent.get("sourceId") or "")
+    expected = article_input_key(category, source_id, intent_ref)
+    supplied = str(article_key_ref or "").strip()
+    if supplied != expected:
+        raise ValueError("articleKey must be the canonical secure staging key for this intent")
+    obj = blog_sources.s3_client().get_object(Bucket=blog_sources.BUCKET, Key=supplied)
+    raw = obj["Body"].read(ARTICLE_INPUT_MAX_BYTES + 1)
+    if len(raw) > ARTICLE_INPUT_MAX_BYTES:
+        raise ValueError("staged article exceeds the 2 MiB input limit")
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except Exception as exc:
+        raise ValueError("staged article must be valid UTF-8 JSON") from exc
+    if isinstance(payload, dict) and isinstance(payload.get("article"), dict):
+        payload = payload["article"]
+    if not isinstance(payload, dict):
+        raise ValueError("staged article JSON must be an object")
+    if not str(payload.get("contentMarkdown") or "").strip():
+        raise ValueError("staged article requires contentMarkdown")
+    return payload
+
+
 def _put_json(key: str, value: Dict[str, Any]) -> str:
     blog_sources.s3_client().put_object(
         Bucket=blog_sources.BUCKET,
@@ -855,11 +916,13 @@ def save_article(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     if status not in CHATGPT_WRITABLE_STATUSES:
         raise ValueError(
             f"ChatGPT article writes may use only {sorted(CHATGPT_WRITABLE_STATUSES)}")
-    if not isinstance(article, dict) or not str(article.get("contentMarkdown") or "").strip():
-        raise ValueError("article with contentMarkdown is required")
     intent = storage.get_typed(intent_ref, INTENT_RECORD_TYPE)
     if not intent or intent.get("category") != category:
         raise LookupError("Unknown article intent")
+    if article is None and body.get("articleKey"):
+        article = _article_from_staging(category, intent, str(body.get("articleKey") or ""))
+    if not isinstance(article, dict) or not str(article.get("contentMarkdown") or "").strip():
+        raise ValueError("article with contentMarkdown or canonical articleKey is required")
 
     import blog_article_work
     source_id = str(intent.get("sourceId") or "")
