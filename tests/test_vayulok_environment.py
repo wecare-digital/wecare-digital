@@ -32,14 +32,15 @@ def mod():
     sys.modules.pop(name, None)
 
 
-def event(body=None, *, origin="https://wecare.digital", method="POST"):
+def event(body=None, *, origin="https://wecare.digital", method="POST", path="/vayulok/environment", stage=None):
     headers = {}
     if origin is not None:
         headers["origin"] = origin
     return {
-        "rawPath": "/vayulok/environment",
+        "rawPath": path,
         "requestContext": {
-            "http": {"method": method, "path": "/vayulok/environment"}
+            "http": {"method": method, "path": path},
+            **({"stage": stage} if stage else {}),
         },
         "headers": headers,
         "body": json.dumps(body or {}),
@@ -48,6 +49,17 @@ def event(body=None, *, origin="https://wecare.digital", method="POST"):
 
 def body(resp):
     return json.loads(resp["body"] or "{}")
+
+
+def test_api_gateway_stage_prefix_is_normalized(mod):
+    request = event(
+        {"operation": "weather_current", "latitude": 19.076, "longitude": 72.8777},
+        path="/prod/vayulok/environment",
+        stage="prod",
+    )
+    method, path = mod._method_path(request)
+    assert method == "POST"
+    assert path == "/vayulok/environment"
 
 
 @pytest.mark.parametrize(
