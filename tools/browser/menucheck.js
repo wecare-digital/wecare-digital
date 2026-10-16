@@ -2,6 +2,8 @@
 
 /**
  * Cross-browser public-menu compatibility check.
+ * Final CI gate: this file intentionally changes with menu-contract repairs so the dedicated
+ * Chromium/Firefox/WebKit workflow re-runs against the exact repaired commit.
  *
  * Runs the same interaction contract in Chromium, Firefox and WebKit at desktop and mobile
  * viewport sizes. This is intentionally narrower than devicecheck.js: it validates the menu

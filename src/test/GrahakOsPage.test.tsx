@@ -42,7 +42,7 @@ describe( 'Grahak OS five approved visual fixes', () => {
     const avatarRule = cssRuleFor( source, '.avatar' );
     expect( avatarRule ).toContain( 'width:40px' );
     expect( avatarRule ).toContain( 'height:40px' );
-    expect( avatarRule ).toContain( 'background:#fff' );
+    expect( avatarRule ).toContain( 'background:#d1f470' );
     expect( avatarRule ).toContain( 'border-radius:50%' );
     expect( avatarRule ).toContain( 'overflow:hidden' );
     expect( avatarRule ).toContain( 'box-shadow:0 0 0 2px rgba(255,255,255,.6)' );
