@@ -251,6 +251,11 @@ response = requests.post(
           every other public page resolved `main`. The class is unchanged, so no CSS moves. */}
       <main className="page">
 
+        {/* NO hero CTA. The "Get Started on WhatsApp" pill was removed from the hero on owner
+            instruction, so the hero is just the headline, sub and mockup; the single call to
+            action (WhatsApp pill + the price) lives in the closer at the bottom (#gos-closer).
+            RotatingHero's children slot is left unset. This note sits before the element because
+            a JSX comment cannot appear between an element's attributes. */}
         <RotatingHero
           insideMain
           noShare
@@ -260,10 +265,6 @@ response = requests.post(
           pillPrefix="across"
           words={ cycleWords }
           sub={ <>One platform for customer data, messaging, automation and campaigns, so every conversation stays connected whichever channel it starts on. Turn your WhatsApp number into your #1 revenue channel with Grahak OS.</> }
-          {/* NO hero CTA. The "Get Started on WhatsApp" pill was removed from the hero on owner
-              instruction, so the hero is just the headline, sub and mockup; the single call to
-              action (WhatsApp pill + ₹899 price) lives in the closer at the bottom
-              (#gos-closer). RotatingHero's `children` slot is left unset. */}
           visual={ (
           <div className="hero-right">
               <div className="mockup-wrapper">
