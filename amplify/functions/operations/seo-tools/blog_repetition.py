@@ -97,8 +97,8 @@ def run_id() -> str:
     return f"blogrep_{uuid.uuid4().hex}"
 
 
-def body_key(batch_id: str, record_id: str) -> str:
-    return f"{blog_sources.REPETITION_PREFIX}{batch_id}/{record_id}.json"
+def body_key(category: str, batch_id: str, record_id: str) -> str:
+    return blog_sources.batch_work_root(category, batch_id) + f"repetition/{record_id}.json"
 
 
 # ── Shapes ──────────────────────────────────────────────────────────────────────
@@ -434,7 +434,8 @@ def run(batch_id: str, actor: str) -> Dict[str, Any]:
         },
         **report,
     }
-    key = body_key(batch_id, record_id)
+    category = str(batch.get("defaultCategory") or "")
+    key = body_key(category, batch_id, record_id)
     blog_sources.s3_client().put_object(
         Bucket=blog_sources.BUCKET, Key=key,
         Body=json.dumps(document, ensure_ascii=False, indent=2).encode("utf-8"),
@@ -447,6 +448,7 @@ def run(batch_id: str, actor: str) -> Dict[str, Any]:
         "updatedAt": now,
         "slug": batch_id,
         "batchId": batch_id,
+        "category": category,
         "bodyKey": key,
         "articles": report["articles"],
         "pairCount": len(report["pairs"]),

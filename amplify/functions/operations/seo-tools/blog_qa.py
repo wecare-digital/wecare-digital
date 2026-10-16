@@ -102,7 +102,8 @@ def signoff_id() -> str:
 
 
 def run_body_key(source_id: str, qa_run_id: str) -> str:
-    return f"{blog_sources.QA_PREFIX}{source_id}/{qa_run_id}.json"
+    return blog_sources.work_key_for_id(
+        source_id, f"qa/{source_id}/{qa_run_id}.json")
 
 
 # ── QA runs ─────────────────────────────────────────────────────────────────────
@@ -183,6 +184,7 @@ def run(source_id: str, actor: str) -> Dict[str, Any]:
         "slug": source_id,
         "sourceId": source_id,
         "batchId": record.get("batchId") or blog_sources.NO_BATCH,
+        "category": str(record.get("category") or ""),
         "bodyKey": key,
         "bodySha256": assessment["bodySha256"],
         "status": assessment["status"],
@@ -423,6 +425,7 @@ def sign_off(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
         "slug": source_id,
         "sourceId": source_id,
         "batchId": record.get("batchId") or blog_sources.NO_BATCH,
+        "category": str(record.get("category") or ""),
         "qaRunId": qa_ref,
         #: The hash the signature covers. `blog_gate.resolved_gate` compares the live article
         #: against this on every assessment, which is what makes an edit revoke the signature.

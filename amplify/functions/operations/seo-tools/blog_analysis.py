@@ -30,19 +30,11 @@ The evidence can run to tens of kB on a long document - passage text, sentence t
 of quotations - so it goes to S3 and the DynamoDB record keeps counts plus the key. Same
 reason the extract does: a 400 kB item cap is not much once real prose is involved.
 
-The key is `o/blog-production/source-analysis/<sourceId>/v<n>.json`. That is a directory per
-source rather than the flat `source-analysis/<sourceId>.json` the steering file first
-described, because versions need distinct keys and an overwrite would destroy the artifact a
-reviewer signed against - which is the whole point. The steering layout was updated to match
-rather than the code bent to fit a line of documentation.
-
-**The prefix is public and this artifact is not linked.** `o/` is served by CloudFront with
-no authentication, so an analysis is fetchable by anyone holding its URL. Unlike a source PDF,
-which `blog_sources.source_url` deliberately surfaces so a reviewer can open the document,
-nothing here returns a URL for an analysis: the body is proxied through the authenticated
-detail route. That is the honest reading of "internal, never public copy" on a public prefix -
-unlisted and unlinked, not gated. If it must be genuinely private, the prefix moves under
-`secure/` and nothing else in this module changes.
+The key lives under the source's canonical private work directory:
+`secure/blog-production/03-work/<category>/<sourceId>/source-analysis/v<n>.json`.
+Versioned keys preserve the exact artifact a reviewer signed against, while keeping every
+artifact derived from one PDF/book together. Analysis bodies are never written to the public
+`o/blog-production/` tree.
 """
 from __future__ import annotations
 
@@ -118,7 +110,8 @@ def analysis_id(source_id: str, version: int) -> str:
 
 
 def body_key(source_id: str, version: int) -> str:
-    return f"{blog_sources.ANALYSIS_PREFIX}{source_id}/v{int(version)}.json"
+    return blog_sources.work_key_for_id(
+        source_id, f"source-analysis/v{int(version)}.json")
 
 
 # ── The evidence, computed from the text ────────────────────────────────────────
@@ -407,6 +400,7 @@ def analyse(source_id: str, actor: str) -> Dict[str, Any]:
         "slug": source_id,
         "sourceId": source_id,
         "batchId": record.get("batchId") or blog_sources.NO_BATCH,
+        "category": str(record.get("category") or ""),
         "version": version,
         "bodyKey": key,
         #: The hash of the text this analysis was computed FROM. A sign-off is only valid

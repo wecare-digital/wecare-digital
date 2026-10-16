@@ -67,13 +67,14 @@ def job_id() -> str:
 
 
 def record_key(source_id: str) -> str:
-    """One publish record per SOURCE, not per job.
+    """Canonical publish evidence key for a source/article-work record."""
+    return blog_sources.work_key_for_id(
+        source_id, f"publish/{source_id}.json")
 
-    Deliberately overwritten by a later attempt rather than accumulating: the question this file
-    answers is "what was published for this source", and there is only ever one answer. The
-    attempt history lives in DynamoDB, where it is queryable.
-    """
-    return f"{blog_sources.PUBLISH_PREFIX}{source_id}.json"
+
+def legacy_record_key(source_id: str) -> str:
+    """Historical shared-prefix key used before source-root canonicalization."""
+    return f"{blog_sources.LEGACY_PUBLISH_PREFIX}{source_id}.json"
 
 
 # ── Release ─────────────────────────────────────────────────────────────────────
@@ -412,12 +413,15 @@ def _write_record(source_id: str, job: Dict[str, Any], draft: Dict[str, Any],
 
 
 def read_record(source_id: str) -> Dict[str, Any]:
-    try:
-        raw = blog_sources.s3_client().get_object(
-            Bucket=blog_sources.BUCKET, Key=record_key(source_id))["Body"].read()
-        return json.loads(raw.decode("utf-8"))
-    except Exception:  # noqa: BLE001
-        return {}
+    """Read canonical publish evidence, falling back to historical shared-prefix data."""
+    for key in (record_key(source_id), legacy_record_key(source_id)):
+        try:
+            raw = blog_sources.s3_client().get_object(
+                Bucket=blog_sources.BUCKET, Key=key)["Body"].read()
+            return json.loads(raw.decode("utf-8"))
+        except Exception:  # noqa: BLE001
+            continue
+    return {}
 
 
 # ── Views and rollups ───────────────────────────────────────────────────────────

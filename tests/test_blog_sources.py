@@ -336,14 +336,27 @@ def test_uploads_go_to_the_existing_bucket_under_the_secure_root():
 
 
 def test_every_prefix_sits_under_the_one_root():
-    """One root keeps the IAM statement a single scoped grant rather than several."""
+    """New work is category-laned; legacy prefixes remain private for read compatibility."""
     import blog_sources as bs
-    for name in ("PREFIX", "URL_PREFIX", "EXTRACT_PREFIX", "ANALYSIS_PREFIX",
-                 "WORKING_PREFIX", "QA_PREFIX", "PUBLISH_PREFIX", "VERIFY_PREFIX",
-                 "FAILURE_PREFIX"):
-            value = getattr(bs, name)
-            assert value.startswith(bs.ROOT_PREFIX), f"{name} = {value}"
-            assert value.endswith("/"), f"{name} must be a prefix, not a key"
+    for value in (
+        bs.PREFIX, bs.URL_PREFIX, bs.category_work_prefix("Conversations"),
+        bs.category_work_prefix("Gastronomy"), bs.LEGACY_EXTRACT_PREFIX,
+        bs.LEGACY_ANALYSIS_PREFIX, bs.LEGACY_WORKING_PREFIX, bs.LEGACY_QA_PREFIX,
+        bs.LEGACY_REPETITION_PREFIX, bs.LEGACY_PUBLISH_PREFIX,
+        bs.LEGACY_VERIFY_PREFIX, bs.LEGACY_FAILURE_PREFIX,
+    ):
+        assert value.startswith(bs.ROOT_PREFIX), value
+        assert value.endswith("/"), f"{value} must be a prefix, not a key"
+
+
+def test_work_roots_are_category_and_source_scoped():
+    import blog_sources as bs
+    assert bs.work_root("Conversations", "blogsrc_abc") == (
+        "secure/blog-production/03-work/conversations/blogsrc_abc/")
+    assert bs.work_root("Gastronomy", "blogsrc_xyz") == (
+        "secure/blog-production/03-work/gastronomy/blogsrc_xyz/")
+    assert bs.batch_work_root("Conversations", "blogbatch_1") == (
+        "secure/blog-production/03-work/conversations/batches/blogbatch_1/")
 
 
 def test_roots_are_composed_through_media_paths():
@@ -707,7 +720,8 @@ def test_the_extract_goes_to_s3_and_not_into_the_item(env):
     item = env["table"].items[source_id]
 
     assert "sourceExtract" not in item, "the full text is back in the item"
-    assert item["extractKey"].startswith(env["bs"].EXTRACT_PREFIX)
+    assert item["extractKey"] == (
+        f"secure/blog-production/03-work/conversations/{source_id}/extracted.md")
     assert item["extractKey"] in env["s3"].objects
     assert len(item["extractPreview"]) <= env["bs"].EXTRACT_PREVIEW_CHARS
     # And the draft, which the gate reads, must not carry a second copy either.

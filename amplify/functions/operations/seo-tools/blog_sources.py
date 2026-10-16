@@ -78,18 +78,56 @@ SOURCES_PREFIX = SECURE_ROOT_PREFIX + "01-sources/"
 PREFIX = SOURCES_PREFIX
 URL_PREFIX = SOURCES_PREFIX + "url/"
 WORK_ROOT_PREFIX = SECURE_ROOT_PREFIX + "03-work/"
-EXTRACT_PREFIX = WORK_ROOT_PREFIX + "extracted/"
-ANALYSIS_PREFIX = WORK_ROOT_PREFIX + "source-analysis/"
-WORKING_PREFIX = WORK_ROOT_PREFIX + "article-working/"
-QA_PREFIX = WORK_ROOT_PREFIX + "qa/"
-#: Collection-level repetition, which is a property of a BATCH rather than of one article, so it
-#: gets its own prefix keyed on the batch rather than living under `qa/`.
-REPETITION_PREFIX = WORK_ROOT_PREFIX + "repetition/"
-PUBLISH_PREFIX = WORK_ROOT_PREFIX + "publish-records/"
-VERIFY_PREFIX = WORK_ROOT_PREFIX + "verification/"
-FAILURE_PREFIX = WORK_ROOT_PREFIX + "failures/"
+
+#: Historical shared work prefixes. New writes MUST NOT use these; they remain only so readers
+#: can recover durable evidence created before the category/source-root migration.
+LEGACY_EXTRACT_PREFIX = WORK_ROOT_PREFIX + "extracted/"
+LEGACY_ANALYSIS_PREFIX = WORK_ROOT_PREFIX + "source-analysis/"
+LEGACY_WORKING_PREFIX = WORK_ROOT_PREFIX + "article-working/"
+LEGACY_QA_PREFIX = WORK_ROOT_PREFIX + "qa/"
+LEGACY_REPETITION_PREFIX = WORK_ROOT_PREFIX + "repetition/"
+LEGACY_PUBLISH_PREFIX = WORK_ROOT_PREFIX + "publish-records/"
+LEGACY_VERIFY_PREFIX = WORK_ROOT_PREFIX + "verification/"
+LEGACY_FAILURE_PREFIX = WORK_ROOT_PREFIX + "failures/"
 
 CATEGORY_SOURCE_SLUGS = {"Conversations": "conversations", "Gastronomy": "gastronomy"}
+
+
+def category_work_prefix(category: str) -> str:
+    """Canonical private work prefix for one governed editorial lane."""
+    wanted = str(category or "").strip()
+    slug = CATEGORY_SOURCE_SLUGS.get(wanted)
+    if not slug:
+        raise ValueError(f"unsupported blog category {wanted!r}")
+    return f"{WORK_ROOT_PREFIX}{slug}/"
+
+
+def work_root(category: str, source_id: str) -> str:
+    """One durable directory for every artifact derived from a source PDF/book."""
+    source = str(source_id or "").strip()
+    if not source:
+        raise ValueError("sourceId is required")
+    return f"{category_work_prefix(category)}{source}/"
+
+
+def work_root_for_record(record: Dict[str, Any]) -> str:
+    """Resolve article-work children back to the immutable parent source directory."""
+    parent = str(record.get("parentSourceId") or record.get("id") or "").strip()
+    return work_root(str(record.get("category") or ""), parent)
+
+
+def work_key_for_record(record: Dict[str, Any], relative: str) -> str:
+    tail = str(relative or "").lstrip("/")
+    if not tail:
+        raise ValueError("relative work key is required")
+    return work_root_for_record(record) + tail
+
+
+def batch_work_root(category: str, batch_id: str) -> str:
+    batch = str(batch_id or "").strip()
+    if not batch:
+        raise ValueError("batchId is required")
+    return f"{category_work_prefix(category)}batches/{batch}/"
 
 
 def category_source_prefix(category: str) -> str:
@@ -321,6 +359,21 @@ def get_source(record_id: str) -> Optional[Dict[str, Any]]:
             safe["draftRecord"] = draft
         safe["pipeline"] = projected
     return safe
+
+
+def work_root_for_id(record_id: str) -> str:
+    """Canonical source directory for a blogSource or blogArticleWork id."""
+    record = get_source(record_id)
+    if not record:
+        raise LookupError("Unknown sourceId")
+    return work_root_for_record(record)
+
+
+def work_key_for_id(record_id: str, relative: str) -> str:
+    record = get_source(record_id)
+    if not record:
+        raise LookupError("Unknown sourceId")
+    return work_key_for_record(record, relative)
 
 
 def list_sources(limit: int = 500) -> List[Dict[str, Any]]:
@@ -825,13 +878,13 @@ def _fail(record_id: str, error: str) -> None:
     )
 
 
-def extract_key(source_id: str) -> str:
-    return EXTRACT_PREFIX + str(source_id) + ".md"
+def extract_key(category: str, source_id: str) -> str:
+    return work_root(category, source_id) + "extracted.md"
 
 
-def write_extract(source_id: str, text: str) -> str:
-    """Put the extracted text in S3 and return its key."""
-    key = extract_key(source_id)
+def write_extract(category: str, source_id: str, text: str) -> str:
+    """Put the extracted text inside the source's canonical work directory."""
+    key = extract_key(category, source_id)
     s3_client().put_object(
         Bucket=BUCKET, Key=key, Body=text.encode("utf-8"),
         ContentType="text/markdown; charset=utf-8")
@@ -870,7 +923,7 @@ def _store_extract(record: Dict[str, Any], extract: Any, bp) -> None:
     import blog_quality_v2 as q
     import blog_gate
 
-    key = write_extract(record["id"], extract.text)
+    key = write_extract(str(record.get("category") or ""), record["id"], extract.text)
     draft = _draft_record(record, extract, q, bp)
     #: Through `blog_gate.assess_draft`, never `q.assess`, so the template and the gate
     #: sign-off apply at every site that writes an `articleStatus` rather than at whichever

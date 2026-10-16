@@ -147,7 +147,8 @@ def checkpoint_key(category: str) -> str:
 
 
 def work_root(category: str, source_id: str) -> str:
-    return f"{WORK_PREFIX}{_slug(category)}/{str(source_id).strip()}/"
+    """Compatibility facade over the single canonical work-root implementation."""
+    return blog_sources.work_root(category, source_id)
 
 
 def manifest_key(category: str, source_id: str) -> str:
