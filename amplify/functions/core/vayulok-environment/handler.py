@@ -186,6 +186,12 @@ def _method_path(event: Mapping[str, Any]) -> tuple[str, str]:
     http = rc.get("http") or {}
     method = str(http.get("method") or event.get("httpMethod") or "GET").upper()
     path = str(http.get("path") or event.get("rawPath") or event.get("path") or "/")
+    # HTTP API custom-domain rewrites may still surface the deployed stage prefix
+    # (for example /prod/vayulok/environment) in requestContext.http.path. Normalize
+    # only the exact requestContext stage prefix so routing stays strict.
+    stage = str(rc.get("stage") or "").strip("/")
+    if stage and path.startswith(f"/{stage}/"):
+        path = path[len(stage) + 1 :]
     return method, path.rstrip("/") or "/"
 
 
