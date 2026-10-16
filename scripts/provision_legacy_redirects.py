@@ -82,7 +82,7 @@ def desired_redirects() -> list[dict]:
     --apply has run. That FAIL is the expected pre-apply state, not a fault in this list.
     """
     return [
-        {"source": "https://www.wecare.digital", "target": SITE, "status": "301"},
+        {"source": "https://wecare.digital", "target": SITE, "status": "301"},
         {"source": "/zip", "target": "/shipments/", "status": "301"},
         {"source": "/zip/", "target": "/shipments/", "status": "301"},
     ]
