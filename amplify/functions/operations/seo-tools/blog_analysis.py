@@ -590,6 +590,13 @@ def record_review(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
             ":by": actor, ":u": now,
         },
     )
+    try:
+        import blog_article_work
+        blog_article_work.sync_parent_review(
+            source_id, answer, analysis_ref, int(analysis.get("version") or 0), actor)
+    except Exception:  # noqa: BLE001 - parent review remains authoritative
+        logger.exception("article-work parent review propagation failed")
+
     logger.info(json.dumps({
         "event": "blog_source_review_recorded", "sourceId": source_id,
         "analysisId": analysis_ref, "actor": actor, "answer": answer,
