@@ -123,6 +123,7 @@ WORKER_BATCH = int(os.environ.get("BLOG_WORKER_BATCH", "5"))
 REGISTER_CHUNK_SIZE = 1000
 
 RECORD_TYPE = "blogSource"
+ARTICLE_WORK_RECORD_TYPE = "blogArticleWork"
 
 #: ONE PROJECTED ATTRIBUTE FOR THE WHOLE PIPELINE, AND THE REASON IS A HARD AWS LIMIT.
 #:
@@ -284,7 +285,39 @@ def view(item: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def get_source(record_id: str) -> Optional[Dict[str, Any]]:
-    return storage.get_typed(record_id, RECORD_TYPE)
+    """Return a parent source OR one of its independently publishable article-work children.
+
+    The mature QA/publish/verify pipeline historically accepted a sourceId and expected the
+    article draft to live on that record. Multi-article documents need N independent article
+    records without cloning the PDF bytes N times. blogArticleWork is that bridge: it carries
+    its own draft/pipeline and points back to one immutable parent blogSource.
+
+    Source-review approval remains a property of the parent document. For an article-work child
+    we project the parent human sourceReviewedFully answer into the returned view; a model still
+    cannot manufacture that flag, and no source bytes or approval state are duplicated.
+    """
+    key = str(record_id or "").strip()
+    if not key:
+        return None
+    item = storage.table().get_item(Key={"id": key}).get("Item")
+    if not item or item.get("recordType") not in {RECORD_TYPE, ARTICLE_WORK_RECORD_TYPE}:
+        return None
+    safe = storage._json_safe(item)
+    if safe.get("recordType") != ARTICLE_WORK_RECORD_TYPE:
+        return safe
+
+    parent_id = str(safe.get("parentSourceId") or "")
+    parent = storage.get_typed(parent_id, RECORD_TYPE) if parent_id else None
+    if parent:
+        parent_pipeline = dict(parent.get("pipeline") or {})
+        reviewed = str(parent_pipeline.get("sourceReviewedFully") or "")
+        if reviewed:
+            safe["pipeline"] = {**empty_pipeline(), **dict(safe.get("pipeline") or {}),
+                                "sourceReviewedFully": reviewed}
+            draft = dict(safe.get("draftRecord") or {})
+            draft["sourceReviewedFully"] = reviewed
+            safe["draftRecord"] = draft
+    return safe
 
 
 def list_sources(limit: int = 500) -> List[Dict[str, Any]]:
