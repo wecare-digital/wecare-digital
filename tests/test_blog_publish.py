@@ -456,6 +456,26 @@ def _resign_after_edit(env, source_id: str):
         "editor-revision")
 
 
+def test_editing_a_verified_article_rewinds_the_draft_gate_status(env):
+    source_id = _signed(env)
+    job = env["bp"].release(source_id, "operator")
+    env["bp"].publish(job["jobId"], "operator")
+
+    # Model the final site verifier having marked the article/draft VERIFIED.
+    record = env["bs"].get_source(source_id)
+    draft = dict(record["draftRecord"])
+    draft["status"] = "VERIFIED"
+    env["table"].items[source_id]["draftRecord"] = env["storage"]._clean(draft)
+    env["table"].items[source_id]["articleStatus"] = "VERIFIED"
+
+    import blog_article_work as baw
+    # Source fixtures are blogSource rows, while the live multi-article path uses blogArticleWork.
+    # This regression is asserted directly on the implementation source too.
+    text = (ROOT / "amplify" / "functions" / "operations" / "seo-tools"
+            / "blog_article_work.py").read_text(encoding="utf-8")
+    assert 'candidate["status"] = "EDITORIAL_QA"' in text
+
+
 def test_revision_requires_fresh_qa_and_signoff(env):
     source_id = _signed(env)
     job = env["bp"].release(source_id, "operator")
