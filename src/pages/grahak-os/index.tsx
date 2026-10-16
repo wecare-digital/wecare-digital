@@ -714,7 +714,7 @@ response = requests.post(
           .hero-left p{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0 0 18px;max-width:400px}
           .hero-left p.hero-sub{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0;max-width:400px}
 
-          /* PRICE + DUAL CTA, rendered through RotatingHero's `children` slot so it sits in
+          /* PRICE + DUAL CTA, rendered through RotatingHero's children slot so it sits in
              the hero's own content measure (.rh-layout), one flex row below the two-column
              split and starting on the same left edge as the hero copy. Its markup is written
              in THIS page's return, so styled-jsx scopes these .gos-* rules to it (the same
