@@ -1,34 +1,100 @@
-import React from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 
-const VayuLokApprovedGlobe: React.FC = () => (
-  <div className="vag-shell">
-    <iframe
-      className="vag-frame"
-      src="/vayulok-globe.html"
-      title="VayuLok interactive air and weather globe"
-      loading="eager"
-      allow="fullscreen"
-    />
-    <style jsx>{`
-      .vag-shell{
-        width:100%;
-        min-width:0;
-        aspect-ratio:1472 / 1048;
-        overflow:hidden;
-        border-radius:38px;
+const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_BROWSER_KEY || '';
+
+export interface VayuLokGlobeCity {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+}
+
+interface VayuLokApprovedGlobeProps {
+  mode?: 'air' | 'weather';
+  onModeChange?: ( mode: 'air' | 'weather' ) => void;
+  onSelectLocation?: ( city: VayuLokGlobeCity ) => void;
+}
+
+const VayuLokApprovedGlobe: React.FC<VayuLokApprovedGlobeProps> = ( {
+  mode = 'air',
+  onModeChange,
+  onSelectLocation,
+} ) => {
+  const frameRef = useRef<HTMLIFrameElement | null>( null );
+  // The standalone globe reads the browser-restricted Maps key from location.hash.
+  // Supplying it here restores live Air/Weather data inside the iframe without putting
+  // the key in page copy; browser keys are public-by-design and restricted by referrer.
+  const src = useMemo(
+    () => MAPS_KEY ? `/vayulok-globe.html#key=${encodeURIComponent( MAPS_KEY )}` : '/vayulok-globe.html',
+    [],
+  );
+
+  useEffect( () => {
+    const onMessage = ( event: MessageEvent ) => {
+      if ( event.origin !== window.location.origin || event.data?.source !== 'vayulok-globe' ) return;
+      if ( event.data?.type === 'mode' && ( event.data.mode === 'air' || event.data.mode === 'weather' ) ) {
+        onModeChange?.( event.data.mode );
+        return;
       }
-      .vag-frame{
-        display:block;
-        width:100%;
-        height:100%;
-        border:0;
-        background:transparent;
+      if ( event.data?.type === 'select-location' ) {
+        const city = event.data.city as Partial<VayuLokGlobeCity> | undefined;
+        if ( city
+          && typeof city.id === 'string'
+          && typeof city.name === 'string'
+          && Number.isFinite( city.lat )
+          && Number.isFinite( city.lng ) ) {
+          onSelectLocation?.( city as VayuLokGlobeCity );
+        }
       }
-      @media(max-width:767px){
-        .vag-shell{border-radius:24px}
-      }
-    `}</style>
-  </div>
-);
+    };
+    window.addEventListener( 'message', onMessage );
+    return () => window.removeEventListener( 'message', onMessage );
+  }, [ onModeChange, onSelectLocation ] );
+
+  useEffect( () => {
+    frameRef.current?.contentWindow?.postMessage(
+      { source: 'vayulok-page', type: 'mode', mode },
+      window.location.origin,
+    );
+  }, [ mode ] );
+
+  return (
+    <div className="vag-shell">
+      <iframe
+        ref={ frameRef }
+        className="vag-frame"
+        src={ src }
+        title="VayuLok interactive air and weather globe"
+        loading="eager"
+        allow="fullscreen"
+        onLoad={ () => {
+          frameRef.current?.contentWindow?.postMessage(
+            { source: 'vayulok-page', type: 'mode', mode },
+            window.location.origin,
+          );
+        } }
+      />
+      <style jsx>{`
+        .vag-shell{
+          width:100%;
+          min-width:0;
+          aspect-ratio:1472 / 1048;
+          overflow:hidden;
+          border-radius:38px;
+        }
+        .vag-frame{
+          display:block;
+          width:100%;
+          height:100%;
+          border:0;
+          background:transparent;
+        }
+        @media(max-width:767px){
+          .vag-shell{border-radius:24px}
+        }
+      `}</style>
+    </div>
+  );
+};
 
 export default VayuLokApprovedGlobe;
