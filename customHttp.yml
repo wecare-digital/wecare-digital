@@ -174,7 +174,8 @@ customHeaders:
           https://api.razorpay.com https://lumberjack.razorpay.com
           https://*.plivo.com wss://*.plivo.com
           https://*.cloudfront.net https://www.googletagmanager.com
-          https://www.facebook.com https://api.frankfurter.dev;
+          https://www.facebook.com https://api.frankfurter.dev
+          https://data.source.coop;
           media-src 'self' blob: https://*.cloudfront.net;
           frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com;
           worker-src 'self' blob:;
