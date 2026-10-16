@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Provision the server-side VayuLok Weather/Air Quality gateway.
+"""Provision the server-side VayuLok Weather/Air Quality/Routes gateway.
 
 This creates the Lambda, a least-privilege execution role, the single public API
 Gateway route, a live alias, per-route throttling, and invocation permission.
@@ -163,7 +163,7 @@ def ensure_role(dry_run: bool) -> str:
         iam().create_role(
             RoleName=ROLE_NAME,
             AssumeRolePolicyDocument=json.dumps(assume),
-            Description="VayuLok Weather/Air Quality server gateway",
+            Description="VayuLok Weather/Air Quality/Routes server gateway",
             Tags=[
                 {"Key": "Project", "Value": "WECARE.DIGITAL"},
                 {"Key": "Purpose", "Value": "VayuLokEnvironment"},

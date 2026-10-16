@@ -50,3 +50,8 @@ Once those land, switch each `fetch(...)` in `VayuLokLive.tsx` to POST `/vayulok
 with the matching `operation`, parse the same Google-shaped JSON the proxy passes through, and
 remove `NEXT_PUBLIC_GOOGLE_BROWSER_KEY` from the public env. Verify with
 `scripts/verify_public_bundle_secrets.py` that the key no longer appears in `out/`.
+
+
+## Route & distance tool
+
+`route_drive` is the only routing operation exposed by this gateway. It accepts only origin/destination coordinates and server-owns `DRIVE` + `TRAFFIC_UNAWARE`, with a narrow `routes.duration,routes.distanceMeters` field mask. This keeps the public VayuLok card on the basic Compute Routes path and prevents callers from selecting toll, traffic-aware, two-wheeler, alternatives, or other higher-cost routing options. Direct-distance mode is computed in the browser and never calls this gateway.

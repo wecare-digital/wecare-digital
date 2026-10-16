@@ -506,12 +506,15 @@ def _route_drive(payload: Mapping[str, Any]) -> Dict[str, Any]:
 
 def _cache_key(operation: str, payload: Mapping[str, Any]) -> str:
     if operation == "route_drive":
+        (origin_lat, origin_lng), (destination_lat, destination_lng) = _route_locations(
+            payload
+        )
         material = {
             "operation": operation,
-            "originLatitude": round(float(payload.get("originLatitude")), 5),
-            "originLongitude": round(float(payload.get("originLongitude")), 5),
-            "destinationLatitude": round(float(payload.get("destinationLatitude")), 5),
-            "destinationLongitude": round(float(payload.get("destinationLongitude")), 5),
+            "originLatitude": round(origin_lat, 5),
+            "originLongitude": round(origin_lng, 5),
+            "destinationLatitude": round(destination_lat, 5),
+            "destinationLongitude": round(destination_lng, 5),
         }
     else:
         material = {
