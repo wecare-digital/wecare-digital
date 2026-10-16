@@ -68,6 +68,20 @@ def test_initialize_creates_two_controls_and_four_area_contract(prod):
         assert f"secure/blog-production/02-masters/{slug}/prompt-current.md" in s3.objects
         assert f"secure/blog-production/02-masters/{slug}/quality-policy.json" in s3.objects
         assert f"secure/blog-production/04-checkpoints/{slug}/current.json" in s3.objects
+        current_master = result["categories"][category]["masterKey"]
+        current_prompt = result["categories"][category]["promptKey"]
+        history_root = result["categories"][category]["masterHistoryRoot"]
+        assert current_master in s3.objects
+        assert current_prompt in s3.objects
+        assert history_root + "master.json" in s3.objects
+        assert history_root + "editorial-master.md" in s3.objects
+        assert history_root + "quality-policy.json" in s3.objects
+
+    conversations_prompt = s3.objects[
+        "secure/blog-production/02-masters/conversations/current/editorial-master.md"
+    ].decode()
+    assert len(conversations_prompt) > 20000
+    assert "Bulk lowering of standards is not." in conversations_prompt
 
     assert bs.category_source_prefix("Conversations") == (
         "secure/blog-production/01-sources/conversations/")
@@ -124,6 +138,13 @@ def test_manifest_reports_counts_and_reserves_net_new_intents(prod):
     assert result["counts"]["rejected"] == 1
     assert result["counts"]["netNewReserved"] == 2
     assert len(result["createdIntents"]) == 2
+    assert all(row["articleWorkId"].startswith("blogwork_")
+               for row in result["createdIntents"])
+    work_rows = [row for row in table.items.values()
+                 if row.get("recordType") == "blogArticleWork"]
+    assert len(work_rows) == 2
+    assert {row["parentSourceId"] for row in work_rows} == {source_id}
+    assert result["dedupeReportKey"] in s3.objects
     assert table.items[source_id]["editorialStatus"] == "SAMPLE_REQUIRED"
     assert table.items[source_id]["netNewArticleCount"] == 2
     assert result["manifestKey"] in s3.objects
@@ -181,3 +202,137 @@ def test_resume_is_a_complete_new_session_bookmark(prod):
     assert resume["masterKey"].startswith("secure/blog-production/02-masters/conversations/")
     assert resume["checkpointKey"].startswith(
         "secure/blog-production/04-checkpoints/conversations/")
+
+
+
+def _two_intent_manifest(bp, source_id):
+    return bp.submit_manifest({
+        "category": "Conversations",
+        "sourceId": source_id,
+        "potentialCount": 2,
+        "intents": [
+            {
+                "title": "Integrity Without Moral Verdict",
+                "centralDistinction": "Integrity can be examined through completeness before moral judgement.",
+                "readerPromise": "Notice what remains incomplete without turning the event into identity.",
+                "distinctPurpose": "Separates practical completeness from a verdict about character.",
+            },
+            {
+                "title": "The Moment a Promise Changes",
+                "centralDistinction": "A commitment can become unworkable before the deadline visibly fails.",
+                "readerPromise": "Notice the earlier moment when changed reality needs to enter conversation.",
+                "distinctPurpose": "Examines the disclosure moment rather than promise repair after failure.",
+            },
+        ],
+    }, "editor")
+
+
+def test_one_source_creates_independent_article_work_children(prod):
+    bp, bs, storage, table, s3 = prod
+    bp.initialize("admin")
+    source_id = _source(table)
+    bp.claim_next_source("Conversations", "editor")
+    manifest = _two_intent_manifest(bp, source_id)
+
+    first, second = manifest["createdIntents"]
+    assert first["articleWorkId"] != second["articleWorkId"]
+    first_work = table.items[first["articleWorkId"]]
+    second_work = table.items[second["articleWorkId"]]
+    assert first_work["parentSourceId"] == source_id
+    assert second_work["parentSourceId"] == source_id
+    assert first_work["draftRecord"]["contentMarkdown"] == ""
+    assert second_work["draftRecord"]["contentMarkdown"] == ""
+
+
+def test_chatgpt_article_write_bridges_into_the_existing_qa_record_shape(prod):
+    bp, bs, storage, table, s3 = prod
+    bp.initialize("admin")
+    source_id = _source(table)
+    bp.claim_next_source("Conversations", "editor")
+    manifest = _two_intent_manifest(bp, source_id)
+    intent = manifest["createdIntents"][0]
+
+    saved = bp.save_article({
+        "category": "Conversations",
+        "intentId": intent["intentId"],
+        "status": "DRAFTED",
+        "article": {
+            "title": "Integrity Without Moral Verdict",
+            "slug": "integrity-without-moral-verdict",
+            "contentMarkdown": (
+                "A commitment can fail without settling the question of character. " * 90
+            ),
+            "seoTitle": "Integrity Without Moral Verdict | WECARE.DIGITAL",
+            "metaDescription": (
+                "An inquiry into what becomes incomplete when a commitment breaks, "
+                "before the event is turned into a judgement about character."
+            ),
+            "tags": ["Integrity", "Workability"],
+            "articleType": "ARTICLE",
+            "centralDistinction": (
+                "Integrity can be examined through completeness before moral judgement."
+            ),
+            "distinctPurpose": (
+                "Separates practical completeness from a verdict about character."
+            ),
+            # These must be ignored by the ChatGPT editorial whitelist.
+            "sourceReviewedFully": "YES",
+            "gate": {"VOICE": "PASS"},
+        },
+    }, "editor")
+
+    child = bs.get_source(saved["articleWorkId"])
+    assert child["recordType"] == "blogArticleWork"
+    assert child["draftRecord"]["contentMarkdown"]
+    assert child["draftRecord"].get("sourceReviewedFully", "") == ""
+    assert "gate" not in child["draftRecord"]
+    assert table.items[intent["intentId"]]["status"] == "DRAFTED"
+
+
+def test_chatgpt_cannot_write_protected_publish_states(prod):
+    bp, bs, storage, table, s3 = prod
+    bp.initialize("admin")
+    source_id = _source(table)
+    bp.claim_next_source("Conversations", "editor")
+    intent = _two_intent_manifest(bp, source_id)["createdIntents"][0]
+
+    with pytest.raises(ValueError, match="ChatGPT article writes may use only"):
+        bp.save_article({
+            "category": "Conversations",
+            "intentId": intent["intentId"],
+            "status": "PUBLISHED",
+            "article": {"contentMarkdown": "This body must never become published by this route."},
+        }, "editor")
+
+
+def test_source_completion_means_writing_complete_not_human_review(prod):
+    bp, bs, storage, table, s3 = prod
+    bp.initialize("admin")
+    source_id = _source(table)
+    bp.claim_next_source("Conversations", "editor")
+    manifest = _two_intent_manifest(bp, source_id)
+
+    # A status label alone cannot close the parent: both article children still have no body.
+    for row in manifest["createdIntents"]:
+        table.items[row["articleWorkId"]]["editorialStatus"] = "HUMAN_REVIEW"
+        table.items[row["intentId"]]["status"] = "HUMAN_REVIEW"
+    with pytest.raises(ValueError, match="not drafted or held"):
+        bp.complete_source("Conversations", source_id, "editor")
+
+    for row in manifest["createdIntents"]:
+        bp.save_article({
+            "category": "Conversations",
+            "intentId": row["intentId"],
+            "status": "DRAFTED",
+            "article": {
+                "title": row["title"],
+                "contentMarkdown": "A complete independent article body. " * 100,
+            },
+        }, "editor")
+
+    completed = bp.complete_source("Conversations", source_id, "editor")
+    assert completed["completion"] == "ARTICLE_PRODUCTION_COMPLETE"
+    assert table.items[source_id]["editorialStatus"] == "ARTICLE_PRODUCTION_COMPLETE"
+    assert bp.get_control("Conversations")["currentSourceId"] == ""
+    assert all(table.items[row["articleWorkId"]]["pipeline"]["verifyStatus"] == ""
+               for row in manifest["createdIntents"])
