@@ -94,7 +94,11 @@ live reader before letting the deletion complete.
 
 **3c. Standing 🔒 items (unchanged from spec, owner-gated):**
 - `wecare/github-pat` — classic near-full-scope PAT, flagged EXPOSED 2026-08-25.
-  One reader (`wecare-workspace-mcp`). ROTATE → fine-grained token or GitHub App.
+  Live-confirmed 2026-10-16: never rotated since (LastChanged 2026-08-26) and
+  **still in use** (LastAccessed 2026-10-13). One reader (`wecare-workspace-mcp`,
+  reads the `token` field at `handler.py:488`). ROTATE → fine-grained token or
+  GitHub App. Owner runbook with verify + rollback:
+  `docs/migrations/github-pat-rotation.md`.
 - `wecare/aws/iam-access-keys` — stored long-lived keys, no measured reader;
   retire after confirming (ties to B-0).
 - `wecare/config/webhook-registry` — MOVE_TO_PARAMETER_STORE only if the owner
