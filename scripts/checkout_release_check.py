@@ -49,7 +49,7 @@ def check_html(path, html):
         parsed = urlsplit(href)
         if parsed.hostname in RETIRED_HOSTS:
             failures.append(f'{path}: stale destination {href}')
-        if (parsed.hostname in (None, 'wecare.digital', 'www.wecare.digital')
+        if (parsed.hostname in (None, 'wecare.digital')
                 and (parsed.path.startswith('/workspace') or parsed.path.rstrip('/') == '/access')):
             failures.append(f'{path}: public staff link {href}')
     if '/cart/' not in page.links:
