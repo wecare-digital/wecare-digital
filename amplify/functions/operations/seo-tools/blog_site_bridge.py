@@ -53,8 +53,8 @@ FAILED = "FAILED"
 VERIFIED = "VERIFIED"
 DEPLOYED = "DEPLOYED"
 
-APP_ID = os.environ.get("BLOG_SITE_AMPLIFY_APP_ID", "d22dm4b0jn71jw")
-BRANCH_NAME = os.environ.get("BLOG_SITE_AMPLIFY_BRANCH", "stack")
+APP_ID = os.environ.get("AWS_AMPLIFY_APP_ID", "d22dm4b0jn71jw")
+BRANCH_NAME = os.environ.get("AWS_AMPLIFY_BRANCH", "stack")
 PUBLIC_SITE_URL = os.environ.get("BLOG_SITE_PUBLIC_URL", "https://wecare.digital").rstrip("/")
 
 COALESCE_DELAY_SECONDS = int(os.environ.get("BLOG_SITE_BUILD_DELAY_SECONDS", "45"))
@@ -846,12 +846,19 @@ def verify_article(source_id: str, job_id: str, attempt: int = 1,
             "claimed": False,
         }
 
-    import blog_verify
-    backend = blog_verify.run(source_id, actor)
-    site = verify_static_surfaces(source_id, job_id)
-    backend_ok = str(backend.get("status") or "") == VERIFIED
-    site_ok = bool(site.get("verified"))
-    now = storage.now_iso()
+    try:
+        import blog_verify
+        backend = blog_verify.run(source_id, actor)
+        site = verify_static_surfaces(source_id, job_id)
+        backend_ok = str(backend.get("status") or "") == VERIFIED
+        site_ok = bool(site.get("verified"))
+        now = storage.now_iso()
+    except Exception:
+        # The SQS message will be retried after an unexpected exception. Reset the explicit
+        # claim first so the redelivery can actually acquire the article instead of mistaking
+        # the abandoned VERIFYING state for a completed duplicate.
+        _set_top_level(source_id, siteVerifyState=PENDING)
+        raise
 
     if backend_ok and not site_ok and attempt < MAX_SITE_VERIFY_ATTEMPTS:
         _set_top_level(source_id, siteVerifyState=PENDING)
