@@ -1912,6 +1912,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
   } );
 
   it( 'renders Route/Distance on the right and calls routing only after Check route', async () => {
+    vi.stubEnv( 'NEXT_PUBLIC_VAYULOK_ROUTE_ENABLED', 'true' );
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
