@@ -54,18 +54,15 @@ const ContactPage: React.FC = () => (
       words={ CYCLE_WORDS }
       sub="Every request is tracked end to end, with transparent pricing and one place to check where things stand."
     >
-      {/* The map and the postal address. ContactLocation styles itself; styled-jsx
-          cannot reach into it from here, which is why it takes no className. The map is
-          keyless - it needs no Google credential at all, so nothing has to be restricted,
-          rotated or kept out of the built page. See that file's header for the measured
-          reason the query is plain text rather than a place_id. */}
+      {/* ContactLocation owns the map and postal address, including the configured
+          browser-key path and the keyless fallback. Its styles stay in that component. */}
       <PageShell title="Contact" description="Submit a request, amend or track an existing one, drop documents, or leave a review."
         canonical="/contact/" crumbs={ [ { name: 'Home', href: '/' }, { name: 'Contact' } ] }>
         <section aria-labelledby="request-hub-title" className="request-hub">
           <h2 className="request-hub-title" id="request-hub-title">How can we help?</h2>
           <ul>{ CUSTOMERSERVICE.map( service => <li key={ service.slug }>
             <Link href={ `/${service.slug}/` }>{ service.name }</Link>
-            <p>{ service.description }</p>
+            <p>{ service.blurb }</p>
           </li> ) }</ul>
         </section>
       </PageShell>

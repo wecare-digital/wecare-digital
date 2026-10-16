@@ -59,6 +59,7 @@ describe( 'public page consolidation contracts', () => {
     expect( screen.getByRole( 'heading', { name: 'How can we help?', level: 2 } ) ).toHaveClass( 'request-hub-title' );
     for ( const service of CUSTOMERSERVICE ) {
       expect( screen.getByRole( 'link', { name: service.name } ) ).toHaveAttribute( 'href', `/${service.slug}/` );
+      expect( screen.getByText( service.blurb ) ).toBeInTheDocument();
     }
   } );
 
