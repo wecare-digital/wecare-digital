@@ -273,17 +273,17 @@ response = requests.post(
             // ("Continue to checkout →", white with a dark-green edge). The WhatsApp link is
             // Grahak OS's own click-to-chat short link, the same one the API section's
             // "see it on WhatsApp" CTA uses.
-            // ProductBuyBox is mounted with showPrice=false so the ₹899 below is the only
-            // price shown; it checks out the real catalogue line for 'grahak-os' if one is
-            // listed in src/config/productCheckout.ts, else the shared ₹1 placeholder (what
-            // every product page does today). ₹899 is DISPLAY ONLY - the server reprices on
-            // prepare - until that catalogue line exists. No catalogue image, by owner choice.
+            // ProductBuyBox is mounted with showPrice=false. The ₹899 PRICE LINE DOES NOT
+            // live here any more - on owner instruction it moved to the closer at the bottom
+            // of the page (see #gos-closer), so the hero carries only the two action pills and
+            // the price lands with the final call to action. ProductBuyBox still checks out
+            // the real catalogue line for 'grahak-os' if listed in productCheckout.ts, else
+            // the shared ₹1 placeholder; ₹899 is DISPLAY ONLY until that catalogue line exists.
             <div className="gos-buy">
               <div className="gos-ctas">
                 <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
                 <ProductBuyBox slug="grahak-os" showPrice={ false } />
               </div>
-              <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · Grahak OS · billed as one line</span></p>
             </div>
           ) }
           visual={ (
@@ -304,7 +304,13 @@ response = requests.post(
                         element was dead markup, and deleting it removes the asymmetry and 10px
                         of unintended space at the same time. If a back chevron is ever wanted
                         in this mock, give it content and mirror it under rtl. */}
-                    <div className="avatar">W</div>
+                    {/* The WECARE.DIGITAL logo mark as the chat DP, not a bare "W". Same
+                        transparent 1080x1080 asset the header lockup uses (LOGO_URL,
+                        already preloaded on this page at line ~203), so no new request. It
+                        sits on a white disc with a little padding so the mark reads as a
+                        real profile photo in the thread. Decorative: alt="" + aria-hidden,
+                        because .contact-name beside it already announces the business. */}
+                    <div className="avatar"><img className="avatar-img" src="https://wecare.digital/get/o/stream/media/m/wecaredigital.png" alt="" aria-hidden="true" width="40" height="40" loading="lazy" /></div>
                     <div className="contact-info">
                       {/* A company name, not copy. Without this the translation
                           widget rewrote it, so the mock WhatsApp thread showed a
@@ -597,6 +603,18 @@ response = requests.post(
               br rather than the pre-line trick .section-header h2 uses, because
               .gos-closer-head does not set white-space. */}
           <h2 className="gos-closer-head">Transform customer<br/>engagement with<br/>Grahak OS</h2>
+          {/* THE BUY BLOCK LIVES HERE NOW (owner instruction): the two action pills plus the
+              ₹899 price, so the price lands with the final call to action rather than in the
+              hero. Same WhatsApp short link and the same ProductBuyBox checkout as the hero;
+              a second ProductBuyBox instance is fine - each manages its own state. Caption is
+              "consulting solution", replacing the earlier "billed as one line". */}
+          <div className="gos-closer-buy">
+            <div className="gos-ctas">
+              <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
+              <ProductBuyBox slug="grahak-os" showPrice={ false } />
+            </div>
+            <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span></p>
+          </div>
         </section>
 
         {/* Subscribe + Share. The page's sections are full-bleed, so the block is wrapped in a
@@ -851,7 +869,18 @@ response = requests.post(
              and spaced like every other one. The extra 36px of top padding was the only
              thing making the closer a special case in the rhythm, and 80px at the bottom
              still gives the page a softer landing into the footer than a flat 60 would. */
-          .gos-closer{max-width:1300px;margin:0 auto;padding:60px 24px 80px;display:flex;justify-content:center}
+          /* Column, centred: the closer now holds the heading AND the buy block (CTAs +
+             price) stacked and centred, since the price moved here from the hero. Was a
+             single centred row with just the heading. */
+          .gos-closer{max-width:1300px;margin:0 auto;padding:60px 24px 80px;display:flex;flex-direction:column;align-items:center}
+          /* The relocated buy block, centred under the closer heading. gos-ctas/gos-wa-cta/
+             gos-price all reuse the hero's rules; only the top gap and centring are set here.
+             :global(.pbb) centres the ProductBuyBox column so its pill lines up with the
+             WhatsApp pill, mirroring the hero's row. */
+          .gos-closer-buy{margin-top:30px;display:flex;flex-direction:column;align-items:center}
+          .gos-closer-buy .gos-ctas{justify-content:center}
+          .gos-closer-buy :global(.pbb){align-items:center}
+          .gos-closer-buy .gos-price{text-align:center}
           /* Hero h1 level, exactly: clamp(36px,4.3vw,60px) / 600 / -2.2px.
              It was clamp(38px,6vw,84px), which at any viewport above ~630px rendered
              LARGER than the hero headline and inverted the page's hierarchy - the closing
@@ -947,10 +976,12 @@ response = requests.post(
              non-retired WhatsApp header green and reads the same at this size. */
           .phone-header{background:#128c7e;padding:12px 14px;display:flex;align-items:center;gap:10px}
           /* Avatar reads as a contact photo, not a flat tile the same colour as the header
-             behind it. The brand dark green #1a3a2a disc with the business initial separates it
-             from the #128c7e bar so the lockup looks like a real chat row; #1a3a2a is the
-             contract's success/brand green (allowed), not a retired value. */
-          .avatar{width:40px;height:40px;background:#1a3a2a;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;box-shadow:0 0 0 2px rgba(255,255,255,.15)}
+             behind it. Now a WHITE disc holding the WECARE.DIGITAL logo mark as the DP (the
+             transparent brand asset reads correctly on white, per BrandAssets), with a 2px
+             white ring to lift it off the #128c7e header bar. The logo is contained with a
+             little inset so the mark is not cropped by the circle. */
+          .avatar{width:40px;height:40px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:0 0 auto;box-shadow:0 0 0 2px rgba(255,255,255,.6)}
+          .avatar-img{width:84%;height:84%;object-fit:contain;display:block}
           .contact-info{flex:1;display:flex;flex-direction:column}
           .contact-name{color:#fff;font-size:17px;font-weight:600}
           .contact-status{color:rgba(255,255,255,.7);font-size:13px}
