@@ -430,9 +430,9 @@ describe( 'Header', () => {
     } finally {
       matchMedia.mockRestore();
       if ( scrollHeight ) Object.defineProperty( HTMLElement.prototype, 'scrollHeight', scrollHeight );
-      else delete ( HTMLElement.prototype as Partial<HTMLElement> ).scrollHeight;
+      else Reflect.deleteProperty( HTMLElement.prototype, 'scrollHeight' );
       if ( clientHeight ) Object.defineProperty( HTMLElement.prototype, 'clientHeight', clientHeight );
-      else delete ( HTMLElement.prototype as Partial<HTMLElement> ).clientHeight;
+      else Reflect.deleteProperty( HTMLElement.prototype, 'clientHeight' );
     }
   } );
 
