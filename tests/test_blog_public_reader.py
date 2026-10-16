@@ -76,6 +76,25 @@ def test_etag_304_preserves_empty_body(reader):
     assert second['body'] == ''
 
 
+@pytest.mark.parametrize('header', ['"other", {etag}', ' W/{etag} ', '*'])
+def test_conditional_get_handles_etag_lists_weak_comparison_and_wildcard(reader, header):
+    module, _ = reader
+    first = module.handler(event(), None)
+    value = header.format(etag=first['headers']['ETag'])
+    assert module.handler(event(headers={'If-None-Match': value}), None)['statusCode'] == 304
+
+
+def test_storage_package_has_no_write_api():
+    import ast
+    path = ROOT / 'amplify/functions/operations/blog-public/storage.py'
+    tree = ast.parse(path.read_text())
+    forbidden = {'put_item', 'update_item', 'delete_item', 'batch_writer', 'transact_write_items'}
+    assert not {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)} & forbidden
+    functions = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+    assert {'list_blog_posts', 'get_blog_post', 'list_slug_records'} <= functions
+    assert not functions & {'create_blog_post', 'publish_native_post', 'apply_blog_audit', 'delete_slug_audits'}
+
+
 def test_package_is_reproducible_and_has_no_admin_or_ingestion_bundle():
     from scripts.build_blog_public import package
     assert package() == package()

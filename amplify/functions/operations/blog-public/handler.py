@@ -33,7 +33,8 @@ def response(status,body,event):
         etag='"'+hashlib.sha256(payload.encode()).hexdigest()[:32]+'"'
         headers.update({'ETag':etag,'Cache-Control':CACHE})
         request_headers={str(k).lower():str(v) for k,v in (event.get('headers') or {}).items()}
-        if etag in request_headers.get('if-none-match','').split(','):
+        validators={value.strip().removeprefix('W/') for value in request_headers.get('if-none-match','').split(',')}
+        if etag in validators or '*' in validators:
             return {'statusCode':304,'headers':headers,'body':''}
     return {'statusCode':status,'headers':headers,'body':payload}
 
