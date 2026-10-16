@@ -1,7 +1,7 @@
 /**
  * VayuLok environmental gateway — WECARE.DIGITAL
  *
- * Server-side proxy for Google Weather API + Air Quality API. The public
+ * Server-side proxy for Google Weather API + Air Quality API + Routes API. The public
  * NEXT_PUBLIC_GOOGLE_BROWSER_KEY remains a browser-only Maps JavaScript credential.
  *
  * Lambda: wecare-vayulok-environment
@@ -14,7 +14,7 @@
  *
  * Server Google key:
  *   AWS Secrets Manager: wecare/google/cloud
- *   API targets: Air Quality API + Weather API (plus the existing server-side
+ *   API targets: Air Quality API + Weather API + Routes API (plus the existing server-side
  *   address-capture targets owned by scripts/provision_maps_server_key.py).
  */
 export const vayulokEnvironmentLambdaName = 'wecare-vayulok-environment';
