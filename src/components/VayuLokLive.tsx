@@ -105,6 +105,9 @@ const SEARCH_DEBOUNCE_MS = 120;
 const AQI_HEATMAP_MAP_TYPE = 'UAQI_RED_GREEN';
 const PM25_HEATMAP_MAP_TYPE = 'PM25_INDIGO_PERSIAN';
 const AQI_HEATMAP_TILE_BASE = 'https://airquality.googleapis.com/v1/mapTypes';
+const WEATHER_MAP_TILE_BASE = 'https://weather.googleapis.com/v1/mapTypes';
+const US_PRECIPITATION_MAP_TYPE = 'US_PRECIPITATION_CURRENT';
+const EU_PRECIPITATION_MAP_TYPE = 'EU_PRECIPITATION_CURRENT';
 
 // The storm look is rendered locally as SVG/CSS over the live map and is driven by Google
 // Weather values already fetched for the selected place. Google Weather map tiles currently
@@ -116,85 +119,9 @@ interface PlaceState {
   addr: string;
   lat: number;
   lng: number;
-  // Retain the resolved Google Place ID so a future server-side Geocoding v4
-  // SearchDestinations relay can enrich discrete destinations without re-searching.
   placeId?: string;
-  // Honest, optional Google Place metadata surfaced in the left card. Each is written to
-  // state ONLY when the Places API actually returned it, so the card never shows an
-  // invented fact or a placeholder (see metaFromGooglePlace / the left-card guards).
-  primaryType?: string;
-  types?: string[];
-  rating?: number;
-  userRatingCount?: number;
-  websiteURI?: string;
-  summary?: string;
   viewport?: { north: number; south: number; east: number; west: number };
   regionCode?: string;
-}
-
-// The extra Place fields requested on the keyed search/select + map-click paths, on top of
-// the display fields. Fetched ONLY on those existing keyed paths - never unconditionally -
-// so honest degradation (no key => no fetch) is preserved.
-const PLACE_META_FIELDS = [
-  'types',
-  'primaryTypeDisplayName',
-  'rating',
-  'userRatingCount',
-  'websiteURI',
-  'editorialSummary',
-  'viewport',
-] as const;
-
-/* The shape of a resolved google.maps.places.Place once fetchFields has run. Mirrors the
-   Places JS API: every metadata field is optional and only present when Google returned
-   it. We never fabricate; absence simply means that line does not render. */
-interface GooglePlaceLike {
-  fetchFields?: ( req: { fields: string[] } ) => Promise<void>;
-  id?: string;
-  displayName?: string;
-  formattedAddress?: string;
-  location?: { lat?: () => number; lng?: () => number };
-  addressComponents?: { types?: string[]; shortText?: string }[];
-  types?: string[];
-  primaryTypeDisplayName?: string;
-  rating?: number;
-  userRatingCount?: number;
-  websiteURI?: string;
-  editorialSummary?: string;
-  viewport?: { toJSON?: () => { north: number; south: number; east: number; west: number } };
-}
-
-/* Pull the honest metadata subset off a resolved Google Place. Returns only the fields
-   that are genuinely present (finite numbers, non-empty strings, real booleans); every
-   other field is left undefined so the left card renders nothing for it. */
-function metaFromGooglePlace( p: GooglePlaceLike ): Partial<PlaceState> {
-  const meta: Partial<PlaceState> = {};
-  const primaryType = humanisePlaceType( p.primaryTypeDisplayName );
-  if ( primaryType ) meta.primaryType = primaryType;
-  const types = Array.isArray( p.types )
-    ? p.types.map( humanisePlaceType ).filter( ( t ): t is string => Boolean( t ) )
-    : [];
-  if ( types.length ) meta.types = Array.from( new Set( types ) ).slice( 0, 3 );
-  if ( Number.isFinite( p.rating ) ) meta.rating = p.rating;
-  if ( Number.isFinite( p.userRatingCount ) ) meta.userRatingCount = p.userRatingCount;
-  if ( typeof p.websiteURI === 'string' && p.websiteURI ) meta.websiteURI = p.websiteURI;
-  const summary = typeof p.editorialSummary === 'string' ? p.editorialSummary.trim() : '';
-  if ( summary ) meta.summary = summary;
-  const viewport = p.viewport?.toJSON?.();
-  if ( viewport && [ viewport.north, viewport.south, viewport.east, viewport.west ].every( Number.isFinite ) ) meta.viewport = viewport;
-  const country = p.addressComponents?.find( component => component.types?.includes( 'country' ) )?.shortText;
-  if ( typeof country === 'string' && country.trim() ) meta.regionCode = country.trim().toUpperCase();
-  return meta;
-}
-
-// Google place-type tokens arrive as snake_case machine strings (e.g. 'tourist_attraction').
-// primaryTypeDisplayName is already human-readable. Normalise both into Title Case words,
-// dropping empties, so attribute lines read like prose rather than API enums.
-function humanisePlaceType( raw: unknown ): string | undefined {
-  if ( typeof raw !== 'string' ) return undefined;
-  const cleaned = raw.replaceAll( '_', ' ' ).trim();
-  if ( !cleaned ) return undefined;
-  return cleaned.replace( /\b\w/g, c => c.toUpperCase() );
 }
 
 interface SearchResult {
@@ -202,7 +129,8 @@ interface SearchResult {
   addr: string;
   place?: PlaceState;
   prediction?: {
-    toPlace?: () => GooglePlaceLike;
+    placeId?: string;
+    toPlace?: () => { id?: string };
   };
 }
 
@@ -455,6 +383,7 @@ interface WeatherState {
   windSpeed?: number;
   windUnit?: string;
   windDir?: string;
+  windDeg?: number;
   windGust?: number;
   rainMm?: number;
   rainProb?: number;
@@ -833,6 +762,21 @@ function formatLocationClock( now: number, timeZoneId: string ): string {
   }
 }
 
+function formatLocationDate( now: number, timeZoneId: string ): string {
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: timeZoneId,
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  };
+  try {
+    return new Intl.DateTimeFormat( 'en-IN', options ).format( new Date( now ) );
+  } catch {
+    return new Intl.DateTimeFormat( 'en-IN', { ...options, timeZone: DEFAULT_LOCATION_TIME.timeZoneId } ).format( new Date( now ) );
+  }
+}
+
 function formatHistoryStamp( value: number, timeZoneId: string, zoneLabel: string ): string {
   try {
     const parts = new Intl.DateTimeFormat( 'en-CA', {
@@ -1006,12 +950,26 @@ function rememberPlace( place: PlaceState ) {
   } catch { /* storage can be unavailable */ }
 }
 
-const VayuLokLive: React.FC = () => {
+export interface VayuLokExternalLocation {
+  name: string;
+  addr?: string;
+  lat: number;
+  lng: number;
+  regionCode?: string;
+}
+
+interface VayuLokLiveProps {
+  mode?: 'air' | 'weather';
+  onModeChange?: ( mode: 'air' | 'weather' ) => void;
+  externalLocation?: VayuLokExternalLocation | null;
+}
+
+const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, externalLocation = null } ) => {
   // Load the owner-selected local destination immediately so the map and live panels
   // are useful on first paint; search/recent-place selection replaces this destination.
   const [ place, setPlace ] = useState<PlaceState>( DEFAULT_PLACE );
   const [ hasSelection, setHasSelection ] = useState( true );
-  const [ detailTab, setDetailTab ] = useState<'air' | 'weather'>( 'air' );
+  const [ detailTab, setDetailTab ] = useState<'air' | 'weather'>( mode );
   const [ mapVisible, setMapVisible ] = useState( false );
   const [ mapReady, setMapReady ] = useState( false );
   const [ mapFailed, setMapFailed ] = useState( false );
@@ -1127,6 +1085,7 @@ const VayuLokLive: React.FC = () => {
   // GoogleMapsOverlay dot-grid (and its grid fetch/cache/abort refs) was superseded and has
   // been removed - deck.gl is no longer imported or used anywhere in this component.
   const heatmapOverlayRef = useRef<unknown>( null );
+  const weatherOverlayRef = useRef<unknown>( null );
   const alertBoundaryFeaturesRef = useRef<unknown[]>( [] );
   const [ activeAlertBoundaryId, setActiveAlertBoundaryId ] = useState<string | null>( null );
 
@@ -1134,6 +1093,31 @@ const VayuLokLive: React.FC = () => {
     const timer = window.setInterval( () => setClockNow( Date.now() ), 30_000 );
     return () => window.clearInterval( timer );
   }, [] );
+
+  useEffect( () => {
+    setDetailTab( mode );
+  }, [ mode ] );
+
+  useEffect( () => {
+    if ( !externalLocation || !Number.isFinite( externalLocation.lat ) || !Number.isFinite( externalLocation.lng ) ) return;
+    const next: PlaceState = {
+      name: externalLocation.name,
+      addr: externalLocation.addr || externalLocation.name,
+      lat: externalLocation.lat,
+      lng: externalLocation.lng,
+      ...( externalLocation.regionCode ? { regionCode: externalLocation.regionCode } : {} ),
+    };
+    ++selectionSeqRef.current;
+    rememberPlace( next );
+    setPlace( next );
+    setHasSelection( true );
+    setMapCandidate( null );
+    setQuery( '' );
+    setResults( [] );
+    setOpen( false );
+    setActive( -1 );
+    setSearchStatus( 'idle' );
+  }, [ externalLocation ] );
 
   useEffect( () => {
     setHistoryInspectIdx( null );
@@ -1555,6 +1539,13 @@ const VayuLokLive: React.FC = () => {
       heatmapOverlayRef.current = null;
     };
 
+    // Weather mode owns the visual map surface, so no AQI/PM2.5 tile can remain attached.
+    if ( detailTab !== 'air' ) {
+      detachHeatmap();
+      requestAnimationFrame( () => { setDataLoading( false ); } );
+      return;
+    }
+
     // No layer active -> ensure the heatmap overlay is detached and the single-point air clears.
     if ( !layer ) {
       detachHeatmap();
@@ -1594,7 +1585,68 @@ const VayuLokLive: React.FC = () => {
     }
 
     return undefined;
-  }, [ layer, place, refreshNonce, mapReady, hasSelection ] );
+  }, [ layer, place, refreshNonce, mapReady, hasSelection, detailTab ] );
+
+
+  /* ---------------------------------------------------------------------------------
+     WEATHER MAP TILES. Google currently documents current precipitation tiles only for
+     the United States and Europe. They are mounted lazily only while Weather is active;
+     unsupported regions use the local Weather-data sky/cloud/wind visual below. */
+  useEffect( () => {
+    if ( !MAPS_KEY || !mapReady || !hasSelection || detailTab !== 'weather' || typeof window === 'undefined' ) return;
+    const map = mapRef.current as { overlayMapTypes?: {
+      getLength?: () => number;
+      getAt?: ( i: number ) => unknown;
+      removeAt?: ( i: number ) => unknown;
+      push?: ( value: unknown ) => void;
+      clear?: () => void;
+    } } | null;
+    const omt = map?.overlayMapTypes;
+    if ( !map || !omt ) return;
+
+    const detach = () => {
+      const overlay = weatherOverlayRef.current;
+      if ( !overlay ) return;
+      if ( typeof omt.getLength === 'function' && typeof omt.getAt === 'function' && typeof omt.removeAt === 'function' ) {
+        for ( let i = omt.getLength() - 1; i >= 0; i-- ) if ( omt.getAt( i ) === overlay ) omt.removeAt( i );
+      } else {
+        omt.clear?.();
+      }
+      weatherOverlayRef.current = null;
+    };
+
+    detach();
+
+    const region = ( place.regionCode || '' ).toUpperCase();
+    const inUsBounds = place.lat >= 18 && place.lat <= 72 && place.lng >= -170 && place.lng <= -50;
+    const inEuBounds = place.lat >= 34 && place.lat <= 72 && place.lng >= -25 && place.lng <= 45;
+    const mapType = region === 'US' || inUsBounds
+      ? US_PRECIPITATION_MAP_TYPE
+      : inEuBounds
+        ? EU_PRECIPITATION_MAP_TYPE
+        : null;
+    if ( !mapType ) return undefined;
+
+    const w = window as unknown as { google?: { maps?: {
+      ImageMapType?: new ( opts: Record<string, unknown> ) => unknown;
+      Size?: new ( width: number, height: number ) => unknown;
+    } } };
+    const gmaps = w.google?.maps;
+    if ( !gmaps?.ImageMapType || !gmaps?.Size || !omt.push ) return undefined;
+
+    const overlay = new gmaps.ImageMapType( {
+      name: mapType === US_PRECIPITATION_MAP_TYPE ? 'vl-live-us-precipitation' : 'vl-live-eu-precipitation',
+      tileSize: new gmaps.Size( 256, 256 ),
+      minZoom: 0,
+      maxZoom: 16,
+      opacity: 0.66,
+      getTileUrl: ( coord: { x: number; y: number }, zoom: number ): string =>
+        `${WEATHER_MAP_TILE_BASE}/${mapType}/mapTiles/${zoom}/${coord.x}/${coord.y}?key=${encodeURIComponent( MAPS_KEY )}`,
+    } );
+    omt.push( overlay );
+    weatherOverlayRef.current = overlay;
+    return () => { detach(); };
+  }, [ detailTab, mapReady, hasSelection, place.lat, place.lng, place.regionCode ] );
 
   /* ---------------------------------------------------------------------------------
      ATMOSPHERE VISUAL. No extra provider request is made here. The live Weather API payload
@@ -1692,7 +1744,10 @@ const VayuLokLive: React.FC = () => {
           out.windSpeed = Math.round( windSpeed );
           out.windUnit = windUnitLabel( typeof windUnit === 'string' ? windUnit : undefined );
         }
-        if ( Number.isFinite( windDeg ) ) out.windDir = windDirection( windDeg );
+        if ( Number.isFinite( windDeg ) ) {
+          out.windDir = windDirection( windDeg );
+          out.windDeg = ( ( windDeg % 360 ) + 360 ) % 360;
+        }
         const gust = n( d?.wind?.gust?.value );
         const rainMm = n( d?.precipitation?.qpf?.quantity );
         const rainProb = n( d?.precipitation?.probability?.percent );
@@ -2244,49 +2299,6 @@ const VayuLokLive: React.FC = () => {
     } | null;
   }, [] );
 
-  /* ---------------------------------------------------------------------------------
-     Place enrichment: the on-map selected label shows a human address descriptor
-     (landmark/area) when the Geocoder exposes one. Optional and degrades cleanly when
-     a project has not enabled the service. */
-  useEffect( () => {
-    if ( !MAPS_KEY || !hasSelection || !mapReady || typeof window === 'undefined' ) return;
-    let cancelled = false;
-
-    const describe = async () => {
-      const gc = await ensureGeocoder();
-      if ( !gc?.geocode || cancelled ) return;
-      const request: Record<string, unknown> = place.placeId
-        ? { placeId: place.placeId, extraComputations: [ 'ADDRESS_DESCRIPTORS' ] }
-        : { location: { lat: place.lat, lng: place.lng }, extraComputations: [ 'ADDRESS_DESCRIPTORS' ] };
-      try {
-        gc.geocode( request, ( rows, status ) => {
-          if ( cancelled || status !== 'OK' || !Array.isArray( rows ) || !rows.length ) return;
-          const descriptor = ( rows[ 0 ] as any )?.address_descriptor;
-          const landmark = Array.isArray( descriptor?.landmarks ) ? descriptor.landmarks[ 0 ] : null;
-          const area = Array.isArray( descriptor?.areas ) ? descriptor.areas[ 0 ] : null;
-          const landmarkName = landmark?.display_name || landmark?.displayName?.text || landmark?.display_name?.text;
-          const areaName = area?.display_name || area?.displayName?.text || area?.display_name?.text;
-          const relationship = String( landmark?.spatial_relationship || '' );
-          const relationshipLabel: Record<string, string> = {
-            NEAR: 'Near', WITHIN: 'Within', BESIDE: 'Beside', ACROSS_THE_ROAD: 'Across the road from',
-            DOWN_THE_ROAD: 'Down the road from', AROUND_THE_CORNER: 'Around the corner from', BEHIND: 'Behind',
-          };
-          const parts: string[] = [];
-          if ( landmarkName ) parts.push( `${relationshipLabel[ relationship ] || 'Near'} ${landmarkName}` );
-          if ( areaName && areaName !== landmarkName ) parts.push( `Within ${areaName}` );
-          if ( parts.length ) setAddressDescriptor( parts.join( ' · ' ) );
-        } );
-      } catch { /* descriptor enrichment is optional */ }
-    };
-
-    void describe();
-    // Only `cancelled`. The map-init effect owns __vlCleanup. Calling it here as well (#335's
-    // find-and-replace of this return) removed the map's idle, pointer, wheel, keydown and resize
-    // listeners on the first place change, so map movement stopped selecting places and the
-    // Weather section no longer mounts a separate storm/cloud map overlay.
-    return () => { cancelled = true; };
-  }, [ place.lat, place.lng, place.placeId, hasSelection, mapReady, ensureGeocoder ] );
-
   const runSearch = useCallback( async ( text: string ) => {
     if ( !MAPS_KEY || !text.trim() ) {
       setResults( [] );
@@ -2301,101 +2313,49 @@ const VayuLokLive: React.FC = () => {
     } | undefined;
     const Token = lib?.AutocompleteSessionToken as ( new () => unknown ) | undefined;
 
-    if ( Auto?.fetchAutocompleteSuggestions && Token ) {
-      try {
-        if ( !autocompleteTokenRef.current ) autocompleteTokenRef.current = new Token();
-        const out = await Auto.fetchAutocompleteSuggestions( {
-          input: text,
-          sessionToken: autocompleteTokenRef.current,
-        } );
-        const mapped: SearchResult[] = ( Array.isArray( out?.suggestions ) ? out.suggestions : [] )
-          .map( suggestion => {
-            const prediction = ( suggestion as { placePrediction?: any } )?.placePrediction;
-            if ( !prediction ) return null;
-            const name = prediction.mainText?.text
-              || prediction.mainText?.toString?.()
-              || prediction.text?.toString?.()
-              || 'Place';
-            const addr = prediction.secondaryText?.text
-              || prediction.secondaryText?.toString?.()
-              || '';
-            return { name: String( name ), addr: String( addr ), prediction };
-          } )
-          .filter( Boolean )
-          .slice( 0, 6 ) as SearchResult[];
-        if ( mapped.length ) {
-          setResults( mapped );
-          setActive( 0 );
-          setOpen( true );
-          setSearchStatus( 'idle' );
-          return;
-        }
-        // A permitted Maps JS load can still have Places (New) blocked by the browser key's
-        // API-target restrictions. Empty suggestions must not dead-end the field: fall through
-        // to the Geocoder path below so destination search remains usable.
-        autocompleteTokenRef.current = null;
-      } catch {
-        autocompleteTokenRef.current = null;
-      }
-    }
-
-    // Fallback for a partial/restricted Places load: Geocoding is worldwide. The Geocoder
-    // comes from importLibrary('geocoding') via ensureGeocoder, NOT from a pre-populated
-    // google.maps.Geocoder, so this path works under the modern loading=async loader.
-    const gc = await ensureGeocoder();
-    if ( !gc?.geocode ) {
+    if ( !Auto?.fetchAutocompleteSuggestions || !Token ) {
       setResults( [] );
-      setOpen( true );
+      setOpen( false );
       setSearchStatus( 'unavailable' );
       return;
     }
-    gc.geocode(
-      { address: text },
-      ( rows, status ) => {
-        // ZERO_RESULTS is a benign "nothing matched"; every other non-OK status
-        // (REQUEST_DENIED / OVER_QUERY_LIMIT / INVALID_REQUEST / UNKNOWN_ERROR, etc.)
-        // is a real failure the user must see via the existing 'unavailable' retry
-        // affordance rather than being silently swallowed.
-        if ( status !== 'OK' || !Array.isArray( rows ) ) {
-          setResults( [] );
-          setOpen( true );
-          setSearchStatus( status === 'ZERO_RESULTS' ? 'no-results' : 'unavailable' );
-          return;
-        }
-        const mapped: SearchResult[] = rows
-          .slice( 0, 6 )
-          .map( ( row: unknown ): SearchResult | null => {
-            const pr = row as { formatted_address?: string; geometry?: { location?: { lat: () => number; lng: () => number } } };
-            const loc = pr.geometry?.location;
-            const lat = loc?.lat?.();
-            const lng = loc?.lng?.();
-            if ( !Number.isFinite( lat ) || !Number.isFinite( lng ) ) return null;
-            const country = ( row as { address_components?: { types?: string[]; short_name?: string }[] } ).address_components
-              ?.find( component => component.types?.includes( 'country' ) )?.short_name;
-            const place: PlaceState = {
-              name: pr.formatted_address?.split( ',' )[ 0 ] || 'Place',
-              addr: pr.formatted_address || '',
-              lat: lat as number,
-              lng: lng as number,
-              ...( typeof country === 'string' && country ? { regionCode: country.toUpperCase() } : {} ),
-            };
-            return { name: place.name, addr: place.addr, place };
-          } )
-          // The predicate narrows to the shape the `.map` above ACTUALLY produces, not to
-          // `SearchResult`. `SearchResult.place` is optional, so `row is SearchResult` is not
-          // assignable to this parameter's `{ ..., place: PlaceState } | null` and TS rejects the
-          // guard outright (TS2677) - which then leaves `mapped` as `(... | null)[]` and fails
-          // the annotation too (TS2322). Narrowing to the concrete shape satisfies both, and the
-          // result is still assignable to `SearchResult[]` because a required `place` meets an
-          // optional one. Behaviour is unchanged: every element here is an object or null.
-          .filter( ( row ): row is { name: string; addr: string; place: PlaceState } => row !== null );
-        setResults( mapped );
-        setActive( mapped.length ? 0 : -1 );
-        setOpen( true );
-        setSearchStatus( mapped.length ? 'idle' : 'no-results' );
-      },
-    );
-  }, [ ensurePlacesLibrary, ensureGeocoder ] );
+
+    try {
+      if ( !autocompleteTokenRef.current ) autocompleteTokenRef.current = new Token();
+      const out = await Auto.fetchAutocompleteSuggestions( {
+        input: text,
+        sessionToken: autocompleteTokenRef.current,
+      } );
+      const mapped: SearchResult[] = ( Array.isArray( out?.suggestions ) ? out.suggestions : [] )
+        .map( suggestion => {
+          const prediction = ( suggestion as { placePrediction?: SearchResult['prediction'] & {
+            mainText?: { text?: string; toString?: () => string };
+            secondaryText?: { text?: string; toString?: () => string };
+            text?: { toString?: () => string };
+          } } )?.placePrediction;
+          if ( !prediction ) return null;
+          const name = prediction.mainText?.text
+            || prediction.mainText?.toString?.()
+            || prediction.text?.toString?.()
+            || 'Place';
+          const addr = prediction.secondaryText?.text
+            || prediction.secondaryText?.toString?.()
+            || '';
+          return { name: String( name ), addr: String( addr ), prediction };
+        } )
+        .filter( Boolean )
+        .slice( 0, 6 ) as SearchResult[];
+      setResults( mapped );
+      setActive( mapped.length ? 0 : -1 );
+      setOpen( mapped.length > 0 );
+      setSearchStatus( mapped.length ? 'idle' : 'no-results' );
+    } catch {
+      autocompleteTokenRef.current = null;
+      setResults( [] );
+      setOpen( false );
+      setSearchStatus( 'unavailable' );
+    }
+  }, [ ensurePlacesLibrary ] );
 
 
   const onQueryChange = ( e: React.ChangeEvent<HTMLInputElement> ) => {
@@ -2404,10 +2364,9 @@ const VayuLokLive: React.FC = () => {
     if ( searchTimer.current ) clearTimeout( searchTimer.current );
     if ( !v.trim() ) {
       autocompleteTokenRef.current = null;
-      const recent = recentPlaces().map( place => ( { name: place.name, addr: place.addr, place } ) );
-      setResults( recent );
-      setActive( recent.length ? 0 : -1 );
-      setOpen( recent.length > 0 );
+      setResults( [] );
+      setActive( -1 );
+      setOpen( false );
       setSearchStatus( 'idle' );
       return;
     }
@@ -2418,45 +2377,73 @@ const VayuLokLive: React.FC = () => {
   const choose = useCallback( async ( r: SearchResult ) => {
     const seq = ++selectionSeqRef.current;
     let next = r.place;
-    if ( !next && r.prediction?.toPlace ) {
-      try {
-        const googlePlace = r.prediction.toPlace();
-        await googlePlace.fetchFields?.( { fields: [ 'id', 'displayName', 'formattedAddress', 'location', 'addressComponents', ...PLACE_META_FIELDS ] } );
-        const lat = googlePlace.location?.lat?.();
-        const lng = googlePlace.location?.lng?.();
-        if ( Number.isFinite( lat ) && Number.isFinite( lng ) ) {
-          next = {
-            name: googlePlace.displayName || r.name,
-            addr: googlePlace.formattedAddress || r.addr,
-            lat: lat as number,
-            lng: lng as number,
-            placeId: googlePlace.id,
-            // Surface only the metadata Google actually returned; absent fields stay
-            // undefined so the on-map label renders no placeholder for them.
-            ...metaFromGooglePlace( googlePlace ),
-          };
-        }
-      } catch {
+
+    if ( !next ) {
+      const gc = await ensureGeocoder();
+      if ( !gc?.geocode ) {
         setSearchStatus( 'unavailable' );
-      } finally {
-        // Place.fetchFields concludes the billing session; never reuse its token.
-        autocompleteTokenRef.current = null;
+        return;
       }
+      let placeId = r.prediction?.placeId;
+      if ( !placeId ) {
+        try { placeId = r.prediction?.toPlace?.()?.id; } catch { /* address fallback below */ }
+      }
+      next = await new Promise<PlaceState | undefined>( resolve => {
+        gc.geocode(
+          placeId ? { placeId } : { address: r.addr || r.name },
+          ( rows: unknown[] | null, status: string ) => {
+            if ( status !== 'OK' || !Array.isArray( rows ) || !rows.length ) {
+              resolve( undefined );
+              return;
+            }
+            const row = rows[ 0 ] as {
+              formatted_address?: string;
+              place_id?: string;
+              geometry?: {
+                location?: { lat: () => number; lng: () => number };
+                viewport?: { toJSON?: () => { north: number; south: number; east: number; west: number } };
+              };
+              address_components?: { types?: string[]; short_name?: string }[];
+            };
+            const lat = row.geometry?.location?.lat?.();
+            const lng = row.geometry?.location?.lng?.();
+            if ( !Number.isFinite( lat ) || !Number.isFinite( lng ) ) {
+              resolve( undefined );
+              return;
+            }
+            const country = row.address_components?.find( c => c.types?.includes( 'country' ) )?.short_name;
+            const viewport = row.geometry?.viewport?.toJSON?.();
+            resolve( {
+              name: row.formatted_address?.split( ',' )[ 0 ] || r.name,
+              addr: row.formatted_address || r.addr || r.name,
+              lat: lat as number,
+              lng: lng as number,
+              ...( row.place_id ? { placeId: row.place_id } : {} ),
+              ...( viewport && [ viewport.north, viewport.south, viewport.east, viewport.west ].every( Number.isFinite ) ? { viewport } : {} ),
+              ...( country ? { regionCode: country.toUpperCase() } : {} ),
+            } );
+          },
+        );
+      } );
+      autocompleteTokenRef.current = null;
     }
-    // A map move or another pick made while Place details were loading is newer, so it wins.
-    if ( !next || seq !== selectionSeqRef.current ) return;
+
+    if ( !next || seq !== selectionSeqRef.current ) {
+      setSearchStatus( 'unavailable' );
+      return;
+    }
     rememberPlace( next );
     setPlace( next );
     setHasSelection( true );
-    // A fresh search selection owns the view. Clear transient preview metadata so the
-    // on-map label and camera follow only the newly chosen location.
     setMapCandidate( null );
-    setQuery( next.name );
+    // Search is an action, not a second location display. The committed place is
+    // already shown in the existing location/date/time context row.
+    setQuery( '' );
     setOpen( false );
     setResults( [] );
     setActive( -1 );
     setSearchStatus( 'idle' );
-  }, [] );
+  }, [ ensureGeocoder ] );
 
   const onKeyDown = ( e: React.KeyboardEvent<HTMLInputElement> ) => {
     if ( e.key === 'Escape' ) {
@@ -2483,6 +2470,30 @@ const VayuLokLive: React.FC = () => {
     ? air?.pollutants.find( p => p.code === pollutantTip.code ) || null
     : null;
   const mapActive = Boolean( MAPS_KEY );
+  const regionalWeatherMapType = useMemo( () => {
+    const region = ( place.regionCode || '' ).toUpperCase();
+    if ( region === 'US' || ( place.lat >= 18 && place.lat <= 72 && place.lng >= -170 && place.lng <= -50 ) ) return US_PRECIPITATION_MAP_TYPE;
+    if ( place.lat >= 34 && place.lat <= 72 && place.lng >= -25 && place.lng <= 45 ) return EU_PRECIPITATION_MAP_TYPE;
+    return null;
+  }, [ place.lat, place.lng, place.regionCode ] );
+  const weatherVisual = useMemo( () => {
+    if ( !weather || regionalWeatherMapType ) return null;
+    const clamp = ( value: number, min: number, max: number ) => Math.min( max, Math.max( min, value ) );
+    const cloud = clamp( Number.isFinite( weather.cloudCover ) ? weather.cloudCover as number : 0, 0, 100 );
+    const rain = clamp( Number.isFinite( weather.rainProb ) ? weather.rainProb as number : 0, 0, 100 );
+    const wind = clamp( Number.isFinite( weather.windSpeed ) ? weather.windSpeed as number : 0, 0, 100 );
+    const condition = ( weather.condition || '' ).toLowerCase();
+    const rainy = rain >= 35 || ( Number.isFinite( weather.rainMm ) && ( weather.rainMm as number ) > 0.1 ) || /rain|drizzle|shower|storm/.test( condition );
+    const cloudy = cloud >= 45 || /cloud|overcast|fog|mist|haze/.test( condition );
+    return {
+      className: [ weather.isDaytime === false ? 'is-night' : 'is-day', cloudy ? 'is-cloudy' : '', rainy ? 'is-rainy' : '' ].filter( Boolean ).join( ' ' ),
+      skyOpacity: clamp( 0.18 + cloud * 0.0018 + rain * 0.0012, 0.18, 0.58 ),
+      cloudOpacity: clamp( 0.08 + cloud * 0.0045, 0.08, 0.52 ),
+      windOpacity: clamp( 0.14 + wind * 0.0065, 0.14, 0.70 ),
+      windAngle: Number.isFinite( weather.windDeg ) ? weather.windDeg as number : 0,
+      windDuration: clamp( 9 - wind * 0.065, 2.8, 9 ),
+    };
+  }, [ weather, regionalWeatherMapType ] );
 
   const liveHealthPersonas = useMemo( () => {
     const recommendations = air?.healthRecommendations;
@@ -2508,6 +2519,7 @@ const VayuLokLive: React.FC = () => {
   const activeHealthPersona = liveHealthPersonas[ healthPersona ] || liveHealthPersonas[ 0 ] || null;
   const healthNeedsMore = Boolean( activeHealthPersona && activeHealthPersona.recommendation.length > 180 );
   const locationClock = formatLocationClock( clockNow, locationTime.timeZoneId );
+  const locationDate = formatLocationDate( clockNow, locationTime.timeZoneId );
   const locationZoneLabel = locationTime.source === 'google'
     ? locationTime.shortLabel
     : 'IST default';
@@ -2539,10 +2551,7 @@ const VayuLokLive: React.FC = () => {
                 if ( query.trim() ) {
                   if ( results.length ) setOpen( true );
                   else void runSearch( query );
-                  return;
                 }
-                const recent = recentPlaces().map( place => ( { name: place.name, addr: place.addr, place } ) );
-                setResults( recent ); setActive( recent.length ? 0 : -1 ); setOpen( recent.length > 0 ); setSearchStatus( 'idle' );
               } }
               onKeyDown={ onKeyDown }
             />
@@ -2581,6 +2590,26 @@ const VayuLokLive: React.FC = () => {
           <section className="vl-live-map-region" aria-label="Map">
             <div className="vl-live-map-shell">
 
+              { detailTab === 'weather' && weatherVisual && mapVisible && (
+                <div
+                  className={ `vl-live-weather-visual ${weatherVisual.className}` }
+                  style={ {
+                    '--vl-sky-opacity': weatherVisual.skyOpacity,
+                    '--vl-cloud-opacity': weatherVisual.cloudOpacity,
+                    '--vl-wind-opacity': weatherVisual.windOpacity,
+                    '--vl-wind-angle': `${weatherVisual.windAngle}deg`,
+                    '--vl-wind-duration': `${weatherVisual.windDuration}s`,
+                  } as React.CSSProperties }
+                  aria-hidden="true"
+                >
+                  <div className="vl-live-sky-wash" />
+                  <div className="vl-live-cloud-field"><i /><i /><i /><i /></div>
+                  <div className="vl-live-wind-field">
+                    { Array.from( { length: 8 }, ( _, i ) => <i key={ i } className={ `vl-live-wind-path p${i + 1}` } /> ) }
+                  </div>
+                </div>
+              ) }
+
               {/* FLOATING AIR QUALITY CARD. Overlays the map in the top-left corner, inset so
                   it never reaches Google's bottom-left logo or bottom-right legal notices. The
                   markup stays INLINE here (styled-jsx scopes only statically-visible elements),
@@ -2609,8 +2638,10 @@ const VayuLokLive: React.FC = () => {
                         hydration error #418. suppressHydrationWarning tells React to accept the
                         client value for this node (both the dateTime and the text derive from
                         clockNow), which is the intended mechanism for live timestamps. */}
-                    <time dateTime={ new Date( clockNow ).toISOString() } suppressHydrationWarning>{ locationClock }</time>
-                    <small>{ locationZoneLabel }</small>
+                    <span className="vl-live-local-datetime">
+                      <time dateTime={ new Date( clockNow ).toISOString() } suppressHydrationWarning>{ locationClock }</time>
+                      <small suppressHydrationWarning>{ locationDate } · { locationZoneLabel }</small>
+                    </span>
                   </span>
                 </div>
 
@@ -2625,7 +2656,7 @@ const VayuLokLive: React.FC = () => {
                     aria-controls="vl-live-air-panel"
                     aria-selected={ detailTab === 'air' }
                     className={ `vl-live-air-toggle-btn is-air ${detailTab === 'air' ? 'is-active' : ''}`.trim() }
-                    onClick={ () => setDetailTab( 'air' ) }
+                    onClick={ () => { setDetailTab( 'air' ); onModeChange?.( 'air' ); } }
                   >
                     <i className="vl-live-air-toggle-dot" aria-hidden="true" />Air
                   </button>
@@ -2636,7 +2667,7 @@ const VayuLokLive: React.FC = () => {
                     aria-controls="vl-live-weather-panel"
                     aria-selected={ detailTab === 'weather' }
                     className={ `vl-live-air-toggle-btn is-weather ${detailTab === 'weather' ? 'is-active' : ''}`.trim() }
-                    onClick={ () => setDetailTab( 'weather' ) }
+                    onClick={ () => { setDetailTab( 'weather' ); onModeChange?.( 'weather' ); } }
                   >
                     <i className="vl-live-air-toggle-dot" aria-hidden="true" />Weather
                   </button>
@@ -3535,6 +3566,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-context-item svg{flex:0 0 var(--vl-action-size);width:var(--vl-action-size);height:var(--vl-action-size);padding:7px;border-radius:50%;background:var(--lime);fill:var(--green)}
         .vl-live-air-context-item strong{min-width:0;overflow:hidden;color:var(--heading);font-size:15px;font-weight:600;line-height:1.25;text-overflow:ellipsis;white-space:nowrap}
         .vl-live-air-context-item.is-time{justify-content:flex-end;white-space:nowrap}
+        .vl-live-local-datetime{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
         .vl-live-air-context-item time{color:var(--heading);font-weight:600}
         .vl-live-air-context-item small{color:var(--muted);font-size:11px;font-weight:600}
 
@@ -3817,6 +3849,22 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%;border-radius:var(--panel-r);overflow:hidden}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
+        .vl-live-weather-visual{position:absolute;inset:0;z-index:5;overflow:hidden;border-radius:var(--panel-r);pointer-events:none}
+        .vl-live-sky-wash{position:absolute;inset:0;opacity:var(--vl-sky-opacity)}
+        .vl-live-weather-visual.is-day .vl-live-sky-wash{background:linear-gradient(180deg,rgba(93,173,226,.64),rgba(187,224,247,.34) 58%,rgba(255,255,255,.06))}
+        .vl-live-weather-visual.is-night .vl-live-sky-wash{background:linear-gradient(180deg,rgba(17,32,61,.75),rgba(45,66,96,.46) 60%,rgba(255,255,255,.04))}
+        .vl-live-weather-visual.is-cloudy .vl-live-sky-wash{background:linear-gradient(180deg,rgba(116,139,158,.58),rgba(205,216,222,.32) 62%,rgba(255,255,255,.08))}
+        .vl-live-weather-visual.is-rainy .vl-live-sky-wash{background:linear-gradient(180deg,rgba(75,99,124,.66),rgba(150,170,184,.36) 62%,rgba(219,234,242,.10))}
+        .vl-live-cloud-field{position:absolute;inset:-8%;opacity:var(--vl-cloud-opacity);filter:blur(11px);animation:vl-live-cloud-drift 22s ease-in-out infinite alternate}
+        .vl-live-cloud-field i{position:absolute;display:block;border-radius:50%;background:radial-gradient(ellipse at center,rgba(255,255,255,.80),rgba(244,248,250,.50) 48%,rgba(224,232,236,0) 74%)}
+        .vl-live-cloud-field i:nth-child(1){width:42%;height:28%;left:-4%;top:8%}.vl-live-cloud-field i:nth-child(2){width:48%;height:32%;right:-8%;top:18%}
+        .vl-live-cloud-field i:nth-child(3){width:38%;height:26%;left:24%;top:44%}.vl-live-cloud-field i:nth-child(4){width:44%;height:30%;right:4%;bottom:0}
+        @keyframes vl-live-cloud-drift{from{transform:translate3d(-2%,0,0)}to{transform:translate3d(3%,1.5%,0)}}
+        .vl-live-wind-field{position:absolute;inset:-28%;opacity:var(--vl-wind-opacity);transform:rotate(var(--vl-wind-angle));transform-origin:50% 50%}
+        .vl-live-wind-path{position:absolute;left:-28%;display:block;width:24%;height:2px;border-radius:999px;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.88),rgba(209,244,112,.78),rgba(255,255,255,0));box-shadow:0 0 8px rgba(255,255,255,.28);animation:vl-live-wind-flow var(--vl-wind-duration) linear infinite}
+        .vl-live-wind-path.p1{top:10%;animation-delay:-.4s}.vl-live-wind-path.p2{top:21%;animation-delay:-1.8s}.vl-live-wind-path.p3{top:33%;animation-delay:-3.1s}.vl-live-wind-path.p4{top:46%;animation-delay:-.9s}
+        .vl-live-wind-path.p5{top:59%;animation-delay:-2.4s}.vl-live-wind-path.p6{top:70%;animation-delay:-4.2s}.vl-live-wind-path.p7{top:81%;animation-delay:-1.2s}.vl-live-wind-path.p8{top:91%;animation-delay:-3.6s}
+        @keyframes vl-live-wind-flow{from{transform:translateX(0)}to{transform:translateX(620%)}}
         /* Narrow live test: hide only Google attribution/branding nodes; do not touch map controls. */
         .vl-live :global(.gm-style-cc),
         .vl-live :global(a[aria-label="Google Maps"]),
