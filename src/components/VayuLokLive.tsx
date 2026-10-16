@@ -32,11 +32,12 @@ import VoiceSearchMic from './VoiceSearchMic';
  * no remote asset - so this path contacts no third party at all, not even Google.
  *
  * DEFAULT-ON MAP VISUALS. The keyed map paints (a) Google's continuous AQI heatmap tiles
- * (UAQI_RED_GREEN) and (b) a code-rendered atmospheric layer: soft cloud masses, wind
- * streamlines and a storm vortex whose density/speed are driven by the selected place's LIVE
- * Google Weather values (cloud cover, rain/storm probability and wind). The atmosphere is SVG/
- * CSS, not a static image and not an invented Google tile endpoint. On the KEYLESS path no
- * ImageMapType or atmosphere layer is mounted and zero third-party calls fire. Both the AQI
+ * (UAQI_RED_GREEN), (b) documented US/EU precipitation tiles in Weather mode, and (c) a
+ * real NOAA GFS 10 m global wind-vector field rendered as particles over the visible map.
+ * Outside US/EU precipitation coverage, the local atmospheric fallback still supplies
+ * day/night sky and cloud/rain context from the selected place's live Google Weather values.
+ * No fabricated cyclone, radar or wind tile endpoint is used. On the KEYLESS path no
+ * ImageMapType or wind reader is mounted and zero third-party calls fire. Both the AQI
  * (UAQI_RED_GREEN) and PM2.5 (PM25_INDIGO_PERSIAN) heatmaps are Google ImageMapType tile
  * overlays - there is no deck.gl dot overlay or sampled grid anymore.
  *
@@ -4820,7 +4821,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-air-range{max-width:100%;overflow-x:auto}
           .vl-live-air-health-tab{scroll-snap-align:start}
           .vl-live-air-gauge-row{gap:12px}
-          .vl-live-wind-path.p6,.vl-live-wind-path.p7{display:none}
         }
         @media(max-height:500px) and (orientation:landscape){
           .vl-live-map-shell{height:auto;min-height:250px}
@@ -4832,7 +4832,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         }
         @media(prefers-reduced-motion:reduce){
           .vl-live *{scroll-behavior:auto!important;transition:none!important}
-          .vl-live-cloud-field,.vl-live-vortex{animation:none!important}
+          .vl-live-cloud-field{animation:none!important}
         }
 
         @media(max-width:760px){
