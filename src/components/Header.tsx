@@ -243,7 +243,7 @@ const Header: React.FC = () => {
     searching ? MENU_SEARCH_LINKS.filter( link => link.searchText.includes( term ) ) : MENU_SEARCH_LINKS
   ), [ searching, term ] );
 
-  const close = useCallback( () => { setOpen( false ); setQuery( '' ); }, [] );
+  const close = useCallback( () => { setOpen( false ); setQuery( '' ); setShowProductsMore( false ); }, [] );
 
   // Escape closes from anywhere, an outside pointerdown dismisses, AND the menu closes
   // when the mouse LEAVES it (hover-out), on owner request. None of these existed
@@ -437,7 +437,7 @@ const Header: React.FC = () => {
               aria-label="Open navigation"
               aria-expanded={ open }
               aria-keyshortcuts="Enter Space Escape"
-              onClick={ () => { setOpen( value => !value ); setQuery( '' ); } }
+              onClick={ () => { if ( open ) close(); else { setOpen( true ); setQuery( '' ); } } }
             >
               <span className="nav-arrow" aria-hidden="true" />
             </button>
@@ -860,13 +860,14 @@ const Header: React.FC = () => {
         }
         /* ICON-ONLY CONTINUATION CUE. Google Material Symbols Rounded is already loaded
            site-wide in _document.tsx, so this adds no dependency or asset request. The
-           visual is intentionally tiny: the dark-green capsule exists only to give the
-           requested light-lime chevron enough contrast against the near-white menu.
-           There is no visible label; aria-label carries the action for assistive tech. */
-        .nav-products-more{position:absolute;left:50%;bottom:5px;z-index:3;display:flex;align-items:center;justify-content:center;width:34px;height:26px;padding:0;transform:translateX(-50%);border:1px solid #1a3a2a;border-radius:999px;background:rgba(26,58,42,.94);color:#d1f470;box-shadow:0 3px 10px rgba(26,58,42,.18);cursor:pointer}
-        .nav-products-more:hover{background:#0f2a1d}
-        .nav-products-more:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
-        .nav-products-more-icon{font-family:'Material Symbols Rounded';font-weight:600;font-style:normal;font-size:22px;line-height:1;letter-spacing:normal;text-transform:none;white-space:nowrap;word-wrap:normal;direction:ltr;font-feature-settings:'liga';font-variation-settings:'FILL' 0,'wght' 600,'GRAD' 0,'opsz' 24}
+           visible capsule stays intentionally tiny while its transparent interaction target
+           clears the 44px minimum used by the cross-browser menu contract. The dark-green
+           capsule gives the requested light-lime chevron enough contrast against the near-white
+           menu. There is no visible label; aria-label carries the action for assistive tech. */
+        .nav-products-more{position:absolute;left:50%;bottom:-4px;z-index:3;display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;transform:translateX(-50%);border:0;border-radius:12px;background:transparent;color:#d1f470;cursor:pointer}
+        .nav-products-more:hover .nav-products-more-icon{background:#0f2a1d}
+        .nav-products-more:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 5px #1a3a2a}
+        .nav-products-more-icon{display:flex;align-items:center;justify-content:center;width:34px;height:26px;border:1px solid #1a3a2a;border-radius:999px;background:rgba(26,58,42,.94);box-shadow:0 3px 10px rgba(26,58,42,.18);font-family:'Material Symbols Rounded';font-weight:600;font-style:normal;font-size:22px;line-height:1;letter-spacing:normal;text-transform:none;white-space:nowrap;word-wrap:normal;direction:ltr;font-feature-settings:'liga';font-variation-settings:'FILL' 0,'wght' 600,'GRAD' 0,'opsz' 24}
         /* The Customer service heading is a link, so it needs an affordance the plain
            headings do not have - without one it looks like the same inert label. */
         .nav-group-link{color:#1a3a2a;text-decoration:none;border-radius:8px}
