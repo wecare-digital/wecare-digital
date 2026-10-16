@@ -124,15 +124,23 @@ def create(apply: bool) -> str:
     )
     ddb().get_waiter("table_exists").wait(TableName=TABLE)
 
-    # PITR + the AWS Backup selection tag (`backup=daily`) are the standard backup
-    # posture every table must carry — PITR for continuous recovery, the tag so the
-    # table joins `wecare-backup-plan` for retained snapshots. Applied via the shared
-    # helper so a new table joins both at creation, not as a later chore. Both calls
-    # can fail independently of create, so they run after the waiter.
+    # PITR is a separate call that can fail independently of create, so it is applied
+    # after the waiter rather than assumed to have happened. Kept as an explicit call
+    # here (not only via the helper below) because the create path must demonstrably
+    # turn PITR on rather than rely on a default — see
+    # tests/test_coupons_iam_and_table.py.
+    ddb().update_continuous_backups(
+        TableName=TABLE,
+        PointInTimeRecoverySpecification={"PointInTimeRecoveryEnabled": True})
+
+    # Also apply the AWS Backup selection tag (`backup=daily`) so the table joins
+    # `wecare-backup-plan` for retained snapshots. The shared helper is the standard
+    # one-line call for new table scripts; its PITR step is an idempotent re-affirm
+    # of the explicit enable above.
     import table_backup_defaults  # scripts/, next to this file
     posture = table_backup_defaults.apply(TABLE)
-    if "error" in str(posture["pitr"]) or "error" in str(posture["tagged"]):
-        raise SystemExit(f"backup posture incomplete for {TABLE}: {posture}")
+    if "error" in str(posture["tagged"]):
+        raise SystemExit(f"backup tag not applied for {TABLE}: {posture}")
     return "created"
 
 
