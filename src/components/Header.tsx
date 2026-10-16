@@ -445,7 +445,9 @@ const Header: React.FC = () => {
               aria-keyshortcuts="Enter Space Escape"
               onClick={ () => { if ( open ) close(); else { setOpen( true ); setQuery( '' ); } } }
             >
-              <span className="nav-trigger-icon" aria-hidden="true">keyboard_arrow_down</span>
+              <svg className="nav-trigger-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
+              </svg>
             </button>
             <nav className={ `nav-menu ${open ? 'open' : ''}` } aria-label="Public navigation">
               {/* Not autofocused. The language panel autofocuses its search because
@@ -556,7 +558,14 @@ const Header: React.FC = () => {
                                         tabIndex={ showProductsMore ? 0 : -1 }
                                         onClick={ scrollProductsForward }
                                       >
-                                        <span className="nav-products-more-icon" aria-hidden="true">keyboard_double_arrow_down</span>
+                                        <svg
+                                          className="nav-products-more-icon"
+                                          viewBox="0 -960 960 960"
+                                          aria-hidden="true"
+                                          focusable="false"
+                                        >
+                                          <path d="M480-200 240-440l42-42 198 198 198-198 42 42-240 240Zm0-253L240-693l42-42 198 198 198-198 42 42-240 240Z" />
+                                        </svg>
                                       </button>
                                     </div>
                                   ) }
@@ -626,8 +635,8 @@ const Header: React.FC = () => {
            hairline gives it a visible, tappable chip while staying quieter than the
            lime hover state below it. Hover/focus/expanded still brighten to the lime
            tint, so the interaction feedback is unchanged. */
-        .nav-trigger{min-width:46px;min-height:46px;background:#f4f7ee;border:1px solid #e3ecc9;border-radius:10px;cursor:pointer;padding:8px;display:flex;align-items:center;justify-content:center;
-          transition:background-color .18s ease,border-color .18s ease,border-width .18s ease}
+        .nav-trigger{min-width:46px;min-height:46px;background:#f4f7ee;border:0;border-radius:10px;cursor:pointer;padding:8px;display:flex;align-items:center;justify-content:center;
+          transition:background-color .18s ease}
         /* THE HOVER STATE INVERTS NOW, because the old one was not a state change at all.
            rgba(209,244,112,.22) over the white header composites to rgb(245,253,224), which
            measures 1.032:1 against this chip's own #f4f7ee - an RGB move of 15 out of a possible
@@ -655,7 +664,6 @@ const Header: React.FC = () => {
 
            NOTHING ABOUT THE PANEL CHANGES. Its radius, fill and shadow are untouched: the owner's
            instruction was the icon only. */
-        .nav-trigger{border-color:#cfe0a6}
         /* ROUND TWO: LIME FILL WITH A DARK EDGE, not a solid dark-green block.
            The inversion above was correct about the measurement and wrong about the mass. The
            owner's words on the shipped result were "on select too much green": filling all
@@ -683,7 +691,7 @@ const Header: React.FC = () => {
            computed 46x46 outer at rest, hover and open), so the thicker border changes nothing
            outside the chip - the header stays 108px and the chip stays at x=210.34. */
         .nav-trigger:hover,.nav-trigger:focus-visible,.nav-trigger[aria-expanded='true']{
-          background:#d1f470;border-color:#1a3a2a;border-width:2px;outline:none;
+          background:#d1f470;outline:none;
         }
         /* A TWO-TONE RING, because this control inverts on focus and a single-colour ring
            cannot work against both of its states.
@@ -722,7 +730,7 @@ const Header: React.FC = () => {
 
            NO LINES HERE, deliberately: a three-line burger was mocked in round one
            (docs/menu-mock/a4-three-lines.png) and the owner kept the chevron. */
-        .nav-trigger-icon{display:block;margin:0;color:#1a3a2a;font-family:'Material Symbols Rounded';font-weight:600;font-style:normal;font-size:27px;line-height:1;letter-spacing:normal;text-transform:none;white-space:nowrap;word-wrap:normal;direction:ltr;font-feature-settings:'liga';font-variation-settings:'FILL' 0,'wght' 600,'GRAD' 0,'opsz' 24;transform:rotate(0deg);transition:transform .2s}
+        .nav-trigger-icon{display:block;width:27px;height:27px;margin:0;fill:#1a3a2a;transform:rotate(0deg);transition:transform .2s}
         .nav-trigger[aria-expanded='true'] .nav-trigger-icon{transform:rotate(180deg)}
 
         /* MEGA PANEL.
@@ -875,10 +883,9 @@ const Header: React.FC = () => {
            There is no pill, circle, label or shadow: just the double chevron. */
         .nav-products-cue-row{height:44px;display:flex;align-items:center;justify-content:flex-end;flex:0 0 44px;padding-inline-end:4px;box-sizing:border-box}
         .nav-products-cue-row.is-hidden{visibility:hidden;pointer-events:none}
-        .nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:#d1f470;color:#1a3a2a;cursor:pointer;transition:background-color .18s ease,color .18s ease}
-        .nav-products-more:hover{background:#1a3a2a;color:#d1f470}
+        .nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:#d1f470;color:#1a3a2a;cursor:pointer}
         .nav-products-more:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 5px #1a3a2a}
-        .nav-products-more-icon{display:block;font-family:'Material Symbols Rounded';font-weight:600;font-style:normal;font-size:26px;line-height:1;letter-spacing:normal;text-transform:none;white-space:nowrap;word-wrap:normal;direction:ltr;font-feature-settings:'liga';font-variation-settings:'FILL' 0,'wght' 600,'GRAD' 0,'opsz' 24}
+        .nav-products-more-icon{display:block;width:26px;height:26px;fill:currentColor}
         /* The Customer service heading is a link, so it needs an affordance the plain
            headings do not have - without one it looks like the same inert label. */
         .nav-group-link{color:#1a3a2a;text-decoration:none;border-radius:8px}
