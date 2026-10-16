@@ -899,7 +899,17 @@ response = requests.post(
              Over-allocating by a couple of px is the safe direction here: if a line
              turns out to fit, the panel is shorter than the wrapper expects and its top
              edge sits LOWER, which only increases the clearance above the bubbles. */
-          .mockup-wrapper{position:relative;width:100%;max-width:580px;min-height:638px;background:#fff;border-radius:28px;padding:28px 24px 24px}
+          /* 638 -> 558, paired with the same -80 on .chat-area below, to make the mock more
+             COMPACT. The four bubbles + typing indicator need ~360px of chat; at 528px the
+             bottom ~80px rendered as empty beige under the typing dots. Trimming BOTH the
+             wrapper and the chat-area by the same 80px removes that dead space while leaving
+             the composition untouched: panelTop = wrapperHeight - panelHeight and the
+             ~20px panel-over-phone overhang are both DIFFERENTIAL, so an equal cut to both
+             values holds them exactly (the trap the geometry notes above warn about is
+             changing ONE of the pair). Verified in a real render: the code panel still laps
+             the lower-right corner with the same overhang and eats no bubble. Keep the two
+             values in lockstep - never change one alone. */
+          .mockup-wrapper{position:relative;width:100%;max-width:580px;min-height:558px;background:#fff;border-radius:28px;padding:28px 24px 24px}
           /* The two panels OVERLAP on purpose - the code panel laps the phone's
              lower-right corner, which is the whole composition. 56% + 60% = 116%
              of the wrapper, so the lap is ~16%.
@@ -944,7 +954,12 @@ response = requests.post(
              instead of ~20px; growing the phone by the same amount keeps that. The
              extra height lands as empty beige below the typing dots, which is what
              a real thread looks like anyway. */
-          .chat-area{background:#ece5dd;padding:16px 14px;min-height:528px;display:flex;flex-direction:column;gap:9px}
+          /* 528 -> 448, the paired half of the -80 compacting cut on .mockup-wrapper above.
+             This is the ~80px of empty beige that sat under the typing indicator; the four
+             bubbles + dots still clear it. Must move in lockstep with the wrapper (see the
+             note there) - cutting one alone slides the bottom-anchored code panel into the
+             bubbles. */
+          .chat-area{background:#ece5dd;padding:16px 14px;min-height:448px;display:flex;flex-direction:column;gap:9px}
           .msg{max-width:82%;padding:10px 13px;border-radius:8px;font-size:17px;line-height:1.42;color:#000}
           /* Received bubbles are capped narrower than sent ones. They sit low in the
              thread, inside the band the code panel laps, and at 82% they grew past
