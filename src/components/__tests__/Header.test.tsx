@@ -6,7 +6,7 @@ import Header from '../Header';
 const routerState = vi.hoisted( () => ( { pathname: '/', asPath: '' } ) );
 vi.mock( 'next/router', () => ( { useRouter: () => routerState } ) );
 
-const browserOpen = vi.hoisted( () => vi.fn( async () => undefined ) );
+const browserOpen = vi.hoisted( () => vi.fn( async ( _options: { url: string } ): Promise<void> => undefined ) );
 vi.mock( '@capacitor/browser', () => ( { Browser: { open: browserOpen } } ) );
 
 describe( 'Header', () => {
