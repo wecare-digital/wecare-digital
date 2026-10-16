@@ -37,9 +37,9 @@ Lambdas behind one shared HTTP API.
   `link-resources.ts` declares, there is exactly one HTTP API; the shortener's
   routes live on this shared API against the `stack-wecare-url-shortener:live`
   alias. Routes invoke Lambda `live` aliases (SnapStart), not `$LATEST`.
-- **~78 Python 3.12 Lambdas** across 9 domains (`ai`, `auth`, `core`, `ecommerce`,
-  `edge`, `messaging`, `operations`, `payments`, plus the `shared` library bundled
-  into each). RBAC is enforced in Lambda middleware by Cognito group
+- **~78 Python 3.12 Lambdas** across 8 domains (`ai`, `auth`, `core`, `ecommerce`,
+  `edge`, `messaging`, `operations`, `payments`) plus the `shared` library bundled
+  into each. RBAC is enforced in Lambda middleware by Cognito group
   (Viewer / Operator / Admin), **not** by IAM role.
 
 ## Identity layer
@@ -108,7 +108,7 @@ flowchart TD
   RP -->|webhooks| API
   PL -->|dial events| API
 
-  API --> L[~78 Python Lambdas<br/>live aliases · SnapStart<br/>9 domains]
+  API --> L[~78 Python Lambdas<br/>live aliases · SnapStart<br/>8 domains]
   AUTH[Cognito pool<br/>us-east-1_cSx0RHCIR] -. RBAC groups .-> L
 
   L --> DDB[(DynamoDB ~76 tables<br/>stack-wecare-digital-*)]
