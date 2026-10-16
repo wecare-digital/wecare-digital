@@ -488,6 +488,26 @@ def test_revision_requires_fresh_qa_and_signoff(env):
         env["bp"].revise(source_id, "operator")
 
 
+def test_revision_accepts_human_resolved_non_blocking_review_flags(env, monkeypatch):
+    source_id = _signed(env)
+    job = env["bp"].release(source_id, "operator")
+    env["bp"].publish(job["jobId"], "operator")
+
+    draft = dict(env["bs"].get_source(source_id)["draftRecord"])
+    draft["contentMarkdown"] += "\n\nI will give you an accurate update at three o'clock."
+    env["table"].items[source_id]["draftRecord"] = env["storage"]._clean(draft)
+    signoff = _resign_after_edit(env, source_id)
+    qa = env["bq"].get_run(signoff["qaRunId"])
+    assert qa["blockingCount"] == 0
+
+    import blog_site_bridge
+    monkeypatch.setattr(blog_site_bridge, "note_published", lambda sid, actor: {
+        "siteBuildStatus": "SITE_BUILD_PENDING", "scheduled": True, "generation": 2})
+
+    revised = env["bp"].revise(source_id, "operator")
+    assert revised["revised"] is True
+
+
 def test_revision_preserves_post_identity_and_versions_in_place(env, monkeypatch):
     source_id = _signed(env)
     job = env["bp"].release(source_id, "operator")

@@ -451,14 +451,27 @@ def revise(source_id: str, actor: str) -> Dict[str, Any]:
     if not post_id or not post_url:
         raise ValueError("published article is missing its native post identity")
 
-    ok, reason = blog_qa.releasable(source_id)
-    if not ok:
-        raise ValueError(f"this revision cannot be published: {reason}")
     signoff = blog_qa.current_signoff(source_id) or {}
+    if not signoff:
+        raise ValueError("this revision cannot be published: no gate sign-off has been recorded")
     draft = dict(record.get("draftRecord") or {})
     body_hash = blog_gate.body_sha256(draft)
     if str(signoff.get("bodySha256") or "") != body_hash:
-        raise ValueError("the current sign-off does not cover this revision body")
+        raise ValueError(
+            "this revision cannot be published: the article changed after sign-off")
+    qa = blog_qa.get_run(str(signoff.get("qaRunId") or ""))
+    if not qa:
+        raise ValueError(
+            "this revision cannot be published: the QA run named by the sign-off is missing")
+    if str(qa.get("bodySha256") or "") != body_hash:
+        raise ValueError(
+            "this revision cannot be published: the QA run covers different text")
+    if not int(qa.get("corpusChecked") or 0):
+        raise ValueError(
+            "this revision cannot be published: QA did not check the published corpus")
+    if int(qa.get("blockingCount") or 0):
+        raise ValueError(
+            f"this revision cannot be published: QA has {qa.get('blockingCount')} blocking finding(s)")
 
     slug = str(draft.get("slug") or "").strip()
     if not slug:
