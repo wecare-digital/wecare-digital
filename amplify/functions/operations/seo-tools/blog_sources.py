@@ -311,12 +311,15 @@ def get_source(record_id: str) -> Optional[Dict[str, Any]]:
     if parent:
         parent_pipeline = dict(parent.get("pipeline") or {})
         reviewed = str(parent_pipeline.get("sourceReviewedFully") or "")
+        projected = {**empty_pipeline(), **dict(safe.get("pipeline") or {})}
+        projected["analysisId"] = str(parent_pipeline.get("analysisId") or projected.get("analysisId") or "")
+        projected["analysisVersion"] = int(parent_pipeline.get("analysisVersion") or projected.get("analysisVersion") or 0)
         if reviewed:
-            safe["pipeline"] = {**empty_pipeline(), **dict(safe.get("pipeline") or {}),
-                                "sourceReviewedFully": reviewed}
+            projected["sourceReviewedFully"] = reviewed
             draft = dict(safe.get("draftRecord") or {})
             draft["sourceReviewedFully"] = reviewed
             safe["draftRecord"] = draft
+        safe["pipeline"] = projected
     return safe
 
 
