@@ -43,8 +43,8 @@ Usage
                                                               # store a key you already
                                                               # hold, read from stdin
 
-Exit status is 1 unless the key answers on all three probed surfaces: Places API (New),
-Weather and Air Quality. Every run prints the one line that must be pasted into
+Exit status is 1 unless the key answers on all four probed surfaces: Places API (New),
+Weather, Air Quality and Routes. Every run prints the one line that must be pasted into
 FORBIDDEN_FINGERPRINTS in scripts/verify_public_bundle_secrets.py - without it, the
 Amplify build gate that exists to stop an unrestricted server key reaching the public
 JS bundle does not recognise this key.
@@ -103,6 +103,8 @@ API_TARGETS = [
     # core/vayulok-environment; never add these to the public browser key.
     "airquality.googleapis.com",
     "weather.googleapis.com",
+    # VayuLok Route & distance card. Compute Routes stays TRAFFIC_UNAWARE/Essentials.
+    "routes.googleapis.com",
     # Existing canonical-secret consumer: core/site-language.
     "translate.googleapis.com",
 ]
@@ -298,6 +300,41 @@ def probe_air_quality(key: str) -> tuple[bool, str]:
     )
 
 
+def probe_routes(key: str) -> tuple[bool, str]:
+    """Ask Compute Routes whether the key is accepted without using higher-SKU features."""
+    request = urllib.request.Request(
+        "https://routes.googleapis.com/directions/v2:computeRoutes",
+        method="POST",
+        data=json.dumps(
+            {
+                "origin": {
+                    "location": {
+                        "latLng": {"latitude": 28.6139, "longitude": 77.2090}
+                    }
+                },
+                "destination": {
+                    "location": {
+                        "latLng": {"latitude": 28.4595, "longitude": 77.0266}
+                    }
+                },
+                "travelMode": "DRIVE",
+                "routingPreference": "TRAFFIC_UNAWARE",
+                "computeAlternativeRoutes": False,
+                "units": "METRIC",
+            }
+        ).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": key,
+            "X-Goog-FieldMask": "routes.duration,routes.distanceMeters",
+        },
+    )
+    return _probe(
+        request,
+        lambda body: f"{len(body.get('routes', []))} route(s)",
+    )
+
+
 def _probe(request: urllib.request.Request, describe) -> tuple[bool, str]:
     """Shared probe transport. The key is only ever in the X-Goog-Api-Key header."""
     try:
@@ -321,11 +358,12 @@ def _probe(request: urllib.request.Request, describe) -> tuple[bool, str]:
 
 
 def run_probes(key: str) -> bool:
-    """All three live probes, one labelled line each. Returns the AND of them."""
+    """All four live probes, one labelled line each. Returns the AND of them."""
     results = [
         ("Places API (New)", probe_places_new(key)),
         ("Weather API", probe_weather(key)),
         ("Air Quality API", probe_air_quality(key)),
+        ("Routes API", probe_routes(key)),
     ]
     for label, (ok, detail) in results:
         print(f"  {label:<18} {'ACCEPTED' if ok else 'REFUSED'} - {detail}")
@@ -489,7 +527,7 @@ def main() -> int:
     group.add_argument("--status", action="store_true",
                        help="report key and secret state without changing anything")
     group.add_argument("--verify", action="store_true",
-                       help="re-run the live Places/Weather/Air Quality probes")
+                       help="re-run the live Places/Weather/Air Quality/Routes probes")
     group.add_argument("--store-from-stdin", action="store_true",
                        help="store a key read from stdin or a hidden prompt "
                             "(never from argv); use when gcloud created the key "
