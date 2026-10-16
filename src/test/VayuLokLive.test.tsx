@@ -390,7 +390,7 @@ async function loadComponent() {
 let rec: MapsRecorder;
 
 async function selectMumbai() {
-  const input = await screen.findByRole( 'combobox' );
+  const input = await screen.findByPlaceholderText( 'Search a city or pincode' );
   fireEvent.change( input, { target: { value: 'Mumbai' } } );
   // The suggestion <li> commits the selection on `onPointerDown` (pointer events are the
   // component's chosen interaction so a touch/mouse tap recentres before blur closes the
@@ -1224,7 +1224,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     render( <VayuLokLive /> );
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
-    const input = await screen.findByRole( 'combobox' );
+    const input = await screen.findByPlaceholderText( 'Search a city or pincode' );
     // No active option before any results, so no activedescendant is advertised.
     expect( input.getAttribute( 'aria-activedescendant' ) ).toBeFalsy();
     fireEvent.change( input, { target: { value: 'Mumbai' } } );
@@ -1699,7 +1699,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const { container } = render( <VayuLokLive /> );
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
-    const input = await screen.findByRole( 'combobox' );
+    const input = await screen.findByPlaceholderText( 'Search a city or pincode' );
     fireEvent.change( input, { target: { value: 'Mum' } } );
     // The "Searching…" status, if present, must be the sr-only live region - never a visible
     // helper line under the field.
@@ -1763,7 +1763,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     // Map-ready boundary on real timers: the combobox renders only after tilesloaded flips mapReady.
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    const input = await screen.findByRole( 'combobox' );
+    const input = await screen.findByPlaceholderText( 'Search a city or pincode' );
 
     // Fresh recorder slate, then switch to fake timers for the debounce window only.
     rec.autocompleteCalls.length = 0;
@@ -1900,7 +1900,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       speech!.onend?.();
     } );
 
-    const input = screen.getByRole( 'combobox' ) as HTMLInputElement;
+    const input = screen.getByPlaceholderText( 'Search a city or pincode' ) as HTMLInputElement;
     await waitFor( () => expect( input.value ).toBe( 'কলকাতা' ) );
     await waitFor( () => expect(
       rec.autocompleteCalls.some( req => req.input === 'কলকাতা' ),
@@ -1913,7 +1913,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     render( <VayuLokLive /> );
 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    const input = await screen.findByRole( 'combobox' );
+    const input = await screen.findByPlaceholderText( 'Search a city or pincode' );
     fireEvent.change( input, { target: { value: 'Mumbai' } } );
     const option = await screen.findByRole( 'option', { name: /Mumbai/i } );
     expect( option ).toBeTruthy();

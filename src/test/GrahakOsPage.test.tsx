@@ -20,10 +20,10 @@ describe( 'Grahak OS five approved visual fixes', () => {
   } );
 
   it( 'uses the approved WECARE.DIGITAL lime and dark green color system', () => {
-    expect( source ).toContain( '.phone-header{background:#1a3a2a' );
+    expect( source ).toContain( '.phone-header{background:#128c7e' );
     expect( source ).toContain( '.avatar{width:40px;height:40px;background:#1a3a2a' );
-    expect( source ).toContain( '.verified-badge{width:22px;height:22px;background:#1a3a2a' );
-    expect( source ).toContain( '.msg.sent{background:#d1f470' );
+    expect( source ).toContain( '.verified-badge{width:18px;height:18px;background:#25d366' );
+    expect( source ).toContain( '.msg.sent{background:#d9fdd3' );
     // Renamed .tab -> .pp-tab so the page owns the control outright: the bare .tab
     // class is declared unscoped in Pages.css and Layout.css, which were supplying
     // min-height, box-shadow, font-family and five more properties this page never
