@@ -76,14 +76,14 @@ exceptions, optional improvements, and one documented migration gap.
 
 | # | Item | Action | Why |
 | --- | --- | --- | --- |
-| A1 | `RETAILER_PREFIX = "wix"` (`meta_catalog_sync.py:62`) | **KEEP** | It is Meta's `product_retailer_id` namespace. Every live Meta catalog item and every inbound WhatsApp catalog order carries `wix:<productId>:<variantId>`. The module explicitly documents it as an external contract. Changing it ≠ cleanup; it breaks the Meta↔ProductsTable join and inbound order resolution. |
+| A1 | `RETAILER_PREFIX = "wix"` (`meta_catalog_sync.py:62`) | **KEEP** (change only via B1 migration) | Meta's `product_retailer_id` namespace. **Sync is LIVE** (`META_CATALOG_SYNC_ENABLED=true`, 21 variants on Meta catalog `1457045652952851`), so live items carry `wix:<productId>:<variantId>` and inbound WhatsApp orders echo it. A plain rename to `wecare.digital` breaks the Meta↔ProductsTable join, inbound order pricing, and duplicates the catalog. Only re-key via the dual-read migration in B1. |
 | A2 | UPI VPA `…rzp@rxairtel` (4 files) | **KEEP** | Razorpay UPI address; `rxairtel` is the Airtel Payments **Bank** handle, not the voice/SMS provider. Editing breaks payment routing. |
 
 ## B. Improvement opportunities (optional, owner-gated, NOT required for closeout)
 
 | # | Improvement | Effort / risk | Note |
 | --- | --- | --- | --- |
-| B1 | Re-key the Meta retailer-id namespace off the `wix:` spelling to a neutral prefix (e.g. `wd:`). | High / high-risk | A real Meta catalog migration: publish new ids, carry in-flight WhatsApp carts across, retire old ids. **Cannot run while `META_CATALOG_SYNC_ENABLED=false`.** Only worth doing if the `wix:` string itself is objectionable; functionally it is already provider-neutral. Needs owner approval + a cutover window. |
+| B1 | Re-key the Meta retailer-id namespace off the `wix:` spelling to a neutral prefix (e.g. `wecare.digital:` or `wd:`). | High / **high-risk, LIVE** | A real Meta catalog migration — **NOT a rename.** **Correction (2026-10-16 re-check): sync is LIVE in production** — `META_CATALOG_SYNC_ENABLED=true`, `CATALOG_SOURCE=aws`, `DRY_RUN=false`, 21 variants synced to Meta catalog `1457045652952851`. So live Meta items already carry `wix:<uuid>:<uuid>` and inbound WhatsApp orders echo it. Changing the prefix string alone would: (1) make every existing item "foreign" so sync stops updating them; (2) break inbound-order resolution ("cannot price this line"); (3) publish 21 duplicate items on the next run. Length/format are fine (`wecare.digital`=88 ≤ 100; the prefix regex allows dots). The ONLY safe path is a dual-read migration: accept BOTH prefixes in `parse_retailer_id`, publish new-prefixed items, let in-flight carts drain, then retire the old ids — owner-approved, with a cutover window and dry-run first. |
 | B2 | Rename the UPI VPA variable/comment context so `rxairtel` reads less like the provider. | Low / none | Pure readability; the value cannot change (it is the live payment address). A one-line comment "(Airtel Payments Bank handle, not the Airtel comms provider)" at `constants.ts:112` would stop a future agent flagging it. |
 | B3 | Add a lint/CI guard: fail if a NEW `wix`/`airtel` provider token appears in `src/`+`functions/` (allowlisting A1/A2). | Low / none | Prevents regression. `scripts/check-wix-policy.sh` already exists for runtime; extend its allowlist to cover these two exceptions so the zero-reference state is enforced, not just verified once. |
 
@@ -91,7 +91,7 @@ exceptions, optional improvements, and one documented migration gap.
 
 | # | Gap | Status |
 | --- | --- | --- |
-| C1 | The `wix:` retailer prefix is a lingering *spelling* of a provider name in an active contract. | **Documented, accepted.** The code comment at `meta_catalog_sync.py:38-55` already explains the contract and the migration cost. No runtime Wix dependency exists behind it. Tracked as improvement B1 if the owner ever wants the spelling gone. |
+| C1 | The `wix:` retailer prefix is a lingering *spelling* of a provider name in an **active, LIVE** contract. | **Documented, accepted — but note it is LIVE, not dormant.** The in-code comment claims the migration "cannot run while sync is disabled", but the live config shows sync IS enabled (`META_CATALOG_SYNC_ENABLED=true`). The code comment is therefore stale on that one point. No runtime *Wix* dependency exists — it is a string namespace — but because live Meta items carry it, re-keying is a cutover migration (B1), not a rename. |
 | C2 | Historical Wix/Airtel mentions remain in `docs/`. | **By design.** WX scopes removal to the current application/runtime (clean); docs retain archival evidence. `docs/audit-doc-index.md` marks which are superseded. |
 
 ## Verdict
