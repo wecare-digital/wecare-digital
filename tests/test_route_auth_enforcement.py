@@ -189,6 +189,8 @@ class TestAuditMarkerPolicy:
         Adding a line here is the second key. Turning it. Justify it.
         """
         assert set(audit.EXPECTED_PUBLIC_ROUTES) == {
+            "GET /seo-tools/blog-public",
+            "GET /seo-tools/blog-public/{proxy+}",
             "GET /r/{code}",
             "POST /auth/validate",
             # Public email-ownership OTP door. It returns only a short-lived proof bound to the

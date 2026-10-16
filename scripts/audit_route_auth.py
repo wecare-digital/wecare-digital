@@ -159,6 +159,10 @@ EXPECTED_PUBLIC_METHODS = {
 }
 
 EXPECTED_PUBLIC_ROUTES = {
+    # Dedicated GET-only Lambda: published posts and approved FAQ projections only.
+    # Its execution role cannot write the native store. See test_blog_public_reader.py.
+    "GET /seo-tools/blog-public": "anonymous published-blog list; fixed public field allowlist and read-only dedicated Lambda",
+    "GET /seo-tools/blog-public/{proxy+}": "anonymous published-post detail; validated slug, published-only lookup, approved FAQ only",
     # Short links are followed by customers who have no Cognito session. The
     # handler authenticates the /links management routes separately.
     "GET /r/{code}": "public short-link redirect; anonymous by definition",

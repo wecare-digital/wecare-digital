@@ -455,6 +455,7 @@ SPECS: List[Spec] = [
 # locally is still correct for a fast iteration loop - just do not treat the result as
 # durable until it is committed.
 DELEGATED = {
+    "wecare-blog-public": "scripts/build_blog_public.py (dedicated three-file read-only package; code-only deployment with revision/hash preconditions)",
     "wecare-seo-tools": "scripts/deploy_seo_tools.py  (also .github/workflows/seo-tools-deploy.yml on push)",
     "wecare-mcp": "scripts/deploy_mcp_server.py",
     # Bundles its own pinned SDK and policy; generic packaging would omit both.
