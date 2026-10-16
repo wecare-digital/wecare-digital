@@ -7,7 +7,6 @@ import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import PageMeta from '../../components/PageMeta';
 import PublicShare from '../../components/PublicShare';
-import ProductBuyBox from '../../components/ProductBuyBox';
 import RotatingHero from '../../components/RotatingHero';
 
 const GrahakOsPage: React.FC = () => {
@@ -262,27 +261,15 @@ response = requests.post(
           words={ cycleWords }
           sub={ <>One platform for customer data, messaging, automation and campaigns, so every conversation stays connected whichever channel it starts on. Turn your WhatsApp number into your #1 revenue channel with Grahak OS.</> }
           children={ (
-            // PRICE + DUAL CTA, the /anew/ pattern reproduced inline because this page is
-            // bespoke and does not go through ProductPage. Rendered through RotatingHero's
-            // `children` slot, which sits inside .rh-layout (the hero's own content measure)
-            // but OUTSIDE the .rh-split two-column row - so it is a valid block container
-            // (ProductBuyBox renders a <div>, which a <p> like .rh-sub may not hold) and it
-            // starts on the same left edge as the hero copy.
-            // TWO DOORS, SAME AS /anew/: a primary WhatsApp pill ("Get Started on WhatsApp →",
-            // full lime) beside the secondary website checkout pill ProductBuyBox renders
-            // ("Continue to checkout →", white with a dark-green edge). The WhatsApp link is
-            // Grahak OS's own click-to-chat short link, the same one the API section's
-            // "see it on WhatsApp" CTA uses.
-            // ProductBuyBox is mounted with showPrice=false. The ₹899 PRICE LINE DOES NOT
-            // live here any more - on owner instruction it moved to the closer at the bottom
-            // of the page (see #gos-closer), so the hero carries only the two action pills and
-            // the price lands with the final call to action. ProductBuyBox still checks out
-            // the real catalogue line for 'grahak-os' if listed in productCheckout.ts, else
-            // the shared ₹1 placeholder; ₹899 is DISPLAY ONLY until that catalogue line exists.
+            // HERO CTA. One primary WhatsApp pill ("Get Started on WhatsApp →") in the hero's
+            // own content measure, via RotatingHero's `children` slot (sits inside .rh-layout
+            // but outside the .rh-split two-column row, so it starts on the hero copy's left
+            // edge). The paid website-checkout pill (ProductBuyBox "Continue to checkout →")
+            // was REMOVED on owner instruction - WhatsApp is the only entry point now. The
+            // ₹899 price line lives in the closer at the bottom (see #gos-closer).
             <div className="gos-buy">
               <div className="gos-ctas">
                 <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
-                <ProductBuyBox slug="grahak-os" showPrice={ false } />
               </div>
             </div>
           ) }
@@ -603,15 +590,13 @@ response = requests.post(
               br rather than the pre-line trick .section-header h2 uses, because
               .gos-closer-head does not set white-space. */}
           <h2 className="gos-closer-head">Transform customer<br/>engagement with<br/>Grahak OS</h2>
-          {/* THE BUY BLOCK LIVES HERE NOW (owner instruction): the two action pills plus the
-              ₹899 price, so the price lands with the final call to action rather than in the
-              hero. Same WhatsApp short link and the same ProductBuyBox checkout as the hero;
-              a second ProductBuyBox instance is fine - each manages its own state. Caption is
-              "consulting solution", replacing the earlier "billed as one line". */}
+          {/* THE FINAL CALL TO ACTION: the WhatsApp pill plus the ₹899 price, so the price
+              lands with the closing CTA. The paid website-checkout pill (ProductBuyBox) was
+              REMOVED on owner instruction here and in the hero - WhatsApp is the only door.
+              Caption is "consulting solution". */}
           <div className="gos-closer-buy">
             <div className="gos-ctas">
               <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
-              <ProductBuyBox slug="grahak-os" showPrice={ false } />
             </div>
             <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span></p>
           </div>
@@ -757,15 +742,11 @@ response = requests.post(
              .rh-layout / .rh-split structure with the 638px mockup column at 1440px. */
           .gos-buy{margin:-56px 0 0}
           @media(max-width:767px){ .gos-buy{margin:-24px 0 0} }
-          /* The two pills on one baseline-aligned row, wrapping rather than overflowing on a
-             narrow viewport. ProductBuyBox renders its own .pbb wrapper (column, margin-top:12px);
-             the override below strips that top margin and the gos-ctas gap owns the spacing so
-             the WhatsApp pill and the checkout pill line up as a pair, exactly like /anew/. */
+          /* The CTA row. Now holds just the one WhatsApp pill (the paid checkout pill was
+             removed), wrapping rather than overflowing on a narrow viewport. */
           .gos-ctas{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-          .gos-ctas :global(.pbb){margin-top:0}
           /* Primary WhatsApp pill: full-lime, the page's one allowed lime surface for the
-             primary action - mirrors ProductPage's .pdp-cta so the WhatsApp door and the
-             checkout door read as a matched pair. 52px min target matches the checkout pill. */
+             primary action - mirrors ProductPage's .pdp-cta. 52px min target. */
           .gos-wa-cta{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s}
           .gos-wa-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
           .gos-wa-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
@@ -873,13 +854,11 @@ response = requests.post(
              price) stacked and centred, since the price moved here from the hero. Was a
              single centred row with just the heading. */
           .gos-closer{max-width:1300px;margin:0 auto;padding:60px 24px 80px;display:flex;flex-direction:column;align-items:center}
-          /* The relocated buy block, centred under the closer heading. gos-ctas/gos-wa-cta/
-             gos-price all reuse the hero's rules; only the top gap and centring are set here.
-             :global(.pbb) centres the ProductBuyBox column so its pill lines up with the
-             WhatsApp pill, mirroring the hero's row. */
+          /* The closing buy block, centred under the closer heading: the WhatsApp pill and the
+             ₹899 price. gos-ctas/gos-wa-cta/gos-price reuse the hero's rules; only the top gap
+             and centring are set here. */
           .gos-closer-buy{margin-top:30px;display:flex;flex-direction:column;align-items:center}
           .gos-closer-buy .gos-ctas{justify-content:center}
-          .gos-closer-buy :global(.pbb){align-items:center}
           .gos-closer-buy .gos-price{text-align:center}
           /* Hero h1 level, exactly: clamp(36px,4.3vw,60px) / 600 / -2.2px.
              It was clamp(38px,6vw,84px), which at any viewport above ~630px rendered
