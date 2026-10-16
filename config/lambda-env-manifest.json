@@ -421,7 +421,7 @@
       "TABLE_PREFIX": "stack-wecare-digital"
     },
     "wecare-site-language": {
-      "SITE_LANGUAGE_ALLOWED_ORIGINS": "https://wecare.digital,https://www.wecare.digital",
+      "SITE_LANGUAGE_ALLOWED_ORIGINS": "https://wecare.digital,https://wecare.digital",
       "SITE_LANGUAGE_CACHE_TABLE": "stack-wecare-digital-SiteLanguageCache",
       "SITE_LANGUAGE_CACHE_TTL_SECONDS": "7776000",
       "SITE_LANGUAGE_GOOGLE_SECRET": "wecare/google/cloud",
