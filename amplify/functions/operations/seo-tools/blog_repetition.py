@@ -413,7 +413,7 @@ def run(batch_id: str, actor: str) -> Dict[str, Any]:
     if not batch:
         raise LookupError("Unknown batchId")
 
-    rows = blog_batches.batch_sources(batch_id)
+    rows = blog_batches.batch_articles(batch_id)
     detailed = [blog_sources.get_source(str(row["id"])) or {} for row in rows]
     articles = _articles(detailed, q)
     report = analyse(articles, q)
@@ -549,7 +549,7 @@ def batch_state(batch_id: str) -> Dict[str, Any]:
     next to when the sweep happened.
     """
     import blog_batches
-    sources = blog_batches.batch_sources(batch_id)
+    sources = blog_batches.batch_articles(batch_id)
     statuses: Dict[str, int] = {}
     for row in sources:
         status = str((row.get("pipeline") or {}).get("repetitionStatus") or "")
