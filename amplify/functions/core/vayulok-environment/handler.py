@@ -1,7 +1,6 @@
-"""Server-side Google Weather and Air Quality gateway for public VayuLok.
+"""Server-side Google Weather, Air Quality and Routes gateway for public VayuLok.
 
-The browser key used by Maps JavaScript is intentionally NOT accepted here. Weather
-and Air Quality are Google Maps Platform web-service APIs; their credential stays in
+The browser key used by Maps JavaScript is intentionally NOT accepted here. Weather, Air Quality and Routes are Google Maps Platform web-service APIs; their credential stays in
 AWS Secrets Manager and is sent to Google in the x-goog-api-key header.
 
 Public route:
@@ -69,6 +68,7 @@ WEATHER_ALERT_REGION_CODES = frozenset(
 
 WEATHER_BASE = "https://weather.googleapis.com/v1"
 AIR_BASE = "https://airquality.googleapis.com/v1"
+ROUTES_BASE = "https://routes.googleapis.com/directions/v2"
 
 OPERATIONS = frozenset(
     {
@@ -81,6 +81,7 @@ OPERATIONS = frozenset(
         "weather_alerts",
         "air_forecast",
         "air_history",
+        "route_drive",
     }
 )
 
@@ -95,6 +96,13 @@ OPERATION_FIELDS = {
     "weather_alerts": _COMMON_FIELDS,
     "air_forecast": _COMMON_FIELDS,
     "air_history": _COMMON_FIELDS | {"hours", "pageToken"},
+    "route_drive": {
+        "operation",
+        "originLatitude",
+        "originLongitude",
+        "destinationLatitude",
+        "destinationLongitude",
+    },
 }
 
 _secret_client = None
@@ -110,6 +118,9 @@ CACHE_TTLS = {
     "weather_alerts": 5 * 60,
     "air_forecast": 30 * 60,
     "air_history": 60 * 60,
+    # TRAFFIC_UNAWARE route results are stable enough to reuse for identical endpoints,
+    # reducing repeated billable Compute Routes events.
+    "route_drive": 6 * 60 * 60,
 }
 
 
@@ -223,6 +234,20 @@ def _location(payload: Mapping[str, Any]) -> tuple[float, float]:
     if not (WORLD_BOUNDS["west"] <= lng <= WORLD_BOUNDS["east"]):
         raise ValueError("longitude outside world bounds")
     return lat, lng
+
+
+def _route_locations(
+    payload: Mapping[str, Any],
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    origin = {
+        "latitude": payload.get("originLatitude"),
+        "longitude": payload.get("originLongitude"),
+    }
+    destination = {
+        "latitude": payload.get("destinationLatitude"),
+        "longitude": payload.get("destinationLongitude"),
+    }
+    return _location(origin), _location(destination)
 
 
 def _region_code(payload: Mapping[str, Any]) -> str:
@@ -342,6 +367,7 @@ def _google_json(
     *,
     method: str = "GET",
     body: Optional[Mapping[str, Any]] = None,
+    field_mask: str = "",
 ) -> Dict[str, Any]:
     key = _google_key()
     if not key:
@@ -349,6 +375,8 @@ def _google_json(
 
     data = None if body is None else json.dumps(body).encode("utf-8")
     headers = {"Accept": "application/json", "X-Goog-Api-Key": key}
+    if field_mask:
+        headers["X-Goog-FieldMask"] = field_mask
     if data is not None:
         headers["Content-Type"] = "application/json; charset=utf-8"
 
@@ -443,15 +471,57 @@ def _air_grid(lat: float, lng: float, grid_size: int) -> Dict[str, Any]:
     return {"samples": samples}
 
 
-def _cache_key(operation: str, payload: Mapping[str, Any]) -> str:
-    material = {
-        "operation": operation,
-        "latitude": round(float(payload.get("latitude")), 4),
-        "longitude": round(float(payload.get("longitude")), 4),
-        "regionCode": str(payload.get("regionCode") or "").upper(),
-        "hours": payload.get("hours"),
-        "pageToken": payload.get("pageToken") or "",
+def _route_drive(payload: Mapping[str, Any]) -> Dict[str, Any]:
+    (origin_lat, origin_lng), (destination_lat, destination_lng) = _route_locations(
+        payload
+    )
+    request_body = {
+        "origin": {
+            "location": {
+                "latLng": {"latitude": origin_lat, "longitude": origin_lng}
+            }
+        },
+        "destination": {
+            "location": {
+                "latLng": {
+                    "latitude": destination_lat,
+                    "longitude": destination_lng,
+                }
+            }
+        },
+        "travelMode": "DRIVE",
+        # Keep this on Compute Routes Essentials (India): no traffic-aware routing,
+        # tolls, two-wheeler or other higher-SKU features.
+        "routingPreference": "TRAFFIC_UNAWARE",
+        "computeAlternativeRoutes": False,
+        "units": "METRIC",
     }
+    return _google_json(
+        f"{ROUTES_BASE}:computeRoutes",
+        method="POST",
+        body=request_body,
+        field_mask="routes.duration,routes.distanceMeters",
+    )
+
+
+def _cache_key(operation: str, payload: Mapping[str, Any]) -> str:
+    if operation == "route_drive":
+        material = {
+            "operation": operation,
+            "originLatitude": round(float(payload.get("originLatitude")), 5),
+            "originLongitude": round(float(payload.get("originLongitude")), 5),
+            "destinationLatitude": round(float(payload.get("destinationLatitude")), 5),
+            "destinationLongitude": round(float(payload.get("destinationLongitude")), 5),
+        }
+    else:
+        material = {
+            "operation": operation,
+            "latitude": round(float(payload.get("latitude")), 4),
+            "longitude": round(float(payload.get("longitude")), 4),
+            "regionCode": str(payload.get("regionCode") or "").upper(),
+            "hours": payload.get("hours"),
+            "pageToken": payload.get("pageToken") or "",
+        }
     return json.dumps(material, sort_keys=True, separators=(",", ":"))
 
 
@@ -469,6 +539,9 @@ def _cached_dispatch(operation: str, payload: Mapping[str, Any]) -> Dict[str, An
 
 
 def _dispatch(operation: str, payload: Mapping[str, Any]) -> Dict[str, Any]:
+    if operation == "route_drive":
+        return _route_drive(payload)
+
     lat, lng = _location(payload)
     region_code = _region_code(payload)
 
