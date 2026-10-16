@@ -385,6 +385,37 @@ describe( 'Header', () => {
     expect( css ).toContain( '.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto' );
   } );
 
+  it( 'uses the approved Material icon set for the refreshed menu items', () => {
+    const { container } = render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+
+    const expected = [
+      [ 'VayuLok', 'M460-160q-50 0-85-35t-35-85h80' ],
+      [ 'Bharat Rx', 'M345-120q-94 0-159.5-65.5T120-345' ],
+      [ 'Hunar', 'm387-412 35-114-92-74h114' ],
+      [ 'Niji Setu', 'M480-200q-106 0-184.5-68.5T203-440H80' ],
+      [ 'Submit Request', 'M200-120q-33 0-56.5-23.5T120-200' ],
+      [ 'Vault', 'M480-320 280-520l56-58 104 104' ],
+    ] as const;
+
+    for ( const [ label, prefix ] of expected ) {
+      const icon = screen.getByRole( 'link', { name: label } ).querySelector( 'svg.nav-row-icon-material path' );
+      expect( icon?.getAttribute( 'd' ) ).toContain( prefix );
+    }
+
+    const referHeading = screen.getByText( 'Refer & Earn' );
+    const referIcon = referHeading.parentElement?.querySelector( 'svg.nav-section-icon-material path' );
+    expect( referIcon?.getAttribute( 'd' ) ).toContain( 'M500-482q29-32 44.5-73t15.5-85' );
+
+    const partner = screen.getByText( 'Partner' ).closest( '.nav-family-label' );
+    const partnerIcon = partner?.querySelector( 'svg.nav-row-icon-material path' );
+    expect( partnerIcon?.getAttribute( 'd' ) ).toContain( 'M475-160q4 0 8-2t6-4' );
+
+    const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
+    expect( css ).toContain( '.nav-row-icon-material{fill:currentColor;stroke:none}' );
+    expect( css ).toContain( '.nav-section-icon-material{fill:currentColor;stroke:none}' );
+  } );
+
   it( 'adds visual icons without changing the navigation schema or labels', () => {
     const { container } = render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
