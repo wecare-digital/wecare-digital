@@ -1,4 +1,4 @@
-import { FetchStore, get, open, root, slice } from 'zarrita';
+import { get, open, root, slice } from 'zarrita';
 
 export interface NoaaWindGridSegment {
   latStart: number;
@@ -29,12 +29,54 @@ interface NoaaWindGridRequest {
  * This module intentionally uses named Zarrita imports so the browser chunk does not
  * pull optional ReferenceStore/ZipStore code that VayuLok never uses.
  */
-export async function loadNoaaWindGrid( request: NoaaWindGridRequest ): Promise<NoaaWindGridSegment[]> {
-  const store = new FetchStore( request.baseUrl, {
-    fetch( input: Request ) {
-      return fetch( input, { signal: request.signal } );
+type ByteRange =
+  | { offset: number; length: number }
+  | { suffixLength: number };
+
+function joinStoreUrl( baseUrl: string, key: string ): string {
+  return `${baseUrl.replace( /\/$/, '' )}/${key.replace( /^\/+/, '' )}`;
+}
+
+/**
+ * Minimal HTTP Zarr store for this one public dataset.
+ *
+ * Keeping transport local avoids bundling optional ReferenceStore/ZipStore code.
+ * Sharded GFS arrays still use real byte-range reads through getRange().
+ */
+function createHttpRangeStore( baseUrl: string, signal: AbortSignal ) {
+  const read = async ( key: string, range?: ByteRange ): Promise<Uint8Array | undefined> => {
+    const headers = new Headers();
+    if ( range ) {
+      if ( 'suffixLength' in range ) headers.set( 'Range', `bytes=-${range.suffixLength}` );
+      else headers.set( 'Range', `bytes=${range.offset}-${range.offset + Math.max( 0, range.length - 1 )}` );
+    }
+    const response = await fetch( joinStoreUrl( baseUrl, key ), {
+      headers,
+      signal,
+      cache: 'no-store',
+    } );
+    if ( response.status === 404 ) return undefined;
+    if ( !response.ok ) throw new Error( `NOAA wind data request failed (${response.status})` );
+    const bytes = new Uint8Array( await response.arrayBuffer() );
+    if ( range && response.status === 200 ) {
+      if ( 'suffixLength' in range ) return bytes.slice( Math.max( 0, bytes.length - range.suffixLength ) );
+      return bytes.slice( range.offset, range.offset + range.length );
+    }
+    return bytes;
+  };
+
+  return {
+    get( key: string ) {
+      return read( key );
     },
-  } );
+    getRange( key: string, range: ByteRange ) {
+      return read( key, range );
+    },
+  };
+}
+
+export async function loadNoaaWindGrid( request: NoaaWindGridRequest ): Promise<NoaaWindGridSegment[]> {
+  const store = createHttpRangeStore( request.baseUrl, request.signal );
   const group = root( store );
   const uArr = await open( group.resolve( 'wind_u_10m' ), { kind: 'array' } );
   const vArr = await open( group.resolve( 'wind_v_10m' ), { kind: 'array' } );
