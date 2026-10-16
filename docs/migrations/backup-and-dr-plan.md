@@ -3,6 +3,9 @@
 **Created:** 2026-10-16 · **Account:** `775261844268` · **Region:** `us-east-1`
 · **Status:** living document — bump the date on any material change.
 
+> Companion docs: [`architecture.md`](architecture.md) (what the platform is) and
+> [`recovery-kit/README.md`](recovery-kit/README.md) (how to rebuild it).
+
 > Scope: how to take a complete, restorable copy of the WECARE.DIGITAL platform,
 > what protects it from accidental deletion or an AWS-side failure, and the exit
 > path if the platform ever has to move off AWS (to Google Cloud or elsewhere).
