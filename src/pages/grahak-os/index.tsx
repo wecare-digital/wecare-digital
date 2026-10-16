@@ -73,7 +73,22 @@ const GrahakOsPage: React.FC = () => {
       { threshold: 0.1 }
     );
     sections.forEach((el) => obs.observe(el));
-    return () => obs.disconnect();
+
+    // SAFETY NET so a section can never stay stuck at opacity:0. Arming hides every
+    // .anim section and the observer is then meant to reveal each one as it scrolls
+    // into view - but on the built export the observer's reveal was not firing for the
+    // sections below the fold, so the whole page below the hero rendered blank while the
+    // text was still in the DOM (which is why the no-JS body-text count stayed green and
+    // the bug went unseen). This timer reveals anything still hidden a short time after
+    // arming, so a visitor always ends on the finished state. It does not disable the
+    // scroll animation: sections the observer DOES catch animate normally; this only
+    // backstops the ones it misses. 1200ms is long enough for a genuine on-scroll reveal
+    // to win first and short enough that a stuck section is never visibly blank.
+    const failsafe = window.setTimeout(() => {
+      setVisible((p) => new Set([...p, ...sections.map((el) => el.id)]));
+    }, 1200);
+
+    return () => { obs.disconnect(); window.clearTimeout(failsafe); };
   }, []);
 
   const show = (id: string) => visible.has(id);
@@ -273,7 +288,7 @@ response = requests.post(
                       <span className="contact-name" data-wc-no-translate="true">WECARE.DIGITAL</span>
                       <span className="contact-status">online</span>
                     </div>
-                    <div className="verified-badge"></div>
+                    <span className="verified-badge" aria-hidden="true"><svg viewBox="0 0 12 12" width="11" height="11" focusable="false"><path d="M4.8 8.4 2.4 6l-.9.9 3.3 3.3L10.5 4.4l-.9-.9z" fill="#fff"/></svg></span>
                   </div>
                   <div className="chat-area">
                     {/* Order is load-bearing, not arbitrary. The code panel laps the
@@ -294,8 +309,8 @@ response = requests.post(
                         contradicting each other. Keep this string and the panel's
                         "message" value identical; that is the whole point of showing
                         them side by side. */}
-                    <div className="msg sent"><p>Your order #WD-87A6G has been shipped</p><span className="msg-time">10:30</span></div>
-                    <div className="msg sent"><p>Track here: wecare.digital/track</p><span className="msg-time">10:30</span></div>
+                    <div className="msg sent"><p>Your order #WD-87A6G has been shipped</p><span className="msg-meta"><span className="msg-time">10:30</span><svg className="msg-ticks" viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" focusable="false"><path d="M11.07.65 5.3 8.6 2.3 5.6 1.2 6.7l4.2 4.2L12.2 1.75z" fill="currentColor"/><path d="M15.07.65 9.3 8.6l-.9-.9 6.17-8.4z" fill="currentColor"/></svg></span></div>
+                    <div className="msg sent"><p>Track here: wecare.digital/track</p><span className="msg-meta"><span className="msg-time">10:30</span><svg className="msg-ticks" viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" focusable="false"><path d="M11.07.65 5.3 8.6 2.3 5.6 1.2 6.7l4.2 4.2L12.2 1.75z" fill="currentColor"/><path d="M15.07.65 9.3 8.6l-.9-.9 6.17-8.4z" fill="currentColor"/></svg></span></div>
                     <div className="msg received"><p>When will it arrive?</p><span className="msg-time">10:31</span></div>
                     <div className="msg received"><p>Can I change the delivery address?</p><span className="msg-time">10:32</span></div>
                     <div className="typing-indicator"><span></span><span></span><span></span></div>
@@ -815,12 +830,24 @@ response = requests.post(
              mirrored in Arabic - so this one follows the document instead of being locked.
              Measured at 260px out of position under rtl before the change. */
           .phone{position:absolute;inset-inline-start:0;top:28px;width:56%;max-width:320px;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.12)}
-          .phone-header{background:#1a3a2a;padding:12px 14px;display:flex;align-items:center;gap:10px}
-          .avatar{width:40px;height:40px;background:#1a3a2a;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px}
+          /* WhatsApp's own header teal (#075e54), not the brand's #1a3a2a. This is a
+             SIMULATION of WhatsApp, so the chrome should read as WhatsApp's rather than
+             as a custom green panel - the flat dark-forest block was the single biggest
+             tell that this was a brand mockup and not a real thread. #075e54 is the value
+             from WhatsApp's published palette. */
+          .phone-header{background:#075e54;padding:12px 14px;display:flex;align-items:center;gap:10px}
+          /* Avatar reads as a contact photo, not a flat tile the same colour as the
+             header behind it. A lighter teal disc with the business initial separates it
+             from the bar so the lockup looks like a real chat row. */
+          .avatar{width:40px;height:40px;background:#128c7e;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;box-shadow:0 0 0 2px rgba(255,255,255,.15)}
           .contact-info{flex:1;display:flex;flex-direction:column}
           .contact-name{color:#fff;font-size:17px;font-weight:600}
           .contact-status{color:rgba(255,255,255,.7);font-size:13px}
-          .verified-badge{width:22px;height:22px;background:#1a3a2a;border-radius:50%}
+          /* A real verified tick, not a blank disc. The empty circle read as a loading
+             state; a small check on WhatsApp's brand green is the business-verified badge
+             a customer would actually see beside a company name. */
+          .verified-badge{width:18px;height:18px;background:#25d366;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+          .verified-badge svg{display:block}
           /* 480 -> 504, the paired half of the +24 on .mockup-wrapper. Growing the
              wrapper alone would have left the panel overhanging the phone by 44px
              instead of ~20px; growing the phone by the same amount keeps that. The
@@ -834,7 +861,19 @@ response = requests.post(
              a rendering fault rather than a deliberate overlap. 66% keeps them clear
              of it. */
           .msg.received{background:#fff;align-self:flex-start;max-width:66%;border-top-left-radius:3px}
-          .msg.sent{background:#d1f470;align-self:flex-end;border-top-right-radius:3px}
+          /* WhatsApp's OWN outgoing green (#d9fdd3), not the brand lime (#d1f470). The
+             lime was the loudest tell that this was a brand mockup rather than a real
+             WhatsApp thread - WhatsApp sent bubbles are a soft mint, and #d9fdd3 is the
+             value WhatsApp Web ships. The timestamp grey below was already chosen for AA
+             contrast and stays legible on this slightly lighter fill. */
+          .msg.sent{background:#d9fdd3;align-self:flex-end;border-top-right-radius:3px}
+          /* Bubble tails - the small notch at the top corner of the first bubble in a
+             group. Real WhatsApp draws these and their absence made every bubble read as a
+             plain rounded rectangle. Built from a CSS triangle positioned at the squared
+             corner so each colour matches its bubble. */
+          .msg.sent::before{content:'';position:absolute;top:0;right:-7px;width:0;height:0;border-top:8px solid #d9fdd3;border-right:8px solid transparent}
+          .msg.received::before{content:'';position:absolute;top:0;left:-7px;width:0;height:0;border-top:8px solid #fff;border-left:8px solid transparent}
+          .msg{position:relative}
           /* Every sent bubble sits on the right. Two of them previously carried a
              left-msg override that forced them to flex-start, so outgoing messages
              appeared on both sides of the same thread. */
@@ -846,7 +885,20 @@ response = requests.post(
              the simulation stays authentic and the text becomes readable. Found by Lighthouse's
              axe pass, not by the focus-ring sweep - that sweep measured indicators and specific
              label colours, and never looked at body text inside the mockup. */
+          /* Time + delivery ticks on one baseline-aligned row at the bubble's bottom
+             right, the way WhatsApp lays out message meta. Received bubbles keep a bare
+             timestamp (no ticks), so .msg-time still works standalone there. */
+          .msg-meta{display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:3px}
           .msg-time{font-size:12px;color:#54656f;display:block;text-align:right;margin-top:3px}
+          .msg-meta .msg-time{margin-top:0}
+          /* The read-receipt double tick in WhatsApp's "read" blue (#53bdeb). This is the
+             strongest single cue that a thread is a real WhatsApp conversation - a
+             mockup almost never has it. Drawn as an inline SVG rather than a Unicode
+             check so it renders identically on every platform (the U+2713 glyph is
+             missing from some font stacks and falls back to tofu) and matches WhatsApp's
+             actual overlapping double-tick shape. color drives the fill via
+             currentColor. */
+          .msg-ticks{color:#53bdeb;flex:0 0 auto;display:block}
           .typing-indicator{background:#fff;padding:10px 14px;border-radius:8px;align-self:flex-start;display:flex;gap:4px}
           .typing-indicator span{width:7px;height:7px;background:#1a3a2a;border-radius:50%;animation:bounce 1.4s infinite}
           .typing-indicator span:nth-child(2){background:#86b817;animation-delay:.2s}
