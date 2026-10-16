@@ -20,6 +20,7 @@ import json
 import logging
 import re
 import uuid
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from botocore.exceptions import ClientError
@@ -45,13 +46,13 @@ WORK_PREFIX = blog_sources.SECURE_ROOT_PREFIX + "03-work/"
 CHECKPOINT_PREFIX = blog_sources.SECURE_ROOT_PREFIX + "04-checkpoints/"
 
 INTENT_STATUSES = (
-    "PLANNED", "SAMPLE_PENDING", "SAMPLE_APPROVED", "DRAFTED",
-    "QA_READY", "HUMAN_REVIEW", "APPROVED", "HOLD", "PUBLISHED",
+    "PLANNED", "SAMPLE_PENDING", "SAMPLE_APPROVED", "DRAFTED", "QA_READY",
+    "HUMAN_REVIEW", "SIGNED_OFF", "RELEASED", "HOLD", "PUBLISHED", "VERIFIED",
 )
-EDITORIAL_TERMINAL = frozenset({"HUMAN_REVIEW", "APPROVED", "HOLD", "PUBLISHED"})
+CHATGPT_WRITABLE_STATUSES = frozenset({"DRAFTED", "QA_READY", "HOLD"})
 
 PROMPT_VERSIONS = {
-    "Conversations": "CONV-2026-10-15-v1",
+    "Conversations": "CONV-2026-10-16-v2",
     "Gastronomy": "GAST-2026-10-15-v1",
 }
 
@@ -112,16 +113,7 @@ def control_id(category: str) -> str:
     return f"blogcontrol_{_slug(category)}"
 
 
-def master_key(category: str) -> str:
-    return f"{MASTERS_PREFIX}{_slug(category)}/master-current.json"
-
-
-def prompt_key(category: str) -> str:
-    return f"{MASTERS_PREFIX}{_slug(category)}/prompt-current.md"
-
-
-def policy_key(category: str) -> str:
-    return f"{MASTERS_PREFIX}{_slug(category)}/quality-policy.json"
+def master_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/current/master.json",,,def prompt_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/current/editorial-master.md",,,def policy_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/current/quality-policy.json",,,def legacy_master_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/master-current.json",,,def legacy_prompt_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/prompt-current.md",,,def legacy_policy_key(category: str) -> str:,    return f"{MASTERS_PREFIX}{_slug(category)}/quality-policy.json",,,def master_history_root(category: str, prompt_sha256: str) -> str:,    version = PROMPT_VERSIONS[_category(category)],    return f"{MASTERS_PREFIX}{_slug(category)}/history/{version}-{prompt_sha256[:12]}/"
 
 
 def checkpoint_key(category: str) -> str:
@@ -134,6 +126,10 @@ def work_root(category: str, source_id: str) -> str:
 
 def manifest_key(category: str, source_id: str) -> str:
     return work_root(category, source_id) + "opportunity-manifest.json"
+
+
+def dedupe_key(category: str, source_id: str) -> str:
+    return work_root(category, source_id) + "dedupe-report.json"
 
 
 def sample_key(category: str, source_id: str, intent_id: str) -> str:
@@ -173,6 +169,18 @@ def _read_json(key: str) -> Dict[str, Any]:
     except Exception:  # noqa: BLE001 - absent checkpoint/master is a normal first-run state
         return {}
 
+
+def _editorial_master_text(category: str) -> str:
+    category = _category(category)
+    if category == "Conversations":
+        path = Path(__file__).with_name("conversations-production-master.md")
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+    return PROMPTS[category]
+
+
+def _prompt_sha256(category: str) -> str:
+    return hashlib.sha256(_editorial_master_text(category).encode("utf-8")).hexdigest()
 
 def _policy(category: str) -> Dict[str, Any]:
     import blog_catalog
@@ -219,10 +227,12 @@ def ensure_control(category: str, actor: str) -> Dict[str, Any]:
 def _master_document(category: str, actor: str) -> Dict[str, Any]:
     control = ensure_control(category, actor)
     now = storage.now_iso()
+    prompt_sha = _prompt_sha256(category)
     return {
         "category": category,
         "masterVersion": control.get("masterVersion", "1"),
-        "promptVersion": control.get("promptVersion", PROMPT_VERSIONS[category]),
+        "promptVersion": PROMPT_VERSIONS[category],
+        "promptSha256": prompt_sha,
         "updatedAt": now,
         "aiMode": AI_MODE,
         "paidAiBackend": False,
@@ -234,53 +244,78 @@ def _master_document(category: str, actor: str) -> Dict[str, Any]:
         "sourcePrefix": blog_sources.category_source_prefix(category),
         "workPrefix": f"{WORK_PREFIX}{_slug(category)}/",
         "checkpointKey": checkpoint_key(category),
+        "editorialMasterKey": prompt_key(category),
+        "qualityPolicyKey": policy_key(category),
         "qualityPolicy": _policy(category),
         "continuationRule": (
             "A new ChatGPT session must read AWS control/master/checkpoint state before work."
         ),
     }
 
-
 def initialize(actor: str) -> Dict[str, Any]:
-    """Create the two category controls and the durable master/checkpoint artifacts.
-
-    Idempotent: current master/prompt/policy files are deliberate projections of the current
-    code policy. No paid model is called and no source/article state is advanced.
-    """
+    """Project the current master and preserve a content-addressed immutable history."""
     categories: Dict[str, Any] = {}
     for category in CATEGORIES:
         control = ensure_control(category, actor)
+        wanted_version = PROMPT_VERSIONS[category]
+        if str(control.get("promptVersion") or "") != wanted_version:
+            storage.table().update_item(
+                Key={"id": control["id"]},
+                UpdateExpression=(
+                    "SET promptVersion = :p, approvedPromptVersion = :empty, "
+                    "masterVersion = :m, updatedAt = :u, lastActor = :a"
+                ),
+                ExpressionAttributeValues={
+                    ":p": wanted_version, ":empty": "", ":m": "2",
+                    ":u": storage.now_iso(), ":a": actor,
+                },
+            )
+            control = get_control(category)
+
+        editorial_master = _editorial_master_text(category)
+        prompt_sha = hashlib.sha256(editorial_master.encode("utf-8")).hexdigest()
         master = _master_document(category, actor)
-        _put_json(master_key(category), master)
-        _put_text(prompt_key(category), PROMPTS[category])
-        _put_json(policy_key(category), {
+        policy_doc = {
             "category": category,
-            "promptVersion": PROMPT_VERSIONS[category],
+            "promptVersion": wanted_version,
+            "promptSha256": prompt_sha,
             "policy": _policy(category),
             "updatedAt": storage.now_iso(),
-        })
+        }
+
+        # Current canonical projection.
+        _put_json(master_key(category), master)
+        _put_text(prompt_key(category), editorial_master)
+        _put_json(policy_key(category), policy_doc)
+
+        # Compatibility projections for existing callers/tools.
+        _put_json(legacy_master_key(category), master)
+        _put_text(legacy_prompt_key(category), editorial_master)
+        _put_json(legacy_policy_key(category), policy_doc)
+
+        # Content-addressed history: changing content creates a new key even if somebody
+        # forgets to bump a version, which matters because bucket versioning is suspended.
+        history_root = master_history_root(category, prompt_sha)
+        _put_json(history_root + "master.json", master)
+        _put_text(history_root + "editorial-master.md", editorial_master)
+        _put_json(history_root + "quality-policy.json", policy_doc)
+
         current = _read_json(checkpoint_key(category))
         if not current:
             current = {
-                "category": category,
-                "stage": "IDLE",
-                "sourceId": "",
-                "intentId": "",
-                "promptVersion": control.get("promptVersion", PROMPT_VERSIONS[category]),
-                "updatedAt": storage.now_iso(),
+                "category": category, "stage": "IDLE", "sourceId": "", "intentId": "",
+                "promptVersion": wanted_version, "updatedAt": storage.now_iso(),
                 "nextAction": "CLAIM_NEXT_SOURCE",
             }
             _put_json(checkpoint_key(category), current)
         categories[category] = {
-            "control": _control_view(control),
-            "masterKey": master_key(category),
-            "promptKey": prompt_key(category),
-            "policyKey": policy_key(category),
-            "checkpointKey": checkpoint_key(category),
+            "control": _control_view(get_control(category)),
+            "masterKey": master_key(category), "promptKey": prompt_key(category),
+            "policyKey": policy_key(category), "masterHistoryRoot": history_root,
+            "promptSha256": prompt_sha, "checkpointKey": checkpoint_key(category),
         }
     return {"initialized": True, "aiMode": AI_MODE, "paidAiBackend": False,
             "categories": categories}
-
 
 def get_control(category: str) -> Dict[str, Any]:
     category = _category(category)
@@ -319,7 +354,9 @@ def _eligible_sources(category: str) -> List[Dict[str, Any]]:
         row for row in rows
         if row.get("category") == category
         and row.get("status") == blog_sources.EXTRACTED
-        and _source_editorial_status(row) not in ("EDITORIAL_COMPLETE", "HOLD")
+        and _source_editorial_status(row) not in (
+            "ARTICLE_PRODUCTION_COMPLETE", "EDITORIAL_REVIEW_COMPLETE",
+            "PIPELINE_COMPLETE", "EDITORIAL_COMPLETE", "HOLD")
     ]
     out.sort(key=lambda row: (str(row.get("createdAt") or ""), str(row.get("id") or "")))
     return out
@@ -342,7 +379,9 @@ def claim_next_source(category: str, actor: str) -> Dict[str, Any]:
     current_id = str(control.get("currentSourceId") or "")
     if current_id:
         current = blog_sources.get_source(current_id)
-        if current and _source_editorial_status(current) not in ("EDITORIAL_COMPLETE", "HOLD"):
+        if current and _source_editorial_status(current) not in (
+                "ARTICLE_PRODUCTION_COMPLETE", "EDITORIAL_REVIEW_COMPLETE",
+                "PIPELINE_COMPLETE", "EDITORIAL_COMPLETE", "HOLD"):
             return {"claimed": False, "source": blog_sources.source_detail(current_id),
                     "control": _control_view(control), "note": "existing source resumed"}
 
@@ -413,6 +452,77 @@ def intents_for_source(source_id: str) -> List[Dict[str, Any]]:
     return [storage._json_safe(row) for row in rows]
 
 
+def _word_set(value: Any) -> set[str]:
+    return set(re.findall(r"[a-z0-9']+", _normalise(value)))
+
+
+def _word_jaccard(left: Any, right: Any) -> float:
+    a, b = _word_set(left), _word_set(right)
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
+def _manifest_dedupe_context(category: str) -> Dict[str, Any]:
+    """Current published + reserved state used to record deterministic manifest evidence."""
+    published = [
+        row for row in storage.list_blog_posts(
+            published_only=True, limit=0, include_content=False)
+        if str(row.get("category") or "") == category
+    ]
+    intents = [
+        row for row in storage.scan_by_record_type(INTENT_RECORD_TYPE, limit=0)
+        if str(row.get("category") or "") == category
+    ]
+    return {"published": published, "intents": intents}
+
+
+def _intent_dedupe_evidence(raw: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    import blog_quality_v2 as q
+
+    title = str(raw.get("title") or "").strip()
+    slug = q.slugify(title) if title else ""
+    distinction = str(raw.get("centralDistinction") or "").strip()
+    promise = str(raw.get("readerPromise") or "").strip()
+    exact_slug, exact_title, near_title = [], [], []
+    for post in context["published"]:
+        pslug = str(post.get("slug") or "")
+        ptitle = str(post.get("title") or "")
+        if slug and pslug == slug:
+            exact_slug.append({"slug": pslug, "title": ptitle})
+        if title and _normalise(ptitle) == _normalise(title):
+            exact_title.append({"slug": pslug, "title": ptitle})
+        similarity = _word_jaccard(title, ptitle) if title and ptitle else 0.0
+        if similarity >= 0.80 and _normalise(ptitle) != _normalise(title):
+            near_title.append({"slug": pslug, "title": ptitle,
+                               "similarity": round(similarity, 3)})
+
+    near_intents = []
+    for prior in context["intents"]:
+        dsim = _word_jaccard(distinction, prior.get("centralDistinction"))
+        psim = _word_jaccard(promise, prior.get("readerPromise"))
+        if dsim >= 0.55 or psim >= 0.70:
+            near_intents.append({
+                "intentId": prior.get("id", ""), "title": prior.get("title", ""),
+                "distinctionSimilarity": round(dsim, 3),
+                "readerPromiseSimilarity": round(psim, 3),
+            })
+
+    return {
+        "candidateTitle": title, "candidateSlug": slug,
+        "exactPublishedSlug": exact_slug, "exactPublishedTitle": exact_title,
+        "nearPublishedTitle": sorted(near_title, key=lambda x: x["similarity"], reverse=True)[:10],
+        "nearReservedIntents": sorted(
+            near_intents,
+            key=lambda x: max(x["distinctionSimilarity"], x["readerPromiseSimilarity"]),
+            reverse=True)[:10],
+        "hardCollision": bool(exact_slug),
+        "note": (
+            "Deterministic evidence only. ChatGPT must still decide conceptual duplication; "
+            "body-level corpus comparison runs again during QA."
+        ),
+    }
+
 def submit_manifest(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     category = _category(body.get("category"))
     source_id = str(body.get("sourceId") or "").strip()
@@ -429,18 +539,23 @@ def submit_manifest(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     raw_intents = body.get("intents")
     if not isinstance(raw_intents, list):
         raise ValueError("intents must be an array")
-    duplicate_count = max(0, int(body.get("duplicateCount") or 0))
+    declared_duplicate = max(0, int(body.get("duplicateCount") or 0))
     rejected_count = max(0, int(body.get("rejectedCount") or 0))
     hold_count = max(0, int(body.get("holdCount") or 0))
     potential_count = int(body.get("potentialCount") or
-                          (len(raw_intents) + duplicate_count + rejected_count + hold_count))
-    minimum = len(raw_intents) + duplicate_count + rejected_count + hold_count
+                          (len(raw_intents) + declared_duplicate + rejected_count + hold_count))
+    minimum = len(raw_intents) + declared_duplicate + rejected_count + hold_count
     if potential_count < minimum:
         raise ValueError("potentialCount cannot be smaller than accounted opportunities")
 
+    import blog_article_work
+    context = _manifest_dedupe_context(category)
     now = storage.now_iso()
     created: List[Dict[str, Any]] = []
     resolved: List[Dict[str, Any]] = []
+    dedupe_items: List[Dict[str, Any]] = []
+    backend_duplicate = 0
+
     for index, raw in enumerate(raw_intents, start=1):
         if not isinstance(raw, dict):
             raise ValueError(f"intents[{index - 1}] must be an object")
@@ -450,89 +565,117 @@ def submit_manifest(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
         if len(distinction) < 8 or len(promise) < 8:
             raise ValueError(
                 f"intents[{index - 1}] needs centralDistinction and readerPromise")
+
+        evidence = _intent_dedupe_evidence(raw, context)
         iid = intent_id(category, distinction, promise)
+        evidence["intentId"] = iid
+        evidence["ordinal"] = index
+        dedupe_items.append(evidence)
+
+        if evidence["hardCollision"]:
+            backend_duplicate += 1
+            resolved.append({
+                "intentId": iid, "sourceId": source_id, "status": "DUPLICATE",
+                "created": False, "reason": "EXACT_PUBLISHED_SLUG",
+                "matches": evidence["exactPublishedSlug"],
+            })
+            continue
+
         existing = storage.get_typed(iid, INTENT_RECORD_TYPE)
         if existing:
+            backend_duplicate += 1
             resolved.append({
                 "intentId": iid, "sourceId": existing.get("sourceId", ""),
                 "status": existing.get("status", ""), "created": False,
+                "reason": "EXISTING_INTENT_FINGERPRINT",
             })
             continue
+
         record = {
-            "id": iid,
-            "recordType": INTENT_RECORD_TYPE,
-            "createdAt": now,
-            "updatedAt": now,
-            "slug": source_id,
-            "sourceId": source_id,
+            "id": iid, "recordType": INTENT_RECORD_TYPE, "createdAt": now, "updatedAt": now,
+            "slug": source_id, "sourceId": source_id,
             "batchId": source.get("batchId") or blog_sources.NO_BATCH,
-            "category": category,
-            "ordinal": index,
+            "category": category, "ordinal": index,
             "title": str(raw.get("title") or "").strip(),
-            "centralDistinction": distinction,
-            "readerPromise": promise,
+            "centralDistinction": distinction, "readerPromise": promise,
             "distinctPurpose": purpose,
             "articleType": str(raw.get("articleType") or "").strip(),
             "fingerprint": _intent_fingerprint(category, distinction, promise),
-            "status": "PLANNED",
-            "workKey": article_key(category, source_id, iid),
-            "createdBy": actor,
-            "error": "",
+            "status": "PLANNED", "workKey": article_key(category, source_id, iid),
+            "dedupeEvidence": evidence, "createdBy": actor, "error": "",
         }
         try:
             storage.table().put_item(
-                Item=storage._clean(record),
-                ConditionExpression="attribute_not_exists(id)",
-            )
-            created.append(record)
+                Item=storage._clean(record), ConditionExpression="attribute_not_exists(id)")
         except ClientError as error:
             if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
                 raise
             existing = storage.get_typed(iid, INTENT_RECORD_TYPE) or {}
+            backend_duplicate += 1
             resolved.append({
                 "intentId": iid, "sourceId": existing.get("sourceId", ""),
                 "status": existing.get("status", ""), "created": False,
+                "reason": "CONCURRENT_EXISTING_INTENT",
             })
+            continue
+
+        work = blog_article_work.ensure(source, record, actor)
+        storage.table().update_item(
+            Key={"id": iid},
+            UpdateExpression="SET articleWorkId = :w, updatedAt = :u",
+            ExpressionAttributeValues={":w": work["id"], ":u": storage.now_iso()},
+        )
+        record["articleWorkId"] = work["id"]
+        created.append(record)
+        context["intents"].append(record)
+
+    duplicate_count = declared_duplicate + backend_duplicate
+    dedupe_document = {
+        "category": category, "sourceId": source_id, "generatedAt": now,
+        "generatedBy": actor, "publishedCorpusChecked": len(context["published"]),
+        "reservedIntentsChecked": len(context["intents"]),
+        "declaredDuplicateCount": declared_duplicate,
+        "backendDuplicateCount": backend_duplicate, "items": dedupe_items,
+        "semanticDecisionOwner": "CHATGPT_EXTERNAL",
+        "bodyLevelRecheck": "QA_WITH_LIVE_CORPUS",
+    }
+    dkey = _put_json(dedupe_key(category, source_id), dedupe_document)
 
     manifest = {
-        "category": category,
-        "sourceId": source_id,
-        "generatedAt": now,
-        "generatedBy": actor,
-        "promptVersion": get_control(category).get("promptVersion", ""),
+        "category": category, "sourceId": source_id, "generatedAt": now,
+        "generatedBy": actor, "promptVersion": get_control(category).get("promptVersion", ""),
+        "dedupeReportKey": dkey,
         "counts": {
-            "potential": potential_count,
-            "duplicate": duplicate_count,
-            "rejected": rejected_count,
-            "hold": hold_count,
-            "netNewRequested": len(raw_intents),
-            "netNewReserved": len(created),
+            "potential": potential_count, "duplicate": duplicate_count,
+            "declaredDuplicate": declared_duplicate, "backendDuplicate": backend_duplicate,
+            "rejected": rejected_count, "hold": hold_count,
+            "netNewRequested": len(raw_intents), "netNewReserved": len(created),
             "resolvedExisting": len(resolved),
         },
         "notes": str(body.get("notes") or "").strip(),
         "intents": [
             {
-                "intentId": row["id"], "ordinal": row["ordinal"], "title": row["title"],
+                "intentId": row["id"], "articleWorkId": row.get("articleWorkId", ""),
+                "ordinal": row["ordinal"], "title": row["title"],
                 "centralDistinction": row["centralDistinction"],
                 "readerPromise": row["readerPromise"],
-                "distinctPurpose": row["distinctPurpose"],
-                "articleType": row["articleType"],
-            }
-            for row in created
+                "distinctPurpose": row["distinctPurpose"], "articleType": row["articleType"],
+            } for row in created
         ],
         "resolvedExisting": resolved,
     }
     key = _put_json(manifest_key(category, source_id), manifest)
 
-    stage = "SAMPLE_REQUIRED"
+    stage = "SAMPLE_REQUIRED" if created else "NO_NET_NEW_ARTICLES"
     storage.table().update_item(
         Key={"id": source_id},
         UpdateExpression=(
-            "SET editorialStatus = :s, opportunityManifestKey = :k, "
+            "SET editorialStatus = :s, opportunityManifestKey = :k, dedupeReportKey = :dk, "
             "opportunityCount = :p, netNewArticleCount = :n, updatedAt = :u"
         ),
         ExpressionAttributeValues={
-            ":s": stage, ":k": key, ":p": potential_count, ":n": len(created), ":u": now,
+            ":s": stage, ":k": key, ":dk": dkey, ":p": potential_count,
+            ":n": len(created), ":u": now,
         },
     )
     storage.table().update_item(
@@ -544,18 +687,18 @@ def submit_manifest(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
         "stage": stage, "sourceId": source_id, "intentId": "",
         "potentialCount": potential_count, "netNewCount": len(created),
         "duplicateCount": duplicate_count, "rejectedCount": rejected_count,
-        "nextAction": "CREATE_SAMPLE",
+        "dedupeReportKey": dkey,
+        "nextAction": "CREATE_SAMPLE" if created else "COMPLETE_SOURCE_NO_NET_NEW",
     }, actor)
     return {
-        "manifestKey": key,
-        "counts": manifest["counts"],
+        "manifestKey": key, "dedupeReportKey": dkey, "counts": manifest["counts"],
         "createdIntents": [
-            {"intentId": row["id"], "ordinal": row["ordinal"], "title": row["title"]}
+            {"intentId": row["id"], "articleWorkId": row.get("articleWorkId", ""),
+             "ordinal": row["ordinal"], "title": row["title"]}
             for row in created
         ],
         "resolvedExisting": resolved,
     }
-
 
 def save_sample(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     category = _category(body.get("category"))
@@ -580,6 +723,9 @@ def save_sample(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     sample_hash = hashlib.sha256(raw).hexdigest()
     key = sample_key(category, source_id, intent_ref)
     _put_json(key, {**payload, "sampleSha256": sample_hash})
+    import blog_article_work
+    work_ref = str(intent.get("articleWorkId") or blog_article_work.work_id(intent_ref))
+    blog_article_work.apply_article(work_ref, article, actor, editorial_status="SAMPLE_PENDING")
     storage.table().update_item(
         Key={"id": intent_ref},
         UpdateExpression="SET #s = :s, sampleKey = :k, sampleSha256 = :h, updatedAt = :u",
@@ -644,6 +790,9 @@ def approve_sample(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
         ExpressionAttributeNames={"#s": "status"},
         ExpressionAttributeValues={":s": "SAMPLE_APPROVED", ":u": now},
     )
+    import blog_article_work
+    work_ref = str(intent.get("articleWorkId") or blog_article_work.work_id(intent_ref))
+    blog_article_work.set_intent_status(work_ref, "SAMPLE_APPROVED", actor)
     storage.table().update_item(
         Key={"id": control_id(category)},
         UpdateExpression=(
@@ -666,42 +815,54 @@ def approve_sample(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
 
 
 def save_article(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
+    """Persist ChatGPT editorial work onto the independent article-work child.
+
+    This route cannot write protected downstream states. SIGNED_OFF/RELEASED/PUBLISHED/VERIFIED
+    are earned only by the mature QA/publish/verify modules.
+    """
     category = _category(body.get("category"))
     intent_ref = str(body.get("intentId") or "").strip()
     status = str(body.get("status") or "DRAFTED").strip().upper()
     article = body.get("article")
-    if status not in INTENT_STATUSES:
-        raise ValueError(f"status must be one of {list(INTENT_STATUSES)}")
+    if status not in CHATGPT_WRITABLE_STATUSES:
+        raise ValueError(
+            f"ChatGPT article writes may use only {sorted(CHATGPT_WRITABLE_STATUSES)}")
     if not isinstance(article, dict) or not str(article.get("contentMarkdown") or "").strip():
         raise ValueError("article with contentMarkdown is required")
     intent = storage.get_typed(intent_ref, INTENT_RECORD_TYPE)
     if not intent or intent.get("category") != category:
         raise LookupError("Unknown article intent")
+
+    import blog_article_work
     source_id = str(intent.get("sourceId") or "")
+    work_ref = str(intent.get("articleWorkId") or blog_article_work.work_id(intent_ref))
+    if not blog_article_work.get(work_ref):
+        blog_article_work.ensure_for_intent(intent_ref, actor)
+    result = blog_article_work.apply_article(work_ref, article, actor, editorial_status=status)
+
     now = storage.now_iso()
     payload = {
-        "category": category,
-        "sourceId": source_id,
-        "intentId": intent_ref,
-        "status": status,
+        "category": category, "sourceId": source_id, "intentId": intent_ref,
+        "articleWorkId": work_ref, "status": status,
         "promptVersion": get_control(category).get("promptVersion", ""),
-        "updatedAt": now,
-        "updatedBy": actor,
-        "article": article,
-        "qa": body.get("qa") if isinstance(body.get("qa"), dict) else {},
+        "updatedAt": now, "updatedBy": actor, "article": article,
+        "editorialQa": body.get("qa") if isinstance(body.get("qa"), dict) else {},
     }
     key = article_key(category, source_id, intent_ref)
     raw = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
-    body_hash = hashlib.sha256(raw).hexdigest()
-    _put_json(key, {**payload, "bodySha256": body_hash})
+    artifact_hash = hashlib.sha256(raw).hexdigest()
+    _put_json(key, {**payload, "artifactSha256": artifact_hash,
+                    "articleBodySha256": result["bodySha256"]})
     storage.table().update_item(
         Key={"id": intent_ref},
         UpdateExpression=(
-            "SET #s = :s, workKey = :k, bodySha256 = :h, updatedAt = :u, updatedBy = :a"
+            "SET #s = :s, workKey = :k, articleWorkId = :w, bodySha256 = :h, "
+            "updatedAt = :u, updatedBy = :a"
         ),
         ExpressionAttributeNames={"#s": "status"},
         ExpressionAttributeValues={
-            ":s": status, ":k": key, ":h": body_hash, ":u": now, ":a": actor,
+            ":s": status, ":k": key, ":w": work_ref, ":h": result["bodySha256"],
+            ":u": now, ":a": actor,
         },
     )
     storage.table().update_item(
@@ -713,8 +874,9 @@ def save_article(body: Dict[str, Any], actor: str) -> Dict[str, Any]:
             ":i": intent_ref, ":s": status, ":u": now, ":a": actor,
         },
     )
-    return {"intentId": intent_ref, "status": status, "workKey": key, "bodySha256": body_hash}
-
+    parent = blog_article_work.refresh_parent_status(source_id, actor)
+    return {**result, "intentId": intent_ref, "status": status, "workKey": key,
+            "articleWorkId": work_ref, "parentProgress": parent}
 
 def checkpoint(category: str, body: Dict[str, Any], actor: str) -> Dict[str, Any]:
     category = _category(category)
@@ -772,6 +934,7 @@ def checkpoint(category: str, body: Dict[str, Any], actor: str) -> Dict[str, Any
 
 
 def complete_source(category: str, source_id: str, actor: str) -> Dict[str, Any]:
+    """Release the ChatGPT editorial lane after article production, not after publication."""
     category = _category(category)
     source_id = str(source_id or "").strip()
     if not source_id:
@@ -779,20 +942,29 @@ def complete_source(category: str, source_id: str, actor: str) -> Dict[str, Any]
     control = get_control(category)
     if str(control.get("currentSourceId") or "") != source_id:
         raise ValueError("sourceId is not the category's current editorial source")
+
+    import blog_article_work
+    state = blog_article_work.progress(source_id)
     intents = intents_for_source(source_id)
-    nonterminal = [
-        row for row in intents if str(row.get("status") or "PLANNED") not in EDITORIAL_TERMINAL
-    ]
-    if nonterminal:
+    if intents and not state["articleProductionComplete"]:
+        remaining = max(0, state["articles"] - state["drafted"] - state["held"])
         raise ValueError(
-            f"{len(nonterminal)} article intents are not yet at HUMAN_REVIEW/APPROVED/HOLD/PUBLISHED"
-        )
+            f"{remaining} article work item(s) are not drafted or held; "
+            "HUMAN_REVIEW alone never completes a source")
+    if not intents:
+        source = blog_sources.get_source(source_id) or {}
+        if not str(source.get("opportunityManifestKey") or ""):
+            raise ValueError("a source cannot complete before an opportunity manifest exists")
 
     now = storage.now_iso()
     storage.table().update_item(
         Key={"id": source_id},
-        UpdateExpression="SET editorialStatus = :s, editorialCompletedAt = :u, editorialCompletedBy = :a",
-        ExpressionAttributeValues={":s": "EDITORIAL_COMPLETE", ":u": now, ":a": actor},
+        UpdateExpression=(
+            "SET editorialStatus = :s, editorialCompletedAt = :u, editorialCompletedBy = :a"
+        ),
+        ExpressionAttributeValues={
+            ":s": "ARTICLE_PRODUCTION_COMPLETE", ":u": now, ":a": actor,
+        },
     )
     try:
         storage.table().update_item(
@@ -813,10 +985,16 @@ def complete_source(category: str, source_id: str, actor: str) -> Dict[str, Any]
 
     checkpoint(category, {
         "stage": "IDLE", "sourceId": "", "intentId": "",
-        "completedSourceId": source_id, "nextAction": "CLAIM_NEXT_SOURCE",
+        "completedSourceId": source_id,
+        "completion": "ARTICLE_PRODUCTION_COMPLETE",
+        "nextAction": "CLAIM_NEXT_SOURCE",
     }, actor)
-    return {"completed": True, "sourceId": source_id, "nextAction": "CLAIM_NEXT_SOURCE"}
-
+    return {
+        "completed": True, "completion": "ARTICLE_PRODUCTION_COMPLETE",
+        "sourceId": source_id, "progress": state, "nextAction": "CLAIM_NEXT_SOURCE",
+        "note": ("ChatGPT production is complete. Human QA/release/publish/verification "
+                 "continue independently and may advance the parent to PIPELINE_COMPLETE."),
+    }
 
 def _counts(category: str) -> Dict[str, Any]:
     sources = [
@@ -835,10 +1013,15 @@ def _counts(category: str) -> Dict[str, Any]:
     for row in intents:
         key = str(row.get("status") or "PLANNED")
         by_intent[key] = by_intent.get(key, 0) + 1
+    works = [
+        row for row in storage.scan_by_record_type("blogArticleWork", limit=0)
+        if row.get("category") == category
+    ]
     return {
         "sources": len(sources),
         "sourceEditorialStatus": dict(sorted(by_source.items())),
         "intents": len(intents),
+        "articleWork": len(works),
         "intentStatus": dict(sorted(by_intent.items())),
         "extractedWaiting": len(_eligible_sources(category)),
     }
@@ -853,6 +1036,11 @@ def resume(category: str) -> Dict[str, Any]:
         blog_sources.source_detail(current_source_id) if current_source_id else None
     )
     current_intents = intents_for_source(current_source_id) if current_source_id else []
+    if current_source_id:
+        import blog_article_work
+        current_work = blog_article_work.list_for_source(current_source_id)
+    else:
+        current_work = []
     next_candidates = _eligible_sources(category)
     return {
         "category": category,
@@ -861,11 +1049,13 @@ def resume(category: str) -> Dict[str, Any]:
         "checkpoint": checkpoint_doc,
         "currentSource": current_source,
         "currentIntents": current_intents,
+        "currentArticleWork": current_work,
         "nextSourceId": (
             str(next_candidates[0].get("id") or "") if next_candidates else ""
         ),
         "masterKey": master_key(category),
         "promptKey": prompt_key(category),
+        "promptSha256": _prompt_sha256(category),
         "policyKey": policy_key(category),
         "checkpointKey": checkpoint_key(category),
         "aiMode": AI_MODE,

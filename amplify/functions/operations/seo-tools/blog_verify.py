@@ -489,7 +489,7 @@ def detail(record_id: str) -> Dict[str, Any]:
 def batch_verify_state(batch_id: str) -> Dict[str, Any]:
     """Verification across a wave, derived from the source rows."""
     import blog_batches
-    sources = blog_batches.batch_sources(batch_id)
+    sources = blog_batches.batch_articles(batch_id)
     statuses: Dict[str, int] = {}
     published = 0
     for row in sources:
@@ -517,7 +517,7 @@ def pending_verification(batch_id: str = "") -> List[str]:
     """Published articles with no verification run. Live and unchecked."""
     if batch_id:
         import blog_batches
-        sources = blog_batches.batch_sources(batch_id)
+        sources = blog_batches.batch_articles(batch_id)
     else:
         sources = storage.scan_by_record_type(blog_sources.RECORD_TYPE)
     out: List[str] = []

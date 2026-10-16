@@ -171,6 +171,20 @@ def batch_sources(batch_id: str, limit: int = 0) -> List[Dict[str, Any]]:
     return batch_records(batch_id, record_type=blog_sources.RECORD_TYPE, limit=limit)
 
 
+def batch_articles(batch_id: str, limit: int = 0) -> List[Dict[str, Any]]:
+    """Every independently publishable article in a wave.
+
+    New multi-article production writes blogArticleWork children. Legacy waves predate that
+    record type and stored one article directly on each blogSource. Prefer children when they
+    exist and fall back to source rows so mature QA/publish/verify pages keep working for
+    historical waves without a data migration.
+    """
+    children = batch_records(batch_id, record_type="blogArticleWork", limit=limit)
+    if children:
+        return children
+    return batch_sources(batch_id, limit=limit)
+
+
 def _empty_rollup() -> Dict[str, Any]:
     return {"sources": 0, "bySourceStatus": {}, "byArticleStatus": {},
             "extracted": 0, "failed": 0, "pending": 0, "words": 0,
