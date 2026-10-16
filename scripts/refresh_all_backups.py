@@ -73,25 +73,23 @@ def freshness_report() -> int:
         print("  no local backup artifact found")
         return -1
     sm = boto3.client("secretsmanager", region_name=REGION)
-    # Only ListSecrets is called here — never GetSecretValue — so no secret VALUE
-    # is ever in scope. We compare LastChangedDate and collect the secret NAME/ID
-    # (e.g. "wecare/razorpay/api"), which is an identifier, not a credential, and
-    # is printed elsewhere in this repo by design. `str()` pins the type to a plain
-    # name string and keeps the clear-text-logging taint tracker from treating a
-    # ListSecrets entry as loggable secret material.
-    changed_names: list[str] = []
+    # ListSecrets ONLY — GetSecretValue is never called, so no secret VALUE is ever
+    # in scope. We only need to COUNT how many secrets changed after the backup;
+    # the count is what drives the stale/current decision. We deliberately do NOT
+    # print anything derived from the ListSecrets response: the clear-text-logging
+    # taint tracker treats a whole SecretList entry as sensitive regardless of the
+    # field, so even logging the benign secret NAME trips it. To see which secrets
+    # moved, run `aws secretsmanager list-secrets` or `scripts/secrets_backup.py
+    # restore` (names only) directly.
+    changed = 0
     for page in sm.get_paginator("list_secrets").paginate():
         for entry in page.get("SecretList", []):
             lcd = entry.get("LastChangedDate")
             if lcd and lcd > gen:
-                changed_names.append(str(entry.get("Name", "")))
-    count = len(changed_names)
+                changed += 1
     print(f"  backup generated : {gen.isoformat()}")
-    print(f"  secrets changed since backup : {count}")
-    # Print NAMES ONLY (identifiers), never values; values are never read here.
-    for name in sorted(changed_names):
-        print("     - " + name)
-    return count
+    print(f"  secrets changed since backup : {changed}")
+    return changed
 
 
 def main() -> int:
