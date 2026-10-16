@@ -1165,7 +1165,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ mapCandidate, setMapCandidate ] = useState<PlaceState | null>( null );
   const [ addressDescriptor, setAddressDescriptor ] = useState( '' );
   const [ locationTime, setLocationTime ] = useState<LocationTimeState>( DEFAULT_LOCATION_TIME );
-  const [ clockNow, setClockNow ] = useState( () => Date.now() );
+  // Deterministic initial value keeps static-export HTML identical to the first
+  // client render. The real clock starts immediately after hydration below.
+  const [ clockNow, setClockNow ] = useState( 0 );
 
   // Search combobox state.
   const [ query, setQuery ] = useState( '' );
@@ -1266,6 +1268,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ activeAlertBoundaryId, setActiveAlertBoundaryId ] = useState<string | null>( null );
 
   useEffect( () => {
+    setClockNow( Date.now() );
     const timer = window.setInterval( () => setClockNow( Date.now() ), 30_000 );
     return () => window.clearInterval( timer );
   }, [] );
@@ -3261,12 +3264,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       : 'India Standard Time default while Google Time Zone is unavailable or loading' }
                   >
                     <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
-                    {/* clockNow is seeded from Date.now() at render, so the value baked into the
-                        static export (build time) differs from the client's value at hydration -
-                        an unavoidable, benign server/client difference React otherwise reports as
-                        hydration error #418. suppressHydrationWarning tells React to accept the
-                        client value for this node (both the dateTime and the text derive from
-                        clockNow), which is the intended mechanism for live timestamps. */}
+                    {/* clockNow starts at a deterministic epoch for static export + hydration,
+                        then the mount effect advances it to the real current time. The suppression
+                        remains a defensive guard for live timestamp text updates. */}
                     <span className="vl-live-local-datetime">
                       <time dateTime={ new Date( clockNow ).toISOString() } suppressHydrationWarning>{ locationClock }</time>
                       <small suppressHydrationWarning>{ locationDate } · { locationZoneLabel }</small>
