@@ -502,7 +502,6 @@
   "files": [
     "src/components/AddressFields.tsx",
     "src/components/ServiceBuyBox.tsx",
-    "src/components/VayuLokLive.tsx",
     "src/components/cart/CartPage.tsx",
     "src/components/dashboard/tabs/AppBuilderTab.tsx",
     "src/pages/workspace/engage/logs/index.tsx",
@@ -1972,12 +1971,12 @@
     "sample": ".ui-planted{border:1px solid ${colors.border};border-radius:9px;padding:4px 8px} .ui-planted:focus{box-shadow:${shadow.focus}} .ui-untouched{color:#333}"
   },
   "summary": {
-    "files": 23,
-    "geometryFiles": 22,
-    "geometryRuleSets": 30,
+    "files": 22,
+    "geometryFiles": 21,
+    "geometryRuleSets": 29,
     "matchModes": {
       "class": 4,
-      "element": 63
+      "element": 61
     },
     "mechanisms": {
       "A-global": {
@@ -1993,10 +1992,10 @@
         "ruleSets": 0
       },
       "B-styledjsx": {
-        "files": 13,
-        "geometryFiles": 12,
-        "geometryRuleSets": 12,
-        "ruleSets": 24
+        "files": 12,
+        "geometryFiles": 11,
+        "geometryRuleSets": 11,
+        "ruleSets": 22
       },
       "C-injected": {
         "files": 2,
@@ -2006,6 +2005,6 @@
       }
     },
     "pairings": 20,
-    "ruleSets": 67
+    "ruleSets": 65
   }
 }
