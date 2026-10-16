@@ -64,6 +64,14 @@ ENV_VARS = {
     # Blog Production storage uses the existing bucket. Runtime code splits internal
     # artifacts under secure/blog-production/ from public projections under o/blog-production/.
     "BLOG_SOURCE_BUCKET": SOURCE_BUCKET,
+    # Static blog delivery bridge. Publishing writes the native store immediately; the site
+    # remains a static export, so one coalesced Amplify build turns a wave into real /post pages.
+    "AWS_AMPLIFY_APP_ID": "d22dm4b0jn71jw",
+    "AWS_AMPLIFY_BRANCH": "stack",
+    "BLOG_SITE_PUBLIC_URL": "https://wecare.digital",
+    "BLOG_SITE_BUILD_DELAY_SECONDS": "45",
+    "BLOG_SITE_CHECK_DELAY_SECONDS": "90",
+    "BLOG_SITE_VERIFY_RETRY_DELAY_SECONDS": "30",
     # AI drafting costs money per call, so it is a cost flag rather than always-on.
     # Enabled here because this function ALREADY invokes Bedrock for ai-seo-audit and
     # already holds the IAM for it - this adds volume to an accepted cost category, not a
@@ -350,6 +358,15 @@ def ensure_blog_source_perms() -> None:
                 "Effect": "Allow",
                 "Action": "lambda:InvokeFunction",
                 "Resource": f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{FUNCTION_NAME}",
+            },
+            {
+                "Sid": "BlogStaticSiteBuild",
+                "Effect": "Allow",
+                "Action": ["amplify:StartJob", "amplify:GetJob"],
+                "Resource": (
+                    f"arn:aws:amplify:{REGION}:{ACCOUNT}:apps/"
+                    f"d22dm4b0jn71jw/branches/stack"
+                ),
             },
         ],
     }

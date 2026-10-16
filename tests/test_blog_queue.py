@@ -61,8 +61,8 @@ class FakeSQS:
             successful.append({"Id": entry["Id"], "MessageId": f"m{len(self.sent)}"})
         return {"Successful": successful, "Failed": failed}
 
-    def send_message(self, QueueUrl, MessageBody):  # noqa: N803
-        self.sent.append({"url": QueueUrl, "body": MessageBody})
+    def send_message(self, QueueUrl, MessageBody, DelaySeconds=0):  # noqa: N803
+        self.sent.append({"url": QueueUrl, "body": MessageBody, "delay": DelaySeconds})
         return {"MessageId": f"m{len(self.sent)}"}
 
     def get_queue_url(self, QueueName):  # noqa: N803
@@ -543,3 +543,23 @@ def test_bulk_publish_deterministic_rejection_is_not_retried(env, monkeypatch):
                              "actor": "operator"})},
     ]})
     assert result == {"batchItemFailures": []}
+
+
+
+def test_site_build_message_is_delayed_and_coalescing_ready(env):
+    result = env["bq"].enqueue_site_build(7, "bridge", delay_seconds=45)
+    assert result == {"queued": 1, "failed": 0, "configured": True}
+    sent = env["sqs"].sent[-1]
+    assert sent["delay"] == 45
+    assert json.loads(sent["body"]) == {
+        "action": "site-build", "generation": 7, "actor": "bridge"}
+
+
+def test_site_verification_fans_out_one_message_per_article(env):
+    result = env["bq"].enqueue_site_verify(
+        ["blogwork_a", "blogwork_b"], "1922", attempt=2, delay_seconds=30)
+    assert result["queued"] == 2
+    bodies = [json.loads(item["body"]) for item in env["sqs"].sent[-2:]]
+    assert [item["sourceId"] for item in bodies] == ["blogwork_a", "blogwork_b"]
+    assert all(item["action"] == "site-verify" for item in bodies)
+    assert all(item["jobId"] == "1922" and item["attempt"] == 2 for item in bodies)

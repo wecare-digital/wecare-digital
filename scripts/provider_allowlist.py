@@ -129,7 +129,7 @@ PROVIDERS: tuple = (
         name="Amazon Web Services",
         purpose=("Compute, data, delivery and messaging: Lambda, DynamoDB, S3, CloudFront, "
                  "End User Messaging SMS/voice, Polly, Transcribe, Translate, Bedrock, "
-                 "Cognito, SES/SNS/SQS/EventBridge, Secrets Manager."),
+                 "Cognito, SES/SNS/SQS/EventBridge, Amplify hosting/builds, Secrets Manager."),
         domains=("amazonaws.com", "amazoncognito.com", "aws.amazon.com", "aws.com",
                  "community.aws", "awsstatic.com", "cloudfront.net", "amplifyapp.com"),
         vault_prefixes=("wecare/aws/",),
@@ -145,7 +145,7 @@ PROVIDERS: tuple = (
         ui_labels=("AWS", "Amazon Web Services", "AWS End User Messaging", "Amazon SES",
                    "Amazon S3", "Amazon Bedrock", "AWS Bedrock", "Amazon Polly",
                    "Amazon Transcribe", "Amazon Translate", "Amazon Cognito",
-                   "Amazon CloudFront", "AWS Lambda", "Amazon DynamoDB"),
+                   "Amazon CloudFront", "AWS Lambda", "Amazon DynamoDB", "AWS Amplify"),
     ),
     Provider(
         key="meta",
@@ -315,7 +315,7 @@ LIBRARIES: tuple = (
 #: AWS SDK clients runtime code may create. SMS goes through End User Messaging
 #: (`pinpoint-sms-voice-v2`) only, so the classic messaging client is not in this set.
 AWS_SERVICES = frozenset({
-    "apigatewayv2", "bedrock-agent-runtime", "bedrock-runtime", "cloudfront", "cloudwatch",
+    "amplify", "apigatewayv2", "bedrock-agent-runtime", "bedrock-runtime", "cloudfront", "cloudwatch",
     "cognito-idp", "dynamodb", "events", "health", "kms", "lambda", "logs",
     "pinpoint-sms-voice-v2", "polly", "s3", "scheduler", "secretsmanager", "ses", "sesv2",
     "sns", "sqs", "ssm", "sts", "support", "transcribe", "translate",

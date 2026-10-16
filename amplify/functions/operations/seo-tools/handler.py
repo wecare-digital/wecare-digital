@@ -29,6 +29,7 @@ import blog_sources
 import blog_templates
 import blog_verify
 import blog_source
+import blog_site_bridge
 import faq
 import seo_freshness
 import seo_refresh
@@ -519,6 +520,13 @@ def _route_get(path: str, event: Dict[str, Any], origin: str):
             'articleClasses': list(_quality.ARTICLE_CLASSES) if _quality else [],
             'batchStatuses': list(blog_batches.BATCH_STATUSES),
         }, origin)
+    if path.endswith('/blog-site-build'):
+        return _response(200, {'ok': True, **blog_site_bridge.state()}, origin)
+    if '/blog-site-build/' in path:
+        reference = path.split('/blog-site-build/', 1)[1].strip('/')
+        return _response(200, {
+            'ok': True, 'build': blog_site_bridge.get_build(reference) or {},
+        }, origin)
     if '/blog-verify/' in path:
         return _response(200, {
             'ok': True,
@@ -777,6 +785,10 @@ def _route_post(path: str, body: Dict[str, Any], actor: str, origin: str):
         # master stays under secure/, while the public catalog contains public post fields.
         return _response(200, {'ok': True, **blog_catalog.sync()}, origin)
 
+    if path.endswith('/blog-site-build/trigger'):
+        return _response(200, {
+            'ok': True, **blog_site_bridge.trigger_pending(actor),
+        }, origin)
     if path.endswith('/blog-publish/bulk'):
         job_ids = body.get('jobIds')
         if not isinstance(job_ids, list) or not job_ids:
