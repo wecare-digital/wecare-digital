@@ -3,6 +3,7 @@ import PageMeta from '../components/PageMeta';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
 import ProductBuyBox from '../components/ProductBuyBox';
 import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
+import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, PRODUCT_SKU_BY_SLUG } from '../content/productCommerce';
 
 /**
  * /bharat-rx — the Bharat Rx product page.
@@ -117,6 +118,11 @@ const BharatRxPage: React.FC = () => (
             layout rather than ProductPage, so the box is placed here by hand; it self-styles. */}
         <ProductBuyBox slug="bharat-rx" />
 
+        <div className="brx-commerce">
+          <p data-wc-no-translate="true"><strong>SKU:</strong> { PRODUCT_SKU_BY_SLUG['bharat-rx'] }</p>
+          <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }</p>
+        </div>
+
         {/* Health-adjacent service, so the boundary is stated on the page rather than left
             to the Terms. This is not a medical disclaimer written by me - it points at
             the owner's own clauses and says plainly what the page is not. */}
@@ -171,6 +177,12 @@ const BharatRxPage: React.FC = () => (
              on the single public body ink rgba(0,0,0,.898). It was a transparent 16px/faded aside;
              the quiet now comes from size and surface, not faded ink, so a statement that has to
              be read is legible. 1px static, per the rule: 1px static, 2px hoverable. */
+          .brx-commerce{
+            margin:18px 0 0;padding:14px 16px;border:1px solid #e5e7eb;border-radius:12px;
+            background:#fcfdfb;font-size:14px;line-height:1.5;color:rgba(0,0,0,.72);
+          }
+          .brx-commerce p{margin:0}
+          .brx-commerce p + p{margin-top:6px}
           .brx-note{
             margin:34px 0 0;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
             background:#fcfdfb;
