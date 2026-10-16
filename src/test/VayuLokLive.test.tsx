@@ -1941,14 +1941,20 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const from = screen.getByRole( 'combobox', { name: 'From place for route' } );
     fireEvent.change( from, { target: { value: 'Mu' } } );
     fireEvent.pointerDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+    // Selecting a utility place is intentionally async: the component resolves the
+    // Autocomplete prediction through Geocoder before it commits routeFrom/routeTo.
+    // Waiting for the field to clear proves that async selection has completed instead
+    // of racing the button-enabled assertion against the geocoder callback.
+    await waitFor( () => expect( from ).toHaveValue( '' ) );
 
     const to = screen.getByRole( 'combobox', { name: 'To place for route' } );
     fireEvent.change( to, { target: { value: 'Mu' } } );
     fireEvent.pointerDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+    await waitFor( () => expect( to ).toHaveValue( '' ) );
 
     expect( routeCalls() ).toHaveLength( 0 );
     const check = screen.getByRole( 'button', { name: 'Check route' } );
-    expect( check ).not.toBeDisabled();
+    await waitFor( () => expect( check ).not.toBeDisabled() );
     fireEvent.click( check );
 
     await waitFor( () => expect( routeCalls() ).toHaveLength( 1 ) );
