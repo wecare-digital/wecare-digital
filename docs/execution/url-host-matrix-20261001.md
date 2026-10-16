@@ -18,7 +18,7 @@ planned from).
 | # | Change | Rules | Who |
 |---|---|---:|---|
 | 1 | Owner instruction *"delete all url redirects now"* — every custom redirect removed, all rewrites and the 404 fallback preserved | **146 → 8** | another session, see `url-redirect-removal-20261001.md` |
-| 2 | Host canonicalisation `https://www.wecare.digital` → `https://wecare.digital` restored, 301 | **8 → 9** | this task |
+| 2 | Host canonicalisation `https://wecare.digital` → `https://wecare.digital` restored, 301 | **8 → 9** | this task |
 
 **The plan this task started from is SUPERSEDED, and the reason is worth stating plainly
 rather than quietly dropping.** It was written to convert 15 legacy top-level prefixes from
@@ -35,10 +35,10 @@ implemented, and the planned assertions are recorded as superseded in
 
 **Only change 2 was made by this task: one rule.** It was not in the original plan. It
 repairs an unintended side effect of change 1 — with the www → apex 301 gone,
-`https://www.wecare.digital/` and every path under it served the entire site at **200**, so
+`https://wecare.digital/` and every path under it served the entire site at **200**, so
 the site was reachable under two hostnames with identical content. That is
 host-canonicalisation loss, not redirect cleanup. Measured before restoring:
-`https://www.wecare.digital/` 200, `https://www.wecare.digital/shop/` 200.
+`https://wecare.digital/` 200, `https://wecare.digital/shop/` 200.
 
 ### The rule array at 2026-10-01T08:59:52Z, in full (9 rules) — SUPERSEDED, see §0.1
 
@@ -49,7 +49,7 @@ immediately after this table, and §5.5 for how the three extra rules arrived.
 
 | # | source | target | status |
 |---:|---|---|---|
-| 0 | `https://www.wecare.digital` | `https://wecare.digital` | 301 |
+| 0 | `https://wecare.digital` | `https://wecare.digital` | 301 |
 | 1 | `/get` | `/get/index.html` | 200 |
 | 2 | `/get/` | `/get/index.html` | 200 |
 | 3 | `/get/<*>` | `https://d1kf2rchz7yras.cloudfront.net/<*>` | 200 |
@@ -71,7 +71,7 @@ from the provisioner:
 
 | # | source | target | status |
 |---:|---|---|---|
-| 0 | `https://www.wecare.digital` | `https://wecare.digital` | 301 |
+| 0 | `https://wecare.digital` | `https://wecare.digital` | 301 |
 | 1 | `[retired public path ef531503]` | `https://wecare.digital/` | 302 |
 | 2 | `[retired public path ef531503]/` | `https://wecare.digital/` | 302 |
 | 3 | `[retired public path ef531503]/<*>` | `https://wecare.digital/` | 302 |
@@ -95,7 +95,7 @@ passthrough rewrite**. See the corrected structural-properties paragraph.
 
 An Amplify custom-rule change reaches the CDN without a rebuild, but it is not instant and it
 does not evict what the edge already holds. **~25 minutes after applying**, `GET` on
-`https://www.wecare.digital/` correctly returned `301` with `x-cache: Miss from cloudfront`,
+`https://wecare.digital/` correctly returned `301` with `x-cache: Miss from cloudfront`,
 while **`HEAD` on the same URL returned `200` with `x-cache: Hit from cloudfront` and
 `age: 1501`** — a cached object from before the change. The apex home page carries
 `cache-control: public, max-age=0, s-maxage=31536000`, a one-year shared cache, which is what
@@ -149,9 +149,9 @@ rather than two individually-correct status codes.
 | # | Request | before (measured) | after (measured) | verdict |
 |---|---|---|---|---|
 | 1 | `https://wecare.digital/` | 200 | 200 | unchanged |
-| 2 | `https://www.wecare.digital/` | **200 — duplicate host** | **301 → apex `/`, terminal 200** | **repaired** |
-| 3 | `https://www.wecare.digital/shop/` | **200 — duplicate host** | **301 → apex `/shop/`, terminal 200** | **repaired, path preserved** |
-| 4 | `https://www.wecare.digital/blog/` | 200 — duplicate host | 301 → apex `/blog/`, 200 | repaired |
+| 2 | `https://wecare.digital/` | **200 — duplicate host** | **301 → apex `/`, terminal 200** | **repaired** |
+| 3 | `https://wecare.digital/shop/` | **200 — duplicate host** | **301 → apex `/shop/`, terminal 200** | **repaired, path preserved** |
+| 4 | `https://wecare.digital/blog/` | 200 — duplicate host | 301 → apex `/blog/`, 200 | repaired |
 | 5 | `http://wecare.digital/` | 301 → https | 301 → https, terminal 200 | unchanged |
 | 6 | `/definitely-not-a-page` | 301 → `…/` → 404 | same | unchanged |
 | 7 | `/definitely-not-a-page/` | 404, `"page":"/404"`, `noindex`, canonical `/` | same, all three asserted in the body | unchanged — **404, not 200** |
@@ -185,7 +185,7 @@ rather than two individually-correct status codes.
 | **87** | `GET /api/contacts` | not measured before | **401**, same JSON | unchanged — §1.1 |
 | **88** | the retired storefront products route | not measured before | **401**, same JSON | route since removed with the provider — §1.1 |
 | **89** | `GET /?code=…&state=…` (the Cognito OAuth redirect URI) | not measured before | **200**, query intact | **unchanged** — §1.2 |
-| **90** | `GET https://www.wecare.digital/?code=…&state=…` | not measured before | **301 → `https://wecare.digital/?code=…&state=…`**, terminal 200 | **the `?code=` survives the host 301** — §1.2 |
+| **90** | `GET https://wecare.digital/?code=…&state=…` | not measured before | **301 → `https://wecare.digital/?code=…&state=…`**, terminal 200 | **the `?code=` survives the host 301** — §1.2 |
 | **91** | `GET /api/checkout/download-receipt` | not measured before | **404** `{"message":"Not Found"}` | **no live route — unprovisioned, not broken** — §1.3 |
 | **92** | `GET /api/auth/verify-email` | not measured before | **404** `{"message":"Not Found"}` | **no live route — unprovisioned, not broken** — §1.3 |
 | **93** | `[retired public path ef531503]/?next=https://evil.example` | **302 → `https://wecare.digital/?next=https://evil.example`** (measured 2026-10-01, before the fix) | **302 → `https://wecare.digital/?from=access`**, terminal 200 | **FIXED — path and caller's query both dropped** — §1.4 |
@@ -236,7 +236,7 @@ them. Measured, per provider:
 `process.env.NEXT_PUBLIC_APP_URL || 'https://wecare.digital/'` — the apex, which its own comment
 records as registered on the `stack-wecare-digital-web` client. So the callback surface is row 1,
 and rows 89–90 state what row 1 could not: the apex answers **200 with a `?code=`/`?state=`
-query present**, and `https://www.wecare.digital/?code=…` **301s to the apex with the query
+query present**, and `https://wecare.digital/?code=…` **301s to the apex with the query
 intact**. That second row is the one that matters. Cognito returns the authorization code in the
 query string, so a host rule that dropped it would break sign-in for anyone who began at `www`
 while every page-level probe stayed green. The rule's source is a bare origin, which is what
@@ -919,7 +919,7 @@ outage than anything it could revert.
 | `npm run build` | exit 0 — static export succeeded; `out/404/index.html` present (36,567 bytes); `out/sitemap.xml` holds **1,407 `<loc>`**, unchanged; 1,400/1,407 dated across 9 distinct days |
 | `pytest tests/test_url_host_routing_rules.py tests/test_legacy_redirect_rollback_snapshot.py -q` | **14 passed** |
 | `scripts/probe_url_host_matrix.py` | **85 rows, 0 failed, exit 0**, no loops |
-| `scripts/retired_url_probe.py` | **exit 0** — no retired URL answers 200. Worth noting: this pre-existing guard holds `"https://www.wecare.digital/": "www must 301 to the apex"`, so between the removal and this change it was **failing** on that row (a 200 classifies as `STILL-LIVE`, exit 1). It is green again now. Independent confirmation that the host rule was genuinely missing, from a file this task did not write |
+| `scripts/retired_url_probe.py` | **exit 0** — no retired URL answers 200. Worth noting: this pre-existing guard holds `"https://wecare.digital/": "www must 301 to the apex"`, so between the removal and this change it was **failing** on that row (a 200 classifies as `STILL-LIVE`, exit 1). It is green again now. Independent confirmation that the host rule was genuinely missing, from a file this task did not write |
 | `scripts/provision_legacy_redirects.py` (no flag) | exit 1 — reports `9 rules; 1 redirects to remove` naming the host rule, §5.5 |
 | `scripts/provision_legacy_redirects.py --verify` | **exit 1 by design** — `FAIL: custom redirect rules remain`, naming the host rule, §5.5 |
 | `git diff --stat _routes.json` | empty |
@@ -958,7 +958,7 @@ Independently re-measured with `curl` (not via the harness):
 `GET /mcp` **405** · `POST /mcp` **400** ·
 `GET /get/o/stream/media/m/wecare-digital.png` **200** ·
 `GET /definitely-not-a-page/` **404** carrying `"page":"/404"` and `robots: noindex, follow` ·
-`https://www.wecare.digital/shop/` **301 → `https://wecare.digital/shop/`**, terminal **200**,
+`https://wecare.digital/shop/` **301 → `https://wecare.digital/shop/`**, terminal **200**,
 path preserved · `/workspace/` **200** with the Authenticator shell (`data-amplify`,
 `authenticator` markers present in the body) · `/account/sign-in/` **200** ·
 `/shop/ /cart/ /orders/ /blog/ /404/` all **200**.
@@ -1076,7 +1076,7 @@ So that a bug in this task's own probe could not vouch for itself:
 `GET /get/o/stream/media/m/wecare-digital.png` **200** ·
 `GET /definitely-not-a-page/` **404** carrying `"page":"/404"` and
 `name="robots" content="noindex, follow"` ·
-`https://www.wecare.digital/shop/` **301 → `https://wecare.digital/shop/`**, terminal **200**,
+`https://wecare.digital/shop/` **301 → `https://wecare.digital/shop/`**, terminal **200**,
 path preserved · `/workspace/` **200** with the Authenticator shell (`data-amplify` and
 `amplify-authenticator` both present) · `/account/sign-in/` **200** ·
 `/shop/ /cart/ /orders/ /blog/ /404/ /` all **200**.
@@ -1335,7 +1335,7 @@ GET  /definitely-not-a-page/                   404
 GET  /workspace/                               200   (Authenticator shell, unchanged)
 GET  /account/sign-in/                         200
 GET  / /shop/ /cart/ /orders/ /blog/           200   (all five)
-GET  https://www.wecare.digital/shop/          301 -> https://wecare.digital/shop/   (path preserved)
+GET  https://wecare.digital/shop/          301 -> https://wecare.digital/shop/   (path preserved)
 GET  [retired public path ef531503]/?next=https://evil.example        302 -> https://wecare.digital/?from=access   (caller's query dropped)
 ```
 
