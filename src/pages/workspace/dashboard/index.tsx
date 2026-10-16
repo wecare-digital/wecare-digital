@@ -200,7 +200,7 @@ const AWS_RESOURCES: Record<string, { arn: string; accountId: string; details?: 
     // app.wecare.digital removed 2026-09-28: the record is gone from zone
     // Z03939753QJGZ6ZD6BXO8 and the host is NXDOMAIN. Media is served from
     // wecare.digital/get instead.
-    details: [ 'wecare.digital', 'www.wecare.digital', 'mta-sts.wecare.digital', 'sip.wecare.digital' ]
+    details: [ 'wecare.digital', 'wecare.digital', 'mta-sts.wecare.digital', 'sip.wecare.digital' ]
   },
   'Amazon VPC': {
     arn: `arn:aws:ec2:${AWS_REGION}:${AWS_ACCOUNT_ID}:vpc/*`,
