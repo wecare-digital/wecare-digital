@@ -27,7 +27,7 @@ import SignIn from '../pages/account/sign-in';
  */
 
 const SIGN_IN_SOURCE = readFileSync(
-  join(__dirname, '..', 'pages', 'account', 'sign-in.tsx'), 'utf8',
+  join(__dirname, '..', 'components', 'account', 'SignInPage.tsx'), 'utf8',
 );
 
 /** The owner's section-6 table, verbatim. The source of truth the module must equal. */

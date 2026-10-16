@@ -249,7 +249,7 @@ def test_the_claim_leaves_the_coupon_panel_exactly_where_it_was():
     """The cart page's coupon panel is unchanged by this feature, which is what "by construction"
     means in the browser: the customer applies a coupon on `/cart/` after the claim, through the
     same `/ecommerce/redemption` call a website basket uses."""
-    cart_page = (ROOT / "src/pages/cart.tsx").read_text()
+    cart_page = (ROOT / "src/components/cart/CartPage.tsx").read_text()
     assert "REDEMPTION_URL" in cart_page
     # The claim effect must not touch the redemption call.
     assert "basket" in cart_page, "the claim effect is present"

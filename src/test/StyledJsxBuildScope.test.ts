@@ -106,7 +106,6 @@ function newestSource (): { path: string; at: number } | null {
     join( SRC, 'components', 'OtpResend.tsx' ),
     join( SRC, 'components', 'RotatingHero.tsx' ),
     join( SRC, 'components', 'BlogSearch.tsx' ),
-    join( SRC, 'components', 'BlogSubscribe.tsx' ),
     join( SRC, 'components', 'CheckoutProfile.tsx' ),
     join( SRC, 'pages', 'account', 'sign-in.tsx' ),
     join( SRC, 'pages', 'get.tsx' ),

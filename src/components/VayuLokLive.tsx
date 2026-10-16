@@ -2380,18 +2380,14 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
     if ( !next ) {
       const gc = await ensureGeocoder();
-      if ( !gc?.geocode ) {
+      const geocode = gc?.geocode?.bind( gc );
+      if ( !geocode ) {
         setSearchStatus( 'unavailable' );
         return;
       }
       let placeId = r.prediction?.placeId;
       if ( !placeId ) {
         try { placeId = r.prediction?.toPlace?.()?.id; } catch { /* address fallback below */ }
-      }
-      const geocode = gc.geocode;
-      if ( !geocode ) {
-        setSearchStatus( 'unavailable' );
-        return;
       }
       next = await new Promise<PlaceState | undefined>( resolve => {
         geocode(

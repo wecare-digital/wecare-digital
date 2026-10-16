@@ -89,7 +89,7 @@ vi.mock( '../components/CheckoutProfile', () => ( {
 
 import OrdersPage from '../pages/orders';
 
-const PAGE_PATH = resolve( process.cwd(), 'src/pages/orders.tsx' );
+const PAGE_PATH = resolve( process.cwd(), 'src/components/orders/OrdersPage.tsx' );
 const SOURCE = readFileSync( PAGE_PATH, 'utf8' );
 
 /**

@@ -30,6 +30,7 @@
  */
 
 import Head from 'next/head';
+import { buildPageTitle } from '../lib/page-title';
 
 const SITE = 'https://wecare.digital';
 
@@ -71,6 +72,7 @@ interface PageMetaProps {
 }
 
 export default function PageMeta( { title, description, path, jsonLd, image }: PageMetaProps ) {
+  title = buildPageTitle( title );
   const url = `${SITE}${path}`;
   const twitterCard = image ? ( image.card || 'summary_large_image' ) : undefined;
   return (
@@ -100,7 +102,7 @@ export default function PageMeta( { title, description, path, jsonLd, image }: P
       { ( jsonLd || [] ).map( ( node, i ) => (
         <script
           // eslint-disable-next-line react/no-danger
-          key={ `ld-${i}` }
+          key={ node['@type'] === 'BreadcrumbList' ? 'public-breadcrumbs' : `ld-${i}` }
           type="application/ld+json"
           dangerouslySetInnerHTML={ { __html: JSON.stringify( node ) } }
         />

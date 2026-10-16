@@ -18,12 +18,12 @@ THE STEP-13 LEGACY-SURFACE AUDIT, recorded here rather than claimed in a plan
 ----------------------------------------------------------------------------
 Measured across `src/` and `amplify/`, and re-verified by the tests below rather than by reading:
 
-  * `src/pages/cart.tsx`'s `RedemptionPanel` - THE REFERENCE. Kept, untouched, not repointed.
+  * `src/components/cart/CartPage.tsx`'s `RedemptionPanel` - THE REFERENCE. Kept, untouched, not repointed.
     `tests/test_whatsapp_order_coupon_parity.py` pins `REDEMPTION_URL` present and declared
     exactly once; `POST /ecommerce/redemption` stays the one customer-facing apply endpoint.
   * `src/pages/perks.tsx` - no coupon mechanism. Its line 172 already reads that an eligible
     coupon applies at checkout and not there. CORRECT ALREADY, left alone.
-  * `src/pages/get.tsx`, `src/pages/workspace/pay/records.tsx`,
+  * `src/components/get/GetPage.tsx`, `src/pages/workspace/pay/records.tsx`,
     `src/pages/workspace/commerce/*` - grepped: no coupon, gift-card or discount mechanism.
     NOTHING TO REMOVE.
   * `src/pages/workspace/pay/flow/index.tsx` - its manual rupee field is CONVERGED, not removed
@@ -56,7 +56,7 @@ COUPON_STORE = AMPLIFY / "functions/shared/lambda_utils/ecommerce/coupon_store.p
 REDEMPTION = AMPLIFY / "functions/shared/lambda_utils/ecommerce/redemption.py"
 PROVIDER = AMPLIFY / "functions/shared/lambda_utils/ecommerce/store_redemption_provider.py"
 CATALOG_PRICING = AMPLIFY / "functions/shared/lambda_utils/ecommerce/catalog_pricing.py"
-CART_PAGE = SRC / "pages/cart.tsx"
+CART_PAGE = SRC / "components/cart/CartPage.tsx"
 WA_BUSINESS = AMPLIFY / "functions/messaging/whatsapp-business-api/handler.py"
 
 #: The two methods `redemption.RedemptionProvider` declares. A class carrying BOTH is a provider.
@@ -85,6 +85,12 @@ def _frontend_sources(root: pathlib.Path):
             if "node_modules" in path.parts:
                 continue
             yield path
+
+
+def _page_sources():
+    """UI can live in route wrappers or extracted page components; inspect both trees."""
+    yield from _frontend_sources(SRC / "pages")
+    yield from _frontend_sources(SRC / "components")
 
 
 def _code_lines(text: str):
@@ -248,7 +254,7 @@ def test_no_second_fetch_to_a_coupon_or_gift_card_endpoint_exists_in_src():
     CODE on `createInvoiceEngine` and the server applies it."""
     endpoint = re.compile(r"(ecommerce/redemption|/coupons/|/gift-cards/)")
     offenders = []
-    for path in _frontend_sources(SRC / "pages"):
+    for path in _page_sources():
         for number, line in enumerate(_code_lines(path.read_text(encoding="utf-8")), 1):
             if endpoint.search(line):
                 offenders.append((path.relative_to(ROOT).as_posix(), number, line.strip()))
@@ -277,7 +283,7 @@ def test_no_page_computes_a_coupon_or_gift_card_amount_in_the_browser():
         r"(?:[*/]\s*(?:\d|percent|rate|bps|100\b))|(?:(?:\d|percent|rate|bps)\s*[*/])",
         re.IGNORECASE)
     offenders = []
-    for path in _frontend_sources(SRC / "pages"):
+    for path in _page_sources():
         for number, line in enumerate(_code_lines(path.read_text(encoding="utf-8")), 1):
             code = line.split("//")[0]
             if redemption_word.search(code) and arithmetic.search(code):

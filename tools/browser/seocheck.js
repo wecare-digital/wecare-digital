@@ -47,11 +47,8 @@ const ROUTES = [
   // /contact/. Same shape as the product pages: rotating hero plus one content section.
   '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/leave-review/',
   '/refer-and-earn/',
-  // The catalogue. '/shop/' WAS HERE and was removed on 2026-10-04 when the owner withdrew the
-  // index: it 301s to the home page, so it has no head of its own left to check. It was also the
-  // weaker of the two rows - it took its head from PageMeta plus the sitewide block in _app.tsx,
-  // which fourteen routes above already prove.
-  //
+  // The restored listing and its numbered continuation own their metadata through PageShell.
+  '/shop/', '/shop/page/2/',
   // /shop/kiosk/ WAS ALWAYS THE ROW THAT EARNED ITS PLACE and it stays. It declares every tag
   // itself through ShopProductHead.tsx, so it is the only route in this list where a missing or
   // duplicated og tag would be nobody else's bug. The canonical assertion is the point: a dynamic

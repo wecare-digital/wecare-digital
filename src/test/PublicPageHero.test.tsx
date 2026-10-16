@@ -39,8 +39,8 @@ const KIOSK = (): ShopProduct => shopProductBySlug( 'kiosk' ) as ShopProduct;
 
 /** The four pages that moved onto the shared band, plus the catalogue page that joined them. */
 const BAND_PAGE_FILES = [
-  'src/pages/cart.tsx',
-  'src/pages/account/sign-in.tsx',
+  'src/components/cart/CartPage.tsx',
+  'src/components/account/SignInPage.tsx',
   'src/pages/checkout/status.tsx',
   'src/pages/checkout/success.tsx',
   'src/pages/shop/[slug].tsx',
@@ -590,7 +590,7 @@ describe( 'the cart keeps its own top band, and every Phase-2 addition lands BEL
     for ( const relative of [
       'src/pages/checkout/status.tsx',
       'src/pages/checkout/success.tsx',
-      'src/pages/account/sign-in.tsx',
+      'src/components/account/SignInPage.tsx',
     ] )
     {
       const source = fs.readFileSync( path.resolve( __dirname, '../..', relative ), 'utf8' );

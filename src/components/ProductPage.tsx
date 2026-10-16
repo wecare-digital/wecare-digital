@@ -1,9 +1,9 @@
 import { whatsappServiceLink } from '../config/whatsappServiceEntries';
 import React from 'react';
-import PageMeta from './PageMeta';
+import PageShell from './public/PageShell';
 import RotatingHero from './RotatingHero';
 import ProductBlogPanel from './ProductBlogPanel';
-import Breadcrumbs, { type Crumb } from './Breadcrumbs';
+import { type Crumb } from './Breadcrumbs';
 import type { ProductDef } from '../content/products';
 import type { BlogCard } from '../lib/public-blog';
 
@@ -45,6 +45,7 @@ interface ProductPageProps {
    * scoped to .pdp-wrap.has-aside.
    */
   blogCards?: BlogCard[];
+  blogCategories?: string[];
   /** Heading for the optional blog panel. Defaults to the panel's own default when omitted. */
   blogHeading?: string;
   /** Canonical route for nested child pages. Defaults to /{product.slug}/. */
@@ -85,6 +86,7 @@ interface ProductPageProps {
 const ProductPage: React.FC<ProductPageProps> = ( {
   product,
   blogCards,
+  blogCategories,
   blogHeading,
   canonicalPath,
   price,
@@ -95,15 +97,6 @@ const ProductPage: React.FC<ProductPageProps> = ( {
   const hasAside = Array.isArray( blogCards ) && blogCards.length > 0;
   return (
   <>
-    {/* All seven product pages get their share preview from the same two strings that make
-        their <title> and <meta description>, so there is nothing to keep in sync. Before
-        this, none of them declared og: tags at all and all seven inherited the sitewide
-        company preview from _app.tsx - seven distinct products previewing as one page. */}
-    <PageMeta
-      title={ product.title }
-      description={ product.description }
-      path={ canonicalPath ?? `/${product.slug}/` }
-    />
     <RotatingHero
       ariaLabel={ product.name }
       badgeLabel={ `${product.name} by WECARE.DIGITAL` }
@@ -112,19 +105,9 @@ const ProductPage: React.FC<ProductPageProps> = ( {
       sub={ product.sub }
     >
       <div className={ hasAside ? 'pdp-wrap has-aside' : 'pdp-wrap' }>
-      {/* THE TRAIL SITS IN A WRAPPER DIV, NOT BARE, AND THAT IS NOT TIDYING.
-          .pdp-wrap is display:grid at >=768px when an aside is present, and /anew/ passes
-          blogCards. A bare <Breadcrumbs> as the first child would add a third item to a two-track
-          grid: the trail would take row 1 column 1, section.pdp would be pushed into the 300-380px
-          blog rail track, and .pdp-aside would drop to row 2. So the trail goes in a lowercase div
-          this component owns and the rule below spans it.
-          The wrapper is also what makes the rule reachable: Breadcrumbs emits nav.bc carrying ITS
-          OWN styled-jsx hash, so a rule written here as .pdp-wrap .bc would match nothing.
-          .pdp-crumbs is a div in this return tree, so it carries this component's hash and needs
-          no :global(). Breadcrumbs keeps its own margin:0 0 22px and this declares nothing else. */}
-      { crumbs && crumbs.length > 0 && (
-        <div className="pdp-crumbs"><Breadcrumbs items={ crumbs } /></div>
-      ) }
+      <PageShell title={ product.title } description={ product.description }
+        canonical={ canonicalPath ?? `/${product.slug}/` }
+        crumbs={ crumbs?.map( ( { label, href } ) => ( { name: label, href } ) ) }>
       <section className="pdp" aria-label={ `About ${product.name}` }>
         <h2 className="pdp-h2">{ product.sectionHeading }</h2>
         {/* The lead may hold more than one paragraph, split on a blank line (\n\n) in the source,
@@ -342,7 +325,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              push the copy into the blog rail. Unscoped (no .has-aside) this would be a no-op on
              the other seven product pages, where .pdp-wrap is a block - but scoping it says which
              layout it is for. */
-          :global(.pdp-wrap.has-aside .pdp-crumbs){grid-column:1 / -1}
+          :global(.pdp-wrap.has-aside .page-shell-crumbs){grid-column:1 / -1}
 
           @media(max-width:767px){
             .pdp-lead{font-size:18px}
@@ -367,9 +350,10 @@ const ProductPage: React.FC<ProductPageProps> = ( {
 
       { hasAside && (
         <div className="pdp-aside">
-          <ProductBlogPanel cards={ blogCards! } heading={ blogHeading } />
+          <ProductBlogPanel cards={ blogCards! } heading={ blogHeading } categories={ blogCategories } />
         </div>
       ) }
+      </PageShell>
       </div>
     </RotatingHero>
   </>

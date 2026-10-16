@@ -1,3 +1,4 @@
+import { buildPageTitle } from '../lib/page-title';
 import React, { useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -22,7 +23,7 @@ const NotFound: React.FC = () => {
   useEffect( () => { void router.replace( '/' ); }, [ router ] );
   return (
     <Head>
-      <title>WECARE.DIGITAL</title>
+      <title>{ buildPageTitle( 'Page not found' ) }</title>
       <meta name="robots" content="noindex, follow" />
       <meta httpEquiv="refresh" content="0; url=/" />
       <link rel="canonical" key="canonical" href="https://wecare.digital/" />

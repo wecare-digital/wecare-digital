@@ -123,8 +123,8 @@ describe( 'form-controls.css — invariant 4', () => {
       // ServiceBuyBox's order-target picker (.sbb-select) is a skinned <select>, added with the
       // dual-channel "Continue to checkout" work. A legitimate new entry on this allow-list.
       'src/components/ServiceBuyBox.tsx',
+      'src/components/cart/CartPage.tsx',
       'src/components/dashboard/tabs/AppBuilderTab.tsx',
-      'src/pages/cart.tsx',
       'src/pages/workspace/engage/logs/index.tsx',
       'src/pages/workspace/engage/push/index.tsx',
       'src/pages/workspace/engage/sms/index.tsx',

@@ -105,8 +105,8 @@ async function inspectMapFrame( page ) {
      * leave contactcheck reporting all-green about a surface it had stopped looking at,
      * which is the "warning that looked like a success" failure this repo keeps hitting.
      *
-     * NOT YET EXERCISED: there is no key in the sandbox, so this path has never run. Treat
-     * its first run as unverified and read the printed numbers before trusting the verdict.
+     * The keyed path deliberately enables Map/Satellite. Count visible controls only:
+     * Google retains hidden default buttons in the DOM even with disableDefaultUI.
      */
     const host = await page.evaluate( () => {
       const el = document.querySelector( '.cl-frame' );
@@ -119,8 +119,16 @@ async function inspectMapFrame( page ) {
         // of which render a blank grey panel rather than throwing.
         children: el.children.length,
         tiles: el.querySelectorAll( 'img' ).length,
-        // disableDefaultUI should leave no control buttons behind.
-        controls: el.querySelectorAll( 'button,[role="button"]' ).length,
+        controls: Array.from( el.querySelectorAll( 'button,[role="button"]' ) )
+          .filter( button => {
+            const rect = button.getBoundingClientRect();
+            const style = getComputedStyle( button );
+            return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+          } )
+          .map( button => ( {
+            role: button.getAttribute( 'role' ),
+            label: button.getAttribute( 'aria-label' ) || button.getAttribute( 'title' ) || button.textContent.trim(),
+          } ) ),
         role: el.getAttribute( 'role' ),
         ariaLabel: el.getAttribute( 'aria-label' ),
       };
@@ -388,18 +396,23 @@ async function main() {
 
     if ( frameInfo.keyed ) {
       const h = frameInfo.host;
-      console.log( '  keyed Maps JS path is active (no iframe). THIS BRANCH HAS NEVER RUN' );
-      console.log( '  with a real key - read these numbers rather than trusting the verdict.' );
+      console.log( '  keyed Maps JS path is active (no iframe)' );
       if ( !h ) {
         record( false, 'keyed map host element present', '.cl-frame not found' );
       } else {
-        console.log( `  map div ${h.w}x${h.h}, ${h.children} child node(s), ${h.tiles} img tile(s), ${h.controls} control(s), role=${h.role}` );
+        console.log( `  map div ${h.w}x${h.h}, ${h.children} child node(s), ${h.tiles} img tile(s), ${h.controls.length} visible control(s), role=${h.role}` );
         record( h.w > 0 && h.h > 0, 'keyed map div has a box', `${h.w}x${h.h}` );
         record( h.children > 0 || h.tiles > 0,
           'Maps JS actually painted into the div (key accepted, referrer allowed, billing on)',
           `${h.children} children / ${h.tiles} tiles - zero means a blank grey panel, not an exception` );
-        record( h.controls === 0, 'disableDefaultUI left no Google controls behind',
-          `${h.controls} control(s) found` );
+        const mapTypes = h.controls.filter( control => control.role === 'menuitemradio'
+          && /^(Show street map|Show satellite imagery)$/.test( control.label ) );
+        const unexpected = h.controls.filter( control => !mapTypes.includes( control )
+          && !/^(Map Data|Keyboard shortcuts)$/.test( control.label ) );
+        record( mapTypes.length === 2, 'approved Map/Satellite choice remains available',
+          mapTypes.map( control => control.label ).join( ', ' ) );
+        record( unexpected.length === 0, 'no unexpected visible map controls',
+          unexpected.map( control => control.label ).join( ', ' ) || 'none' );
       }
     } else if ( frameInfo.error ) {
       console.log( `  (could not inspect: ${frameInfo.error})` );

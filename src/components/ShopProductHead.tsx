@@ -1,3 +1,4 @@
+import { breadcrumbSchema, shopProductCrumbs } from '../lib/breadcrumbs';
 import React from 'react';
 import Head from 'next/head';
 import { ORIGIN, ORG_ID, WEBSITE_ID, SITE_ENTITIES, ld } from '../lib/schema';
@@ -120,24 +121,7 @@ export const shopProductSchema = (
         ...( productNode.length ? { mainEntity: { '@id': pageId + '#product' } } : {} ),
         publisher: { '@id': ORG_ID },
       },
-      {
-        // THREE ITEMS AGAIN, since 2026-10-10. Position 2 { name: 'Shop', item: ORIGIN + '/shop/' }
-        // was dropped on 2026-10-04 when the catalogue index was withdrawn and that URL 301'd to
-        // home. The owner restored the index, so /shop/ resolves at 200 again and position 2 names
-        // a real page distinct from position 1.
-        //
-        // IT MATCHES THE RENDERED TRAIL ON PURPOSE. src/pages/shop/[slug].tsx renders
-        // [ Home, Shop, product ], and a BreadcrumbList describing a trail the page does not render
-        // is the mismatch that makes a rich result disappear SILENTLY - no error, no warning, the
-        // breadcrumb simply stops being shown. The two must be edited together.
-        '@type': 'BreadcrumbList',
-        '@id': pageId + '#breadcrumb',
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: ORIGIN + '/' },
-          { '@type': 'ListItem', position: 2, name: 'Shop', item: ORIGIN + '/shop/' },
-          { '@type': 'ListItem', position: 3, name: product.name, item: url },
-        ],
-      },
+      breadcrumbSchema( shopProductCrumbs( product.name ), url, pageId ),
       ...productNode,
     ],
   };

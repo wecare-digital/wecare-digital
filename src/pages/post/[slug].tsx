@@ -1,3 +1,5 @@
+import { breadcrumbSchema as makeBreadcrumbSchema, type PageCrumb } from '../../lib/breadcrumbs';
+import { buildPageTitle } from '../../lib/page-title';
 import type { GetStaticPaths, GetStaticProps } from 'next';
 import type { ReactNode } from 'react';
 import { Fragment, useEffect, useRef } from 'react';
@@ -124,7 +126,7 @@ export default function BlogPostPage ( {
   post, newer, older, related = [], streamHref = '/blog/', streamLabel = 'Blog',
 }: Props ) {
   const canonical = `https://wecare.digital/post/${post.slug}/`;
-  const title = post.seoTitle || post.title;
+  const title = buildPageTitle( post.seoTitle || post.title );
   const description = post.metaDescription || post.excerpt || '';
 
   /**
@@ -280,22 +282,11 @@ export default function BlogPostPage ( {
     publisherId: ORG_ID,
   } ) : null;
 
-  const storedCrumbs = post.jsonLd?.breadcrumbList;
-  const useStoredCrumbs = !!storedCrumbs
-    && typeof storedCrumbs === 'object'
-    && Array.isArray( ( storedCrumbs as Record<string, unknown> ).itemListElement );
-  const breadcrumbSchema = useStoredCrumbs ? storedCrumbs : {
-    '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    // Addressable, so it is one named node rather than an orphan list. The two @graph
-    // breadcrumbs elsewhere on the site already carry one; this was the odd one out.
-    '@id': `${canonical}#breadcrumb`,
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://wecare.digital/' },
-      { '@type': 'ListItem', position: 2, name: 'Blog', item: 'https://wecare.digital/blog/' },
-      { '@type': 'ListItem', position: 3, name: post.title, item: canonical },
-    ],
-  };
+  const crumbs: PageCrumb[] = [
+    { name: 'Home', href: '/' }, { name: 'Blog', href: '/blog/' }, { name: post.title },
+  ];
+  // The rendered hierarchy owns breadcrumbs; stored article metadata cannot describe a different trail.
+  const breadcrumbSchema = makeBreadcrumbSchema( crumbs, canonical );
 
   return (
     <>
@@ -387,11 +378,7 @@ export default function BlogPostPage ( {
           {/* A REAL TRAIL, replacing a single "← Blog" back link at 13px/650 - the only
               control on this page below the site's 12px/700 smallest UI rung. The page's own
               JSON-LD has always declared a BreadcrumbList; now the page shows one. */}
-          <Breadcrumbs items={ [
-            { label: 'Home', href: '/' },
-            { label: 'Blog', href: '/blog/' },
-            { label: post.title },
-          ] } />
+          <Breadcrumbs items={ crumbs.map( ( { name, href } ) => ( { label: name, href } ) ) } />
           {/* THE GLOBAL BORDERLESS SEARCH, button-less - the same field as /blog/ and the /anew/
               panel, so a reader meets one search control across the blog. On a POST page there is
               no post list in the page to filter live, so this is a real GET form to /blog/: typing

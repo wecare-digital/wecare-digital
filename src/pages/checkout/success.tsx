@@ -1,3 +1,4 @@
+import { buildPageTitle } from '../../lib/page-title';
 /**
  * Customer-owned order confirmation. A URL is never payment evidence: this page
  * requires an authenticated status read, PAYMENT_PAID and a server order number.
@@ -51,10 +52,7 @@ export default function CheckoutSuccess (): React.ReactElement {
   return (
     <>
       <Head>
-        {/* ONE STRING CHILD. `{x} — BRAND` is two text children, and next/head renders a
-            <title> with more than one child EMPTY in the static HTML - which is what this page
-            shipped until 2026-10-16. A template literal is a single child. */}
-        <title>{ `${ heading } | WECARE.DIGITAL` }</title>
+        <title>{ buildPageTitle( heading ) }</title>
         <meta name="robots" content="noindex,nofollow" />
       </Head>
       <RotatingHero

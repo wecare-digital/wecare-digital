@@ -1,3 +1,4 @@
+import { buildPageTitle } from '../lib/page-title';
 import type { CycleWord } from '../components/RotatingHero';
 import type { ProductDef } from './products';
 
@@ -60,7 +61,7 @@ export const SHIPMENTS: ProductDef = {
   slug: 'shipments',
   name: 'Shipments',
   blurb: 'Track what is on its way, or arrange a pickup.',
-  title: 'Shipments - tracking and pickups | WECARE.DIGITAL',
+  title: buildPageTitle( 'Shipments - tracking and pickups' ),
   description:
     'Everything about your request, delivery or pickup in one place. Track what you already have with WECARE.DIGITAL, or ask us to arrange a pickup, on WhatsApp.',
   frame: 'Everything about your',

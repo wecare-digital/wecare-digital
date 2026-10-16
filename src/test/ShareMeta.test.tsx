@@ -1,11 +1,13 @@
+import { readCart, isContributionItem } from '../lib/cart';
+import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID, CONTRIBUTE_CTA_HREF } from '../config/contribution';
+import PublicShare from '../components/PublicShare';
 import fs from 'fs';
 import path from 'path';
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, expect, it, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import BlogIndex from '../pages/blog/index';
 import BlogPostPage from '../pages/post/[slug]';
-import ShareLinks from '../components/ShareLinks';
 import {
   MEDIA_BASE, SOCIAL_CARD_URL, SOCIAL_CARD_W, SOCIAL_CARD_H, SHARE_CARD_TYPE, whatsappShareHref,
 } from '../config/share';
@@ -215,88 +217,56 @@ describe( 'Share controls', () => {
     expect( href.split( '?text=' )[ 1 ] ).not.toContain( '&' );
   } );
 
-  it( 'ships a working WhatsApp link with no JavaScript, and hides the script-only controls', () => {
-    const { container } = render(
-      <ShareLinks url="https://wecare.digital/post/x/" title="A Post" />
-    );
+} );
 
-    // The baseline: a real anchor with a real href, present in the static export.
-    const wa = screen.getByRole( 'link', { name: /WhatsApp/i } );
-    expect( wa.getAttribute( 'href' ) ).toBe( whatsappShareHref( 'A Post', 'https://wecare.digital/post/x/' ) );
-    // Opening a share target must not hand it a window.opener back into this page.
-    expect( wa.getAttribute( 'rel' ) ).toContain( 'noopener' );
+// The retired ShareLinks implementation is gone; keep its useful behavior coverage on PublicShare.
+describe( 'current shared action dock', () => {
+  afterEach( () => { vi.unstubAllGlobals(); window.localStorage.clear(); } );
 
-    // jsdom has neither navigator.share nor a clipboard, so neither capability class is added and
-    // both controls stay display:none. This is the assertion that the row degrades instead of
-    // offering buttons that cannot work - and it is feature detection doing it, not a device list.
-    const row = container.querySelector( '.share-row' );
-    expect( row ).not.toBeNull();
-    expect( row?.classList.contains( 'is-native' ) ).toBe( false );
-    expect( row?.classList.contains( 'is-clip' ) ).toBe( false );
-  } );
-
-  /**
-   * THE ICON-ONLY CONTRACT. These controls carry no visible text, which is the one change that can
-   * silently make a control group unusable: an icon button with no aria-label announces as an empty
-   * string, or at best as its filename, so a screen reader reader gets three anonymous buttons.
-   *
-   * Asserted through getByLabelText rather than by reading the attribute, because that resolves the
-   * accessible NAME the way an assistive technology would - it would fail just as loudly if the
-   * label were on the wrong element or cancelled by an aria-hidden ancestor.
-   *
-   * The tooltip is also checked for aria-hidden. Without it the visible word and the label are both
-   * in the accessible name and the control announces its own name twice.
-   */
-  it( 'labels every icon-only control, and keeps the visual tip out of the accessible name', () => {
-    vi.stubGlobal( 'navigator', Object.create( navigator, {
-      share: { value: () => Promise.resolve(), configurable: true },
-      canShare: { value: () => true, configurable: true },
-      clipboard: { value: { writeText: () => Promise.resolve() }, configurable: true },
-    } ) );
-
-    const { container } = render(
-      <ShareLinks url="https://wecare.digital/post/x/" title="A Post" />
-    );
-
-    // All three announce something meaningful.
-    expect( screen.getByLabelText( 'Share this page on WhatsApp' ) ).toBeInTheDocument();
-    expect( screen.getByLabelText( 'Share this page using your device' ) ).toBeInTheDocument();
-    expect( screen.getByLabelText( 'Copy link to this page' ) ).toBeInTheDocument();
-
-    // No control is left without a name, and none of them leans on visible text for it.
-    const controls = Array.from( container.querySelectorAll( '.share-btn' ) );
-    expect( controls ).toHaveLength( 3 );
-    for ( const c of controls ) {
-      expect( c.getAttribute( 'aria-label' ) ).toBeTruthy();
-      // The only text inside is the tip, and the tip is hidden from the accessibility tree.
-      const tip = c.querySelector( '.share-tip' );
-      expect( tip ).not.toBeNull();
-      expect( tip?.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
+  it( 'opens a WhatsApp contact picker and labels every available share action', () => {
+    const { container } = render( <PublicShare url="https://wecare.digital/post/x/" title="A Post" /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Share this page' } ) );
+    const whatsapp = screen.getByRole( 'link', { name: 'Share this page on WhatsApp' } );
+    expect( whatsapp ).toHaveAttribute( 'href', whatsappShareHref( 'A Post', 'https://wecare.digital/post/x/' ) );
+    expect( whatsapp.getAttribute( 'rel' ) ).toContain( 'noopener' );
+    for ( const action of container.querySelectorAll( 'button' ) ) {
+      expect( action.getAttribute( 'aria-label' ) ).toBeTruthy();
     }
-
-    // 44px square, drawn at the WCAG 2.5.8 floor rather than above it - a circle has to be square
-    // to be round, so this is the one place the floor is also the size.
-    const css = Array.from( container.querySelectorAll( 'style' ) ).map( n => n.textContent || '' ).join( '' );
-    expect( css ).toContain( 'width:44px;height:44px' );
-    expect( css ).toContain( 'border-radius:50%' );
-    // The home CTA's hover, which is what makes the group draw the eye.
-    expect( css ).toContain( 'transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)' );
-
-    vi.unstubAllGlobals();
   } );
 
-  it( 'reveals the OS share sheet only when the browser really has the API', () => {
-    const share = vi.fn( () => Promise.resolve() );
+  it( 'keeps the central contribution variant and the single cart checkout path', () => {
+    window.localStorage.clear();
+    const assign = vi.fn();
+    vi.stubGlobal( 'location', { ...window.location, assign } );
+    render( <PublicShare url="https://wecare.digital/post/x/" title="A Post" /> );
+    fireEvent.click( screen.getByRole( 'button', { name: /Contribute ₹/ } ) );
+    expect( screen.getByRole( 'link', { name: 'Contribute on WhatsApp' } ) ).toHaveAttribute( 'href', CONTRIBUTE_CTA_HREF );
+    expect( readCart() ).toHaveLength( 0 );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Contribute on the website at checkout' } ) );
+    const lines = readCart().filter( isContributionItem );
+    expect( lines ).toHaveLength( 1 );
+    expect( lines[ 0 ] ).toMatchObject( {
+      productId: CONTRIBUTION_PRODUCT_ID, variantId: CONTRIBUTION_CHOICES[ 0 ].variantId, quantity: 1,
+    } );
+    expect( assign ).toHaveBeenCalledWith( '/cart/' );
+  } );
+
+  it( 'uses the native share sheet and clipboard only when supported', async () => {
+    const share = vi.fn( async () => undefined );
+    const writeText = vi.fn( async () => undefined );
+    vi.stubGlobal( 'isSecureContext', true );
     vi.stubGlobal( 'navigator', Object.create( navigator, {
       share: { value: share, configurable: true },
       canShare: { value: () => true, configurable: true },
+      clipboard: { value: { writeText }, configurable: true },
     } ) );
-
-    const { container } = render(
-      <ShareLinks url="https://wecare.digital/post/x/" title="A Post" />
-    );
-    expect( container.querySelector( '.share-row' )?.classList.contains( 'is-native' ) ).toBe( true );
-
-    vi.unstubAllGlobals();
+    render( <PublicShare url="https://wecare.digital/post/x/" title="A Post" /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Share this page' } ) );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Share this page using another app' } ) );
+    expect( share ).toHaveBeenCalledWith( expect.objectContaining( { url: 'https://wecare.digital/post/x/', title: 'A Post' } ) );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Share this page' } ) );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Copy link to this page' } ) );
+    await waitFor( () => expect( screen.getByRole( 'button', { name: 'Link copied' } ) ).toBeInTheDocument() );
+    expect( writeText ).toHaveBeenCalledWith( 'https://wecare.digital/post/x/' );
   } );
 } );

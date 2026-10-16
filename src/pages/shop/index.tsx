@@ -1,7 +1,5 @@
 import type { GetStaticProps } from 'next';
-import PageMeta from '../../components/PageMeta';
 import ShopListingView from '../../components/ShopListingView';
-import { SHOP_LISTING_DESCRIPTION } from '../../components/ShopListingHead';
 import {
   SHOP_LISTINGS, SHOP_LISTINGS_PER_PAGE, shopListingPageCount, type ShopListing,
 } from '../../content/shopProducts';
@@ -27,14 +25,8 @@ import {
  * NO Header AND NO Footer. _app.tsx mounts the chrome for every public route, and
  * src/test/PublicRouteRegistration.test.ts fails any public page that mounts it per page.
  *
- * THE HEAD IS SPLIT, AND ONLY THE TITLE HALF IS HERE. This is a static pathname-keyed route, so
- * the sitewide block in _app.tsx reads PUBLIC_PAGE_META['/shop'] and emits the canonical, the
- * WebPage node and a BreadcrumbList of [Home, Shop] - which is the trail the view renders. It
- * does NOT emit a per-page <title>: its sitewide title is the home page's, so /shop/ shipped as
- * "Everyday AI, built for Bharat" until 2026-10-16. PageMeta below sets the title, description
- * and og/twitter copy, the same way every other public page does; its canonical carries the same
- * key and value as _app's, so nothing is doubled. /shop/page/N/ is the opposite case and owns
- * its whole head through components/ShopListingHead.tsx; the reason is written there.
+ * ShopListingView uses the public PageShell for metadata and one breadcrumb input for UI
+ * and JSON-LD. _app still owns the allowlist, WebPage/Service graph and central chrome.
  *
  * PAGE 1 IS HERE AND NOT AT /shop/page/1/. Two URLs serving the same six cards is duplicate
  * content, and /shop/ is the one in the sitemap, in config/public-pages.json and in the header.
@@ -51,7 +43,6 @@ export interface ShopListingPageProps {
 
 const ShopIndex = ( props: ShopListingPageProps ) => (
   <>
-    <PageMeta title="Shop | WECARE.DIGITAL" description={ SHOP_LISTING_DESCRIPTION } path="/shop/" />
     <ShopListingView { ...props } />
   </>
 );
