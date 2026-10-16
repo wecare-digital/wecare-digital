@@ -359,15 +359,6 @@ def ensure_blog_source_perms() -> None:
                 "Action": "lambda:InvokeFunction",
                 "Resource": f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{FUNCTION_NAME}",
             },
-            {
-                "Sid": "BlogStaticSiteBuild",
-                "Effect": "Allow",
-                "Action": ["amplify:StartJob", "amplify:GetJob"],
-                "Resource": (
-                    f"arn:aws:amplify:{REGION}:{ACCOUNT}:apps/"
-                    f"d22dm4b0jn71jw/branches/stack/jobs/*"
-                ),
-            },
         ],
     }
     iam.put_role_policy(
@@ -376,6 +367,78 @@ def ensure_blog_source_perms() -> None:
         PolicyDocument=json.dumps(policy),
     )
     print(f"[iam] ensured inline policy seo-blog-source-intake on {ROLE_NAME}")
+
+
+AMPLIFY_BRIDGE_POLICY_NAME = "wecare-blog-site-bridge-amplify"
+AMPLIFY_BRIDGE_POLICY_ARN = f"arn:aws:iam::{ACCOUNT}:policy/{AMPLIFY_BRIDGE_POLICY_NAME}"
+AMPLIFY_APP_ID = "d22dm4b0jn71jw"
+AMPLIFY_BRANCH = "stack"
+
+
+def ensure_blog_site_bridge_perms() -> None:
+    """Attach a tiny managed policy for the static-site build bridge.
+
+    The shared Lambda role already sits at AWS's aggregate inline-policy size ceiling. Putting
+    Amplify permissions into seo-blog-source-intake therefore fails even though the individual
+    document is small. A dedicated managed policy avoids that ceiling and makes this permission
+    independently auditable/revocable.
+
+    The resource is constrained to jobs on the one production Amplify app/branch. The wildcard
+    is only the runtime-generated job id.
+    """
+    iam = boto3.client("iam")
+    document = {
+        "Version": "2012-10-17",
+        "Statement": [{
+            "Sid": "BlogStaticSiteBuild",
+            "Effect": "Allow",
+            "Action": ["amplify:StartJob", "amplify:GetJob"],
+            "Resource": (
+                f"arn:aws:amplify:{REGION}:{ACCOUNT}:apps/"
+                f"{AMPLIFY_APP_ID}/branches/{AMPLIFY_BRANCH}/jobs/*"
+            ),
+        }],
+    }
+
+    try:
+        iam.get_policy(PolicyArn=AMPLIFY_BRIDGE_POLICY_ARN)
+        exists = True
+    except iam.exceptions.NoSuchEntityException:
+        exists = False
+
+    if not exists:
+        iam.create_policy(
+            PolicyName=AMPLIFY_BRIDGE_POLICY_NAME,
+            PolicyDocument=json.dumps(document),
+            Description="Allow wecare-seo-tools to rebuild/check only the production Amplify blog site.",
+        )
+        print(f"[iam] created managed policy {AMPLIFY_BRIDGE_POLICY_NAME}")
+    else:
+        current = iam.get_policy(PolicyArn=AMPLIFY_BRIDGE_POLICY_ARN)["Policy"]
+        version = iam.get_policy_version(
+            PolicyArn=AMPLIFY_BRIDGE_POLICY_ARN,
+            VersionId=current["DefaultVersionId"],
+        )["PolicyVersion"]["Document"]
+        if version != document:
+            versions = iam.list_policy_versions(PolicyArn=AMPLIFY_BRIDGE_POLICY_ARN)["Versions"]
+            non_default = [v for v in versions if not v.get("IsDefaultVersion")]
+            if len(versions) >= 5 and non_default:
+                oldest = sorted(non_default, key=lambda v: v["CreateDate"])[0]
+                iam.delete_policy_version(
+                    PolicyArn=AMPLIFY_BRIDGE_POLICY_ARN,
+                    VersionId=oldest["VersionId"],
+                )
+            iam.create_policy_version(
+                PolicyArn=AMPLIFY_BRIDGE_POLICY_ARN,
+                PolicyDocument=json.dumps(document),
+                SetAsDefault=True,
+            )
+            print(f"[iam] updated managed policy {AMPLIFY_BRIDGE_POLICY_NAME}")
+        else:
+            print(f"[iam] managed policy {AMPLIFY_BRIDGE_POLICY_NAME} already current")
+
+    iam.attach_role_policy(RoleName=ROLE_NAME, PolicyArn=AMPLIFY_BRIDGE_POLICY_ARN)
+    print(f"[iam] attached {AMPLIFY_BRIDGE_POLICY_NAME} to {ROLE_NAME}")
 
 
 #: The ingest queue. Names, and the numbers that matter, all in one place so the deploy and the
@@ -933,6 +996,7 @@ def main() -> None:
     ensure_table()
     ensure_bedrock_inference_profile_perms()
     ensure_blog_source_perms()
+    ensure_blog_site_bridge_perms()
     #: ORDER MATTERS. The queue has to exist before its URL can go into the function's
     #: environment, the IAM policy has to be in place before the event source mapping is
     #: created or Lambda parks it in `Disabled` with an insufficient-permissions cause, and the
