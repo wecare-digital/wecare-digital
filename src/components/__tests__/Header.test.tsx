@@ -407,7 +407,7 @@ describe( 'Header', () => {
     const { container } = render( <Header /> );
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
 
-    expect( css ).toContain( '.nav-products-cue-row{height:44px;display:flex;align-items:center;justify-content:flex-end;flex:0 0 44px;padding-inline-end:4px' );
+    expect( css ).toContain( '.nav-products-cue-row{height:44px;display:flex;align-items:center;justify-content:flex-end;flex:0 0 44px;margin-top:6px;padding-inline-end:4px' );
     expect( css ).toContain( '.nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px' );
     expect( css ).toContain( 'border-radius:50%;background:#d1f470;color:#0f2a1d' );
     expect( css ).toContain( '.nav-products-more:hover{background:#c5ed51;transform:translateY(-1px) scale(1.06)' );
