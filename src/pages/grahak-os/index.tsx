@@ -404,6 +404,27 @@ response = requests.post(
                   bearer token, and the canonical message store is the one in
                   docs/UNIFIED_MESSAGE_TABLE_DESIGN.md. */}
               <p className="api-desc">One POST per channel and a bearer token. Every message lands in the same canonical store the workspace reads, so your API traffic and your inbox are never two separate histories.</p>
+              {/* "In action" link, placed on the side OPPOSITE the code panel - the left
+                  .api-info column - so the row reads "here is the API, and here is it
+                  running". The destination is Meta's own WhatsApp Business Platform demo
+                  (their Jasper's Market retail bot), not a page of ours: Grahak OS is
+                  BUILT ON that platform, so the honest "see it in action" is Meta's live
+                  demo rather than a mock we assemble. External, so rel + target are set.
+                  Lime pill in the page's own #d1f470 with dark-green text, matching the
+                  .pp-tab.active treatment, so the CTA is clearly ours even though the
+                  destination is Meta's. */}
+              <div className="api-action">
+                <h3 className="api-action-head">See the WhatsApp Business Platform in action</h3>
+                <a
+                  className="api-action-link"
+                  href="https://business.whatsapp.com/products/business-platform"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View the live demo
+                  <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path d="M6 3h7v7h-1.5V5.56L4.56 12.5 3.5 11.44 10.44 4.5H6z" fill="currentColor"/></svg>
+                </a>
+              </div>
             </div>
             <div className="api-demo">
               <div className="code-tabs">
@@ -1004,6 +1025,21 @@ response = requests.post(
              on the grid - that is what let the grid align with the hero while the
              paragraph stays readable. */
           .api-desc{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0;max-width:460px}
+          /* "In action" block in the left column, sitting under the API copy and
+             opposite the code panel. 36px top margin separates it from the paragraph
+             without needing a divider. */
+          .api-action{margin:36px 0 0;max-width:460px}
+          /* h3 on the card-heading rung (22px/700), one step below the section h2 above
+             it in the same column, so the outline is h2 -> h3 with no skipped level. */
+          .api-action-head{font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:rgba(0,0,0,.95);margin:0 0 16px}
+          /* Lime pill in the page's own #d1f470 with dark-green text and a 44px min
+             target - the same treatment as .pp-tab.active, so this reads as our CTA even
+             though it points at Meta's demo. inline-flex keeps the label and the
+             external-link glyph on one centred baseline. */
+          .api-action-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:12px 22px;background:#d1f470;color:#1a3a2a;border-radius:50px;font-size:16px;font-weight:600;text-decoration:none;transition:all .25s}
+          .api-action-link:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.18)}
+          .api-action-link svg{flex:0 0 auto;display:block}
+          @media(prefers-reduced-motion:reduce){ .api-action-link{transition:none} }
           /* Pure black, matching the hero .code-box. This panel was the last slate
              holdout: #1e293b is on the contract's retired list specifically "as the
              code panel body", yet it survived here after the hero panel was moved to
