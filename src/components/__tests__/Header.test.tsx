@@ -399,7 +399,7 @@ describe( 'Header', () => {
       [ 'VayuLok', 'M460-160q-50 0-85-35t-35-85h80' ],
       [ 'Bharat Rx', 'M345-120q-94 0-159.5-65.5T120-345' ],
       [ 'Hunar', 'm387-412 35-114-92-74h114' ],
-      [ 'Niji Setu', 'M480-200q-106 0-184.5-68.5T203-440H80' ],
+      [ 'Niji Setu', 'M440-280H280q-83 0-141.5-58.5T80-480' ],
       [ 'Submit Request', 'M200-120q-33 0-56.5-23.5T120-200' ],
       [ 'Vault', 'M480-320 280-520l56-58 104 104' ],
     ] as const;
@@ -411,11 +411,11 @@ describe( 'Header', () => {
 
     const referHeading = screen.getByText( 'Refer & Earn' );
     const referIcon = referHeading.parentElement?.querySelector( 'svg.nav-section-icon-material path' );
-    expect( referIcon?.getAttribute( 'd' ) ).toContain( 'M500-482q29-32 44.5-73t15.5-85' );
+    expect( referIcon?.getAttribute( 'd' ) ).toContain( 'M720-80q-50 0-85-35t-35-85' );
 
     const partner = screen.getByText( 'Partner' ).closest( '.nav-family-label' );
     const partnerIcon = partner?.querySelector( 'svg.nav-row-icon-material path' );
-    expect( partnerIcon?.getAttribute( 'd' ) ).toContain( 'M475-160q4 0 8-2t6-4' );
+    expect( partnerIcon?.getAttribute( 'd' ) ).toContain( 'M160-80q-33 0-56.5-23.5T80-160' );
 
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
     expect( css ).toContain( '.nav-row-icon-material{fill:currentColor;stroke:none}' );
