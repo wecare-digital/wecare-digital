@@ -69,14 +69,12 @@ CORS_CORE_ORIGINS = [
     # app.wecare.digital removed 2026-09-28 for the same reason as stack: the host is
     # retired and NXDOMAIN, so the entry is a standing offer rather than an allowance.
     'https://wecare.digital',
-    'https://www.wecare.digital',
     'https://d22dm4b0jn71jw.amplifyapp.com',
     'capacitor://localhost',   # iOS native app
     'https://localhost',       # Android native app
 ]
 CORS_RECOMMENDED_ORIGINS = CORS_CORE_ORIGINS + [
     'https://wecare.digital',
-    'https://www.wecare.digital',
     'ionic://localhost',
     'http://localhost:3000',
 ]
