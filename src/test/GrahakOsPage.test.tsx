@@ -34,7 +34,11 @@ describe( 'Grahak OS five approved visual fixes', () => {
   } );
 
   it( 'uses the approved WECARE.DIGITAL color system and canonical logo avatar', () => {
-    expect( source ).toContain( '.phone-header{background:#128c7e' );
+    // Header teal darkened from #128c7e to #0a7265 so the white .contact-name clears the
+    // 4.5:1 WCAG AA contrast floor (white on #0a7265 is 5.82:1; on #128c7e it was 4.14:1,
+    // the axe-core failure that held /grahak-os/ at accessibility 95). #0a7265 is a
+    // non-retired WhatsApp header green; the #075e54 negative assertion below still holds.
+    expect( source ).toContain( '.phone-header{background:#0a7265' );
 
     // The phone mock now uses the canonical WECARE.DIGITAL mark as a real contact-photo DP.
     // Guard the semantic pieces independently so harmless CSS reordering or added declarations

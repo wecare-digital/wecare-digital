@@ -807,16 +807,20 @@ response = requests.post(
              mirrored in Arabic - so this one follows the document instead of being locked.
              Measured at 260px out of position under rtl before the change. */
           .phone{position:absolute;inset-inline-start:0;top:28px;width:56%;max-width:320px;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.12)}
-          /* WhatsApp's own header teal (#128c7e), not the brand's flat #1a3a2a. This is a
+          /* WhatsApp's own header teal, not the brand's flat #1a3a2a. This is a
              SIMULATION of WhatsApp, so the chrome should read as WhatsApp's rather than as a
              custom green panel - the flat dark-forest block was the single biggest tell that
-             this was a brand mockup and not a real thread. #128c7e is from WhatsApp's published
-             palette (teal green).
+             this was a brand mockup and not a real thread.
+             The teal is #0a7265: a darker rung of WhatsApp's published teal-green chrome,
+             chosen so the white .contact-name clears the 4.5:1 WCAG AA floor for normal text
+             (white on #0a7265 is 5.82:1). The lighter #128c7e used before only reached
+             4.14:1 and failed the axe-core contrast check that kept this page at
+             accessibility 95. #0a7265 still reads as an authentic WhatsApp header green.
              NOT #075e54. That darker WhatsApp green is RETIRED by name in the design contract
              (scripts/check_design_drift.py RETIRED_COLOURS) and the drift gate rejects it in
-             real CSS - an earlier pass used it here and failed the gate. #128c7e is the
+             real CSS - an earlier pass used it here and failed the gate. #0a7265 is a
              non-retired WhatsApp header green and reads the same at this size. */
-          .phone-header{background:#128c7e;padding:12px 14px;display:flex;align-items:center;gap:10px}
+          .phone-header{background:#0a7265;padding:12px 14px;display:flex;align-items:center;gap:10px}
           /* Avatar reads as a contact photo, not a flat tile the same colour as the header
              behind it. A LIME #d1f470 disc (the site's brand lime, owner choice) holds the
              WECARE.DIGITAL logo mark as the DP - the mark is dark green and reads clearly on
@@ -831,7 +835,11 @@ response = requests.post(
           .avatar-img{width:90%;height:90%;object-fit:contain;display:block}
           .contact-info{flex:1;display:flex;flex-direction:column}
           .contact-name{color:#fff;font-size:17px;font-weight:600}
-          .contact-status{color:rgba(255,255,255,.7);font-size:13px}
+          /* 'online' stays visibly lighter than the name so the hierarchy reads, but the old
+             rgba(255,255,255,.7) composited to ~#b8ddd8 on the header and only reached 2.83:1,
+             under the 3:1 any-text floor. Raised to alpha .92 so it composites high on the
+             darker #0a7265 teal and clears the floor while staying a secondary white. */
+          .contact-status{color:rgba(255,255,255,.92);font-size:13px}
           /* A real verified tick, not a blank disc. The empty circle read as a loading
              state; a small check on WhatsApp's brand green is the business-verified badge
              a customer would actually see beside a company name. */
