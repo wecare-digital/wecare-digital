@@ -12,6 +12,7 @@ from lambda_utils.ecommerce import business_identity, checkout_pricing  # noqa: 
 OUTBOUND = ROOT / "amplify" / "functions" / "messaging" / "outbound-whatsapp" / "handler.py"
 INVOICE = ROOT / "amplify" / "functions" / "payments" / "invoice-engine" / "handler.py"
 FRONTEND_CONSTANTS = ROOT / "src" / "config" / "constants.ts"
+PAY_FLOW = ROOT / "src" / "pages" / "workspace" / "pay" / "flow" / "index.tsx"
 
 
 def test_seller_gstin_is_the_canonical_business_identity():
@@ -42,3 +43,12 @@ def test_invoice_engine_derives_new_collection_fee_from_common_calculator():
 def test_browser_does_not_export_a_second_fee_rate():
     source = FRONTEND_CONSTANTS.read_text(encoding="utf-8")
     assert "export const CONVENIENCE_FEE" not in source
+
+
+def test_workspace_pay_preview_does_not_recompute_the_fee_or_final_total():
+    source = PAY_FLOW.read_text(encoding="utf-8")
+    assert "calcConvFee" not in source
+    assert "calcTotal" not in source
+    assert "collection * 0.02" not in source
+    assert "collection * 0.025" not in source
+    assert "calculated by the server when the invoice is created" in source

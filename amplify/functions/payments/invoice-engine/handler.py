@@ -1323,14 +1323,39 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     # Convenience fee policy has ONE home: checkout_pricing.compute_quote.
     # For new/manual/WhatsApp collections the server derives the fee from the exact post-discount,
     # post-delivery, post-supply-GST collection. Captured/tax-inclusive invoices add no new fee.
-    convenience_fee = float(body.get('convenienceFee', 0))
+    #
+    # A legacy client may still send convenienceFee. Zero keeps the historical "server calculate"
+    # meaning. A non-zero value is accepted only if it EXACTLY matches the canonical calculator;
+    # otherwise refuse before consuming an invoice number. Silently replacing a stale client fee
+    # would let the customer preview one amount and receive an invoice for another.
+    raw_convenience_fee = body.get('convenienceFee')
     if amount_is_tax_inclusive:
-        convenience_fee = 0.0
+        # The inclusive branch above converted subtotal/tax/additive components to Decimal.
+        # Keep this zero Decimal too: Decimal + float is a TypeError and, more importantly,
+        # captured-money arithmetic must never leave exact decimal space.
+        convenience_fee = Decimal('0')
     elif entry_point in ('pay_flow', 'manual', 'whatsapp_payment'):
         collection = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax
         quote = checkout_pricing.compute_quote(_rupees_to_paise(collection))
-        convenience_fee = float(_paise_to_rupees(
-            quote.convenience_fee_paise + quote.convenience_gst_paise))
+        canonical_fee_paise = quote.convenience_fee_paise + quote.convenience_gst_paise
+
+        if raw_convenience_fee not in (None, ''):
+            try:
+                supplied_fee_paise = wa_payment_request.exact_paise(raw_convenience_fee)
+            except wa_payment_request.PaymentRequestRefused:
+                return _resp(400, {
+                    'error': 'Convenience fee does not match server pricing',
+                    'errorCode': 'CONVENIENCE_FEE_MISMATCH',
+                })
+            if supplied_fee_paise not in (0, canonical_fee_paise):
+                return _resp(400, {
+                    'error': 'Convenience fee does not match server pricing',
+                    'errorCode': 'CONVENIENCE_FEE_MISMATCH',
+                })
+
+        convenience_fee = float(_paise_to_rupees(canonical_fee_paise))
+    else:
+        convenience_fee = float(raw_convenience_fee or 0)
 
     total = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax + convenience_fee
 
