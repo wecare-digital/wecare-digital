@@ -68,27 +68,10 @@ META_ITEM_FIELDS = (
 COMPARED_FIELDS = ("name", "description", "availability", "price", "currency", "image_url", "url")
 
 # ─────────────────────────────────────────────────────────────────────────────────────────────
-# Named catalogue rows.
-#
-# There is no product deny-list here. Whether a row reaches Meta is decided by the catalogue's own
-# flags: `metaEnabled` in the Lambda's ProductsTable read (`_native_products` skips a row whose flag
-# is False) and `visible` in `is_syncable`. Two rows are named below: the contribution vehicle,
-# which is deliberately NOT special-cased, and the ₹1 test product, the one exception, excluded by
-# slug for the reason its docstring gives.
-# ─────────────────────────────────────────────────────────────────────────────────────────────
-
-#: The contribution vehicle. Deliberately NOT special-cased here, although `/shop/` keeps it out of
-#: its GRID (`shop.ts` `isContributionRow`) because the place to choose a contribution is the block
-#: at the foot of a blog post: it is a real, sellable product reached by direct cart reference, so
-#: whether the WhatsApp catalogue carries it is decided by its own catalogue flags like any other
-#: row. Its variants remain subject to checkout's own variant allow-list and quantity-1 rule.
+# Current catalogue controls publication. No retired product/service identity is embedded here.
 CONTRIBUTION_PRODUCT_ID = ''
 CONTRIBUTION_CTA_URL = "https://wa.me/message/BYFLCAAMSZBXD1"
 
-#: No retired catalog slug is special-cased. Fresh catalog rows are controlled only by their
-#: current publication flags.
-TEST_PRODUCT_SLUGS: Tuple[str, ...] = ()
-_TEST_PRODUCT_SLUGS = frozenset(TEST_PRODUCT_SLUGS)
 
 #: Stripped from `descriptionHtml`. The catalogue stores the description as HTML; Meta wants plain
 #: text.
@@ -161,17 +144,13 @@ def parse_retailer_id(value: Any) -> Optional[Tuple[str, str]]:
 
 
 def is_syncable(product: Mapping[str, Any]) -> bool:
-    """Should this catalogue row (native ProductsTable projection or snapshot row) reach Meta?
+    """Return whether the current catalog row may be projected to Meta.
 
-    Two exclusions and no more:
-
-        slug = str(product.get("slug") or "").strip().lower()
-    if slug in _TEST_PRODUCT_SLUGS:
-        return False
+    There is no retired product deny-list. Current publication flags are authoritative.
+    """
     if product.get("visible") is False:
         return False
     return True
-
 
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 # Money: integer paise in, a display string out, no float at any point
