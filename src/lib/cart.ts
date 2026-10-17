@@ -36,7 +36,7 @@ import { KNOWN_CATALOGUE_PRODUCT_IDS, SHOP_PRODUCTS } from '../content/shop';
 import type { ShopProduct, ShopVariant } from '../content/shop';
 import type { ContributionChoice } from '../config/contribution';
 import { CONTRIBUTION_PRODUCT_ID, contributionChoice } from '../config/contribution';
-import { SERVICES_PRODUCT_ID, serviceChoice } from '../config/services';
+import { SERVICE_PRODUCT_IDS, serviceChoice } from '../config/services';
 
 /** localStorage key. Namespaced and versioned so a shape change can be migrated, not guessed. */
 const CART_KEY = 'wecare.cart.v1';
@@ -662,7 +662,7 @@ export function rememberServiceIntent ( variantId: string, intentId: string ): v
 
 /** Is this line the services product? On `productId`, like `isContributionItem`. */
 export const isServiceItem = ( item: CartItem ): boolean =>
-  !!SERVICES_PRODUCT_ID && item.productId === SERVICES_PRODUCT_ID;
+  !!item.productId && SERVICE_PRODUCT_IDS.has( item.productId );
 
 /**
  * SET the one service line (replacing any other service line) and remember its intent id.
@@ -674,7 +674,7 @@ export function setServiceLine (
   variantId: string, intentId: string, linePaise: number,
 ): CartItem[] {
   const choice = serviceChoice( variantId );
-  if ( !SERVICES_PRODUCT_ID || !choice || !intentId ) return readCart();
+  if ( !choice || !choice.productId || !intentId ) return readCart();
   // `linePaise` is the LIVE catalogue price for the variant, passed in by the buy box, which only
   // offers the line once it has one. There is no figure in `src/config/services.ts` to fall back
   // on any more (owner decision 2026-10-08: a price is editable in the catalogue with no deploy),
@@ -683,9 +683,9 @@ export function setServiceLine (
   if ( !Number.isSafeInteger( linePaise ) || linePaise <= 0 ) return readCart();
   const items = readCart().filter( item => !isServiceItem( item ) );
   items.push( {
-    productId: SERVICES_PRODUCT_ID,
+    productId: choice.productId,
     variantId: choice.variantId,
-    ref: `${ SERVICES_PRODUCT_ID }:${ choice.variantId }`,
+    ref: `${ choice.productId }:${ choice.variantId }`,
     // Empty, so the cart row does not link to a /shop/ page that deliberately does not exist.
     slug: '',
     name: choice.label,
@@ -711,7 +711,7 @@ export function setServiceLine (
  */
 export function serviceIntentFor ( lineItems: CheckoutLineItem[] ): string {
   if ( !hasWindow() ) return '';
-  const lines = lineItems.filter( line => line.catalogReference.catalogItemId === SERVICES_PRODUCT_ID );
+  const lines = lineItems.filter( line => SERVICE_PRODUCT_IDS.has( line.catalogReference.catalogItemId ) );
   if ( lines.length !== 1 ) return '';
   try
   {
