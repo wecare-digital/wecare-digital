@@ -62,6 +62,7 @@ def create_payload(p: dict) -> dict:
         "canonicalPath": p.get("canonicalPath") or f"/shop/{p['slug']}/",
         "variants": [
             {
+                "sku": p.get("sku"),
                 "label": p.get("variantLabel") or "Standard",
                 "priceMinor": p["priceMinor"],
                 "inventory": 0,
