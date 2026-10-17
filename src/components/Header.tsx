@@ -39,6 +39,8 @@ interface NavSection {
   /** Some structural headings are also real destinations. */
   headingHref?: string;
   headingMatch?: string;
+  /** Render this section's destinations with the standard nested-row treatment. */
+  nestedLinks?: boolean;
   links: NavLink[];
 }
 
@@ -164,16 +166,11 @@ const COLUMNS: NavColumn[] = [
       },
       {
         heading: 'Extras',
+        nestedLinks: true,
         links: [
-          {
-            label: 'Perks',
-            href: '/perks/',
-            match: '/perks',
-            children: [
-              { label: 'Google Play', href: 'https://wecare.digital/', searchTerms: [ 'android', 'play store', 'google play store' ] },
-              { label: 'App Store', href: 'https://wecare.digital/', searchTerms: [ 'apple', 'ios', 'iphone', 'apple app store' ] },
-            ],
-          },
+          { label: 'Perks', href: '/perks/', match: '/perks' },
+          { label: 'Google Play', href: 'https://wecare.digital/', searchTerms: [ 'android', 'play store', 'google play store' ] },
+          { label: 'App Store', href: 'https://wecare.digital/', searchTerms: [ 'apple', 'ios', 'iphone', 'apple app store' ] },
         ],
       },
       {
@@ -660,7 +657,7 @@ const Header: React.FC = () => {
                             { link.href ? (
                               <a
                                 href={ link.href }
-                                className={ `nav-item ${isActive( link ) ? 'active' : ''}`.trim() }
+                                className={ `nav-item ${section.nestedLinks ? 'nav-child' : ''} ${isActive( link ) ? 'active' : ''}`.trim() }
                                 aria-current={ isActive( link ) ? 'page' : undefined }
                                 onClick={ event => handleNavClick( event, link ) }
                               >
@@ -673,7 +670,7 @@ const Header: React.FC = () => {
                                   <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
                                 </svg>
                                 <span className="nav-item-label">{ link.label }</span>
-                                { link.children?.length ? (
+                                { ( section.nestedLinks || link.children?.length ) ? (
                                   <svg className="nav-row-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                                     <path d={ ROW_CHEVRON_PATH } />
                                   </svg>

@@ -115,17 +115,17 @@ describe( 'Header', () => {
     expect( screen.queryByRole( 'link', { name: 'Blog' } ) ).toBeNull();
 
     const perks = screen.getByRole( 'link', { name: 'Perks' } );
-    const perksTree = perks.closest( '.nav-tree-item' );
-    expect( perks ).toHaveAttribute( 'href', '/perks/' );
-    expect( perksTree ).toHaveClass( 'has-children' );
-    expect( perksTree?.querySelector( '.nav-row-chevron' ) ).not.toBeNull();
-
     const googlePlay = screen.getByRole( 'link', { name: 'Google Play' } );
     const appStore = screen.getByRole( 'link', { name: 'App Store' } );
-    expect( googlePlay ).toHaveClass( 'nav-child' );
-    expect( appStore ).toHaveClass( 'nav-child' );
+
+    expect( perks ).toHaveAttribute( 'href', '/perks/' );
     expect( googlePlay ).toHaveAttribute( 'href', 'https://wecare.digital/' );
     expect( appStore ).toHaveAttribute( 'href', 'https://wecare.digital/' );
+
+    for ( const link of [ perks, googlePlay, appStore ] ) expect( link ).toHaveClass( 'nav-child' );
+    expect( Array.from( extras?.querySelectorAll( 'a.nav-item' ) || [] ).map( link => link.textContent ) )
+      .toEqual( [ 'Perks', 'Google Play', 'App Store' ] );
+    expect( extras?.querySelectorAll( '.nav-row-chevron' ) ).toHaveLength( 3 );
 
     const search = screen.getByLabelText( 'Search navigation' );
     fireEvent.change( search, { target: { value: 'blog' } } );
