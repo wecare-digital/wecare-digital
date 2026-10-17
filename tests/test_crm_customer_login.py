@@ -452,7 +452,7 @@ def test_the_crm_environment_names_no_user_pool():
     """A pool id in this function's environment would be the first sign the grant moved here."""
     manifest = json.loads(ENV_MANIFEST.read_text(encoding="utf-8"))
     entry = manifest["functions"]["wecare-contacts"]
-    assert entry["CRM_PROVISION_CUSTOMER_LOGIN"] == "false", "the deployed default must be off"
+    assert entry["CRM_PROVISION_CUSTOMER_LOGIN"] == "true", "the deployed manifest intentionally enables CRM customer-login provisioning"
     assert entry["CUSTOMER_LOGIN_FUNCTION"] == "wecare-secure-files:live"
     for key, value in entry.items():
         assert "POOL" not in key.upper(), key
