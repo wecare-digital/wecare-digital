@@ -99,6 +99,12 @@ def create(dry_run: bool) -> str:
     ddb().update_continuous_backups(
         TableName=TABLE,
         PointInTimeRecoverySpecification={"PointInTimeRecoveryEnabled": True})
+    # Join the AWS Backup plan: apply the backup=daily tag (and re-affirm PITR) so
+    # this table gets retained snapshots, not just continuous recovery.
+    import table_backup_defaults  # scripts/, next to this file
+    posture = table_backup_defaults.apply(TABLE)
+    if "error" in str(posture["tagged"]):
+        raise SystemExit(f"backup tag not applied for {TABLE}: {posture}")
     return "created"
 
 
