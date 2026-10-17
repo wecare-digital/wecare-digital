@@ -106,9 +106,9 @@ export const PAYMENT_DETAILS = {
   // It must stay identical to _WECARE_UPI_VPA in
   // amplify/functions/messaging/whatsapp-business-api/handler.py, which is the
   // authoritative copy (overridable there via RAZORPAY_UPI_ID). Two earlier
-  // VPAs are retired and must never reappear: one @kotak address that was still
-  // hardcoded in [retired public path]/link, and one @icici address noted in the architecture
-  // page. A stale VPA does not error - it silently collects money elsewhere.
+  // VPAs are retired and must never reappear (one @kotak address once hardcoded
+  // in the pay-link page, one bank-suffixed address once noted on the architecture
+  // page). A stale VPA does not error - it silently collects money elsewhere.
   upiVpa: 'wecaredigitalbh511413.rzp@rxairtel',
 };
 

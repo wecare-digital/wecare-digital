@@ -372,8 +372,8 @@ const ENV_VARS: EnvVar[] = [
   { key: 'NEXT_PUBLIC_FB_APP_ID', value: '(empty — SDK still loads)', sensitive: false, category: 'Analytics', risk: 'FB SDK loads but sends no data' },
   // Payment identifiers — env-sourced (RAZORPAY_MID / RAZORPAY_UPI_ID), not secrets. A merchant
   // id and a UPI payee address are public by construction (they appear in every deep link and QR).
-  // Authoritative values owner-confirmed 2026-09-30 against the live Meta config; the earlier
-  // [retired Razorpay account] / @icici pair was stale and has been retired.
+  // Authoritative values owner-confirmed 2026-09-30 against the live Meta config; an earlier
+  // merchant-id / UPI-VPA pair was stale and has been retired.
   { key: 'Razorpay MID (env RAZORPAY_MID)', value: 'acc_TTFSyolquKEZEy', sensitive: false, category: 'Payments — Identifier', risk: 'Non-secret merchant id; matched against Meta config by payment_readiness' },
   { key: 'Razorpay UPI VPA', value: '(env RAZORPAY_UPI_ID)', sensitive: false, category: 'Payments — Identifier', risk: 'Configured server-side and used in payment deep links/QR' },
   // Secrets Manager entries (server-side, properly stored)
