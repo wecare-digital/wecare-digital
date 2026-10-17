@@ -5,7 +5,7 @@ import { addItem, type CartItem } from '../lib/cart';
 import type { ShopProduct } from '../content/shop';
 import { getSession, restoreSession } from '../lib/customerAuth';
 import { CHECKOUT_PATH, SIGN_IN_PATH } from '../lib/serviceEntry';
-import { productCheckoutLine, isPlaceholderCheckout } from '../config/productCheckout';
+import { productCheckoutLine } from '../config/productCheckout';
 
 /**
  * THE PRODUCT "CONTINUE TO CHECKOUT" ACTION, mounted under the WhatsApp CTA on nine pages (Expo
@@ -17,22 +17,14 @@ import { productCheckoutLine, isPlaceholderCheckout } from '../config/productChe
  * prices and collects. The WhatsApp pill above is untouched; this renders beneath it through
  * ProductPage's `belowCta` slot.
  *
- * TEMPORARY ₹1 LINE. These products have no real catalogue line yet, so the button checks out a
- * REAL ₹1 catalogue product (see src/config/productCheckout.ts) — the whole format is live and paid
- * end to end, and going real for a product is a one-line edit in that config. The price shown is
- * the line's own `formattedPrice` (the catalogue's), in /anew/'s `.pdp-price` treatment; the
- * server re-prices on prepare, so the browser never sends an amount.
+ * A product buy box renders only when a fresh configured checkout line exists. There is no
+ * fallback product and no legacy checkout mapping. The server remains the price authority.
  */
 
 interface ProductBuyBoxProps {
   /** The product page's slug, e.g. 'elsewhere'. Chooses the checkout line from the config. */
   slug: string;
-  /**
-   * Show the buy box's own price line. Default true. Set FALSE on a page that already prints a
-   * price through ProductPage's `price` prop (today only /anew/, which shows its real ₹599) — so
-   * the ₹1 placeholder figure does not sit beside the real one and read as two competing prices.
-   * The checkout still charges the server-decided amount regardless of what is shown.
-   */
+  /** Show the configured product price line. Default true. */
   showPrice?: boolean;
 }
 
@@ -109,10 +101,7 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( { slug, showPrice = true }
         { busy ? 'One moment…' : label }
       </button>
 
-      {/* The price, in /anew/'s own treatment: just the amount, no extra copy. While on the ₹1
-          placeholder this reads ₹1.00; it becomes the product's real price the moment its config
-          entry is added. Hidden when `showPrice` is false (a page already printing its own price,
-          e.g. /anew/'s ₹599) so two prices never sit side by side. */}
+      {/* Configured price for the fresh catalog line. */}
       { showPrice && (
         <p className="pbb-buy">
           <span className="pbb-price" data-wc-no-translate="true">{ line.formattedPrice }</span>
@@ -175,6 +164,3 @@ function addProductLine ( line: NonNullable<ReturnType<typeof productCheckoutLin
 }
 
 export default ProductBuyBox;
-
-// Re-exported so a quiet "in testing" note could be shown per page if ever wanted.
-export { isPlaceholderCheckout };
