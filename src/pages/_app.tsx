@@ -88,6 +88,7 @@ import SupportWidget from '../components/SupportWidget';
 import ErrorBoundary from '../components/ErrorBoundary';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import PublicFooterBand from '../components/PublicFooterBand';
 import { ToastProvider } from '../contexts/ToastContext';
 import { ConfirmProvider } from '../contexts/ConfirmContext';
 import { initCapacitor, isNative } from '../lib/capacitor';
@@ -1179,6 +1180,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
             no direct gtag.js accompanies it. */}
         <Header />
         <Component { ...pageProps } />
+        <PublicFooterBand />
         <Footer />
         {/* WhatsApp contact + page translation. This comment used to read "translation +
             read-aloud, public pages only, and deliberately not on the authenticated
