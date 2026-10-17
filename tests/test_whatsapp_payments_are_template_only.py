@@ -462,7 +462,7 @@ class _Quote:
 
 #: The live Request services product and one of its variants: `payment_details` builds Meta retailer
 #: ids, which accept only catalog UUIDs.
-_SESSION = {'kind': 'SUBMIT_REQUEST', 'productId': 'df976a0a-f582-4535-b2e1-d532f348bd27', 'variantId': '864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b'}
+_SESSION = {'kind': 'SUBMIT_REQUEST', 'productId': '11111111-1111-4111-8111-111111111111', 'variantId': '33333333-3333-4333-8333-333333333333'}
 
 
 def _payment_details(configuration='WECAREDIGITAL', reference='WD-PAY-CATALOG1'):
