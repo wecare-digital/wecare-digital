@@ -721,6 +721,18 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
         "updatedAt": 0,  # stable across retries of the exact same basket
         "lineItems": native_lines,
     }
+    # The always-on "Delight" goodwill discount (0.5% up to ₹100), auto-applied SERVER-SIDE on
+    # every PRODUCT order so the customer cannot clear it from the browser. Priced through the one
+    # coupon renderer (`coupon_store.discount_paise` via the shared default definition), clamped at
+    # the subtotal and capped at ₹100 inside that renderer.
+    #
+    # SUPPRESSED for a basket that contains a SERVICE line (Submit Request / Vault / Drop Docs /
+    # Amendment / Pickup): a service is priced "to the paise" against its exact catalogue price, a
+    # contract pinned by `test_service_lines_dropdocs_vault` and the `serviceLine` PAYREF# row, so
+    # a percentage discount would move the frozen per-line price and trip `ServicePriceChanged`.
+    from lambda_utils.ecommerce import default_coupon, service_requests
+    coupon_definition = (None if service_requests.has_service_line(line_items)
+                         else default_coupon.delight_definition())
     return native_checkout.quote_native_cart(
         ephemeral_cart,
         product_reader=reader,
@@ -729,6 +741,7 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
         ttl_seconds=WEBSITE_SNAPSHOT_TTL_SECONDS,
         shipping_policy=native_shipping.ShippingPolicy(),  # free by default; policy via config
         gst_bps=0,  # catalog prices are GST-inclusive today; no double-tax
+        coupon_definition=coupon_definition,
     )
 
 
