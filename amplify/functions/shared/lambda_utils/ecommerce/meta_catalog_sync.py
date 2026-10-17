@@ -71,48 +71,13 @@ CURRENCY = "INR"
 # Service payment vehicles have dedicated public routes and no /shop/<slug>/ page.
 # Stable identities mirror src/config/services.ts; prices come from ProductsTable like any other.
 SERVICE_PRODUCT_ID = ''
-SERVICE_PATH_BY_VARIANT = {
-    "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b": "/submit-request/",
-    "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b": "/request-amendment/",
-    "db166bc8-a763-41ec-9f65-0f718f18155a": "/drop-docs/",
-    "dcff995e-448c-493a-9259-f6a82ccdc2b4": "/vault/",
-    # Added 2026-10-10 with the fifth service variant. A SERVICE VARIANT WITHOUT A ROUTE IS NOT A
-    # COSMETIC GAP: `desired_items` omits `url` entirely for one, and `_batch_requests` in the
-    # handler reads `item["url"]` to build Meta's `link` - so a routeless variant takes the whole
-    # sync down with a KeyError rather than publishing a linkless item. The page this names is
-    # src/pages/request-pickup.tsx, and this map is what decides the address it answers on.
-    "8ee7e325-d772-4452-a993-5c79e927d42b": "/request-pickup/",
-}
+SERVICE_PATH_BY_VARIANT = {}
 
-SERVICE_ARTWORK_BY_VARIANT = {
-    "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b":
-        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/submit-request-4096.png",
-    "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b":
-        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/request-amendment-4096.png",
-    "db166bc8-a763-41ec-9f65-0f718f18155a":
-        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/drop-docs-4096.png",
-    "dcff995e-448c-493a-9259-f6a82ccdc2b4":
-        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/vault-4096.png",
-    "8ee7e325-d772-4452-a993-5c79e927d42b":
-        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/request-pickup-4096.png",
-}
+SERVICE_ARTWORK_BY_VARIANT = {}
 
 # Customer-facing service copy is variant-specific; the shared product description
 # contains operational details for several services and is not catalog copy.
-SERVICE_COPY_BY_VARIANT = {
-    "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b":
-        ("Submit Request", "Get help with your existing order."),
-    "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b":
-        ("Request Amendment", "Request a change to your existing order."),
-    "db166bc8-a763-41ec-9f65-0f718f18155a":
-        ("Drop Docs", "Upload documents for your order."),
-    "dcff995e-448c-493a-9259-f6a82ccdc2b4":
-        ("Vault", "Access and download your documents."),
-    "8ee7e325-d772-4452-a993-5c79e927d42b":
-        # "Arrange", not "book": a collection depends on a courier agreeing to it, which is the
-        # same claim /request-pickup/ makes. This wording is stack's and is kept as it stands.
-        ("Request Pickup", "Arrange pickup of documents for your order."),
-}
+SERVICE_COPY_BY_VARIANT = {}
 
 #: THE ONLY FIELDS THAT MAY REACH META, as an explicit allowlist rather than "whatever is in the
 #: dict". An item also carries `product_name`, which is a grouping label for `blockers` and for
@@ -153,17 +118,9 @@ COMPARED_FIELDS = ("name", "description", "availability", "price", "currency", "
 CONTRIBUTION_PRODUCT_ID = ''
 CONTRIBUTION_CTA_URL = "https://wa.me/message/BYFLCAAMSZBXD1"
 
-#: The ₹1 test product - a catalogue test row that is not this storefront and must never reach a
-#: customer-facing WhatsApp catalogue, whatever its visibility flags say (it is also hidden from
-#: /shop/ by `isTestProductRow` in shop.ts). Excluded BY SLUG ONLY (`1-test-product`),
-#: deliberately NOT by id: the projection unit tests reuse this product's real id as a throwaway
-#: fixture under neutral slugs ("x", "imageless", "wecaredigital-services"), and those fixtures
-#: must stay syncable. The real row carries slug `1-test-product`, which the id-reuse fixtures
-#: never do, so a slug gate drops exactly the real row and nothing else. It stays in ProductsTable
-#: and in the committed snapshot (the generator owns that artifact); this keeps it out of the Meta
-#: projection.
-TEST_PRODUCT_SLUGS: Tuple[str, ...] = ("1-test-product",)
-
+#: No retired catalog slug is special-cased. Fresh catalog rows are controlled only by their
+#: current publication flags.
+TEST_PRODUCT_SLUGS: Tuple[str, ...] = ()
 _TEST_PRODUCT_SLUGS = frozenset(TEST_PRODUCT_SLUGS)
 
 #: Stripped from `descriptionHtml`. The catalogue stores the description as HTML; Meta wants plain
@@ -241,18 +198,7 @@ def is_syncable(product: Mapping[str, Any]) -> bool:
 
     Two exclusions and no more:
 
-    1. the ₹1 test product, BY SLUG ONLY (`1-test-product`, compared `.strip().lower()`) - not by
-       id, unlike `isTestProductRow` in `src/content/shop.ts`, because the projection unit tests
-       reuse its id as a fixture under neutral slugs that must stay syncable;
-    2. `visible is False` - identity against `False`, not truthiness, so an ABSENT `visible` key
-       means visible. Treating absence as hidden would empty the catalogue on a shape change.
-
-    The Meta channel flag (`metaEnabled`) is applied before this, in the Lambda's ProductsTable
-    read, so it is not repeated here.
-    """
-    if not isinstance(product, Mapping):
-        return False
-    slug = str(product.get("slug") or "").strip().lower()
+        slug = str(product.get("slug") or "").strip().lower()
     if slug in _TEST_PRODUCT_SLUGS:
         return False
     if product.get("visible") is False:
