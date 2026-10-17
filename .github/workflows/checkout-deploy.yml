@@ -1,0 +1,72 @@
+name: Checkout deploy
+
+on:
+  push:
+    branches: [stack]
+    paths:
+      - 'amplify/functions/ecommerce/checkout/**'
+      - 'amplify/functions/shared/lambda_utils/ecommerce/**'
+      - 'amplify/functions/shared/lambda_utils/customer_auth.py'
+      - 'amplify/functions/shared/lambda_utils/identifiers.py'
+      - 'scripts/deploy_all_lambdas.py'
+      - 'scripts/snapstart_publish.py'
+      - '.github/workflows/checkout-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checkout-deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install deploy dependency
+        run: python -m pip install --disable-pip-version-check boto3==1.43.98
+
+      - name: Assume checkout-only deployment role
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::775261844268:role/GitHubActions-wecare-checkout-deploy
+          role-session-name: checkout-deploy
+          aws-region: us-east-1
+
+      - name: Require production account
+        run: test "$(aws sts get-caller-identity --query Account --output text)" = "775261844268"
+
+      - name: Validate checkout package
+        run: |
+          python -m py_compile amplify/functions/ecommerce/checkout/handler.py
+          python scripts/deploy_all_lambdas.py --dry-run wecare-checkout
+
+      - name: Deploy checkout
+        run: python scripts/deploy_all_lambdas.py wecare-checkout
+
+      - name: Verify live alias serves latest code
+        run: |
+          python - <<'PY'
+          import boto3
+          lam = boto3.client("lambda", region_name="us-east-1")
+          name = "wecare-checkout"
+          latest = lam.get_function_configuration(FunctionName=name)["CodeSha256"]
+          alias = lam.get_alias(FunctionName=name, Name="live")["FunctionVersion"]
+          served = lam.get_function_configuration(
+              FunctionName=f"{name}:{alias}"
+          )["CodeSha256"]
+          print(f"{name}: live=v{alias} current={served == latest}")
+          if served != latest:
+              raise SystemExit("wecare-checkout live alias does not serve latest code")
+          PY
