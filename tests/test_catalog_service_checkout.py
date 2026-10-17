@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.usefixtures("synthetic_service_catalog")
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'amplify/functions/shared'))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -33,9 +35,8 @@ def test_a_paid_attempt_with_a_finalized_native_order_unlocks_service():
 
 from lambda_utils.ecommerce import service_requests
 from lambda_utils import customer_auth
-from synthetic_service_catalog import PRODUCT, configure as configure_services
+from synthetic_service_catalog import PRODUCT
 
-configure_services(service_requests)
 VARIANTS = service_requests.SERVICE_KIND_BY_VARIANT
 
 
