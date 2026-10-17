@@ -92,7 +92,7 @@ class FakeTable:
 def _products(stock=3):
     return FakeTable(key_attr="id", items=[{
         "id": "prod-1", "status": "active",
-        "variants": [{"sku": "V1", "inventory": stock}],
+        "variants": [{"sku": "V1", "inventory": stock, "trackInventory": True, "inventoryVerified": True}],
     }])
 
 
