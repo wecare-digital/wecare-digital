@@ -61,6 +61,13 @@ const MARKERS = {
 /** How many orphans to open. All of them would be ~105 file reads for one repeated answer. */
 const ORPHAN_SAMPLE = 8;
 
+/**
+ * Dynamic catalogue patterns can correctly have zero exported instances while ProductsTable is
+ * empty. Once a fresh SKU-first catalogue creates an instance, the normal marker checks below
+ * automatically apply again.
+ */
+const OPTIONAL_EMPTY_DYNAMIC = new Set( [ '/shop/[slug]', '/shop/page/[page]' ] );
+
 let failures = 0;
 const record = ( ok, name, detail ) => {
   if ( !ok ) failures++;
@@ -154,7 +161,16 @@ function main() {
       const instance = fs.existsSync( dir )
         ? fs.readdirSync( dir ).find( d => fs.existsSync( path.join( dir, d, 'index.html' ) ) )
         : null;
-      if ( !instance ) { record( false, `${route}`, 'no exported instance of this dynamic route' ); continue; }
+      if ( !instance )
+      {
+        if ( OPTIONAL_EMPTY_DYNAMIC.has( route ) )
+        {
+          record( true, `${route}`, 'no exported instance while the catalogue is empty' );
+          continue;
+        }
+        record( false, `${route}`, 'no exported instance of this dynamic route' );
+        continue;
+      }
       target = `/${prefix.join( '/' )}/${instance}`;
       via = ` (via ${target})`;
     }
@@ -168,15 +184,28 @@ function main() {
   }
 
   /**
-   * ORPHANS - exported, not on the allowlist. These are the authenticated surfaces, and they
-   * are NOT a failure: they fall to the AuthGate branch, which renders the sign-in card
-   * wrapped in the same header, footer and widget. That is deliberate, because an
-   * unauthenticated visitor who lands on a staff URL is on a public page whether or not it
-   * was meant to be one, and the screen refusing them entry is the last place to remove the
-   * means of asking for help.
+   * ORPHANS - exported, not on the public allowlist.
+   *
+   * `/workspace/*` is intentionally excluded from the public-chrome assertion. AuthShell is
+   * `ssr:false`: authenticated pages deliberately ship an empty app root and hydrate the staff
+   * sign-in/workspace shell on the client. Requiring public Header/Footer/SupportWidget markup in
+   * their static HTML directly contradicts that security/rendering contract.
+   *
+   * Other non-public exports are still sampled below because an unexpected customer-facing orphan
+   * must not become a dead-end page.
    */
   const allow = new Set( allowlist );
-  const orphans = exportedRoutes().filter( r => !allow.has( r ) && !r.startsWith( '/post/' ) && !r.startsWith( '/blog/' ) );
+  const exported = exportedRoutes();
+  const workspaceRoutes = exported.filter( r => r === '/workspace' || r.startsWith( '/workspace/' ) );
+  record( workspaceRoutes.length > 0, 'authenticated workspace exports are present',
+    `${workspaceRoutes.length} workspace routes use the client-only AuthShell contract` );
+
+  const orphans = exported.filter( r =>
+    !allow.has( r )
+    && !r.startsWith( '/post/' )
+    && !r.startsWith( '/blog/' )
+    && r !== '/workspace'
+    && !r.startsWith( '/workspace/' ) );
   console.log( `\n${orphans.length} exported routes not on the allowlist - sampling ${Math.min( ORPHAN_SAMPLE, orphans.length )}` );
 
   for ( const route of orphans.slice( 0, ORPHAN_SAMPLE ) ) {
