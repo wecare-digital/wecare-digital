@@ -87,9 +87,7 @@ SERVICE_CURRENCY = "INR"
 #: The ProductsTable product that carries every service variant, lowercased. A catalogue key, not
 #: a secret (`Request`, renamed from `WECARE.DIGITAL Services` on 2026-10-10, PHYSICAL, five
 #: variants).
-SERVICE_PRODUCT_IDS: FrozenSet[str] = frozenset({
-    "df976a0a-f582-4535-b2e1-d532f348bd27",
-})
+SERVICE_PRODUCT_IDS: FrozenSet[str] = frozenset()
 
 #: Request kinds. A REQUEST lifecycle vocabulary, unrelated to payment status.
 SUBMIT_REQUEST = "SUBMIT_REQUEST"
@@ -101,18 +99,10 @@ REQUEST_PICKUP = "REQUEST_PICKUP"
 #: THE ONLY FIVE SERVICES THAT CAN BE BOUGHT, as ``{variant id: kind}``. NO PRICE: the mapping is
 #: stable catalogue identity; the price is ProductsTable's and is read from the frozen quote at
 #: checkout. Mirrored in src/config/services.ts as SERVICE_CHOICES.
-SERVICE_KIND_BY_VARIANT: Mapping[str, str] = MappingProxyType({
-    # RETIRED catalogue identities retained only so historical paid records can still be decoded.
-    "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b": SUBMIT_REQUEST,
-    "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b": REQUEST_AMENDMENT,
-    "db166bc8-a763-41ec-9f65-0f718f18155a": DROP_DOCS,
-    "dcff995e-448c-493a-9259-f6a82ccdc2b4": VAULT,
-    "8ee7e325-d772-4452-a993-5c79e927d42b": REQUEST_PICKUP,
-})
+SERVICE_KIND_BY_VARIANT: Mapping[str, str] = MappingProxyType({})
 
-#: New checkout is disabled for these retired identities. Historical fulfilment/payref decoding
-#: still needs the mapping above, but no new payment may be created until the SKU-first catalogue
-#: replaces it.
+#: No legacy catalog identity is recognized. Fresh SKU-first service identities will be wired
+#: when the new catalog is created.
 SERVICE_PURCHASES_ENABLED = False
 
 #: THE CATASTROPHE RAIL, and the only bound on a service line now that ProductsTable owns the
