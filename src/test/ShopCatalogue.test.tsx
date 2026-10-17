@@ -561,7 +561,7 @@ describe( 'the product page', () => {
     expect( ld( productLd ).image ).toBe( withImage.image );
     expect( ld( ld( productLd ).offers )[ '@type' ] ).toBe( 'Offer' );
     // The price in the markup is the same number the page prints, read from the same field.
-    expect( ld( ld( productLd ).offers ).price ).toBe( '24999.00' );
+    expect( ld( ld( productLd ).offers ).price ).toBe( withImage.price );
     expect( ld( ld( productLd ).offers ).priceCurrency ).toBe( 'INR' );
     expect( ld( ld( productLd ).offers ).availability ).toBe( 'https://schema.org/InStock' );
     // And the page points at it, so the reference resolves.
