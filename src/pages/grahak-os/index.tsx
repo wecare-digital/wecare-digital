@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import PageMeta from '../../components/PageMeta';
 import PublicShare from '../../components/PublicShare';
+import ProductBuyBox from '../../components/ProductBuyBox';
 import RotatingHero from '../../components/RotatingHero';
 import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, PRODUCT_SKU_BY_SLUG } from '../../content/productCommerce';
 
@@ -461,6 +462,7 @@ response = requests.post(
                   <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
                   <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp</a>
                 </div>
+                <ProductBuyBox slug="grahak-os" showPrice={ false } />
                 <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span></p>
                 {/* Same mechanism as the api-steps block above: SKU via the imported
                     PRODUCT_SKU_BY_SLUG map and the policy via PRODUCT_POLICY_TITLE /
