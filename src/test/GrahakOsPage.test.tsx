@@ -117,6 +117,96 @@ describe( 'Grahak OS five approved visual fixes', () => {
 } );
 
 /**
+ * The owner-approved numbered 1-2-3 step block that replaced the old .api-info copy in
+ * the "Built for your stack" section (<section id="api"> / .api-grid). The step block is
+ * the LEFT column; the code panel (.api-demo) stays the RIGHT column, unchanged. These
+ * assertions pin the new truth exactly - heading, three numbered steps (DRAFT copy),
+ * checkout + demo buttons wired to the EXISTING mechanism/price/SKU/demo link, and the
+ * imported shipping/cancellation/refund disclaimer. Do not loosen to vague matchers.
+ */
+describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack section', () => {
+  const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
+  const source = readFileSync( pagePath, 'utf8' );
+
+  it( 'carries the owner-approved consulting heading on the .api-info h2 rung', () => {
+    // Exact owner-approved heading theme. The old left-column heading is gone.
+    expect( source ).toContain( '<h2>Deploy an ecosystem of AI agents to own Enterprise Outcomes</h2>' );
+    expect( source ).not.toContain( '<h2>Built for your stack</h2>' );
+    // The LEFT column is still .api-info (so it keeps the h2 type rung) and now also
+    // carries .api-steps.
+    expect( source ).toContain( 'className="api-info api-steps"' );
+  } );
+
+  it( 'renders three numbered steps 1-2-3 in the /anew/ pattern with DRAFT copy', () => {
+    expect( source ).toContain( 'className="api-steps-list"' );
+    // Visible step numbers 1, 2, 3, each aria-hidden (the ordered list carries order).
+    expect( source ).toContain( '<span className="api-step-num" aria-hidden="true">1</span>' );
+    expect( source ).toContain( '<span className="api-step-num" aria-hidden="true">2</span>' );
+    expect( source ).toContain( '<span className="api-step-num" aria-hidden="true">3</span>' );
+    // Each step has a short title + one supporting line.
+    expect( source ).toContain( '<h3 className="api-step-title">Map your outcomes</h3>' );
+    expect( source ).toContain( '<h3 className="api-step-title">Deploy the agent ecosystem</h3>' );
+    expect( source ).toContain( '<h3 className="api-step-title">Own the result</h3>' );
+    // Copy is clearly marked DRAFT placeholder - final wording pending owner approval.
+    const stepLines = source.match( /className="api-step-line">DRAFT: /g ) || [];
+    expect( stepLines.length ).toBe( 3 );
+  } );
+
+  it( 'wires the checkout button to the existing WhatsApp pill mechanism (no new checkout, no ProductBuyBox)', () => {
+    // The paid-checkout door is the existing .gos-wa-cta WhatsApp pill; the step block
+    // reuses that exact pill and href. ProductBuyBox stays removed.
+    expect( source ).toContain( 'className="api-steps-ctas"' );
+    expect( source ).toContain( '<a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>' );
+    // ProductBuyBox is neither imported nor rendered (comments documenting its removal
+    // are allowed, so strip comments before asserting).
+    const codeNoComments = source.replace( /\/\*[\s\S]*?\*\//g, '' ).replace( /^\s*\/\/.*$/gm, '' );
+    expect( codeNoComments ).not.toContain( 'ProductBuyBox' );
+    // The existing ₹899 price with its exact caption is surfaced in the step block.
+    expect( source ).toContain( '&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span>' );
+  } );
+
+  it( 'reuses the existing "See it on WhatsApp" demo link as the demo button', () => {
+    // Demo button reuses the exact existing link: href + target + rel + label.
+    const demoLinks = source.match( /className="api-action-link"/g ) || [];
+    expect( demoLinks.length ).toBeGreaterThanOrEqual( 1 );
+    expect( source ).toContain( 'href="https://wa.me/message/APDM5HUWH26SG1"' );
+    expect( source ).toContain( 'target="_blank"' );
+    expect( source ).toContain( 'rel="noopener noreferrer"' );
+    expect( source ).toContain( 'See it on WhatsApp' );
+  } );
+
+  it( 'surfaces the existing SKU and disclaimer from the imported constants, not retyped', () => {
+    // SKU via the imported map; policy via the imported title/text constants.
+    expect( source ).toContain( "PRODUCT_SKU_BY_SLUG['grahak-os']" );
+    expect( source ).toContain( '<strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }' );
+    // The imports are present at the top of the file.
+    expect( source ).toContain( "import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, PRODUCT_SKU_BY_SLUG } from '../../content/productCommerce';" );
+  } );
+
+  it( 'uses only existing design tokens for the step block and introduces no new palette', () => {
+    const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
+    // Lime disc + dark-green text, the page's own tokens.
+    expect( code ).toContain( '.api-step-num{' );
+    expect( code ).toContain( 'background:#d1f470;color:#1a3a2a' );
+    // Supporting line uses the muted body token.
+    expect( code ).toContain( '.api-step-line{' );
+    expect( code ).toContain( 'color:rgba(0,0,0,.6)' );
+    // No retired colours leak into the step block CSS.
+    expect( code ).not.toContain( '#2f6b52' );
+    expect( code ).not.toContain( '#075e54' );
+    expect( code ).not.toContain( '#1e293b' );
+    expect( code ).not.toContain( '#4b5563' );
+  } );
+
+  it( 'stacks the step block FIRST above the code panel at <=767px', () => {
+    const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
+    // Step block ordered before the code panel when the grid stacks.
+    expect( code ).toContain( '.api-steps{order:0}' );
+    expect( code ).toContain( '.api-demo{order:1' );
+  } );
+} );
+
+/**
  * The accessibility and head defects found by measuring the built export, not the source.
  *
  * Every assertion here exists because the page passed all five browser harness suites

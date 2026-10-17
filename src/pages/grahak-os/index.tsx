@@ -405,38 +405,67 @@ response = requests.post(
 
         <section className={`api anim ${armed ? 'is-armed' : ''} ${show('api') ? 'show' : ''}`} id="api">
           <div className="api-grid">
-            <div className="api-info">
-              <h2>Built for your stack</h2>
-              {/* Rewritten because the old line repeated the hero almost word for word
-                  - "messaging, customer data, automation and campaigns" appeared in
-                  both, and the same four pillars were being restated a third and fourth
-                  time further down the page. A developer section should say something
-                  the hero does not.
-                  Grounded rather than written to sound good: the spec really does
-                  expose one outbound endpoint per channel (/outbound-whatsapp,
-                  /outbound-sms, /outbound-email, /outbound-voice), auth really is a
-                  bearer token, and the canonical message store is the one in
-                  docs/UNIFIED_MESSAGE_TABLE_DESIGN.md. */}
-              <p className="api-desc">One POST per channel and a bearer token. Every message lands in the same canonical store the workspace reads, so your API traffic and your inbox are never two separate histories.</p>
-              {/* "In action" link, placed on the side OPPOSITE the code panel - the left
-                  .api-info column - so the row reads "here is the API, and here is it
-                  running". The destination is our own WhatsApp click-to-chat short link
-                  (wa.me/message/...), so "see it in action" opens a real conversation
-                  with us on WhatsApp - the platform the product is about - rather than a
-                  mock we assemble. External, so rel + target are set.
-                  Lime pill in the page's own #d1f470 with dark-green text, matching the
-                  .pp-tab.active treatment. */}
-              <div className="api-action">
-                <h3 className="api-action-head">See the WhatsApp Business Platform in action</h3>
-                <a
-                  className="api-action-link"
-                  href="https://wa.me/message/APDM5HUWH26SG1"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  See it on WhatsApp
-                  <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path d="M6 3h7v7h-1.5V5.56L4.56 12.5 3.5 11.44 10.44 4.5H6z" fill="currentColor"/></svg>
-                </a>
+            {/* LEFT column rebuilt into the owner-approved numbered-steps block. The code
+                panel (.api-demo) stays in the RIGHT column, unchanged. The /anew/ page's
+                1-2-3 step pattern is emulated here (visible number + short title + one
+                supporting line); only the PATTERN is borrowed, not Anew's copy or palette.
+                Everything reuses this page's existing tokens, the existing ₹899 price,
+                SKU GOS7K4M2 (PRODUCT_SKU_BY_SLUG['grahak-os']), the existing WhatsApp
+                checkout mechanism (.gos-wa-cta pill) and the existing demo link. */}
+            <div className="api-info api-steps">
+              {/* Owner-approved heading theme (consulting positioning). Reuses the
+                  .api-info h2 type rung. */}
+              <h2>Deploy an ecosystem of AI agents to own Enterprise Outcomes</h2>
+              {/* DRAFT PLACEHOLDER COPY: the three step lines below are placeholders.
+                  Final wording is pending owner approval - do not treat as final. */}
+              <ol className="api-steps-list" aria-label="How Grahak OS works (draft)">
+                <li className="api-step">
+                  <span className="api-step-num" aria-hidden="true">1</span>
+                  <div className="api-step-body">
+                    <h3 className="api-step-title">Map your outcomes</h3>
+                    <p className="api-step-line">DRAFT: Placeholder copy — we scope the enterprise outcomes each agent is accountable for.</p>
+                  </div>
+                </li>
+                <li className="api-step">
+                  <span className="api-step-num" aria-hidden="true">2</span>
+                  <div className="api-step-body">
+                    <h3 className="api-step-title">Deploy the agent ecosystem</h3>
+                    <p className="api-step-line">DRAFT: Placeholder copy — agents are wired across your channels and canonical data store.</p>
+                  </div>
+                </li>
+                <li className="api-step">
+                  <span className="api-step-num" aria-hidden="true">3</span>
+                  <div className="api-step-body">
+                    <h3 className="api-step-title">Own the result</h3>
+                    <p className="api-step-line">DRAFT: Placeholder copy — outcomes are measured and tuned against the goals we set together.</p>
+                  </div>
+                </li>
+              </ol>
+              {/* Checkout + demo buttons. The paid-checkout door on this page is the
+                  WhatsApp CTA pill (.gos-wa-cta) - ProductBuyBox was deliberately removed,
+                  so this reuses that exact pill mechanism and surfaces the existing ₹899
+                  price. The demo reuses the existing "See it on WhatsApp" link verbatim. */}
+              <div className="api-steps-buy">
+                <div className="api-steps-ctas">
+                  <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
+                  <a
+                    className="api-action-link"
+                    href="https://wa.me/message/APDM5HUWH26SG1"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    See it on WhatsApp
+                    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path d="M6 3h7v7h-1.5V5.56L4.56 12.5 3.5 11.44 10.44 4.5H6z" fill="currentColor"/></svg>
+                  </a>
+                </div>
+                <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span></p>
+                {/* Same mechanism as the closer's .gos-commerce: SKU via the imported
+                    PRODUCT_SKU_BY_SLUG map and the policy via PRODUCT_POLICY_TITLE /
+                    PRODUCT_POLICY_TEXT - not retyped. */}
+                <div className="gos-commerce">
+                  <p data-wc-no-translate="true"><strong>SKU:</strong> { PRODUCT_SKU_BY_SLUG['grahak-os'] }</p>
+                  <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }</p>
+                </div>
               </div>
             </div>
             <div className="api-demo">
@@ -1020,6 +1049,31 @@ response = requests.post(
           .api-action-link:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.18)}
           .api-action-link svg{flex:0 0 auto;display:block}
           @media(prefers-reduced-motion:reduce){ .api-action-link{transition:none} }
+          /* ===== Numbered 1-2-3 step block (new LEFT column) =====
+             Emulates the /anew/ step pattern (number + short title + one supporting
+             line) using ONLY this page's existing tokens: lime #d1f470, dark-green
+             #1a3a2a, body rgba(0,0,0,.898), muted rgba(0,0,0,.6), hairline #e5e7eb.
+             No new colours, no Anew palette. */
+          .api-steps h2{margin:0 0 28px}
+          .api-steps-list{list-style:none;margin:0 0 36px;padding:0;display:flex;flex-direction:column;gap:24px;max-width:460px}
+          /* Each step: a lime disc with the number, dark-green text, next to the copy. */
+          .api-step{display:flex;align-items:flex-start;gap:16px}
+          /* Lime number disc in the page's own #d1f470 with dark-green #1a3a2a text,
+             matching the .pp-tab.active / .api-action-link treatment. 44px disc also
+             anchors the row vertically. */
+          .api-step-num{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:#d1f470;color:#1a3a2a;font-size:20px;font-weight:700;line-height:1;letter-spacing:-.25px;font-variant-numeric:tabular-nums}
+          .api-step-body{min-width:0}
+          /* Card-heading rung (22px/700), one step below the section h2 in the same
+             column, so the outline is h2 -> h3 with no skipped level. */
+          .api-step-title{font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:rgba(0,0,0,.95);margin:0 0 6px}
+          /* Supporting line in the muted body token. */
+          .api-step-line{font-size:17px;font-weight:400;line-height:1.5;letter-spacing:-.05px;color:rgba(0,0,0,.6);margin:0}
+          /* Buy block: WhatsApp checkout pill + demo link, then price, then the policy
+             card. gos-ctas/gos-wa-cta/gos-price/gos-commerce reuse the closer's rules;
+             only the layout gaps are set here. */
+          .api-steps-buy{max-width:700px}
+          .api-steps-ctas{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+          .api-steps-buy .gos-price{text-align:left}
           /* Pure black, matching the hero .code-box. This panel was the last slate
              holdout: #1e293b is on the contract's retired list specifically "as the
              code panel body", yet it survived here after the hero panel was moved to
@@ -1217,7 +1271,13 @@ response = requests.post(
             .api-info{text-align:left}
             .api-info h2{margin-bottom:16px;text-align:left}
             .api-desc{max-width:100%;text-align:left}
-            .api-demo{border-radius:14px;max-width:100%;margin:0}
+            /* Stacked order: the step block comes FIRST (above the code panel). It is
+               already first in source order so the grid stacks it first; the explicit
+               order makes that intent survive any future markup reordering. */
+            .api-steps{order:0}
+            .api-demo{order:1;border-radius:14px;max-width:100%;margin:0}
+            .api-steps-list{max-width:100%}
+            .api-steps-buy{max-width:100%}
             .code-tabs{padding:16px;gap:10px;justify-content:flex-start;flex-wrap:wrap}
             .pp-tab{padding:14px 24px;font-size:18px}
             .code-block{font-size:14px;padding:18px;min-height:auto;text-align:left;white-space:pre-wrap;word-break:break-word;overflow-x:visible;line-height:1.7}
