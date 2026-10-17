@@ -3,7 +3,9 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'amplify/functions/shared'))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'amplify/functions/shared'))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lambda_utils.ecommerce import catalog_service_checkout as catalog
 
 
@@ -31,8 +33,9 @@ def test_a_paid_attempt_with_a_finalized_native_order_unlocks_service():
 
 from lambda_utils.ecommerce import service_requests
 from lambda_utils import customer_auth
+from synthetic_service_catalog import PRODUCT, configure as configure_services
 
-PRODUCT = next(iter(service_requests.SERVICE_PRODUCT_IDS))
+configure_services(service_requests)
 VARIANTS = service_requests.SERVICE_KIND_BY_VARIANT
 
 
