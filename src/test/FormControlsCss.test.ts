@@ -123,7 +123,10 @@ describe( 'form-controls.css — invariant 4', () => {
       // ServiceBuyBox's order-target picker (.sbb-select) is a skinned <select>, added with the
       // dual-channel "Continue to checkout" work. A legitimate new entry on this allow-list.
       'src/components/ServiceBuyBox.tsx',
-      'src/components/cart/CartPage.tsx',
+      // CartPage.tsx LEFT this list: its last native <select> skin, .cart-amount-select, was
+      // removed when the contribution amount became static text (single-use product, one fixed
+      // amount). Its variant picker is the <Select> component (a <button role="combobox">),
+      // which this census does not count.
       'src/components/dashboard/tabs/AppBuilderTab.tsx',
       'src/pages/workspace/engage/logs/index.tsx',
       'src/pages/workspace/engage/push/index.tsx',
@@ -150,15 +153,19 @@ describe( 'form-controls.css — invariant 4', () => {
     // 83/41/29 to these figures is in this file's header, property by property.
     // VayuLok's former native FX select was removed; the census is back to the
     // post-ServiceBuyBox totals and should stay frozen until a deliberate control-skin change.
-    expect( census.summary.ruleSets ).toBe( 65 );
-    expect( census.summary.files ).toBe( 22 );
-    expect( census.summary.geometryRuleSets ).toBe( 29 );
-    // A-global, A-module and C-injected are UNCHANGED from 1.3a. Only mechanism B moved, and
-    // only because elements moved - so a regression in the global stylesheets still fails here.
+    // 65 -> 63 ruleSets, 22 -> 21 files, 29 -> 28 geometry: the two .cart-amount-select rule
+    // sets (one geometry, one :focus-visible) were removed when the contribution amount became
+    // static text. Both were mechanism B (styled-jsx), so only that mechanism moves below.
+    expect( census.summary.ruleSets ).toBe( 63 );
+    expect( census.summary.files ).toBe( 21 );
+    expect( census.summary.geometryRuleSets ).toBe( 28 );
+    // A-global, A-module and C-injected are UNCHANGED. Only mechanism B moved, and only because
+    // the .cart-amount-select element was removed - so a regression in the global stylesheets
+    // still fails here.
     expect( census.summary.mechanisms[ 'A-global' ] ).toMatchObject( { ruleSets: 40, files: 8 } );
     expect( census.summary.mechanisms[ 'A-module' ] ).toMatchObject( { ruleSets: 0, files: 0 } );
-    // ServiceBuyBox remains the last styled-jsx select addition after VayuLok removed its native select.
-    expect( census.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 22, files: 12 } );
+    // B-styledjsx: 22 -> 20 rule sets, 12 -> 11 files (CartPage dropped its last native select).
+    expect( census.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 20, files: 11 } );
     expect( census.summary.mechanisms[ 'C-injected' ] ).toMatchObject( { ruleSets: 3, files: 2 } );
 
     // The allow-list entry for tokens.css no longer covers its `input, textarea` base rule, and

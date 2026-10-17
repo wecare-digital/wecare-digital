@@ -502,7 +502,6 @@
   "files": [
     "src/components/AddressFields.tsx",
     "src/components/ServiceBuyBox.tsx",
-    "src/components/cart/CartPage.tsx",
     "src/components/dashboard/tabs/AppBuilderTab.tsx",
     "src/pages/workspace/engage/logs/index.tsx",
     "src/pages/workspace/engage/push/index.tsx",
@@ -633,54 +632,6 @@
         "outline-offset": false
       },
       "sel": ".sbb-select:focus-visible",
-      "spec": [
-        0,
-        2,
-        0
-      ]
-    },
-    {
-      "classes": [
-        "cart-amount-select"
-      ],
-      "decls": "min-width:96px;min-height:var(--control-h); padding-block:0;padding-inline-start:var(--control-px); padding-inline-end:var(--control-arrow-pad); border:var(--control-border-w) solid var(--control-border); border-radius:var(--control-radius); font-family:inherit;font-size:16px;color:var(--control-fg); background-color:var(--control-bg);",
-      "file": "src/components/cart/CartPage.tsx",
-      "geometry": true,
-      "line": 1996,
-      "mech": "B-styledjsx",
-      "mode": "class",
-      "pairing": false,
-      "props": {
-        "border": false,
-        "border-radius": false,
-        "font-size": false,
-        "min-height": false,
-        "padding-block": false
-      },
-      "sel": ".cart-amount-select",
-      "spec": [
-        0,
-        1,
-        0
-      ]
-    },
-    {
-      "classes": [
-        "cart-amount-select"
-      ],
-      "decls": "outline:3px solid var(--accent) !important;outline-offset:2px; box-shadow:var(--focus-ring);",
-      "file": "src/components/cart/CartPage.tsx",
-      "geometry": false,
-      "line": 2007,
-      "mech": "B-styledjsx",
-      "mode": "class",
-      "pairing": false,
-      "props": {
-        "box-shadow": false,
-        "outline": true,
-        "outline-offset": false
-      },
-      "sel": ".cart-amount-select:focus-visible",
       "spec": [
         0,
         2,
@@ -1927,11 +1878,11 @@
     "sample": ".ui-planted{border:1px solid ${colors.border};border-radius:9px;padding:4px 8px} .ui-planted:focus{box-shadow:${shadow.focus}} .ui-untouched{color:#333}"
   },
   "summary": {
-    "files": 22,
-    "geometryFiles": 21,
-    "geometryRuleSets": 29,
+    "files": 21,
+    "geometryFiles": 20,
+    "geometryRuleSets": 28,
     "matchModes": {
-      "class": 4,
+      "class": 2,
       "element": 61
     },
     "mechanisms": {
@@ -1948,10 +1899,10 @@
         "ruleSets": 0
       },
       "B-styledjsx": {
-        "files": 12,
-        "geometryFiles": 11,
-        "geometryRuleSets": 11,
-        "ruleSets": 22
+        "files": 11,
+        "geometryFiles": 10,
+        "geometryRuleSets": 10,
+        "ruleSets": 20
       },
       "C-injected": {
         "files": 2,
@@ -1961,6 +1912,6 @@
       }
     },
     "pairings": 20,
-    "ruleSets": 65
+    "ruleSets": 63
   }
 }
