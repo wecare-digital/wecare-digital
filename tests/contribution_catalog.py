@@ -7,9 +7,8 @@ basket shape uses, and a lightweight `NativeCatalog` descriptor that carries a
 product -> variant -> price registry for `contribution_env.make_env` to build a native
 `_native_product_reader` from.
 
-Nothing here reaches AWS, the network or a credential. The contribution ids are the real ones
-(blog_contribution), pinned against src/config/contribution.ts by
-tests/test_blog_contribution.py::test_server_choices_mirror_the_frontend_contract.
+Nothing here reaches AWS, the network or a credential. All catalog identifiers in this helper are synthetic and exist only in tests. Production
+contribution configuration is intentionally empty until the fresh SKU-first item is created.
 """
 
 from __future__ import annotations
@@ -21,20 +20,12 @@ from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "amplify/functions/shared"))
 
-from lambda_utils.ecommerce.blog_contribution import (  # noqa: E402
-    CONTRIBUTION_CHOICES_PAISE, CONTRIBUTION_PRODUCT_IDS)
-
-#: The live `Contribute` product, and a kiosk to stand beside it. Fixed GUIDs rather than random
-#: ones, so a failure message names the same ids every run.
-CONTRIBUTION_ID = sorted(CONTRIBUTION_PRODUCT_IDS)[0]
-
-#: `{variant id: paise}` for the live choices, cheapest first, so a test can say "the low one"
-#: without re-typing a GUID. DERIVED from the shipped allow-list rather than listed, which is why
-#: the 2026-10-10 reduction to a single Rs.250 variant needed no edit here.
-CONTRIBUTION_CHOICES = dict(sorted(CONTRIBUTION_CHOICES_PAISE.items(), key=lambda kv: kv[1]))
-CONTRIBUTION_VARIANTS = tuple(CONTRIBUTION_CHOICES)
-#: The default choice a helper reaches for: the cheapest, which is the only one today (Rs.250).
-CONTRIBUTION_VARIANT = CONTRIBUTION_VARIANTS[0]
+#: Synthetic contribution identity used only by tests. Production contribution mappings are empty
+#: until the fresh SKU-first Contribute item is created.
+CONTRIBUTION_ID = "77777777-7777-4777-8777-777777777777"
+CONTRIBUTION_VARIANT = "7a7a7a7a-7a7a-47a7-87a7-7a7a7a7a7a7a"
+CONTRIBUTION_CHOICES = {CONTRIBUTION_VARIANT: 25000}
+CONTRIBUTION_VARIANTS = (CONTRIBUTION_VARIANT,)
 
 KIOSK_ID = "00d4c72b-f694-441a-a192-e16f4b192440"
 KIOSK_VARIANT = "9f1c0e8a-1111-4222-8333-444455556666"
