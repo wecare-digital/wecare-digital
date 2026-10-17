@@ -4,6 +4,9 @@ const TESTING = process.env.NODE_ENV === 'test';
 export const SERVICES_CURRENCY = 'INR' as const;
 export const SERVICES_PRODUCT_ID: string =
   TESTING ? '11111111-1111-4111-8111-111111111111' : '';
+/** Legacy option-group symbol retained only for synthetic tests; fresh live services are separate products. */
+export const SERVICES_OPTION_ID: string =
+  TESTING ? '10101010-1010-4010-8010-101010101010' : '';
 
 export type ServiceKind =
   'SUBMIT_REQUEST' | 'REQUEST_AMENDMENT' | 'DROP_DOCS' | 'VAULT' | 'REQUEST_PICKUP';
