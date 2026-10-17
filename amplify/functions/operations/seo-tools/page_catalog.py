@@ -30,8 +30,8 @@ def public_page_catalog() -> List[Dict[str, Any]]:
 
 
 def product_catalog() -> List[Dict[str, Any]]:
-    data = _load_json("catalog-snapshot.json", "src/content/catalog-snapshot.json")
-    return list(data.get("products") or [])
+    """No legacy Shop snapshot is published. Fresh SKU-first products will be wired separately."""
+    return []
 
 
 def _plain(value: Any) -> str:
