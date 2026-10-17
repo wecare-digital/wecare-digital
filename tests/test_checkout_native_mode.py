@@ -39,7 +39,7 @@ VARIANT_UUID = "22222222-2222-4222-8222-222222222222"
 
 def _product_row():
     return {"id": PRODUCT_UUID, "status": "active",
-            "variants": [{"sku": VARIANT_UUID, "priceMinor": 59900, "inventory": 5}]}
+            "variants": [{"sku": VARIANT_UUID, "priceMinor": 59900, "inventory": 5, "trackInventory": True, "inventoryVerified": True}]}
 
 
 def test_service_prices_use_native_catalog_even_without_cutover_flags(monkeypatch):
