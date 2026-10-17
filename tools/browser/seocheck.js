@@ -47,14 +47,10 @@ const ROUTES = [
   // /contact/. Same shape as the product pages: rotating hero plus one content section.
   '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/leave-review/',
   '/refer-and-earn/',
-  // The restored listing and its numbered continuation own their metadata through PageShell.
-  '/shop/', '/shop/page/2/',
-  // /shop/kiosk/ WAS ALWAYS THE ROW THAT EARNED ITS PLACE and it stays. It declares every tag
-  // itself through ShopProductHead.tsx, so it is the only route in this list where a missing or
-  // duplicated og tag would be nobody else's bug. The canonical assertion is the point: a dynamic
-  // route's pathname is the PATTERN, and this check is what proves the built page says
-  // /shop/kiosk/ rather than /shop/[slug]/.
-  '/shop/kiosk/',
+  // The clean-slate Shop currently exports only the listing. Product detail and pagination
+  // routes are generated only when fresh ProductsTable rows exist; do not pin retired fixtures
+  // back into the browser contract just to keep an old SEO probe alive.
+  '/shop/',
 ];
 
 /**
@@ -66,6 +62,14 @@ const ROUTES = [
 const RETIRED = [
   '/' + 'self' + 'service/', '/product-page/', '/product-page/partner-up/', '/product-page/referral-partner/',
 ];
+
+/**
+ * Catalogue URLs that existed only because the retired snapshot had enough rows/products to
+ * export them. While ProductsTable is intentionally empty these must not return 200. They are
+ * separate from RETIRED because they may legitimately return when a fresh SKU-first catalogue is
+ * published later.
+ */
+const EMPTY_CATALOG_ROUTES = [ '/shop/page/2/', '/shop/kiosk/' ];
 
 /**
  * The sitewide fallback og:title from _app.tsx. Correct on '/', which IS the company page,
@@ -148,6 +152,7 @@ async function main() {
 
   const heads = {};
   const retiredHeads = {};
+  const emptyCatalogHeads = {};
 
   try {
     const context = await browser.newContext( { viewport: { width: 1280, height: 900 } } );
@@ -174,6 +179,10 @@ async function main() {
     for ( const route of RETIRED ) {
       const res = await fetch( t.base + route, { redirect: 'manual' } );
       retiredHeads[ route ] = { status: res.status };
+    }
+    for ( const route of EMPTY_CATALOG_ROUTES ) {
+      const res = await fetch( t.base + route, { redirect: 'manual' } );
+      emptyCatalogHeads[ route ] = { status: res.status };
     }
     await context.close();
 
@@ -307,6 +316,18 @@ async function main() {
     record( stillServed.length === 0,
       `all ${RETIRED.length} retired routes are gone from the export (no 200)`,
       stillServed.length ? stillServed.join( '; ' ) : 'none serve a page; CDN 301 to /contact/ is console-managed' );
+
+    console.log( '\nEmpty-catalog routes (expect no 200 until fresh products exist)' );
+    const staleCatalogPages = [];
+    for ( const route of EMPTY_CATALOG_ROUTES ) {
+      const h = emptyCatalogHeads[ route ];
+      const status = h ? h.status : 'nothing';
+      console.log( `  ${route} -> ${status}` );
+      if ( h && h.status === 200 ) staleCatalogPages.push( `${route} still returns 200` );
+    }
+    record( staleCatalogPages.length === 0,
+      'empty catalogue exports no stale product or pagination pages',
+      staleCatalogPages.length ? staleCatalogPages.join( '; ' ) : 'no stale catalogue page is served' );
 
     // They must also never be advertised in the sitemap.
     const smRes = await ( async () => {
