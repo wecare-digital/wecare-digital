@@ -4,12 +4,10 @@ import {
 } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 
-// /get now carries a "Continue to checkout →" button beside each file's WhatsApp pay pill (the
-// website leg of the both-channels change), so the page calls useRouter. jsdom has no router
-// provider, so mock it the same minimal way BottomNav/HeaderCartBadge tests do.
-vi.mock( 'next/router', () => ( {
-  useRouter: () => ( { push: vi.fn(), pathname: '/get', query: {}, isReady: true } ),
-} ) );
+// The next/router mock was removed with the "Continue to checkout →" button: PR #708 deleted the
+// ₹1 PLACEHOLDER_LINE that the website leg submitted, so that leg is gone and /get no longer calls
+// useRouter (file payment is the WhatsApp pill, which needs no router). Reinstate a mock here only
+// if a future change makes the page navigate again.
 
 import * as customerAuth from '../lib/customerAuth';
 import * as api from '../api/client';
