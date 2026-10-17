@@ -198,9 +198,17 @@ def main() -> int:
         Bucket=DEST_BUCKET, VersioningConfiguration={"Status": "Enabled"})
     s3.put_bucket_policy(Bucket=DEST_BUCKET, Policy=json.dumps(dest_bucket_policy()))
     print("  dest bucket: versioned, public-access-blocked, prod-repl policy, TLS-only")
-    print("\nDONE (backup account). Now, in PRODUCTION, run:")
+    print("\nDONE (backup account vault + bucket + lock).")
+    print("\nStill to do here (backup account), one-time:")
+    print("  * BACKFILL pre-existing media (replication only copies NEW writes):")
+    print("      aws s3 sync s3://wecare-digital-get/ s3://" + DEST_BUCKET + "/ \\")
+    print("        --source-region us-east-1   # needs cross-account read on the source")
+    print("      (grant it with the source-bucket policy addition printed by")
+    print("       scripts/grant_source_read_to_backup_account.py, run in PRODUCTION)")
+    print("  * COMPLIANCE lock (irreversible) if desired: re-run with --compliance-lock")
+    print("\nIn PRODUCTION, if not already applied:")
     print("  python scripts/provision_cross_account_backup.py --apply")
-    print("  python scripts/provision_s3_replication.py --apply   (xacct dest)")
+    print("  python scripts/provision_s3_replication_xacct.py --apply")
     return 0
 
 

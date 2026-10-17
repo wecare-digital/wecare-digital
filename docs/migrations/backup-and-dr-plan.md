@@ -363,17 +363,44 @@ Mirror the Lightsail migration discipline that is already proven in this repo:
 
 **Open:**
 
-1. **Backfill pre-existing media into the cross-account bucket** (replication copies
-   only new writes; the us-west-2 region replica is already fully backfilled, so no
-   media is unprotected meanwhile).
-2. **Compliance-mode Vault Lock on the backup account's vault** — strongest insider
-   control, irreversible, deliberate owner decision
-   (`provision_backup_account_side.py --apply --compliance-lock`, run in 991322955408).
-3. **Finish `table_backup_defaults.apply` rollout** to the remaining table scripts
-   (agent-approvals, gift-cards, payment-attempts, products, thread-ownership,
-   service-requests, and the table-creating domain scripts; coupons is the template).
-4. **Quarterly restore drills** for S3 and secrets (DynamoDB is done).
-5. Keep the GCP mirror current; re-run the independence checks in CI.
+**Done (2026-10-17, full-recovery pass):**
+
+- [x] **Full infrastructure recovery, scripted (not just docs)** —
+  `scripts/export_infrastructure_snapshot.py` captures the live stack definition
+  (75 Lambdas, 76 tables, the HTTP API + routes + integrations, 10 queues, 7
+  schedules, 23 IAM roles, 20 secret names) to committed JSON under
+  `docs/execution/infra-snapshot/`. `scripts/recover_into_account.py` replays the
+  `provision_*.py` fleet + `deploy_all_lambdas.py` into a target account in
+  dependency order, refusing to run against production. Realistic RTO is tens of
+  minutes (code is fast; DynamoDB data restore from the cross-account copies and
+  DNS/provider repoint are the longer tail), and every step is scripted.
+- [x] **`table_backup_defaults` rollout finished** — all five remaining table
+  provisioners (products, coupons already done, gift-cards, payment-attempts,
+  agent-approvals, thread-ownership) now call `table_backup_defaults.apply(TABLE)`
+  so a new table joins PITR + the AWS Backup plan at creation. 134 table tests pass.
+- [x] **Quarterly restore drills automated** — `scripts/restore_drill.py` (S3
+  version-recovery + secrets restore check) + `.github/workflows/restore-drill.yml`
+  (quarterly, OIDC-gated). The S3 drill was RUN LIVE and passed (wrote, overwrote,
+  recovered the original from its prior version, cleaned up); logged in
+  `docs/execution/restore-drill-log.md`.
+- [x] **Media backfill enabled** — `scripts/grant_source_read_to_backup_account.py`
+  grants the backup account read-only on the source bucket (applied; the two
+  existing bucket-policy statements preserved), so the one-time
+  `aws s3 sync` backfill into the cross-account bucket can run from 991322955408.
+- [x] **Stray org cleaned up** — the accidental "WECARE-DIGITAL-Team" org
+  (`046491879396` + members) was closed. The production org `o-plhlfh8drl` holds
+  only production + the backup account; the dead invite is CANCELED, no residue.
+
+**Open (backup-account-side, run in 991322955408; + optional):**
+
+1. **Run the media backfill** — `aws s3 sync s3://wecare-digital-get/ \
+   s3://wecare-digital-get-replica-xacct/` from the backup account (read grant is in
+   place), then revoke the grant with `grant_source_read_to_backup_account.py --revoke`.
+2. **Compliance-mode Vault Lock** (irreversible) if an immutable retention guarantee
+   is wanted: `provision_backup_account_side.py --apply --compliance-lock` in 991322955408.
+3. **A full recovery rehearsal** — run `recover_into_account.py --apply` in 991322955408
+   once, to prove the stack rebuilds, and record the timing.
+4. Keep the GCP mirror current; re-run the independence checks in CI.
 
 Every core protection is now live and verified, including the full cross-account
 layer: Cognito deletion protection, DynamoDB PITR, S3 versioning with BOTH
