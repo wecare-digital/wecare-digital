@@ -161,9 +161,7 @@ CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = (10000, 25000, 50000)
 #: carrying it cannot be priced at all -- the native quote refuses a ``catalogItemId`` that is not
 #: in ProductsTable -- so that basket fails closed rather than being mistaken for an ordinary
 #: purchase and charged the convenience fee and GST.
-CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
-    "8514c405-3971-4786-ad0d-15406ca23407",
-})
+CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset()
 
 #: The ONLY contribution that can be made -- one Rs.250 variant -- as ``{variant id: integer
 #: paise}``.
@@ -199,9 +197,7 @@ CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
 #: ``CONTRIBUTION_PRODUCT_IDS`` above records about the retired site's id: a deleted variant cannot
 #: be priced, so a stale cart line naming one fails closed at the native quote, and the mirror
 #: guard holds this map equal to the single choice ``src/config/contribution.ts`` declares anyway.
-CONTRIBUTION_CHOICES_PAISE: Mapping[str, int] = MappingProxyType({
-    "8ad6f376-a526-4631-b510-0e047b33a5b9": 25000,     # Rs.250
-})
+CONTRIBUTION_CHOICES_PAISE: Mapping[str, int] = MappingProxyType({})
 
 #: The variant ids above as a set, for membership tests that do not need the amount.
 CONTRIBUTION_VARIANT_IDS: FrozenSet[str] = frozenset(CONTRIBUTION_CHOICES_PAISE)
