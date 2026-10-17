@@ -82,9 +82,7 @@ from botocore.exceptions import ClientError
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOTS = ROOT / "docs" / "execution" / "snapshots"
 
-ACCOUNT_ID = "775261844268"
 PROVIDER = "token.actions.githubusercontent.com"
-PROVIDER_ARN = f"arn:aws:iam::{ACCOUNT_ID}:oidc-provider/{PROVIDER}"
 
 # Immutable GitHub identifiers for wecare-digital/wecare-digital, confirmed from
 # the REST API (`gh api repos/wecare-digital/wecare-digital`). These do not change
@@ -138,6 +136,8 @@ ROLES = [
     # Registered here so it gets the SAME repo-pinned OIDC trust document as every other role
     # rather than whatever its creator hand-wrote.
     "GitHubActions-wecare-runtime-deploy",
+    # Dedicated least-privilege deployer for wecare-checkout, declared by checkout-deploy.yml.
+    "GitHubActions-wecare-checkout-deploy",
 ]
 
 # Any IAM role whose name starts with this is assumed to be a GitHub Actions OIDC role
@@ -146,13 +146,20 @@ ROLES = [
 ROLE_PREFIX = "GitHubActions"
 
 
-def target_policy() -> dict:
+def target_policy(account_id: str) -> dict:
+    """Return the repo-pinned trust document for the caller's AWS account.
+
+    The account id is supplied by STS at runtime rather than committed as a repository literal.
+    Tests inject the account id parsed from the provisioner's existing trust document, so this
+    module stays offline-testable without credentials.
+    """
+    provider_arn = f"arn:aws:iam::{account_id}:oidc-provider/{PROVIDER}"
     return {
         "Version": "2012-10-17",
         "Statement": [
             {
                 "Effect": "Allow",
-                "Principal": {"Federated": PROVIDER_ARN},
+                "Principal": {"Federated": provider_arn},
                 "Action": "sts:AssumeRoleWithWebIdentity",
                 "Condition": {
                     "StringEquals": {
@@ -224,8 +231,8 @@ def unregistered(iam) -> list[str]:
     return sorted(found)
 
 
-def status(iam) -> int:
-    want = target_policy()
+def status(iam, account_id: str) -> int:
+    want = target_policy(account_id)
     stale = 0
     print(f"target sub  StringLike: repo:*@{OWNER_ID}/*@{REPO_ID}:ref:refs/heads/{BRANCH}\n")
     for role in ROLES:
@@ -252,9 +259,9 @@ def status(iam) -> int:
     return 0 if stale == 0 else 1
 
 
-def apply(iam) -> int:
+def apply(iam, account_id: str) -> int:
     SNAPSHOTS.mkdir(parents=True, exist_ok=True)
-    want = target_policy()
+    want = target_policy(account_id)
     failures = 0
 
     for role in ROLES:
@@ -311,7 +318,8 @@ def main() -> int:
     args = parser.parse_args()
 
     iam = boto3.client("iam")
-    return status(iam) if args.status else apply(iam)
+    account_id = str(boto3.client("sts").get_caller_identity()["Account"])
+    return status(iam, account_id) if args.status else apply(iam, account_id)
 
 
 if __name__ == "__main__":
