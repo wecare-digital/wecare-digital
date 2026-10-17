@@ -214,6 +214,65 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
  * while carrying the defect. Each suite measures one settled state - JS running, motion
  * allowed, viewport fixed - so none of them entered the state that was broken.
  */
+/**
+ * The "Every touchpoint" section (<section id="touchpoint">) renders six use-case pills.
+ * They used to be six identical grey outlines (.pp-pill with a single #e5e7eb border on
+ * white). They now carry SIX DISTINCT HUES drawn from the HOMEPAGE subject palette
+ * (src/pages/index.tsx CYCLE_WORDS amber/purple/green/red tint+dot pairs), the homepage
+ * blue border #2563eb, and this page's brand lime #d1f470 - no invented colours. The pill
+ * text stays dark so every pill clears WCAG AA. These assertions pin the exact per-pill
+ * hue CSS and the data-driven mapping so a revert to the monochrome treatment fails here.
+ */
+describe( 'Grahak OS: "Every touchpoint" pills carry multiple homepage hues', () => {
+  const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
+  const source = readFileSync( pagePath, 'utf8' );
+  const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
+
+  it( 'keeps the heading, sub-line and the six use-case titles/order unchanged', () => {
+    expect( source ).toContain( '<h2>Every touchpoint<br/>One seamless experience</h2>' );
+    expect( source ).toContain( 'Engage, support, and convert customers across their entire journey' );
+    // The six touchpoints, in order, now carry a hue each - titles and order are frozen.
+    expect( source ).toContain( "{ title: 'Promotional', hue: 'amber' }" );
+    expect( source ).toContain( "{ title: 'Transactional', hue: 'blue' }" );
+    expect( source ).toContain( "{ title: 'Appointments', hue: 'green' }" );
+    expect( source ).toContain( "{ title: 'OTPs', hue: 'purple' }" );
+    expect( source ).toContain( "{ title: 'Orders', hue: 'red' }" );
+    expect( source ).toContain( "{ title: 'Surveys', hue: 'lime' }" );
+  } );
+
+  it( 'renders each pill with a data-driven per-hue modifier class', () => {
+    expect( source ).toContain( 'className={`pp-pill pp-pill--${hue}`}' );
+  } );
+
+  it( 'pins each pill to its exact homepage hue (border + tint), keeping text dark/AA', () => {
+    // Base geometry keeps the pinned 17px type and the dark body text.
+    expect( code ).toContain( '.pp-pill{' );
+    expect( code ).toContain( 'font-size:17px' );
+    expect( code ).toContain( 'color:rgba(0,0,0,.898)' );
+    // Six hues from the homepage palette - amber/green dot hues used only as border/tint
+    // (they fail as TEXT), blue as a border on white, lime as the brand pair.
+    expect( code ).toContain( '.pp-pill--amber{border-color:#f0a818;background:#fef3c7}' );
+    expect( code ).toContain( '.pp-pill--blue{border-color:#2563eb;background:#fff}' );
+    expect( code ).toContain( '.pp-pill--green{border-color:#3da35a;background:#e0f7c8}' );
+    expect( code ).toContain( '.pp-pill--purple{border-color:#9849e8;background:#ede9fe}' );
+    expect( code ).toContain( '.pp-pill--red{border-color:#dc2626;background:#fee2e2}' );
+    expect( code ).toContain( '.pp-pill--lime{border-color:#d1f470;background:#fff;color:#1a3a2a}' );
+    // Hover keeps each pill's own hue (no more forcing every pill to the lime border);
+    // it only lifts and casts the existing shadow.
+    expect( code ).toContain( '.pp-pill:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}' );
+  } );
+
+  it( 'introduces no retired colour via the new pill hues', () => {
+    // The homepage hues are all NON-retired; guard the retired set does not creep in here.
+    expect( code ).not.toContain( '#2f6b52' );
+    expect( code ).not.toContain( '#075e54' );
+    expect( code ).not.toContain( '#1e293b' );
+    expect( code ).not.toContain( '#4b5563' );
+    expect( code ).not.toContain( '#0f172a' );
+    expect( code ).not.toContain( '#94a3b8' );
+  } );
+} );
+
 describe( 'Grahak OS: states the harness suites do not enter', () => {
   const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
   const source = readFileSync( pagePath, 'utf8' );
