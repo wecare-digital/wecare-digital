@@ -186,6 +186,74 @@ def from_contact(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         return None
 
 
+#: The flat ContactsTable address columns the WhatsApp Address-Message writer and the invoice /
+#: receipt readers have historically used. Kept populated ALONGSIDE the canonical
+#: `checkoutDeliveryAddress` Map so legacy readers do not break, but DERIVED from the same
+#: normalised Map here so the flat columns can never drift from it. `landmark` mirrors the Map's
+#: `locality`; the invoice shipping_info pre-fill reads `landmark`, so the two must agree.
+_CONTACT_FLAT_FIELDS = ("addressLine1", "addressLine2", "city", "state", "postalCode", "country")
+
+
+def map_meta_address(values: Dict[str, Any]) -> Dict[str, Any]:
+    """Fold a Meta India Address-Message / post-pay flow payload into the eight `_RULES` keys.
+
+    This is the ONE place the WhatsApp address vocabulary (`house_number`, `floor_number`,
+    `tower_number`, `building_name`, `address`, `landmark_area`, `in_pin_code`, ...) is translated
+    to the canonical field names, so the inbound handler converges on the same shape
+    `customer_orders.update_profile` already writes rather than inventing a parallel flat row.
+
+    The street line is `address` when Meta supplies it; otherwise the house/tower/building parts
+    are joined so a submission that fills only the structured sub-fields still yields a usable
+    `addressLine1` (the required field). The floor/house/unit detail folds into `addressLine2`,
+    `landmark_area` into `locality`, and `in_pin_code` (or `pin`) into `postalCode`. Returns a raw
+    dict for `normalize_for_storage` to validate — it does NOT itself validate or raise.
+    """
+    def pick(*keys: str) -> str:
+        for key in keys:
+            value = values.get(key)
+            if isinstance(value, (str, int)) and str(value).strip():
+                return str(value).strip()
+        return ""
+
+    house = pick("house_number")
+    floor = pick("floor_number")
+    tower = pick("tower_number")
+    building = pick("building_name")
+    street = pick("address")
+    # `addressLine1` is required; synthesise it from the structured parts when Meta sends no
+    # free-text street line, so a structured-only submission is not refused as FIELD_REQUIRED.
+    line1 = street or ", ".join(p for p in (house, building, tower) if p)
+    unit = ", ".join(p for p in (house if street else "", f"Floor {floor}" if floor else "",
+                                 tower if street else "", building if street else "") if p)
+    return {
+        "addressLine1": line1,
+        "addressLine2": unit,
+        "locality": pick("landmark_area", "landmark"),
+        "city": pick("city"),
+        "state": pick("state"),
+        "postalCode": pick("in_pin_code", "pin", "postal_code", "postalCode"),
+        "country": pick("country") or owned_address.DEFAULT_COUNTRY,
+        "countryCode": pick("country_code", "countryCode"),
+    }
+
+
+def contact_write_fields(address: Dict[str, Any], *, now: int) -> Dict[str, Any]:
+    """The ContactsTable attributes to write for one normalised address: the canonical Map, its
+    timestamp, AND the legacy flat columns derived from the SAME Map.
+
+    A single return so a writer sets `checkoutDeliveryAddress`, `checkoutAddressUpdatedAt` and the
+    flat `addressLine1..country`/`landmark`/`shippingAddress` from one source — the flat columns
+    can no longer disagree with the Map because they are projected from it here. `address` is the
+    output of `normalize_for_storage` (already validated and bounded).
+    """
+    flat = {field: str(address.get(field) or "") for field in _CONTACT_FLAT_FIELDS}
+    # `landmark` is the legacy column name for what the Map calls `locality`.
+    flat["landmark"] = str(address.get("locality") or "")
+    # The human one-line string the receipt and shipping_info string fields read.
+    flat["shippingAddress"] = str(address.get("fullAddress") or "")
+    return {ATTRIBUTE: address, UPDATED_ATTRIBUTE: now, **flat}
+
+
 def payable_for(row: Optional[Dict[str, Any]], channel: str):
     """One return shape for a caller: `(address, None)` or `(None, UnpayableAddress)`.
 
@@ -212,4 +280,6 @@ __all__ = [
     "normalize_for_storage",
     "from_contact",
     "payable_for",
+    "map_meta_address",
+    "contact_write_fields",
 ]

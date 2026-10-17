@@ -7754,10 +7754,24 @@ def _handle_postpay_submission(data: Dict, contact_id: str, sender_phone: str,
         now = int(time.time())
         # Key on the unique Request ID (falls back to reference for old payloads).
         sub_id = request_sr_id or f'postpay-{reference_id}'
-        # Compose a human-readable shipping address from the flow's address fields.
-        addr_parts = [data.get('address', ''), data.get('landmark', ''), data.get('city', ''),
-                      data.get('state', ''), data.get('pin', '')]
-        address_str = ', '.join(str(p).strip() for p in addr_parts if str(p).strip())
+        from lambda_utils.ecommerce import contact_address
+        # ONE address shape: validate the flow's address fields through `contact_address` so the
+        # contact back-write below stores the canonical Map, not a parallel flat row. `canonical`
+        # is None when the flow carried no usable address (a service with no delivery) — the
+        # submission row is still saved, only the contact address back-write is skipped.
+        try:
+            canonical = contact_address.normalize_for_storage(
+                contact_address.map_meta_address(data))
+        except contact_address.UnusableAddress:
+            canonical = None
+        # The human one-liner for the submission record. From the canonical Map when we have one,
+        # else composed from the raw flow fields so an address-less service still reads sensibly.
+        if canonical is not None:
+            address_str = str(canonical.get('fullAddress') or '')
+        else:
+            addr_parts = [data.get('address', ''), data.get('landmark', ''), data.get('city', ''),
+                          data.get('state', ''), data.get('pin', '')]
+            address_str = ', '.join(str(p).strip() for p in addr_parts if str(p).strip())
         form = {k: v for k, v in data.items() if k not in ('flow_token',)}
         item = {
             'submissionId': sub_id,
@@ -7812,13 +7826,21 @@ def _handle_postpay_submission(data: Dict, contact_id: str, sender_phone: str,
                 _uexpr = 'SET openServiceRequestId=:rid, openServiceRequestAt=:ua, updatedAt=:ua'
                 _names = {}
                 _vals = {':rid': sub_id, ':ua': now}
-                if address_str:
-                    _uexpr += (', shippingAddress=:sa, addressLine1=:al, city=:cy, '
-                               '#st=:st, postalCode=:pc, landmark=:lm')
-                    _names['#st'] = 'state'
-                    _vals.update({':sa': address_str, ':al': str(data.get('address', '')),
-                                  ':cy': str(data.get('city', '')), ':st': str(data.get('state', '')),
-                                  ':pc': str(data.get('pin', '')), ':lm': str(data.get('landmark', ''))})
+                if canonical is not None:
+                    # Canonical Map + flat columns from the SAME normalised address, matching
+                    # `_handle_address_submission` so the Address-Message path and the post-pay flow
+                    # path leave an identical shape on the contact.
+                    wf = contact_address.contact_write_fields(canonical, now=now)
+                    _uexpr += (', shippingAddress=:sa, addressLine1=:al, addressLine2=:a2, city=:cy, '
+                               '#st=:st, postalCode=:pc, landmark=:lm, #co=:co, #cda=:cda, #cau=:cau')
+                    _names.update({'#st': 'state', '#co': 'country',
+                                   '#cda': contact_address.ATTRIBUTE,
+                                   '#cau': contact_address.UPDATED_ATTRIBUTE})
+                    _vals.update({':sa': wf['shippingAddress'], ':al': wf['addressLine1'],
+                                  ':a2': wf['addressLine2'], ':cy': wf['city'], ':st': wf['state'],
+                                  ':pc': wf['postalCode'], ':lm': wf['landmark'], ':co': wf['country'],
+                                  ':cda': wf[contact_address.ATTRIBUTE],
+                                  ':cau': wf[contact_address.UPDATED_ATTRIBUTE]})
                 _kwargs = {'Key': {'id': contact_id}, 'UpdateExpression': _uexpr,
                            'ExpressionAttributeValues': _vals}
                 if _names:
@@ -7847,38 +7869,49 @@ def _handle_address_submission(nfm: Dict, contact_id: str, sender_phone: str,
     name='address_message'). Parses response_json and saves the structured
     shipping address to the contact so checkout / order_details can reuse it."""
     try:
+        from lambda_utils.ecommerce import contact_address
         raw = nfm.get('response_json', '{}')
         data = json.loads(raw) if isinstance(raw, str) else (raw or {})
         vals = data.get('values', data) or {}
-        house = vals.get('house_number', '')
-        floor = vals.get('floor_number', '')
-        tower = vals.get('tower_number', '')
-        building = vals.get('building_name', '')
-        addr = vals.get('address', '')
-        landmark = vals.get('landmark_area', '')
-        city = vals.get('city', '')
-        state = vals.get('state', '')
-        pin = vals.get('in_pin_code', '')
         name = vals.get('name', '')
-        parts = [house, (f'Floor {floor}' if floor else ''), tower, building, addr, landmark, city, state, pin]
-        address_str = ', '.join(p for p in parts if p)
+        # ONE address shape: fold Meta's Address-Message fields into the canonical `_RULES` keys and
+        # validate through `contact_address`, exactly as `customer_orders.update_profile` does. A
+        # structurally-bad address (missing a required field) is skipped rather than written as a
+        # half row — the customer can resubmit, and no divergent flat-only row is left behind.
+        try:
+            address = contact_address.normalize_for_storage(
+                contact_address.map_meta_address(vals))
+        except contact_address.UnusableAddress as bad:
+            logger.info(json.dumps({
+                'event': 'address_submission_unusable', 'code': bad.code, 'field': bad.field,
+                'phone_suffix': sender_phone[-4:] if sender_phone else '', 'requestId': request_id}))
+            return
         logger.info(json.dumps({
             'event': 'address_submission', 'phone_suffix': sender_phone[-4:] if sender_phone else '',
-            'savedAddressId': data.get('saved_address_id', ''), 'pin': pin, 'city': city,
+            'savedAddressId': data.get('saved_address_id', ''),
+            'pin': address.get('postalCode', ''), 'city': address.get('city', ''),
             'requestId': request_id,
         }))
         if not contact_id:
             return
         ct = dynamodb.Table(CONTACTS_TABLE)
-        expr_names = {'#st': 'state'}
+        now = int(time.time())
+        # The canonical Map + its timestamp + the legacy flat columns, all projected from the ONE
+        # normalised address so they cannot drift. `contact_write_fields` owns that projection.
+        write_fields = contact_address.contact_write_fields(address, now=now)
+        expr_names = {'#st': 'state', '#co': 'country', '#cda': contact_address.ATTRIBUTE,
+                      '#cau': contact_address.UPDATED_ATTRIBUTE}
         expr_vals = {
-            ':sa': address_str, ':hn': house, ':fl': floor, ':tw': tower, ':bn': building,
-            ':al': addr, ':lm': landmark, ':cy': city, ':st': state, ':pc': pin,
-            ':co': 'India', ':ua': int(time.time()),
+            ':sa': write_fields['shippingAddress'], ':al': write_fields['addressLine1'],
+            ':a2': write_fields['addressLine2'], ':lm': write_fields['landmark'],
+            ':cy': write_fields['city'], ':st': write_fields['state'],
+            ':pc': write_fields['postalCode'], ':co': write_fields['country'],
+            ':cda': write_fields[contact_address.ATTRIBUTE],
+            ':cau': write_fields[contact_address.UPDATED_ATTRIBUTE], ':ua': now,
         }
-        update_expr = ('SET shippingAddress=:sa, houseNumber=:hn, floorNumber=:fl, towerNumber=:tw, '
-                       'buildingName=:bn, addressLine1=:al, landmark=:lm, city=:cy, #st=:st, '
-                       'postalCode=:pc, country=:co, updatedAt=:ua')
+        update_expr = ('SET shippingAddress=:sa, addressLine1=:al, addressLine2=:a2, landmark=:lm, '
+                       'city=:cy, #st=:st, postalCode=:pc, #co=:co, #cda=:cda, #cau=:cau, '
+                       'updatedAt=:ua')
         if name:
             update_expr += ', contactBookName=:nm'
             expr_vals[':nm'] = name

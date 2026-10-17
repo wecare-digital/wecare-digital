@@ -59,6 +59,11 @@ from lambda_utils.ecommerce import order_keys, wa_payment_request
 # what makes the invoice surface and the website cart ONE system rather than two that agree today.
 from lambda_utils.ecommerce import coupon_store, gift_card_store, redemption
 from lambda_utils.ecommerce import store_redemption_provider
+# The ONE address authority. Imported so this handler reads the canonical `checkoutDeliveryAddress`
+# Map a contact carries (with a legacy flat-column fallback) rather than re-deriving the address
+# shape here — the same convergence `customer_orders.update_profile` and the WhatsApp Address
+# Message writer are on.
+from lambda_utils.ecommerce import contact_address
 # The attribute names the settlement ladder already owns. Imported rather than retyped: a
 # hand-typed `giftCardRequiredPaise` that drifts by one character leaves `is_fully_settled`
 # reading `required == 0`, which settles a gift-card order on the Razorpay leg alone.
@@ -1642,6 +1647,45 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
 
 
 
+def _contact_address_fields(contact: Optional[Dict]) -> Dict[str, str]:
+    """The invoice-body address keys for a contact, from the ONE canonical address shape.
+
+    Prefers the structured `checkoutDeliveryAddress` Map via `contact_address.from_contact`
+    (never raises; returns None when absent or malformed), and falls back to the legacy flat
+    columns for a contact row written before the address convergence. Returns the exact keys the
+    invoice body and the `shipping_info` pre-fill downstream read, so the statutory invoice path
+    is unchanged in shape — only its SOURCE is unified.
+
+    `addressLine2` maps to the Map's `locality` (the receipt prints it as the landmark line), and
+    `shippingAddress`/`billingAddress` carry the composed one-liner so the string readers in
+    `receipt_layout` still have a value. `billingAddress` mirrors shipping: we collect one address
+    per customer (see `contact_address`'s module docstring), so there is no separate billing one.
+    """
+    contact = contact or {}
+    address = contact_address.from_contact(contact)
+    if address is not None:
+        one_line = str(address.get('fullAddress') or '')
+        return {
+            'shippingAddress': one_line,
+            'billingAddress': one_line,
+            'addressLine1': str(address.get('addressLine1') or ''),
+            'addressLine2': str(address.get('locality') or ''),
+            'city': str(address.get('city') or ''),
+            'state': str(address.get('state') or ''),
+            'postalCode': str(address.get('postalCode') or ''),
+        }
+    # Legacy flat-column fallback (a contact saved before convergence has no Map yet).
+    return {
+        'shippingAddress': str(contact.get('shippingAddress') or ''),
+        'billingAddress': str(contact.get('billingAddress') or ''),
+        'addressLine1': str(contact.get('addressLine1') or ''),
+        'addressLine2': str(contact.get('landmark') or ''),
+        'city': str(contact.get('city') or ''),
+        'state': str(contact.get('state') or ''),
+        'postalCode': str(contact.get('postalCode') or ''),
+    }
+
+
 def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
     """Create invoice from a Razorpay payment ID. Called by PostPaymentHandler."""
     payment_id = body.get('paymentId')
@@ -1728,13 +1772,10 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
         'customerPhone': contact_phone,
         'paidByPhone': contact_phone,
         'customerEmail': contact.get('email', payment.get('email', '')) if contact else payment.get('email', ''),
-        'shippingAddress': contact.get('shippingAddress', '') if contact else '',
-        'billingAddress': contact.get('billingAddress', '') if contact else '',
-        'addressLine1': contact.get('addressLine1', '') if contact else '',
-        'addressLine2': contact.get('landmark', '') if contact else '',
-        'city': contact.get('city', '') if contact else '',
-        'state': contact.get('state', '') if contact else '',
-        'postalCode': contact.get('postalCode', '') if contact else '',
+        # ONE address shape: prefer the canonical `checkoutDeliveryAddress` Map, fall back to the
+        # legacy flat columns for a contact row written before the convergence. `_contact_address_fields`
+        # returns the flat projection the invoice body and the shipping_info pre-fill both consume.
+        **_contact_address_fields(contact),
         'items': body.get('items', [{'name': body.get('itemName', 'Payment'),
                                      'amount': _paise_to_rupees(captured_paise),
                                      'quantity': 1}]),
@@ -3855,12 +3896,17 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
         # which persists addressLine1/city/state/postalCode/landmark on the contact).
         c = contact or {}
         a_name = cust_name or c.get('contactBookName') or c.get('name') or 'Customer'
-        a_line1 = invoice.get('addressLine1') or c.get('addressLine1') or ''
-        a_city = invoice.get('city') or c.get('city') or ''
-        a_state = invoice.get('state') or c.get('state') or ''
-        a_postal = str(invoice.get('postalCode') or c.get('postalCode') or '')
+        # ONE address shape: the invoice's own stored fields win (they were frozen at create), then
+        # the contact's canonical `checkoutDeliveryAddress` Map via `_contact_address_fields`
+        # (legacy flat columns as its fallback), so this pre-fill reads the same source every other
+        # path now does rather than reaching for raw flat columns directly.
+        cf = _contact_address_fields(c)
+        a_line1 = invoice.get('addressLine1') or cf['addressLine1']
+        a_city = invoice.get('city') or cf['city']
+        a_state = invoice.get('state') or cf['state']
+        a_postal = str(invoice.get('postalCode') or cf['postalCode'])
         a_land = (invoice.get('addressLine2') or invoice.get('landmark')
-                  or c.get('landmark') or '')
+                  or cf['addressLine2'])
         if a_line1 and a_city and a_postal:
             # Known address → pre-fill so the customer can confirm in one tap.
             order_details_obj['shipping_info'] = {
