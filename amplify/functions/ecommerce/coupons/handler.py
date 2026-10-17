@@ -302,7 +302,7 @@ def _release(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
 #: What a response may carry. A definition row holds the promised discount, and the staff view
 #: needs it; the customer routes never return a row at all, only a verdict.
 PUBLIC_ATTRIBUTES = ("code", "name", "status", "discountKind", "moneyOffPaise", "percentOffBps",
-                     "fixedPricePaise", "buyX", "buyY", "minimumSubtotalPaise",
+                     "fixedPricePaise", "buyX", "buyY", "maximumDiscountPaise", "minimumSubtotalPaise",
                      "scopeNamespace", "scopeGroupName", "scopeEntityId", "startTimeMs",
                      "expirationTimeMs", "usageLimit", "limitPerCustomer", "usageCount",
                      "limitedToOneItem", "currency", "couponId",
