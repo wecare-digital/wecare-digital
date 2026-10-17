@@ -70,7 +70,7 @@ CURRENCY = "INR"
 
 # Service payment vehicles have dedicated public routes and no /shop/<slug>/ page.
 # Stable identities mirror src/config/services.ts; prices come from ProductsTable like any other.
-SERVICE_PRODUCT_ID = "df976a0a-f582-4535-b2e1-d532f348bd27"
+SERVICE_PRODUCT_ID = ''
 SERVICE_PATH_BY_VARIANT = {
     "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b": "/submit-request/",
     "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b": "/request-amendment/",
@@ -150,7 +150,7 @@ COMPARED_FIELDS = ("name", "description", "availability", "price", "currency", "
 #: at the foot of a blog post: it is a real, sellable product reached by direct cart reference, so
 #: whether the WhatsApp catalogue carries it is decided by its own catalogue flags like any other
 #: row. Its variants remain subject to checkout's own variant allow-list and quantity-1 rule.
-CONTRIBUTION_PRODUCT_ID = "8514c405-3971-4786-ad0d-15406ca23407"
+CONTRIBUTION_PRODUCT_ID = ''
 CONTRIBUTION_CTA_URL = "https://wa.me/message/BYFLCAAMSZBXD1"
 
 #: The ₹1 test product - a catalogue test row that is not this storefront and must never reach a
