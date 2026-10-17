@@ -20,7 +20,7 @@ import type { ShopProduct } from '../content/shop';
 // instead of against a literal copied out of it. A literal is a per-product hand edit, and
 // `.github/workflows/catalogue-sync.yml` rewrites this file on a schedule.
 import catalog from '../content/catalogSnapshot';
-import { SERVICES_PRODUCT_ID } from '../config/services';
+import { SERVICE_PRODUCT_IDS } from '../config/services';
 
 /**
  * The /shop/ catalogue: the snapshot reader, and the two pages built on it.
@@ -112,7 +112,7 @@ describe( 'the catalogue snapshot is read correctly', () => {
     expect( JSON.stringify( toLineItems() ) ).not.toMatch( /price|amount|formattedPrice/ );
     window.localStorage.clear();
   } );
-  it( 'reads the visible non-contribution products the snapshot holds', () => {
+  it( 'reads every visible Shop product while keeping guarded service products out', () => {
     /*
      * ASSERTS THE PROPERTY, NOT THE SPELLING - changed 2026-10-04 for catalogue auto-sync.
      *
@@ -138,10 +138,9 @@ describe( 'the catalogue snapshot is read correctly', () => {
     const rows = ( catalog.products as { slug?: string; visible?: boolean; name?: string }[] );
     const expected = rows
       .filter( r => r.visible !== false && !!r.slug && !!r.name )
-      .filter( r => r.slug !== CONTRIBUTION_SLUG )
-      // The services product (Phase O-1) is a payment vehicle bought from /submit-request/ and
-      // /request-amendment/, excluded from /shop/ by id like the contribution.
-      .filter( r => ( r as { id?: string } ).id !== SERVICES_PRODUCT_ID )
+      // Request services keep their dedicated intent-aware pages; every other visible row,
+      // including Contribute, is allowed to have a Shop detail page.
+      .filter( r => !SERVICE_PRODUCT_IDS.has( String( ( r as { id?: string } ).id || '' ) ) )
       .map( r => r.slug as string )
       .sort();
     expect( SHOP_PRODUCTS.length ).toBe( expected.length );
@@ -648,7 +647,7 @@ describe( 'the product page', () => {
   } );
 } );
 
-describe( 'the contribution product is a payment vehicle, not a shop listing', () => {
+describe( 'Contribute is visible in Shop but keeps its dedicated contribution checkout semantics', () => {
   /**
    * T11, SPLIT BY SOURCE, and the split is the point rather than a formality.
    *
@@ -671,25 +670,20 @@ describe( 'the contribution product is a payment vehicle, not a shop listing', (
    * would therefore fail against the real product AND push the next reader back towards the rule
    * that was removed. The identity-keyed property is asserted instead.
    */
-  it( 'appears in neither SHOP_PRODUCTS nor the generated paths', async () => {
-    expect( SHOP_PRODUCTS.some( product => product.slug === CONTRIBUTION_SLUG ) ).toBe( false );
-    expect( shopProductBySlug( CONTRIBUTION_SLUG ) ).toBeNull();
+  it( 'appears in SHOP_PRODUCTS and gets its own generated Shop path', async () => {
+    expect( SHOP_PRODUCTS.some( product => product.slug === CONTRIBUTION_SLUG ) ).toBe( true );
+    expect( shopProductBySlug( CONTRIBUTION_SLUG )?.id ).toBe( CONTRIBUTION_PRODUCT_ID );
     const result = await getStaticPaths( {} as never );
     const paths = ( result as unknown as { paths: { params: { slug: string } }[] } ).paths;
-    expect( paths.some( entry => entry.params.slug === CONTRIBUTION_SLUG ) ).toBe( false );
-    // `generate-sitemap.js` crawls the BUILT output tree, so removing the page removes the entry.
-    // No sitemap change is needed and this is the concrete fact behind that.
+    expect( paths.some( entry => entry.params.slug === CONTRIBUTION_SLUG ) ).toBe( true );
     expect( paths.length ).toBe( SHOP_PRODUCTS.length );
   } );
 
-  it( 'is excluded by PRODUCT ID, not only by slug', () => {
-    // The id is the identity the server, the cart and `shop.ts` all key on, and it cannot be
-    // edited in the catalogue editor. The slug can, so a slug-only exclusion would put a
-    // /shop/<renamed>/ page live the next time somebody tidied the product's URL.
+  it( 'keeps the fresh contribution identity in the Shop projection', () => {
     const shopSource = fs.readFileSync(
       path.resolve( __dirname, '../content/shop.ts' ), 'utf8' );
     expect( shopSource ).toMatch( /CONTRIBUTION_PRODUCT_ID/ );
-    expect( SHOP_PRODUCTS.some( product => product.id === CONTRIBUTION_PRODUCT_ID ) ).toBe( false );
+    expect( SHOP_PRODUCTS.some( product => product.id === CONTRIBUTION_PRODUCT_ID ) ).toBe( true );
   } );
 
   it( 'projects through the SAME function the shop listings use', () => {
@@ -699,8 +693,8 @@ describe( 'the contribution product is a payment vehicle, not a shop listing', (
       id: CONTRIBUTION_PRODUCT_ID,
       name: 'Contribute',
       slug: CONTRIBUTION_SLUG,
-      formattedPrice: '\u20B9100.00',
-      price: '100.00',
+      formattedPrice: '\u20B9250.00',
+      price: '250.00',
       currency: 'INR',
       inStock: true,
       visible: true,
@@ -738,7 +732,7 @@ describe( 'the contribution product is a payment vehicle, not a shop listing', (
       // constants in src/config/contribution.ts (CONTRIBUTION_CHOICES), not read from the catalog
       // row, so they are asserted there rather than from a provider's dashboard counts.
       expect( String( raw.id ).toLowerCase() ).toBe( CONTRIBUTION_PRODUCT_ID );
-      // The native row is active and NOT in /shop (excluded as a payment vehicle). Its identity
+      // The native row is active and visible in /shop; its contribution identity
       // and configured-ness are the whole contract; price authority is server-side at checkout.
       expect( String( raw.status || 'active' ) ).toBe( 'active' );
       expect( CONTRIBUTION_CONFIGURED ).toBe( true );
