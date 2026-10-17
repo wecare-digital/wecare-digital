@@ -7,10 +7,10 @@ export const WHATSAPP_SERVICE_ENTRIES = [
   { slug: 'drop-docs', label: 'Drop Docs', keyword: 'Drop Docs', messageLink: 'https://wa.me/message/BCYW2SEPI5R4D1', flowId: '1211063631104445', state: 'Existing draft; publication pending' },
   { slug: 'vault', label: 'Vault', keyword: 'Vault', messageLink: 'https://wa.me/message/4J6E277ZRFHLK1', flowId: '', state: 'Secure file selection and delivery; no extra Flow' },
   // Request Pickup, added 2026-10-10 with the fifth service variant. It shares the dedicated
-  // pickup Meta short link that the /shipments "Request pickup" CTA already uses
+  // pickup Meta short link that the /request-pickup page already uses
   // (src/content/shipments.ts ctaHref2), so both pickup entry points open the same conversation.
-  { slug: 'request-pickup', label: 'Request Pickup', keyword: 'Request Pickup', messageLink: 'https://wa.me/message/NRWQFXOPGL7OO1', flowId: '', state: 'Public page live; shares the pickup Meta short link with /shipments CTA 2' },
-  { slug: 'shipments', label: 'Shipments', keyword: 'Shipments', messageLink: 'https://wa.me/message/WGN4NMFLFSJVB1', flowId: '', state: 'Verified order history; carrier booking is separate' },
+  { slug: 'request-pickup', label: 'Request Pickup', keyword: 'Request Pickup', messageLink: 'https://wa.me/message/NRWQFXOPGL7OO1', flowId: '', state: 'Public page live; uses the dedicated pickup Meta short link' },
+  { slug: 'shipments-track', label: 'Track', keyword: 'Shipment Track', messageLink: 'https://wa.me/message/WGN4NMFLFSJVB1', flowId: '', state: 'Track child page; carrier booking remains separate' },
   { slug: 'leave-review', label: 'Leave Review', keyword: 'Leave Review', messageLink: REVIEW_ENTRY_URL, flowId: '1578178897413815', state: 'Published' },
   // Subscribe has no website page. Customer-facing Subscribe actions go straight to this
   // dedicated Meta conversation; keep it byte-equal to SUBSCRIBE_CTA_HREF.
