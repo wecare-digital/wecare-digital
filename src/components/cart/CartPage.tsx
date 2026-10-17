@@ -107,7 +107,7 @@ import {
   isContributionItem, setContribution, serviceIntentFor, mergeClaimedLines, rememberServiceIntent,
 } from '../../lib/cart';
 import { SERVICE_REFUSAL_MESSAGES, isServiceRefusal, postRequestIntent } from '../../lib/serviceRequests';
-import { SERVICES_PRODUCT_ID, SERVICE_CHOICES } from '../../config/services';
+import { SERVICE_PRODUCT_IDS, SERVICE_CHOICES } from '../../config/services';
 import type { CartItem, CheckoutLineItem } from '../../lib/cart';
 // The WhatsApp catalogue hand-off. The page owns WHEN to claim; the module owns HOW, so the
 // request shape has one definition. See `src/lib/whatsappBasket.ts`.
@@ -1058,7 +1058,7 @@ export default function Cart (): React.ReactElement {
     try
     {
       let serviceIntent = serviceIntentFor( lineItems );
-      const services = lineItems.filter( line => line.catalogReference.catalogItemId === SERVICES_PRODUCT_ID );
+      const services = lineItems.filter( line => SERVICE_PRODUCT_IDS.has( line.catalogReference.catalogItemId ) );
       const submit = SERVICE_CHOICES.find( choice => choice.kind === 'SUBMIT_REQUEST' )!;
       if ( !serviceIntent && services.length === 1 && services[ 0 ].quantity === 1
         && services[ 0 ].catalogReference.options?.variantId === submit.variantId )
