@@ -60,7 +60,7 @@ const OFFERINGS = [
   '/anew', '/bharat-rx', '/clear-closure', '/dastavez',
   '/dastavez/drafting', '/dastavez/registration', '/dastavez/legal-reference',
   '/elsewhere/visa', '/elsewhere/trip', '/elsewhere/activities',
-  '/expo-week', '/grahak-os', '/hunar', '/niji-setu', '/ritual-guru',
+  '/expo-week', '/grahak-os', '/hunar/kaushal', '/hunar/prastuti', '/niji-setu', '/ritual-guru',
   '/ritual-guru/puja-guidance', '/ritual-guru/diy-puja-kit', '/vayulok',
 ];
 
@@ -116,7 +116,7 @@ describe( 'per-page Service structured data', () => {
     for ( const [ route, serviceType ] of declared() ) {
       expect( serviceType.length, `${route} serviceType is too short to say anything` )
         .toBeGreaterThan( 12 );
-      // "Hunar" as a serviceType tells a crawler nothing it did not already have from `name`.
+      // A serviceType must add meaning beyond the page name itself.
       const name = new RegExp( `'${route}':\\s*\\{\\s*name:\\s*'([^']+)'` ).exec( metaBlock() );
       if ( name ) expect( serviceType.toLowerCase() ).not.toBe( name[ 1 ].toLowerCase() );
     }
