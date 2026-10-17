@@ -22,7 +22,7 @@ import catalog from './catalogSnapshot';
 // The contribution vehicle's identity, so the shop exclusion and the cart line read ONE
 // declaration. src/config/contribution.ts imports nothing from here, so there is no cycle.
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../config/contribution';
-import { SERVICES_PRODUCT_ID } from '../config/services';
+import { SERVICE_PRODUCT_IDS } from '../config/services';
 
 export interface ShopVariant { id: string; label: string; inStock: boolean; }
 
@@ -167,7 +167,7 @@ const isContributionRow = ( raw: RawProduct ): boolean =>
  * /submit-request/ and /request-amendment/. It stays in KNOWN_CATALOGUE_PRODUCT_IDS.
  */
 const isServicesRow = ( raw: RawProduct ): boolean =>
-  String( raw.id || '' ).trim().toLowerCase() === SERVICES_PRODUCT_ID;
+  SERVICE_PRODUCT_IDS.has( String( raw.id || '' ).trim().toLowerCase() );
 
 /** The one projection, so the excluded entry is a real `ShopProduct` and not a raw snapshot row. */
 const project = ( raw: RawProduct ): ShopProduct => {
@@ -207,7 +207,7 @@ const VISIBLE = ( ( catalog as { products?: RawProduct[] } ).products || [] )
   .filter( raw => raw.visible !== false && !!raw.slug && !!raw.name );
 
 export const SHOP_PRODUCTS: ShopProduct[] = VISIBLE
-  .filter( raw => !isContributionRow( raw ) && !isServicesRow( raw ) )
+  .filter( raw => !isServicesRow( raw ) )
   .map( project )
   .sort( ( a, b ) => a.name.localeCompare( b.name ) );
 
