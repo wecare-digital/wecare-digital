@@ -93,7 +93,9 @@ def create(table: Any, product_reader: ProductReader, items: Sequence[Mapping[st
         "status": "open",
         "lineItems": [],
         "createdAt": now,
-        "updatedAt": now,
+        # Live CartTable: updatedAt is the STRING sort key of customerId-updatedAt-index.
+        # Decimal epoch seconds preserve chronological ordering and existing readers call int(...).
+        "updatedAt": str(now),
         "expiresTtl": now + CART_TTL_SECONDS,
     }
     for item in items:
@@ -113,7 +115,7 @@ def add(table: Any, product_reader: ProductReader, cart_id: str, item: Mapping[s
         *, clock: Callable[[], int] = _now) -> Dict[str, Any]:
     cart = get(table, cart_id)
     _merge_line(cart, product_reader, item)
-    cart["updatedAt"] = clock()
+    cart["updatedAt"] = str(clock())
     _put(table, cart)
     return cart
 
@@ -125,7 +127,7 @@ def set_quantity(table: Any, cart_id: str, variant_id: str, quantity: int,
     for line in cart["lineItems"]:
         if line["variantId"] == variant_id:
             line["quantity"] = qty
-            cart["updatedAt"] = clock()
+            cart["updatedAt"] = str(clock())
             _put(table, cart)
             return cart
     raise ValueError(f"variant {variant_id} is not in the cart")
@@ -138,7 +140,7 @@ def remove(table: Any, cart_id: str, variant_id: str,
     cart["lineItems"] = [ln for ln in cart["lineItems"] if ln["variantId"] != variant_id]
     if len(cart["lineItems"]) == before:
         raise ValueError(f"variant {variant_id} is not in the cart")
-    cart["updatedAt"] = clock()
+    cart["updatedAt"] = str(clock())
     _put(table, cart)
     return cart
 

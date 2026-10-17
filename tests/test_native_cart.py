@@ -104,3 +104,21 @@ def test_ttl_set_on_create():
     cart = nc.create(t, reader, [{"product_id": "prod-1", "variant_id": "V1", "quantity": 1}],
                      clock=lambda: 1000)
     assert cart["expiresTtl"] == 1000 + nc.CART_TTL_SECONDS
+
+
+def test_updated_at_matches_the_live_cart_gsi_string_key_type():
+    t = FakeCartTable()
+    cart = nc.create(t, reader, [{"product_id": "prod-1", "variant_id": "V1", "quantity": 1}],
+                     clock=lambda: 1700000000)
+    assert cart["updatedAt"] == "1700000000"
+
+    cart = nc.add(t, reader, cart["cartId"],
+                  {"product_id": "prod-1", "variant_id": "V2", "quantity": 1},
+                  clock=lambda: 1700000001)
+    assert cart["updatedAt"] == "1700000001"
+
+    cart = nc.set_quantity(t, cart["cartId"], "V1", 2, clock=lambda: 1700000002)
+    assert cart["updatedAt"] == "1700000002"
+
+    cart = nc.remove(t, cart["cartId"], "V2", clock=lambda: 1700000003)
+    assert cart["updatedAt"] == "1700000003"
