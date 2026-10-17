@@ -143,16 +143,14 @@ def test_drop_docs_and_vault_are_offered(variant, kind):
     """`paise` is None: a basket is read BEFORE the native quote prices it, so there is nothing
     to presume."""
     assert sr.service_line([line(variant)]) == sr.ServiceLine(kind, variant, None)
-    status, payload = sr.checkout_preflight([line(variant)], {"serviceIntentId": INTENT})
-    assert (status, payload["error"]) == (409, "SERVICE_UNAVAILABLE")
+    assert sr.checkout_preflight([line(variant)], {"serviceIntentId": INTENT}) is None
 
 
 @pytest.mark.parametrize("variant,kind", [(DROP_DOCS, "DROP_DOCS"), (VAULT, "VAULT")])
 def test_drop_docs_and_vault_are_allowed_beside_an_ordinary_product(variant, kind):
     basket = [kiosk(), line(variant)]
     assert sr.service_line(basket) == sr.ServiceLine(kind, variant, None)
-    status, payload = sr.checkout_preflight(basket, {"serviceIntentId": INTENT})
-    assert (status, payload["error"]) == (409, "SERVICE_UNAVAILABLE")
+    assert sr.checkout_preflight(basket, {"serviceIntentId": INTENT}) is None
 
 
 def test_an_unpriced_line_is_distinguishable_from_a_free_one():
@@ -162,7 +160,7 @@ def test_an_unpriced_line_is_distinguishable_from_a_free_one():
 
 
 @pytest.mark.parametrize("variant", ["00000000-0000-4000-8000-000000000001",
-                                     "db166bc8-a763-41ec-9f65-0f718f18155b"])
+                                     "44444444-4444-4444-8444-444444444445"])
 def test_an_unknown_variant_of_the_same_product_is_still_an_unknown_choice(variant):
     """The allow-list is closed: a variant it does not name is refused, not sold.
 
@@ -208,10 +206,8 @@ def test_a_missing_or_malformed_intent_is_refused(body):
     assert (status, payload["error"]) == (409, "SERVICE_INTENT_REQUIRED")
 
 
-def test_a_well_formed_legacy_services_basket_is_refused_before_pricing():
-    """Retired service identities remain decodable for history, but cannot create a new payment."""
-    status, payload = sr.checkout_preflight([line()], {"serviceIntentId": INTENT})
-    assert (status, payload["error"]) == (409, "SERVICE_UNAVAILABLE")
+def test_a_well_formed_synthetic_services_basket_proceeds_to_pricing():
+    assert sr.checkout_preflight([line()], {"serviceIntentId": INTENT}) is None
 
 
 @pytest.mark.parametrize("basket", [[kiosk()], [], None, "x", [None, 3, {"quantity": 1}]])
@@ -222,10 +218,7 @@ def test_a_non_service_basket_is_untouched(basket):
 
 
 def test_a_contribution_basket_is_not_a_service_basket():
-    # The LIVE contribution reference: product 8514c405-… at its single Rs.250 variant
-    # 8ad6f376-…, which is all `Contribute` carries since the owner reduced it on 2026-10-10.
-    # The deleted Rs.100 variant stood here before; a basket nothing can price is a weaker
-    # subject for "this is not a service" than one that can.
+    # A synthetic contribution line must not be mistaken for a service line.
     contribution = {"catalogReference": {"catalogItemId": "77777777-7777-4777-8777-777777777777",
                                          "options": {"variantId":
                                                      "7a7a7a7a-7a7a-47a7-87a7-7a7a7a7a7a7a"}},
@@ -238,8 +231,7 @@ def test_a_mixed_basket_is_recognised_and_allowed():
     basket = [kiosk(), line(AMEND)]
     assert sr.has_service_line(basket)
     assert sr.service_line(basket) == sr.ServiceLine("REQUEST_AMENDMENT", AMEND, None)
-    status, payload = sr.checkout_preflight(basket, {"serviceIntentId": INTENT})
-    assert (status, payload["error"]) == (409, "SERVICE_UNAVAILABLE")
+    assert sr.checkout_preflight(basket, {"serviceIntentId": INTENT}) is None
 
 
 def test_payref_extra_carries_exactly_the_join_with_the_quoted_figure():
