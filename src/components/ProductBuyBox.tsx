@@ -65,7 +65,7 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( { slug, showPrice = true }
    * line and go to the cart. The line is a real in-stock product, so the server accepts it.
    */
   const onContinue = useCallback( async () => {
-    if ( busy ) return;
+    if ( !line || busy ) return;
     setError( null );
 
     if ( !signedIn ) {
@@ -92,8 +92,9 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( { slug, showPrice = true }
     }
   }, [ busy, signedIn, router, line ] );
 
-  // ALWAYS "Continue to checkout →", signed in or out — the sign-in is a step on the way, not the
-  // button's label. A signed-out tap still routes through the WhatsApp sign-in and returns.
+  // No fresh catalog line yet: keep the public product page, but offer no stale checkout action.
+  if ( !line ) return null;
+
   const label = 'Continue to checkout →';
 
   return (
@@ -157,7 +158,7 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( { slug, showPrice = true }
  * Add the checkout line as an ordinary single-variant shop product. Built as a minimal ShopProduct
  * so `addItem` keys it on the real catalogue product id and variant, exactly like a /shop/ add.
  */
-function addProductLine ( line: ReturnType<typeof productCheckoutLine> ): CartItem[] {
+function addProductLine ( line: NonNullable<ReturnType<typeof productCheckoutLine>> ): CartItem[] {
   const product: ShopProduct = {
     id: line.productId,
     name: line.name,
