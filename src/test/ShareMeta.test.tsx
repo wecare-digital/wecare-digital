@@ -1,5 +1,4 @@
-import { readCart, isContributionItem } from '../lib/cart';
-import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID, CONTRIBUTE_CTA_HREF } from '../config/contribution';
+import { CONTRIBUTE_CTA_HREF } from '../config/contribution';
 import PublicShare from '../components/PublicShare';
 import fs from 'fs';
 import path from 'path';
@@ -221,7 +220,7 @@ describe( 'Share controls', () => {
 
 // The retired ShareLinks implementation is gone; keep its useful behavior coverage on PublicShare.
 describe( 'current shared action dock', () => {
-  afterEach( () => { vi.unstubAllGlobals(); window.localStorage.clear(); } );
+  afterEach( () => { vi.unstubAllGlobals(); } );
 
   it( 'opens a WhatsApp contact picker and labels every available share action', () => {
     const { container } = render( <PublicShare url="https://wecare.digital/post/x/" title="A Post" /> );
@@ -234,22 +233,15 @@ describe( 'current shared action dock', () => {
     }
   } );
 
-  it( 'keeps the central contribution variant and the single cart checkout path', () => {
-    window.localStorage.clear();
-    const assign = vi.fn();
-    vi.stubGlobal( 'location', { ...window.location, assign } );
+  it( 'keeps WhatsApp contribution live and refuses an unpriced website checkout path', () => {
     render( <PublicShare url="https://wecare.digital/post/x/" title="A Post" /> );
     expect( screen.getByText( /Contribute ₹250/ ) ).toBeInTheDocument();
     fireEvent.click( screen.getByRole( 'button', { name: /Contribute ₹/ } ) );
-    expect( screen.getByRole( 'link', { name: 'Contribute on WhatsApp' } ) ).toHaveAttribute( 'href', CONTRIBUTE_CTA_HREF );
-    expect( readCart() ).toHaveLength( 0 );
-    fireEvent.click( screen.getByRole( 'button', { name: 'Contribute on the website at checkout' } ) );
-    const lines = readCart().filter( isContributionItem );
-    expect( lines ).toHaveLength( 1 );
-    expect( lines[ 0 ] ).toMatchObject( {
-      productId: CONTRIBUTION_PRODUCT_ID, variantId: CONTRIBUTION_CHOICES[ 0 ].variantId, quantity: 1,
-    } );
-    expect( assign ).toHaveBeenCalledWith( '/cart/' );
+    expect( screen.getByRole( 'link', { name: 'Contribute on WhatsApp' } ) )
+      .toHaveAttribute( 'href', CONTRIBUTE_CTA_HREF );
+    const website = screen.getByLabelText( 'Website contribution checkout unavailable' );
+    expect( website ).toHaveAttribute( 'aria-disabled', 'true' );
+    expect( website.textContent ).toContain( 'contribution SKU is live' );
   } );
 
   it( 'uses the native share sheet and clipboard only when supported', async () => {

@@ -2,11 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SUBSCRIBE_CTA_HREF } from '../content/subscribe';
 import {
   CONTRIBUTION_AMOUNT_LABEL,
-  CONTRIBUTION_CHOICES,
   CONTRIBUTE_CTA_HREF,
 } from '../config/contribution';
 import { whatsappShareHref } from '../config/share';
-import { setContribution } from '../lib/cart';
 
 /**
  * The compact page-tail action dock.
@@ -38,8 +36,6 @@ const cleanUrl = ( href: string ): string => {
   }
 };
 
-const [ SUGGESTED ] = CONTRIBUTION_CHOICES;
-
 const PublicShare: React.FC<PublicShareProps> = ( {
   url,
   title,
@@ -51,7 +47,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
   const [ canNativeShare, setCanNativeShare ] = useState( false );
   const [ canCopy, setCanCopy ] = useState( false );
   const [ copied, setCopied ] = useState( false );
-  const [ busy, setBusy ] = useState( false );
 
   const rootRef = useRef<HTMLElement | null>( null );
   const contributeTriggerRef = useRef<HTMLButtonElement | null>( null );
@@ -106,17 +101,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
     setCopied( false );
     setOpenMenu( current => current === menu ? null : menu );
   }, [] );
-
-  const onCheckout = useCallback( () => {
-    if ( busy ) return;
-    setBusy( true );
-    try {
-      setContribution( SUGGESTED.variantId );
-    } catch {
-      /* A rejected variant writes nothing; /cart/ still loads and remains the safe fallback. */
-    }
-    if ( typeof window !== 'undefined' ) window.location.assign( '/cart/' );
-  }, [ busy ] );
 
   const onNativeShare = useCallback( () => {
     if ( typeof navigator === 'undefined' || typeof navigator.share !== 'function' ) return;
@@ -224,23 +208,20 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               <span className="ps-material ps-chevron" aria-hidden="true">chevron_right</span>
             </a>
 
-            <button
-              type="button"
-              className="ps-menu-item contribute-link-btn"
-              onClick={ onCheckout }
-              disabled={ busy }
-              aria-busy={ busy }
-              aria-label="Contribute on the website at checkout"
+            <div
+              className="ps-menu-item ps-menu-item-disabled"
+              aria-disabled="true"
+              aria-label="Website contribution checkout unavailable"
             >
               <span className="ps-menu-icon" aria-hidden="true">
                 <span className="ps-material">shopping_cart_checkout</span>
               </span>
               <span className="ps-menu-copy">
                 <span className="ps-menu-name">Website</span>
-                <span className="ps-menu-note">{ busy ? 'One moment…' : 'Continue to checkout' }</span>
+                <span className="ps-menu-note">Checkout unavailable until the contribution SKU is live</span>
               </span>
-              <span className="ps-material ps-chevron" aria-hidden="true">chevron_right</span>
-            </button>
+              <span className="ps-material ps-chevron" aria-hidden="true">schedule</span>
+            </div>
           </div>
       </div>
 
@@ -390,6 +371,8 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           text-decoration:none;cursor:pointer;text-align:left;box-sizing:border-box;
           font:inherit;
         }
+        .ps-menu-item-disabled{cursor:default;background:#f8f8f5;color:rgba(26,58,42,.62)}
+        .ps-menu-item-disabled:hover{background:#f8f8f5}
         .ps-menu-item:hover{background:#f7fbe9}
         .ps-menu-item:disabled{opacity:.55;cursor:default}
         .ps-menu-icon{
