@@ -2,12 +2,14 @@ import React from 'react';
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import ShopIndex from '../pages/shop/index';
-import { SHOP_LISTINGS, shopListingPageCount, shopListingPageHref } from '../content/shopProducts';
+import { SHOP_LISTINGS, SHOP_LISTINGS_PER_PAGE, shopListingPageCount, shopListingPageHref } from '../content/shopProducts';
 
-describe( 'the clean-slate Shop', () => {
-  it( 'publishes no legacy product cards', () => {
-    expect( SHOP_LISTINGS ).toEqual( [] );
-    expect( shopListingPageCount( SHOP_LISTINGS.length ) ).toBe( 1 );
+describe( 'the fresh 25 + Contribute Shop', () => {
+  it( 'publishes all 26 fresh catalog cards with unique SKUs', () => {
+    expect( SHOP_LISTINGS ).toHaveLength( 26 );
+    expect( new Set( SHOP_LISTINGS.map( item => item.sku ) ).size ).toBe( 26 );
+    expect( SHOP_LISTINGS.some( item => item.slug === 'contribute' && item.sku === 'CNT5Q2M8' && item.formattedPrice === '₹250.00' ) ).toBe( true );
+    expect( shopListingPageCount( SHOP_LISTINGS.length ) ).toBe( 5 );
   } );
 
   it( 'keeps /shop/ as the canonical first page', () => {
@@ -15,11 +17,19 @@ describe( 'the clean-slate Shop', () => {
     expect( shopListingPageHref( 2 ) ).toBe( '/shop/page/2/' );
   } );
 
-  it( 'renders the Shop shell and search field without stale cards', () => {
+  it( 'links representative cards to their respective existing product pages', () => {
+    expect( SHOP_LISTINGS.find( item => item.slug === 'grahak-os' )?.href ).toBe( '/grahak-os/' );
+    expect( SHOP_LISTINGS.find( item => item.slug === 'submit-request' )?.href ).toBe( '/submit-request/' );
+    expect( SHOP_LISTINGS.find( item => item.slug === 'referral-partner' )?.href ).toBe( '/refer-and-earn/' );
+    expect( SHOP_LISTINGS.find( item => item.slug === 'contribute' )?.href ).toBe( '/shop/contribute/' );
+  } );
+
+  it( 'renders the first six cards and the Shop search field', () => {
+    const first = SHOP_LISTINGS.slice( 0, SHOP_LISTINGS_PER_PAGE );
     const { container } = render(
-      <ShopIndex listings={ [] } allListings={ [] } page={ 1 } totalPages={ 1 } />,
+      <ShopIndex listings={ first } allListings={ SHOP_LISTINGS } page={ 1 } totalPages={ shopListingPageCount( SHOP_LISTINGS.length ) } />,
     );
-    expect( container.querySelectorAll( 'article.shop-card' ) ).toHaveLength( 0 );
+    expect( container.querySelectorAll( 'article.shop-card' ) ).toHaveLength( 6 );
     expect( screen.getByLabelText( 'Search the shop' ) ).toHaveAttribute( 'type', 'search' );
   } );
 } );

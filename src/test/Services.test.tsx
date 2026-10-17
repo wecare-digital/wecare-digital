@@ -10,9 +10,10 @@ import { isServiceRefusal, SERVICE_REFUSAL_MESSAGES } from '../lib/serviceReques
 const SOURCE = fs.readFileSync( path.join( __dirname, '..', 'config', 'services.ts' ), 'utf8' );
 
 describe( 'the services config', () => {
-  it( 'keeps production clean while exposing synthetic choices only to tests', () => {
+  it( 'keeps synthetic test identities separate from the five fresh production services', () => {
     expect( SOURCE ).toContain( "TESTING ? '11111111-1111-4111-8111-111111111111' : ''" );
-    expect( SOURCE ).toContain( 'TESTING ? TEST_SERVICE_CHOICES : []' );
+    expect( SOURCE ).toContain( 'TESTING ? TEST_SERVICE_CHOICES : LIVE_SERVICE_CHOICES' );
+    expect( SOURCE ).toContain( 'export const SERVICE_PRODUCT_IDS' );
     expect( SERVICES_PRODUCT_ID ).toBe( '11111111-1111-4111-8111-111111111111' );
     expect( SERVICES_OPTION_ID ).toBe( '10101010-1010-4010-8010-101010101010' );
     expect( SERVICES_CURRENCY ).toBe( 'INR' );
