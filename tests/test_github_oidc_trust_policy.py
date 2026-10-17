@@ -130,7 +130,9 @@ def test_subject_is_matched_by_pattern_not_by_name(which, provisioner, fixer):
 @pytest.mark.parametrize("which", ["provisioner", "fixer"])
 def test_immutable_ids_pinned_as_their_own_conditions(which, provisioner, fixer):
     """Belt and braces: the ids are also asserted outside the subject string."""
-    doc = provisioner.TRUST if which == "provisioner" else fixer.target_policy()
+    doc = provisioner.TRUST if which == "provisioner" else fixer.target_policy(
+        _account_id_from(provisioner.TRUST)
+    )
     equals, _ = _conditions(doc)
     assert equals.get(f"{PROVIDER}:aud") == "sts.amazonaws.com"
     assert equals.get(f"{PROVIDER}:repository_owner_id") == OWNER_ID
@@ -234,8 +236,9 @@ def test_all_three_provisioners_and_the_fixer_write_one_document(provisioner, pl
     next `provision_ci_plivo_drift_role.py --apply` would restore it, two scripts
     reverting each other forever.
     """
-    assert _canonical(plivo.TRUST) == _canonical(fixer.target_policy())
-    assert _canonical(provisioner.TRUST) == _canonical(fixer.target_policy())
+    account_id = _account_id_from(provisioner.TRUST)
+    assert _canonical(plivo.TRUST) == _canonical(fixer.target_policy(account_id))
+    assert _canonical(provisioner.TRUST) == _canonical(fixer.target_policy(account_id))
 
 
 def test_read_role_grants_no_write_action():
@@ -280,7 +283,9 @@ def test_committed_trust_document_matches_the_fixer(fixer):
     is an outage. Byte equality is asserted rather than eyeballed.
     """
     committed = json.loads((ROOT / "scripts" / "iam-public-surface-trust.json").read_text())
-    assert _canonical(committed) == _canonical(fixer.target_policy())
+    assert _canonical(committed) == _canonical(
+        fixer.target_policy(_account_id_from(committed))
+    )
 
 
 def test_route_auth_live_gate_does_not_run_on_pull_requests():
