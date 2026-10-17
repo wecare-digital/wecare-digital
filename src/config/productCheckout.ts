@@ -22,4 +22,3 @@ export const PRODUCT_CHECKOUT: Readonly<Record<string, ProductCheckoutLine>> = {
 export const productCheckoutLine = ( slug: string ): ProductCheckoutLine | null =>
   PRODUCT_CHECKOUT[ slug ] ?? null;
 
-export const isPlaceholderCheckout = (): boolean => false;

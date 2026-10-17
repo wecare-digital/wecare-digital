@@ -2,7 +2,7 @@
   "_comment": [
     "SEED DEFINITIONS for native catalogue product rows, consumed by scripts/seed_native_catalog.py.",
     "These are the product pages that mount <ProductBuyBox> but have NO catalogue row yet, so their",
-    "checkout still falls back to the shared ₹1 placeholder. Give each a REAL priceMinor (integer",
+    "checkout still falls back to the shared retired placeholder. Give each a REAL priceMinor (integer",
     "PAISE: ₹899 = 89900) and run the seed script with staff Cognito auth to create the rows, then",
     "paste the returned productId/variantId into src/config/productCheckout.ts PRODUCT_CHECKOUT.",
     "",

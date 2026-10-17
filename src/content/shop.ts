@@ -1,13 +1,9 @@
 import { buildPageTitle } from '../lib/page-title';
 /**
- * The shop catalogue, read from the AWS ProductsTable-derived static snapshot.
+ * The shop catalogue projection.
  *
- * `src/content/catalog-snapshot.json` is generated from the AWS ProductsTable and committed.
- * next.config.js sets `output: 'export'`, so these pages are built once and served as static HTML -
- * there is no server to make a live call from, and a client-side fetch would put an unauthenticated
- * catalog read in the browser. Refreshing the catalogue is a deliberate act: re-run the script and
- * commit. The snapshot is credential-free by construction; it is generated from our AWS catalog
- * and records its data provenance in its own `source` field.
+ * The retired generated snapshot has been removed. This module now reads the typed clean-slate
+ * catalogue boundary and will be repopulated only by the fresh SKU-first catalog implementation.
  *
  * THE PRICES HERE ARE FOR DISPLAY AND MUST NEVER REACH A PAYMENT. The amount in a payment request
  * comes from a live checkout read, compared in integer paise, and any mismatch fails closed - see
@@ -173,31 +169,6 @@ const isContributionRow = ( raw: RawProduct ): boolean =>
 const isServicesRow = ( raw: RawProduct ): boolean =>
   String( raw.id || '' ).trim().toLowerCase() === SERVICES_PRODUCT_ID;
 
-/**
- * THE ₹1 TEST PRODUCT, which is not this storefront. It is a catalogue test row left `visible: true`
- * in catalog ("₹1 test product", id 121c9d57…, slug `1-test-product`, price ₹1.00), so
- * `scripts/build-catalog-snapshot.py` collects it and it would otherwise get a public `/shop/1-test-product/`
- * page, a sitemap entry, and a ₹1 card in the grid — which reads as a broken storefront.
- *
- * Excluded by id first and slug second, and the exclusion is deliberately
- * NON-DESTRUCTIVE (the row stays in the committed snapshot and in catalog), REVERSIBLE (delete
- * this line to sell it), and checkout is untouched (it reads the live catalogue, not SHOP_PRODUCTS),
- * so a ₹1 smoke-test cart by direct reference still works. The id cannot be edited in the catalog
- * dashboard; the slug can, hence both.
- */
-export const TEST_PRODUCT_IDS: readonly string[] = [
-  '121c9d57-2cc9-490b-8eed-66bf7b9c172a', // ₹1 test product
-] as const;
-
-export const TEST_PRODUCT_SLUGS: readonly string[] = [
-  '1-test-product',
-] as const;
-
-/** Is this raw snapshot row a non-storefront test product? */
-const isTestProductRow = ( raw: RawProduct ): boolean =>
-  TEST_PRODUCT_IDS.includes( String( raw.id || '' ).trim().toLowerCase() )
-  || TEST_PRODUCT_SLUGS.includes( String( raw.slug || '' ).trim().toLowerCase() );
-
 /** The one projection, so the excluded entry is a real `ShopProduct` and not a raw snapshot row. */
 const project = ( raw: RawProduct ): ShopProduct => {
   const paragraphs = toParagraphs( String( raw.descriptionHtml || '' ) );
@@ -236,8 +207,7 @@ const VISIBLE = ( ( catalog as { products?: RawProduct[] } ).products || [] )
   .filter( raw => raw.visible !== false && !!raw.slug && !!raw.name );
 
 export const SHOP_PRODUCTS: ShopProduct[] = VISIBLE
-  .filter( raw => !isContributionRow( raw ) && !isServicesRow( raw )
-    && !isTestProductRow( raw ) )
+  .filter( raw => !isContributionRow( raw ) && !isServicesRow( raw ) )
   .map( project )
   .sort( ( a, b ) => a.name.localeCompare( b.name ) );
 

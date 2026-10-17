@@ -246,15 +246,8 @@ export default function FilesPage () {
      * nothing to poll for and no download to trigger — which is why there is no
      * Razorpay Checkout script here any more.
      */
-    /*
-     * The website "Continue to checkout" leg was REMOVED when PR #708 retired the old catalog
-     * identities and deleted the ₹1 PLACEHOLDER_LINE it depended on (config/productCheckout now
-     * exports no placeholder fallback by design). There is no website per-file payment backend,
-     * so there is no real catalogue line to add to the cart - the leg could only ever have added
-     * the now-deleted placeholder. Payment for a file happens on WhatsApp via handlePayOnWhatsApp
-     * below, which is the live, signature-verified channel. If a website per-file payment backend
-     * is built later, reintroduce this leg against a REAL catalogue line, not a placeholder.
-     */
+    /* Website checkout is intentionally unavailable for file delivery. Payment remains on
+     * WhatsApp until a fresh, dedicated website payment product is deliberately introduced. */
     const handlePayOnWhatsApp = async ( file: SecureFile ) => {
         setError( '' );
         setMessage( '' );
@@ -495,9 +488,7 @@ export default function FilesPage () {
                                         disabled={ !!working }
                                         busy={ working === file.fileId }
                                     />
-                                    {/* The website "Continue to checkout" leg was removed with the
-                                        ₹1 placeholder it relied on (PR #708). File payment is on
-                                        WhatsApp via the pill above - the live, verified channel. */}
+                                    {/* File payment is handled by the verified WhatsApp payment flow above. */}
                                 </div>
                             ) ) }
 
@@ -651,9 +642,7 @@ export default function FilesPage () {
                   margin:6px 0 16px;font-size:14px;color:rgba(26,58,42,.68);
                 }
 
-                /* The .sf-checkout website-leg pill was removed with its button and handler
-                   (PR #708 deleted the ₹1 placeholder catalogue line it submitted). File payment
-                   is the WhatsApp PillButton above; no second CTA renders here now. */
+                /* No secondary website-checkout CTA is rendered for file delivery. */
 
                 .sf-empty,.sf-fine{
                   font-size:15px;line-height:1.5;color:rgba(26,58,42,.72);margin:0;
