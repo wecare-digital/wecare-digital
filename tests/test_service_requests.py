@@ -11,6 +11,8 @@ from types import SimpleNamespace
 
 import pytest
 
+pytestmark = pytest.mark.usefixtures("synthetic_service_catalog")
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
@@ -18,10 +20,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from lambda_utils.ecommerce import cart_contract, checkout_pricing  # noqa: E402
 from lambda_utils.ecommerce import service_requests as sr  # noqa: E402
 from synthetic_service_catalog import (  # noqa: E402
-    PRODUCT, SUBMIT, AMEND, DROP_DOCS, VAULT, PICKUP, configure as configure_services,
+    PRODUCT, SUBMIT, AMEND, DROP_DOCS, VAULT, PICKUP,
 )
 
-configure_services(sr)
 
 INTENT = "01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f"
 INTENT_B = "01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e60"
