@@ -1,5 +1,6 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
+import ProductBuyBox from '../components/ProductBuyBox';
 import { SHIPMENTS } from '../content/shipments';
 
 /**
@@ -26,7 +27,7 @@ import { SHIPMENTS } from '../content/shipments';
  * URL is /shipments/.
  */
 const ShipmentsPage: React.FC = () => (
-  <ProductPage product={ SHIPMENTS } />
+  <ProductPage product={ SHIPMENTS } belowCta={ <ProductBuyBox slug="shipments-track" /> } />
 );
 
 export default ShipmentsPage;
