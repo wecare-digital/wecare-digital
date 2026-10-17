@@ -4,10 +4,7 @@ import {
 } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 
-// The next/router mock was removed with the "Continue to checkout →" button: PR #708 deleted the
-// ₹1 PLACEHOLDER_LINE that the website leg submitted, so that leg is gone and /get no longer calls
-// useRouter (file payment is the WhatsApp pill, which needs no router). Reinstate a mock here only
-// if a future change makes the page navigate again.
+// This page does not use next/router; file payment stays in the verified WhatsApp flow.
 
 import * as customerAuth from '../lib/customerAuth';
 import * as api from '../api/client';
