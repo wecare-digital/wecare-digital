@@ -226,9 +226,9 @@ def test_a_contribution_basket_is_not_a_service_basket():
     # 8ad6f376-…, which is all `Contribute` carries since the owner reduced it on 2026-10-10.
     # The deleted Rs.100 variant stood here before; a basket nothing can price is a weaker
     # subject for "this is not a service" than one that can.
-    contribution = {"catalogReference": {"catalogItemId": "8514c405-3971-4786-ad0d-15406ca23407",
+    contribution = {"catalogReference": {"catalogItemId": "77777777-7777-4777-8777-777777777777",
                                          "options": {"variantId":
-                                                     "8ad6f376-a526-4631-b510-0e047b33a5b9"}},
+                                                     "7a7a7a7a-7a7a-47a7-87a7-7a7a7a7a7a7a"}},
                     "quantity": 1}
     assert sr.service_line([contribution]) is None
     assert sr.checkout_preflight([contribution], {}) is None
