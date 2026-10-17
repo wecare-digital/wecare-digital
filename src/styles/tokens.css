@@ -207,8 +207,9 @@
    * FOCUS RING (accessibility)
    * Lime glow used by inputs/buttons; --focus-ring-strong for keyboard nav.
    * ======================================== */
-  --focus-ring: 0 0 0 3px rgba(209, 244, 112, 0.45);
-  --focus-ring-strong: 0 0 0 3px rgba(26, 58, 42, 0.35);
+  /* Notion-style: subtler, tighter 2px glow (was 3px / 0.45 alpha). */
+  --focus-ring: 0 0 0 2px rgba(209, 244, 112, 0.35);
+  --focus-ring-strong: 0 0 0 2px rgba(26, 58, 42, 0.3);
   --focus-ring-offset: 2px;
 
   /* ========================================
@@ -325,19 +326,22 @@
    *
    * CONSUMED BY src/styles/form-controls.css, which is imported LAST in _app.tsx.
    * ======================================== */
-  --control-h: var(--tap-target);           /* 44px - the floor tokens.css:465 ALREADY applies */
-  /* 13px AT RUNTIME, and that is the whole point of writing the token rather than the number.
-   * src/styles/inner-ux.css:92 redeclares --radius-md: 13px on :root and _app.tsx:73 imports it
-   * AFTER tokens.css (which arrives via Layout.css:8's @import at _app.tsx:70), so the 8px
-   * declared at tokens.css:140 is an authored default that never renders. Same hazard as
-   * --radius-btn, tokens.css:322-326 - except that one resolves AWAY from the value you want
-   * and this one resolves TO it. Do not "simplify" this to the literal 13px: that would make
-   * form-controls.css the one consumer that stops following the scale, so a future correction
-   * to --radius-md would move every control in the app except these four. */
-  --control-radius: var(--radius-md);
+  /* NOTION-STYLE REDESIGN (owner-authorised 2026-10-17): controls are now short, with a thin 1px
+   * border and a compact 8px radius. This REVERSES the earlier "1px was proposed and rejected"
+   * decision recorded elsewhere in this block - the owner asked for short/small Notion-style
+   * fields across all public pages, so the geometry below is the new house standard and
+   * FormControlsCss.test.ts was updated to match (literals 1px / 8px, census regenerated). The
+   * <=768px tap-target floor (tokens.css:465 + form-controls.css) still restores 44px on touch,
+   * so this does not regress mobile accessibility. */
+  --control-h: 36px;                        /* Notion-style compact height; <=768px block floors to 44px */
+  /* 8px, the compact Notion radius. Declared as a literal (NOT var(--radius-md)) because
+   * --radius-md resolves to 13px at runtime via inner-ux.css:92, which is the OLD value - the
+   * whole point of this change is to leave that 13px scale in place for cards/panels while the
+   * controls move to 8px. */
+  --control-radius: 8px;
   /* NOT var(--radius-btn): that resolves to 999px, a full pill (tokens.css:322-326). */
-  --control-border-w: 2px;                  /* as five existing rule sets declare */
-  --control-border: var(--border);          /* #e5e7eb, as five existing rule sets declare */
+  --control-border-w: 1px;                  /* Notion-style thin border (was 2px) */
+  --control-border: var(--border);          /* #e5e7eb */
   --control-border-hover: var(--lime);      /* #d1f470 - tokens.css:59. Was hardcoded twice */
   --control-border-focus: var(--lime);      /* #d1f470 - ditto */
   --control-bg: var(--surface);             /* #ffffff */
@@ -540,11 +544,18 @@ textarea {
   font-size: var(--text-md);
   color: var(--text);
   background: var(--bg);
-  border: 2px solid #e5e7eb;
-  border-radius: var(--radius-md);
-  padding: 10px 12px;
-  min-height: 44px;
+  /* Notion-style: thin 1px border, compact 8px radius, 36px height. (Was 2px / 13px / 44px.)
+     Textarea restores auto height below so it is not clamped to the control height. */
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 11px;
+  min-height: 36px;
   transition: all var(--transition-normal);
+}
+
+textarea {
+  min-height: 80px;
+  padding: 10px 11px;
 }
 
 input:hover,
@@ -556,7 +567,7 @@ input:focus,
 textarea:focus {
   outline: none;
   border-color: #d1f470;
-  box-shadow: 0 0 0 3px rgba(209, 244, 112, 0.3);
+  box-shadow: 0 0 0 2px rgba(209, 244, 112, 0.35);
 }
 
 /* ========================================

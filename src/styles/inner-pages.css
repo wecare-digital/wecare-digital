@@ -251,9 +251,9 @@
 .layout .main-content .filter-select:not([data-public-ui]) {
   background: #ffffff !important;
   color: rgba(0,0,0,.898) !important;
-  border: 2px solid #e5e7eb !important;
-  border-radius: 13px !important;
-  padding: 10px 14px !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  padding: 7px 11px !important;
 }
 
 .layout .main-content select:hover {
@@ -262,7 +262,7 @@
 
 .layout .main-content select:focus {
   border-color: #d1f470 !important;
-  box-shadow: 0 0 0 3px rgba(209, 244, 112, 0.3) !important;
+  box-shadow: 0 0 0 2px rgba(209, 244, 112, 0.35) !important;
   outline: none !important;
 }
 
@@ -1032,9 +1032,9 @@
 .layout .main-content .campaign-page .form-group select,
 .layout .main-content .campaign-page .form-group textarea {
   width: 100%;
-  padding: 10px 14px;
-  border: 2px solid #e5e7eb;
-  border-radius: 13px;
+  padding: 7px 11px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
   font-size: 14px;
   background: #ffffff;
   color: rgba(0,0,0,.898);
@@ -1921,8 +1921,8 @@
 .layout .main-content .pay-page select,
 .layout .main-content .pay-link-page input,
 .layout .main-content .pay-link-page select {
-  border: 2px solid #e5e7eb !important;
-  border-radius: 13px !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px !important;
 }
 
 .layout .main-content .pay-page input:focus,
@@ -2005,8 +2005,8 @@
 .layout .main-content .form-group input,
 .layout .main-content .form-group select,
 .layout .main-content .form-group textarea {
-  border: 2px solid #e5e7eb !important;
-  border-radius: 13px !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px !important;
 }
 
 .layout .main-content .form-section input:hover,
