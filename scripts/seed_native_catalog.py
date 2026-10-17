@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Seed real native-catalogue product rows for the product pages that still fall back to the
-₹1 placeholder at checkout, then print ready-to-paste PRODUCT_CHECKOUT entries.
+retired placeholder at checkout, then print ready-to-paste PRODUCT_CHECKOUT entries.
 
 WHY THIS EXISTS
     Creates fresh native catalog rows through the staff admin API.
