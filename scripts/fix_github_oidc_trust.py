@@ -138,6 +138,8 @@ ROLES = [
     # Registered here so it gets the SAME repo-pinned OIDC trust document as every other role
     # rather than whatever its creator hand-wrote.
     "GitHubActions-wecare-runtime-deploy",
+    # Dedicated least-privilege deployer for wecare-checkout, declared by checkout-deploy.yml.
+    "GitHubActions-wecare-checkout-deploy",
 ]
 
 # Any IAM role whose name starts with this is assumed to be a GitHub Actions OIDC role
