@@ -33,6 +33,15 @@ describe( 'Grahak OS five approved visual fixes', () => {
     expect( source ).toContain( 'insideMain' );
   } );
 
+  it( 'pins the tightened hero sub-line so a revert fails', () => {
+    // Part 2 of the copy polish: the hero sub was rewritten to lead on the unified
+    // platform story. Pin a distinctive exact substring of the new RotatingHero `sub`
+    // prop so a silent revert to the old "#1 revenue channel" wording fails here.
+    expect( source ).toContain( 'One platform that unifies customer data, messaging and AI automation across WhatsApp, SMS, Email and Voice. Every conversation stays connected end to end, so your WhatsApp number becomes a channel that drives real outcomes.' );
+    // The retired "#1 revenue channel" framing must not reappear in the hero sub.
+    expect( source ).not.toContain( 'revenue channel' );
+  } );
+
   it( 'uses the approved WECARE.DIGITAL color system and canonical logo avatar', () => {
     // Header teal darkened from #128c7e to #0a7265 so the white .contact-name clears the
     // 4.5:1 WCAG AA contrast floor (white on #0a7265 is 5.82:1; on #128c7e it was 4.14:1,
