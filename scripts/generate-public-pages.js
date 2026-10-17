@@ -125,10 +125,6 @@ const STRUCTURAL = [
   { path: '/shop', group: 'start', name: 'Shop',
     description: 'Every WECARE.DIGITAL product and service on one page, each linking to its own page.' },
   { path: '/orders', group: 'start' },
-  // Zip is the request/delivery/pickup hub — a front door to a set of actions, like Orders and
-  // Blog beside it, rather than a service page — so it sits in 'start'. Its name and description
-  // come from PUBLIC_PAGE_META in _app.tsx.
-  { path: '/shipments', group: 'start' },
   // Perks is its own positioning group (gift cards, rewards, offers), declared in the groups[]
   // array of config/public-pages.json. It is the repaired destination for the gift-card links.
   { path: '/perks', group: 'perks' },
@@ -159,6 +155,7 @@ const STRUCTURAL = [
   // generate-sitemap.js lists both in PUBLIC_EXACT with no group rule to place them.
   { path: '/hunar/kaushal', group: 'services' },
   { path: '/hunar/prastuti', group: 'services' },
+  { path: '/shipments/track', group: 'services' },
 ];
 
 const STRUCTURAL_BY_PATH = new Map( STRUCTURAL.map( entry => [ entry.path, entry ] ) );
