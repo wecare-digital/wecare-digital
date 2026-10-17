@@ -39,6 +39,9 @@ def canonical(row):
         "discountKind": row.get("discountKind"),
         "percentOffBps": int(row.get("percentOffBps") or 0),
         "maximumDiscountPaise": int(row.get("maximumDiscountPaise") or 0),
+        "scopeNamespace": row.get("scopeNamespace"),
+        "scopeGroupName": row.get("scopeGroupName"),
+        "scopeEntityId": row.get("scopeEntityId"),
         "currency": row.get("currency"),
     }
 
