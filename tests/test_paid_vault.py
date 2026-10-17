@@ -8,6 +8,8 @@ import pathlib
 sys.path.insert(0,str(pathlib.Path(__file__).parent))
 from unittest.mock import Mock
 import pytest
+
+pytestmark = pytest.mark.usefixtures("synthetic_service_catalog")
 from test_service_request_store import who, pay, ALICE, BOB
 from test_paid_submit_request import flow_module
 from test_service_requests_handler import env, call, PHONE

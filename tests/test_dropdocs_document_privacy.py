@@ -38,6 +38,8 @@ from typing import Any, Dict, List
 
 import pytest
 
+pytestmark = pytest.mark.usefixtures("synthetic_service_catalog")
+
 ROOT = Path(__file__).resolve().parents[1]
 FUNC_DIR = ROOT / "amplify" / "functions" / "core" / "secure-files"
 SHARED = ROOT / "amplify" / "functions" / "shared"

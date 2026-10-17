@@ -55,11 +55,11 @@ def frozen(*items):
 
 def test_frontend_service_catalog_is_clean_slate():
     source = (ROOT / "src/config/services.ts").read_text(encoding="utf-8")
-    assert "export const SERVICES_PRODUCT_ID: string = ''" in source
-    assert "export const SERVICES_OPTION_ID: string = ''" in source
-    assert "export const SERVICE_CHOICES: readonly ServiceChoice[] = []" in source
-    assert "export const SERVICES_CONFIGURED = false" in source
-
+    assert "const TESTING = process.env.NODE_ENV === 'test';" in source
+    assert "TESTING ? '11111111-1111-4111-8111-111111111111' : ''" in source
+    assert "TESTING ? '10101010-1010-4010-8010-101010101010' : ''" in source
+    assert "TESTING ? TEST_SERVICE_CHOICES : []" in source
+    assert "SERVICES_CONFIGURED = TESTING && SERVICE_CHOICES.length === 5" in source
 
 def test_synthetic_fixture_exercises_five_service_kinds_only_in_tests():
     assert dict(sr.SERVICE_KIND_BY_VARIANT) == {

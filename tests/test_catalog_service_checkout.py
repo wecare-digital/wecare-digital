@@ -37,11 +37,9 @@ from lambda_utils.ecommerce import service_requests
 from lambda_utils import customer_auth
 from synthetic_service_catalog import PRODUCT
 
-VARIANTS = service_requests.SERVICE_KIND_BY_VARIANT
-
 
 def test_catalog_basket_rejects_mixed_services_and_quantity():
-    variant = next(v for v, k in VARIANTS.items() if k == 'SUBMIT_REQUEST')
+    variant = next(v for v, k in service_requests.SERVICE_KIND_BY_VARIANT.items() if k == 'SUBMIT_REQUEST')
     item = {'productId': PRODUCT, 'variantId': variant, 'quantity': 1}
     assert catalog.service_from_lines([item])['kind'] == 'SUBMIT_REQUEST'
     with pytest.raises(ValueError):
