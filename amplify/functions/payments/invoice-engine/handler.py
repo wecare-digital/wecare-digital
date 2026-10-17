@@ -46,7 +46,7 @@ from lambda_utils import payment_readiness
 # Attribution, not mechanics: which surface the order was placed from. One module owns the two
 # literals and the one total coercion, so the three render sites below cannot disagree about what
 # `channel` means - the same discipline `pay_status` applies to payment words.
-from lambda_utils.ecommerce import order_channel
+from lambda_utils.ecommerce import order_channel, business_identity
 # Identity reservation for a native WhatsApp collection, and the key prefixes it reserves on.
 # `send_payment_link` reserves BEFORE it sends, so a retried send re-sends the same
 # `reference_id` instead of minting a second one for one invoice.
@@ -261,23 +261,8 @@ def _audit_actor() -> str:
 #   19 AAFFW7196L 1 Z 8  ->  state 19 (West Bengal), PAN AAFFW7196L
 # Env vars allow override without a redeploy.
 COMPANY = {
-    'name': 'WECARE.DIGITAL',
-    # The registered legal name printed as the invoice heading (owner mockup 2026-10-07).
-    # `name` stays the brand, shown as the fixed "Brand: WECARE.DIGITAL" line beneath it.
-    'legal_name': 'WECARE.DIGITAL BHARATWORKS',
-    'gstin': os.environ.get('COMPANY_GSTIN', '19AAFFW7196L1Z8'),
-    'pan': os.environ.get('COMPANY_PAN', 'AAFFW7196L'),
-    'address': 'The W.B.S.I.D.C. Building, Unit 1/20, 81/2/7, Phears Ln, Kolkata, WB 700012',
-    'email': 'one@wecare.digital',
-    'phone': '+91 93309 94400',
-    'website': 'https://wecare.digital',
+    **business_identity.invoice_identity(),
     'logo_s3_key': media_paths.public('stream/media/m/wecare-digital.png'),
-    # `paid_icon_s3_key` was removed on 2026-09-28. It was read by nothing - a repo-wide
-    # search found the definition and zero uses - and it named `stream/media/m/paid.png`,
-    # which has no object AND no version history in this bucket, so it was never migrated
-    # and probably never existed. A config key pointing at a file that cannot be fetched,
-    # which nothing fetches, is the exact shape of the drift this audit was chasing; a
-    # future PAID stamp should be added back with a reader in the same change.
 }
 
 

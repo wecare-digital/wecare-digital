@@ -87,7 +87,7 @@ PREFIX_HOLD = "COUPONHOLD#"
 PREFIX_REDEEM = "COUPONREDEEM#"
 
 CURRENCY = "INR"
-POLICY_VERSION = "coupon-policy-2026-10-01"
+POLICY_VERSION = "coupon-policy-2026-10-17"
 
 STATUS_ACTIVE = "ACTIVE"
 STATUS_INACTIVE = "INACTIVE"
@@ -168,7 +168,7 @@ HOLD_CONDITION = ("attribute_not_exists(activeHoldCartId) "
 DEFINITION_ATTRIBUTES = (
     KEY_ATTRIBUTE, "couponId", "code", "name", STATUS_ATTRIBUTE,
     "discountKind", "moneyOffPaise", "percentOffBps", "fixedPricePaise", "buyX", "buyY",
-    "minimumSubtotalPaise", "scopeNamespace", "scopeGroupName", "scopeEntityId", "startTimeMs",
+    "maximumDiscountPaise", "minimumSubtotalPaise", "scopeNamespace", "scopeGroupName", "scopeEntityId", "startTimeMs",
     "expirationTimeMs", "usageLimit", "limitPerCustomer", "usageCount", "limitedToOneItem",
     "currency", "policyVersion", "createdAt", "updatedAt", "createdBy", "tags",
     HOLD_CART_ATTRIBUTE, HOLD_EXPIRY_ATTRIBUTE,
@@ -178,7 +178,7 @@ DEFINITION_ATTRIBUTES = (
 #: dropped, so a misspelled `expirationTimeMS` cannot issue a coupon that never expires.
 CREATE_FIELDS = (
     "code", "name", "discountKind", "moneyOffPaise", "percentOffBps", "fixedPricePaise",
-    "buyX", "buyY", "minimumSubtotalPaise", "scopeNamespace", "scopeGroupName", "scopeEntityId",
+    "buyX", "buyY", "maximumDiscountPaise", "minimumSubtotalPaise", "scopeNamespace", "scopeGroupName", "scopeEntityId",
     "startTimeMs", "expirationTimeMs", "usageLimit", "limitPerCustomer", "limitedToOneItem",
     "currency", "tags",
 )
@@ -410,10 +410,8 @@ def _behaviour(payload: Dict[str, Any], item: Dict[str, Any]) -> str:
     elif kind == PERCENT_OFF:
         bps = _positive_int(payload["percentOffBps"], field="INVALID_PERCENT",
                             maximum=MAX_PERCENT_OFF_BPS)
-        if bps % PAISE_PER_RUPEE:
-            raise CouponValidationError(
-                "SUB_RUPEE_DISCOUNT_NOT_SUPPORTED",
-                "percentOffBps must be a whole percent in this release")
+        # Basis points are the stored unit, so 5 bps means 0.05%. Sub-percent coupons are
+        # intentionally supported; no float or percentage string enters the money path.
         item["percentOffBps"] = bps
     elif kind == BUY_X_GET_Y:
         item["buyX"] = _positive_int(payload["buyX"], field="INVALID_BUY_X_GET_Y")
@@ -466,6 +464,11 @@ def validate_definition(payload: Any, *, created_by: Any = None,
 
     kind = _behaviour(payload, item)
     has_scope = _scope(payload, item)
+
+    maximum = payload.get("maximumDiscountPaise")
+    if maximum is not None:
+        item["maximumDiscountPaise"] = _whole_rupee_paise(
+            maximum, field="INVALID_MAXIMUM_DISCOUNT")
 
     minimum = payload.get("minimumSubtotalPaise")
     if minimum is not None:
@@ -965,7 +968,12 @@ def discount_paise(definition: Optional[Dict[str, Any]], *, collection_paise: An
         # `round_half_up` on integer paise and integer basis points, never `* rate / 100`. At
         # 10000 bps this is the whole collection, so the clamp is an identity rather than a cap
         # - it is there because the clamp must not depend on the rate being well-formed.
-        return min(checkout_pricing.round_half_up(collection, bps), collection)
+        discount = min(checkout_pricing.round_half_up(collection, bps), collection)
+        maximum = definition.get("maximumDiscountPaise")
+        if maximum is not None:
+            discount = min(discount, _amount_paise(
+                maximum, field="INVALID_MAXIMUM_DISCOUNT", allow_zero=False))
+        return discount
     if kind == FIXED_PRICE:
         # `FIXED_PRICE` names the price that remains, so the discount is the difference. A fixed
         # price above the collection discounts nothing rather than inflating the invoice.

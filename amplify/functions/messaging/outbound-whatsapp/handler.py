@@ -51,7 +51,7 @@ REFERENCE_ID_MAX_LENGTH = order_keys.META_REFERENCE_ID_MAX_LENGTH
 # tests/test_whatsapp_payments_are_template_only.py already imports both modules together to pin
 # the two sets equal, so the import direction is established practice.
 from lambda_utils import payment_readiness
-from lambda_utils.ecommerce import wa_payment_request
+from lambda_utils.ecommerce import wa_payment_request, business_identity
 
 logger = get_logger(__name__)
 
@@ -1815,17 +1815,7 @@ def _handle_checkout_template_send(
                 order_details_action['shipping_info'] = {'country': 'IN', 'addresses': []}
 
         # Ensure all items have required India compliance fields
-        WECARE_IMPORTER = {
-            'country_of_origin': 'India',
-            'importer_name': 'WECARE.DIGITAL',
-            'importer_address': {
-                'address_line1': '81/2/7 Phears Ln',
-                'city': 'Kolkata',
-                'zone_code': 'WB',
-                'postal_code': '700012',
-                'country_code': 'IN',
-            },
-        }
+        WECARE_IMPORTER = business_identity.meta_importer_fields()
         # Meta's order_details item schema is strict — any extra key (e.g. our
         # per-item 'gstRate') causes error 100 "Unexpected key ...". Keep only the
         # keys Meta allows, then add India-compliance defaults.

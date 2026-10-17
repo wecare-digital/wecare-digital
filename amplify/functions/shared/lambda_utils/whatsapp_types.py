@@ -17,7 +17,7 @@ HEADER_FORMATS = ('TEXT', 'IMAGE', 'VIDEO', 'GIF', 'DOCUMENT', 'LOCATION')
 
 BUTTON_TYPES = (
     'QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'COPY_CODE', 'VOICE_CALL',
-    'OTP', 'MPM', 'SPM', 'CATALOG', 'FLOW', 'REQUEST_CONTACT_INFO',
+    'OTP', 'MPM', 'SPM', 'CATALOG', 'FLOW', 'REQUEST_CONTACT_INFO', 'ORDER_DETAILS',
 )
 
 # message_send_ttl_seconds bounds per category (None = use -1 30d sentinel allowed)

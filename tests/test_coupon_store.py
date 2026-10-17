@@ -198,7 +198,7 @@ def test_money_is_stored_as_integer_paise_and_rates_as_basis_points():
     percent = cs.validate_definition(
         payload(discountKind=cs.PERCENT_OFF, moneyOffPaise=None, percentOffBps=500),
         clock=clock())
-    # 500 basis points IS 5%. Stored as bps so no fractional percent can be represented.
+    # 500 basis points IS 5%. Basis points also represent sub-percent rates exactly.
     assert percent["percentOffBps"] == 500
     assert type(percent["percentOffBps"]) is int
     assert percent["currency"] == "INR"
@@ -209,25 +209,24 @@ def test_money_is_stored_as_integer_paise_and_rates_as_basis_points():
     ("moneyOffPaise", 12345),
     ("fixedPricePaise", 12345),
     ("minimumSubtotalPaise", 12345),
-    ("percentOffBps", 250),
 ])
-def test_a_sub_rupee_amount_is_refused_at_creation(field, value):
-    """Pins the whole-rupee restriction as DELIBERATE rather than a bug.
-
-    This release issues coupon amounts in whole rupees. Rounding a discount silently changes
-    what a customer was promised, and `2500` bps rounded to `25` is a different coupon from
-    2.5%.
-    """
+def test_a_sub_rupee_money_amount_is_refused_at_creation(field, value):
+    """Money promises remain whole-rupee amounts; percentage rates are integer basis points."""
     body = payload(moneyOffPaise=None if field != "moneyOffPaise" else value)
     if field == "fixedPricePaise":
         body = payload(discountKind=cs.FIXED_PRICE, moneyOffPaise=None, fixedPricePaise=value)
-    elif field == "percentOffBps":
-        body = payload(discountKind=cs.PERCENT_OFF, moneyOffPaise=None, percentOffBps=value)
     elif field == "minimumSubtotalPaise":
         body = payload(minimumSubtotalPaise=value)
     with pytest.raises(cs.CouponValidationError) as refusal:
         cs.validate_definition(body, clock=clock())
     assert refusal.value.code == "SUB_RUPEE_DISCOUNT_NOT_SUPPORTED"
+
+
+def test_sub_percent_coupon_rate_is_represented_exactly_in_basis_points():
+    definition = cs.validate_definition(
+        payload(discountKind=cs.PERCENT_OFF, moneyOffPaise=None, percentOffBps=5),
+        clock=clock())
+    assert definition["percentOffBps"] == 5
 
 
 # ── 9-11: times and the code bound ────────────────────────────────────────────

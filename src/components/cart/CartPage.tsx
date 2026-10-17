@@ -196,6 +196,11 @@ const CONTRIBUTION_NOT_PAYABLE_MESSAGE =
  * a payable, and never sends an amount - it sends a code and an action, nothing more.
  */
 const REDEMPTION_URL = `${API_BASE}/ecommerce/redemption`;
+/**
+ * Default order coupon. The rate deliberately does not live in the browser: the server-owned
+ * CouponsTable definition decides the discount and its Rs 100 cap.
+ */
+const DEFAULT_COUPON_CODE = 'Delight';
 
 /** Where an unauthenticated shopper is sent, and returned from, before checkout. */
 const SIGN_IN_PATH = '/account/sign-in/?return=/cart/';
@@ -594,7 +599,7 @@ function ContributionAmount (
 }
 
 function RedemptionPanel (): React.ReactElement {
-  const [ couponCode, setCouponCode ] = useState<string>( '' );
+  const [ couponCode, setCouponCode ] = useState<string>( DEFAULT_COUPON_CODE );
   const [ giftCardCode, setGiftCardCode ] = useState<string>( '' );
   const [ busy, setBusy ] = useState<RedeemKind | null>( null );
   const [ unavailable, setUnavailable ] = useState<boolean>( false );
@@ -679,6 +684,7 @@ function RedemptionPanel (): React.ReactElement {
       {/* COUPON */}
       <div className="cart-redeem-group">
         <label className="cart-redeem-label" htmlFor="cart-coupon">Coupon code</label>
+        <p className="cart-redeem-hint">Delight is ready to apply. Your exact saving is calculated at checkout.</p>
         <div className="cart-redeem-row">
           <input
             id="cart-coupon"

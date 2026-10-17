@@ -248,7 +248,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
    * RedemptionPanel follows, for the same reason: a browser-computed discount is a figure the
    * customer can see and the ledger never agreed to.
    */
-  const [ couponCode, setCouponCode ] = useState( '' );
+  const [ couponCode, setCouponCode ] = useState( 'Delight' );
   const [ giftCardCode, setGiftCardCode ] = useState( '' );
   const [ redemption, setRedemption ] = useState<api.CreateInvoiceEngineResponse | null>( null );
   const [ redemptionMsg, setRedemptionMsg ] = useState( '' );
@@ -973,7 +973,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                     { selInvoice.shippingAddress && <div className="pf-detail-row" style={ { alignItems: 'flex-start' } }><span className="label">Delivery Address</span><span style={ { fontSize: 11, color: '#555', maxWidth: 200, wordBreak: 'break-word' } }>{ selInvoice.shippingAddress }</span></div> }
                     <div className="pf-section-divider">
                       <div className="pf-detail-row"><span className="label">Subtotal</span><span>{ fmtMoney( selInvoice.subtotal ) }</span></div>
-                      <div className="pf-detail-row"><span className="label">Tax</span><span>{ fmtMoney( selInvoice.tax ) }</span></div>
+                      <div className="pf-detail-row"><span className="label">GST</span><span>{ fmtMoney( selInvoice.tax ) }</span></div>
                       <div className="pf-detail-row"><span className="label">Express</span><span>{ fmtMoney( selInvoice.shipping ) }</span></div>
                       { /* TWO LINES FOR TWO FACTS, matching what `_build_invoice_html` and
                            `_generate_receipt_png` now print. `invoice.discount` is the SUM of the
@@ -987,7 +987,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                         <div className="pf-detail-row"><span className="label">Coupon { selInvoice.couponCode || '' }</span><span>{ '\u2212' }{ fmtMoney( selInvoice.couponDiscount ) }</span></div>
                       ) }
                       <div className="pf-detail-row"><span className="label">Manual adjustment</span><span>{ '\u2212' }{ fmtMoney( selInvoice.discount - ( selInvoice.couponDiscount || 0 ) ) }</span></div>
-                      { selInvoice.convenienceFee > 0 && <div className="pf-detail-row"><span className="label">Conv Fee</span><span>{ fmtMoney( selInvoice.convenienceFee ) }</span></div> }
+                      { selInvoice.convenienceFee > 0 && <div className="pf-detail-row"><span className="label">Convenience fee</span><span>{ fmtMoney( selInvoice.convenienceFee ) }</span></div> }
                       <div className="pf-detail-total"><span>Total</span><span>{ fmtMoney( selInvoice.total ) }</span></div>
                       { /* Gift-card tender, below the total because it is NOT a price change: the
                            total is what the invoice is for, `amountPayable` is what Razorpay will

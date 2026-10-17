@@ -363,6 +363,12 @@ def validate_buttons(buttons: List[Dict[str, Any]], category: str = '') -> Tuple
             errors.extend(oe)
             warnings.extend(ow)
             continue
+        if t == 'ORDER_DETAILS':
+            if (category or '').upper() != 'UTILITY':
+                errors.append('ORDER_DETAILS button is only allowed on a UTILITY template')
+            if b.get('text') != 'Review and Pay':
+                errors.append('ORDER_DETAILS button text must be exactly "Review and Pay"')
+            continue
         if t in ('QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'VOICE_CALL') and len(b.get('text', '')) > BUTTON_TEXT_MAX:
             errors.append(f'{t} button text must be <= {BUTTON_TEXT_MAX} characters')
         if t == 'COPY_CODE' and len(str(b.get('example', ''))) > COPY_CODE_EXAMPLE_MAX:
@@ -382,6 +388,8 @@ def validate_buttons(buttons: List[Dict[str, Any]], category: str = '') -> Tuple
         errors.append('At most 10 QUICK_REPLY buttons allowed')
     if counts.get('OTP', 0) > 1:
         errors.append('At most 1 OTP button allowed')
+    if counts.get('ORDER_DETAILS', 0) > 1:
+        errors.append('At most 1 ORDER_DETAILS button allowed')
     if counts.get('OTP', 0) and (category or '').upper() not in ('', 'AUTHENTICATION'):
         errors.append('An OTP button is only allowed on an AUTHENTICATION template')
 
