@@ -51,7 +51,7 @@ REFERENCE_ID_MAX_LENGTH = order_keys.META_REFERENCE_ID_MAX_LENGTH
 # tests/test_whatsapp_payments_are_template_only.py already imports both modules together to pin
 # the two sets equal, so the import direction is established practice.
 from lambda_utils import payment_readiness
-from lambda_utils.ecommerce import wa_payment_request, business_identity
+from lambda_utils.ecommerce import wa_payment_request, business_identity, checkout_pricing
 
 logger = get_logger(__name__)
 
@@ -2550,7 +2550,7 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
                     'paymentGstAmount': Decimal(str(tax_val)),
                     'paymentShipping': Decimal(str(shipping_val)),
                     'paymentTotal': Decimal(payment_amount_paise or 0),
-                    'paymentGstin': order_details.get('gstin', '19AAFFW7196L1Z8'),
+                    'paymentGstin': business_identity.GSTIN,
                     'paymentSource': 'inbox_ui',
                     'paymentOrderId': order_details.get('orderId', 'Offline'),
                     'paymentCustomerName': c_name,
@@ -3606,7 +3606,7 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
         order_data = order_details.get('order', {})
         
         # GSTIN
-        gstin = order_details.get('gstin', '19AAFFW7196L1Z8')
+        gstin = business_identity.GSTIN
         
         # Discount, Delivery (user input, mandatory - show even if 0)
         discount_paise = int(order_data.get('discount', {}).get('value', 0))
@@ -3617,6 +3617,7 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
         items_for_whatsapp = []
         item_total_paise = 0
         gst_paise = 0  # Total GST across all items
+        importer_fields = business_identity.meta_importer_fields()
         
         for i, item in enumerate(items_list):
             item_amount = int(item.get('amount', {}).get('value', 100))
@@ -3639,15 +3640,7 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                 'name': item_name,
                 'amount': {'value': item_amount, 'offset': 100},
                 'quantity': item_qty,
-                'country_of_origin': 'India',
-                'importer_name': 'WECARE.DIGITAL',
-                'importer_address': {
-                    'address_line1': '81/2/7 Phears Ln',
-                    'city': 'Kolkata',
-                    'zone_code': 'WB',
-                    'postal_code': '700012',
-                    'country_code': 'IN',
-                },
+                **importer_fields,
             })
         
         # Fallback if no items
@@ -3661,34 +3654,23 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                 'name': item_name,
                 'amount': {'value': fallback_amount // max(item_quantity, 1), 'offset': 100},
                 'quantity': item_quantity,
-                'country_of_origin': 'India',
-                'importer_name': 'WECARE.DIGITAL',
-                'importer_address': {'address_line1': '81/2/7 Phears Ln', 'city': 'Kolkata', 'zone_code': 'WB', 'postal_code': '700012', 'country_code': 'IN'},
+                **importer_fields,
             })
             # Use tax value from order_data as fallback
             gst_paise = int(order_data.get('tax', {}).get('value', 0))
         
-        # Convenience Fee: configurable rate (default 2.5%) + GST on that rate (default 18%)
-        # Can be overridden per-order via convenienceFeeRate and convenienceFeeGstRate.
-        # The public checkout is AWS-owned, so this server-side default,
-        # CONVENIENCE_FEE in src/config/constants.ts and the literal in
-        # payments/invoice-engine/handler.py are THREE copies that must remain aligned
-        # until fee calculation is centralized in the checkout service. They did not agree
-        # before this commit - 0.022 here, 2.2 there and 0.02 in the invoice engine - so the
-        # fee depended on which surface composed the order. All three are 2.5% on owner
-        # instruction.
-        conv_fee_rate = Decimal(str(order_details.get('convenienceFeeRate', '0.025')))
-        conv_fee_gst_rate = Decimal(str(order_details.get('convenienceFeeGstRate', '0.18')))
-        skip_conv_fee = order_details.get('skipConvenienceFee', False)
-
-        if not skip_conv_fee and conv_fee_rate > 0:
-            collection_paise = item_total_paise + gst_paise
-            conv_base = round_paise(Decimal(collection_paise) * conv_fee_rate)
-            conv_gst = round_paise(Decimal(conv_base) * conv_fee_gst_rate)
-            conv_total = conv_base + conv_gst
+        # Convenience fee policy has ONE home: checkout_pricing.compute_quote.
+        # The basis is the collection the customer actually owes BEFORE the fee: item total
+        # minus discount, plus shipping and supply GST. This matches website/cart pricing.
+        skip_conv_fee = bool(order_details.get('skipConvenienceFee', False))
+        if not skip_conv_fee:
+            collection_paise = item_total_paise - discount_paise + delivery_paise + gst_paise
+            quote = checkout_pricing.compute_quote(
+                collection_paise, currency=order_details.get('currency', 'INR'))
+            conv_total = quote.convenience_fee_paise + quote.convenience_gst_paise
         else:
             conv_total = 0
-        
+
         # Add convenience fee as a line item (only if > 0)
         if conv_total > 0:
             items_for_whatsapp.append({
@@ -3696,9 +3678,7 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                 'name': 'Convenience Fee (Collected by Bank)',
                 'amount': {'value': conv_total, 'offset': 100},
                 'quantity': 1,
-                'country_of_origin': 'India',
-                'importer_name': 'WECARE.DIGITAL',
-                'importer_address': {'address_line1': '81/2/7 Phears Ln', 'city': 'Kolkata', 'zone_code': 'WB', 'postal_code': '700012', 'country_code': 'IN'},
+                **importer_fields,
             })
         
         # Build reference ID
@@ -3782,86 +3762,49 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
         if 'payment_link' in ps:
             action_params['payment_type'] = 'upi'
         
-        # For physical-goods: beneficiaries is REQUIRED by Meta (legal/compliance).
-        # Per Meta PG docs: "Required for shipped physical-goods."
-        # NOTE: shipping_info + address collection is a CHECKOUT BUTTON TEMPLATE feature
-        # (requires checkout endpoint / data_exchange beta). It does NOT work with
-        # interactive order_details messages. For PG deep integration, we MUST always
-        # provide beneficiaries. If address is unknown, use business address as fallback.
+        # For shipped physical goods Meta requires the intended RECIPIENT as beneficiary.
+        # A merchant-address fallback is not a customer shipping address, so missing/unpayable
+        # delivery details fail closed instead of producing a legally misleading payment payload.
         if goods_type == 'physical-goods':
-            # FEAT-003: when the caller supplies a `customer_address` in the shared stored shape,
-            # build the beneficiary through the one validator and FAIL CLOSED on an unpayable one.
-            # The business-address fallback is legitimate ONLY for a caller that supplied NO
-            # customer address (Meta: beneficiary data is legal/compliance, not shown to the user);
-            # it must NEVER substitute for a supplied customer address that failed the rule, or a
-            # payment would be sent against a beneficiary that cannot settle. Non-India is refused
-            # outright (WHATSAPP_ORDER_DETAILS is India-only — MCC 7392 / purpose 03 / INR).
+            from lambda_utils.ecommerce import payment_address as _pa
+
             customer_address = order_details.get('customer_address')
-            if customer_address is not None:
-                from lambda_utils.ecommerce import payment_address as _pa
-                recipient = (order_details.get('recipient_name')
-                             or customer_address.get('recipientName') or 'Customer')
-                try:
-                    action_params['beneficiaries'] = [
-                        _pa.for_meta_beneficiary(customer_address, recipient_name=recipient)]
-                except _pa.UnpayableAddress as exc:
-                    logger.info(json.dumps({
-                        'event': 'order_details_beneficiary_unpayable_refused',
-                        'code': exc.code, 'field': exc.field, 'referenceId': ref_id}))
+            recipient = order_details.get('recipient_name') or 'Customer'
+
+            if customer_address is None:
+                shipping_info = order_details.get('shipping_info') or {}
+                addresses = shipping_info.get('addresses') or []
+                if not addresses:
                     raise PaymentConfigurationUnresolved(
-                        f'customer_address is not payable on WhatsApp: {exc.code}') from None
-            else:
-                shipping_info = order_details.get('shipping_info', {})
-                beneficiary_addr = shipping_info.get('addresses', [])
+                        'delivery details are required for physical-goods order_details')
+                addr = addresses[0] or {}
+                customer_address = {
+                    'addressLine1': addr.get('address') or addr.get('address_line1') or '',
+                    'addressLine2': addr.get('landmark_area') or addr.get('address_line2') or '',
+                    'city': addr.get('city') or '',
+                    'state': addr.get('state') or '',
+                    'postalCode': addr.get('in_pin_code') or addr.get('postal_code') or '',
+                    'countryCode': str(shipping_info.get('country') or 'IN').upper(),
+                    'country': 'India' if str(shipping_info.get('country') or 'IN').upper() == 'IN'
+                               else str(shipping_info.get('country') or ''),
+                }
+                recipient = addr.get('name') or recipient
 
-                # Try to build beneficiary from provided address
-                b_name = 'Customer'
-                b_addr1 = ''
-                b_city = ''
-                b_state = ''
-                b_postal = ''
+            required_delivery = ('addressLine1', 'city', 'state', 'postalCode')
+            if any(not str(customer_address.get(field) or '').strip() for field in required_delivery):
+                raise PaymentConfigurationUnresolved(
+                    'delivery details are incomplete for physical-goods order_details')
 
-                if beneficiary_addr:
-                    addr = beneficiary_addr[0]
-                    b_name = (addr.get('name', 'Customer') or 'Customer')[:200]
-                    b_addr1 = addr.get('address', addr.get('address_line1', '')) or ''
-                    b_city = addr.get('city', '') or ''
-                    b_state = addr.get('state', '') or ''
-                    b_postal = addr.get('in_pin_code', addr.get('postal_code', '')) or ''
+            try:
+                action_params['beneficiaries'] = [
+                    _pa.for_meta_beneficiary(customer_address, recipient_name=recipient)]
+            except _pa.UnpayableAddress as exc:
+                logger.info(json.dumps({
+                    'event': 'order_details_beneficiary_unpayable_refused',
+                    'code': exc.code, 'field': exc.field, 'referenceId': ref_id}))
+                raise PaymentConfigurationUnresolved(
+                    f'customer_address is not payable on WhatsApp: {exc.code}') from None
 
-                if b_addr1 and b_city and b_postal:
-                    # Complete customer address — use it
-                    action_params['beneficiaries'] = [{
-                        'name': b_name,
-                        'address_line1': b_addr1[:100],
-                        'address_line2': (beneficiary_addr[0].get('landmark_area', beneficiary_addr[0].get('address_line2', '')) if beneficiary_addr else '')[:100],
-                        'city': b_city,
-                        'state': b_state or b_city,
-                        'country': 'India',
-                        'postal_code': b_postal[:6],
-                    }]
-                else:
-                    # Address unknown/incomplete — use BUSINESS address as beneficiary fallback.
-                    # Meta requires beneficiaries for physical-goods but says "Beneficiary
-                    # information isn't shown to users but is needed for legal and compliance."
-                    # So using business address is valid — the actual shipping address can be
-                    # collected separately (via chat, form, or checkout endpoint beta).
-                    logger.info(json.dumps({
-                        'event': 'beneficiary_fallback_to_business_address',
-                        'reason': 'Customer address incomplete for physical-goods',
-                        'missingFields': {'address_line1': not b_addr1, 'city': not b_city, 'postal_code': not b_postal},
-                        'referenceId': ref_id,
-                    }))
-                    action_params['beneficiaries'] = [{
-                        'name': 'WECARE.DIGITAL',
-                        'address_line1': '81/2/7 Phears Ln',
-                        'address_line2': 'The W.B.S.I.D.C. Building, Unit 1/20',
-                        'city': 'Kolkata',
-                        'state': 'West Bengal',
-                        'country': 'India',
-                        'postal_code': '700012',
-                    }]
-        
         interactive_payload = {
             'type': 'order_details',
             'header': {

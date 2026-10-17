@@ -1058,11 +1058,11 @@ send forever, and inert while the flag is true. Worth revisiting when the flag f
 from documentation rather than a captured response. Tolerant by design, the full detail is
 logged on every 100, and a false negative degrades to the same 403.
 
-**I8. Centralise the convenience-fee rate.**
-`outbound-whatsapp/handler.py` notes that three copies exist — its own default,
-`src/config/constants.ts` `CONVENIENCE_FEE`, and a literal in
-`payments/invoice-engine/handler.py` — and that they disagreed before being aligned at 2.5%.
-Three copies that must stay equal will drift again.
+**I8. Resolved — convenience-fee policy is centralised.**
+`checkout_pricing.compute_quote` now owns the 2.5% fee, 18% GST-on-fee, basis and half-up
+rounding. Website/catalog checkout already used it; outbound WhatsApp and the invoice engine now
+call it instead of re-deriving rates, and the unused browser `CONVENIENCE_FEE` copy is removed.
+`skipConvenienceFee` remains only as an explicit "already fee-inclusive" transport control.
 
 **I9. Fail-closed the `_money_amount` non-numeric path.**
 The payments steering records a latent defect: a non-numeric price passes through as

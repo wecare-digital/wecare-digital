@@ -53,6 +53,7 @@ import re
 from typing import Any, Dict, Mapping, Optional, Tuple
 
 from lambda_utils.ecommerce.money import Money
+from lambda_utils.ecommerce import business_identity
 
 # ── policy version ───────────────────────────────────────────────────────────────
 #: Bumped whenever the fee basis, the rate, the GST rate, or the rounding rule changes. Stored
@@ -75,7 +76,7 @@ _MAX_PAISE = 9007199254740991
 #: The seller's GSTIN. A constant here, distinct from any buyer GSTIN by construction: the
 #: buyer value is an argument and the two are compared, so a buyer GSTIN equal to the seller's
 #: is rejected rather than silently accepted (which would mean a self-dealing invoice).
-SELLER_GSTIN = "19AAFFW7196L1Z8"
+SELLER_GSTIN = business_identity.GSTIN
 
 #: Standard GSTIN shape: 2-digit state code, 10-char PAN, entity digit, 'Z', one checksum char.
 _GSTIN_RE = re.compile(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$")
