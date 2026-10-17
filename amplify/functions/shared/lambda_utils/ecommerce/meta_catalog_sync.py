@@ -1,41 +1,8 @@
-"""ProductsTable -> Meta catalogue projection: the retailer-id contract, item shape and diff.
+"""ProductsTable -> Meta catalogue projection.
 
-PHASE W, FEAT-001. Design decisions D2, D3 and D4 of
-`.agents/tasks/phase-w-whatsapp-commerce-20261006/plan.md`; the measurements behind them are in
-that task's `findings.md` section 1.
-
-PURE, AND THAT IS THE POINT
----------------------------
-No boto3 client, no network, no environment read, no clock. Every input arrives as an argument,
-exactly like `initiation.py` and `finalization.py`. So the whole of "what would we send to Meta,
-and what would change" is decidable offline against the committed storefront snapshot
-`src/content/catalog-snapshot.json` (generated from ProductsTable by
-`scripts/build-catalog-snapshot.py`), which is how `tests/test_meta_catalog_sync.py` pins the
-item count without a credential. The Lambda in `ecommerce/meta-catalog-sync/` is the only thing
-that reads ProductsTable for this projection or talks to Meta. Its deployment environment
-controls whether a computed plan may be applied.
-
-ONE DIRECTION ONLY: PRODUCTSTABLE -> META
------------------------------------------
-The AWS ProductsTable is the single source of truth for products, variants, prices and
-availability. Meta is a VIEW. Nothing here reads a Meta value back into the catalogue, and
-nothing here deletes a Meta item - see `diff` for why a vanished variant becomes
-`availability: out of stock` instead.
-
-THE RETAILER ID IS THE JOIN, AND IT IS NOT A NEW IDEA
------------------------------------------------------
-`<RETAILER_PREFIX>:<productId>:<variantId>` carries exactly the `catalogReference` pair
-(`catalogItemId` plus `options.variantId`) that `src/lib/cart.ts` `toLineItems()` sends and
-`checkout/handler.py` `_native_quote` prices. So an order that arrives from WhatsApp carrying
-`product_retailer_id` resolves to the same ProductsTable line as an order placed on the website,
-with no mapping table to keep in step. 88 characters against Meta's 100-character limit.
-
-MONEY IS INTEGER PAISE AND THERE IS NO FLOAT IN THIS FILE
----------------------------------------------------------
-`tests/test_meta_catalog_sync.py` walks this module's AST and fails on a float literal or a
-`float()` call. A displayed price is composed from the integer by SLICING THE DIGITS
-(`price_text`), not by dividing, so there is no point at which a binary fraction could enter. Any
-stored number that arrives as a decimal string goes through `Decimal(str(value))`.
+Pure projection helpers for retailer IDs, item shape and diffing. ProductsTable is the source of
+truth. No retired product, service, contribution or test-product identity is embedded here.
+Fresh catalog rows are projected from their current data and publication flags.
 """
 
 from __future__ import annotations
