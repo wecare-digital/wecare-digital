@@ -152,8 +152,8 @@ CATALOG_SESSION = {
     'contactId': 'contact-cat-1',
     'phoneNumberId': 'phone-number-id-waba1-direct-1016149501586345',
     'kind': 'SUBMIT_REQUEST',
-    'productId': 'df976a0a-f582-4535-b2e1-d532f348bd27',
-    'variantId': 'e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b',
+    'productId': '11111111-1111-4111-8111-111111111111',
+    'variantId': '22222222-2222-4222-8222-222222222222',
 }
 
 
@@ -165,8 +165,8 @@ TOTAL_PAYABLE_PAISE = COLLECTION_PAISE + FEE_PAISE + FEE_GST_PAISE
 #: A real SUBMIT_REQUEST service: product + variant from `service_requests.SERVICE_*`, so the
 #: native per-line price guard (`native_service_line_paise`, which reads `frozen_data['items']`)
 #: resolves exactly one in-bounds service line at quantity 1.
-SERVICE_PRODUCT_ID = 'df976a0a-f582-4535-b2e1-d532f348bd27'
-SERVICE_VARIANT_ID = 'e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b'
+SERVICE_PRODUCT_ID = '11111111-1111-4111-8111-111111111111'
+SERVICE_VARIANT_ID = '22222222-2222-4222-8222-222222222222'
 #: A well-formed UUIDv7 service-intent id (service_requests.INTENT_ID_RE).
 SERVICE_INTENT_ID = '018f1a2b-3c4d-7e5f-8a9b-0c1d2e3f4a5b'
 
