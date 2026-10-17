@@ -109,12 +109,22 @@ describe( 'Header', () => {
     const extras = screen.getByText( 'Extras' ).closest( '.nav-group' );
     expect( extras ).not.toBeNull();
     expect( extras?.textContent ).toContain( 'Perks' );
+    expect( extras?.textContent ).toContain( 'Google Play' );
+    expect( extras?.textContent ).toContain( 'App Store' );
     expect( extras?.textContent ).not.toContain( 'Blog' );
     expect( screen.queryByRole( 'link', { name: 'Blog' } ) ).toBeNull();
+    expect( screen.getByRole( 'link', { name: 'Google Play' } ) ).toHaveAttribute( 'href', 'https://wecare.digital/' );
+    expect( screen.getByRole( 'link', { name: 'App Store' } ) ).toHaveAttribute( 'href', 'https://wecare.digital/' );
 
     const search = screen.getByLabelText( 'Search navigation' );
     fireEvent.change( search, { target: { value: 'blog' } } );
     expect( screen.queryByRole( 'link', { name: 'Blog' } ) ).toBeNull();
+
+    fireEvent.change( search, { target: { value: 'android' } } );
+    expect( screen.getByRole( 'link', { name: 'Google Play' } ) ).toHaveAttribute( 'href', 'https://wecare.digital/' );
+
+    fireEvent.change( search, { target: { value: 'iphone' } } );
+    expect( screen.getByRole( 'link', { name: 'App Store' } ) ).toHaveAttribute( 'href', 'https://wecare.digital/' );
   } );
 
   it( 'uses menu-only search and family names find their real child destinations', () => {
