@@ -7738,12 +7738,80 @@ def _link_media_to_service_request(contact_id: str, s3_key: str, media_type: str
         logger.warning(json.dumps({'event': 'link_media_error', 'error': str(e), 'requestId': request_id}))
 
 
+def _link_flow_submission_to_order(reference_id: str, submission_id: str,
+                                   canonical_address: Optional[Dict], request_id: str) -> None:
+    """Write the flow's info back onto the ONE OrderTable row it belongs to.
+
+    THE JOIN, in the only direction that is safe. The flow echoes a `reference_id`
+    (`WD-PAY-...`), not the canonical OrderTable `orderId` (`WD-ORD-...`), so this resolves the
+    order through the immutable CommerceKeys chain the payment already wrote:
+    `PAYREF#<ref>` -> paymentAttemptId -> `PAYMENTATTEMPT#<attempt>` -> orderIdRef. That chain is
+    the one `paid_submit_request` and the webhook use, so no new index and no trust in a
+    customer-supplied id. When the order does not exist yet (a pending/failed attempt resolves to
+    None) this is a no-op, which is the correct answer, not an error.
+
+    What it writes onto the order: the flow `submissionId` (so the Order<->FlowSubmission join
+    exists in BOTH directions — the submission already carries the reference), and the delivery
+    address the flow collected (the canonical `checkoutDeliveryAddress` Map + the declared
+    `shippingAddress` string column the schema already has). It NEVER touches the five money /
+    identity keys the finalization conflict guard compares (`customerId`, `paymentAttemptId`,
+    `providerPaymentId`, `snapshotHash`, `orderNumber`) — this is attribution and fulfilment data
+    added beside the frozen record, conditional on the order existing so a race cannot create one.
+    """
+    if not reference_id:
+        return
+    try:
+        keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+        payref = order_keys.resolve_payment_reference(keys, reference_id)
+        attempt_id = str((payref or {}).get('paymentAttemptId') or '')
+        claim = order_keys.resolve_order_for_payment(keys, attempt_id) if attempt_id else None
+        order_id = str((claim or {}).get('orderIdRef') or '')
+        if not order_id:
+            # No order yet (pending/failed/legacy reference). The submission still stands on its
+            # own; there is simply nothing to link to.
+            return
+        now = int(time.time())
+        expr_names = {}
+        expr_vals = {':sid': submission_id, ':ua': now}
+        set_parts = ['flowSubmissionId=:sid', 'updatedAt=:ua']
+        if canonical_address is not None:
+            from lambda_utils.ecommerce import contact_address
+            wf = contact_address.contact_write_fields(canonical_address, now=now)
+            # `shippingAddress` is the declared OrderTable column; `checkoutDeliveryAddress` is the
+            # same canonical Map the contact carries, so an order and its contact describe one
+            # address, not two that can drift.
+            expr_names['#cda'] = contact_address.ATTRIBUTE
+            set_parts += ['shippingAddress=:sa', '#cda=:cda']
+            expr_vals.update({':sa': wf['shippingAddress'],
+                              ':cda': wf[contact_address.ATTRIBUTE]})
+        kwargs = {
+            'Key': {'orderId': order_id},
+            'UpdateExpression': 'SET ' + ', '.join(set_parts),
+            # Only an existing order is updated — never create one here. Finalization owns order
+            # creation; this adds fulfilment data to a row that already committed.
+            'ConditionExpression': 'attribute_exists(orderId)',
+            'ExpressionAttributeValues': expr_vals,
+        }
+        if expr_names:
+            kwargs['ExpressionAttributeNames'] = expr_names
+        dynamodb.Table(shared_tables.orders_table_name()).update_item(**kwargs)
+        logger.info(json.dumps({'event': 'flow_submission_linked_to_order', 'orderId': order_id,
+                                'submissionId': submission_id, 'requestId': request_id}))
+    except Exception as link_error:  # noqa: BLE001
+        # The submission and the contact are already saved; failing to decorate the order must not
+        # fail the whole post-pay handling or send the customer a second confirmation. Logged for
+        # staff, swallowed here — the order record is still authoritative without this label.
+        logger.warning(json.dumps({'event': 'flow_order_link_failed', 'referenceId': reference_id,
+                                    'error': str(link_error)[:300], 'requestId': request_id}))
+
+
 def _handle_postpay_submission(data: Dict, contact_id: str, sender_phone: str,
                                phone_number_id: str, request_id: str) -> None:
     """Handle a post-payment (endpointless) flow completion. The flow's 'complete'
     action returns reference_id + order/payment ids + the customer's details.
-    Saves ONE submission per payment (idempotent, keyed on reference_id) and sends
-    a confirmation message."""
+    Saves ONE submission per payment (idempotent, keyed on reference_id), links that
+    submission and its address back onto the matching OrderTable row, and sends a
+    confirmation message."""
     try:
         # New multi-screen flow uses request_id + order_number (+ full address/details).
         # Stay backward-compatible with the old payload (reference_id/delivery_note).
@@ -7818,6 +7886,11 @@ def _handle_postpay_submission(data: Dict, contact_id: str, sender_phone: str,
                                         'requestId': request_id}))
                 return  # already recorded — do not send a second confirmation
             raise
+        # Link this submission + its address back onto the ONE OrderTable row (resolved through
+        # the immutable PAYREF chain). After the idempotent put above, so a redelivered flow does
+        # not re-link; before the contact write so the order and contact get one consistent
+        # address in the same handling.
+        _link_flow_submission_to_order(reference_id, sub_id, canonical, request_id)
         # Update the customer's saved address from the flow so future orders pre-fill.
         try:
             if contact_id:
