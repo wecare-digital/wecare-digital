@@ -73,14 +73,14 @@ const CART_SEED = [
     // since the owner removed the Rs.100 and Rs.500 amounts on 2026-10-10. Seeded with a variant
     // the catalogue no longer has, the cart row would render as unavailable and the amount
     // select this probe measures would never appear.
-    productId: '8514c405-3971-4786-ad0d-15406ca23407',
-    variantId: '8ad6f376-a526-4631-b510-0e047b33a5b9',
-    ref: '8514c405-3971-4786-ad0d-15406ca23407:8ad6f376-a526-4631-b510-0e047b33a5b9',
+    productId: '77777777-7777-4777-8777-777777777777',
+    variantId: '7a7a7a7a-7a7a-47a7-87a7-7a7a7a7a7a7a',
+    ref: '77777777-7777-4777-8777-777777777777:7a7a7a7a-7a7a-47a7-87a7-7a7a7a7a7a7a',
     slug: 'contribute', name: 'Contribute', formattedPrice: '₹250.00', quantity: 1,
   },
   {
-    productId: 'eca1540e-0a0e-478d-9aa7-e366be277617',
-    ref: 'eca1540e-0a0e-478d-9aa7-e366be277617',
+    productId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    ref: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     slug: 'merchandise', name: 'Merchandise', formattedPrice: '₹1,199.00', quantity: 1,
   },
 ];
