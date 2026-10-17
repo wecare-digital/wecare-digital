@@ -131,12 +131,9 @@ ROLES = [
     "GitHubActions-wecare-digital-public-surface",
     "GitHubActions-wecare-digital-public-surface-read",
     "GitHubActions-wecare-digital-plivo-drift",
-    # The AWS-native catalog deploy/publish roles, declared by the catalogue workflows
-    # (native-catalog-admin-deploy.yml, aws-native-catalog-publish.yml). Registered here so
-    # they get the SAME repo-pinned OIDC trust document as every other role rather than
-    # whatever their creator hand-wrote.
+    # The AWS-native catalog deploy role is declared by native-catalog-admin-deploy.yml.
+    # The retired static-catalog reader role was removed with the old storefront snapshot path.
     "GitHubActions-wecare-native-catalog-deploy",
-    "GitHubActions-wecare-native-catalog-reader",
     # The selected runtime-deploy role, declared by .github/workflows/runtime-deploy.yml.
     # Registered here so it gets the SAME repo-pinned OIDC trust document as every other role
     # rather than whatever its creator hand-wrote.
