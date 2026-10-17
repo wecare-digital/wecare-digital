@@ -1,5 +1,3 @@
-import rawCatalog from './catalog-snapshot.json';
-
 export interface CatalogSnapshotVariant {
   id: string;
   label?: string;
@@ -37,12 +35,18 @@ export interface CatalogSnapshot {
 }
 
 /**
- * Stable TypeScript boundary for the generated JSON snapshot.
+ * Clean-slate Shop catalog.
  *
- * JSON imports infer an empty array as never[]. The catalogue is allowed to be intentionally empty,
- * so every TypeScript consumer must read through this typed adapter instead of importing the JSON
- * file directly.
+ * The retired generated Shop snapshot and its product identities have been removed.
+ * Keep this empty until the fresh SKU-first catalog is deliberately created.
  */
-export const CATALOG_SNAPSHOT: CatalogSnapshot = rawCatalog as CatalogSnapshot;
+export const CATALOG_SNAPSHOT: CatalogSnapshot = {
+  source: 'clean-slate',
+  catalogVersion: 'SKU_FIRST_V1',
+  fetchedAt: '2026-10-17T00:00:00.000Z',
+  productCount: 0,
+  products: [],
+  variantVerifiedAt: '2026-10-17T00:00:00.000Z',
+};
 
 export default CATALOG_SNAPSHOT;
