@@ -37,6 +37,7 @@
 
 import React from 'react';
 import PageMeta from '../../components/PageMeta';
+import PublicShare from '../../components/PublicShare';
 import RotatingHero from '../../components/RotatingHero';
 import VayuLokApprovedGlobe from '../../components/VayuLokApprovedGlobe';
 import VayuLokLive from '../../components/VayuLokLive';
@@ -190,10 +191,15 @@ const VayuLokPage: React.FC = () => {
             applies here as it does to every other public product page. */}
         <VayuLokLive mode={ mode } onModeChange={ setMode } externalLocation={ globeLocation } />
 
+        <div className="vl-share-wrap">
+          <PublicShare />
+        </div>
       </main>
 
 
       <style jsx>{`
+        .vl-share-wrap{width:100%;max-width:1300px;margin:0 auto;padding:0 24px 48px;box-sizing:border-box}
+        @media(max-width:767px){ .vl-share-wrap{padding:0 16px 40px} }
         /* The hero's shell, headline, badge spacing and subtext are RotatingHero's own rh-*
            rules. This page keeps only what is its own: the globe column and the split. */
         /* The two columns read as a deliberate, balanced pair: the copy holds a
