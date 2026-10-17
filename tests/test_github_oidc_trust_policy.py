@@ -81,6 +81,12 @@ def _canonical(doc: dict) -> str:
     return json.dumps(doc, sort_keys=True, separators=(",", ":"))
 
 
+def _account_id_from(doc: dict) -> str:
+    """Extract the account id from the already-declared provisioner trust ARN."""
+    arn = doc["Statement"][0]["Principal"]["Federated"]
+    return str(arn).split(":")[4]
+
+
 def _conditions(doc: dict) -> tuple[dict, dict]:
     statements = doc["Statement"]
     assert len(statements) == 1, "expected exactly one trust statement"
@@ -90,12 +96,16 @@ def _conditions(doc: dict) -> tuple[dict, dict]:
 
 def test_both_scripts_write_the_same_document(provisioner, fixer):
     """Whichever runs last must not change the outcome."""
-    assert _canonical(provisioner.TRUST) == _canonical(fixer.target_policy())
+    assert _canonical(provisioner.TRUST) == _canonical(
+        fixer.target_policy(_account_id_from(provisioner.TRUST))
+    )
 
 
 @pytest.mark.parametrize("which", ["provisioner", "fixer"])
 def test_subject_is_matched_by_pattern_not_by_name(which, provisioner, fixer):
-    doc = provisioner.TRUST if which == "provisioner" else fixer.target_policy()
+    doc = provisioner.TRUST if which == "provisioner" else fixer.target_policy(
+        _account_id_from(provisioner.TRUST)
+    )
     equals, like = _conditions(doc)
 
     # The subject must be a StringLike pattern. A StringEquals subject is the bug.
