@@ -35,7 +35,10 @@ export const paiseToRupees = ( paise: number ): number =>
 
 export const contributionChoice = ( variantId: unknown ): ContributionChoice | null =>
   CONTRIBUTION_CHOICES.find(
-    choice => choice.variantId === String( variantId || '' ).trim().toLowerCase(),
+    // Case-insensitive on BOTH sides: the live variantId is 'CNT5Q2M8' (mixed case), and the
+    // old form lowercased only the input, so a lookup for the real variant never matched and the
+    // website checkout silently wrote nothing. Normalise both ends so any casing resolves.
+    choice => choice.variantId.toLowerCase() === String( variantId || '' ).trim().toLowerCase(),
   ) || null;
 
 export const CONTRIBUTION_PURPOSE = 'BLOG_CONTRIBUTION' as const;
