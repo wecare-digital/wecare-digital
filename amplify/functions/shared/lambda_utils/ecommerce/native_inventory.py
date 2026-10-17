@@ -98,7 +98,7 @@ def validate_lines(product_reader, lines: Sequence[Mapping[str, Any]]) -> None:
             raise OutOfStock(vid, qty, 0)
         variants = product.get("variants") or []
         matching = [v for v in variants if str(v.get("sku") or v.get("id") or "") == vid]
-        if len(matching) == 1 and matching[0].get("trackInventory") is not True:
+        if len(matching) == 1 and matching[0].get("trackInventory") is False:
             continue
         have = available_units(product, vid)
         if qty > have:
