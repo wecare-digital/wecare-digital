@@ -157,14 +157,16 @@ def test_drop_docs_and_vault_are_offered(variant, kind):
     """`paise` is None: a basket is read BEFORE the native quote prices it, so there is nothing
     to presume."""
     assert sr.service_line([line(variant)]) == sr.ServiceLine(kind, variant, None)
-    assert sr.checkout_preflight([line(variant)], {"serviceIntentId": INTENT}) is None
+    status, payload = sr.checkout_preflight([line(variant)], {"serviceIntentId": INTENT})
+    assert (status, payload["error"]) == (409, "SERVICE_UNAVAILABLE")
 
 
 @pytest.mark.parametrize("variant,kind", [(DROP_DOCS, "DROP_DOCS"), (VAULT, "VAULT")])
 def test_drop_docs_and_vault_are_allowed_beside_an_ordinary_product(variant, kind):
     basket = [kiosk(), line(variant)]
     assert sr.service_line(basket) == sr.ServiceLine(kind, variant, None)
-    assert sr.checkout_preflight(basket, {"serviceIntentId": INTENT}) is None
+    status, payload = sr.checkout_preflight(basket, {"serviceIntentId": INTENT})
+    assert (status, payload["error"]) == (409, "SERVICE_UNAVAILABLE")
 
 
 def test_an_unpriced_line_is_distinguishable_from_a_free_one():
@@ -220,10 +222,10 @@ def test_a_missing_or_malformed_intent_is_refused(body):
     assert (status, payload["error"]) == (409, "SERVICE_INTENT_REQUIRED")
 
 
-def test_a_well_formed_services_basket_proceeds_to_native_pricing():
-    """The preflight refuses only on the basket and the intent; the price is checked later, by
-    `native_service_line_paise`, against the frozen ProductsTable quote."""
-    assert sr.checkout_preflight([line()], {"serviceIntentId": INTENT}) is None
+def test_a_well_formed_legacy_services_basket_is_refused_before_pricing():
+    """Retired service identities remain decodable for history, but cannot create a new payment."""
+    status, payload = sr.checkout_preflight([line()], {"serviceIntentId": INTENT})
+    assert (status, payload["error"]) == (409, "SERVICE_UNAVAILABLE")
 
 
 @pytest.mark.parametrize("basket", [[kiosk()], [], None, "x", [None, 3, {"quantity": 1}]])
@@ -250,7 +252,8 @@ def test_a_mixed_basket_is_recognised_and_allowed():
     basket = [kiosk(), line(AMEND)]
     assert sr.has_service_line(basket)
     assert sr.service_line(basket) == sr.ServiceLine("REQUEST_AMENDMENT", AMEND, None)
-    assert sr.checkout_preflight(basket, {"serviceIntentId": INTENT}) is None
+    status, payload = sr.checkout_preflight(basket, {"serviceIntentId": INTENT})
+    assert (status, payload["error"]) == (409, "SERVICE_UNAVAILABLE")
 
 
 def test_payref_extra_carries_exactly_the_join_with_the_quoted_figure():
