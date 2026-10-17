@@ -2183,16 +2183,30 @@ describe( 'two clicks cannot post two prepares - the measured live blocker', () 
   } );
 } );
 
-describe( 'the public cart has no quantity control', () => {
-  it( 'does not render Qty for an ordinary catalogue product either', async () => {
+describe( 'the public cart uses SVG quantity controls without a Qty field', () => {
+  it( 'renders minus and plus buttons for an ordinary catalogue product', async () => {
     signedIn();
     stubFetch( { profile: { body: PROFILE_READY } } );
     cart.addItem( PRODUCT, 1 );
-    render( <Cart /> );
+    const { container } = render( <Cart /> );
 
     expect( await screen.findByText( PRODUCT.name ) ).toBeInTheDocument();
     expect( screen.queryByLabelText( 'Qty' ) ).toBeNull();
     expect( screen.queryByRole( 'spinbutton' ) ).toBeNull();
+
+    const decrease = screen.getByRole( 'button', { name: `Decrease quantity for ${PRODUCT.name}` } );
+    const increase = screen.getByRole( 'button', { name: `Increase quantity for ${PRODUCT.name}` } );
+    expect( decrease.querySelector( 'svg' ) ).not.toBeNull();
+    expect( increase.querySelector( 'svg' ) ).not.toBeNull();
+    expect( container.querySelector( '.cart-stepper-value' ) ).toHaveTextContent( '1' );
+
+    fireEvent.click( increase );
+    expect( cart.readCart()[ 0 ].quantity ).toBe( 2 );
+    expect( container.querySelector( '.cart-stepper-value' ) ).toHaveTextContent( '2' );
+
+    fireEvent.click( decrease );
+    expect( cart.readCart()[ 0 ].quantity ).toBe( 1 );
+    expect( container.querySelector( '.cart-stepper-value' ) ).toHaveTextContent( '1' );
   } );
 } );
 

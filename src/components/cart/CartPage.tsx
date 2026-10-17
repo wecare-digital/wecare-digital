@@ -101,7 +101,7 @@ import Select from '../ui/Select';
 import { getSession, restoreSession } from '../../lib/customerAuth';
 import type { CustomerSession } from '../../lib/customerAuth';
 import {
-  readCart, removeItem, clearCart, toLineItems, availableVariantsForItem,
+  readCart, setQuantity, removeItem, clearCart, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant,
   basketFingerprint, cartRequiresDelivery,
   isContributionItem, setContribution, serviceIntentFor, mergeClaimedLines, rememberServiceIntent,
@@ -765,6 +765,10 @@ export default function Cart (): React.ReactElement {
       setBasketClaim( claimMessage( outcome ) );
     } )();
     return () => { live = false; };
+  }, [] );
+
+  const changeQuantity = useCallback( ( ref: string, quantity: number ): void => {
+    setItems( setQuantity( ref, quantity ) );
   }, [] );
 
   const drop = useCallback( ( ref: string ): void => {
@@ -1725,7 +1729,31 @@ export default function Cart (): React.ReactElement {
                     <div className="cart-row-controls">
                       { isContributionItem( item )
                         ? <ContributionAmount item={ item } onCommitted={ () => setItems( readCart() ) } />
-                        : null }
+                        : (
+                          <div className="cart-stepper" role="group" aria-label={ `Quantity for ${item.name}` }>
+                            <button
+                              className="cart-stepper-btn"
+                              type="button"
+                              onClick={ () => changeQuantity( item.ref, item.quantity - 1 ) }
+                              aria-label={ `Decrease quantity for ${item.name}` }
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <path d="M5 11h14v2H5z" />
+                              </svg>
+                            </button>
+                            <span className="cart-stepper-value" aria-live="polite">{ item.quantity }</span>
+                            <button
+                              className="cart-stepper-btn"
+                              type="button"
+                              onClick={ () => changeQuantity( item.ref, item.quantity + 1 ) }
+                              aria-label={ `Increase quantity for ${item.name}` }
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z" />
+                              </svg>
+                            </button>
+                          </div>
+                        ) }
                       <button
                         className="cart-remove"
                         type="button"
@@ -1975,24 +2003,24 @@ export default function Cart (): React.ReactElement {
             margin-block-end:0;color:inherit;font-size:inherit;font-weight:inherit;
           }
           .cart-row-controls{display:flex;align-items:center;gap:12px}
-          /* The amount chooser on the contribution row. Deliberately the SAME box as .cart-qty -
-             --control-border-w / --control-border, --control-radius, the 44px tap floor and the
-             16px type - because it occupies the same slot in the row and a second control idiom
-             there would read as a different kind of thing. Wider, because a three-digit rupee
-             amount plus the disclosure arrow does not fit 72px. The leading rupee mark that used
-             to sit beside the old free-text field went with it: each option already carries one.
-
-             THE PAIR NOW MATCHES ON TOKENS, NOT ON TWO COPIES OF A NUMBER. This rule and
-             .cart-qty above both read --control-border-w / --control-border / --control-radius /
-             --control-h, so the shared skin cannot move one and leave the other behind - which
-             is what would have happened here, since form-controls.css reaches a select and
-             cannot reach a number input.
-
-             TWO PROPERTIES THE PAIR NO LONGER SHARES, both forced by the chevron and both
-             unavoidable: the end inset (32px here from form-controls.css, 10px on .cart-qty) and
-             the appearance reset. A select has an arrow to make room for; a number field has not.
-
-             --accent is #1a3a2a and --control-border is #e5e7eb; no new hue is introduced. */
+          .cart-stepper{display:inline-flex;align-items:center;gap:8px}
+          .cart-stepper-btn{
+            width:44px;height:44px;padding:0;border:2px solid var(--control-border);
+            border-radius:999px;background:#fff;color:#1a3a2a;
+            display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+            transition:background-color .18s,border-color .18s,transform .18s;
+          }
+          .cart-stepper-btn svg{width:18px;height:18px;fill:currentColor;pointer-events:none}
+          .cart-stepper-btn:hover{border-color:#1a3a2a;background:rgba(209,244,112,.22)}
+          .cart-stepper-btn:active{transform:scale(.96)}
+          .cart-stepper-btn:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+          .cart-stepper-value{
+            min-width:24px;text-align:center;font-size:16px;font-weight:700;
+            line-height:1;color:#1a3a2a;font-variant-numeric:tabular-nums;
+          }
+          /* Contribution keeps the canonical select skin. Quantity now uses the adjacent SVG
+             minus/plus stepper instead of a labelled number input, so the two controls no longer
+             pretend to be the same shape. */
           .cart-amount-select{
             min-width:96px;min-height:var(--control-h);
             padding-block:0;padding-inline-start:var(--control-px);
