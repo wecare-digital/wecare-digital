@@ -86,6 +86,22 @@ def caller_account() -> str:
     return boto3.client("sts", region_name=REGION).get_caller_identity()["Account"]
 
 
+def apply_flag_for(script: str) -> str:
+    """Return the flag that makes this provisioner APPLY.
+
+    The fleet is inconsistent: some scripts have an explicit `--apply`, others
+    default to a real run and use `--dry-run` to NOT mutate (so applying means
+    passing NO flag). Passing `--apply` to the second kind makes argparse error out
+    and the step silently does nothing — the exact failure the first backup-account
+    run hit. Detect per script by reading its source.
+    """
+    src = (REPO / "scripts" / script).read_text(errors="replace")
+    if '"--apply"' in src or "'--apply'" in src:
+        return "--apply"
+    # No --apply flag: a bare run applies (dry-run is the opt-out). Pass nothing.
+    return ""
+
+
 def load_snapshot() -> dict:
     if not SNAP.exists():
         sys.exit(f"missing {SNAP} — run export_infrastructure_snapshot.py first")
@@ -138,10 +154,19 @@ def main() -> int:
             sys.exit(f"REFUSING: credentials are for {who}, not the target {target}. "
                      f"Run with the recovery account's credentials.")
         print(f"\n=== rebuilding stack in {target} ===")
+        print("WARNING: the provision_*.py fleet is written for PRODUCTION and many "
+              "scripts hardcode prod's account id, the HTTP API id (zllr9lrg7j), the "
+              "SNS alarm topic, and KMS principals. A plain replay therefore produces "
+              "a PARTIAL stack in a fresh account. This orchestrator invokes each "
+              "script with its correct apply flag, but full account-portability needs "
+              "those scripts parameterized (tracked in the DR plan). Treat the result "
+              "as a best-effort scaffold, not a turnkey clone.\n")
         failed = []
         for s in present:
-            print(f"\n--- scripts/{s} --apply ---")
-            rc = subprocess.run([PY, f"scripts/{s}", "--apply"], cwd=REPO).returncode
+            flag = apply_flag_for(s)
+            print(f"\n--- scripts/{s} {flag} ---")
+            argv = [PY, f"scripts/{s}"] + ([flag] if flag else [])
+            rc = subprocess.run(argv, cwd=REPO).returncode
             if rc != 0:
                 failed.append(s)
         print("\n--- deploy_all_lambdas.py ---")
