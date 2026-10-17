@@ -20,7 +20,8 @@ def _delight():
         "name": "Delight",
         "discountKind": cs.PERCENT_OFF,
         "percentOffBps": 5,          # 0.05%, represented exactly as basis points
-        "maximumDiscountPaise": 10000,  # Rs 100
+        "maximumDiscountPaise": 10000,
+        "scopeNamespace": "stores",  # Rs 100
         "currency": "INR",
     }, created_by="system", clock=lambda: 1792230000)
 
