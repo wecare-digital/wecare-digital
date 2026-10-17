@@ -27,6 +27,7 @@ DELIGHT = {
     "discountKind": coupon_store.PERCENT_OFF,
     "percentOffBps": 5,
     "maximumDiscountPaise": 10000,
+        "scopeNamespace": "stores",
     "currency": "INR",
 }
 
