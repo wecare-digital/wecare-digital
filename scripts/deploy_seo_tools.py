@@ -864,9 +864,8 @@ def package() -> bytes:
     #: `blog_gate` loads it lazily and caches it, and `blog_qa` refuses to accept a sign-off
     #: against a run that did not load it.
     corpus = ROOT / "content" / "conversations" / "corpus-index.json"
-    catalog_snapshot = ROOT / "src" / "content" / "catalog-snapshot.json"
     conversations_master = seo_dir / "conversations-production-master.md"
-    for required in (shim, seo_dir, lambda_utils, pipeline, gate, corpus, catalog_snapshot, conversations_master):
+    for required in (shim, seo_dir, lambda_utils, pipeline, gate, corpus, conversations_master):
         assert required.exists(), f"missing {required}"
 
     buf = io.BytesIO()
@@ -876,7 +875,6 @@ def package() -> bytes:
             z.write(f, f"operations/seo-tools/{f.name}")
         z.write(conversations_master, "operations/seo-tools/conversations-production-master.md")
         z.write(ROOT / "config" / "public-pages.json", "operations/seo-tools/public-pages.json")
-        z.write(ROOT / "src" / "content" / "catalog-snapshot.json", "operations/seo-tools/catalog-snapshot.json")
         for f in sorted(lambda_utils.glob("*.py")):
             z.write(f, f"shared/lambda_utils/{f.name}")
         skb = FUNCTIONS_DIR / "shared" / "static_knowledge_base.py"

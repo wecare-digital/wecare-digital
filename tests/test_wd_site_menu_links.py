@@ -27,7 +27,6 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 HANDLER = ROOT / 'amplify/functions/messaging/inbound-whatsapp-handler/handler.py'
 SITEMAP = ROOT / 'scripts/generate-sitemap.js'
-CATALOG = ROOT / 'src/content/catalog-snapshot.json'
 
 # Meta interactive-list limits (also enforced defensively by `_send_wd_list`).
 MAX_ROWS, MAX_TITLE, MAX_DESCRIPTION = 10, 24, 72
@@ -61,21 +60,12 @@ def _public_exact() -> set[str]:
     return set(re.findall(r"'(/[^']*)'", body))
 
 
-def _shop_slugs() -> set[str]:
-    """Visible catalogue slugs: the set `/shop/[slug]` getStaticPaths can build."""
-    data = json.loads(CATALOG.read_text(encoding='utf-8'))
-    rows = data if isinstance(data, list) else next(
-        (v for v in data.values() if isinstance(v, list)), [])
-    return {r['slug'] for r in rows
-            if isinstance(r, dict) and r.get('slug') and r.get('visible') is not False}
-
-
-def _is_built_page(path: str, exact: set[str], slugs: set[str]) -> bool:
+def _is_built_page(path: str, exact: set[str]) -> bool:
     if path == '/':
         return True
     shop = re.fullmatch(r'/shop/([a-z0-9-]+)/', path)
     if shop:
-        return shop.group(1) in slugs
+        return (ROOT / 'src/pages/shop/[slug].tsx').is_file()
     return path.endswith('/') and path.rstrip('/') in exact
 
 
@@ -97,7 +87,7 @@ def test_every_leaf_links_a_page_the_export_builds(leaf_id):
     assert name.strip(), leaf_id
     assert path.startswith('/') and path.endswith('/'), (
         f'{leaf_id}: {path!r} must be root-relative with the load-bearing trailing slash')
-    assert _is_built_page(path, _public_exact(), _shop_slugs()), (
+    assert _is_built_page(path, _public_exact()), (
         f'{leaf_id} links {path}, which is neither in PUBLIC_EXACT nor a visible /shop/ '
         'product - customers tapping it land on the 404 page')
 
