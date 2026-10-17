@@ -248,7 +248,11 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
    * RedemptionPanel follows, for the same reason: a browser-computed discount is a figure the
    * customer can see and the ledger never agreed to.
    */
-  const [ couponCode, setCouponCode ] = useState( 'Delight' );
+  // Starts EMPTY: the always-on Delight discount is applied automatically by the invoice engine
+  // when no explicit coupon and no manual discount are set, so this field is only for an
+  // additional explicit coupon. Pre-filling 'Delight' here would route it through the explicit
+  // coupon path (a CouponsTable read) instead of the server's in-memory default.
+  const [ couponCode, setCouponCode ] = useState( '' );
   const [ giftCardCode, setGiftCardCode ] = useState( '' );
   const [ redemption, setRedemption ] = useState<api.CreateInvoiceEngineResponse | null>( null );
   const [ redemptionMsg, setRedemptionMsg ] = useState( '' );

@@ -11,10 +11,13 @@ not a validation error, it is a permanent gap in a tax series.
 
 THE THREE PROPERTIES WORTH READING TWICE
 ----------------------------------------
-1. `test_an_invoice_with_no_codes_is_byte_for_byte_what_it_was` - the no-code path is untouched.
-   Everything here is additive, and an invoice raised with neither code must produce the total it
-   produced before the feature existed. Asserted against figures written out in full, not against
-   a re-run of the same arithmetic.
+1. `test_a_plain_invoice_carries_the_auto_applied_delight_discount` - a customer invoice with no
+   explicit coupon and no manual discount now carries the always-on Delight goodwill default
+   (0.5% up to ₹100), auto-applied server-side and priced through the one coupon renderer. Its
+   companion `test_an_invoice_with_a_manual_discount_does_not_also_get_delight` pins the one
+   suppression that keeps goodwill from stacking. (This replaces the former "no-code path is byte
+   for byte unchanged" contract, which the owner's auto-apply instruction deliberately changed.)
+   Figures are written out in full, not re-derived, so a paise-level drift still surfaces.
 
 2. `test_a_coupon_is_indistinguishable_from_the_same_manual_discount` - the proof that the coupon
    fed the convenience-fee calculator rather than being applied after it. A `₹100` coupon and a
@@ -366,30 +369,44 @@ def _stored(engine):
 # 1. the no-code path is untouched
 # ══════════════════════════════════════════════════════════════════════════════
 
-def test_an_invoice_with_no_codes_is_byte_for_byte_what_it_was(engine):
-    """₹1000 + 18% GST + a 2.5% convenience fee with 18% GST on the fee.
+def test_a_plain_invoice_carries_the_auto_applied_delight_discount(engine):
+    """₹1000 + 18% GST, with the always-on Delight goodwill discount (0.5% up to ₹100)
+    auto-applied because the customer named no coupon and the operator set no manual discount.
 
-    The figures are written out rather than recomputed, which is the point: if the restructuring
-    that moved the amount block above `_get_next_invoice_number` had changed the arithmetic by a
-    paise, re-deriving the expectation would hide it.
+    Delight is 0.5% of the ₹1180 collection == ₹5.90, well under the ₹100 cap. The convenience fee
+    is then 2.5% of the DISCOUNTED collection (₹1174.10) plus 18% GST on that fee, so a plain
+    order genuinely costs a little less. The figures are written out rather than recomputed, so a
+    paise-level change in the arithmetic surfaces here.
     """
     status, created = _create(engine)
     assert status == 201
     row = _stored(engine)
     assert row["subtotal"] == Decimal("1000.00")
-    assert row["discount"] == Decimal("0.00")
-    assert row["tax"] == Decimal("180.00")
-    assert row["convenienceFee"] == Decimal("34.81")
-    assert row["total"] == Decimal("1214.81")
-    assert created["total"] == 1214.81
-    # And not one redemption attribute exists. ABSENT, not zero: an invoice where nobody applied
-    # a coupon must stay distinguishable from one where a coupon was worth nothing.
-    for attribute in ("couponCode", "couponDiscount", "amountPayable", "giftCardLast4",
-                      "giftCardFullyCovered", gcs.REQUIRED_PAISE_ATTR, gcs.CODE_HASH_ATTR,
-                      gcs.REDEEMED_PAISE_ATTR):
+    assert row["discount"] == Decimal("5.90")           # the Delight default, 0.5% of ₹1180
+    assert row["tax"] == Decimal("180.00")              # supply GST is unchanged by Delight
+    assert row["convenienceFee"] == Decimal("34.63")    # 2.5% of ₹1174.10 + 18% GST on the fee
+    assert row["total"] == Decimal("1208.73")
+    assert created["total"] == 1208.73
+    # The discount is recorded under the Delight code so the receipt and the Meta discount row can
+    # name it, but no gift-card attribute exists.
+    assert row["couponCode"] == "DELIGHT"
+    assert row["couponDiscount"] == Decimal("5.90")
+    for attribute in ("giftCardLast4", "giftCardFullyCovered", gcs.REQUIRED_PAISE_ATTR,
+                      gcs.CODE_HASH_ATTR, gcs.REDEEMED_PAISE_ATTR):
         assert attribute not in row, attribute
-    for key in ("couponDiscount", "giftCardAppliedPaise", "amountPayable", "couponReason",
-                "giftCardReason"):
+
+
+def test_an_invoice_with_a_manual_discount_does_not_also_get_delight(engine):
+    """A manual staff discount is a deliberate goodwill credit; the automatic Delight default must
+    not silently stack a second goodwill discount on top of it. So an invoice carrying a manual
+    discount keeps exactly that discount and no coupon code - the pre-Delight behaviour."""
+    status, created = _create(engine, discount=100)
+    assert status == 201
+    row = _stored(engine)
+    assert row["discount"] == Decimal("100.00")
+    assert "couponCode" not in row
+    assert "couponDiscount" not in row
+    for key in ("couponDiscount", "couponReason"):
         assert key not in created, key
 
 
@@ -497,14 +514,22 @@ def test_a_partial_gift_card_reduces_the_payable_and_nothing_else(engine):
 def test_a_gift_card_does_not_reduce_the_taxable_value(engine):
     """A gift card is tender, not a price change. If it ever netted into the subtotal, the GST on
     every gift-card order would be under-reported - so the stored tax must be identical with and
-    without the card."""
-    status, _ = _create(engine)
+    without the card.
+
+    The two baselines compared here BOTH carry a manual discount, which suppresses the always-on
+    Delight goodwill default on each side (`_delight_applies` returns False when a manual discount
+    is present). That keeps this test about the ONE thing it exists to prove -- that a gift card
+    does not move the taxable value or the fee -- rather than about Delight, which is covered by
+    its own tests. The gift card is applied as tender AFTER the fee, so subtotal, tax, fee and
+    total must all be identical with and without the card."""
+    status, _ = _create(engine, discount=100)
     assert status == 201
     without = copy.deepcopy(_stored(engine))
 
     engine.tables.invoices.rows.clear()
     _issue_card(engine, value_paise=30000)
-    status, _ = _create(engine, referenceId="WD-PAY-INVOICE02", giftCardCode=CARD_CODE)
+    status, _ = _create(engine, referenceId="WD-PAY-INVOICE02", discount=100,
+                        giftCardCode=CARD_CODE)
     assert status == 201
     with_card = _stored(engine)
 
