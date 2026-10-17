@@ -289,14 +289,14 @@ async function proceedPastProfile (): Promise<void> {
 }
 
 describe( 'the cart store', () => {
-  it( 'adds, increments the same reference, and reports a count', () => {
+  it( 'adds one line and repeated adds do not increase website quantity', () => {
     cart.addItem( PRODUCT, 1 );
     cart.addItem( PRODUCT, 2 );
     const items = cart.readCart();
     expect( items ).toHaveLength( 1 );
     expect( items[ 0 ].ref ).toBe( 'prod-abc-123' );
-    expect( items[ 0 ].quantity ).toBe( 3 );
-    expect( cart.cartCount() ).toBe( 3 );
+    expect( items[ 0 ].quantity ).toBe( 1 );
+    expect( cart.cartCount() ).toBe( 1 );
   } );
 
   it( 'keeps distinct products as distinct lines', () => {
@@ -305,10 +305,10 @@ describe( 'the cart store', () => {
     expect( cart.readCart().map( i => i.ref ) ).toEqual( [ 'prod-abc-123', 'prod-def-456' ] );
   } );
 
-  it( 'sets an exact quantity and removes a line when it hits zero', () => {
+  it( 'keeps positive quantities at one and removes a line when quantity hits zero', () => {
     cart.addItem( PRODUCT, 1 );
     cart.setQuantity( 'prod-abc-123', 5 );
-    expect( cart.readCart()[ 0 ].quantity ).toBe( 5 );
+    expect( cart.readCart()[ 0 ].quantity ).toBe( 1 );
     cart.setQuantity( 'prod-abc-123', 0 );
     expect( cart.readCart() ).toHaveLength( 0 );
   } );
@@ -322,12 +322,11 @@ describe( 'the cart store', () => {
     expect( cart.readCart() ).toHaveLength( 0 );
   } );
 
-  it( 'survives a round-trip through storage', () => {
+  it( 'survives a round-trip through storage with quantity fixed to one', () => {
     cart.addItem( PRODUCT, 2 );
-    // A fresh read parses what is actually persisted, not in-memory state.
     const raw = window.localStorage.getItem( 'wecare.cart.v1' );
     expect( raw ).toBeTruthy();
-    expect( cart.readCart()[ 0 ].quantity ).toBe( 2 );
+    expect( cart.readCart()[ 0 ].quantity ).toBe( 1 );
   } );
 
   it( 'tolerates corrupt storage rather than throwing', () => {
@@ -369,6 +368,8 @@ describe( 'the cart store', () => {
     const items = cart.readCart();
     expect( items ).toHaveLength( 1 );
     expect( items[ 0 ].productId ).toBe( 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' );
+    expect( items[ 0 ].quantity ).toBe( 1 );
+    expect( cart.toLineItems() ).toMatchObject( [ { quantity: 1 } ] );
     expect( cart.toLineItems().map( line => line.catalogReference.catalogItemId ) )
       .toEqual( [ 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' ] );
   } );
