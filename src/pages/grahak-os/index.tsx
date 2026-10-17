@@ -259,11 +259,12 @@ response = requests.post(
           every other public page resolved `main`. The class is unchanged, so no CSS moves. */}
       <main className="page">
 
-        {/* NO hero CTA. The "Get Started on WhatsApp" pill was removed from the hero on owner
-            instruction, so the hero is just the headline, sub and mockup; the single call to
-            action (WhatsApp pill + the price) lives in the closer at the bottom (#gos-closer).
-            RotatingHero's children slot is left unset. This note sits before the element because
-            a JSX comment cannot appear between an element's attributes. */}
+        {/* NO hero CTA pill. The "Get Started on WhatsApp" pill was removed from the hero on
+            owner instruction, so the hero is just the headline, sub and mockup, with a plain
+            "See it on WhatsApp" text link below the code panel (.code-wa-link). The paid
+            checkout (the "Get Started on WhatsApp" pill + the ₹899 price) lives in the
+            api-steps block. RotatingHero's children slot is left unset. This note sits before
+            the element because a JSX comment cannot appear between an element's attributes. */}
         <RotatingHero
           insideMain
           noShare
@@ -272,7 +273,7 @@ response = requests.post(
           frame="Reach customers"
           pillPrefix="across"
           words={ cycleWords }
-          sub={ <>One platform that unifies customer data, messaging and AI automation across WhatsApp, SMS, Email and Voice. Every conversation stays connected end to end, so your WhatsApp number becomes a channel that drives real outcomes.</> }
+          sub={ <>Unify customer data, messaging and AI automation across WhatsApp, SMS, Email and Voice — every conversation connected end to end, driving real outcomes.</> }
           visual={ (
           <div className="hero-right">
             <div className="hero-visual-col">
@@ -379,14 +380,15 @@ response = requests.post(
 )`}</pre>
                 </div>
               </div>
-              {/* Below-code secondary CTA. This sits UNDER the whole .mockup-wrapper (the
+              {/* Below-code secondary link. This sits UNDER the whole .mockup-wrapper (the
                   .code-box is position:absolute inside that wrapper, so a static sibling
                   there would fight its bottom-anchored geometry). The .hero-visual-col flex
-                  column centres it under the mockup at every width. It is the GHOST sibling
-                  of the solid lime .gos-wa-cta: an outlined dark-green pill (border + text
-                  #1a3a2a on transparent), visually distinct so the primary WhatsApp pill in
-                  the closer stays the loudest action. */}
-              <a className="gos-wa-ghost" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp</a>
+                  column right-aligns it under the mockup (align-items:flex-end) at desktop
+                  width. On owner instruction this is a PLAIN INLINE TEXT LINK (.code-wa-link),
+                  not a button or pill: dark-green #1a3a2a text with an underline and a trailing
+                  ↗ arrow so it reads as a hyperlink, kept clearly below and separate from the
+                  code block. It stays a real accessible link (same href/target/rel). */}
+              <a className="code-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp <span aria-hidden="true">↗</span></a>
             </div>
           </div>
           ) }
@@ -438,21 +440,21 @@ response = requests.post(
                   <span className="api-step-num" aria-hidden="true">1</span>
                   <div className="api-step-body">
                     <h3 className="api-step-title">Map the outcomes</h3>
-                    <p className="api-step-line">We define the business outcomes that matter and the conversations that drive them across WhatsApp, SMS, Email and Voice.</p>
+                    <p className="api-step-line">Pin the business outcomes that matter and the conversations that drive them.</p>
                   </div>
                 </li>
                 <li className="api-step">
                   <span className="api-step-num" aria-hidden="true">2</span>
                   <div className="api-step-body">
                     <h3 className="api-step-title">Deploy the agents</h3>
-                    <p className="api-step-line">AI agents go live on every channel, wired into your customer data so each reply is in context and on brand.</p>
+                    <p className="api-step-line">AI agents go live on every channel, wired to your customer data for replies that stay in context and on brand.</p>
                   </div>
                 </li>
                 <li className="api-step">
                   <span className="api-step-num" aria-hidden="true">3</span>
                   <div className="api-step-body">
                     <h3 className="api-step-title">Own the result</h3>
-                    <p className="api-step-line">Agents resolve conversations end to end and act at the right moment, with every outcome measured and tuned against your goals.</p>
+                    <p className="api-step-line">Agents resolve conversations end to end and act at the right moment — outcomes measured and tuned to your goals.</p>
                   </div>
                 </li>
               </ol>
@@ -471,6 +473,10 @@ response = requests.post(
                 </div>
                 <ProductBuyBox slug="grahak-os" showPrice={ false } />
                 <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span></p>
+                {/* Owner-approved short explanation line beneath the ₹899 price. Small muted
+                    secondary text (reuses the rgba(0,0,0,.6) token). It does not change the
+                    price, the SKU or the policy text; it only clarifies what the price is for. */}
+                <p className="gos-price-note">A consulting solution for organisations and businesses.</p>
                 {/* Same mechanism as the api-steps block above: SKU via the imported
                     PRODUCT_SKU_BY_SLUG map and the policy via PRODUCT_POLICY_TITLE /
                     PRODUCT_POLICY_TEXT - not retyped. */}
@@ -507,23 +513,16 @@ response = requests.post(
         {/* OTP / Verifications section REMOVED on owner instruction. Its content overlapped the
             touchpoint "OTPs" pill and the capabilities strip, and the dedicated section was not
             needed. The QR lived only in this section and goes with it; the WhatsApp CTA remains
-            in the hero, the API section's "Get Started on WhatsApp" pill, and the closer's
-            "See it on WhatsApp" button. If the QR is ever wanted back, the verified asset is
+            in the hero (the below-code "See it on WhatsApp" text link) and the API section's
+            "Get Started on WhatsApp" pill. If the QR is ever wanted back, the verified asset is
             still at public/images/grahak-os-whatsapp-qr.svg. */}
 
-        <section className={`gos-closer anim ${armed ? 'is-armed' : ''} ${show('gos-closer') ? 'show' : ''}`} id="gos-closer">
-          {/* STRIPPED on owner instruction to a single WhatsApp CTA. The closing heading
-              ("Transform customer engagement with Grahak OS"), the ₹899 price line and the
-              SKU/policy disclaimer block were all REMOVED here; this section now holds only
-              the one WhatsApp button. The button uses the page's single unified CTA style
-              (.gos-wa-cta), the same pill every WhatsApp CTA on the page now uses, and the
-              owner-approved label "See it on WhatsApp". */}
-          <div className="gos-closer-buy">
-            <div className="gos-ctas">
-              <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp</a>
-            </div>
-          </div>
-        </section>
+        {/* The bottom closer section (<section id="gos-closer">) was REMOVED here on owner
+            instruction. It had been stripped to a single "See it on WhatsApp" WhatsApp pill;
+            that duplicate CTA is gone, and the page's only "See it on WhatsApp" link now lives
+            below the hero code panel (.code-wa-link). The .gos-closer* CSS and the gos-closer
+            entrance-animation target went with it; a test guards the removal by substring. The
+            api-steps "Get Started on WhatsApp" pill and the ₹899 price/SKU/policy stay above. */}
 
         {/* Subscribe + Share. The page's sections are full-bleed, so the block is wrapped in a
             .pp-inner column - the same 1300px / 24px measure the rest of the page content uses -
@@ -580,7 +579,7 @@ response = requests.post(
              added by an IntersectionObserver inside a useEffect - so the only thing
              standing between a visitor and this page was JavaScript running. Measured
              against the export with javaScriptEnabled:false, every .anim section (hero,
-             touchpoint, api, pp-strip, gos-closer) rendered at opacity:0.
+             touchpoint, api) rendered at opacity:0.
              The whole page was blank.
              It went unnoticed for a reason worth recording: opacity does not remove text
              from the DOM, so the no-JS body-text count the design contract cites stayed
@@ -646,38 +645,39 @@ response = requests.post(
           .hero-left p{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0 0 18px;max-width:400px}
           .hero-left p.hero-sub{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0;max-width:400px}
 
-          /* The hero no longer has a CTA (the .gos-buy block was removed on owner instruction),
-             so the .gos-* CTA rules below now style ONLY the closer's buy block. */
-          /* The CTA row - one WhatsApp pill, wrapping rather than overflowing on a narrow
-             viewport. */
-          .gos-ctas{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+          /* The hero no longer has a CTA pill (the .gos-buy block was removed on owner
+             instruction), and the bottom closer was removed too, so .gos-wa-cta now styles
+             ONLY the api-steps "Get Started on WhatsApp" pill. The old closer-only .gos-ctas
+             row wrapper went with the closer. */
           /* Primary WhatsApp pill: full-lime, the page's one allowed lime surface for the
              primary action - mirrors ProductPage's .pdp-cta. 52px min target. */
           .gos-wa-cta{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s}
           .gos-wa-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
           .gos-wa-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-          /* GHOST secondary WhatsApp CTA, below the hero code/mockup. Deliberately NOT the
-             solid lime .gos-wa-cta: this is an OUTLINED pill - transparent surface, a 2px
-             dark-green #1a3a2a border and #1a3a2a text - so it reads as the secondary action
-             while the closer's solid lime pill stays primary. Same 50px radius / 17px type /
-             52px target as .gos-wa-cta for family consistency. Dark-green text on the white
-             hero is ~12:1, well past AA. On hover it fills to #1a3a2a with #d1f470 text (an
-             inversion, not a near-miss tint) and lifts; focus-visible draws the shared ring. */
-          .gos-wa-ghost{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;background:transparent;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;transition:background-color .2s,color .2s,transform .2s,box-shadow .2s}
-          .gos-wa-ghost:hover{background:#1a3a2a;color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-          .gos-wa-ghost:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-          /* The mockup and the ghost CTA share a centred flex column so the button always
-             sits directly under the mockup, not off to one side, at every width. */
-          .hero-visual-col{display:flex;flex-direction:column;align-items:center;gap:20px;width:100%}
+          /* Below-code secondary link. On owner instruction this is a PLAIN INLINE TEXT
+             LINK, not a pill: no surface, no border, no radius, no min-height box. Dark-green
+             #1a3a2a text at 15px with an underline and a trailing ↗ arrow so it reads clearly
+             as a hyperlink. Dark-green on the white hero is ~12:1, well past AA. Hover shifts
+             the text to the lime-pair dark green feel by dropping the underline / keeping the
+             colour and strengthening the underline; focus-visible draws the shared ring. */
+          .code-wa-link{display:inline-flex;align-items:center;gap:4px;color:#1a3a2a;font-size:15px;font-weight:600;text-decoration:underline;text-underline-offset:3px;transition:opacity .2s}
+          .code-wa-link:hover{opacity:.72}
+          .code-wa-link:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;border-radius:4px}
+          /* The mockup and the below-code link share a flex column; the link is RIGHT-aligned
+             under the mockup (align-items:flex-end) at desktop width. Narrow widths re-centre
+             it in the responsive blocks below so it never overflows the stacked column. */
+          .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:20px;width:100%}
           /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
              above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
           .gos-price{display:block;margin-top:22px;font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
           .gos-price-unit{font-size:16px;font-weight:400;color:rgba(0,0,0,.6);letter-spacing:-.125px}
+          /* Short explanation beneath the price: small muted secondary text, reusing the
+             existing rgba(0,0,0,.6) muted token. No new palette. */
+          .gos-price-note{margin:6px 0 0;font-size:15px;font-weight:400;line-height:1.5;color:rgba(0,0,0,.6)}
           @media(prefers-reduced-motion:reduce){
             .gos-wa-cta{transition:background-color .2s}
             .gos-wa-cta:hover{transform:none;box-shadow:none}
-            .gos-wa-ghost{transition:background-color .2s,color .2s}
-            .gos-wa-ghost:hover{transform:none;box-shadow:none}
+            .code-wa-link{transition:none}
           }
 
           /* The rotating channel pill - its lozenge, dot, width glide, word fade,
@@ -709,19 +709,10 @@ response = requests.post(
              and .gos-qr* rules are gone; the verified QR asset remains at
              public/images/grahak-os-whatsapp-qr.svg if the section is ever reinstated. */
 
-          /* 1100 -> 1300 measure and 96/112 -> 60/80 padding, so this section is measured
-             and spaced like every other one. 80px at the bottom still gives the page a
-             softer landing into the footer than a flat 60 would. */
-          /* Column, centred: on owner instruction the closer was STRIPPED to a single
-             centred WhatsApp CTA, so the heading, price and disclaimer that used to stack
-             here are gone - only the .gos-closer-buy > .gos-ctas pill remains. */
-          .gos-closer{max-width:1300px;margin:0 auto;padding:60px 24px 80px;display:flex;flex-direction:column;align-items:center}
-          /* The closing buy block, centred: now just the single WhatsApp pill.
-             gos-ctas/gos-wa-cta reuse the hero's rules; only the centring is set here. */
-          .gos-closer-buy{margin-top:30px;display:flex;flex-direction:column;align-items:center}
-          .gos-closer-buy .gos-ctas{justify-content:center}
-          /* .gos-commerce / .gos-price are still used by the api-steps block above, so their
-             rules stay; the closer no longer renders either. */
+          /* The bottom closer section was REMOVED on owner instruction, so its
+             .gos-closer / .gos-closer-buy / .gos-closer-buy .gos-ctas rules are gone with it.
+             .gos-commerce / .gos-price below are still used by the api-steps block above, so
+             their rules stay. */
           .gos-commerce{
             margin-top:22px;max-width:700px;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
             background:#fcfdfb;font-size:17px;font-weight:400;line-height:1.55;
@@ -1018,9 +1009,9 @@ response = requests.post(
           .api-step-title{font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:rgba(0,0,0,.95);margin:0 0 6px}
           /* Supporting line in the muted body token. */
           .api-step-line{font-size:17px;font-weight:400;line-height:1.5;letter-spacing:-.05px;color:rgba(0,0,0,.6);margin:0}
-          /* Buy block: WhatsApp checkout pill + demo link, then price, then the policy
-             card. gos-ctas/gos-wa-cta/gos-price/gos-commerce reuse the closer's rules;
-             only the layout gaps are set here. */
+          /* Buy block: WhatsApp checkout pill, then price + explanation, then the policy
+             card. gos-wa-cta/gos-price/gos-commerce are shared page rules; only the layout
+             gaps are set here. */
           .api-steps-buy{max-width:700px}
           .api-steps-ctas{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
           .api-steps-buy .gos-price{text-align:left}
@@ -1179,6 +1170,9 @@ response = requests.post(
             .hero{padding:calc(115px + env(safe-area-inset-top)) 20px 50px}
             .hero-content{display:flex;flex-direction:column;gap:32px;text-align:left;align-items:flex-start}
             .hero-right{order:-1;width:100%;display:flex;justify-content:center}
+            /* On the stacked mobile hero the below-code link re-centres under the mockup
+               (desktop right-aligns it; here flex-end would push it to the column edge). */
+            .hero-visual-col{align-items:center}
             .hero-left{text-align:left;order:1}
             .hero-left h1{letter-spacing:-1.2px;margin:0 0 20px;line-height:1.1;max-width:100%;text-align:left}
             .hero-left p{margin:0 0 16px;max-width:100%;text-align:left}
@@ -1242,7 +1236,6 @@ response = requests.post(
             .hero-left h1{letter-spacing:-1px;line-height:1.12}
             
             .section-header{padding:0 16px}
-            .gos-closer{padding:64px 20px 76px}
 
             .mockup-wrapper{padding:14px;border-radius:14px;gap:12px;max-width:100%}
             .phone{border-radius:14px}
