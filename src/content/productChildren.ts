@@ -96,7 +96,6 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
   {
     path: '/dastavez/drafting/',
     parent: 'Dastavez',
-    parentHref: '/dastavez/',
     product: {
       slug: 'dastavez-drafting',
       name: 'Drafting',
@@ -122,7 +121,6 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
   {
     path: '/dastavez/registration/',
     parent: 'Dastavez',
-    parentHref: '/dastavez/',
     product: {
       slug: 'dastavez-registration',
       name: 'Registration',
@@ -148,7 +146,6 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
   {
     path: '/dastavez/legal-reference/',
     parent: 'Dastavez',
-    parentHref: '/dastavez/',
     product: {
       slug: 'dastavez-legal-reference',
       name: 'Legal Reference',
@@ -174,7 +171,6 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
   {
     path: '/ritual-guru/puja-guidance/',
     parent: 'Ritual Guru',
-    parentHref: '/ritual-guru/',
     product: {
       slug: 'ritual-guru-puja-guidance',
       name: 'Puja Guidance',
@@ -200,7 +196,6 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
   {
     path: '/ritual-guru/diy-puja-kit/',
     parent: 'Ritual Guru',
-    parentHref: '/ritual-guru/',
     product: {
       slug: 'ritual-guru-diy-puja-kit',
       name: 'DIY Puja Kit',
