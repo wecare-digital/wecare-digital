@@ -10,7 +10,7 @@ const PrastutiPage: React.FC = () => (
   <ProductPage
     product={ child.product }
     canonicalPath={ child.path }
-    belowCta={ <ProductBuyBox slug="hunar" /> }
+    belowCta={ <ProductBuyBox slug="hunar-prastuti" /> }
     crumbs={ breadcrumbTrail( '/hunar/prastuti' ) }
   />
 );
