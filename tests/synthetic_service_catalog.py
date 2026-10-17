@@ -35,4 +35,7 @@ def configure(service_requests, monkeypatch):
     monkeypatch.setattr(
         service_requests, "SERVICE_VARIANT_BY_KIND",
         MappingProxyType({kind: variant for variant, kind in KIND_BY_VARIANT.items()}))
+    monkeypatch.setattr(
+        service_requests, "SERVICE_PRODUCT_BY_VARIANT",
+        MappingProxyType({variant: PRODUCT for variant in KIND_BY_VARIANT}))
     monkeypatch.setattr(service_requests, "SERVICE_PURCHASES_ENABLED", True)
