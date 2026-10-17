@@ -433,7 +433,7 @@ response = requests.post(
             <div className="api-info api-steps">
               {/* Owner-approved heading theme (consulting positioning). Reuses the
                   .api-info h2 type rung. */}
-              <h2>Deploy an ecosystem of AI agents to own Enterprise Outcomes</h2>
+              <h2>Deploy AI agents to drive enterprise outcomes</h2>
               <ol className="api-steps-list" aria-label="How Grahak OS works">
                 <li className="api-step">
                   <span className="api-step-num" aria-hidden="true">1</span>
