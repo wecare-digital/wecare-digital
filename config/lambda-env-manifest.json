@@ -116,7 +116,7 @@
     "wecare-contacts": {
       "AWS_ACCOUNT_ID": "775261844268",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
-      "CRM_PROVISION_CUSTOMER_LOGIN": "false",
+      "CRM_PROVISION_CUSTOMER_LOGIN": "true",
       "CUSTOMER_LOGIN_FUNCTION": "wecare-secure-files:live",
       "INVOICES_TABLE": "stack-wecare-digital-InvoicesTable",
       "LOG_LEVEL": "INFO",
