@@ -133,6 +133,9 @@ const PublicShare: React.FC<PublicShareProps> = ( {
       aria-label="Contribute, subscribe and share"
       ref={ rootRef }
     >
+      {/* "Stay connected" eyebrow kept on top of the dock (owner request). Carried over from the
+          retired PublicFooterBand so the dock keeps its label now that it lives in the hero. */}
+      <span className="ps-kicker">Stay connected</span>
       <div className="ps-row">
         <section className="contribute" aria-labelledby="ps-contribute-heading">
             <h2 className="ps-sr-only" id="ps-contribute-heading">Contribute</h2>
@@ -304,6 +307,13 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
         }
         .public-share.has-contribute{margin-top:44px}
+        /* "Stay connected" eyebrow, on top of the dock. Same green lime pill the retired
+           PublicFooterBand used, so the label reads identically to before. */
+        .ps-kicker{
+          display:inline-flex;align-items:center;min-height:28px;padding:0 10px;margin:0 0 14px;
+          border-radius:999px;background:#d1f470;color:#1a3a2a;
+          font-size:13px;font-weight:700;line-height:1;
+        }
         .ps-row{display:flex;align-items:center;gap:12px;width:max-content;max-width:100%}
         .contribute{margin:0;padding:0;border:0;position:static}
         .ps-action{
