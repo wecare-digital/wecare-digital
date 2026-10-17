@@ -17,7 +17,7 @@ from lambda_utils.ecommerce import native_inventory as inv  # noqa: E402
 
 PRODUCTS = {
     "prod-1": {"id": "prod-1", "status": "active",
-               "variants": [{"sku": "V1", "priceMinor": 50000, "inventory": 5}]},
+               "variants": [{"sku": "V1", "priceMinor": 50000, "inventory": 5, "trackInventory": True, "inventoryVerified": True}]},
 }
 
 
