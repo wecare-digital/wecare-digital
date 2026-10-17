@@ -39,7 +39,8 @@ export const BREADCRUMB_TRAILS: Readonly<Record<string, readonly Crumb[]>> = {
   '/clear-closure': [ HOME, SHOP, here( 'Clear Closure' ) ],
   '/ritual-guru': [ HOME, SHOP, here( 'Ritual Guru' ) ],
   '/anew': [ HOME, SHOP, here( 'Anew' ) ],
-  '/hunar': [ HOME, SHOP, here( 'Hunar' ) ],
+  '/hunar/kaushal': [ HOME, SHOP, here( 'Kaushal' ) ],
+  '/hunar/prastuti': [ HOME, SHOP, here( 'Prastuti' ) ],
   '/niji-setu': [ HOME, SHOP, here( 'Niji Setu' ) ],
   // Elsewhere is a category with no page of its own (the Header renders it as a label), so its
   // children sit directly under Shop. A crumb for it would have to link a URL that 404s.
