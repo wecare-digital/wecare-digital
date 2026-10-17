@@ -25,6 +25,7 @@ export const PRODUCT_SKU_BY_SLUG: Readonly<Record<string, string>> = {
   'referral-partner': 'PRF5M8K2',
   'merchandise': 'PMD9Q3P6',
   'kiosk': 'PKS7K5M4',
+  'contribute': 'CNT5Q2M8',
 };
 
 export const PRODUCT_POLICY_TITLE = 'Shipping, cancellation & refunds';
