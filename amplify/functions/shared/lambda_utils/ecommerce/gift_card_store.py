@@ -796,6 +796,83 @@ def _delete_hold(table: Any, digest: str, attempt_id: str) -> None:
             f"could not delete a gift-card hold: {type(error).__name__}") from error
 
 
+def redeem(table: Any, *, code_hash: Any, attempt_id: Any, amount_paise: Any,
+           clock: Clock = _default_clock) -> Dict[str, Any]:
+    """DEBIT the held balance for one settled payment attempt. The money-moving spend primitive.
+
+    The one function in this module that DECREMENTS `balancePaise`. Called only when a payment
+    that reserved this card has been VERIFIED captured — the balance leaves the ledger exactly
+    once per attempt, which is why every guard below keys on `activeHoldAttemptId = :me`.
+
+    ONE conditional `UpdateItem`, no preceding read (the same discipline as `hold`/`credit`): the
+    debit and the hold-clear happen in one expression, conditioned on
+        card exists AND status ACTIVE AND this attempt holds it AND balancePaise >= amount
+    so a concurrent writer, a replay, or a card that was disabled or drained between hold and
+    settle cannot double-debit or go negative. On success the three `activeHold*` attributes are
+    REMOVEd — the reservation becomes a receipt, atomically with the money leaving.
+
+    IDEMPOTENCY. A redelivered capture re-calls this; the second call fails the
+    `activeHoldAttemptId = :me` condition (the hold is already gone) and is reported as an
+    idempotent no-op (`{"redeemed": False, "alreadyRedeemed": True, ...}`) rather than raising, so
+    a webhook retry does not debit twice and does not alarm. A genuinely insufficient balance or a
+    disabled card — distinguishable only by a follow-up read — raises `InsufficientFunds` /
+    `GiftCardDisabled` so the caller can reconcile. The `GCHOLD#` audit row is deleted last; its
+    loss costs only a log line because the authoritative debit already committed.
+    """
+    digest = _hash_hex(code_hash)
+    attempt = _identifier(attempt_id, "INVALID_ATTEMPT_ID")
+    amount = value_paise(amount_paise)
+    now = _now_seconds(clock)
+    try:
+        updated = table.update_item(
+            Key={KEY_ATTRIBUTE: PREFIX_CARD + digest},
+            UpdateExpression=("SET updatedAt = :at REMOVE activeHoldAttemptId, "
+                              "activeHoldPaise, activeHoldExpiresAtMs "
+                              "ADD balancePaise :debit"),
+            ConditionExpression=(f"attribute_exists({KEY_ATTRIBUTE}) "
+                                 "AND #status = :active "
+                                 "AND activeHoldAttemptId = :me "
+                                 "AND balancePaise >= :amount"),
+            ExpressionAttributeNames={"#status": STATUS_ATTRIBUTE},
+            # ADD a NEGATIVE amount to debit: DynamoDB has no SET-minus for an atomic read-free
+            # decrement, and a negative ADD under the `balancePaise >= :amount` floor can never
+            # take the balance below zero.
+            ExpressionAttributeValues={":debit": -amount, ":amount": amount, ":me": attempt,
+                                       ":active": STATUS_ACTIVE, ":at": now},
+            ReturnValues="ALL_NEW",
+        ).get("Attributes") or {}
+    except Exception as error:  # noqa: BLE001
+        if _is_conditional_failure(error):
+            # The condition covers four causes; one read disambiguates the two that are faults
+            # from the two that are idempotent no-ops.
+            card = get_card(table, code_hash=digest)
+            if not card:
+                raise GiftCardNotFound("no such gift card") from None
+            if card.get(STATUS_ATTRIBUTE) != STATUS_ACTIVE:
+                raise GiftCardDisabled("this gift card is disabled") from None
+            if card.get(HOLD_ATTEMPT_ATTRIBUTE) != attempt:
+                # No live hold for THIS attempt. Either the hold lapsed/was released (nothing to
+                # redeem — a fault to surface) or we already redeemed it (an idempotent replay).
+                # They are indistinguishable from the card row alone; the caller's own
+                # redemption-commit ledger (`redemption.commit_redemption`) is the exactly-once
+                # authority, so this reports a no-op and lets that ledger decide.
+                return {"redeemed": False, "alreadyRedeemed": True, "paymentAttemptId": attempt,
+                        "amountPaise": amount,
+                        "balancePaise": int((card or {}).get("balancePaise") or 0)}
+            if int(card.get("balancePaise") or 0) < amount:
+                raise InsufficientFunds(
+                    "this gift card no longer holds that much") from None
+            # The guard failed for a reason the follow-up read cannot see (a race that resolved
+            # between the write and the read). Treated as retryable rather than a silent success.
+            raise GiftCardStoreUnavailable("could not redeem a gift card: state changed") from None
+        raise GiftCardStoreUnavailable(
+            f"could not redeem a gift card: {type(error).__name__}") from error
+    _delete_hold(table, digest, attempt)
+    return {"redeemed": True, "paymentAttemptId": attempt, "amountPaise": amount,
+            "balancePaise": int(updated.get("balancePaise") or 0),
+            "codeLast4": str(updated.get("codeLast4") or "")}
+
+
 __all__ = [
     "CARD_ATTRIBUTES", "CODE_ALPHABET", "CODE_LENGTH", "CODE_PATTERN", "CURRENCY",
     "CurrencyNotSupported", "DEFAULT_TABLE_NAME", "GiftCardDisabled", "GiftCardError",
@@ -813,5 +890,5 @@ __all__ = [
     "disable", "generate_code", "get_card", "get_card_by_id",
     "hold", "hold_key", "issue", "list_by_status", "masked",
     "normalise_code", "pin_hash", "read_pepper",
-    "release", "value_paise", "verify_pin",
+    "redeem", "release", "value_paise", "verify_pin",
 ]

@@ -720,3 +720,94 @@ def test_an_invoice_create_reads_a_card_and_writes_no_evidence_onto_the_ledger()
     assert not [row_key for row_key in store.rows if row_key.startswith(gc.PREFIX_HOLD)]
     # And every access was a read.
     assert {name for name, _ in store.calls} == {"get_item"}
+
+
+# ── redeem: the money-moving debit ─────────────────────────────────────────────
+
+def test_redeem_debits_the_balance_and_clears_the_hold():
+    """The spend primitive: a settled attempt's hold becomes a receipt and the money leaves."""
+    store = table()
+    issue(store, value_paise=50000)
+    gc.hold(store, code_hash=digest_of(), attempt_id="attempt-1", amount_paise=40000,
+            clock=clock())
+    out = gc.redeem(store, code_hash=digest_of(), attempt_id="attempt-1", amount_paise=40000,
+                    clock=clock())
+    assert out["redeemed"] is True
+    assert out["balancePaise"] == 10000
+    row = store.rows[gc.PREFIX_CARD + digest_of()]
+    assert int(row["balancePaise"]) == 10000
+    # The reservation is gone — it became a receipt atomically with the debit.
+    assert gc.HOLD_ATTEMPT_ATTRIBUTE not in row
+    assert gc.PREFIX_HOLD + digest_of() + "#attempt-1" not in store.rows
+
+
+def test_redeem_is_idempotent_a_replay_does_not_debit_twice():
+    """A redelivered capture re-calls redeem; the hold is already gone, so it is a no-op."""
+    store = table()
+    issue(store, value_paise=50000)
+    gc.hold(store, code_hash=digest_of(), attempt_id="attempt-1", amount_paise=40000,
+            clock=clock())
+    gc.redeem(store, code_hash=digest_of(), attempt_id="attempt-1", amount_paise=40000,
+              clock=clock())
+    replay = gc.redeem(store, code_hash=digest_of(), attempt_id="attempt-1", amount_paise=40000,
+                       clock=clock())
+    assert replay["redeemed"] is False
+    assert replay["alreadyRedeemed"] is True
+    # Debited exactly once.
+    assert int(store.rows[gc.PREFIX_CARD + digest_of()]["balancePaise"]) == 10000
+
+
+def test_redeem_refuses_to_spend_another_attempts_hold():
+    """A debit may only clear the hold THIS attempt owns — never another live purchase's."""
+    store = table()
+    issue(store, value_paise=50000)
+    gc.hold(store, code_hash=digest_of(), attempt_id="attempt-1", amount_paise=40000,
+            clock=clock())
+    # attempt-2 holds nothing: redeem reads as an idempotent no-op (nothing of ITS to spend),
+    # and the balance and attempt-1's hold are untouched.
+    out = gc.redeem(store, code_hash=digest_of(), attempt_id="attempt-2", amount_paise=40000,
+                    clock=clock())
+    assert out["redeemed"] is False
+    row = store.rows[gc.PREFIX_CARD + digest_of()]
+    assert int(row["balancePaise"]) == 50000
+    assert row[gc.HOLD_ATTEMPT_ATTRIBUTE] == "attempt-1"
+
+
+def test_redeem_never_takes_the_balance_negative():
+    """The `balancePaise >= :amount` floor is evaluated inside the write, so a debit larger than
+    the balance cannot overdraw — it surfaces as insufficient funds."""
+    store = table()
+    issue(store, value_paise=30000)
+    # A hold cannot exceed the balance, but force the mismatch to prove the debit floor holds even
+    # if a caller passed a larger amount than it held.
+    gc.hold(store, code_hash=digest_of(), attempt_id="attempt-1", amount_paise=30000,
+            clock=clock())
+    with pytest.raises(gc.InsufficientFunds):
+        gc.redeem(store, code_hash=digest_of(), attempt_id="attempt-1", amount_paise=40000,
+                  clock=clock())
+    assert int(store.rows[gc.PREFIX_CARD + digest_of()]["balancePaise"]) == 30000
+
+
+def test_redeem_refuses_a_disabled_card():
+    store = table()
+    issue(store, value_paise=50000)
+    gc.hold(store, code_hash=digest_of(), attempt_id="attempt-1", amount_paise=40000,
+            clock=clock())
+    gc.disable(store, code_hash=digest_of(), clock=clock())
+    with pytest.raises(gc.GiftCardDisabled):
+        gc.redeem(store, code_hash=digest_of(), attempt_id="attempt-1", amount_paise=40000,
+                  clock=clock())
+    assert int(store.rows[gc.PREFIX_CARD + digest_of()]["balancePaise"]) == 50000
+
+
+def test_redeem_is_one_conditional_update_guarded_on_the_holding_attempt():
+    store = table()
+    issue(store, value_paise=50000)
+    gc.hold(store, code_hash=digest_of(), attempt_id="attempt-1", amount_paise=40000,
+            clock=clock())
+    store.calls.clear()
+    gc.redeem(store, code_hash=digest_of(), attempt_id="attempt-1", amount_paise=40000,
+              clock=clock())
+    condition = store.calls[0][1]["ConditionExpression"]
+    for arm in ("activeHoldAttemptId = :me", "balancePaise >= :amount", "#status = :active"):
+        assert arm in condition
