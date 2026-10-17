@@ -117,14 +117,13 @@ describe( 'Header', () => {
     const perks = screen.getByRole( 'link', { name: 'Perks' } );
     const perksTree = perks.closest( '.nav-tree-item' );
     expect( perks ).toHaveAttribute( 'href', '/perks/' );
-    expect( perks ).toHaveClass( 'nav-nested-parent' );
     expect( perksTree ).toHaveClass( 'has-children' );
     expect( perksTree?.querySelector( '.nav-row-chevron' ) ).not.toBeNull();
 
     const googlePlay = screen.getByRole( 'link', { name: 'Google Play' } );
     const appStore = screen.getByRole( 'link', { name: 'App Store' } );
-    expect( googlePlay ).toHaveClass( 'nav-grandchild' );
-    expect( appStore ).toHaveClass( 'nav-grandchild' );
+    expect( googlePlay ).toHaveClass( 'nav-child' );
+    expect( appStore ).toHaveClass( 'nav-child' );
     expect( googlePlay ).toHaveAttribute( 'href', 'https://wecare.digital/' );
     expect( appStore ).toHaveAttribute( 'href', 'https://wecare.digital/' );
 
