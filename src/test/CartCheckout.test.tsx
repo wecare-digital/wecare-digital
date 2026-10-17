@@ -340,7 +340,7 @@ describe( 'the cart store', () => {
    * localStorage can name a product that exists nowhere in the current catalogue. Carried into
    * `toLineItems()` it reaches the catalogue lookup, 404s, and the customer is told "An item in
    * your cart is no longer available" only after pressing Checkout. 15a80e88-... is the retired ₹1
-   * test product; the live one is 121c9d57-...
+   * test product; a synthetic test id is used here
    */
   const RETIRED_ID = '15a80e88-6a2e-4b1f-9a7c-1b2c3d4e5f60';
 
@@ -368,9 +368,9 @@ describe( 'the cart store', () => {
 
     const items = cart.readCart();
     expect( items ).toHaveLength( 1 );
-    expect( items[ 0 ].productId ).toBe( 'a12e9e74-e109-4136-a12e-ab49ea6f98c3' );
+    expect( items[ 0 ].productId ).toBe( 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' );
     expect( cart.toLineItems().map( line => line.catalogReference.catalogItemId ) )
-      .toEqual( [ 'a12e9e74-e109-4136-a12e-ab49ea6f98c3' ] );
+      .toEqual( [ 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' ] );
   } );
 
   it( 'keeps a contribution line, which /shop/ deliberately does not list', () => {
@@ -434,15 +434,15 @@ describe( 'the cart store', () => {
     // storage above has NO product id at all, which is the point - it migrates by slug, so a cart
     // saved before the move resolves to whatever the catalogue holds now.
     const [ item ] = cart.readCart();
-    expect( item.productId ).toBe( 'a12e9e74-e109-4136-a12e-ab49ea6f98c3' );
-    expect( item.variantId ).toBe( '4d3e2b31-7888-4250-8f5a-0587344431db' );
+    expect( item.productId ).toBe( 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' );
+    expect( item.variantId ).toBe( 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' );
     expect( item.ref ).toBe(
-      'a12e9e74-e109-4136-a12e-ab49ea6f98c3:4d3e2b31-7888-4250-8f5a-0587344431db',
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb:dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     );
     expect( cart.toLineItems() ).toEqual( [ {
       catalogReference: {
-        catalogItemId: 'a12e9e74-e109-4136-a12e-ab49ea6f98c3',
-        options: { variantId: '4d3e2b31-7888-4250-8f5a-0587344431db' },
+        catalogItemId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        options: { variantId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' },
       },
       quantity: 2,
     } ] );
@@ -458,11 +458,11 @@ describe( 'the cart store', () => {
     } ] ) );
 
     // The stored `ref` is the RETIRED site's Merchandise id, which is exactly the legacy shape
-    // this case exists for: the row is repaired to the current product (eca1540e..., re-minted by
+    // this case exists for: the row is repaired to the synthetic target product (used by
     // the 2026-10-05 site migration) by slug, and no variant is guessed because ten of them
     // remain and only the customer can say which.
     const [ item ] = cart.readCart();
-    expect( item.productId ).toBe( 'eca1540e-0a0e-478d-9aa7-e366be277617' );
+    expect( item.productId ).toBe( 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' );
     expect( item.variantId ).toBeUndefined();
     expect( cart.needsVariantSelection( item ) ).toBe( true );
     expect( cart.availableVariantsForItem( item ) ).toHaveLength( 10 );
@@ -482,7 +482,7 @@ describe( 'the cart store', () => {
     const repaired = cart.setVariant( item.ref, target.id );
     expect( repaired[ 0 ].variantId ).toBe( target.id );
     expect( repaired[ 0 ].ref ).toBe(
-      `eca1540e-0a0e-478d-9aa7-e366be277617:${target.id}`,
+      `cccccccc-cccc-4ccc-8ccc-cccccccccccc:${target.id}`,
     );
     expect( cart.needsVariantSelection( repaired[ 0 ] ) ).toBe( false );
   } );
@@ -603,7 +603,7 @@ describe( 'legacy cart option recovery', () => {
       'Product option updated. Continue to secure payment.',
     ) ).toBeTruthy();
     expect( cart.readCart()[ 0 ].variantId ).toBe(
-      '3788a657-9af2-4ecf-8c9b-f218669d753c',
+      'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
     );
   } );
 } );

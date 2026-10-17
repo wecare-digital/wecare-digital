@@ -35,10 +35,10 @@ from lambda_utils import customer_auth  # noqa: E402
 from lambda_utils.ecommerce import service_request_store as store  # noqa: E402
 from lambda_utils.ecommerce import service_requests as sr  # noqa: E402
 
-SUBMIT = "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
-AMEND = "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b"
-DROP_DOCS = "db166bc8-a763-41ec-9f65-0f718f18155a"
-VAULT = "dcff995e-448c-493a-9259-f6a82ccdc2b4"
+SUBMIT = "22222222-2222-4222-8222-222222222222"
+AMEND = "33333333-3333-4333-8333-333333333333"
+DROP_DOCS = "44444444-4444-4444-8444-444444444444"
+VAULT = "55555555-5555-4555-8555-555555555555"
 ALICE = "11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 BOB = "22222222-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 

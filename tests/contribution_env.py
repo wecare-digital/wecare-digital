@@ -108,9 +108,11 @@ def _load_handler(monkeypatch, *, contribution_env=CONTRIBUTION_ID, committed=(C
     spec = importlib.util.spec_from_file_location("contribution_handler_under_test", HANDLER)
     h = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(h)
-    # The COMMITTED recognition set, which in the shipped tree is empty until the owner's GUID
-    # lands. Patched on the module the handler imported it from, so `_contribution_ids` reads it.
+    # Production contribution recognition is empty. Tests inject the synthetic contribution catalog
+    # here so generic checkout behavior remains covered without retaining retired production IDs.
     monkeypatch.setattr(h, "CONTRIBUTION_PRODUCT_IDS", frozenset(committed))
+    monkeypatch.setattr(h, "CONTRIBUTION_CHOICES_PAISE", dict(CONTRIBUTION_CHOICES))
+    monkeypatch.setattr(h, "CONTRIBUTION_VARIANT_IDS", frozenset(CONTRIBUTION_VARIANTS))
     return h
 
 

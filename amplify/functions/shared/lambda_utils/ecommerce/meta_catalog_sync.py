@@ -1,41 +1,8 @@
-"""ProductsTable -> Meta catalogue projection: the retailer-id contract, item shape and diff.
+"""ProductsTable -> Meta catalogue projection.
 
-PHASE W, FEAT-001. Design decisions D2, D3 and D4 of
-`.agents/tasks/phase-w-whatsapp-commerce-20261006/plan.md`; the measurements behind them are in
-that task's `findings.md` section 1.
-
-PURE, AND THAT IS THE POINT
----------------------------
-No boto3 client, no network, no environment read, no clock. Every input arrives as an argument,
-exactly like `initiation.py` and `finalization.py`. So the whole of "what would we send to Meta,
-and what would change" is decidable offline against the committed storefront snapshot
-`src/content/catalog-snapshot.json` (generated from ProductsTable by
-`scripts/build-catalog-snapshot.py`), which is how `tests/test_meta_catalog_sync.py` pins the
-item count without a credential. The Lambda in `ecommerce/meta-catalog-sync/` is the only thing
-that reads ProductsTable for this projection or talks to Meta. Its deployment environment
-controls whether a computed plan may be applied.
-
-ONE DIRECTION ONLY: PRODUCTSTABLE -> META
------------------------------------------
-The AWS ProductsTable is the single source of truth for products, variants, prices and
-availability. Meta is a VIEW. Nothing here reads a Meta value back into the catalogue, and
-nothing here deletes a Meta item - see `diff` for why a vanished variant becomes
-`availability: out of stock` instead.
-
-THE RETAILER ID IS THE JOIN, AND IT IS NOT A NEW IDEA
------------------------------------------------------
-`<RETAILER_PREFIX>:<productId>:<variantId>` carries exactly the `catalogReference` pair
-(`catalogItemId` plus `options.variantId`) that `src/lib/cart.ts` `toLineItems()` sends and
-`checkout/handler.py` `_native_quote` prices. So an order that arrives from WhatsApp carrying
-`product_retailer_id` resolves to the same ProductsTable line as an order placed on the website,
-with no mapping table to keep in step. 88 characters against Meta's 100-character limit.
-
-MONEY IS INTEGER PAISE AND THERE IS NO FLOAT IN THIS FILE
----------------------------------------------------------
-`tests/test_meta_catalog_sync.py` walks this module's AST and fails on a float literal or a
-`float()` call. A displayed price is composed from the integer by SLICING THE DIGITS
-(`price_text`), not by dividing, so there is no point at which a binary fraction could enter. Any
-stored number that arrives as a decimal string goes through `Decimal(str(value))`.
+Pure projection helpers for retailer IDs, item shape and diffing. ProductsTable is the source of
+truth. No retired product, service, contribution or test-product identity is embedded here.
+Fresh catalog rows are projected from their current data and publication flags.
 """
 
 from __future__ import annotations
@@ -70,49 +37,14 @@ CURRENCY = "INR"
 
 # Service payment vehicles have dedicated public routes and no /shop/<slug>/ page.
 # Stable identities mirror src/config/services.ts; prices come from ProductsTable like any other.
-SERVICE_PRODUCT_ID = "df976a0a-f582-4535-b2e1-d532f348bd27"
-SERVICE_PATH_BY_VARIANT = {
-    "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b": "/submit-request/",
-    "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b": "/request-amendment/",
-    "db166bc8-a763-41ec-9f65-0f718f18155a": "/drop-docs/",
-    "dcff995e-448c-493a-9259-f6a82ccdc2b4": "/vault/",
-    # Added 2026-10-10 with the fifth service variant. A SERVICE VARIANT WITHOUT A ROUTE IS NOT A
-    # COSMETIC GAP: `desired_items` omits `url` entirely for one, and `_batch_requests` in the
-    # handler reads `item["url"]` to build Meta's `link` - so a routeless variant takes the whole
-    # sync down with a KeyError rather than publishing a linkless item. The page this names is
-    # src/pages/request-pickup.tsx, and this map is what decides the address it answers on.
-    "8ee7e325-d772-4452-a993-5c79e927d42b": "/request-pickup/",
-}
+SERVICE_PRODUCT_ID = ''
+SERVICE_PATH_BY_VARIANT = {}
 
-SERVICE_ARTWORK_BY_VARIANT = {
-    "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b":
-        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/submit-request-4096.png",
-    "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b":
-        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/request-amendment-4096.png",
-    "db166bc8-a763-41ec-9f65-0f718f18155a":
-        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/drop-docs-4096.png",
-    "dcff995e-448c-493a-9259-f6a82ccdc2b4":
-        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/vault-4096.png",
-    "8ee7e325-d772-4452-a993-5c79e927d42b":
-        "https://wecare.digital/get/o/stream/media/m/wd-catalog-live/request-pickup-4096.png",
-}
+SERVICE_ARTWORK_BY_VARIANT = {}
 
 # Customer-facing service copy is variant-specific; the shared product description
 # contains operational details for several services and is not catalog copy.
-SERVICE_COPY_BY_VARIANT = {
-    "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b":
-        ("Submit Request", "Get help with your existing order."),
-    "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b":
-        ("Request Amendment", "Request a change to your existing order."),
-    "db166bc8-a763-41ec-9f65-0f718f18155a":
-        ("Drop Docs", "Upload documents for your order."),
-    "dcff995e-448c-493a-9259-f6a82ccdc2b4":
-        ("Vault", "Access and download your documents."),
-    "8ee7e325-d772-4452-a993-5c79e927d42b":
-        # "Arrange", not "book": a collection depends on a courier agreeing to it, which is the
-        # same claim /request-pickup/ makes. This wording is stack's and is kept as it stands.
-        ("Request Pickup", "Arrange pickup of documents for your order."),
-}
+SERVICE_COPY_BY_VARIANT = {}
 
 #: THE ONLY FIELDS THAT MAY REACH META, as an explicit allowlist rather than "whatever is in the
 #: dict". An item also carries `product_name`, which is a grouping label for `blockers` and for
@@ -150,20 +82,12 @@ COMPARED_FIELDS = ("name", "description", "availability", "price", "currency", "
 #: at the foot of a blog post: it is a real, sellable product reached by direct cart reference, so
 #: whether the WhatsApp catalogue carries it is decided by its own catalogue flags like any other
 #: row. Its variants remain subject to checkout's own variant allow-list and quantity-1 rule.
-CONTRIBUTION_PRODUCT_ID = "8514c405-3971-4786-ad0d-15406ca23407"
+CONTRIBUTION_PRODUCT_ID = ''
 CONTRIBUTION_CTA_URL = "https://wa.me/message/BYFLCAAMSZBXD1"
 
-#: The ₹1 test product - a catalogue test row that is not this storefront and must never reach a
-#: customer-facing WhatsApp catalogue, whatever its visibility flags say (it is also hidden from
-#: /shop/ by `isTestProductRow` in shop.ts). Excluded BY SLUG ONLY (`1-test-product`),
-#: deliberately NOT by id: the projection unit tests reuse this product's real id as a throwaway
-#: fixture under neutral slugs ("x", "imageless", "wecaredigital-services"), and those fixtures
-#: must stay syncable. The real row carries slug `1-test-product`, which the id-reuse fixtures
-#: never do, so a slug gate drops exactly the real row and nothing else. It stays in ProductsTable
-#: and in the committed snapshot (the generator owns that artifact); this keeps it out of the Meta
-#: projection.
-TEST_PRODUCT_SLUGS: Tuple[str, ...] = ("1-test-product",)
-
+#: No retired catalog slug is special-cased. Fresh catalog rows are controlled only by their
+#: current publication flags.
+TEST_PRODUCT_SLUGS: Tuple[str, ...] = ()
 _TEST_PRODUCT_SLUGS = frozenset(TEST_PRODUCT_SLUGS)
 
 #: Stripped from `descriptionHtml`. The catalogue stores the description as HTML; Meta wants plain
@@ -241,18 +165,7 @@ def is_syncable(product: Mapping[str, Any]) -> bool:
 
     Two exclusions and no more:
 
-    1. the ₹1 test product, BY SLUG ONLY (`1-test-product`, compared `.strip().lower()`) - not by
-       id, unlike `isTestProductRow` in `src/content/shop.ts`, because the projection unit tests
-       reuse its id as a fixture under neutral slugs that must stay syncable;
-    2. `visible is False` - identity against `False`, not truthiness, so an ABSENT `visible` key
-       means visible. Treating absence as hidden would empty the catalogue on a shape change.
-
-    The Meta channel flag (`metaEnabled`) is applied before this, in the Lambda's ProductsTable
-    read, so it is not repeated here.
-    """
-    if not isinstance(product, Mapping):
-        return False
-    slug = str(product.get("slug") or "").strip().lower()
+        slug = str(product.get("slug") or "").strip().lower()
     if slug in _TEST_PRODUCT_SLUGS:
         return False
     if product.get("visible") is False:

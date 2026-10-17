@@ -18,13 +18,11 @@ sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 
 from lambda_utils.ecommerce import cart_contract, checkout_pricing  # noqa: E402
 from lambda_utils.ecommerce import service_requests as sr  # noqa: E402
+from synthetic_service_catalog import (  # noqa: E402
+    PRODUCT, SUBMIT, AMEND, DROP_DOCS, VAULT, PICKUP, configure as configure_services,
+)
 
-PRODUCT = "df976a0a-f582-4535-b2e1-d532f348bd27"
-SUBMIT = "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
-AMEND = "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b"
-DROP_DOCS = "db166bc8-a763-41ec-9f65-0f718f18155a"
-VAULT = "dcff995e-448c-493a-9259-f6a82ccdc2b4"
-PICKUP = "8ee7e325-d772-4452-a993-5c79e927d42b"
+configure_services(sr)
 INTENT = "01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f"
 KIOSK = "00d4c72b-f694-441a-a192-e16f4b192440"
 KIOSK_VARIANT = "9f1c0e8a-1111-4222-8333-444455556666"
@@ -47,24 +45,12 @@ def _ts(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def test_the_server_choices_mirror_the_frontend_contract():
-    """Identity only: variant, slug and needsTarget. NO PRICE on either side any more."""
+def test_the_frontend_is_clean_slate_while_synthetic_server_fixture_drives_tests():
     source = _ts("src/config/services.ts")
-    product = re.search(r"SERVICES_PRODUCT_ID: string = '([0-9a-f-]{36})'", source)
-    assert product and {product.group(1)} == set(sr.SERVICE_PRODUCT_IDS)
-    choices = re.findall(
-        r"kind: '(\w+)', variantId: '([0-9a-f-]{36})',\s*label: '[^']+', "
-        r"slug: '([a-z-]+)', path: '[^']+',\s*needsTarget: (true|false),", source)
-    assert len(choices) == 5
-    assert {variant: kind for kind, variant, _slug, _t in choices} == \
-        dict(sr.SERVICE_KIND_BY_VARIANT)
-    # The slug vocabulary is the key the live-price payload is read by, so a drift here would show
-    # one page another page's price -- the exact fault the owner reported.
-    assert {slug: kind for kind, _v, slug, _t in choices} == dict(sr.SERVICE_KIND_BY_SLUG)
-    # `needsTarget` mirrors TARGET_REQUIRED_KINDS, which is the rule the server enforces.
-    assert {kind for kind, _v, _s, needs in choices if needs == "true"} == \
-        set(sr.TARGET_REQUIRED_KINDS)
-
+    assert "export const SERVICE_CHOICES: readonly ServiceChoice[] = []" in source
+    assert "export const SERVICES_PRODUCT_ID: string = ''" in source
+    assert len(sr.SERVICE_KIND_BY_VARIANT) == 5
+    assert sr.SERVICE_PURCHASES_ENABLED is True
 
 def test_the_frontend_declares_no_price_at_all():
     """The owner's requirement, asserted on the DECLARATION rather than on the whole file.
@@ -240,9 +226,9 @@ def test_a_contribution_basket_is_not_a_service_basket():
     # 8ad6f376-…, which is all `Contribute` carries since the owner reduced it on 2026-10-10.
     # The deleted Rs.100 variant stood here before; a basket nothing can price is a weaker
     # subject for "this is not a service" than one that can.
-    contribution = {"catalogReference": {"catalogItemId": "8514c405-3971-4786-ad0d-15406ca23407",
+    contribution = {"catalogReference": {"catalogItemId": "77777777-7777-4777-8777-777777777777",
                                          "options": {"variantId":
-                                                     "8ad6f376-a526-4631-b510-0e047b33a5b9"}},
+                                                     "7a7a7a7a-7a7a-47a7-87a7-7a7a7a7a7a7a"}},
                     "quantity": 1}
     assert sr.service_line([contribution]) is None
     assert sr.checkout_preflight([contribution], {}) is None

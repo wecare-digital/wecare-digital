@@ -1,112 +1,8 @@
-"""Section 5 voluntary blog contributions: the BLOG_CONTRIBUTION payment purpose, built-but-gated.
+"""Contribution payment helpers.
 
-What this is, and why it is a sibling of website_checkout
----------------------------------------------------------
-Every blog article offers a small voluntary contribution ("Support this work"). The browser
-(FEAT-003, ``src/components/BlogContribution.tsx``) POSTs ``{purpose, postId, slug, amountPaise,
-currency}`` and branches on the SAME website-checkout contract the gated Standard Checkout returns:
-``PAYMENT_INITIATION_DISABLED`` (the default, gate off) or ``CHECKOUT_OPTIONS_READY`` with the
-browser-safe projection. This module is the server for that purpose, modelled directly on
-``website_checkout.py`` so the two agree on gating, binding and verification, and it is written
-handler-free - every external dependency (the keys table, the Razorpay client, the capture
-verifier) is injected - so it is fully testable offline with the same ``FakeDynamo`` the other
-payment tests use.
-
-Two things make a contribution DIFFERENT from a cart checkout, and both are deliberate:
-
-  1. There is no cart, no catalogue total and no FEAT-001 quote. The amount is the contribution
-     amount the reader chose, validated SERVER-SIDE against an authoritative preset set + custom
-     bounds defined HERE (not read from the browser), in integer paise. The browser value is only a
-     request; the server decides. A plain voluntary contribution is NOT a commerce collection, so
-     it is NOT run through the convenience-fee + GST calculator - the reader is charged exactly the
-     amount they chose, in paise, and nothing is added on top. (If accounting later requires a fee
-     on contributions, that is a deliberate change here, not a silent default.)
-  2. A captured contribution does NOT create a catalogue product or purchase order and mints no
-     public order number. It settles the contribution record and stops. ``order_keys`` keeps the
-     contribution record in its own ``BLOGCONTRIB#`` namespace precisely so nothing downstream
-     mistakes it for an order.
-
-The gate, identical to website checkout
----------------------------------------
-Initiation uses the same checkout controls: authenticated ownership, authoritative pricing,
-idempotent reservation and live provider readiness.
-``prepare_contribution`` takes an already-evaluated ``initiation_enabled`` boolean (the handler ANDs
-the env gate with readiness, exactly as ``checkout/handler.py`` does), and gate-off returns
-``PAYMENT_INITIATION_DISABLED`` with NO gateway order and NO payable attempt. No constant in this
-module can force it on: the only path that creates a gateway order is guarded by that injected
-boolean, and there is no default that reads as ready.
-
-Verification, identical to website checkout
--------------------------------------------
-``verify_contribution_callback`` verifies the HMAC over the SERVER-STORED gateway order id (never
-the browser's), re-checks the stored account/mode (a test-mode binding must never settle live),
-and treats a valid signature as only a trigger: it STILL requires ``razorpay_verify``'s
-authenticated captured-payment readback, whose amount/currency must equal the stored binding,
-before a VERIFIED/CAPTURED state. A bare signature / query string / browser callback / frontend
-state is never accepted as proof.
-
-The webhook, identical to the topup pattern
--------------------------------------------
-``settle_contribution_capture`` mirrors the ``partner_billing.topup`` branch of the Razorpay
-webhook: on a signature-verified ``payment.captured`` whose notes mark it a BLOG_CONTRIBUTION, the
-amount is RE-DERIVED from the stored contribution record (NOT from ``payment.notes`` - a forged
-notes amount is ignored), a conditional one-time claim keyed by the payment id is made BEFORE any
-settle write (so a replay settles exactly once), the capture is verified against Razorpay's API,
-and a paid-but-unresolvable capture is QUARANTINED for a human rather than guessed. No order is
-ever created.
-
-PHASE 2 (2026-10-03): THIS MODULE'S OWN MONEY PATH IS RETIRED, NOT DELETED
---------------------------------------------------------------------------
-A contribution is now **one fixed-price ProductsTable product line in the existing cart**, priced
-by the native ProductsTable quote on the one live checkout path.
-``POST /api/ecommerce/contribution`` stays 404 and is never built, so ``prepare_contribution``, ``verify_contribution_callback`` and
-``settle_contribution_capture`` have no production caller and gain none. They are retained rather
-than removed because the webhook still carries a keyed ``BLOG_CONTRIBUTION`` arm and because
-deleting a verified payment implementation is not this phase's job.
-
-OWNER MODEL CHANGE (2026-10-04): FIXED PRICES, NOT AN AMOUNT CARRIED AS A QUANTITY
-----------------------------------------------------------------------------------
-The first Phase-2 revision made a contribution one Rs.1 product whose ``quantity`` WAS the rupee
-amount, with server-side bounds and a free-text field. That is retired. A contribution is now a
-fixed-price VARIANT of the one ``Contribute`` product, added at ``quantity: 1``. No custom amount,
-no bounds, no ``quantity x 100`` re-derivation. The change DELETES the amount arithmetic rather
-than relocating it, which is why there is less money code after it than before.
-
-ONE AMOUNT SINCE 2026-10-10. The model change offered three -- Rs.100, Rs.250, Rs.500. The owner
-then removed two of the three variants from the catalogue, leaving a SINGLE visible in-stock
-variant at Rs.250, and the allow-list below follows the catalogue because the catalogue is the
-source of truth: a variant that is not in ProductsTable cannot be priced by the native quote
-(`native_cart._unit_price_paise` refuses it), so a basket naming one fails closed rather than
-collecting anything.
-
-What IS live in this module is the part the unified checkout imports rather than re-declares:
-``CONTRIBUTION_PRODUCT_IDS`` -- the committed recognition set that makes the
-``CONTRIBUTION_PRODUCT_ID`` env key a kill switch rather than a de-guard -- and
-``CONTRIBUTION_CHOICES_PAISE``, the allowed variants and the collection each one must price to.
-
-``CONTRIBUTION_PRESETS_PAISE`` and ``validate_contribution_amount`` belong to the RETIRED
-own-money path above. They are no longer on the live checkout path: nothing in
-``checkout/handler.py`` calls them any more, because with a fixed price per variant there is no
-amount for a customer to propose and therefore nothing to validate a proposal against.
-
-They were narrowed independently of this phase, and the dates matter because the two changes
-agree rather than collide: a separate change (merged to ``stack`` as #219, "use common
-contribution amounts across blog and VayuLok") moved ``CONTRIBUTION_PRESETS_PAISE`` to
-``(10000, 25000, 50000)``, made ``validate_contribution_amount`` **preset-only**, and DELETED
-``CONTRIBUTION_MIN_PAISE`` / ``CONTRIBUTION_MAX_PAISE`` along with the free-text custom amount.
-So the retired path offers three figures by a different mechanism, and there is no longer any
-bounded custom amount anywhere in this module. Those three presets were LEFT AS THEY ARE by the
-2026-10-10 catalogue reduction: they are amounts on a path with no production caller, not
-catalogue targets, so narrowing them would change nothing a customer can reach while making the
-retired implementation harder to read against its own history. The LIVE allow-list is
-``CONTRIBUTION_CHOICES_PAISE`` below, and it is the one that now holds a single Rs.250 variant.
-
-OWNER DECISION [PHASE2-FEE-001], answered 2026-10-03: a contribution is **fee-exempt**. The
-customer pays exactly the amount they chose, to the paise, via
-``checkout_pricing.exempt_quote`` substituted at ``build_intent_with_calculation``'s existing
-``quote_fn`` seam. This AGREES with point 1 of the header above rather than reversing it:
-``compute_quote``'s convenience fee and GST-on-fee stay off a contribution, and ``compute_quote``
-itself is unchanged for every ordinary basket.
+The retired contribution catalog identity, variants and preset amounts have been wiped.
+Production recognition sets are empty until a new SKU-first Contribute catalog item is created.
+Generic settlement helpers remain so the payment-purpose contract can be reused safely later.
 """
 
 from __future__ import annotations
@@ -135,73 +31,15 @@ CONTRIBUTION_CURRENCY = "INR"
 #: SERVER-AUTHORITATIVE common contribution amounts, in integer paise, mirroring
 #: src/config/contribution.ts. Defined separately so the browser cannot widen the trusted set.
 #: Only these exact three values are accepted.
-CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = (10000, 25000, 50000)
+CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = ()
 
-#: The ProductsTable product id that carries the contribution variants, lowercased.
-#: COMMITTED rather than configured, because this set is what makes CONTRIBUTION_PRODUCT_ID a kill
-#: switch instead of a de-guard: unsetting the env key must REFUSE a contribution basket, and that
-#: is only possible if the server can still recognise one. Ids are catalogue references, not
-#: secrets.
-#:
-#: The one entry is the live `Contribute` product (slug ``contribute``), MEASURED against the live
-#: catalogue on 2026-10-10 rather than transcribed: ``PHYSICAL``, one option named "Amount", and a
-#: SINGLE visible in-stock variant priced Rs.250 (it carried three, Rs.100 / Rs.250 / Rs.500, until
-#: the owner removed two). Note the shape, because it is NOT what the owner's instruction said: the
-#: GUIDs supplied are VARIANT ids of ONE product, not product ids. A `catalogItemId` holding a
-#: variant id names no ProductsTable product and fails the native quote, so the distinction is
-#: load-bearing.
-#:
-#: SITE MIGRATION, 2026-10-05: THE SET IS REPLACED, NOT EXTENDED, and that is a correction to what
-#: this comment used to claim. It said "an id is added here, never removed -- a retired vehicle must
-#: stay recognisable", which the module could never honour: the mirror guard
-#: ``test_server_choices_mirror_the_frontend_contract`` holds this set EQUAL to the single id
-#: ``src/config/contribution.ts`` declares, so a second member fails the build. The old id
-#: ``af326b8c-f373-45ea-ad0d-b7a38b8ce0cc`` belonged to the retired catalogue site and names a
-#: product that no longer exists, so keeping it recognisable buys nothing: a stale cart line
-#: carrying it cannot be priced at all -- the native quote refuses a ``catalogItemId`` that is not
-#: in ProductsTable -- so that basket fails closed rather than being mistaken for an ordinary
-#: purchase and charged the convenience fee and GST.
-CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
-    "8514c405-3971-4786-ad0d-15406ca23407",
-})
+#: No retired contribution product identity is recognized. The new contribution product will be
+#: introduced later as a fresh SKU-first catalog item.
+CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset()
 
-#: The ONLY contribution that can be made -- one Rs.250 variant -- as ``{variant id: integer
-#: paise}``.
-#:
-#: FIXED PRICES, NOT AN AMOUNT-TIMES-QUANTITY (owner model change, 2026-10-04). The previous model
-#: was one Rs.1 product whose QUANTITY carried the amount, with bounds and a free-text field. That
-#: is retired in favour of fixed-price variants chosen at quantity 1, which deletes the
-#: quantity arithmetic, the bounds and the custom-amount validation rather than adding to them.
-#:
-#: WHY THE SERVER HOLDS THE PAISE FIGURE AT ALL, given that ProductsTable is the sole price
-#: authority: the browser's button says "Contribute Rs.250", and this map is the committed
-#: statement of that promise. It is not a second price -- the native quote charges the variant's
-#: ProductsTable ``priceMinor`` -- and the checkout reads it only to word its
-#: ``CONTRIBUTION_AMOUNT_INVALID`` refusal (``choicesPaise``). A catalogue price edit therefore
-#: has to move this map and src/config/contribution.ts with it, or the label lies.
-#:
-#: MIRRORED IN src/config/contribution.ts as CONTRIBUTION_CHOICES, deliberately as a separate
-#: declaration so the browser cannot widen the trusted set.
-#: tests/test_blog_contribution.py::test_server_choices_mirror_the_frontend_contract is the guard
-#: that fails if the two drift.
-#:
-#: SITE MIGRATION, 2026-10-05: the three variant GUIDs moved and the three AMOUNTS DID NOT. The
-#: catalogue was re-created, which re-minted every variant id, so all three keys changed in one
-#: release while the values stayed 10000 / 25000 / 50000 -- the customer is charged exactly what
-#: they were charged before. Which new variant carries which rupee figure was read off the
-#: re-created catalogue and confirmed independently by its "Amount" option label, because getting
-#: that correspondence wrong would collect the wrong amount silently rather than failing.
-#:
-#: CATALOGUE REDUCTION, 2026-10-10: THREE KEYS BECAME ONE. The owner deleted the Rs.100
-#: (``ab4ee1a2-1568-4dc4-abe1-55e24fa51576``) and Rs.500
-#: (``19283bd8-a61d-455e-a992-79eb10b9228f``) variants from the catalogue, leaving the product with
-#: one variant. They are REMOVED here rather than kept recognisable, for the reason
-#: ``CONTRIBUTION_PRODUCT_IDS`` above records about the retired site's id: a deleted variant cannot
-#: be priced, so a stale cart line naming one fails closed at the native quote, and the mirror
-#: guard holds this map equal to the single choice ``src/config/contribution.ts`` declares anyway.
-CONTRIBUTION_CHOICES_PAISE: Mapping[str, int] = MappingProxyType({
-    "8ad6f376-a526-4631-b510-0e047b33a5b9": 25000,     # Rs.250
-})
+#: No contribution variant is currently purchasable. Fresh choices will be added with the new
+#: contribution catalog item.
+CONTRIBUTION_CHOICES_PAISE: Mapping[str, int] = MappingProxyType({})
 
 #: The variant ids above as a set, for membership tests that do not need the amount.
 CONTRIBUTION_VARIANT_IDS: FrozenSet[str] = frozenset(CONTRIBUTION_CHOICES_PAISE)

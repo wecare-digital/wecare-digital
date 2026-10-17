@@ -52,12 +52,15 @@ from lambda_utils.ecommerce import checkout_pricing as cp  # noqa: E402
 from lambda_utils.ecommerce import order_creation, order_keys  # noqa: E402
 from lambda_utils.ecommerce import service_request_store as store  # noqa: E402
 from lambda_utils.ecommerce import service_requests as sr  # noqa: E402
+from synthetic_service_catalog import configure as configure_services  # noqa: E402
+
+configure_services(sr)
 from lambda_utils.integrations import razorpay_verify  # noqa: E402
 
-PRODUCT = "df976a0a-f582-4535-b2e1-d532f348bd27"
-SUBMIT = "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
-DROP_DOCS = "db166bc8-a763-41ec-9f65-0f718f18155a"
-VAULT = "dcff995e-448c-493a-9259-f6a82ccdc2b4"
+PRODUCT = "11111111-1111-4111-8111-111111111111"
+SUBMIT = "22222222-2222-4222-8222-222222222222"
+DROP_DOCS = "44444444-4444-4444-8444-444444444444"
+VAULT = "55555555-5555-4555-8555-555555555555"
 INTENT = "01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f"
 OWNER = "sub-1"
 

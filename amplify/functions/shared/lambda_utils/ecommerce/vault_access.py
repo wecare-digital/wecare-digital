@@ -4,7 +4,7 @@ import time
 from lambda_utils import customer_auth
 from lambda_utils.ecommerce import order_keys, service_request_store as store
 
-VARIANT_ID = 'dcff995e-448c-493a-9259-f6a82ccdc2b4'
+VARIANT_ID = ''
 FILES_TABLE = 'stack-wecare-digital-SecureFilesTable'
 GRANTS_TABLE = 'stack-wecare-digital-DownloadGrantsTable'
 

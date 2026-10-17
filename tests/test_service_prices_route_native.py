@@ -22,11 +22,11 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from contribution_env import body_of, make_env  # noqa: E402
 
 # The five service variants (same UUIDs the live catalog uses), with distinct test prices.
-SUBMIT = "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
-AMEND = "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b"
-DROP_DOCS = "db166bc8-a763-41ec-9f65-0f718f18155a"
-VAULT = "dcff995e-448c-493a-9259-f6a82ccdc2b4"
-PICKUP = "8ee7e325-d772-4452-a993-5c79e927d42b"
+SUBMIT = "22222222-2222-4222-8222-222222222222"
+AMEND = "33333333-3333-4333-8333-333333333333"
+DROP_DOCS = "44444444-4444-4444-8444-444444444444"
+VAULT = "55555555-5555-4555-8555-555555555555"
+PICKUP = "66666666-6666-4666-8666-666666666666"
 PAISE = {SUBMIT: 14900, AMEND: 20100, DROP_DOCS: 45000, VAULT: 7700, PICKUP: 28800}
 
 

@@ -8,7 +8,7 @@ from decimal import Decimal
 
 from . import meta_catalog_sync, payment_attempt
 
-PRODUCT_ID = 'df976a0a-f582-4535-b2e1-d532f348bd27'
+PRODUCT_ID = ''
 VARIANTS = frozenset({
     'e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b',
     'dcff995e-448c-493a-9259-f6a82ccdc2b4',

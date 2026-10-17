@@ -153,12 +153,12 @@ def test_the_intent_happy_path(env):
     # so the wire shape remains a superset of what src/lib/serviceRequests.ts reads, and None says
     # "not priced yet" where a 0 would have claimed the service is free.
     assert body["amountPaise"] is None and body["currency"] == "INR"
-    assert body["variantId"] == "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
+    assert body["variantId"] == "22222222-2222-4222-8222-222222222222"
 
 
 @pytest.mark.parametrize("kind,variant", [
-    ("DROP_DOCS", "db166bc8-a763-41ec-9f65-0f718f18155a"),
-    ("VAULT", "dcff995e-448c-493a-9259-f6a82ccdc2b4"),
+    ("DROP_DOCS", "44444444-4444-4444-8444-444444444444"),
+    ("VAULT", "55555555-5555-4555-8555-555555555555"),
 ])
 def test_drop_docs_and_vault_are_offered_against_one_of_the_callers_requests(env, kind, variant):
     ref = paid_submit(env)

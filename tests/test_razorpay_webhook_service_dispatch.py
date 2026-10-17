@@ -61,7 +61,7 @@ def _seed(table, *, currency='INR'):
         table, reference_id=REFERENCE, payment_attempt_id=ATTEMPT,
         extra={'customerId': 'sub-1', 'amountPaise': AMOUNT, 'currency': currency,
                'serviceLine': {'kind': 'SUBMIT_REQUEST',
-                               'variantId': 'e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b',
+                               'variantId': '22222222-2222-4222-8222-222222222222',
                                'paise': 9900,
                                'intentId': '01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f'}})
 
