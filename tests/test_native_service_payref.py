@@ -16,9 +16,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 
 from lambda_utils.ecommerce import service_requests as sr  # noqa: E402
+from synthetic_service_catalog import PRODUCT as SERVICE_PRODUCT, SUBMIT as SERVICE_VARIANT, configure as configure_services  # noqa: E402
 
-SERVICE_PRODUCT = "df976a0a-f582-4535-b2e1-d532f348bd27"
-SERVICE_VARIANT = "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
+configure_services(sr)
 VALID_INTENT = "01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f"
 
 
@@ -44,11 +44,10 @@ def frozen_quote(*, price=9900, variant=SERVICE_VARIANT, quantity=1,
     }]})
 
 
-def test_a_well_formed_legacy_service_basket_is_blocked_for_new_checkout():
+def test_a_well_formed_synthetic_service_basket_passes_preflight():
     lines = service_cart()
     body = {"serviceIntentId": VALID_INTENT}
-    status, payload = sr.checkout_preflight(lines, body)
-    assert (status, payload["error"]) == (409, "SERVICE_UNAVAILABLE")
+    assert sr.checkout_preflight(lines, body) is None
 
 
 def test_native_service_price_from_frozen_quote_not_client():
