@@ -2222,43 +2222,38 @@ describe( 'the contribution row CHOOSES an amount, it does not count copies', ()
    * price, so the row offers the three amounts and there is no draft, no commit moment and no
    * invalid value to leave the cart alone for. The cases below assert what replaced it.
    */
-  it( 'has an amount chooser and no Qty stepper', async () => {
+  it( 'shows the amount as static text (no chooser) and no Qty stepper', async () => {
+    // A contribution is single-use with ONE fixed amount, so the amount is static text, not a
+    // dropdown (owner request). There is also no quantity stepper: two copies of a ₹250
+    // contribution is not a ₹500 contribution, it is a basket the server refuses.
     signedIn();
     stubFetch( { profile: { body: PROFILE_READY } } );
     cart.setContribution( ONLY.variantId );
-    render( <Cart /> );
+    const { container } = render( <Cart /> );
 
-    const chooser = await screen.findByLabelText( 'Contribute amount' );
-    expect( chooser ).toBeInTheDocument();
-    // A stepper is the wrong control: two copies of a ₹250 contribution is not a ₹500
-    // contribution, it is a basket the server refuses as two contributions.
+    expect( await screen.findByText( 'Contribute amount' ) ).toBeInTheDocument();
+    const amount = container.querySelector( '.cart-amount-static' );
+    expect( amount ).toBeTruthy();
+    expect( amount?.textContent ).toBe( `\u20B9${ ONLY.rupees }` );
+    // No chooser and no stepper.
     expect( screen.queryByLabelText( 'Qty' ) ).toBeNull();
-    expect( ( chooser as HTMLSelectElement ).value ).toBe( ONLY.variantId );
-    // Exactly the offered choices, in config order, each labelled with its rupee figure.
-    expect( Array.from( ( chooser as HTMLSelectElement ).options ).map( o => o.textContent ) )
-      .toEqual( CONTRIBUTION_CHOICES.map( choice => `\u20B9${ choice.rupees }` ) );
+    expect( container.querySelector( '.cart-amount-select' ) ).toBeNull();
+    expect( container.querySelector( '.cart-stepper' ) ).toBeNull();
   } );
 
-  it( 'REPLACES the line when an amount is chosen, and keeps quantity 1', async () => {
-    // CHOOSING ANOTHER AMOUNT IS WHAT THIS USED TO DRIVE, ₹250 -> ₹100. The owner reduced
-    // `Contribute` in the catalogue to a single ₹250 variant on 2026-10-10, so the select offers one option
-    // and there is no second amount to switch to. Re-choosing the same one still pins the
-    // property: the row writes through `setContribution`, which REPLACES, so a line at quantity 2
-    // here would mean `addItem` had crept back behind this control.
+  it( 'keeps a single contribution line at quantity 1', async () => {
+    // The contribution line is single-use: one line, quantity 1, written through
+    // `setContribution` which REPLACES rather than increments. A line at quantity 2 here would
+    // mean `addItem` had crept back behind this control.
     signedIn();
     stubFetch( { profile: { body: PROFILE_READY } } );
     cart.setContribution( ONLY.variantId );
     render( <Cart /> );
 
-    const chooser = await screen.findByLabelText( 'Contribute amount' );
-    fireEvent.change( chooser, { target: { value: ONLY.variantId } } );
-
+    await screen.findByText( 'Contribute amount' );
     expect( cart.readCart() ).toHaveLength( 1 );
     expect( cart.readCart()[ 0 ].variantId ).toBe( ONLY.variantId );
     expect( cart.readCart()[ 0 ].quantity ).toBe( 1 );
-    // And the row re-renders from the cart rather than from its own state.
-    expect( ( await screen.findByLabelText( 'Contribute amount' ) as HTMLSelectElement ).value )
-      .toBe( ONLY.variantId );
   } );
 
   it( 'hides RedemptionPanel on a contribution cart and shows it otherwise', async () => {
@@ -2638,17 +2633,19 @@ describe( 'the money-row controls pair their focus ring with their focus outline
   it( 'declares a box-shadow wherever a money-row :focus-visible rule sets an outline', () => {
     const source = fs.readFileSync(
       path.resolve( __dirname, '../components/cart/CartPage.tsx' ), 'utf8' );
+    // The contribution amount is static text now, so there is no .cart-amount-select money-row
+    // control to pair. Any money-row :focus-visible rule that sets an outline must still also set
+    // a box-shadow; with the amount select gone there may be zero such rules, which is fine.
     const CONTROLS = [ 'cart-amount-select' ];
     const rules = [ ...source.matchAll( /([^{}\n]*:focus-visible[^{]*)\{([^}]*)\}/g ) ];
-    const checked: string[] = [];
     for ( const [ , selector, body ] of rules ) {
       if ( !CONTROLS.some( c => selector.includes( `.${c}:` ) ) ) continue;
       if ( !/outline\s*:/.test( body ) ) continue;
-      checked.push( selector.trim() );
       expect( body, `${selector.trim()} sets an outline, so it must set a box-shadow too` )
         .toMatch( /box-shadow\s*:/ );
     }
-    expect( checked ).toHaveLength( 1 );
+    // No assertion on the count: the money-row select was removed with the amount dropdown.
+    expect( source ).not.toContain( 'cart-amount-select' );
   } );
 
   it( 'leaves the migrated variant chooser with a ring from the shared file, not a dead rule', () => {
