@@ -165,14 +165,18 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( '&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span>' );
   } );
 
-  it( 'reuses the existing "See it on WhatsApp" demo link as the demo button', () => {
-    // Demo button reuses the exact existing link: href + target + rel + label.
-    const demoLinks = source.match( /className="api-action-link"/g ) || [];
-    expect( demoLinks.length ).toBeGreaterThanOrEqual( 1 );
-    expect( source ).toContain( 'href="https://wa.me/message/APDM5HUWH26SG1"' );
+  it( 'renders the "See it on WhatsApp" demo button in the unified .gos-wa-cta pill style', () => {
+    // UNIFIED CTA STYLE (owner instruction): the lighter .api-action-link text-link was
+    // replaced by a .gos-wa-cta pill so every WhatsApp CTA on the page shares one look.
+    // The class name no longer appears in real markup or CSS (comments documenting the
+    // removal are allowed, so strip them first).
+    const codeNoComments = source.replace( /\/\*[\s\S]*?\*\//g, '' ).replace( /^\s*\/\/.*$/gm, '' );
+    expect( codeNoComments ).not.toContain( 'api-action-link' );
+    // The demo button is now a .gos-wa-cta pill carrying the "See it on WhatsApp" label,
+    // the same href/target/rel as before.
+    expect( source ).toContain( '<a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp</a>' );
     expect( source ).toContain( 'target="_blank"' );
     expect( source ).toContain( 'rel="noopener noreferrer"' );
-    expect( source ).toContain( 'See it on WhatsApp' );
   } );
 
   it( 'surfaces the existing SKU and disclaimer from the imported constants, not retyped', () => {
@@ -203,6 +207,46 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     // Step block ordered before the code panel when the grid stacks.
     expect( code ).toContain( '.api-steps{order:0}' );
     expect( code ).toContain( '.api-demo{order:1' );
+  } );
+} );
+
+/**
+ * The closer section (<section id="gos-closer">) was STRIPPED on owner instruction down to
+ * a single unified WhatsApp CTA. The closing heading ("Transform customer engagement with
+ * Grahak OS"), the ₹899 price line and the SKU/policy disclaimer block were all removed
+ * from this section; the only control left is one .gos-wa-cta pill labelled exactly
+ * "See it on WhatsApp". The price/SKU/policy still live in the api-steps block above, so
+ * these assertions pin the closer-specific removals and the single remaining button, not a
+ * page-wide absence.
+ */
+describe( 'Grahak OS: closer stripped to a single unified WhatsApp CTA', () => {
+  const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
+  const source = readFileSync( pagePath, 'utf8' );
+  const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
+  // Isolate just the closer section's markup so assertions are scoped to it, not the page.
+  const closer = source.match( /id="gos-closer">([\s\S]*?)<\/section>/ )?.[ 1 ] || '';
+
+  it( 'removes the "Transform customer engagement with Grahak OS" heading and its CSS', () => {
+    expect( code ).not.toContain( 'Transform customer' );
+    expect( code ).not.toContain( 'gos-closer-head' );
+  } );
+
+  it( 'removes the price line and the SKU/policy disclaimer FROM THE CLOSER', () => {
+    // Scoped to the closer: the closer no longer renders a price or the commerce block.
+    expect( closer ).not.toContain( 'gos-price' );
+    expect( closer ).not.toContain( 'gos-commerce' );
+    expect( closer ).not.toContain( 'PRODUCT_SKU_BY_SLUG' );
+    expect( closer ).not.toContain( 'PRODUCT_POLICY_TITLE' );
+  } );
+
+  it( 'keeps exactly one WhatsApp button, labelled "See it on WhatsApp", in the unified pill style', () => {
+    // The closer contains a single .gos-wa-cta pill, a real link, with the exact label.
+    const closerCtas = closer.match( /className="gos-wa-cta"/g ) || [];
+    expect( closerCtas.length ).toBe( 1 );
+    expect( closer ).toContain( '<a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp</a>' );
+    // No price, heading or disclaimer markup survives in the closer.
+    expect( closer ).not.toContain( '<h2' );
+    expect( closer ).not.toContain( '<p' );
   } );
 } );
 
@@ -324,17 +368,21 @@ describe( 'Grahak OS: states the harness suites do not enter', () => {
     expect( source ).toContain( 'setVisible((p) => new Set([...p, ...onScreenNow]));' );
   } );
 
-  it( 'gives the six capability cards real heading semantics', () => {
-    // THE DEFECT: these were spans, so the page's entire heading outline was
-    // h1 + four h2s and the six capabilities were absent from it. Counted in the built
-    // export: zero h3 elements, six span.pp-strip-title.
-    // h3 rather than h2 is deliberate - #capabilities follows the .api h2, so h2 -> h3
-    // skips no level.
-    expect( source ).toContain( '<h3 className="pp-strip-title">{ cap.title }</h3>' );
-    expect( code ).not.toContain( '<span className="pp-strip-title">' );
-    // margin:0 is what keeps the tag change invisible on screen. Without it the UA h3
-    // margin opens ~22px above and below every card title.
-    expect( source ).toContain( 'letter-spacing:-.25px;color:#000;margin:0}' );
+  it( 'has removed the capabilities strip section, its data and all its CSS', () => {
+    // OWNER INSTRUCTION: the six-item capabilities strip (Customer Data Platform / Custom
+    // Data Modeling / Multichannel Orchestration / Smart Personalization / Enterprise
+    // Infrastructure / Predictive Analytics) was removed entirely - markup, the
+    // `capabilities` data array and every .pp-strip* / #capabilities CSS rule. Comments
+    // are stripped from `code`, so these negative assertions guard real markup/CSS/data
+    // and a revert that re-adds the section fails here.
+    expect( code ).not.toContain( 'const capabilities' );
+    expect( code ).not.toContain( 'id="capabilities"' );
+    expect( code ).not.toContain( 'pp-strip' );
+    expect( code ).not.toContain( "title: 'Customer Data Platform'" );
+    expect( code ).not.toContain( "title: 'Predictive Analytics'" );
+    // The shared full-bleed selector keeps #touchpoint but drops #capabilities.
+    expect( code ).toContain( '#touchpoint{max-width:none;width:100vw' );
+    expect( code ).not.toContain( '#touchpoint,#capabilities' );
   } );
 
   it( 'clears the 44px touch-target floor on the only controls inside main', () => {

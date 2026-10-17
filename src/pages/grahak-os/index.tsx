@@ -157,15 +157,6 @@ response = requests.post(
        "content": "Your order #WD-87A6G has been shipped"}'` },
   ];
 
-  const capabilities = [
-    { title: 'Customer Data Platform', desc: 'One profile across every channel', icon: "data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3e%3cg fill='none' stroke='%23333333' stroke-miterlimit='10' stroke-width='1.5' data-name='roll brush'%3e%3cpath d='M22.51 4.36c0 .87-1.38 1.63-3.58 2.16a30.8 30.8 0 0 1-7 .72 31 31 0 0 1-7-.72C2.79 6 1.41 5.23 1.41 4.36c0-1.59 4.73-2.87 10.59-2.87s10.51 1.28 10.51 2.87Z'/%3e%3cpath d='M22.51 4.36V12c0 .86-1.38 1.63-3.58 2.15a30.2 30.2 0 0 1-7 .72 30.3 30.3 0 0 1-7-.72C2.79 13.67 1.41 12.9 1.41 12V4.36C1.41 5.23 2.79 6 5 6.52a31 31 0 0 0 7 .72 30.8 30.8 0 0 0 7-.72c2.13-.52 3.51-1.29 3.51-2.16Z'/%3e%3cpath d='M22.51 12v7.67c0 .86-1.38 1.63-3.58 2.16a30.8 30.8 0 0 1-7 .72 31 31 0 0 1-7-.72c-2.19-.53-3.57-1.3-3.57-2.16V12c0 .86 1.38 1.63 3.57 2.15a30.3 30.3 0 0 0 7 .72 30.2 30.2 0 0 0 7-.72c2.2-.48 3.58-1.25 3.58-2.15ZM11 11.08h1.92m1.91 0h1.92m-9.59 0h1.92M11 18.75h1.92m1.91 0h1.92m-9.59 0h1.92'/%3e%3c/g%3e%3c/svg%3e" },
-    { title: 'Custom Data Modeling', desc: 'Model customers, events and business objects', icon: "data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24'%3e%3cpath stroke='%23333333' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M14 20a2 2 0 1 1-4 0m4 0a2 2 0 0 0-2-2m2 2h7m-11 0a2 2 0 0 1 2-2m-2 2H3m9-2v-4m9-9c0 1.657-4.03 3-9 3S3 6.657 3 5m18 0c0-1.657-4.03-3-9-3S3 3.343 3 5m18 0v6c0 1.66-4 3-9 3M3 5v6c0 1.66 4 3 9 3'/%3e%3c/svg%3e" },
-    { title: 'Multichannel Orchestration', desc: 'Coordinate WhatsApp, SMS, Email and Voice', icon: "data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg' data-name='Layer 1' viewBox='0 0 24 24'%3e%3cpath fill='none' stroke='%23333333' stroke-miterlimit='10' stroke-width='1.5' d='M7.23 10.14H1.5v5.72m14.32-9.54L12 2.5 8.18 6.32M12 2.5v21'/%3e%3cpath fill='none' stroke='%23333333' stroke-miterlimit='10' stroke-width='1.5' d='m1.5 10.14 5.56 5.56a3.82 3.82 0 0 1 1.12 2.7v5.1m8.59-13.36h5.73v5.72'/%3e%3cpath fill='none' stroke='%23333333' stroke-miterlimit='10' stroke-width='1.5' d='m22.5 10.14-5.56 5.56a3.82 3.82 0 0 0-1.12 2.7v5.1'/%3e%3c/svg%3e" },
-    { title: 'Smart Personalization', desc: 'Trigger messages from customer behavior', icon: "data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg' fill='%23333333' viewBox='0 0 16 16'%3e%3cpath d='M9 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0m-9 8c0 1 1 1 1 1h10s1 0 1-1-1-4-6-4-6 3-6 4m13.5-8.09c1.387-1.425 4.855 1.07 0 4.277-4.854-3.207-1.387-5.702 0-4.276Z'/%3e%3c/svg%3e" },
-    { title: 'Enterprise Infrastructure', desc: 'Secure APIs built to scale', icon: "data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24'%3e%3cpath stroke='%23333333' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M13 2 3 14h9l-1 8 10-12h-9l1-8Z'/%3e%3c/svg%3e" },
-    { title: 'Predictive Analytics', desc: 'Turn engagement signals into actionable insights', icon: "data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg' fill='none' stroke-width='1.5' viewBox='0 0 24 24'%3e%3cpath stroke='%23333333' stroke-linecap='round' stroke-linejoin='round' d='m21 19.452-9-6.61m0 0V3m0 9.843-9 6.609m17.438-2.742L21 19.452 18.188 20M9.75 5.194 12 3l2.25 2.194M5.813 20 3 19.452l.563-2.742'/%3e%3c/svg%3e" },
-  ];
-
   return (
     <>
       {/* TITLE, DESCRIPTION, CANONICAL AND THE SHARE PREVIEW ALL COME FROM ONE PAIR OF
@@ -390,8 +381,8 @@ response = requests.post(
         />
 
         {/*
-          Full-bleed layout: touchpoint and capabilities keep the 100vw + centring
-          negative-margin pattern even though the page is now all white, so their
+          Full-bleed layout: the touchpoint section keeps the 100vw + centring
+          negative-margin pattern even though the page is now all white, so its
           content still aligns on the page's left line via .pp-inner (and so the
           pattern is ready if a tint is ever reintroduced). The 1300px measure moves
           off the section and onto .pp-inner while the section itself goes 100vw
@@ -460,20 +451,18 @@ response = requests.post(
                   so this reuses that exact pill mechanism and surfaces the existing ₹899
                   price. The demo reuses the existing "See it on WhatsApp" link verbatim. */}
               <div className="api-steps-buy">
+                {/* UNIFIED WHATSAPP CTA STYLE (owner instruction): every WhatsApp
+                    call-to-action on this page now renders as the single .gos-wa-cta pill.
+                    The lighter .api-action-link text-link that used to carry "See it on
+                    WhatsApp" here was replaced with a second .gos-wa-cta pill so the two
+                    buttons match; its external-link glyph and the .api-action-link CSS went
+                    with it. */}
                 <div className="api-steps-ctas">
                   <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
-                  <a
-                    className="api-action-link"
-                    href="https://wa.me/message/APDM5HUWH26SG1"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    See it on WhatsApp
-                    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path d="M6 3h7v7h-1.5V5.56L4.56 12.5 3.5 11.44 10.44 4.5H6z" fill="currentColor"/></svg>
-                  </a>
+                  <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp</a>
                 </div>
                 <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span></p>
-                {/* Same mechanism as the closer's .gos-commerce: SKU via the imported
+                {/* Same mechanism as the api-steps block above: SKU via the imported
                     PRODUCT_SKU_BY_SLUG map and the policy via PRODUCT_POLICY_TITLE /
                     PRODUCT_POLICY_TEXT - not retyped. */}
                 <div className="gos-commerce">
@@ -493,58 +482,12 @@ response = requests.post(
           </div>
         </section>
 
-        {/* Capabilities as a strip, not cards - approved after side-by-side review.
-            This one section replaces two: the six-card grid, and a separate
-            "Why Grahak OS" block whose three items restated three of these same six
-            points with a fourth copy of the page's four-pillar sentence as its intro.
-            Same six items, same titles, same one-line descs - one section.
-
-            The heading and the subtitle BOTH go, on the owner's explicit instruction:
-            "Everything you need / to grow customer relationships" and "AI-powered
-            lifecycle management that delivers results". Neither asserted anything a
-            visitor could check, and six items that each name themselves do not need a
-            label announcing that they exist.
-
-            The section is therefore deliberately unheaded. That is not an oversight and
-            it is not an accessibility regression: a section with no accessible name is
-            not exposed as a landmark at all, so this reads as a plain grouping rather
-            than as an unnamed region cluttering landmark navigation. If a heading is
-            ever wanted back, it needs to say something specific - not restate the
-            four-pillar sentence the page already makes three times.
-
-            Note alt="" on the icons. The cards used alt={cap.title} directly beside an
-            h3 of the same string, so every title was announced twice by a screen reader
-            and appeared twice in extracted text. The glyphs are decorative; the title
-            next to them is the content. */}
-        <section className={`pp-strip anim ${armed ? 'is-armed' : ''} ${show('capabilities') ? 'show' : ''}`} id="capabilities">
-          <div className="pp-inner">
-            <div className="pp-strip-grid">
-              { capabilities.map( ( cap, i ) => (
-                <div key={ i } className="pp-strip-item">
-                  <div className="pp-strip-icon">
-                    <img src={ cap.icon.replace( /%23333333/g, '%231a3a2a' ) } alt="" aria-hidden="true" loading="lazy" />
-                  </div>
-                  <div className="pp-strip-text">
-                    {/* h3, NOT a span. These six card titles were spans, so the page's
-                        whole heading outline was h1 + four h2s and the six capabilities
-                        had no heading semantics at all - a screen-reader user could not
-                        navigate to them and they were absent from the document outline.
-                        Measured in the built export before this change: zero h3 elements
-                        on the page, and six "<span class=... pp-strip-title".
-                        h3 is the correct rung, not h2: these sit inside #capabilities,
-                        whose preceding heading is the .api h2, so h2 -> h3 is a step with
-                        no skipped level. The .pp-strip-title rule below owns the visual
-                        size (22px/700/1.27/-.25px, the card-heading rung) and now also
-                        resets the UA margin, so promoting the tag changes semantics only
-                        and moves nothing on screen. */}
-                    <h3 className="pp-strip-title">{ cap.title }</h3>
-                    <span className="pp-strip-sub">{ cap.desc }</span>
-                  </div>
-                </div>
-              ) ) }
-            </div>
-          </div>
-        </section>
+        {/* The capabilities strip section was REMOVED here on owner instruction (the six
+            items: Customer Data Platform / Custom Data Modeling / Multichannel Orchestration
+            / Smart Personalization / Enterprise Infrastructure / Predictive Analytics). The
+            `capabilities` data array, the <section id="capabilities"> markup and all the
+            .pp-strip* / #capabilities CSS went with it. A test guards the removal by
+            substring, so this note avoids repeating the old class names and wording. */}
 
         {/* The Meta credential section was REMOVED here on owner instruction. The whole
             band (the Meta lockup card and the channel pills beside it) is gone, along with
@@ -559,22 +502,15 @@ response = requests.post(
             back, the verified asset is still at public/images/grahak-os-whatsapp-qr.svg. */}
 
         <section className={`gos-closer anim ${armed ? 'is-armed' : ''} ${show('gos-closer') ? 'show' : ''}`} id="gos-closer">
-          {/* Explicit break so the product name lands alone on the last line. Needs a
-              br rather than the pre-line trick .section-header h2 uses, because
-              .gos-closer-head does not set white-space. */}
-          <h2 className="gos-closer-head">Transform customer<br/>engagement with<br/>Grahak OS</h2>
-          {/* THE FINAL CALL TO ACTION: the WhatsApp pill plus the ₹899 price, so the price
-              lands with the closing CTA. The paid website-checkout pill (ProductBuyBox) was
-              REMOVED on owner instruction here and in the hero - WhatsApp is the only door.
-              Caption is "consulting solution". */}
+          {/* STRIPPED on owner instruction to a single WhatsApp CTA. The closing heading
+              ("Transform customer engagement with Grahak OS"), the ₹899 price line and the
+              SKU/policy disclaimer block were all REMOVED here; this section now holds only
+              the one WhatsApp button. The button uses the page's single unified CTA style
+              (.gos-wa-cta), the same pill every WhatsApp CTA on the page now uses, and the
+              owner-approved label "See it on WhatsApp". */}
           <div className="gos-closer-buy">
             <div className="gos-ctas">
-              <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
-            </div>
-            <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span></p>
-            <div className="gos-commerce">
-              <p data-wc-no-translate="true"><strong>SKU:</strong> { PRODUCT_SKU_BY_SLUG['grahak-os'] }</p>
-              <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }</p>
+              <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp</a>
             </div>
           </div>
         </section>
@@ -749,19 +685,18 @@ response = requests.post(
              public/images/grahak-os-whatsapp-qr.svg if the section is ever reinstated. */
 
           /* 1100 -> 1300 measure and 96/112 -> 60/80 padding, so this section is measured
-             and spaced like every other one. The extra 36px of top padding was the only
-             thing making the closer a special case in the rhythm, and 80px at the bottom
-             still gives the page a softer landing into the footer than a flat 60 would. */
-          /* Column, centred: the closer now holds the heading AND the buy block (CTAs +
-             price) stacked and centred, since the price moved here from the hero. Was a
-             single centred row with just the heading. */
+             and spaced like every other one. 80px at the bottom still gives the page a
+             softer landing into the footer than a flat 60 would. */
+          /* Column, centred: on owner instruction the closer was STRIPPED to a single
+             centred WhatsApp CTA, so the heading, price and disclaimer that used to stack
+             here are gone - only the .gos-closer-buy > .gos-ctas pill remains. */
           .gos-closer{max-width:1300px;margin:0 auto;padding:60px 24px 80px;display:flex;flex-direction:column;align-items:center}
-          /* The closing buy block, centred under the closer heading: the WhatsApp pill and the
-             ₹899 price. gos-ctas/gos-wa-cta/gos-price reuse the hero's rules; only the top gap
-             and centring are set here. */
+          /* The closing buy block, centred: now just the single WhatsApp pill.
+             gos-ctas/gos-wa-cta reuse the hero's rules; only the centring is set here. */
           .gos-closer-buy{margin-top:30px;display:flex;flex-direction:column;align-items:center}
           .gos-closer-buy .gos-ctas{justify-content:center}
-          .gos-closer-buy .gos-price{text-align:center}
+          /* .gos-commerce / .gos-price are still used by the api-steps block above, so their
+             rules stay; the closer no longer renders either. */
           .gos-commerce{
             margin-top:22px;max-width:700px;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
             background:#fcfdfb;font-size:17px;font-weight:400;line-height:1.55;
@@ -770,28 +705,8 @@ response = requests.post(
           .gos-commerce strong{color:#1a3a2a;font-weight:700}
           .gos-commerce p{margin:0}
           .gos-commerce p + p{margin-top:12px}
-          /* Hero h1 level, exactly: clamp(36px,4.3vw,60px) / 600 / -2.2px.
-             It was clamp(38px,6vw,84px), which at any viewport above ~630px rendered
-             LARGER than the hero headline and inverted the page's hierarchy - the closing
-             line shouting over the opening one. This is a page-level statement rather than
-             a section heading, which is why it takes the h1 rung and its 600 weight
-             instead of the heavier 700 section level. */
-          /* WAS WEARING THE HERO H1'S CLAMP: clamp(36px,4.3vw,60px) at weight 600, which
-             resolved to 55.04px/600 - larger than the 54px the contract caps an h2 at, and
-             inverting the contract's one hard rule that a section h2 is 700 and therefore
-             HEAVIER than the h1's 600. It was an h2 dressed as an h1, and it made
-             /grahak-os/ the only page carrying two different section-h2 sizes at once
-             (53.76 and 55.04). Now on the same rung as every other section heading. */
-          .gos-closer-head{
-            font-size:clamp(28px,3.2vw,40px);
-            font-weight:700;
-            letter-spacing:-1.2px;
-            line-height:1.08;
-            color:rgba(0,0,0,.95);
-            text-align:center;
-            margin:0;
-            max-width:960px;
-          }
+          /* The .gos-closer-head rule was REMOVED with the closer heading markup on owner
+             instruction (the "Transform customer engagement with Grahak OS" h2 is gone). */
 
           /* Hero Right - Mockup */
           .hero-right{display:flex;justify-content:center}
@@ -1055,14 +970,10 @@ response = requests.post(
           /* h3 on the card-heading rung (22px/700), one step below the section h2 above
              it in the same column, so the outline is h2 -> h3 with no skipped level. */
           .api-action-head{font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:rgba(0,0,0,.95);margin:0 0 16px}
-          /* Lime pill in the page's own #d1f470 with dark-green text and a 44px min
-             target - the same treatment as .pp-tab.active, so this reads as our CTA even
-             though it points at Meta's demo. inline-flex keeps the label and the
-             external-link glyph on one centred baseline. */
-          .api-action-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:12px 22px;background:#d1f470;color:#1a3a2a;border-radius:50px;font-size:16px;font-weight:600;text-decoration:none;transition:all .25s}
-          .api-action-link:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.18)}
-          .api-action-link svg{flex:0 0 auto;display:block}
-          @media(prefers-reduced-motion:reduce){ .api-action-link{transition:none} }
+          /* The .api-action-link lighter text-link CSS was REMOVED with its markup: every
+             WhatsApp CTA now uses the single unified .gos-wa-cta pill (owner instruction),
+             so the second style is dead. A test guards that the class name no longer
+             appears, so it is not repeated here. */
           /* ===== Numbered 1-2-3 step block (new LEFT column) =====
              Emulates the /anew/ step pattern (number + short title + one supporting
              line) using ONLY this page's existing tokens: lime #d1f470, dark-green
@@ -1307,7 +1218,6 @@ response = requests.post(
             
             .section-header{padding:0 16px}
             .gos-closer{padding:64px 20px 76px}
-            .gos-closer-head{letter-spacing:-1.4px;line-height:1.1}
 
             .mockup-wrapper{padding:14px;border-radius:14px;gap:12px;max-width:100%}
             .phone{border-radius:14px}
@@ -1420,7 +1330,7 @@ response = requests.post(
              sections keep width:100vw and the centring negative margin so their content
              still aligns on the page's left line via .pp-inner - but with no background
              they simply read as white like every other section. */
-          #touchpoint,#capabilities{max-width:none;width:100vw;margin-left:calc(50% - 50vw);background:#fff}
+          #touchpoint{max-width:none;width:100vw;margin-left:calc(50% - 50vw);background:#fff}
           /* 1252px, not 1300px, and the difference is the point. A section like .hero is a
              1300px box with 24px padding, so its CONTENT starts at 1300-48 = 1252px wide.
              The full-bleed sections put their padding on the outer 100vw element and then
@@ -1433,47 +1343,19 @@ response = requests.post(
           .gos-share-wrap{padding-bottom:48px}
           @media(max-width:767px){ .gos-share-wrap{padding-bottom:40px} }
 
-          /* ===== TEMPORARY: proposed Capabilities strip, for side-by-side review =====
-             NO NEW TOKENS. Every value below already exists in the language:
-               icon fill   rgba(209,244,112,.22)  the nav hover / active tint
-               icon glyph  #1a3a2a                palette dark green
-               title       22px/700/-.25px/#000   the card-heading level, unchanged
-               subtitle    14px/400 rgba(0,0,0,.54) the label level
-             22 over 14 is what produces the compact feel, using two rungs of the
-             existing ladder rather than inventing a smaller heading.
-             Borderless on purpose: the cards it replaces carry a 2px hairline and a
-             lime hover while also being cursor:default, so they look clickable and are
-             not. Per the hairline rule 2px means hoverable, so a non-interactive strip
-             should carry no border and no hover at all. */
-          .pp-strip{padding:60px 0}
-          /* No .pp-strip .section-header rules here any more. They existed only to
-             left-align and un-cap a heading this section no longer has, so they went
-             with it rather than being left to look load-bearing. .section-header is
-             still shared with #touchpoint, whose heading IS centred over centred
-             pills - so anything re-added here must stay scoped to .pp-strip. */
-          .pp-strip-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:30px 24px}
-          .pp-strip-item{display:flex;align-items:flex-start;gap:14px;min-width:0}
-          .pp-strip-icon{width:44px;height:44px;flex:0 0 auto;box-sizing:border-box;padding:10px;border-radius:50%;background:rgba(209,244,112,.22);display:flex;align-items:center;justify-content:center}
-          .pp-strip-icon img{width:100%;height:100%;object-fit:contain;display:block}
-          .pp-strip-text{display:flex;flex-direction:column;gap:5px;min-width:0}
-          /* margin:0 is load-bearing now that this is an h3 rather than a span. Without it
-             the UA stylesheet's h3 margin (1em top and bottom) would open ~22px above and
-             below every card title and push the strip's height out. The rung values are
-             unchanged - promoting the tag was a semantics fix, not a design change. */
-          .pp-strip-title{font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:#000;margin:0}
-          .pp-strip-sub{font-size:14px;font-weight:400;line-height:1.4;color:rgba(0,0,0,.54)}
+          /* The capabilities strip CSS (.pp-strip, .pp-strip-grid, .pp-strip-item,
+             .pp-strip-icon, .pp-strip-text, .pp-strip-title, .pp-strip-sub and all their
+             responsive variants) was REMOVED with the #capabilities section on owner
+             instruction. The .pp-inner padding overrides in the media queries below are
+             KEPT because #touchpoint and the share wrapper still use .pp-inner. A test
+             guards that the pp-strip* class names no longer appear. */
           @media(max-width:1024px){
-            .pp-strip-grid{grid-template-columns:repeat(2,1fr);gap:26px 20px}
-            .pp-strip{padding:50px 0}
             .pp-inner{padding:0 20px}
           }
           @media(max-width:767px){
-            .pp-strip-grid{grid-template-columns:1fr;gap:22px}
-            .pp-strip{padding:44px 0}
             .pp-inner{padding:0 20px}
           }
           @media(max-width:480px){
-            .pp-strip{padding:36px 0}
             .pp-inner{padding:0 16px}
           }
 
