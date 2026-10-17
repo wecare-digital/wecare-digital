@@ -5,16 +5,14 @@ import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
 export interface ProductChildPage {
   path: string;
   parent: string;
-  parentHref?: string;
   product: ProductDef;
 }
 
 /**
  * Product-family children shown in the public menu.
  *
- * These are real public pages but they are NOT top-level Shop catalogue products. Keeping
- * them outside PRODUCTS means category-only families such as Elsewhere do not reappear as
- * purchasable tiles on /shop/, while every child can still use the same ProductPage /
+ * These are real public pages under non-clickable family labels. The family names themselves
+ * have no route; only these destinations render. Each child uses the shared ProductPage /
  * RotatingHero detail-page contract.
  */
 export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
