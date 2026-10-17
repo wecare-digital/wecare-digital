@@ -1,6 +1,10 @@
 """Native service pricing serves the `GET /ecommerce/service-prices` contract,
 reading priceMinor from an injected ProductsTable reader. Fail-closed per slug.
 """
+
+import pytest
+
+pytestmark = pytest.mark.usefixtures("synthetic_service_catalog")
 import sys
 from pathlib import Path
 

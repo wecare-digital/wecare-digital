@@ -4,6 +4,8 @@ import pathlib
 import sys
 from unittest.mock import patch
 import pytest
+
+pytestmark = pytest.mark.usefixtures("synthetic_service_catalog")
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'amplify/functions/shared'))
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from test_service_request_store import submitted, ALICE, BOB

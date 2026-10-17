@@ -112,7 +112,7 @@ def env(monkeypatch):
     spec = importlib.util.spec_from_file_location("checkout_under_test", _HANDLER_PATH)
     h = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(h)
-    configure_services(h.service_requests)
+    configure_services(h.service_requests, monkeypatch)
 
     fake = FakeDynamo(keys={
         ATTEMPTS_TABLE: 'paymentAttemptId',

@@ -131,7 +131,7 @@ describe( 'Header', () => {
     for ( const link of [ perks, googlePlay, appStore ] ) expect( link ).toHaveClass( 'nav-item' );
     expect( Array.from( extras?.querySelectorAll( 'a.nav-item' ) || [] ).map( link => link.textContent ) )
       .toEqual( [ 'Perks', 'Google Play', 'App Store' ] );
-    expect( extras?.querySelectorAll( '.nav-row-chevron' ) ).toHaveLength( 3 );
+    expect( extras?.querySelectorAll( '.nav-row-chevron' ) ).toHaveLength( 0 );
 
     const search = screen.getByLabelText( 'Search navigation' );
     fireEvent.change( search, { target: { value: 'blog' } } );

@@ -51,6 +51,8 @@ import time
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+pytestmark = pytest.mark.usefixtures("synthetic_service_catalog")
 from botocore.exceptions import ClientError
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]

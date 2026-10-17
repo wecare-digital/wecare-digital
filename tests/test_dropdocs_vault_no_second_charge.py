@@ -33,6 +33,8 @@ from unittest.mock import patch
 
 import pytest
 
+pytestmark = pytest.mark.usefixtures("synthetic_service_catalog")
+
 ROOT = Path(__file__).resolve().parents[1]
 FUNC_DIR = ROOT / "amplify" / "functions" / "core" / "secure-files"
 SHARED = ROOT / "amplify" / "functions" / "shared"

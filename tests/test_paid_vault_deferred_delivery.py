@@ -12,6 +12,10 @@ still goes out: the customer did buy something, and suppressing it would hide th
 """
 from __future__ import annotations
 
+import pytest
+
+pytestmark = pytest.mark.usefixtures("synthetic_service_catalog")
+
 import importlib
 import io
 import json

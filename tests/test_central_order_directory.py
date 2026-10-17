@@ -1,4 +1,8 @@
 """All order kinds share one customer directory, independent of CRM contact rows."""
+
+import pytest
+
+pytestmark = pytest.mark.usefixtures("synthetic_service_catalog")
 import pathlib
 import sys
 sys.path.insert(0,str(pathlib.Path(__file__).parent))
