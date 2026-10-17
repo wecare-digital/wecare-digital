@@ -9,10 +9,7 @@ from decimal import Decimal
 from . import meta_catalog_sync, payment_attempt
 
 PRODUCT_ID = ''
-VARIANTS = frozenset({
-    'e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b',
-    'dcff995e-448c-493a-9259-f6a82ccdc2b4',
-})
+VARIANTS = frozenset()
 
 
 def _integer(value):
