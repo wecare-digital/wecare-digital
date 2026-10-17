@@ -135,68 +135,14 @@ CONTRIBUTION_CURRENCY = "INR"
 #: SERVER-AUTHORITATIVE common contribution amounts, in integer paise, mirroring
 #: src/config/contribution.ts. Defined separately so the browser cannot widen the trusted set.
 #: Only these exact three values are accepted.
-CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = (10000, 25000, 50000)
+CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = ()
 
-#: The ProductsTable product id that carries the contribution variants, lowercased.
-#: COMMITTED rather than configured, because this set is what makes CONTRIBUTION_PRODUCT_ID a kill
-#: switch instead of a de-guard: unsetting the env key must REFUSE a contribution basket, and that
-#: is only possible if the server can still recognise one. Ids are catalogue references, not
-#: secrets.
-#:
-#: The one entry is the live `Contribute` product (slug ``contribute``), MEASURED against the live
-#: catalogue on 2026-10-10 rather than transcribed: ``PHYSICAL``, one option named "Amount", and a
-#: SINGLE visible in-stock variant priced Rs.250 (it carried three, Rs.100 / Rs.250 / Rs.500, until
-#: the owner removed two). Note the shape, because it is NOT what the owner's instruction said: the
-#: GUIDs supplied are VARIANT ids of ONE product, not product ids. A `catalogItemId` holding a
-#: variant id names no ProductsTable product and fails the native quote, so the distinction is
-#: load-bearing.
-#:
-#: SITE MIGRATION, 2026-10-05: THE SET IS REPLACED, NOT EXTENDED, and that is a correction to what
-#: this comment used to claim. It said "an id is added here, never removed -- a retired vehicle must
-#: stay recognisable", which the module could never honour: the mirror guard
-#: ``test_server_choices_mirror_the_frontend_contract`` holds this set EQUAL to the single id
-#: ``src/config/contribution.ts`` declares, so a second member fails the build. The old id
-#: ``af326b8c-f373-45ea-ad0d-b7a38b8ce0cc`` belonged to the retired catalogue site and names a
-#: product that no longer exists, so keeping it recognisable buys nothing: a stale cart line
-#: carrying it cannot be priced at all -- the native quote refuses a ``catalogItemId`` that is not
-#: in ProductsTable -- so that basket fails closed rather than being mistaken for an ordinary
-#: purchase and charged the convenience fee and GST.
+#: No retired contribution product identity is recognized. The new contribution product will be
+#: introduced later as a fresh SKU-first catalog item.
 CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset()
 
-#: The ONLY contribution that can be made -- one Rs.250 variant -- as ``{variant id: integer
-#: paise}``.
-#:
-#: FIXED PRICES, NOT AN AMOUNT-TIMES-QUANTITY (owner model change, 2026-10-04). The previous model
-#: was one Rs.1 product whose QUANTITY carried the amount, with bounds and a free-text field. That
-#: is retired in favour of fixed-price variants chosen at quantity 1, which deletes the
-#: quantity arithmetic, the bounds and the custom-amount validation rather than adding to them.
-#:
-#: WHY THE SERVER HOLDS THE PAISE FIGURE AT ALL, given that ProductsTable is the sole price
-#: authority: the browser's button says "Contribute Rs.250", and this map is the committed
-#: statement of that promise. It is not a second price -- the native quote charges the variant's
-#: ProductsTable ``priceMinor`` -- and the checkout reads it only to word its
-#: ``CONTRIBUTION_AMOUNT_INVALID`` refusal (``choicesPaise``). A catalogue price edit therefore
-#: has to move this map and src/config/contribution.ts with it, or the label lies.
-#:
-#: MIRRORED IN src/config/contribution.ts as CONTRIBUTION_CHOICES, deliberately as a separate
-#: declaration so the browser cannot widen the trusted set.
-#: tests/test_blog_contribution.py::test_server_choices_mirror_the_frontend_contract is the guard
-#: that fails if the two drift.
-#:
-#: SITE MIGRATION, 2026-10-05: the three variant GUIDs moved and the three AMOUNTS DID NOT. The
-#: catalogue was re-created, which re-minted every variant id, so all three keys changed in one
-#: release while the values stayed 10000 / 25000 / 50000 -- the customer is charged exactly what
-#: they were charged before. Which new variant carries which rupee figure was read off the
-#: re-created catalogue and confirmed independently by its "Amount" option label, because getting
-#: that correspondence wrong would collect the wrong amount silently rather than failing.
-#:
-#: CATALOGUE REDUCTION, 2026-10-10: THREE KEYS BECAME ONE. The owner deleted the Rs.100
-#: (``ab4ee1a2-1568-4dc4-abe1-55e24fa51576``) and Rs.500
-#: (``19283bd8-a61d-455e-a992-79eb10b9228f``) variants from the catalogue, leaving the product with
-#: one variant. They are REMOVED here rather than kept recognisable, for the reason
-#: ``CONTRIBUTION_PRODUCT_IDS`` above records about the retired site's id: a deleted variant cannot
-#: be priced, so a stale cart line naming one fails closed at the native quote, and the mirror
-#: guard holds this map equal to the single choice ``src/config/contribution.ts`` declares anyway.
+#: No contribution variant is currently purchasable. Fresh choices will be added with the new
+#: contribution catalog item.
 CONTRIBUTION_CHOICES_PAISE: Mapping[str, int] = MappingProxyType({})
 
 #: The variant ids above as a set, for membership tests that do not need the amount.
