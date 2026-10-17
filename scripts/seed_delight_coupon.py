@@ -25,7 +25,7 @@ DELIGHT = {
     "code": "Delight",
     "name": "Delight",
     "discountKind": coupon_store.PERCENT_OFF,
-    "percentOffBps": 5,
+    "percentOffBps": 500,
     "maximumDiscountPaise": 10000,
         "scopeNamespace": "stores",
         "startTimeMs": 1792175400000,  # 17 Oct 2026 00:00 IST
