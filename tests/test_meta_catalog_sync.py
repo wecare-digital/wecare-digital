@@ -92,14 +92,14 @@ def test_stock_state_is_projected():
 
 def test_variant_price_is_authoritative_in_strict_mode():
     row = product(price_minor=10000)
-    row["variants"][0]["priceMinor"] = 25000
+    row["variants"][0]["pricePaise"] = 25000
     item = sync.desired_items([row], require_variant_price=True)[0]
     assert item["price"] == "250.00"
 
 
 def test_missing_variant_price_is_refused_in_strict_mode():
     row = product()
-    del row["variants"][0]["priceMinor"]
+    del row["variants"][0]["pricePaise"]
     with pytest.raises(ValueError):
         sync.desired_items([row], require_variant_price=True)
 
