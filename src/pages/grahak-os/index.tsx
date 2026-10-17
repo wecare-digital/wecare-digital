@@ -261,7 +261,7 @@ response = requests.post(
 
         {/* NO hero CTA pill. The "Get Started on WhatsApp" pill was removed from the hero on
             owner instruction, so the hero is just the headline, sub and mockup, with a plain
-            "See it on WhatsApp" text link below the code panel (.code-wa-link). The paid
+            "Open in WhatsApp" text link below the code panel (.code-wa-link). The paid
             checkout (the "Get Started on WhatsApp" pill + the ₹899 price) lives in the
             api-steps block. RotatingHero's children slot is left unset. This note sits before
             the element because a JSX comment cannot appear between an element's attributes. */}
@@ -379,13 +379,14 @@ response = requests.post(
   headers={"Authorization": bearer}
 )`}</pre>
                 </div>
-                {/* Keep this link physically attached to the Python panel. On desktop the
-                    link is absolutely anchored just below the bottom-right of .mockup-wrapper;
-                    because .code-box is also bottom-right anchored there, the link now sits
-                    directly under the Python panel instead of under the whole hero mockup.
-                    At stacked breakpoints it returns to normal flex flow immediately after the
-                    code panel. It remains a plain accessible text link, not a button/pill. */}
-                <a className="code-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp <span aria-hidden="true">↗</span></a>
+              </div>
+              {/* Match the Python panel's width instead of positioning the link outside normal
+                  flow. On desktop this row is the same 60% / 340px measure as .code-box and
+                  right-aligned with it, so the link sits directly beneath that panel. The row
+                  itself stays in flow, reserving height and preventing overlap with the next
+                  section. Stacked breakpoints widen/centre the row with the code panel. */}
+              <div className="code-wa-row">
+                <a className="code-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Open in WhatsApp <span aria-hidden="true">↗</span></a>
               </div>
             </div>
           </div>
@@ -459,22 +460,18 @@ response = requests.post(
               {/* Checkout + demo buttons. The paid-checkout door on this page is the
                   WhatsApp CTA pill (.gos-wa-cta) - ProductBuyBox was deliberately removed,
                   so this reuses that exact pill mechanism and surfaces the existing ₹899
-                  price. The "See it on WhatsApp" demo button now lives only in the closer. */}
+                  price. The separate demo link lives below the hero Python panel. */}
               <div className="api-steps-buy">
                 {/* UNIFIED WHATSAPP CTA STYLE (owner instruction): the WhatsApp
                     call-to-action here renders as the single .gos-wa-cta pill. The redundant
                     second "See it on WhatsApp" .gos-wa-cta that used to sit beside it was
                     REMOVED on owner instruction - this steps block now carries just the one
-                    "Get Started on WhatsApp" pill; the demo button lives in the closer. */}
+                    "Get Started on WhatsApp" pill; the demo link remains in the hero. */}
                 <div className="api-steps-ctas">
                   <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
                 </div>
                 <ProductBuyBox slug="grahak-os" showPrice={ false } />
-                <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span></p>
-                {/* Owner-approved short explanation line beneath the ₹899 price. Small muted
-                    secondary text (reuses the rgba(0,0,0,.6) token). It does not change the
-                    price, the SKU or the policy text; it only clarifies what the price is for. */}
-                <p className="gos-price-note">A consulting solution for organisations and businesses.</p>
+                <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · Grahak OS · enterprise AI consulting</span></p>
                 {/* Same mechanism as the api-steps block above: SKU via the imported
                     PRODUCT_SKU_BY_SLUG map and the policy via PRODUCT_POLICY_TITLE /
                     PRODUCT_POLICY_TEXT - not retyped. */}
@@ -658,20 +655,18 @@ response = requests.post(
              as a hyperlink. Dark-green on the white hero is ~12:1, well past AA. Hover shifts
              the text to the lime-pair dark green feel by dropping the underline / keeping the
              colour and strengthening the underline; focus-visible draws the shared ring. */
-          .code-wa-link{position:absolute;right:0;top:calc(100% + 10px);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;color:#1a3a2a;font-size:15px;font-weight:600;text-decoration:underline;text-underline-offset:3px;transition:opacity .2s}
+          .code-wa-row{width:60%;max-width:340px;align-self:flex-end;display:flex;justify-content:flex-start}
+          .code-wa-link{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;color:#1a3a2a;font-size:15px;font-weight:600;text-decoration:underline;text-underline-offset:3px;transition:opacity .2s}
           .code-wa-link:hover{opacity:.72}
           .code-wa-link:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;border-radius:4px}
           /* The mockup and the below-code link share a flex column; the link is RIGHT-aligned
              under the mockup (align-items:flex-end) at desktop width. Narrow widths re-centre
              it in the responsive blocks below so it never overflows the stacked column. */
-          .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:20px;width:100%}
+          .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;width:100%}
           /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
              above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
           .gos-price{display:block;margin-top:22px;font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
           .gos-price-unit{font-size:16px;font-weight:400;color:rgba(0,0,0,.6);letter-spacing:-.125px}
-          /* Short explanation beneath the price: small muted secondary text, reusing the
-             existing rgba(0,0,0,.6) muted token. No new palette. */
-          .gos-price-note{margin:6px 0 0;font-size:15px;font-weight:400;line-height:1.5;color:rgba(0,0,0,.6)}
           @media(prefers-reduced-motion:reduce){
             .gos-wa-cta{transition:background-color .2s}
             .gos-wa-cta:hover{transform:none;box-shadow:none}
@@ -1117,7 +1112,7 @@ response = requests.post(
             .phone{position:relative;left:auto;top:auto;width:100%;max-width:100%}
             .chat-area{min-height:320px}
             .code-box{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%}
-            .code-wa-link{position:relative;right:auto;top:auto;align-self:flex-end}
+            .code-wa-row{width:100%;max-width:none;justify-content:flex-end}
           }
 
           @media(max-width:1024px){
@@ -1147,7 +1142,7 @@ response = requests.post(
             .code-box{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%}
             .phone{left:16px;top:16px;width:52%}
             .code-box{right:auto;left:12px;bottom:16px;width:55%}
-            .code-wa-link{position:relative;right:auto;top:auto;align-self:flex-end}
+            .code-wa-row{width:55%;max-width:none;justify-content:flex-start}
             
             .section-header{padding:0 20px}
 
@@ -1191,7 +1186,7 @@ response = requests.post(
             .typing-indicator span{width:8px;height:8px}
             
             .code-box{position:relative;right:auto;bottom:auto;width:100%;max-width:100%;margin:0;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,.1);align-self:flex-start}
-            .code-wa-link{align-self:center}
+            .code-wa-row{width:100%;max-width:380px;align-self:center;justify-content:center}
             .code-header{padding:14px 16px}
             .dots{gap:6px}
             .dot-red,.dot-yellow,.dot-green{width:12px;height:12px}
