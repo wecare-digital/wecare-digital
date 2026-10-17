@@ -21,7 +21,8 @@ def _delight():
         "discountKind": cs.PERCENT_OFF,
         "percentOffBps": 5,          # 0.05%, represented exactly as basis points
         "maximumDiscountPaise": 10000,
-        "scopeNamespace": "stores",  # Rs 100
+        "scopeNamespace": "stores",
+        "startTimeMs": 1792175400000,  # 17 Oct 2026 00:00 IST  # Rs 100
         "currency": "INR",
     }, created_by="system", clock=lambda: 1792230000)
 
