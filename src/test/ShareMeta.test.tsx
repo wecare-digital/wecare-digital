@@ -233,15 +233,18 @@ describe( 'current shared action dock', () => {
     }
   } );
 
-  it( 'keeps WhatsApp contribution live and refuses an unpriced website checkout path', () => {
+  it( 'offers both the WhatsApp contribution and the live website checkout', () => {
+    // The ₹250 contribution SKU (CNT5Q2M8) is live, so the website checkout path is enabled
+    // again (reverses the "unavailable until the SKU is live" placeholder). WhatsApp stays a
+    // direct link; Website is an enabled button that seeds the cart and goes to /cart/.
     render( <PublicShare url="https://wecare.digital/post/x/" title="A Post" /> );
     expect( screen.getByText( /Contribute ₹250/ ) ).toBeInTheDocument();
     fireEvent.click( screen.getByRole( 'button', { name: /Contribute ₹/ } ) );
     expect( screen.getByRole( 'link', { name: 'Contribute on WhatsApp' } ) )
       .toHaveAttribute( 'href', CONTRIBUTE_CTA_HREF );
-    const website = screen.getByLabelText( 'Website contribution checkout unavailable' );
-    expect( website ).toHaveAttribute( 'aria-disabled', 'true' );
-    expect( website.textContent ).toContain( 'contribution SKU is live' );
+    const website = screen.getByRole( 'button', { name: 'Contribute on the website at checkout' } );
+    expect( website ).not.toBeDisabled();
+    expect( website.textContent ).toContain( 'Continue to checkout' );
   } );
 
   it( 'uses the native share sheet and clipboard only when supported', async () => {
