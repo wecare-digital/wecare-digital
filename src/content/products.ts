@@ -7,10 +7,10 @@ import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
  *
  * SIX TOP-LEVEL PAGES, ONE SHAPE. Expo Week, Dastavez, Clear Closure, Ritual Guru,
  * Anew and Niji Setu are all the same kind of page: a rotating hero, a short lead,
- * three points, an optional boundary note and one call to action. Elsewhere is deliberately
- * a non-clickable family in the menu; its Visa, Trip and Activities pages live in
- * productChildren.ts instead. Seven copy-pasted page files
- * would mean seven places to fix a spacing bug and seven chances for them to drift apart,
+ * three points, an optional boundary note and one call to action. Elsewhere and Hunar are
+ * deliberately non-clickable families in the menu; their real destinations live in
+ * productChildren.ts instead. Six copy-pasted page files
+ * would mean six places to fix a spacing bug and six chances for them to drift apart,
  * which is exactly how the old site ended up with a different footer on every page. The
  * copy lives here, the layout lives in ProductPage.tsx, and each route is a thin file.
  *
