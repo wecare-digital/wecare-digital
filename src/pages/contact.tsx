@@ -1,7 +1,5 @@
 import React from 'react';
 import PageShell from '../components/public/PageShell';
-import Link from 'next/link';
-import { CUSTOMERSERVICE } from '../content/customerservice';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
 import ContactLocation from '../components/ContactLocation';
 
@@ -56,24 +54,14 @@ const ContactPage: React.FC = () => (
     >
       {/* ContactLocation owns the map and postal address, including the configured
           browser-key path and the keyless fallback. Its styles stay in that component. */}
-      <PageShell title="Contact" description="Submit a request, amend or track an existing one, drop documents, or leave a review."
-        canonical="/contact/" crumbs={ [ { name: 'Home', href: '/' }, { name: 'Contact' } ] }>
-        <section aria-labelledby="request-hub-title" className="request-hub">
-          <h2 className="request-hub-title" id="request-hub-title">How can we help?</h2>
-          <ul>{ CUSTOMERSERVICE.map( service => <li key={ service.slug }>
-            <Link href={ `/${service.slug}/` }>{ service.name }</Link>
-            <p>{ service.blurb }</p>
-          </li> ) }</ul>
-        </section>
-      </PageShell>
-      <ContactLocation />
-      <style jsx>{`
-        .request-hub-title{font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;letter-spacing:-1.2px;color:rgba(0,0,0,.95);margin:0 0 24px}
-        .request-hub ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px;list-style:none;margin:24px 0;padding:0}
-        .request-hub li{padding:24px;border:1px solid #d1f470;border-radius:14px}
-        .request-hub li :global(a){display:inline-block;font-size:22px;font-weight:700;color:#1a3a2a;min-height:44px}
-        .request-hub p{font-size:20px;line-height:1.4;margin:8px 0 0}
-      `}</style>
+      {/* Keep the breadcrumb and location in ONE flex child of RotatingHero. If they are
+          siblings, the hero's section gap is inserted between them and creates the large
+          empty band seen on narrow screens. ContactLocation owns the internal spacing. */}
+      <div className="contact-content">
+        <PageShell title="Contact" description="Submit a request, amend or track an existing one, drop documents, or leave a review."
+          canonical="/contact/" crumbs={ [ { name: 'Home', href: '/' }, { name: 'Contact' } ] } />
+        <ContactLocation />
+      </div>
 
       {/* THE CAPABILITY STRIP LEFT THIS PAGE, at the owner's request. It used to sit here as
           <ContactCapabilities /> - the seven things the arrival map can do - and moved to the

@@ -545,7 +545,7 @@ const ContactLocation: React.FC = () => {
            that is what a fixed header does to every element on the page. Only pinning
            the card (position:sticky inside the frame) would change that, which is a
            design decision rather than a bug fix. */
-        .cl{max-width:1000px;margin-top:64px;scroll-margin-top:128px}
+        .cl{max-width:1000px;margin-top:0;scroll-margin-top:128px}
         .cl-h2,.cl-map{scroll-margin-top:128px}
         /* Section h2 on the contract's 700 rung - heavier than the hero h1's 600, which
            is the inversion this whole site uses. Same clamp as the other section
@@ -699,7 +699,6 @@ const ContactLocation: React.FC = () => {
              does not eat the whole screen above the address on a phone. */
           .cl-grid{grid-template-columns:1fr;gap:24px}
           .cl-map{aspect-ratio:16/9}
-          .cl{margin-top:48px}
           /* NO .cl-card OR .cl-pinlabel OVERRIDE HERE ANY MORE, and both removals are the
              same removal. This block used to set .cl-card{top:16px} and
              .cl-pinlabel{display:none} because the 16/9 map is only ~200px tall at 390px, so
