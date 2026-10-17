@@ -11,8 +11,8 @@ import {
   SHOP_PRODUCTS, shopProductBySlug, shopMetaDescription, shopPageTitle, shopProductPath,
   toParagraphs, catalogReadOn, CATALOG_FETCHED_AT,
   CONTRIBUTION_CONFIGURED, CONTRIBUTION_PRODUCT, CONTRIBUTION_PRODUCT_ID, CONTRIBUTION_RAW,
-  CONTRIBUTION_SLUG, projectForTest,
-  TEST_PRODUCT_IDS, TEST_PRODUCT_SLUGS,
+  CONTRIBUTION_SLUG, projectForTest
+
 } from '../content/shop';
 import { getStaticPaths } from '../pages/shop/[slug]';
 import type { ShopProduct } from '../content/shop';
@@ -142,10 +142,6 @@ describe( 'the catalogue snapshot is read correctly', () => {
       // The services product (Phase O-1) is a payment vehicle bought from /submit-request/ and
       // /request-amendment/, excluded from /shop/ by id like the contribution.
       .filter( r => ( r as { id?: string } ).id !== SERVICES_PRODUCT_ID )
-      // The ₹1 test product, excluded because it is a visible catalogue test row that is not
-      // this storefront. Derived from the exported list, so selling it is a one-line delete in
-      // shop.ts with no test edit.
-      .filter( r => !TEST_PRODUCT_SLUGS.includes( String( r.slug ) ) )
       .map( r => r.slug as string )
       .sort();
     expect( SHOP_PRODUCTS.length ).toBe( expected.length );
