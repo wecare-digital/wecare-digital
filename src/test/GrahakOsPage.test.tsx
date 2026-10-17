@@ -184,42 +184,32 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( 'className="api-steps-ctas"' );
     expect( source ).toContain( '<a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>' );
     // The steps block now carries EXACTLY ONE WhatsApp CTA: "Get Started on WhatsApp".
-    // The redundant second "See it on WhatsApp" pill here was removed on owner
+    // The redundant second "Open in WhatsApp" pill here was removed on owner
     // instruction; the demo button lives only in the closer now.
     const stepsCtaCount = ( stepsCtas.match( /className="gos-wa-cta"/g ) || [] ).length;
     expect( stepsCtaCount ).toBe( 1 );
     expect( stepsCtas ).toContain( 'Get Started on WhatsApp' );
-    expect( stepsCtas ).not.toContain( 'See it on WhatsApp' );
+    expect( stepsCtas ).not.toContain( 'Open in WhatsApp' );
     expect( source ).toContain( "import ProductBuyBox from '../../components/ProductBuyBox';" );
     expect( source ).toContain( '<ProductBuyBox slug="grahak-os" showPrice={ false } />' );
-    // The existing ₹899 price with its exact caption is surfaced in the step block.
-    expect( source ).toContain( '&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span>' );
-    // Owner-approved explanation line sits immediately beneath the price, as small muted
-    // secondary text. Pin the exact markup so a revert or reword fails here.
-    expect( source ).toContain( '<p className="gos-price-note">A consulting solution for organisations and businesses.</p>' );
-    // The explanation reuses the existing muted token - no new palette.
-    const priceNoteRule = cssRuleFor( source, '.gos-price-note' );
-    expect( priceNoteRule ).toContain( 'color:rgba(0,0,0,.6)' );
-    expect( priceNoteRule ).toContain( 'font-size:15px' );
+    // Match /anew/'s compact price-unit pattern: price + product + concise scope on one line.
+    expect( source ).toContain( '&#8377;899<span className="gos-price-unit"> · Grahak OS · enterprise AI consulting</span>' );
+    // The redundant second explanatory sentence is gone; the compact line carries the meaning.
+    expect( source ).not.toContain( 'gos-price-note' );
+    expect( source ).not.toContain( 'A consulting solution for organisations and businesses.' );
   } );
 
-  it( 'has removed the redundant "See it on WhatsApp" demo button FROM THE STEPS BLOCK', () => {
+  it( 'has removed the redundant "Open in WhatsApp" demo button FROM THE STEPS BLOCK', () => {
     // UNIFIED CTA STYLE (owner instruction): the lighter .api-action-link text-link that
-    // used to carry "See it on WhatsApp" here is long gone (do not reintroduce it).
+    // used to carry "Open in WhatsApp" here is long gone (do not reintroduce it).
     const codeNoComments = source.replace( /\/\*[\s\S]*?\*\//g, '' ).replace( /^\s*\/\/.*$/gm, '' );
     expect( codeNoComments ).not.toContain( 'api-action-link' );
-    // Owner instruction: the second steps-block WhatsApp pill ("See it on WhatsApp") was
-    // REMOVED - the steps block now carries only "Get Started on WhatsApp". The demo
-    // "See it on WhatsApp" link survives ONLY below the hero code panel (.code-wa-link).
-    expect( stepsCtas ).not.toContain( 'See it on WhatsApp' );
-    // The page as a whole now has exactly ONE "See it on WhatsApp" link: the below-code
-    // inline text link (.code-wa-link). The old closer section (which carried a second one)
-    // was removed on owner instruction, so the count dropped from two to one. The link
-    // carries a trailing ↗ span, so the label text node ends in a space before the span.
-    const seeItCount = ( source.match( />See it on WhatsApp /g ) || [] ).length;
-    expect( seeItCount ).toBe( 1 );
-    // The steps-block CTA keeps a distinct label ("Get Started..."), so no "See it..." here.
-    expect( source ).not.toContain( '>See it on WhatsApp<' );
+    // The steps block keeps only "Get Started on WhatsApp"; the lighter demo action lives
+    // below the hero Python panel and now uses the crisper "Open in WhatsApp" label.
+    expect( stepsCtas ).not.toContain( 'Open in WhatsApp' );
+    const openInCount = ( source.match( />Open in WhatsApp /g ) || [] ).length;
+    expect( openInCount ).toBe( 1 );
+    expect( source ).not.toContain( '>Open in WhatsApp<' );
     // The single remaining steps-block CTA keeps the standard new-tab attributes.
     expect( stepsCtas ).toContain( 'target="_blank"' );
     expect( stepsCtas ).toContain( 'rel="noopener noreferrer"' );
@@ -257,27 +247,19 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
 } );
 
 /**
- * The below-code "See it on WhatsApp" link in the hero visual. On owner instruction it was
- * converted from an outlined GHOST pill (.gos-wa-ghost) into a PLAIN INLINE TEXT LINK
- * (.code-wa-link): no surface, no border, no pill radius, no min-height box - dark-green
- * #1a3a2a text with an underline and a trailing ↗ arrow, RIGHT-aligned under the code panel
- * (the .hero-visual-col column aligns its items to flex-end at desktop width). It sits under
- * the whole .mockup-wrapper so it stays below the code without disturbing the absolutely
- * anchored .code-box geometry. These assertions pin the markup, the link attributes and the
- * text-link CSS, and guard that the old ghost pill is gone, so a revert fails here.
+ * The below-code "Open in WhatsApp" link stays a PLAIN INLINE TEXT LINK, but its normal-flow
+ * row now matches the Python panel's desktop width (60%, capped at 340px). That keeps the link
+ * visually anchored to the panel while reserving layout height, avoiding the overlap regression
+ * caused by absolutely positioning the link outside the mockup wrapper.
  */
-describe( 'Grahak OS: below-code "See it on WhatsApp" inline text link', () => {
+describe( 'Grahak OS: below-code "Open in WhatsApp" inline text link', () => {
   const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
   const source = readFileSync( pagePath, 'utf8' );
   const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
 
-  it( 'renders the inline text link below the mockup with the exact label and link attributes', () => {
-    // Exact markup: class code-wa-link, the wa.me href, new-tab + noopener, exact label with
-    // the decorative trailing ↗ arrow in an aria-hidden span.
-    expect( source ).toContain( '<a className="code-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp <span aria-hidden="true">↗</span></a>' );
-    // It lives inside the hero visual's flex column, under the mockup.
-    expect( source ).toContain( 'className="hero-visual-col"' );
-    // Exactly one such link on the page.
+  it( 'renders the inline text link below the Python panel with the exact label and link attributes', () => {
+    expect( source ).toContain( '<div className="code-wa-row">' );
+    expect( source ).toContain( '<a className="code-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Open in WhatsApp <span aria-hidden="true">↗</span></a>' );
     const linkCount = ( source.match( /className="code-wa-link"/g ) || [] ).length;
     expect( linkCount ).toBe( 1 );
   } );
@@ -293,9 +275,13 @@ describe( 'Grahak OS: below-code "See it on WhatsApp" inline text link', () => {
     expect( linkRule ).not.toContain( 'min-height:52px' );
     // Not a pill: it must not carry the solid lime fill or a transparent-pill surface.
     expect( linkRule ).not.toContain( 'background:#d1f470' );
-    // Right-aligned under the code panel: the hero visual column ends its items flex-end.
-    const colRule = cssRuleFor( source, '.hero-visual-col' );
-    expect( colRule ).toContain( 'align-items:flex-end' );
+    // The normal-flow row mirrors the Python panel's desktop measure and aligns to its edge.
+    const rowRule = cssRuleFor( source, '.code-wa-row' );
+    expect( rowRule ).toContain( 'width:60%' );
+    expect( rowRule ).toContain( 'max-width:340px' );
+    expect( rowRule ).toContain( 'align-self:flex-end' );
+    expect( rowRule ).not.toContain( 'position:absolute' );
+    expect( linkRule ).not.toContain( 'position:absolute' );
     // A focus-visible ring exists so the link stays keyboard-visible.
     expect( code ).toContain( '.code-wa-link:focus-visible{' );
     // No retired colour creeps into the link CSS.
@@ -315,9 +301,9 @@ describe( 'Grahak OS: below-code "See it on WhatsApp" inline text link', () => {
 
 /**
  * The bottom closer section (<section id="gos-closer">) was REMOVED ENTIRELY on owner
- * instruction. It had already been stripped to a single "See it on WhatsApp" WhatsApp pill;
+ * instruction. It had already been stripped to a single "Open in WhatsApp" WhatsApp pill;
  * that duplicate CTA and the whole section are now gone, along with every .gos-closer* CSS
- * rule and the "gos-closer" entrance-animation target. The page's only "See it on WhatsApp"
+ * rule and the "gos-closer" entrance-animation target. The page's only "Open in WhatsApp"
  * link now lives below the hero code panel (.code-wa-link). The ₹899 price / SKU / policy
  * stay in the api-steps block above. These assertions pin the full removal so a revert fails.
  */
