@@ -40,8 +40,8 @@ from lambda_utils.ecommerce import order_creation, order_keys  # noqa: E402
 from lambda_utils.ecommerce import service_request_store as store  # noqa: E402
 from lambda_utils.integrations import razorpay_verify  # noqa: E402
 
-PRODUCT = "df976a0a-f582-4535-b2e1-d532f348bd27"
-SUBMIT = "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
+PRODUCT = "11111111-1111-4111-8111-111111111111"
+SUBMIT = "22222222-2222-4222-8222-222222222222"
 
 NEW_MODULES = (
     "amplify/functions/ecommerce/service-requests/handler.py",
