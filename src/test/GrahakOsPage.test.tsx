@@ -141,7 +141,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
 
   it( 'carries the owner-approved consulting heading on the .api-info h2 rung', () => {
     // Exact owner-approved heading theme. The old left-column heading is gone.
-    expect( source ).toContain( '<h2>Deploy an ecosystem of AI agents to own Enterprise Outcomes</h2>' );
+    expect( source ).toContain( '<h2>Deploy AI agents to drive enterprise outcomes</h2>' );
     expect( source ).not.toContain( '<h2>Built for your stack</h2>' );
     // The LEFT column is still .api-info (so it keeps the h2 type rung) and now also
     // carries .api-steps.
