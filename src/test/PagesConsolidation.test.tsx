@@ -53,13 +53,13 @@ describe( 'public page consolidation contracts', () => {
     expect( schema.itemListElement[ 3 ].item ).toBe( 'https://wecare.digital/blog/topic/gastronomy/page/2/' );
   } );
 
-  it( 'makes all seven existing request routes reachable from Contact', () => {
+  it( 'keeps all seven request services while removing the request hub from Contact', () => {
     render( <Contact /> );
     expect( CUSTOMERSERVICE ).toHaveLength( 7 );
-    expect( screen.getByRole( 'heading', { name: 'How can we help?', level: 2 } ) ).toHaveClass( 'request-hub-title' );
+    expect( screen.queryByRole( 'heading', { name: 'How can we help?', level: 2 } ) ).not.toBeInTheDocument();
+    expect( screen.getByRole( 'heading', { name: 'Where to find us', level: 2 } ) ).toBeInTheDocument();
     for ( const service of CUSTOMERSERVICE ) {
-      expect( screen.getByRole( 'link', { name: service.name } ) ).toHaveAttribute( 'href', `/${service.slug}/` );
-      expect( screen.getByText( service.blurb ) ).toBeInTheDocument();
+      expect( screen.queryByRole( 'link', { name: service.name } ) ).not.toBeInTheDocument();
     }
   } );
 
