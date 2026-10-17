@@ -392,7 +392,7 @@ Four entry points converge on one pipeline:
 | Payment configs | `WECAREDIGITAL` (PG) and `WECAREUPI` (VPA) — identical names on both WABAs |
 | Razorpay MID / MCC / purpose | `acc_TTFSyolquKEZEy` / `7392` / `03` |
 | GSTIN | `19AAFFW7196L1Z8` (PAN `AAFFW7196L`, WB) |
-| Convenience fee | 2% of subtotal + 18% GST on the fee, shown as a line item |
+| Convenience fee | 2.5% of the authoritative post-discount collection + 18% GST on the fee, shown as a line item |
 | Amount cap | ₹10,00,000 |
 | Order expiry | 24 hours |
 | Tables | Invoices, InvoiceItems, InvoiceSequence, InvoiceAssets, InvoiceDeliveryLog, Payments, RazorpayWebhookLog |

@@ -70,23 +70,9 @@ export const GST_RATES = [
   { value: 28, label: '28%' },
 ];
 
-// Convenience Fee Configuration
-// Fee is charged on the cart/collection subtotal, then GST is applied to the
-// fee itself: total = (subtotal x percent%) x (1 + gstPercent/100).
-// The public checkout is AWS-owned. Server-side checkout/order code must use
-// the same values when composing the final payable amount; do not duplicate
-// these rates anywhere else.
-//
-// 2.5% ON OWNER INSTRUCTION, AND THE THREE COPIES NOW AGREE. They did not: this file
-// said 2.2%, outbound-whatsapp/handler.py defaulted to 0.022 and
-// payments/invoice-engine/handler.py hardcoded 0.02 - so the fee a customer was quoted
-// depended on which surface composed the order. All three are 2.5% / 18% in this commit.
-// If this value moves again, those two move with it; no test pins the rate, so nothing
-// else will tell you.
-export const CONVENIENCE_FEE = {
-  percent: 2.5,
-  gstPercent: 18.0,
-};
+// Convenience-fee arithmetic is server-authoritative in
+// lambda_utils.ecommerce.checkout_pricing. Browser surfaces render returned quote/invoice
+// amounts and must not carry a second rate or recompute a payable total.
 
 // WhatsApp Payment Configuration Details
 // The Razorpay MID (acc_...) stays backend-only and is deliberately absent here.

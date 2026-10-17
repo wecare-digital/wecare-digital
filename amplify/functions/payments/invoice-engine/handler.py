@@ -46,7 +46,7 @@ from lambda_utils import payment_readiness
 # Attribution, not mechanics: which surface the order was placed from. One module owns the two
 # literals and the one total coercion, so the three render sites below cannot disagree about what
 # `channel` means - the same discipline `pay_status` applies to payment words.
-from lambda_utils.ecommerce import order_channel, business_identity
+from lambda_utils.ecommerce import order_channel, business_identity, checkout_pricing
 # Identity reservation for a native WhatsApp collection, and the key prefixes it reserves on.
 # `send_payment_link` reserves BEFORE it sends, so a retried send re-sends the same
 # `reference_id` instead of minting a second one for one invoice.
@@ -1320,22 +1320,17 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         }))
         return _refusal_response(refusal)
 
-    # Convenience fee: 2.5% of total collection + 18% GST on that 2.5%
-    # "Total collection" = subtotal - discount + shipping + handling + tax + GP + NF
-    # 2.5% on owner instruction. This was 0.02 while src/config/constants.ts said 2.2% and
-    # outbound-whatsapp/handler.py defaulted to 0.022 - three copies, three answers. All
-    # three are 2.5% now and must move together.
+    # Convenience fee policy has ONE home: checkout_pricing.compute_quote.
+    # For new/manual/WhatsApp collections the server derives the fee from the exact post-discount,
+    # post-delivery, post-supply-GST collection. Captured/tax-inclusive invoices add no new fee.
     convenience_fee = float(body.get('convenienceFee', 0))
     if amount_is_tax_inclusive:
-        # Zero, whatever the caller sent. The fee is a charge for taking the money, and the money
-        # is already taken - adding 2.5% + GST here would put the invoice above the capture by
-        # construction and the invariant below would then refuse every single one of them.
-        convenience_fee = Decimal('0')
-    elif convenience_fee == 0 and entry_point in ('pay_flow', 'manual', 'whatsapp_payment'):
+        convenience_fee = 0.0
+    elif entry_point in ('pay_flow', 'manual', 'whatsapp_payment'):
         collection = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax
-        conv_base = round(collection * 0.025, 2)
-        conv_gst = round(conv_base * 0.18, 2)
-        convenience_fee = round(conv_base + conv_gst, 2)
+        quote = checkout_pricing.compute_quote(_rupees_to_paise(collection))
+        convenience_fee = float(_paise_to_rupees(
+            quote.convenience_fee_paise + quote.convenience_gst_paise))
 
     total = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax + convenience_fee
 

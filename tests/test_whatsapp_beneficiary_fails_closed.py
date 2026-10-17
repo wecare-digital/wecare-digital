@@ -1,6 +1,6 @@
-"""FEAT-003: a supplied-but-unpayable customer_address must FAIL CLOSED — never fall back to
-the business beneficiary. A valid India customer_address builds the Meta beneficiary from the
-shared shape. A caller supplying no customer_address keeps today's behaviour exactly.
+"""FEAT-003: physical-goods beneficiaries are the intended recipient, never the merchant.
+A valid India customer_address builds the Meta beneficiary from the shared shape. Missing or
+unpayable customer delivery details fail closed before a payment payload can be sent.
 
 Handler is imported lazily inside the fixture (not at module level), matching test_payments.py
 so test_handler_import_isolation stays satisfied.
@@ -81,9 +81,36 @@ class TestBeneficiaryFailsClosed:
         with pytest.raises(self.handler.PaymentConfigurationUnresolved):
             self._build(_order(customer_address=_india_addr(pin="70001"), recipient_name="X"))
 
-    def test_no_customer_address_keeps_todays_behaviour_business_fallback(self):
-        payload = self._build(_order())
-        bens = payload["interactive"]["action"]["parameters"]["beneficiaries"]
-        assert len(bens) == 1
-        assert bens[0]["name"] == "WECARE.DIGITAL"
-        assert bens[0]["postal_code"] == "700012"
+    def test_no_customer_address_fails_closed_instead_of_using_merchant_address(self):
+        with pytest.raises(self.handler.PaymentConfigurationUnresolved):
+            self._build(_order())
+
+    def test_shipping_info_is_validated_and_used_as_the_customer_beneficiary(self):
+        payload = self._build(_order(shipping_info={
+            "country": "IN",
+            "addresses": [{
+                "name": "B. Customer",
+                "address": "44 Park Street",
+                "landmark_area": "Near Museum",
+                "city": "Kolkata",
+                "state": "West Bengal",
+                "in_pin_code": "700016",
+            }],
+        }))
+        beneficiary = payload["interactive"]["action"]["parameters"]["beneficiaries"][0]
+        assert beneficiary["name"] == "B. Customer"
+        assert beneficiary["address_line1"] == "44 Park Street"
+        assert beneficiary["postal_code"] == "700016"
+
+    def test_fee_basis_matches_canonical_post_discount_post_shipping_collection(self):
+        order = _order(customer_address=_india_addr())
+        order["order"]["discount"]["value"] = 1000
+        order["order"]["shipping"]["value"] = 500
+        payload = self._build(order)
+        params = payload["interactive"]["action"]["parameters"]
+        fee_item = next(item for item in params["order"]["items"]
+                        if item["retailer_id"] == "ITEM_CONV")
+        # Collection before fee = 10000 - 1000 + 500 = 9500.
+        # 2.5% => 238 paise (half-up); 18% GST on fee => 43; line total => 281.
+        assert fee_item["amount"]["value"] == 281
+        assert params["total_amount"]["value"] == 9781
