@@ -44,13 +44,13 @@ const OUT_JSON = path.join( REPO, 'docs', 'execution', 'page-audit.json' );
 // THIS LIST HAD DRIFTED. It said "the 15 public routes" and named 15, but PUBLIC_PAGE_META
 // had grown the Requests group and this list never followed - so `--public` audited 15 of 22
 // public routes while claiming to cover them all. It only matters for the `--public` flag:
-// the default run discovers routes by walking out/, which is how /hunar/ and /vault/ get
+// the default run discovers routes by walking out/, which is how /hunar/kaushal/, /hunar/prastuti/ and /vault/ get
 // audited without being typed anywhere. The flag is the one that lies when it is stale.
 const PUBLIC = [ '/', '/grahak-os/', '/vayulok/', '/bharat-rx/', '/contact/', '/orders/',
   '/terms/', '/privacy/', '/anew/', '/clear-closure/', '/dastavez/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
   '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/',
-  '/expo-week/', '/hunar/', '/niji-setu/', '/ritual-guru/',
+  '/expo-week/', '/hunar/kaushal/', '/hunar/prastuti/', '/niji-setu/', '/ritual-guru/',
   '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/leave-review/',
   '/refer-and-earn/',
   // The catalogue. This list is only used with --public; the default sweep discovers every
