@@ -166,6 +166,8 @@ const COLUMNS: NavColumn[] = [
         heading: 'Extras',
         links: [
           { label: 'Perks', href: '/perks/', match: '/perks' },
+          { label: 'Google Play', href: 'https://wecare.digital/', searchTerms: [ 'android', 'play store', 'google play store' ] },
+          { label: 'App Store', href: 'https://wecare.digital/', searchTerms: [ 'apple', 'ios', 'iphone', 'apple app store' ] },
         ],
       },
       {
