@@ -27,6 +27,8 @@ from unittest.mock import patch
 
 import pytest
 
+pytestmark = pytest.mark.usefixtures("synthetic_service_catalog")
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
@@ -38,9 +40,7 @@ from service_requests_fake_dynamo import RequestTable  # noqa: E402
 from lambda_utils import customer_auth  # noqa: E402
 from lambda_utils.ecommerce import order_creation, order_keys  # noqa: E402
 from lambda_utils.ecommerce import service_requests as sr  # noqa: E402
-from synthetic_service_catalog import configure as configure_services  # noqa: E402
 
-configure_services(sr)
 from lambda_utils.ecommerce import service_request_store as store  # noqa: E402
 from lambda_utils.integrations import razorpay_verify  # noqa: E402
 
