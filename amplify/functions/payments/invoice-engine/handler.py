@@ -1623,6 +1623,13 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
             })
 
     logger.info(json.dumps({'event': 'invoice_created', 'invoiceId': invoice_id, 'invoiceNumber': invoice_number, 'referenceId': reference_id, 'total': float(total), 'requestId': request_id}))
+
+    # ONE logical order across channels: bind this statutory invoice to the fulfilment OrderTable
+    # row it settles, in BOTH directions, so a WhatsApp payment and a website payment resolve to
+    # one joinable order identity. The two records stay SEPARATE (an immutable GST document vs a
+    # mutable order), which is correct — this is a cross-link, not a merge, and it never touches a
+    # financial field or the order's finalization conflict keys.
+    _cross_link_invoice_and_order(reference_id, invoice_id, invoice_number, request_id)
     created: Dict[str, Any] = {
         'invoiceId': invoice_id, 'invoiceNumber': invoice_number, 'referenceId': reference_id,
         'total': float(total), 'convenienceFee': float(convenience_fee),
@@ -1645,6 +1652,76 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         created['amountPayable'] = float(redemption_attributes['amountPayable'])
     return _resp(201, created)
 
+
+
+def _cross_link_invoice_and_order(reference_id: str, invoice_id: str, invoice_number: str,
+                                  request_id: str) -> None:
+    """Bind this invoice to the ONE OrderTable row it settles, in both directions. Never raises.
+
+    ONE LOGICAL ORDER ACROSS CHANNELS, as a joinable identity rather than a merged row. A website
+    payment and a WhatsApp payment each produce a statutory invoice AND (on the finalised leg) an
+    order record; this makes the two directly joinable so a reader does not have to re-derive the
+    link from `referenceId` every time, and so the two documents provably describe one order.
+
+    The order id is resolved through the SAME immutable CommerceKeys chain the payment already
+    wrote — `PAYREF#<ref>` -> paymentAttemptId -> `PAYMENTATTEMPT#<attempt>` -> orderIdRef — never
+    from a client field. The invoice's own `orderId` column historically holds the Razorpay
+    PROVIDER order id (a different namespace), so the internal link is written to a distinct
+    `internalOrderId` attribute rather than overloading it.
+
+    What it writes:
+      * onto the INVOICE row: `internalOrderId` (+ `orderNumber`) — attribution, not a financial
+        field, so it does not touch the `_INVOICE_FINANCIAL_FIELDS` immutability contract.
+      * onto the ORDER row: `invoiceId` (+ `invoiceNumber`) — conditional on the order existing,
+        and never any of the five finalization association-conflict keys.
+
+    A reference that resolves to no order yet (a legacy/pre-commerce invoice, or an attempt with
+    no finalised order) is a NO-OP: the invoice stands on its own and there is simply nothing to
+    link. All failures are logged and swallowed — the invoice and the order are already the
+    authoritative records; a missing cross-link must not fail invoice creation or burden the
+    statutory path.
+    """
+    if not reference_id or not invoice_id:
+        return
+    try:
+        keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+        payref = order_keys.resolve_payment_reference(keys, reference_id)
+        attempt_id = str((payref or {}).get('paymentAttemptId') or '')
+        claim = order_keys.resolve_order_for_payment(keys, attempt_id) if attempt_id else None
+        order_id = str((claim or {}).get('orderIdRef') or '')
+        order_number = str((claim or {}).get('orderNumber') or '')
+        if not order_id:
+            return
+        now = int(time.time())
+        # Invoice -> order (attribution; the invoice row is ours, written just above).
+        try:
+            dynamodb.Table(INVOICES_TABLE).update_item(
+                Key={'invoiceId': invoice_id},
+                UpdateExpression='SET internalOrderId=:oid, orderNumber=:onum, updatedAt=:now',
+                ConditionExpression='attribute_exists(invoiceId)',
+                ExpressionAttributeValues={':oid': order_id, ':onum': order_number, ':now': now})
+        except Exception as inv_err:  # noqa: BLE001
+            if not order_keys.is_conditional_failure(inv_err):
+                raise
+        # Order -> invoice (conditional on the order existing; never creates one, never touches a
+        # money/identity key the finalization conflict guard compares).
+        try:
+            dynamodb.Table(shared_tables.orders_table_name()).update_item(
+                Key={'orderId': order_id},
+                UpdateExpression='SET invoiceId=:iid, invoiceNumber=:inum, updatedAt=:now',
+                ConditionExpression='attribute_exists(orderId)',
+                ExpressionAttributeValues={':iid': invoice_id, ':inum': invoice_number or '',
+                                           ':now': now})
+        except Exception as ord_err:  # noqa: BLE001
+            if not order_keys.is_conditional_failure(ord_err):
+                raise
+        logger.info(json.dumps({'event': 'invoice_order_cross_linked', 'invoiceId': invoice_id,
+                                'orderId': order_id, 'referenceId': reference_id,
+                                'requestId': request_id}))
+    except Exception as link_error:  # noqa: BLE001
+        logger.warning(json.dumps({'event': 'invoice_order_cross_link_failed',
+                                    'referenceId': reference_id, 'invoiceId': invoice_id,
+                                    'error': str(link_error)[:300], 'requestId': request_id}))
 
 
 def _contact_address_fields(contact: Optional[Dict]) -> Dict[str, str]:
