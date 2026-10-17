@@ -2018,24 +2018,9 @@ export default function Cart (): React.ReactElement {
             min-width:24px;text-align:center;font-size:16px;font-weight:700;
             line-height:1;color:#1a3a2a;font-variant-numeric:tabular-nums;
           }
-          /* The amount chooser on the contribution row. Deliberately the SAME box as .cart-qty -
-             --control-border-w / --control-border, --control-radius, the 44px tap floor and the
-             16px type - because it occupies the same slot in the row and a second control idiom
-             there would read as a different kind of thing. Wider, because a three-digit rupee
-             amount plus the disclosure arrow does not fit 72px. The leading rupee mark that used
-             to sit beside the old free-text field went with it: each option already carries one.
-
-             THE PAIR NOW MATCHES ON TOKENS, NOT ON TWO COPIES OF A NUMBER. This rule and
-             .cart-qty above both read --control-border-w / --control-border / --control-radius /
-             --control-h, so the shared skin cannot move one and leave the other behind - which
-             is what would have happened here, since form-controls.css reaches a select and
-             cannot reach a number input.
-
-             TWO PROPERTIES THE PAIR NO LONGER SHARES, both forced by the chevron and both
-             unavoidable: the end inset (32px here from form-controls.css, 10px on .cart-qty) and
-             the appearance reset. A select has an arrow to make room for; a number field has not.
-
-             --accent is #1a3a2a and --control-border is #e5e7eb; no new hue is introduced. */
+          /* Contribution keeps the canonical select skin. Quantity now uses the adjacent SVG
+             minus/plus stepper instead of a labelled number input, so the two controls no longer
+             pretend to be the same shape. */
           .cart-amount-select{
             min-width:96px;min-height:var(--control-h);
             padding-block:0;padding-inline-start:var(--control-px);
