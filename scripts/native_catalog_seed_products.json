@@ -57,10 +57,20 @@
       "variantLabel": "Standard"
     },
     {
-      "slug": "hunar",
+      "slug": "hunar-kaushal",
+      "title": "Hunar · Kaushal",
+      "canonicalPath": "/hunar/kaushal/",
+      "priceMinor": 9900,
+      "sku": "KSL9M2Q4",
+      "catalogImageKey": "",
+      "variantLabel": "Standard"
+    },
+    {
+      "slug": "hunar-prastuti",
       "title": "Hunar · Prastuti",
       "canonicalPath": "/hunar/prastuti/",
-      "priceMinor": null,
+      "priceMinor": 29900,
+      "sku": "PST7K4N2",
       "catalogImageKey": "",
       "variantLabel": "Standard"
     },
