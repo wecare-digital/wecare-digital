@@ -182,6 +182,18 @@
       "description": "Clearly labelled puja essentials with a preparation checklist."
     },
     {
+      "path": "/hunar/kaushal",
+      "group": "services",
+      "name": "Kaushal",
+      "description": "A focused skills and learning path built around what you want to do next."
+    },
+    {
+      "path": "/hunar/prastuti",
+      "group": "services",
+      "name": "Prastuti",
+      "description": "CV, professional profile and pitch deck creation built from real experience."
+    },
+    {
       "path": "/expo-week",
       "group": "services",
       "name": "Expo Week",
@@ -210,18 +222,6 @@
       "group": "services",
       "name": "Anew",
       "description": "Reflection-led conversations that create clarity and action."
-    },
-    {
-      "path": "/hunar/kaushal",
-      "group": "services",
-      "name": "Kaushal",
-      "description": "A focused skills and learning path built around what you want to do next."
-    },
-    {
-      "path": "/hunar/prastuti",
-      "group": "services",
-      "name": "Prastuti",
-      "description": "CV, professional profile and pitch deck creation built from real experience."
     },
     {
       "path": "/niji-setu",
