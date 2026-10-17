@@ -1,8 +1,10 @@
 # Retired Razorpay merchant account purge — local `stack` reconciliation, 2026-10-02
 
-Owner instruction, verbatim: *"keep acc_TTFSyolquKEZEy, purge acc_HDfub6wOfQybuH"* and *"remove old
+Owner instruction, verbatim: *"keep acc_TTFSyolquKEZEy, purge [retired Razorpay account]"* and *"remove old
 from everywhere"*. This document records the **local `stack`** half of that purge and the evidence
-for it, so a reviewer does not need to re-run anything.
+for it, so a reviewer does not need to re-run anything. The retired merchant id and UPI VPA are no
+longer written here as literals — they were scrubbed from this record on the owner's "remove old from
+everywhere" instruction, and are referred to by placeholder throughout.
 
 ## What this iteration actually had to fix
 
@@ -61,7 +63,7 @@ Two facts were verified before adopting, so this is a purge and nothing else rod
 | `amplify/functions/messaging/partner-onboarding/handler.py` | — | Webhook-secret fallback removed |
 | `tests/test_partner_razorpay_canonical_secret.py` | — | **New.** Pins the canonical-secret behaviour |
 
-## Remaining `acc_HDfub6wOfQybuH` hits, with per-hit justification
+## Remaining `[retired Razorpay account]` hits, with per-hit justification
 
 ```
 .agents/tasks/deep-audit-20261001b.md                             Class C — immutable task history
@@ -73,7 +75,7 @@ docs/execution/phase-04d-payment-audit.md                         Class C
 .kiro/steering/META-BETA-REQUEST-EMAIL.md:49,51                   CROSS-SESSION SEAM — declined
 ```
 
-Remaining `wecaredigital83.rzp@icici` hits are the same Class C set minus `phase-04d`. Every
+Remaining `[retired UPI VPA]` hits are the same Class C set minus `phase-04d`. Every
 non-Class-C occurrence of both identifiers is gone from tracked source **except the declined seam**.
 
 ### The one declined cross-session seam
@@ -130,7 +132,7 @@ API credential, so its survival is not a missed purge target.
 ## VPA decision: deep link NOT touched
 
 `payment_readiness.py` still records `wecaredigitalbh511413.rzp@rxairtel` as AUTHORITATIVE, and
-`src/config/constants.ts:112` already holds exactly that value. There was no stale `@icici`
+`src/config/constants.ts:112` already holds exactly that value. There was no stale retired-UPI-VPA
 reference in `constants.ts` or in `src/pages/workspace/pay/link/` to remove, so **no edit was made to
 the money-routing deep link** — correct under the brief's conditional, and matching `origin/stack`,
 which also left it untouched. `rxairtel` remains byte-for-byte preserved per `bw-crm.md`: it is a
@@ -159,8 +161,8 @@ pre-existing failure was fixed by `0bec35da` and the suite is now clean, so ther
 exclude or attribute elsewhere.
 
 ```
-$ git grep -l acc_HDfub6wOfQybuH          → 7 files, all Class C except the declined seam (listed above)
-$ git grep -l 'wecaredigital83.rzp@icici' → 5 files, all Class C
+$ git grep -l '[retired Razorpay account]'  → 7 files, all Class C except the declined seam (listed above)
+$ git grep -l '[retired UPI VPA]'           → 5 files, all Class C
 $ git grep -n acc_RETIRED_FIXTURE         → tests/test_payment_readiness.py:23,79,82,84
                                             tests/test_payment_status.py:41,61
 $ git diff origin/stack -- <the 9 paths>  → empty (byte-identical)
@@ -183,8 +185,8 @@ integer paise arithmetic and the `payment_status` vocabulary are untouched by th
 
 The live Lambda environment is the half of this purge that source cannot reach. Historical evidence
 (`.agents/tasks/section68-current-state-audit-20261001.md:354`) records
-`wecare-whatsapp-business-api` carrying `RAZORPAY_MID=acc_HDfub6wOfQybuH` and
-`RAZORPAY_UPI_ID=wecaredigital83.rzp@icici`, served through `:live` at version 58.
+`wecare-whatsapp-business-api` carrying `RAZORPAY_MID=[retired Razorpay account]` and
+`RAZORPAY_UPI_ID=[retired UPI VPA]`, served through `:live` at version 58.
 
 The exact command, **described and not run**:
 
