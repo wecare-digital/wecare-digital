@@ -163,7 +163,7 @@ jobs:
         # the same provider failure before any review result existed.
         continue-on-error: true
         # v1.0.1 - pinned by SHA deliberately, see trust decision 1 in the header.
-        uses: konippi/kiro-cli-review-action@1c11ef476d5722d06a0c702a041e6393c8d5310d
+        uses: konippi/kiro-cli-review-action@1ea5c4047c6e86e28ab2d4a15ba84ecfe8810344
         with:
           kiro_api_key: ${{ secrets.KIRO_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
