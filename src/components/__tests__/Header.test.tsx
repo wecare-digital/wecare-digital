@@ -122,6 +122,12 @@ describe( 'Header', () => {
     expect( googlePlay ).toHaveAttribute( 'href', 'https://wecare.digital/' );
     expect( appStore ).toHaveAttribute( 'href', 'https://wecare.digital/' );
 
+    for ( const link of [ googlePlay, appStore ] ) {
+      const icon = link.querySelector( 'svg.nav-row-icon' );
+      expect( icon ).toHaveClass( 'nav-row-icon-material' );
+      expect( icon ).toHaveAttribute( 'viewBox', '0 -960 960 960' );
+    }
+
     for ( const link of [ perks, googlePlay, appStore ] ) expect( link ).toHaveClass( 'nav-child' );
     expect( Array.from( extras?.querySelectorAll( 'a.nav-item' ) || [] ).map( link => link.textContent ) )
       .toEqual( [ 'Perks', 'Google Play', 'App Store' ] );
