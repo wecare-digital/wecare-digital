@@ -198,7 +198,6 @@ const CONTRIBUTION_NOT_PAYABLE_MESSAGE =
 const SIGN_IN_PATH = '/account/sign-in/?return=/cart/';
 
 /**
- * THE OWNER-APPROVED INITIATION-FAILURE SENTENCE/**
  * THE OWNER-APPROVED INITIATION-FAILURE SENTENCE, verbatim, in one place.
  *
  * ITS PLACEMENT IS THE WHOLE OF ITS CORRECTNESS. It asserts that no charge was made, so it may be
@@ -493,7 +492,6 @@ function loadRazorpaySdk (): Promise<boolean> {
  */
 
 /**
- * THE CONTRIBUTION ROW CHOOSES AN AMOUNT/**
  * THE CONTRIBUTION ROW CHOOSES AN AMOUNT, IT DOES NOT COUNT COPIES.
  *
  * A stepper labelled "Qty" is the wrong control for a contribution: two copies of a Rs.250
@@ -582,7 +580,7 @@ function RedemptionPanel (): React.ReactElement {
   );
 }
 
-export default function Cart (): React.ReactElement {export default function Cart (): React.ReactElement {
+export default function Cart (): React.ReactElement {
   const [ items, setItems ] = useState<CartItem[]>( [] );
   const [ ready, setReady ] = useState<boolean>( false );
   const [ busy, setBusy ] = useState<boolean>( false );
