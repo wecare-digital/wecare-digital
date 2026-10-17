@@ -63,6 +63,25 @@ def _preset_limited_time_offer() -> Dict[str, Any]:
     }
 
 
+def _preset_order_details_payment() -> Dict[str, Any]:
+    """Utility template for Meta's native Order Details / Review and Pay surface."""
+    return {
+        'name': 'wecare_order_details',
+        'language': 'en',
+        'category': 'UTILITY',
+        'message_send_ttl_seconds': 43200,
+        'components': [
+            {'type': 'HEADER', 'format': 'TEXT', 'text': 'Order details'},
+            {'type': 'BODY',
+             'text': 'Review your order details and continue to the secure payment step.'},
+            {'type': 'FOOTER', 'text': 'WECARE.DIGITAL'},
+            {'type': 'BUTTONS', 'buttons': [
+                {'type': 'ORDER_DETAILS', 'text': 'Review and Pay'},
+            ]},
+        ],
+    }
+
+
 def _preset_order_confirmation() -> Dict[str, Any]:
     return {
         'name': 'order_confirmation',
@@ -160,6 +179,7 @@ def _preset_flow_support_request() -> Dict[str, Any]:
 _PRESETS = {
     'seasonal_promotion': _preset_seasonal_promotion,
     'limited_time_offer': _preset_limited_time_offer,
+    'order_details_payment': _preset_order_details_payment,
     'order_confirmation': _preset_order_confirmation,
     'order_delivery_update': _preset_order_delivery_update,
     'flow_lead_generation': _preset_flow_lead_generation,
