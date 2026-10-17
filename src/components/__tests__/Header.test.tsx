@@ -82,16 +82,19 @@ describe( 'Header', () => {
       'Grahak OS', 'VayuLok', 'Bharat Rx', 'Elsewhere', 'Visa', 'Trip', 'Activities',
       'Expo Week', 'Dastavez', 'Drafting', 'Registration', 'Legal Reference',
       'Clear Closure', 'Guided Resolution', 'Case Submission', 'Paperwork',
-      'Ritual Guru', 'Puja Guidance', 'DIY Puja Kit', 'Anew', 'Hunar', 'Niji Setu',
+      'Ritual Guru', 'Puja Guidance', 'DIY Puja Kit', 'Anew', 'Hunar', 'Kaushal', 'Prastuti', 'Niji Setu',
     ] ) expect( products?.textContent ).toContain( label );
 
     expect( screen.queryByText( 'Products 1 of 2' ) ).toBeNull();
     expect( screen.queryByText( 'Products 2 of 2' ) ).toBeNull();
     expect( screen.queryByRole( 'link', { name: 'Elsewhere' } ) ).toBeNull();
+    expect( screen.queryByRole( 'link', { name: 'Hunar' } ) ).toBeNull();
 
     expect( screen.getByRole( 'link', { name: 'Visa' } ) ).toHaveAttribute( 'href', '/elsewhere/visa/' );
     expect( screen.getByRole( 'link', { name: 'Trip' } ) ).toHaveAttribute( 'href', '/elsewhere/trip/' );
     expect( screen.getByRole( 'link', { name: 'Activities' } ) ).toHaveAttribute( 'href', '/elsewhere/activities/' );
+    expect( screen.getByRole( 'link', { name: 'Kaushal' } ) ).toHaveAttribute( 'href', '/hunar/kaushal/' );
+    expect( screen.getByRole( 'link', { name: 'Prastuti' } ) ).toHaveAttribute( 'href', '/hunar/prastuti/' );
   } );
 
   it( 'keeps Request rows in the approved order', () => {

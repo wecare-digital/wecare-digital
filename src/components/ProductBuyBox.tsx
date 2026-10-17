@@ -9,7 +9,7 @@ import { productCheckoutLine } from '../config/productCheckout';
 
 /**
  * THE PRODUCT "CONTINUE TO CHECKOUT" ACTION, mounted under the WhatsApp CTA on nine pages (Expo
- * Week, Dastavez, Clear Closure, Ritual Guru, Anew, Hunar, Niji Setu, Bharat Rx, Refer & Earn).
+ * Week, Dastavez, Clear Closure, Ritual Guru, Anew, Prastuti, Niji Setu, Bharat Rx, Refer & Earn).
  *
  * SAME SHAPE AS ServiceBuyBox, DIFFERENT RAIL. A product is an ORDINARY cart line — no
  * pre-payment intent, no target order — so this uses the plain shop path: `addItem` writes a

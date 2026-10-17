@@ -223,6 +223,59 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
       ctaNote: 'Continue on WhatsApp →',
     },
   },
+  {
+    path: '/hunar/kaushal/',
+    parent: 'Hunar',
+    product: {
+      slug: 'hunar-kaushal',
+      name: 'Kaushal',
+      blurb: 'Skills and learning built around what you want to do next.',
+      title: 'Kaushal — skills and learning | WECARE.DIGITAL',
+      description: 'Kaushal by Hunar — identify the skills worth building, follow a focused learning path and turn progress into evidence you can use.',
+      frame: 'Build skills with',
+      words: cycle( 'focus', 'practice', 'proof', 'progress' ),
+      sub: 'Know what to learn next, why it matters and how to turn learning into evidence you can use.',
+      sectionHeading: 'What Kaushal does',
+      lead: 'Kaushal turns a broad learning goal into a practical path: the skills to build, the order to build them in and the evidence that shows the learning is real.',
+      points: [
+        { heading: 'Find the skill gap', body: 'Start from the role, goal or work you want to do and separate what you already know from the capabilities that still need to be built.' },
+        { heading: 'Build a focused learning path', body: 'Turn the gap into a practical sequence of learning, practice and useful resources instead of collecting courses without a clear next step.' },
+        { heading: 'Turn learning into evidence', body: 'Use projects, examples and completed work to show what changed, so a new skill is supported by something another person can actually inspect.' },
+      ],
+      note: 'Kaushal can structure a learning path and help you present evidence of progress. It does not issue accredited qualifications, guarantee proficiency, interviews or employment, and it will not present unfinished learning as proven skill.',
+      ctaLabel: 'Start Kaushal',
+      ctaHref: whatsappKeywordLink( 'Kaushal' ),
+      ctaNote: 'Continue on WhatsApp →',
+    },
+  },
+  {
+    path: '/hunar/prastuti/',
+    parent: 'Hunar',
+    product: {
+      // Keep the existing Hunar commerce identity on the CV/profile offering. The parent
+      // landing page is retired, but HNR9M4P6 remains the configured ₹599 checkout line.
+      slug: 'hunar',
+      name: 'Prastuti',
+      blurb: 'CV, professional profile and pitch deck built from the same evidence.',
+      title: 'Prastuti — CV, profile and pitch deck | WECARE.DIGITAL',
+      description: 'Prastuti by Hunar — turn real experience into a clearer CV, professional profile and concise pitch deck without inventing claims.',
+      frame: 'Present your',
+      words: cycle( 'experience', 'CV', 'profile', 'pitch' ),
+      sub: 'Turn your work into a CV, professional profile and pitch deck that tell the same clear story.',
+      sectionHeading: 'What Prastuti does',
+      lead: 'Prastuti takes the experience you already have and makes it easier to understand quickly — first as evidence, then as a CV or profile, then as a concise pitch or deck.',
+      points: [
+        { heading: 'Find the strongest evidence', body: 'Pull out the work, responsibilities and results that actually support the story instead of leading with generic claims or a long list of adjectives.' },
+        { heading: 'Build the CV and profile', body: 'Structure the experience for fast reading, with the important evidence easy to find and the same professional story carried into the profile.' },
+        { heading: 'Build the pitch and deck', body: 'Turn that same evidence into a short spoken or written pitch and, where needed, a concise deck that does not contradict the CV.' },
+      ],
+      note: 'Prastuti improves how your experience is presented. It does not invent achievements or guarantee interviews, jobs, funding or other outcomes; every claim should remain true when checked.',
+      ctaLabel: 'Build your Prastuti',
+      ctaHref: whatsappKeywordLink( 'Prastuti' ),
+      ctaNote: 'Continue on WhatsApp →',
+    },
+  },
+
 ];
 
 export const productChildByPath = ( path: string ): ProductChildPage => {

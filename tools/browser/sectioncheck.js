@@ -44,7 +44,7 @@ const ROUTES = [
   '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
   '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/', '/dastavez/', '/clear-closure/',
-  '/ritual-guru/', '/anew/', '/niji-setu/', '/hunar/',
+  '/ritual-guru/', '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/',
   // '/store/' was in this list and has moved to /workspace/commerce/catalog - it was a
   // staff page behind the Authenticator, so it never had a band structure to measure.
   '/blog/', '/get/',

@@ -43,7 +43,7 @@ const ROUTES = [
   '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
   '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/', '/dastavez/', '/clear-closure/',
-  '/ritual-guru/', '/anew/', '/niji-setu/', '/hunar/', '/vault/',
+  '/ritual-guru/', '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/vault/',
   // '/shop/' AND '/shop/<slug>/' ARE DELIBERATELY ABSENT, for the same reason '/blog/' is.
   //
   // This harness pins the SECTION-h2 rung at 40px/700 - the contract for a page shaped as one

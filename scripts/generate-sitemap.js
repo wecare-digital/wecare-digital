@@ -60,7 +60,8 @@ const PUBLIC_EXACT = new Set( [
   // Renamed '[retired public path]' -> '[retired public path]' -> '/anew'. Alphabetical, so it moved to the
   // top of this group.
   '/anew',
-  '/hunar',
+  '/hunar/kaushal',
+  '/hunar/prastuti',
   '/niji-setu',
   '/ritual-guru',
   '/ritual-guru/puja-guidance',

@@ -515,7 +515,8 @@ const PUBLIC_PAGE_META: Record<string, {
   // there: it must not imply placement or hiring, which the page itself is careful to
   // disclaim, because a WebPage.description promising a service the page declines to offer
   // is the same defect the Bharat Rx line above was corrected for.
-  '/hunar': { name: 'Hunar', type: 'WebPage', description: 'CV review, skills profiles and the pitch that introduces you.', serviceType: 'CV review and professional profile writing' },
+  '/hunar/kaushal': { name: 'Kaushal', type: 'WebPage', description: 'A focused skills and learning path built around what you want to do next.', serviceType: 'Skills learning and development support' },
+  '/hunar/prastuti': { name: 'Prastuti', type: 'WebPage', description: 'CV, professional profile and pitch deck creation built from real experience.', serviceType: 'CV, professional profile and pitch deck creation' },
   '/niji-setu': { name: 'Niji Setu', type: 'WebPage', description: 'A QR code people scan to reach you on a masked call.', serviceType: 'Number masking and call connection' },
   // The Customer service pages. They exist because the header's Customer service column offered
   // six labels and every one resolved to /contact/ - six promises, one destination, on every

@@ -66,7 +66,7 @@ const ALL_ROUTES = [
   // The two routes added on 2026-09-30. Every other ProductPage route scores 100 on the four
   // categories, so these are here to prove the two new ones do too rather than to sample a
   // shape already covered - a new page is exactly where a regression would hide.
-  '/hunar/', '/vault/',
+  '/hunar/kaushal/', '/hunar/prastuti/', '/vault/',
   // '/llm/' was here until 2026-09-30. The page is retired and the URL now 301s to
   // /llms.txt, which is a text file with no DOM to audit.
   // The catalogue. '/shop/' - the grid - was removed on 2026-10-04 when the owner withdrew the

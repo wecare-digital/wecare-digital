@@ -187,10 +187,10 @@ const LIVE_PRODUCTS: CatalogSnapshotProduct[] = [
     variants:[{ id:'ANW7Q5K2', label:'Standard', inStock:true }],
   },
   {
-    id:'edde82ad-c692-5636-ba97-08060200a04a', name:'Hunar', slug:'hunar',
+    id:'edde82ad-c692-5636-ba97-08060200a04a', name:'Hunar · Prastuti', slug:'hunar',
     formattedPrice:'₹599.00', price:'599.00', currency:'INR',
-    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/hunar/',
-    descriptionHtml:'<p>Hunar from WECARE.DIGITAL.</p>',
+    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/hunar/prastuti/',
+    descriptionHtml:'<p>CV, professional profile and pitch deck built from the same evidence.</p>',
     variants:[{ id:'HNR9M4P6', label:'Standard', inStock:true }],
   },
   {

@@ -108,9 +108,9 @@ describe( 'the product-family trails', () => {
   it( 'normalises the trailing slash and hands out copies', () => {
     expect( breadcrumbTrail( '/dastavez/drafting/' ) ).toEqual( breadcrumbTrail( '/dastavez/drafting' ) );
     expect( breadcrumbTrail( '/contact' ) ).toBeUndefined();
-    const copy = breadcrumbTrail( '/hunar' ) as { label: string }[];
+    const copy = breadcrumbTrail( '/hunar/kaushal' ) as { label: string }[];
     copy[ 0 ].label = 'changed';
-    expect( BREADCRUMB_TRAILS[ '/hunar' ][ 0 ].label ).toBe( 'Home' );
+    expect( BREADCRUMB_TRAILS[ '/hunar/kaushal' ][ 0 ].label ).toBe( 'Home' );
   } );
 } );
 
