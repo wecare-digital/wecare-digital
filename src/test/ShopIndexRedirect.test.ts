@@ -1,13 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import React from 'react';
 import { describe, expect, it } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
-import ShopProductPage, { getStaticPaths } from '../pages/shop/[slug]';
-import { shopProductSchema } from '../components/ShopProductHead';
-import { readCart, toLineItems } from '../lib/cart';
+import { getStaticPaths } from '../pages/shop/[slug]';
 import { shopProductBySlug } from '../content/shop';
-import type { ShopProduct } from '../content/shop';
 import catalogue from '../content/catalogSnapshot';
 
 /**
