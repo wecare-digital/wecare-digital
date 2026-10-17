@@ -64,12 +64,11 @@ const RETIRED = [
 ];
 
 /**
- * Catalogue URLs that existed only because the retired snapshot had enough rows/products to
- * export them. While ProductsTable is intentionally empty these must not return 200. They are
- * separate from RETIRED because they may legitimately return when a fresh SKU-first catalogue is
- * published later.
+ * Representative URLs proving the fresh SKU-first catalogue is actually exported. Page 2 proves
+ * pagination exists beyond the first six crawl cards; kiosk proves a fresh product detail route
+ * exists. These used to be negative probes while the catalogue was intentionally empty.
  */
-const EMPTY_CATALOG_ROUTES = [ '/shop/page/2/', '/shop/kiosk/' ];
+const FRESH_CATALOG_ROUTES = [ '/shop/page/2/', '/shop/kiosk/' ];
 
 /**
  * The sitewide fallback og:title from _app.tsx. Correct on '/', which IS the company page,
@@ -180,7 +179,7 @@ async function main() {
       const res = await fetch( t.base + route, { redirect: 'manual' } );
       retiredHeads[ route ] = { status: res.status };
     }
-    for ( const route of EMPTY_CATALOG_ROUTES ) {
+    for ( const route of FRESH_CATALOG_ROUTES ) {
       const res = await fetch( t.base + route, { redirect: 'manual' } );
       emptyCatalogHeads[ route ] = { status: res.status };
     }
@@ -317,17 +316,17 @@ async function main() {
       `all ${RETIRED.length} retired routes are gone from the export (no 200)`,
       stillServed.length ? stillServed.join( '; ' ) : 'none serve a page; CDN 301 to /contact/ is console-managed' );
 
-    console.log( '\nEmpty-catalog routes (expect no 200 until fresh products exist)' );
-    const staleCatalogPages = [];
-    for ( const route of EMPTY_CATALOG_ROUTES ) {
+    console.log( '\nFresh-catalog routes (expect 200 after the SKU-first catalogue rollout)' );
+    const missingCatalogPages = [];
+    for ( const route of FRESH_CATALOG_ROUTES ) {
       const h = emptyCatalogHeads[ route ];
       const status = h ? h.status : 'nothing';
       console.log( `  ${route} -> ${status}` );
-      if ( h && h.status === 200 ) staleCatalogPages.push( `${route} still returns 200` );
+      if ( !h || h.status !== 200 ) missingCatalogPages.push( `${route} returned ${status}` );
     }
-    record( staleCatalogPages.length === 0,
-      'empty catalogue exports no stale product or pagination pages',
-      staleCatalogPages.length ? staleCatalogPages.join( '; ' ) : 'no stale catalogue page is served' );
+    record( missingCatalogPages.length === 0,
+      'fresh catalogue exports pagination and representative product detail pages',
+      missingCatalogPages.length ? missingCatalogPages.join( '; ' ) : 'fresh catalogue routes are served' );
 
     // They must also never be advertised in the sitemap.
     const smRes = await ( async () => {
