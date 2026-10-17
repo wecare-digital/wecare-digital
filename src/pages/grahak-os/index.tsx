@@ -272,9 +272,10 @@ response = requests.post(
           frame="Reach customers"
           pillPrefix="across"
           words={ cycleWords }
-          sub={ <>One platform for customer data, messaging, automation and campaigns, so every conversation stays connected whichever channel it starts on. Turn your WhatsApp number into your #1 revenue channel with Grahak OS.</> }
+          sub={ <>One platform that unifies customer data, messaging and AI automation across WhatsApp, SMS, Email and Voice. Every conversation stays connected end to end, so your WhatsApp number becomes a channel that drives real outcomes.</> }
           visual={ (
           <div className="hero-right">
+            <div className="hero-visual-col">
               <div className="mockup-wrapper">
                 <div className="phone">
                   <div className="phone-header">
@@ -378,7 +379,16 @@ response = requests.post(
 )`}</pre>
                 </div>
               </div>
+              {/* Below-code secondary CTA. This sits UNDER the whole .mockup-wrapper (the
+                  .code-box is position:absolute inside that wrapper, so a static sibling
+                  there would fight its bottom-anchored geometry). The .hero-visual-col flex
+                  column centres it under the mockup at every width. It is the GHOST sibling
+                  of the solid lime .gos-wa-cta: an outlined dark-green pill (border + text
+                  #1a3a2a on transparent), visually distinct so the primary WhatsApp pill in
+                  the closer stays the loudest action. */}
+              <a className="gos-wa-ghost" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp</a>
             </div>
+          </div>
           ) }
         />
 
@@ -400,7 +410,7 @@ response = requests.post(
           <div className="pp-inner">
             <div className="section-header">
               <h2>Every touchpoint<br/>One seamless experience</h2>
-              <p>Engage, support, and convert customers across their entire journey — from first contact to lasting loyalty</p>
+              <p>Engage, support and convert customers across their entire journey, from first contact to lasting loyalty.</p>
             </div>
             <div className="usecase-pills">
               {useCases.map(({ title, hue }) => (
@@ -423,28 +433,26 @@ response = requests.post(
               {/* Owner-approved heading theme (consulting positioning). Reuses the
                   .api-info h2 type rung. */}
               <h2>Deploy an ecosystem of AI agents to own Enterprise Outcomes</h2>
-              {/* DRAFT PLACEHOLDER COPY: the three step lines below are placeholders.
-                  Final wording is pending owner approval - do not treat as final. */}
-              <ol className="api-steps-list" aria-label="How Grahak OS works (draft)">
+              <ol className="api-steps-list" aria-label="How Grahak OS works">
                 <li className="api-step">
                   <span className="api-step-num" aria-hidden="true">1</span>
                   <div className="api-step-body">
-                    <h3 className="api-step-title">Map your outcomes</h3>
-                    <p className="api-step-line">DRAFT: Placeholder copy — we scope the enterprise outcomes each agent is accountable for.</p>
+                    <h3 className="api-step-title">Map the outcomes</h3>
+                    <p className="api-step-line">We define the business outcomes that matter and the conversations that drive them across WhatsApp, SMS, Email and Voice.</p>
                   </div>
                 </li>
                 <li className="api-step">
                   <span className="api-step-num" aria-hidden="true">2</span>
                   <div className="api-step-body">
-                    <h3 className="api-step-title">Deploy the agent ecosystem</h3>
-                    <p className="api-step-line">DRAFT: Placeholder copy — agents are wired across your channels and canonical data store.</p>
+                    <h3 className="api-step-title">Deploy the agents</h3>
+                    <p className="api-step-line">AI agents go live on every channel, wired into your customer data so each reply is in context and on brand.</p>
                   </div>
                 </li>
                 <li className="api-step">
                   <span className="api-step-num" aria-hidden="true">3</span>
                   <div className="api-step-body">
                     <h3 className="api-step-title">Own the result</h3>
-                    <p className="api-step-line">DRAFT: Placeholder copy — outcomes are measured and tuned against the goals we set together.</p>
+                    <p className="api-step-line">Agents resolve conversations end to end and act at the right moment, with every outcome measured and tuned against your goals.</p>
                   </div>
                 </li>
               </ol>
@@ -648,6 +656,19 @@ response = requests.post(
           .gos-wa-cta{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s}
           .gos-wa-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
           .gos-wa-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+          /* GHOST secondary WhatsApp CTA, below the hero code/mockup. Deliberately NOT the
+             solid lime .gos-wa-cta: this is an OUTLINED pill - transparent surface, a 2px
+             dark-green #1a3a2a border and #1a3a2a text - so it reads as the secondary action
+             while the closer's solid lime pill stays primary. Same 50px radius / 17px type /
+             52px target as .gos-wa-cta for family consistency. Dark-green text on the white
+             hero is ~12:1, well past AA. On hover it fills to #1a3a2a with #d1f470 text (an
+             inversion, not a near-miss tint) and lifts; focus-visible draws the shared ring. */
+          .gos-wa-ghost{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;background:transparent;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;transition:background-color .2s,color .2s,transform .2s,box-shadow .2s}
+          .gos-wa-ghost:hover{background:#1a3a2a;color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+          .gos-wa-ghost:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+          /* The mockup and the ghost CTA share a centred flex column so the button always
+             sits directly under the mockup, not off to one side, at every width. */
+          .hero-visual-col{display:flex;flex-direction:column;align-items:center;gap:20px;width:100%}
           /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
              above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
           .gos-price{display:block;margin-top:22px;font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
@@ -655,6 +676,8 @@ response = requests.post(
           @media(prefers-reduced-motion:reduce){
             .gos-wa-cta{transition:background-color .2s}
             .gos-wa-cta:hover{transform:none;box-shadow:none}
+            .gos-wa-ghost{transition:background-color .2s,color .2s}
+            .gos-wa-ghost:hover{transform:none;box-shadow:none}
           }
 
           /* The rotating channel pill - its lozenge, dot, width glide, word fade,

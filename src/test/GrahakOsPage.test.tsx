@@ -137,19 +137,30 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( 'className="api-info api-steps"' );
   } );
 
-  it( 'renders three numbered steps 1-2-3 in the /anew/ pattern with DRAFT copy', () => {
+  it( 'renders three numbered steps 1-2-3 in the /anew/ pattern with real enterprise copy', () => {
     expect( source ).toContain( 'className="api-steps-list"' );
+    // The ordered list no longer flags itself as a draft.
+    expect( source ).toContain( 'aria-label="How Grahak OS works"' );
+    expect( source ).not.toContain( '(draft)' );
     // Visible step numbers 1, 2, 3, each aria-hidden (the ordered list carries order).
     expect( source ).toContain( '<span className="api-step-num" aria-hidden="true">1</span>' );
     expect( source ).toContain( '<span className="api-step-num" aria-hidden="true">2</span>' );
     expect( source ).toContain( '<span className="api-step-num" aria-hidden="true">3</span>' );
-    // Each step has a short title + one supporting line.
-    expect( source ).toContain( '<h3 className="api-step-title">Map your outcomes</h3>' );
-    expect( source ).toContain( '<h3 className="api-step-title">Deploy the agent ecosystem</h3>' );
+    // Each step has a short title + one supporting line. Titles sharpened; the owner-FINAL
+    // section heading above is unchanged.
+    expect( source ).toContain( '<h3 className="api-step-title">Map the outcomes</h3>' );
+    expect( source ).toContain( '<h3 className="api-step-title">Deploy the agents</h3>' );
     expect( source ).toContain( '<h3 className="api-step-title">Own the result</h3>' );
-    // Copy is clearly marked DRAFT placeholder - final wording pending owner approval.
+    // Real, crisp enterprise step lines replaced the DRAFT placeholders. Pin each exactly
+    // so a revert to the placeholder copy fails here.
+    expect( source ).toContain( '<p className="api-step-line">We define the business outcomes that matter and the conversations that drive them across WhatsApp, SMS, Email and Voice.</p>' );
+    expect( source ).toContain( '<p className="api-step-line">AI agents go live on every channel, wired into your customer data so each reply is in context and on brand.</p>' );
+    expect( source ).toContain( '<p className="api-step-line">Agents resolve conversations end to end and act at the right moment, with every outcome measured and tuned against your goals.</p>' );
+    // The DRAFT placeholder copy and comment are gone entirely.
+    expect( source ).not.toContain( 'DRAFT: Placeholder copy' );
+    expect( source ).not.toContain( 'DRAFT PLACEHOLDER COPY' );
     const stepLines = source.match( /className="api-step-line">DRAFT: /g ) || [];
-    expect( stepLines.length ).toBe( 3 );
+    expect( stepLines.length ).toBe( 0 );
   } );
 
   // Scope assertions to the steps-block CTA container so the single-button truth is
@@ -183,9 +194,11 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     // REMOVED - the steps block now carries only "Get Started on WhatsApp". The demo
     // "See it on WhatsApp" button survives ONLY in the closer (asserted in its own suite).
     expect( stepsCtas ).not.toContain( 'See it on WhatsApp' );
-    // The page as a whole still has exactly one "See it on WhatsApp" link, in the closer.
+    // The page as a whole now has exactly TWO "See it on WhatsApp" links: the new ghost
+    // button below the hero code/mockup (.gos-wa-ghost) and the closer's solid pill
+    // (.gos-wa-cta). Neither lives in the steps block (asserted above / below).
     const seeItCount = ( source.match( />See it on WhatsApp</g ) || [] ).length;
-    expect( seeItCount ).toBe( 1 );
+    expect( seeItCount ).toBe( 2 );
     // The single remaining steps-block CTA keeps the standard new-tab attributes.
     expect( stepsCtas ).toContain( 'target="_blank"' );
     expect( stepsCtas ).toContain( 'rel="noopener noreferrer"' );
@@ -219,6 +232,52 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     // Step block ordered before the code panel when the grid stacks.
     expect( code ).toContain( '.api-steps{order:0}' );
     expect( code ).toContain( '.api-demo{order:1' );
+  } );
+} );
+
+/**
+ * The new below-code "See it on WhatsApp" GHOST button in the hero visual. It sits under
+ * the whole .mockup-wrapper (inside the shared .hero-visual-col flex column) so it reads as
+ * "below the code" without disturbing the absolutely-anchored .code-box geometry. It uses
+ * its OWN class .gos-wa-ghost - an OUTLINED secondary pill (transparent surface, 2px solid
+ * #1a3a2a border, #1a3a2a text) that is visually distinct from the solid lime .gos-wa-cta
+ * (background:#d1f470). These assertions pin the markup, the link attributes and the
+ * distinct outlined CSS so a revert or a restyle to the solid pill fails here.
+ */
+describe( 'Grahak OS: below-code ghost "See it on WhatsApp" CTA', () => {
+  const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
+  const source = readFileSync( pagePath, 'utf8' );
+  const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
+
+  it( 'renders the ghost anchor below the mockup with the exact label and link attributes', () => {
+    // Exact markup: class gos-wa-ghost, the wa.me href, new-tab + noopener, exact label.
+    expect( source ).toContain( '<a className="gos-wa-ghost" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp</a>' );
+    // It lives inside the hero visual's centred flex column, under the mockup.
+    expect( source ).toContain( 'className="hero-visual-col"' );
+    // Exactly one ghost button on the page.
+    const ghostCount = ( source.match( /className="gos-wa-ghost"/g ) || [] ).length;
+    expect( ghostCount ).toBe( 1 );
+  } );
+
+  it( 'styles the ghost button as a distinct OUTLINED pill, not the solid lime .gos-wa-cta', () => {
+    const ghostRule = cssRuleFor( source, '.gos-wa-ghost' );
+    // Outlined: transparent surface, 2px dark-green border, dark-green text, 50px pill, 17px.
+    expect( ghostRule ).toContain( 'border:2px solid #1a3a2a' );
+    expect( ghostRule ).toContain( 'color:#1a3a2a' );
+    expect( ghostRule ).toContain( 'background:transparent' );
+    expect( ghostRule ).toContain( 'border-radius:50px' );
+    expect( ghostRule ).toContain( 'font-size:17px' );
+    // It must NOT carry the solid lime fill that defines .gos-wa-cta.
+    expect( ghostRule ).not.toContain( 'background:#d1f470' );
+    // The solid primary pill still carries the lime fill - the two stay distinct.
+    const ctaRule = cssRuleFor( source, '.gos-wa-cta' );
+    expect( ctaRule ).toContain( 'background:#d1f470' );
+    // A focus-visible ring and a reduced-motion guard exist for the ghost button.
+    expect( code ).toContain( '.gos-wa-ghost:focus-visible{' );
+    expect( code ).toContain( '.gos-wa-ghost:hover{transform:none;box-shadow:none}' );
+    // No retired colour creeps into the ghost CSS.
+    expect( ghostRule ).not.toContain( '#2f6b52' );
+    expect( ghostRule ).not.toContain( '#075e54' );
   } );
 } );
 
@@ -288,7 +347,10 @@ describe( 'Grahak OS: "Every touchpoint" pills carry multiple homepage hues', ()
 
   it( 'keeps the heading, sub-line and the six use-case titles/order unchanged', () => {
     expect( source ).toContain( '<h2>Every touchpoint<br/>One seamless experience</h2>' );
-    expect( source ).toContain( 'Engage, support, and convert customers across their entire journey' );
+    // Sub-line tightened to a crisper, outcome-focused line (em dash dropped). Pin the new
+    // exact copy so a revert to the old wording fails here.
+    expect( source ).toContain( '<p>Engage, support and convert customers across their entire journey, from first contact to lasting loyalty.</p>' );
+    expect( source ).not.toContain( 'Engage, support, and convert customers across their entire journey — from first contact to lasting loyalty' );
     // The six touchpoints, in order, now carry a hue each - titles and order are frozen.
     expect( source ).toContain( "{ title: 'Promotional', hue: 'amber' }" );
     expect( source ).toContain( "{ title: 'Transactional', hue: 'blue' }" );
