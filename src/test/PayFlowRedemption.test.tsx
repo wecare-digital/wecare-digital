@@ -111,9 +111,11 @@ describe( 'the coupon and gift-card fields', () => {
     expect( lastRequest().giftCardCode ).toBe( 'GC-ABCD' );
   } );
 
-  it( 'omits both keys entirely when no code was typed, so the no-codes path is untouched', async () => {
+  it( 'omits both keys entirely when the code fields are empty, so the no-codes path is untouched', async () => {
     await openCreateForm();
     priceOneItem();
+    fireEvent.change( screen.getByLabelText( 'Coupon code' ), { target: { value: '' } } );
+    fireEvent.change( screen.getByLabelText( 'Gift card code' ), { target: { value: '' } } );
     submit();
 
     await waitFor( () => expect( createInvoiceEngineResult ).toHaveBeenCalledTimes( 1 ) );
@@ -196,10 +198,12 @@ describe( 'a refusal renders the server reason and no amount', () => {
     } );
   } );
 
-  it( 'does NOT blame the coupon for a failure on a create that carried no code', async () => {
+  it( 'does NOT blame the coupon for a failure on a create whose code fields were cleared', async () => {
     createInvoiceEngineResult.mockResolvedValue( { ok: false, status: 500, errorCode: 'CREATE_FAILED', retryable: false } );
     await openCreateForm();
     priceOneItem();
+    fireEvent.change( screen.getByLabelText( 'Coupon code' ), { target: { value: '' } } );
+    fireEvent.change( screen.getByLabelText( 'Gift card code' ), { target: { value: '' } } );
     submit();
 
     await waitFor( () => expect( createInvoiceEngineResult ).toHaveBeenCalledTimes( 1 ) );
