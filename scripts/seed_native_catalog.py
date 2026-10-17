@@ -3,16 +3,10 @@
 ₹1 placeholder at checkout, then print ready-to-paste PRODUCT_CHECKOUT entries.
 
 WHY THIS EXISTS
-    The checkout prices every line server-side from a row in the native ProductsTable (the
-    project's OWN AWS catalogue — Wix is fully retired). A product with no priced row cannot be
-    charged its real amount; it falls back to PLACEHOLDER_LINE (the ₹1 test product) in
-    src/config/productCheckout.ts. This script creates a real row per product via the staff
-    admin API so each can be wired to its real price.
+    Creates fresh native catalog rows through the staff admin API.
 
-WHAT IT DOES NOT DO
-    It does not touch src/config/productCheckout.ts. After a row exists, copy the printed
-    PRODUCT_CHECKOUT snippet into that file — that is the step that actually switches a page
-    off the ₹1 placeholder. (anew is already done and is intentionally not in the seed file.)
+    It must only be used with the current SKU-first seed data. There is no placeholder checkout
+    fallback and no retired product mapping to restore.
 
 AUTH
     The admin routes (POST/PATCH /native-catalog/products…) are gated to the STAFF Cognito
