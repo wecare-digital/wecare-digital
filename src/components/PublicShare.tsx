@@ -309,7 +309,11 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         /* "Stay connected" eyebrow, on top of the dock. Same green lime pill the retired
            PublicFooterBand used, so the label reads identically to before. */
         .ps-kicker{
-          display:inline-flex;align-items:center;min-height:28px;padding:0 10px;margin:0 0 14px;
+          /* flex (not inline-flex) + width:max-content keeps the pill shrink-wrapped to its
+             text while forcing it onto its own line, so the margin below reliably opens a gap
+             between the eyebrow and the Contribute/Subscribe/Share icon row. */
+          display:flex;width:max-content;max-width:100%;align-items:center;
+          min-height:28px;padding:0 10px;margin:0 0 20px;
           border-radius:999px;background:#d1f470;color:#1a3a2a;
           font-size:13px;font-weight:700;line-height:1;
         }
