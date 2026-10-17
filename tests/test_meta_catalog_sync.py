@@ -40,7 +40,7 @@ def product(*, product_id=PRODUCT, variant_id=VARIANT, slug="example", name="Exa
             "label": "Standard",
             "inStock": in_stock,
             "inventory": 1 if in_stock else 0,
-            "priceMinor": price_minor,
+            "pricePaise": price_minor,
         }],
     }
 
