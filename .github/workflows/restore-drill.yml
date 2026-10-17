@@ -1,0 +1,85 @@
+name: Restore drill (quarterly)
+
+# A backup is a hypothesis until a restore succeeds. This runs the S3 version-
+# recovery drill and the secrets restore check (the DynamoDB PITR drill was run and
+# recorded in docs/execution/restore-drill-20261016.md) on a quarterly cadence, so
+# "it restores" stays a proven fact rather than an assumption.
+#
+# Non-destructive: the S3 drill uses a throwaway key under drill/ and cleans up.
+#
+# Quarterly + manual. OIDC-gated on a repository variable so adding the workflow
+# never creates a red build it cannot fix: without RESTORE_DRILL_ROLE_ARN it reports
+# SKIPPED, not failed. That role needs s3:(Put|Get|ListBucketVersions|DeleteObject)
+# on the media bucket's drill/ prefix, and read on the credential-backup artifact.
+
+on:
+  schedule:
+    # 03:00 UTC on the 1st of Jan/Apr/Jul/Oct — quarterly.
+    - cron: '0 3 1 1,4,7,10 *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: restore-drill
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    name: S3 + secrets restore drill
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --quiet boto3 cryptography
+
+      - name: Check for an AWS role
+        id: role
+        run: |
+          if [ -n "${{ vars.RESTORE_DRILL_ROLE_ARN }}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials
+        if: steps.role.outputs.available == 'true'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.RESTORE_DRILL_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Run drill
+        if: steps.role.outputs.available == 'true'
+        id: drill
+        run: |
+          set +e
+          # S3 only in CI — the secrets artifact lives on the operator machine, not CI.
+          python scripts/restore_drill.py --s3
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          set -e
+          exit 0
+
+      - name: Report
+        if: always()
+        run: |
+          echo "### Quarterly restore drill" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.role.outputs.available }}" != "true" ]; then
+            echo 'SKIPPED - repository variable `RESTORE_DRILL_ROLE_ARN` is not set.' \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo 'This is not a pass. Run `python scripts/restore_drill.py` locally.' \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "${{ steps.drill.outputs.exit_code }}" = "0" ]; then
+            echo 'S3 version-recovery drill PASSED.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Drill FAILED — a backup did not restore. Investigate immediately.' \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
