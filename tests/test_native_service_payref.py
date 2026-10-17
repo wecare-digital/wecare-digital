@@ -44,10 +44,11 @@ def frozen_quote(*, price=9900, variant=SERVICE_VARIANT, quantity=1,
     }]})
 
 
-def test_a_well_formed_service_basket_passes_preflight():
+def test_a_well_formed_legacy_service_basket_is_blocked_for_new_checkout():
     lines = service_cart()
     body = {"serviceIntentId": VALID_INTENT}
-    assert sr.checkout_preflight(lines, body) is None
+    status, payload = sr.checkout_preflight(lines, body)
+    assert (status, payload["error"]) == (409, "SERVICE_UNAVAILABLE")
 
 
 def test_native_service_price_from_frozen_quote_not_client():
