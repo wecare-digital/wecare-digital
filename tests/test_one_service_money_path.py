@@ -37,6 +37,10 @@ from service_requests_fake_dynamo import RequestTable  # noqa: E402
 
 from lambda_utils import customer_auth  # noqa: E402
 from lambda_utils.ecommerce import order_creation, order_keys  # noqa: E402
+from lambda_utils.ecommerce import service_requests as sr  # noqa: E402
+from synthetic_service_catalog import configure as configure_services  # noqa: E402
+
+configure_services(sr)
 from lambda_utils.ecommerce import service_request_store as store  # noqa: E402
 from lambda_utils.integrations import razorpay_verify  # noqa: E402
 
