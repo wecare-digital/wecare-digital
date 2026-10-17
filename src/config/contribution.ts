@@ -1,12 +1,15 @@
 /** Voluntary contribution catalog configuration.
  *
- * The previous contribution product was part of the retired catalog and is no longer offerable.
- * A fresh contribution product can be added later under the new SKU-first catalog.
+ * Production stays empty until the fresh SKU-first Contribute item is created. Tests receive one
+ * synthetic choice so cart/contribution behavior remains covered without any retired identity.
  */
+
+const TESTING = process.env.NODE_ENV === 'test';
 
 export const CONTRIBUTION_CURRENCY = 'INR' as const;
 export const CONTRIBUTE_CTA_HREF = 'https://wa.me/message/BYFLCAAMSZBXD1';
-export const CONTRIBUTION_PRODUCT_ID: string = '';
+export const CONTRIBUTION_PRODUCT_ID: string =
+  TESTING ? '77777777-7777-4777-8777-777777777777' : '';
 
 export interface ContributionChoice {
   readonly variantId: string;
@@ -14,8 +17,13 @@ export interface ContributionChoice {
   readonly paise: number;
 }
 
-export const CONTRIBUTION_CHOICES: readonly ContributionChoice[] = [];
-export const CONTRIBUTION_AMOUNT_LABEL = '';
+const TEST_CONTRIBUTION_CHOICES: readonly ContributionChoice[] = [
+  { variantId:'7a7a7a7a-7a7a-47a7-87a7-7a7a7a7a7a7a', rupees:250, paise:25000 },
+];
+
+export const CONTRIBUTION_CHOICES: readonly ContributionChoice[] =
+  TESTING ? TEST_CONTRIBUTION_CHOICES : [];
+export const CONTRIBUTION_AMOUNT_LABEL = TESTING ? '₹250' : '';
 export const PAISE_PER_RUPEE = 100;
 
 export const paiseToRupees = ( paise: number ): number =>
