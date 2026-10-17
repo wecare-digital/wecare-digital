@@ -203,8 +203,8 @@ response = requests.post(
         <link rel="preload" href="https://wecare.digital/get/o/stream/media/m/wecaredigital.png" as="image" />
         {/* THE img.icons8.com preconnect AND dns-prefetch ARE GONE, because this page makes
             no icons8 request. Every glyph here is drawn: the six capability icons are inline
-            data:image/svg+xml URIs and the Meta mark is meta-icon.svg from our own media
-            host. Counted in the built export: two icons8 hints, zero icons8 requests.
+            data:image/svg+xml URIs, and the one remaining hosted image is the preloaded
+            header lockup. Counted in the built export: two icons8 hints, zero icons8 requests.
             A preconnect to an unused origin is not free - it opens a TCP and TLS handshake
             that competes with the requests the page actually makes. Re-add these only
             alongside a real icons8 <img> on this route. */}
@@ -376,8 +376,10 @@ response = requests.post(
         />
 
         {/*
-          Full-bleed tint pattern: touchpoint and capabilities sit on a #fafafa
-          canvas that has to reach both window edges, so the 1300px measure moves
+          Full-bleed layout: touchpoint and capabilities keep the 100vw + centring
+          negative-margin pattern even though the page is now all white, so their
+          content still aligns on the page's left line via .pp-inner (and so the
+          pattern is ready if a tint is ever reintroduced). The 1300px measure moves
           off the section and onto .pp-inner while the section itself goes 100vw
           with a centring negative margin. Every class this pattern introduces is
           pp- prefixed on purpose: src/styles/*.css (loaded globally by _app.tsx)
@@ -501,76 +503,11 @@ response = requests.post(
           </div>
         </section>
 
-        <section className={`trust-strip anim ${armed ? 'is-armed' : ''} ${show('trust-strip') ? 'show' : ''}`} id="trust-strip" aria-label="Trusted by Meta">
-          <div className="trust-grid">
-            {/* Neutral card, not lime. Framing another company's logo in our own
-                brand colour made a credential look like a sticker we printed
-                ourselves; a borrowed mark should look borrowed.
-                DESIGNATION: SETTLED, WITH EVIDENCE.
-                Meta's App Dashboard confirms this app has been granted WhatsApp
-                TECH PROVIDER status - its own words, "You are now a Tech Provider",
-                with a Tech Provider onboarding section, an Embedded Signup Builder and
-                a Tech Provider Content Hub. That is a real, Meta-issued designation, so
-                "Trusted by Meta" in the heading beside this card is backed rather than
-                asserted.
-                The caption stays "Built on WhatsApp Business Platform" by owner choice:
-                it is true, it needs no portal screenshot to defend, and it avoids the
-                brand-usage question entirely. "WhatsApp Tech Provider" would now also be
-                accurate and is Meta's exact phrase if a stronger line is ever wanted.
-                The previous caption claimed a partner title that Meta does NOT issue -
-                deliberately not quoted here, because a test asserts that exact string is
-                absent from this file and a comment repeating it would defeat the guard.
-                The comment on the right-hand column already learned this lesson once.
-                For reference, the genuine terms are "Meta Business Partner"
-                (an ads/marketing certification, badged and directory-listed, awarded
-                after review on ad spend and Blueprint criteria) and, on the WhatsApp
-                Business Platform, "Solution Partner" and "Tech Provider". "Meta Tech
-                Partner" blended two unrelated programmes.
-                Nothing available could confirm a granted designation. It is not a
-                Graph API field - the public app record for 2238810740192680 returns
-                only name, category and link. The Developer Tools / Social
-                Technologies MCP is developer tooling and does not carry partner
-                status. Application Rate Limit reflects API call capacity, not a
-                badge. And this repo's own META-BETA-REQUEST-EMAIL.md says to CC a
-                "BSP contact if you have one", which reads as no confirmed relationship.
-                "Built on WhatsApp Business Platform" is therefore what the page says:
-                verifiable from this codebase, and claiming no title at all.
-                Meta's brand guidance is also to use the logo files they publish
-                rather than a re-typed wordmark, so the span below remains a stand-in
-                for a proper lockup asset. Do not upgrade this to a stronger claim
-                without a Business Manager or partner-directory screenshot to back it. */}
-            <div className="trust-card">
-              {/* alt="" because the span beside it already says Meta. With alt="Meta" the
-                  lockup announced the name twice and read as "Meta Meta" in extracted
-                  text - the same defect the capability cards had. The mark is the glyph,
-                  the span is the word; together they are one lockup, so only one of them
-                  should carry the accessible name. */}
-              <div className="trust-logo">
-                <img className="trust-mark meta-mark" src="https://wecare.digital/get/o/stream/media/m/meta-icon.svg" alt="" aria-hidden="true" loading="lazy" />
-                <span className="trust-wordmark">Meta</span>
-              </div>
-              <div className="trust-divider" />
-              <span className="trust-caption">Built on WhatsApp Business Platform</span>
-            </div>
-            <div className="trust-content">
-              {/* A self-declared official-partner pill used to sit here. Removed: it
-                  restated the card's own claim a third time in one section, and a
-                  badge asserting official status is the most legally exposed string
-                  on the page. The card states the partnership once; this heading
-                  makes the section's claim. (The exact former wording is not
-                  repeated here on purpose - a test asserts it is gone from the
-                  source, and a comment quoting it would defeat that.) */}
-              <h2 className="trust-heading">Trusted by Meta</h2>
-              <p className="trust-subtext">Customer engagement across WhatsApp, SMS, Email &amp; Voice — powered by Grahak OS.</p>
-              <div className="trust-pills">
-                <span className="pill">WhatsApp</span>
-                <span className="pill">SMS</span>
-                <span className="pill">Email</span>
-                <span className="pill">Voice</span>
-              </div>
-            </div>
-          </div>
-        </section>
+        {/* The Meta credential section was REMOVED here on owner instruction. The whole
+            band (the Meta lockup card and the channel pills beside it) is gone, along with
+            all of its CSS and the hosted Meta mark reference. A test asserts the removal by
+            substring, so this note deliberately avoids repeating the old class names and
+            wording. The channel positioning still lives in the hero's rotating pill. */}
 
         {/* OTP / Verifications section REMOVED on owner instruction. Its content overlapped the
             touchpoint "OTPs" pill and the capabilities strip, and the dedicated section was not
@@ -653,8 +590,8 @@ response = requests.post(
              This block used to declare .anim{opacity:0} as the BASE state, with .show
              added by an IntersectionObserver inside a useEffect - so the only thing
              standing between a visitor and this page was JavaScript running. Measured
-             against the export with javaScriptEnabled:false, all six sections (hero,
-             touchpoint, api, pp-strip, trust-strip, gos-closer) rendered at opacity:0.
+             against the export with javaScriptEnabled:false, every .anim section (hero,
+             touchpoint, api, pp-strip, gos-closer) rendered at opacity:0.
              The whole page was blank.
              It went unnoticed for a reason worth recording: opacity does not remove text
              from the DOM, so the no-JS body-text count the design contract cites stayed
@@ -757,69 +694,11 @@ response = requests.post(
              @media(max-width:374px) rule inside the component's self-scoped CSS. Nothing to
              do here. */
           
-          /* Trusted by Meta section */
-          /* 60/60, same as touchpoint / api / the strip. It was 20px top and 0 bottom
-             with a 28px margin doing the bottom's job, which made this the only section
-             off the page's rhythm: the strip's 60px bottom plus 20px here gave an 80px
-             gap where every other boundary is 120px, and the grey band ends exactly at
-             the strip's edge so the eye reads the tint boundary and then content 20px
-             later. Padding rather than margin, so the section is measured the same way
-             as its neighbours. */
-          .trust-strip{max-width:1300px;margin:0 auto;padding:60px 24px}
-          /* stretch, not center: the card holds only a logo and a designation, so on
-             its own it is much shorter than the heading + copy + pills beside it and
-             floated as a small box against a tall column. Stretching makes both
-             halves the same height and the card centres its own content inside. */
-          /* Uncapped, like .hero-content and now .api-grid. The previous pass capped this
-             at 1100px to agree with api and strip; the reference turned out to be wrong.
-             All four grids now share the hero's content box, so every section's left edge
-             sits on the same vertical line down the page. */
-          .trust-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:stretch}
-          /* HAIRLINE RULE — 2px means hoverable, 1px means static, and the colour
-             is always #e5e7eb.
-             That split is deliberate, not drift: .pill, .pp-pill and .mockup-wrapper
-             are 2px and each has a :hover that swaps the border to lime, which needs
-             the extra weight to register. This card is static and sits at 1px. Do NOT
-             "unify" the two weights — you would flatten a working signal.
-             (.capability-card and .cap-icon were the other two examples here until the
-             card grid became .pp-strip, which is borderless precisely because it is not
-             interactive.)
-             What was actually inconsistent was this card's colour: it alone used
-             rgba(0,0,0,.1) where the other six light hairlines use #e5e7eb, the
-             value the design contract calls the shared hairline. Same lightness, so
-             the change is near-invisible; the point is one token for one job.
-             (.code-body's 1.5px white stroke is exempt — it is the editor-pane
-             detail on a black panel, documented at its own rule.) */
-          /* margin:0, not margin:0 auto. Centring a 430px card inside a 606px column put
-             its left edge 88px right of every other section's - measured at 182px against
-             the hero's 94px in a real browser. The card still centres its own contents;
-             it is the card itself that now starts on the page's left line. */
-          .trust-card{border:1px solid #e5e7eb;background:#fff;border-radius:20px;padding:34px 30px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;width:100%;max-width:430px;margin:0;box-sizing:border-box}
-          .trust-logo{display:flex;align-items:center;gap:12px}
-          .trust-mark{width:44px;height:44px;flex:0 0 auto;object-fit:contain}
-          /* Black, matching the mark. It was dark green while meta-icon.svg renders
-             black, so one logo lockup carried two different colours - the thing that
-             made this read as slightly broken. 32px/700 rather than 36px/800 so the
-             wordmark sits with the mark instead of shouting over the caption. */
-          /* Onto the ladder. 32px/-1px was its own private type level, which is why this
-             card read as belonging to a different page than the strip above it. 22px/700
-             is the card-heading rung - the same size and weight as .pp-strip-title - so
-             the Meta lockup now sits at the same level as every other named thing on the
-             page, and the mark drops 46 -> 44px to match the strip's icon size. */
-          /* line-height:1.27 completes the card-heading rung, which this rule declared three
-             quarters of. The comment above says "22px/700 is the card-heading rung - the same
-             size and weight as .pp-strip-title", and the size, weight and tracking all matched;
-             the line-height was simply never declared, so it inherited and measured 34.1px
-             against the rung's 27.94px. .pp-strip-title, the other member of the rung, has
-             always had it. One undeclared property is how a heading ends up 6px taller than the
-             rung it is documented as belonging to. */
-          .trust-wordmark{font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:#000}
-          .trust-divider{width:100%;height:1px;background:rgba(0,0,0,.09)}
-          /* Body level, 20px/400, not a second 22px/700 line. The designation describes the
-             lockup above it rather than competing with it, and two bold 22px lines stacked
-             gave the card no internal hierarchy at all. */
-          .trust-caption{font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898);text-align:center}
-          .trust-content{display:flex;flex-direction:column;align-items:flex-start;gap:16px;min-width:0}
+          /* The Meta credential section's CSS was removed here with its markup (owner
+             instruction) - the card, its lockup, the divider, the caption, the heading, the
+             copy and the pills - including their @media overrides in the tablet/mobile/small
+             blocks below. Class names are not repeated: a test guards the removal by
+             substring. */
 
           /* ===== Closing statement (Notion-style display type + motion) ===== */
           /* OTP / Verifications CSS removed with its section (owner instruction). The .gos-otp*
@@ -870,10 +749,6 @@ response = requests.post(
             margin:0;
             max-width:960px;
           }
-
-          .trust-heading{margin:0}
-          .trust-subtext{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0}
-          .trust-pills{display:flex;flex-wrap:wrap;gap:12px}
 
           /* Hero Right - Mockup */
           .hero-right{display:flex;justify-content:center}
@@ -1051,11 +926,10 @@ response = requests.post(
           
           /* Section Header */
           .section-header{text-align:center;margin:0 auto 32px;max-width:700px;padding:0 24px;display:flex;flex-direction:column;align-items:center}
-          /* ONE section-heading rule for all three places that use the level. The value
-             was declared identically three times - here, on .api-info h2 and on
-             .trust-heading - which is three chances for the page to drift out of step
-             with itself. Only the per-place differences stay separate below: margins,
-             alignment and .section-header's pre-line. */
+          /* ONE section-heading rule for the two places that use the level: .section-header
+             h2 and .api-info h2. The value was declared identically in each, which is a chance
+             for the page to drift out of step with itself. Only the per-place differences stay
+             separate below: margins, alignment and .section-header's pre-line. */
           /* THE SITE SECTION-H2 RUNG, not this page's own. Measured with
              tools/browser/typecheck.js: 13 headings across 10 public pages render
              clamp(28px,3.2vw,40px)/700/1.08/-1.2px - .home-flow-title, .home-close-title,
@@ -1068,7 +942,7 @@ response = requests.post(
              There was also a real reason to move: at 1280px the hero h1 resolves to 55.04px,
              so a 53.76px section h2 sat 1.28px below its own h1 and the size hierarchy
              collapsed - only the 700/600 weight inversion separated them. */
-          .section-header h2,.api-info h2,.trust-heading{font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;letter-spacing:-1.2px;color:rgba(0,0,0,.95)}
+          .section-header h2,.api-info h2{font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;letter-spacing:-1.2px;color:rgba(0,0,0,.95)}
           .section-header h2{margin:0 0 14px;text-align:center;width:100%;white-space:pre-line}
           .section-header p{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0;text-align:center;width:100%}
           
@@ -1092,7 +966,7 @@ response = requests.post(
           /* Two changes, same reasoning as the nav dropdown: the label was both too
              faint and too small for the pill around it.
              rgba(0,0,0,.54) is the contract's LABEL value and measured ~4.5:1 on the
-             #fafafa band - passing AA, but only just, and it read washed out next to
+             section background - passing AA, but only just, and it read washed out next to
              the near-black heading above. Body colour rgba(0,0,0,.898) is ~14:1 and
              makes the pills look deliberate rather than disabled.
              15px inside 14px/28px padding put the type-to-pill ratio near 3.1, the
@@ -1221,11 +1095,8 @@ response = requests.post(
           .code-block::after,.code-body::after{content:none}
           
           /* Capabilities Section - Card Grid */
-          /* No background tint on hover — #fbfff0 is retired. The card already
-             sits on #fff against the #fafafa canvas, so the lime border reads. */
-          
-          /* Why sits on plain white between the two grey canvases; borders and
-             body text use the shared hairline/muted pair, not near-miss greens. */
+          /* No background tint on hover — #fbfff0 is retired. The whole page is white
+             now, so cards sit on #fff and the lime border reads against it. */
 
           /* ========== TABLET (768px - 1024px) ========== */
           /* The lapped hero mockup needs a WIDE column, and 1024px is not where that stops
@@ -1276,10 +1147,6 @@ response = requests.post(
             .code-box{right:auto;left:12px;bottom:16px;width:55%}
             
             .section-header{padding:0 20px}
-            
-            .trust-strip{padding:50px 20px}
-            .trust-grid{grid-template-columns:1fr;gap:28px}
-            .trust-content{align-items:flex-start}
 
             .touchpoint{padding:50px 0}
             .usecase-pills{gap:10px}
@@ -1303,19 +1170,6 @@ response = requests.post(
             .hero-left{text-align:left;order:1}
             .hero-left h1{letter-spacing:-1.2px;margin:0 0 20px;line-height:1.1;max-width:100%;text-align:left}
             .hero-left p{margin:0 0 16px;max-width:100%;text-align:left}
-            
-            .trust-strip{padding:44px 20px}
-            .trust-grid{grid-template-columns:1fr;gap:24px}
-            .trust-card{padding:36px 24px;gap:20px;max-width:100%}
-            /* No .trust-mark or .trust-wordmark size overrides here any more. They
-               forced 46px/32px, which was left behind when the lockup was moved onto
-               the type ladder at 44px/22px - so the wordmark rendered LARGER on a
-               phone than on a desktop, and sat 10px above the 22px .pp-strip-title in
-               the strip directly overhead while the 20px caption beside it did not
-               move at all. .pp-strip-icon and .pp-strip-title carry no breakpoint
-               overrides, so the card now holds one scale at every width, which was
-               the point of putting it on the ladder. */
-            .trust-pills{gap:10px}
 
             .mockup-wrapper{display:flex;flex-direction:column;gap:14px;width:100%;max-width:380px;margin:8px auto 0;aspect-ratio:auto;padding:16px;background:#fff;border-radius:16px;border:2px solid #e5e7eb;align-items:flex-start;transition:all .25s;cursor:default}
             .mockup-wrapper:hover{border-color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
@@ -1370,13 +1224,8 @@ response = requests.post(
             .hero-left h1{letter-spacing:-1px;line-height:1.12}
             
             .section-header{padding:0 16px}
-            .trust-strip{padding:36px 16px}
-            .trust-card{padding:30px 20px}
             .gos-closer{padding:64px 20px 76px}
             .gos-closer-head{letter-spacing:-1.4px;line-height:1.1}
-            /* .trust-mark 42px and .trust-wordmark 30px removed alongside the 1024px
-               pair above - the same stale pre-ladder sizes. Padding still tightens
-               here; only the type and the mark stop moving. */
 
             .mockup-wrapper{padding:14px;border-radius:14px;gap:12px;max-width:100%}
             .phone{border-radius:14px}
@@ -1407,9 +1256,9 @@ response = requests.post(
           @media(max-width:360px){
             
             /* 16px, not 14px. Every other section stays on 16px at this width - the 480px
-               block sets api, trust-strip and .pp-inner to 16 and nothing overrides them
-               here - so the hero alone sat 2px left of everything else. Measured at 360px:
-               hero text at 14px, the rest at 16px. */
+               block sets api and .pp-inner to 16 and nothing overrides them here - so the
+               hero alone sat 2px left of everything else. Measured at 360px: hero text at
+               14px, the rest at 16px. */
             .hero{padding:calc(80px + env(safe-area-inset-top)) 16px 36px}
             .hero-left h1{letter-spacing:-.8px}
             
@@ -1472,9 +1321,11 @@ response = requests.post(
           }
 
           /* ========== FULL-BLEED SECTIONS (pp-*) ==========
-             The grey canvases have to reach both window edges, so the 1300px
-             measure moves off the section and onto .pp-inner: 100vw plus a
-             centring negative margin makes the tint exactly window.innerWidth
+             The page is all white now, but these sections keep the full-bleed
+             geometry so their content lines up with the rest of the page (and the
+             pattern is ready if a tint returns). The 1300px measure moves off the
+             section and onto .pp-inner: 100vw plus a centring negative margin would
+             make a background exactly window.innerWidth
              wide, where a plain background would stop short of each edge.
              .page already clips overflow-x, so this adds no horizontal scroll.
              Everything here is pp- prefixed because the globally imported
@@ -1482,7 +1333,12 @@ response = requests.post(
              .pill / .stat / .phone / .chat-area that styled-jsx cannot shield
              the page from; the id selectors beat the shared section classes
              regardless of source order. */
-          #touchpoint,#capabilities{max-width:none;width:100vw;margin-left:calc(50% - 50vw);background:#fafafa}
+          /* White throughout (owner instruction): the #fafafa tint bands are gone, so the
+             whole page is one white canvas. The full-bleed geometry stays - these two
+             sections keep width:100vw and the centring negative margin so their content
+             still aligns on the page's left line via .pp-inner - but with no background
+             they simply read as white like every other section. */
+          #touchpoint,#capabilities{max-width:none;width:100vw;margin-left:calc(50% - 50vw);background:#fff}
           /* 1252px, not 1300px, and the difference is the point. A section like .hero is a
              1300px box with 24px padding, so its CONTENT starts at 1300-48 = 1252px wide.
              The full-bleed sections put their padding on the outer 100vw element and then
