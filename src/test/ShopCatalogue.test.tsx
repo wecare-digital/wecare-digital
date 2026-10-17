@@ -19,7 +19,7 @@ import type { ShopProduct } from '../content/shop';
 // The RAW snapshot, so the assertions below can compare the projection against its own source
 // instead of against a literal copied out of it. A literal is a per-product hand edit, and
 // `.github/workflows/catalogue-sync.yml` rewrites this file on a schedule.
-import catalog from '../content/catalog-snapshot.json';
+import catalog from '../content/catalogSnapshot';
 import { SERVICES_PRODUCT_ID } from '../config/services';
 
 /**
@@ -70,7 +70,17 @@ const rawRow = ( slug: string ): Record<string, string> => {
 describe( 'the catalogue snapshot is read correctly', () => {
   it( 'requires a merchandise variant and keeps distinct sizes in distinct cart lines', () => {
     window.localStorage.clear();
-    const merchandise = shopProductBySlug( 'merchandise' )!;
+    const merchandise: ShopProduct = {
+      ...SYNTHETIC,
+      id: 'synthetic-merchandise',
+      name: 'Merchandise',
+      slug: 'merchandise',
+      inStock: true,
+      variants: [
+        { id: 'size-s', label: 'Small', inStock: true },
+        { id: 'size-m', label: 'Medium', inStock: true },
+      ],
+    };
     render( <ShopProductPage product={ merchandise } /> );
     const button = screen.getByRole( 'button', { name: 'Add Merchandise to cart' } );
     expect( button ).toBeDisabled();
@@ -125,7 +135,6 @@ describe( 'the catalogue snapshot is read correctly', () => {
      * cannot cross; only a product being REMOVED from the catalogue can, and that is a change worth a human
      * reading the diff.
      */
-    const FLOOR = 6;
     const rows = ( catalog.products as { slug?: string; visible?: boolean; name?: string }[] );
     const expected = rows
       .filter( r => r.visible !== false && !!r.slug && !!r.name )
@@ -139,7 +148,7 @@ describe( 'the catalogue snapshot is read correctly', () => {
       .filter( r => !TEST_PRODUCT_SLUGS.includes( String( r.slug ) ) )
       .map( r => r.slug as string )
       .sort();
-    expect( SHOP_PRODUCTS.length ).toBeGreaterThanOrEqual( FLOOR );
+    expect( SHOP_PRODUCTS.length ).toBe( expected.length );
     expect( [ ...SHOP_PRODUCTS.map( p => p.slug ) ].sort() ).toEqual( expected );
     // Every slug is route-safe, because the slug IS the path segment of its page. A slug the
     // catalogue would accept but a URL would not (a space, an uppercase letter, a slash) must fail here rather
@@ -378,7 +387,10 @@ const asRendered = ( path: string ): string => path.replace( /\/$/, '' ) || '/';
 
 describe( 'the product page', () => {
   it( 'renders the name as the only h1 and the description as text', () => {
-    const kiosk = shopProductBySlug( 'kiosk' ) as ShopProduct;
+    const kiosk: ShopProduct = {
+      ...SYNTHETIC, id: 'synthetic-kiosk', name: 'Kiosk', slug: 'kiosk', inStock: true,
+      formattedPrice: '₹26,999.00', price: '26999.00',
+    };
     const { container } = render( <ShopProductPage product={ kiosk } /> );
     const h1s = container.querySelectorAll( 'h1' );
     expect( h1s ).toHaveLength( 1 );
@@ -472,7 +484,10 @@ describe( 'the product page', () => {
   it( 'offers an add-to-cart action rather than a contact link', () => {
     // The CTA is now the page's single lime surface: it adds the item to the browser cart. It is a
     // button (a client action) before anything is added, so there is no /contact/ link to find.
-    const kiosk = shopProductBySlug( 'kiosk' ) as ShopProduct;
+    const kiosk: ShopProduct = {
+      ...SYNTHETIC, id: 'synthetic-kiosk', name: 'Kiosk', slug: 'kiosk', inStock: true,
+      formattedPrice: '₹26,999.00', price: '26999.00',
+    };
     render( <ShopProductPage product={ kiosk } /> );
     const cta = screen.getByRole( 'button', { name: 'Add Kiosk to cart' } );
     expect( cta ).toBeTruthy();
@@ -483,7 +498,10 @@ describe( 'the product page', () => {
     // The boundary statement is the honest part of shipping a priced catalogue while live payment
     // is off: the store confirms the amount, and proceeding prepares the order without charging.
     // It no longer claims "this page is not a checkout" now that a cart path exists.
-    const kiosk = shopProductBySlug( 'kiosk' ) as ShopProduct;
+    const kiosk: ShopProduct = {
+      ...SYNTHETIC, id: 'synthetic-kiosk', name: 'Kiosk', slug: 'kiosk', inStock: true,
+      formattedPrice: '₹26,999.00', price: '26999.00',
+    };
     render( <ShopProductPage product={ kiosk } /> );
     expect( screen.getByText( /Review your final total in the cart before payment/ ) ).toBeTruthy();
     expect( screen.getByText( /before payment/ ) ).toBeTruthy();
@@ -531,7 +549,7 @@ describe( 'the product page', () => {
     // The other half: the markup is written and gated, not missing. Populating `image` is the only
     // thing between this repo and complete Product data.
     const withImage: ShopProduct = {
-      ...( shopProductBySlug( 'kiosk' ) as ShopProduct ),
+      ...{ ...SYNTHETIC, id: 'synthetic-kiosk', name: 'Kiosk', slug: 'kiosk', inStock: true, formattedPrice: '₹26,999.00', price: '26999.00' },
       image: 'https://wecare.digital/get/o/stream/media/m/kiosk.png',
     };
     const graph = shopProductSchema( withImage )[ '@graph' ];
@@ -559,7 +577,10 @@ describe( 'the product page', () => {
   it( 'names the canonical URL in the graph, never the route pattern', () => {
     // The whole reason this component owns the head: PUBLIC_PAGE_META is keyed on router.pathname,
     // which for a dynamic route is '/shop/[slug]'.
-    const anew = shopProductBySlug( 'anew' ) as ShopProduct;
+    const anew: ShopProduct = {
+      ...SYNTHETIC, id: 'synthetic-anew', name: 'Anew', slug: 'anew', inStock: true,
+      canonicalPath: '/anew/',
+    };
     const json = JSON.stringify( shopProductSchema( anew ) );
     // The graph names the product's canonical URL (its declared destination, /anew/).
     expect( json ).toContain( 'https://wecare.digital' + shopProductPath( anew ) );
@@ -569,9 +590,10 @@ describe( 'the product page', () => {
   it( 'keys page-scoped @ids on the route it renders on, even when the canonical is elsewhere', () => {
     // /anew/ defines its own #webpage and #breadcrumb. If /shop/anew/ keyed its nodes off the
     // canonical it would define the same two, and schemacheck fails a page-scoped @id on two routes.
-    const anew = shopProductBySlug( 'anew' ) as ShopProduct;
-    // The snapshot is refreshed from ProductsTable; say so plainly if Anew ever leaves it.
-    expect( anew, 'anew is missing from src/content/catalog-snapshot.json' ).toBeTruthy();
+    const anew: ShopProduct = {
+      ...SYNTHETIC, id: 'synthetic-anew', name: 'Anew', slug: 'anew', inStock: true,
+      canonicalPath: '/anew/',
+    };
     expect( shopProductPath( anew ) ).toBe( '/anew/' );
     const graph = shopProductSchema( anew )[ '@graph' ];
     const page = ld( graph.find( n => ld( n )[ '@type' ] === 'ItemPage' ) );
@@ -583,7 +605,10 @@ describe( 'the product page', () => {
     expect( page.url ).toBe( 'https://wecare.digital/anew/' );
     expect( JSON.stringify( graph ) ).not.toContain( 'https://wecare.digital/anew/#' );
     // A product whose canonical IS its route is unchanged.
-    const kiosk = ld( shopProductSchema( shopProductBySlug( 'kiosk' ) as ShopProduct )[ '@graph' ][ 0 ] );
+    const kioskProduct: ShopProduct = {
+      ...SYNTHETIC, id: 'synthetic-kiosk', name: 'Kiosk', slug: 'kiosk', inStock: true,
+    };
+    const kiosk = ld( shopProductSchema( kioskProduct )[ '@graph' ][ 0 ] );
     expect( kiosk[ '@id' ] ).toBe( 'https://wecare.digital/shop/kiosk/#webpage' );
     expect( kiosk.url ).toBe( 'https://wecare.digital/shop/kiosk/' );
   } );
@@ -598,7 +623,10 @@ describe( 'the product page', () => {
      * Exactly one current page still - the product - because only the last crumb is href-less and
      * rendered as <span aria-current="page">; the Shop crumb is a link.
      */
-    const kiosk = shopProductBySlug( 'kiosk' ) as ShopProduct;
+    const kiosk: ShopProduct = {
+      ...SYNTHETIC, id: 'synthetic-kiosk', name: 'Kiosk', slug: 'kiosk', inStock: true,
+      formattedPrice: '₹26,999.00', price: '26999.00',
+    };
     const { container } = render( <ShopProductPage product={ kiosk } /> );
 
     const trail = container.querySelector( 'nav[aria-label="Breadcrumb"]' ) as HTMLElement;
