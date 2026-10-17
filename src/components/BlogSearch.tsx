@@ -115,7 +115,6 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
           />
           <VoiceSearchMic onTranscript={ onVoiceTranscript } />
         </div>
-        <button type="submit">Search</button>
       </form>
 
       { announce && (
@@ -128,10 +127,8 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
 
       <style jsx>{`
         .bs{margin:0 0 40px}
-        /* align-items:stretch so the button matches the input's height without a second
-           hard-coded number. max-width keeps the field a sensible target rather than letting
-           it run the full 1300px measure. */
-        .bs-form{display:flex;gap:10px;align-items:stretch;max-width:520px}
+        /* Same borderless search field used across the menu and blog surfaces. */
+        .bs-form{display:flex;align-items:stretch;max-width:520px}
         .bs-field{position:relative;flex:1;min-width:0}
         /* The site's sr-only pattern, same declaration as .home-sr-only. */
         .bs-label{
@@ -188,31 +185,13 @@ const BlogSearch: React.FC<BlogSearchProps> = ( {
         .bs-form input:focus-visible{
           border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470;
         }
-        /* QUIET TEXT SUBMIT, NOT A LIME PILL. The borderless field is the common search look, and
-           a filled pill beside it brought back the "box bolted to a button" the field just shed.
-           The button stays in the DOM - it is the no-JS and Enter-to-navigate path the component
-           depends on - but it is now a plain dark-green text control with no box, so the field
-           reads as one borderless search like the menu and the Anew panel. */
-        .bs-form button{
-          height:52px;padding:0 8px;flex:none;
-          border:0;border-radius:0;background:transparent;
-          color:#1a3a2a;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;
-          text-decoration:underline;text-underline-offset:3px;transition:opacity .2s;
-        }
-        .bs-form button:hover{opacity:.7}
-        .bs-form button:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;border-radius:6px}
         /* The body rung, muted - it is a status line, not content. */
         .bs-count{
           margin:12px 0 0;font-size:17px;line-height:1.4;
           letter-spacing:-.125px;color:rgba(0,0,0,.62);
         }
         @media(max-width:767px){
-          /* The button keeps its label rather than collapsing to an icon: an icon-only submit
-             needs its own accessible name, and "Search" already is one. */
           .bs-form{max-width:none}
-        }
-        @media(prefers-reduced-motion:reduce){
-          .bs-form button{transition:none}
         }
       `}</style>
     </div>
