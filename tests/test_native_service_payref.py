@@ -20,6 +20,8 @@ from synthetic_service_catalog import PRODUCT as SERVICE_PRODUCT, SUBMIT as SERV
 
 configure_services(sr)
 VALID_INTENT = "01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f"
+OTHER_PRODUCT = "99999999-9999-4999-8999-999999999999"
+OTHER_VARIANT = "88888888-8888-4888-8888-888888888888"
 
 
 def service_cart(*, quantity=1, variant=SERVICE_VARIANT, client_amount=1):
@@ -66,8 +68,8 @@ def test_native_service_price_from_frozen_quote_not_client():
 
 def test_non_service_cart_has_no_service_payref():
     lines = [{"catalogReference": {
-        "catalogItemId": "11111111-1111-4111-8111-111111111111",
-        "options": {"variantId": "22222222-2222-4222-8222-222222222222"}},
+        "catalogItemId": OTHER_PRODUCT,
+        "options": {"variantId": OTHER_VARIANT}},
         "quantity": 1}]
     assert sr.native_service_line_paise(frozen_quote(), lines) is None
     assert sr.payref_extra(lines, {"serviceIntentId": VALID_INTENT},
@@ -82,7 +84,7 @@ def test_non_service_cart_has_no_service_payref():
     frozen_quote(price=True),
     frozen_quote(price=5_000_001),
     frozen_quote(quantity=2),
-    frozen_quote(product="11111111-1111-4111-8111-111111111111"),
+    frozen_quote(product=OTHER_PRODUCT),
 ])
 def test_invalid_frozen_service_price_refuses_before_gateway(snapshot):
     with pytest.raises(sr.ServicePriceChanged):
