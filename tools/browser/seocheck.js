@@ -61,6 +61,7 @@ const ROUTES = [
  */
 const RETIRED = [
   '/' + 'self' + 'service/', '/product-page/', '/product-page/partner-up/', '/product-page/referral-partner/',
+  '/dastavez/', '/clear-closure/', '/ritual-guru/', '/shipments/',
 ];
 
 /**
