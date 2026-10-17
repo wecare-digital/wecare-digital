@@ -2136,8 +2136,8 @@
 
 .waba-selector select {
   padding: 6px 10px;
-  border: 2px solid #e5e7eb;
-  border-radius: var(--radius-md);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
   font-size: var(--text-xs);
   background: var(--bg);
 }
