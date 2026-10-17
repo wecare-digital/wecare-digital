@@ -29,6 +29,8 @@ interface NavLink {
   searchTerms?: string[];
   /** Child destinations shown directly beneath this family item. */
   children?: NavLink[];
+  /** Visually nests this parent row one level under its section heading. */
+  nested?: boolean;
   /** True for absolute URLs off this app. Same tab either way. */
   external?: boolean;
 }
@@ -169,6 +171,7 @@ const COLUMNS: NavColumn[] = [
             label: 'Perks',
             href: '/perks/',
             match: '/perks',
+            nested: true,
             children: [
               { label: 'Google Play', href: 'https://wecare.digital/', searchTerms: [ 'android', 'play store', 'google play store' ] },
               { label: 'App Store', href: 'https://wecare.digital/', searchTerms: [ 'apple', 'ios', 'iphone', 'apple app store' ] },
@@ -582,7 +585,7 @@ const Header: React.FC = () => {
                     <a
                       key={ link.label + link.href }
                       href={ link.href }
-                      className={ `nav-item ${isActive( link ) ? 'active' : ''}`.trim() }
+                      className={ `nav-item ${link.nested ? 'nav-nested-parent' : ''} ${isActive( link ) ? 'active' : ''}`.trim() }
                       aria-current={ isActive( link ) ? 'page' : undefined }
                       onClick={ event => handleNavClick( event, link ) }
                     >
@@ -680,7 +683,7 @@ const Header: React.FC = () => {
                                 ) : null }
                               </a>
                             ) : (
-                              <span className="nav-item nav-family-label">
+                              <span className={ `nav-item nav-family-label ${link.nested ? 'nav-nested-parent' : ''}`.trim() }>
                                 <svg
                                   className={ `nav-row-icon ${MATERIAL_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
                                   viewBox={ MATERIAL_NAV_ICON_LABELS.has( link.label ) ? '0 -960 960 960' : '0 0 24 24' }
@@ -702,7 +705,7 @@ const Header: React.FC = () => {
                               <a
                                 key={ child.label + child.href }
                                 href={ child.href }
-                                className={ `nav-item nav-child ${isActive( child ) ? 'active' : ''}`.trim() }
+                                className={ `nav-item ${link.nested ? 'nav-grandchild' : 'nav-child'} ${isActive( child ) ? 'active' : ''}`.trim() }
                                 aria-current={ isActive( child ) ? 'page' : undefined }
                                 onClick={ event => handleNavClick( event, child ) }
                               >
@@ -1132,7 +1135,10 @@ const Header: React.FC = () => {
            parent. Hierarchy is expressed by grouping and indentation, never smaller text. */
         .nav-tree-item.has-children + .nav-tree-item{margin-top:6px}
         .nav-family-label{cursor:default}
-        .nav-child{font-size:19px;font-weight:600;min-height:46px;padding-inline-start:24px;gap:8px}
+        .nav-nested-parent{padding-inline-start:24px}
+        .nav-child,.nav-grandchild{font-size:19px;font-weight:600;min-height:46px;gap:8px}
+        .nav-child{padding-inline-start:24px}
+        .nav-grandchild{padding-inline-start:48px}
 
         /* The panel breaks to fewer columns before the columns get too narrow to hold
            "Request Amendment" on one line. Measured rather than guessed: at 19px/17px
@@ -1149,7 +1155,7 @@ const Header: React.FC = () => {
            variable - symmetric, therefore direction-neutral, therefore no rtl override
            needed. It still has to beat the base rule's compiled :lang() selector, which the
            extra .hdr-in ancestor class does. */
-        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - env(safe-area-inset-bottom,0px))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:19px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto;background:transparent;padding:0;border-radius:0}.nav-products-cue-row{display:none}.nav-products-more{display:none}}
+        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - env(safe-area-inset-bottom,0px))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child,.nav-grandchild{font-size:19px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto;background:transparent;padding:0;border-radius:0}.nav-products-cue-row{display:none}.nav-products-more{display:none}}
 
         /* ROOM FOR THE SHOPPING BAG ON THE NARROWEST DEVICE THAT SHIPS, derived rather than
            nudged. Measured on the built header at 280px (Galaxy Fold, folded) before the bag
