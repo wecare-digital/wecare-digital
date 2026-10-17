@@ -7,7 +7,8 @@ import RotatingHero from '../../components/RotatingHero';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { SHOP_PRODUCTS, shopProductBySlug } from '../../content/shop';
 import type { ShopProduct } from '../../content/shop';
-import { addItem } from '../../lib/cart';
+import { addItem, setContribution } from '../../lib/cart';
+import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../../config/contribution';
 import Select from '../../components/ui/Select';
 import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, PRODUCT_SKU_BY_SLUG } from '../../content/productCommerce';
 
@@ -49,7 +50,12 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
   const sku = PRODUCT_SKU_BY_SLUG[ product.slug ];
 
   const onAdd = useCallback( (): void => {
-    addItem( product, 1, variantId || undefined );
+    if ( product.id === CONTRIBUTION_PRODUCT_ID ) {
+      const choice = CONTRIBUTION_CHOICES[ 0 ];
+      if ( choice ) setContribution( choice.variantId );
+    } else {
+      addItem( product, 1, variantId || undefined );
+    }
     setAdded( true );
   }, [ product, variantId ] );
 
@@ -133,7 +139,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
               )
               : (
                 <button className="shopd-cta shopd-cta-btn" type="button" disabled={ !!product.variants && product.variants.length > 1 && !variantId } onClick={ onAdd }>
-                  Add { product.name } to cart
+                  { product.id === CONTRIBUTION_PRODUCT_ID ? 'Contribute ₹250' : `Add ${ product.name } to cart` }
                 </button>
               ) }
 

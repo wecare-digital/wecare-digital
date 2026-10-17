@@ -9,7 +9,7 @@ const TESTING = process.env.NODE_ENV === 'test';
 export const CONTRIBUTION_CURRENCY = 'INR' as const;
 export const CONTRIBUTE_CTA_HREF = 'https://wa.me/message/BYFLCAAMSZBXD1';
 export const CONTRIBUTION_PRODUCT_ID: string =
-  TESTING ? '77777777-7777-4777-8777-777777777777' : '';
+  TESTING ? '77777777-7777-4777-8777-777777777777' : '24fa0f39-330b-5365-b7eb-9caf27ad37f1';
 
 export interface ContributionChoice {
   readonly variantId: string;
@@ -21,9 +21,13 @@ const TEST_CONTRIBUTION_CHOICES: readonly ContributionChoice[] = [
   { variantId:'7a7a7a7a-7a7a-47a7-87a7-7a7a7a7a7a7a', rupees:250, paise:25000 },
 ];
 
+const LIVE_CONTRIBUTION_CHOICES: readonly ContributionChoice[] = [
+  { variantId:'CNT5Q2M8', rupees:250, paise:25000 },
+];
+
 export const CONTRIBUTION_CHOICES: readonly ContributionChoice[] =
-  TESTING ? TEST_CONTRIBUTION_CHOICES : [];
-export const CONTRIBUTION_AMOUNT_LABEL = TESTING ? '₹250' : '';
+  TESTING ? TEST_CONTRIBUTION_CHOICES : LIVE_CONTRIBUTION_CHOICES;
+export const CONTRIBUTION_AMOUNT_LABEL = '₹250';
 export const PAISE_PER_RUPEE = 100;
 
 export const paiseToRupees = ( paise: number ): number =>

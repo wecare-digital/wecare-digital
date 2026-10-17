@@ -93,7 +93,14 @@ def validate_lines(product_reader, lines: Sequence[Mapping[str, Any]]) -> None:
         qty = _int(line.get("quantity", 0))
         if qty < 1:
             raise InventoryError("a cart line must request at least one unit")
-        have = available_units(product_reader(pid), vid)
+        product = product_reader(pid)
+        if not isinstance(product, Mapping):
+            raise OutOfStock(vid, qty, 0)
+        variants = product.get("variants") or []
+        matching = [v for v in variants if str(v.get("sku") or v.get("id") or "") == vid]
+        if len(matching) == 1 and matching[0].get("trackInventory") is not True:
+            continue
+        have = available_units(product, vid)
         if qty > have:
             raise OutOfStock(vid, qty, have)
 

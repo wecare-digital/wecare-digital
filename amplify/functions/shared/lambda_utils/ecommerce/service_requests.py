@@ -87,7 +87,13 @@ SERVICE_CURRENCY = "INR"
 #: The ProductsTable product that carries every service variant, lowercased. A catalogue key, not
 #: a secret (`Request`, renamed from `WECARE.DIGITAL Services` on 2026-10-10, PHYSICAL, five
 #: variants).
-SERVICE_PRODUCT_IDS: FrozenSet[str] = frozenset()
+SERVICE_PRODUCT_IDS: FrozenSet[str] = frozenset({
+    "f829697a-b1db-5c4e-bfce-51d1487278a7",
+    "7133c98d-de8d-5e56-94ff-8d9fea7aa331",
+    "e1ca7833-5d7d-567b-837c-face04647598",
+    "d4cfc6e8-10b3-5c47-94c8-3c69f4c03907",
+    "166370fe-69a8-5ad2-9f9a-e9ce3f92839c",
+})
 
 #: Request kinds. A REQUEST lifecycle vocabulary, unrelated to payment status.
 SUBMIT_REQUEST = "SUBMIT_REQUEST"
@@ -99,11 +105,25 @@ REQUEST_PICKUP = "REQUEST_PICKUP"
 #: THE ONLY FIVE SERVICES THAT CAN BE BOUGHT, as ``{variant id: kind}``. NO PRICE: the mapping is
 #: stable catalogue identity; the price is ProductsTable's and is read from the frozen quote at
 #: checkout. Mirrored in src/config/services.ts as SERVICE_CHOICES.
-SERVICE_KIND_BY_VARIANT: Mapping[str, str] = MappingProxyType({})
+SERVICE_KIND_BY_VARIANT: Mapping[str, str] = MappingProxyType({
+    "RSR7M2P9": SUBMIT_REQUEST,
+    "RAM5Q8K4": REQUEST_AMENDMENT,
+    "RDD9P3M7": DROP_DOCS,
+    "RVT6K4Q8": VAULT,
+    "SHP7Q4N9": REQUEST_PICKUP,
+})
+
+SERVICE_PRODUCT_BY_VARIANT: Mapping[str, str] = MappingProxyType({
+    "RSR7M2P9": "f829697a-b1db-5c4e-bfce-51d1487278a7",
+    "RAM5Q8K4": "7133c98d-de8d-5e56-94ff-8d9fea7aa331",
+    "RDD9P3M7": "e1ca7833-5d7d-567b-837c-face04647598",
+    "RVT6K4Q8": "d4cfc6e8-10b3-5c47-94c8-3c69f4c03907",
+    "SHP7Q4N9": "166370fe-69a8-5ad2-9f9a-e9ce3f92839c",
+})
 
 #: No legacy catalog identity is recognized. Fresh SKU-first service identities will be wired
 #: when the new catalog is created.
-SERVICE_PURCHASES_ENABLED = False
+SERVICE_PURCHASES_ENABLED = True
 
 #: THE CATASTROPHE RAIL, and the only bound on a service line now that ProductsTable owns the
 #: price.
@@ -283,7 +303,9 @@ def service_line(line_items: Any) -> Optional[ServiceLine]:
         if variant_id in NOT_OFFERED_VARIANT_IDS:
             logger.info(json.dumps({"event": "service_refused", "reason": SERVICE_NOT_OFFERED}))
             raise ServiceRejected(SERVICE_NOT_OFFERED)
-        if variant_id not in SERVICE_KIND_BY_VARIANT:
+        if (variant_id not in SERVICE_KIND_BY_VARIANT
+                or SERVICE_PRODUCT_BY_VARIANT.get(variant_id) !=
+                str(reference.get("catalogItemId") or "").strip().lower()):
             logger.info(json.dumps({"event": "service_refused", "reason": SERVICE_UNKNOWN_CHOICE}))
             raise ServiceRejected(SERVICE_UNKNOWN_CHOICE)
         quantity = line.get("quantity")
@@ -378,8 +400,9 @@ def native_service_line_paise(snapshot: Any, line_items: Any) -> Optional[int]:
     matches = [
         item for item in items
         if isinstance(item, Mapping)
-        and is_service_product(item.get("productId"))
-        and str(item.get("variantId") or "").strip().lower() == line.variant_id
+        and str(item.get("productId") or "").strip().lower()
+            == SERVICE_PRODUCT_BY_VARIANT.get(line.variant_id)
+        and str(item.get("variantId") or "").strip() == line.variant_id
     ]
     if len(matches) != 1:
         raise ServicePriceChanged("native service quote does not identify one priced line")
