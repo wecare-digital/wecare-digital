@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import BrandBadge from './BrandBadge';
+import PublicShare from './PublicShare';
 import RotatingPill from './RotatingPill';
 
 /**
@@ -122,13 +123,22 @@ interface RotatingHeroProps {
    */
   insideMain?: boolean;
   /**
-   * Legacy compatibility only. Public actions are now mounted once by _app immediately above
-   * Footer, so hero composition cannot accidentally omit or duplicate them.
+   * Suppress the Subscribe+Share block for a page that genuinely must not carry it.
+   *
+   * The block is auto-mounted here for every RotatingHero page, which is right for the marketing
+   * and product surfaces AND, since the owner unified the blog onto this one global block, for the
+   * blog index and its paginated/topic variants too - BlogIndexView used to pass `noShare` and
+   * render its own Subscribe via components/BlogFooterCTA, and now does neither, so the one
+   * auto-mounted PublicShare is the blog's only Subscribe+Share.
+   *
+   * The mount is gated on `!noShare` ALONE (not on `subordinate`): a subordinate page is still a
+   * section of someone else's page for landmark/heading purposes, but that no longer suppresses
+   * the block. This flag stays as the explicit opt-out for any page that must not carry it.
    */
   noShare?: boolean;
 }
 
-const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, words, pillKey, sub, ariaLabel, visual, children, subordinate = false, insideMain = false } ) => {
+const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, words, pillKey, sub, ariaLabel, visual, children, subordinate = false, insideMain = false, noShare = false } ) => {
   /**
    * 'final' is the CSS default: shutter gone, dot popped, nothing animating. 'armed' puts
    * the start state back, 'shown' plays it. Starting at 'final' is what makes the entrance
@@ -241,6 +251,13 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
             section of someone else's page for landmark/heading purposes, but that is orthogonal
             to whether it carries the Subscribe+Share block - so the gate is `noShare` alone.
             `noShare` is kept for any page that genuinely must not carry the block. */}
+        {/* ONE PAGE-TAIL DOCK. PublicShare owns the same compact Contribute + Subscribe + Share
+            icon band on every public surface, including Home. */}
+        { !noShare && (
+          <div className="rh-tail">
+            <PublicShare />
+          </div>
+        ) }
       </div>
 
       <style jsx>{`
@@ -269,6 +286,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
         /* THE TAIL PAIR - Contribute + Subscribe/Share - is one flex child of .rh-layout, so the
            96px flex gap sits ONCE above the pair, not between the two blocks. Inside, the blocks
            carry their own separators and spacing, so this wrapper adds no gap of its own. */
+        .rh-tail{display:flex;flex-direction:column}
         /* align-items:flex-start replaces an align-self on the badge: without it the
            flex default stretches the pill to the full 1300px measure. */
         .rh-hero{display:flex;flex-direction:column;align-items:flex-start}
