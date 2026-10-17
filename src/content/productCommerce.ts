@@ -14,6 +14,7 @@ export const PRODUCT_SKU_BY_SLUG: Readonly<Record<string, string>> = {
   'ritual-guru-diy-puja-kit': 'RDK6P3M9',
   'anew': 'ANW7Q5K2',
   'hunar': 'HNR9M4P6',
+  'hunar-prastuti': 'HNR9M4P6',
   'niji-setu': 'NJS5K8Q3',
   'submit-request': 'RSR7M2P9',
   'request-amendment': 'RAM5Q8K4',
