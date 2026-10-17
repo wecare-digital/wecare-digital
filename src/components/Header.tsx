@@ -670,7 +670,7 @@ const Header: React.FC = () => {
                                   <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
                                 </svg>
                                 <span className="nav-item-label">{ link.label }</span>
-                                { link.children?.length ? (
+                                { ( section.nestedLinks || link.children?.length ) ? (
                                   <svg className="nav-row-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                                     <path d={ ROW_CHEVRON_PATH } />
                                   </svg>
