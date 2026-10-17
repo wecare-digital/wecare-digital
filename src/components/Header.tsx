@@ -585,7 +585,7 @@ const Header: React.FC = () => {
                     <a
                       key={ link.label + link.href }
                       href={ link.href }
-                      className={ `nav-item ${link.nested ? 'nav-nested-parent' : ''} ${isActive( link ) ? 'active' : ''}`.trim() }
+                      className={ `nav-item ${isActive( link ) ? 'active' : ''}`.trim() }
                       aria-current={ isActive( link ) ? 'page' : undefined }
                       onClick={ event => handleNavClick( event, link ) }
                     >
@@ -663,7 +663,7 @@ const Header: React.FC = () => {
                             { link.href ? (
                               <a
                                 href={ link.href }
-                                className={ `nav-item ${isActive( link ) ? 'active' : ''}`.trim() }
+                                className={ `nav-item ${link.nested ? 'nav-nested-parent' : ''} ${isActive( link ) ? 'active' : ''}`.trim() }
                                 aria-current={ isActive( link ) ? 'page' : undefined }
                                 onClick={ event => handleNavClick( event, link ) }
                               >
