@@ -22,7 +22,7 @@ import { buildPageTitle } from '../lib/page-title';
  *   mediaCount   zero on all seven, so there is no image URL. The pages ship no product image and
  *                no placeholder frame, and the Product schema emits no `image`.
  */
-import catalog from './catalog-snapshot.json';
+import catalog from './catalogSnapshot';
 // The contribution vehicle's identity, so the shop exclusion and the cart line read ONE
 // declaration. src/config/contribution.ts imports nothing from here, so there is no cycle.
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../config/contribution';
