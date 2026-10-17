@@ -256,6 +256,8 @@ def test_verify_creates_the_customer_and_provisions_a_login(handler_env):
     assert rows[0]['id'] == rows[0]['contactId'] == 'wa919330994400'
     assert rows[0]['phoneVerifiedAt']
     assert rows[0]['phone'] == E164
+    # New website registrations are directly discoverable in the existing Contacts workspace.
+    assert rows[0]['tags'] == ['website-signup']
     # Transactional identity is not marketing consent.
     assert rows[0]['optInWhatsApp'] is False and rows[0]['allowlistWhatsApp'] is False
 
