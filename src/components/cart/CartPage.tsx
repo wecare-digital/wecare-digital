@@ -510,28 +510,21 @@ function loadRazorpaySdk (): Promise<boolean> {
  * rather than adding a second one.
  */
 function ContributionAmount (
-  { item, onCommitted }: { item: CartItem; onCommitted: () => void },
+  { item }: { item: CartItem; onCommitted: () => void },
 ): React.ReactElement {
-  const inputId = `amount-${ item.ref }`;
+  // A contribution is a single, one-time product with ONE fixed amount, so there is no choice to
+  // make: the amount-chooser dropdown is replaced by static text (owner request). The figure is
+  // resolved from CONTRIBUTION_CHOICES by the line's variantId so it stays catalogue-accurate,
+  // with the item's own name (which carries the amount) as the fallback.
+  const choice = CONTRIBUTION_CHOICES.find(
+    c => c.variantId.toLowerCase() === String( item.variantId || '' ).trim().toLowerCase(),
+  );
+  const amountLabel = choice ? `\u20B9${ choice.rupees }` : ( item.name || '\u20B9250' );
 
   return (
     <>
-      {/* STILL NATIVE AFTER BATCH 2f, BY THE OWNER'S OWN MONEY-SAFETY INSTRUCTION - the element,
-          its id, this external label and the handler are untouched, and the paragraph above is
-          the reason. Its closed state is already fully ours from batch 1.3a. */}
-      <label className="cart-qty-label" htmlFor={ inputId }>Contribute amount</label>
-      <select
-        id={ inputId }
-        className="cart-amount-select"
-        value={ item.variantId }
-        onChange={ e => { setContribution( e.target.value ); onCommitted(); } }
-      >
-        { CONTRIBUTION_CHOICES.map( choice => (
-          <option key={ choice.variantId } value={ choice.variantId }>
-            &#8377;{ choice.rupees }
-          </option>
-        ) ) }
-      </select>
+      <span className="cart-qty-label">Contribute amount</span>
+      <span className="cart-amount-static">{ amountLabel }</span>
     </>
   );
 }
@@ -1759,8 +1752,13 @@ export default function Cart (): React.ReactElement {
                         type="button"
                         onClick={ () => drop( item.ref ) }
                         aria-label={ `Remove ${item.name}` }
+                        title="Remove"
                       >
-                        Remove
+                        {/* Trash icon replaces the "Remove" text (owner request). aria-label +
+                            title keep the accessible name and a hover tooltip. */}
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" width="20" height="20">
+                          <path fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7m4 4v6m4-6v6" />
+                        </svg>
                       </button>
                     </div>
                   </li>
@@ -2018,34 +2016,22 @@ export default function Cart (): React.ReactElement {
             min-width:24px;text-align:center;font-size:16px;font-weight:700;
             line-height:1;color:#1a3a2a;font-variant-numeric:tabular-nums;
           }
-          /* Contribution keeps the canonical select skin. Quantity now uses the adjacent SVG
-             minus/plus stepper instead of a labelled number input, so the two controls no longer
-             pretend to be the same shape. */
-          .cart-amount-select{
-            min-width:96px;min-height:var(--control-h);
-            padding-block:0;padding-inline-start:var(--control-px);
-            padding-inline-end:var(--control-arrow-pad);
-            border:var(--control-border-w) solid var(--control-border);
-            border-radius:var(--control-radius);
-            font-family:inherit;font-size:16px;color:var(--control-fg);
-            background-color:var(--control-bg);
+          /* A contribution is single-use with one fixed amount, so the amount is static text now,
+             not a dropdown. Styled to read as the committed figure beside its label. */
+          .cart-amount-static{
+            display:inline-flex;align-items:center;min-height:var(--control-h);
+            font-family:inherit;font-size:16px;font-weight:700;color:#1a3a2a;
+            font-variant-numeric:tabular-nums;
           }
-          /* Outline kept with !important for the reason the .cart-option focus rule records; the
-             ring restated so the focus appearance of the pair is declared where the pair is. */
-          .cart-amount-select:focus-visible{
-            outline:3px solid var(--accent) !important;outline-offset:2px;
-            box-shadow:var(--focus-ring);
-          }
-          /* A 44px target, not a 27px one. This was padding:6px around a 15px line, which
-             computed to about 27px tall - under the floor devicecheck enforces elsewhere on the
-             site and the smallest control on the page. */
+          /* Icon-only remove (trash), 44px target. Was an underlined "Remove" text link; now a
+             quiet icon button that darkens on hover. The SVG inherits currentColor. */
           .cart-remove{
-            display:inline-flex;align-items:center;min-height:44px;padding-inline:8px;
-            border:none;background:none;color:#1a3a2a;font-family:inherit;font-size:16px;
-            font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px;
+            display:inline-flex;align-items:center;justify-content:center;
+            width:44px;height:44px;min-height:44px;padding:0;
+            border:none;background:none;color:#1a3a2a;cursor:pointer;border-radius:999px;
           }
-          .cart-remove:hover{background:rgba(209,244,112,.22);border-radius:8px}
-          .cart-remove:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px;border-radius:2px}
+          .cart-remove:hover{background:rgba(209,244,112,.22);color:#0f2a1d}
+          .cart-remove:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
           /* THE CANONICAL BOUNDARY CARD, matched to .pdp-note (and now to .shopd-note / .brx-note,
              which were migrated with it) so every boundary note on the public site reads the same:
              near-white #fcfdfb surface, 1px hairline, 14px radius, 22px padding, legal-copy type
