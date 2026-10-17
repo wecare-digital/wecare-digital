@@ -499,12 +499,9 @@ const PUBLIC_PAGE_META: Record<string, {
   '/elsewhere/trip': { name: 'Trip', type: 'WebPage', description: 'Travel planning and coordination around the people taking the trip.', serviceType: 'Travel planning and coordination' },
   '/elsewhere/activities': { name: 'Activities', type: 'WebPage', description: 'Travel activities selected around place, timing and itinerary.', serviceType: 'Travel activity planning' },
   '/expo-week': { name: 'Expo Week', type: 'WebPage', description: 'A virtual travel fair and immersive digital expo.', serviceType: 'Virtual travel fair and digital expo' },
-  '/dastavez': { name: 'Dastavez', type: 'WebPage', description: 'Business documentation and registrations in India.', serviceType: 'Business documentation and company registration' },
   '/dastavez/drafting': { name: 'Drafting', type: 'WebPage', description: 'Structured business document preparation from the facts you provide.', serviceType: 'Business document drafting' },
   '/dastavez/registration': { name: 'Registration', type: 'WebPage', description: 'Registration paperwork and filing steps organised end to end.', serviceType: 'Business registration support' },
   '/dastavez/legal-reference': { name: 'Legal Reference', type: 'WebPage', description: 'Laws, judgments, rules and public source material organised around a question.', serviceType: 'Legal reference research' },
-  '/clear-closure': { name: 'Clear Closure', type: 'WebPage', description: 'Online dispute resolution, fully online.', serviceType: 'Online dispute resolution' },
-  '/ritual-guru': { name: 'Ritual Guru', type: 'WebPage', description: 'Curated, temple-grade puja kits.', serviceType: 'Puja kit supply' },
   '/ritual-guru/puja-guidance': { name: 'Puja Guidance', type: 'WebPage', description: 'Step-by-step practical guidance for a puja you are performing yourself.', serviceType: 'Self-led puja guidance' },
   '/ritual-guru/diy-puja-kit': { name: 'DIY Puja Kit', type: 'WebPage', description: 'Clearly labelled puja essentials with a preparation checklist.', serviceType: 'DIY puja kit supply' },
   // Renamed twice: '[retired public path]' -> '[retired public path]' -> '/anew'. The route moved with the
@@ -537,6 +534,7 @@ const PUBLIC_PAGE_META: Record<string, {
   // says "ask us to collect" rather than "book a pickup": a courier has to agree, so a
   // description promising a booking would describe a page that does not exist.
   '/request-pickup': { name: 'Request Pickup', type: 'WebPage', description: 'Ask us to collect documents for a request already under way.' },
+  '/shipments/track': { name: 'Track', type: 'WebPage', description: 'Track an order, delivery or service request already with WECARE.DIGITAL.', serviceType: 'Shipment and request tracking' },
   '/leave-review': { name: 'Leave Review', type: 'WebPage', description: 'Tell us how something went, well or badly.' },
   '/refer-and-earn': { name: 'Refer & Earn', type: 'WebPage', description: 'Introduce someone who would find this useful.' },
   // THE CATALOGUE INDEX IS RESTORED, 2026-10-10, on owner instruction: /shop/ is browsable again,
@@ -576,7 +574,6 @@ const PUBLIC_PAGE_META: Record<string, {
   // _app.tsx, which runs Amplify.configure), so a non-literal value makes it see no entry and
   // refuse. Drift from src/content/shipments.ts is instead guarded by an equality assertion in
   // src/test/ShipmentsPage.test.tsx, the same shape the CTA-1 href already uses.
-  '/shipments': { name: 'Shipments', type: 'WebPage', description: 'Everything about your request, delivery or pickup in one place. Track what you already have with WECARE.DIGITAL, or ask us to arrange a pickup, on WhatsApp.' },
   // Perks is a home-styled landing page for the small thank-yous we send customers, and the
   // repaired destination for the gift-card links that used to point at a 404. The owner removed
   // the former gift-card / offers / rewards sections, so the page is now a calm, honest landing
