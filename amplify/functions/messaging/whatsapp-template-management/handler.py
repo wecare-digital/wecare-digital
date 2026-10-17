@@ -337,12 +337,17 @@ def _validate_template_button_group(buttons):
             return 'PHONE_NUMBER must be <= 20 characters'
         if t == 'URL' and len(str(b.get('url', ''))) > 2000:
             return 'URL must be <= 2000 characters'
+        if t == 'ORDER_DETAILS':
+            if b.get('text') != 'Review and Pay':
+                return 'ORDER_DETAILS button text must be exactly "Review and Pay"'
     if counts.get('COPY_CODE', 0) > 1:
         return 'At most 1 COPY_CODE button allowed'
     if counts.get('PHONE_NUMBER', 0) > 1:
         return 'At most 1 PHONE_NUMBER button allowed'
     if counts.get('URL', 0) > 2:
         return 'At most 2 URL buttons allowed'
+    if counts.get('ORDER_DETAILS', 0) > 1:
+        return 'At most 1 ORDER_DETAILS button allowed'
     if counts.get('QUICK_REPLY', 0) > 10:
         return 'At most 10 QUICK_REPLY buttons allowed'
     types = [(b.get('type') or '').upper() for b in buttons]
