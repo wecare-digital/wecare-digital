@@ -15,7 +15,7 @@ from lambda_utils.logging import get_logger, log_event
 
 logger = get_logger(__name__)
 
-VARIANT_ID = 'e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b'
+VARIANT_ID = ''
 FLOW_ID = '1107164111921876'
 TOKEN_PREFIX = 'paidsr:'
 
