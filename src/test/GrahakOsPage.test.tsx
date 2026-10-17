@@ -152,15 +152,13 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( stepLines.length ).toBe( 3 );
   } );
 
-  it( 'wires the checkout button to the existing WhatsApp pill mechanism (no new checkout, no ProductBuyBox)', () => {
-    // The paid-checkout door is the existing .gos-wa-cta WhatsApp pill; the step block
-    // reuses that exact pill and href. ProductBuyBox stays removed.
+  it( 'keeps the WhatsApp door and attaches the fresh catalog checkout', () => {
+    // The existing WhatsApp door stays, and the fresh catalog checkout is mounted beside the
+    // same commerce block without duplicating the visible ₹899 price.
     expect( source ).toContain( 'className="api-steps-ctas"' );
     expect( source ).toContain( '<a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>' );
-    // ProductBuyBox is neither imported nor rendered (comments documenting its removal
-    // are allowed, so strip comments before asserting).
-    const codeNoComments = source.replace( /\/\*[\s\S]*?\*\//g, '' ).replace( /^\s*\/\/.*$/gm, '' );
-    expect( codeNoComments ).not.toContain( 'ProductBuyBox' );
+    expect( source ).toContain( "import ProductBuyBox from '../../components/ProductBuyBox';" );
+    expect( source ).toContain( '<ProductBuyBox slug="grahak-os" showPrice={ false } />' );
     // The existing ₹899 price with its exact caption is surfaced in the step block.
     expect( source ).toContain( '&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span>' );
   } );
