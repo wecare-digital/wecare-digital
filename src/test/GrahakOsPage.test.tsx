@@ -156,9 +156,10 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
   // pinned to this section, not to the whole page (the closer carries its own CTA).
   const stepsCtas = source.match( /className="api-steps-ctas">([\s\S]*?)<\/div>/ )?.[ 1 ] || '';
 
-  it( 'wires the checkout button to the existing WhatsApp pill mechanism (no new checkout, no ProductBuyBox)', () => {
+  it( 'wires the checkout button to the existing WhatsApp pill mechanism, with ProductBuyBox rendered at showPrice={ false }', () => {
     // The paid-checkout door is the existing .gos-wa-cta WhatsApp pill; the step block
-    // reuses that exact pill and href. ProductBuyBox stays removed.
+    // reuses that exact pill and href. ProductBuyBox is the intended checkout component
+    // rendered alongside it with price display disabled (showPrice={ false }).
     expect( source ).toContain( 'className="api-steps-ctas"' );
     expect( source ).toContain( '<a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>' );
     // The steps block now carries EXACTLY ONE WhatsApp CTA: "Get Started on WhatsApp".
@@ -168,10 +169,10 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( stepsCtaCount ).toBe( 1 );
     expect( stepsCtas ).toContain( 'Get Started on WhatsApp' );
     expect( stepsCtas ).not.toContain( 'See it on WhatsApp' );
-    // ProductBuyBox is neither imported nor rendered (comments documenting its removal
-    // are allowed, so strip comments before asserting).
-    const codeNoComments = source.replace( /\/\*[\s\S]*?\*\//g, '' ).replace( /^\s*\/\/.*$/gm, '' );
-    expect( codeNoComments ).not.toContain( 'ProductBuyBox' );
+    // ProductBuyBox is the intended checkout component: it IS imported at the top of the
+    // file and IS rendered in the steps block with price display disabled.
+    expect( source ).toContain( "import ProductBuyBox from '../../components/ProductBuyBox'" );
+    expect( source ).toContain( 'ProductBuyBox slug="grahak-os" showPrice={ false }' );
     // The existing ₹899 price with its exact caption is surfaced in the step block.
     expect( source ).toContain( '&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span>' );
   } );
