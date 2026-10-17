@@ -559,21 +559,8 @@ const PUBLIC_PAGE_META: Record<string, {
   // shape: renderAllowlist() in that generator and allRoutes() in StructuredDataService.test.ts
   // both parse this block as text and both require literals.
   '/shop': { name: 'Shop', type: 'WebPage', description: 'Every WECARE.DIGITAL product and service on one page, each linking to its own page.' },
-  // Shipments gathers the request/delivery/pickup actions in one place. It links the real request
-  // routes (orders, request-amendment, drop-docs, vault, leave-review) and renders anything with
-  // no backend (pickup/visit/delivery tracking) as a clearly non-transacting item.
-  //
-  // THIS ENTRY IS WHY THE RENAME DID NOT LAND THE FIRST TIME. The key was '/zip' and the `name`
-  // was the literal string 'Zip', so even after the nav label was changed to "Shipments" the page
-  // still PUBLISHED itself as "Zip" — this `name` feeds the WebPage schema emitted on the route
-  // AND config/public-pages.json, so the retired name went out to crawlers and to every consumer
-  // of that config. Renaming the nav row alone could never fix it. On owner instruction
-  // (2026-10-02) the name is gone entirely: key, `name`, route and page file all read shipments.
-  // The description below is a LITERAL, not SHIPMENTS.description, on purpose:
-  // scripts/generate-public-pages.js reads this map by static text parse (it must not import
-  // _app.tsx, which runs Amplify.configure), so a non-literal value makes it see no entry and
-  // refuse. Drift from src/content/shipments.ts is instead guarded by an equality assertion in
-  // src/test/ShipmentsPage.test.tsx, the same shape the CTA-1 href already uses.
+  // Shipments is a non-clickable family label. Track lives at /shipments/track/ and
+  // Pickup Request remains the separate /request-pickup/ child.
   // Perks is a home-styled landing page for the small thank-yous we send customers, and the
   // repaired destination for the gift-card links that used to point at a 404. The owner removed
   // the former gift-card / offers / rewards sections, so the page is now a calm, honest landing
@@ -582,7 +569,7 @@ const PUBLIC_PAGE_META: Record<string, {
   // THE NAME IS "PERKS" AGAIN. An earlier instruction renamed it Perks -> Extras; the owner
   // reversed that on 2026-10-02, because the nav rendered the row "Extras" directly beneath a
   // group heading also reading "Extras". `name` was still 'Extras' here, which — exactly as with
-  // the Shipments entry above — fed the page's WebPage schema and config/public-pages.json, so the
+  // the old Shipments parent entry — fed the page's WebPage schema and config/public-pages.json, so the
   // wrong name was published regardless of the label. The ROUTE KEY STAYS '/perks' and needs no
   // change: it already matches the name. config/public-pages.json takes its `name` from here, so
   // it is regenerated to "Perks" to stay in parity (PublicAiSurface test).
