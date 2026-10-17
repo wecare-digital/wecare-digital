@@ -402,6 +402,19 @@ def test_the_no_code_path_reads_neither_store(engine):
     assert engine.tables.cards.calls == []
 
 
+def test_a_stale_client_convenience_fee_is_refused_before_invoice_issue(engine):
+    status, payload = _create(engine, convenienceFee=23.60)
+    assert status == 400
+    assert payload["errorCode"] == "CONVENIENCE_FEE_MISMATCH"
+    assert not any(row.get("invoiceNumber") for row in engine.tables.invoices.rows.values())
+
+
+def test_a_matching_legacy_client_convenience_fee_is_accepted_but_server_authored(engine):
+    status, _ = _create(engine, convenienceFee=34.81)
+    assert status == 201
+    assert _stored(engine)["convenienceFee"] == Decimal("34.81")
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # 2. a coupon is a PRICE CHANGE and feeds the fee calculator
 # ══════════════════════════════════════════════════════════════════════════════

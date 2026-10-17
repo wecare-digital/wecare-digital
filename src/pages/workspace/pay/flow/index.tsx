@@ -392,24 +392,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
   const removeItem = ( idx: number ) => { if ( invForm.items.length <= 1 ) return; setInvForm( { ...invForm, items: invForm.items.filter( ( _, i ) => i !== idx ) } ); };
   const calcSubtotal = () => invForm.items.reduce( ( s, it ) => s + ( parseFloat( it.unitPrice ) || 0 ) * ( parseInt( it.quantity ) || 0 ), 0 );
   const calcTax = () => invForm.items.reduce( ( s, it ) => { const line = ( parseFloat( it.unitPrice ) || 0 ) * ( parseInt( it.quantity ) || 0 ); return s + line * ( parseFloat( it.gstRate ) || 0 ) / 100; }, 0 );
-  const calcTotal = () => {
-    const sub = calcSubtotal();
-    const tax = calcTax();
-    const ship = parseFloat( invForm.shipping ) || 0;
-    const disc = parseFloat( invForm.discount ) || 0;
-    const collection = sub + tax + ship - disc;
-    const convBase = Math.round( collection * 0.02 * 100 ) / 100;
-    const convGst = Math.round( convBase * 0.18 * 100 ) / 100;
-    const convFee = convBase + convGst;
-    return collection + convFee;
-  };
-  const calcConvFee = () => {
-    const collection = calcSubtotal() + calcTax() + ( parseFloat( invForm.shipping ) || 0 ) - ( parseFloat( invForm.discount ) || 0 );
-    const base = Math.round( collection * 0.02 * 100 ) / 100;
-    const gst = Math.round( base * 0.18 * 100 ) / 100;
-    return base + gst;
-  };
-
   const submitInvoice = async () => {
     if ( !selCustomer ) { showMsg( 'Select a customer first', 'error' ); return; }
     if ( !invForm.items.some( it => parseFloat( it.unitPrice ) > 0 ) ) { showMsg( 'Add at least one item', 'error' ); return; }
@@ -883,8 +865,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                          computing a discount in the browser. The applied coupon and gift-card
                          figures appear above, after the server has decided them. */ }
                     <div className="pf-preview-row"><span>Manual adjustment</span><span>{ '\u2212' }{ fmtMoney( parseFloat( invForm.discount ) || 0 ) }</span></div>
-                    <div className="pf-preview-row"><span>Conv Fee</span><span>{ fmtMoney( calcConvFee() ) }</span></div>
-                    <div className="pf-preview-total"><span>Total</span><span>{ fmtMoney( calcTotal() ) }</span></div>
+                    <div style={ { marginTop: 8, fontSize: 11, color: '#6b7280', lineHeight: 1.45 } }>
+                      Convenience fee and final total are calculated by the server when the invoice is created.
+                    </div>
                   </div>
 
                   {/* Post-payment messaging options */ }
