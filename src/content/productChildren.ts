@@ -252,8 +252,7 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
     path: '/hunar/prastuti/',
     parent: 'Hunar',
     product: {
-      // Keep the page slug distinct so ProductPage uses Prastuti's own WhatsApp keyword.
-      // The checkout component still uses the preserved Hunar commerce key HNR9M4P6.
+      // Each Hunar child owns its own catalogue identity; the retired parent owns none.
       slug: 'hunar-prastuti',
       name: 'Prastuti',
       blurb: 'CV, professional profile and pitch deck built from the same evidence.',
