@@ -101,7 +101,7 @@ import Select from '../ui/Select';
 import { getSession, restoreSession } from '../../lib/customerAuth';
 import type { CustomerSession } from '../../lib/customerAuth';
 import {
-  readCart, setQuantity, removeItem, clearCart, toLineItems, availableVariantsForItem,
+  readCart, removeItem, clearCart, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant,
   basketFingerprint, cartRequiresDelivery,
   isContributionItem, setContribution, serviceIntentFor, mergeClaimedLines, rememberServiceIntent,
@@ -765,10 +765,6 @@ export default function Cart (): React.ReactElement {
       setBasketClaim( claimMessage( outcome ) );
     } )();
     return () => { live = false; };
-  }, [] );
-
-  const changeQuantity = useCallback( ( ref: string, quantity: number ): void => {
-    setItems( setQuantity( ref, quantity ) );
   }, [] );
 
   const drop = useCallback( ( ref: string ): void => {
@@ -1729,19 +1725,7 @@ export default function Cart (): React.ReactElement {
                     <div className="cart-row-controls">
                       { isContributionItem( item )
                         ? <ContributionAmount item={ item } onCommitted={ () => setItems( readCart() ) } />
-                        : (
-                          <>
-                            <label className="cart-qty-label" htmlFor={ `qty-${item.ref}` }>Qty</label>
-                            <input
-                              id={ `qty-${item.ref}` }
-                              className="cart-qty"
-                              type="number"
-                              min={ 1 }
-                              value={ item.quantity }
-                              onChange={ e => changeQuantity( item.ref, Number( e.target.value ) ) }
-                            />
-                          </>
-                        ) }
+                        : null }
                       <button
                         className="cart-remove"
                         type="button"
@@ -1991,27 +1975,6 @@ export default function Cart (): React.ReactElement {
             margin-block-end:0;color:inherit;font-size:inherit;font-weight:inherit;
           }
           .cart-row-controls{display:flex;align-items:center;gap:12px}
-          .cart-qty-label{font-size:14px;font-weight:700;color:#1a3a2a}
-          /* 44px is the tap-target floor. The site's CTA is 52px; a secondary field is not
-             required to match it, only to clear 44. */
-          .cart-qty{
-            width:72px;min-height:var(--control-h);padding:0 10px;
-            border:var(--control-border-w) solid var(--control-border);
-            border-radius:var(--control-radius);
-            font-family:inherit;font-size:16px;text-align:center;color:var(--control-fg);
-          }
-          /* box-shadow:var(--focus-ring) IS THE PAIRING FIX, not decoration. form-controls.css
-             gives .cart-amount-select that ring with !important, and it CANNOT give it to this
-             control: .cart-qty is a number input and deliberately outside the selector in the
-             shared file, which covers select and the date family only. Without this line the
-             two halves of one row would match on border, radius and height and disagree on focus.
-             :focus-visible rather than :focus, so the ring and the outline appear and disappear
-             together - a ring with no outline on a mouse click would be a third appearance
-             rather than a matched pair. */
-          .cart-qty:focus-visible{
-            outline:3px solid var(--accent) !important;outline-offset:2px;
-            box-shadow:var(--focus-ring);
-          }
           /* The amount chooser on the contribution row. Deliberately the SAME box as .cart-qty -
              --control-border-w / --control-border, --control-radius, the 44px tap floor and the
              16px type - because it occupies the same slot in the row and a second control idiom
