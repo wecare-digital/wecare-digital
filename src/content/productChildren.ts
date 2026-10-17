@@ -252,9 +252,8 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
     path: '/hunar/prastuti/',
     parent: 'Hunar',
     product: {
-      // Keep the existing Hunar commerce identity on the CV/profile offering. The parent
-      // landing page is retired, but HNR9M4P6 remains the configured ₹599 checkout line.
-      slug: 'hunar',
+      // Each Hunar child owns its own catalogue identity; the retired parent owns none.
+      slug: 'hunar-prastuti',
       name: 'Prastuti',
       blurb: 'CV, professional profile and pitch deck built from the same evidence.',
       title: 'Prastuti — CV, profile and pitch deck | WECARE.DIGITAL',

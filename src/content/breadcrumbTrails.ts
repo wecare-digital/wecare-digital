@@ -42,8 +42,8 @@ export const BREADCRUMB_TRAILS: Readonly<Record<string, readonly Crumb[]>> = {
   '/hunar/kaushal': [ HOME, SHOP, here( 'Kaushal' ) ],
   '/hunar/prastuti': [ HOME, SHOP, here( 'Prastuti' ) ],
   '/niji-setu': [ HOME, SHOP, here( 'Niji Setu' ) ],
-  // Elsewhere is a category with no page of its own (the Header renders it as a label), so its
-  // children sit directly under Shop. A crumb for it would have to link a URL that 404s.
+  // Elsewhere and Hunar are families with no page of their own (Header renders each as a label),
+  // so their children sit directly under Shop. A parent crumb would have to link a URL that 404s.
   '/elsewhere/visa': [ HOME, SHOP, here( 'Visa' ) ],
   '/elsewhere/trip': [ HOME, SHOP, here( 'Trip' ) ],
   '/elsewhere/activities': [ HOME, SHOP, here( 'Activities' ) ],

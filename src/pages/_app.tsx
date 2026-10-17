@@ -511,10 +511,8 @@ const PUBLIC_PAGE_META: Record<string, {
   // brand name each time; neither earlier address was ever published, so there is nothing
   // to redirect from.
   '/anew': { name: 'Anew', type: 'WebPage', description: 'Reflection-led conversations that create clarity and action.', serviceType: 'Reflective conversation and coaching' },
-  // Hunar is Hindi/Urdu for skill. The description says CV and skills profile and stops
-  // there: it must not imply placement or hiring, which the page itself is careful to
-  // disclaim, because a WebPage.description promising a service the page declines to offer
-  // is the same defect the Bharat Rx line above was corrected for.
+  // Hunar is now a non-clickable family label. Kaushal owns skills/learning; Prastuti owns
+  // CV/profile/pitch presentation. The retired /hunar parent is intentionally not registered.
   '/hunar/kaushal': { name: 'Kaushal', type: 'WebPage', description: 'A focused skills and learning path built around what you want to do next.', serviceType: 'Skills learning and development support' },
   '/hunar/prastuti': { name: 'Prastuti', type: 'WebPage', description: 'CV, professional profile and pitch deck creation built from real experience.', serviceType: 'CV, professional profile and pitch deck creation' },
   '/niji-setu': { name: 'Niji Setu', type: 'WebPage', description: 'A QR code people scan to reach you on a masked call.', serviceType: 'Number masking and call connection' },

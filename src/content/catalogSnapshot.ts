@@ -187,11 +187,18 @@ const LIVE_PRODUCTS: CatalogSnapshotProduct[] = [
     variants:[{ id:'ANW7Q5K2', label:'Standard', inStock:true }],
   },
   {
-    id:'edde82ad-c692-5636-ba97-08060200a04a', name:'Hunar · Prastuti', slug:'hunar',
-    formattedPrice:'₹599.00', price:'599.00', currency:'INR',
+    id:'native:hunar-kaushal', name:'Hunar · Kaushal', slug:'hunar-kaushal',
+    formattedPrice:'₹99.00', price:'99.00', currency:'INR',
+    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/hunar/kaushal/',
+    descriptionHtml:'<p>Skills and learning built around what you want to do next.</p>',
+    variants:[{ id:'KSL9M2Q4', label:'Standard', inStock:true }],
+  },
+  {
+    id:'native:hunar-prastuti', name:'Hunar · Prastuti', slug:'hunar-prastuti',
+    formattedPrice:'₹299.00', price:'299.00', currency:'INR',
     inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/hunar/prastuti/',
     descriptionHtml:'<p>CV, professional profile and pitch deck built from the same evidence.</p>',
-    variants:[{ id:'HNR9M4P6', label:'Standard', inStock:true }],
+    variants:[{ id:'PST7K4N2', label:'Standard', inStock:true }],
   },
   {
     id:'abe4870e-fae3-59cc-b1a7-9bd28eff048a', name:'Niji Setu', slug:'niji-setu',
