@@ -435,14 +435,14 @@ describe( 'the cart store', () => {
     // saved before the move resolves to whatever the catalogue holds now.
     const [ item ] = cart.readCart();
     expect( item.productId ).toBe( 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' );
-    expect( item.variantId ).toBe( '4d3e2b31-7888-4250-8f5a-0587344431db' );
+    expect( item.variantId ).toBe( 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' );
     expect( item.ref ).toBe(
-      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb:4d3e2b31-7888-4250-8f5a-0587344431db',
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb:dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     );
     expect( cart.toLineItems() ).toEqual( [ {
       catalogReference: {
         catalogItemId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-        options: { variantId: '4d3e2b31-7888-4250-8f5a-0587344431db' },
+        options: { variantId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' },
       },
       quantity: 2,
     } ] );
@@ -603,7 +603,7 @@ describe( 'legacy cart option recovery', () => {
       'Product option updated. Continue to secure payment.',
     ) ).toBeTruthy();
     expect( cart.readCart()[ 0 ].variantId ).toBe(
-      '3788a657-9af2-4ecf-8c9b-f218669d753c',
+      'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
     );
   } );
 } );
