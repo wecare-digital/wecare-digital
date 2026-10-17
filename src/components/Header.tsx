@@ -59,7 +59,7 @@ interface SearchableNavLink extends NavLink {
  *
  * Structural headings stay on the existing small uppercase rung.
  * Every family and every destination uses the same 19px/600 navigation rung.
- * Elsewhere is a non-clickable family label; its children are the destinations.
+ * Elsewhere and Hunar are non-clickable family labels; their children are the destinations.
  * Search is derived from this same graph.
  */
 const COLUMNS: NavColumn[] = [
@@ -118,7 +118,14 @@ const COLUMNS: NavColumn[] = [
             ],
           },
           { label: 'Anew', href: '/anew/', match: '/anew' },
-          { label: 'Hunar', href: '/hunar/', match: '/hunar' },
+          {
+            label: 'Hunar',
+            searchTerms: [ 'skills', 'learning', 'cv', 'resume', 'profile', 'pitch deck' ],
+            children: [
+              { label: 'Kaushal', href: '/hunar/kaushal/', match: '/hunar/kaushal', searchTerms: [ 'hunar', 'skills', 'learning' ] },
+              { label: 'Prastuti', href: '/hunar/prastuti/', match: '/hunar/prastuti', searchTerms: [ 'hunar', 'cv', 'resume', 'profile', 'pitch', 'deck' ] },
+            ],
+          },
           { label: 'Niji Setu', href: '/niji-setu/', match: '/niji-setu' },
         ],
       },
