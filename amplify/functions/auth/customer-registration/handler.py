@@ -270,6 +270,9 @@ def _create_customer(e164: str) -> Dict[str, Any]:
         "allowlistWhatsApp": False,
         "allowlistEmail": False,
         "allowlistSms": False,
+        # Existing Contacts workspace search already indexes tags, so a newly-created website
+        # registration is visible to staff without a second customer store or any PII-derived flag.
+        "tags": ["website-signup"],
         "createdAt": now,
         "updatedAt": now,
     }
