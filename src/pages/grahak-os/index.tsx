@@ -94,7 +94,21 @@ const GrahakOsPage: React.FC = () => {
 
   const show = (id: string) => visible.has(id);
 
-  const useCases = ['Promotional', 'Transactional', 'Appointments', 'OTPs', 'Orders', 'Surveys'];
+  // Six touchpoint pills, each given a distinct hue drawn from the HOMEPAGE's deliberate
+  // 4-subject palette (src/pages/index.tsx CYCLE_WORDS: amber/purple/green/red tint+dot
+  // pairs) plus the homepage blue border (#2563eb) and this page's own brand lime pair.
+  // No invented colours. The pill TEXT stays dark (rgba(0,0,0,.898) / #1a3a2a) on either
+  // a soft homepage tint or white, so every pill clears WCAG AA - amber (#f0a818, 2.04:1)
+  // and green (#3da35a, 3.19:1) are UNSAFE as text and are used only as borders/tints.
+  // `hue` maps to a .pp-pill--<hue> modifier class whose CSS lives beside .pp-pill.
+  const useCases = [
+    { title: 'Promotional', hue: 'amber' },
+    { title: 'Transactional', hue: 'blue' },
+    { title: 'Appointments', hue: 'green' },
+    { title: 'OTPs', hue: 'purple' },
+    { title: 'Orders', hue: 'red' },
+    { title: 'Surveys', hue: 'lime' },
+  ];
 
   // These are real calls, checked against docs/openapi.yaml and the handler rather
   // than written to look plausible. All three used to POST /v1/messages, which does
@@ -396,8 +410,8 @@ response = requests.post(
               <p>Engage, support, and convert customers across their entire journey — from first contact to lasting loyalty</p>
             </div>
             <div className="usecase-pills">
-              {useCases.map((title, i) => (
-                <span key={i} className="pp-pill">{title}</span>
+              {useCases.map(({ title, hue }) => (
+                <span key={title} className={`pp-pill pp-pill--${hue}`}>{title}</span>
               ))}
             </div>
           </div>
@@ -1469,8 +1483,23 @@ response = requests.post(
              tint. min-height is dropped: at 15px with 14px of vertical padding the
              pill computes to ~48px, so a 32px floor never applied and only implied
              a constraint that was not doing anything. */
+          /* Base pill geometry/type is shared; the HUE (border + background) is set by a
+             .pp-pill--<hue> modifier so the six touchpoints read as a varied, colourful set
+             instead of six identical grey outlines. Every hue is lifted verbatim from the
+             HOMEPAGE subject palette (amber/purple/green/red tint+dot pairs in
+             src/pages/index.tsx CYCLE_WORDS), the homepage blue border #2563eb, and this
+             page's own brand lime #d1f470 - no new colours are introduced. Text stays dark
+             (rgba(0,0,0,.898)) on every soft tint and on white, which keeps each pill above
+             the 4.5:1 WCAG AA floor; the amber (2.04:1) and green (3.19:1) dot hues that
+             fail as text are used ONLY as borders/tints here, never as the text colour. */
           .pp-pill{display:inline-flex;align-items:center;justify-content:center;padding:14px 28px;border:2px solid #e5e7eb;background:#fff;border-radius:50px;font-size:17px;font-weight:600;cursor:default;transition:all .25s;color:rgba(0,0,0,.898)}
-          .pp-pill:hover{border-color:#d1f470;color:#1a3a2a;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+          .pp-pill--amber{border-color:#f0a818;background:#fef3c7}
+          .pp-pill--blue{border-color:#2563eb;background:#fff}
+          .pp-pill--green{border-color:#3da35a;background:#e0f7c8}
+          .pp-pill--purple{border-color:#9849e8;background:#ede9fe}
+          .pp-pill--red{border-color:#dc2626;background:#fee2e2}
+          .pp-pill--lime{border-color:#d1f470;background:#fff;color:#1a3a2a}
+          .pp-pill:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
 
           @media(max-width:1024px){
             .pp-pill{padding:12px 22px}
