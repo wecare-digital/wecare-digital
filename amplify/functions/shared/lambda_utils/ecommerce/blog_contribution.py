@@ -31,15 +31,19 @@ CONTRIBUTION_CURRENCY = "INR"
 #: SERVER-AUTHORITATIVE common contribution amounts, in integer paise, mirroring
 #: src/config/contribution.ts. Defined separately so the browser cannot widen the trusted set.
 #: Only these exact three values are accepted.
-CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = ()
+CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = (25000,)
 
 #: No retired contribution product identity is recognized. The new contribution product will be
 #: introduced later as a fresh SKU-first catalog item.
-CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset()
+CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
+    "24fa0f39-330b-5365-b7eb-9caf27ad37f1",
+})
 
 #: No contribution variant is currently purchasable. Fresh choices will be added with the new
 #: contribution catalog item.
-CONTRIBUTION_CHOICES_PAISE: Mapping[str, int] = MappingProxyType({})
+CONTRIBUTION_CHOICES_PAISE: Mapping[str, int] = MappingProxyType({
+    "CNT5Q2M8": 25000,
+})
 
 #: The variant ids above as a set, for membership tests that do not need the amount.
 CONTRIBUTION_VARIANT_IDS: FrozenSet[str] = frozenset(CONTRIBUTION_CHOICES_PAISE)
