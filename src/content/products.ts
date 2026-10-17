@@ -5,12 +5,10 @@ import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
 /**
  * The WECARE.DIGITAL product pages, as data.
  *
- * SIX TOP-LEVEL PAGES, ONE SHAPE. Expo Week, Dastavez, Clear Closure, Ritual Guru,
- * Anew and Niji Setu are all the same kind of page: a rotating hero, a short lead,
- * three points, an optional boundary note and one call to action. Elsewhere and Hunar are
- * deliberately non-clickable families in the menu; their real destinations live in
- * productChildren.ts instead. Six copy-pasted page files
- * would mean six places to fix a spacing bug and six chances for them to drift apart,
+ * THREE TOP-LEVEL PAGES, ONE SHAPE. Expo Week, Anew and Niji Setu remain direct product
+ * pages. Elsewhere, Dastavez, Clear Closure, Ritual Guru and Hunar are non-clickable families;
+ * their real destinations live in child routes instead. Three copy-pasted page files
+ * would mean three places to fix a spacing bug and three chances for them to drift apart,
  * which is exactly how the old site ended up with a different footer on every page. The
  * copy lives here, the layout lives in ProductPage.tsx, and each route is a thin file.
  *
@@ -106,10 +104,8 @@ export interface ProductDef {
   ctaNote?: string;
   /**
    * Optional SECOND call to action. When both are present, ProductPage renders a second pill
-   * beside the first; omit them (every entry except /shipments/ does) and the page renders one
-   * pill exactly as before. Unlike the first CTA, `ctaHref2` is rendered LITERALLY and is never
-   * routed through whatsappServiceLink() — that resolves by slug, and a slug can carry only one
-   * service link, so a second door has to name its own destination.
+   * beside the first. Unlike the first CTA, `ctaHref2` is rendered LITERALLY and is never
+   * routed through whatsappServiceLink().
    */
   ctaLabel2?: string;
   ctaHref2?: string;
@@ -146,76 +142,6 @@ export const PRODUCTS: ProductDef[] = [
     ],
     ctaLabel: 'Enter the expo',
     ctaHref: whatsappKeywordLink( 'Expo Week' ),
-    ctaNote: 'Continue on WhatsApp →',
-  },
-  {
-    slug: 'dastavez',
-    name: 'Dastavez',
-    blurb: 'Business documentation and registrations in India.',
-    title: buildPageTitle( 'Dastavez — business documentation and registrations' ),
-    description:
-      'Dastavez by WECARE.DIGITAL — affordable business documentation, registrations and paralegal support in India, done reliably with minimal effort from you.',
-    frame: 'Paperwork without the',
-    words: cycle( 'queues', 'guesswork', 'delays', 'runaround' ),
-    sub: 'Business documentation and registrations in India, handled properly the first time.',
-    sectionHeading: 'What Dastavez does',
-    lead:
-      'Dastavez is the WECARE.DIGITAL brand for business documentation and registrations in India — affordable documentation and paralegal support, so legal paperwork gets done reliably with minimal effort from you.',
-    points: [
-      { heading: 'Registrations and filings', body: 'The documents a business needs to exist and stay compliant, prepared correctly and filed on time.' },
-      { heading: 'Told what it costs first', body: 'Fees are set out before work starts, including the statutory ones that are not ours to waive.' },
-      { heading: 'Tracked to completion', body: 'You can see where a matter is, rather than wondering whether it moved this week.' },
-    ],
-    note:
-      'Dastavez is not a law firm and is not a substitute for a lawyer\'s advice. We prepare and process documentation; where a matter needs legal representation or an opinion, that is work for a qualified advocate.',
-    ctaLabel: 'Start a filing',
-    ctaHref: whatsappKeywordLink( 'Dastavez' ),
-    ctaNote: 'Continue on WhatsApp →',
-  },
-  {
-    slug: 'clear-closure',
-    name: 'Clear Closure',
-    blurb: 'Settle a dispute online, without a courtroom.',
-    title: buildPageTitle( 'Clear Closure — online dispute resolution' ),
-    description:
-      'Clear Closure by WECARE.DIGITAL — an online dispute resolution (ODR) platform. Resolve matters faster, more flexibly and at lower cost, fully online.',
-    frame: 'Disputes resolved',
-    words: cycle( 'online', 'faster', 'calmly', 'fairly' ),
-    sub: 'Online dispute resolution: one secure place to settle a matter without a courtroom.',
-    sectionHeading: 'What Clear Closure does',
-    lead:
-      'Clear Closure is a technology platform for online dispute resolution, bringing the key processes and tools into one secure interface. The mission is plain: improve access to justice with calm, dignified, technology-led resolution.',
-    points: [
-      { heading: 'Independent professionals', body: 'A network of neutrals who are not employed by either side, so the process is not the other party\'s process.' },
-      { heading: 'Faster and cheaper', body: 'Smart workflows replace the scheduling and travel that make conventional disputes slow and expensive.' },
-      { heading: 'Fully online', body: 'Filings, evidence, hearings and the outcome live in one place, reachable from wherever you are.' },
-    ],
-    note:
-      'Clear Closure provides the platform and connects you to independent professionals. It does not act for either party, and nothing here removes your right to approach a consumer commission, regulator or court — Terms sections 37 and 39 set that out.',
-    ctaLabel: 'Open a matter',
-    ctaHref: whatsappKeywordLink( 'Clear Closure' ),
-    ctaNote: 'Continue on WhatsApp →',
-  },
-  {
-    slug: 'ritual-guru',
-    name: 'Ritual Guru',
-    blurb: 'Temple-grade puja kits, packed in small batches.',
-    title: buildPageTitle( 'Ritual Guru — temple-grade puja kits' ),
-    description:
-      'Ritual Guru by WECARE.DIGITAL — curated, temple-grade puja kits for festivals, vrats, housewarmings and daily worship, packed in small batches and clearly labelled.',
-    frame: 'Puja kits for',
-    words: cycle( 'festivals', 'vrats', 'new homes', 'daily use' ),
-    sub: 'India\'s living traditions, brought home in a kit that has everything and explains itself.',
-    sectionHeading: 'What Ritual Guru does',
-    lead:
-      'Ritual Guru brings India\'s living traditions into your home with curated, temple-grade puja kits — for festivals, vrats, housewarmings and daily worship.',
-    points: [
-      { heading: 'Packed in small batches', body: 'Made in small runs for freshness and fragrance, rather than sitting in a warehouse losing both.' },
-      { heading: 'Every component labelled', body: 'You know what each item is and what it is for, so the kit works whether or not you grew up with it.' },
-      { heading: 'Standard quantities, fair price', body: 'Measured consistently and priced openly, with responsible sourcing behind it.' },
-    ],
-    ctaLabel: 'Browse kits',
-    ctaHref: whatsappKeywordLink( 'Ritual Guru' ),
     ctaNote: 'Continue on WhatsApp →',
   },
   {
