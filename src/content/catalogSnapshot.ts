@@ -238,7 +238,7 @@ const LIVE_PRODUCTS: CatalogSnapshotProduct[] = [
   {
     id:'f45dec5c-5bcc-5fca-9c50-5f63b57554d2', name:'Shipment · Track', slug:'shipments-track',
     formattedPrice:'₹49.00', price:'49.00', currency:'INR',
-    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/shipments/',
+    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/shipments/track/',
     descriptionHtml:'<p>Shipment · Track from WECARE.DIGITAL.</p>',
     variants:[{ id:'SHT8M5P3', label:'Standard', inStock:true }],
   },
