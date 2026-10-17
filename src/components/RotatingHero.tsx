@@ -128,7 +128,7 @@ interface RotatingHeroProps {
   noShare?: boolean;
 }
 
-const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, words, pillKey, sub, ariaLabel, visual, children, subordinate = false, insideMain = false, noShare = false } ) => {
+const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, words, pillKey, sub, ariaLabel, visual, children, subordinate = false, insideMain = false } ) => {
   /**
    * 'final' is the CSS default: shutter gone, dot popped, nothing animating. 'armed' puts
    * the start state back, 'shown' plays it. Starting at 'final' is what makes the entrance
