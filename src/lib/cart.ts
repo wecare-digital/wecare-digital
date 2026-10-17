@@ -205,7 +205,8 @@ function reconcileStoredCart ( items: CartItem[] ): { items: CartItem[]; changed
       slug: product.slug,
       name: hasMultiple && variant ? `${product.name} (${variant.label})` : product.name,
       formattedPrice: product.formattedPrice,
-      quantity: item.quantity,
+      // Website purchases are single-unit by policy. Old stored quantities are collapsed on read.
+      quantity: 1,
     };
     return [ next ];
   } );
@@ -216,8 +217,8 @@ function reconcileStoredCart ( items: CartItem[] ): { items: CartItem[]; changed
   for ( const item of reconciled )
   {
     const existing = merged.find( candidate => candidate.ref === item.ref );
-    if ( existing ) existing.quantity += item.quantity;
-    else merged.push( { ...item } );
+    if ( existing ) existing.quantity = 1;
+    else merged.push( { ...item, quantity: 1 } );
   }
 
   return {
@@ -289,9 +290,9 @@ function announce (): void {
 }
 
 /**
- * Add a product to the cart, or increase its quantity if it is already there. Keyed on the
- * product's catalogue id (its stable reference), not its name, so a renamed product still merges.
- * Returns the updated cart.
+ * Add one product to the website cart. Website purchases are single-unit: adding the same
+ * product/variant again is idempotent rather than increasing quantity. Quantity remains an
+ * internal checkout field fixed to 1 so downstream catalog/payment contracts stay unchanged.
  */
 export function addItem ( product: ShopProduct, qty = 1, selectedVariantId?: string ): CartItem[] {
   const variantId = selectedVariantId || ( product.variants?.length === 1 ? product.variants[0].id : undefined );
@@ -299,14 +300,10 @@ export function addItem ( product: ShopProduct, qty = 1, selectedVariantId?: str
   if ( variantId && !product.variants?.some( variant => variant.id === variantId && variant.inStock ) ) throw new Error( 'Choose an available option.' );
   const ref = String( product.id || product.slug || '' ) + ( variantId ? `:${variantId}` : '' );
   if ( !ref ) return readCart();
-  const quantity = normaliseQuantity( qty );
+  void qty;
   const items = readCart();
   const existing = items.find( item => item.ref === ref );
-  if ( existing )
-  {
-    existing.quantity += quantity;
-  }
-  else
+  if ( !existing )
   {
     items.push( {
       productId: product.id,
@@ -317,7 +314,7 @@ export function addItem ( product: ShopProduct, qty = 1, selectedVariantId?: str
         ? `${product.name} (${product.variants.find( variant => variant.id === variantId )!.label})`
         : String( product.name || '' ),
       formattedPrice: String( product.formattedPrice || '' ),
-      quantity,
+      quantity: 1,
     } );
   }
   writeCart( items );
@@ -375,15 +372,15 @@ export function setVariant ( ref: string, variantId: string ): CartItem[] {
 
   const remaining = items.filter( ( _candidate, candidateIndex ) => candidateIndex !== index );
   const duplicate = remaining.find( candidate => candidate.ref === next.ref );
-  if ( duplicate ) duplicate.quantity += next.quantity;
-  else remaining.splice( index, 0, next );
+  if ( duplicate ) duplicate.quantity = 1;
+  else remaining.splice( index, 0, { ...next, quantity: 1 } );
   writeCart( remaining );
   return remaining;
 }
 
 /**
- * Set the exact quantity for a reference. A quantity of zero or below removes the line, so the
- * quantity control can reach "gone" without a separate button. Returns the updated cart.
+ * Compatibility helper for older callers. Website quantity is fixed to 1: zero/below removes
+ * the line; any positive value keeps exactly one unit.
  */
 export function setQuantity ( ref: string, qty: number ): CartItem[] {
   const items = readCart();
@@ -393,7 +390,7 @@ export function setQuantity ( ref: string, qty: number ): CartItem[] {
     return removeItem( ref );
   }
   const existing = items.find( item => item.ref === ref );
-  if ( existing ) existing.quantity = next;
+  if ( existing ) existing.quantity = 1;
   writeCart( items );
   return items;
 }
@@ -525,7 +522,8 @@ export function mergeClaimedLines ( lines: ClaimedLine[] ): { items: CartItem[];
     const productId = String( line?.productId || '' ).trim();
     const variantId = String( line?.variantId || '' ).trim();
     if ( !productId || !variantId ) continue;
-    const quantity = normaliseQuantity( line?.quantity );
+    // A claimed website cart line is also single-unit, regardless of the source basket count.
+    const quantity = 1;
 
     if ( CONTRIBUTION_PRODUCT_ID && productId === CONTRIBUTION_PRODUCT_ID )
     {
@@ -640,7 +638,7 @@ export function basketFingerprint ( items: CheckoutLineItem[] = toLineItems() ):
 export function toLineItems ( items: CartItem[] = readCart() ): CheckoutLineItem[] {
   return items
     .filter( item => item.ref && item.quantity > 0 )
-    .map( item => ( { catalogReference: { catalogItemId: item.productId || item.ref, ...( item.variantId ? { options: { variantId: item.variantId } } : {} ) }, quantity: item.quantity } ) );
+    .map( item => ( { catalogReference: { catalogItemId: item.productId || item.ref, ...( item.variantId ? { options: { variantId: item.variantId } } : {} ) }, quantity: 1 } ) );
 }
 
 /* ── Phase O-1 services: Submit Request / Request Amendment ─────────────────────────────────── */

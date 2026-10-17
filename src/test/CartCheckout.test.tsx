@@ -289,14 +289,14 @@ async function proceedPastProfile (): Promise<void> {
 }
 
 describe( 'the cart store', () => {
-  it( 'adds, increments the same reference, and reports a count', () => {
+  it( 'adds one line and repeated adds do not increase website quantity', () => {
     cart.addItem( PRODUCT, 1 );
     cart.addItem( PRODUCT, 2 );
     const items = cart.readCart();
     expect( items ).toHaveLength( 1 );
     expect( items[ 0 ].ref ).toBe( 'prod-abc-123' );
-    expect( items[ 0 ].quantity ).toBe( 3 );
-    expect( cart.cartCount() ).toBe( 3 );
+    expect( items[ 0 ].quantity ).toBe( 1 );
+    expect( cart.cartCount() ).toBe( 1 );
   } );
 
   it( 'keeps distinct products as distinct lines', () => {
@@ -305,10 +305,10 @@ describe( 'the cart store', () => {
     expect( cart.readCart().map( i => i.ref ) ).toEqual( [ 'prod-abc-123', 'prod-def-456' ] );
   } );
 
-  it( 'sets an exact quantity and removes a line when it hits zero', () => {
+  it( 'keeps positive quantities at one and removes a line when quantity hits zero', () => {
     cart.addItem( PRODUCT, 1 );
     cart.setQuantity( 'prod-abc-123', 5 );
-    expect( cart.readCart()[ 0 ].quantity ).toBe( 5 );
+    expect( cart.readCart()[ 0 ].quantity ).toBe( 1 );
     cart.setQuantity( 'prod-abc-123', 0 );
     expect( cart.readCart() ).toHaveLength( 0 );
   } );
@@ -322,12 +322,11 @@ describe( 'the cart store', () => {
     expect( cart.readCart() ).toHaveLength( 0 );
   } );
 
-  it( 'survives a round-trip through storage', () => {
+  it( 'survives a round-trip through storage with quantity fixed to one', () => {
     cart.addItem( PRODUCT, 2 );
-    // A fresh read parses what is actually persisted, not in-memory state.
     const raw = window.localStorage.getItem( 'wecare.cart.v1' );
     expect( raw ).toBeTruthy();
-    expect( cart.readCart()[ 0 ].quantity ).toBe( 2 );
+    expect( cart.readCart()[ 0 ].quantity ).toBe( 1 );
   } );
 
   it( 'tolerates corrupt storage rather than throwing', () => {
@@ -369,6 +368,8 @@ describe( 'the cart store', () => {
     const items = cart.readCart();
     expect( items ).toHaveLength( 1 );
     expect( items[ 0 ].productId ).toBe( 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' );
+    expect( items[ 0 ].quantity ).toBe( 1 );
+    expect( cart.toLineItems() ).toMatchObject( [ { quantity: 1 } ] );
     expect( cart.toLineItems().map( line => line.catalogReference.catalogItemId ) )
       .toEqual( [ 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' ] );
   } );
@@ -2182,6 +2183,19 @@ describe( 'two clicks cannot post two prepares - the measured live blocker', () 
   } );
 } );
 
+describe( 'the public cart has no quantity control', () => {
+  it( 'does not render Qty for an ordinary catalogue product either', async () => {
+    signedIn();
+    stubFetch( { profile: { body: PROFILE_READY } } );
+    cart.addItem( PRODUCT, 1 );
+    render( <Cart /> );
+
+    expect( await screen.findByText( PRODUCT.name ) ).toBeInTheDocument();
+    expect( screen.queryByLabelText( 'Qty' ) ).toBeNull();
+    expect( screen.queryByRole( 'spinbutton' ) ).toBeNull();
+  } );
+} );
+
 describe( 'the contribution row CHOOSES an amount, it does not count copies', () => {
   /**
    * WHAT THIS BLOCK STOPPED ASSERTING ON 2026-10-04. The row used to be a free-text number field
@@ -2602,39 +2616,15 @@ describe( 'the request key is scoped to the basket, and rotates once on INTENT_C
  * ONE SOURCE ASSERTION, added with batch 1.3a. Everything above it is behavioural and none of it
  * was touched.
  *
- * WHY IT IS A SOURCE ASSERTION. `form-controls.css` gives `.cart-option` and
- * `.cart-amount-select` a `box-shadow: var(--focus-ring) !important` on `:focus`. It CANNOT give
- * it to `.cart-qty`, which is `type="number"` and deliberately outside that file's selector - so
- * the ring for the quantity input has to be declared at the call site, beside the box it matches.
- * `cart.tsx:1963` says in eleven lines that `.cart-amount-select` is "deliberately the SAME box
- * as `.cart-qty`", and dropping that one declaration would leave the two halves of one row
- * matching on border, radius and height and disagreeing on focus. jsdom computes no styled-jsx,
- * so the text of the rule is what can be held - and `controlprobe.js --cart` measures the
- * computed value in Chromium, which is the half a browser can settle.
- *
- * SCOPED TO THE MONEY-ROW CONTROLS STILL STYLED IN THIS FILE, deliberately. The file has nine
- * `:focus-visible` rules; the others are on links, a redeem field and two buttons, which
- * `form-controls.css` does not reach and which have no select to pair with. Widening this to the
- * whole file would mean adding lime rings to six public checkout controls - a visible change to
- * surfaces no batch here has any business touching.
- *
- * BATCH 2f TOOK THE COUNT FROM THREE TO TWO, and the property did not move - the third control
- * did. `.cart-option` is no longer a styled `<select>`: it is the className on a `Select`'s field
- * wrapper, and its trigger's focus appearance is declared once in `form-controls.css`
- * (`.ui-select-trigger:focus` sets `box-shadow: var(--focus-ring)` with `outline: none`), where
- * `FormControlsCss.test.ts` holds it for all 159 migrated controls rather than this file holding
- * it for one. Keeping the count at three would have meant leaving a `.cart-option:focus-visible`
- * rule in this template that matches nothing, asserted by a test - a gate pointing at dead CSS,
- * which is worse than a smaller gate pointing at live CSS. The two that remain are exactly the
- * two controls this file still paints, and the length assertion still refuses to pass vacuously.
- *
- * THE PROPERTY, NOT ONE SPELLING OF IT, so it survives a reorder or a colour change.
+ * The public-cart quantity input was removed by owner instruction. The only money-row
+ * control still painted in CartPage itself is the contribution amount select; the variant
+ * chooser gets its focus skin from the shared form-control stylesheet.
  */
 describe( 'the money-row controls pair their focus ring with their focus outline', () => {
   it( 'declares a box-shadow wherever a money-row :focus-visible rule sets an outline', () => {
     const source = fs.readFileSync(
       path.resolve( __dirname, '../components/cart/CartPage.tsx' ), 'utf8' );
-    const CONTROLS = [ 'cart-qty', 'cart-amount-select' ];
+    const CONTROLS = [ 'cart-amount-select' ];
     const rules = [ ...source.matchAll( /([^{}\n]*:focus-visible[^{]*)\{([^}]*)\}/g ) ];
     const checked: string[] = [];
     for ( const [ , selector, body ] of rules ) {
@@ -2644,8 +2634,7 @@ describe( 'the money-row controls pair their focus ring with their focus outline
       expect( body, `${selector.trim()} sets an outline, so it must set a box-shadow too` )
         .toMatch( /box-shadow\s*:/ );
     }
-    // Both, or the scan found fewer rules than exist and the assertion passed vacuously.
-    expect( checked ).toHaveLength( 2 );
+    expect( checked ).toHaveLength( 1 );
   } );
 
   it( 'leaves the migrated variant chooser with a ring from the shared file, not a dead rule', () => {
