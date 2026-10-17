@@ -27,7 +27,7 @@ describe( 'the fresh 25 + Contribute Shop', () => {
   it( 'renders the first six cards and the Shop search field', () => {
     const first = SHOP_LISTINGS.slice( 0, SHOP_LISTINGS_PER_PAGE );
     const { container } = render(
-      <ShopIndex listings={ first } allListings={ SHOP_LISTINGS } page={ 1 } totalPages={ 5 } />,
+      <ShopIndex listings={ first } allListings={ SHOP_LISTINGS } page={ 1 } totalPages={ shopListingPageCount( SHOP_LISTINGS.length ) } />,
     );
     expect( container.querySelectorAll( 'article.shop-card' ) ).toHaveLength( 6 );
     expect( screen.getByLabelText( 'Search the shop' ) ).toHaveAttribute( 'type', 'search' );
