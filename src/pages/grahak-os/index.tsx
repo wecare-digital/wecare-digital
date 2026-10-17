@@ -379,16 +379,14 @@ response = requests.post(
   headers={"Authorization": bearer}
 )`}</pre>
                 </div>
+                {/* Keep this link physically attached to the Python panel. On desktop the
+                    link is absolutely anchored just below the bottom-right of .mockup-wrapper;
+                    because .code-box is also bottom-right anchored there, the link now sits
+                    directly under the Python panel instead of under the whole hero mockup.
+                    At stacked breakpoints it returns to normal flex flow immediately after the
+                    code panel. It remains a plain accessible text link, not a button/pill. */}
+                <a className="code-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp <span aria-hidden="true">↗</span></a>
               </div>
-              {/* Below-code secondary link. This sits UNDER the whole .mockup-wrapper (the
-                  .code-box is position:absolute inside that wrapper, so a static sibling
-                  there would fight its bottom-anchored geometry). The .hero-visual-col flex
-                  column right-aligns it under the mockup (align-items:flex-end) at desktop
-                  width. On owner instruction this is a PLAIN INLINE TEXT LINK (.code-wa-link),
-                  not a button or pill: dark-green #1a3a2a text with an underline and a trailing
-                  ↗ arrow so it reads as a hyperlink, kept clearly below and separate from the
-                  code block. It stays a real accessible link (same href/target/rel). */}
-              <a className="code-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp <span aria-hidden="true">↗</span></a>
             </div>
           </div>
           ) }
@@ -660,7 +658,7 @@ response = requests.post(
              as a hyperlink. Dark-green on the white hero is ~12:1, well past AA. Hover shifts
              the text to the lime-pair dark green feel by dropping the underline / keeping the
              colour and strengthening the underline; focus-visible draws the shared ring. */
-          .code-wa-link{display:inline-flex;align-items:center;gap:4px;color:#1a3a2a;font-size:15px;font-weight:600;text-decoration:underline;text-underline-offset:3px;transition:opacity .2s}
+          .code-wa-link{position:absolute;right:0;top:calc(100% + 10px);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;color:#1a3a2a;font-size:15px;font-weight:600;text-decoration:underline;text-underline-offset:3px;transition:opacity .2s}
           .code-wa-link:hover{opacity:.72}
           .code-wa-link:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;border-radius:4px}
           /* The mockup and the below-code link share a flex column; the link is RIGHT-aligned
@@ -1119,6 +1117,7 @@ response = requests.post(
             .phone{position:relative;left:auto;top:auto;width:100%;max-width:100%}
             .chat-area{min-height:320px}
             .code-box{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%}
+            .code-wa-link{position:relative;right:auto;top:auto;align-self:flex-end}
           }
 
           @media(max-width:1024px){
@@ -1148,6 +1147,7 @@ response = requests.post(
             .code-box{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%}
             .phone{left:16px;top:16px;width:52%}
             .code-box{right:auto;left:12px;bottom:16px;width:55%}
+            .code-wa-link{position:relative;right:auto;top:auto;align-self:flex-end}
             
             .section-header{padding:0 20px}
 
@@ -1191,6 +1191,7 @@ response = requests.post(
             .typing-indicator span{width:8px;height:8px}
             
             .code-box{position:relative;right:auto;bottom:auto;width:100%;max-width:100%;margin:0;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,.1);align-self:flex-start}
+            .code-wa-link{align-self:center}
             .code-header{padding:14px 16px}
             .dots{gap:6px}
             .dot-red,.dot-yellow,.dot-green{width:12px;height:12px}
