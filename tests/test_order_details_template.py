@@ -1,0 +1,34 @@
+"""Order-details message-template contract tests."""
+import pathlib
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+SHARED = ROOT / "amplify" / "functions" / "shared"
+if str(SHARED) not in sys.path:
+    sys.path.insert(0, str(SHARED))
+
+from lambda_utils import template_presets, template_validation  # noqa: E402
+
+
+def test_order_details_preset_passes_shared_validator():
+    definition = template_presets.get_preset("order_details_payment")
+    assert definition is not None
+    result = template_validation.validate_template(definition)
+    assert result["ok"], result["errors"]
+
+
+def test_order_details_is_utility_only_and_has_fixed_button_copy():
+    good = template_presets.get_preset("order_details_payment")
+    assert good
+    bad_category = dict(good, category="MARKETING")
+    result = template_validation.validate_template(bad_category)
+    assert not result["ok"]
+    assert any("UTILITY" in e for e in result["errors"])
+
+    altered = {**good, "components": [dict(c) for c in good["components"]]}
+    buttons = [dict(b) for b in altered["components"][-1]["buttons"]]
+    buttons[0]["text"] = "Pay now"
+    altered["components"][-1]["buttons"] = buttons
+    result = template_validation.validate_template(altered)
+    assert not result["ok"]
+    assert any("Review and Pay" in e for e in result["errors"])
