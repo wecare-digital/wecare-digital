@@ -128,7 +128,7 @@ describe( 'Header', () => {
       expect( icon ).toHaveAttribute( 'viewBox', '0 -960 960 960' );
     }
 
-    for ( const link of [ perks, googlePlay, appStore ] ) expect( link ).toHaveClass( 'nav-child' );
+    for ( const link of [ perks, googlePlay, appStore ] ) expect( link ).toHaveClass( 'nav-item' );
     expect( Array.from( extras?.querySelectorAll( 'a.nav-item' ) || [] ).map( link => link.textContent ) )
       .toEqual( [ 'Perks', 'Google Play', 'App Store' ] );
     expect( extras?.querySelectorAll( '.nav-row-chevron' ) ).toHaveLength( 3 );
