@@ -24,12 +24,15 @@ describe( 'the fresh 25 + Contribute Shop', () => {
     expect( SHOP_LISTINGS.find( item => item.slug === 'contribute' )?.href ).toBe( '/shop/contribute/' );
   } );
 
-  it( 'renders the first six cards and the Shop search field', () => {
+  it( 'renders the whole horizontal shelf while page 1 still receives its six-card crawl slice', () => {
     const first = SHOP_LISTINGS.slice( 0, SHOP_LISTINGS_PER_PAGE );
+    expect( first ).toHaveLength( SHOP_LISTINGS_PER_PAGE );
     const { container } = render(
       <ShopIndex listings={ first } allListings={ SHOP_LISTINGS } page={ 1 } totalPages={ 5 } />,
     );
-    expect( container.querySelectorAll( 'article.shop-card' ) ).toHaveLength( 6 );
+    // The interactive rail deliberately renders all products; the six-card slice remains the
+    // prerender/crawl contract passed through the page props.
+    expect( container.querySelectorAll( 'article.shop-card' ) ).toHaveLength( SHOP_LISTINGS.length );
     expect( screen.getByLabelText( 'Search the shop' ) ).toHaveAttribute( 'type', 'search' );
   } );
 } );
