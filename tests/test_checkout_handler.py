@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 sys.path.insert(0, os.path.dirname(__file__))
 
 from crm_fake_dynamo import FakeDynamo  # noqa: E402
+from synthetic_service_catalog import configure as configure_services  # noqa: E402
 
 _HANDLER_PATH = (Path(__file__).resolve().parents[1]
                  / "amplify/functions/ecommerce/checkout/handler.py")
@@ -111,6 +112,7 @@ def env(monkeypatch):
     spec = importlib.util.spec_from_file_location("checkout_under_test", _HANDLER_PATH)
     h = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(h)
+    configure_services(h.service_requests)
 
     fake = FakeDynamo(keys={
         ATTEMPTS_TABLE: 'paymentAttemptId',
