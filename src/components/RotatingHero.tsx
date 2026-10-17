@@ -270,7 +270,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
            Amplify stylesheet is not imported globally any more; src/styles/
            amplify-base.css records the seven rules it was really contributing. */
         .rh-shell{
-          min-height:calc(100vh - 69px);
+          min-height:100vh;\n          min-height:100dvh;
           padding-top:108px;
           box-sizing:border-box;
           background:#fff;
@@ -330,7 +330,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
 
         @media(max-width:767px){
           .rh-split{gap:32px}
-          .rh-shell{min-height:calc(100vh - 85px);padding-top:96px}
+          .rh-shell{min-height:100vh;min-height:100dvh;padding-top:96px}
           .rh-layout{padding:48px 16px 40px;gap:64px}
           .rh-head{line-height:1.1}
         }

@@ -239,6 +239,7 @@ describe( 'current shared action dock', () => {
     const assign = vi.fn();
     vi.stubGlobal( 'location', { ...window.location, assign } );
     render( <PublicShare url="https://wecare.digital/post/x/" title="A Post" /> );
+    expect( screen.getByText( /Contribute ₹250/ ) ).toBeInTheDocument();
     fireEvent.click( screen.getByRole( 'button', { name: /Contribute ₹/ } ) );
     expect( screen.getByRole( 'link', { name: 'Contribute on WhatsApp' } ) ).toHaveAttribute( 'href', CONTRIBUTE_CTA_HREF );
     expect( readCart() ).toHaveLength( 0 );

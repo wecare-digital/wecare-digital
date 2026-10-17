@@ -162,6 +162,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               onClick={ () => toggleMenu( 'contribute' ) }
             >
               <span className="ps-material" aria-hidden="true">currency_rupee</span>
+              <span className="ps-contribute-label" aria-hidden="true">{ `Contribute ${CONTRIBUTION_AMOUNT_LABEL}` }</span>
               <span className="ps-tip" aria-hidden="true">Contribute</span>
             </button>
         </section>
@@ -335,7 +336,8 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           border-color:#1a3a2a;background:#d1f470;transform:translateY(-2px);
           box-shadow:0 4px 12px rgba(26,58,42,.10);
         }
-        .ps-contribute{background:#eef7d6;border-color:#1a3a2a}
+        .ps-contribute{width:auto;min-width:168px;padding:0 16px;gap:8px;border-radius:999px;background:#eef7d6;border-color:#1a3a2a}
+        .ps-contribute-label{font-size:15px;font-weight:750;line-height:1;white-space:nowrap}
         .ps-subscribe{background:#d1f470;border-color:#1a3a2a}
         .ps-subscribe:hover{background:#fff}
         .ps-action:active{transform:translateY(0)}
@@ -413,6 +415,9 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           .ps-menu{top:78px;width:min(330px,calc(100vw - 40px))}
         }
         @media(max-width:390px){
+          .ps-row{gap:8px}
+          .ps-contribute{min-width:0;padding:0 12px}
+          .ps-contribute-label{font-size:14px}
           .ps-menu{width:calc(100vw - 40px)}
         }
         @media(prefers-reduced-motion:reduce){
