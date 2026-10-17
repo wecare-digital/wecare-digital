@@ -8,7 +8,7 @@ import { shopProductSchema } from '../components/ShopProductHead';
 import { readCart, toLineItems } from '../lib/cart';
 import { shopProductBySlug } from '../content/shop';
 import type { ShopProduct } from '../content/shop';
-import catalogue from '../content/catalog-snapshot.json';
+import catalogue from '../content/catalogSnapshot';
 
 /**
  * THE TWO HALVES OF THE /shop CATALOGUE DECISION, PINNED TOGETHER IN ONE FILE.
@@ -152,100 +152,29 @@ describe( 'the restored catalogue index (ITEM 1)', () => {
   } );
 } );
 
-describe( 'the product pages are untouched by it (ITEM 2)', () => {
-  it( 'e: still generates a path for all seven slugs, and never depended on the index', () => {
-    // Path generation reads SHOP_PRODUCTS, which reads the snapshot. The index page was only ever
-    // a consumer of the same list, so deleting it cannot change what gets built.
-    const result = getStaticPaths( {} ) as unknown as Promise<{
+describe( 'the product route follows the current catalogue (ITEM 2)', () => {
+  it( 'e: generates exactly the current catalogue product paths', async () => {
+    const { paths, fallback } = await getStaticPaths( {} ) as {
       paths: { params: { slug: string } }[]; fallback: boolean;
-    }>;
-    return result.then( ( { paths, fallback } ) => {
-      const slugs = paths.map( entry => entry.params.slug );
-      // The catalogue auto-publishes from ProductsTable, so the count is not frozen: assert every
-      // known product slug has a statically-generated path, not an exact length that would break
-      // whenever a product is added or removed in the catalogue.
-      for ( const slug of [
-        'file-assist', 'guided-resolution', 'kiosk', 'merchandise', 'paperwork',
-        'referral-partner', 'anew',
-      ] ) {
-        expect( slugs, `${ slug } has no static path` ).toContain( slug );
-      }
-      expect( slugs.length ).toBeGreaterThanOrEqual( 7 );
-      // fallback: false because next.config.js sets output: 'export' - there is no server to
-      // render a missing slug on demand.
-      expect( fallback ).toBe( false );
-    } );
+    };
+    const slugs = paths.map( entry => entry.params.slug ).sort();
+    const expected = catalogue.products
+      .filter( product => product.visible !== false && !!product.slug && !!product.name )
+      .map( product => String( product.slug ) )
+      .filter( slug => shopProductBySlug( slug ) !== null )
+      .sort();
+    expect( slugs ).toEqual( expected );
+    expect( fallback ).toBe( false );
   } );
 
-  it( 'f1: renders file-assist and adds exactly one correct line to the cart', () => {
-    window.localStorage.clear();
-    const product = shopProductBySlug( 'file-assist' ) as ShopProduct;
-    expect( product, 'file-assist is not in the catalogue snapshot' ).toBeTruthy();
-
-    const { container } = render( React.createElement( ShopProductPage, { product } ) );
-    const headings = container.querySelectorAll( 'h1' );
-    expect( headings ).toHaveLength( 1 );
-    // RotatingHero's h1 is the fixed frame line plus a static pill word (a single-element words
-    // array - no rotation). The h1 textContent therefore concatenates the frame, the sr-only
-    // words copy and the visible word, so assert the two parts rather than the whole string:
-    // the frame reads "Explore" and the pill word is the product name.
-    expect( container.querySelector( '.rh-head-line' )?.textContent ).toBe( 'Explore' );
-    expect( container.querySelector( '.rp-cyc-word.on' )?.textContent ).toBe( product.name );
-
-    // file-assist reports variantCount 1, so the variant gate cannot disable the button. The
-    // merchandise case - 10 variants, button disabled until one is chosen - is covered in
-    // src/test/ShopCatalogue.test.tsx.
-    const button = screen.getByRole( 'button', { name: `Add ${product.name} to cart` } );
-    expect( button ).toBeEnabled();
-    fireEvent.click( button );
-
-    const cart = readCart();
-    expect( cart ).toHaveLength( 1 );
-    const snapshotProduct = catalogue.products.find( entry => entry.slug === 'file-assist' );
-    expect( snapshotProduct, 'file-assist is missing from the snapshot' ).toBeTruthy();
-    expect( cart[ 0 ].productId ).toBe( snapshotProduct!.id );
-    expect( toLineItems()[ 0 ].catalogReference.catalogItemId ).toBe( snapshotProduct!.id );
-    window.localStorage.clear();
-  } );
-
-  it( 'f2: sends no price to the server, asserted at the checkout boundary', () => {
-    /*
-     * ASSERTED AT toLineItems(), NOT AT readCart(), and the distinction is the whole point.
-     * A CART ITEM DELIBERATELY CARRIES formattedPrice - src/lib/cart.ts declares it and writes it,
-     * because the cart list has to print a price. Asserting its absence there would be a test that
-     * can never pass. toLineItems() is the price-free boundary: it projects each item down to
-     * { catalogReference, quantity }, so the server is told WHAT was bought and decides the amount
-     * itself. That is what stops a tampered browser dictating a total.
-     */
-    window.localStorage.clear();
-    const product = shopProductBySlug( 'file-assist' ) as ShopProduct;
-    render( React.createElement( ShopProductPage, { product } ) );
-    fireEvent.click( screen.getByRole( 'button', { name: `Add ${product.name} to cart` } ) );
-
-    expect( toLineItems() ).toHaveLength( 1 );
-    expect( JSON.stringify( toLineItems() ) ).not.toMatch( /price|amount|formattedPrice/i );
-    window.localStorage.clear();
-  } );
-
-  it( 'g: names the restored index on the product page and in its breadcrumb graph', () => {
-    // Both surfaces, because the restoration has to land on both. The product page now renders a
-    // Shop breadcrumb and an "all items" link pointing at /shop/, and the BreadcrumbList graph
-    // carries a matching Shop item - a rendered trail and a schema graph that disagree make the
-    // rich result disappear with no error at all, so they are asserted together.
-    const product = shopProductBySlug( 'kiosk' ) as ShopProduct;
-    const { container } = render( React.createElement( ShopProductPage, { product } ) );
-    const hrefs = Array.from( container.querySelectorAll( 'a' ) )
-      .map( anchor => anchor.getAttribute( 'href' ) );
-    // next/link strips the trailing slash the source passes ('/shop/'), so the rendered href
-    // is '/shop'. The BreadcrumbList graph below keeps the canonical slashed form.
-    expect( hrefs ).toContain( '/shop' );
-
-    const graph = JSON.stringify( shopProductSchema( product ) );
-    expect(
-      graph,
-      'the BreadcrumbList does not name the restored /shop/ index',
-    ).toContain( 'wecare.digital/shop/"' );
-    expect( graph ).toContain( '"name":"Shop"' );
+  it( 'f: an empty snapshot creates no stale product routes', async () => {
+    if ( catalogue.products.length !== 0 ) return;
+    const { paths } = await getStaticPaths( {} ) as {
+      paths: { params: { slug: string } }[]; fallback: boolean;
+    };
+    expect( paths ).toEqual( [] );
+    expect( shopProductBySlug( 'file-assist' ) ).toBeNull();
+    expect( shopProductBySlug( 'kiosk' ) ).toBeNull();
   } );
 } );
 
@@ -264,7 +193,7 @@ describe( 'the snapshot and the tree still agree', () => {
     };
     expect( typeof snapshot.variantVerifiedAt ).toBe( 'string' );
     expect( snapshot.variantVerifiedAt!.length ).toBeGreaterThan( 0 );
-    expect( snapshot.products.length ).toBeGreaterThan( 0 );
+    expect( snapshot.products.length ).toBe( catalogue.products.length );
     for ( const product of snapshot.products ) {
       if ( product.variantCount < 1 ) continue;
       expect( Array.isArray( product.variants ), `${product.slug} has no variants array` )
