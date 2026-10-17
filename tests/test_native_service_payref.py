@@ -12,13 +12,14 @@ from types import SimpleNamespace
 
 import pytest
 
+pytestmark = pytest.mark.usefixtures("synthetic_service_catalog")
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 
 from lambda_utils.ecommerce import service_requests as sr  # noqa: E402
-from synthetic_service_catalog import PRODUCT as SERVICE_PRODUCT, SUBMIT as SERVICE_VARIANT, configure as configure_services  # noqa: E402
+from synthetic_service_catalog import PRODUCT as SERVICE_PRODUCT, SUBMIT as SERVICE_VARIANT  # noqa: E402
 
-configure_services(sr)
 VALID_INTENT = "01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f"
 OTHER_PRODUCT = "99999999-9999-4999-8999-999999999999"
 OTHER_VARIANT = "88888888-8888-4888-8888-888888888888"

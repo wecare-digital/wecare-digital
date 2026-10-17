@@ -84,3 +84,32 @@ def _evict_cross_file_modules():
         mod_file = getattr(mod, '__file__', None) or ''
         if mod_file and os.path.abspath(mod_file).startswith(_SEO_TOOLS_DIR):
             del sys.modules[mod_name]
+
+@pytest.fixture
+def synthetic_service_catalog(monkeypatch):
+    """Scoped synthetic Request catalog for service-path tests.
+
+    Production mappings stay empty. Tests must opt in with
+    ``pytest.mark.usefixtures(\"synthetic_service_catalog\")``. Besides the source module, patch
+    the few modules that intentionally copied catalog identities at import time; monkeypatch
+    restores every value after each test.
+    """
+    tests_dir = os.path.abspath(os.path.dirname(__file__))
+    if tests_dir not in sys.path:
+        sys.path.insert(0, tests_dir)
+
+    from synthetic_service_catalog import SUBMIT, VAULT, configure  # noqa: PLC0415
+    from lambda_utils.ecommerce import (  # noqa: PLC0415
+        paid_submit_request, service_request_store, service_requests, vault_access,
+    )
+
+    configure(service_requests, monkeypatch)
+    monkeypatch.setattr(
+        service_request_store, "SERVICE_KIND_BY_VARIANT",
+        service_requests.SERVICE_KIND_BY_VARIANT)
+    monkeypatch.setattr(
+        service_request_store, "SERVICE_VARIANT_BY_KIND",
+        service_requests.SERVICE_VARIANT_BY_KIND)
+    monkeypatch.setattr(paid_submit_request, "VARIANT_ID", SUBMIT)
+    monkeypatch.setattr(vault_access, "VARIANT_ID", VAULT)
+    return service_requests

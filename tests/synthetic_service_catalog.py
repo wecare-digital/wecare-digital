@@ -21,9 +21,18 @@ KIND_BY_VARIANT = {
 }
 
 
-def configure(service_requests):
-    service_requests.SERVICE_PRODUCT_IDS = frozenset({PRODUCT})
-    service_requests.SERVICE_KIND_BY_VARIANT = MappingProxyType(dict(KIND_BY_VARIANT))
-    service_requests.SERVICE_VARIANT_BY_KIND = MappingProxyType(
-        {kind: variant for variant, kind in KIND_BY_VARIANT.items()})
-    service_requests.SERVICE_PURCHASES_ENABLED = True
+def configure(service_requests, monkeypatch):
+    """Install the synthetic catalog for one pytest test only.
+
+    ``monkeypatch`` is required deliberately: every mutation is automatically restored at the
+    end of the requesting test, so collection order can never leak synthetic product identities
+    into another module.
+    """
+    monkeypatch.setattr(service_requests, "SERVICE_PRODUCT_IDS", frozenset({PRODUCT}))
+    monkeypatch.setattr(
+        service_requests, "SERVICE_KIND_BY_VARIANT",
+        MappingProxyType(dict(KIND_BY_VARIANT)))
+    monkeypatch.setattr(
+        service_requests, "SERVICE_VARIANT_BY_KIND",
+        MappingProxyType({kind: variant for variant, kind in KIND_BY_VARIANT.items()}))
+    monkeypatch.setattr(service_requests, "SERVICE_PURCHASES_ENABLED", True)
