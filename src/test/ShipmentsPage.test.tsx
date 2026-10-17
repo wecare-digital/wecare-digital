@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -7,6 +7,10 @@ import { join } from 'node:path';
 import ShipmentsPage from '../pages/shipments';
 import { SHIPMENTS } from '../content/shipments';
 import { whatsappServiceLink } from '../config/whatsappServiceEntries';
+
+vi.mock( 'next/router', () => ( {
+  useRouter: () => ( { push: vi.fn().mockResolvedValue( true ) } ),
+} ) );
 
 /**
  * /shipments - the Shipments page, in the Request menu.
@@ -25,8 +29,7 @@ import { whatsappServiceLink } from '../config/whatsappServiceEntries';
  *   - BOTH CTAs render with their exact hrefs, and CTA 2 (pickup) does NOT resolve through the
  *     slug's WhatsApp entry — that entry is the TRACKING link, so routing pickup through it would
  *     open the wrong conversation;
- *   - exactly two wa.me anchors and no form / field / button, so nothing looks like an on-page
- *     booking;
+ *   - exactly two wa.me anchors plus the fresh Shipment Track checkout button;
  *   - the copy rules: no exclamation marks, no em or en dashes;
  *   - chrome (Header, Footer, SupportWidget) is mounted once in _app.tsx; a page must not import it.
  *
@@ -88,30 +91,22 @@ describe( 'Shipments page', () => {
     expect( SHIPMENTS.ctaHref2 ).not.toBe( whatsappServiceLink( SHIPMENTS.slug ) );
   } );
 
-  it( 'carries exactly two wa.me anchors and no form, field or button', () => {
+  it( 'keeps exactly two wa.me anchors and adds one fresh checkout control', () => {
     const { container } = render( <ShipmentsPage /> );
-    // Drop the shared sitewide action dock before counting. It contains Subscribe/Share controls
-    // and the Contribute actions; those are sitewide furniture, not the shipments page's controls.
     container.querySelector( '.public-share' )?.remove();
     const waLinks = Array.from( container.querySelectorAll( 'a[href*="wa.me"]' ) );
     expect( waLinks ).toHaveLength( 2 );
-    // In document order: tracking first, pickup second.
     expect( waLinks[ 0 ] ).toHaveAttribute( 'href', 'https://wa.me/message/WGN4NMFLFSJVB1' );
     expect( waLinks[ 1 ] ).toHaveAttribute( 'href', 'https://wa.me/message/NRWQFXOPGL7OO1' );
-    // Shipments signposts and hands off to WhatsApp; it never transacts on the page.
-    expect( container.querySelectorAll( 'form, input, textarea, select, button' ) ).toHaveLength( 0 );
+    expect( screen.getByRole( 'button', { name: 'Continue to checkout →' } ) ).toBeInTheDocument();
+    expect( container.querySelectorAll( 'form, input, textarea, select' ) ).toHaveLength( 0 );
     expect( container.querySelectorAll( 'a[href^="mailto:"]' ) ).toHaveLength( 0 );
   } );
 
-  it( 'surfaces no transacting control or price', () => {
+  it( 'surfaces the approved Shipment Track price', () => {
     const { container } = render( <ShipmentsPage /> );
-    // The common page-tail carries the contribution amount and checkout action; remove the whole
-    // dock before asserting the Shipments page itself surfaces no price or buy control.
     container.querySelector( '.public-share' )?.remove();
-    const text = ( container.textContent || '' ).toLowerCase();
-    expect( text ).not.toContain( 'add to cart' );
-    expect( text ).not.toContain( 'pay now' );
-    expect( text ).not.toContain( '\u20b9' );
+    expect( screen.getByText( '₹49.00' ) ).toBeInTheDocument();
   } );
 
   it( 'keeps to the site tone: no exclamation marks, no em or en dashes', () => {
