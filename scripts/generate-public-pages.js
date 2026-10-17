@@ -153,6 +153,12 @@ const STRUCTURAL = [
   { path: '/dastavez/legal-reference', group: 'services' },
   { path: '/ritual-guru/puja-guidance', group: 'services' },
   { path: '/ritual-guru/diy-puja-kit', group: 'services' },
+  // Hunar's two nested service children (added with PR #769). Grouped 'services' like the other
+  // nested family children above; their name/description come from PUBLIC_PAGE_META in _app.tsx
+  // (lines ~518-519). Without these two lines the public-pages gate refuses the build because
+  // generate-sitemap.js lists both in PUBLIC_EXACT with no group rule to place them.
+  { path: '/hunar/kaushal', group: 'services' },
+  { path: '/hunar/prastuti', group: 'services' },
 ];
 
 const STRUCTURAL_BY_PATH = new Map( STRUCTURAL.map( entry => [ entry.path, entry ] ) );

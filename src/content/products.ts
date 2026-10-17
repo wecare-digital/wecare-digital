@@ -263,7 +263,6 @@ export const PRODUCTS: ProductDef[] = [
     ctaNote: 'Continue on WhatsApp →',
   },
   {
-  {
     slug: 'niji-setu',
     name: 'Niji Setu',
     blurb: 'A QR code that reaches you on a masked call.',
