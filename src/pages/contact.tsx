@@ -50,7 +50,7 @@ const ContactPage: React.FC = () => (
       badgeLabel="Requests by WECARE.DIGITAL"
       frame="You can"
       words={ CYCLE_WORDS }
-      sub="Every request is tracked end to end, with transparent pricing and one place to check where things stand."
+      sub="Clear pricing. One place to track every request."
     >
       {/* ContactLocation owns the map and postal address, including the configured
           browser-key path and the keyless fallback. Its styles stay in that component. */}
