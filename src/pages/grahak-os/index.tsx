@@ -96,12 +96,13 @@ const GrahakOsPage: React.FC = () => {
   const show = (id: string) => visible.has(id);
 
   // Six touchpoint pills, each given a distinct hue drawn from the HOMEPAGE's deliberate
-  // 4-subject palette (src/pages/index.tsx CYCLE_WORDS: amber/purple/green/red tint+dot
-  // pairs) plus the homepage blue border (#2563eb) and this page's own brand lime pair.
-  // No invented colours. The pill TEXT stays dark (rgba(0,0,0,.898) / #1a3a2a) on either
-  // a soft homepage tint or white, so every pill clears WCAG AA - amber (#f0a818, 2.04:1)
-  // and green (#3da35a, 3.19:1) are UNSAFE as text and are used only as borders/tints.
-  // `hue` maps to a .pp-pill--<hue> modifier class whose CSS lives beside .pp-pill.
+  // 4-subject palette (src/pages/index.tsx CYCLE_WORDS: amber/purple/green/red dot hues)
+  // plus the homepage blue border (#2563eb) and this page's own brand lime (#d1f470).
+  // No invented colours. Each hue is now a thin COLOURED BORDER on a WHITE background -
+  // the earlier filled tint fills were dropped on owner instruction. The pill TEXT stays
+  // dark (rgba(0,0,0,.898) / #1a3a2a) on white, so every pill clears WCAG AA - amber
+  // (#f0a818, 2.04:1) and green (#3da35a, 3.19:1) are UNSAFE as text and are used only as
+  // borders. `hue` maps to a .pp-pill--<hue> modifier class whose CSS lives beside .pp-pill.
   const useCases = [
     { title: 'Promotional', hue: 'amber' },
     { title: 'Transactional', hue: 'blue' },
@@ -450,17 +451,15 @@ response = requests.post(
               {/* Checkout + demo buttons. The paid-checkout door on this page is the
                   WhatsApp CTA pill (.gos-wa-cta) - ProductBuyBox was deliberately removed,
                   so this reuses that exact pill mechanism and surfaces the existing ₹899
-                  price. The demo reuses the existing "See it on WhatsApp" link verbatim. */}
+                  price. The "See it on WhatsApp" demo button now lives only in the closer. */}
               <div className="api-steps-buy">
-                {/* UNIFIED WHATSAPP CTA STYLE (owner instruction): every WhatsApp
-                    call-to-action on this page now renders as the single .gos-wa-cta pill.
-                    The lighter .api-action-link text-link that used to carry "See it on
-                    WhatsApp" here was replaced with a second .gos-wa-cta pill so the two
-                    buttons match; its external-link glyph and the .api-action-link CSS went
-                    with it. */}
+                {/* UNIFIED WHATSAPP CTA STYLE (owner instruction): the WhatsApp
+                    call-to-action here renders as the single .gos-wa-cta pill. The redundant
+                    second "See it on WhatsApp" .gos-wa-cta that used to sit beside it was
+                    REMOVED on owner instruction - this steps block now carries just the one
+                    "Get Started on WhatsApp" pill; the demo button lives in the closer. */}
                 <div className="api-steps-ctas">
                   <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
-                  <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp</a>
                 </div>
                 <ProductBuyBox slug="grahak-os" showPrice={ false } />
                 <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span></p>
@@ -500,8 +499,9 @@ response = requests.post(
         {/* OTP / Verifications section REMOVED on owner instruction. Its content overlapped the
             touchpoint "OTPs" pill and the capabilities strip, and the dedicated section was not
             needed. The QR lived only in this section and goes with it; the WhatsApp CTA remains
-            in the hero and the API section's "See it on WhatsApp" link. If the QR is ever wanted
-            back, the verified asset is still at public/images/grahak-os-whatsapp-qr.svg. */}
+            in the hero, the API section's "Get Started on WhatsApp" pill, and the closer's
+            "See it on WhatsApp" button. If the QR is ever wanted back, the verified asset is
+            still at public/images/grahak-os-whatsapp-qr.svg. */}
 
         <section className={`gos-closer anim ${armed ? 'is-armed' : ''} ${show('gos-closer') ? 'show' : ''}`} id="gos-closer">
           {/* STRIPPED on owner instruction to a single WhatsApp CTA. The closing heading
@@ -1367,21 +1367,24 @@ response = requests.post(
              tint. min-height is dropped: at 15px with 14px of vertical padding the
              pill computes to ~48px, so a 32px floor never applied and only implied
              a constraint that was not doing anything. */
-          /* Base pill geometry/type is shared; the HUE (border + background) is set by a
-             .pp-pill--<hue> modifier so the six touchpoints read as a varied, colourful set
-             instead of six identical grey outlines. Every hue is lifted verbatim from the
-             HOMEPAGE subject palette (amber/purple/green/red tint+dot pairs in
+          /* Base pill geometry/type is shared; the HUE is set by a .pp-pill--<hue> modifier
+             as a thin COLOURED BORDER on a WHITE background, so the six touchpoints read as a
+             clean, varied set instead of six identical grey outlines. The earlier filled
+             tint backgrounds (#fef3c7/#e0f7c8/#ede9fe/#fee2e2) were dropped on owner
+             instruction - they looked too candy/artificial; every pill is now white with
+             only its hue as the outline. Each border colour is lifted verbatim from the
+             HOMEPAGE subject palette (amber/purple/green/red dot hues in
              src/pages/index.tsx CYCLE_WORDS), the homepage blue border #2563eb, and this
              page's own brand lime #d1f470 - no new colours are introduced. Text stays dark
-             (rgba(0,0,0,.898)) on every soft tint and on white, which keeps each pill above
-             the 4.5:1 WCAG AA floor; the amber (2.04:1) and green (3.19:1) dot hues that
-             fail as text are used ONLY as borders/tints here, never as the text colour. */
+             (rgba(0,0,0,.898)) on white, which keeps each pill well above the 4.5:1 WCAG AA
+             floor; the amber (2.04:1) and green (3.19:1) hues that fail as text are used
+             ONLY as borders here, never as the text colour. */
           .pp-pill{display:inline-flex;align-items:center;justify-content:center;padding:14px 28px;border:2px solid #e5e7eb;background:#fff;border-radius:50px;font-size:17px;font-weight:600;cursor:default;transition:all .25s;color:rgba(0,0,0,.898)}
-          .pp-pill--amber{border-color:#f0a818;background:#fef3c7}
+          .pp-pill--amber{border-color:#f0a818;background:#fff}
           .pp-pill--blue{border-color:#2563eb;background:#fff}
-          .pp-pill--green{border-color:#3da35a;background:#e0f7c8}
-          .pp-pill--purple{border-color:#9849e8;background:#ede9fe}
-          .pp-pill--red{border-color:#dc2626;background:#fee2e2}
+          .pp-pill--green{border-color:#3da35a;background:#fff}
+          .pp-pill--purple{border-color:#9849e8;background:#fff}
+          .pp-pill--red{border-color:#dc2626;background:#fff}
           .pp-pill--lime{border-color:#d1f470;background:#fff;color:#1a3a2a}
           .pp-pill:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
 

@@ -152,11 +152,22 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( stepLines.length ).toBe( 3 );
   } );
 
+  // Scope assertions to the steps-block CTA container so the single-button truth is
+  // pinned to this section, not to the whole page (the closer carries its own CTA).
+  const stepsCtas = source.match( /className="api-steps-ctas">([\s\S]*?)<\/div>/ )?.[ 1 ] || '';
+
   it( 'wires the checkout button to the existing WhatsApp pill mechanism (no new checkout, no ProductBuyBox)', () => {
     // The paid-checkout door is the existing .gos-wa-cta WhatsApp pill; the step block
     // reuses that exact pill and href. ProductBuyBox stays removed.
     expect( source ).toContain( 'className="api-steps-ctas"' );
     expect( source ).toContain( '<a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>' );
+    // The steps block now carries EXACTLY ONE WhatsApp CTA: "Get Started on WhatsApp".
+    // The redundant second "See it on WhatsApp" pill here was removed on owner
+    // instruction; the demo button lives only in the closer now.
+    const stepsCtaCount = ( stepsCtas.match( /className="gos-wa-cta"/g ) || [] ).length;
+    expect( stepsCtaCount ).toBe( 1 );
+    expect( stepsCtas ).toContain( 'Get Started on WhatsApp' );
+    expect( stepsCtas ).not.toContain( 'See it on WhatsApp' );
     // ProductBuyBox is neither imported nor rendered (comments documenting its removal
     // are allowed, so strip comments before asserting).
     const codeNoComments = source.replace( /\/\*[\s\S]*?\*\//g, '' ).replace( /^\s*\/\/.*$/gm, '' );
@@ -165,18 +176,21 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( '&#8377;899<span className="gos-price-unit"> · Grahak OS · consulting solution</span>' );
   } );
 
-  it( 'renders the "See it on WhatsApp" demo button in the unified .gos-wa-cta pill style', () => {
-    // UNIFIED CTA STYLE (owner instruction): the lighter .api-action-link text-link was
-    // replaced by a .gos-wa-cta pill so every WhatsApp CTA on the page shares one look.
-    // The class name no longer appears in real markup or CSS (comments documenting the
-    // removal are allowed, so strip them first).
+  it( 'has removed the redundant "See it on WhatsApp" demo button FROM THE STEPS BLOCK', () => {
+    // UNIFIED CTA STYLE (owner instruction): the lighter .api-action-link text-link that
+    // used to carry "See it on WhatsApp" here is long gone (do not reintroduce it).
     const codeNoComments = source.replace( /\/\*[\s\S]*?\*\//g, '' ).replace( /^\s*\/\/.*$/gm, '' );
     expect( codeNoComments ).not.toContain( 'api-action-link' );
-    // The demo button is now a .gos-wa-cta pill carrying the "See it on WhatsApp" label,
-    // the same href/target/rel as before.
-    expect( source ).toContain( '<a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">See it on WhatsApp</a>' );
-    expect( source ).toContain( 'target="_blank"' );
-    expect( source ).toContain( 'rel="noopener noreferrer"' );
+    // Owner instruction: the second steps-block WhatsApp pill ("See it on WhatsApp") was
+    // REMOVED - the steps block now carries only "Get Started on WhatsApp". The demo
+    // "See it on WhatsApp" button survives ONLY in the closer (asserted in its own suite).
+    expect( stepsCtas ).not.toContain( 'See it on WhatsApp' );
+    // The page as a whole still has exactly one "See it on WhatsApp" link, in the closer.
+    const seeItCount = ( source.match( />See it on WhatsApp</g ) || [] ).length;
+    expect( seeItCount ).toBe( 1 );
+    // The single remaining steps-block CTA keeps the standard new-tab attributes.
+    expect( stepsCtas ).toContain( 'target="_blank"' );
+    expect( stepsCtas ).toContain( 'rel="noopener noreferrer"' );
   } );
 
   it( 'surfaces the existing SKU and disclaimer from the imported constants, not retyped', () => {
@@ -262,10 +276,12 @@ describe( 'Grahak OS: closer stripped to a single unified WhatsApp CTA', () => {
  * The "Every touchpoint" section (<section id="touchpoint">) renders six use-case pills.
  * They used to be six identical grey outlines (.pp-pill with a single #e5e7eb border on
  * white). They now carry SIX DISTINCT HUES drawn from the HOMEPAGE subject palette
- * (src/pages/index.tsx CYCLE_WORDS amber/purple/green/red tint+dot pairs), the homepage
- * blue border #2563eb, and this page's brand lime #d1f470 - no invented colours. The pill
- * text stays dark so every pill clears WCAG AA. These assertions pin the exact per-pill
- * hue CSS and the data-driven mapping so a revert to the monochrome treatment fails here.
+ * (src/pages/index.tsx CYCLE_WORDS amber/purple/green/red dot hues), the homepage blue
+ * border #2563eb, and this page's brand lime #d1f470 - no invented colours. Each hue is a
+ * thin COLOURED BORDER on a WHITE background (the earlier filled tint fills were dropped on
+ * owner instruction). The pill text stays dark so every pill clears WCAG AA. These
+ * assertions pin the exact per-pill border-only CSS and the data-driven mapping so a revert
+ * to either the monochrome treatment or the filled tints fails here.
  */
 describe( 'Grahak OS: "Every touchpoint" pills carry multiple homepage hues', () => {
   const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
@@ -288,19 +304,27 @@ describe( 'Grahak OS: "Every touchpoint" pills carry multiple homepage hues', ()
     expect( source ).toContain( 'className={`pp-pill pp-pill--${hue}`}' );
   } );
 
-  it( 'pins each pill to its exact homepage hue (border + tint), keeping text dark/AA', () => {
+  it( 'pins each pill to its exact homepage hue (border-only on white), keeping text dark/AA', () => {
     // Base geometry keeps the pinned 17px type and the dark body text.
     expect( code ).toContain( '.pp-pill{' );
     expect( code ).toContain( 'font-size:17px' );
     expect( code ).toContain( 'color:rgba(0,0,0,.898)' );
-    // Six hues from the homepage palette - amber/green dot hues used only as border/tint
-    // (they fail as TEXT), blue as a border on white, lime as the brand pair.
-    expect( code ).toContain( '.pp-pill--amber{border-color:#f0a818;background:#fef3c7}' );
+    // Six hues from the homepage palette, now each a thin COLOURED BORDER on a WHITE
+    // background - amber/green dot hues used only as border (they fail as TEXT), blue as
+    // a border on white, lime as the brand pair. The earlier filled tint backgrounds were
+    // dropped on owner instruction, so every pill is border-only on #fff.
+    expect( code ).toContain( '.pp-pill--amber{border-color:#f0a818;background:#fff}' );
     expect( code ).toContain( '.pp-pill--blue{border-color:#2563eb;background:#fff}' );
-    expect( code ).toContain( '.pp-pill--green{border-color:#3da35a;background:#e0f7c8}' );
-    expect( code ).toContain( '.pp-pill--purple{border-color:#9849e8;background:#ede9fe}' );
-    expect( code ).toContain( '.pp-pill--red{border-color:#dc2626;background:#fee2e2}' );
+    expect( code ).toContain( '.pp-pill--green{border-color:#3da35a;background:#fff}' );
+    expect( code ).toContain( '.pp-pill--purple{border-color:#9849e8;background:#fff}' );
+    expect( code ).toContain( '.pp-pill--red{border-color:#dc2626;background:#fff}' );
     expect( code ).toContain( '.pp-pill--lime{border-color:#d1f470;background:#fff;color:#1a3a2a}' );
+    // The dropped tint fills must NOT appear on the pill rules (scoped to the pill
+    // selectors so a legitimate use of the hex elsewhere on the page is not caught).
+    expect( code ).not.toContain( '.pp-pill--amber{border-color:#f0a818;background:#fef3c7}' );
+    expect( code ).not.toContain( '.pp-pill--green{border-color:#3da35a;background:#e0f7c8}' );
+    expect( code ).not.toContain( '.pp-pill--purple{border-color:#9849e8;background:#ede9fe}' );
+    expect( code ).not.toContain( '.pp-pill--red{border-color:#dc2626;background:#fee2e2}' );
     // Hover keeps each pill's own hue (no more forcing every pill to the lime border);
     // it only lifts and casts the existing shadow.
     expect( code ).toContain( '.pp-pill:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}' );
