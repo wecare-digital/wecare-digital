@@ -1176,6 +1176,27 @@ def _direct_send(phone_id: str, body: Dict) -> Dict:
 # docs/execution/snapshots/apigw-direct-send-samples-route-before-delete-20261006.json.
 
 
+def _list_payment_templates(waba_id: str) -> Dict:
+    """Read every template on this WABA; never treat a partial inventory as approval."""
+    rows, after, seen = [], None, set()
+    while True:
+        params = {'limit': 200, 'fields': 'name,status,language,category,sub_category'}
+        if after:
+            params['after'] = after
+        result = _graph_api(f'{waba_id}/message_templates', method='GET',
+                            params=params, waba_id=waba_id)
+        if 'error' in result:
+            return _resp(502, {'error': 'template list unavailable'})
+        rows.extend(result.get('data') or [])
+        paging = result.get('paging') or {}
+        if not paging.get('next'):
+            return _resp(200, {'data': rows})
+        after = (paging.get('cursors') or {}).get('after')
+        if not after or after in seen or len(rows) >= 10000:
+            return _resp(502, {'error': 'template list incomplete'})
+        seen.add(after)
+
+
 def _list_generated_templates(waba_id: str) -> Dict:
     """List Direct Send auto-generated templates (content-based + business-named).
     GET /{waba_id}/message_templates?source=AUTO_GENERATED"""
@@ -4997,46 +5018,25 @@ def _handle_checkout_data_exchange(sub_action: str, data: dict,
             'event': 'checkout_unknown_sub_action',
             'sub_action': sub_action, 'requestId': request_id,
         }))
-        return {'data': {'error': f'Unknown sub_action: {sub_action}'}}
+        return {'version': version, 'sub_action': sub_action, 'data': {
+            'error': 'This checkout action is not supported. Return to checkout.',
+            'error_code': 'CHECKOUT_ACTION_RETIRED',
+        }}
 
 
 def _checkout_apply_shipping(order_details: dict, input_data: dict,
                              version: str, request_id: str) -> dict:
-    """Apply shipping address. Calculate shipping cost by pin code and update order."""
-    selected_address = input_data.get('selected_address', {})
-    pin_code = selected_address.get('in_pin_code', '')
-
-    # Calculate shipping based on pin code zone
-    shipping_paise = _calculate_shipping_paise(pin_code)
-
-    # Update shipping in order
-    order_details['order']['shipping'] = {'offset': 100, 'value': shipping_paise}
-
-    # Update shipping_info with selected_address
-    if 'shipping_info' not in order_details:
-        order_details['shipping_info'] = {'country': 'IN', 'addresses': []}
-    order_details['shipping_info']['selected_address'] = selected_address
-
-    # Recalculate total from the order components. No coupon term: Delight is applied once,
-    # server-side, at invoice creation — never in this shipping callback.
-    total = _recalculate_order_total(order_details)
-    order_details['total_amount'] = {'offset': 100, 'value': total}
-
-    zone = _get_shipping_zone(pin_code)
-    logger.info(json.dumps({
-        'event': 'checkout_shipping_applied',
-        'pin_code': pin_code,
-        'zone': zone,
-        'shipping_paise': shipping_paise,
-        'new_total_paise': total,
-        'has_coupon': False,
-        'requestId': request_id,
-    }))
-
+    """Refuse shipping edits to an already reserved payment without changing its amount."""
+    # A delivered payment request already has a frozen invoice/PAYREF/attempt amount.
+    # Changing its displayed shipping here would not update any of those records.
+    # Address and delivery choices must be collected before requesting payment.
     return {
         'version': version,
         'sub_action': 'apply_shipping',
-        'data': {'order_details': order_details},
+        'data': {
+            'error': 'Choose the delivery address in checkout before requesting payment.',
+            'error_code': 'SHIPPING_REQUIRES_CHECKOUT',
+        },
     }
 
 
@@ -6231,8 +6231,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # `source=AUTO_GENERATED`, and `wecarepay_wa` is manually created and manually
             # approved, so it can never appear in that response - a gate reading it would block
             # every payment send on PAYMENT_TEMPLATE_MISSING. This arm drops the `source`
-            # filter and narrows the fields to the three `_approved_template_names` reads,
-            # returning the `{data:[{name,status,language}]}` shape it consumes.
+            # filter and includes type/language fields for the order-status approval gate,
+            # returning the complete WABA-scoped inventory to the approval gates.
             #
             # WABA-scoped, so a request from one WABA is never proven against another's
             # templates. That is the whole reason the `catalogServiceReadiness` action is not
@@ -6240,15 +6240,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             waba_id = params.get('wabaId') or body.get('wabaId')
             if not waba_id:
                 return _resp(400, {'error': 'wabaId required'})
-            tpl_result = _graph_api(f'{waba_id}/message_templates', method='GET',
-                                    params={'limit': 200, 'fields': 'name,status,language'},
-                                    waba_id=waba_id)
-            if 'error' in tpl_result:
-                # A 502 so the caller's injected fetch raises and `payment_readiness` reports
-                # META_UNAVAILABLE. Never an empty list: "we could not read" must not read the
-                # same as "nothing is approved".
-                return _resp(502, {'error': 'template list unavailable'})
-            return _resp(200, {'data': tpl_result.get('data', []) or []})
+            return _list_payment_templates(waba_id)
 
         elif '/direct-send' in path:
             phone_id = params.get('phoneId') or body.get('phoneId')

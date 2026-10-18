@@ -123,7 +123,7 @@ const HeaderCart: React.FC = () => {
           display:inline-flex;align-items:center;justify-content:center;
           inline-size:44px;min-height:44px;padding:0;box-sizing:border-box;
           background:none;border:0;border-radius:10px;
-          color:#1a3a2a;text-decoration:none;
+          color:var(--public-brand-green);text-decoration:none;
           transition:background-color .18s ease;
         }
         /* HOVER IS THE MENU ICON'S HOVER, EXACTLY, on owner instruction: "cart hover color should
@@ -149,7 +149,7 @@ const HeaderCart: React.FC = () => {
            No border is added. The owner removed this control's border outright ("only cart icon no
            text or boder"); the instruction here names the colour, so the 2px dark edge .nav-trigger
            grows on hover is deliberately NOT copied. */
-        .hdr-cart:hover{background:#d1f470}
+        .hdr-cart:hover{background:var(--public-brand-lime)}
         /* The focus ring STAYS. It is not decoration - removing the border is a visual request,
            and a keyboard user still has to see where they are (WCAG 2.4.7, and 1.4.11 for the
            indicator's own contrast). */
@@ -157,7 +157,7 @@ const HeaderCart: React.FC = () => {
            against the chip it surrounds, then 3px of opaque #1a3a2a, which measures 12.48:1
            against the white header. A single translucent stop was measured at 1.44:1 and failed
            WCAG 1.4.11 on the sibling control. */
-        .hdr-cart:focus-visible{box-shadow:0 0 0 2px #fff,0 0 0 5px #1a3a2a}
+        .hdr-cart:focus-visible{box-shadow:0 0 0 2px #fff,0 0 0 5px var(--public-brand-green)}
 
         /* 36px of glyph inside the 44px target, up from 30px on owner instruction. 36 is the
            largest even step that keeps a 4px inset on each side, so the bag still has air inside

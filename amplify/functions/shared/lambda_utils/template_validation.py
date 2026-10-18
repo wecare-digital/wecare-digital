@@ -497,6 +497,14 @@ def validate_template_parts(template_def: Dict[str, Any]) -> Tuple[List[str], Li
     e, w = validate_components(template_def.get('components', []), template_def.get('category', ''))
     errors.extend(e)
     warnings.extend(w)
+    if template_def.get('sub_category') == 'ORDER_STATUS':
+        if template_def.get('category') != 'UTILITY':
+            errors.append('ORDER_STATUS templates require category UTILITY')
+        components = [c for c in (template_def.get('components') or []) if isinstance(c, dict)]
+        if any(c.get('type') not in ('BODY', 'FOOTER') for c in components):
+            errors.append('ORDER_STATUS templates support only BODY and optional FOOTER')
+        if any('{{' in str(c.get('text', '')) for c in components):
+            errors.append('ORDER_STATUS templates cannot contain text placeholders on this sender')
     return errors, warnings
 
 

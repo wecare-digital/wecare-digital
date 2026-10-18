@@ -46,9 +46,9 @@ const PHYSICAL_PRODUCT_SLUGS = new Set<string>( [
 
 const POLICY_OVERRIDES: Readonly<Record<string, Partial<ProductPolicyCopy>>> = {
   'grahak-os': {
-    shipping: 'The Grahak OS consultation is delivered digitally, so no physical shipping applies. Any separately ordered physical item follows the shipping terms disclosed for that item.',
-    returns: 'There is no physical return for the Grahak OS consultation. If a separate physical item is supplied, return or replacement eligibility follows its product-specific terms and applicable law.',
-    disclaimer: 'The purchase shown on this page covers the stated Grahak OS consultation only. Full deployment, implementation, integrations and third-party platform or messaging charges are separate unless expressly included in writing. Channel availability, approvals and delivery can depend on third-party providers and your configuration.',
+    shipping: 'Delivered digitally, so no physical shipping applies. Any separately ordered physical item follows the delivery terms shown for that item.',
+    returns: 'There is nothing physical to return for the consultation. Any separately supplied physical item follows its own return or replacement terms.',
+    disclaimer: 'Your purchase covers the one-time Grahak OS consultation only. Deployment, implementation, integrations and third-party platform or messaging charges are separate unless included in writing. Channel availability and approvals may depend on third parties.',
   },
   'bharat-rx': {
     shipping: 'Bharat Rx is fulfilled as a service, so no physical shipping applies unless a separately identified physical item is included in your confirmed order.',

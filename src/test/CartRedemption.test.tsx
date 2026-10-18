@@ -19,7 +19,7 @@ describe( 'Cart states the always-on Delight discount, status-only', () => {
   it( 'shows the active lime-green Delight pill and no retired gift-card surface', () => {
     expect( source ).toContain( '<strong>Delight</strong>' );
     expect( source ).toContain(
-      'Applied automatically at checkout. Every order gets a little back, on us.',
+      'Delight discount is applied automatically at checkout.',
     );
     // Active green, not the old amber "temporarily unavailable" placeholder.
     expect( source ).toContain( '.cart-capability-delight{background:#ecfdf3}' );
@@ -40,7 +40,7 @@ describe( 'Cart states the always-on Delight discount, status-only', () => {
 
   it( 'keeps the Delight panel out of contribution baskets', () => {
     expect( source ).toContain(
-      '{ !items.some( isContributionItem ) && <RedemptionPanel /> }',
+      "{ !items.some( item => isContributionItem( item ) || SERVICE_PRODUCT_IDS.has( item.productId || '' ) ) && <RedemptionPanel /> }",
     );
   } );
 

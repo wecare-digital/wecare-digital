@@ -174,6 +174,59 @@ class TestOrderStatusSend:
         body = json.loads(result['body'])
         assert body['orderStatus'] == 'failed'
 
+    def test_completed_order_status_uses_configured_template_outside_window(self):
+        details = {'reference_id': 'WD-003', 'order_status': 'completed', 'amountPaise': 4900}
+        with patch.object(self.h, '_send_message', return_value={'messageId': 'wamid.template'}) as send, \
+             patch.object(self.h, '_store_message_record') as store:
+            result = self.send_order_status(
+                'msg-3', 'contact-3', '+919330994400', 'phone-id-1',
+                details, 'req-3', template_name='wecare_order_status',
+            )
+
+        assert result['statusCode'] == 200
+        payload = send.call_args.args[1]
+        assert payload['type'] == 'template'
+        assert payload['template']['name'] == 'wecare_order_status'
+        component = payload['template']['components'][0]
+        assert component['type'] == 'order_status'
+        parameter = component['parameters'][0]
+        assert parameter['type'] == 'order_status'
+        assert parameter['order_status']['reference_id']
+        assert parameter['order_status']['order']['status'] == 'completed'
+        assert store.call_args.kwargs['is_template'] is True
+
+    def test_completed_order_status_stays_interactive_inside_window(self):
+        details = {'reference_id': 'WD-004', 'order_status': 'completed', 'amountPaise': 4900}
+        with patch.object(self.h, '_send_message', return_value={'messageId': 'wamid.interactive'}) as send, \
+             patch.object(self.h, '_store_message_record') as store:
+            result = self.send_order_status(
+                'msg-4', 'contact-4', '+919330994400', 'phone-id-1',
+                details, 'req-4',
+            )
+
+        assert result['statusCode'] == 200
+        payload = send.call_args.args[1]
+        assert payload['type'] == 'interactive'
+        assert payload['interactive']['type'] == 'order_status'
+        assert payload['interactive']['action']['name'] == 'review_order'
+        assert store.call_args.kwargs['is_template'] is False
+
+    @pytest.mark.parametrize('changes', [
+        {}, {'status':'PAUSED'}, {'language':'hi'}, {'category':'MARKETING'},
+        {'sub_category':'OTHER'},
+    ])
+    def test_status_template_readback_checks_type_language_and_approval(self, changes):
+        row={'name':'verified_status','status':'APPROVED','category':'UTILITY',
+             'sub_category':'ORDER_STATUS','language':'en',**changes}
+        with patch.object(self.h,'WA_ORDER_STATUS_TEMPLATE','verified_status'), \
+             patch.object(self.h,'WA_ORDER_STATUS_TEMPLATE_LANGUAGE','en'), \
+             patch.object(self.h,'_waba_for_sender',return_value='sender-waba'), \
+             patch.object(self.h,'_fetch_approved_templates',return_value={'data':[row]}) as fetch:
+            result=self.h._approved_order_status_template('phone-1','req')
+        assert result == ('verified_status' if not changes else '')
+        fetch.assert_called_once_with('sender-waba')
+
+
 
 class TestPairRateLimit:
     """Test per-recipient pair rate limiting."""

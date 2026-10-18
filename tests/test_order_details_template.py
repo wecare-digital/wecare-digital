@@ -32,3 +32,19 @@ def test_order_details_is_utility_only_and_has_fixed_button_copy():
     result = template_validation.validate_template(altered)
     assert not result["ok"]
     assert any("Review and Pay" in e for e in result["errors"])
+
+
+def test_order_status_preset_carries_utility_subcategory_and_validates():
+    definition = template_presets.get_preset('order_status')
+    assert definition['category'] == 'UTILITY'
+    assert definition['sub_category'] == 'ORDER_STATUS'
+    assert template_validation.validate_template(definition)['ok']
+
+
+def test_order_status_rejects_marketing_and_text_placeholders():
+    definition = template_presets.get_preset('order_status')
+    definition['category'] = 'MARKETING'
+    assert not template_validation.validate_template(definition)['ok']
+    definition = template_presets.get_preset('order_status')
+    definition['components'][0]['text'] = 'Your order {{1}}'
+    assert not template_validation.validate_template(definition)['ok']

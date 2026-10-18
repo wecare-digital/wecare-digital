@@ -551,8 +551,8 @@ const ContactLocation: React.FC = () => {
            is the inversion this whole site uses. Same clamp as the other section
            headings so they read as siblings. */
         .cl-h2{
-          font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;
-          letter-spacing:-1.2px;color:rgba(0,0,0,.95);margin:0 0 24px;
+          font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);
+          letter-spacing:var(--public-section-tracking);color:var(--public-heading);margin:0 0 24px;
         }
 
         /* Map left, details right. The map is 1fr and the copy column a fixed 300px for
@@ -569,7 +569,7 @@ const ContactLocation: React.FC = () => {
         .cl-map{
           position:relative;overflow:hidden;
           border:2px solid #d1f470;border-radius:14px;
-          background:rgba(209,244,112,.22);
+          background:var(--public-lime-tint);
           aspect-ratio:4/3;
         }
         /* display:block kills the inline-element baseline gap under the iframe, which
@@ -618,18 +618,18 @@ const ContactLocation: React.FC = () => {
           padding:14px 18px;
           border:2px solid #d1f470;border-radius:14px;
           background:#fff;
-          box-shadow:0 4px 12px rgba(26,58,42,.12);
+          box-shadow:var(--public-lift-shadow);
         }
         /* Card-heading rung at its small end: 19px/700. Smaller than the 22px used on the
            page's own cards because this one overlays a map and must not dominate it. */
-        .cl-card-name{margin:0 0 4px;font-size:19px;font-weight:700;letter-spacing:-.25px;line-height:1.2;color:#1a3a2a}
-        .cl-card-addr{margin:0;font-size:15px;font-weight:400;line-height:1.4;color:rgba(0,0,0,.54)}
+        .cl-card-name{margin:0 0 4px;font-size:19px;font-weight:700;letter-spacing:-.25px;line-height:1.2;color:var(--public-brand-green)}
+        .cl-card-addr{margin:0;font-size:15px;font-weight:400;line-height:1.4;color:var(--public-muted)}
 
         /* The live row. Separated by the site's 1px static hairline rather than extra space,
            so it reads as a second kind of information instead of a loose afterthought. */
         .cl-card-live{
           display:flex;flex-wrap:wrap;gap:6px;
-          margin:10px 0 0;padding-top:10px;border-top:1px solid #e5e7eb;
+          margin:10px 0 0;padding-top:10px;border-top:1px solid var(--public-hairline);
         }
         /* 10px radius: one step inside the card's 14px. Nesting the same 14px would make the
            inner corner look slacker than the outer one at this size, which is the usual way
@@ -638,26 +638,26 @@ const ContactLocation: React.FC = () => {
         .cl-chip{
           display:inline-flex;align-items:baseline;gap:5px;
           padding:4px 9px;border-radius:10px;
-          background:rgba(209,244,112,.22);
+          background:var(--public-lime-tint);
           white-space:nowrap;
         }
         /* Uppercase micro-label, same 12px/700/.08em as every eyebrow on the site. */
         .cl-chip-k{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(0,0,0,.72)}
         /* tabular-nums keeps the clock from shifting width as the digits change, which is
            what makes a ticking time look like a bug. */
-        .cl-chip-v{font-size:16px;font-weight:700;letter-spacing:-.1px;color:#1a3a2a;font-variant-numeric:tabular-nums}
+        .cl-chip-v{font-size:16px;font-weight:700;letter-spacing:-.1px;color:var(--public-brand-green);font-variant-numeric:tabular-nums}
 
         .cl-copy{min-width:0}
         .cl-label{
           margin:0 0 6px;font-size:12px;font-weight:700;
-          letter-spacing:.08em;text-transform:uppercase;color:rgba(0,0,0,.54);
+          letter-spacing:.08em;text-transform:uppercase;color:var(--public-muted);
         }
         .cl-label:not(:first-child){margin-top:20px}
 
         /* font-style:normal because browsers italicise <address> by default, and an
            italic postal address reads as a quotation. */
         .cl-address{margin:0;font-style:normal;display:flex;flex-direction:column;gap:2px}
-        .cl-address span{font-size:17px;font-weight:400;line-height:1.5;letter-spacing:-.05px;color:rgba(0,0,0,.898)}
+        .cl-address span{font-size:17px;font-weight:400;line-height:1.5;letter-spacing:-.05px;color:var(--public-body)}
         /* 1.55, not 1.5, to match --line in src/styles/Layout.css. 17px is the site's
            --base-font, so a value line has no reason to carry its own rhythm. That left
            17px rendering at three different line-heights across the public pages
@@ -665,29 +665,29 @@ const ContactLocation: React.FC = () => {
            The one remaining exception is deliberate: .msg in the Grahak OS hero runs
            17px/1.42 because WhatsApp chat bubbles are tight, and loosening them to the
            body rhythm makes the mockup stop reading as a real conversation. */
-        .cl-value{margin:0;font-size:17px;line-height:1.55;color:rgba(0,0,0,.898)}
+        .cl-value{margin:0;font-size:17px;line-height:1.55;color:var(--public-body)}
 
         /* The plus code is a code, so it is set as one - tabular mono keeps the glyphs
            from shifting and signals that it is meant to be copied verbatim. */
         .cl-code{
           font-family:'SF Mono',Monaco,Consolas,monospace;font-size:16px;font-weight:700;
           padding:3px 8px;border-radius:6px;
-          background:rgba(209,244,112,.22);color:#1a3a2a;
+          background:var(--public-lime-tint);color:var(--public-brand-green);
         }
 
-        .cl-link{color:#1a3a2a;font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
-        .cl-link:hover{background:rgba(209,244,112,.22)}
+        .cl-link{color:var(--public-brand-green);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
+        .cl-link:hover{background:var(--public-lime-tint)}
 
         /* Full-strength lime with #1a3a2a type: the contract's own-surface pairing, and
            the single actionable surface in this section. */
         .cl-cta{
-          display:inline-flex;align-items:center;min-height:52px;margin-top:28px;
-          padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;
-          background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;
+          display:inline-flex;align-items:center;min-height:var(--public-cta-height);margin-top:28px;
+          padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
+          background:var(--public-brand-lime);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
           transition:background-color .2s,transform .2s,box-shadow .2s;
         }
-        .cl-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-        .cl-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+        .cl-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
+        .cl-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
 
         @media(prefers-reduced-motion:reduce){
           .cl-cta{transition:none}

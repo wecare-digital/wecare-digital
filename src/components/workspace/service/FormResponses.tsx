@@ -322,8 +322,8 @@ const FormResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =
         .fr-inner{max-width:1300px;margin:0 auto;padding:0 24px;box-sizing:border-box}
         .fr-head{margin:0 0 28px}
         .fr-h1{
-          font-size:clamp(32px,4.2vw,54px);font-weight:700;line-height:1.04;
-          letter-spacing:-1.875px;color:rgba(0,0,0,.95);margin:0 0 14px;
+          font-size:clamp(36px,4.3vw,60px);font-weight:600;line-height:1.04;
+          letter-spacing:-0.04em;color:rgba(0,0,0,.95);margin:0 0 14px;
         }
         .fr-sub{
           font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;

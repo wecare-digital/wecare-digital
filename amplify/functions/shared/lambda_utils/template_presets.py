@@ -82,6 +82,17 @@ def _preset_order_details_payment() -> Dict[str, Any]:
     }
 
 
+def _preset_order_status() -> Dict[str, Any]:
+    """No text placeholders: status/reference are supplied by the order_status component."""
+    return {
+        'name': 'wecare_order_status',
+        'language': 'en',
+        'category': 'UTILITY',
+        'sub_category': 'ORDER_STATUS',
+        'components': [{'type': 'BODY', 'text': 'Your order status has been updated.'}],
+    }
+
+
 def _preset_order_confirmation() -> Dict[str, Any]:
     return {
         'name': 'order_confirmation',
@@ -180,6 +191,7 @@ _PRESETS = {
     'seasonal_promotion': _preset_seasonal_promotion,
     'limited_time_offer': _preset_limited_time_offer,
     'order_details_payment': _preset_order_details_payment,
+    'order_status': _preset_order_status,
     'order_confirmation': _preset_order_confirmation,
     'order_delivery_update': _preset_order_delivery_update,
     'flow_lead_generation': _preset_flow_lead_generation,
