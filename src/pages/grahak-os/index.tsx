@@ -665,8 +665,8 @@ response = requests.post(
           .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;width:100%;box-sizing:border-box}
           /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
              above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
-          .gos-price{display:block;margin-top:22px;font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
-          .gos-offer-note{max-width:620px;margin:7px 0 0;font-size:16px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.6)}
+          .gos-price{display:block;margin-top:22px;font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
+          .gos-offer-note{max-width:620px;margin:7px 0 0;font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898)}
           @media(prefers-reduced-motion:reduce){
             .gos-wa-cta{transition:background-color .2s}
             .gos-wa-cta:hover{transform:none;box-shadow:none}
@@ -710,24 +710,24 @@ response = requests.post(
              .gos-commerce / .gos-price below are still used by the api-steps block above, so
              their rules stay. */
           .gos-commerce{
-            margin-top:14px;max-width:700px;font-family:inherit;font-size:15px;font-weight:400;line-height:1.55;
-            letter-spacing:-.025px;color:rgba(0,0,0,.62);text-align:left;
+            margin-top:14px;max-width:700px;font-family:inherit;font-size:17px;font-weight:400;line-height:1.4;
+            letter-spacing:-.05px;color:rgba(0,0,0,.898);text-align:left;
           }
-          .gos-commerce strong{color:#1a3a2a;font-weight:650}
+          .gos-commerce strong{color:#1a3a2a;font-weight:700}
           .gos-commerce p{margin:0}
           .gos-policy{margin-top:8px;font-family:inherit}
           .gos-policy summary{
             display:inline-flex;align-items:center;width:max-content;padding:6px 9px;border-radius:8px;
-            cursor:pointer;color:#1a3a2a;background:rgba(209,244,112,.18);font-family:inherit;font-size:15px;font-weight:600;
-            line-height:1.2;letter-spacing:-.025px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;
+            cursor:pointer;color:#1a3a2a;background:rgba(209,244,112,.18);font-family:inherit;font-size:17px;font-weight:600;
+            line-height:1.4;letter-spacing:-.05px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;
             transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
           }
           .gos-policy summary:hover{background:#d1f470;text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1)}
           .gos-policy summary:focus-visible{background:#d1f470;text-decoration-color:transparent;outline:3px solid #1a3a2a;outline-offset:3px}
           .gos-policy p{
             max-width:640px;margin-top:10px;padding:8px 0 8px 12px;border-inline-start:3px solid #d1f470;
-            color:rgba(0,0,0,.62);font-family:inherit;font-size:15px;font-weight:400;line-height:1.55;
-            letter-spacing:-.025px;text-wrap:pretty;
+            color:rgba(0,0,0,.898);font-family:inherit;font-size:20px;font-weight:400;line-height:1.4;
+            letter-spacing:-.125px;text-wrap:pretty;
           }
           /* The .gos-closer-head rule was REMOVED with the closer heading markup on owner
              instruction (the "Transform customer engagement with Grahak OS" h2 is gone). */
@@ -1015,8 +1015,8 @@ response = requests.post(
           /* Card-heading rung (22px/700), one step below the section h2 in the same
              column, so the outline is h2 -> h3 with no skipped level. */
           .api-step-title{font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:rgba(0,0,0,.95);margin:0 0 6px}
-          /* Supporting line in the muted body token. */
-          .api-step-line{font-size:17px;font-weight:400;line-height:1.5;letter-spacing:-.05px;color:rgba(0,0,0,.6);margin:0}
+          /* Supporting line uses the same 20px body rung as Home. */
+          .api-step-line{font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898);margin:0}
           /* Buy block: WhatsApp checkout pill, then price + explanation, then the policy
              card. gos-wa-cta/gos-price/gos-commerce are shared page rules; only the layout
              gaps are set here. */
@@ -1042,7 +1042,7 @@ response = requests.post(
              lighter than the paid WhatsApp pill. It is transparent at rest; hover/focus
              borrows the active-tab lime so the relationship to the editor is immediate. */
           .api-wa-row{display:flex;justify-content:flex-start}
-          .api-wa-link{display:inline-flex;align-items:center;gap:5px;width:max-content;margin-left:-10px;padding:8px 10px;border-radius:10px;color:#1a3a2a;font-size:15px;font-weight:700;line-height:1.25;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}
+          .api-wa-link{display:inline-flex;align-items:center;gap:5px;width:max-content;margin-left:-10px;padding:8px 10px;border-radius:10px;color:#1a3a2a;font-size:17px;font-weight:600;line-height:1.4;letter-spacing:-.05px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}
           .api-wa-link:hover{background:#d1f470;color:#1a3a2a;text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 6px 18px rgba(26,58,42,.12)}
           .api-wa-link:focus-visible{background:#d1f470;color:#1a3a2a;text-decoration-color:transparent;outline:3px solid #1a3a2a;outline-offset:3px}
           /* No border-bottom. The .12 hairline here was standing in for structure
@@ -1084,7 +1084,7 @@ response = requests.post(
              with centred content, so the box grows without moving the label, and the
              mobile breakpoints below (which raise padding to 14px and 12px) were already
              past 44px and are left untouched. */
-          .pp-tab{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-family:inherit;padding:10px 20px;min-height:44px;border:none;border-radius:8px;font-size:15px;font-weight:600;color:rgba(255,255,255,.54);background:transparent;box-shadow:none;cursor:pointer;transition:all .2s}
+          .pp-tab{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-family:inherit;padding:10px 20px;min-height:44px;border:none;border-radius:8px;font-size:17px;font-weight:600;color:rgba(255,255,255,.54);background:transparent;box-shadow:none;cursor:pointer;transition:all .2s}
           /* Text-only hover: idle .54 white lifting to full white. The active tab
              already owns the filled-lime state, so a second fill competes with it. */
           .pp-tab:hover{color:#fff;background:transparent}
@@ -1143,7 +1143,7 @@ response = requests.post(
             
             .hero{padding:110px 20px 60px}
             .hero-content{grid-template-columns:1fr;gap:40px;text-align:left}
-            .hero-left h1{letter-spacing:-1.8px;max-width:760px;margin:0 0 20px}
+            .hero-left h1{max-width:760px;margin:0 0 20px}
             .hero-left p{max-width:520px;margin:0 0 28px}
             
             /* STACKED here, not lapped. Verified in a real browser at 768px: the lapped
@@ -1172,7 +1172,7 @@ response = requests.post(
 
             .touchpoint{padding:50px 0}
             .usecase-pills{gap:10px}
-            .pill{padding:12px 22px;font-size:14px}
+            .pill{padding:12px 22px}
             
             .api{padding:50px 20px}
             .api-grid{grid-template-columns:1fr;gap:36px;text-align:left}
@@ -1194,7 +1194,7 @@ response = requests.post(
                (desktop right-aligns it; here flex-end would push it to the column edge). */
             .hero-visual-col{align-items:center}
             .hero-left{text-align:left;order:1}
-            .hero-left h1{letter-spacing:-1.2px;margin:0 0 20px;line-height:1.1;max-width:100%;text-align:left}
+            .hero-left h1{margin:0 0 20px;line-height:1.1;max-width:100%;text-align:left}
             .hero-left p{margin:0 0 16px;max-width:100%;text-align:left}
 
             .mockup-wrapper{display:flex;flex-direction:column;gap:14px;width:100%;max-width:380px;margin:8px auto 0;aspect-ratio:auto;padding:16px;background:#fff;border-radius:16px;border:2px solid #e5e7eb;align-items:flex-start;transition:all .25s;cursor:default}
@@ -1245,7 +1245,7 @@ response = requests.post(
             .api-steps-list{max-width:100%}
             .api-steps-buy{max-width:100%}
             .code-tabs{padding:16px;gap:10px;justify-content:flex-start;flex-wrap:wrap}
-            .pp-tab{padding:14px 24px;font-size:18px}
+            .pp-tab{padding:14px 24px}
             .code-block{font-size:14px;padding:18px;min-height:auto;text-align:left;white-space:pre-wrap;word-break:break-word;overflow-x:visible;line-height:1.7}
             .api-wa-row{justify-content:flex-start}
             .api-wa-link{margin-left:-8px;padding:8px}
@@ -1257,7 +1257,6 @@ response = requests.post(
           @media(max-width:480px){
             
             .hero{padding:calc(85px + env(safe-area-inset-top)) 16px 44px}
-            .hero-left h1{letter-spacing:-1px;line-height:1.12}
             
             .section-header{padding:0 16px}
 
@@ -1274,13 +1273,13 @@ response = requests.post(
             
             .touchpoint{padding:36px 0}
             .usecase-pills{gap:10px}
-            .pill{padding:12px 20px;font-size:18px}
+            .pill{padding:12px 20px}
             
             .api{padding:36px 16px}
             .api-info h2{text-align:left}
             .api-desc{text-align:left}
             .code-tabs{gap:8px;padding:14px}
-            .pp-tab{padding:12px 20px;font-size:17px}
+            .pp-tab{padding:12px 20px}
             .code-block{font-size:14px;padding:16px;min-height:auto;text-align:left;white-space:pre-wrap;word-break:break-word;overflow-x:visible;line-height:1.65}
             
             
@@ -1294,9 +1293,8 @@ response = requests.post(
                hero alone sat 2px left of everything else. Measured at 360px: hero text at
                14px, the rest at 16px. */
             .hero{padding:calc(80px + env(safe-area-inset-top)) 16px 36px}
-            .hero-left h1{letter-spacing:-.8px}
             
-            .pill{padding:12px 18px;font-size:17px}
+            .pill{padding:12px 18px}
           }
           
           /* ========== LANDSCAPE ORIENTATION FIX ========== */
@@ -1314,9 +1312,10 @@ response = requests.post(
           }
 
           /* ========== TYPOGRAPHY CONTRACT ========== */
-          /* One responsive type hierarchy, declared after the legacy breakpoint
-             rules so a single clamp() governs each size at every width. The hero
-             h1 and p are intentionally absent: their base rule is the contract. */
+          /* Match Home's public-page ladder: 60px hero, 40px section heading,
+             22px card title, 20px body and 17px controls. Code text and the phone
+             mock remain intentional interface exceptions. The hero h1 and body
+             already own the exact Home values in their base rules. */
           .section-header h2{font-size:clamp(28px,3.2vw,40px);line-height:1.08;letter-spacing:-1.2px}
           .section-header p{font-size:20px;line-height:1.4;letter-spacing:-.125px}
           /* 17px explicit, not var(--text-base). That token is declared twice —
@@ -1342,7 +1341,7 @@ response = requests.post(
           .pill,.pp-pill{font-size:17px}
           .api-info h2{font-size:clamp(28px,3.2vw,40px);line-height:1.08;letter-spacing:-1.2px}
           .api-desc{font-size:20px;line-height:1.4;letter-spacing:-.125px}
-          .pp-tab{font-size:15px}
+          .pp-tab{font-size:17px}
           
           /* ========== REDUCED MOTION ========== */
           @media(prefers-reduced-motion:reduce){
