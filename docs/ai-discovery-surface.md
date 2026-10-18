@@ -1,4 +1,4 @@
-# The AI discovery surface: `/mcp`, `/llms.txt`, `/llm`
+# The AI discovery surface: `/mcp`, `/llms.txt`, `/llms-full.txt`
 
 Added 2026-09-28. This is the reference for how an AI assistant reads wecare.digital, what
 each artifact is actually worth, and the routing behaviour that makes one of them
@@ -155,7 +155,7 @@ src/pages/_app.tsx                PUBLIC_PAGE_META + isPublic chain   render all
 scripts/generate-sitemap.js       PUBLIC_EXACT                        crawl allowlist
 config/public-pages.json          the catalogue         llms.txt + the MCP server's zip
 amplify/functions/ai/mcp/  READ_ONLY_TOOLS, PROTOCOL_VERSIONS  what /mcp serves
-src/lib/ai-surface.ts             what /llm tells a reader /mcp does
+src/lib/ai-surface.ts             metadata shared by the machine-readable AI surfaces
 ```
 
 Five descriptions of one truth, in four languages, because the consumers cannot share a
@@ -166,7 +166,7 @@ module — a React allowlist, two Node generators, a Python Lambda, and a TS con
 |---|---|
 | catalogue has a page `_app.tsx` does not | llms.txt advertises a URL that serves the staff sign-in shell at HTTP 200 |
 | `_app.tsx` has a page the catalogue lacks | the page is invisible to every agent |
-| `ai-surface.ts` disagrees with the handler | `/llm` documents tools that do not exist, and an operator configures a client against it |
+| `ai-surface.ts` disagrees with the handler | generated AI discovery metadata can describe tools that do not exist |
 | a named robots.txt agent loses a `Disallow` | that crawler is **granted** `/workspace/` |
 
 `src/lib/ai-surface.ts` restates a handful of values rather than importing the catalogue,
