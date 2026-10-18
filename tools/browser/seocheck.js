@@ -337,10 +337,25 @@ async function main() {
       await ctx2.close();
       return body;
     } )();
-    const advertised = RETIRED.filter( r => smRes.includes( r.replace( /\/$/, '' ) ) );
+    // Compare exact sitemap paths, never raw substrings. A child such as
+    // /dastavez/drafting/ legitimately contains the retired parent text "/dastavez/",
+    // so substring matching turns correct child URLs into false positives.
+    const sitemapPaths = new Set(
+      [ ...smRes.matchAll( /<loc>([^<]+)<\\/loc>/g ) ].map( match => {
+        try {
+          const pathname = new URL( match[ 1 ] ).pathname;
+          return pathname.replace( /\\/+$/, '' ) || '/';
+        } catch {
+          return String( match[ 1 ] || '' ).replace( /\\/+$/, '' ) || '/';
+        }
+      } )
+    );
+    const advertised = RETIRED.filter( route =>
+      sitemapPaths.has( route.replace( /\\/+$/, '' ) || '/' )
+    );
     record( smRes.length > 0 && advertised.length === 0,
       'no retired URL appears in sitemap.xml',
-      smRes.length === 0 ? 'could not read sitemap.xml' : advertised.length ? advertised.join( ', ' ) : `sitemap has ${( smRes.match( /<loc>/g ) || [] ).length} URLs, none retired` );
+      smRes.length === 0 ? 'could not read sitemap.xml' : advertised.length ? advertised.join( ', ' ) : `sitemap has ${sitemapPaths.size} URLs, none retired` );
   } finally {
     await browser.close();
     await t.close();
