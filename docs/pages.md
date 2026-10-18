@@ -240,7 +240,7 @@ Behind authentication. Listed so the set is reviewable, but none of these is pub
 
 | Route | Open locally |
 | --- | --- |
-| `/store/` | [http://localhost:3000/store/](http://localhost:3000/store/) |
+| `[retired public path]` | [http://localhost:3000/store/](http://localhost:3000/store/) |
 
 ### task (1)
 
