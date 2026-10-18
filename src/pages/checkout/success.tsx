@@ -113,13 +113,13 @@ export default function CheckoutSuccess (): React.ReactElement {
              with the viewport. */
           .cs-order-label{
             font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
-            color:rgba(0,0,0,.54);
+            color:var(--public-muted);
           }
           /* The card-heading rung in dark green - the same 22px/700/1.27/-.25px the catalogue
              gives a price, because this is the other identifier a customer reads back to us.
              Tabular figures so the digits are evenly spaced. */
           .cs-order-number{
-            font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;
+            font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);
             color:#1a3a2a;font-variant-numeric:tabular-nums;
           }
 
@@ -133,7 +133,7 @@ export default function CheckoutSuccess (): React.ReactElement {
              capitalised component, so without it the compiled rule matches nothing and both render
              as bare blue underlined text. */
           .cs-card :global(.cs-btn){
-            display:inline-flex;align-items:center;justify-content:center;min-height:52px;
+            display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);
             padding-inline:26px;border-radius:50px;font-family:inherit;font-size:17px;
             font-weight:600;text-decoration:none;line-height:normal;
             transition:background-color .2s,transform .2s,box-shadow .2s;
