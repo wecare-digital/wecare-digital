@@ -8,8 +8,11 @@ import Head from 'next/head';
 import PageMeta from '../../components/PageMeta';
 import PublicShare from '../../components/PublicShare';
 import ProductBuyBox from '../../components/ProductBuyBox';
+import PolicyDetails from '../../components/public/PolicyDetails';
 import RotatingHero from '../../components/RotatingHero';
-import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, PRODUCT_SKU_BY_SLUG } from '../../content/productCommerce';
+import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCommerce';
+
+const GRAHAK_POLICY = productPolicyCopy( 'grahak-os', 'Grahak OS' );
 
 const GrahakOsPage: React.FC = () => {
   const [visible, setVisible] = useState<Set<string>>(new Set());
@@ -477,14 +480,11 @@ response = requests.post(
                     productCommerce constants so this page cannot drift from checkout policy. */}
                 <div className="gos-commerce">
                   <p data-wc-no-translate="true"><strong>SKU:</strong> { PRODUCT_SKU_BY_SLUG['grahak-os'] }</p>
-                  <details className="gos-policy">
-                    <summary>Policy details</summary>
-                    <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }</p>
-                    <p><strong>Shipping / fulfilment:</strong> The Grahak OS consultation is delivered digitally, so no physical shipping applies. Any separately ordered physical item follows the shipping terms disclosed for that item.</p>
-                    <p><strong>Returns:</strong> There is no physical return for the Grahak OS consultation. If a separate physical item is supplied, return or replacement eligibility follows its product-specific terms and applicable law.</p>
-                    <p><strong>Refunds & cancellations:</strong> Cancellation is handled only as part of the refund policy above. Eligible voluntary cancellations or discretionary adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days, not as cash or a refund to the original payment method, except where applicable law requires otherwise.</p>
-                    <p className="gos-policy-disclaimer"><strong>Disclaimer:</strong> The ₹899 purchase shown here covers the one-time Grahak OS consultation only. Full deployment, implementation, integrations and third-party platform or messaging charges are separate unless expressly included in writing. Channel availability, approvals and delivery can depend on third-party providers and your configuration. Statutory consumer rights remain unaffected.</p>
-                  </details>
+                  <PolicyDetails
+                    shipping={ GRAHAK_POLICY.shipping }
+                    returns={ GRAHAK_POLICY.returns }
+                    disclaimer={ GRAHAK_POLICY.disclaimer }
+                  />
                 </div>
               </div>
             </div>
@@ -676,8 +676,6 @@ response = requests.post(
             .gos-wa-cta:hover{transform:none;box-shadow:none}
             .api-wa-link{transition:none}
             .api-wa-link:hover{transform:none}
-            .gos-policy summary{transition:none}
-            .gos-policy summary:hover{transform:none;box-shadow:none}
           }
           /* .api-wa-link's reduced-motion override lives beside the .api-wa-link base rule
              further down, so it is written AFTER that base rule — otherwise an override placed
@@ -722,20 +720,6 @@ response = requests.post(
           }
           .gos-commerce strong{color:#1a3a2a;font-weight:700}
           .gos-commerce p{margin:0}
-          .gos-policy{margin-top:8px;font-family:inherit}
-          .gos-policy summary{
-            display:inline-flex;align-items:center;width:max-content;padding:6px 9px;border-radius:8px;
-            cursor:pointer;color:#1a3a2a;background:rgba(209,244,112,.18);font-family:inherit;font-size:17px;font-weight:600;
-            line-height:1.4;letter-spacing:-.05px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;
-            transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
-          }
-          .gos-policy summary:hover{background:#d1f470;text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1)}
-          .gos-policy summary:focus-visible{background:#d1f470;text-decoration-color:transparent;outline:3px solid #1a3a2a;outline-offset:3px}
-          .gos-policy p{
-            max-width:640px;margin-top:10px;padding:8px 0 8px 12px;border-inline-start:3px solid #d1f470;
-            color:rgba(0,0,0,.898);font-family:inherit;font-size:20px;font-weight:400;line-height:1.4;
-            letter-spacing:-.125px;text-wrap:pretty;
-          }
           /* The .gos-closer-head rule was REMOVED with the closer heading markup on owner
              instruction (the "Transform customer engagement with Grahak OS" h2 is gone). */
 
