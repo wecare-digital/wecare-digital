@@ -6,44 +6,43 @@ import { productPolicyCopy } from '../content/productCommerce';
 import { productBySlug } from '../content/products';
 
 describe( 'PolicyDetails', () => {
-  it( 'keeps Anew disclaimer concise and route-specific', () => {
+  const retiredFooter = [ 'Statutory consumer rights', 'remain unaffected.' ].join( ' ' );
+
+  it( 'renders only the four concise policy concepts', () => {
     const product = productBySlug( 'anew' );
     const policy = productPolicyCopy( product.slug, product.name, product.note );
     const html = renderToStaticMarkup(
       <PolicyDetails
         shipping={ policy.shipping }
         returns={ policy.returns }
+        refunds={ policy.refunds }
         disclaimer={ policy.disclaimer }
       />,
     );
 
-    expect( html ).not.toContain( 'Shipping, returns &amp; refunds' );
+    expect( html ).toContain( 'Shipping / fulfilment:' );
+    expect( html ).toContain( 'Returns:' );
     expect( html ).toContain( 'Refunds &amp; cancellations:' );
-    expect( html ).toContain( policy.refunds );
+    expect( html ).toContain( 'Disclaimer:' );
+    expect( html ).not.toContain( retiredFooter );
 
     const disclaimerParagraphs = html.match( /<p[^>]*wc-policy-disclaimer[^>]*>[\s\S]*?<\/p>/g ) || [];
     expect( disclaimerParagraphs ).toHaveLength( 1 );
     expect( disclaimerParagraphs[ 0 ] ).toContain( 'Anew is written reflection' );
     expect( disclaimerParagraphs[ 0 ] ).not.toContain( 'If you need mental-health support' );
-    expect( disclaimerParagraphs[ 0 ] ).toContain( 'Statutory consumer rights remain unaffected.' );
   } );
 
-  it( 'can suppress the statutory-rights footer for a concise embedded disclosure', () => {
-    const policy = productPolicyCopy( 'grahak-os', 'Grahak OS' );
+  it( 'does not expose retired overview or statutory-footer controls', () => {
     const html = renderToStaticMarkup(
       <PolicyDetails
-        shipping={ policy.shipping }
-        returns={ policy.returns }
-        disclaimer={ policy.disclaimer }
-        overview={ null }
+        shipping="Delivered digitally."
+        returns="Nothing physical to return."
         refunds="Approved adjustments are issued as store credit."
-        showStatutoryRights={ false }
+        disclaimer="Confirmed transaction terms control."
       />,
     );
 
+    expect( html ).not.toContain( retiredFooter );
     expect( html ).not.toContain( 'Shipping, returns &amp; refunds' );
-    expect( html ).not.toContain( 'Statutory consumer rights remain unaffected.' );
-    expect( html ).toContain( 'Delivered digitally' );
-    expect( html ).toContain( 'Approved adjustments are issued as store credit.' );
   } );
 } );
