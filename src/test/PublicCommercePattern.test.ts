@@ -11,7 +11,7 @@ describe( 'canonical public commerce pattern', () => {
     expect( policy ).toContain( '<strong>Shipping / fulfilment:</strong>' );
     expect( policy ).toContain( '<strong>Returns:</strong>' );
     expect( policy ).toContain( '<strong>Refunds & cancellations:</strong>' );
-    expect( policy ).toContain( 'WECARE.DIGITAL store credit valid for 30 calendar days' );
+    expect( policy ).toContain( 'refunds = PRODUCT_REFUNDS' );
     expect( policy ).toContain( '<strong>Disclaimer:</strong>' );
   } );
 
@@ -75,7 +75,8 @@ describe( 'canonical public commerce pattern', () => {
 
   it( 'keeps Anew on the ProductBuyBox price/note rail instead of a page-local price', () => {
     const source = read( 'src/pages/anew.tsx' );
-    expect( source ).toContain( 'displayPrice="₹599"' );
+    expect( source ).toContain( "const ANEW_DISPLAY_PRICE = productCheckoutLine( 'anew' )?.formattedPrice.replace( /\\.00$/, '' ) ?? undefined" );
+    expect( source ).toContain( 'displayPrice={ ANEW_DISPLAY_PRICE }' );
     expect( source ).toContain( 'offerNote="One decision · written reflection · usually 2–3 business days"' );
     expect( source ).not.toContain( 'priceUnit=' );
     expect( source ).not.toContain( 'showPrice=' );
