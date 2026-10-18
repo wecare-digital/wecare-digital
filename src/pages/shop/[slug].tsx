@@ -143,10 +143,12 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
 
             { sku && policy && (
               <div className="shopd-policy-wrap">
-                <p className="shopd-sku" data-wc-no-translate="true"><strong>SKU:</strong> { sku }</p>
+                <p className="shopd-sku" data-wc-no-translate="true"><strong>SKU:</strong> <span className="shopd-sku-value">{ sku }</span></p>
                 <PolicyDetails
+                  overview={ null }
                   shipping={ policy.shipping }
                   returns={ policy.returns }
+                  refunds={ policy.refunds }
                   disclaimer={ policy.disclaimer }
                 />
               </div>
@@ -235,14 +237,15 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             max-width:620px;margin:7px 0 0;
             font-size:var(--public-body-size);font-weight:var(--public-body-weight);
             line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
-            color:var(--public-body);
+            color:var(--public-muted);text-wrap:balance;
           }
           .shopd-policy-wrap{margin:22px 0 0}
           .shopd-sku{
-            margin:0;font-size:17px;font-weight:400;line-height:1.55;
-            letter-spacing:-.05px;color:var(--public-body);
+            margin:0;font-size:17px;font-weight:400;line-height:1.4;
+            letter-spacing:-.05px;color:var(--public-muted);
           }
           .shopd-sku strong{color:var(--public-brand-green);font-weight:700}
+          .shopd-sku-value{color:var(--public-muted)}
 
           /* The .shopd-back link, restored 2026-10-10 with the /shop index. :global() for the
              same reason as .shopd-cta: it wraps a capitalised <Link> styled-jsx cannot scope. */
