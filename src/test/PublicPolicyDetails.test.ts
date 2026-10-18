@@ -6,7 +6,6 @@ describe( 'public PolicyDetails coverage', () => {
     const routes = [
       '/contact',
       '/orders',
-      '/grahak-os',
       '/vayulok',
       '/elsewhere/activities',
       '/ritual-guru/ritva',
@@ -43,6 +42,7 @@ describe( 'public PolicyDetails coverage', () => {
       expect( publicPolicyDetailsForRoute( route ), route ).toBeNull();
     }
     expect( publicPolicyDetailsForRoute( '/shop/[slug]' ) ).toBeNull();
+    expect( publicPolicyDetailsForRoute( '/grahak-os' ) ).toBeNull();
   } );
 
   it( 'keeps home and the redirect-only 404 document free of the disclosure', () => {
