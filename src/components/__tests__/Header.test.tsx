@@ -391,7 +391,6 @@ describe( 'Header', () => {
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
 
     // Extras remains the category heading; Perks is its WhatsApp action row.
-    // There is no public /perks/ page any more.
 
     // Approved order in this column is Refer & Earn, Extras, Contact, Legal Stuff.
     const extrasCol = screen.getByText( 'Extras' ).closest( '.nav-col' );
@@ -510,7 +509,7 @@ describe( 'Header', () => {
 
     expect( css ).toContain( '.nav-products-cue-row{height:44px;display:flex;align-items:center;justify-content:flex-end;flex:0 0 44px;margin-top:6px;padding-inline-end:4px' );
     expect( css ).toContain( '.nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px' );
-    expect( css ).toContain( 'border-radius:50%;background:#d1f470;color:#0f2a1d' );
+    expect( css ).toContain( 'border-radius:50%;background:var(--public-brand-lime);color:#0f2a1d' );
     expect( css ).toContain( '.nav-products-more:hover{background:#c5ed51;transform:translateY(-1px) scale(1.06)' );
     expect( css ).toContain( '.nav-products-more-icon{display:block;width:31px;height:31px;fill:currentColor' );
     expect( css ).toContain( '.nav-products-cue-row{display:none}' );
@@ -590,7 +589,7 @@ describe( 'Header', () => {
      * that they were separate declarations drifting apart.
      */
     expect( css ).toContain( ".nav-trigger:hover,.nav-trigger:focus-visible,.nav-trigger[aria-expanded='true']" );
-    expect( css ).toContain( 'background:#d1f470;outline:none' );
+    expect( css ).toContain( 'background:var(--public-brand-lime);outline:none' );
     // The dark fill is GONE as a declaration, not merely overridden. Comments stripped first:
     // the rule above cites #1a3a2a as the border colour and documents the fill it replaced, and
     // a substring search cannot tell a citation from a declaration.

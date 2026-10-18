@@ -333,7 +333,7 @@ describe( 'WECARE.DIGITAL Home', () => {
     const css = cssOf( container );
 
     expect( layout ).toBeInTheDocument();
-    expect( css ).toContain( 'max-width:1300px' );
+    expect( css ).toContain( 'max-width:var(--public-content-max)' );
     // Bottom padding reduced 96->48 (and 64->40 on mobile) when the Subscribe+Share block
     // became the last child of .home-layout, so the air below the row is a balanced ~48px
     // rather than the full section rhythm. The top padding and gaps are unchanged.

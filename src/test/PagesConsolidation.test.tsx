@@ -1,4 +1,6 @@
 import React from 'react';
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import PageShell from '../components/public/PageShell';
@@ -9,7 +11,7 @@ import { buildPageTitle } from '../lib/page-title';
 import { blogCrumbs, breadcrumbSchema } from '../lib/breadcrumbs';
 import { loadBlogCardIndex } from '../lib/blog-card-index';
 import { getStaticProps } from '../pages/anew';
-import { getAllNavItems } from '../config/navigation';
+import { getAllNavItems, settingsConfig } from '../config/navigation';
 
 vi.mock( 'next/link', () => ( { default: ( { href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> ) => <a href={ href } { ...props }>{ children }</a> } ) );
 vi.mock( 'next/head', () => ( { default: ( { children }: { children: React.ReactNode } ) => <>{ children }</> } ) );
@@ -121,6 +123,14 @@ describe( 'public page consolidation contracts', () => {
     }
     // FEAT-005: BSUID & Usernames is a tab on the WhatsApp hub now, reached as a ?tab= deep-link.
     expect( paths ).toContain( '/workspace/engage/whatsapp/settings?tab=bsuid' );
-    expect( paths ).toContain( '/workspace/access/security' );
+    // FEAT-003: Sign-in & MFA relocated OUT of the routes tree into the gear panel, so it is no
+    // longer a URL in getAllNavItems. It is reached through the gear (SettingsGear mounts
+    // TotpSetup inline for the account group's mfaPanel) — asserted below so reachability holds.
+    expect( paths ).not.toContain( '/workspace/access/security' );
+    const account = settingsConfig.find( g => g.id === 'account' );
+    expect( account?.mfaPanel?.label ).toBe( 'Sign-in & MFA' );
+    const gear = fs.readFileSync( path.resolve( __dirname, '../components/SettingsGear.tsx' ), 'utf8' );
+    expect( gear ).toContain( '<TotpSetup />' );
+    expect( fs.existsSync( path.resolve( __dirname, '../pages/workspace/access/security.tsx' ) ) ).toBe( false );
   } );
 } );

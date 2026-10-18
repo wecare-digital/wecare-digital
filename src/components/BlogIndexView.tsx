@@ -438,20 +438,20 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
         .category-switch{display:flex;gap:8px;overflow-x:auto;margin:0 0 32px;padding:2px 0 6px;scrollbar-width:thin;align-items:center}
         .category-switch :global(a),.category-switch .cat-here{
           flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;
-          min-height:44px;padding:0 18px;border:2px solid #e5e7eb;border-radius:999px;
-          background:#fff;color:#1a3a2a;font:inherit;font-size:14px;font-weight:600;
+          min-height:44px;padding:0 18px;border:2px solid var(--public-hairline);border-radius:999px;
+          background:#fff;color:var(--public-brand-green);font:inherit;font-size:14px;font-weight:600;
           letter-spacing:-.125px;text-decoration:none;
           transition:background-color .2s,border-color .2s,transform .2s,box-shadow .2s;
         }
         .category-switch :global(a:hover){
-          border-color:#d1f470;background:rgba(209,244,112,.22);
-          transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
+          border-color:var(--public-brand-lime);background:var(--public-lime-tint);
+          transform:translateY(-2px);box-shadow:var(--public-lift-shadow);
         }
-        .category-switch :global(a:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px}
+        .category-switch :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
         /* The current category: filled, and not a link, so there is nothing to click. The 2px
            1a3a2a edge is the same pairing the pager gives the page you are on - lime fill plus
            dark-green type and border, which the contract measures at about 10:1. */
-        .category-switch .cat-here{background:#d1f470;border-color:#1a3a2a}
+        .category-switch .cat-here{background:var(--public-brand-lime);border-color:var(--public-brand-green)}
         /* The count. Tabular so the pills do not jiggle, and quiet so the name leads. */
         /* The .category-switch i rules that styled the per-pill post count went with the count
            itself - see the note in the markup. Nothing else in this nav renders an <i>. */
@@ -483,13 +483,13 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
            row instead of floating directly under a short excerpt. */
         .post-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
         .post-card{
-          display:flex;background:#fff;border:1px solid #e5e7eb;
+          display:flex;background:#fff;border:1px solid var(--public-hairline);
           border-inline-start:3px solid #3da35a;border-radius:14px;overflow:hidden;
           transition:border-color .2s,transform .2s,box-shadow .2s;
         }
         .post-card:nth-child(3n+2){border-inline-start-color:#2563eb}
         .post-card:nth-child(3n+3){border-inline-start-color:#9849e8}
-        .post-card:hover{border-color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+        .post-card:hover{border-color:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
         .post-copy{display:flex;flex-direction:column;flex:1;padding:26px}
         /* THE CATEGORY BADGE IS IDENTITY, SO IT GETS THE FULL LIME VOICE.
            It was rgba(209,244,112,.28) at 11px/700. Two separate problems.
@@ -506,21 +506,21 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
            Now BrandBadge's own rung: 14px/600/-.125px, #d1f470 fill, #1a3a2a type, and NO
            border - which .tab.active and .msg.sent also carry none of, and which is already
            what this rule did. #1a3a2a on #d1f470 is ~10:1. */
-        .category{display:inline-block;align-self:flex-start;background:#d1f470;color:#1a3a2a;border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;letter-spacing:-.125px;margin-bottom:14px}
-        h2{font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;margin:0 0 12px}
+        .category{display:inline-block;align-self:flex-start;background:var(--public-brand-lime);color:var(--public-brand-green);border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;letter-spacing:-.125px;margin-bottom:14px}
+        h2{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);margin:0 0 12px}
         h2 :global(a){color:#000;text-decoration:none;text-underline-offset:3px}
-        h2 :global(a:hover){color:#1a3a2a}
-        h2 :global(a:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px;border-radius:2px}
+        h2 :global(a:hover){color:var(--public-brand-green)}
+        h2 :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:2px}
         .post-copy p{
-          font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;
-          color:rgba(0,0,0,.898);margin:0 0 20px;
+          font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+          color:var(--public-body);margin:0 0 20px;
           display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;
         }
         /* The author line. margin-top:auto pins it to the bottom of the card. The colour is the
            site's own dim rung rather than 6b7280, which is a dashboard token from tokens.css
            and had no business on a public page. */
-        .meta{margin-top:auto;font-size:12px;font-weight:600;line-height:1.4;color:rgba(0,0,0,.54)}
-        .empty{border:1px dashed #d1d5db;border-radius:14px;padding:40px;text-align:center;font-size:20px;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.54)}
+        .meta{margin-top:auto;font-size:12px;font-weight:600;line-height:1.4;color:var(--public-muted)}
+        .empty{border:1px dashed #d1d5db;border-radius:14px;padding:40px;text-align:center;font-size:20px;line-height:1.4;letter-spacing:-.125px;color:var(--public-muted)}
 
         /* BORDERLESS LIVE SEARCH - the /anew/ panel's field (ProductBlogPanel .pbp-search),
            so every search a visitor meets on the site reads as one control: no inner border, one
@@ -536,12 +536,12 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
         .blog-search input{
           width:100%;box-sizing:border-box;height:52px;padding:0 44px 0 2px;
           font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
-          border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
+          border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
         .blog-search input::placeholder{color:rgba(0,0,0,.44)}
         .blog-search input:focus-visible{
-          border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470;
+          border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime);
         }
         /* THE RSS ICON'S ROW AT THE BOTTOM. End-aligned under the grid and pager, with the
            listing's own vertical rhythm above it. The icon styles itself (components/RssIcon.tsx). */

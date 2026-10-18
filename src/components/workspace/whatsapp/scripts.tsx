@@ -183,44 +183,44 @@ const ScriptsPageBody: React.FC<Props> = () => {
   });
 
   const catColor: Record<string, string> = {
-    Welcome: '#d1f470', Menu: '#bfdbfe', CTA: '#ddd6fe', 'Flow Trigger': '#fde68a', Pay: '#bbf7d0', 'CTA Link': '#e0e7ff', System: '#f3f4f6',
+    Welcome: 'var(--lime)', Menu: '#bfdbfe', CTA: '#ddd6fe', 'Flow Trigger': '#fde68a', Pay: '#bbf7d0', 'CTA Link': '#e0e7ff', System: '#f3f4f6',
   };
 
   return (
     <div style={{ padding: '12px 0' }}>
       <div style={{ marginBottom: 12 }}>
-        <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px' }}>
+        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '0 0 8px' }}>
           Every automated message the bot sends. Use this to review content, check consistency, and improve copy.
         </p>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           {CATEGORIES.map(c => (
             <button key={c} onClick={() => setFilter(c)} style={{
-              padding: '4px 10px', borderRadius: 4, border: filter === c ? '1.5px solid #1a3a2a' : '1px solid #d1d5db',
-              background: filter === c ? '#1a3a2a' : '#fff', color: filter === c ? '#fff' : '#374151',
-              fontSize: 11, fontWeight: 500, cursor: 'pointer',
+              padding: '4px 10px', borderRadius: 4, border: filter === c ? '1.5px solid var(--accent)' : '1px solid #d1d5db',
+              background: filter === c ? 'var(--accent)' : '#fff', color: filter === c ? '#fff' : '#374151',
+              fontSize: 'var(--text-xs)', fontWeight: 500, cursor: 'pointer',
             }}>{c}</button>
           ))}
           <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
-                 style={{ padding: '4px 10px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 11, marginLeft: 'auto', width: 160 }} />
-          <span style={{ fontSize: 11, color: '#9ca3af' }}>{filtered.length} scripts</span>
+                 style={{ padding: '4px 10px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 'var(--text-xs)', marginLeft: 'auto', width: 160 }} />
+          <span style={{ fontSize: 'var(--text-xs)', color: '#9ca3af' }}>{filtered.length} scripts</span>
         </div>
       </div>
 
-      {loading && <p style={{ color: '#9ca3af', fontSize: 12 }}>Loading...</p>}
+      {loading && <p style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>Loading...</p>}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {filtered.map(s => (
-          <div key={s.id} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, background: '#fff' }}>
+          <div key={s.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, background: '#fff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <span style={{ padding: '2px 6px', borderRadius: 3, fontSize: 10, fontWeight: 600, background: catColor[s.category] || '#f3f4f6' }}>{s.category}</span>
-                <span style={{ fontSize: 10, color: '#9ca3af' }}>{s.messageType}</span>
+                <span style={{ padding: '2px 6px', borderRadius: 3, fontSize: 'var(--text-xs)', fontWeight: 600, background: catColor[s.category] || '#f3f4f6' }}>{s.category}</span>
+                <span style={{ fontSize: 'var(--text-xs)', color: '#9ca3af' }}>{s.messageType}</span>
               </div>
-              <span style={{ fontSize: 10, color: '#9ca3af', fontFamily: 'monospace' }}>{s.id}</span>
+              <span style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', fontFamily: 'monospace' }}>{s.id}</span>
             </div>
-            <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>Trigger: {s.trigger}</div>
-            <pre style={{ fontSize: 12, color: '#1a3a2a', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', lineHeight: 1.5 }}>{s.content}</pre>
-            <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 4 }}>Phone: {s.phone}</div>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 4 }}>Trigger: {s.trigger}</div>
+            <pre style={{ fontSize: 'var(--text-xs)', color: 'var(--accent)', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', lineHeight: 1.5 }}>{s.content}</pre>
+            <div style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 4 }}>Phone: {s.phone}</div>
           </div>
         ))}
       </div>

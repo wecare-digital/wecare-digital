@@ -155,25 +155,25 @@ const Contact360: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                 .c3-wrap { padding: 20px; max-width: 1200px; margin: 0 auto; }
                 .c3-panes { display: grid; grid-template-columns: 300px 1fr; gap: 16px; height: 72vh; }
                 .c3-list { display: flex; flex-direction: column; border: 1px solid ${colors.border}; border-radius: 12px; background: #fff; overflow: hidden; }
-                .c3-search { margin: 10px; padding: 8px 12px; border: 1px solid ${colors.border}; border-radius: 9px; font-size: 13px; }
+                .c3-search { margin: 10px; padding: 8px 12px; border: 1px solid ${colors.border}; border-radius: 9px; font-size: var(--text-sm); }
                 .c3-contacts { flex: 1; overflow-y: auto; }
                 .c3-contact { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; padding: 10px 14px; border: none; border-top: 1px solid ${colors.borderLight}; background: #fff; cursor: pointer; }
                 .c3-contact:hover { background: ${colors.bgHover}; }
                 .c3-contact.active { background: ${colors.bgActive}; }
-                .c3-c-name { font-size: 13px; font-weight: 600; color: ${colors.text}; }
-                .c3-c-sub { font-size: 11px; color: ${colors.textMuted}; }
+                .c3-c-name { font-size: var(--text-sm); font-weight: 600; color: ${colors.text}; }
+                .c3-c-sub { font-size: var(--text-xs); color: ${colors.textMuted}; }
                 .c3-timeline { border: 1px solid ${colors.border}; border-radius: 12px; background: #fff; display: flex; flex-direction: column; overflow: hidden; }
                 .c3-head { padding: 14px 18px; border-bottom: 1px solid ${colors.border}; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-                .c3-name { font-size: 16px; font-weight: 700; color: ${colors.text}; }
-                .c3-meta { font-size: 12px; color: ${colors.textMuted}; }
+                .c3-name { font-size: var(--text-base); font-weight: 700; color: ${colors.text}; }
+                .c3-meta { font-size: var(--text-xs); color: ${colors.textMuted}; }
                 .c3-counts { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
-                .c3-count { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 9999px; text-transform: capitalize; }
-                .c3-open { font-size: 13px; color: ${colors.primary}; text-decoration: none; font-weight: 600; }
+                .c3-count { font-size: var(--text-xs); font-weight: 600; padding: 3px 9px; border-radius: 9999px; text-transform: capitalize; }
+                .c3-open { font-size: var(--text-sm); color: ${colors.primary}; text-decoration: none; font-weight: 600; }
                 .c3-feed { flex: 1; overflow-y: auto; padding: 14px 18px; }
                 .c3-entry { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid ${colors.borderLight}; }
-                .c3-tag { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 9999px; height: fit-content; white-space: nowrap; }
-                .c3-entry-title { font-size: 13px; color: ${colors.text}; }
-                .c3-entry-sub { font-size: 11px; color: ${colors.textMuted}; margin-top: 2px; text-transform: capitalize; }
+                .c3-tag { font-size: var(--text-xs); font-weight: 700; padding: 3px 9px; border-radius: 9999px; height: fit-content; white-space: nowrap; }
+                .c3-entry-title { font-size: var(--text-sm); color: ${colors.text}; }
+                .c3-entry-sub { font-size: var(--text-xs); color: ${colors.textMuted}; margin-top: 2px; text-transform: capitalize; }
                 .c3-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: ${colors.textMuted}; }
                 @media (max-width: 800px) { .c3-panes { grid-template-columns: 1fr; height: auto; } }
             ` }</style>

@@ -13,7 +13,7 @@ describe( 'the fresh 25-item Shop shelf + purchasable Contribute', () => {
     const contribution = shopProductBySlug( 'contribute' );
     expect( contribution ).not.toBeNull();
     expect( contribution?.inStock ).toBe( true );
-    expect( contribution?.variants?.some( variant => variant.id === 'CNT5Q2M8' && variant.inStock ) ).toBe( true );
+    expect( contribution?.variants?.some( variant => variant.label === '₹250' && variant.inStock ) ).toBe( true );
     expect( SHOP_LISTINGS.some( item => item.slug === 'hunar-kaushal' && item.sku === 'KSL9M2Q4' && item.formattedPrice === '₹99.00' ) ).toBe( true );
     expect( SHOP_LISTINGS.some( item => item.slug === 'hunar-prastuti' && item.sku === 'PST7K4N2' && item.formattedPrice === '₹299.00' ) ).toBe( true );
     expect( SHOP_LISTINGS.some( item => item.slug === 'hunar' ) ).toBe( false );

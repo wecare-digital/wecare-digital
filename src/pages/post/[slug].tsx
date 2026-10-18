@@ -575,7 +575,7 @@ export default function BlogPostPage ( {
           transition:border-color .2s,box-shadow .2s;
         }
         .post-search input::placeholder{color:rgba(0,0,0,.44)}
-        .post-search input:focus-visible{border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470}
+        .post-search input:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 #d1f470}
         @media(prefers-reduced-motion:reduce){.post-search input{transition:none}}
         /* The RSS icon's row at the foot of the post, END-aligned (to the side, not centered)
            under the related section - owner instruction. The icon styles itself
@@ -589,11 +589,11 @@ export default function BlogPostPage ( {
            14px/600/-.125px, #d1f470 fill, #1a3a2a type, no border. See the longer note at
            .category in BlogIndexView.tsx for why identity takes the fill and not the .22
            tint - the short version is that .22 composites to a barely-not-white wash. */
-        .category{display:inline-block;background:#d1f470;color:#1a3a2a;border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;letter-spacing:-.125px;margin-bottom:18px}
+        .category{display:inline-block;background:var(--public-brand-lime);color:var(--public-brand-green);border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;letter-spacing:-.125px;margin-bottom:18px}
         /* .post-title carries the article title's old h1 treatment unchanged - it is an <h2> now
            (RotatingHero's pill is the page's one h1), but the visible size/weight is identical so
            the article still opens on its title at full weight. */
-        .post-title{font-size:clamp(36px,4.3vw,60px);line-height:1.04;letter-spacing:-0.04em;color:rgba(0,0,0,.95);margin:0 0 20px;font-weight:600;text-wrap:balance;max-width:20ch}
+        .post-title{font-size:var(--public-hero-size);line-height:var(--public-hero-leading);letter-spacing:var(--public-hero-tracking);color:var(--public-heading);margin:0 0 20px;font-weight:var(--public-hero-weight);text-wrap:balance;max-width:20ch}
         /* AUTHOR ONLY NOW, so the row is no longer a row. The flex, the gap and the wrap all
            existed to lay out two children - the author and the date - and with the date gone
            they described a layout that cannot happen.
@@ -601,10 +601,10 @@ export default function BlogPostPage ( {
            furniture on this page, which is the same complaint that retired the 13px/650 back
            link. rgba(0,0,0,.54) is the public palette's dim value, replacing 6b7280 - a
            dashboard token from tokens.css that had no business on a public page. */
-        .byline{font-size:12px;font-weight:600;letter-spacing:.01em;line-height:1.4;color:rgba(0,0,0,.54);margin-bottom:40px}
+        .byline{font-size:12px;font-weight:600;letter-spacing:.01em;line-height:1.4;color:var(--public-muted);margin-bottom:40px}
         .content{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
         .content :global(p),
-        .content :global(li){font-size:20px;line-height:1.55;letter-spacing:-.125px;font-weight:400;color:rgba(0,0,0,.898)}
+        .content :global(li){font-size:var(--public-body-size);line-height:1.55;letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);color:var(--public-body)}
         .content :global(p){margin:0}
         .content :global(p + p){margin-top:28px}
         .content :global(.spacer){height:28px}
@@ -615,9 +615,9 @@ export default function BlogPostPage ( {
         .content :global(li + li){margin-top:10px}
         .content :global(blockquote){margin:36px 0;padding:2px 0 2px 22px;border-inline-start:3px solid #d1f470;font-size:21px;line-height:1.5;letter-spacing:-.125px;font-weight:400;color:rgba(0,0,0,.898)}
         .content :global(blockquote p){font:inherit;color:inherit;letter-spacing:inherit}
-        .content :global(a){color:#1a3a2a;text-underline-offset:3px}
+        .content :global(a){color:var(--public-brand-green);text-underline-offset:3px}
         .content :global(a:hover){text-decoration-thickness:2px}
-        .content :global(a:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px;border-radius:2px}
+        .content :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:2px}
         .content :global(strong){font-weight:700}
         /* THE TAG ROW'S CSS MOVED WITH ITS MARKUP to components/BlogTags.tsx - the .tags
            layout rule, the .tags :global(a) pill, the four .tag-h0..3 dots and the hover/focus
@@ -686,17 +686,17 @@ export default function BlogPostPage ( {
            Scoped under .post-nav, which is a <nav> in this file and does carry the hash, so these
            compile to .jsx-xxx.post-nav .post-nav-step and cannot leak. Same idiom as
            .content :global(p) above. */
-        .post-nav{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:52px;padding-top:24px;border-top:1px solid #e5e7eb}
+        .post-nav{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:52px;padding-top:24px;border-top:1px solid var(--public-hairline)}
         .post-nav :global(.post-nav-step){
           display:flex;flex-direction:column;gap:5px;min-height:44px;padding:14px 16px;
           border:2px solid rgba(26,58,42,.22);border-radius:12px;
-          color:#1a3a2a;text-decoration:none;
+          color:var(--public-brand-green);text-decoration:none;
         }
         /* .22, not .28 - hover is transient state, which is precisely the role the .22 tint
            exists for. .28 was an alpha the language does not contain. */
-        .post-nav :global(.post-nav-step:hover){background:rgba(209,244,112,.22)}
-        .post-nav :global(.post-nav-step:focus-visible){outline:3px solid #1a3a2a;outline-offset:2px}
-        .post-nav :global(.post-nav-step.is-off){border-color:#e5e7eb;color:rgba(0,0,0,.32);cursor:default}
+        .post-nav :global(.post-nav-step:hover){background:var(--public-lime-tint)}
+        .post-nav :global(.post-nav-step:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:2px}
+        .post-nav :global(.post-nav-step.is-off){border-color:var(--public-hairline);color:rgba(0,0,0,.32);cursor:default}
         .post-nav :global(.post-nav-step.is-next){align-items:flex-end;text-align:end}
         /* The site's 12px/700/.08em eyebrow rung, same as .post-related-title below. */
         .post-nav :global(.post-nav-dir){display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
@@ -741,25 +741,25 @@ export default function BlogPostPage ( {
            like a button and only the middle third of it responded. The 1px border stays on the
            li because that is the static frame; the spine replaces it on one edge only, so the
            1px-static / 2px-hoverable rule is untouched. */
-        .post-related{margin-top:44px;padding-top:24px;border-top:1px solid #e5e7eb}
-        .post-related-title{margin:0 0 18px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#1a3a2a}
+        .post-related{margin-top:44px;padding-top:24px;border-top:1px solid var(--public-hairline)}
+        .post-related-title{margin:0 0 18px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--public-brand-green)}
         .post-related-list{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
         .post-related-list li:last-child:nth-child(odd){grid-column:1 / -1}
         .post-related-card{
-          display:flex;background:#fff;border:1px solid #e5e7eb;
+          display:flex;background:#fff;border:1px solid var(--public-hairline);
           border-inline-start:3px solid #3da35a;border-radius:14px;
           transition:border-color .2s,transform .2s,box-shadow .2s;
         }
         .post-related-card:nth-child(2){border-inline-start-color:#2563eb}
         .post-related-card:nth-child(3){border-inline-start-color:#9849e8}
-        .post-related-card:hover{border-color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-        .post-related-card h3{margin:0;flex:1;font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px}
+        .post-related-card:hover{border-color:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
+        .post-related-card h3{margin:0;flex:1;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking)}
         .post-related-card h3 :global(a){display:block;padding:18px 20px;color:#000;text-decoration:none}
-        .post-related-card h3 :global(a:hover){color:#1a3a2a}
+        .post-related-card h3 :global(a:hover){color:var(--public-brand-green)}
         /* border-radius matches the card so the ring traces the shape it belongs to, and the
            offset is 2px rather than the usual 3px because the anchor sits on the card's own
            edge - 3px would have the ring straddling the border. */
-        .post-related-card h3 :global(a:focus-visible){outline:3px solid #1a3a2a;outline-offset:2px;border-radius:14px}
+        .post-related-card h3 :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:2px;border-radius:14px}
         /* THE CLOSING LINK IS THE HOME PAGE'S CTA NOW, not a bare 16px text link. It is the one
            way out of this section to the listing the post sits on, which is the same job
            .home-close-cta does at the foot of the home page - so it gets the same object: 52px
@@ -768,19 +768,19 @@ export default function BlogPostPage ( {
            than sitting exactly on it.
            :global() because it is next/link, like the steps above. */
         .post-related :global(.post-related-all){
-          display:inline-flex;align-items:center;gap:8px;min-height:52px;margin-top:24px;
-          padding:0 28px;border:2px solid #1a3a2a;border-radius:50px;background:#d1f470;
-          color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;
+          display:inline-flex;align-items:center;gap:8px;min-height:var(--public-cta-height);margin-top:24px;
+          padding:0 28px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);background:var(--public-brand-lime);
+          color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
           transition:background-color .2s,transform .2s,box-shadow .2s;
         }
-        .post-related :global(.post-related-all:hover){background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+        .post-related :global(.post-related-all:hover){background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
         /* Its trailing mark, drawn for the same reason as the pager's - see the note there. */
         .post-related :global(.post-nav-mark){
           width:6px;height:6px;flex:0 0 auto;
           border-top:2px solid currentColor;border-right:2px solid currentColor;
           transform:rotate(45deg);
         }
-        .post-related :global(.post-related-all:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px}
+        .post-related :global(.post-related-all:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
         @media(max-width:680px){
           /* No header clearance here on mobile either - RotatingHero's .rh-layout owns it. */
           .article-shell{padding:0}

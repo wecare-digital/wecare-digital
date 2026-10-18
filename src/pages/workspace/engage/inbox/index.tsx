@@ -1075,7 +1075,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                             title={ ( m as any ).revokeResolution === 'inferred'
                                                                 ? 'Matched by timing — WhatsApp does not say which message was deleted.'
                                                                 : undefined }
-                                                            style={ { fontSize: 11, fontStyle: 'italic', opacity: 0.7, marginTop: 2 } }
+                                                            style={ { fontSize: 'var(--text-xs)', fontStyle: 'italic', opacity: 0.7, marginTop: 2 } }
                                                         >
                                                             Deleted by sender{ ( m as any ).revokeResolution === 'inferred' ? ' · matched by timing' : '' }
                                                         </span>
@@ -1448,28 +1448,28 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
             <style jsx>{ `
         .ui-wrap { padding: 12px 18px; max-width: 1360px; margin: 0 auto; width: 100%; box-sizing: border-box; }
         .ui-toolbar { display: flex; gap: 12px; margin: 10px 0; flex-shrink: 0; }
-        .ui-search { flex: 1; padding: 9px 14px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: 14px; }
-        .ui-filter { padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: 13px; background: #fff; }
+        .ui-search { flex: 1; padding: 9px 14px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: var(--text-md); }
+        .ui-filter { padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: var(--text-sm); background: #fff; }
         .ui-panes { display: grid; grid-template-columns: 340px 1fr; gap: 16px; height: calc(100vh - 168px); min-height: 460px; overflow: hidden; }
         .ui-list { border: 1px solid ${colors.border}; border-radius: 12px; overflow-y: auto; background: #fff; min-height: 0; }
         .ui-conv { display: block; width: 100%; text-align: left; padding: 12px 14px; border: none; border-bottom: 1px solid ${colors.borderLight}; background: #fff; cursor: pointer; }
         .ui-conv:hover { background: ${colors.bgHover}; }
         .ui-conv.active { background: ${colors.bgActive}; }
         .ui-conv-top { display: flex; justify-content: space-between; align-items: center; }
-        .ui-conv-name { font-weight: 600; font-size: 14px; color: ${colors.text}; }
-        .ui-conv-time { font-size: 11px; color: ${colors.textMuted}; }
+        .ui-conv-name { font-weight: 600; font-size: var(--text-md); color: ${colors.text}; }
+        .ui-conv-time { font-size: var(--text-xs); color: ${colors.textMuted}; }
         .ui-conv-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; gap: 8px; }
-        .ui-conv-preview { font-size: 12px; color: ${colors.textSecondary}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ui-conv-preview { font-size: var(--text-xs); color: ${colors.textSecondary}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .ui-badges { display: flex; gap: 4px; flex-shrink: 0; }
-        .ui-badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 9999px; white-space: nowrap; }
+        .ui-badge { font-size: var(--text-xs); font-weight: 600; padding: 2px 7px; border-radius: 9999px; white-space: nowrap; }
         .ui-thread { border: 1px solid ${colors.border}; border-radius: 12px; display: flex; flex-direction: column; background: #fff; overflow: hidden; min-height: 0; }
         .ui-thread-head { padding: 12px 16px; border-bottom: 1px solid ${colors.border}; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-        .ui-back { display: none; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; color: ${colors.primary}; font-size: 18px; cursor: pointer; flex-shrink: 0; }
-        .ui-thread-name { font-weight: 700; font-size: 15px; color: ${colors.text}; }
-        .ui-avatar { width: 38px; height: 38px; border-radius: 50%; background: ${colors.primary}; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+        .ui-back { display: none; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; color: ${colors.primary}; font-size: var(--h4); cursor: pointer; flex-shrink: 0; }
+        .ui-thread-name { font-weight: 700; font-size: var(--text-md); color: ${colors.text}; }
+        .ui-avatar { width: 38px; height: 38px; border-radius: 50%; background: ${colors.primary}; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: var(--text-sm); font-weight: 700; flex-shrink: 0; }
         .ui-thread-id { display: flex; flex-direction: column; min-width: 0; }
-        .ui-thread-sub { font-size: 11px; color: ${colors.textMuted}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .ui-id-chip { display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 600; color: ${colors.primary}; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 9999px; padding: 1px 7px; cursor: help; }
+        .ui-thread-sub { font-size: var(--text-xs); color: ${colors.textMuted}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ui-id-chip { display: inline-block; margin-left: 6px; font-size: var(--text-xs); font-weight: 600; color: ${colors.primary}; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 9999px; padding: 1px 7px; cursor: help; }
         .ui-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; color: ${colors.primary}; cursor: pointer; flex-shrink: 0; }
         .ui-icon-btn:hover { background: ${colors.bgHover}; border-color: ${colors.primary}; }
         .ui-icon-danger { color: #b91c1c; }
@@ -1480,37 +1480,37 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         /* The six .ui-cat-* rules were here. They styled only the removed product picker,
            and nothing else in the tree references them. Lint does not flag dead CSS, so
            they would have survived the TSX deletion silently. */
-        .ui-summarize { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; background: #f0fdf4; color: ${colors.primary}; border: 1px solid #bbf7d0; padding: 6px 12px; border-radius: 9px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .ui-summarize { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; background: #f0fdf4; color: ${colors.primary}; border: 1px solid #bbf7d0; padding: 6px 12px; border-radius: 9px; font-size: var(--text-xs); font-weight: 600; cursor: pointer; }
         .ui-summarize:disabled { opacity: 0.6; cursor: not-allowed; }
         .ui-summary { display: flex; gap: 8px; align-items: flex-start; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 10px; padding: 10px 12px; margin: 8px 16px 0; }
-        .ui-summary-text { font-size: 13px; color: ${colors.text}; white-space: pre-wrap; flex: 1; }
+        .ui-summary-text { font-size: var(--text-sm); color: ${colors.text}; white-space: pre-wrap; flex: 1; }
         .ui-summary-x { background: none; border: none; cursor: pointer; color: ${colors.textMuted}; }
         .ui-meta-bar { display: flex; gap: 8px; align-items: center; padding: 8px 16px; border-bottom: 1px solid ${colors.borderLight}; flex-wrap: wrap; }
-        .ui-meta-status { padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: 12px; background: #fff; }
-        .ui-meta-assignee { width: 130px; padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: 12px; }
-        .ui-meta-tags { flex: 1; min-width: 120px; padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: 12px; }
-        .ui-meta-notes-btn { padding: 6px 12px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; font-size: 12px; cursor: pointer; }
+        .ui-meta-status { padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-xs); background: #fff; }
+        .ui-meta-assignee { width: 130px; padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-xs); }
+        .ui-meta-tags { flex: 1; min-width: 120px; padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-xs); }
+        .ui-meta-notes-btn { padding: 6px 12px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; font-size: var(--text-xs); cursor: pointer; }
         .ui-notes { padding: 10px 16px; border-bottom: 1px solid ${colors.borderLight}; background: ${colors.bgSecondary}; display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
         .ui-note { display: flex; flex-direction: column; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 6px 10px; }
-        .ui-note-text { font-size: 13px; color: ${colors.text}; }
-        .ui-note-by { font-size: 10px; color: ${colors.textMuted}; margin-top: 2px; }
+        .ui-note-text { font-size: var(--text-sm); color: ${colors.text}; }
+        .ui-note-by { font-size: var(--text-xs); color: ${colors.textMuted}; margin-top: 2px; }
         .ui-note-add { display: flex; gap: 8px; }
-        .ui-note-input { flex: 1; padding: 7px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: 13px; }
-        .ui-note-btn { padding: 7px 14px; background: ${colors.primary}; color: #fff; border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .ui-note-input { flex: 1; padding: 7px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-sm); }
+        .ui-note-btn { padding: 7px 14px; background: ${colors.primary}; color: #fff; border: none; border-radius: 8px; font-size: var(--text-xs); font-weight: 600; cursor: pointer; }
         .ui-note-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .ui-thread-body { flex: 1; overflow-y: auto; scroll-behavior: smooth; padding: 16px; display: flex; flex-direction: column; gap: 10px; background: ${colors.bgSecondary}; min-height: 200px; }
         .ui-msg { display: flex; }
         .ui-msg.out { justify-content: flex-end; }
         .ui-msg-bubble { max-width: 70%; background: #fff; border: 1px solid ${colors.border}; border-radius: 12px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; }
         .ui-msg.out .ui-msg-bubble { background: ${colors.lime}; border-color: ${colors.lime}; }
-        .ui-msg-text { font-size: 14px; color: ${colors.text}; white-space: pre-wrap; word-break: break-word; }
+        .ui-msg-text { font-size: var(--text-md); color: ${colors.text}; white-space: pre-wrap; word-break: break-word; }
         .ui-msg-img { max-width: 220px; max-height: 220px; border-radius: 8px; object-fit: cover; }
-        .ui-msg-doc { font-size: 13px; color: ${colors.primary}; text-decoration: none; font-weight: 600; }
-        .ui-msg-transcript { font-size: 12px; color: ${colors.textSecondary}; font-style: italic; border-left: 2px solid ${colors.border}; padding-left: 6px; }
+        .ui-msg-doc { font-size: var(--text-sm); color: ${colors.primary}; text-decoration: none; font-weight: 600; }
+        .ui-msg-transcript { font-size: var(--text-xs); color: ${colors.textSecondary}; font-style: italic; border-left: 2px solid ${colors.border}; padding-left: 6px; }
         .ui-react { display: flex; padding: 2px 0; }
         .ui-react.out { justify-content: flex-end; }
-        .ui-react-pill { font-size: 11px; color: ${colors.textMuted}; background: ${colors.bgSecondary}; border: 1px solid ${colors.borderLight}; border-radius: 9999px; padding: 2px 10px; }
-        .ui-msg-meta { font-size: 10px; color: ${colors.textMuted}; display: flex; align-items: center; gap: 8px; }
+        .ui-react-pill { font-size: var(--text-xs); color: ${colors.textMuted}; background: ${colors.bgSecondary}; border: 1px solid ${colors.borderLight}; border-radius: 9999px; padding: 2px 10px; }
+        .ui-msg-meta { font-size: var(--text-xs); color: ${colors.textMuted}; display: flex; align-items: center; gap: 8px; }
         .ui-st { font-weight: 600; }
         .ui-st-sent { color: ${colors.textMuted}; }
         /* Meta has acknowledged the send but has not yet reported it as sent.
@@ -1519,101 +1519,101 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         .ui-st-delivered { color: #2563eb; }
         .ui-st-read { color: #15803d; }
         .ui-st-failed { color: #b91c1c; cursor: help; }
-        .ui-msg-act { background: none; border: none; cursor: pointer; font-size: 11px; opacity: 0.5; padding: 0 2px; }
+        .ui-msg-act { background: none; border: none; cursor: pointer; font-size: var(--text-xs); opacity: 0.5; padding: 0 2px; }
         .ui-msg-act:hover { opacity: 1; }
         .ui-msg-act:disabled { opacity: 0.2; cursor: not-allowed; }
-        .ui-load-more { align-self: center; background: #fff; border: 1px solid ${colors.border}; border-radius: 9999px; padding: 6px 16px; font-size: 12px; cursor: pointer; color: ${colors.textSecondary}; }
+        .ui-load-more { align-self: center; background: #fff; border: 1px solid ${colors.border}; border-radius: 9999px; padding: 6px 16px; font-size: var(--text-xs); cursor: pointer; color: ${colors.textSecondary}; }
         .ui-load-more:hover { background: ${colors.bgHover}; }
         .ui-replying { display: flex; align-items: center; justify-content: space-between; background: ${colors.bgSecondary}; border-left: 3px solid ${colors.primary}; border-radius: 6px; padding: 6px 10px; }
-        .ui-replying-text { font-size: 12px; color: ${colors.textSecondary}; }
-        .ui-replying-x { background: none; border: none; cursor: pointer; color: ${colors.textMuted}; font-size: 12px; }
+        .ui-replying-text { font-size: var(--text-xs); color: ${colors.textSecondary}; }
+        .ui-replying-x { background: none; border: none; cursor: pointer; color: ${colors.textMuted}; font-size: var(--text-xs); }
         .ui-wa-bar { display: flex; align-items: center; gap: 8px; }
-        .ui-wa-from { font-size: 12px; color: ${colors.textMuted}; }
-        .ui-wa-waba { padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: 12px; background: #fff; }
-        .ui-email-subject { flex: 1; padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: 12px; }
-        .ui-tpl-btn { margin-left: auto; padding: 6px 12px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; font-size: 12px; font-weight: 600; cursor: pointer; color: ${colors.primary}; }
+        .ui-wa-from { font-size: var(--text-xs); color: ${colors.textMuted}; }
+        .ui-wa-waba { padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-xs); background: #fff; }
+        .ui-email-subject { flex: 1; padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-xs); }
+        .ui-tpl-btn { margin-left: auto; padding: 6px 12px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; font-size: var(--text-xs); font-weight: 600; cursor: pointer; color: ${colors.primary}; }
         .ui-tpl-list { max-height: 180px; overflow-y: auto; border: 1px solid ${colors.border}; border-radius: 10px; }
         .ui-tpl-item { display: flex; width: 100%; justify-content: space-between; align-items: center; padding: 8px 12px; border: none; border-bottom: 1px solid ${colors.borderLight}; background: #fff; cursor: pointer; text-align: left; }
         .ui-tpl-item:hover { background: ${colors.bgHover}; }
-        .ui-tpl-name { font-size: 13px; font-weight: 600; color: ${colors.text}; }
-        .ui-tpl-cat { font-size: 10px; color: ${colors.textMuted}; text-transform: capitalize; }
-        .ui-tpl-empty { padding: 14px; text-align: center; font-size: 12px; color: ${colors.textMuted}; }
-        .ui-fmt-hint { font-size: 10px; color: ${colors.textLight}; margin-right: auto; }
-        .ui-ai-btn { display: inline-flex; align-items: center; gap: 5px; background: #f0fdf4; color: ${colors.primary}; border: 1px solid #bbf7d0; padding: 6px 11px; border-radius: 9px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .ui-tpl-name { font-size: var(--text-sm); font-weight: 600; color: ${colors.text}; }
+        .ui-tpl-cat { font-size: var(--text-xs); color: ${colors.textMuted}; text-transform: capitalize; }
+        .ui-tpl-empty { padding: 14px; text-align: center; font-size: var(--text-xs); color: ${colors.textMuted}; }
+        .ui-fmt-hint { font-size: var(--text-xs); color: ${colors.textLight}; margin-right: auto; }
+        .ui-ai-btn { display: inline-flex; align-items: center; gap: 5px; background: #f0fdf4; color: ${colors.primary}; border: 1px solid #bbf7d0; padding: 6px 11px; border-radius: 9px; font-size: var(--text-xs); font-weight: 600; cursor: pointer; }
         .ui-ai-btn:disabled { opacity: 0.6; cursor: not-allowed; }
         .ui-tool-btn { display: inline-flex; align-items: center; justify-content: center; background: #fff; border: 1px solid ${colors.border}; border-radius: 9px; padding: 7px; color: ${colors.primary}; cursor: pointer; }
         .ui-tool-btn:hover:not(:disabled) { background: ${colors.bgHover}; border-color: ${colors.primary}; }
         .ui-tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .ui-emoji-row { display: flex; gap: 4px; flex-wrap: wrap; padding: 6px 0; }
-        .ui-emoji { background: ${colors.bgSecondary}; border: 1px solid ${colors.borderLight}; border-radius: 8px; padding: 4px 8px; font-size: 16px; cursor: pointer; }
+        .ui-emoji { background: ${colors.bgSecondary}; border: 1px solid ${colors.borderLight}; border-radius: 8px; padding: 4px 8px; font-size: var(--text-base); cursor: pointer; }
         .ui-emoji:hover { background: ${colors.bgActive}; }
         .ui-quick-list { display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto; border: 1px solid ${colors.border}; border-radius: 10px; padding: 4px; }
-        .ui-quick-item { text-align: left; background: ${colors.bgSecondary}; border: 1px solid ${colors.borderLight}; border-radius: 8px; padding: 6px 10px; font-size: 13px; color: ${colors.text}; cursor: pointer; }
+        .ui-quick-item { text-align: left; background: ${colors.bgSecondary}; border: 1px solid ${colors.borderLight}; border-radius: 8px; padding: 6px 10px; font-size: var(--text-sm); color: ${colors.text}; cursor: pointer; }
         .ui-quick-item:hover { background: ${colors.bgActive}; }
         .ui-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 1410; padding: 20px; }
         .ui-modal { background: #fff; border-radius: 14px; max-width: 560px; width: 100%; max-height: 85vh; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
         .ui-pay { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-        .ui-pay-title { font-size: 16px; font-weight: 700; color: ${colors.text}; }
-        .ui-pay-in { width: 100%; padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: 14px; font-family: inherit; }
+        .ui-pay-title { font-size: var(--text-base); font-weight: 700; color: ${colors.text}; }
+        .ui-pay-in { width: 100%; padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: var(--text-md); font-family: inherit; }
         .ui-pay-in:focus { outline: none; border-color: ${colors.primary}; box-shadow: ${shadow.focus}; }
         .ui-pay-row { display: flex; gap: 10px; }
         .ui-pay-qty { max-width: 90px; }
-        .ui-pay-total { font-size: 14px; font-weight: 600; color: ${colors.primary}; }
+        .ui-pay-total { font-size: var(--text-md); font-weight: 600; color: ${colors.primary}; }
         .ui-pay-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
-        .ui-pay-cancel { background: #fff; border: 1px solid ${colors.border}; border-radius: 10px; padding: 8px 16px; font-size: 13px; cursor: pointer; color: ${colors.textSecondary}; }
-        .ui-pay-send { background: ${colors.primary}; color: #fff; border: none; border-radius: 10px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .ui-pay-cancel { background: #fff; border: 1px solid ${colors.border}; border-radius: 10px; padding: 8px 16px; font-size: var(--text-sm); cursor: pointer; color: ${colors.textSecondary}; }
+        .ui-pay-send { background: ${colors.primary}; color: #fff; border: none; border-radius: 10px; padding: 8px 18px; font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
         .ui-pay-send:disabled { opacity: 0.5; cursor: not-allowed; }
-        .ui-pay-label { font-size: 11px; font-weight: 600; color: ${colors.textMuted}; margin-top: 2px; }
+        .ui-pay-label { font-size: var(--text-xs); font-weight: 600; color: ${colors.textMuted}; margin-top: 2px; }
         .ui-pay-lock { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
         .ui-pay-lock .ui-pay-in { flex: 1; }
-        .ui-pay-unlock { background: ${colors.lime}; color: #1a3a2a; border: none; border-radius: 9px; padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer; }
-        .ui-pay-err { color: #b91c1c; font-size: 11px; width: 100%; }
+        .ui-pay-unlock { background: ${colors.lime}; color: var(--accent); border: none; border-radius: 9px; padding: 8px 14px; font-size: var(--text-xs); font-weight: 600; cursor: pointer; }
+        .ui-pay-err { color: #b91c1c; font-size: var(--text-xs); width: 100%; }
         .ui-pay-item { display: flex; flex-direction: column; gap: 6px; border: 1px dashed ${colors.borderLight}; border-radius: 10px; padding: 8px; }
         .ui-pay-gst { max-width: 110px; }
         .ui-pay-rm { background: #fff; border: 1px solid ${colors.border}; border-radius: 8px; padding: 0 10px; cursor: pointer; color: ${colors.textMuted}; }
-        .ui-pay-additem { align-self: flex-start; background: #f0fdf4; color: ${colors.primary}; border: 1px solid #bbf7d0; border-radius: 9px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
-        .ui-tpl-preview { font-size: 13px; color: ${colors.textSecondary}; background: ${colors.bgSecondary}; border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; }
+        .ui-pay-additem { align-self: flex-start; background: #f0fdf4; color: ${colors.primary}; border: 1px solid #bbf7d0; border-radius: 9px; padding: 6px 12px; font-size: var(--text-xs); font-weight: 600; cursor: pointer; }
+        .ui-tpl-preview { font-size: var(--text-sm); color: ${colors.textSecondary}; background: ${colors.bgSecondary}; border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; }
         .ui-tpl-head { display: flex; gap: 8px; align-items: center; padding: 6px; border-bottom: 1px solid ${colors.borderLight}; }
-        .ui-tpl-toggle { background: #fff; border: 1px solid ${colors.border}; border-radius: 8px; padding: 5px 10px; font-size: 12px; cursor: pointer; color: ${colors.primary}; }
-        .ui-tpl-toggle.on { background: ${colors.lime}; color: #1a3a2a; border-color: ${colors.lime}; }
-        .ui-tpl-newnum { flex: 1; padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: 12px; }
+        .ui-tpl-toggle { background: #fff; border: 1px solid ${colors.border}; border-radius: 8px; padding: 5px 10px; font-size: var(--text-xs); cursor: pointer; color: ${colors.primary}; }
+        .ui-tpl-toggle.on { background: ${colors.lime}; color: var(--accent); border-color: ${colors.lime}; }
+        .ui-tpl-newnum { flex: 1; padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-xs); }
         .ui-tpl-var { color: ${colors.primary}; font-weight: 600; }
         .ui-media-stage { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 0; }
         .ui-media-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid ${colors.border}; }
-        .ui-media-chip { display: inline-flex; align-items: center; gap: 6px; background: ${colors.bgSecondary}; border: 1px solid ${colors.borderLight}; border-radius: 9px; padding: 4px 8px; font-size: 12px; max-width: 220px; }
+        .ui-media-chip { display: inline-flex; align-items: center; gap: 6px; background: ${colors.bgSecondary}; border: 1px solid ${colors.borderLight}; border-radius: 9px; padding: 4px 8px; font-size: var(--text-xs); max-width: 220px; }
         .ui-media-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; color: ${colors.text}; }
-        .ui-media-size { color: ${colors.textMuted}; font-size: 10px; }
-        .ui-media-x { background: none; border: none; cursor: pointer; color: ${colors.textMuted}; font-size: 12px; }
+        .ui-media-size { color: ${colors.textMuted}; font-size: var(--text-xs); }
+        .ui-media-x { background: none; border: none; cursor: pointer; color: ${colors.textMuted}; font-size: var(--text-xs); }
         .ui-emoji-pop { border: 1px solid ${colors.border}; border-radius: 10px; background: #fff; display: flex; flex-direction: column; max-height: 260px; }
-        .ui-emoji-search { margin: 8px; padding: 7px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: 13px; }
+        .ui-emoji-search { margin: 8px; padding: 7px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-sm); }
         .ui-emoji-scroll { overflow-y: auto; padding: 0 8px 8px; }
-        .ui-emoji-cat-label { font-size: 10px; font-weight: 700; color: ${colors.textMuted}; text-transform: uppercase; margin: 6px 2px 4px; }
+        .ui-emoji-cat-label { font-size: var(--text-xs); font-weight: 700; color: ${colors.textMuted}; text-transform: uppercase; margin: 6px 2px 4px; }
         .ui-emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(30px, 1fr)); gap: 2px; }
         /* The two rules that styled the on-demand transcribe button went with the button.
            Lint does not flag dead CSS, so an unreferenced rule has to be removed by hand.
            .ui-msg-transcript above STAYS: a transcription stored on the message is still shown. */
         .ui-react-wrap { position: relative; display: inline-flex; }
         .ui-react-pop { position: absolute; bottom: 130%; right: 0; display: flex; gap: 2px; background: #fff; border: 1px solid ${colors.border}; border-radius: 9999px; padding: 4px 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.12); z-index: 20; }
-        .ui-react-em { background: none; border: none; cursor: pointer; font-size: 16px; padding: 2px; line-height: 1; }
+        .ui-react-em { background: none; border: none; cursor: pointer; font-size: var(--text-base); padding: 2px; line-height: 1; }
         .ui-react-em:hover { transform: scale(1.25); }
         .ui-reply { padding: 10px 14px; border-top: 1px solid ${colors.border}; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
-        .ui-reply-input { width: 100%; resize: vertical; padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: 14px; font-family: inherit; }
+        .ui-reply-input { width: 100%; resize: vertical; padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: var(--text-md); font-family: inherit; }
         .ui-reply-input:focus { outline: none; border-color: ${colors.primary}; box-shadow: ${shadow.focus}; }
         .ui-reply-actions { display: flex; align-items: center; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
         .ui-tools { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
         .ui-tools::-webkit-scrollbar { height: 6px; }
         .ui-send-row { display: flex; align-items: center; gap: 10px; }
-        .ui-reply-via { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 9999px; margin-right: auto; }
-        .ui-reply-link { font-size: 12px; color: ${colors.textMuted}; text-decoration: none; }
+        .ui-reply-via { font-size: var(--text-xs); font-weight: 600; padding: 3px 9px; border-radius: 9999px; margin-right: auto; }
+        .ui-reply-link { font-size: var(--text-xs); color: ${colors.textMuted}; text-decoration: none; }
         .ui-reply-link:hover { color: ${colors.primary}; }
-        .ui-reply-voice { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: ${colors.textMuted}; width: 100%; }
-        .ui-reply-btn { background: ${colors.primary}; color: #fff; padding: 8px 18px; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .ui-reply-voice { display: flex; justify-content: space-between; align-items: center; font-size: var(--text-sm); color: ${colors.textMuted}; width: 100%; }
+        .ui-reply-btn { background: ${colors.primary}; color: #fff; padding: 8px 18px; border: none; border-radius: 10px; font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
         .ui-reply-btn:hover:not(:disabled) { background: ${colors.primaryHover}; }
         .ui-reply-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         /* Column, not row: the channel-filtered empty state is three lines and a
            button, and the original row layout laid them out side by side. Every
            single-line use of .ui-empty renders identically either way. */
-        .ui-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; height: 100%; padding: 0 16px; text-align: center; line-height: 1.5; color: ${colors.textMuted}; font-size: 14px; }
+        .ui-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; height: 100%; padding: 0 16px; text-align: center; line-height: 1.5; color: ${colors.textMuted}; font-size: var(--text-md); }
         .ui-link-btn { background: none; border: none; padding: 0; font: inherit; color: ${colors.primary}; text-decoration: underline; cursor: pointer; }
         .ui-link-btn:hover { color: ${colors.primaryHover}; }
         @media (max-width: 800px) {

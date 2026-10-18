@@ -389,7 +389,7 @@ describe( '/orders/ — static source gates', () => {
     const css = Array.from( container.querySelectorAll( 'style' ) )
       .map( node => node.textContent || '' ).join( '\n' );
     expect( css ).toContain( 'min-height:44px' );
-    expect( css ).toContain( 'min-height:52px' );
+    expect( css ).toContain( 'min-height:var(--public-cta-height)' );
   } );
 } );
 
@@ -1113,7 +1113,7 @@ describe( '/orders/ — the order history table', () => {
     expect( block[ 1 ] ).not.toMatch( /cursor\s*:\s*pointer/ );
     // The tint is a background only, and there is no :active equivalent - a tap on a row must do
     // nothing and look like it did nothing.
-    expect( CODE ).toContain( '.ord-tr:hover{background:rgba(209,244,112,.22)}' );
+    expect( CODE ).toContain( '.ord-tr:hover{background:var(--public-lime-tint)}' );
     expect( CODE ).not.toContain( '.ord-tr:active' );
   } );
 
@@ -1159,7 +1159,7 @@ describe( '/orders/ — the order history table', () => {
     expect( th ).toContain( 'font-size:12px' );
     expect( th ).toContain( 'font-weight:700' );
     expect( th ).toContain( 'letter-spacing:0' );
-    expect( th ).toContain( 'color:#1a3a2a' );
+    expect( th ).toContain( 'color:var(--public-brand-green)' );
     // Logical, never physical: the gate matches text-align:left.
     expect( th ).toContain( 'text-align:start' );
   } );

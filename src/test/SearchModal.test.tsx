@@ -77,9 +77,13 @@ describe( 'SearchModal is derived from navigation.ts', () => {
     // this test is that a specific destination is reachable by name.
     // FEAT-005: SMS/RCS/Email folded into the Channels hub as in-page tabs, reached as
     // ?tab= deep-links — the same destinations, still reachable by name in the palette.
+    // FEAT-003: '/workspace/access/security' left this list — Sign-in & MFA relocated into the
+    // gear panel and is no longer a URL, so the palette (which indexes real routes) no longer
+    // reaches it; the gear does. '/workspace/engage/broadcast' takes its slot: also absent from
+    // the old hardcoded 14, still reachable by name here.
     for ( const p of [ '/workspace/engage/inbox', '/workspace/engage/channels?tab=sms',
       '/workspace/engage/channels?tab=rcs', '/workspace/engage/channels?tab=email',
-      '/workspace/engage/settings', '/workspace/access/security' ] )
+      '/workspace/engage/settings', '/workspace/engage/broadcast' ] )
     {
       expect( paths ).toContain( p );
     }

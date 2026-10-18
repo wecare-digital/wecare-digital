@@ -90,15 +90,15 @@ const EMBEDDED_WABA_SELECT_STYLE: React.CSSProperties = { flex: 1, minWidth: 150
 const BUTTON_TYPE_SELECT_STYLE: React.CSSProperties = { width: 120 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  MARKETING: '#1a1a1a',
+  MARKETING: 'var(--text)',
   UTILITY: '#4a4a4a',
   AUTHENTICATION: '#6b6b6b',
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  APPROVED: '#1a1a1a',
+  APPROVED: 'var(--text)',
   PENDING: '#6b6b6b',
-  REJECTED: '#1a3a2a',
+  REJECTED: 'var(--accent)',
 };
 
 const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
@@ -250,7 +250,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
   const handleDeleteTemplate = async ( templateName: string ) => {
     const ok = await confirm( {
       title: 'Delete Template',
-      message: ( <p>Are you sure you want to delete <strong>{ templateName }</strong>?<br /><br /><span style={ { color: '#666', fontSize: 13 } }>This action cannot be undone.</span></p> ),
+      message: ( <p>Are you sure you want to delete <strong>{ templateName }</strong>?<br /><br /><span style={ { color: '#666', fontSize: 'var(--text-sm)' } }>This action cannot be undone.</span></p> ),
       confirmText: 'Delete',
       confirmInput: 'DELETE',
       danger: true,
@@ -1243,14 +1243,14 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
         h1 {
           margin: 0;
-          font-size: 24px;
+          font-size: var(--text-3xl);
         }
 
         .waba-select {
           padding: 10px 16px;
           border: 1px solid #000;
           border-radius: 13px;
-          font-size: 14px;
+          font-size: var(--text-md);
           min-width: 200px;
           background: #fff;
         }
@@ -1269,7 +1269,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
           padding: 12px 16px;
           border: 1px solid #000;
           border-radius: 13px;
-          font-size: 14px;
+          font-size: var(--text-md);
         }
 
         .search-input:hover {
@@ -1301,7 +1301,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         }
 
         .template-card.library {
-          border-left: 4px solid #1a3a2a;
+          border-left: 4px solid var(--accent);
         }
 
         .template-header {
@@ -1313,13 +1313,13 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
         .template-name {
           font-weight: 600;
-          font-size: 16px;
+          font-size: var(--text-base);
         }
 
         .status-badge, .category-badge {
           padding: 4px 10px;
           border-radius: 13px;
-          font-size: 11px;
+          font-size: var(--text-xs);
           color: white;
           font-weight: 500;
         }
@@ -1332,12 +1332,12 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         }
 
         .language {
-          font-size: 12px;
+          font-size: var(--text-xs);
           color: #666;
         }
 
         .template-body {
-          font-size: 14px;
+          font-size: var(--text-md);
           color: #555;
           line-height: 1.5;
           margin-bottom: 16px;
@@ -1354,7 +1354,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         .btn-view, .btn-delete {
           padding: 8px 16px;
           border-radius: 13px;
-          font-size: 13px;
+          font-size: var(--text-sm);
           cursor: pointer;
         }
 
@@ -1375,7 +1375,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         }
 
         .btn-delete:hover {
-          background: #f9fafb;
+          background: var(--bg-secondary);
         }
 
         .loading-state, .empty-state {
@@ -1427,13 +1427,13 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
         .modal-header h2 {
           margin: 0;
-          font-size: 18px;
+          font-size: var(--h4);
         }
 
         .close-btn {
           background: none;
           border: none;
-          font-size: 24px;
+          font-size: var(--text-3xl);
           cursor: pointer;
           color: #666;
         }
@@ -1501,13 +1501,13 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         .component-preview strong {
           display: block;
           margin-bottom: 4px;
-          font-size: 12px;
+          font-size: var(--text-xs);
           color: #666;
         }
 
         .component-preview p {
           margin: 0;
-          font-size: 14px;
+          font-size: var(--text-md);
         }
 
         .format-badge {
@@ -1515,7 +1515,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
           padding: 2px 8px;
           background: #eee;
           border-radius: 4px;
-          font-size: 11px;
+          font-size: var(--text-xs);
         }
 
         /* Form Styles */
@@ -1527,7 +1527,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
           display: block;
           font-weight: 500;
           margin-bottom: 6px;
-          font-size: 14px;
+          font-size: var(--text-md);
         }
 
         .form-group input,
@@ -1537,7 +1537,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
           padding: 10px 12px;
           border: 1px solid #ddd;
           border-radius: 8px;
-          font-size: 14px;
+          font-size: var(--text-md);
         }
 
         .form-group input:focus,
@@ -1550,7 +1550,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         .form-group small {
           display: block;
           margin-top: 4px;
-          font-size: 12px;
+          font-size: var(--text-xs);
           color: #666;
         }
 
@@ -1582,7 +1582,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
           height: 32px;
           border-radius: 6px;
           cursor: pointer;
-          font-size: 18px;
+          font-size: var(--h4);
         }
 
         .btn-add {
@@ -1602,7 +1602,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
         .warning {
           color: #DC3545;
-          font-size: 14px;
+          font-size: var(--text-md);
         }
 
         /* Carousel Modal */
@@ -1617,13 +1617,13 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
           padding: 12px;
           background: #f5f5f5;
           border-radius: 8px;
-          font-size: 13px;
+          font-size: var(--text-sm);
           color: #4a4a4a;
           margin-bottom: 16px;
         }
 
         .info-icon {
-          font-size: 16px;
+          font-size: var(--text-base);
         }
 
         .cards-section {
@@ -1639,7 +1639,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
         .cards-header label {
           font-weight: 500;
-          font-size: 14px;
+          font-size: var(--text-md);
         }
 
         .btn-add-card {
@@ -1649,7 +1649,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
           padding: 6px 12px;
           border-radius: 13px;
           cursor: pointer;
-          font-size: 13px;
+          font-size: var(--text-sm);
         }
 
         .btn-add-card:hover {
@@ -1681,24 +1681,24 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
         .card-number {
           font-weight: 600;
-          font-size: 14px;
+          font-size: var(--text-md);
           color: #333;
         }
 
         .btn-remove-card {
-          background: #f9fafb;
+          background: var(--bg-secondary);
           color: #0f2a1d;
-          border: 1px solid #e5e7eb;
+          border: 1px solid var(--border);
           width: 28px;
           height: 28px;
           border-radius: 6px;
           cursor: pointer;
-          font-size: 16px;
+          font-size: var(--text-base);
         }
 
         .btn-remove-card:hover {
           background: #f3f4f6;
-          border-color: #1a3a2a;
+          border-color: var(--accent);
         }
 
         .card-media {
@@ -1717,7 +1717,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
           display: flex;
           align-items: center;
           gap: 4px;
-          font-size: 13px;
+          font-size: var(--text-sm);
           cursor: pointer;
         }
 
@@ -1732,7 +1732,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
           border: 1px dashed #ccc;
           border-radius: 6px;
           cursor: pointer;
-          font-size: 13px;
+          font-size: var(--text-sm);
           color: #666;
         }
 
@@ -1749,7 +1749,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
         .upload-success {
           color: #000;
-          font-size: 13px;
+          font-size: var(--text-sm);
         }
 
         .btn-change-media {
@@ -1757,7 +1757,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
           border: none;
           color: #000;
           cursor: pointer;
-          font-size: 12px;
+          font-size: var(--text-xs);
           text-decoration: underline;
         }
 
@@ -1767,7 +1767,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
         .card-buttons > label {
           display: block;
-          font-size: 13px;
+          font-size: var(--text-sm);
           font-weight: 500;
           margin-bottom: 8px;
         }
@@ -1782,7 +1782,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         .carousel-preview > label {
           display: block;
           font-weight: 500;
-          font-size: 14px;
+          font-size: var(--text-md);
           margin-bottom: 12px;
         }
 
@@ -1796,7 +1796,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
           background: #dcf8c6;
           padding: 10px 14px;
           border-radius: 8px;
-          font-size: 14px;
+          font-size: var(--text-md);
           margin-bottom: 12px;
           max-width: 280px;
         }
@@ -1823,18 +1823,18 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 24px;
+          font-size: var(--text-3xl);
           color: #999;
         }
 
         .preview-media.has-media {
           background: #f3f4f6;
-          color: #1a1a1a;
+          color: var(--text);
         }
 
         .preview-card-body {
           padding: 8px 10px;
-          font-size: 12px;
+          font-size: var(--text-xs);
           color: #333;
           line-height: 1.3;
         }
@@ -1842,8 +1842,8 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         .preview-button {
           padding: 8px 10px;
           text-align: center;
-          font-size: 12px;
-          color: #1a3a2a;
+          font-size: var(--text-xs);
+          color: var(--accent);
           border-top: 1px solid #eee;
           cursor: pointer;
         }
@@ -1875,14 +1875,14 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
         .summary-value {
           display: block;
-          font-size: 32px;
+          font-size: var(--h1);
           font-weight: 700;
           color: #000;
           margin-bottom: 8px;
         }
 
         .summary-label {
-          font-size: 14px;
+          font-size: var(--text-md);
           color: #666;
         }
 
@@ -1896,7 +1896,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
         .analytics-category h3 {
           margin: 0 0 16px 0;
-          font-size: 16px;
+          font-size: var(--text-base);
           color: #333;
         }
 
@@ -1914,7 +1914,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
         .cat-name {
           min-width: 120px;
-          font-size: 13px;
+          font-size: var(--text-sm);
           font-weight: 500;
           color: #333;
         }
@@ -1936,7 +1936,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         .cat-count {
           min-width: 50px;
           text-align: right;
-          font-size: 14px;
+          font-size: var(--text-md);
           font-weight: 600;
           color: #333;
         }
@@ -1950,7 +1950,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
         .analytics-top h3 {
           margin: 0 0 16px 0;
-          font-size: 16px;
+          font-size: var(--text-base);
           color: #333;
         }
 
@@ -1970,7 +1970,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         }
 
         .rank {
-          font-size: 14px;
+          font-size: var(--text-md);
           font-weight: 700;
           color: #000;
           min-width: 30px;
@@ -1983,13 +1983,13 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         .template-info .name {
           display: block;
           font-weight: 500;
-          font-size: 14px;
+          font-size: var(--text-md);
           color: #333;
           margin-bottom: 4px;
         }
 
         .template-info .stats {
-          font-size: 12px;
+          font-size: var(--text-xs);
           color: #666;
         }
 
@@ -2001,12 +2001,12 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         .rate-badge {
           padding: 4px 10px;
           border-radius: 12px;
-          font-size: 12px;
+          font-size: var(--text-xs);
           font-weight: 600;
         }
 
         .rate-badge.good {
-          background: #f9fafb;
+          background: var(--bg-secondary);
           color: #0f2a1d;
         }
 
@@ -2016,8 +2016,8 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         }
 
         .rate-badge.bad {
-          background: #f9fafb;
-          color: #1a3a2a;
+          background: var(--bg-secondary);
+          color: var(--accent);
         }
 
         /* Scheduled Section Styles */
@@ -2053,13 +2053,13 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         .scheduled-template {
           display: block;
           font-weight: 600;
-          font-size: 14px;
+          font-size: var(--text-md);
           color: #333;
           margin-bottom: 4px;
         }
 
         .scheduled-contact {
-          font-size: 13px;
+          font-size: var(--text-sm);
           color: #666;
         }
 
@@ -2067,18 +2067,18 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
           display: flex;
           align-items: center;
           gap: 6px;
-          font-size: 13px;
+          font-size: var(--text-sm);
           color: #666;
         }
 
         .time-icon {
-          font-size: 14px;
+          font-size: var(--text-md);
         }
 
         .scheduled-status .status-badge {
           padding: 4px 12px;
           border-radius: 12px;
-          font-size: 11px;
+          font-size: var(--text-xs);
           font-weight: 500;
           text-transform: uppercase;
         }
@@ -2089,18 +2089,18 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         }
 
         .scheduled-status .status-badge.sent {
-          background: #f9fafb;
+          background: var(--bg-secondary);
           color: #0f2a1d;
         }
 
         .scheduled-status .status-badge.failed {
-          background: #f9fafb;
-          color: #1a3a2a;
+          background: var(--bg-secondary);
+          color: var(--accent);
         }
 
         .scheduled-status .status-badge.cancelled {
           background: #f3f4f6;
-          color: #6b7280;
+          color: var(--text-muted);
         }
 
         .scheduled-actions {
@@ -2114,7 +2114,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
           color: #DC3545;
           padding: 6px 14px;
           border-radius: 6px;
-          font-size: 12px;
+          font-size: var(--text-xs);
           cursor: pointer;
           transition: all 0.2s;
         }

@@ -38,7 +38,7 @@ const AccessPage: React.FC<PageProps> = ({ user }) => {
           <p className="acp-note">Redirecting to your workspace…</p>
         </div>
         <style jsx>{`
-          /* Brought onto the palette. This used #f5f5f5 behind #1a1a1a with a
+          /* Brought onto the palette. This used #f5f5f5 behind var(--text) with a
              300-weight heading - three values the design contract does not contain,
              on the one screen every signed-in session passes through.
              font-weight 300 is worth calling out: the Inter link in _app.tsx loads

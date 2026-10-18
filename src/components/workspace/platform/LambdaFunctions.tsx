@@ -136,16 +136,16 @@ const LambdaFunctionsPage: React.FC<PageProps> = ( { signOut, user, embedded } )
         {/* Header */ }
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 } }>
           <div>
-            <h2 style={ { margin: 0, fontSize: 22, fontWeight: 700, color: '#1a3a2a' } }>Lambda Functions</h2>
-            <p style={ { margin: '4px 0 0', fontSize: 13, color: '#6b7280' } }>{ stats.total } functions across { CATEGORIES.length - 1 } categories</p>
+            <h2 style={ { margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--accent)' } }>Lambda Functions</h2>
+            <p style={ { margin: '4px 0 0', fontSize: 'var(--text-sm)', color: 'var(--text-muted)' } }>{ stats.total } functions across { CATEGORIES.length - 1 } categories</p>
           </div>
           <div style={ { display: 'flex', gap: 8, alignItems: 'center' } }>
             { !editMode ? (
-              <button onClick={ handleUnlock } style={ { padding: '8px 16px', background: '#f9fafb', border: '1.5px solid #d1f470', borderRadius: 13, fontSize: 13, cursor: 'pointer', color: '#6b7280' } }>
+              <button onClick={ handleUnlock } style={ { padding: '8px 16px', background: 'var(--bg-secondary)', border: '1.5px solid var(--lime)', borderRadius: 13, fontSize: 'var(--text-sm)', cursor: 'pointer', color: 'var(--text-muted)' } }>
                 🔒 Read Only
               </button>
             ) : (
-              <button onClick={ () => setEditMode( false ) } style={ { padding: '8px 16px', background: '#d1f470', border: '1.5px solid #1a3a2a', borderRadius: 13, fontSize: 13, cursor: 'pointer', color: '#1a3a2a', fontWeight: 600 } }>
+              <button onClick={ () => setEditMode( false ) } style={ { padding: '8px 16px', background: 'var(--lime)', border: '1.5px solid var(--accent)', borderRadius: 13, fontSize: 'var(--text-sm)', cursor: 'pointer', color: 'var(--accent)', fontWeight: 600 } }>
                 🔓 Edit Mode
               </button>
             ) }
@@ -158,9 +158,9 @@ const LambdaFunctionsPage: React.FC<PageProps> = ( { signOut, user, embedded } )
           { CATEGORIES.filter( c => c !== 'All' ).map( cat => {
             const count = LAMBDA_FUNCTIONS.filter( f => f.category === cat ).length;
             return (
-              <button key={ cat } onClick={ () => setCategory( category === cat ? 'All' : cat ) } style={ { padding: '12px 14px', background: category === cat ? '#1a3a2a' : '#f9fafb', color: category === cat ? '#d1f470' : '#374151', border: '2px solid ' + ( category === cat ? '#1a3a2a' : '#f3f4f6' ), borderRadius: 13, cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s' } }>
+              <button key={ cat } onClick={ () => setCategory( category === cat ? 'All' : cat ) } style={ { padding: '12px 14px', background: category === cat ? 'var(--accent)' : 'var(--bg-secondary)', color: category === cat ? 'var(--lime)' : '#374151', border: '2px solid ' + ( category === cat ? 'var(--accent)' : '#f3f4f6' ), borderRadius: 13, cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s' } }>
                 <div style={ { fontSize: 20, fontWeight: 700 } }>{ count }</div>
-                <div style={ { fontSize: 12, fontWeight: 500, opacity: 0.8 } }>{ cat }</div>
+                <div style={ { fontSize: 'var(--text-xs)', fontWeight: 500, opacity: 0.8 } }>{ cat }</div>
               </button>
             );
           } ) }
@@ -169,41 +169,41 @@ const LambdaFunctionsPage: React.FC<PageProps> = ( { signOut, user, embedded } )
         {/* Search */ }
         <div style={ { position: 'relative', marginBottom: 16, maxWidth: 400 } }>
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" style={ { position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' } }>
-            <path stroke="#1a3a2a" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="m21 21-4.35-4.35M11 6a5 5 0 0 1 5 5m3 0a8 8 0 1 1-16 0 8 8 0 0 1 16 0" />
+            <path stroke="var(--accent)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="m21 21-4.35-4.35M11 6a5 5 0 0 1 5 5m3 0a8 8 0 1 1-16 0 8 8 0 0 1 16 0" />
           </svg>
-          <input value={ search } onChange={ e => setSearch( e.target.value ) } placeholder="Search functions..." aria-label="Search Lambda functions" style={ { width: '100%', padding: '10px 14px 10px 36px', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 14, outline: 'none', boxSizing: 'border-box' } } />
+          <input value={ search } onChange={ e => setSearch( e.target.value ) } placeholder="Search functions..." aria-label="Search Lambda functions" style={ { width: '100%', padding: '10px 14px 10px 36px', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 'var(--text-md)', outline: 'none', boxSizing: 'border-box' } } />
         </div>
 
         {/* Category pills */ }
         <div style={ { display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' } }>
           { CATEGORIES.map( cat => (
-            <button key={ cat } onClick={ () => setCategory( cat ) } style={ { padding: '6px 14px', borderRadius: 13, border: '2px solid ' + ( category === cat ? '#1a3a2a' : '#f3f4f6' ), background: category === cat ? '#1a3a2a' : '#fff', color: category === cat ? '#d1f470' : '#6b7280', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s' } }>
+            <button key={ cat } onClick={ () => setCategory( cat ) } style={ { padding: '6px 14px', borderRadius: 13, border: '2px solid ' + ( category === cat ? 'var(--accent)' : '#f3f4f6' ), background: category === cat ? 'var(--accent)' : '#fff', color: category === cat ? 'var(--lime)' : 'var(--text-muted)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s' } }>
               { cat }
             </button>
           ) ) }
         </div>
 
         {/* Function count */ }
-        <p style={ { fontSize: 13, color: '#6b7280', marginBottom: 12 } }>{ filtered.length } function{ filtered.length !== 1 ? 's' : '' } shown</p>
+        <p style={ { fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 12 } }>{ filtered.length } function{ filtered.length !== 1 ? 's' : '' } shown</p>
 
         {/* Function Cards */ }
         <div style={ { display: 'flex', flexDirection: 'column', gap: 8 } }>
           { filtered.map( fn => {
             const isExpanded = expandedFn === fn.name;
             return (
-              <div key={ fn.name } style={ { border: '2px solid ' + ( isExpanded ? '#d1f470' : '#f3f4f6' ), borderRadius: 13, background: '#fff', overflow: 'hidden', transition: 'border-color 0.15s' } }>
+              <div key={ fn.name } style={ { border: '2px solid ' + ( isExpanded ? 'var(--lime)' : '#f3f4f6' ), borderRadius: 13, background: '#fff', overflow: 'hidden', transition: 'border-color 0.15s' } }>
                 {/* Card Header */ }
                 <button onClick={ () => setExpandedFn( isExpanded ? null : fn.name ) } style={ { width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' } }>
-                  <span style={ { fontSize: 10, color: fn.status === 'active' ? '#059669' : fn.status === 'warning' ? '#d97706' : '#dc2626' } }>●</span>
+                  <span style={ { fontSize: 'var(--text-xs)', color: fn.status === 'active' ? '#059669' : fn.status === 'warning' ? '#d97706' : '#dc2626' } }>●</span>
                   <div style={ { flex: 1, minWidth: 0 } }>
                     <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }>
-                      <span style={ { fontSize: 14, fontWeight: 600, color: '#1a3a2a' } }>{ fn.displayName }</span>
-                      <span style={ { fontSize: 11, padding: '2px 8px', borderRadius: 10, background: '#f9fafb', color: '#6b7280', fontWeight: 500 } }>{ fn.category }</span>
-                      { fn.apiRoute && <span style={ { fontSize: 11, padding: '2px 8px', borderRadius: 10, background: '#f0fdf4', color: '#059669', fontFamily: 'monospace' } }>{ fn.apiRoute }</span> }
+                      <span style={ { fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--accent)' } }>{ fn.displayName }</span>
+                      <span style={ { fontSize: 'var(--text-xs)', padding: '2px 8px', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-muted)', fontWeight: 500 } }>{ fn.category }</span>
+                      { fn.apiRoute && <span style={ { fontSize: 'var(--text-xs)', padding: '2px 8px', borderRadius: 10, background: '#f0fdf4', color: '#059669', fontFamily: 'monospace' } }>{ fn.apiRoute }</span> }
                     </div>
-                    <p style={ { margin: '4px 0 0', fontSize: 12, color: '#6b7280' } }>{ fn.description }</p>
+                    <p style={ { margin: '4px 0 0', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ fn.description }</p>
                   </div>
-                  <span style={ { transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', fontSize: 12, color: '#9ca3af' } }>▶</span>
+                  <span style={ { transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', fontSize: 'var(--text-xs)', color: '#9ca3af' } }>▶</span>
                 </button>
 
                 {/* Expanded Details */ }
@@ -211,30 +211,30 @@ const LambdaFunctionsPage: React.FC<PageProps> = ( { signOut, user, embedded } )
                   <div style={ { padding: '0 16px 16px', borderTop: '2px solid #f3f4f6' } }>
                     {/* Config Grid */ }
                     <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginTop: 12 } }>
-                      <div style={ { padding: '10px 12px', background: '#f9fafb', borderRadius: 10 } }>
-                        <div style={ { fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' } }>Runtime</div>
-                        <div style={ { fontSize: 13, fontWeight: 600, color: '#374151', marginTop: 2 } }>{ fn.runtime }</div>
+                      <div style={ { padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 10 } }>
+                        <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' } }>Runtime</div>
+                        <div style={ { fontSize: 'var(--text-sm)', fontWeight: 600, color: '#374151', marginTop: 2 } }>{ fn.runtime }</div>
                       </div>
-                      <div style={ { padding: '10px 12px', background: '#f9fafb', borderRadius: 10 } }>
-                        <div style={ { fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' } }>Timeout</div>
-                        <div style={ { fontSize: 13, fontWeight: 600, color: '#374151', marginTop: 2 } }>{ fn.timeout }s</div>
+                      <div style={ { padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 10 } }>
+                        <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' } }>Timeout</div>
+                        <div style={ { fontSize: 'var(--text-sm)', fontWeight: 600, color: '#374151', marginTop: 2 } }>{ fn.timeout }s</div>
                       </div>
-                      <div style={ { padding: '10px 12px', background: '#f9fafb', borderRadius: 10 } }>
-                        <div style={ { fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' } }>Memory</div>
-                        <div style={ { fontSize: 13, fontWeight: 600, color: '#374151', marginTop: 2 } }>{ fn.memory } MB</div>
+                      <div style={ { padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 10 } }>
+                        <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' } }>Memory</div>
+                        <div style={ { fontSize: 'var(--text-sm)', fontWeight: 600, color: '#374151', marginTop: 2 } }>{ fn.memory } MB</div>
                       </div>
-                      <div style={ { padding: '10px 12px', background: '#f9fafb', borderRadius: 10 } }>
-                        <div style={ { fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' } }>Status</div>
-                        <div style={ { fontSize: 13, fontWeight: 600, color: fn.status === 'active' ? '#059669' : '#dc2626', marginTop: 2 } }>{ fn.status }</div>
+                      <div style={ { padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 10 } }>
+                        <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' } }>Status</div>
+                        <div style={ { fontSize: 'var(--text-sm)', fontWeight: 600, color: fn.status === 'active' ? '#059669' : '#dc2626', marginTop: 2 } }>{ fn.status }</div>
                       </div>
                     </div>
 
                     {/* Triggers */ }
                     <div style={ { marginTop: 12 } }>
-                      <div style={ { fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 } }>Triggers</div>
+                      <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 } }>Triggers</div>
                       <div style={ { display: 'flex', gap: 6, flexWrap: 'wrap' } }>
                         { fn.triggers.map( t => (
-                          <span key={ t } style={ { padding: '3px 10px', borderRadius: 10, fontSize: 11, fontWeight: 500, background: '#f9fafb', color: '#374151', border: '1px solid #e5e7eb' } }>{ t }</span>
+                          <span key={ t } style={ { padding: '3px 10px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 500, background: 'var(--bg-secondary)', color: '#374151', border: '1px solid var(--border)' } }>{ t }</span>
                         ) ) }
                       </div>
                     </div>
@@ -242,17 +242,17 @@ const LambdaFunctionsPage: React.FC<PageProps> = ( { signOut, user, embedded } )
                     {/* Environment Variables */ }
                     { Object.keys( fn.envVars ).length > 0 && (
                       <div style={ { marginTop: 12 } }>
-                        <div style={ { fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 } }>Environment Variables { !editMode && <span style={ { fontSize: 10, color: '#d97706' } }>(read-only)</span> }</div>
-                        <div style={ { background: '#f9fafb', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 } }>
+                        <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 } }>Environment Variables { !editMode && <span style={ { fontSize: 'var(--text-xs)', color: '#d97706' } }>(read-only)</span> }</div>
+                        <div style={ { background: 'var(--bg-secondary)', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 } }>
                           { Object.entries( fn.envVars ).map( ( [ key, val ] ) => (
                             <div key={ key } style={ { display: 'flex', alignItems: 'center', gap: 8 } }>
-                              <code style={ { fontSize: 12, color: '#1a3a2a', fontWeight: 600, minWidth: 160, flexShrink: 0 } }>{ key }</code>
+                              <code style={ { fontSize: 'var(--text-xs)', color: 'var(--accent)', fontWeight: 600, minWidth: 160, flexShrink: 0 } }>{ key }</code>
                               { isServerManagedSecret( val ) ? (
-                                <code style={ { fontSize: 12, color: '#6b7280' } }>Server-managed secret</code>
+                                <code style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>Server-managed secret</code>
                               ) : editMode ? (
-                                <input defaultValue={ val } style={ { flex: 1, padding: '4px 8px', border: '2px solid #d1f470', borderRadius: 8, fontSize: 12, fontFamily: 'monospace', outline: 'none' } } onChange={ () => toast.info( 'Changes are preview-only — deploy via AWS Console' ) } />
+                                <input defaultValue={ val } style={ { flex: 1, padding: '4px 8px', border: '2px solid var(--lime)', borderRadius: 8, fontSize: 'var(--text-xs)', fontFamily: 'monospace', outline: 'none' } } onChange={ () => toast.info( 'Changes are preview-only — deploy via AWS Console' ) } />
                               ) : (
-                                <code style={ { fontSize: 12, color: '#6b7280', wordBreak: 'break-all' } }>{ val }</code>
+                                <code style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', wordBreak: 'break-all' } }>{ val }</code>
                               ) }
                             </div>
                           ) ) }
@@ -262,8 +262,8 @@ const LambdaFunctionsPage: React.FC<PageProps> = ( { signOut, user, embedded } )
 
                     {/* Function Name */ }
                     <div style={ { marginTop: 12 } }>
-                      <div style={ { fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 } }>Function Name</div>
-                      <code style={ { fontSize: 12, color: '#6b7280', background: '#f9fafb', padding: '4px 8px', borderRadius: 6, display: 'inline-block' } }>{ fn.name }</code>
+                      <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 } }>Function Name</div>
+                      <code style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', background: 'var(--bg-secondary)', padding: '4px 8px', borderRadius: 6, display: 'inline-block' } }>{ fn.name }</code>
                     </div>
                   </div>
                 ) }
@@ -274,8 +274,8 @@ const LambdaFunctionsPage: React.FC<PageProps> = ( { signOut, user, embedded } )
 
         { filtered.length === 0 && (
           <div style={ { padding: 48, textAlign: 'center' } }>
-            <p style={ { fontSize: 15, color: '#6b7280' } }>No functions match your search</p>
-            <button onClick={ () => { setSearch( '' ); setCategory( 'All' ); } } style={ { marginTop: 8, fontSize: 13, color: '#1a3a2a', background: 'none', border: 'none', cursor: 'pointer' } }>Clear filters</button>
+            <p style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)' } }>No functions match your search</p>
+            <button onClick={ () => { setSearch( '' ); setCategory( 'All' ); } } style={ { marginTop: 8, fontSize: 'var(--text-sm)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' } }>Clear filters</button>
           </div>
         ) }
       </div>

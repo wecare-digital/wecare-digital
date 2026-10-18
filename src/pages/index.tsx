@@ -462,13 +462,13 @@ const HomePage: React.FC = () => {
            specifies clamp(32px,4.2vw,54px), which exists on /grahak-os/ and nowhere else;
            reconciling the two is an owner decision, and typecheck.js reports the gap. */
         .home-flow-title{
-          font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;
-          letter-spacing:-1.2px;color:rgba(0,0,0,.95);margin:0 0 14px;
+          font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);
+          letter-spacing:var(--public-section-tracking);color:var(--public-heading);margin:0 0 14px;
         }
         /* The one body level: 20px/400/1.4/-.125px. */
         .home-flow-lead{
-          font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;
-          color:rgba(0,0,0,.898);margin:0 0 24px;
+          font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+          color:var(--public-body);margin:0 0 24px;
         }
         /* EQUAL-HEIGHT ROWS, AND THAT IS THE FIX RATHER THAN A PREFERENCE.
            Each beat's lime rule is a border-inline-start on its own li, so every bar was
@@ -671,7 +671,7 @@ const HomePage: React.FC = () => {
           letter-spacing:var(--public-body-tracking);
           color:var(--public-body);
           margin:24px 0 0;
-          max-width:560px;
+          max-width:var(--public-copy-max);
           /* At a flat 560px this sentence broke after "over" and left "scale." alone
              on the second line. balance evens the two lines instead of filling the
              first greedily. It is a progressive enhancement - unsupported browsers

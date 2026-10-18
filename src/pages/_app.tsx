@@ -493,7 +493,7 @@ const PUBLIC_PAGE_META: Record<string, {
   // promises a product the page does not offer is worse than none.
   '/bharat-rx': { name: 'Bharat Rx', type: 'WebPage', description: 'Consults, appointments, reminders and records in one place.', serviceType: 'Health consultations, appointments and records' },
   // Product pages. Elsewhere is a category-only menu family, so there is deliberately no
-  // /elsewhere parent page. Its three real child pages are registered directly instead.
+  // Elsewhere is a non-clickable family label; its three child pages are registered directly.
   // Descriptions are shorter than the pages' own meta descriptions on purpose: this feeds
   // WebPage.description in the schema graph, while ProductPage.tsx owns the search-result copy.
   '/elsewhere/visa': { name: 'Visa', type: 'WebPage', description: 'Visa document preparation, application readiness and tracking.', serviceType: 'Visa application assistance' },
@@ -511,7 +511,7 @@ const PUBLIC_PAGE_META: Record<string, {
   // to redirect from.
   '/anew': { name: 'Anew', type: 'WebPage', description: 'Reflection-led conversations that create clarity and action.', serviceType: 'Reflective conversation and coaching' },
   // Hunar is now a non-clickable family label. Kaushal owns skills/learning; Prastuti owns
-  // CV/profile/pitch presentation. The retired /hunar parent is intentionally not registered.
+  // CV/profile/pitch presentation. Hunar is a non-clickable family label.
   '/hunar/kaushal': { name: 'Kaushal', type: 'WebPage', description: 'A focused skills and learning path built around what you want to do next.', serviceType: 'Skills learning and development support' },
   '/hunar/prastuti': { name: 'Prastuti', type: 'WebPage', description: 'CV, professional profile and pitch deck creation built from real experience.', serviceType: 'CV, professional profile and pitch deck creation' },
   '/niji-setu': { name: 'Niji Setu', type: 'WebPage', description: 'A QR code people scan to reach you on a masked call.', serviceType: 'Number masking and call connection' },
@@ -560,8 +560,8 @@ const PUBLIC_PAGE_META: Record<string, {
   // shape: renderAllowlist() in that generator and allRoutes() in StructuredDataService.test.ts
   // both parse this block as text and both require literals.
   '/shop': { name: 'Shop', type: 'WebPage', description: 'Every WECARE.DIGITAL product and service on one page, each linking to its own page.' },
-  // Shipments is a non-clickable family label. Track lives at /shipments/track/ and
-  // Pickup Request remains the separate /request-pickup/ child.
+  // Shipments is a non-clickable family label. Its live destinations are the tracking
+  // page and the separate pickup-request page.
 };
 
 /** Public redirect changes use scripts/provision_legacy_redirects.py and its ratified list.
@@ -589,7 +589,6 @@ const getPublicPageSchema = ( pathname: string ) => {
      * Still no breadcrumb: a trail whose only entry is the page you are on says nothing,
      * which is the original and correct reasoning for this branch existing.
      *
-     * `/llm` was the third route in this position until 2026-09-30, when it was retired -
      * see the note on the isPublic chain below.
      */
     const url = pathname === '/' ? `${SITE}/` : `${SITE}${pathname}/`;
@@ -755,7 +754,6 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // https://wecare.digital/contact-test/ returned HTTP 200 carrying the entire staff
   // sidebar - Inbox, Contacts, Broadcast, Payments, Service Ops, Store, Forms, Tasks - the
   // page search box and the BottomNav, to anyone who asked. Verified live before removal;
-  // [retired public path]/inbox/ and /store/ were clean, so this page was the whole of the exposure.
   //
   // It was also a duplicate: /contact is the real public contact page, and this one's form
   // resolved a setTimeout and threw the message away. De-listed rather than deleted so the
@@ -775,25 +773,8 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // NOT in PUBLIC_PAGE_META, because entries there acquire WebPage structured data and a
   // sitemap entry, and advertising a redirect stub to a crawler is the opposite of the
   // intent. The page sets its own robots noindex and canonicals to the destination.
-  // '/llm' USED TO BE ON THIS LIST AND IS DELIBERATELY GONE (2026-09-30).
-  //
-  // It was an HTML page describing the AI-facing surface: the MCP endpoint at /mcp, the two
-  // llms.txt files, and the terms for citing this content. Retired because it was a fifth
-  // copy of facts that have to agree - the endpoint URL, the three protocol versions, the
-  // five tool names, the list of things the endpoint cannot do - and a documentation page
-  // that drifts from the thing it documents is worse than no page: it sends an operator to
-  // an endpoint that answers differently from the description they were given.
-  //
-  // Nothing was lost. Its content moved into the surfaces its audience actually reads:
-  // /mcp itself answers `initialize` with an `instructions` string and `tools/list` with the
-  // tools and their schemas, get_site_summary returns the citation terms, and /llms.txt now
-  // carries the client config snippet and the cannot-do list. config/public-pages.json holds
-  // all of it, and src/test/PublicAiSurface.test.ts holds it in step with the handler.
-  //
-  // /llm and /llm/ 301 to /llms.txt - see RETIRED in scripts/provision_legacy_redirects.py.
-  // Do NOT re-add the line below to "fix" a stale link; the redirect is the fix. Re-adding a
-  // route here while that 301 is live gives one URL two answers depending on whether the
-  // request reaches the CDN rule or the export.
+  // The machine-readable AI surfaces are documented by MCP and the generated discovery
+  // files; there is no separate public HTML documentation route to keep in sync.
   const isPublic = router.pathname === '/'
     || router.pathname === '/404'
     || router.pathname === '/get'

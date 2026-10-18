@@ -34,7 +34,7 @@ function statusColor ( status: string ): { bg: string; fg: string } {
   const map: Record<string, { bg: string; fg: string }> = {
     open: { bg: '#dbeafe', fg: '#1e40af' },
     in_progress: { bg: '#fef3c7', fg: '#92400e' },
-    resolved: { bg: '#d1f470', fg: '#1a3a2a' },
+    resolved: { bg: 'var(--lime)', fg: 'var(--accent)' },
     closed: { bg: '#f3f4f6', fg: '#374151' },
     cancelled: { bg: '#fee2e2', fg: '#991b1b' },
     pending: { bg: '#fef3c7', fg: '#92400e' },
@@ -47,7 +47,7 @@ function statusColor ( status: string ): { bg: string; fg: string } {
 
 function Badge ( { label }: { label: string } ) {
   const c = statusColor( label );
-  return <span style={ { display: 'inline-block', padding: '2px 8px', borderRadius: 9999, fontSize: 12, fontWeight: 600, background: c.bg, color: c.fg } }>{ label.replace( /_/g, ' ' ) }</span>;
+  return <span style={ { display: 'inline-block', padding: '2px 8px', borderRadius: 9999, fontSize: 'var(--text-xs)', fontWeight: 600, background: c.bg, color: c.fg } }>{ label.replace( /_/g, ' ' ) }</span>;
 }
 
 const TrackRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
@@ -98,8 +98,8 @@ const TrackRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
     <MaybeLayout embedded={ embedded } user={ user } onSignOut={ signOut }>
       <SEO { ...PAGE_SEO.trackRequest } />
       <div style={ { padding: '24px 32px', maxWidth: 1200 } }>
-        <h1 style={ { fontSize: 24, fontWeight: 700, color: '#1a3a2a', margin: '0 0 4px' } }>Track Request</h1>
-        <p style={ { fontSize: 14, color: '#6b7280', margin: '0 0 24px' } }>Select an order to view all service activity</p>
+        <h1 style={ { fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--accent)', margin: '0 0 4px' } }>Track Request</h1>
+        <p style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', margin: '0 0 24px' } }>Select an order to view all service activity</p>
 
         <div style={ { display: 'grid', gridTemplateColumns: selectedOrder ? '340px 1fr' : '1fr', gap: 24 } }>
           {/* Order List */ }
@@ -113,7 +113,7 @@ const TrackRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
             />
             <div style={ { maxHeight: selectedOrder ? 'calc(100vh - 280px)' : 500, overflowY: 'auto' } }>
               { loadingOrders ? (
-                <div style={ { textAlign: 'center', padding: 24, color: '#6b7280' } }>Loading...</div>
+                <div style={ { textAlign: 'center', padding: 24, color: 'var(--text-muted)' } }>Loading...</div>
               ) : ordersFailed ? (
                 <div role="alert"><ErrorState message="Could not load orders" onRetry={ loadOrders } /></div>
               ) : filteredOrders.length === 0 ? (
@@ -125,15 +125,15 @@ const TrackRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
                     onClick={ () => loadTracking( o ) }
                     style={ {
                       display: 'block', width: '100%', padding: '10px 14px', border: '2px solid',
-                      borderColor: selectedOrder?.orderId === o.orderId ? '#d1f470' : '#f3f4f6',
+                      borderColor: selectedOrder?.orderId === o.orderId ? 'var(--lime)' : '#f3f4f6',
                       borderRadius: 10, background: selectedOrder?.orderId === o.orderId ? '#f0fdf4' : '#fff',
                       cursor: 'pointer', marginBottom: 6, textAlign: 'left', transition: 'border-color 0.15s',
                     } }
                   >
-                    <div style={ { fontWeight: 600, fontSize: 13, color: '#1a3a2a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }>
+                    <div style={ { fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--accent)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }>
                       { formatOrderLabel( o ) }
                     </div>
-                    <div style={ { fontSize: 12, color: '#6b7280', marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' } }>
+                    <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 8, alignItems: 'center' } }>
                       <span>{ o.customerName || 'Customer' }</span>
                       <Badge label={ o.orderStatus || 'active' } />
                     </div>
@@ -147,7 +147,7 @@ const TrackRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
           { selectedOrder && (
             <div>
               { loadingTracking ? (
-                <div style={ { ...cardStyle, textAlign: 'center', padding: 40, color: '#6b7280' } }>Loading tracking data...</div>
+                <div style={ { ...cardStyle, textAlign: 'center', padding: 40, color: 'var(--text-muted)' } }>Loading tracking data...</div>
               ) : !tracking ? (
                 <div style={ { ...cardStyle, textAlign: 'center', padding: 40 } }>
                   <EmptyState icon="default" title="No tracking data" description="No service activity found for this order" />
@@ -156,9 +156,9 @@ const TrackRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
                 <>
                   {/* Order Summary */ }
                   <div style={ { ...cardStyle, marginBottom: 16 } }>
-                    <h3 style={ { fontSize: 16, fontWeight: 700, color: '#1a3a2a', margin: '0 0 12px' } }>Order Details</h3>
+                    <h3 style={ { fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--accent)', margin: '0 0 12px' } }>Order Details</h3>
                     <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 } }>
-                      <div><span style={ metaLabel }>Order ID</span><div style={ { fontWeight: 600, fontSize: 14 } }>{ selectedOrder.shortId || extractShortId( selectedOrder.orderId ) }</div></div>
+                      <div><span style={ metaLabel }>Order ID</span><div style={ { fontWeight: 600, fontSize: 'var(--text-md)' } }>{ selectedOrder.shortId || extractShortId( selectedOrder.orderId ) }</div></div>
                       <div><span style={ metaLabel }>Date</span><div>{ selectedOrder.orderDateIST || selectedOrder.orderDate || '—' }</div></div>
                       <div><span style={ metaLabel }>Customer</span><div>{ selectedOrder.customerName || '—' }</div></div>
                       <div><span style={ metaLabel }>Order Status</span><div><Badge label={ selectedOrder.orderStatus || 'active' } /></div></div>
@@ -166,7 +166,7 @@ const TrackRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
                       <div><span style={ metaLabel }>Total</span><div style={ { fontWeight: 600 } }>{ selectedOrder.currency || '₹' }{ selectedOrder.totalAmount || '—' }</div></div>
                     </div>
                     { selectedOrder.itemsSummary && (
-                      <div style={ { marginTop: 12, padding: '8px 12px', background: '#f9fafb', borderRadius: 8, fontSize: 13, color: '#374151' } }>
+                      <div style={ { marginTop: 12, padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 'var(--text-sm)', color: '#374151' } }>
                         { selectedOrder.itemsSummary }
                       </div>
                     ) }
@@ -174,20 +174,20 @@ const TrackRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
 
                   {/* Service Requests */ }
                   <div style={ { ...cardStyle, marginBottom: 16 } }>
-                    <h3 style={ { fontSize: 16, fontWeight: 700, color: '#1a3a2a', margin: '0 0 12px' } }>
+                    <h3 style={ { fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--accent)', margin: '0 0 12px' } }>
                       Service Requests ({ tracking.submissions?.length || 0 })
                     </h3>
                     { ( !tracking.submissions || tracking.submissions.length === 0 ) ? (
-                      <div style={ { padding: 16, textAlign: 'center', color: '#6b7280', fontSize: 14 } }>No service requests for this order</div>
+                      <div style={ { padding: 16, textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-md)' } }>No service requests for this order</div>
                     ) : (
                       tracking.submissions.map( ( sub: any ) => (
                         <div key={ sub.submissionId } style={ { padding: '12px 16px', border: '1px solid #f3f4f6', borderRadius: 10, marginBottom: 8 } }>
                           <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 } }>
-                            <div style={ { fontWeight: 600, fontSize: 14, color: '#1a3a2a' } }>{ sub.subject || sub.requestType || sub.flowCode }</div>
+                            <div style={ { fontWeight: 600, fontSize: 'var(--text-md)', color: 'var(--accent)' } }>{ sub.subject || sub.requestType || sub.flowCode }</div>
                             <Badge label={ sub.status || 'open' } />
                           </div>
-                          <div style={ { fontSize: 13, color: '#6b7280', marginBottom: 4 } }>{ sub.description?.slice( 0, 120 ) || '—' }</div>
-                          <div style={ { display: 'flex', gap: 16, fontSize: 12, color: '#9ca3af' } }>
+                          <div style={ { fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 4 } }>{ sub.description?.slice( 0, 120 ) || '—' }</div>
+                          <div style={ { display: 'flex', gap: 16, fontSize: 'var(--text-xs)', color: '#9ca3af' } }>
                             <span>Ref: { sub.submissionNumber || sub.submissionId?.slice( 0, 8 ) }</span>
                             <span>{ fmtDate( sub.createdAt ) }</span>
                             { sub.paymentStatus && sub.paymentStatus !== 'none' && <span>Payment: <Badge label={ sub.paymentStatus } /></span> }
@@ -200,17 +200,17 @@ const TrackRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
                   {/* Status Timeline */ }
                   { tracking.statusHistory && tracking.statusHistory.length > 0 && (
                     <div style={ { ...cardStyle, marginBottom: 16 } }>
-                      <h3 style={ { fontSize: 16, fontWeight: 700, color: '#1a3a2a', margin: '0 0 12px' } }>Timeline</h3>
+                      <h3 style={ { fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--accent)', margin: '0 0 12px' } }>Timeline</h3>
                       <div style={ { position: 'relative', paddingLeft: 20 } }>
-                        <div style={ { position: 'absolute', left: 6, top: 4, bottom: 4, width: 2, background: '#e5e7eb' } } />
+                        <div style={ { position: 'absolute', left: 6, top: 4, bottom: 4, width: 2, background: 'var(--border)' } } />
                         { tracking.statusHistory.map( ( h: api.StatusHistoryEntry, i: number ) => (
                           <div key={ h.historyId || i } style={ { position: 'relative', paddingBottom: 16, paddingLeft: 16 } }>
-                            <div style={ { position: 'absolute', left: -14, top: 4, width: 10, height: 10, borderRadius: '50%', background: i === 0 ? '#1a3a2a' : '#d1d5db', border: '2px solid #fff' } } />
-                            <div style={ { fontSize: 13, fontWeight: 500, color: '#374151' } }>
+                            <div style={ { position: 'absolute', left: -14, top: 4, width: 10, height: 10, borderRadius: '50%', background: i === 0 ? 'var(--accent)' : '#d1d5db', border: '2px solid #fff' } } />
+                            <div style={ { fontSize: 'var(--text-sm)', fontWeight: 500, color: '#374151' } }>
                               { h.oldStatus && <><Badge label={ h.oldStatus } /> → </> }<Badge label={ h.newStatus } />
                             </div>
-                            { h.notes && <div style={ { fontSize: 12, color: '#6b7280', marginTop: 2 } }>{ h.notes }</div> }
-                            <div style={ { fontSize: 11, color: '#9ca3af', marginTop: 2 } }>{ fmtDate( h.changedAt ) } · { h.changedByName || h.changedBy }</div>
+                            { h.notes && <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 2 } }>{ h.notes }</div> }
+                            <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 2 } }>{ fmtDate( h.changedAt ) } · { h.changedByName || h.changedBy }</div>
                           </div>
                         ) ) }
                       </div>
@@ -220,12 +220,12 @@ const TrackRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
                   {/* Linked Documents */ }
                   { tracking.documents && tracking.documents.length > 0 && (
                     <div style={ cardStyle }>
-                      <h3 style={ { fontSize: 16, fontWeight: 700, color: '#1a3a2a', margin: '0 0 12px' } }>Documents ({ tracking.documents.length })</h3>
+                      <h3 style={ { fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--accent)', margin: '0 0 12px' } }>Documents ({ tracking.documents.length })</h3>
                       { tracking.documents.map( ( doc: api.Document ) => (
                         <div key={ doc.documentId } style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', border: '1px solid #f3f4f6', borderRadius: 8, marginBottom: 6 } }>
                           <div>
-                            <div style={ { fontWeight: 500, fontSize: 13 } }>{ doc.fileName || 'Document' }</div>
-                            <div style={ { fontSize: 12, color: '#6b7280' } }>{ doc.type } · { doc.source }</div>
+                            <div style={ { fontWeight: 500, fontSize: 'var(--text-sm)' } }>{ doc.fileName || 'Document' }</div>
+                            <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ doc.type } · { doc.source }</div>
                           </div>
                           <Badge label={ doc.status } />
                         </div>
@@ -243,7 +243,7 @@ const TrackRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
 };
 
 const cardStyle: React.CSSProperties = { border: '2px solid #f3f4f6', borderRadius: 13, padding: 20, background: '#fff' };
-const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, boxSizing: 'border-box' };
-const metaLabel: React.CSSProperties = { display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 2 };
+const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 'var(--text-md)', boxSizing: 'border-box' };
+const metaLabel: React.CSSProperties = { display: 'block', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 2 };
 
 export default TrackRequestPage;

@@ -26,24 +26,7 @@ User-agent: *
 Allow: /
 
 Disallow: /api/
-# /mock-home/ and /store/ had rules here until 2026-09-29 and no longer do, because both
-# routes are GONE and the rule at the top of this file cuts both ways: a Disallow for a
-# route that does not exist is noise that implies the route does. /mock-home/ (the home
-# page design mock from ef1abc5b) and /store/ (the catalog's old home, which left in
-# 3d229931) both return 404 live, verified before their rules came out. /store/ is worth
-# one extra sentence because its old comment here insisted it was "still a live top-level
-# route": the /store/* API paths are real and DO still exist, but they are reached only at
-# /api/store/* — measured, /api/store/preview-product-image returns 401 while
-# /store/preview-product-image 404s — so they are covered by the /api/ rule above and
-# never needed a rule of their own.
-# All fourteen authenticated families nested under /workspace/ on 2026-09-26, so their
-# individual Disallow lines came out rather than being kept alongside: a Disallow for a
-# route that no longer exists is noise that implies the route does. That covers
-# access, admin, commerce, contacts, dashboard, docs, engage, forms, link, pay, seo,
-# service, settings and task.
-#
-# /engage/ was itself the former /dm/, by way of /workspace/ for about twenty minutes,
-# and is now /workspace/engage/. Retired public paths intentionally fall through to the
+# Retired public paths intentionally fall through to the
 # 404 document; only the host canonicalisation remains an explicit redirect.
 # /api/ stays separate because it is a live root path, not a moved one.
 Disallow: /workspace/
@@ -121,9 +104,5 @@ Sitemap: https://wecare.digital/sitemap.xml
 #
 # The endpoint describes itself: `initialize` returns an instructions string, `tools/list`
 # returns the five tools with their schemas, and get_site_summary returns the citation terms.
-# /llms.txt above repeats all of it in prose, including the client config snippet. There was
-# an HTML page at /llm/ for that job until 2026-09-30, because a page describing a machine
-# interface is one more copy to keep in step. It is GONE, and it does not redirect: /llm and
-# /llm/ answer 404 through the `/<*>` catch-all. It carried a 301 to /llms.txt for a few hours
-# on the day it was retired and the owner removed it, so a 404 is the intended answer rather
-# than a rule somebody forgot. Read this sentence before "fixing" the missing redirect.
+# /llms.txt above repeats all of it in prose, including the client config snippet. Machine
+# discovery therefore has no separate human-readable route to maintain or redirect.

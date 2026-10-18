@@ -93,13 +93,16 @@
    * Home is the visual reference; public components consume these values instead of
    * restating them page-by-page. Workspace keeps its denser application scale below.
    * ======================================== */
-  --public-bg: #ffffff;
-  --public-text: #1a1a1a;
+  --public-bg: var(--bg);
+  --public-text: var(--text);
   --public-heading: rgba(0, 0, 0, 0.95);
   --public-body: rgba(0, 0, 0, 0.898);
-  --public-brand-green: #1a3a2a;
-  --public-brand-lime: #d1f470;
-  --public-hairline: #e5e7eb;
+  --public-brand-green: var(--accent);
+  --public-brand-lime: var(--lime);
+  --public-hairline: var(--border);
+  --public-muted: var(--text-secondary);
+  --public-lime-tint: var(--lime-tint);
+  --public-lift-shadow: 0 4px 12px rgba(26, 58, 42, 0.12);
 
   --public-accent-blue: #2563eb;
   --public-accent-blue-tint: #dbeafe;

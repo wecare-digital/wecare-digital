@@ -48,7 +48,7 @@ const CostControls: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                 <h1 style={ { fontSize: 22, fontWeight: 700 } }>Cost Controls</h1>
                 <LastSyncIndicator at={ syncedAt } onSync={ load } syncing={ loading } />
             </div>
-            <p style={ { color: '#777', fontSize: 13, marginBottom: 16 } }>
+            <p style={ { color: '#777', fontSize: 'var(--text-sm)', marginBottom: 16 } }>
                 Optional paid AWS services are <strong>off by default</strong> and gated behind feature flags.
                 Enable a flag only for a defined need; disable after. See docs/AWS_COST_CONTROL.md.
             </p>
@@ -60,20 +60,20 @@ const CostControls: React.FC<PageProps> = ( { signOut, user, embedded = false } 
             </CostWarningBanner>
 
             <div style={ { background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, padding: 16, marginBottom: 16 } }>
-                <h3 style={ { marginTop: 0, fontSize: 15 } }>Always-on (required) services</h3>
+                <h3 style={ { marginTop: 0, fontSize: 'var(--text-md)' } }>Always-on (required) services</h3>
                 <div style={ { display: 'flex', flexWrap: 'wrap', gap: 8 } }>
                     { REQUIRED_SERVICES.map( s => (
-                        <span key={ s } style={ { fontSize: 12, background: '#e6f4ea', color: '#1a7a3a', padding: '3px 10px', borderRadius: 999, fontWeight: 600 } }>✓ { s }</span>
+                        <span key={ s } style={ { fontSize: 'var(--text-xs)', background: '#e6f4ea', color: '#1a7a3a', padding: '3px 10px', borderRadius: 999, fontWeight: 600 } }>✓ { s }</span>
                     ) ) }
                 </div>
             </div>
 
             <div style={ { background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, padding: 16 } }>
-                <h3 style={ { marginTop: 0, fontSize: 15 } }>Optional paid services (feature-flagged)</h3>
+                <h3 style={ { marginTop: 0, fontSize: 'var(--text-md)' } }>Optional paid services (feature-flagged)</h3>
                 { loading && !data ? <div style={ { color: '#888' } }>Loading…</div> : (
-                    <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+                    <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
                         <thead>
-                            <tr style={ { textAlign: 'left', color: '#888', fontSize: 12 } }>
+                            <tr style={ { textAlign: 'left', color: '#888', fontSize: 'var(--text-xs)' } }>
                                 <th style={ { padding: '6px 4px' } }>Flag</th>
                                 <th style={ { padding: '6px 4px' } }>Service</th>
                                 <th style={ { padding: '6px 4px' } }>Cost risk</th>
@@ -83,7 +83,7 @@ const CostControls: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                         <tbody>
                             { Object.keys( flags ).map( name => (
                                 <tr key={ name } style={ { borderTop: '1px solid #f0f0f0' } }>
-                                    <td style={ { padding: '8px 4px', fontFamily: 'monospace', fontSize: 12 } }>{ name }</td>
+                                    <td style={ { padding: '8px 4px', fontFamily: 'monospace', fontSize: 'var(--text-xs)' } }>{ name }</td>
                                     <td style={ { padding: '8px 4px' } }>{ meta[ name ]?.service || '—' }</td>
                                     <td style={ { padding: '8px 4px' } }><RiskBadge level={ meta[ name ]?.risk || 'medium' } /></td>
                                     <td style={ { padding: '8px 4px' } }><FeatureFlagBadge name={ name.replace( 'ENABLE_', '' ) } enabled={ !!flags[ name ] } /></td>
@@ -92,7 +92,7 @@ const CostControls: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                         </tbody>
                     </table>
                 ) }
-                <p style={ { fontSize: 12, color: '#888', marginTop: 12 } }>
+                <p style={ { fontSize: 'var(--text-xs)', color: '#888', marginTop: 12 } }>
                     To enable a flag: set its env var (e.g. <code>ENABLE_CLOUDFRONT=true</code>) in the Amplify backend, or the
                     <code> cost_flags</code> SystemConfig record, then redeploy. There is no WAF flag: AWS WAF was removed from
                     this account on 2026-09-28 as a cost decision, so endpoints are protected by HMAC signature verification

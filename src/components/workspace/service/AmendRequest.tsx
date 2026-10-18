@@ -51,14 +51,14 @@ function fmtDate ( ts?: number ): string {
 function statusColor ( status: string ): { bg: string; fg: string } {
   const map: Record<string, { bg: string; fg: string }> = {
     open: { bg: '#dbeafe', fg: '#1e40af' }, in_progress: { bg: '#fef3c7', fg: '#92400e' },
-    resolved: { bg: '#d1f470', fg: '#1a3a2a' }, closed: { bg: '#f3f4f6', fg: '#374151' },
+    resolved: { bg: 'var(--lime)', fg: 'var(--accent)' }, closed: { bg: '#f3f4f6', fg: '#374151' },
   };
   return map[ status ] || { bg: '#f3f4f6', fg: '#374151' };
 }
 
 function Badge ( { label }: { label: string } ) {
   const c = statusColor( label );
-  return <span style={ { display: 'inline-block', padding: '2px 8px', borderRadius: 9999, fontSize: 12, fontWeight: 600, background: c.bg, color: c.fg } }>{ label.replace( /_/g, ' ' ) }</span>;
+  return <span style={ { display: 'inline-block', padding: '2px 8px', borderRadius: 9999, fontSize: 'var(--text-xs)', fontWeight: 600, background: c.bg, color: c.fg } }>{ label.replace( /_/g, ' ' ) }</span>;
 }
 
 const AmendRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
@@ -135,12 +135,12 @@ const AmendRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
         {/* Progress */ }
         <div style={ { display: 'flex', gap: 8, marginBottom: 24 } }>
           { ( [ 'ORDER_SELECT', 'REQUEST_SELECT', 'AMEND_FORM', 'REVIEW', 'DONE' ] as Step[] ).map( ( s, i ) => (
-            <div key={ s } style={ { flex: 1, height: 4, borderRadius: 2, background: i <= [ 'ORDER_SELECT', 'REQUEST_SELECT', 'AMEND_FORM', 'REVIEW', 'DONE' ].indexOf( step ) ? '#1a3a2a' : '#e5e7eb' } } />
+            <div key={ s } style={ { flex: 1, height: 4, borderRadius: 2, background: i <= [ 'ORDER_SELECT', 'REQUEST_SELECT', 'AMEND_FORM', 'REVIEW', 'DONE' ].indexOf( step ) ? 'var(--accent)' : 'var(--border)' } } />
           ) ) }
         </div>
 
-        <h1 style={ { fontSize: 24, fontWeight: 700, color: '#1a3a2a', margin: '0 0 4px' } }>Amend Request</h1>
-        <p style={ { fontSize: 14, color: '#6b7280', margin: '0 0 24px' } }>
+        <h1 style={ { fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--accent)', margin: '0 0 4px' } }>Amend Request</h1>
+        <p style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', margin: '0 0 24px' } }>
           { step === 'ORDER_SELECT' && 'Select the order to amend' }
           { step === 'REQUEST_SELECT' && 'Select the request to amend' }
           { step === 'AMEND_FORM' && 'Describe your amendment' }
@@ -154,14 +154,14 @@ const AmendRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
             <input type="text" placeholder="Search orders..." value={ orderSearch } onChange={ e => setOrderSearch( e.target.value ) } style={ { ...inputStyle, marginBottom: 12 } } />
             <div style={ { maxHeight: 400, overflowY: 'auto' } }>
               { loadingOrders ? (
-                <div style={ { textAlign: 'center', padding: 24, color: '#6b7280' } }>Loading...</div>
+                <div style={ { textAlign: 'center', padding: 24, color: 'var(--text-muted)' } }>Loading...</div>
               ) : filteredOrders.length === 0 ? (
                 <EmptyState icon="default" title="No orders" description="No orders found" />
               ) : (
                 filteredOrders.map( o => (
                   <button key={ o.orderId } onClick={ () => selectOrder( o ) } style={ { display: 'block', width: '100%', padding: '10px 14px', border: '2px solid #f3f4f6', borderRadius: 10, background: '#fff', cursor: 'pointer', marginBottom: 6, textAlign: 'left' } }>
-                    <div style={ { fontWeight: 600, fontSize: 13, color: '#1a3a2a' } }>{ formatOrderLabel( o ) }</div>
-                    <div style={ { fontSize: 12, color: '#6b7280', marginTop: 2 } }>{ o.customerName || 'Customer' } · { o.itemsSummary || `${o.itemCount || 0} items` }</div>
+                    <div style={ { fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--accent)' } }>{ formatOrderLabel( o ) }</div>
+                    <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 2 } }>{ o.customerName || 'Customer' } · { o.itemsSummary || `${o.itemCount || 0} items` }</div>
                   </button>
                 ) )
               ) }
@@ -172,12 +172,12 @@ const AmendRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
         {/* STEP 2: REQUEST SELECT */ }
         { step === 'REQUEST_SELECT' && selectedOrder && (
           <div style={ cardStyle }>
-            <div style={ { padding: '10px 14px', background: '#f9fafb', borderRadius: 8, marginBottom: 16 } }>
-              <div style={ { fontSize: 12, color: '#6b7280' } }>Order</div>
-              <div style={ { fontWeight: 600, color: '#1a3a2a' } }>{ formatOrderLabel( selectedOrder ) }</div>
+            <div style={ { padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: 8, marginBottom: 16 } }>
+              <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>Order</div>
+              <div style={ { fontWeight: 600, color: 'var(--accent)' } }>{ formatOrderLabel( selectedOrder ) }</div>
             </div>
             { loadingSubs ? (
-              <div style={ { textAlign: 'center', padding: 24, color: '#6b7280' } }>Loading requests...</div>
+              <div style={ { textAlign: 'center', padding: 24, color: 'var(--text-muted)' } }>Loading requests...</div>
             ) : submissions.length === 0 ? (
               <div>
                 <EmptyState icon="default" title="No requests" description="No service requests found for this order" />
@@ -188,10 +188,10 @@ const AmendRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
                 { submissions.map( ( sub: any ) => (
                   <button key={ sub.submissionId } onClick={ () => { setSelectedSub( sub ); setStep( 'AMEND_FORM' ); } } style={ { display: 'block', width: '100%', padding: '12px 16px', border: '2px solid #f3f4f6', borderRadius: 10, background: '#fff', cursor: 'pointer', marginBottom: 8, textAlign: 'left' } }>
                     <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }>
-                      <div style={ { fontWeight: 600, fontSize: 14, color: '#1a3a2a' } }>{ sub.subject || sub.requestType || sub.flowCode }</div>
+                      <div style={ { fontWeight: 600, fontSize: 'var(--text-md)', color: 'var(--accent)' } }>{ sub.subject || sub.requestType || sub.flowCode }</div>
                       <Badge label={ sub.status || 'open' } />
                     </div>
-                    <div style={ { fontSize: 12, color: '#6b7280', marginTop: 4 } }>
+                    <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 4 } }>
                       Ref: { sub.submissionNumber || sub.submissionId?.slice( 0, 8 ) } · { fmtDate( sub.createdAt ) }
                     </div>
                   </button>
@@ -205,9 +205,9 @@ const AmendRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
         {/* STEP 3: AMEND FORM */ }
         { step === 'AMEND_FORM' && selectedSub && (
           <div style={ cardStyle }>
-            <div style={ { padding: '10px 14px', background: '#f9fafb', borderRadius: 8, marginBottom: 16 } }>
-              <div style={ { fontSize: 12, color: '#6b7280' } }>Amending</div>
-              <div style={ { fontWeight: 600, color: '#1a3a2a' } }>{ ( selectedSub as any ).subject || ( selectedSub as any ).requestType } — { ( selectedSub as any ).submissionNumber || selectedSub.submissionId.slice( 0, 8 ) }</div>
+            <div style={ { padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: 8, marginBottom: 16 } }>
+              <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>Amending</div>
+              <div style={ { fontWeight: 600, color: 'var(--accent)' } }>{ ( selectedSub as any ).subject || ( selectedSub as any ).requestType } — { ( selectedSub as any ).submissionNumber || selectedSub.submissionId.slice( 0, 8 ) }</div>
             </div>
             { /* SHAPE (a), design 5.2 - the wrapping <label> is gone and Select owns the pair.
                  A <button> is a labelable element too, so the wrapper would have made the
@@ -217,7 +217,7 @@ const AmendRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
               options={ AMENDMENT_TYPE_OPTIONS } />
             <label style={ labelStyle }>Description *
               <textarea value={ form.description } onChange={ e => setForm( f => ( { ...f, description: e.target.value } ) ) } placeholder="Describe what you want to change or add..." rows={ 5 } style={ { ...inputStyle, resize: 'vertical' } } maxLength={ 2000 } />
-              <div style={ { fontSize: 11, color: '#9ca3af', textAlign: 'right', marginTop: 2 } }>{ form.description.length }/2000</div>
+              <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', textAlign: 'right', marginTop: 2 } }>{ form.description.length }/2000</div>
             </label>
             <div style={ { display: 'flex', gap: 8, marginTop: 16 } }>
               <Button variant="secondary" onClick={ () => setStep( 'REQUEST_SELECT' ) }>Back</Button>
@@ -234,7 +234,7 @@ const AmendRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
               <div><span style={ metaLabel }>Request</span><div>{ ( selectedSub as any ).subject || ( selectedSub as any ).requestType }</div></div>
               <div><span style={ metaLabel }>Amendment Type</span><div>{ form.amendmentType }</div></div>
               <div><span style={ metaLabel }>Current Status</span><div><Badge label={ ( selectedSub as any ).status || 'open' } /></div></div>
-              <div style={ { gridColumn: '1 / -1' } }><span style={ metaLabel }>Description</span><div style={ { padding: 12, background: '#f9fafb', borderRadius: 8, fontSize: 14, whiteSpace: 'pre-wrap' } }>{ form.description }</div></div>
+              <div style={ { gridColumn: '1 / -1' } }><span style={ metaLabel }>Description</span><div style={ { padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 'var(--text-md)', whiteSpace: 'pre-wrap' } }>{ form.description }</div></div>
             </div>
             <div style={ { display: 'flex', gap: 8 } }>
               <Button variant="secondary" onClick={ () => setStep( 'AMEND_FORM' ) }>Back</Button>
@@ -246,9 +246,9 @@ const AmendRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
         {/* STEP 5: DONE */ }
         { step === 'DONE' && (
           <div style={ { ...cardStyle, textAlign: 'center', padding: 40 } }>
-            <div style={ { fontSize: 48, marginBottom: 12 } }>✅</div>
-            <h2 style={ { fontSize: 20, fontWeight: 700, color: '#1a3a2a', margin: '0 0 8px' } }>Amendment Submitted</h2>
-            <p style={ { fontSize: 14, color: '#6b7280', margin: '0 0 24px' } }>Your amendment has been submitted and will be reviewed.</p>
+            <div style={ { fontSize: 'var(--h1)', marginBottom: 12 } }>✅</div>
+            <h2 style={ { fontSize: 20, fontWeight: 700, color: 'var(--accent)', margin: '0 0 8px' } }>Amendment Submitted</h2>
+            <p style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', margin: '0 0 24px' } }>Your amendment has been submitted and will be reviewed.</p>
             <div style={ { display: 'flex', gap: 8, justifyContent: 'center' } }>
               <Button variant="secondary" onClick={ () => { setStep( 'ORDER_SELECT' ); setSelectedOrder( null ); setSelectedSub( null ); setForm( { amendmentType: '', description: '' } ); setResultId( null ); } }>
                 Amend Another
@@ -263,8 +263,8 @@ const AmendRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
 };
 
 const cardStyle: React.CSSProperties = { border: '2px solid #f3f4f6', borderRadius: 13, padding: 24, background: '#fff' };
-const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, marginTop: 4, boxSizing: 'border-box' };
-const labelStyle: React.CSSProperties = { display: 'block', fontSize: 14, fontWeight: 500, color: '#374151', marginBottom: 14 };
-const metaLabel: React.CSSProperties = { display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 2 };
+const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 'var(--text-md)', marginTop: 4, boxSizing: 'border-box' };
+const labelStyle: React.CSSProperties = { display: 'block', fontSize: 'var(--text-md)', fontWeight: 500, color: '#374151', marginBottom: 14 };
+const metaLabel: React.CSSProperties = { display: 'block', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 2 };
 
 export default AmendRequestPage;

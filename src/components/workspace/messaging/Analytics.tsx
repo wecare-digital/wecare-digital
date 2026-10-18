@@ -106,7 +106,7 @@ const AnalyticsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     };
     const PROV_META: Record<string, { label: string; fg: string }> = {
         aws: { label: 'AWS', fg: '#1d4ed8' },
-        pstn: { label: 'Phone (PSTN) calls', fg: '#6b7280' },
+        pstn: { label: 'Phone (PSTN) calls', fg: 'var(--text-muted)' },
         whatsapp: { label: 'WhatsApp', fg: '#15803d' },
     };
 
@@ -179,17 +179,17 @@ const AnalyticsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                 .an-wrap { padding: 20px; max-width: 1000px; margin: 0 auto; }
                 .an-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin: 14px 0; }
                 .an-card { border: 1px solid ${colors.border}; border-radius: 12px; padding: 14px; background: #fff; }
-                .an-pill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; }
-                .an-num { font-size: 26px; font-weight: 700; color: ${colors.text}; margin-top: 6px; }
-                .an-lbl { font-size: 12px; color: ${colors.textMuted}; }
-                .an-rate { font-size: 11px; color: ${colors.textSecondary}; margin-top: 4px; }
-                .an-section { font-size: 12px; font-weight: 700; text-transform: uppercase; color: ${colors.textMuted}; margin: 22px 0 10px; }
+                .an-pill { font-size: var(--text-xs); font-weight: 700; padding: 2px 8px; border-radius: 9999px; }
+                .an-num { font-size: var(--h2); font-weight: 700; color: ${colors.text}; margin-top: 6px; }
+                .an-lbl { font-size: var(--text-xs); color: ${colors.textMuted}; }
+                .an-rate { font-size: var(--text-xs); color: ${colors.textSecondary}; margin-top: 4px; }
+                .an-section { font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; color: ${colors.textMuted}; margin: 22px 0 10px; }
                 .an-bars { display: flex; flex-direction: column; gap: 10px; }
                 .an-bar-row { display: flex; align-items: center; gap: 12px; }
-                .an-bar-label { width: 90px; font-size: 13px; color: ${colors.text}; }
+                .an-bar-label { width: 90px; font-size: var(--text-sm); color: ${colors.text}; }
                 .an-bar-track { flex: 1; height: 16px; background: ${colors.bgSecondary}; border-radius: 9999px; overflow: hidden; }
                 .an-bar-fill { height: 100%; border-radius: 9999px; min-width: 2px; }
-                .an-bar-val { font-size: 12px; color: ${colors.text}; white-space: nowrap; }
+                .an-bar-val { font-size: var(--text-xs); color: ${colors.text}; white-space: nowrap; }
                 .an-bar-sub { color: ${colors.textMuted}; }
                 .an-empty { text-align: center; padding: 40px; color: ${colors.textMuted}; }
             ` }</style>

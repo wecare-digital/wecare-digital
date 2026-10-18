@@ -46,9 +46,7 @@ const ROUTES = [
   // The five Customer service pages, added when the header's six labels stopped all resolving
   // to /contact/. Same shape as the product pages: rotating hero plus one content section.
   '/submit-request/', '/request-amendment/', '/drop-docs/', '/leave-review/',
-  // '/store/' is gone: it was a staff page on a public URL and now lives at
-  // /workspace/commerce/catalog. It was the only route failing H1-NONE and NO-MAIN here,
-  // because the Authenticator renders instead of the page when there is no session.
+  // Staff-only commerce pages are intentionally outside this public-page markup harness.
 ];
 
 const only = ( () => { const i = process.argv.indexOf( '--route' ); return i > -1 ? process.argv[ i + 1 ] : null; } )();

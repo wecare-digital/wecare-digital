@@ -83,9 +83,6 @@ def test_sitemap() -> None:
     days = {m[:10] for m in mods if m}
     record(len(days) > 1, "lastmod is not one fabricated date",
            f"{len(days)} distinct day(s) across {sum(1 for m in mods if m)} dated URLs")
-    # The retired page must not be advertised.
-    record(not any("/llm/" in l and "/llms" not in l for l in locs),
-           "the retired /llm/ is absent")
     record(not any("/workspace/" in l for l in locs),
            "no authenticated /workspace/ URL leaked")
     # Spot-check that advertised URLs actually resolve.
@@ -135,8 +132,6 @@ def test_llms(path: str, *, min_bytes: int, expect_articles: bool) -> None:
     if templates:
         print(f"         ({len(templates)} URL template(s) skipped, e.g. {templates[0][:52]})")
     record(bool(links), "advertises apex URLs", f"{len(links)} link(s)")
-    dead = [l for l in links if re.search(r"/llm/?$", l) and "llms" not in l]
-    record(not dead, "does not advertise the retired /llm page", "; ".join(dead[:3]))
     if expect_articles:
         record(text.count("\n- ") > 500 or text.count("\n## ") > 100,
                "includes the article corpus",

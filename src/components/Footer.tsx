@@ -309,7 +309,7 @@ const Footer: React.FC = () => {
          The bottom padding keeps the safe-area inset the Capacitor iOS/Android shells
          depend on. */
       .ft-footer{background:#fff;border-top:1px solid #eef0e6;padding:56px 0 40px;padding-bottom:calc(40px + env(safe-area-inset-bottom))}
-      .ft-in{max-width:1300px;margin:0 auto;padding:0 24px}
+      .ft-in{max-width:var(--public-content-max);margin:0 auto;padding:0 24px}
 
       /* Left-aligned with nothing opposite it, by instruction. Kept as a flex row rather
          than collapsed to a block so that adding a right-hand element later needs no
@@ -332,7 +332,7 @@ const Footer: React.FC = () => {
          already looking for it and to nobody else. Opaque on white is 12.48:1.
          The alpha was presumably there to soften the ring; outline-offset already does that
          job by holding it off the lockup, and it does it without spending contrast. */
-      .ft-home:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+      .ft-home:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
 
       /* THE TAGLINE'S COLOUR WAS OFF-PALETTE. It was #9ca3af, a legacy Tailwind grey, which
          rendered the one brand statement on the page as the lightest text in the footer -
@@ -364,7 +364,7 @@ const Footer: React.FC = () => {
          phone (see the max-width:767px block below), which keeps the same step down from the
          compact wordmark at both widths. */
       .ft-tagline{
-        font-size:16px;line-height:1.6;color:rgba(0,0,0,.54);
+        font-size:16px;line-height:1.6;color:var(--public-muted);
         margin:0;max-width:340px;
         /* AN ENTRANCE, NOT A HOVER - and that distinction is the whole point.
            The default below is the FINAL state, per the .is-armed pattern this file already
@@ -489,7 +489,7 @@ const Footer: React.FC = () => {
       .ft-dash{
         display:block;
         width:56px;height:3px;margin-top:4px;
-        background:#d1f470;border-radius:2px;
+        background:var(--public-brand-lime);border-radius:2px;
         transform-origin:left center;
         transition:transform .62s cubic-bezier(.22,.61,.36,1);
       }
@@ -516,7 +516,7 @@ const Footer: React.FC = () => {
            (0,3,0) to beat the .is-armed.is-in rule that introduces them. */
         .ft-tagline.is-armed.is-in{
           animation:none;background-image:none;
-          -webkit-text-fill-color:currentColor;color:rgba(0,0,0,.54);
+          -webkit-text-fill-color:currentColor;color:var(--public-muted);
         }
         /* Belt and braces. The effect already never arms under reduced motion, so this is
            the guard for the case where the preference changes after arming, when the class

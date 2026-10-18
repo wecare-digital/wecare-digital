@@ -30,7 +30,7 @@ consequences that shape everything below:
 
 ## The good news: the shape mostly exists
 
-The requested tree is largely a regroup of `src/pages/dm/*`, not new construction:
+The requested tree is largely a regroup of the legacy direct-messaging page set, not new construction:
 
 | Requested | Exists today as |
 |---|---|

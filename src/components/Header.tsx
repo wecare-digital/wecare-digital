@@ -801,7 +801,7 @@ const Header: React.FC = () => {
         @supports ((backdrop-filter:blur(20px)) or (-webkit-backdrop-filter:blur(20px))){
           .hdr{background:rgba(255,255,255,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
         }
-        .hdr-in{max-width:1300px;margin:0 auto;padding:18px 24px;display:flex;align-items:center;box-sizing:border-box;height:108px}
+        .hdr-in{max-width:var(--public-content-max);margin:0 auto;padding:18px 24px;display:flex;align-items:center;box-sizing:border-box;height:108px}
         .logo{display:flex;align-items:center;text-decoration:none}
         .logo-nav{display:flex;align-items:center;gap:10px}
         .nav-dropdown{position:relative}
@@ -867,7 +867,7 @@ const Header: React.FC = () => {
            computed 46x46 outer at rest, hover and open), so the thicker border changes nothing
            outside the chip - the header stays 108px and the chip stays at x=210.34. */
         .nav-trigger:hover,.nav-trigger:focus-visible,.nav-trigger[aria-expanded='true']{
-          background:#d1f470;outline:none;
+          background:var(--public-brand-lime);outline:none;
         }
         /* A TWO-TONE RING, because this control inverts on focus and a single-colour ring
            cannot work against both of its states.
@@ -981,9 +981,9 @@ const Header: React.FC = () => {
            search fields on the site are recognisably the same control. */
         /* THE SITE-WIDE SEARCH LOOK: borderless bottom hairline plus the shared lime voice mic. */
         .nav-search-field{position:relative;margin:0 0 12px}
-        .nav-search{width:100%;margin:0;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;padding:0 44px 0 2px;font-size:16px;font-weight:400;line-height:1.3;color:rgba(0,0,0,.898);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+        .nav-search{width:100%;margin:0;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;background:transparent;padding:0 44px 0 2px;font-size:16px;font-weight:400;line-height:1.3;color:var(--public-body);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
         .nav-search::placeholder{color:rgba(0,0,0,.42)}
-        .nav-search:focus-visible{border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470}
+        .nav-search:focus-visible{border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime)}
 
         /* Three equal columns with minmax(0,1fr) rather than 1fr: a bare 1fr uses
            min-content as its floor, so "Request Amendment" would force its column
@@ -1002,7 +1002,7 @@ const Header: React.FC = () => {
            (the brand's deep green, NOT the grassy #3da35a a first pass used - that
            bright green clashed with the palette), weight 700, UPPERCASE, with a
            touch more tracking so the caps stay legible. */
-        .nav-group-label{display:flex;align-items:center;gap:7px;padding:6px 12px 4px;font-size:12px;font-weight:700;letter-spacing:.06em;color:#1a3a2a;text-transform:uppercase}
+        .nav-group-label{display:flex;align-items:center;gap:7px;padding:6px 12px 4px;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--public-brand-green);text-transform:uppercase}
         .nav-section-icon{width:17px;height:17px;flex:0 0 17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
         .nav-section-icon-material{fill:currentColor;stroke:none}
 
@@ -1059,21 +1059,21 @@ const Header: React.FC = () => {
            There is no pill, circle, label or shadow: just the double chevron. */
         .nav-products-cue-row{height:44px;display:flex;align-items:center;justify-content:flex-end;flex:0 0 44px;margin-top:6px;padding-inline-end:4px;box-sizing:border-box}
         .nav-products-cue-row.is-hidden{visibility:hidden;pointer-events:none}
-        .nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:#d1f470;color:#0f2a1d;cursor:pointer;transition:background-color .16s ease,transform .16s ease,box-shadow .16s ease}
+        .nav-products-more{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:var(--public-brand-lime);color:#0f2a1d;cursor:pointer;transition:background-color .16s ease,transform .16s ease,box-shadow .16s ease}
         .nav-products-more:hover{background:#c5ed51;transform:translateY(-1px) scale(1.06);box-shadow:0 4px 12px rgba(26,58,42,.16)}
         .nav-products-more:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 5px #1a3a2a}
         .nav-products-more-icon{display:block;width:31px;height:31px;fill:currentColor;transform:scaleX(1.08);transform-origin:center}
         /* The Customer service heading is a link, so it needs an affordance the plain
            headings do not have - without one it looks like the same inert label. */
-        .nav-group-link{color:#1a3a2a;text-decoration:none;border-radius:8px}
+        .nav-group-link{color:var(--public-brand-green);text-decoration:none;border-radius:8px}
         /* Split, same reason as .lgd-toc-link: this was one rule giving hover and
            focus-visible the same lime tint plus outline:none, so a keyboard user's only
            focus cue was a tint that composites to rgb(245,253,224) over white. The tint is
            a pointer affordance on hover; focus needs a ring that measures 3:1, and opaque
            #1a3a2a on the panel is 12.48:1. */
-        .nav-group-link:hover{background:rgba(209,244,112,.22)}
-        .nav-group-link:focus-visible{background:rgba(209,244,112,.22);outline:3px solid #1a3a2a;outline-offset:1px}
-        .nav-empty{margin:0;padding:10px 12px 12px;font-size:14px;color:rgba(0,0,0,.54)}
+        .nav-group-link:hover{background:var(--public-lime-tint)}
+        .nav-group-link:focus-visible{background:var(--public-lime-tint);outline:3px solid var(--public-brand-green);outline-offset:1px}
+        .nav-empty{margin:0;padding:10px 12px 12px;font-size:14px;color:var(--public-muted)}
         .nav-search-status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
         /* 15px/46px was undersized against a 108px header and a 24px brand lockup,
@@ -1090,7 +1090,7 @@ const Header: React.FC = () => {
            and 46px still clears the 44px minimum touch target. */
         /* position:relative so the divider hairline and the animated sweep (::after /
            ::before below) can be absolutely positioned within each row. */
-        .nav-item{position:relative;display:flex;align-items:center;gap:9px;min-height:46px;padding:0 12px;font-size:19px;font-weight:600;color:#1a3a2a;text-decoration:none;border-radius:8px}
+        .nav-item{position:relative;display:flex;align-items:center;gap:9px;min-height:46px;padding:0 12px;font-size:19px;font-weight:600;color:var(--public-brand-green);text-decoration:none;border-radius:8px}
         .nav-row-icon,.nav-sub-icon,.nav-row-chevron{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
         .nav-row-icon{width:20px;height:20px;flex:0 0 20px;stroke-width:1.9}
         .nav-row-icon-material{fill:currentColor;stroke:none}
@@ -1108,8 +1108,8 @@ const Header: React.FC = () => {
            reaches rgb(238,251,201) over white - darker than nothing, nowhere near 3:1, and
            outline:none removed the fallback. Tint on hover, opaque ring on focus. */
         .nav-item:not(.active):hover{background:rgba(209,244,112,.38)}
-        .nav-item:focus-visible{outline:3px solid #1a3a2a;outline-offset:1px}.nav-item:not(.active):focus-visible{background:rgba(209,244,112,.38)}
-        .nav-item.active{font-weight:800;background:#d1f470;color:#0f2a1d}
+        .nav-item:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:1px}.nav-item:not(.active):focus-visible{background:rgba(209,244,112,.38)}
+        .nav-item.active{font-weight:800;background:var(--public-brand-lime);color:#0f2a1d}
         /* DIVIDER LINE AFTER EACH ROW + a lime SWEEP on hover.
            ::after is the faint resting hairline (#f1f3ec - deliberately very light, so it
            separates rows without drawing attention). ::before is the lime accent that
@@ -1121,7 +1121,7 @@ const Header: React.FC = () => {
            stated explicitly - otherwise the underline would wipe in from the end of the line
            a right-to-left reader finishes on, reading as a retreat rather than a reveal. */
         .nav-item::after{content:'';position:absolute;inset-inline:12px;bottom:0;height:1px;background:linear-gradient(90deg,transparent 0,#e5eadc 12%,#e5eadc 88%,transparent 100%)}
-        .nav-item::before{content:'';position:absolute;inset-inline:12px;bottom:0;height:2px;background:#d1f470;opacity:0;transform:scaleX(.16);transform-origin:left center;transition:transform .22s cubic-bezier(.16,1,.3,1),opacity .14s ease}
+        .nav-item::before{content:'';position:absolute;inset-inline:12px;bottom:0;height:2px;background:var(--public-brand-lime);opacity:0;transform:scaleX(.16);transform-origin:left center;transition:transform .22s cubic-bezier(.16,1,.3,1),opacity .14s ease}
         :global([dir='rtl']) .nav-item::before{transform-origin:right center}
         /* The desktop panel hangs off its trigger, so under rtl it has to hang off the other
            edge. Paired with the --nav-menu-inset base rule above. */

@@ -120,23 +120,17 @@ describe( 'form-controls.css — invariant 4', () => {
     // shop/[slug].tsx — the last of which did delete its rule, with the control, in batch 2e.
     expect( census.files ).toEqual( [
       'src/components/AddressFields.tsx',
-      // ServiceBuyBox's order-target picker (.sbb-select) is a skinned <select>, added with the
-      // dual-channel "Continue to checkout" work. A legitimate new entry on this allow-list.
       'src/components/ServiceBuyBox.tsx',
-      // CartPage.tsx LEFT this list: its last native <select> skin, .cart-amount-select, was
-      // removed when the contribution amount became static text (single-use product, one fixed
-      // amount). Its variant picker is the <Select> component (a <button role="combobox">),
-      // which this census does not count.
       'src/components/dashboard/tabs/AppBuilderTab.tsx',
-      'src/pages/workspace/engage/logs/index.tsx',
       'src/components/workspace/channels/Push.tsx',
       'src/components/workspace/channels/Sms.tsx',
       'src/components/workspace/channels/VoiceIn.tsx',
+      'src/components/workspace/pay/InvoiceRecords.tsx',
+      'src/components/workspace/service/FormResponses.tsx',
       'src/components/workspace/whatsapp/migration.tsx',
       'src/components/workspace/whatsapp/templates.tsx',
       'src/components/workspace/whatsapp/waba-dashboard.tsx',
-      'src/components/workspace/service/FormResponses.tsx',
-      'src/components/workspace/pay/InvoiceRecords.tsx',
+      'src/pages/workspace/engage/logs/index.tsx',
       'src/pages/workspace/task/index.tsx',
       'src/styles/Dashboard.css',
       'src/styles/Layout.css',

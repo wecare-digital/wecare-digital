@@ -143,7 +143,7 @@ const DocsScraperPage: React.FC<PageProps> = ( { signOut, user, embedded = false
                 <div style={ card }>
                     <h2 style={ h2 }>Sources ({ sources.length })</h2>
                     { loading ? <p>Loading…</p> : sources.length === 0 ? <p style={ { color: 'var(--text-muted)' } }>No sources yet. Add one above.</p> : (
-                        <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 14 } }>
+                        <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-md)' } }>
                             <thead>
                                 <tr style={ { textAlign: 'left', color: 'var(--text-muted)' } }>
                                     <th style={ th }>Name</th><th style={ th }>Root URL</th><th style={ th }>Added</th><th style={ th }></th>
@@ -173,7 +173,7 @@ const DocsScraperPage: React.FC<PageProps> = ( { signOut, user, embedded = false
                     { changelog.length === 0 ? <p style={ { color: 'var(--text-muted)' } }>No changes recorded yet.</p> : (
                         <div style={ { maxHeight: 360, overflowY: 'auto' } }>
                             { changelog.map( ( c, i ) => (
-                                <div key={ i } style={ { padding: '8px 0', borderTop: '1px solid var(--border-light)', fontSize: 13 } }>
+                                <div key={ i } style={ { padding: '8px 0', borderTop: '1px solid var(--border-light)', fontSize: 'var(--text-sm)' } }>
                                     <span className={ badgeClass( c.type ) }>{ c.type }</span>
                                     <strong style={ { marginLeft: 8 } }>{ c.source }</strong>
                                     <span style={ { color: 'var(--text-muted)', marginLeft: 8 } }>{ new Date( c.ts ).toLocaleString() }</span>

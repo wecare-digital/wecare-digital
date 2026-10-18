@@ -56,6 +56,13 @@ export interface SettingsGroup {
   /** One line saying what lives here, so the group is scannable. */
   hint: string;
   items: NavSubItem[];
+  /**
+   * An in-panel surface the gear renders inline instead of navigating to a route.
+   * Used by the account group for Sign-in & MFA (FEAT-003): TotpSetup needs the
+   * signed-in user's own token, so it mounts inside the gear rather than at a URL.
+   * It is NOT a route and NOT part of getAllNavItems()/the command palette.
+   */
+  mfaPanel?: { id: string; label: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -98,7 +105,10 @@ export const navigationConfig: NavItem[] = [
       // /workspace/engage. Broadcast and Message logs keep their own routes (the channel tabs
       // embed them).
       { path: '/workspace/engage?tab=scheduled', label: 'Scheduled' },
-      { path: '/workspace/engage/logs', label: 'Message logs' },
+      // FEAT-003: Message logs is a tab on the Messages hub now (beside Analytics), not a
+      // standalone sidebar destination; reached as a ?tab= deep-link. The logs route still
+      // exists (the per-channel hubs embed it); it is simply no longer its own nav row.
+      { path: '/workspace/engage?tab=logs', label: 'Message logs' },
       { path: '/workspace/engage?tab=contact-360', label: 'Contact 360' },
     ],
   },
@@ -207,12 +217,16 @@ export const settingsConfig: SettingsGroup[] = [
     label: 'Your account',
     icon: 'access',
     hint: 'Sign-in and second factors',
+    // FEAT-003: Sign-in & MFA moved OUT of the routes tree. It was /workspace/access/security,
+    // a standalone route and the first row of this group; the TotpSetup surface now renders
+    // INSIDE the gear panel (SettingsGear) as an in-panel view, because the gear is the one
+    // surface that can mount TotpSetup with the SIGNED-IN user's own access token (Cognito's
+    // AssociateSoftwareToken does not evaluate IAM, so there is no admin path). It is declared
+    // on `mfaPanel` below rather than as a `items[]` route, so getAllNavItems() / the command
+    // palette (which index real URLs only) never point at a missing file, while the gear still
+    // leads with it. Navigation.test / PagesConsolidation assert exactly this relocation.
+    mfaPanel: { id: 'mfa', label: 'Sign-in & MFA' },
     items: [
-      // Kept deliberately prominent AND first. TOTP enrolment cannot be done from the
-      // admin side — Cognito's AssociateSoftwareToken takes the user's own access token
-      // and does not evaluate IAM — so the signed-in person must be able to reach
-      // this. Burying it would work against the admin-MFA target.
-      { path: '/workspace/access/security', label: 'Sign-in & MFA' },
       // Internal Agent moved here from the Platform group: with the flat sidebar, the
       // account menu / gear is the ONE place that holds true config, and the redesign
       // spec names exactly two settings rows — Sign-in & MFA then Internal Agent. It

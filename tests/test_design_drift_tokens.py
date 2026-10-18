@@ -147,6 +147,35 @@ class TestTokenMirror:
         assert drift.scan_token_mirror() == []
 
 
+class TestPublicTokenContract:
+    def test_the_live_public_contract_is_exact(self, drift):
+        assert drift.scan_public_token_contract() == []
+
+    def test_brand_primitives_alias_the_global_foundation(self, drift):
+        assert drift.PUBLIC_TOKEN_CONTRACT["--public-bg"] == "var(--bg)"
+        assert drift.PUBLIC_TOKEN_CONTRACT["--public-text"] == "var(--text)"
+        assert drift.PUBLIC_TOKEN_CONTRACT["--public-brand-green"] == "var(--accent)"
+        assert drift.PUBLIC_TOKEN_CONTRACT["--public-brand-lime"] == "var(--lime)"
+        assert drift.PUBLIC_TOKEN_CONTRACT["--public-hairline"] == "var(--border)"
+
+    def test_public_measure_is_separate_from_application_measure(self, drift):
+        assert drift.PUBLIC_TOKEN_CONTRACT["--public-content-max"] == "1300px"
+        assert drift.scan_layout_token_mirror() == []
+
+    def test_canonical_public_surfaces_consume_the_contract(self, drift):
+        assert drift.scan_public_token_consumers() == []
+
+    def test_public_token_drift_is_caught(self, drift, monkeypatch, tmp_path):
+        fake_css = tmp_path / "tokens.css"
+        fake_css.write_text(":root { --public-hero-size: 54px; }\n")
+        monkeypatch.setattr(drift, "TOKENS_CSS", fake_css)
+        monkeypatch.setattr(drift, "ROOT", tmp_path)
+        monkeypatch.setattr(drift, "PUBLIC_TOKEN_CONTRACT", {"--public-hero-size": "clamp(36px, 4.3vw, 60px)"})
+        found = drift.scan_public_token_contract()
+        assert len(found) == 1
+        assert found[0]["rule"] == "public_token_drift"
+
+
 class TestTheGateStillPassesOnTheRealTree:
     def test_no_retired_colour_survives_outside_a_comment(self, drift):
         # The migration's own assertion. `strip_comments` runs first, so the three

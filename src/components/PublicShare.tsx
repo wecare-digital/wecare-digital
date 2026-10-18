@@ -335,31 +335,31 @@ const PublicShare: React.FC<PublicShareProps> = ( {
              between the eyebrow and the Contribute/Subscribe/Share icon row. */
           display:flex;width:max-content;max-width:100%;align-items:center;
           min-height:32px;padding:0 14px;margin:0 0 18px;
-          border-radius:999px;background:#d1f470;color:#1a3a2a;
+          border-radius:999px;background:var(--public-brand-lime);color:var(--public-brand-green);
           font-size:15px;font-weight:700;line-height:1;
         }
         .ps-row{display:flex;align-items:center;gap:12px;width:max-content;max-width:100%}
         .contribute{margin:0;padding:0;border:0;position:static}
         .ps-action{
           position:relative;width:48px;height:48px;box-sizing:border-box;border-radius:50%;
-          border:2px solid #e5e7eb;background:#fff;color:#1a3a2a;
+          border:2px solid var(--public-hairline);background:#fff;color:var(--public-brand-green);
           display:inline-flex;align-items:center;justify-content:center;padding:0;flex:0 0 auto;
           cursor:pointer;text-decoration:none;
           transition:background-color .18s,border-color .18s,transform .18s,box-shadow .18s;
         }
         .ps-action:hover{
-          border-color:#1a3a2a;background:#d1f470;transform:translateY(-2px);
+          border-color:var(--public-brand-green);background:var(--public-brand-lime);transform:translateY(-2px);
           box-shadow:0 4px 12px rgba(26,58,42,.10);
         }
         /* Compact round ₹ icon, matching the Subscribe and Share icons (restored to how it was
            before PR #748, which widened it into a "Contribute ₹250" pill). The dropdown still
            shows the full "Contribute ₹250" heading when opened. */
-        .ps-contribute{background:#eef7d6;border-color:#1a3a2a}
-        .ps-subscribe{background:#d1f470;border-color:#1a3a2a}
+        .ps-contribute{background:#eef7d6;border-color:var(--public-brand-green)}
+        .ps-subscribe{background:var(--public-brand-lime);border-color:var(--public-brand-green)}
         .ps-subscribe:hover{background:#fff}
         .ps-action:active{transform:translateY(0)}
         .ps-action:focus-visible,.ps-menu-item:focus-visible{
-          outline:3px solid #1a3a2a;outline-offset:3px;
+          outline:3px solid var(--public-brand-green);outline-offset:3px;
         }
         .ps-material{
           font-family:'Material Symbols Rounded';font-weight:normal;font-style:normal;
@@ -372,7 +372,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .ps-tip{
           position:absolute;left:50%;bottom:calc(100% + 9px);
           transform:translateX(-50%) translateY(4px);
-          padding:6px 9px;border-radius:8px;background:#1a3a2a;color:#fff;
+          padding:6px 9px;border-radius:8px;background:var(--public-brand-green);color:#fff;
           white-space:nowrap;font-size:12px;font-weight:650;line-height:1.2;
           opacity:0;pointer-events:none;z-index:40;
           transition:opacity .15s,transform .15s;
@@ -384,13 +384,13 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .ps-menu{
           position:absolute;top:82px;left:0;z-index:30;
           width:min(340px,calc(100vw - 48px));padding:8px;
-          background:#fff;border:1px solid #e5e7eb;border-radius:18px;
+          background:#fff;border:1px solid var(--public-hairline);border-radius:18px;
           box-shadow:0 18px 46px rgba(26,58,42,.13);box-sizing:border-box;
         }
         .ps-menu[hidden]{display:none}
         .ps-menu::before{
           content:'';position:absolute;top:-6px;width:12px;height:12px;
-          background:#fff;border-left:1px solid #e5e7eb;border-top:1px solid #e5e7eb;
+          background:#fff;border-left:1px solid var(--public-hairline);border-top:1px solid var(--public-hairline);
           transform:rotate(45deg);
         }
         .ps-contribute-menu::before{left:18px}
@@ -398,12 +398,12 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .ps-share-menu.has-contribute::before{left:138px}
         .ps-menu-head{padding:9px 11px 10px;border-bottom:1px solid #f0f1ed}
         .ps-menu-title{margin:0;color:#1a1a1a;font-size:17px;font-weight:700;line-height:1.3}
-        .ps-menu-sub{margin:3px 0 0;color:rgba(0,0,0,.54);font-size:13px;font-weight:500;line-height:1.35}
+        .ps-menu-sub{margin:3px 0 0;color:var(--public-muted);font-size:13px;font-weight:500;line-height:1.35}
         .ps-menu-list{padding-top:6px}
         .ps-menu-item{
           width:100%;min-height:56px;display:grid;
           grid-template-columns:38px minmax(0,1fr) 20px;gap:10px;align-items:center;
-          padding:7px 10px;border:0;border-radius:12px;background:#fff;color:#1a3a2a;
+          padding:7px 10px;border:0;border-radius:12px;background:#fff;color:var(--public-brand-green);
           text-decoration:none;cursor:pointer;text-align:left;box-sizing:border-box;
           font:inherit;
         }
@@ -412,15 +412,15 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .ps-menu-icon{
           width:38px;height:38px;border-radius:50%;
           display:inline-flex;align-items:center;justify-content:center;
-          background:#eef7d6;color:#1a3a2a;
+          background:#eef7d6;color:var(--public-brand-green);
         }
         .ps-menu-icon svg{width:18px;height:18px;display:block}
         .ps-menu-icon .ps-material{font-size:20px}
         .ps-menu-copy{min-width:0}
-        .ps-menu-name{display:block;color:#1a3a2a;font-size:16px;font-weight:700;line-height:1.25}
-        .ps-menu-note{display:block;margin-top:2px;color:rgba(0,0,0,.54);font-size:13px;font-weight:500;line-height:1.3}
+        .ps-menu-name{display:block;color:var(--public-brand-green);font-size:16px;font-weight:700;line-height:1.25}
+        .ps-menu-note{display:block;margin-top:2px;color:var(--public-muted);font-size:13px;font-weight:500;line-height:1.3}
         .ps-chevron{font-size:20px;color:rgba(26,58,42,.55)}
-        .ps-menu-item.is-copied .ps-menu-icon{background:#d1f470}
+        .ps-menu-item.is-copied .ps-menu-icon{background:var(--public-brand-lime)}
 
         .ps-sr-only,.ps-status{
           position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;

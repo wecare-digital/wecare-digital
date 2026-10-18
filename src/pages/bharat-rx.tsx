@@ -151,7 +151,7 @@ const BharatRxPage: React.FC = () => (
           .brx-step-n{
             flex:0 0 auto;width:34px;height:34px;border-radius:50%;
             display:grid;place-items:center;
-            background:rgba(209,244,112,.22);color:#1a3a2a;
+            background:var(--public-lime-tint);color:var(--public-brand-green);
             font-size:15px;font-weight:700;
           }
           /* Card-heading rung: 22px/700/-.25px/#000, same as .pp-strip-title. */
@@ -166,7 +166,7 @@ const BharatRxPage: React.FC = () => (
             background:var(--public-brand-lime);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
             transition:background-color .2s,transform .2s,box-shadow .2s;
           }
-          .brx-cta:hover{background:var(--public-bg);transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+          .brx-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
           .brx-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
           /* THE CANONICAL BOUNDARY CARD, matched to .pdp-note on the product pages so every
              boundary note on the public site reads the same: near-white #fcfdfb surface, 1px

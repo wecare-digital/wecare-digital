@@ -47,8 +47,11 @@ const NAVIGATION_ITEMS: SearchResult[] = getAllNavItems().map( ( item, index ) =
 } ) );
 
 /** The handful worth offering before anything is typed. */
+// FEAT-003: '/workspace/access/security' left this list — Sign-in & MFA relocated into the gear
+// panel and is no longer a URL, so it is reached through the gear rather than the palette. The
+// Channel Settings hub takes its slot as the sixth default.
 const DEFAULT_PATHS = [ '/workspace/engage/inbox', '/workspace/contacts', '/workspace/engage/service-ops', '/workspace/engage/broadcast',
-  '/workspace/engage/settings', '/workspace/access/security' ];
+  '/workspace/engage/settings', '/workspace/task' ];
 const DEFAULT_RESULTS: SearchResult[] = DEFAULT_PATHS
   .map( ( p ) => NAVIGATION_ITEMS.find( ( i ) => i.path === p ) )
   .filter( ( i ): i is SearchResult => !!i );

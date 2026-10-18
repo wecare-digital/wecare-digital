@@ -234,7 +234,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           }
           /* The lead runs at the body level but slightly tighter, because it is a paragraph
              of context rather than a point being made. */
-          .pdp-lead{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0 0 34px}
+          .pdp-lead{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:1.45;letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0 0 34px}
           /* When a lead is split into an opener + a main paragraph (today only /anew/), the
              paragraphs sit 16px apart; the 34px below the LAST lead stays as the gap before the
              points. A single-paragraph lead is always :last-of-type, so it keeps 34px untouched. */
@@ -247,7 +247,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           .pdp-point-n{
             flex:0 0 auto;width:34px;height:34px;border-radius:50%;
             display:grid;place-items:center;
-            background:rgba(209,244,112,.22);color:#1a3a2a;
+            background:var(--public-lime-tint);color:var(--public-brand-green);
             font-size:15px;font-weight:700;
           }
           .pdp-point-t{display:block;margin:5px 0 6px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:#000}
@@ -267,7 +267,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             background:var(--public-brand-lime);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
             transition:background-color .2s,transform .2s,box-shadow .2s;
           }
-          .pdp-cta:hover{background:var(--public-bg);transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+          .pdp-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
           .pdp-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
           /* MICROCOPY under the CTA row now uses the shared global .wc-sweep-note class
              (src/styles/inner-ux.css) - the footer-tagline lime sweep on hover - so there is no
@@ -299,7 +299,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           .pdp-sku strong{color:var(--public-brand-green);font-weight:700}
           .pdp-note{
             margin:34px 0 0;padding:22px;
-            border:1px solid #e5e7eb;border-radius:14px;
+            border:1px solid var(--public-hairline);border-radius:14px;
             background:#fcfdfb;
           }
           /* The paragraphs inside the note carry the legal-copy type. The box owns the outer
@@ -309,14 +309,14 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           .pdp-note-p{
             margin:0;
             font-size:17px;font-weight:400;line-height:1.55;letter-spacing:-.05px;
-            color:rgba(0,0,0,.898);
+            color:var(--public-body);
           }
           .pdp-note-p + .pdp-note-p{margin-top:12px}
 
           /* PRICE line. The price is the card rung in dark green (lime means actionable and the
              pill owns lime). 22px of air above it, matching the CTA row's own top gap. */
           .pdp-buy{display:flex;flex-wrap:wrap;align-items:baseline;gap:16px;margin:22px 0 0}
-          .pdp-price{font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
+          .pdp-price{font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:var(--public-brand-green);font-variant-numeric:tabular-nums}
           .pdp-price-unit{font-size:15px;font-weight:600;color:rgba(0,0,0,.54)}
 
           /* The share row sits below the boundary note with its own air. */

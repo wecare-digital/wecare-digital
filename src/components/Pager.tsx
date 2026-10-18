@@ -107,7 +107,7 @@ const Pager: React.FC<PagerProps> = ( {
            .pbp-progress-track). A column: the arrows pinned right on their own row, the lime
            progress bar below. Same top border and spacing the numbered pager used, so the listing
            footer keeps its shape. */
-        .pager{display:flex;flex-direction:column;gap:12px;margin:48px 0 0;padding:24px 0 0;border-top:1px solid #e5e7eb}
+        .pager{display:flex;flex-direction:column;gap:12px;margin:48px 0 0;padding:24px 0 0;border-top:1px solid var(--public-hairline)}
         .pager-row{display:flex;align-items:center;justify-content:flex-end}
         .pager-arrows{display:flex;align-items:center;gap:8px}
 
@@ -121,12 +121,12 @@ const Pager: React.FC<PagerProps> = ( {
         .pager :global(.pager-arrow){
           display:inline-flex;align-items:center;justify-content:center;
           width:44px;height:44px;flex:0 0 auto;
-          border:2px solid #1a3a2a;border-radius:50%;background:#fff;
-          color:#1a3a2a;font-size:20px;line-height:1;text-decoration:none;
+          border:2px solid var(--public-brand-green);border-radius:50%;background:#fff;
+          color:var(--public-brand-green);font-size:20px;line-height:1;text-decoration:none;
           transition:background-color .2s,border-color .2s,opacity .2s;
         }
-        .pager :global(.pager-arrow:hover){background:#d1f470}
-        .pager :global(.pager-arrow:focus-visible){outline:3px solid #1a3a2a;outline-offset:2px}
+        .pager :global(.pager-arrow:hover){background:var(--public-brand-lime)}
+        .pager :global(.pager-arrow:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:2px}
         /* The end of the run: faint, not announced. Same intentional contrast carve-out the
            numbered pager documented - an inactive control has no WCAG 1.4.3 contrast floor, and
            aria-hidden keeps it out of the accessibility tree, so "unavailable" never looks
@@ -142,7 +142,7 @@ const Pager: React.FC<PagerProps> = ( {
           width:100%;height:6px;border-radius:50px;background:#eef0f2;overflow:hidden;
         }
         .pager-progress-fill{
-          height:100%;border-radius:50px;background:#d1f470;transition:width .2s ease;
+          height:100%;border-radius:50px;background:var(--public-brand-lime);transition:width .2s ease;
         }
 
         /* The narrow-screen block stays declared on THIS component (its tags carry this file's

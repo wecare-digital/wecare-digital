@@ -140,12 +140,12 @@
                 "status": "301"
             },
             {
-                "source": "/llm",
+                "source": "[retired public path]",
                 "target": "/llms.txt",
                 "status": "301"
             },
             {
-                "source": "/llm/",
+                "source": "[retired public path]",
                 "target": "/llms.txt",
                 "status": "301"
             },

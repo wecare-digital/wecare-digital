@@ -1,8 +1,8 @@
 """Every WhatsApp site-menu row leads somewhere real.
 
 The WhatsApp site menu (`WD_LEAF_LINKS` / `WD_LISTS` in inbound-whatsapp-handler) mirrors
-the public Header by hand. On 2026-10-15 the /elsewhere/ page was removed when Elsewhere
-became a category with three child pages; the Header followed, the WhatsApp menu did not,
+the public Header by hand. On 2026-10-15 Elsewhere became a category with three child pages;
+the Header followed, the WhatsApp menu did not,
 and its Elsewhere row kept sending customers a link that 404'd to the home page.
 
 These tests pin the class of defect rather than that one row:

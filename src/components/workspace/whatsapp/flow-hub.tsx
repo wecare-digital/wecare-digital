@@ -163,8 +163,8 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
   const formatPaise = ( p: number ) => `₹${( p / 100 ).toFixed( 0 )}`;
   const formatDate = ( ts: number ) => ts ? new Date( ts * 1000 ).toLocaleString( 'en-IN' ) : '—';
   const statusColor = ( s: string ) => {
-    const m: Record<string, string> = { open: '#3b82f6', in_progress: '#f59e0b', resolved: '#10b981', closed: '#6b7280', cancelled: '#ef4444' };
-    return m[ s ] || '#6b7280';
+    const m: Record<string, string> = { open: '#3b82f6', in_progress: '#f59e0b', resolved: '#10b981', closed: 'var(--text-muted)', cancelled: '#ef4444' };
+    return m[ s ] || 'var(--text-muted)';
   };
   const payColor = ( s: string ) => {
     const m: Record<string, string> = { none: '#9ca3af', pending: '#f59e0b', captured: '#10b981', failed: '#ef4444', refunded: '#8b5cf6' };
@@ -176,7 +176,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
       { !embedded && <h2 style={ { marginBottom: '1rem' } }>Flows Hub</h2> }
 
       {/* Tabs */ }
-      <div style={ { display: 'flex', gap: '0.5rem', marginBottom: '1rem', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.5rem' } }>
+      <div style={ { display: 'flex', gap: '0.5rem', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' } }>
         { ( [ 'registry', 'submissions', 'payments', 'stats', 'journey' ] as const ).map( tab => (
           <button key={ tab } onClick={ () => setActiveTab( tab ) }
             style={ {
@@ -193,7 +193,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
       { activeTab === 'registry' && (
         <div>
           <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' } }>
-            <span style={ { fontSize: '0.85rem', color: '#6b7280' } }>{ registry.length } flows registered</span>
+            <span style={ { fontSize: '0.85rem', color: 'var(--text-muted)' } }>{ registry.length } flows registered</span>
             <div style={ { display: 'flex', gap: '0.5rem' } }>
               <button onClick={ loadRegistry } disabled={ registryLoading }
                 style={ { padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', cursor: 'pointer', background: '#fff' } }>
@@ -207,7 +207,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
           </div>
 
           { showRegForm && (
-            <div style={ { background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' } }>
+            <div style={ { background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' } }>
               <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', fontSize: '0.8rem' } }>
                 <div>
                   <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>Flow ID (Meta)</label>
@@ -291,7 +291,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
             <div style={ { overflowX: 'auto' } }>
               <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' } }>
                 <thead>
-                  <tr style={ { background: '#f9fafb', borderBottom: '2px solid #e5e7eb' } }>
+                  <tr style={ { background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border)' } }>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Code</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Name</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Type</th>
@@ -303,7 +303,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                 </thead>
                 <tbody>
                   { registry.map( f => (
-                    <tr key={ f.flowId } style={ { borderBottom: '1px solid #e5e7eb' } }>
+                    <tr key={ f.flowId } style={ { borderBottom: '1px solid var(--border)' } }>
                       <td style={ { padding: '8px 12px', fontFamily: 'monospace', fontWeight: 600 } }>{ f.flowCode }</td>
                       <td style={ { padding: '8px 12px' } }>{ f.flowName }</td>
                       <td style={ { padding: '8px 12px' } }>
@@ -318,7 +318,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                       <td style={ { padding: '8px 12px' } }>
                         { f.requiresPayment ? formatPaise( f.paymentAmount || 0 ) : '—' }
                       </td>
-                      <td style={ { padding: '8px 12px', fontFamily: 'monospace', fontSize: '0.7rem', color: '#6b7280' } }>{ f.flowId }</td>
+                      <td style={ { padding: '8px 12px', fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--text-muted)' } }>{ f.flowId }</td>
                     </tr>
                   ) ) }
                 </tbody>
@@ -360,11 +360,11 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
               { slaRunning ? 'Running...' : '⏰ SLA Check' }
             </button>
             { slaResult && (
-              <span style={ { fontSize: '0.75rem', color: '#6b7280', alignSelf: 'center' } }>
+              <span style={ { fontSize: '0.75rem', color: 'var(--text-muted)', alignSelf: 'center' } }>
                 Auto-assigned: { slaResult?.actions?.auto_assigned || 0 }, Escalated: { slaResult?.actions?.escalated || 0 }, Overdue: { slaResult?.actions?.overdue_payments || 0 }
               </span>
             ) }
-            <span style={ { fontSize: '0.8rem', color: '#6b7280', alignSelf: 'center' } }>{ submissions.length } results</span>
+            <span style={ { fontSize: '0.8rem', color: 'var(--text-muted)', alignSelf: 'center' } }>{ submissions.length } results</span>
           </div>
 
           { subsLoading && <div style={ { textAlign: 'center', padding: '2rem' } }><Spinner size="lg" /></div> }
@@ -373,7 +373,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
             <div style={ { overflowX: 'auto' } }>
               <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' } }>
                 <thead>
-                  <tr style={ { background: '#f9fafb', borderBottom: '2px solid #e5e7eb' } }>
+                  <tr style={ { background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border)' } }>
                     <th style={ { padding: '6px 10px', textAlign: 'left' } }>Phone</th>
                     <th style={ { padding: '6px 10px', textAlign: 'left' } }>Flow</th>
                     <th style={ { padding: '6px 10px', textAlign: 'left' } }>Ref #</th>
@@ -418,11 +418,11 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                           <td style={ { padding: '6px 10px' } }>
                             <span style={ { color: wabaColor, fontWeight: 600, fontSize: '0.7rem' } }>{ wabaLabel }</span>
                           </td>
-                          <td style={ { padding: '6px 10px', fontSize: '0.7rem', color: '#6b7280' } }>{ formatDate( s.createdAt ) }{ isOpen ? ' ▲' : ' ▼' }</td>
+                          <td style={ { padding: '6px 10px', fontSize: '0.7rem', color: 'var(--text-muted)' } }>{ formatDate( s.createdAt ) }{ isOpen ? ' ▲' : ' ▼' }</td>
                         </tr>
                         { isOpen && (
                           <tr style={ { background: '#faf5ff' } }>
-                            <td colSpan={ 9 } style={ { padding: '10px 16px', borderBottom: '2px solid #e5e7eb' } }>
+                            <td colSpan={ 9 } style={ { padding: '10px 16px', borderBottom: '2px solid var(--border)' } }>
                               <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 24px', fontSize: '0.78rem' } }>
                                 <div><b>Request ID:</b> { d.requestId || s.submissionNumber || '—' }</div>
                                 <div><b>Customer:</b> { d.customerName || '—' }</div>
@@ -439,7 +439,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                                     const url = typeof a === 'string' ? a : ( a.url || a.link || '' );
                                     const isImg = /\.(png|jpe?g|gif|webp)(\?|$)/i.test( url ) || ( a.type || '' ).startsWith( 'image' );
                                     return isImg
-                                      ? <a key={ i } href={ url } target="_blank" rel="noreferrer"><img src={ url } alt="attachment" style={ { width: 72, height: 72, objectFit: 'cover', borderRadius: 6, border: '1px solid #e5e7eb' } } /></a>
+                                      ? <a key={ i } href={ url } target="_blank" rel="noreferrer"><img src={ url } alt="attachment" style={ { width: 72, height: 72, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' } } /></a>
                                       : <a key={ i } href={ url } target="_blank" rel="noreferrer" style={ { fontSize: '0.75rem', color: '#7c3aed', textDecoration: 'underline' } }>{ ( a.filename || a.name || `File ${i + 1}` ) }</a>;
                                   } ) }
                                 </div>
@@ -476,20 +476,20 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                   <div style={ { fontSize: '1.5rem', fontWeight: 700, color: '#92400e' } }>{ formatPaise( stats.pendingAmount ) }</div>
                   <div style={ { fontSize: '0.75rem', color: '#b45309' } }>Pending</div>
                 </div>
-                <div style={ { background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '1rem', textAlign: 'center' } }>
+                <div style={ { background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '1rem', textAlign: 'center' } }>
                   <div style={ { fontSize: '1.5rem', fontWeight: 700, color: '#374151' } }>{ stats.total }</div>
-                  <div style={ { fontSize: '0.75rem', color: '#6b7280' } }>Total Submissions</div>
+                  <div style={ { fontSize: '0.75rem', color: 'var(--text-muted)' } }>Total Submissions</div>
                 </div>
-                <div style={ { background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '1rem', textAlign: 'center' } }>
+                <div style={ { background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '1rem', textAlign: 'center' } }>
                   <div style={ { fontSize: '1.5rem', fontWeight: 700, color: '#374151' } }>
                     { stats.byPaymentStatus?.captured || 0 }/{ ( stats.byPaymentStatus?.captured || 0 ) + ( stats.byPaymentStatus?.pending || 0 ) }
                   </div>
-                  <div style={ { fontSize: '0.75rem', color: '#6b7280' } }>Conversion</div>
+                  <div style={ { fontSize: '0.75rem', color: 'var(--text-muted)' } }>Conversion</div>
                 </div>
               </div>
 
               <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' } }>
-                <div style={ { background: '#fff', border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '1rem' } }>
+                <div style={ { background: '#fff', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '1rem' } }>
                   <div style={ { fontWeight: 600, marginBottom: '0.5rem', fontSize: '0.85rem' } }>By Status</div>
                   { Object.entries( stats.byStatus ).map( ( [ k, v ] ) => (
                     <div key={ k } style={ { display: 'flex', justifyContent: 'space-between', padding: '0.25rem 0', fontSize: '0.8rem' } }>
@@ -498,7 +498,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                     </div>
                   ) ) }
                 </div>
-                <div style={ { background: '#fff', border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '1rem' } }>
+                <div style={ { background: '#fff', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '1rem' } }>
                   <div style={ { fontWeight: 600, marginBottom: '0.5rem', fontSize: '0.85rem' } }>By Payment</div>
                   { Object.entries( stats.byPaymentStatus ).map( ( [ k, v ] ) => (
                     <div key={ k } style={ { display: 'flex', justifyContent: 'space-between', padding: '0.25rem 0', fontSize: '0.8rem' } }>
@@ -555,23 +555,23 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
               <div style={ { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', marginBottom: '1rem' } }>
                 <div style={ { background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '0.5rem', padding: '0.75rem', textAlign: 'center' } }>
                   <div style={ { fontSize: '1.25rem', fontWeight: 700 } }>{ journey.summary.totalSubmissions }</div>
-                  <div style={ { fontSize: '0.7rem', color: '#6b7280' } }>Submissions</div>
+                  <div style={ { fontSize: '0.7rem', color: 'var(--text-muted)' } }>Submissions</div>
                 </div>
                 <div style={ { background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '0.5rem', padding: '0.75rem', textAlign: 'center' } }>
                   <div style={ { fontSize: '1.25rem', fontWeight: 700 } }>{ journey.summary.flowsCompleted.length }</div>
-                  <div style={ { fontSize: '0.7rem', color: '#6b7280' } }>Flows Used</div>
+                  <div style={ { fontSize: '0.7rem', color: 'var(--text-muted)' } }>Flows Used</div>
                 </div>
                 <div style={ { background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '0.5rem', padding: '0.75rem', textAlign: 'center' } }>
                   <div style={ { fontSize: '1.25rem', fontWeight: 700 } }>{ formatPaise( journey.summary.totalPaid ) }</div>
-                  <div style={ { fontSize: '0.7rem', color: '#6b7280' } }>Total Paid</div>
+                  <div style={ { fontSize: '0.7rem', color: 'var(--text-muted)' } }>Total Paid</div>
                 </div>
-                <div style={ { background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '0.75rem', textAlign: 'center' } }>
+                <div style={ { background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '0.75rem', textAlign: 'center' } }>
                   <div style={ { fontSize: '1.25rem', fontWeight: 700 } }>{ journey.summary.totalInteractions }</div>
-                  <div style={ { fontSize: '0.7rem', color: '#6b7280' } }>Interactions</div>
+                  <div style={ { fontSize: '0.7rem', color: 'var(--text-muted)' } }>Interactions</div>
                 </div>
               </div>
               { journey.contact && Object.keys( journey.contact ).length > 0 && (
-                <div style={ { background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.8rem' } }>
+                <div style={ { background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.8rem' } }>
                   <div style={ { fontWeight: 600, marginBottom: '0.5rem' } }>Contact Profile</div>
                   <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.25rem' } }>
                     { journey.contact.name && <span>Name: { journey.contact.name }</span> }
@@ -587,7 +587,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                   <div style={ { fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.5rem' } }>Submissions ({ journey.submissions.length })</div>
                   <div style={ { overflowX: 'auto' } }>
                     <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' } }>
-                      <thead><tr style={ { background: '#f9fafb', borderBottom: '2px solid #e5e7eb' } }>
+                      <thead><tr style={ { background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border)' } }>
                         <th style={ { padding: '6px 8px', textAlign: 'left' } }>Flow</th>
                         <th style={ { padding: '6px 8px', textAlign: 'left' } }>Ref</th>
                         <th style={ { padding: '6px 8px', textAlign: 'left' } }>Subject</th>
@@ -602,7 +602,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                           <td style={ { padding: '4px 8px' } }>{ s.subject || s.requestType || '—' }</td>
                           <td style={ { padding: '4px 8px', color: statusColor( s.status ), fontWeight: 600, fontSize: '0.75rem' } }>{ s.status }</td>
                           <td style={ { padding: '4px 8px', color: payColor( s.paymentStatus ), fontWeight: 600, fontSize: '0.75rem' } }>{ s.paymentStatus }</td>
-                          <td style={ { padding: '4px 8px', fontSize: '0.7rem', color: '#6b7280' } }>{ formatDate( s.createdAt ) }</td>
+                          <td style={ { padding: '4px 8px', fontSize: '0.7rem', color: 'var(--text-muted)' } }>{ formatDate( s.createdAt ) }</td>
                         </tr>
                       ) ) }</tbody>
                     </table>
