@@ -104,9 +104,5 @@ Sitemap: https://wecare.digital/sitemap.xml
 #
 # The endpoint describes itself: `initialize` returns an instructions string, `tools/list`
 # returns the five tools with their schemas, and get_site_summary returns the citation terms.
-# /llms.txt above repeats all of it in prose, including the client config snippet. There was
-# an HTML page at /llm/ for that job until 2026-09-30, because a page describing a machine
-# interface is one more copy to keep in step. It is GONE, and it does not redirect: /llm and
-# /llm/ answer 404 through the `/<*>` catch-all. It carried a 301 to /llms.txt for a few hours
-# on the day it was retired and the owner removed it, so a 404 is the intended answer rather
-# than a rule somebody forgot. Read this sentence before "fixing" the missing redirect.
+# /llms.txt above repeats all of it in prose, including the client config snippet. Machine
+# discovery therefore has no separate human-readable route to maintain or redirect.
