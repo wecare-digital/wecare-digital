@@ -263,6 +263,45 @@ def test_surviving_first_person_wrapper_routes_to_personal_rework():
     assert q.decide_status(record, findings) == "PERSONAL_REFERENCE_REWORK"
 
 
+@pytest.mark.parametrize("wrapper", [
+    "The Topline Summaries treatment of the work describes a default future.",
+    "The source describes the distinction as a change in context.",
+    "This book explains the model as a practical framework.",
+    "This article presents the idea as a way to organize action.",
+    "The breakfast chapter opens with a fixed account of the morning meal.",
+    "The 2010 seminar materials collected under A New Model of Integrity frame the issue.",
+])
+def test_archive_derived_source_wrapper_blocks(wrapper):
+    record = good_record(contentMarkdown=GOOD_BODY + "\n\n" + wrapper)
+    findings = q.check_privacy_and_attribution(record)
+    assert "SOURCE_WRAPPER" in codes(findings, "BLOCK")
+
+
+@pytest.mark.parametrize("remnant", [
+    "The meal is ready. notes that the spices may be reused.",
+    "The meal is ready. ’s broader freshness principle supports the same habit.",
+    "The introduces five elements as a culinary framework.",
+    "Nuts appear throughout the as more than garnish.",
+    "Recipes are marked according to how says they affect those patterns.",
+    "The tea is specifically recommended note.",
+    "The regularly uses chickpeas and olive oil together.",
+    "The also distinguishes a defined snack from grazing.",
+    "From there, the offers several lighter options.",
+])
+def test_broken_source_remnant_blocks_in_any_article_class(remnant):
+    record = good_record(articleClass="NEW", contentMarkdown=GOOD_BODY + "\n\n" + remnant)
+    findings = q.check_privacy_and_attribution(record)
+    assert "SOURCE_REMNANT" in codes(findings, "BLOCK")
+
+
+def test_ordinary_source_and_chapter_language_is_not_a_source_wrapper():
+    body = (GOOD_BODY + "\n\nThe source of the action is a commitment already made. "
+            "The next chapter of life can remain open without becoming a prediction.")
+    findings = q.check_privacy_and_attribution(good_record(contentMarkdown=body))
+    assert "SOURCE_WRAPPER" not in codes(findings)
+    assert "SOURCE_REMNANT" not in codes(findings)
+
+
 def test_unattributed_long_quotation_routes_to_attribution_review():
     body = GOOD_BODY + ('\n\n"Integrity is the condition of being whole and undivided in '
                         'the matters that concern one most."')
@@ -415,6 +454,15 @@ def test_exact_slug_collision_blocks():
     corpus = q.CorpusIndex()
     corpus.add(good_record(), origin="published")
     assert "EXACT_SLUG_COLLISION" in codes(corpus.findings(good_record()), "BLOCK")
+
+
+def test_published_revision_can_exclude_its_own_slug_only():
+    record = good_record()
+    corpus = q.CorpusIndex()
+    corpus.add(record, origin="published-corpus")
+    assert "EXACT_SLUG_COLLISION" in codes(corpus.findings(record), "BLOCK")
+    assert "EXACT_SLUG_COLLISION" not in codes(
+        corpus.findings(record, exclude_slug=record["slug"]), "BLOCK")
 
 
 def test_cosmetic_rewrite_is_caught_as_a_body_duplicate():
