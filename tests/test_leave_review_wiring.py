@@ -214,11 +214,11 @@ def test_every_review_surface_reads_the_shared_module_rather_than_restating_it()
         assert 'leave a review' not in source.lower(), \
             f'{path.name} restates the keyword list literally; use REVIEW_ENTRY_KEYWORDS'
 
-    page = PAGE.read_text()
-    assert 'reviewEntry' in page, 'the /leave-review/ page does not import reviewEntry'
-    assert 'REVIEW_ENTRY_URL' in page
-    assert WA_SHORT_LINK not in page, \
-        'the page restates the short link literally; import REVIEW_ENTRY_URL instead'
+    header = HEADER.read_text()
+    assert 'reviewEntry' in header, 'the Leave Review menu action does not import reviewEntry'
+    assert 'REVIEW_ENTRY_URL' in header
+    assert WA_SHORT_LINK not in header, \
+        'the menu restates the short link literally; import REVIEW_ENTRY_URL instead'
 
 
 def test_the_retired_flow_ids_and_link_are_gone_repo_wide():
