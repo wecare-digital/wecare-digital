@@ -285,7 +285,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     paragraphs: [
       'We keep personal data for as long as the purpose it was collected for requires, or as long as a legal obligation requires. Different categories therefore have different retention periods.',
       'Data may be retained for an active transaction or ongoing service; account administration; financial, tax and accounting records; statutory record-keeping; transaction security; fraud prevention; a complaint or dispute; backups; legal claims; and enforcing our agreements.',
-      'Contribution records and gift-card, coupon and redemption records are transaction records of this kind. We keep them for as long as we need them for accounting, tax, refund, fraud-prevention and legal purposes, which can be after the related activity ends, and gift-card expiry or restrictions apply where applicable and as configured on the commerce platform that issues them.',
+      'Contribution records and gift-card, coupon and redemption records are transaction records of this kind. We keep them for as long as we need them for accounting, tax, refund, fraud-prevention and legal purposes, which can be after the related activity ends, and any gift-card expiry or restriction applies as disclosed for that card, including where the commerce platform that issues it governs those records.',
       'Some transaction, security and financial records must be kept after you close your account or ask for deletion, because the law requires it. Section 18 explains how that interacts with a deletion request.',
       'When data is no longer needed we delete, anonymise or de-identify it.',
     ],

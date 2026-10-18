@@ -891,7 +891,7 @@ describe( 'the cart page proceed flow', () => {
     // same words as the disabled gate rather than a near-miss paraphrase. Note the server's own
     // `message` field is deliberately NOT rendered: the copy on this page is ours to control.
     expect( await screen.findByText(
-      'We could not prepare this order. No charge was made - please try again shortly.',
+      'We could not start this order. No charge was made. Please try again shortly.',
     ) ).toBeTruthy();
     // It did not pretend to succeed or navigate away.
     expect( navigatedTo ).toBe( '' );
@@ -1191,19 +1191,19 @@ describe( 'the cart page asks the readiness question before rendering anything',
 /**
  * WHERE THE APPROVED SENTENCE MAY AND MAY NOT APPEAR.
  *
- * "We could not prepare this order. No charge was made - please try again shortly." asserts a
+ * "We could not start this order. No charge was made. Please try again shortly." asserts a
  * financial fact. On an initiation refusal that fact is backed by the server's own response. On a
  * pending, unknown or captured-but-unfinalised attempt it is not knowable from the browser at all,
  * and offering a retry there risks a second charge for money that has already moved. So the sentence
  * is tested from both directions: present where the evidence exists, absent everywhere else.
  */
 describe( 'the initiation-failure sentence is pinned to its evidence', () => {
-  const SENTENCE = 'We could not prepare this order. No charge was made - please try again shortly.';
+  const SENTENCE = 'We could not start this order. No charge was made. Please try again shortly.';
 
   it( 'is the exact wording on every initiation-refusal branch', async () => {
     // Four distinct refusals, all of which mean the request did not reach the payment rail. Each
     // must produce the sentence CHARACTER FOR CHARACTER - a paraphrase is a different promise, and
-    // the hyphen in "made - please" is part of the approved string.
+    // the full stops in "made. Please" are part of the approved string.
     const refusals: Array<{ ok: boolean; status: number; body: unknown }> = [
       { ok: true, status: 200, body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-d' } },
       { ok: false, status: 409, body: { status: 'payment_unavailable' } },
@@ -2020,7 +2020,7 @@ describe( 'two clicks cannot post two prepares - the measured live blocker', () 
    * `prepare-checkout` was posted TWICE in rapid succession. The first answered 200 and reserved
    * the cart; the second, one to three seconds later, hit the catalogue step on that
    * already-reserved cart, failed, and the handler answered 502 `CATALOGUE_UNAVAILABLE` -- which
-   * this page renders as "We could not prepare this order."
+   * this page renders as "We could not start this order."
    * EVERY payment attempt failed, and it was the customer's own first attempt that broke their
    * second.
    *
