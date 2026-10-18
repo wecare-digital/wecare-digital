@@ -153,7 +153,7 @@ describe( 'Scrolling asks the stylesheet, not the device', () => {
       'src/components/FloatingAgent.tsx',
       'src/components/dashboard/tabs/InternalChatTab.tsx',
       'src/pages/workspace/engage/inbox/index.tsx',
-      'src/pages/workspace/engage/whatsapp/inbox.tsx',
+      'src/components/workspace/whatsapp/inbox.tsx',
     ];
     for ( const file of files ) {
       const source = fs.readFileSync( path.join( ROOT, file ), 'utf8' );
