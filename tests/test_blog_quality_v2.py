@@ -302,6 +302,31 @@ def test_ordinary_source_and_chapter_language_is_not_a_source_wrapper():
     assert "SOURCE_REMNANT" not in codes(findings)
 
 
+def test_archive_source_wrapper_in_meta_description_blocks():
+    record = good_record(
+        metaDescription="This article presents the source distinction as a way to organize action."
+    )
+    findings = q.check_privacy_and_attribution(record)
+    assert "SOURCE_WRAPPER" in codes(findings, "BLOCK")
+
+
+def test_source_remnant_in_excerpt_blocks_even_when_body_is_clean():
+    record = good_record(excerpt="The practice is established. notes that the form may change.")
+    findings = q.check_privacy_and_attribution(record)
+    assert "SOURCE_REMNANT" in codes(findings, "BLOCK")
+
+
+def test_generic_source_materials_phrase_is_not_wrapper_without_source_determiner():
+    record = good_record(
+        metaDescription=(
+            "Practices have histories, iterations, source materials, and people behind "
+            "their present forms."
+        )
+    )
+    findings = q.check_privacy_and_attribution(record)
+    assert "SOURCE_WRAPPER" not in codes(findings)
+
+
 def test_unattributed_long_quotation_routes_to_attribution_review():
     body = GOOD_BODY + ('\n\n"Integrity is the condition of being whole and undivided in '
                         'the matters that concern one most."')
