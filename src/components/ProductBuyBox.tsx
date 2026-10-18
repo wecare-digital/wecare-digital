@@ -26,7 +26,7 @@ interface ProductBuyBoxProps {
   slug: string;
   /** Show the configured product price line. Default true. */
   showPrice?: boolean;
-  /** Quiet line below the price, matching Grahak OS commerce metadata. */
+  /** Quiet line below the price, matching the Grahak OS commerce pattern. */
   offerNote?: string;
 }
 
