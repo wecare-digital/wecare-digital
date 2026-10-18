@@ -11,7 +11,7 @@ import { whatsappShareHref } from '../config/share';
 /**
  * The compact page-tail action dock.
  *
- * Every public surface, including Home, renders the SAME Contribute + Subscribe + Share band.
+ * _app renders this once for every public HTML surface, including Home.
  * Contribute and Share reveal short dropdowns; Subscribe has one destination, so it stays a
  * direct WhatsApp link. There is no page-level opt-out for Contribute: this is one common block.
  *
@@ -60,8 +60,10 @@ const PublicShare: React.FC<PublicShareProps> = ( {
 
   useEffect( () => {
     if ( typeof window === 'undefined' ) return;
-    const nextUrl = url || cleanUrl( window.location.href );
-    const nextTitle = title || document.title || window.location.hostname;
+    const canonical = document.querySelector<HTMLLinkElement>( 'link[rel="canonical"]' )?.href || '';
+    const ogTitle = document.querySelector<HTMLMetaElement>( 'meta[property="og:title"]' )?.content || '';
+    const nextUrl = url || ( canonical ? cleanUrl( canonical ) : cleanUrl( window.location.href ) );
+    const nextTitle = title || ogTitle || document.title || window.location.hostname;
     setResolvedUrl( nextUrl );
     setResolvedTitle( nextTitle );
 
@@ -151,7 +153,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
       ref={ rootRef }
     >
       {/* "Stay connected" eyebrow kept on top of the dock (owner request). Carried over from the
-          retired PublicFooterBand so the dock keeps its label now that it lives in the hero. */}
+          retired PublicFooterBand so the app-owned dock keeps the same visible label on every public route. */}
       <span className="ps-kicker">Stay connected</span>
       <div className="ps-row">
         <section className="contribute" aria-labelledby="ps-contribute-heading">

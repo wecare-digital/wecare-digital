@@ -5,6 +5,7 @@ import BlogIndex from '../pages/blog/index';
 import BlogIndexPage from '../pages/blog/page/[page]';
 import BlogPostPage from '../pages/post/[slug]';
 import ProductBlogPanel from '../components/ProductBlogPanel';
+import PublicShare from '../components/PublicShare';
 import { CONTRIBUTION_AMOUNT_LABEL } from '../config/contribution';
 import { toBlogCard, blogPageCount, POSTS_PER_PAGE, type BlogCard, type PublicBlogPost } from '../lib/public-blog';
 import type { BlogIndexPageProps } from '../lib/blog-index-props';
@@ -209,39 +210,16 @@ describe( 'Blog design alignment', () => {
   } );
 
   /**
-   * THE GLOBAL SUBSCRIBE + SHARE BLOCK IS ON THE INDEX NOW. The owner unified every public
-   * surface onto the ONE PublicShare block (Subscribe followed by Share), so BlogIndexView no
-   * longer passes `noShare` to RotatingHero and no longer renders its own three-part BlogFooterCTA
-   * band. This pins that the index carries exactly ONE PublicShare (Subscribe pill at the
-   * subscribe deep link + the Share row) and NO old `.blog-cta` band.
+   * _app owns the one Contribute + Subscribe + Share dock. BlogIndexView and RotatingHero
+   * therefore render none of their own; the legacy blog-specific CTA stays removed.
    */
-  it( 'carries exactly one global Subscribe + Share block at the foot of the index', () => {
+  it( 'leaves the global action dock to the app shell', () => {
     mockSearchIndex( [ firstCard, secondCard ] );
     const { container } = render( <BlogIndex { ...propsFor() } /> );
 
-    // Exactly ONE PublicShare block.
-    const shares = container.querySelectorAll( 'section.public-share' );
-    expect( shares ).toHaveLength( 1 );
-
-    // Subscribe is now the 48px notification action in the common dock. Its accessible name and
-    // destination are the contract; Material Symbols text is intentionally aria-hidden.
-    const subscribe = shares[ 0 ].querySelector( 'a.ps-subscribe' );
-    expect( subscribe ).not.toBeNull();
-    expect( subscribe!.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
-    expect( subscribe!.getAttribute( 'aria-label' ) ).toBe( 'Subscribe on WhatsApp' );
-
-    // Share: the row follows Subscribe inside the same block.
-    expect( shares[ 0 ].querySelector( '.ps-row' ) ).not.toBeNull();
-
-    // The OLD three-part band is gone, markup and all - no .blog-cta, no .blog-cta-subscribe.
+    expect( container.querySelectorAll( 'section.public-share' ) ).toHaveLength( 0 );
     expect( container.querySelector( '.blog-cta' ) ).toBeNull();
     expect( container.querySelector( 'a.blog-cta-subscribe' ) ).toBeNull();
-
-    // Ordering: the block sits after the post grid.
-    const grid = container.querySelector( '.post-grid' );
-    if ( grid ) {
-      expect( grid.compareDocumentPosition( shares[ 0 ] ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
-    }
   } );
 
   /**
@@ -838,44 +816,28 @@ describe( 'Blog post page', () => {
   } );
 
   /**
-   * THE ONE COMMON ACTION DOCK SITS BETWEEN TAGS AND THE PAGER.
-   *
-   * Contribute, Subscribe and Share are now children of ONE PublicShare component. The post no
-   * longer renders a separate ContributeBlock or inline Subscribe/Share row.
+   * The post template no longer mounts the global action dock. Its reading tail starts with the
+   * newer/older navigation, which also remains the reveal sentinel.
    */
-  it( 'renders the unified Contribute + Subscribe + Share dock after Tags', () => {
+  it( 'leaves the global action dock to the app shell and keeps the post tail intact', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
 
     const tags = container.querySelector( 'nav.tags' );
-    const share = container.querySelector( '.post-share' );
-    const publicShare = container.querySelector( 'section.public-share' );
-    const contribution = publicShare?.querySelector( 'section.contribute' ) || null;
+    const nav = container.querySelector( 'nav.post-nav' );
 
     expect( tags ).not.toBeNull();
-    expect( share ).not.toBeNull();
-    expect( publicShare ).not.toBeNull();
-    expect( contribution ).not.toBeNull();
-
+    expect( nav ).not.toBeNull();
+    expect( container.querySelectorAll( 'section.public-share' ) ).toHaveLength( 0 );
     expect( container.querySelector( 'a.blog-wa-subscribe' ) ).toBeNull();
     expect( container.querySelector( 'section.blog-subscribe' ) ).toBeNull();
-    expect( container.querySelectorAll( 'section.public-share' ) ).toHaveLength( 1 );
-    expect( share!.contains( publicShare! ) ).toBe( true );
-    expect( publicShare!.contains( contribution! ) ).toBe( true );
-
-    expect( publicShare!.querySelector( 'a.ps-subscribe' )!.getAttribute( 'href' ) )
-      .toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
-
-    expect( tags!.compareDocumentPosition( share! ) & Node.DOCUMENT_POSITION_FOLLOWING )
-      .toBeTruthy();
-    expect( share!.classList.contains( 'post-share' ) ).toBe( true );
+    expect( tags!.compareDocumentPosition( nav! ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
+    expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
   } );
 
-  /**
-   * THE MANDATED COPY, AND NO SECOND H1. The heading and primary message are fixed strings in the
-   * brief; the heading must be an h2 so the post keeps exactly one h1 (htmlcheck guards H1-MANY).
-   */
-  it( 'shows the Contribute heading and amount in the unified dock, and adds no second h1', () => {
-    const { container } = render( <BlogPostPage post={ samplePost } /> );
+  it( 'shows the Contribute heading and amount in the unified dock', () => {
+    const { container } = render(
+      <PublicShare url="https://wecare.digital/post/example/" title="Example post" />,
+    );
 
     const dock = container.querySelector( 'section.public-share' )!;
     const block = dock.querySelector( 'section.contribute' )!;
@@ -887,23 +849,13 @@ describe( 'Blog post page', () => {
     expect( menu.querySelector( '.contribute-label' )?.textContent )
       .toBe( `Contribute ${ CONTRIBUTION_AMOUNT_LABEL }` );
     expect( dock.textContent ).not.toContain( 'If this helped' );
-
-    expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
     expect( block.querySelector( 'h1' ) ).toBeNull();
   } );
 
-  /**
-   * THE CONTRIBUTION BLOCK IS ONE COMPACT LINE WITH BOTH PATHS - owner instruction, 2026-10-12.
-   *
-   * The post page carries components/ContributeBlock. The two big pill buttons and the copy
-   * sentence are gone; the block is now the eyebrow + a single line: a ₹ glyph, a "Contribute
-   * ₹250" static label, then two inline TEXT links - "on WhatsApp" (a real anchor to the Contribute
-   * chat) and "on the website →" (a button that names the variant in the cart and goes to /cart/).
-   * The amount is a static label from src/config/contribution.ts, so the figure cannot drift. No
-   * radio group and no on-page form - the browser never sends a price; cart_v2 prices the variant.
-   */
   it( 'offers both contribution paths inside the unified Contribute menu', () => {
-    const { container } = render( <BlogPostPage post={ samplePost } /> );
+    const { container } = render(
+      <PublicShare url="https://wecare.digital/post/example/" title="Example post" />,
+    );
     const dock = container.querySelector( 'section.public-share' )!;
     const menu = dock.querySelector( '#ps-contribute-menu' )!;
 
@@ -923,22 +875,10 @@ describe( 'Blog post page', () => {
     expect( menu.textContent || '' ).toContain( '₹250' );
   } );
 
-  /**
-   * TWO WHATSAPP CTAS AT THE TAIL OF A POST, TWO DISTINCT CONVERSATIONS - BUT FROM TWO SOURCES.
-   *
-   * The owner unified the Subscribe pill into the ONE global PublicShare block, so the post page
-   * no longer owns its inline Subscribe pill. The two WhatsApp links at the tail are now:
-   *   - Contribute, from ContributeBlock (`section.contribute a.contribute-link`), opening
-   *     BYFLCAAMSZBXD1; and
-   *   - Subscribe, from the global PublicShare (`section.public-share a.ps-subscribe`), opening
-   *     WUDPTMYSO6XII1.
-   * They are still DIFFERENT Meta message links - pointing one at the other's link would look
-   * entirely correct on screen, which is why both hrefs are pinned here as literals AND asserted
-   * to differ. The Contribute link is a quiet text link on the compact line; PublicShare's
-   * Subscribe is a lime pill.
-   */
   it( 'keeps Contribute and Subscribe on distinct WhatsApp destinations in the common dock', () => {
-    const { container } = render( <BlogPostPage post={ samplePost } /> );
+    const { container } = render(
+      <PublicShare url="https://wecare.digital/post/example/" title="Example post" />,
+    );
 
     const dock = container.querySelector( 'section.public-share' )!;
     const contribute = dock.querySelector( '#ps-contribute-menu a.contribute-link' )!;
@@ -951,10 +891,6 @@ describe( 'Blog post page', () => {
     expect( subscribe.getAttribute( 'href' ) ).not.toBe( contribute.getAttribute( 'href' ) );
     expect( subscribe.getAttribute( 'aria-label' ) ).toBe( 'Subscribe on WhatsApp' );
     expect( contribute.getAttribute( 'aria-label' ) ).toBe( 'Contribute on WhatsApp' );
-
-    expect( container.querySelector( 'a.blog-wa-subscribe' ) ).toBeNull();
-    expect( container.querySelector( '.blog-wa-note' ) ).toBeNull();
-    expect( container.querySelector( '.bc-cta-note' ) ).toBeNull();
 
     const css = cssOf( container );
     const selector = '.ps-action{';

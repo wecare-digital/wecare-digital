@@ -222,9 +222,8 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           </div>
         ) }
 
-        {/* THE PAGE'S OWN SHARE ROW IS GONE. Every public page now carries the ONE common
-            Contribute + Subscribe + Share block (components/PublicShare, auto-mounted by
-            RotatingHero at the content end). A second page-level share row would duplicate it. */}
+        {/* Contribute + Subscribe + Share is mounted once by _app after the route policy.
+            ProductPage must not add a second page-level action dock. */}
 
         <style jsx>{`
           .pdp{max-width:700px}

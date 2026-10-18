@@ -159,8 +159,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             </p>
           </section>
 
-          {/* The page-tail dock is AUTO-MOUNTED by RotatingHero (in its .rh-tail), so the page
-              no longer renders its own <PublicShare /> here - that would show the dock twice. */}
+          {/* The global Contribute + Subscribe + Share dock is mounted once by _app after policy. */}
         </div>
 
         <style jsx>{`
