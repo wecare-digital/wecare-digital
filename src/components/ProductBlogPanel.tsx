@@ -267,13 +267,24 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
 
       { showPager && (
         <div className="pbp-nav" aria-label="Perspectives pagination">
-          <button
-            type="button"
-            className="pbp-arrow"
-            aria-label="Previous page"
-            disabled={ activePage === 0 }
-            onClick={ () => goToPage( activePage - 1 ) }
-          >‹</button>
+          <div className="pbp-nav-row">
+            <div className="pbp-arrows">
+              <button
+                type="button"
+                className="pbp-arrow"
+                aria-label="Previous page"
+                disabled={ activePage === 0 }
+                onClick={ () => goToPage( activePage - 1 ) }
+              >‹</button>
+              <button
+                type="button"
+                className="pbp-arrow"
+                aria-label="Next page"
+                disabled={ activePage >= pageCount - 1 }
+                onClick={ () => goToPage( activePage + 1 ) }
+              >›</button>
+            </div>
+          </div>
           <div
             className="pbp-progress-track"
             role="progressbar"
@@ -281,24 +292,18 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
             aria-valuemin={ 1 }
             aria-valuemax={ pageCount }
             aria-valuenow={ activePage + 1 }
+            aria-valuetext={ `Page ${activePage + 1} of ${pageCount}` }
           >
             <div
               className="pbp-progress-fill"
-              style={ { width: `${( ( activePage + 1 ) / pageCount ) * 100}%` } }
+              style={ { width: `${Math.max( ( ( activePage + 1 ) / pageCount ) * 100, 4 )}%` } }
             />
           </div>
-          <button
-            type="button"
-            className="pbp-arrow"
-            aria-label="Next page"
-            disabled={ activePage >= pageCount - 1 }
-            onClick={ () => goToPage( activePage + 1 ) }
-          >›</button>
         </div>
       ) }
 
       <div className="pbp-foot">
-        <Link className="pbp-browse" href="/blog/">Browse all perspectives <span aria-hidden="true">→</span></Link>
+        <Link className="pbp-browse" href="/blog/">Browse perspectives <span aria-hidden="true">→</span></Link>
         <RssIcon />
       </div>
 
@@ -306,12 +311,20 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
         .pbp{max-width:560px;width:100%}
         .pbp-foot{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:22px 0 0}
         .pbp-browse{
-          display:inline-flex;align-items:center;gap:8px;
-          color:var(--public-brand-green);font-size:15px;font-weight:700;line-height:1.4;
-          text-decoration:none;
+          display:inline-flex;align-items:center;gap:5px;width:max-content;margin-left:-10px;padding:8px 10px;
+          border-radius:10px;color:var(--public-brand-green);
+          font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);line-height:1.4;letter-spacing:-.05px;
+          text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;
+          transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
         }
-        .pbp-browse:hover{text-decoration:underline;text-underline-offset:3px}
-        .pbp-browse:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:4px}
+        .pbp-browse:hover{
+          background:var(--public-brand-lime);color:var(--public-brand-green);text-decoration-color:transparent;
+          transform:translateY(-1px);box-shadow:var(--public-lift-shadow);
+        }
+        .pbp-browse:focus-visible{
+          background:var(--public-brand-lime);color:var(--public-brand-green);text-decoration-color:transparent;
+          outline:3px solid var(--public-brand-green);outline-offset:3px;
+        }
 
         /* HEADER ROW: heading left, pager arrows pinned right. Baseline-aligned so the arrows sit
            on the heading's line rather than floating. The progress bar follows directly below. */
@@ -409,11 +422,13 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
         .pbp-arrow:disabled{opacity:.3;cursor:default;border-color:#cfd4d9;color:rgba(0,0,0,.4)}
 
         .pbp-nav{
-          display:grid;grid-template-columns:44px minmax(0,1fr) 44px;
-          align-items:center;gap:12px;margin:26px 0 0;
+          display:flex;flex-direction:column;gap:12px;margin:26px 0 0;padding:24px 0 0;
+          border-top:1px solid var(--public-hairline);
         }
+        .pbp-nav-row{display:flex;align-items:center;justify-content:flex-end}
+        .pbp-arrows{display:flex;align-items:center;gap:8px}
         .pbp-progress-track{
-          width:100%;height:5px;border-radius:50px;background:#eef0f2;overflow:hidden;
+          width:100%;height:6px;border-radius:50px;background:#eef0f2;overflow:hidden;
           margin:0;
         }
         .pbp-progress-fill{
@@ -453,7 +468,8 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
         }
 
         @media(prefers-reduced-motion:reduce){
-          .pbp-pill,.pbp-link,.pbp-title,.pbp-search input,.pbp-arrow,.pbp-progress-fill{transition:none}
+          .pbp-pill,.pbp-link,.pbp-title,.pbp-search input,.pbp-arrow,.pbp-progress-fill,.pbp-browse{transition:none}
+          .pbp-browse:hover{transform:none;box-shadow:none}
           /* A reduced-motion reader gets instant page jumps instead of the smooth scroll; the
              track still snaps, it just does not animate the slide. */
           .pbp-track{scroll-behavior:auto}
