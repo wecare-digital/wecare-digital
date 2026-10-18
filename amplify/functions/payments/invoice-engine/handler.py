@@ -774,29 +774,46 @@ def _assert_inr(body: Dict) -> None:
         raise RedemptionRefused(400, 'UNSUPPORTED_CURRENCY')
 
 
+#: Entry points whose amount is already settled or whose service contract is exact-price.
+#:
+#: Everything else is a NEW COLLECTION and receives the same server-owned pricing policy:
+#: automatic Delight (unless an explicit/manual discount replaces it) and the canonical
+#: convenience fee. This is intentionally a DENYLIST of semantic exceptions rather than an
+#: allowlist of UI callers: adding a new invoice composer must not silently create a sixth price.
+_EXACT_PRICE_OR_SETTLED_ENTRY_POINTS = frozenset({
+    'webhook',              # reconstructs money that already moved
+    'website_checkout',     # post-payment customer receipt projection
+    'submit_request_flow',  # exact-price service
+    'flow_payment',         # exact-price service
+})
+
+
+def _new_collection_pricing_applies(entry_point: str,
+                                    amount_is_tax_inclusive: bool) -> bool:
+    """Whether this invoice is a fresh collection priced by the invoice engine."""
+    return (not amount_is_tax_inclusive
+            and entry_point not in _EXACT_PRICE_OR_SETTLED_ENTRY_POINTS)
+
+
 def _delight_applies(entry_point: str,
                      amount_is_tax_inclusive: bool, manual_discount: float) -> bool:
     """True when the always-on Delight goodwill discount should auto-apply to this invoice.
 
-    Only on customer-origin invoices that compute their own total: `pay_flow`, `whatsapp_payment`
-    and `manual` -- the three entry points that also auto-compute the convenience fee. NEVER on:
+    Delight is the default for every NEW COLLECTION, regardless of which staff/customer surface
+    originated it. That includes `manual`, `pay_flow`, `whatsapp_payment`, `inbox` and
+    `commerce`; the entry-point label is attribution, not a pricing switch.
 
-      - a tax-inclusive capture (`amountIsTaxInclusive`): the invoice total must equal the amount
-        already collected, and coupons are refused on that path outright;
+    It is deliberately suppressed when:
 
-      - an invoice already carrying a MANUAL staff discount: that is a deliberate goodwill credit
-        the operator set, and the automatic goodwill discount must not silently stack a second
-        one on top of it. A manual adjustment and the Delight default are both "goodwill", and
-        two goodwills on one invoice is a figure nobody chose;
-      - a `webhook`-minted invoice: it records a settlement that already happened, so there is no
-        collection to discount.
+      - a tax-inclusive capture is being reconstructed;
+      - the invoice is an exact-price service flow;
+      - the invoice already carries a MANUAL staff discount.
 
-    The explicit-coupon case is handled by the caller (it takes the branch above this one); this
-    gate only decides whether to SUBSTITUTE the default when no code and no manual discount apply.
+    The explicit-coupon case is handled by the caller (it takes the branch above this one).
     """
-    if amount_is_tax_inclusive or manual_discount:
+    if manual_discount:
         return False
-    return entry_point in ('pay_flow', 'manual', 'whatsapp_payment')
+    return _new_collection_pricing_applies(entry_point, amount_is_tax_inclusive)
 
 
 def _apply_coupon_leg(*, code: str, collection_paise: int, reference_id: str,
@@ -1261,7 +1278,7 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         # Keep this zero Decimal too: Decimal + float is a TypeError and, more importantly,
         # captured-money arithmetic must never leave exact decimal space.
         convenience_fee = Decimal('0')
-    elif entry_point in ('pay_flow', 'manual', 'whatsapp_payment'):
+    elif _new_collection_pricing_applies(entry_point, amount_is_tax_inclusive):
         collection = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax
         quote = checkout_pricing.compute_quote(_rupees_to_paise(collection))
         canonical_fee_paise = quote.convenience_fee_paise + quote.convenience_gst_paise
