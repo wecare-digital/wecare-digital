@@ -8,6 +8,8 @@ export interface ShopListing {
   formattedPrice?: string;
   inStock?: boolean;
   image?: string;
+  /** Defaults to true. False keeps a live product and route off the horizontal /shop/ rail. */
+  showOnShopShelf?: boolean;
   source: 'product' | 'catalogue';
 }
 
@@ -37,7 +39,7 @@ export const SHOP_LISTINGS: ShopListing[] = [
   { slug:'request-pickup', name:'Shipment · Pickup', blurb:'Arrange collection of paperwork for an existing request.', sku:'SHP7Q4N9', href:'/request-pickup/', formattedPrice:'₹650.00', inStock:true, source:'product' },
   { slug:'merchandise', name:'Partner · Merchandise', blurb:'WECARE.DIGITAL merchandise.', sku:'PMD9Q3P6', href:'/shop/merchandise/', formattedPrice:'₹1,999.00', inStock:true, source:'product' },
   { slug:'kiosk', name:'Partner · Kiosk', blurb:'A WECARE.DIGITAL kiosk setup.', sku:'PKS7K5M4', href:'/shop/kiosk/', formattedPrice:'₹26,999.00', inStock:true, source:'product' },
-  { slug:'contribute', name:'Contribute', blurb:'A voluntary ₹250 contribution to support the work.', sku:'CNT5Q2M8', href:'/shop/contribute/', formattedPrice:'₹250.00', inStock:true, source:'product' },
+  { slug:'contribute', name:'Contribute', blurb:'A voluntary ₹250 contribution to support the work.', sku:'CNT5Q2M8', href:'/shop/contribute/', formattedPrice:'₹250.00', inStock:true, showOnShopShelf:false, source:'product' },
 ];
 
 export const SHOP_LISTINGS_PER_PAGE = 6;
