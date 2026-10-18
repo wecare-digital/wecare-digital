@@ -70,6 +70,14 @@ const FORBIDDEN_PUBLIC_COPY = [
   'The store confirms your final total',
   'This page is not a checkout',
   'Live payment is not on yet',
+  'server-side against the authoritative order total',
+  'decided by us server-side',
+  'not by anything calculated in your browser',
+  'as configured for those offers',
+  'confirm server-side',
+  'amount in paise and the currency',
+  'payment attempt identifier',
+  'where applicable and as configured',
 ];
 
 /** How many orphans to open. All of them would be ~105 file reads for one repeated answer. */
