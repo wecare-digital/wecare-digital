@@ -51,7 +51,7 @@ const CYCLE_WORDS: CycleWord[] = [
   { word: 'records', tint: '#ede9fe', dot: '#9849e8' },
 ];
 
-// THE PILL READS "Continue on WhatsApp", SO IT OPENS WHATSAPP. It linked /contact/ until
+// THE PILL READS "Checkout on WhatsApp", SO IT OPENS WHATSAPP. It linked /contact/ until
 // 2026-10-16 - a fix for an older dead link, kept after the label became the WhatsApp one -
 // so the button promised a chat and opened a web page. It is now the keyword deep link every
 // other product page uses (src/content/products.ts), with this page's name pre-filled.
@@ -111,9 +111,9 @@ const BharatRxPage: React.FC = () => (
           </li>
         </ol>
 
-        {/* OPTION A: the WhatsApp pill names its channel ("Continue on WhatsApp →") to match the
+        {/* OPTION A: the WhatsApp pill names its channel ("Checkout on WhatsApp →") to match the
             "Continue to checkout →" pill below, same as every ProductPage-based page. */}
-        <a className="brx-cta" href={ WHATSAPP_CTA }>Continue on WhatsApp &rarr;</a>
+        <a className="brx-cta" href={ WHATSAPP_CTA }>Checkout on WhatsApp &rarr;</a>
 
         {/* The "Continue to checkout →" pill and live price, beneath the WhatsApp CTA — the same
             ProductBuyBox the eight ProductPage-based product pages mount. Bharat Rx owns its own
