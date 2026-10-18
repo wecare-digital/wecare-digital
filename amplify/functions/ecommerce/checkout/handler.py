@@ -1087,6 +1087,15 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
     refusal = service_requests.checkout_preflight(line_items, body)
     if refusal is not None:
         return cors_response(refusal[0], refusal[1], origin)
+    # ONE GIFT CARD PER PURCHASE, refused here on the same pure, pre-pricing seam. A gift card is
+    # bought one at a time: a quantity other than 1, or a second gift-card line, is rejected
+    # before any money can move. `gift_card_product` imports only stdlib (no GiftCardsTable), so
+    # this does NOT widen the checkout IAM import closure. Inert when no gift-card SKU is
+    # configured, which is every basket today.
+    from lambda_utils.ecommerce import gift_card_product
+    gift_card_refusal = gift_card_product.checkout_preflight(line_items)
+    if gift_card_refusal is not None:
+        return cors_response(gift_card_refusal[0], gift_card_refusal[1], origin)
 
     profile = _checkout_profile(identity)
     if not profile:
