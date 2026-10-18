@@ -1428,11 +1428,11 @@ response = requests.post(
              floor; the amber (2.04:1) and green (3.19:1) hues that fail as text are used
              ONLY as borders here, never as the text colour. */
           .pp-pill{display:inline-flex;align-items:center;justify-content:center;padding:14px 28px;border:2px solid var(--public-hairline);background:#fff;border-radius:50px;font-size:17px;font-weight:600;cursor:default;transition:all .25s;color:var(--public-body)}
-          .pp-pill--amber{border-color:#f0a818;background:var(--public-bg)}
-          .pp-pill--blue{border-color:#2563eb;background:var(--public-bg)}
-          .pp-pill--green{border-color:#3da35a;background:var(--public-bg)}
-          .pp-pill--purple{border-color:#9849e8;background:var(--public-bg)}
-          .pp-pill--red{border-color:#dc2626;background:var(--public-bg)}
+          .pp-pill--amber{border-color:#f0a818;background:#fff}
+          .pp-pill--blue{border-color:#2563eb;background:#fff}
+          .pp-pill--green{border-color:#3da35a;background:#fff}
+          .pp-pill--purple{border-color:#9849e8;background:#fff}
+          .pp-pill--red{border-color:#dc2626;background:#fff}
           .pp-pill--lime{border-color:var(--public-brand-lime);background:#fff;color:var(--public-brand-green)}
           .pp-pill:hover{transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
 
