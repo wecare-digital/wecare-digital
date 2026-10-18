@@ -391,7 +391,6 @@ describe( 'Header', () => {
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
 
     // Extras remains the category heading; Perks is its WhatsApp action row.
-    // There is no public /perks/ page any more.
 
     // Approved order in this column is Refer & Earn, Extras, Contact, Legal Stuff.
     const extrasCol = screen.getByText( 'Extras' ).closest( '.nav-col' );

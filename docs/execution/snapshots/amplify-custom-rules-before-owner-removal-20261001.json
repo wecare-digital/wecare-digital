@@ -156,12 +156,12 @@
   },
   {
     "source": "[retired public path 14041cbc]",
-    "target": "/clear-closure/",
+    "target": "[retired public path]",
     "status": "301"
   },
   {
     "source": "[retired public path 14041cbc]/",
-    "target": "/clear-closure/",
+    "target": "[retired public path]",
     "status": "301"
   },
   {
@@ -196,12 +196,12 @@
   },
   {
     "source": "[retired public path 5b217199]",
-    "target": "/ritual-guru/",
+    "target": "[retired public path]",
     "status": "301"
   },
   {
     "source": "[retired public path 5b217199]/",
-    "target": "/ritual-guru/",
+    "target": "[retired public path]",
     "status": "301"
   },
   {
@@ -236,12 +236,12 @@
   },
   {
     "source": "[retired public path fb3e74a7]",
-    "target": "/refer-and-earn/",
+    "target": "[retired public path]",
     "status": "301"
   },
   {
     "source": "[retired public path fb3e74a7]/",
-    "target": "/refer-and-earn/",
+    "target": "[retired public path]",
     "status": "301"
   },
   {
@@ -260,12 +260,12 @@
     "status": "301"
   },
   {
-    "source": "/product-page/",
+    "source": "[retired public path]",
     "target": "/contact/",
     "status": "301"
   },
   {
-    "source": "/product-page/<*>",
+    "source": "[retired public path]<*>",
     "target": "/contact/",
     "status": "301"
   },
@@ -670,12 +670,12 @@
     "status": "301"
   },
   {
-    "source": "/product-page/",
+    "source": "[retired public path]",
     "target": "/contact/",
     "status": "301"
   },
   {
-    "source": "/product-page/<*>",
+    "source": "[retired public path]<*>",
     "target": "/contact/",
     "status": "301"
   },
@@ -685,7 +685,7 @@
     "status": "301"
   },
   {
-    "source": "/product-page/",
+    "source": "[retired public path]",
     "target": "/contact/",
     "status": "301"
   },

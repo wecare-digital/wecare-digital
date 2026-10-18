@@ -15,11 +15,7 @@ import { describe, expect, it } from 'vitest';
  *   config/public-pages.json          the catalogue        (llms.txt + the MCP server's zip)
  *   amplify/functions/ai/mcp/         READ_ONLY_TOOLS, PROTOCOL_VERSIONS  (what /mcp serves)
  *
- * IT WAS FIVE UNTIL 2026-09-30. `src/lib/ai-surface.ts` restated the endpoint URL, the three
- * protocol versions and the five tool names in TypeScript so the /llm page could render them.
- * Both are gone: the page is retired and its content moved into config/public-pages.json,
- * which the MCP server and the llms.txt generator already read. One fewer copy is one fewer
- * thing this file has to hold in step, and the tests that guarded it now guard the JSON.
+ * The retired human-readable AI documentation page is no longer part of this surface.
  *
  * Every remaining pair can drift, and each drift is silent in its own way:
  *
@@ -221,63 +217,6 @@ describe( 'the catalogue matches the allowlists that decide what is public', () 
         `group '${group.id}' has no pages`,
       ).toBe( true );
     }
-  } );
-} );
-
-describe( 'the /llm page is retired and cannot come back by accident', () => {
-  /**
-   * ASSERTED AS AN ABSENCE, because this was a deliberate removal on 2026-09-30 and the cheap
-   * way to undo it is to re-add one line. /llm was an HTML page documenting /mcp: the endpoint
-   * URL, the three protocol versions, the five tool names and the cannot-do list, all retyped
-   * in TypeScript. Its content now lives in config/public-pages.json, which the MCP server and
-   * the llms.txt generator already read, so there is one description instead of two.
-   *
-   * Re-adding the route while the 301 below is live would give one URL two answers depending
-   * on whether a request is served by the CDN rule or by the export.
-   */
-  it( 'has no page file and no constants module', () => {
-    expect( fs.existsSync( path.join( ROOT, 'src', 'pages', 'llm.tsx' ) ) ).toBe( false );
-    expect( fs.existsSync( path.join( ROOT, 'src', 'lib', 'ai-surface.ts' ) ) ).toBe( false );
-  } );
-
-  it( 'is in no render chain, no allowlist and no catalogue', () => {
-    expect( renderChainLiterals() ).not.toContain( '/llm' );
-    expect( [ ...publicPageMeta().keys() ] ).not.toContain( '/llm' );
-    expect( publicExact() ).not.toContain( '/llm' );
-    expect( catalogPaths ).not.toContain( '/llm' );
-  } );
-
-  it( 'has no redirect at all, so the URL answers a real 404', () => {
-    /**
-     * INVERTED ON 2026-09-30 by owner instruction: "i dont want any redirect llm must go".
-     *
-     * This test used to assert the opposite - that `"/llm": "/llms.txt"` was present - and the
-     * reasoning for that 301 was sound: /llm/ was live at HTTP 200, is named in robots.txt and
-     * llms.txt, and was linked from the MCP server's User-Agent, so it is an address others
-     * hold. The owner accepted that cost. A 404 drops the URL from the index where a 301 would
-     * have kept it alive as a redirect indefinitely.
-     *
-     * Asserted as an absence for the same reason the removal above is: the cheap way to undo
-     * this is to re-add one dict entry, and a redirect reappearing silently would give one URL
-     * two answers depending on whether the CDN rule or the export served the request.
-     *
-     * The /mcp-is-the-wrong-target note is kept in the redirect script rather than here,
-     * because it is guidance for a hypothetical restoration, not a property of the current
-     * state - and a test should pin what is true now.
-     */
-    const redirects = fs.readFileSync( REDIRECTS_PATH, 'utf8' );
-    expect( redirects ).not.toMatch( /^\s*"\/llm":/m );
-    // Nor may it arrive as a prefix rename, which expands to three rules per entry and would
-    // reintroduce the redirect through a different door.
-    expect( redirects ).not.toMatch( /^\s*"\/llm"\s*:\s*"/m );
-  } );
-
-  it( 'is not referenced as a live URL anywhere in the shipped surface', () => {
-    // Comments explaining the retirement are fine; a link or a config value is not. So this
-    // checks the two files that are SERVED rather than every file that mentions it.
-    const robotsRules = robotsSource.split( '\n' ).filter( line => !line.trim().startsWith( '#' ) );
-    expect( robotsRules.join( '\n' ) ).not.toContain( '/llm/' );
-    expect( JSON.stringify( aiSurface ).includes( '"https://wecare.digital/llm/"' ) ).toBe( false );
   } );
 } );
 

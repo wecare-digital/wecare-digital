@@ -588,7 +588,6 @@ const getPublicPageSchema = ( pathname: string ) => {
      * Still no breadcrumb: a trail whose only entry is the page you are on says nothing,
      * which is the original and correct reasoning for this branch existing.
      *
-     * `/llm` was the third route in this position until 2026-09-30, when it was retired -
      * see the note on the isPublic chain below.
      */
     const url = pathname === '/' ? `${SITE}/` : `${SITE}${pathname}/`;
@@ -754,7 +753,6 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // https://wecare.digital/contact-test/ returned HTTP 200 carrying the entire staff
   // sidebar - Inbox, Contacts, Broadcast, Payments, Service Ops, Store, Forms, Tasks - the
   // page search box and the BottomNav, to anyone who asked. Verified live before removal;
-  // [retired public path]/inbox/ and /store/ were clean, so this page was the whole of the exposure.
   //
   // It was also a duplicate: /contact is the real public contact page, and this one's form
   // resolved a setTimeout and threw the message away. De-listed rather than deleted so the

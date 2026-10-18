@@ -203,7 +203,7 @@ Body: *Choose what you'd like to do — get started, explore our services, or fi
 | | `menu_find_id` | 🆔 Find Profile ID | Locate your subscription or profile ID | `find id` lookup |
 | | `menu_pay` | 💳 Make a Payment | Pay an invoice or complete a pending payment | pay path |
 | Explore WECARE | `menu_store` | 🛍️ Explore Store | Browse services, brands, and offers | CTA `wecare.digital` |
-| | `menu_gift_card` | 🎁 Gift Cards | Send a digital gift card | CTA `/gift-card` |
+| | `menu_gift_card` | 🎁 Gift Cards | Send a digital gift card | CTA `[retired public path]` |
 | | `menu_bharat_stack` | 🇮🇳 Bharat Stack | Discover Bharat Stack and services | CTA `wecare.digital` |
 | Help & Answers | `menu_faq` | ❓ FAQs | Find answers to common questions | CTA `[retired public path 1965ee0f]` |
 | | `menu_about` | 💛 About WECARE.DIGITAL | Learn more about WECARE.DIGITAL | text block |
@@ -417,8 +417,8 @@ confirmation) and `whatsapp_auto_next_due` (post-payment next-invoice nag).
 | `commands` / `/commands` / `/help` / `help` | 6-line text list of commands | text |
 | `my id` / `profile id` | subscriber details, or "No subscription found" | text |
 | `store` / `shop` | CTA "Visit Store" → wecare.digital | cta_url |
-| `gift card` | CTA "View Gift Cards" → /gift-card | cta_url |
-| `faq` | CTA "Open FAQs" → /faq. Body mentions **appointments** | cta_url |
+| `gift card` | CTA "View Gift Cards" → [retired public path] | cta_url |
+| `faq` | CTA "Open FAQs" → [retired public path]. Body mentions **appointments** | cta_url |
 | `about` | 5-paragraph brand text, names 7 sub-brands | text |
 | `bharat stack` / `aadhaar` / `upi` | CTA "Explore WECARE.DIGITAL" | cta_url |
 | after any CTA | `🧭 Explore More` / `🫶 All Set` | reply buttons |
