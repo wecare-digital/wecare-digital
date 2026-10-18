@@ -219,4 +219,14 @@ describe( 'Step 7 public normalization closure', () => {
       expect( drift, file ).toContain( file.replace( /^src\//, '' ) );
     }
   } );
+
+  it( 'keeps the built-export chrome gate on the same exact 43-route parser', () => {
+    const chromecheck = read( 'tools/browser/chromecheck.js' );
+    expect( chromecheck ).toContain( "const contentBlock = app.slice( contentAt, gateAt );" );
+    expect( chromecheck ).toContain( "const publicBlock = app.slice( gateAt, canonicalAt );" );
+    expect( chromecheck ).toContain( "allowlist.length === 43" );
+    expect( chromecheck ).not.toContain( "app.slice( gateAt, app.indexOf( ';', gateAt ) )" );
+    expect( chromecheck ).not.toContain( "app.slice( contentAt, app.indexOf( ';', contentAt ) )" );
+  } );
+
 } );
