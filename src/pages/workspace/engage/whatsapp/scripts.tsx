@@ -75,7 +75,7 @@ const ScriptsPageBody: React.FC<Props> = () => {
 
     // CTA messages (hardcoded in Lambda — shown for content review)
     items.push(
-      { id: 'cta_faq', category: 'CTA', trigger: 'Tapping FAQs from main menu', messageType: 'CTA URL', content: 'Body: Find quick answers about requests, payments, appointments, business hours, the app, and more.\nButton: Open FAQs\nURL: wecare.digital/faq\nFooter: WECARE.DIGITAL', phone: 'Both', editable: false },
+      { id: 'cta_faq', category: 'FAQ', trigger: 'Tapping FAQs from main menu', messageType: 'In-chat answer', content: 'FAQs are answered directly in WhatsApp by faq-handler. No public FAQ URL is used.', phone: 'Both', editable: false },
       { id: 'cta_store', category: 'CTA', trigger: 'Tapping Explore Store from main menu', messageType: 'CTA URL', content: 'Body: Browse WECARE.DIGITAL services, brands, and offers — all in one place.\nButton: Visit Store\nURL: wecare.digital\nFooter: WECARE.DIGITAL', phone: 'Both', editable: false },
       { id: 'cta_gift', category: 'CTA', trigger: 'Tapping Perks from main menu', messageType: 'CTA URL', content: 'Body: Open Perks on WhatsApp in just a few taps — quick, easy, and thoughtful.\nButton: View Perks\nURL: wa.me/message/377GALDW4E26F1\nFooter: WECARE.DIGITAL', phone: 'Both', editable: false },
       { id: 'cta_bharat', category: 'CTA', trigger: 'Tapping WECARE.DIGITAL / typing "bharat stack"', messageType: 'CTA URL', content: 'Body: Explore WECARE.DIGITAL and discover services designed for everyday Bharat.\nButton: Explore WECARE.DIGITAL\nURL: wecare.digital\nFooter: WECARE.DIGITAL', phone: 'Both', editable: false },

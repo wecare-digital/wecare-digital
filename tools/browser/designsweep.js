@@ -45,7 +45,7 @@ const ARGS = process.argv.slice( 2 ).filter( a => !a.startsWith( '--' ) );
  */
 const ROUTES = ARGS.length ? ARGS : [
   '/cart/', '/orders/', '/account/sign-in/', '/checkout/status/', '/checkout/success/',
-  '/get/', '/shop/kiosk/', '/blog/', '/shipments/', '/contact/', '/vayulok/',
+  '/get/', '/shop/kiosk/', '/blog/', '/contact/', '/vayulok/',
   '/leave-review/', '/submit-request/', '/request-amendment/',
   '/drop-docs/', '/terms/', '/privacy/', '/404/',
 ];

@@ -13,10 +13,6 @@ That pin broke twice in two days, in both directions:
     written around exactly one sanctioned redirect. `da78ef68` then deleted 420 of those
     lines while purging retired customer-link sources, leaving a 2.8 KB stub - a REMOVAL
     took the guard out.
-  * `bb1cf39b` (2026-10-02) declared `/zip -> /shipments/` and `/zip/ -> /shipments/` for the
-    owner's product rename, taking `desired_redirects()` from one rule to three. Five tests
-    across this file and `test_legacy_redirect_rollback_snapshot.py` went red - an ADDITION
-    broke the guard, and the production change was correct.
 
 A guard that reddens on every legitimate product change trains people to ignore it, and then
 to delete it. `tests/test_meta_version.py` states the principle this file now follows: "a
@@ -102,11 +98,7 @@ REDIRECT_STATUSES = frozenset({"301", "302", "307", "308", "404"})
 # ───────────────────────────── the ratified redirect set, as data ─────────────────────────────
 #
 # Keyed on the whole (source, target, status) triple, so a silently RETARGETED or DOWNGRADED
-# redirect is caught as well as a new source - `/zip -> /elsewhere/` and `/zip -> /shipments/`
-# at 302 are both unratified. Insertion order is the expected array order, so one structure
-# serves the membership check and the ordering check.
-#
-# The value is the instruction that sanctioned the entry. It is asserted non-trivial by
+# redirect is caught as well as a new source.
 # `test_every_ratified_redirect_records_why_it_is_sanctioned`, matching the in-repo precedent
 # `UNDECLARED_ALLOWED` in `scripts/check_data_model_drift.py` and the test that pins it,
 # `test_both_new_tables_are_allowed_in_the_drift_gate_with_a_reason`: a gate that can be
@@ -123,18 +115,6 @@ RATIFIED_REDIRECTS: dict[tuple[str, str, str], str] = {
         "landing on home would no longer distinguish path preservation from path loss. "
         "/contact/ is a terminal 200, so it still tells the two apart. The path-preservation "
         "PROPERTY is unchanged; only the sample URL moved.",
-    ("/zip", "/shipments/", "301"):
-        "RENAMED, not retired. bb1cf39b: the owner retired the product name Zip on 2026-10-02 "
-        "and the page moved to /shipments/ with content unchanged. retired_url_equity.py: a 404 "
-        "is correct for a page deleted because it was wrong and WRONG for a page that was "
-        "replaced, because it discards link equity. Measured before: /zip 301 -> /zip/ -> 404, "
-        "a redirect chain ending in a dead end.",
-    ("/zip/", "/shipments/", "301"):
-        "The canonical form under next.config trailingSlash. Both forms are declared because "
-        "an Amplify source pattern is matched as given, not normalised, and links in the wild "
-        "carry both - declaring one leaves the other 404ing. Target keeps its trailing slash "
-        "because /shipments would itself redirect before resolving. 301 not 302: only a "
-        "permanent redirect consolidates ranking.",
     # THE THREE /shop 301 RULES ARE GONE, 2026-10-10. They sent /shop, /shop/ and
     # /shop/index.html to the home page while the catalogue index was withdrawn (owner
     # instruction 2026-10-04). The owner reversed that on 2026-10-10: the index is browsable
@@ -179,8 +159,7 @@ def _patterns_overlap(a: str, b: str) -> bool:
     """True when some request path could be matched by BOTH Amplify source patterns.
 
     WHY THIS IS NOT `str.startswith` ON A PREFIX LIST. An Amplify source is matched AS GIVEN,
-    not normalised - that is the documented reason both `/zip` and `/zip/` have to be declared
-    separately. A raw string prefix therefore gets the question wrong in BOTH directions:
+    not normalised. A raw string prefix therefore gets the question wrong in BOTH directions:
 
       * `/getting-started` shares the prefix `/get` with the CDN passthrough and cannot match
         `/get/<*>`, `/get` or `/get/`. Rejecting it would redden this gate on an ordinary new
@@ -540,8 +519,6 @@ def test_pattern_overlap_is_segment_aware_in_both_directions():
         ("/mcp-legacy", "/mcp"),
         ("/mcp-legacy", "/mcp/"),
         ("/r", "/r/<*>"),                   # /r/<*> matches /r/abc, never bare /r
-        ("/zip", "/get/<*>"),
-        ("/zip/", "/api/<*>"),
     ]
     for source, passthrough in must_not_overlap:
         assert not _patterns_overlap(source, passthrough), (

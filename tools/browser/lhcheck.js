@@ -67,8 +67,8 @@ const ALL_ROUTES = [
   // categories, so these are here to prove the two new ones do too rather than to sample a
   // shape already covered - a new page is exactly where a regression would hide.
   '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/', '/vault/',
-  // '/llm/' was here until 2026-09-30. The page is retired and the URL now 301s to
-  // /llms.txt, which is a text file with no DOM to audit.
+  // '/llm/' was here until 2026-09-30. The page is retired and intentionally returns 404.
+  // The live machine-readable surfaces are /llms.txt and /llms-full.txt.
   // The catalogue. '/shop/' - the grid - was removed on 2026-10-04 when the owner withdrew the
   // index: it 301s to the home page, and Lighthouse auditing a redirect measures the home page a
   // second time rather than the catalogue.

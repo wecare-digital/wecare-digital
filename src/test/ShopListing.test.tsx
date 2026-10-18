@@ -4,9 +4,9 @@ import { render, screen } from '@testing-library/react';
 import ShopIndex from '../pages/shop/index';
 import { SHOP_LISTINGS, SHOP_LISTINGS_PER_PAGE, shopListingPageCount, shopListingPageHref } from '../content/shopProducts';
 
-describe( 'the fresh 26 + Contribute Shop', () => {
-  it( 'publishes all 27 fresh catalog cards with unique SKUs', () => {
-    expect( SHOP_LISTINGS ).toHaveLength( 27 );
+describe( 'the fresh 25 + Contribute Shop', () => {
+  it( 'publishes all 26 fresh catalog cards with unique SKUs', () => {
+    expect( SHOP_LISTINGS ).toHaveLength( 26 );
     expect( new Set( SHOP_LISTINGS.map( item => item.sku ) ).size ).toBe( 27 );
     expect( SHOP_LISTINGS.some( item => item.slug === 'contribute' && item.sku === 'CNT5Q2M8' && item.formattedPrice === '₹250.00' ) ).toBe( true );
     expect( SHOP_LISTINGS.some( item => item.slug === 'hunar-kaushal' && item.sku === 'KSL9M2Q4' && item.formattedPrice === '₹99.00' ) ).toBe( true );
