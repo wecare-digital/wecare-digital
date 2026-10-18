@@ -14,7 +14,7 @@ they are not equal, and recording the payable as the Razorpay capture over-repor
 breaks payment reconciliation. So the verified amount is a REQUIRED argument rather than a
 derived one: it is never computed as the payable minus another tender, because comparing two
 numbers written by the same code in the same request proves the split was internally consistent,
-which is arithmetic rather than evidence. `gift_card_settlement.is_fully_settled` states that rule
+which is arithmetic rather than evidence. `retired secondary tender_settlement.is_fully_settled` states that rule
 and this module honours it.
 """
 import time
@@ -28,11 +28,11 @@ from . import order_channel, order_record, payment_attempt
 ACCEPTED_CHECKOUT_MODES = frozenset({'AWS_NATIVE', 'WEBSITE_RAZORPAY_STANDARD'})
 
 #: SEAM-G13: the amount Razorpay's own readback confirmed, written here and nowhere else.
-#: `gift_card_settlement` declares this obligation as `RAZORPAY_VERIFIED_PAISE_ATTR` and
+#: `retired secondary tender_settlement` declares this obligation as `RAZORPAY_VERIFIED_PAISE_ATTR` and
 #: deliberately EXCLUDES the attribute from its own closed evidence set, because it belongs to the
 #: Razorpay leg's writer - which is this module. A LITERAL rather than an import: `finalization`
 #: is inside `ecommerce/checkout/handler.py`'s import closure and importing
-#: `gift_card_settlement` here would break the closure assertion that keeps the gift-card modules
+#: `retired secondary tender_settlement` here would break the closure assertion that keeps the retired secondary tender modules
 #: out of checkout. A test pins the two equal, which is the same discipline
 #: `ACCEPTED_CHECKOUT_MODES` and the handler's `_TWO_LEG_ATTR` already use.
 VERIFIED_CAPTURED_PAISE_ATTR = 'verifiedCapturedPaise'
@@ -40,16 +40,16 @@ VERIFIED_CAPTURED_PAISE_ATTR = 'verifiedCapturedPaise'
 #: Every OTHER tender leg's recorded paise, as attribute names on the attempt row. This module is
 #: deliberately tender-SOURCE-agnostic: it takes the Razorpay leg as its amount and reconciles it
 #: against the frozen payable using whatever of these are present, performing the identical
-#: arithmetic for each, so a second tender is one entry here and no new branch. The gift-card
+#: arithmetic for each, so a second tender is one entry here and no new branch. The retired secondary tender
 #: entry is a literal for the same import-closure reason as above, and a test pins it to
-#: `gift_card_settlement.REDEEMED_PAISE_ATTR`.
+#: `retired secondary tender_settlement.REDEEMED_PAISE_ATTR`.
 #:
-#:   giftCardRedeemedPaise  - gift_card_settlement.REDEEMED_PAISE_ATTR, the WECARE store's card.
+#:   retired secondary tenderRedeemedPaise  - retired secondary tender_settlement.REDEEMED_PAISE_ATTR, the WECARE store's card.
 #:
-#: PRESENCE IS NOT EVIDENCE of a second leg; a non-zero VALUE is. The gift-card evidence is
+#: PRESENCE IS NOT EVIDENCE of a second leg; a non-zero VALUE is. The retired secondary tender evidence is
 #: recorded as 0 until the card is actually debited, so every consumer here tests the value, never
 #: the key.
-OTHER_TENDER_PAISE_ATTRS = ('giftCardRedeemedPaise',)
+OTHER_TENDER_PAISE_ATTRS = ()
 
 
 def _conditional(error):
@@ -112,8 +112,8 @@ def record_paid(attempts, attempt, provider_payment_id, verified_captured_paise)
     money moved said both. A replay carrying the same pair is idempotent; a replay carrying a
     different amount is refused by the DATABASE rather than overwriting the evidence.
 
-    Zero is accepted. That is not laxity - a fully gift-card-funded order has no Razorpay leg, and
-    `gift_card_settlement.is_fully_settled` requires the term to be PRESENT (`if verified is None:
+    Zero is accepted. That is not laxity - a fully retired secondary tender-funded order has no Razorpay leg, and
+    `retired secondary tender_settlement.is_fully_settled` requires the term to be PRESENT (`if verified is None:
     return False`) to close `verified + redeemed == payable`.
     """
     verified = integer_paise(verified_captured_paise)

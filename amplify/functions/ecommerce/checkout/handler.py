@@ -95,7 +95,7 @@ from boto3.dynamodb.conditions import Key
 from lambda_utils import contact_key, customer_auth, customer_session, payment_readiness, shared_tables
 from lambda_utils.ecommerce import (
     blog_contribution, cart_contract, catalog_analytics, checkout_pricing, contact_address, customer_cart, finalization,
-    gift_card_settlement, india_address, order_channel, order_creation, order_keys, payment_address,
+    india_address, order_channel, order_creation, order_keys, payment_address,
     payment_attempt, purchase_intent, wa_payment_request, website_checkout, whatsapp_basket)
 # AWS-native supply engine; ProductsTable is the only pricing authority. These compute the
 # collection total, and the payment, order and invoice paths downstream consume the frozen
@@ -1087,15 +1087,6 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
     refusal = service_requests.checkout_preflight(line_items, body)
     if refusal is not None:
         return cors_response(refusal[0], refusal[1], origin)
-    # ONE GIFT CARD PER PURCHASE, refused here on the same pure, pre-pricing seam. A gift card is
-    # bought one at a time: a quantity other than 1, or a second gift-card line, is rejected
-    # before any money can move. `gift_card_product` imports only stdlib (no GiftCardsTable), so
-    # this does NOT widen the checkout IAM import closure. Inert when no gift-card SKU is
-    # configured, which is every basket today.
-    from lambda_utils.ecommerce import gift_card_product
-    gift_card_refusal = gift_card_product.checkout_preflight(line_items)
-    if gift_card_refusal is not None:
-        return cors_response(gift_card_refusal[0], gift_card_refusal[1], origin)
 
     profile = _checkout_profile(identity)
     if not profile:
@@ -1536,19 +1527,6 @@ def _finalize(identity: customer_auth.CustomerIdentity, outcome,
     # `accept_paid` is the ONLY production writer of the order record, so this gate refuses
     # exactly the tenders it cannot close, rather than every attempt that carries a second leg:
     # a blanket refusal would leave `finalization._tenders_reconcile` correct and unconsulted.
-    #
-    # The WECARE gift card has its OWN forward-only stage ladder and its OWN redemption evidence
-    # in our own table, and `accept_paid` consults neither, so an attempt that requires one is
-    # refused until that ladder is wired into finalization.
-    required = finalization.integer_paise(
-        attempt.get(gift_card_settlement.REQUIRED_PAISE_ATTR)) or 0
-    if required and (
-            gift_card_settlement.stage(attempt) != gift_card_settlement.GC_REDEEMED
-            or not attempt.get(gift_card_settlement.TRANSACTION_ID_ATTR)):
-        logger.error(json.dumps({"event": "checkout_finalize_gift_card_unsettled",
-                                 "alert": "PAID_BUT_NO_ORDER_RECORD",
-                                 "paymentAttemptId": outcome.payment_attempt_id}))
-        return
     #
     # An UNREADABLE tender is refused too: `None` means a listed tender attribute is present but
     # not integer paise, and an amount we cannot read is not the same as no amount. This is an

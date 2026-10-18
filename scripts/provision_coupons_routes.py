@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Provision the seven `wecare-coupons` HTTP API routes, their integration and their permissions.
 
-Design reference: the coupons and gift-cards design note of 2026-10-01 (`coupons-20261001.md`),
+Design reference: the coupon design note of 2026-10-01 (`coupons-20261001.md`),
 section 5.1.1.
 
 Without this script the function would be deployed with no way to reach it, which is the gap the

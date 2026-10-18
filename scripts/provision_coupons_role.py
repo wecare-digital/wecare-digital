@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Provision `wecare-coupons-role` and the function's log group.
 
-Design reference: the coupons and gift-cards design note of 2026-10-01 (`coupons-20261001.md`),
+Design reference: the coupon design note of 2026-10-01 (`coupons-20261001.md`),
 section 6.
 
 Its OWN role, never the shared fleet role

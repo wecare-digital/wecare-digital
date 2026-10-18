@@ -51,23 +51,14 @@ from lambda_utils.ecommerce import order_channel, business_identity, checkout_pr
 # `send_payment_link` reserves BEFORE it sends, so a retried send re-sends the same
 # `reference_id` instead of minting a second one for one invoice.
 from lambda_utils.ecommerce import order_keys, wa_payment_request
-# ── the ONE coupon authority and the ONE gift-card authority ──
-# `redemption` owns the money arithmetic and the apply order (coupon first as a price change,
-# gift card last as tender); `store_redemption_provider` is its single concrete binding onto our
-# own definitions and balances; `coupon_store` / `gift_card_store` own the typed refusals this
-# handler answers with. Nothing here computes a discount - every figure is asked for, which is
-# what makes the invoice surface and the website cart ONE system rather than two that agree today.
-from lambda_utils.ecommerce import coupon_store, gift_card_store, redemption
+# ── the ONE coupon authority ──
+from lambda_utils.ecommerce import coupon_store, redemption
 from lambda_utils.ecommerce import store_redemption_provider
 # The ONE address authority. Imported so this handler reads the canonical `checkoutDeliveryAddress`
 # Map a contact carries (with a legacy flat-column fallback) rather than re-deriving the address
 # shape here — the same convergence `customer_orders.update_profile` and the WhatsApp Address
 # Message writer are on.
 from lambda_utils.ecommerce import contact_address
-# The attribute names the settlement ladder already owns. Imported rather than retyped: a
-# hand-typed `giftCardRequiredPaise` that drifts by one character leaves `is_fully_settled`
-# reading `required == 0`, which settles a gift-card order on the Razorpay leg alone.
-from lambda_utils.ecommerce import gift_card_settlement
 # The PUBLIC customer id, and the validator that keeps a junk one off a tax invoice. Only
 # `is_customer_uuid` and `ATTRIBUTE` are used here: the engine NEVER mints one, the same rule
 # that stops a renderer minting an invoice number.
@@ -109,12 +100,8 @@ INVOICE_ASSETS_TABLE = shared_tables.invoice_assets_table_name()
 INVOICE_DELIVERY_TABLE = shared_tables.invoice_delivery_table_name()
 PAYMENTS_TABLE = os.environ.get('PAYMENTS_TABLE', 'stack-wecare-digital-PaymentsTable')
 CONTACTS_TABLE = shared_tables.contacts_table_name()
-# Read through each store's own env key and default, so the invoice surface cannot end up
-# pointed at a different table from the `/coupons/*` and `/gift-cards/*` routes.
+# Coupon store configuration.
 COUPONS_TABLE = os.environ.get(coupon_store.TABLE_ENV_KEY, coupon_store.DEFAULT_TABLE_NAME)
-GIFT_CARDS_TABLE = os.environ.get(gift_card_store.TABLE_ENV_KEY,
-                                  gift_card_store.DEFAULT_TABLE_NAME)
-GIFT_CARD_SECRET_ID = gift_card_store.resolve_pepper_secret_id(os.environ)
 SYSTEM_CONFIG_TABLE = os.environ.get('SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 
@@ -634,37 +621,9 @@ def get_next_sequence_preview(body: Dict, request_id: str) -> Dict:
         return _resp(500, {'error': str(e)})
 
 
-# ─── Coupon + gift card: one authority, shared with the website cart ───
-#
-# WHY THIS LIVES HERE AND COMPUTES NOTHING
-# ----------------------------------------
-# `coupon_store.discount_paise` is the one place a coupon is priced, for a Pay Flow invoice exactly
-# as for a cart, and this handler must not grow its own answer: two places that price a coupon are
-# two places that will eventually disagree, and the customer only ever sees one of them.
-# Everything below ASKS:
-#
-#   collection -> redemption.apply_coupon(provider=StoreRedemptionProvider)   -> discount paise
-#   total      -> redemption.verify_gift_card(...) -> redemption.build_payable -> payable paise
-#
-# WHY A GIFT CARD IS NOT DEBITED HERE
-# -----------------------------------
-# DECISION 3. `gift_card_store.hold` / `redeem` belong to the producer that mints the payment
-# attempt, and this handler mints none (there is no `payment_attempt` anywhere in this file). A
-# hold taken outside that request skips the `GC_HELD` stage, leaves `giftCardRequiredPaise`
-# unwritten on the attempt, and `gift_card_settlement.is_fully_settled` then settles a gift-card
-# order on the Razorpay leg alone. So invoice create VERIFIES the balance and writes the evidence
-# the settlement ladder consumes - it never moves money. An unpaid invoice must not burn balance,
-# and an invoice can sit unpaid for days.
-#
-# WHY EVERY REFUSAL IS AN EXCEPTION RATHER THAN AN EARLY RETURN
-# -------------------------------------------------------------
-# Every one of these refusals has to happen BEFORE `_get_next_invoice_number`, because a GST
-# invoice number cannot be reassigned once it has been issued and a gap in the consecutive series
-# is a compliance artifact. Raising one type that `create_invoice` catches in a single place makes
-# that ordering structural instead of something each new refusal has to remember.
-
+# ─── Coupon authority, shared with website checkout ───
 class RedemptionRefused(Exception):
-    """A coupon/gift-card refusal, carrying the HTTP status and the machine code to answer with.
+    """A coupon refusal, carrying the HTTP status and the machine code to answer with.
 
     `code` is always one of OUR closed codes, never provider prose: the frontend branches on it
     and a message that changes with a vendor's wording is not a contract.
@@ -692,12 +651,6 @@ COUPON_REFUSAL_CODE = {
     redemption.COUPON_INELIGIBLE: 'COUPON_INELIGIBLE',
 }
 
-GIFT_CARD_REFUSAL_CODE = {
-    redemption.GIFT_CARD_INVALID: 'GIFT_CARD_INVALID',
-    redemption.GIFT_CARD_EXPIRED: 'GIFT_CARD_EXPIRED',
-    redemption.GIFT_CARD_INELIGIBLE: 'GIFT_CARD_INELIGIBLE',
-    redemption.GIFT_CARD_INSUFFICIENT_BALANCE: 'INSUFFICIENT_BALANCE',
-}
 
 #: The hold TTL for a coupon reserved by an invoice. The module default is 900s, which is a
 #: browser checkout's lifetime; an invoice is sent on WhatsApp and paid hours later, so the hold
@@ -705,33 +658,12 @@ GIFT_CARD_REFUSAL_CODE = {
 COUPON_HOLD_TTL_SECONDS = 86400
 
 
-def _read_gift_card_secret(secret_id: str) -> Dict[str, Any]:
-    """Read the gift-card pepper secret by id, at REQUEST time. No cache, deliberately.
-
-    A module-scope read is frozen into a warm Lambda sandbox, so a rotated pepper would not take
-    effect until every sandbox recycled - the exact failure `payments/razorpay-webhook` had.
-    Nothing here logs the result, not even its truthiness: CodeQL tracks taint across function
-    boundaries and reducing a secret to a bool does not launder it.
-    """
-    client = boto3.client('secretsmanager', region_name='us-east-1')
-    return json.loads(client.get_secret_value(SecretId=secret_id)['SecretString'])
-
 
 def _redemption_provider(customer_id: str = ''):
-    """The one concrete provider, with both tables and the secret reader injected per request.
-
-    `customer_id` is the PUBLIC customer uuid when the invoice carries a valid one, and `None`
-    otherwise. With `None` the per-customer counter is not read, so `limitPerCustomer` cannot be
-    enforced - a staff-raised invoice may genuinely have no customer identity, and substituting a
-    different identifier would attribute someone else's use to them. That narrowing is
-    `store_redemption_provider`'s, documented there, and is deliberately not worked around here.
-    """
+    """The one concrete coupon provider."""
     return store_redemption_provider.StoreRedemptionProvider(
         coupons_table=dynamodb.Table(COUPONS_TABLE),
-        gift_cards_table=dynamodb.Table(GIFT_CARDS_TABLE),
-        secret_reader=lambda secret_id: _read_gift_card_secret(secret_id),
         customer_id=customer_id or None,
-        pepper_secret_id=GIFT_CARD_SECRET_ID,
     )
 
 
@@ -842,7 +774,7 @@ def _assert_inr(body: Dict) -> None:
         raise RedemptionRefused(400, 'UNSUPPORTED_CURRENCY')
 
 
-def _delight_applies(entry_point: str, gift_card_code: str,
+def _delight_applies(entry_point: str,
                      amount_is_tax_inclusive: bool, manual_discount: float) -> bool:
     """True when the always-on Delight goodwill discount should auto-apply to this invoice.
 
@@ -851,8 +783,7 @@ def _delight_applies(entry_point: str, gift_card_code: str,
 
       - a tax-inclusive capture (`amountIsTaxInclusive`): the invoice total must equal the amount
         already collected, and coupons are refused on that path outright;
-      - a gift-card order: a gift card is tender, not a price change, and those invoices are
-        pinned byte-for-byte, so stacking a goodwill discount onto one is out of scope here;
+
       - an invoice already carrying a MANUAL staff discount: that is a deliberate goodwill credit
         the operator set, and the automatic goodwill discount must not silently stack a second
         one on top of it. A manual adjustment and the Delight default are both "goodwill", and
@@ -863,7 +794,7 @@ def _delight_applies(entry_point: str, gift_card_code: str,
     The explicit-coupon case is handled by the caller (it takes the branch above this one); this
     gate only decides whether to SUBSTITUTE the default when no code and no manual discount apply.
     """
-    if amount_is_tax_inclusive or gift_card_code or manual_discount:
+    if amount_is_tax_inclusive or manual_discount:
         return False
     return entry_point in ('pay_flow', 'manual', 'whatsapp_payment')
 
@@ -901,41 +832,6 @@ def _apply_coupon_leg(*, code: str, collection_paise: int, reference_id: str,
     return applied
 
 
-def _verify_gift_card_leg(*, code: str, total_paise: int,
-                          reference_id: str, provider) -> redemption.RedeemedPayable:
-    """Verify one gift card against the FINAL total and return the authoritative payable.
-
-    A gift card is TENDER, not a price change: it is subtracted after the fee and the GST have
-    been computed, so it can never reduce taxable value. Goes through `build_payable` rather than
-    subtracting by hand, because `RedeemedPayable.__post_init__` re-checks the identity
-    `redemption_paise + razorpay_payable_paise == authoritative_total_paise` exactly - and a
-    hand-computed payable is a reconciliation that was never run.
-    """
-    try:
-        verified = redemption.verify_gift_card(
-            code=code, authoritative_total_paise=total_paise, cart_ref=reference_id,
-            provider=provider, currency=redemption.REDEMPTION_CURRENCY)
-    except gift_card_store.GiftCardStoreUnavailable:
-        raise RedemptionRefused(503, 'GIFT_CARD_STORE_UNAVAILABLE', retryable=True) from None
-    except gift_card_store.GiftCardError as exc:
-        raise RedemptionRefused(400, exc.code) from None
-    except redemption.RedemptionError as exc:
-        raise RedemptionRefused(400, exc.reason) from None
-    if not verified.applied:
-        raise RedemptionRefused(
-            400, GIFT_CARD_REFUSAL_CODE.get(verified.reason, 'GIFT_CARD_INVALID'))
-
-    payable = redemption.build_payable(verified)
-    if payable.razorpay_payable_paise and \
-            payable.razorpay_payable_paise < gift_card_store.RAZORPAY_MIN_LEG_PAISE:
-        # Below one rupee the gateway cannot take the leg at all, so an invoice that would ask it
-        # to is refused here rather than failing at Razorpay with the customer watching. A payable
-        # of exactly ZERO is a different thing - a legitimately fully-covered invoice - and is
-        # allowed, flagged, and never sent to a gateway.
-        raise RedemptionRefused(400, 'PAYABLE_BELOW_GATEWAY_MINIMUM')
-    return payable
-
-
 def _hold_coupon(*, code: str, reference_id: str) -> None:
     """Reserve the coupon for THIS invoice. Idempotent for the same `referenceId` by construction.
 
@@ -959,34 +855,12 @@ def _hold_coupon(*, code: str, reference_id: str) -> None:
 def _refusal_response(exc: RedemptionRefused) -> Dict:
     """One response shape for every refusal, mirroring `INVOICE_SEQUENCE_UNAVAILABLE`."""
     payload: Dict[str, Any] = {
-        'error': 'The coupon or gift card could not be applied',
+        'error': 'The coupon could not be applied',
         'errorCode': exc.code,
     }
     if exc.retryable:
         payload['retryable'] = True
     return _resp(exc.status, payload)
-
-
-def _gift_card_evidence(code: str, *, payable: redemption.RedeemedPayable) -> Dict[str, Any]:
-    """The settlement evidence an invoice stores for a verified card. No balance is moved.
-
-    Attribute names come from `gift_card_settlement`, which owns them. `codeLast4` is the ONLY
-    part of a code `gift_card_store` permits to be stored in clear or logged, and it is stored
-    because the renderers must print `****1234` rather than nothing - printing the code itself is
-    a bearer-secret disclosure on a document the customer forwards.
-    """
-    pepper = gift_card_store.read_pepper(_read_gift_card_secret, secret_id=GIFT_CARD_SECRET_ID)
-    normalised = gift_card_store.normalise_code(code)
-    return {
-        gift_card_settlement.CODE_HASH_ATTR: gift_card_store.code_hash(normalised, pepper=pepper),
-        gift_card_settlement.REQUIRED_PAISE_ATTR: int(payable.redemption_paise),
-        # ZERO at create, and that is the point: nothing has been redeemed yet. The producer that
-        # mints the payment attempt advances this when it actually debits the card.
-        gift_card_settlement.REDEEMED_PAISE_ATTR: 0,
-        'giftCardLast4': gift_card_store.code_last4(normalised),
-        # Flagged so `send_payment_link` refuses rather than offering a zero-rupee gateway order.
-        'giftCardFullyCovered': bool(payable.fully_covered),
-    }
 
 
 # ─── Create Invoice ───
@@ -997,6 +871,11 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
 
     # ── Deduplication: check if invoice already exists for this referenceId or paymentId ──
     reference_id = body.get('referenceId', '')
+    if str(body.get('giftCardCode') or '').strip():
+        return _resp(400, {
+            'error': 'Gift cards are retired and are no longer accepted',
+            'errorCode': 'GIFT_CARDS_RETIRED',
+        })
     payment_id = body.get('paymentId', '')
     table = dynamodb.Table(INVOICES_TABLE)
 
@@ -1162,7 +1041,7 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     # This block used to sit AFTER `_get_next_invoice_number`, so every refusal below - a negative
     # subtotal, an out-of-range GST rate - burned a number out of the consecutive series Rule
     # 46(b) requires and then answered 400. Nothing in it reads the number, so moving it up costs
-    # nothing, and it is a precondition for the coupon/gift-card refusals: a number cannot be
+    # nothing, and it is a precondition for the coupon refusals: a number cannot be
     # reassigned once issued, so a coupon the store refuses must refuse before one exists. The
     # handler already ordered itself this way for `InvoiceSequenceUnavailable`; this extends the
     # same rule to every other refusal.
@@ -1254,14 +1133,10 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
             })
         expected_total_paise = int(expected_decimal)
 
-        # REFUSED rather than silently dropped. A coupon is a price change and a gift card is
-        # tender; both would have had to apply before the customer paid, and applying either to
-        # money already taken would either contradict the capture or leave the arithmetic below
-        # mixing a discounted total with a figure the provider settled.
-        if (str(body.get('couponCode') or '').strip()
-                or str(body.get('giftCardCode') or '').strip()):
+        # A coupon cannot be applied after capture; it would contradict the settled amount.
+        if str(body.get('couponCode') or '').strip():
             return _resp(400, {
-                'error': 'A coupon or gift card cannot be applied to an amount already captured',
+                'error': 'A coupon cannot be applied to an amount already captured',
                 'errorCode': 'AMOUNT_ALREADY_CAPTURED',
             })
 
@@ -1305,7 +1180,6 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     # arithmetic it ran before this feature existed - the no-code total is unchanged byte for
     # byte, which is the one property this whole block must not break.
     coupon_code = str(body.get('couponCode') or '').strip()
-    gift_card_code = str(body.get('giftCardCode') or '').strip()
     # The manual staff adjustment, kept separate from the coupon so the two are never confused:
     # a goodwill credit is not a coupon, and only one of them is reconciled against a definition.
     manual_discount = discount
@@ -1316,7 +1190,7 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     provider = None
 
     try:
-        if coupon_code or gift_card_code:
+        if coupon_code:
             _assert_inr(body)
             provider = _redemption_provider(
                 body.get(customer_uuid.ATTRIBUTE, '')
@@ -1339,8 +1213,7 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
             # One conversion back into the rupee pipeline (M4). `Decimal` -> `float` is exact for
             # a two-decimal amount, and every figure that decided the discount was integer paise.
             discount = manual_discount + float(coupon_discount_rupees)
-        elif _delight_applies(entry_point, gift_card_code, amount_is_tax_inclusive,
-                              manual_discount):
+        elif _delight_applies(entry_point, amount_is_tax_inclusive, manual_discount):
             # AUTO-APPLY the always-on Delight goodwill discount (0.5% up to ₹100) when the
             # customer named no coupon of their own. Priced IN-MEMORY through the shared default
             # definition and the one renderer (`coupon_store.discount_paise`), so it needs no
@@ -1445,33 +1318,16 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
                 'expectedTotalPaise': expected_total_paise,
                 'computedTotalPaise': computed_total_paise,
             })
-
-    # ── Optional gift card, applied LAST because a gift card is tender, not a price change ──
-    #
-    # The total above - including the GST and the convenience fee - is the taxable document total.
-    # A gift card pays part of it; it must never reduce it, or the tax on the invoice would fall
-    # because the customer happened to pay with a voucher.
+    # Hold an accepted coupon only after pricing succeeds.
     try:
-        if coupon_code or gift_card_code:
-            total_paise = _rupees_to_paise(total)
-            payable_paise = total_paise
-            if gift_card_code:
-                payable = _verify_gift_card_leg(
-                    code=gift_card_code, total_paise=total_paise,
-                    reference_id=reference_id, provider=provider)
-                payable_paise = payable.razorpay_payable_paise
-                redemption_attributes.update(_gift_card_evidence(gift_card_code, payable=payable))
-            if coupon_code:
-                # Held only once both legs have been accepted, so a refused invoice leaves no
-                # reservation behind on a coupon somebody else could have used.
-                _hold_coupon(code=stored_coupon_code, reference_id=reference_id)
-                redemption_attributes['couponCode'] = stored_coupon_code
-                redemption_attributes['couponDiscount'] = _dec(coupon_discount_rupees)
-            redemption_attributes['amountPayable'] = _paise_to_rupees(payable_paise)
+        if coupon_code:
+            _hold_coupon(code=stored_coupon_code, reference_id=reference_id)
+            redemption_attributes['couponCode'] = stored_coupon_code
+            redemption_attributes['couponDiscount'] = _dec(coupon_discount_rupees)
     except RedemptionRefused as refusal:
         logger.info(json.dumps({
             'event': 'invoice_redemption_refused',
-            'stage': 'gift_card' if gift_card_code else 'hold',
+            'stage': 'hold',
             'errorCode': refusal.code,
             'couponCode': coupon_code,
             'referenceId': reference_id,
@@ -1576,7 +1432,7 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         'paidAt': body.get('paidAt', 0),
     }
 
-    # Coupon / gift-card attributes, present ONLY when a code was supplied. Absent rather than
+    # Coupon attributes, present only when a code was supplied. Absent rather than
     # zero on every other invoice, so an invoice raised before this feature existed stays
     # distinguishable from one where a customer deliberately applied nothing - `0` and "no coupon"
     # are different facts and a reader must be able to tell them apart.
@@ -1642,13 +1498,6 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         created['couponCode'] = stored_coupon_code
         created['couponDiscount'] = float(coupon_discount_rupees)
         created['couponReason'] = redemption.COUPON_APPLIED
-    if gift_card_code:
-        created['giftCardAppliedPaise'] = int(
-            redemption_attributes.get(gift_card_settlement.REQUIRED_PAISE_ATTR, 0))
-        created['giftCardReason'] = redemption.GIFT_CARD_APPLIED
-        created['giftCardFullyCovered'] = bool(
-            redemption_attributes.get('giftCardFullyCovered', False))
-    if 'amountPayable' in redemption_attributes:
         created['amountPayable'] = float(redemption_attributes['amountPayable'])
     return _resp(201, created)
 
@@ -1942,16 +1791,10 @@ def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
     """Update an existing invoice (admin). Blocks amount changes on paid/cancelled invoices."""
     table = dynamodb.Table(INVOICES_TABLE)
 
-    # A code cannot be changed on an existing invoice, and this REFUSES rather than ignoring.
-    #
-    # Applying one here would have to re-price the whole document, re-take or release the hold,
-    # and re-verify the card against a total that may already have been sent to a customer - on a
-    # row that might be paid. Half of that is worse than none of it, so the honest answer is that
-    # the caller raises a new invoice. Silently dropping the field would be the dangerous
-    # alternative: a 200 that looks like the coupon was applied and collects the full amount.
-    if 'couponCode' in body or 'giftCardCode' in body:
+    # A coupon cannot be changed on an existing invoice; create a new invoice instead.
+    if 'couponCode' in body:
         return _resp(400, {
-            'error': 'A coupon or gift card can only be applied when the invoice is created',
+            'error': 'A coupon can only be applied when the invoice is created',
             'errorCode': 'USE_CREATE',
         })
 
@@ -2219,27 +2062,10 @@ def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     # halvings - see `_split_tax_halves`. Read off the stored row rather than off the `tax` float
     # above, so the breakdown is derived from the figure the document actually carries.
     cgst, sgst = _tax_halves_rupees(invoice.get('tax', 0))
-
-    # ── Coupon and gift card: two separate lines, because they are two different things ──
-    #
-    # `discount` is the SUM of the staff's manual adjustment and the coupon (the WhatsApp payload
-    # and Meta's arithmetic identity both read it that way), so the manual part is the remainder
-    # once the coupon is taken out. Decimal throughout: these are exact stored amounts and there
-    # is no reason to route them through binary floating point to print them.
-    #
-    # The gift card is NOT a discount line. It appears below the total as tender, which is also
-    # why it never touched the tax above.
+    # Coupon/manual discount breakdown.
     coupon_code_shown = str(invoice.get('couponCode', '') or '')
     coupon_discount_dec = Decimal(str(invoice.get('couponDiscount', 0) or 0))
     manual_discount_dec = Decimal(str(invoice.get('discount', 0) or 0)) - coupon_discount_dec
-    gift_card_dec = Decimal(str(
-        invoice.get(gift_card_settlement.REQUIRED_PAISE_ATTR, 0) or 0)) / Decimal('100')
-    # NEVER the code. `masked` takes the last four and refuses a full code outright, so a
-    # mistake here is a raised exception rather than a bearer secret printed on a document the
-    # customer forwards.
-    gift_card_label = ('Paid by gift card ' + gift_card_store.masked(
-        invoice.get('giftCardLast4', ''))) if gift_card_dec else ''
-    amount_payable_dec = Decimal(str(invoice.get('amountPayable', 0) or 0))
 
     # Logo as base64 data URI
     logo_html = ''
@@ -2390,8 +2216,6 @@ td{{padding:3px 2px;vertical-align:top;color:#000}}
 <div class="total-row"><span>SGST @{gst_rate/2:.1f}%</span><span>{sgst:,.2f}</span></div>
 {'<div class="total-row"><span>Conv Fee</span><span>' + f'{conv_fee:,.2f}' + '</span></div>' if conv_fee else ''}
 <div class="total-row grand"><span>Total ({total_qty} items)</span><span>&#8377; {total:,.2f}</span></div>
-{'<div class="total-row"><span>' + gift_card_label + '</span><span>-' + f'{gift_card_dec:,.2f}' + '</span></div>' if gift_card_dec else ''}
-{'<div class="total-row grand"><span>Amount Payable</span><span>&#8377; ' + f'{amount_payable_dec:,.2f}' + '</span></div>' if gift_card_dec else ''}
 <div class="words">{words}</div>
 {gst_html}
 <div class="divider2"></div>
@@ -2983,16 +2807,10 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
 
     # ═══ TOTALS ═══
     #
-    # Coupon and gift card are two separate labelled lines, for the same reason the HTML gives:
-    # `discount` is manual + coupon, and the gift card is tender rather than a discount, so it
-    # sits below the total and never reduced the tax above. The code is never printed - only
-    # `masked(last4)`, which refuses a full code rather than truncating one silently.
+    # Coupon/manual discount breakdown.
     coupon_code_shown = str(invoice.get('couponCode', '') or '')
     coupon_discount_dec = Decimal(str(invoice.get('couponDiscount', 0) or 0))
     manual_discount_dec = Decimal(str(invoice.get('discount', 0) or 0)) - coupon_discount_dec
-    gift_card_dec = Decimal(str(
-        invoice.get(gift_card_settlement.REQUIRED_PAISE_ATTR, 0) or 0)) / Decimal('100')
-    amount_payable_dec = Decimal(str(invoice.get('amountPayable', 0) or 0))
 
     _lr("Subtotal", f"{subtotal:,.2f}", F)
     y += LINE_H
@@ -3026,13 +2844,6 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     draw.rectangle([(PX - 4, y - 2), (W - PX + 4, y + LINE_H + 4)], fill=(240, 253, 244))
     _lr(f"TOTAL ({total_qty} items)", f"\u20b9 {total:,.2f}", FLG)
     y += LINE_H + 8
-
-    if gift_card_dec:
-        _lr(f"Paid by gift card {gift_card_store.masked(invoice.get('giftCardLast4', ''))}",
-            f"-{gift_card_dec:,.2f}", F)
-        y += LINE_H
-        _lr("AMOUNT PAYABLE", f"\u20b9 {amount_payable_dec:,.2f}", FLG)
-        y += LINE_H + 4
 
     # Amount in words
     words = _amount_in_words(total)
@@ -3543,27 +3354,6 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
     if status in ('paid', 'cancelled'):
         return _resp(400, {'error': f'Invoice is {status}, cannot send payment link'})
 
-    # A gift card that covers the whole total leaves nothing for the gateway, and a zero-rupee
-    # payment link is not a thing Razorpay will take. `redemption.build_payable` already said so
-    # (`requires_gateway` is False for a zero payable) and the flag was stored at create so this
-    # refusal needs no arithmetic. A fully-covered invoice still settles - through the
-    # authoritative verification path, which is the producer that debits the card - but it never
-    # becomes a gateway order.
-    if invoice.get('giftCardFullyCovered'):
-        return _resp(400, {
-            'error': 'This invoice is fully covered by a gift card; there is nothing to charge',
-            'errorCode': 'FULLY_COVERED_NO_GATEWAY',
-        })
-
-    # Native collection currently settles one gateway tender. A verified balance is not
-    # a debit: do not reduce the collection or mark a split-tender invoice paid before
-    # an authoritative gift-card settlement producer exists for this invoice path.
-    if invoice.get(gift_card_settlement.REQUIRED_PAISE_ATTR):
-        return _resp(409, {
-            'error': 'Gift-card settlement is not yet available for native invoice collection',
-            'errorCode': 'GIFT_CARD_NATIVE_SETTLEMENT_UNAVAILABLE',
-        })
-
     customer_phone = invoice.get('customerPhone', '')
     if not customer_phone:
         return _resp(400, {'error': 'No customer phone on invoice'})
@@ -3662,7 +3452,6 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             subtotal_paise += line_paise
             order_items.append(entry)
 
-        gift_card_paise = 0  # split tender is refused before any reservation above
         discount_paise = _paise(invoice.get('discount', 0))
         shipping_paise = _paise(invoice.get('shipping', 0))
         # GST (tax) and convenience fee are already computed on the invoice. The
@@ -3960,7 +3749,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             # The description is the only place the customer can see WHY the figure is what it
             # is, since Meta has one discount row and this one may carry two different things.
             'discount': {'value': discount_paise, 'offset': 100,
-                         'description': 'Promo + Gift Card' if gift_card_paise else 'Promo'},
+                         'description': 'Promo'},
             'shipping': {'value': shipping_paise, 'offset': 100, 'description': 'Express'},
             'tax': {'value': gst_paise, 'offset': 100, 'description': f'GSTIN: {COMPANY["gstin"]}'},
         },

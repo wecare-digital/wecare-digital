@@ -280,15 +280,6 @@ SPECS: List[Spec] = [
                        "python scripts/provision_coupons_function.py && "
                        "python scripts/provision_coupons_routes.py",
     ),
-    # Gift-card issuance, balance and holds. Owns stack-wecare-digital-GiftCardsTable, which is
-    # a LIABILITY ledger: the balance of record lives here and nowhere else. NOT standalone.
-    Spec(
-        "wecare-gift-cards",
-        "ecommerce/gift-cards",
-        provisioned_by="python scripts/provision_gift_cards_table.py && "
-                       "python scripts/provision_gift_cards_roles.py && "
-                       "python scripts/provision_gift_card_routes.py",
-    ),
     # The AWS-native catalogue -> Meta projection (formerly PHASE W). Invoked by the ProductsTable
     # change stream through an event-source mapping on its `live` alias, with a six-hourly
     # EventBridge schedule as the backstop. No HTTP API route and no function URL: it has no
