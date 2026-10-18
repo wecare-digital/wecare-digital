@@ -108,6 +108,10 @@ const PAY_PHONE_OPTIONS: SelectOption[] = PAYMENT_PHONES.map( p => ( {
     value: p.id,
     label: `${ p.display } (${ p.name })${ p.paymentProtected ? ' [Protected]' : '' }`,
 } ) );
+const paymentGstRate = ( value: string ): number => {
+    const rate = Number.parseInt( value, 10 );
+    return Number.isFinite( rate ) ? rate : 18;
+};
 const PAY_GST_OPTIONS: SelectOption[] = GST_RATES.map(
     g => ( { value: String( g.value ), label: `GST ${ g.label }` } )
 );
@@ -727,7 +731,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                     name: it.name.trim(),
                     amount: parseFloat( it.amount ),
                     quantity: parseInt( it.quantity ) || 1,
-                    gstRate: parseInt( it.gstRate ) || 0,
+                    gstRate: paymentGstRate( it.gstRate ),
                 } ) ),
                 goodsType: payGoodsType,
                 shipping: parseFloat( payDelivery || '0' ) || 0,
@@ -1304,7 +1308,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                             const phoneObj = PAYMENT_PHONES.find( p => p.id === payPhone );
                             const locked = !!( phoneObj?.paymentProtected && !payUnlocked );
                             const subtotal = payItems.reduce( ( s, it ) => s + ( parseFloat( it.amount ) || 0 ) * ( parseInt( it.quantity ) || 1 ), 0 );
-                            const gst = payItems.reduce( ( s, it ) => s + ( parseFloat( it.amount ) || 0 ) * ( parseInt( it.quantity ) || 1 ) * ( parseInt( it.gstRate ) || 0 ) / 100, 0 );
+                            const gst = payItems.reduce( ( s, it ) => s + ( parseFloat( it.amount ) || 0 ) * ( parseInt( it.quantity ) || 1 ) * paymentGstRate( it.gstRate ) / 100, 0 );
                             const grand = subtotal + gst + ( parseFloat( payDelivery ) || 0 );
                             return (
                                 <div className="ui-pay">
