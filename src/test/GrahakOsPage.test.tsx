@@ -213,6 +213,8 @@ describe( 'Grahak OS five approved visual fixes', () => {
 describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack section', () => {
   const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
   const source = readFileSync( pagePath, 'utf8' );
+  const homePath = resolve( process.cwd(), 'src/pages/index.tsx' );
+  const home = readFileSync( homePath, 'utf8' );
 
   it( 'carries the owner-approved consulting heading on the .api-info h2 rung', () => {
     // Exact owner-approved heading theme. The old left-column heading is gone.
@@ -277,6 +279,9 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( cssValue( offerRule, 'line-height' ) ).toBe( cssValue( cssRuleFor( home, '.home-sub' ), 'line-height' ) );
     expect( cssValue( offerRule, 'letter-spacing' ) ).toBe( cssValue( cssRuleFor( home, '.home-sub' ), 'letter-spacing' ) );
     expect( offerRule ).toContain( 'color:var(--public-muted)' );
+    expect( offerRule ).toContain( 'font-family:var(--font-sans)' );
+    expect( offerRule ).toContain( 'max-width:var(--public-copy-max)' );
+    expect( offerRule ).toContain( 'text-wrap:balance' );
     expect( source ).not.toContain( 'A consulting solution for organisations and businesses.' );
   } );
 
@@ -313,7 +318,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( commerceRule ).toContain( 'font-size:17px' );
     expect( commerceRule ).not.toContain( 'border:1px solid' );
     expect( commerceRule ).not.toContain( 'background:#fcfdfb' );
-    expect( source ).toContain( '.gos-offer-note{max-width:620px;margin:7px 0 0;font-size:var(--public-body-size)' );
+    expect( source ).toContain( '.gos-offer-note{max-width:var(--public-copy-max);margin:7px 0 0;font-family:var(--font-sans);font-size:var(--public-body-size)' );
     expect( source ).toContain( '.gos-sku-value{color:var(--public-muted)}' );
   } );
 

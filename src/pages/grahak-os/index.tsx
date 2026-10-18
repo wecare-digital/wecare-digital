@@ -678,7 +678,7 @@ response = requests.post(
           /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
              above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
           .gos-price{display:block;margin-top:22px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
-          .gos-offer-note{max-width:620px;margin:7px 0 0;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted)}
+          .gos-offer-note{max-width:var(--public-copy-max);margin:7px 0 0;font-family:var(--font-sans);font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted);text-wrap:balance}
           @media(prefers-reduced-motion:reduce){
             .gos-wa-cta{transition:background-color .2s}
             .gos-wa-cta:hover{transform:none;box-shadow:none}
