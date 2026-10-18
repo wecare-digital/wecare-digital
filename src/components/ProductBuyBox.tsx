@@ -24,8 +24,6 @@ import { productCheckoutLine } from '../config/productCheckout';
 interface ProductBuyBoxProps {
   /** The product page's slug, e.g. 'elsewhere'. Chooses the checkout line from the config. */
   slug: string;
-  /** Show the configured product price line. Default true. */
-  showPrice?: boolean;
   /** Optional presentation-only price string. Checkout still uses the configured server-authoritative line. */
   displayPrice?: string;
   /** Quiet line below the price, matching the Grahak OS commerce pattern. */
@@ -34,7 +32,6 @@ interface ProductBuyBoxProps {
 
 const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
   slug,
-  showPrice = true,
   displayPrice,
   offerNote = 'One-time purchase · final total confirmed at checkout',
 } ) => {
@@ -110,15 +107,11 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
         { busy ? 'One moment…' : label }
       </button>
 
-      {/* Configured price for the fresh catalog line. */}
-      { showPrice && (
-        <>
-          <p className="pbb-buy">
-            <span className="pbb-price" data-wc-no-translate="true">{ displayPrice ?? line.formattedPrice }</span>
-          </p>
-          <p className="pbb-offer-note">{ offerNote }</p>
-        </>
-      ) }
+      {/* Configured price and one supporting line are one canonical rail. */}
+      <p className="pbb-buy">
+        <span className="pbb-price" data-wc-no-translate="true">{ displayPrice ?? line.formattedPrice }</span>
+      </p>
+      <p className="pbb-offer-note">{ offerNote }</p>
 
       { error && <p className="pbb-error" role="alert">{ error }</p> }
 

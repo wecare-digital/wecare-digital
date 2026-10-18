@@ -53,13 +53,6 @@ interface ProductPageProps {
   /** Canonical route for nested child pages. Defaults to /{product.slug}/. */
   canonicalPath?: string;
   /**
-   * OPTIONAL PRICE LINE under the CTA, so a reader sees what they will pay before they open the
-   * chat. A short string like "₹599" plus an optional unit. Omitted on pages that do not sell a
-   * fixed-price item here.
-   */
-  price?: string;
-  priceUnit?: string;
-  /**
    * OPT-IN BREADCRUMB above the product copy. Omit it and the page renders byte for byte what it
    * rendered before, which is what keeps the eight non-shop routes that mount this component - the
    * the customer-service entries and their pinned tests untouched.
@@ -91,8 +84,6 @@ const ProductPage: React.FC<ProductPageProps> = ( {
   blogCategories,
   blogHeading,
   canonicalPath,
-  price,
-  priceUnit,
   crumbs,
   belowCta,
 } ) => {
@@ -188,24 +179,14 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             that pass no `belowCta` render nothing here and are unchanged. */}
         { belowCta }
 
-        {/* PRICE, so a reader knows what they will pay before they open the chat. Opt-in: a page
-            that passes no price renders nothing here, which is every product page except /anew/.
-            (The "See everything on WECARE.DIGITAL" catalogue link that used to sit beside the
-            price was removed on owner instruction 2026-10-10.) */}
-        { price && (
-          <p className="pdp-buy">
-            <span className="pdp-price" data-wc-no-translate="true">
-              { price }{ priceUnit && <span className="pdp-price-unit"> { priceUnit }</span> }
-            </span>
-          </p>
-        ) }
-
         { sku && policy && (
           <div className="pdp-commerce">
             <p className="pdp-sku" data-wc-no-translate="true"><strong>SKU:</strong> { sku }</p>
             <PolicyDetails
+              overview={ null }
               shipping={ policy.shipping }
               returns={ policy.returns }
+              refunds={ policy.refunds }
               disclaimer={ policy.disclaimer }
             />
           </div>
@@ -310,12 +291,6 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             color:var(--public-muted);
           }
           .pdp-note-p + .pdp-note-p{margin-top:12px}
-
-          /* PRICE line. The price is the card rung in dark green (lime means actionable and the
-             pill owns lime). 22px of air above it, matching the CTA row's own top gap. */
-          .pdp-buy{display:flex;flex-wrap:wrap;align-items:baseline;gap:16px;margin:22px 0 0}
-          .pdp-price{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
-          .pdp-price-unit{font-size:15px;font-weight:600;color:var(--public-muted)}
 
           /* The share row sits below the boundary note with its own air. */
 
