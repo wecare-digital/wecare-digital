@@ -366,7 +366,7 @@ describe( 'Header', () => {
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
     const ritual = screen.getByText( 'Ritual Guru' ).closest( '.nav-tree-item' );
     const labels = Array.from( ritual?.querySelectorAll( '.nav-item' ) || [] ).map( node => node.textContent );
-    expect( labels ).toEqual( [ 'Ritual Guru', 'Puja Guidance', 'DIY Puja Kit' ] );
+    expect( labels ).toEqual( [ 'Ritual Guru', 'Puja Guidance', 'DIY Puja Kit', 'Ritva' ] );
   } );
 
   it( 'keeps keyboard access standard and adds no close button', () => {
