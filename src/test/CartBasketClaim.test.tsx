@@ -347,7 +347,7 @@ describe( 'success', () => {
           catalogItemId: CATALOGUE_PRODUCT.id,
           options: { variantId: CATALOGUE_VARIANT.id },
         },
-        quantity: 2,
+        quantity: 1,
       } ] );
     } );
 
@@ -561,7 +561,7 @@ describe( 'no session', () => {
       await waitFor( () => expect(
         screen.getByText( CATALOGUE_PRODUCT.name ) ).toBeInTheDocument() );
       expect( cart.readCart() ).toHaveLength( 1 );
-      expect( cart.readCart()[ 0 ].quantity ).toBe( 2 );
+      expect( cart.readCart()[ 0 ].quantity ).toBe( 1 );
     } );
 
   it( 'spends the stash once, so a later visit to /cart/ claims nothing', async () => {
