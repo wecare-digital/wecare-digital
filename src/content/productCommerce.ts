@@ -27,8 +27,6 @@ export const PRODUCT_SKU_BY_SLUG: Readonly<Record<string, string>> = {
   'contribute': 'CNT5Q2M8',
 };
 
-export const PRODUCT_POLICY_TITLE = 'Shipping, returns & refunds';
-
 export const PRODUCT_REFUNDS =
   'Cancellation may not be available once work starts. Approved cancellations or adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days. No cash or original-payment-method refund is provided unless required by law.';
 
