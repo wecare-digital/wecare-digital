@@ -612,57 +612,6 @@ response = requests.post(
           .anim.is-armed{opacity:0;transform:translateY(30px);transition:all .7s cubic-bezier(.16,1,.3,1)}
           .anim.is-armed.show{opacity:1;transform:translateY(0)}
           
-          /* Hero Section */
-          .hero{padding:140px 24px 80px;max-width:var(--public-content-max);margin:0 auto}
-          /* Left column gets the extra room: the display type is large and the
-             headline must hold to two lines ("Reach customers" / "across <pill>")
-             so the rotating pill always lands on the last line without reflowing
-             the line above it. */
-          /* align-items:start, not center. The mockup column is taller than the
-             copy column, and centring lifted its top edge ~70px above the copy -
-             far enough to slide under the 108px fixed header, which clipped the
-             phone's title bar. Starting both columns at the hero's top padding
-             keeps the mockup clear of the header at every width. */
-          .hero-content{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
-          /* 60px cap is deliberate: at 64px "across <WhatsApp pill>" needs ~562px
-             of the 564px column, so the pill wrapped to a third line. 60px leaves
-             ~35px of slack so the headline holds two lines on every channel. */
-          /* The row is start-aligned so the taller mockup clears the fixed header,
-             but that left ~100px of empty column under the shorter copy. Centring
-             just the copy fixes the imbalance without moving the mockup. */
-          .hero-left{align-self:center}
-          /* Spacing only. The badge's own paint lives in BrandBadge; styled-jsx
-             cannot style a composite component from here, so anything visual added
-             to this rule would silently do nothing. */
-          .hero-eyebrow{margin:0 0 20px}
-          .hero-left h1{font-size:var(--public-hero-size);font-weight:var(--public-hero-weight);line-height:var(--public-hero-leading);margin:0 0 24px;/* TRACKING IN em, NOT px. A fixed px value against a fluid clamp() font means the
-             OPTICAL tightness changes with the viewport: measured across the breakpoints it ran
-             -2.22% to -6.11% of the font size, a 2.75x spread, worst at 768-820px where the font
-             is still on its 36px floor while the tracking was chosen for 60px. -0.04em is -4% at
-             every size, and it lets both media-query overrides go - restating it per breakpoint
-             is what caused the spread. index.tsx fixed this; these three copies had not. */
-          letter-spacing:var(--public-hero-tracking);color:var(--public-heading)}
-          /* Lede plus a muted supporting line. Two paragraphs rather than one long
-             run-on: it reads better and gives the left column enough vertical mass
-             to sit against the mockup opposite (which was 221px taller). Measures
-             are capped so each wraps to a comfortable 2-3 lines. */
-          /* Text colours measured from notion.com rather than picked off a grey
-             ramp: their hero subtext is rgba(0,0,0,.898) at 20px and their
-             secondary copy rgba(0,0,0,.54). The previous #9ca3af sat far lighter
-             than anything they use for body text, which is why it read washed out. */
-          /* Body copy matches notion.com exactly. Measured from their hero subtext:
-             Inter 400 at 20px, line-height 28px (1.4), letter-spacing -0.125px,
-             colour rgba(0,0,0,.898). The previous rule used line-height 1.6 and no
-             tracking, which is why it still read differently from theirs even once
-             the colour matched. */
-          /* Measure set in px, not ch: Inter's "0" is ~12.6px at 20px, so 38ch
-             resolved to 479px - nearly the full column - which is why the copy
-             still looked like it ran edge to edge. 400px holds a comfortable
-             ~60-70 characters per line and wraps to more lines, which also closes
-             part of the height difference against the mockup column. */
-          .hero-left p{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0 0 18px;max-width:400px}
-          .hero-left p.hero-sub{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0;max-width:400px}
-
           /* The hero no longer has a CTA pill (the .gos-buy block was removed on owner
              instruction), and the bottom closer was removed too, so .gos-wa-cta now styles
              ONLY the api-steps "Checkout on WhatsApp" pill. The old closer-only .gos-ctas
@@ -726,7 +675,7 @@ response = requests.post(
             margin-top:14px;max-width:700px;font-family:inherit;font-size:17px;font-weight:400;line-height:1.4;
             letter-spacing:-.05px;color:var(--public-muted);text-align:left;
           }
-          .gos-commerce strong{color:var(--public-brand-green);font-weight:700}
+          .gos-commerce strong{color:var(--public-muted);font-weight:600}
           .gos-sku-value{color:var(--public-muted)}
           .gos-commerce p{margin:0}
           /* The .gos-closer-head rule was REMOVED with the closer heading markup on owner
@@ -950,24 +899,6 @@ response = requests.post(
              max-content keeps each pill its natural width and justify-items centres it
              in its column, so row two sits under row one on the same three axes. */
           .usecase-pills{display:grid;grid-template-columns:repeat(3,max-content);justify-content:center;justify-items:center;gap:12px;max-width:700px;margin:0 auto}
-          /* Label colour is the palette's muted black, not a slate. #4b5563 is
-             blue-tinted and read visibly cooler than the neutral body copy above
-             it. Hover drops its background tint entirely: the old #fbfff0 is on
-             the retired list, and a near-miss green is exactly what the why-section
-             comment warns against. Lime border plus dark green text is affordance
-             enough, and it keeps the borrowed-vs-ours colour rule intact. */
-          /* Two changes, same reasoning as the nav dropdown: the label was both too
-             faint and too small for the pill around it.
-             rgba(0,0,0,.54) is the contract's LABEL value and measured ~4.5:1 on the
-             section background - passing AA, but only just, and it read washed out next to
-             the near-black heading above. Body colour rgba(0,0,0,.898) is ~14:1 and
-             makes the pills look deliberate rather than disabled.
-             15px inside 14px/28px padding put the type-to-pill ratio near 3.1, the
-             same proportion problem the 46px nav row had at 15px. 17px brings it to
-             about 2.8. */
-          .pill{padding:14px 28px;border:2px solid var(--public-hairline);background:#fff;border-radius:50px;font-size:17px;font-weight:600;cursor:default;transition:all .25s;color:var(--public-body)}
-          .pill:hover{border-color:var(--public-brand-lime);color:var(--public-brand-green);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
-          
           /* API Section */
           .api{padding:60px 24px;max-width:var(--public-content-max);margin:0 auto;background:#fff}
           /* start, not center. The left column is ~200px tall against a ~360px code
@@ -984,23 +915,6 @@ response = requests.post(
              top of the page. Aligning to the hero instead is the fix. */
           .api-grid{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
           .api-info h2{margin:0 0 20px}
-          /* Capped for line length, the way .hero-left p is capped at 400px. Removing
-             the grid's 1100px cap widened this column to ~596px, and 20px body text at
-             that width runs past a comfortable measure. The cap belongs on the text, not
-             on the grid - that is what let the grid align with the hero while the
-             paragraph stays readable. */
-          .api-desc{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0;max-width:460px}
-          /* "In action" block in the left column, sitting under the API copy and
-             opposite the code panel. 36px top margin separates it from the paragraph
-             without needing a divider. */
-          .api-action{margin:36px 0 0;max-width:460px}
-          /* h3 on the card-heading rung (22px/700), one step below the section h2 above
-             it in the same column, so the outline is h2 -> h3 with no skipped level. */
-          .api-action-head{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading);margin:0 0 16px}
-          /* The .api-action-link lighter text-link CSS was REMOVED with its markup: every
-             WhatsApp CTA now uses the single unified .gos-wa-cta pill (owner instruction),
-             so the second style is dead. A test guards that the class name no longer
-             appears, so it is not repeated here. */
           /* ===== Numbered 1-2-3 step block (new LEFT column) =====
              Emulates the /anew/ step pattern (number + short title + one supporting
              line) using ONLY this page's existing tokens: lime #d1f470, dark-green
@@ -1045,7 +959,7 @@ response = requests.post(
              lighter than the paid WhatsApp pill. It is transparent at rest; hover/focus
              borrows the active-tab lime so the relationship to the editor is immediate. */
           .api-wa-row{display:flex;justify-content:flex-start}
-          .api-wa-link{display:inline-flex;align-items:center;gap:5px;width:max-content;margin-left:-10px;padding:8px 10px;border-radius:10px;color:var(--public-brand-green);font-size:17px;font-weight:600;line-height:1.4;letter-spacing:-.05px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}
+          .api-wa-link{display:inline-flex;align-items:center;gap:5px;width:max-content;margin-left:-10px;padding:8px 10px;border-radius:10px;color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);line-height:1.4;letter-spacing:-.05px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}
           .api-wa-link:hover{background:var(--public-brand-lime);color:var(--public-brand-green);text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 6px 18px rgba(26,58,42,.12)}
           .api-wa-link:focus-visible{background:var(--public-brand-lime);color:var(--public-brand-green);text-decoration-color:transparent;outline:3px solid var(--public-brand-green);outline-offset:3px}
           @media(prefers-reduced-motion:reduce){
@@ -1091,7 +1005,7 @@ response = requests.post(
              with centred content, so the box grows without moving the label, and the
              mobile breakpoints below (which raise padding to 14px and 12px) were already
              past 44px and are left untouched. */
-          .pp-tab{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-family:inherit;padding:10px 20px;min-height:44px;border:none;border-radius:8px;font-size:17px;font-weight:600;color:rgba(255,255,255,.54);background:transparent;box-shadow:none;cursor:pointer;transition:all .2s}
+          .pp-tab{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-family:inherit;padding:10px 20px;min-height:44px;border:none;border-radius:8px;font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);color:rgba(255,255,255,.54);background:transparent;box-shadow:none;cursor:pointer;transition:all .2s}
           /* Text-only hover: idle .54 white lifting to full white. The active tab
              already owns the filled-lime state, so a second fill competes with it. */
           .pp-tab:hover{color:#fff;background:transparent}
@@ -1147,12 +1061,6 @@ response = requests.post(
           }
 
           @media(max-width:1024px){
-            
-            .hero{padding:110px 20px 60px}
-            .hero-content{grid-template-columns:1fr;gap:40px;text-align:left}
-            .hero-left h1{max-width:760px;margin:0 0 20px}
-            .hero-left p{max-width:520px;margin:0 0 28px}
-            
             /* STACKED here, not lapped. Verified in a real browser at 768px: the lapped
                composition was covering three bubbles - "Track here", "When will it arrive?"
                and "Can I change the delivery address?" - the exact collision the hero
@@ -1179,12 +1087,9 @@ response = requests.post(
 
             .touchpoint{padding:50px 0}
             .usecase-pills{gap:10px}
-            .pill{padding:12px 22px}
-            
             .api{padding:50px 20px}
             .api-grid{grid-template-columns:1fr;gap:36px;text-align:left}
             .api-info h2{text-align:left}
-            .api-desc{max-width:100%;text-align:left}
             .api-demo-stack{max-width:500px;margin:0}
             .api-demo{max-width:100%;margin:0}
             
@@ -1193,17 +1098,10 @@ response = requests.post(
 
           /* ========== MOBILE (up to 767px) ========== */
           @media(max-width:767px){
-            
-            .hero{padding:calc(115px + env(safe-area-inset-top)) 20px 50px}
-            .hero-content{display:flex;flex-direction:column;gap:32px;text-align:left;align-items:flex-start}
             .hero-right{order:-1;width:100%;display:flex;justify-content:center}
             /* On the stacked mobile hero the below-code link re-centres under the mockup
                (desktop right-aligns it; here flex-end would push it to the column edge). */
             .hero-visual-col{align-items:center}
-            .hero-left{text-align:left;order:1}
-            .hero-left h1{margin:0 0 20px;line-height:1.1;max-width:100%;text-align:left}
-            .hero-left p{margin:0 0 16px;max-width:100%;text-align:left}
-
             .mockup-wrapper{display:flex;flex-direction:column;gap:14px;width:100%;max-width:380px;margin:8px auto 0;aspect-ratio:auto;padding:16px;background:#fff;border-radius:16px;border:2px solid var(--public-hairline);align-items:flex-start;transition:all .25s;cursor:default}
             .mockup-wrapper:hover{border-color:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
             .phone{position:relative;left:auto;top:auto;width:100%;max-width:100%;margin:0;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
@@ -1226,23 +1124,17 @@ response = requests.post(
             .code-body{font-size:15px;padding:16px;line-height:1.6;text-align:left}
             
             .section-header{margin-bottom:28px;padding:0 20px;text-align:center}
-            .section-header h2{margin-bottom:12px;line-height:1.15;text-align:center}
+            .section-header h2{margin-bottom:12px;text-align:center}
             .section-header p{text-align:center}
             
             .touchpoint{padding:44px 0}
             /* 2 + 2 + 2 from tablet down; three max-content columns plus gaps do
                not fit a 360px viewport once section padding is taken off. */
             .usecase-pills{grid-template-columns:repeat(2,max-content);justify-content:center;justify-items:center;gap:12px;padding:0;margin:0}
-            /* font-size dropped, not changed: the TYPOGRAPHY CONTRACT block below is
-               later in source order at equal specificity, so its 15px already won and
-               this 20px never rendered. It only made the pill look under-specified. */
-            .pill{padding:14px 26px}
-            
             .api{padding:44px 20px}
             .api-grid{gap:36px;text-align:left}
             .api-info{text-align:left}
             .api-info h2{margin-bottom:16px;text-align:left}
-            .api-desc{max-width:100%;text-align:left}
             /* Stacked order: the step block comes FIRST (above the code panel). It is
                already first in source order so the grid stacks it first; the explicit
                order makes that intent survive any future markup reordering. */
@@ -1262,9 +1154,6 @@ response = requests.post(
 
           /* ========== SMALL MOBILE (up to 480px) ========== */
           @media(max-width:480px){
-            
-            .hero{padding:calc(85px + env(safe-area-inset-top)) 16px 44px}
-            
             .section-header{padding:0 16px}
 
             .mockup-wrapper{padding:14px;border-radius:14px;gap:12px;max-width:100%}
@@ -1280,11 +1169,8 @@ response = requests.post(
             
             .touchpoint{padding:36px 0}
             .usecase-pills{gap:10px}
-            .pill{padding:12px 20px}
-            
             .api{padding:36px 16px}
             .api-info h2{text-align:left}
-            .api-desc{text-align:left}
             .code-tabs{gap:8px;padding:14px}
             .pp-tab{padding:12px 20px}
             .code-block{font-size:14px;padding:16px;min-height:auto;text-align:left;white-space:pre-wrap;word-break:break-word;overflow-x:visible;line-height:1.65}
@@ -1295,61 +1181,17 @@ response = requests.post(
           /* ========== VERY SMALL SCREENS (up to 360px) ========== */
           @media(max-width:360px){
             
-            /* 16px, not 14px. Every other section stays on 16px at this width - the 480px
-               block sets api and .pp-inner to 16 and nothing overrides them here - so the
-               hero alone sat 2px left of everything else. Measured at 360px: hero text at
-               14px, the rest at 16px. */
-            .hero{padding:calc(80px + env(safe-area-inset-top)) 16px 36px}
-            
-            .pill{padding:12px 18px}
-          }
+            }
           
           /* ========== LANDSCAPE ORIENTATION FIX ========== */
           @media(max-height:500px) and (orientation:landscape){
-            .hero{padding:90px 24px 40px}
-            .hero-content{flex-direction:row;gap:24px;text-align:left}
             .hero-right{order:0;flex:1}
-            .hero-left{order:0;flex:1;text-align:left}
-            .hero-left h1{margin:0 0 16px}
-            .hero-left p{margin:0 0 20px}
             .mockup-wrapper{max-height:260px;aspect-ratio:auto;max-width:100%}
             .phone{max-width:180px}
             .code-box{max-width:200px}
             .chat-area{min-height:120px}
           }
 
-          /* ========== TYPOGRAPHY CONTRACT ========== */
-          /* Match Home's public-page ladder: 60px hero, 40px section heading,
-             22px card title, 20px body and 17px controls. Code text and the phone
-             mock remain intentional interface exceptions. The hero h1 and body
-             already own the exact Home values in their base rules. */
-          .section-header h2{font-size:clamp(28px,3.2vw,40px);line-height:1.08;letter-spacing:-1.2px}
-          .section-header p{font-size:20px;line-height:1.4;letter-spacing:-.125px}
-          /* 17px explicit, not var(--text-base). That token is declared twice —
-             tokens.css:83 says 16px, Pages.css:59 says 15px — and only Pages.css is
-             imported by _app.tsx, so the pills were 15px by accident of import
-             order. Importing tokens.css would silently have resized every pill.
-             .pp-pill is listed here too; it was missing from this contract block
-             despite being the class the touchpoint section actually renders.
-
-             THIS COMMENT SAID 15px UNTIL 2026-09-29 AND THE DECLARATION NEVER DID.
-             Measured in a browser, .pill and .pp-pill resolve to 17px, and a git log -S
-             search for the 15px form of this very declaration returns nothing - that string
-             has never existed in this file. The comment, the 17px declaration and the design
-             contract's "an explicit 15px" row all arrived together in 457cc883, so the
-             15px was wrong the moment it was written rather than having drifted later.
-             Corrected to 17px in all three places, because 17px is what has shipped and
-             been reviewed since the rebuild; changing the code to match a number nobody
-             ever saw would be a real visual change made to satisfy a stale note.
-             NOTE: no backticks anywhere in this comment. This block is a template literal
-             and one backtick ends it - quoting that git command with backticks is what broke
-             the build while this note was being written, which is the trap documented at the
-             top of the design contract. */
-          .pill,.pp-pill{font-size:17px}
-          .api-info h2{font-size:clamp(28px,3.2vw,40px);line-height:1.08;letter-spacing:-1.2px}
-          .api-desc{font-size:20px;line-height:1.4;letter-spacing:-.125px}
-          .pp-tab{font-size:17px}
-          
           /* ========== REDUCED MOTION ========== */
           @media(prefers-reduced-motion:reduce){
             /* Both selectors, because the reveal transition moved onto .anim.is-armed when
@@ -1357,7 +1199,6 @@ response = requests.post(
                armed sections still transitioning under reduced motion. */
             .anim,.anim.is-armed{transition:none}
             .typing-indicator span{animation:none}
-            .pill{transition:none}
           }
 
           /* ========== FULL-BLEED SECTIONS (pp-*) ==========
@@ -1425,7 +1266,7 @@ response = requests.post(
              (rgba(0,0,0,.898)) on white, which keeps each pill well above the 4.5:1 WCAG AA
              floor; the amber (2.04:1) and green (3.19:1) hues that fail as text are used
              ONLY as borders here, never as the text colour. */
-          .pp-pill{display:inline-flex;align-items:center;justify-content:center;padding:14px 28px;border:2px solid var(--public-hairline);background:#fff;border-radius:50px;font-size:17px;font-weight:600;cursor:default;transition:all .25s;color:var(--public-body)}
+          .pp-pill{display:inline-flex;align-items:center;justify-content:center;padding:14px 28px;border:2px solid var(--public-hairline);background:#fff;border-radius:50px;font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);cursor:default;transition:all .25s;color:var(--public-body)}
           .pp-pill--amber{border-color:#f0a818;background:#fff}
           .pp-pill--blue{border-color:#2563eb;background:#fff}
           .pp-pill--green{border-color:#3da35a;background:#fff}
