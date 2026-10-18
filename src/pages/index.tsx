@@ -66,7 +66,6 @@ import Head from 'next/head';
 // same either way - so this side is the one worth being consistent with.
 import Link from 'next/link';
 import WorkflowTerminal from '../components/WorkflowTerminal';
-import PublicShare from '../components/PublicShare';
 import RotatingPill from '../components/RotatingPill';
 
 /* The SUITE array that used to live here - the three original products plus the seven from
@@ -408,11 +407,6 @@ const HomePage: React.FC = () => {
             lead="Bring us what’s next. Think it, say it, send it — in your language, your way. It starts moving the moment you send it."
             points={ [ 'Know the price before you commit.', 'Tell us once. We remember the context.', 'See where everything stands.' ] }
             href="/contact/" action="Tell us what you need" />
-
-          {/* The common Contribute + Subscribe + Share block, as the last child of .home-layout so it inherits the
-              page's own 1300px measure and the 96px flex rhythm - identical to the measure every
-              RotatingHero page uses - and sits at the content end with no viewport-height void. */}
-          <PublicShare />
         </div>
       </main>
       <style jsx>{`
