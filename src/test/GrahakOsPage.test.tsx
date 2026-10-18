@@ -25,12 +25,14 @@ function cssValue( rule: string, property: string ): string {
 describe( 'Grahak OS typography matches the Home public-page ladder', () => {
   const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
   const homePath = resolve( process.cwd(), 'src/pages/index.tsx' );
+  const rotatingHeroPath = resolve( process.cwd(), 'src/components/RotatingHero.tsx' );
   const source = readFileSync( pagePath, 'utf8' );
   const home = readFileSync( homePath, 'utf8' );
+  const rotatingHero = readFileSync( rotatingHeroPath, 'utf8' );
   const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
 
-  const expectSameType = ( actualSelector: string, homeSelector: string ) => {
-    const actual = cssRuleFor( source, actualSelector );
+  const expectSameType = ( actualSource: string, actualSelector: string, homeSelector: string ) => {
+    const actual = cssRuleFor( actualSource, actualSelector );
     const reference = cssRuleFor( home, homeSelector );
     for ( const property of [ 'font-size', 'font-weight', 'line-height', 'letter-spacing' ] ) {
       expect( cssValue( actual, property ) ).toBe( cssValue( reference, property ) );
@@ -38,13 +40,16 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
   };
 
   it( 'shares Home hero, section, card-title and body rungs', () => {
-    expectSameType( '.hero-left h1', '.home-head' );
-    expectSameType( '.hero-left p', '.home-sub' );
-    expectSameType( '.section-header h2,.api-info h2', '.home-flow-title' );
-    expectSameType( '.section-header p', '.home-flow-lead' );
-    expectSameType( '.api-step-title', '.home-flow-list strong' );
-    expectSameType( '.gos-price', '.home-flow-list strong' );
-    expectSameType( '.api-step-line', '.home-flow-list span' );
+    expect( source ).toContain( '<RotatingHero' );
+    expectSameType( rotatingHero, '.rh-head', '.home-head' );
+    expectSameType( rotatingHero, '.rh-sub', '.home-sub' );
+    expectSameType( source, '.section-header h2,.api-info h2', '.home-flow-title' );
+    expectSameType( source, '.section-header p', '.home-flow-lead' );
+    expectSameType( source, '.api-step-title', '.home-flow-list strong' );
+    expectSameType( source, '.gos-price', '.home-flow-list strong' );
+    expectSameType( source, '.api-step-line', '.home-flow-list span' );
+    expect( code ).not.toContain( '.hero-left h1{' );
+    expect( code ).not.toContain( '.hero-left p{' );
   } );
 
   it( 'keeps all page controls on the shared 17px / 600 rung', () => {
@@ -63,14 +68,17 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
     ];
     for ( const [ css, selector ] of controls ) {
       const rule = cssRuleFor( css, selector );
-      expect( [ '17px', 'var(--public-cta-font-size)' ] ).toContain( cssValue( rule, 'font-size' ) );
-      expect( [ '600', 'var(--public-cta-font-weight)' ] ).toContain( cssValue( rule, 'font-weight' ) );
+      expect( cssValue( rule, 'font-size' ) ).toBe( 'var(--public-cta-font-size)' );
+      expect( cssValue( rule, 'font-weight' ) ).toBe( 'var(--public-cta-font-weight)' );
     }
   } );
 
-  it( 'uses one scalable hero tracking value instead of breakpoint-specific pixel tracking', () => {
-    expect( cssRuleFor( source, '.hero-left h1' ) ).toContain( 'letter-spacing:var(--public-hero-tracking)' );
-    expect( code ).not.toContain( '.hero-left h1{letter-spacing:' );
+  it( 'uses the shared mobile hero optical exception and no local section-leading drift', () => {
+    expect( cssRuleFor( rotatingHero, '.rh-head' ) ).toContain( 'letter-spacing:var(--public-hero-tracking)' );
+    expect( rotatingHero ).toContain( '.rh-head{line-height:1.1}' );
+    expect( home ).toContain( '.home-head{line-height:1.1}' );
+    expect( code ).not.toContain( 'line-height:1.15' );
+    expect( code ).not.toContain( 'TYPOGRAPHY CONTRACT' );
     expect( code ).not.toContain( 'line-height:1.12' );
   } );
 
@@ -314,6 +322,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( commerceRule ).not.toContain( 'border:1px solid' );
     expect( commerceRule ).not.toContain( 'background:#fcfdfb' );
     expect( source ).toContain( '.gos-offer-note{max-width:620px;margin:7px 0 0;font-size:var(--public-body-size)' );
+    expect( source ).toContain( '.gos-commerce strong{color:var(--public-muted);font-weight:600}' );
     expect( source ).toContain( '.gos-sku-value{color:var(--public-muted)}' );
   } );
 
@@ -398,8 +407,8 @@ describe( 'Grahak OS: API-panel "Open demo in WhatsApp" link', () => {
     expect( rowRule ).toContain( 'justify-content:flex-start' );
 
     expect( linkRule ).toContain( 'color:var(--public-brand-green)' );
-    expect( linkRule ).toContain( 'font-size:17px' );
-    expect( linkRule ).toContain( 'font-weight:600' );
+    expect( linkRule ).toContain( 'font-size:var(--public-cta-font-size)' );
+    expect( linkRule ).toContain( 'font-weight:var(--public-cta-font-weight)' );
     expect( linkRule ).toContain( 'line-height:1.4' );
     expect( linkRule ).toContain( 'text-decoration:underline' );
     expect( linkRule ).not.toContain( 'background:#d1f470' );
@@ -511,9 +520,10 @@ describe( 'Grahak OS: "Every touchpoint" pills carry multiple homepage hues', ()
   } );
 
   it( 'pins each pill to its exact homepage hue (border-only on white), keeping text dark/AA', () => {
-    // Base geometry keeps the pinned 17px type and the dark body text.
+    // Base geometry consumes the shared public control rung and keeps dark body text.
     expect( code ).toContain( '.pp-pill{' );
-    expect( code ).toContain( 'font-size:17px' );
+    expect( code ).toContain( 'font-size:var(--public-cta-font-size)' );
+    expect( code ).toContain( 'font-weight:var(--public-cta-font-weight)' );
     expect( code ).toContain( 'color:var(--public-body)' );
     // Six hues from the homepage palette, now each a thin COLOURED BORDER on a WHITE
     // background - amber/green dot hues used only as border (they fail as TEXT), blue as
