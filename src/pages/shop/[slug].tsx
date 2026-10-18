@@ -202,7 +202,6 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);
             color:var(--public-brand-green);margin:0;font-variant-numeric:tabular-nums;
           }
-          .shopd-sku{margin:10px 0 0;font-size:13px;line-height:1.3;color:var(--public-muted);letter-spacing:.04em;text-transform:uppercase}
           .shopd-oos{margin:12px 0 0;font-size:16px;font-weight:700;line-height:1.4;color:var(--public-muted)}
 
           .shopd-about{margin:0}
