@@ -95,9 +95,9 @@ const GrahakOsPage: React.FC = () => {
 
   const show = (id: string) => visible.has(id);
 
-  // Six touchpoint pills, each given a distinct hue drawn from the HOMEPAGE's deliberate
-  // 4-subject palette (src/pages/index.tsx CYCLE_WORDS: amber/purple/green/red dot hues)
-  // plus the homepage blue border (#2563eb) and this page's own brand lime (#d1f470).
+  // Six outcome-led touchpoint pills. Each keeps the hue previously associated with its
+  // concrete example, drawn from the HOMEPAGE's deliberate 4-subject palette
+  // (amber/purple/green/red), the homepage blue border and this page's brand lime.
   // No invented colours. Each hue is now a thin COLOURED BORDER on a WHITE background -
   // the earlier filled tint fills were dropped on owner instruction. The pill TEXT stays
   // dark (rgba(0,0,0,.898) / #1a3a2a) on white, so every pill clears WCAG AA - amber
@@ -106,8 +106,8 @@ const GrahakOsPage: React.FC = () => {
   const useCases = [
     { title: 'Acquire', example: 'Promotional', hue: 'amber' },
     { title: 'Notify', example: 'Transactional', hue: 'blue' },
-    { title: 'Verify', example: 'OTPs', hue: 'green' },
-    { title: 'Support', example: 'Appointments', hue: 'purple' },
+    { title: 'Verify', example: 'OTPs', hue: 'purple' },
+    { title: 'Support', example: 'Appointments', hue: 'green' },
     { title: 'Transact', example: 'Orders', hue: 'red' },
     { title: 'Retain', example: 'Surveys', hue: 'lime' },
   ];
