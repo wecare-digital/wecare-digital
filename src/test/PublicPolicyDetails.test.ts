@@ -62,12 +62,13 @@ describe( 'public PolicyDetails coverage', () => {
     expect( publicPolicyDetailsForRoute( '/404' ) ).toBeNull();
   } );
 
-  it( 'uses route-specific wording rather than one shared paragraph for unrelated pages', () => {
+  it( 'keeps route-specific policy meaning without forcing artificial wording differences', () => {
     const contact = publicPolicyDetailsForRoute( '/contact' );
     const privacy = publicPolicyDetailsForRoute( '/privacy' );
     const cart = publicPolicyDetailsForRoute( '/cart' );
-    expect( contact?.shipping ).not.toBe( privacy?.shipping );
+    expect( contact?.refunds ).not.toBe( privacy?.refunds );
     expect( privacy?.refunds ).not.toBe( cart?.refunds );
+    expect( contact?.disclaimer ).not.toBe( privacy?.disclaimer );
     expect( contact?.disclaimer ).not.toBe( cart?.disclaimer );
   } );
 } );
