@@ -147,7 +147,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             whatsappServiceLink(): the slug resolves to one service link, so the pickup button
             would otherwise open the tracking conversation. The 30px top gap now lives on
             .pdp-ctas (it was on .pdp-cta), so single-CTA spacing is identical to the pixel. */}
-        {/* OPTION A (owner decision): the primary WhatsApp pill reads "Continue on WhatsApp →" so
+        {/* OPTION A (owner decision): the primary WhatsApp pill reads "Checkout on WhatsApp →" so
             it NAMES its channel, matching the "Continue to checkout →" pill in the belowCta slot —
             two labelled, same-shape pills instead of an action verb plus a floating grey note.
             `ctaLabel` is kept in the content for menus/future use but is no longer the pill face;
@@ -155,14 +155,14 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             (ctaLabel2/ctaHref2) keeps its own labels rather than adopting checkout wording. */}
         <div className="pdp-ctas">
           <a className="pdp-cta" href={ whatsappServiceLink( product.slug ) || product.ctaHref }>
-            { product.ctaLabel2 ? product.ctaLabel : 'Continue on WhatsApp \u2192' }
+            { product.ctaLabel2 ? product.ctaLabel : 'Checkout on WhatsApp \u2192' }
           </a>
           { product.ctaHref2 && product.ctaLabel2 && (
             <a className="pdp-cta" href={ product.ctaHref2 }>{ product.ctaLabel2 }</a>
           ) }
         </div>
 
-        {/* OPTION A: the floating "Continue on WhatsApp →" microcopy is GONE — that label now
+        {/* OPTION A: the floating "Checkout on WhatsApp →" microcopy is GONE — that label now
             lives on the primary pill above, so a quiet grey note repeating it would be redundant.
             `ctaNote` stays in the type for pages that still want a note under a single-channel CTA
             (none today), but it is not rendered here. */}
