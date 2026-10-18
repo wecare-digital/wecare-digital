@@ -350,7 +350,7 @@ describe( 'Header', () => {
     const partner = screen.getByText( 'Partner' ).closest( '.nav-tree-item' );
     const partnerLabels = Array.from( partner?.querySelectorAll( '.nav-item' ) || [] ).map( node => node.textContent );
     expect( partnerLabels ).toEqual( [ 'Partner', 'Referral', 'Merchandise', 'Kiosk' ] );
-    expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toHaveAttribute( 'href', 'https://wa.me/message/7QOFC4QGSGGUC1z' );
+    expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toHaveAttribute( 'href', 'https://wa.me/message/S6A2QEXZSYXTG1' );
     expect( screen.getByRole( 'link', { name: 'Merchandise' } ) ).toHaveAttribute( 'href', '/shop/merchandise/' );
     expect( screen.getByRole( 'link', { name: 'Kiosk' } ) ).toHaveAttribute( 'href', '/shop/kiosk/' );
 
