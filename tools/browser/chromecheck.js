@@ -85,13 +85,24 @@ function readAllowlist( app ) {
   const meta = Array.from( app.slice( metaStart, metaEnd ).matchAll( /^\s*'(\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)'\s*:/gm ) ).map( m => m[ 1 ] );
 
   const literals = block => Array.from( block.matchAll( /router\.pathname === '([^']+)'/g ) ).map( m => m[ 1 ] );
-  const gateAt = app.indexOf( 'const isPublic' );
   const contentAt = app.indexOf( 'const isContentPublic' );
+  const gateAt = app.indexOf( 'const isPublic', contentAt );
+  const canonicalAt = app.indexOf( 'const canonicalUrl', gateAt );
+
+  if ( contentAt < 0 || gateAt < 0 || canonicalAt < 0 ) {
+    throw new Error( 'Could not locate the public-route blocks in _app.tsx' );
+  }
+
+  // Do not terminate either block at the first semicolon. Comments inside the isPublic
+  // chain legitimately contain semicolons, so a semicolon boundary silently drops later
+  // routes such as /checkout/status and /checkout/success from this built-export gate.
+  const contentBlock = app.slice( contentAt, gateAt );
+  const publicBlock = app.slice( gateAt, canonicalAt );
 
   return Array.from( new Set( [
     ...meta,
-    ...literals( app.slice( gateAt, app.indexOf( ';', gateAt ) ) ),
-    ...literals( app.slice( contentAt, app.indexOf( ';', contentAt ) ) ),
+    ...literals( publicBlock ),
+    ...literals( contentBlock ),
   ] ) ).sort();
 }
 
