@@ -230,14 +230,23 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( commerceRule ).not.toContain( 'border:1px solid' );
     expect( commerceRule ).not.toContain( 'background:#fcfdfb' );
 
-    const policyCssStart = source.indexOf( '.gos-policy summary{' );
+    // Scope to the commerce block so the lookup cannot accidentally read the
+    // earlier prefers-reduced-motion override for .gos-policy summary.
+    const policyCssStart = source.indexOf( '.gos-commerce{' );
     expect( policyCssStart ).toBeGreaterThan( -1 );
     const policyCss = source.slice( policyCssStart );
     const summaryRule = cssRuleFor( policyCss, '.gos-policy summary' );
+    const policyBodyRule = cssRuleFor( policyCss, '.gos-policy p' );
     expect( summaryRule ).toContain( 'color:#1a3a2a' );
+    expect( summaryRule ).toContain( 'font-family:inherit' );
     expect( summaryRule ).toContain( 'font-size:15px' );
     expect( summaryRule ).toContain( 'font-weight:600' );
     expect( summaryRule ).toContain( 'background:rgba(209,244,112,.18)' );
+    expect( policyBodyRule ).toContain( 'font-family:inherit' );
+    expect( policyBodyRule ).toContain( 'font-size:15px' );
+    expect( policyBodyRule ).toContain( 'font-weight:400' );
+    expect( policyBodyRule ).toContain( 'line-height:1.55' );
+    expect( policyBodyRule ).toContain( 'border-inline-start:3px solid #d1f470' );
     expect( policyCss ).toContain( '.gos-policy summary:hover{background:#d1f470' );
     expect( policyCss ).toContain( '.gos-policy summary:focus-visible{background:#d1f470' );
   } );

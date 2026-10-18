@@ -710,21 +710,25 @@ response = requests.post(
              .gos-commerce / .gos-price below are still used by the api-steps block above, so
              their rules stay. */
           .gos-commerce{
-            margin-top:14px;max-width:700px;font-size:15px;font-weight:400;line-height:1.55;
+            margin-top:14px;max-width:700px;font-family:inherit;font-size:15px;font-weight:400;line-height:1.55;
             letter-spacing:-.025px;color:rgba(0,0,0,.62);text-align:left;
           }
           .gos-commerce strong{color:#1a3a2a;font-weight:650}
           .gos-commerce p{margin:0}
-          .gos-policy{margin-top:8px}
+          .gos-policy{margin-top:8px;font-family:inherit}
           .gos-policy summary{
             display:inline-flex;align-items:center;width:max-content;padding:6px 9px;border-radius:8px;
-            cursor:pointer;color:#1a3a2a;background:rgba(209,244,112,.18);font-size:15px;font-weight:600;
-            line-height:1.2;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;
+            cursor:pointer;color:#1a3a2a;background:rgba(209,244,112,.18);font-family:inherit;font-size:15px;font-weight:600;
+            line-height:1.2;letter-spacing:-.025px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;
             transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
           }
           .gos-policy summary:hover{background:#d1f470;text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1)}
           .gos-policy summary:focus-visible{background:#d1f470;text-decoration-color:transparent;outline:3px solid #1a3a2a;outline-offset:3px}
-          .gos-policy p{max-width:640px;margin-top:10px;padding:0 2px;color:rgba(0,0,0,.62);font-size:14px;line-height:1.6}
+          .gos-policy p{
+            max-width:640px;margin-top:10px;padding:8px 0 8px 12px;border-inline-start:3px solid #d1f470;
+            color:rgba(0,0,0,.62);font-family:inherit;font-size:15px;font-weight:400;line-height:1.55;
+            letter-spacing:-.025px;text-wrap:pretty;
+          }
           /* The .gos-closer-head rule was REMOVED with the closer heading markup on owner
              instruction (the "Transform customer engagement with Grahak OS" h2 is gone). */
 
