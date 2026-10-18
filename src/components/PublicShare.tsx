@@ -153,7 +153,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
       ref={ rootRef }
     >
       {/* "Stay connected" eyebrow kept on top of the dock (owner request). Carried over from the
-          retired PublicFooterBand so the dock keeps its label now that it lives in the hero. */}
+          retired PublicFooterBand so the app-owned dock keeps the same visible label on every public route. */}
       <span className="ps-kicker">Stay connected</span>
       <div className="ps-row">
         <section className="contribute" aria-labelledby="ps-contribute-heading">
