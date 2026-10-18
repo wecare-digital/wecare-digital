@@ -104,10 +104,10 @@ describe( 'Step 7 public normalization closure', () => {
     }
   } );
 
-  it( 'keeps Home as the only normal canonical route without Policy Details', () => {
+  it( 'keeps Home and Contact as the only normal canonical routes without Policy Details', () => {
     for ( const route of CANONICAL_PUBLIC ) {
       const policy = publicPolicyDetailsForRoute( route );
-      if ( route === '/' || EMBEDDED_POLICY_ROUTES.has( route ) ) {
+      if ( route === '/' || route === '/contact' || EMBEDDED_POLICY_ROUTES.has( route ) ) {
         expect( policy, route ).toBeNull();
       } else {
         expect( policy, route ).not.toBeNull();
