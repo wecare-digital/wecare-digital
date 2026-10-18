@@ -286,7 +286,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     // The existing WhatsApp door stays exactly once in this steps block, while the fresh
     // catalog checkout is mounted separately without duplicating the visible ₹899 price.
     expect( source ).toContain( 'className="api-steps-ctas"' );
-    expect( source ).toContain( '<a className="gos-wa-cta" href="https://wecare.digital/grahak-os/">Checkout on WhatsApp &#8594;</a>' );
+    expect( source ).toContain( '<a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Checkout on WhatsApp &#8594;</a>' );
     // The steps block now carries EXACTLY ONE WhatsApp CTA: "Checkout on WhatsApp".
     // The redundant second demo pill here was removed on owner instruction; the lighter
     // "Open demo in WhatsApp" link lives only beneath the large API code panel.
