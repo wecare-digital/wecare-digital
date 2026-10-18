@@ -1302,7 +1302,8 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         'customerEmail': customer_email,
         'shippingAddress': shipping_address,
         'billingAddress': billing_address,
-        'goodsType': body.get('goodsType', 'digital-goods'),
+        'goodsType': ('physical-goods' if _new_collection_pricing_applies(entry_point, amount_is_tax_inclusive)
+                      else body.get('goodsType', 'digital-goods')),
         # Catalog product id (retailer_id) — used by the post-payment flow resolver
         # to open the flow mapped to THIS product (catalog_flow_map).
         'catalogRetailerId': body.get('catalogRetailerId', '') or body.get('retailerId', ''),
@@ -3238,7 +3239,8 @@ def _fetch_payment_configurations(waba_id: str) -> Dict[str, Any]:
 
 def _payment_delivery_info(invoice: Dict, contact: Optional[Dict], phone: str) -> Optional[Dict]:
     """Validate delivery before reserving a physical payment; never collect it after pricing."""
-    if invoice.get('goodsType', 'digital-goods') != 'physical-goods':
+    staff_collection = invoice.get('entryPoint') in ('manual', 'pay_flow', 'whatsapp')
+    if not staff_collection and invoice.get('goodsType', 'digital-goods') != 'physical-goods':
         return None
     contact = contact or {}
     fields = invoice if invoice.get('addressLine1') else _contact_address_fields(contact)
@@ -3647,18 +3649,13 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
 
     # Build payload for outbound-whatsapp Lambda
     # Determine goods type: use stored value from invoice creation.
-    # Default to digital-goods — physical-goods should only be set explicitly by the admin.
-    # IMPORTANT: Do NOT infer physical-goods from shippingAddress existence — that caused
-    # invoices to incorrectly trigger address collection flow.
+    # Staff collections always confirm delivery as physical orders.
     ship_addr = invoice.get('shippingAddress', '')
     bill_addr = invoice.get('billingAddress', '')
     cust_name = invoice.get('customerName', 'Customer')
-    goods_type = invoice.get('goodsType', 'digital-goods')
+    goods_type = ('physical-goods' if invoice.get('entryPoint') in ('manual', 'pay_flow', 'whatsapp')
+                  else invoice.get('goodsType', 'digital-goods'))
 
-    # Respect the invoice's goodsType. Services / digital goods (e.g. the ₹2
-    # service sample) must NOT prompt for a delivery address — only physical
-    # goods collect shipping_info. Forcing physical-goods everywhere made every
-    # service checkout demand an address, which is wrong and confusing.
     order_type = 'physical-goods' if goods_type == 'physical-goods' else 'digital-goods'
 
     order_details_obj = {
@@ -4691,6 +4688,20 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
     if not to_phone:
         return _resp(400, {'error': 'toWhatsAppNumber required'})
 
+    table = dynamodb.Table(INVOICES_TABLE)
+    invoice = table.get_item(Key={'invoiceId': invoice_id}, ConsistentRead=True).get('Item')
+    if not invoice:
+        return _resp(404, {'error': 'Invoice not found'})
+    from lambda_utils.comms.numbers import to_e164
+    try:
+        recipient = to_e164(to_phone)
+        saved_recipient = to_e164(str(invoice.get('customerPhone') or ''))
+    except (ValueError, TypeError):
+        return _resp(400, {'error': 'Valid invoice recipient required'})
+    if not saved_recipient or recipient != saved_recipient:
+        return _resp(403, {'error': 'Invoice does not belong to this recipient'})
+    to_phone = saved_recipient
+
     # ── the delivery claim, taken BEFORE any render ──
     keys_table = dynamodb.Table(COMMERCE_KEYS_TABLE)
     if not force:
@@ -4711,8 +4722,13 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
                 'event': 'invoice_delivery_already_claimed', 'invoiceId': invoice_id,
                 'channel': 'whatsapp', 'requestId': request_id,
             }))
-            return _resp(200, {'invoiceId': invoice_id, 'status': 'already_delivered',
-                               'deduplicated': True})
+            known = order_keys.resolve_invoice_delivery(keys_table, invoice_id)
+            confirmed = bool(known and known.get('deliveryStatus') == order_keys.DELIVERY_CONFIRMED)
+            return _resp(200 if confirmed else 202, {
+                'invoiceId': invoice_id,
+                'status': 'already_delivered' if confirmed else 'delivery_pending',
+                'deduplicated': True,
+                'waMessageId': (known or {}).get('waMessageId', '')})
     else:
         logger.warning(json.dumps({
             'event': 'invoice_delivery_forced', 'invoiceId': invoice_id,
@@ -4848,10 +4864,13 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
         wa_body = json.loads(wa_result.get('body', '{}'))
         wa_message_id = wa_body.get('whatsappMessageId', wa_body.get('messageId', ''))
         wa_status = wa_body.get('status', 'unknown')
+        if wa_response.get('FunctionError'):
+            wa_status = 'unknown'
     except Exception as e:
-        logger.error(f"WhatsApp send error: {e}")
+        logger.error(json.dumps({'event': 'invoice_send_uncertain',
+            'invoiceId': invoice_id, 'error': type(e).__name__, 'requestId': request_id}))
         wa_message_id = ''
-        wa_status = 'failed'
+        wa_status = 'unknown'
 
     # Log delivery
     delivery_table = dynamodb.Table(INVOICE_DELIVERY_TABLE)
@@ -4874,22 +4893,21 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
     # failure into `wa_status='failed'` and still returns 200, so a claim never released on
     # failure would consume the only slot and every non-forced caller thereafter would get
     # `already_delivered` - silently losing a GST invoice with nothing above INFO in the logs.
-    delivered = wa_status in ('sent', 'delivered')
+    delivered = bool(wa_message_id and wa_status in ('accepted', 'sent', 'delivered', 'read'))
     if delivered:
         if not force:
             order_keys.confirm_invoice_delivery(
                 keys_table, invoice_id=invoice_id, channel='whatsapp',
                 wa_message_id=wa_message_id)
-    else:
+    elif wa_status in ('failed', 'rejected'):
         _release_claim('send_failed')
 
     # Update invoice status
     if delivered:
         table.update_item(
             Key={'invoiceId': invoice_id},
-            UpdateExpression='SET #st = :st, #ua = :now',
-            ExpressionAttributeNames={'#st': 'status', '#ua': 'updatedAt'},
-            ExpressionAttributeValues={':st': 'sent', ':now': int(time.time())},
+            UpdateExpression='SET receiptStatus = :st, receiptSentAt = :now',
+            ExpressionAttributeValues={':st': wa_status, ':now': int(time.time())},
         )
 
     logger.info(json.dumps({
@@ -4898,7 +4916,7 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
         'toNumber': mask_phone(to_phone), 'requestId': request_id,
     }))
 
-    return _resp(200, {
+    return _resp(200 if delivered else (502 if wa_status in ('failed', 'rejected') else 202), {
         'invoiceId': invoice_id,
         'waMessageId': wa_message_id,
         'status': wa_status,
@@ -4994,6 +5012,8 @@ def _normalize_invoice(item: Dict) -> Dict:
         'goodsType': item.get('goodsType', 'digital-goods'),
         'subtotal': float(item.get('subtotal', 0)),
         'discount': float(item.get('discount', 0)),
+        'couponCode': item.get('couponCode', ''),
+        'couponDiscount': float(item.get('couponDiscount', 0)),
         'shipping': float(item.get('shipping', 0)),
         'handling': float(item.get('handling', 0)),
         'gstRate': float(item.get('gstRate', 0)),

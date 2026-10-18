@@ -139,6 +139,23 @@ def test_a_delivery_claims_once_and_confirms(engine, fake):
     assert row['waMessageId'] == 'wamid.INV'
 
 
+def test_a_paid_invoice_stays_paid_after_receipt_delivery(engine, fake):
+    _seed(fake)
+    _send(engine, fake, _Sender())
+    assert fake.Table(INVOICES).get_item(Key={'invoiceId': INVOICE_ID})['Item']['status'] == 'paid'
+
+
+def test_receipt_refuses_a_recipient_other_than_the_saved_customer(engine, fake):
+    _seed(fake)
+    sender = _Sender()
+    with patch.object(engine, 'dynamodb') as ddb, patch.object(engine, 'lambda_client', sender):
+        ddb.Table.side_effect = fake.Table
+        result = engine.send_invoice_whatsapp(INVOICE_ID, '+919903300044', WABA1, 'wrong-recipient')
+    assert result['statusCode'] == 403
+    assert sender.invokes == []
+    assert _claim_rows(fake) == []
+
+
 def test_a_second_non_forced_call_sends_nothing(engine, fake):
     """T-I2 / T-I5. The operator route and the webhook both pass through the claim, so the
     operator button cannot duplicate an automatic delivery."""
@@ -162,7 +179,7 @@ def test_a_failed_send_releases_the_claim_and_is_redeliverable(engine, fake, cap
     `already_delivered` - which loses a GST invoice silently.
     """
     _seed(fake)
-    failing = _Sender(raises=RuntimeError('Meta 500'))
+    failing = _Sender(status='failed')
     with caplog.at_level(logging.ERROR):
         _send(engine, fake, failing)
 
@@ -302,7 +319,8 @@ class _InvokeRecorder:
             self.bodies.append((path, {}))
         body = json.dumps({'statusCode': 200, 'body': json.dumps({
             'invoiceId': INVOICE_ID, 'invoiceNumber': 'WD/26-27/0001',
-            'deduplicated': self.deduplicated})})
+            'deduplicated': self.deduplicated, 'status': 'sent',
+            'whatsappMessageId': 'wamid.RECEIPT'})})
 
         class _P:
             def read(self_inner):
@@ -458,3 +476,55 @@ def test_the_review_send_uses_waba1_and_the_approved_template(webhook, fake):
     recorder = _InvokeRecorder()
     _post_payment(webhook, recorder, fake)
     assert webhook.WA_REVIEW_TEMPLATE == 'wecare_leave_review'
+
+
+def test_payment_notifications_use_the_invoice_recipient(webhook):
+    with patch.object(webhook, 'dynamodb') as ddb:
+        ddb.Table.return_value.query.return_value = {'Items': [
+            {'invoiceId': INVOICE_ID, 'customerPhone': PHONE}]}
+        assert webhook._notification_recipient('WD-PAY-DELIV01', '+919903300044') == PHONE
+
+
+def test_unavailable_invoice_binding_does_not_fall_back_to_payer(webhook):
+    with patch.object(webhook, 'dynamodb') as ddb:
+        ddb.Table.return_value.query.side_effect = RuntimeError('unavailable')
+        assert webhook._notification_recipient('WD-PAY-DELIV01', '+919903300044') == ''
+
+
+def test_missing_invoice_does_not_restore_the_payer_as_recipient(webhook):
+    with patch.object(webhook, 'dynamodb') as ddb:
+        ddb.Table.return_value.query.return_value = {'Items': []}
+        assert webhook._notification_recipient('WD-PAY-DELIV01', '+919903300044') == ''
+
+
+def test_a_claim_with_no_send_evidence_is_pending_not_delivered(engine, fake):
+    _seed(fake)
+    order_keys.claim_invoice_delivery(fake.Table(KEYS), invoice_id=INVOICE_ID, channel='whatsapp')
+    result = _send(engine, fake, _Sender())
+    assert result['statusCode'] == 202
+    assert _body(result)['status'] == 'delivery_pending'
+
+
+def test_receipt_timeout_keeps_an_unconfirmed_claim(engine, fake):
+    _seed(fake)
+    result = _send(engine, fake, _Sender(raises=TimeoutError('provider outcome unknown')))
+    assert result['statusCode'] == 202
+    assert _body(result)['status'] == 'unknown'
+    assert len(_claim_rows(fake)) == 1
+    retry = _Sender()
+    result = _send(engine, fake, retry)
+    assert _body(result)['status'] == 'delivery_pending'
+    assert retry.invokes == []
+
+
+def test_receipt_dispatch_releases_a_definitively_rejected_engine_call(webhook, fake):
+    import io
+    class Rejects:
+        def invoke(self, **kwargs):
+            return {'StatusCode':200, 'Payload':io.BytesIO(json.dumps({
+                'statusCode':403, 'body':json.dumps({'error':'recipient mismatch'})}).encode())}
+    with patch.object(webhook, 'lambda_client', Rejects()), patch.object(webhook, 'dynamodb') as db:
+        db.Table.side_effect = fake.Table
+        assert webhook._deliver_invoice_on_whatsapp(INVOICE_ID, PHONE, WABA1, 'reject') is False
+    assert order_keys.resolve_invoice_delivery(fake.Table(KEYS), INVOICE_ID,
+                                               channel='whatsapp-dispatch') is None

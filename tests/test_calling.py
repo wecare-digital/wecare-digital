@@ -620,3 +620,13 @@ class TestCallingRouteAuthorization:
                 patch.object(self.h, 'require_auth') as require_auth:
             assert self.h.handler(event, None) is expected
         require_auth.assert_not_called()
+
+def test_post_call_whatsapp_cannot_be_disabled_by_legacy_config():
+    import importlib
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'amplify', 'functions', 'messaging', 'whatsapp-calling'))
+    with patch('boto3.resource'), patch('boto3.client'):
+        module = importlib.import_module('handler')
+    with patch.object(module, 'dynamodb') as db:
+        db.Table.return_value.get_item.return_value = {'Item': {'configValue': 'false'}}
+        assert module._is_postcall_wa_enabled() is True
+        db.Table.assert_not_called()

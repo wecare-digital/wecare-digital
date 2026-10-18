@@ -255,7 +255,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
     const [ payPhone, setPayPhone ] = useState( PAYMENT_CONFIG.phoneNumberId );
     const [ payItems, setPayItems ] = useState<{ name: string; amount: string; quantity: string; gstRate: string }[]>( [ { name: '', amount: '', quantity: '1', gstRate: '18' } ] );
     const [ payInvoiceDraft, setPayInvoiceDraft ] = useState<{ key: string; contactId: string; invoice: api.CreateInvoiceEngineResponse } | null>( null );
-    const [ payGoodsType, setPayGoodsType ] = useState<'digital-goods' | 'physical-goods'>( 'digital-goods' );
+    const payGoodsType = 'physical-goods' as const;
     const [ payDelivery, setPayDelivery ] = useState( '0' );
     const [ payGstin, setPayGstin ] = useState( DEFAULT_GSTIN );
     const [ payOrderId, setPayOrderId ] = useState( '' );
@@ -1358,8 +1358,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                     ) ) }
                                     <button type="button" className="ui-pay-additem" onClick={ addPayItem }>+ Add item</button>
                                     <div className="ui-pay-row">
-                                        <div><label className="ui-pay-label">Goods type</label><Select ariaLabel="Goods type" value={ payGoodsType } onChange={ v => setPayGoodsType( v as 'digital-goods' | 'physical-goods' ) }
-                                            options={ [ { value: 'digital-goods', label: 'Digital goods / services' }, { value: 'physical-goods', label: 'Physical goods' } ] } /></div>
+                                        <div><label className="ui-pay-label">Goods type</label><span>Physical goods — confirmed delivery address required</span></div>
                                         <div><label className="ui-pay-label">Delivery (₹)</label><input className="ui-pay-in" type="number" min="0" step="0.01" value={ payDelivery } onChange={ e => setPayDelivery( e.target.value ) } /></div>
                                     </div>
                                     <div className="ui-pay-row">
