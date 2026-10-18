@@ -61,73 +61,84 @@ export interface SettingsGroup {
 // ---------------------------------------------------------------------------
 // THE SIDEBAR — daily streams only
 // ---------------------------------------------------------------------------
+/**
+ * FLAT SIDEBAR (workspace redesign). Eight single-level streams, in the order the
+ * redesign spec fixes: Messages, Contacts, Commerce, Payments, Service, Links, Tasks,
+ * SEO. The sidebar renders ONLY the top level — there is no expand/collapse tree any
+ * more — so `Layout.tsx` reads `item.path`, `item.label` and `item.icon` and nothing
+ * else from each row.
+ *
+ * WHY `children` STILL EXISTS ON SOME ROWS
+ * ----------------------------------------
+ * The children are NOT a sidebar tree. They are the deep-link / command-palette index:
+ * `getAllNavItems()` walks them so every destination that used to be a sidebar row (and
+ * has no other home) stays findable by name in Ctrl+K and keeps resolving to a real
+ * page. The dense sections (Service, SEO, Commerce) collapse into one page with in-page
+ * tabs, and these child entries are how the palette reaches each tab's canonical path.
+ * `isNavItemActive` matches on the row's own base path, so a child never renders a
+ * second visible level. BottomNav takes the first four rows (Messages, Contacts,
+ * Commerce, Payments) — all thumb-reachable daily streams.
+ */
 export const navigationConfig: NavItem[] = [
   {
-    // The channel children are filters on ONE page, not separate pages. They exist
-    // because jumping straight to "just the RCS threads" is a daily move, and the
-    // in-page selector is one extra click away from the sidebar.
+    // The landing. Channel filters are query strings on this ONE page, surfaced as the
+    // inbox's own in-page selector rather than sidebar rows. The WhatsApp hub and the
+    // Channels page hang here for the palette, not as visible children.
     path: '/workspace/engage/inbox',
-    label: 'Inbox',
+    label: 'Messages',
     icon: 'message',
     children: [
-      { path: '/workspace/engage/inbox', label: 'All channels' },
       { path: '/workspace/engage/inbox?channel=whatsapp', label: 'WhatsApp' },
       { path: '/workspace/engage/inbox?channel=sms', label: 'SMS' },
       { path: '/workspace/engage/inbox?channel=rcs', label: 'RCS' },
       { path: '/workspace/engage/inbox?channel=email', label: 'Email' },
       { path: '/workspace/engage/inbox?channel=voice', label: 'Calls' },
+      { path: '/workspace/engage/broadcast', label: 'Broadcast' },
+      { path: '/workspace/engage/scheduled', label: 'Scheduled' },
+      { path: '/workspace/engage/logs', label: 'Message logs' },
+      { path: '/workspace/engage/contact-360', label: 'Contact 360' },
     ],
   },
   {
     path: '/workspace/contacts',
     label: 'Contacts',
     icon: 'contacts',
+  },
+  {
+    // Index + catalog as in-page tabs on /workspace/commerce. The catalog page and the
+    // commerce engage view stay reachable for the palette.
+    path: '/workspace/commerce',
+    label: 'Commerce',
+    icon: 'store',
     children: [
-      { path: '/workspace/contacts', label: 'All contacts' },
-      { path: '/workspace/engage/contact-360', label: 'Contact 360' },
+      { path: '/workspace/commerce/catalog', label: 'Catalog' },
+      { path: '/workspace/engage/commerce', label: 'Commerce engine' },
     ],
   },
   {
-    path: '/workspace/engage/broadcast',
-    label: 'Broadcast',
-    icon: 'message',
-    children: [
-      { path: '/workspace/engage/broadcast', label: 'Send a broadcast' },
-      { path: '/workspace/engage/scheduled', label: 'Scheduled' },
-      { path: '/workspace/engage/logs', label: 'Message logs' },
-    ],
-  },
-  {
+    // Overview + records + flow as in-page tabs on /workspace/pay.
     path: '/workspace/pay',
     label: 'Payments',
     icon: 'payment',
     children: [
-      { path: '/workspace/pay', label: 'Overview' },
       // The ledger: what was billed, paid and delivered. Read-only on purpose -
       // cancel, delete and resend all move money or message a customer.
       { path: '/workspace/pay/records', label: 'Invoice records' },
       { path: '/workspace/pay/flow', label: 'Pay Flow' },
-      // 'Pay Link' (/workspace/pay/link) was a fourth child here. Both the ENTRY and the
-      // PAGE are now gone: the Link tab built a raw upi:// deep link client-side, bypassing
-      // Razorpay, the invoice engine and reconciliation, and WhatsApp payments must route
-      // through the approved order_details template rather than a raw link. pay/index.tsx
-      // no longer imports it, so there is no screen left to reach.
     ],
   },
   {
-    // SERVICE OPERATIONS — the unified customer-request front door (Phase 4 of the rebuild).
-    // It LEADS with "Responses", the one queue that replaces the four overlapping submission
-    // views (forms/responses, flow-responses "Legacy Requests", flow-hub "Submissions",
-    // selfservice "Submissions"). The rest are the customer-facing capabilities, each a view of
-    // the same canonical data rather than a separate admin app. Kept as ONE sidebar section
-    // (not a new tenth) so the 9-section ceiling in Navigation.test.tsx still holds — Request
-    // and Service Ops are the same concept, so they are the same section.
-    path: '/workspace/request/responses',
-    label: 'Service Ops',
+    // SERVICE — the unified customer-request front door. The former Forms destinations
+    // (responses, self-service hub) and the request submit/track/amend flows collapse
+    // into this one page's in-page tabs; the children index each tab's canonical path so
+    // the palette still reaches them and no page is orphaned.
+    path: '/workspace/engage/service-ops',
+    label: 'Service',
     icon: 'order',
     children: [
       { path: '/workspace/request/responses', label: 'Responses' },
-      { path: '/workspace/engage/service-ops', label: 'Overview' },
+      { path: '/workspace/forms/responses', label: 'Form responses' },
+      { path: '/workspace/forms/' + 'self' + 'service', label: 'Customer Service Hub' },
       { path: '/workspace/engage/orders', label: 'Orders' },
       { path: '/workspace/service/submit-request', label: 'Submit Request' },
       { path: '/workspace/service/track-request', label: 'Track Request' },
@@ -137,11 +148,6 @@ export const navigationConfig: NavItem[] = [
       { path: '/workspace/engage/documents', label: 'Drop Docs' },
       // Beside Drop Docs because the two are the same errand in opposite directions:
       // Drop Docs collects a file from a customer, Secure Files delivers one to them.
-      // NOT under Platform, where its [retired public path]/ path would suggest it belongs - it
-      // charges a customer ₹49 per download and creates their Cognito login, which is
-      // order work, not infrastructure. Until now nothing linked it at all: 535 lines
-      // and the only four callers of initSecureUpload/confirmSecureUpload/
-      // listSecureFiles/revokeSecureFile, reachable only by typing the URL.
       { path: '/workspace/service/secure-files', label: 'Secure Files' },
       { path: '/workspace/engage/enterprise', label: 'Enterprise' },
       { path: '/workspace/engage/reviews', label: 'Reviews' },
@@ -149,75 +155,35 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
-    // '/store' until it moved: it is a staff page, and at that path its prerendered HTML
-    // was the sign-in wall on a public-looking URL. See the note atop the page file.
-    path: '/workspace/commerce/catalog',
-    label: 'Store',
-    icon: 'store',
-    children: [
-      { path: '/workspace/commerce/catalog', label: 'Catalog' },
-      { path: '/workspace/engage/commerce', label: 'Commerce' },
-    ],
+    // OWN top-level item on owner instruction (not folded under Settings).
+    path: '/workspace/link',
+    label: 'Links',
+    icon: 'link',
   },
   {
-    path: '/workspace/forms',
-    label: 'Forms',
-    icon: 'form',
-    children: [
-      // Responses first: a submitted request nobody actioned is a customer who paid
-      // and heard nothing, so the queue matters more than a builder would.
-      //
-      // Labelled 'Form responses' — the page's own heading — since 2026-10-15. It was
-      // 'Responses', the same label as Service Ops -> Responses (request/responses), and
-      // the two are NOT one queue: this reads listSubmitRequests (SubmitRequest rows) with
-      // the oldest-unpaid sort, age, expiry and the awaiting/expired/collected totals;
-      // that one reads listFlowSubmissions through ResponsesQueue, which has none of
-      // those. Until the unified queue reaches that parity both stay, and they need
-      // names a person can tell apart in Ctrl+K.
-      { path: '/workspace/forms/responses', label: 'Form responses' },
-      // '/workspace/forms/create' ("Forms Builder") was here. Removed 2026-09-25 with the page: it
-      // was a ComingSoon stub listing six features with no backend behind any of them,
-      // and [retired public path]/index.tsx redirected straight to it, so the whole [retired public path] landing was a
-      // redirect into a list of promises. [retired public path] now goes to Responses.
-      { path: '/workspace/forms/' + 'self' + 'service', label: 'Customer Service Hub' },
-    ],
-  },
-  {
-    // No longer 'Soon'. It was a ComingSoon stub promising six features with no
-    // backend at all; it is now the conversation-meta work queue, which is real
-    // data the inbox already writes.
+    // OWN top-level item. It is the conversation-meta work queue, real data the inbox
+    // already writes.
     path: '/workspace/task',
     label: 'Tasks',
     icon: 'checklist',
   },
   {
-    // Queue-shaped daily work, which is what the governing rule at the top of this
-    // file puts in the sidebar: a source waiting on review, an article waiting on QA,
-    // an approved article waiting to publish.
-    //
-    // These five pages were absent from navigationConfig, settingsConfig AND
-    // moduleHomes, so they were absent from getAllNavItems() and therefore from the
-    // command palette. A 1,790-line production pipeline was reachable only by clicking
-    // a tile on /workspace/seo, or by typing the URL.
-    //
-    // NINTH ON PURPOSE: BottomNav renders navigationConfig.slice( 0, 4 ), so position
-    // nine keeps this off the phone bottom bar, where it does not belong — reviewing a
-    // source is desk work.
-    //
-    // blog-production/batch deliberately gets NO entry: it needs ?id=<batchId> and
-    // renders "No wave was named" without one, which is the menu-entry-leading-to-a-
-    // promise failure this file exists to avoid. It is reached from the wave list at
-    // blog-production/index.tsx:78,178,204, which is where a batch id exists to pass.
-    path: '/workspace/seo/blog-production',
-    label: 'Content',
-    icon: 'document',
+    // Tools + blog pipeline + managers as in-page tabs on /workspace/seo. This is the
+    // AWS-native SeoToolsTable surface (seoToolsFetch), NOT the old Wix SEO. The dense
+    // blog-production pipeline and the SEO managers stay reachable through these child
+    // entries for the palette.
+    path: '/workspace/seo',
+    label: 'SEO',
+    icon: 'search',
     children: [
+      { path: '/workspace/seo/tools', label: 'Tools' },
+      { path: '/workspace/seo/blog-manager', label: 'Blog SEO' },
+      { path: '/workspace/seo/pages-manager', label: 'Site Pages SEO' },
+      { path: '/workspace/seo/blog-studio', label: 'Blog Studio' },
       { path: '/workspace/seo/blog-production', label: 'Production waves' },
       { path: '/workspace/seo/blog-production/review', label: 'Source review' },
       { path: '/workspace/seo/blog-production/qa', label: 'QA review' },
       { path: '/workspace/seo/blog-production/publish', label: 'Publish queue' },
-      // Moved here from the gear's SEO group rather than duplicated — see the note there.
-      { path: '/workspace/seo/blog-studio', label: 'Blog Studio' },
     ],
   },
 ];
@@ -232,11 +198,17 @@ export const settingsConfig: SettingsGroup[] = [
     icon: 'access',
     hint: 'Sign-in and second factors',
     items: [
-      // Kept deliberately prominent. TOTP enrolment cannot be done from the admin
-      // side — Cognito's AssociateSoftwareToken takes the user's own access token
+      // Kept deliberately prominent AND first. TOTP enrolment cannot be done from the
+      // admin side — Cognito's AssociateSoftwareToken takes the user's own access token
       // and does not evaluate IAM — so the signed-in person must be able to reach
       // this. Burying it would work against the admin-MFA target.
       { path: '/workspace/access/security', label: 'Sign-in & MFA' },
+      // Internal Agent moved here from the Platform group: with the flat sidebar, the
+      // account menu / gear is the ONE place that holds true config, and the redesign
+      // spec names exactly two settings rows — Sign-in & MFA then Internal Agent. It
+      // configures the operator's own admin helper (distinct from the customer-facing
+      // WhatsApp AI Agent under Messaging tools).
+      { path: '/workspace/settings/internal-agent', label: 'Internal Agent' },
       // '/workspace/access' ("Access") was a second row here. It is the sign-in landing,
       // and for a signed-in user - the only person who can open this gear - it does
       // nothing but router.replace to /workspace/engage/inbox (access/index.tsx), which is
@@ -393,13 +365,9 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/settings/platform/wa-graph-tools', label: 'WA Graph Tools' },
       { path: '/workspace/settings/platform/cors-settings', label: 'CORS Settings' },
       { path: '/workspace/settings/platform/design-reference', label: 'Design Reference' },
-      // The operator's own assistant, and deliberately NOT next to "AI Agent" under
-      // Messaging tools: that one answers customers on WhatsApp, this one configures the
-      // admin helper, and two rows reading "agent" in one settings screen would invite
-      // changing the wrong model's prompt. Its own docblock recorded that nothing in the
-      // repo linked it; the /workspace tile grid was the only route, and nothing links
-      // /workspace either, so the page was reachable only by typing two URLs in a row.
-      { path: '/workspace/settings/internal-agent', label: 'Internal Agent' },
+      // Internal Agent moved up to the "Your account" group — see the note there. The
+      // redesign keeps Settings as exactly two rows (Sign-in & MFA + Internal Agent); the
+      // Platform group remains for infrastructure reachability via the palette.
       // '/carbon' and '/nocode' were here. Both removed 2026-09-25 with their pages:
       // each was a 15-line EmptyState reading "... coming soon" with nothing behind it
       // ("Sustainability and carbon tracking", "Visual workflow and form builder"). A

@@ -11,9 +11,11 @@
  *
  * FIVE, NOT EIGHT
  * ---------------
- * `navigationConfig` has eight top-level entries. Eight targets across a phone width
+ * `navigationConfig` is a flat list of eight top-level streams (Messages, Contacts,
+ * Commerce, Payments, Service, Links, Tasks, SEO). Eight targets across a phone width
  * gives each about 45px, below the 44px minimum once padding is taken off, and the
- * labels truncate to nonsense. So the bar shows the first four and a "More" button that
+ * labels truncate to nonsense. So the bar shows the first four — Messages, Contacts,
+ * Commerce, Payments, all thumb-reachable daily streams — and a "More" button that
  * opens the same drawer. Four plus More is a deliberate cut, not a truncation: the
  * drawer is one tap away and holds everything.
  *

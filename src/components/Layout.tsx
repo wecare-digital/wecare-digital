@@ -1,13 +1,13 @@
 /**
  * Layout Component - WECARE.DIGITAL
  */
-import React, { ReactNode, useState, useEffect, useMemo } from 'react';
+import React, { ReactNode, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import SearchModal from './SearchModal';
 import SettingsGear from './SettingsGear';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
-import { navigationConfig, NavItem, NavSubItem, getAllNavItems } from '../config/navigation';
+import { navigationConfig, NavItem, getAllNavItems, isNavItemActive } from '../config/navigation';
 import { useUserRole, isPartnerAllowed } from '../hooks/useUserRole';
 import { IconMap, ChevronRightIcon, MenuIcon, CloseIcon } from '../lib/icons';
 import BottomNav from './BottomNav';
@@ -56,10 +56,16 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
   const navForRole = useMemo( () => ( isPartner ? PARTNER_NAV : navigationConfig ), [ isPartner ] );
 
   const [ isMobileMenuOpen, setIsMobileMenuOpen ] = useState( false );
-  const [ expandedPaths, setExpandedPaths ] = useState<Set<string>>( new Set() );
   const [ searchOpen, setSearchOpen ] = useState( false );
   const [ sidebarSearch, setSidebarSearch ] = useState( '' );
   const [ brandDropdownOpen, setBrandDropdownOpen ] = useState( false );
+  // Home-page-style scroll cue under the flat nav. `navOverflowing` is whether the
+  // scroller has content below the fold at all; `showNavMore` is whether there is still
+  // room to scroll down from where we are. Both derive from real scroll geometry, ported
+  // from Header.tsx's Products rail, so they stay correct as rows or the viewport change.
+  const navScrollRef = useRef<HTMLElement | null>( null );
+  const [ navOverflowing, setNavOverflowing ] = useState( false );
+  const [ showNavMore, setShowNavMore ] = useState( false );
   const [ sidebarCollapsed, setSidebarCollapsed ] = useState( () => {
     if ( typeof window !== 'undefined' )
     {
@@ -79,11 +85,6 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
     { key: '/', action: () => setSearchOpen( true ), description: 'Open search' },
   ] );
 
-  const isPathActive = ( path: string ): boolean => {
-    if ( path === '/' ) return router.pathname === '/';
-    return router.pathname === path || router.pathname.startsWith( path + '/' );
-  };
-
   // Get all nav items for sidebar search
   const allNavItems = useMemo( () => getAllNavItems(), [] );
 
@@ -97,35 +98,46 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
     ).slice( 0, 8 );
   }, [ sidebarSearch, allNavItems ] );
 
-  useEffect( () => {
-    const newExpanded = new Set<string>(); // Dashboard section removed; expansion follows the active path
-    const findParents = ( items: ( NavItem | NavSubItem )[], parents: string[] = [] ) => {
-      for ( const item of items )
-      {
-        if ( isPathActive( item.path ) )
-        {
-          parents.forEach( p => newExpanded.add( p ) );
-          newExpanded.add( item.path );
-        }
-        if ( 'children' in item && item.children )
-        {
-          findParents( item.children, [ ...parents, item.path ] );
-        }
-      }
-    };
-    findParents( navigationConfig );
-    setExpandedPaths( newExpanded );
-  }, [ router.pathname ] );
-
   useEffect( () => { setIsMobileMenuOpen( false ); }, [ router.pathname ] );
 
-  const toggleExpand = ( path: string ) => {
-    setExpandedPaths( prev => {
-      const next = new Set( prev );
-      next.has( path ) ? next.delete( path ) : next.add( path );
-      return next;
+  // Keep the scroll cue in step with real scroll geometry on the flat nav. Ported from
+  // Header.tsx's Products rail: `overflow` is content below the fold; `remaining` is how
+  // much of it is still unseen. The cue appears only while there is more below.
+  useEffect( () => {
+    if ( typeof window === 'undefined' ) return undefined;
+    const scroller = navScrollRef.current;
+    if ( !scroller )
+    {
+      setNavOverflowing( false );
+      setShowNavMore( false );
+      return undefined;
+    }
+    const update = () => {
+      const overflow = scroller.scrollHeight - scroller.clientHeight > 2;
+      const remaining = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+      setNavOverflowing( overflow );
+      setShowNavMore( overflow && remaining > 2 );
+    };
+    update();
+    scroller.addEventListener( 'scroll', update, { passive: true } );
+    window.addEventListener( 'resize', update );
+    return () => {
+      scroller.removeEventListener( 'scroll', update );
+      window.removeEventListener( 'resize', update );
+    };
+  }, [ router.pathname, sidebarCollapsed, sidebarSearch, isPartner ] );
+
+  const scrollNavForward = useCallback( () => {
+    if ( typeof window === 'undefined' ) return;
+    const scroller = navScrollRef.current;
+    if ( !scroller ) return;
+    const reduceMotion = typeof window.matchMedia === 'function'
+      && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
+    scroller.scrollBy( {
+      top: Math.max( 46, scroller.clientHeight - 46 ),
+      behavior: reduceMotion ? 'auto' : 'smooth',
     } );
-  };
+  }, [] );
 
   const renderIcon = ( iconName?: string, size: number = 16 ) => {
     if ( !iconName ) return null;
@@ -138,76 +150,31 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
     router.push( path );
   };
 
-  const renderNavItems = ( items: ( NavItem | NavSubItem )[], level: number = 0 ) => {
-    // When sidebar is collapsed, only render top-level items (icons only)
-    if ( sidebarCollapsed && level > 0 ) return null;
-
-    // Filter by sidebar search
+  // The flat sidebar — ONE level, no expand/collapse. Each row is its own destination;
+  // the dense sections open as single pages with in-page tabs, so there is no tree to
+  // render. Active state uses `isNavItemActive`, which strips channel query strings.
+  const renderNavItems = ( items: NavItem[] ) => {
     const query = sidebarSearch.trim().toLowerCase();
-    const matchesSearch = ( item: NavItem | NavSubItem ): boolean => {
+    const matchesSearch = ( item: NavItem ): boolean => {
       if ( !query ) return true;
       if ( item.label.toLowerCase().includes( query ) ) return true;
-      if ( 'children' in item && item.children ) return item.children.some( matchesSearch );
-      return false;
+      return !!item.children?.some( ( c ) => c.label.toLowerCase().includes( query ) );
     };
 
-    return items.filter( matchesSearch ).map( ( item, index ) => {
-      const hasChildren = 'children' in item && item.children && item.children.length > 0;
-      const isExpanded = expandedPaths.has( item.path ) || ( !!query && hasChildren );
-      const isActive = isPathActive( item.path );
-      const itemClass = level === 0
-        ? `nav-item ${hasChildren ? 'nav-item-expandable' : ''} ${isActive ? 'nav-item-active' : ''}`
-        : `nav-subitem ${hasChildren ? 'nav-subitem-expandable' : ''} ${isActive ? 'nav-subitem-active' : ''}`;
-
-      // Section label (e.g. "Coming Soon")
-      const sectionLabel = 'sectionLabel' in item ? ( item as NavItem ).sectionLabel : undefined;
-      const badge = 'badge' in item ? item.badge : undefined;
-
-      // In collapsed mode, clicking a parent nav item navigates to its path
-      const handleCollapsedClick = () => {
-        if ( sidebarCollapsed && hasChildren )
-        {
-          router.push( item.path );
-        } else if ( hasChildren )
-        {
-          toggleExpand( item.path );
-        } else
-        {
-          router.push( item.path );
-        }
-      };
-
+    return items.filter( matchesSearch ).map( ( item ) => {
+      const isActive = isNavItemActive( item, router.pathname );
       return (
-        <React.Fragment key={ item.path }>
-          { sectionLabel && !sidebarCollapsed && (
-            <div className="nav-section-label">{ sectionLabel }</div>
-          ) }
-          <div className={ level === 0 ? 'nav-group' : 'nav-nested-group' }>
-            { hasChildren ? (
-              <>
-                <button className={ itemClass } onClick={ handleCollapsedClick } title={ sidebarCollapsed ? item.label : undefined }>
-                  { 'icon' in item && <span className="nav-icon">{ renderIcon( item.icon, level === 0 ? 16 : 14 ) }</span> }
-                  <span className="nav-label">{ item.label }</span>
-                  { badge && <span className="nav-badge-soon">{ badge }</span> }
-                  <span className={ `nav-arrow ${isExpanded ? 'expanded' : ''}` }>
-                    <ChevronRightIcon size={ level === 0 ? 12 : 10 } />
-                  </span>
-                </button>
-                { isExpanded && !sidebarCollapsed && (
-                  <div className={ level === 0 ? 'nav-subitems' : 'nav-nested-items' }>
-                    { renderNavItems( item.children!, level + 1 ) }
-                  </div>
-                ) }
-              </>
-            ) : (
-              <span className={ itemClass } onClick={ () => router.push( item.path ) } title={ sidebarCollapsed ? item.label : undefined }>
-                { 'icon' in item && <span className="nav-icon">{ renderIcon( item.icon, level === 0 ? 16 : 14 ) }</span> }
-                <span className="nav-label">{ item.label }</span>
-                { badge && <span className="nav-badge-soon">{ badge }</span> }
-              </span>
-            ) }
-          </div>
-        </React.Fragment>
+        <div className="nav-group" key={ item.path }>
+          <span
+            className={ `nav-item ${isActive ? 'nav-item-active' : ''}` }
+            onClick={ () => router.push( item.path ) }
+            title={ sidebarCollapsed ? item.label : undefined }
+          >
+            <span className="nav-icon">{ renderIcon( item.icon, 16 ) }</span>
+            <span className="nav-label">{ item.label }</span>
+            { item.badge && <span className="nav-badge-soon">{ item.badge }</span> }
+          </span>
+        </div>
       );
     } );
   };
@@ -314,9 +281,34 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
             </div>
           ) }
 
-          <nav className="sidebar-nav">
+          <nav className="sidebar-nav" ref={ navScrollRef }>
             { renderNavItems( navForRole ) }
           </nav>
+          {/* Home-page-style scroll cue. Rendered only when the nav overflows, and truly
+              hidden (not just dimmed) once fully scrolled: aria-hidden + tabIndex -1 take
+              it out of the a11y and tab order, and `.is-hidden` removes it visually. The
+              double-chevron SVG is the exact path the public header's Products rail uses. */}
+          { navOverflowing && (
+            <div className={ `sidebar-nav-cue-row ${showNavMore ? '' : 'is-hidden'}`.trim() }>
+              <button
+                type="button"
+                className="sidebar-nav-more"
+                aria-label="Scroll to more navigation"
+                aria-hidden={ !showNavMore }
+                tabIndex={ showNavMore ? 0 : -1 }
+                onClick={ scrollNavForward }
+              >
+                <svg
+                  className="sidebar-nav-more-icon"
+                  viewBox="0 -960 960 960"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path d="M480-200 240-440l42-42 198 198 198-198 42 42-240 240Zm0-253L240-693l42-42 198 198 198-198 42 42-240 240Z" />
+                </svg>
+              </button>
+            </div>
+          ) }
           {/* The gear. Below the daily streams because it is the "everything
               else" door, not a destination you aim for. Hidden from partner users,
               who see a deliberately minimal nav. */}
