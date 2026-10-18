@@ -190,9 +190,9 @@ const CONTRIBUTION_UNAVAILABLE_MESSAGE = 'Contributions are not available right 
 const CONTRIBUTION_NOT_PAYABLE_MESSAGE =
   'Contributions cannot be taken right now. Nothing has been charged.';
 /**
- * Discounts are payment facts, not cart decoration. The live checkout has no redemption
- * endpoint today and Delight is not seeded in the live CouponsTable. This page therefore
- * exposes status only and never a dead Apply control.
+ * Discounts are payment facts, not cart decoration. There is no coupon or gift-card system any
+ * more: the one discount is the always-on Delight policy, applied SERVER-SIDE at checkout. This
+ * page therefore STATES Delight and never offers an Apply control or a code field.
  */
 /** Where an unauthenticated shopper is sent, and returned from, before checkout. */
 const SIGN_IN_PATH = '/account/sign-in/?return=/cart/';
@@ -484,11 +484,11 @@ function loadRazorpaySdk (): Promise<boolean> {
 }
 
 /**
- * Redemption capability status is deliberately static until the payment authority owns it.
+ * The discount panel is deliberately a STATEMENT, not a control.
  *
- * Do not restore an Apply button against a UI-only endpoint. A coupon/gift card is usable only
- * when checkout itself prices, reserves and settles it so the reviewed amount and Razorpay amount
- * are the same number.
+ * Do not add a coupon/gift-card field or an Apply button: there is no coupon or gift-card system.
+ * The one discount is Delight, a fixed owner policy the invoice engine applies on the server so
+ * the reviewed amount and the Razorpay amount are the same number the browser never computes.
  */
 
 /**
@@ -530,13 +530,20 @@ function ContributionAmount (
 }
 
 function RedemptionPanel (): React.ReactElement {
+  // THE ONE, ALWAYS-ON DISCOUNT. Delight is not a code the customer types and not a staff-set
+  // promo: it is a fixed owner policy applied SERVER-SIDE at checkout on every order. There is no
+  // coupon or gift-card entry point any more, so this panel states the discount rather than
+  // offering a field. The exact rupee saving is decided by the server when it prices the order
+  // (the browser never computes a payable), so the pill names the discount without quoting a
+  // figure the cart cannot authoritatively know. Rendered as an ACTIVE lime-green state, not the
+  // old amber "temporarily unavailable" placeholder.
   return (
     <section className="cart-redeem" aria-label="Discounts">
       <div className="cart-capability cart-capability-delight">
-        <span className="cart-capability-icon" aria-hidden="true">local_offer</span>
+        <span className="cart-capability-icon" aria-hidden="true">redeem</span>
         <div>
           <strong>Delight</strong>
-          <p>Temporarily unavailable. No discount has been applied to this cart.</p>
+          <p>Applied automatically at checkout. Every order gets a little back, on us.</p>
         </div>
       </div>
       <style jsx>{`
@@ -546,17 +553,17 @@ function RedemptionPanel (): React.ReactElement {
         }
         .cart-capability{
           display:grid;grid-template-columns:40px minmax(0,1fr);gap:12px;align-items:start;
-          min-height:96px;padding:18px;border:1px solid #e5e7eb;border-radius:16px;box-sizing:border-box;
+          min-height:96px;padding:18px;border:1px solid #bbf7d0;border-radius:16px;box-sizing:border-box;
         }
-        .cart-capability-delight{background:#fef3c7}
+        .cart-capability-delight{background:#ecfdf3}
         .cart-capability-icon{
           width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;
-          border-radius:12px;background:#fff;color:#1a3a2a;
+          border-radius:12px;background:#84cc16;color:#14311c;
           font-family:'Material Symbols Rounded';font-size:23px;
-          font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 24;
+          font-variation-settings:'FILL' 1,'wght' 600,'GRAD' 0,'opsz' 24;
         }
-        .cart-capability strong{display:block;color:#1a3a2a;font-size:16px;line-height:1.3}
-        .cart-capability p{margin:5px 0 0;color:rgba(0,0,0,.72);font-size:14px;line-height:1.45}
+        .cart-capability strong{display:block;color:#14311c;font-size:16px;line-height:1.3}
+        .cart-capability p{margin:5px 0 0;color:rgba(20,49,28,.78);font-size:14px;line-height:1.45}
       `}</style>
     </section>
   );
@@ -1171,7 +1178,7 @@ export default function Cart (): React.ReactElement {
       // misconfiguration refusal, which looks the same to the server and is not.
       setNotice( {
         kind: 'quiet',
-        message: 'A contribution takes no coupon or gift card. Remove it to continue.',
+        message: 'A contribution takes no discount. Remove it to continue.',
       } );
       return;
     }
@@ -1726,15 +1733,14 @@ export default function Cart (): React.ReactElement {
                 ) ) }
               </ul>
 
-              {/* Coupon + gift card. Every amount shown is server-authoritative; with the backend
-                  gate off this shows an honest unavailable state and cannot transact.
+              {/* The always-on Delight discount, stated (not applied) here. Every figure is
+                  server-authoritative: Delight is priced by the invoice engine at checkout, not in
+                  the browser.
 
-                  NOT RENDERED ON A CART CONTAINING A CONTRIBUTION. A contribution takes neither:
-                  a coupon would make the recorded amount differ from the amount contributed, and a
-                  gift card is store credit -- spending store credit is not a contribution. Removing
-                  the entry point is the cheap half; the server refusal is the authoritative half,
-                  since this panel is not the only way a coupon could ever land on a cart. A
-                  render-time read of `items` is correct here. */}
+                  NOT RENDERED ON A CART CONTAINING A CONTRIBUTION. A discount would make the
+                  recorded amount differ from the amount contributed, so the server suppresses
+                  Delight on a contribution and this panel is hidden to match. A render-time read of
+                  `items` is correct here. */}
               { !items.some( isContributionItem ) && <RedemptionPanel /> }
 
               {/* THE RETURNING CUSTOMER SEES WHAT WE ALREADY KNOW, not a form. Rendered only on

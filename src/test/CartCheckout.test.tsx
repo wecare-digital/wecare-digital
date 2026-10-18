@@ -2258,7 +2258,7 @@ describe( 'the contribution row CHOOSES an amount, it does not count copies', ()
     cart.addItem( PRODUCT, 1 );
     render( <Cart /> );
     expect( await screen.findByText( 'Delight' ) ).toBeInTheDocument();
-    expect( screen.getByText( 'Temporarily unavailable. No discount has been applied to this cart.' ) )
+    expect( screen.getByText( 'Applied automatically at checkout. Every order gets a little back, on us.' ) )
       .toBeInTheDocument();
   } );
 } );
