@@ -36,7 +36,7 @@ import boto3.dynamodb.conditions  # the real resource loads this; the fixture mo
 
 ROOT = Path(__file__).resolve().parents[1]
 FUNCTION = ROOT / "amplify/functions/payments/invoice-engine/handler.py"
-FLOW_PAGE = ROOT / "src/pages/workspace/pay/flow/index.tsx"
+FLOW_PAGE = ROOT / "src/components/workspace/pay/PayFlow.tsx"
 API_CLIENT = ROOT / "src/api/client.ts"
 
 INVOICE_ID = "inv-fixture"
