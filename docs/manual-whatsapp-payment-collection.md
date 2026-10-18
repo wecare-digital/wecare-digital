@@ -1,0 +1,79 @@
+# Manual WhatsApp payment collection
+
+The reusable, Meta-approved payment template is `wecarepay_wa` (English, primary account,
+Review and Pay / ORDER_DETAILS). Checkout and invoice requests already use it. Staff do not
+create a new template per invoice or fill its order parameters by hand.
+
+## Recommended route: Pay Flow
+
+1. Sign in to the workspace with an Admin role and open **Pay → Pay Flow**
+   (`/workspace/pay?tab=flow`).
+2. In **Customers**, select or save the intended customer and their WhatsApp number.
+   For physical goods, save the complete delivery address, city, state and six-digit India PIN.
+3. Open **Create**, select the customer and choose **Digital Goods** or **Physical Goods**.
+   Enter item descriptions, quantities, unit prices and the correct GST rate. Invoice item
+   amounts are exclusive of GST; review the server-generated invoice before sending.
+4. Check delivery charges deliberately. Set them to zero when delivery is not charged.
+   The form's saved/default delivery value is not a determination that delivery applies.
+   Delight and convenience fees are calculated by the invoice engine, not entered manually.
+5. Choose **Create Invoice**. Open the created invoice in **Invoices** and check its customer,
+   goods type, amount and delivery details.
+6. Use the primary sender **+91 93309 94400** and choose **Send payment request**. The server
+   resolves and verifies the registered payment configuration and reserves the invoice's
+   payment identity before sending `wecarepay_wa`.
+7. The customer receives **Review and Pay**, checks the order and pays inside WhatsApp using
+   the verified Razorpay configuration. Sending the message does not itself charge them.
+8. Check **Invoices**, **Dues**, or **Invoice records** (`/workspace/pay?tab=records`) for the
+   reconciled result. A delivered message is not proof of payment; a paid invoice is not proof
+   of shipment or completed service.
+
+## Quicker route: Inbox
+
+Open **Engage → Inbox** (`/workspace/engage/inbox`), select a saved customer conversation,
+then **Request payment**. Choose the goods type, add the items and applicable GST/delivery,
+and select **Send payment request**. This uses the same server-owned invoice and approved
+payment template as Pay Flow. There is no manual-discount input or secondary payment sender.
+The displayed subtotal is before final server adjustments; the invoice is authoritative.
+
+If sending is refused after an invoice is created, the open composer retains that invoice
+for a retry. Changing the draft requires resolving the existing invoice in Pay → Invoices.
+After a reload, timeout or uncertain result, check that ledger before creating another invoice.
+
+## Commerce panel
+
+The bill composer at `/workspace/commerce?tab=engine` also calls the invoice path. Select the
+primary number for collection. Both numbers remain available for ordinary catalogue messaging;
+that does not make both valid payment senders. Physical bills require a saved payable address.
+For a payment that needs review before send, use the two-step Pay Flow route above.
+
+## Reuse, retries and status updates
+
+- Reuse `wecarepay_wa` for different invoices with server-reserved references and exact totals.
+- Retrying a single invoice goes through the same reservation/interlock. It does not authorize
+  a new charge. Resolve uncertain/pending outcomes before creating a replacement collection.
+- Paid or canceled invoices cannot be collected again. To correct an unpaid issued invoice,
+  follow the invoice cancellation/replacement process rather than editing its frozen amounts.
+- The generic template picker is not a payment composer: it does not reserve an invoice or
+  construct the authoritative order_details action. Use Pay Flow, Inbox Request payment, or
+  the Commerce bill composer for collection.
+- `wecarepay_wa` requests payment. A separate approved ORDER_STATUS template is required for
+  structured order-status notifications outside the customer-service window. Approval must
+  come from the actual provider inventory, not a local template preset.
+- Capture receipt maps to processing; completed must be an explicit fulfillment update.
+
+## Release and go-live checks
+
+`WA_LIVE_SMOKE_TEST=true` restricts outbound to the configured QA recipient. The owner has
+requested ordinary customer recipients after validation; remove that lockdown only in a
+validated, published version, verify the live alias and preserve the old version for rollback.
+This permission does not authorize a test message to a customer.
+
+Run `scripts/commerce_release_audit.py` with the deterministic release manifest and the
+expected merged website commit. It compares all seven live code hashes, payment expectations,
+QA mode, actual provider template/configuration readback and the hosting deployment. It reports
+payment readiness and outside-window status readiness separately. It never prints credentials.
+
+Critical CI gates run for pull requests, stack pushes and merge-queue candidates. Configure
+strict up-to-date required checks for Build, typecheck and test; Handler auth enforcement
+(source); and Product vocabulary gate, including administrators. Source workflow triggers alone
+do not enable GitHub branch protection.

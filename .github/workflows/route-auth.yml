@@ -42,6 +42,7 @@ name: Route auth
 on:
   push:
     branches: [stack]
+  merge_group:
   pull_request:
     branches: [stack]
   schedule:

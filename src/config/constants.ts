@@ -4,9 +4,6 @@
  * 
  * These values can be overridden by environment variables:
  * - NEXT_PUBLIC_API_BASE
- * - NEXT_PUBLIC_PAYMENT_PHONE_ID
- * - NEXT_PUBLIC_PAYMENT_PHONE_DISPLAY
- * - NEXT_PUBLIC_PAYMENT_PHONE_NAME
  * - NEXT_PUBLIC_DEFAULT_GSTIN
  */
 
@@ -20,11 +17,7 @@ export const AWS_REGION = process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-1';
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 
 // Payment Phone Configuration (default active phone for payments)
-export const PAYMENT_CONFIG = {
-  phoneNumberId: process.env.NEXT_PUBLIC_PAYMENT_PHONE_ID || 'phone-number-id-waba-t-direct-1055232054343117',
-  phoneDisplay: process.env.NEXT_PUBLIC_PAYMENT_PHONE_DISPLAY || '+91 99033 00044',
-  phoneName: process.env.NEXT_PUBLIC_PAYMENT_PHONE_NAME || 'Manish Agarwal',
-};
+
 
 // Default GSTIN for invoices — loaded from env, no hardcoded fallback
 export const DEFAULT_GSTIN = process.env.NEXT_PUBLIC_DEFAULT_GSTIN || '';
@@ -52,12 +45,19 @@ export const WHATSAPP_PHONES = {
     username: 'manishagarwal',  // Fixed WhatsApp business username (reserved with Meta)
     wabaId: '2513394156072604',
     metaPhoneId: '1055232054343117',
-    hasPayment: true,
+    hasPayment: false,
     paymentConfigName: 'WECAREDIGITAL',
     paymentConfigs: [ 'WECAREDIGITAL', 'WECAREUPI' ],
     paymentProtected: true,
     directApi: true,
   },
+};
+
+// Payment collection uses the same primary sender enforced by the server allowlist.
+export const PAYMENT_CONFIG = {
+  phoneNumberId: WHATSAPP_PHONES.primary.id,
+  phoneDisplay: WHATSAPP_PHONES.primary.display,
+  phoneName: WHATSAPP_PHONES.primary.name,
 };
 
 // GST Rate Options

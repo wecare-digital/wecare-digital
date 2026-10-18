@@ -172,7 +172,7 @@ class TestOrderStatusSend:
                                              'phone-id-1', details, 'req-2')
         assert result['statusCode'] == 200
         body = json.loads(result['body'])
-        assert body['orderStatus'] == 'failed'
+        assert body['orderStatus'] == 'pending'  # payment failure is not a fulfillment state
 
     def test_completed_order_status_uses_configured_template_outside_window(self):
         details = {'reference_id': 'WD-003', 'order_status': 'completed', 'amountPaise': 4900}
@@ -268,3 +268,28 @@ class TestPairRateLimit:
         allowed, retry = self.check('phone-1', '+919330994400')
         assert allowed is False
         assert retry > 80
+
+
+@pytest.mark.parametrize('payment_state', ['captured', 'paid', 'success'])
+def test_payment_receipt_does_not_complete_fulfillment(payment_state):
+    # Load through the same fixture-independent AST seam used by the monetary boundary tests.
+    import ast
+    import pathlib
+    from typing import Dict, Any, Optional
+    from unittest.mock import Mock
+    from lambda_utils import payment_status
+    source = pathlib.Path(__file__).resolve().parents[1] / 'amplify/functions/messaging/outbound-whatsapp/handler.py'
+    node = next(n for n in ast.parse(source.read_text()).body
+                if isinstance(n, ast.FunctionDef) and n.name == '_handle_order_status_send')
+    send = Mock(return_value={'messageId': 'offline'})
+    namespace = dict(Dict=Dict, Any=Any, Optional=Optional, json=json, pay_status=payment_status,
+                     _send_message=send, _sanitize_reference_id=lambda value: value,
+                     _normalize_phone_number=lambda value: value.lstrip('+'),
+                     mask_phone=lambda value: 'masked', mask_contact_id=lambda value: 'masked',
+                     logger=Mock(), _store_message_record=Mock(), _emit_delivery_metric=Mock(),
+                     WA_INITIAL_STATUS='sent', cors_headers=lambda _: {}, origin='offline')
+    exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), 'exec'), namespace)
+    response = namespace[node.name]('message', 'contact', '+919999999999', 'sender',
+        {'reference_id': 'OFFLINE', 'order_status': payment_state, 'amountPaise': 10000}, 'request')
+    assert response['statusCode'] == 200
+    assert send.call_args.args[1]['interactive']['action']['parameters']['order']['status'] == 'processing'

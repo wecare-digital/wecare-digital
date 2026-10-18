@@ -1,25 +1,4 @@
-/**
- * Changing the sender on a payment request must RE-LOCK the admin-verification gate.
- *
- * WHY THIS FILE EXISTS. `engage/inbox`'s send-from chooser was the one control the migration
- * design named individually, because its handler is the only migrated one in the payment batch
- * with TWO statements:
- *
- *     onChange={ v => { setPayPhone( v ); setPayUnlocked( false ); } }
- *
- * The second statement resets the gate. One of the two payment-enabled numbers is
- * `paymentProtected`, and the panel refuses to send from it until `Verify Admin access`
- * succeeds. A migrated handler that quietly lost `setPayUnlocked( false )` would carry a
- * verification granted for one number over to another, with nothing erroring, nothing logging
- * and the Send button still enabled - so the batch's instruction was to assert it in a test
- * rather than by reading the diff.
- *
- * TWO ASSERTIONS, BECAUSE ONE CANNOT COVER IT. The behavioural test proves the statement is
- * still CALLED: unlock the protected number, move away, come back, and the lock must be back.
- * It cannot prove the ORDER, because React batches both state writes into one render and the
- * two orderings are indistinguishable from the outside - so the order is held by a source
- * assertion on the handler body, which is the only thing that can see it.
- */
+/** Manual payment requests use the approved sender and the server-owned invoice path. */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -50,6 +29,8 @@ vi.mock( 'aws-amplify/auth', () => ( {
 const listMessages = vi.fn();
 const listContacts = vi.fn();
 const verifyAdminAccess = vi.fn();
+const createInvoiceEngine = vi.fn();
+const sendPaymentLink = vi.fn();
 
 vi.mock( '../api/client', async () => {
   const actual = await vi.importActual<any>( '../api/client' );
@@ -58,6 +39,8 @@ vi.mock( '../api/client', async () => {
     listMessages: ( ...a: unknown[] ) => listMessages( ...a ),
     listContacts: ( ...a: unknown[] ) => listContacts( ...a ),
     verifyAdminAccess: ( ...a: unknown[] ) => verifyAdminAccess( ...a ),
+    createInvoiceEngine: ( ...a: unknown[] ) => createInvoiceEngine( ...a ),
+    sendPaymentLink: ( ...a: unknown[] ) => sendPaymentLink( ...a ),
     listRcsTemplates: vi.fn().mockResolvedValue( [] ),
     getPollyVoices: vi.fn().mockResolvedValue( { voices: {} } ),
     listAutomationRules: vi.fn().mockResolvedValue( [] ),
@@ -114,8 +97,11 @@ beforeEach( () => {
     timestamp: new Date( '2026-10-06T09:00:00Z' ).toISOString(),
     senderPhone: '+918100640044',
   } ] );
-  listContacts.mockResolvedValue( [ { contactId: 'c-1', name: 'Asha' } ] );
+  listContacts.mockResolvedValue( [ { contactId: 'c-1', name: 'Asha', phone: '+919999999999' } ] );
+  vi.clearAllMocks();
   verifyAdminAccess.mockResolvedValue( true );
+  createInvoiceEngine.mockResolvedValue( { invoiceId: 'inv-manual', invoiceNumber: 'WD-TEST', total: 100 } );
+  sendPaymentLink.mockResolvedValue( { status: 'sent' } );
   if ( !( 'scrollIntoView' in Element.prototype ) ) {
     ( Element.prototype as any ).scrollIntoView = () => {};
   }
@@ -129,52 +115,52 @@ async function openPayPanel () {
   expect( await screen.findByText( 'Request payment' ) ).toBeTruthy();
 }
 
-describe( 'the payment panel re-locks when the sender changes', () => {
-  it( 'starts locked on the protected number, which is the default sender', async () => {
+describe( 'manual invoice-backed payment collection', () => {
+  it( 'offers only the primary payment sender while normal conversation senders stay separate', async () => {
     await openPayPanel();
-    // PAYMENT_CONFIG.phoneNumberId is the protected number, so the gate is up before anything
-    // is touched. If this ever stops being true the rest of the file is measuring nothing.
-    expect( paySender().textContent ).toContain( 'Protected' );
-    expect( payLock() ).toBeTruthy();
+    expect( paySender().textContent ).toContain( OPEN_NUMBER );
+    expect( payLock() ).toBeNull();
+    fireEvent.click( paySender() );
+    expect( screen.queryByRole( 'option', { name: PROTECTED } ) ).toBeNull();
+    expect( screen.getByRole( 'option', { name: OPEN_NUMBER } ) ).toBeTruthy();
   } );
 
-  it( 'clears the lock once admin access verifies', async () => {
+  it( 'raises an invoice before sending and leaves discount/configuration decisions to the server', async () => {
     await openPayPanel();
-    fireEvent.click( payLock()! );
-    await waitFor( () => expect( payLock() ).toBeNull() );
-    expect( verifyAdminAccess ).toHaveBeenCalled();
+    fireEvent.change( screen.getByPlaceholderText( 'Item / service' ), { target: { value: 'Consultation' } } );
+    fireEvent.change( screen.getByPlaceholderText( '₹ Amount' ), { target: { value: '100' } } );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Send payment request' } ) );
+    await waitFor( () => expect( sendPaymentLink ).toHaveBeenCalledWith(
+      'inv-manual', 'phone-number-id-waba1-direct-1016149501586345' ) );
+    expect( createInvoiceEngine.mock.calls[ 0 ][ 0 ] ).toMatchObject( {
+      goodsType: 'digital-goods', entryPoint: 'inbox', items: [ { name: 'Consultation', amount: 100 } ],
+    } );
+    expect( createInvoiceEngine.mock.calls[ 0 ][ 0 ] ).not.toHaveProperty( 'discount' );
+    expect( createInvoiceEngine.mock.calls[ 0 ][ 0 ] ).not.toHaveProperty( 'paymentConfiguration' );
+    expect( createInvoiceEngine.mock.invocationCallOrder[ 0 ] ).toBeLessThan( sendPaymentLink.mock.invocationCallOrder[ 0 ] );
   } );
 
-  it( 'puts the lock BACK when the sender changes away and returns', async () => {
+  it( 'does not send if invoice creation is refused', async () => {
+    createInvoiceEngine.mockResolvedValue( null );
     await openPayPanel();
-    fireEvent.click( payLock()! );
-    await waitFor( () => expect( payLock() ).toBeNull() );
-
-    // Away to the unprotected number, then back. This is the exact path the dropped statement
-    // would break: with `setPayUnlocked( false )` gone, `payUnlocked` would still be true on
-    // the return and the protected number would render UNLOCKED.
-    chooseSender( OPEN_NUMBER );
-    expect( paySender().textContent ).not.toContain( 'Protected' );
-
-    chooseSender( PROTECTED );
-    expect( paySender().textContent ).toContain( 'Protected' );
-    expect( payLock() ).toBeTruthy();
+    fireEvent.change( screen.getByPlaceholderText( 'Item / service' ), { target: { value: 'Consultation' } } );
+    fireEvent.change( screen.getByPlaceholderText( '₹ Amount' ), { target: { value: '100' } } );
+    const before = sendPaymentLink.mock.calls.length;
+    fireEvent.click( screen.getByRole( 'button', { name: 'Send payment request' } ) );
+    await screen.findByText( 'Could not raise the invoice. Check Pay → Invoices before trying again.' );
+    expect( sendPaymentLink.mock.calls.length ).toBe( before );
   } );
-} );
-
-describe( 'the source keeps both statements, in order', () => {
-  it( 'calls setPayPhone and THEN setPayUnlocked( false ) in the migrated handler', () => {
-    // Comments are stripped first: the note beside the handler explains the rule and therefore
-    // contains both calls verbatim, so a check against the raw source would pass on its own
-    // commentary. The same trap three earlier batches recorded.
-    const code = SRC
-      .replace( /\/\*[\s\S]*?\*\//g, '' )
-      .replace( /\{\s*\/\*[\s\S]*?\*\/\s*\}/g, '' )
-      .replace( /^\s*\/\/.*$/gm, '' );
-    expect( code ).toMatch(
-      /onChange=\{\s*v\s*=>\s*\{\s*setPayPhone\(\s*v\s*\);\s*setPayUnlocked\(\s*false\s*\);\s*\}\s*\}/
-    );
-    // And no native select is left in the file at all - the two money controls were the last.
-    expect( code ).not.toMatch( /<select/ );
+  it( 'reuses the retained invoice when delivery is refused instead of creating another collection', async () => {
+    sendPaymentLink.mockResolvedValueOnce( null ).mockResolvedValue( { status: 'sent' } );
+    await openPayPanel();
+    fireEvent.change( screen.getByPlaceholderText( 'Item / service' ), { target: { value: 'Consultation' } } );
+    fireEvent.change( screen.getByPlaceholderText( '₹ Amount' ), { target: { value: '100' } } );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Send payment request' } ) );
+    await screen.findByText( /Invoice WD-TEST is retained/ );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Send payment request' } ) );
+    await waitFor( () => expect( sendPaymentLink ).toHaveBeenCalledTimes( 2 ) );
+    expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 );
+    expect( sendPaymentLink.mock.calls.map( call => call[ 0 ] ) ).toEqual( [ 'inv-manual', 'inv-manual' ] );
   } );
+
 } );

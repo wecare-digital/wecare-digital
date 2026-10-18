@@ -169,3 +169,15 @@ describe( 'the retired brand list', () => {
     expect( lastRequest().purpose ).toBe( 'WECARE.DIGITAL' );
   } );
 } );
+
+
+it( 'preserves a zero GST rate instead of replacing it with the default rate', async () => {
+  await openCreateForm();
+  priceOneItem();
+  const prices = screen.getAllByRole( 'spinbutton' );
+  fireEvent.change( prices[ 2 ], { target: { value: '0' } } );
+  submit();
+  await waitFor( () => expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 ) );
+  expect( lastRequest().items[ 0 ].gstRate ).toBe( 0 );
+  expect( lastRequest() ).not.toHaveProperty( 'paymentConfiguration' );
+} );

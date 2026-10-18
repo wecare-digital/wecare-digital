@@ -757,3 +757,36 @@ def test_no_reservation_row_carries_a_ttl(fake):
                 invoice_reference_id=REFERENCE)
     for row in fake.all_rows(KEYS):
         assert 'ttl' not in row and 'expiresAt' not in row
+
+
+@pytest.mark.parametrize('address', [
+    {}, {'addressLine1': '12 Example Road', 'city': 'Kolkata', 'state': 'West Bengal', 'postalCode': '70001'},
+    {'addressLine1': '12 Example Road', 'city': 'Kolkata', 'state': '', 'postalCode': '700012'},
+])
+def test_physical_delivery_refuses_before_any_reservation_or_provider_read(engine, fake, address):
+    _seed_invoice(fake, extra={'goodsType': 'physical-goods', **address})
+    lam = _RecordingLambda()
+    response = _drive(engine, fake, lam)
+    assert response['statusCode'] == 400
+    assert _body(response)['code'] == 'DELIVERY_REQUIRED'
+    assert fake.count(ATTEMPTS) == 0
+    assert not lam.invokes
+    assert not _rows(fake, order_keys.INVOICE_COLLECT_PREFIX)
+
+
+def test_physical_delivery_is_validated_and_frozen_before_send(engine, fake):
+    _seed_invoice(fake, extra={'goodsType': 'physical-goods', 'addressLine1': '12 Example Road',
+        'city': 'Kolkata', 'state': 'West Bengal', 'postalCode': '700012'})
+    lam = _RecordingLambda()
+    response = _drive(engine, fake, lam)
+    assert response['statusCode'] == 200, _body(response)
+    assert fake.count(ATTEMPTS) == 1
+    assert lam.payloads()[0]['checkoutOrderDetails']['shipping_info']['addresses'][0]['in_pin_code'] == '700012'
+
+
+def test_invoice_send_uses_published_outbound_alias(engine, fake):
+    _seed_invoice(fake)
+    lam = _RecordingLambda()
+    response = _drive(engine, fake, lam)
+    assert response['statusCode'] == 200
+    assert lam.sends()[0]['FunctionName'] == 'wecare-outbound-whatsapp:live'
