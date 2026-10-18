@@ -489,7 +489,7 @@ describe( 'Blog design alignment', () => {
     // :global(). It used to name .category-switch button, which nothing has rendered since the
     // categories became routes, so a reader asking for less motion still got the lift.
     expect( css ).toContain( '.post-card,.category-switch :global(a){transition:none}' );
-    expect( css ).toContain( 'outline:3px solid #1a3a2a' );
+    expect( css ).toContain( 'outline:3px solid var(--public-brand-green)' );
 
     // THREE REGRESSIONS THIS NOW GUARDS, asserted against declarations with the comments
     // stripped - see declarationsOnly. The translucent focus ring measures 1.51:1 against white
@@ -736,7 +736,7 @@ describe( 'Blog post page', () => {
      * #1a3a2a. Do not reintroduce an alpha - outline-offset is what softens a ring, and it
      * costs no contrast.
      */
-    expect( css ).toContain( '.content :global(a:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px;border-radius:2px}' );
+    expect( css ).toContain( '.content :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:2px}' );
     // Scoped to this component's own style block and stripped of comments, because the note
     // above names the value it replaced - see styleBlockWith and declarationsOnly at the top.
     expect( declarationsOnly( styleBlockWith( container, '.content :global(a:focus-visible)' ) ) )
@@ -1131,7 +1131,7 @@ describe( 'Blog pills sit on the home page design language', () => {
     // reads as barely-not-white rather than as a green badge. A category badge naming the
     // post's category is identity, so it has the same requirement and takes the same answer.
     // No border, which .tab.active, .msg.sent and BrandBadge also carry none of.
-    expect( css ).toContain( '.category{display:inline-block;background:#d1f470;color:#1a3a2a;border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;letter-spacing:-.125px;margin-bottom:18px}' );
+    expect( css ).toContain( '.category{display:inline-block;background:var(--public-brand-lime);color:var(--public-brand-green);border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;letter-spacing:-.125px;margin-bottom:18px}' );
   } );
 
   it( 'keeps every lime state tint on the one documented alpha', () => {
