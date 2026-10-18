@@ -862,7 +862,7 @@ describe( 'Blog post page', () => {
     const whatsapp = menu.querySelector( 'a.contribute-link' )!;
     expect( whatsapp ).toHaveAttribute( 'href', 'https://wa.me/message/BYFLCAAMSZBXD1' );
     expect( whatsapp.getAttribute( 'aria-label' ) ).toBe( 'Contribute on WhatsApp' );
-    expect( whatsapp.textContent ).toContain( 'Continue on WhatsApp' );
+    expect( whatsapp.textContent ).toContain( 'Checkout on WhatsApp' );
 
     const website = menu.querySelector( 'button.contribute-link-btn' )!;
     expect( website.getAttribute( 'aria-label' ) ).toContain( 'website' );
