@@ -9,7 +9,7 @@ export interface PolicyDetailsCopy {
 
 interface PolicyDetailsProps extends PolicyDetailsCopy {
   className?: string;
-  overview?: string;
+  overview?: string | null;
   refunds?: string;
 }
 
@@ -30,7 +30,7 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
   <details className={ ['wc-policy', className].filter( Boolean ).join( ' ' ) }>
     <summary>Policy details</summary>
     <div className="wc-policy-body">
-      <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { overview }</p>
+      { overview && <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { overview }</p> }
       <p><strong>Shipping / fulfilment:</strong> { shipping }</p>
       <p><strong>Returns:</strong> { returns }</p>
       <p><strong>Refunds & cancellations:</strong> { refunds }</p>
@@ -91,7 +91,7 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         text-wrap:pretty;
       }
       .wc-policy strong{color:var(--public-brand-green);font-weight:700}
-      .wc-policy-disclaimer{padding-top:8px}
+      .wc-policy-disclaimer{padding-top:8px;border-top:1px solid var(--public-hairline)}
       @media(prefers-reduced-motion:reduce){
         .wc-policy summary{transition:none}
         .wc-policy summary:hover{transform:none;box-shadow:none}

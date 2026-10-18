@@ -11,6 +11,7 @@ export interface PublicPolicyCopy {
  * The shared public tail must not add a second copy on those pages.
  */
 export const EMBEDDED_POLICY_ROUTES = new Set<string>( [
+  '/grahak-os',
   '/bharat-rx',
   '/elsewhere/visa',
   '/elsewhere/trip',
