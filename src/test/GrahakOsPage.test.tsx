@@ -50,8 +50,17 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
   } );
 
   it( 'keeps all page controls on the shared 17px / 600 rung', () => {
-    for ( const selector of [ '.gos-wa-cta', '.api-wa-link', '.pp-tab', '.pp-pill', '.gos-policy summary' ] ) {
-      const rule = cssRuleFor( source, selector );
+    const apiCss = source.slice( source.indexOf( '.api-demo-stack{' ) );
+    const policyCss = source.slice( source.indexOf( '.gos-commerce{' ) );
+    const controls: Array<[ string, string ]> = [
+      [ source, '.gos-wa-cta' ],
+      [ apiCss, '.api-wa-link' ],
+      [ source, '.pp-tab' ],
+      [ source, '.pp-pill' ],
+      [ policyCss, '.gos-policy summary' ],
+    ];
+    for ( const [ css, selector ] of controls ) {
+      const rule = cssRuleFor( css, selector );
       expect( cssValue( rule, 'font-size' ) ).toBe( '17px' );
       expect( cssValue( rule, 'font-weight' ) ).toBe( '600' );
     }
