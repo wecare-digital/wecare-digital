@@ -402,14 +402,24 @@ def test_a_total_that_disagrees_with_the_capture_refuses_and_burns_no_number(eng
                for call in module.logger.error.mock_calls)
 
 
-@pytest.mark.parametrize("code_field", ["couponCode", "giftCardCode"])
-def test_a_coupon_or_gift_card_cannot_be_applied_to_money_already_captured(engine, code_field):
+def test_a_coupon_cannot_be_applied_to_money_already_captured(engine):
     module, _keys, counter, invoices, _items, _payments = engine
 
-    status, payload = _created(module, _inclusive_body(10000, **{code_field: "SAVE10"}))
+    status, payload = _created(module, _inclusive_body(10000, couponCode="SAVE10"))
 
     assert status == 400
     assert payload["errorCode"] == "AMOUNT_ALREADY_CAPTURED"
+    assert counter.advances == 0
+    assert invoices.numbered == []
+
+
+def test_a_retired_gift_card_code_is_rejected_before_invoice_work(engine):
+    module, _keys, counter, invoices, _items, _payments = engine
+
+    status, payload = _created(module, _inclusive_body(10000, giftCardCode="OLD-CARD"))
+
+    assert status == 400
+    assert payload["errorCode"] == "GIFT_CARDS_RETIRED"
     assert counter.advances == 0
     assert invoices.numbered == []
 
