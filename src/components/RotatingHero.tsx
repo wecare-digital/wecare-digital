@@ -274,15 +274,15 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
           min-height:100dvh;
           padding-top:108px;
           box-sizing:border-box;
-          background:#fff;
-          font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-          color:#1a1a1a;
+          background:var(--public-bg);
+          font-family:var(--font-sans);
+          color:var(--public-text);
         }
         .rh-shell.is-inside-main{min-height:0}
         .rh-layout{
-          width:100%;max-width:1300px;margin:0 auto;
+          width:100%;max-width:var(--public-content-max);margin:0 auto;
           padding:80px 24px 48px;box-sizing:border-box;
-          display:flex;flex-direction:column;gap:96px;
+          display:flex;flex-direction:column;gap:var(--public-section-gap);
         }
         /* THE TAIL PAIR - Contribute + Subscribe/Share - is one flex child of .rh-layout, so the
            96px flex gap sits ONCE above the pair, not between the two blocks. Inside, the blocks
@@ -301,14 +301,14 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
            notion's and is intentional - the same guard sits on Home's .home-head, and
            Grahak OS and VayuLok use this rule. Do not "correct" it. */
         .rh-head{
-          font-size:clamp(36px,4.3vw,60px);font-weight:600;line-height:1.04;
+          font-size:var(--public-hero-size);font-weight:var(--public-hero-weight);line-height:var(--public-hero-leading);
           /* TRACKING IN em, NOT px. A fixed px value against a fluid clamp() font means the
              OPTICAL tightness changes with the viewport: measured across the breakpoints it ran
              -2.22% to -6.11% of the font size, a 2.75x spread, worst at 768-820px where the font
              is still on its 36px floor while the tracking was chosen for 60px. -0.04em is -4% at
              every size, and it lets both media-query overrides go - restating it per breakpoint
              is what caused the spread. index.tsx fixed this; these three copies had not. */
-          letter-spacing:-0.04em;color:rgba(0,0,0,.95);margin:0;max-width:900px;
+          letter-spacing:var(--public-hero-tracking);color:var(--public-heading);margin:0;max-width:900px;
         }
         /* Blocks, so the frame and the pill never share a line. This is what makes the
            h1's height independent of which word is showing. The pill itself (its lozenge,
@@ -325,8 +325,8 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
            leaving one word orphaned; it is pure progressive enhancement, so it needs
            no @supports guard. */
         .rh-sub{
-          font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;
-          color:rgba(0,0,0,.898);margin:24px 0 0;max-width:560px;text-wrap:balance;
+          font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+          color:var(--public-body);margin:24px 0 0;max-width:var(--public-copy-max);text-wrap:balance;
         }
 
         @media(max-width:767px){
