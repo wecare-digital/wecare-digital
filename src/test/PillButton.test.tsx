@@ -116,9 +116,9 @@ describe( 'the measured palette is the one in the file', () => {
   it( 'is ONE lime #d1f470 surface with a dark-green edge, and no mint survives', () => {
     // #1a3a2a vs white is 12.48:1, so the 2px edge clears WCAG 1.4.11's 3:1 for a control
     // boundary - the lime cannot do that itself, at only 1.24:1 against the page.
-    expect( CSS ).toContain( '#1a3a2a' );
+    expect( CSS ).toContain( 'var(--public-brand-green)' );
     // THE SURFACE IS THE HOME PAGE'S LIME. #d1f470 with #1a3a2a text is 10.04:1.
-    expect( CSS ).toContain( '#d1f470' );
+    expect( CSS ).toContain( 'var(--public-brand-lime)' );
     // THE TWO-TONE TREATMENT IS RETIRED, on owner instruction 2026-10-02 ("old multi colour out of
     // date"). #5fe3b0 was an orphan colour - a repo-wide grep found it only in this component and
     // this test, and the home page uses #d1f470 eight times and the mint never. It must not return
@@ -130,7 +130,7 @@ describe( 'the measured palette is the one in the file', () => {
     expect( CSS ).not.toContain( '#3da35a' );
     expect( CSS ).toMatch( /:hover[^{]*\{[^}]*background:#fff/ );
     // A full pill radius, scoped so the global 13px in button.css cannot flatten it.
-    expect( CSS ).toContain( 'border-radius:999px' );
+    expect( CSS ).toContain( 'border-radius:var(--public-cta-radius)' );
     // Reduced motion is respected.
     expect( SOURCE ).toContain( 'prefers-reduced-motion' );
   } );
