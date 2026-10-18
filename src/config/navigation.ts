@@ -488,10 +488,7 @@ export const moduleHomes: ModuleHome[] = [
   {
     id: 'commerce', label: 'Commerce', path: '/workspace/commerce',
     innerPages: ['/workspace/commerce?tab=catalog', '/workspace/commerce?tab=engine', '/workspace/pay', '/workspace/pay?tab=records'],
-    note: 'Behind NEXT_PUBLIC_ENABLE_COMMERCE_MODULE, and OFF — not because it is '
-      + 'unfinished but because the storefront is live, so a new surface over a '
-      + 'production store opens deliberately. With the flag off it links to the working '
-      + 'pages rather than shadowing them.',
+    note: 'Catalog, orders and payment tools are always available from Commerce.',
   },
   // The 'growth' module home was here, gated on NEXT_PUBLIC_ENABLE_GROWTH_MODULE.
   // Removed 2026-09-25 with /growth/index.tsx on owner instruction. The pages it listed

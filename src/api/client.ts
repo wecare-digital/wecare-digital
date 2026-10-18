@@ -4978,6 +4978,14 @@ export async function sendPaymentLink ( invoiceId: string, phoneNumberId?: strin
   } );
 }
 
+// Staff-facing payment sends preserve actionable server refusal messages.
+export async function sendPaymentLinkResult ( invoiceId: string, phoneNumberId?: string ): Promise<ApiResult<NonNullable<Awaited<ReturnType<typeof sendPaymentLink>>>>> {
+  return apiCallResult<NonNullable<Awaited<ReturnType<typeof sendPaymentLink>>>>( `${INVOICE_BASE}/${invoiceId}/send-payment-link`, {
+    method: 'POST',
+    body: JSON.stringify( { invoiceId, phoneNumberId } ),
+  } );
+}
+
 // Cancel/void an invoice
 export async function cancelInvoice ( invoiceId: string, reason?: string ): Promise<{ invoiceId: string; status: string } | null> {
   return apiCall<{ invoiceId: string; status: string }>( `${INVOICE_BASE}/${invoiceId}/cancel`, {

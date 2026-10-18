@@ -1,5 +1,5 @@
 /* Pay Flow CRM - WECARE.DIGITAL */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Layout from '../../../components/Layout';
 import PageShell, { ShellTab } from '../../../components/PageShell';
 import Button from '../../../components/ui/Button';
@@ -80,7 +80,11 @@ const loadSavedConfig = (): FC => {
 const UNISSUED_STATUSES = [ '', 'claiming', 'created' ];
 const isIssued = ( inv: Invoice ): boolean =>
   Boolean( ( inv.invoiceNumber || '' ).trim() ) || !UNISSUED_STATUSES.includes( inv.status || '' );
+const canCancelInvoice = ( inv: Invoice ): boolean =>
+  [ 'created', 'pending_payment', 'pending', 'failed' ].includes( ( inv.status || '' ).toLowerCase() )
+  && [ '', 'pending', 'failed', 'created' ].includes( ( inv.paymentStatus || '' ).toLowerCase() );
 const STATUS_FILTERS = [
+  { id: 'active', label: 'Active' },
   { id: 'all', label: 'All' },
   { id: 'created', label: 'Created' },
   { id: 'pending_payment', label: 'Pending' },
@@ -192,7 +196,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
   const [ creating, setCreating ] = useState( false );
   const [ invoices, setInvoices ] = useState<Invoice[]>( [] );
   const [ invLoading, setInvLoading ] = useState( false );
-  const [ statusFilter, setStatusFilter ] = useState( 'all' );
+  const [ statusFilter, setStatusFilter ] = useState( 'active' );
   const [ selInvoice, setSelInvoice ] = useState<Invoice | null>( null );
   const [ deliveryLogs, setDeliveryLogs ] = useState<InvoiceDeliveryLog[]>( [] );
   const [ actionLoading, setActionLoading ] = useState( '' );
@@ -226,6 +230,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
   // The always-on Delight discount is applied automatically by the invoice engine on every
   // customer-origin invoice. There is no coupon code to type and no manual discount to set, so
   // the only redemption state is the SERVER's answer, held to preview the applied Delight line.
+  const invoiceCreateInFlight = useRef( false );
+  const [ createdDeliveryProblem, setCreatedDeliveryProblem ] = useState( '' );
+  const [ createdDelivery, setCreatedDelivery ] = useState<'saved' | 'sending' | 'sent' | 'unconfirmed'>( 'saved' );
   const [ redemption, setRedemption ] = useState<api.CreateInvoiceEngineResponse | null>( null );
   const [ config, setConfig ] = useState<FC>( () => loadSavedConfig() );
   const [ configSaving, setConfigSaving ] = useState( false );
@@ -243,9 +250,10 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
     setInvLoading( true );
     try
     {
-      const params = statusFilter === 'all' ? {} : { status: statusFilter };
+      const params = [ 'all', 'active' ].includes( statusFilter ) ? {} : { status: statusFilter };
       const r = await api.listInvoicesEngine( params );
-      setInvoices( r.invoices || [] );
+      const rows = r.invoices || [];
+      setInvoices( statusFilter === 'active' ? rows.filter( i => i.status !== 'cancelled' ) : rows );
     } catch ( e ) { console.error( e ); }
     setInvLoading( false );
   }, [ statusFilter ] );
@@ -367,13 +375,16 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
   const removeItem = ( idx: number ) => { if ( invForm.items.length <= 1 ) return; setInvForm( { ...invForm, items: invForm.items.filter( ( _, i ) => i !== idx ) } ); };
   const calcSubtotal = () => invForm.items.reduce( ( s, it ) => s + ( parseFloat( it.unitPrice ) || 0 ) * ( parseInt( it.quantity ) || 0 ), 0 );
   const calcTax = () => invForm.items.reduce( ( s, it ) => { const line = ( parseFloat( it.unitPrice ) || 0 ) * ( parseInt( it.quantity ) || 0 ); return s + line * ( parseFloat( it.gstRate ) || 0 ) / 100; }, 0 );
-  const submitInvoice = async () => {
+  const submitInvoice = async ( sendAfterCreate = false ) => {
+    if ( invoiceCreateInFlight.current ) return;
     if ( !selCustomer ) { showMsg( 'Select a customer first', 'error' ); return; }
     if ( !invForm.items.some( it => parseFloat( it.unitPrice ) > 0 ) ) { showMsg( 'Add at least one item', 'error' ); return; }
+    invoiceCreateInFlight.current = true;
     setCreating( true );
     try
     {
       const req: CreateInvoiceEngineRequest = {
+        referenceId: 'WD-PAY-' + crypto.randomUUID().replace( /-/g, '' ).slice( 0, 16 ).toUpperCase(),
         customerPhone: selCustomer.phone, customerEmail: selCustomer.email || '',
         customerName: selCustomer.name, contactId: selCustomer.id,
         shippingAddress: selCustomer.shippingAddress || '', billingAddress: selCustomer.billingAddress || '',
@@ -401,8 +412,25 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
         showMsg( `Invoice ${r.invoiceNumber} created. Review it and send the payment request below.` );
         // Every figure here is the SERVER's. Nothing on this page recomputes a discount.
         setRedemption( r );
+        setCreatedDelivery( 'saved' );
+        setCreatedDeliveryProblem( '' );
         setInvForm( { ...EMPTY_INV, items: [ NEW_ITEM() ] } );
         setSelCustomer( null );
+        if ( sendAfterCreate ) {
+          setCreatedDelivery( 'sending' );
+          try {
+            const sent = await api.sendPaymentLinkResult( r.invoiceId, sendPhone );
+            const accepted = sent.ok && sent.data.status === 'payment_link_sent';
+            const problem = sent.ok ? 'Sending is not confirmed.' : sent.failure.message;
+            setCreatedDeliveryProblem( accepted ? '' : problem );
+            setCreatedDelivery( accepted ? 'sent' : 'unconfirmed' );
+            showMsg( accepted ? 'WhatsApp payment request sent.' : `Invoice saved. ${problem} Check this invoice before retrying.`, accepted ? 'success' : 'error' );
+          } catch {
+            setCreatedDelivery( 'unconfirmed' );
+            setCreatedDeliveryProblem( 'Sending is not confirmed.' );
+            showMsg( 'Invoice saved. Sending is not confirmed; check this invoice before retrying.', 'error' );
+          }
+        }
         loadInvoices();
       }
       else
@@ -410,8 +438,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
         setRedemption( null );
         showMsg( 'Create failed', 'error' );
       }
-    } catch ( e ) { showMsg( 'Create failed', 'error' ); }
-    setCreating( false );
+    } catch ( e ) { showMsg( 'Creation was not confirmed. Check Invoices before creating another.', 'error' ); }
+    finally { invoiceCreateInFlight.current = false; setCreating( false ); }
   };
 
   /* Invoice action handlers */
@@ -444,15 +472,16 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
     setActionLoading( 'send' );
     try
     {
-      const r = await api.sendPaymentLink( inv.invoiceId, sendPhone );
+      const r = await api.sendPaymentLinkResult( inv.invoiceId, sendPhone );
       const pgLabel = 'Razorpay';
       const phoneLabel = PHONE_OPTIONS.find( p => p.id === sendPhone )?.label || sendPhone;
-      if ( r ) { showMsg( `Sent via ${pgLabel} from ${phoneLabel}` ); loadInvoices(); } else showMsg( 'Send failed', 'error' );
+      if ( r.ok && r.data.status === 'payment_link_sent' ) { showMsg( `Sent via ${pgLabel} from ${phoneLabel}` ); loadInvoices(); } else { showMsg( r.ok ? 'Sending is not confirmed. Check this invoice before retrying.' : r.failure.message, 'error' ); loadInvoices(); }
     } catch ( e ) { showMsg( 'Send failed', 'error' ); }
     setActionLoading( '' );
   };
   const doCancelInvoice = async ( inv: Invoice ) => {
-    if ( !( await confirm( 'Cancel this invoice?' ) ) ) return;
+    if ( !canCancelInvoice( inv ) ) return;
+    if ( !( await confirm( 'Cancel this unpaid invoice? Its number and history will be retained. Messages already sent to WhatsApp are not retracted.' ) ) ) return;
     setActionLoading( 'cancel' );
     try { const r = await api.cancelInvoice( inv.invoiceId ); if ( r ) { showMsg( 'Invoice cancelled' ); setSelInvoice( null ); loadInvoices(); } else showMsg( 'Cancel failed', 'error' ); } catch ( e ) { showMsg( 'Cancel failed', 'error' ); }
     setActionLoading( '' );
@@ -478,13 +507,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
   const doGeneratePdf = async ( inv: Invoice ) => {
     setActionLoading( 'pdf' );
     try { await api.generateInvoicePdf( inv.invoiceId ); showMsg( 'PDF generated' ); } catch ( e ) { showMsg( 'Failed', 'error' ); }
-    setActionLoading( '' );
-  };
-  const doDeleteInvoice = async ( inv: Invoice ) => {
-    const adjustSeq = await confirm( { message: 'Delete this invoice?\n\nConfirm to also adjust sequence, Cancel to keep sequence.', title: 'Adjust Sequence?', confirmText: 'Adjust', cancelText: 'Keep' } );
-    if ( !( await confirm( `Permanently delete invoice ${inv.invoiceNumber || inv.referenceId}?` ) ) ) return;
-    setActionLoading( 'delete' );
-    try { const r = await api.deleteInvoice( inv.invoiceId, adjustSeq ); if ( r?.deleted ) { showMsg( 'Invoice deleted' ); setSelInvoice( null ); loadInvoices(); } else showMsg( 'Delete failed', 'error' ); } catch ( e ) { showMsg( 'Delete failed', 'error' ); }
     setActionLoading( '' );
   };
   const openRemarkModal = ( inv: Invoice, type: 'remark' | 'refund' | 'credit_note' ) => { setRemarkModal( { inv, type } ); setRemarkText( '' ); setRemarkAmount( '' ); };
@@ -648,9 +670,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
               { redemption && (
                 <div className="inner-card" style={ { marginBottom: 16, maxWidth: 500, padding: '10px 14px' } }>
                   <h4 style={ { margin: '0 0 6px', fontSize: 13, color: '#1a3a2a' } }>Invoice { redemption.invoiceNumber } created</h4>
-                  <p>No WhatsApp payment request has been sent by this create action. Review the invoice, then send it.</p>
+                  <p>{ createdDelivery === 'sent' ? 'WhatsApp payment request sent.' : createdDelivery === 'sending' ? 'Sending the WhatsApp payment request…' : createdDelivery === 'unconfirmed' ? `${createdDeliveryProblem || 'Sending is not confirmed.'} Open this saved invoice and check its status before retrying.` : 'Invoice saved without sending a WhatsApp payment request.' }</p>
                   <p>{ redemption.referenceId } { '\u2014' } { fmtMoney( redemption.total ) }</p>
-                  <Button variant="primary" size="sm" loading={ openingCreated } onClick={ openCreatedInvoice }>Review and send payment request</Button>
+                  <Button variant="primary" size="sm" loading={ openingCreated } onClick={ openCreatedInvoice }>{ createdDelivery === 'saved' ? 'Review and send payment request' : 'View invoice and delivery status' }</Button>
                   <p>Applied on the last invoice</p>
                   { typeof redemption.couponDiscount === 'number' && redemption.couponDiscount > 0 && (
                     <div className="pf-preview-row"><span>Delight</span><span>{ '\u2212' }{ fmtMoney( redemption.couponDiscount ) }</span></div>
@@ -825,7 +847,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                     </div>
                   </div>
 
-                  <Button variant="primary" size="md" loading={ creating } onClick={ submitInvoice }>Create Invoice</Button>
+                  <Button variant="primary" size="md" loading={ creating } disabled={ creating } onClick={ () => submitInvoice( true ) }>Create and send payment request</Button>
+                  <Button variant="secondary" size="md" disabled={ creating } onClick={ () => submitInvoice( false ) }>Save invoice for review</Button>
                 </div>
               ) }
             </div>
@@ -841,6 +864,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                 <div style={ { flex: 1 } } />
                 <Button variant="secondary" size="sm" icon="refresh" loading={ invLoading } onClick={ loadInvoices }>Refresh</Button>
               </div>
+              <p>Cancelled invoices remain available in Cancelled or All; invoice numbers are retained.</p>
               <div className="stats-grid" style={ { marginBottom: 16 } }>
                 <div className="stat-card accent"><div className="pf-stat-value">{ invStats.total }</div><div className="pf-stat-label">Total</div></div>
                 <div className="stat-card"><div className="pf-stat-value">{ invStats.paid }</div><div className="pf-stat-label">Paid</div></div>
@@ -863,7 +887,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                             <td><span className={ `status-badge ${badgeClass( inv )}` }>{ inv.status }</span></td>
                             <td><span style={ { padding: '2px 8px', borderRadius: 12, fontSize: 'var(--text-xs)', fontWeight: 500, background: 'var(--bg-secondary)', color: 'var(--accent)' } }>{ inv.entryPoint || 'manual' }</span></td>
                             <td>{ fmtDate( inv.createdAt ) }</td>
-                            <td onClick={ e => e.stopPropagation() }><button onClick={ () => doDeleteInvoice( inv ) } style={ { background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 'var(--text-sm)', padding: '2px 6px' } } title="Delete">🗑</button></td>
+                            <td onClick={ e => e.stopPropagation() }>{ canCancelInvoice( inv ) && <Button variant="danger" size="sm" loading={ actionLoading === 'cancel' } onClick={ () => doCancelInvoice( inv ) }>Cancel Invoice</Button> }</td>
                           </tr>
                         ) ) }
                       </tbody>
@@ -968,10 +992,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                           </div>
                         </>
                       ) }
-                      { selInvoice.status !== 'paid' && selInvoice.status !== 'cancelled' && (
+                      { canCancelInvoice( selInvoice ) && (
                         <Button variant="danger" size="sm" loading={ actionLoading === 'cancel' } onClick={ () => doCancelInvoice( selInvoice ) }>Cancel Invoice</Button>
                       ) }
-                      <Button variant="danger" size="sm" loading={ actionLoading === 'delete' } onClick={ () => doDeleteInvoice( selInvoice ) }>Delete</Button>
                     </div>
                     { deliveryLogs.length > 0 && (
                       <div className="pf-section-divider">
