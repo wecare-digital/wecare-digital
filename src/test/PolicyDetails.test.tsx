@@ -24,4 +24,23 @@ describe( 'PolicyDetails', () => {
     expect( disclaimerParagraphs[ 1 ] ).toContain( 'If you need mental-health support' );
     expect( disclaimerParagraphs[ 1 ] ).toContain( 'Statutory consumer rights remain unaffected.' );
   } );
+
+  it( 'can suppress the statutory-rights footer for a concise embedded disclosure', () => {
+    const policy = productPolicyCopy( 'grahak-os', 'Grahak OS' );
+    const html = renderToStaticMarkup(
+      <PolicyDetails
+        shipping={ policy.shipping }
+        returns={ policy.returns }
+        disclaimer={ policy.disclaimer }
+        overview={ null }
+        refunds="Approved adjustments are issued as store credit."
+        showStatutoryRights={ false }
+      />,
+    );
+
+    expect( html ).not.toContain( 'Shipping, returns &amp; refunds' );
+    expect( html ).not.toContain( 'Statutory consumer rights remain unaffected.' );
+    expect( html ).toContain( 'Delivered digitally' );
+    expect( html ).toContain( 'Approved adjustments are issued as store credit.' );
+  } );
 } );
