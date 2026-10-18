@@ -4953,16 +4953,17 @@ def _calculate_shipping_paise(pin_code: str) -> int:
     return SHIPPING_RATES_PAISE.get(zone, SHIPPING_RATES_PAISE['national'])
 
 
-def _recalculate_order_total(order_details: dict, coupon_discount_paise: int = 0) -> int:
-    """Recalculate total_amount from order components + optional coupon discount.
-    total = subtotal + shipping + tax - discount - coupon_discount
-    All values in paise."""
+def _recalculate_order_total(order_details: dict) -> int:
+    """Recalculate total_amount from order components.
+    total = subtotal + shipping + tax - discount
+    All values in paise. The `discount` field is the already-applied, server-decided Delight
+    figure frozen on the order; there is no coupon term to subtract here."""
     order = order_details.get('order', {})
     subtotal = order.get('subtotal', {}).get('value', 0)
     shipping = order.get('shipping', {}).get('value', 0)
     tax = order.get('tax', {}).get('value', 0)
     discount = order.get('discount', {}).get('value', 0)
-    total = subtotal + shipping + tax - discount - coupon_discount_paise
+    total = subtotal + shipping + tax - discount
     return max(total, 0)
 
 
@@ -4985,13 +4986,11 @@ def _handle_checkout_data_exchange(sub_action: str, data: dict,
         'requestId': request_id,
     }))
 
-    if sub_action == 'get_coupons':
-        return _checkout_get_coupons(order_details, input_data, version, request_id)
-    elif sub_action == 'apply_coupon':
-        return _checkout_apply_coupon(order_details, input_data, version, request_id)
-    elif sub_action == 'remove_coupon':
-        return _checkout_remove_coupon(order_details, input_data, version, request_id)
-    elif sub_action == 'apply_shipping':
+    # There is no coupon callback any more. The ONLY discount is the always-on Delight policy
+    # (default_coupon.delight_paise), applied server-side at invoice creation — never advertised,
+    # applied or removed from this Meta data_exchange callback. Coupon sub-actions are therefore
+    # unknown sub-actions and fall through to the refusal below, same as any other unrecognised one.
+    if sub_action == 'apply_shipping':
         return _checkout_apply_shipping(order_details, input_data, version, request_id)
     else:
         logger.warning(json.dumps({
@@ -4999,31 +4998,6 @@ def _handle_checkout_data_exchange(sub_action: str, data: dict,
             'sub_action': sub_action, 'requestId': request_id,
         }))
         return {'data': {'error': f'Unknown sub_action: {sub_action}'}}
-
-
-def _checkout_get_coupons(order_details: dict, input_data: dict,
-                          version: str, request_id: str) -> dict:
-    """Do not advertise unbacked discounts on an already-created payment."""
-    return {'version': version, 'sub_action': 'get_coupons',
-            'data': {'coupons': []}}
-
-
-def _checkout_coupon_refusal(sub_action: str, version: str) -> dict:
-    """Refuse before repricing: this callback cannot reserve or settle a coupon."""
-    return {'version': version, 'sub_action': sub_action, 'data': {
-        'error': 'Apply or remove the coupon in checkout before requesting payment.',
-        'error_code': 'COUPON_REQUIRES_CHECKOUT',
-    }}
-
-
-def _checkout_apply_coupon(order_details: dict, input_data: dict,
-                           version: str, request_id: str) -> dict:
-    return _checkout_coupon_refusal('apply_coupon', version)
-
-
-def _checkout_remove_coupon(order_details: dict, input_data: dict,
-                            version: str, request_id: str) -> dict:
-    return _checkout_coupon_refusal('remove_coupon', version)
 
 
 def _checkout_apply_shipping(order_details: dict, input_data: dict,
@@ -5035,11 +5009,6 @@ def _checkout_apply_shipping(order_details: dict, input_data: dict,
     # Calculate shipping based on pin code zone
     shipping_paise = _calculate_shipping_paise(pin_code)
 
-    # An embedded coupon amount is not an authority. Refuse before changing the
-    # order rather than carrying a caller-supplied discount into a new total.
-    if order_details.get('coupon'):
-        return _checkout_coupon_refusal('apply_shipping', version)
-
     # Update shipping in order
     order_details['order']['shipping'] = {'offset': 100, 'value': shipping_paise}
 
@@ -5048,7 +5017,8 @@ def _checkout_apply_shipping(order_details: dict, input_data: dict,
         order_details['shipping_info'] = {'country': 'IN', 'addresses': []}
     order_details['shipping_info']['selected_address'] = selected_address
 
-    # Recalculate total (with coupon discount if present)
+    # Recalculate total from the order components. No coupon term: Delight is applied once,
+    # server-side, at invoice creation — never in this shipping callback.
     total = _recalculate_order_total(order_details)
     order_details['total_amount'] = {'offset': 100, 'value': total}
 
