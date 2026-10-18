@@ -238,6 +238,38 @@ def test_the_run_records_what_the_corpus_comparison_covered(env):
     assert result["report"]["corpus"]["present"] is True
 
 
+def test_linked_published_revision_does_not_collide_with_its_own_live_slug(env):
+    source_id = _written(env)
+    record = env["bs"].get_source(source_id)
+    draft = dict(record["draftRecord"])
+    env["bg"]._corpus.add(draft, origin="published-corpus")
+
+    before = env["bg"].assess_draft(record, draft, with_corpus=True)
+    assert any("EXACT_SLUG_COLLISION" in finding for finding in before["blocking"])
+
+    record["pipeline"] = {
+        "postId": "blog_live",
+        "postUrl": f"https://wecare.digital/post/{draft['slug']}",
+        "publishStatus": "PUBLISHED",
+    }
+    revision = env["bg"].assess_draft(record, draft, with_corpus=True)
+    assert not any("EXACT_SLUG_COLLISION" in finding for finding in revision["blocking"])
+
+
+def test_unlinked_collision_cannot_claim_revision_self_exclusion(env):
+    source_id = _written(env)
+    record = env["bs"].get_source(source_id)
+    draft = dict(record["draftRecord"])
+    env["bg"]._corpus.add(draft, origin="published-corpus")
+    record["pipeline"] = {
+        "postId": "blog_live",
+        "postUrl": "https://wecare.digital/post/a-different-slug",
+        "publishStatus": "PUBLISHED",
+    }
+    assessment = env["bg"].assess_draft(record, draft, with_corpus=True)
+    assert any("EXACT_SLUG_COLLISION" in finding for finding in assessment["blocking"])
+
+
 def test_the_run_records_the_chain_it_rests_on(env):
     """source -> reading -> template -> article -> QA, complete in the records."""
     template = env["bt"].save({

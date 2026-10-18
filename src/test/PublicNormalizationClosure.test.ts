@@ -213,7 +213,10 @@ describe( 'Step 7 public normalization closure', () => {
       'src/components/ServiceBuyBox.tsx',
       'src/pages/shop/[slug].tsx',
     ] ) {
-      expect( drift, file ).toContain( file );
+      // check_design_drift.py roots these entries at SRC and stores only the
+      // path relative to src/, e.g. SRC / "components/RotatingHero.tsx".
+      // Requiring a literal "src/..." string would reject the correct pathlib form.
+      expect( drift, file ).toContain( file.replace( /^src\//, '' ) );
     }
   } );
 } );
