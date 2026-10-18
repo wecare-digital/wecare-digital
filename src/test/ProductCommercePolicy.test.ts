@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, productPolicyCopy } from '../content/productCommerce';
 
@@ -15,6 +17,14 @@ describe( 'shared product policy summary', () => {
     expect( PRODUCT_POLICY_TEXT ).toContain( 'required by applicable law' );
     expect( PRODUCT_POLICY_TEXT ).toContain( 'valid for 30 calendar days from the date of issue' );
     expect( PRODUCT_POLICY_TEXT ).toContain( 'unused balance expires at the end of that period' );
+  } );
+
+  it( 'keeps statutory consumer-rights wording centralized in PolicyDetails', () => {
+    const policy = readFileSync( resolve( process.cwd(), 'src/components/public/PolicyDetails.tsx' ), 'utf8' );
+    const commerce = readFileSync( resolve( process.cwd(), 'src/content/productCommerce.ts' ), 'utf8' );
+    expect( policy ).toContain( 'Statutory consumer rights remain unaffected.' );
+    const grahak = commerce.slice( commerce.indexOf( "'grahak-os':" ), commerce.indexOf( "'bharat-rx':" ) );
+    expect( grahak ).not.toContain( 'Statutory consumer rights remain unaffected.' );
   } );
 
   it( 'keeps page-specific fulfilment and disclaimer copy behind one resolver', () => {
