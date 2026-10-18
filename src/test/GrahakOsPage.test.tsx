@@ -314,7 +314,7 @@ describe( 'Grahak OS: API-panel "Open demo in WhatsApp" link', () => {
 
 /**
  * The bottom closer section (<section id="gos-closer">) was REMOVED ENTIRELY on owner
- * instruction. It had already been stripped to a single "Open in WhatsApp" WhatsApp pill;
+ * instruction. It had already been stripped to a single "Open demo in WhatsApp" WhatsApp link;
  * that duplicate CTA and the whole section are now gone, along with every .gos-closer* CSS
  * rule and the "gos-closer" entrance-animation target. The page's only "Open in WhatsApp"
  * link now lives below the large API code panel (.api-wa-link). The ₹899 price / SKU / policy
