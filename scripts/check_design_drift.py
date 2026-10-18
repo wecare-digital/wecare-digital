@@ -348,7 +348,7 @@ def scan_token_mirror():
 
 
 def _normalise_css_value(value: str) -> str:
-    return re.sub(r"\\s+", "", value.strip()).lower()
+    return re.sub(r"\s+", "", value.strip()).lower()
 
 
 def scan_public_token_contract():
@@ -358,7 +358,7 @@ def scan_public_token_contract():
     css = strip_comments(TOKENS_CSS.read_text(encoding="utf-8"), ".css")
     violations = []
     for token, expected in PUBLIC_TOKEN_CONTRACT.items():
-        m = re.search(rf"{re.escape(token)}:\\s*([^;]+);", css)
+        m = re.search(rf"{re.escape(token)}:\s*([^;]+);", css)
         if not m:
             violations.append({
                 "rule": "public_token_missing", "file": TOKENS_CSS.relative_to(ROOT).as_posix(),
@@ -368,7 +368,7 @@ def scan_public_token_contract():
         if _normalise_css_value(actual) != _normalise_css_value(expected):
             violations.append({
                 "rule": "public_token_drift", "file": TOKENS_CSS.relative_to(ROOT).as_posix(),
-                "line": css[:m.start(1)].count("\\n") + 1,
+                "line": css[:m.start(1)].count("\n") + 1,
                 "match": f"{token}={actual}",
                 "why": f"public contract requires {expected}"})
     return violations
@@ -382,8 +382,8 @@ def scan_layout_token_mirror():
     ts = strip_comments(DESIGN_TOKENS_TS.read_text(encoding="utf-8"), ".ts")
     violations = []
     for ts_key, css_var in LAYOUT_TOKEN_MIRROR.items():
-        tm = re.search(rf"\\b{re.escape(ts_key)}:\\s*(\\d+)", ts)
-        cm = re.search(rf"{re.escape(css_var)}:\\s*([^;]+);", css)
+        tm = re.search(rf"\b{re.escape(ts_key)}:\s*(\d+)", ts)
+        cm = re.search(rf"{re.escape(css_var)}:\s*([^;]+);", css)
         if not tm or not cm:
             violations.append({
                 "rule": "layout_token_mirror_missing",
@@ -398,7 +398,7 @@ def scan_layout_token_mirror():
             violations.append({
                 "rule": "layout_token_mirror_mismatch",
                 "file": DESIGN_TOKENS_TS.relative_to(ROOT).as_posix(),
-                "line": ts[:tm.start()].count("\\n") + 1,
+                "line": ts[:tm.start()].count("\n") + 1,
                 "match": f"{ts_key}={tm.group(1)} vs {css_var}={actual}",
                 "why": "generic application layout tokens must agree; public measure uses --public-content-max"})
     return violations
