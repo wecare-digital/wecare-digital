@@ -47,7 +47,7 @@ interface ShortLink {
 
 /* ── Icons ── */
 const LinkIcon = ( { size = 18 }: { size?: number } ) => (
-  <svg width={ size } height={ size } viewBox="0 0 24 24" fill="none" stroke="#1a3a2a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg width={ size } height={ size } viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
   </svg>
 );
@@ -297,11 +297,11 @@ const LinkPage: React.FC<PageProps> = ( { signOut, user } ) => {
 
         <div className="link-table-wrap">
           { loading ? (
-            <div style={ { padding: 40, textAlign: 'center', color: '#6b7280' } }>Loading links...</div>
+            <div style={ { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }>Loading links...</div>
           ) : loadError ? (
-            <div style={ { padding: 40, textAlign: 'center' } }><p style={ { color: '#991b1b', fontSize: 13, marginBottom: 8 } }>Failed to load links</p><button onClick={ () => loadLinks() } style={ { padding: '6px 14px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 13, fontSize: 12, fontWeight: 600, cursor: 'pointer' } }>Retry</button></div>
+            <div style={ { padding: 40, textAlign: 'center' } }><p style={ { color: '#991b1b', fontSize: 'var(--text-sm)', marginBottom: 8 } }>Failed to load links</p><button onClick={ () => loadLinks() } style={ { padding: '6px 14px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' } }>Retry</button></div>
           ) : links.length === 0 ? (
-            <div style={ { padding: 40, textAlign: 'center', color: '#6b7280' } }>No links yet. Create your first short link.</div>
+            <div style={ { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }>No links yet. Create your first short link.</div>
           ) : (
             <table className="link-table" role="table" aria-label="Short links">
               <thead>
@@ -312,16 +312,16 @@ const LinkPage: React.FC<PageProps> = ( { signOut, user } ) => {
                   <React.Fragment key={ l.shortCode }>
                     <tr>
                       <td><a href={ l.shortUrl } target="_blank" rel="noopener noreferrer" className="link-short-a">{ l.shortUrl.replace( 'https://', '' ) }</a></td>
-                      <td style={ { maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: '#6b7280' } }>{ l.originalUrl }</td>
-                      <td style={ { fontWeight: 500, fontSize: 13 } }>{ l.title }</td>
-                      <td>{ l.active === false ? <span style={ { fontSize: 11, fontWeight: 600, color: '#9ca3af' } }>Disabled</span> : <span style={ { fontSize: 11, fontWeight: 600, color: '#1a7a4a' } }>Active</span> }</td>
-                      <td style={ { fontWeight: 600, color: '#1a3a2a' } }>{ l.clicks }</td>
-                      <td>{ l.deepLink ? <span className="link-deep-badge">iOS + Android</span> : <span style={ { color: '#9ca3af', fontSize: 12 } }>No</span> }</td>
-                      <td style={ { fontSize: 12, color: '#6b7280' } }>{ l.createdAt ? new Date( l.createdAt ).toLocaleDateString() : '-' }</td>
+                      <td style={ { maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ l.originalUrl }</td>
+                      <td style={ { fontWeight: 500, fontSize: 'var(--text-sm)' } }>{ l.title }</td>
+                      <td>{ l.active === false ? <span style={ { fontSize: 'var(--text-xs)', fontWeight: 600, color: '#9ca3af' } }>Disabled</span> : <span style={ { fontSize: 'var(--text-xs)', fontWeight: 600, color: '#1a7a4a' } }>Active</span> }</td>
+                      <td style={ { fontWeight: 600, color: 'var(--accent)' } }>{ l.clicks }</td>
+                      <td>{ l.deepLink ? <span className="link-deep-badge">iOS + Android</span> : <span style={ { color: '#9ca3af', fontSize: 'var(--text-xs)' } }>No</span> }</td>
+                      <td style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ l.createdAt ? new Date( l.createdAt ).toLocaleDateString() : '-' }</td>
                       <td>
                         <div className="link-actions">
                           <button className="link-act-btn" onClick={ () => copyLink( l.shortUrl, l.shortCode ) } title="Copy" aria-label="Copy link">
-                            { copied === l.shortCode ? <span style={ { fontSize: 11, color: '#1a3a2a' } }>Copied</span> : <CopyIcon /> }
+                            { copied === l.shortCode ? <span style={ { fontSize: 'var(--text-xs)', color: 'var(--accent)' } }>Copied</span> : <CopyIcon /> }
                           </button>
                           <button className="link-act-btn" onClick={ () => openEdit( l ) } title="Edit" aria-label="Edit link"><EditIcon /></button>
                           <button className="link-act-btn" onClick={ () => handleAnalytics( l.shortCode ) } title="Analytics" aria-label="View analytics"><BarChartIcon /></button>
@@ -330,13 +330,13 @@ const LinkPage: React.FC<PageProps> = ( { signOut, user } ) => {
                       </td>
                     </tr>
                     { analyticsCode === l.shortCode && analyticsData && (
-                      <tr><td colSpan={ 8 } style={ { background: '#f9fafb', padding: 12 } }>
-                        <div style={ { fontSize: 12, color: '#374151' } }>
+                      <tr><td colSpan={ 8 } style={ { background: 'var(--bg-secondary)', padding: 12 } }>
+                        <div style={ { fontSize: 'var(--text-xs)', color: '#374151' } }>
                           <strong>Recent Clicks ({ ( analyticsData.recentClicks || [] ).length })</strong>
                           { ( analyticsData.recentClicks || [] ).length === 0 ? <p style={ { color: '#9ca3af' } }>No clicks yet</p> : (
                             <div style={ { display: 'grid', gap: 4, marginTop: 6 } }>
                               { ( analyticsData.recentClicks || [] ).slice( 0, 10 ).map( ( c: any, i: number ) => (
-                                <div key={ i } style={ { display: 'flex', gap: 12, fontSize: 11, color: '#6b7280' } }>
+                                <div key={ i } style={ { display: 'flex', gap: 12, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
                                   <span>{ new Date( c.clickedAt ).toLocaleString() }</span>
                                   <span>{ c.platform }</span>
                                   <span>{ c.sourceIp }</span>
@@ -375,11 +375,11 @@ const LinkPage: React.FC<PageProps> = ( { signOut, user } ) => {
                 <label className="link-label">
                   { editingCode ? 'Short Code' : 'Custom Code (optional)' }
                   <div style={ { display: 'flex', gap: 8, alignItems: 'center' } }>
-                    <span style={ { fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' } }>{ SHORT_LINK_BASE }/</span>
+                    <span style={ { fontSize: 'var(--text-sm)', color: 'var(--text-muted)', whiteSpace: 'nowrap' } }>{ SHORT_LINK_BASE }/</span>
                     <input className="link-input" type="text" placeholder={ formCode } value={ formCode } onChange={ e => setFormCode( e.target.value ) } style={ { flex: 1 } } disabled={ !!editingCode } />
                     { !editingCode && <button className="link-gen-btn" onClick={ generateCode } type="button">Random</button> }
                   </div>
-                  { editingCode && <span style={ { fontSize: 11, color: '#9ca3af', marginTop: 4 } }>Short code can&apos;t be changed. Delete and recreate to use a different code.</span> }
+                  { editingCode && <span style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 4 } }>Short code can&apos;t be changed. Delete and recreate to use a different code.</span> }
                 </label>
 
                 <label className="link-label" style={ { flexDirection: 'row', alignItems: 'center', gap: 8 } }>

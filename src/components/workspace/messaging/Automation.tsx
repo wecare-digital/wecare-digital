@@ -114,22 +114,22 @@ const AutomationPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
             <style jsx>{ `
                 .au-wrap { padding: 20px; max-width: 900px; margin: 0 auto; }
                 .au-new { border: 1px solid ${colors.border}; border-radius: 12px; padding: 16px; background: #fff; margin: 14px 0; }
-                .au-new-title { font-size: 13px; font-weight: 700; color: ${colors.text}; margin-bottom: 10px; }
+                .au-new-title { font-size: var(--text-sm); font-weight: 700; color: ${colors.text}; margin-bottom: 10px; }
                 .au-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 10px; }
-                .au-in { padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 9px; font-size: 13px; }
-                .au-textarea { width: 100%; padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 9px; font-size: 14px; font-family: inherit; resize: vertical; margin-bottom: 10px; }
-                .au-create { background: ${colors.primary}; color: #fff; border: none; padding: 9px 18px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
+                .au-in { padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 9px; font-size: var(--text-sm); }
+                .au-textarea { width: 100%; padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 9px; font-size: var(--text-md); font-family: inherit; resize: vertical; margin-bottom: 10px; }
+                .au-create { background: ${colors.primary}; color: #fff; border: none; padding: 9px 18px; border-radius: 10px; font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
                 .au-create:disabled { opacity: 0.5; cursor: not-allowed; }
                 .au-list { display: flex; flex-direction: column; gap: 8px; }
                 .au-rule { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid ${colors.border}; border-radius: 11px; padding: 12px 14px; background: #fff; }
                 .au-rule.off { opacity: 0.55; }
-                .au-rule-name { font-size: 14px; font-weight: 600; color: ${colors.text}; }
-                .au-rule-cond { font-size: 12px; color: ${colors.textSecondary}; margin-top: 3px; }
-                .au-tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 9999px; background: ${colors.bgSecondary}; color: ${colors.textSecondary}; margin-right: 6px; text-transform: capitalize; }
+                .au-rule-name { font-size: var(--text-md); font-weight: 600; color: ${colors.text}; }
+                .au-rule-cond { font-size: var(--text-xs); color: ${colors.textSecondary}; margin-top: 3px; }
+                .au-tag { font-size: var(--text-xs); font-weight: 700; padding: 2px 7px; border-radius: 9999px; background: ${colors.bgSecondary}; color: ${colors.textSecondary}; margin-right: 6px; text-transform: capitalize; }
                 .au-rule-actions { display: flex; gap: 8px; flex-shrink: 0; }
-                .au-toggle { padding: 5px 14px; border: 1px solid ${colors.border}; border-radius: 9999px; background: #fff; font-size: 12px; cursor: pointer; }
+                .au-toggle { padding: 5px 14px; border: 1px solid ${colors.border}; border-radius: 9999px; background: #fff; font-size: var(--text-xs); cursor: pointer; }
                 .au-toggle.on { background: ${colors.lime}; border-color: ${colors.lime}; color: ${colors.primary}; font-weight: 700; }
-                .au-del { padding: 5px 12px; border: 1px solid ${colors.danger}; color: ${colors.danger}; background: #fff; border-radius: 9px; font-size: 12px; cursor: pointer; }
+                .au-del { padding: 5px 12px; border: 1px solid ${colors.danger}; color: ${colors.danger}; background: #fff; border-radius: 9px; font-size: var(--text-xs); cursor: pointer; }
                 .au-empty { text-align: center; padding: 30px; color: ${colors.textMuted}; }
             ` }</style>
         </>

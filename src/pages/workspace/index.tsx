@@ -105,13 +105,13 @@ const WorkspacePage: React.FC<PageProps> = ({ signOut, user }) => {
       <div className="inner-page-container" style={{ maxWidth: 960 }}>
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px' }}>Workspace</h1>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', margin: 0 }}>
             Everything in one place. Pick an area to get started.
           </p>
         </div>
 
         <div
-          style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}
+          style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}
         >
           Areas
         </div>
@@ -201,15 +201,15 @@ const WorkspacePage: React.FC<PageProps> = ({ signOut, user }) => {
           flex-shrink: 0;
         }
         .ws-text { display: block; flex: 1; min-width: 0; }
-        .ws-label { display: block; font-size: 15px; font-weight: 600; color: var(--text); }
-        .ws-desc { display: block; font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+        .ws-label { display: block; font-size: var(--text-md); font-weight: 600; color: var(--text); }
+        .ws-desc { display: block; font-size: var(--text-xs); color: var(--text-muted); margin-top: 1px; }
         .ws-chev { flex-shrink: 0; }
 
         @media (max-width: 768px) {
           .ws-grid { grid-template-columns: 1fr; gap: 8px; }
           .ws-btn { padding: 16px; min-height: 60px; }
-          .ws-label { font-size: 16px; }
-          .ws-desc { font-size: 13px; }
+          .ws-label { font-size: var(--text-base); }
+          .ws-desc { font-size: var(--text-sm); }
           .ws-icon { width: 44px; height: 44px; }
         }
         @media (max-width: 480px) {

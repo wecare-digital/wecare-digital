@@ -16,8 +16,8 @@ import Select, { type SelectOption } from '../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
-const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, marginTop: 4, marginBottom: 10, fontSize: 14 };
-const lbl: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#444' };
+const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, marginTop: 4, marginBottom: 10, fontSize: 'var(--text-md)' };
+const lbl: React.CSSProperties = { fontSize: 'var(--text-xs)', fontWeight: 600, color: '#444' };
 /** Layout only: the two margins `inp` carried. The box comes from form-controls.css now. */
 const selectLayout: React.CSSProperties = { marginTop: 4, marginBottom: 10 };
 /* The old `<option key={ c }>{ c }</option>` had no `value`, so the native value WAS the text -
@@ -148,17 +148,17 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
         <div style={ { maxWidth: 900, margin: '0 auto', padding: 16 } }>
             <SEO title="Template Builder" description="Build and validate WhatsApp message templates." noindex />
             <h1 style={ { fontSize: 22, fontWeight: 700, marginBottom: 4 } }>Template Builder</h1>
-            <p style={ { color: '#777', fontSize: 13, marginBottom: 12 } }>Build, validate, and submit a WhatsApp template. Presets below to start fast.</p>
+            <p style={ { color: '#777', fontSize: 'var(--text-sm)', marginBottom: 12 } }>Build, validate, and submit a WhatsApp template. Presets below to start fast.</p>
 
             <div style={ { display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' } }>
                 { [ 'seasonal_promotion', 'limited_time_offer', 'order_confirmation', 'flow_lead_generation' ].map( p => (
-                    <button key={ p } onClick={ () => loadPreset( p ) } style={ { fontSize: 11, padding: '3px 10px', borderRadius: 999, border: '1px solid #d0d0d0', background: '#fff', cursor: 'pointer' } }>{ p }</button>
+                    <button key={ p } onClick={ () => loadPreset( p ) } style={ { fontSize: 'var(--text-xs)', padding: '3px 10px', borderRadius: 999, border: '1px solid #d0d0d0', background: '#fff', cursor: 'pointer' } }>{ p }</button>
                 ) ) }
             </div>
 
             <div style={ { display: 'flex', gap: 4, borderBottom: '1px solid #e5e5e5', marginBottom: 16, flexWrap: 'wrap' } }>
                 { STEPS.map( ( s, i ) => (
-                    <button key={ s } onClick={ () => setStep( i ) } style={ { padding: '8px 12px', border: 'none', borderBottom: step === i ? '2px solid #1a3a2a' : '2px solid transparent', background: 'none', cursor: 'pointer', fontWeight: step === i ? 700 : 500, color: step === i ? '#1a3a2a' : '#888', fontSize: 13 } }>{ i + 1 }. { s }</button>
+                    <button key={ s } onClick={ () => setStep( i ) } style={ { padding: '8px 12px', border: 'none', borderBottom: step === i ? '2px solid var(--accent)' : '2px solid transparent', background: 'none', cursor: 'pointer', fontWeight: step === i ? 700 : 500, color: step === i ? 'var(--accent)' : '#888', fontSize: 'var(--text-sm)' } }>{ i + 1 }. { s }</button>
                 ) ) }
             </div>
 
@@ -208,13 +208,13 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                         <div>
                             <div style={ { display: 'flex', gap: 6, marginBottom: 10 } }>
                                 { ( [ 'QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'COPY_CODE' ] as BtnType[] ).map( t => (
-                                    <button key={ t } onClick={ () => addButton( t ) } style={ { fontSize: 11, padding: '4px 8px', borderRadius: 6, border: '1px solid #d0d0d0', background: '#fff', cursor: 'pointer' } }>+ { t }</button>
+                                    <button key={ t } onClick={ () => addButton( t ) } style={ { fontSize: 'var(--text-xs)', padding: '4px 8px', borderRadius: 6, border: '1px solid #d0d0d0', background: '#fff', cursor: 'pointer' } }>+ { t }</button>
                                 ) ) }
                             </div>
                             { buttons.map( ( b, i ) => (
                                 <div key={ i } style={ { border: '1px solid #eee', borderRadius: 6, padding: 8, marginBottom: 8 } }>
                                     <div style={ { display: 'flex', justifyContent: 'space-between' } }>
-                                        <strong style={ { fontSize: 12 } }>{ b.type }</strong>
+                                        <strong style={ { fontSize: 'var(--text-xs)' } }>{ b.type }</strong>
                                         <button onClick={ () => removeButton( i ) } style={ { border: 'none', background: 'none', color: '#a11', cursor: 'pointer' } }>remove</button>
                                     </div>
                                     <input style={ inp } placeholder="Button text (≤25)" maxLength={ 25 } value={ b.text } onChange={ e => updateButton( i, { text: e.target.value } ) } />
@@ -228,7 +228,7 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                     { step === 5 && (
                         <div>
                             { category !== 'MARKETING' ? (
-                                <div style={ { fontSize: 13, color: '#777' } }>
+                                <div style={ { fontSize: 'var(--text-sm)', color: '#777' } }>
                                     A limited-time offer is supported on MARKETING templates only. Change the category in step 1 to add one.
                                 </div>
                             ) : ( <>
@@ -241,7 +241,7 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                                     <label style={ { ...lbl, display: 'flex', gap: 6, alignItems: 'center' } }>
                                         <input type="checkbox" checked={ offerHasExpiration } onChange={ e => setOfferHasExpiration( e.target.checked ) } /> Show a countdown (has_expiration)
                                     </label>
-                                    <div style={ { fontSize: 12, color: '#888', marginTop: 10, lineHeight: 1.5 } }>
+                                    <div style={ { fontSize: 'var(--text-xs)', color: '#888', marginTop: 10, lineHeight: 1.5 } }>
                                         The header must be an IMAGE or VIDEO, and the template needs both a COPY_CODE and a URL button.
                                         The offer code is a coupon string, not a payment — and the expiry is sent per message, not stored on the template.
                                     </div>
@@ -269,7 +269,7 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                             <label style={ lbl }>TTL seconds (message_send_ttl_seconds)</label>
                             <input style={ inp } type="number" value={ ttl } onChange={ e => setTtl( e.target.value === '' ? '' : Number( e.target.value ) ) } placeholder="e.g. 43200" />
                             { ttlRules && ttlRules.categories[ category ] && (
-                                <div style={ { fontSize: 12, color: '#888' } }>{ ttlRules.categories[ category ].description }</div>
+                                <div style={ { fontSize: 'var(--text-xs)', color: '#888' } }>{ ttlRules.categories[ category ].description }</div>
                             ) }
                         </div>
                     ) }
@@ -293,7 +293,7 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                 </div>
 
                 <div>
-                    <div style={ { fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 6 } }>Live preview</div>
+                    <div style={ { fontSize: 'var(--text-xs)', fontWeight: 600, color: '#444', marginBottom: 6 } }>Live preview</div>
                     <TemplatePreviewCard template={ { ...templateDef, components: templateDef.components } as any } />
                 </div>
             </div>
@@ -304,6 +304,6 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
     return <Layout user={ user } onSignOut={ signOut }>{ content }</Layout>;
 };
 
-const navBtn: React.CSSProperties = { padding: '8px 16px', border: '1px solid #d0d0d0', background: '#fff', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 };
+const navBtn: React.CSSProperties = { padding: '8px 16px', border: '1px solid #d0d0d0', background: '#fff', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 'var(--text-sm)' };
 
 export default TemplateBuilder;

@@ -23,7 +23,7 @@ const ConnectWabaPage: React.FC<PageProps> = ( { signOut, user, embedded = false
         <div style={ { maxWidth: 820, margin: '0 auto', padding: 16 } }>
             <SEO title="Connect WABA — Embedded Signup" description="Connect a WhatsApp Business Account via Meta Embedded Signup." noindex />
             <h1 style={ { fontSize: 22, fontWeight: 700, marginBottom: 4 } }>Connect WhatsApp Business Account</h1>
-            <p style={ { color: '#777', fontSize: 13, marginBottom: 16 } }>
+            <p style={ { color: '#777', fontSize: 'var(--text-sm)', marginBottom: 16 } }>
                 Link a WABA through Meta’s official Embedded Signup. The authorization is exchanged
                 server-side; tokens are stored securely and never shown in the browser.
             </p>
@@ -35,8 +35,8 @@ const ConnectWabaPage: React.FC<PageProps> = ( { signOut, user, embedded = false
                 />
             </div>
 
-            <div style={ { ...card, fontSize: 13, color: '#555' } }>
-                <div style={ { fontWeight: 700, color: '#1a3a2a', marginBottom: 8 } }>Before you start</div>
+            <div style={ { ...card, fontSize: 'var(--text-sm)', color: '#555' } }>
+                <div style={ { fontWeight: 700, color: 'var(--accent)', marginBottom: 8 } }>Before you start</div>
                 <ul style={ { margin: 0, paddingLeft: 18, lineHeight: 1.7 } }>
                     <li>A Meta Tech Provider Configuration (config id) must be set for this app.</li>
                     <li>Your Meta Business must have completed Business Verification.</li>

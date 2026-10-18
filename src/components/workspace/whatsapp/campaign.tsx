@@ -186,18 +186,18 @@ const WhatsAppCampaignPage: React.FC<PageProps> = ( { signOut, user, embedded = 
           </div>
 
           <div className="info-card" style={ { marginBottom: 16 } }>
-            <strong style={ { fontSize: 14 } }>MM API conversion metrics</strong>
+            <strong style={ { fontSize: 'var(--text-md)' } }>MM API conversion metrics</strong>
             { !mmMetrics && (
-              <div style={ { fontSize: 13, color: '#666', marginTop: 6 } }>unavailable</div>
+              <div style={ { fontSize: 'var(--text-sm)', color: '#666', marginTop: 6 } }>unavailable</div>
             ) }
             { mmMetrics?.available && (
-              <div style={ { fontSize: 13, marginTop: 6 } }>
+              <div style={ { fontSize: 'var(--text-sm)', marginTop: 6 } }>
                 { ( mmMetrics.metrics?.length || 0 ) } row{ ( mmMetrics.metrics?.length || 0 ) === 1 ? '' : 's' } via <code>{ mmMetrics.edge }</code>
                 { mmMetrics.readAt ? ' · read ' + new Date( mmMetrics.readAt * 1000 ).toLocaleString() : '' }
               </div>
             ) }
             { mmMetrics && !mmMetrics.available && (
-              <div style={ { fontSize: 13, marginTop: 6, color: '#666' } }>
+              <div style={ { fontSize: 'var(--text-sm)', marginTop: 6, color: '#666' } }>
                 { mmMetrics.cached?.metrics?.length
                   ? <>Last reading: { mmMetrics.cached.metrics.length } row{ mmMetrics.cached.metrics.length === 1 ? '' : 's' }{ mmMetrics.cached.readAt ? ' · ' + new Date( mmMetrics.cached.readAt * 1000 ).toLocaleString() : '' }</>
                   : <>{ mmMetrics.note }</> }

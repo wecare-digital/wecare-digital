@@ -44,7 +44,7 @@ const CELL_SELECT_STYLE: React.CSSProperties = { width: '100%' };
 const FILTER_STYLE: React.CSSProperties = { width: 170 };
 /* The 14px the wrapping <label> set on the create-modal date/time pair, carried on the field
    wrapper so the label text and the control keep the type size they render at today. */
-const FIELD_STYLE: React.CSSProperties = { fontSize: 14 };
+const FIELD_STYLE: React.CSSProperties = { fontSize: 'var(--text-md)' };
 
 function formatDate ( ts?: number ): string {
   if ( !ts ) return '—';
@@ -55,14 +55,14 @@ function formatDate ( ts?: number ): string {
 function statusBadge ( status: string ) {
   const colors: Record<string, { bg: string; fg: string }> = {
     scheduled: { bg: '#dbeafe', fg: '#1e40af' },
-    confirmed: { bg: '#d1f470', fg: '#1a3a2a' },
+    confirmed: { bg: 'var(--lime)', fg: 'var(--accent)' },
     in_progress: { bg: '#fef3c7', fg: '#92400e' },
     completed: { bg: '#d1fae5', fg: '#065f46' },
     cancelled: { bg: '#fee2e2', fg: '#991b1b' },
     no_show: { bg: '#f3e8ff', fg: '#6b21a8' },
   };
   const c = colors[ status ] || { bg: '#f3f4f6', fg: '#374151' };
-  return <span style={ { display: 'inline-block', padding: '2px 8px', borderRadius: 9999, fontSize: 12, fontWeight: 600, background: c.bg, color: c.fg } }>{ status.replace( /_/g, ' ' ) }</span>;
+  return <span style={ { display: 'inline-block', padding: '2px 8px', borderRadius: 9999, fontSize: 'var(--text-xs)', fontWeight: 600, background: c.bg, color: c.fg } }>{ status.replace( /_/g, ' ' ) }</span>;
 }
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
@@ -103,7 +103,7 @@ const AppointmentsPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
   const columns = [
     {
       key: 'appointmentId', header: 'ID', width: '100px', render: ( a: api.Appointment ) => (
-        <button onClick={ () => setSelected( a ) } style={ { background: 'none', border: 'none', color: '#1a3a2a', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 13 } }>
+        <button onClick={ () => setSelected( a ) } style={ { background: 'none', border: 'none', color: 'var(--accent)', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 'var(--text-sm)' } }>
           { a.appointmentId.slice( 0, 8 ) }
         </button>
       )
@@ -111,7 +111,7 @@ const AppointmentsPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
     { key: 'scheduledAt', header: 'Scheduled', width: '150px', render: ( a: api.Appointment ) => formatDate( a.scheduledAt ) },
     {
       key: 'customerName', header: 'Customer', render: ( a: api.Appointment ) => (
-        <div><div style={ { fontWeight: 500 } }>{ a.customerName || '—' }</div><div style={ { fontSize: 12, color: '#6b7280' } }>{ a.customerPhone }</div></div>
+        <div><div style={ { fontWeight: 500 } }>{ a.customerName || '—' }</div><div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ a.customerPhone }</div></div>
       )
     },
     { key: 'type', header: 'Type', width: '110px', render: ( a: api.Appointment ) => a.type },
@@ -132,8 +132,8 @@ const AppointmentsPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
       <div style={ { padding: '24px 32px', maxWidth: 1400 } }>
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } }>
           <div>
-            <h1 style={ { fontSize: 24, fontWeight: 700, color: '#1a3a2a', margin: 0 } }>Appointments</h1>
-            <p style={ { fontSize: 14, color: '#6b7280', margin: '4px 0 0' } }>{ items.length } appointments</p>
+            <h1 style={ { fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--accent)', margin: 0 } }>Appointments</h1>
+            <p style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', margin: '4px 0 0' } }>{ items.length } appointments</p>
           </div>
           <div style={ { display: 'flex', gap: 8 } }>
             <Button variant="secondary" icon="refresh" onClick={ loadData }>Refresh</Button>
@@ -171,7 +171,7 @@ const AppointmentsPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
             <div><span style={ labelStyle }>Duration</span><div>{ selected.duration ? `${selected.duration} min` : '—' }</div></div>
             <div><span style={ labelStyle }>Status</span><div>{ statusBadge( selected.status ) }</div></div>
             <div><span style={ labelStyle }>Location</span><div>{ selected.location || '—' }</div></div>
-            { selected.notes && <div style={ { gridColumn: '1 / -1' } }><span style={ labelStyle }>Notes</span><div style={ { padding: 8, background: '#f9fafb', borderRadius: 6, fontSize: 14 } }>{ selected.notes }</div></div> }
+            { selected.notes && <div style={ { gridColumn: '1 / -1' } }><span style={ labelStyle }>Notes</span><div style={ { padding: 8, background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 'var(--text-md)' } }>{ selected.notes }</div></div> }
           </div>
         ) }
       </Modal>
@@ -192,15 +192,15 @@ const AppointmentsPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
       }>
         <div style={ { display: 'flex', flexDirection: 'column', gap: 14 } }>
           <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
-            <label style={ { fontSize: 14 } }>Customer Name<input type="text" value={ createForm.customerName } onChange={ e => setCreateForm( f => ( { ...f, customerName: e.target.value } ) ) } style={ inputStyle } /></label>
-            <label style={ { fontSize: 14 } }>Phone *<input type="tel" value={ createForm.customerPhone } onChange={ e => setCreateForm( f => ( { ...f, customerPhone: e.target.value } ) ) } placeholder="+91 9876543210" style={ { ...inputStyle, borderColor: createForm.customerPhone && !isValidPhone( createForm.customerPhone ) ? '#dc2626' : '#e5e7eb' } } />{ createForm.customerPhone && !isValidPhone( createForm.customerPhone ) && <span style={ { fontSize: 11, color: '#dc2626', marginTop: 2 } }>Invalid phone format</span> }</label>
+            <label style={ { fontSize: 'var(--text-md)' } }>Customer Name<input type="text" value={ createForm.customerName } onChange={ e => setCreateForm( f => ( { ...f, customerName: e.target.value } ) ) } style={ inputStyle } /></label>
+            <label style={ { fontSize: 'var(--text-md)' } }>Phone *<input type="tel" value={ createForm.customerPhone } onChange={ e => setCreateForm( f => ( { ...f, customerPhone: e.target.value } ) ) } placeholder="+91 9876543210" style={ { ...inputStyle, borderColor: createForm.customerPhone && !isValidPhone( createForm.customerPhone ) ? '#dc2626' : 'var(--border)' } } />{ createForm.customerPhone && !isValidPhone( createForm.customerPhone ) && <span style={ { fontSize: 'var(--text-xs)', color: '#dc2626', marginTop: 2 } }>Invalid phone format</span> }</label>
           </div>
           <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
             { /* SHAPE (a), design 5.2 - the wrapping <label> is gone and Select owns the pair. */ }
             <Select label="Type" value={ createForm.type }
               onChange={ v => setCreateForm( f => ( { ...f, type: v } ) ) }
               options={ TYPE_SELECT_OPTIONS } />
-            <label style={ { fontSize: 14 } }>Location<input type="text" value={ createForm.location } onChange={ e => setCreateForm( f => ( { ...f, location: e.target.value } ) ) } style={ inputStyle } /></label>
+            <label style={ { fontSize: 'var(--text-md)' } }>Location<input type="text" value={ createForm.location } onChange={ e => setCreateForm( f => ( { ...f, location: e.target.value } ) ) } style={ inputStyle } /></label>
           </div>
           <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 } }>
             { /* SHAPE (a) for both: the wrapping <label> is gone and each component owns its
@@ -213,18 +213,18 @@ const AppointmentsPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
                  driving a `border-color` and NOT a `border` shorthand: `border-color` is outside
                  form-controls.css's !important set precisely so a validity colour still wins,
                  and a shorthand would set the colour too and silently erase it. */ }
-            <div style={ { fontSize: 14 } }>
+            <div style={ { fontSize: 'var(--text-md)' } }>
               <DateField label="Date *" value={ createForm.slotDate } min={ getTodayISO() }
                 invalid={ !!createForm.slotDate && !isNotPastDate( createForm.slotDate ) }
                 onChange={ v => setCreateForm( f => ( { ...f, slotDate: v } ) ) } />
-              { createForm.slotDate && !isNotPastDate( createForm.slotDate ) && <span style={ { fontSize: 11, color: '#dc2626', marginTop: 2 } }>Cannot be in the past</span> }
+              { createForm.slotDate && !isNotPastDate( createForm.slotDate ) && <span style={ { fontSize: 'var(--text-xs)', color: '#dc2626', marginTop: 2 } }>Cannot be in the past</span> }
             </div>
             <TimeField label="Time" value={ createForm.slotTime }
               onChange={ v => setCreateForm( f => ( { ...f, slotTime: v } ) ) }
               style={ FIELD_STYLE } />
-            <label style={ { fontSize: 14 } }>Duration (min)<input type="number" value={ createForm.duration } min={ 5 } max={ 480 } onChange={ e => setCreateForm( f => ( { ...f, duration: Number( e.target.value ) } ) ) } style={ inputStyle } /></label>
+            <label style={ { fontSize: 'var(--text-md)' } }>Duration (min)<input type="number" value={ createForm.duration } min={ 5 } max={ 480 } onChange={ e => setCreateForm( f => ( { ...f, duration: Number( e.target.value ) } ) ) } style={ inputStyle } /></label>
           </div>
-          <label style={ { fontSize: 14 } }>Notes<textarea value={ createForm.notes } onChange={ e => setCreateForm( f => ( { ...f, notes: e.target.value } ) ) } rows={ 2 } style={ { ...inputStyle, resize: 'vertical' } } /></label>
+          <label style={ { fontSize: 'var(--text-md)' } }>Notes<textarea value={ createForm.notes } onChange={ e => setCreateForm( f => ( { ...f, notes: e.target.value } ) ) } rows={ 2 } style={ { ...inputStyle, resize: 'vertical' } } /></label>
         </div>
       </Modal>
     </MaybeLayout>
@@ -239,7 +239,7 @@ const AppointmentsPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
    Same property, same single property - still not a `border` shorthand, because a shorthand
    sets the colour too and would erase the error it is meant to show. The message <span>'s own
    11px / #dc2626 styling is byte-for-byte what it was. */
-const labelStyle: React.CSSProperties = { fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 2 };
-const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, marginTop: 4 };
+const labelStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'block', marginBottom: 2 };
+const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 'var(--text-md)', marginTop: 4 };
 
 export default AppointmentsPage;

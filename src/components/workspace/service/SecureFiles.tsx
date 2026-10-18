@@ -21,7 +21,7 @@
  * Design
  * ------
  * Carries the home page's language, matching the customer-facing /files page: the
- * #d1f470 lime with #1a3a2a on it, 14px-radius panels with 2px borders, the 52px
+ * var(--lime) lime with var(--accent) on it, 14px-radius panels with 2px borders, the 52px
  * 50px-radius pill CTA, and the site heading rung
  * clamp(28px,3.2vw,40px)/700/1.08/-1.2px. This is deliberately NOT the other
  * dashboard pages' var(--surface)/var(--border) treatment - the two secure-file
@@ -442,8 +442,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
                 .sf-head{margin:0 0 28px}
                 .sf-eyebrow{
-                  margin:0 0 14px;font-size:12px;font-weight:700;
-                  letter-spacing:.08em;text-transform:uppercase;color:#1a3a2a;
+                  margin:0 0 14px;font-size:var(--text-xs);font-weight:700;
+                  letter-spacing:.08em;text-transform:uppercase;color:var(--accent);
                 }
                 /* The site's section-heading rung, identical to .home-close-title. */
                 .sf-title{
@@ -459,14 +459,14 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 /* Same panel treatment as .home-close-panel and the /files page. */
                 .sf-panel{
                   padding:clamp(24px,3vw,40px);margin:0 0 24px;
-                  border:2px solid #d1f470;border-radius:14px;
+                  border:2px solid var(--lime);border-radius:14px;
                   background:rgba(209,244,112,.22);
                 }
                 .sf-h2{
                   margin:0 0 6px;font-size:22px;font-weight:700;
                   letter-spacing:-.4px;color:rgba(0,0,0,.95);
                 }
-                .sf-note{margin:0 0 20px;font-size:15px;color:rgba(26,58,42,.72)}
+                .sf-note{margin:0 0 20px;font-size:var(--text-md);color:rgba(26,58,42,.72)}
                 .sf-note-pad{display:flex;align-items:center;gap:8px;padding:12px 0;margin:0}
 
                 .sf-grid{
@@ -475,46 +475,46 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 }
                 .sf-field{min-width:0}
                 .sf-label{
-                  display:block;margin:0 0 8px;font-size:14px;font-weight:600;
-                  letter-spacing:-.1px;color:#1a3a2a;
+                  display:block;margin:0 0 8px;font-size:var(--text-md);font-weight:600;
+                  letter-spacing:-.1px;color:var(--accent);
                 }
                 /* 16px minimum: smaller makes iOS Safari zoom the viewport on focus. */
                 .sf-input{
                   width:100%;box-sizing:border-box;min-height:48px;padding:0 14px;
-                  font-size:16px;color:rgba(0,0,0,.95);background:#fff;
+                  font-size:var(--text-base);color:rgba(0,0,0,.95);background:#fff;
                   border:2px solid rgba(26,58,42,.18);border-radius:12px;
                   transition:border-color .2s;
                 }
-                .sf-input:focus{outline:none;border-color:#1a3a2a}
-                .sf-input:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+                .sf-input:focus{outline:none;border-color:var(--accent)}
+                .sf-input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
                 .sf-input:disabled{opacity:.6}
                 .sf-input-file{padding:11px 12px;min-height:48px}
-                .sf-hint{margin:8px 0 0;font-size:13px;line-height:1.45;color:rgba(26,58,42,.72)}
+                .sf-hint{margin:8px 0 0;font-size:var(--text-sm);line-height:1.45;color:rgba(26,58,42,.72)}
 
                 .sf-actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-                .sf-aside{font-size:15px;color:rgba(26,58,42,.72)}
+                .sf-aside{font-size:var(--text-md);color:rgba(26,58,42,.72)}
 
                 /* The home page CTA: 52px, 50px pill, lime inverting to white. */
                 .sf-cta{
                   display:inline-flex;align-items:center;justify-content:center;
                   min-height:52px;padding:0 28px;
-                  border:2px solid #d1f470;border-radius:50px;background:#d1f470;
-                  color:#1a3a2a;font-size:17px;font-weight:600;cursor:pointer;
+                  border:2px solid var(--lime);border-radius:50px;background:var(--lime);
+                  color:var(--accent);font-size:var(--h4);font-weight:600;cursor:pointer;
                   transition:background-color .2s,transform .2s,box-shadow .2s;
                 }
                 .sf-cta:hover:not(:disabled){
                   background:#fff;transform:translateY(-2px);
                   box-shadow:0 4px 12px rgba(26,58,42,.12);
                 }
-                .sf-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+                .sf-cta:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
                 .sf-cta:disabled{opacity:.55;cursor:default}
                 /* Secondary: same geometry, white by default, so it reads as the lesser
                    of the two without introducing a third shape. */
                 .sf-cta-quiet{
-                  min-height:48px;padding:0 22px;font-size:15px;
+                  min-height:48px;padding:0 22px;font-size:var(--text-md);
                   background:#fff;border-color:rgba(26,58,42,.18);
                 }
-                .sf-cta-quiet:hover:not(:disabled){background:#d1f470;border-color:#d1f470}
+                .sf-cta-quiet:hover:not(:disabled){background:var(--lime);border-color:var(--lime)}
 
                 .sf-listhead{
                   display:flex;justify-content:space-between;align-items:flex-end;
@@ -526,7 +526,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-alert{
                   margin:0 0 16px;padding:12px 16px;border-radius:12px;
                   border:2px solid #ef4444;background:#fee2e2;color:#7f1d1d;
-                  font-size:15px;line-height:1.45;
+                  font-size:var(--text-md);line-height:1.45;
                 }
 
                 /* White table on the tinted panel, so rows stay legible. */
@@ -536,24 +536,24 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 }
                 .sf-table{width:100%;border-collapse:collapse}
                 .sf-table th{
-                  padding:12px 14px;text-align:left;font-size:12px;font-weight:700;
+                  padding:12px 14px;text-align:left;font-size:var(--text-xs);font-weight:700;
                   letter-spacing:.06em;text-transform:uppercase;color:rgba(26,58,42,.6);
                   border-bottom:2px solid rgba(26,58,42,.12);white-space:nowrap;
                 }
                 .sf-table td{
-                  padding:12px 14px;font-size:15px;color:rgba(0,0,0,.9);
+                  padding:12px 14px;font-size:var(--text-md);color:rgba(0,0,0,.9);
                   border-bottom:1px solid rgba(26,58,42,.08);vertical-align:top;
                 }
                 .sf-table tr:last-child td{border-bottom:0}
                 .sf-filename{display:block;font-weight:600;letter-spacing:-.2px}
                 .sf-fileorig{
-                  display:block;margin-top:3px;font-size:13px;color:rgba(26,58,42,.6);
+                  display:block;margin-top:3px;font-size:var(--text-sm);color:rgba(26,58,42,.6);
                 }
                 .sf-mono{font-family:var(--font-mono,ui-monospace,monospace)}
 
                 .sf-status{
                   display:inline-block;padding:3px 10px;border-radius:50px;
-                  border:1px solid;font-size:12px;font-weight:600;text-transform:capitalize;
+                  border:1px solid;font-size:var(--text-xs);font-weight:600;text-transform:capitalize;
                 }
 
                 .sf-label-opt{font-weight:400;color:#64748b}
@@ -561,11 +561,11 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-tagpill{
                   display:inline-block;padding:2px 10px;border-radius:50px;
                   background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;
-                  font-size:12px;font-weight:600;
+                  font-size:var(--text-xs);font-weight:600;
                 }
                 .sf-window{
                   display:inline-block;padding:2px 10px;border-radius:50px;
-                  border:1px solid;font-size:12px;font-weight:600;white-space:nowrap;
+                  border:1px solid;font-size:var(--text-xs);font-weight:600;white-space:nowrap;
                 }
                 .sf-window-open{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
                 .sf-window-expired{background:#fef2f2;color:#991b1b;border-color:#fecaca}
@@ -573,11 +573,11 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
                 .sf-revoke{
                   border:2px solid rgba(26,58,42,.18);border-radius:50px;
-                  background:#fff;color:#1a3a2a;padding:6px 16px;
-                  font-size:14px;font-weight:600;cursor:pointer;transition:background-color .2s;
+                  background:#fff;color:var(--accent);padding:6px 16px;
+                  font-size:var(--text-md);font-weight:600;cursor:pointer;transition:background-color .2s;
                 }
                 .sf-revoke:hover{background:#fee2e2;border-color:#ef4444;color:#991b1b}
-                .sf-revoke:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+                .sf-revoke:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 
                 @media(prefers-reduced-motion:reduce){
                   .sf-cta,.sf-input,.sf-revoke{transition:none}

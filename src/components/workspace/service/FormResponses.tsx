@@ -45,7 +45,7 @@ const PAY_PAINT: Record<string, { bg: string; fg: string }> = {
 };
 
 const paint = ( s?: string ) =>
-  PAY_PAINT[ ( s || '' ).toLowerCase() ] || { bg: '#f9fafb', fg: 'rgba(0,0,0,.54)' };
+  PAY_PAINT[ ( s || '' ).toLowerCase() ] || { bg: 'var(--bg-secondary)', fg: 'rgba(0,0,0,.54)' };
 
 const FormResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
   const toast = useToastContext();
@@ -148,7 +148,7 @@ const FormResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =
              queue. It stays live (and keeps its oldest-unpaid sort) until that queue reaches
              parity; the banner just makes the canonical surface discoverable. */ }
         <div style={{ margin: '0 0 16px', padding: '10px 14px', borderRadius: 8,
-          background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 13, color: '#1e40af' }}>
+          background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 'var(--text-sm)', color: '#1e40af' }}>
           Looking for everything in one place? Try the unified{' '}
           <Link href="/workspace/request/responses" style={{ fontWeight: 600, textDecoration: 'underline' }}>
             Request → Responses
@@ -333,35 +333,35 @@ const FormResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =
         .fr-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:0 0 22px}
         .fr-card{
           display:flex;flex-direction:column;gap:2px;background:#fff;
-          border:1px solid #e5e7eb;border-radius:13px;padding:16px 18px;
+          border:1px solid var(--border);border-radius:13px;padding:16px 18px;
         }
         .fr-n{font-size:22px;font-weight:700;color:#000;line-height:1.27;letter-spacing:-.25px}
         .fr-warn{color:#b45309}
         .fr-bad{color:#dc2626}
-        .fr-l{font-size:14px;color:rgba(0,0,0,.54)}
+        .fr-l{font-size:var(--text-md);color:rgba(0,0,0,.54)}
 
         .fr-filters{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin:0 0 20px}
         .fr-fg{display:flex;flex-direction:column;gap:6px}
-        .fr-fg label{font-size:14px;color:rgba(0,0,0,.54)}
+        .fr-fg label{font-size:var(--text-md);color:rgba(0,0,0,.54)}
         .fr-fg input,.fr-fg select{
-          font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff;
-          border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;
+          font-family:inherit;font-size:var(--text-md);color:rgba(0,0,0,.898);background:#fff;
+          border:2px solid var(--border);border-radius:13px;padding:9px 12px;min-height:0;
         }
         .fr-fg input{width:280px}
-        .fr-fg input:focus,.fr-fg select:focus{outline:none;border-color:#d1f470}
+        .fr-fg input:focus,.fr-fg select:focus{outline:none;border-color:var(--lime)}
         .fr-actions{margin-left:auto}
 
         .fr-table-wrap{
-          background:#fff;border:1px solid #e5e7eb;border-radius:13px;
+          background:#fff;border:1px solid var(--border);border-radius:13px;
           overflow:hidden;margin:0 0 16px;
         }
         .fr-table{width:100%;border-collapse:collapse}
         .fr-table th{
-          background:#fafafa;padding:11px 16px;text-align:left;font-size:14px;
-          font-weight:600;color:rgba(0,0,0,.54);border-bottom:1px solid #e5e7eb;
+          background:#fafafa;padding:11px 16px;text-align:left;font-size:var(--text-md);
+          font-weight:600;color:rgba(0,0,0,.54);border-bottom:1px solid var(--border);
         }
         .fr-table td{
-          padding:11px 16px;border-bottom:1px solid #e5e7eb;font-size:14px;
+          padding:11px 16px;border-bottom:1px solid var(--border);font-size:var(--text-md);
           color:rgba(0,0,0,.898);
         }
         .fr-table tr:last-child td{border-bottom:none}
@@ -369,39 +369,39 @@ const FormResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =
            scrolling without making its text harder to read. */
         .fr-row-expired td:first-child{box-shadow:inset 3px 0 0 #dc2626}
 
-        .fr-mono{font-family:'SF Mono',Monaco,Consolas,monospace;font-size:13px}
+        .fr-mono{font-family:'SF Mono',Monaco,Consolas,monospace;font-size:var(--text-sm)}
         .fr-from{font-weight:500}
         .fr-subject{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .fr-muted{color:rgba(0,0,0,.54);font-size:13px}
-        .fr-when{color:rgba(0,0,0,.54);font-size:13px;white-space:nowrap}
+        .fr-muted{color:rgba(0,0,0,.54);font-size:var(--text-sm)}
+        .fr-when{color:rgba(0,0,0,.54);font-size:var(--text-sm);white-space:nowrap}
         .fr-state{text-align:center;padding:40px;color:rgba(0,0,0,.54)}
         .fr-badge{
           display:inline-flex;align-items:center;padding:4px 12px;border-radius:50px;
-          font-size:13px;font-weight:600;text-transform:capitalize;
+          font-size:var(--text-sm);font-weight:600;text-transform:capitalize;
         }
-        .fr-exp{margin-left:8px;font-size:12px;font-weight:600;color:#dc2626}
+        .fr-exp{margin-left:8px;font-size:var(--text-xs);font-weight:600;color:#dc2626}
         .fr-pill{
-          font-family:inherit;font-size:13px;font-weight:500;color:rgba(0,0,0,.898);
-          background:#fff;border:2px solid #e5e7eb;border-radius:50px;
+          font-family:inherit;font-size:var(--text-sm);font-weight:500;color:rgba(0,0,0,.898);
+          background:#fff;border:2px solid var(--border);border-radius:50px;
           padding:6px 14px;cursor:pointer;transition:all .2s ease;
         }
-        .fr-pill:hover{border-color:#d1f470;color:#1a3a2a}
+        .fr-pill:hover{border-color:var(--lime);color:var(--accent)}
         .fr-detail-row td{background:#fafafa}
         .fr-dl{
           display:grid;grid-template-columns:150px 1fr;gap:6px 18px;margin:0 0 12px;
         }
-        .fr-dl dt{font-size:14px;color:rgba(0,0,0,.54)}
-        .fr-dl dd{margin:0;font-size:14px;color:rgba(0,0,0,.898)}
-        .fr-link{color:#1a3a2a;text-decoration:underline;font-size:14px}
+        .fr-dl dt{font-size:var(--text-md);color:rgba(0,0,0,.54)}
+        .fr-dl dd{margin:0;font-size:var(--text-md);color:rgba(0,0,0,.898)}
+        .fr-link{color:var(--accent);text-decoration:underline;font-size:var(--text-md)}
         .fr-note{
-          font-size:14px;line-height:1.5;color:rgba(0,0,0,.54);margin:0;max-width:740px;
+          font-size:var(--text-md);line-height:1.5;color:rgba(0,0,0,.54);margin:0;max-width:740px;
         }
 
         @media(max-width:900px){
           .fr-cards{grid-template-columns:repeat(2,1fr)}
           .fr-table-wrap{overflow-x:auto}
           .fr-fg input{width:100%}
-          .fr-sub{font-size:17px}
+          .fr-sub{font-size:var(--h4)}
           .fr-dl{grid-template-columns:1fr}
         }
         @media(prefers-reduced-motion:reduce){ .fr-pill{transition:none} }

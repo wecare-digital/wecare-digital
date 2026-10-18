@@ -21,9 +21,16 @@
  * hairlines at 1px static and 2px where there is a hover, `rgba(0,0,0,.898)` body,
  * `#000` headings, lime only on hover and active.
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { settingsConfig } from '../config/navigation';
+
+// FEAT-003: Sign-in & MFA is no longer a route. TotpSetup renders INSIDE this panel, lazily, so
+// it only mounts (and only touches aws-amplify/auth) when the operator actually opens it — not on
+// every page that renders the gear. ssr:false keeps it out of the statically exported server
+// bundle; it fetches on mount and sits behind auth, so there is nothing to prerender.
+const TotpSetup = dynamic( () => import( './security/TotpSetup' ), { ssr: false } );
 
 interface SettingsGearProps {
   /** Collapsed sidebar shows the gear without its label. */
@@ -34,18 +41,24 @@ const SettingsGear: React.FC<SettingsGearProps> = ( { collapsed = false } ) => {
   const router = useRouter();
   const [ open, setOpen ] = useState( false );
   const [ filter, setFilter ] = useState( '' );
+  // Which in-panel surface is showing, if any. 'mfa' renders TotpSetup inline instead of the
+  // settings list; null shows the list. (FEAT-003 relocation of Sign-in & MFA.)
+  const [ view, setView ] = useState<null | 'mfa'>( null );
   const panelRef = useRef<HTMLDivElement | null>( null );
   const buttonRef = useRef<HTMLButtonElement | null>( null );
 
   // Close on route change, so the panel never survives the navigation it caused.
-  useEffect( () => { setOpen( false ); setFilter( '' ); }, [ router.asPath ] );
+  useEffect( () => { setOpen( false ); setFilter( '' ); setView( null ); }, [ router.asPath ] );
 
   // Escape closes and returns focus to the trigger, which is the one thing a
   // keyboard user cannot recover on their own.
   useEffect( () => {
     if ( !open ) return;
     const onKey = ( e: KeyboardEvent ) => {
-      if ( e.key === 'Escape' ) { setOpen( false ); buttonRef.current?.focus(); }
+      if ( e.key !== 'Escape' ) return;
+      // Escape backs out of an in-panel view first, then closes the panel.
+      if ( view ) { setView( null ); return; }
+      setOpen( false ); buttonRef.current?.focus();
     };
     const onClick = ( e: MouseEvent ) => {
       const t = e.target as Node;
@@ -58,7 +71,7 @@ const SettingsGear: React.FC<SettingsGearProps> = ( { collapsed = false } ) => {
       document.removeEventListener( 'keydown', onKey );
       document.removeEventListener( 'mousedown', onClick );
     };
-  }, [ open ] );
+  }, [ open, view ] );
 
   const groups = useMemo( () => {
     const q = filter.trim().toLowerCase();
@@ -77,6 +90,12 @@ const SettingsGear: React.FC<SettingsGearProps> = ( { collapsed = false } ) => {
     router.push( path );
   }, [ router ] );
 
+  // Toggle the panel, and reset any in-panel view when closing so reopening lands on the list.
+  const toggle = useCallback( () => {
+    setOpen( ( v ) => !v );
+    setView( null );
+  }, [] );
+
   const total = useMemo(
     () => settingsConfig.reduce( ( n, g ) => n + g.items.length, 0 ), [] );
 
@@ -89,7 +108,7 @@ const SettingsGear: React.FC<SettingsGearProps> = ( { collapsed = false } ) => {
         aria-expanded={ open }
         aria-haspopup="true"
         aria-label={ `Settings — ${total} pages` }
-        onClick={ () => setOpen( ( v ) => !v ) }
+        onClick={ toggle }
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -102,39 +121,75 @@ const SettingsGear: React.FC<SettingsGearProps> = ( { collapsed = false } ) => {
       { open && (
         <div className="sg-panel" ref={ panelRef } role="dialog"
           aria-label="Settings">
-          <div className="sg-panel-head">
-            <input
-              className="sg-filter"
-              type="text"
-              autoFocus
-              placeholder="Filter settings…"
-              value={ filter }
-              onChange={ ( e ) => setFilter( e.target.value ) }
-              aria-label="Filter settings"
-            />
-            <span className="sg-count">{ total } pages</span>
-          </div>
+          { view === 'mfa' ? (
+            // FEAT-003: the Sign-in & MFA surface, relocated here from the retired
+            // /workspace/access/security route. TotpSetup is preserved verbatim; only the
+            // chrome around it (the public-contract heading and intro) moved from that page
+            // into this in-panel view.
+            <div className="sg-mfa">
+              <div className="sg-panel-head">
+                <button type="button" className="sg-back" onClick={ () => setView( null ) }
+                  aria-label="Back to settings">← Settings</button>
+              </div>
+              <div className="sg-mfa-body">
+                <header className="sg-mfa-head">
+                  <h2 className="sg-mfa-h1">Sign-in &amp; MFA</h2>
+                  <p className="sg-mfa-sub">
+                    Second factors for your own account. Email codes are on and your
+                    verified mobile is registered as a fallback.
+                  </p>
+                </header>
+                <Suspense fallback={ <p className="sg-empty">Loading…</p> }>
+                  <TotpSetup />
+                </Suspense>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="sg-panel-head">
+                <input
+                  className="sg-filter"
+                  type="text"
+                  autoFocus
+                  placeholder="Filter settings…"
+                  value={ filter }
+                  onChange={ ( e ) => setFilter( e.target.value ) }
+                  aria-label="Filter settings"
+                />
+                <span className="sg-count">{ total } pages</span>
+              </div>
 
-          <div className="sg-groups">
-            { groups.length === 0 ? (
-              <p className="sg-empty">
-                Nothing matches. Ctrl+K searches every page, including these.
-              </p>
-            ) : groups.map( ( g ) => (
-              <section className="sg-group" key={ g.id }>
-                <h3 className="sg-group-label">{ g.label }</h3>
-                <p className="sg-group-hint">{ g.hint }</p>
-                <ul className="sg-list">
-                  { g.items.map( ( i ) => (
-                    <li key={ i.path }>
-                      <button type="button" className="sg-link"
-                        onClick={ () => go( i.path ) }>{ i.label }</button>
-                    </li>
-                  ) ) }
-                </ul>
-              </section>
-            ) ) }
-          </div>
+              <div className="sg-groups">
+                { groups.length === 0 ? (
+                  <p className="sg-empty">
+                    Nothing matches. Ctrl+K searches every page, including these.
+                  </p>
+                ) : groups.map( ( g ) => (
+                  <section className="sg-group" key={ g.id }>
+                    <h3 className="sg-group-label">{ g.label }</h3>
+                    <p className="sg-group-hint">{ g.hint }</p>
+                    <ul className="sg-list">
+                      { /* FEAT-003: a group's in-panel MFA surface leads the list when it has
+                           one and nothing is being filtered out. It opens inline rather than
+                           navigating, because TotpSetup needs the signed-in user's own token. */ }
+                      { g.mfaPanel && !filter.trim() && (
+                        <li key={ g.mfaPanel.id }>
+                          <button type="button" className="sg-link"
+                            onClick={ () => setView( 'mfa' ) }>{ g.mfaPanel.label }</button>
+                        </li>
+                      ) }
+                      { g.items.map( ( i ) => (
+                        <li key={ i.path }>
+                          <button type="button" className="sg-link"
+                            onClick={ () => go( i.path ) }>{ i.label }</button>
+                        </li>
+                      ) ) }
+                    </ul>
+                  </section>
+                ) ) }
+              </div>
+            </>
+          ) }
         </div>
       ) }
 
@@ -203,8 +258,23 @@ const SettingsGear: React.FC<SettingsGearProps> = ( { collapsed = false } ) => {
         .sg-link:focus-visible{outline:none;background:rgba(209,244,112,.22);box-shadow:0 0 0 3px #1a3a2a}
         .sg-empty{font-size:15px;color:rgba(0,0,0,.54);margin:14px 0}
 
+        /* FEAT-003: the in-panel Sign-in & MFA view. Back control uses the same lime-tint
+           transient state as a settings row; the heading follows the public type contract
+           (Inter, 600, -.125px tracking, #000) the retired page carried. */
+        .sg-back{
+          font-family:inherit;font-size:14px;font-weight:600;color:rgba(0,0,0,.898);
+          background:transparent;border:none;border-radius:8px;padding:7px 10px;cursor:pointer;
+          transition:background .15s ease;
+        }
+        .sg-back:hover{background:rgba(209,244,112,.22)}
+        .sg-back:focus-visible{outline:none;background:rgba(209,244,112,.22);box-shadow:0 0 0 3px #1a3a2a}
+        .sg-mfa-body{padding:6px 18px 18px}
+        .sg-mfa-head{margin:8px 0 18px}
+        .sg-mfa-h1{font-size:22px;font-weight:600;line-height:1.27;letter-spacing:-.25px;color:#000;margin:0 0 8px}
+        .sg-mfa-sub{font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898);margin:0;max-width:560px}
+
         @media(prefers-reduced-motion:reduce){
-          .sg-btn,.sg-link{transition:none}
+          .sg-btn,.sg-link,.sg-back{transition:none}
         }
       `}</style>
     </div>

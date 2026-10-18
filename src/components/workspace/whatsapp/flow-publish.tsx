@@ -72,16 +72,16 @@ const FlowPublishChecklist: React.FC<PageProps> = ( { signOut, user, embedded = 
         <div style={ { maxWidth: 760, margin: '0 auto', padding: 16 } }>
             <SEO title="Flow Publish Checklist" description="Verify WhatsApp Flow publish preconditions." noindex />
             <h1 style={ { fontSize: 22, fontWeight: 700, marginBottom: 4 } }>Flow Publish Checklist</h1>
-            <p style={ { color: '#777', fontSize: 13, marginBottom: 16 } }>Verify all preconditions before publishing. Published flows are immutable.</p>
+            <p style={ { color: '#777', fontSize: 'var(--text-sm)', marginBottom: 16 } }>Verify all preconditions before publishing. Published flows are immutable.</p>
 
             <div style={ { background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, padding: 16, marginBottom: 16 } }>
                 <div style={ { display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' } }>
                     <WabaSelector value={ wabaId } onChange={ setWabaId } />
                     <div style={ { flex: 1, minWidth: 220 } }>
-                        <label style={ { fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 } }>Flow ID</label>
-                        <input value={ flowId } onChange={ e => setFlowId( e.target.value ) } placeholder="1234567890" style={ { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 14 } } />
+                        <label style={ { fontSize: 'var(--text-xs)', fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 } }>Flow ID</label>
+                        <input value={ flowId } onChange={ e => setFlowId( e.target.value ) } placeholder="1234567890" style={ { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 'var(--text-md)' } } />
                     </div>
-                    <button onClick={ load } disabled={ loading } style={ { padding: '9px 16px', background: '#1a3a2a', color: '#d1f470', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700 } }>{ loading ? 'Loading…' : 'Load flow' }</button>
+                    <button onClick={ load } disabled={ loading } style={ { padding: '9px 16px', background: 'var(--accent)', color: 'var(--lime)', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700 } }>{ loading ? 'Loading…' : 'Load flow' }</button>
                 </div>
             </div>
 
@@ -91,18 +91,18 @@ const FlowPublishChecklist: React.FC<PageProps> = ( { signOut, user, embedded = 
                 <>
                     <div style={ { background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, padding: 16, marginBottom: 16 } }>
                         <div style={ { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 } }>
-                            <strong style={ { fontSize: 15 } }>{ flow.name || flow.id }</strong>
+                            <strong style={ { fontSize: 'var(--text-md)' } }>{ flow.name || flow.id }</strong>
                             <StatusBadge status={ flow.status } />
                         </div>
                         { checks.map( ( c, i ) => (
                             <div key={ i } style={ { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: i ? '1px solid #f5f5f5' : 'none' } }>
-                                <span style={ { fontSize: 16, color: c.ok ? '#1a7a3a' : '#a11' } }>{ c.ok ? '✓' : '✕' }</span>
-                                <span style={ { fontSize: 14, flex: 1 } }>{ c.label }</span>
-                                <span style={ { fontSize: 12, color: '#888' } }>{ c.detail }</span>
+                                <span style={ { fontSize: 'var(--text-base)', color: c.ok ? '#1a7a3a' : '#a11' } }>{ c.ok ? '✓' : '✕' }</span>
+                                <span style={ { fontSize: 'var(--text-md)', flex: 1 } }>{ c.label }</span>
+                                <span style={ { fontSize: 'var(--text-xs)', color: '#888' } }>{ c.detail }</span>
                             </div>
                         ) ) }
                         <button onClick={ doPublish } disabled={ !allPass || publishing } style={ {
-                            marginTop: 14, padding: '10px 18px', borderRadius: 6, border: 'none', fontWeight: 700, fontSize: 14,
+                            marginTop: 14, padding: '10px 18px', borderRadius: 6, border: 'none', fontWeight: 700, fontSize: 'var(--text-md)',
                             cursor: allPass ? 'pointer' : 'not-allowed',
                             background: allPass ? '#1a7a3a' : '#ccc', color: '#fff',
                         } }>{ publishing ? 'Publishing…' : allPass ? 'Publish flow' : 'Resolve all items to publish' }</button>

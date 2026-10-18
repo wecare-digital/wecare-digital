@@ -101,7 +101,7 @@ const WelcomeConfigPage: React.FC<PageProps> = ({ signOut, user, embedded = fals
 
       <div style={{ background: '#fff', borderRadius: 12, padding: 24, boxShadow: embedded ? 'none' : '0 1px 3px rgba(0,0,0,0.08)' }}>
         {/* Info banner */}
-        <div style={{ marginBottom: 24, padding: '12px 16px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, color: '#0f2a1d' }}>
+        <div style={{ marginBottom: 24, padding: '12px 16px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 'var(--text-sm)', color: '#0f2a1d' }}>
           When enabled, these messages override the default bot welcome. Disable to use the Lambda default welcome text.
         </div>
 
@@ -111,25 +111,25 @@ const WelcomeConfigPage: React.FC<PageProps> = ({ signOut, user, embedded = fals
             onClick={() => setActivePhone(WHATSAPP_PHONES.primary.id)}
             style={{
               flex: 1, padding: '12px 16px', border: '2px solid', borderRadius: 8, cursor: 'pointer',
-              borderColor: activePhone === WHATSAPP_PHONES.primary.id ? '#1a3a2a' : '#e5e7eb',
-              background: activePhone === WHATSAPP_PHONES.primary.id ? '#f9fafb' : '#fff',
+              borderColor: activePhone === WHATSAPP_PHONES.primary.id ? 'var(--accent)' : 'var(--border)',
+              background: activePhone === WHATSAPP_PHONES.primary.id ? 'var(--bg-secondary)' : '#fff',
               fontWeight: activePhone === WHATSAPP_PHONES.primary.id ? 600 : 400,
             }}
           >
-            <div style={{ fontSize: 14 }}>{WHATSAPP_PHONES.primary.name}</div>
-            <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{WHATSAPP_PHONES.primary.display}</div>
+            <div style={{ fontSize: 'var(--text-md)' }}>{WHATSAPP_PHONES.primary.name}</div>
+            <div style={{ fontSize: 'var(--text-xs)', color: '#666', marginTop: 4 }}>{WHATSAPP_PHONES.primary.display}</div>
           </button>
           <button
             onClick={() => setActivePhone(WHATSAPP_PHONES.secondary.id)}
             style={{
               flex: 1, padding: '12px 16px', border: '2px solid', borderRadius: 8, cursor: 'pointer',
-              borderColor: activePhone === WHATSAPP_PHONES.secondary.id ? '#1a3a2a' : '#e5e7eb',
-              background: activePhone === WHATSAPP_PHONES.secondary.id ? '#f9fafb' : '#fff',
+              borderColor: activePhone === WHATSAPP_PHONES.secondary.id ? 'var(--accent)' : 'var(--border)',
+              background: activePhone === WHATSAPP_PHONES.secondary.id ? 'var(--bg-secondary)' : '#fff',
               fontWeight: activePhone === WHATSAPP_PHONES.secondary.id ? 600 : 400,
             }}
           >
-            <div style={{ fontSize: 14 }}>{WHATSAPP_PHONES.secondary.name}</div>
-            <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{WHATSAPP_PHONES.secondary.display}</div>
+            <div style={{ fontSize: 'var(--text-md)' }}>{WHATSAPP_PHONES.secondary.name}</div>
+            <div style={{ fontSize: 'var(--text-xs)', color: '#666', marginTop: 4 }}>{WHATSAPP_PHONES.secondary.display}</div>
           </button>
         </div>
 
@@ -146,8 +146,8 @@ const WelcomeConfigPage: React.FC<PageProps> = ({ signOut, user, embedded = fals
         </div>
 
         <div style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: 14, marginBottom: 8 }}>New User Welcome</h3>
-          <p style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>Sent when a user messages for the first time (no conversation history)</p>
+          <h3 style={{ fontSize: 'var(--text-md)', marginBottom: 8 }}>New User Welcome</h3>
+          <p style={{ fontSize: 'var(--text-xs)', color: '#888', marginBottom: 8 }}>Sent when a user messages for the first time (no conversation history)</p>
           <textarea
             value={config.textMessage}
             onChange={(e) => setConfig({ ...config, textMessage: e.target.value })}
@@ -158,8 +158,8 @@ const WelcomeConfigPage: React.FC<PageProps> = ({ signOut, user, embedded = fals
         </div>
 
         <div style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: 14, marginBottom: 8 }}>Returning User Welcome</h3>
-          <p style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>Sent when a returning user starts a new session (has language preference but no recent messages)</p>
+          <h3 style={{ fontSize: 'var(--text-md)', marginBottom: 8 }}>Returning User Welcome</h3>
+          <p style={{ fontSize: 'var(--text-xs)', color: '#888', marginBottom: 8 }}>Sent when a returning user starts a new session (has language preference but no recent messages)</p>
           <textarea
             value={config.welcomeBackMessage}
             onChange={(e) => setConfig({ ...config, welcomeBackMessage: e.target.value })}
@@ -170,7 +170,7 @@ const WelcomeConfigPage: React.FC<PageProps> = ({ signOut, user, embedded = fals
         </div>
 
         <div style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: 14, marginBottom: 12 }}>Delay</h3>
+          <h3 style={{ fontSize: 'var(--text-md)', marginBottom: 12 }}>Delay</h3>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input
               type="number"

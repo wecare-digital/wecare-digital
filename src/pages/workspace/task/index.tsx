@@ -311,17 +311,17 @@ const TasksPage: React.FC<PageProps> = ( { signOut, user } ) => {
              hairline rule. They are filters, so they are genuinely interactive. */
           .tk-card{
             display:flex;flex-direction:column;gap:2px;text-align:left;
-            font-family:inherit;background:#fff;border:2px solid #e5e7eb;
+            font-family:inherit;background:#fff;border:2px solid var(--border);
             border-radius:13px;padding:16px 18px;cursor:pointer;transition:all .2s ease;
           }
-          .tk-card:hover{border-color:#d1f470}
+          .tk-card:hover{border-color:var(--lime)}
           /* Selected is one of our own states: lime fill, dark-green type. */
-          .tk-card-on{background:#d1f470;border-color:#d1f470}
-          .tk-card-on .tk-card-l,.tk-card-on .tk-card-n{color:#1a3a2a}
-          .tk-card-on .tk-card-h{color:#1a3a2a}
-          .tk-card-n{font-size:24px;font-weight:700;color:#000;line-height:1.2}
-          .tk-card-l{font-size:17px;font-weight:600;color:rgba(0,0,0,.898)}
-          .tk-card-h{font-size:14px;color:rgba(0,0,0,.54)}
+          .tk-card-on{background:var(--lime);border-color:var(--lime)}
+          .tk-card-on .tk-card-l,.tk-card-on .tk-card-n{color:var(--accent)}
+          .tk-card-on .tk-card-h{color:var(--accent)}
+          .tk-card-n{font-size:var(--text-3xl);font-weight:700;color:#000;line-height:1.2}
+          .tk-card-l{font-size:var(--h4);font-weight:600;color:rgba(0,0,0,.898)}
+          .tk-card-h{font-size:var(--text-md);color:rgba(0,0,0,.54)}
 
           .tk-filters{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin:0 0 20px}
           .tk-fg{display:flex;flex-direction:column;gap:6px}
@@ -331,62 +331,62 @@ const TasksPage: React.FC<PageProps> = ( { signOut, user } ) => {
              rather than deleted in a batch that is only supposed to move controls. The
              label's type therefore moves from 14px to .ui-field-label's own, which is a
              deliberate and recorded appearance change. */
-          .tk-fg label{font-size:14px;color:rgba(0,0,0,.54)}
+          .tk-fg label{font-size:var(--text-md);color:rgba(0,0,0,.54)}
           .tk-fg select{
-            font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff;
-            border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;
+            font-family:inherit;font-size:var(--text-md);color:rgba(0,0,0,.898);background:#fff;
+            border:2px solid var(--border);border-radius:13px;padding:9px 12px;min-height:0;
           }
-          .tk-fg select:focus{outline:none;border-color:#d1f470}
+          .tk-fg select:focus{outline:none;border-color:var(--lime)}
           .tk-actions{margin-left:auto}
 
           .tk-table-wrap{
-            background:#fff;border:1px solid #e5e7eb;border-radius:13px;
+            background:#fff;border:1px solid var(--border);border-radius:13px;
             overflow:hidden;margin:0 0 18px;
           }
           .tk-table{width:100%;border-collapse:collapse}
           .tk-table th{
-            background:#fafafa;padding:11px 16px;text-align:left;font-size:14px;
-            font-weight:600;color:rgba(0,0,0,.54);border-bottom:1px solid #e5e7eb;
+            background:#fafafa;padding:11px 16px;text-align:left;font-size:var(--text-md);
+            font-weight:600;color:rgba(0,0,0,.54);border-bottom:1px solid var(--border);
           }
           .tk-table td{
-            padding:11px 16px;border-bottom:1px solid #e5e7eb;font-size:14px;
+            padding:11px 16px;border-bottom:1px solid var(--border);font-size:var(--text-md);
             color:rgba(0,0,0,.898);vertical-align:middle;
           }
           .tk-table tr:last-child td{border-bottom:none}
 
-          .tk-link{color:#1a3a2a;text-decoration:underline}
+          .tk-link{color:var(--accent);text-decoration:underline}
           .tk-badge{
             display:inline-flex;align-items:center;padding:4px 12px;border-radius:50px;
-            font-size:13px;font-weight:600;text-transform:capitalize;
+            font-size:var(--text-sm);font-weight:600;text-transform:capitalize;
           }
           .tk-tag{
             display:inline-flex;align-items:center;padding:3px 9px;margin:0 4px 2px 0;
-            border-radius:50px;font-size:13px;background:rgba(209,244,112,.22);
-            color:#1a3a2a;
+            border-radius:50px;font-size:var(--text-sm);background:rgba(209,244,112,.22);
+            color:var(--accent);
           }
-          .tk-who{font-size:14px}
+          .tk-who{font-size:var(--text-md)}
           .tk-muted{color:rgba(0,0,0,.54)}
-          .tk-when{color:rgba(0,0,0,.54);font-size:13px;white-space:nowrap}
+          .tk-when{color:rgba(0,0,0,.54);font-size:var(--text-sm);white-space:nowrap}
           .tk-state{text-align:center;padding:40px;color:rgba(0,0,0,.54)}
 
           .tk-move{display:flex;gap:6px}
           .tk-move-btn{
-            font-family:inherit;font-size:13px;font-weight:500;
-            color:rgba(0,0,0,.898);background:#fff;border:2px solid #e5e7eb;
+            font-family:inherit;font-size:var(--text-sm);font-weight:500;
+            color:rgba(0,0,0,.898);background:#fff;border:2px solid var(--border);
             border-radius:50px;padding:6px 14px;cursor:pointer;transition:all .2s ease;
           }
-          .tk-move-btn:hover:not(:disabled){border-color:#d1f470;color:#1a3a2a}
+          .tk-move-btn:hover:not(:disabled){border-color:var(--lime);color:var(--accent)}
           .tk-move-btn:disabled{opacity:.5;cursor:not-allowed}
 
           .tk-gap{
-            font-size:14px;line-height:1.5;color:rgba(0,0,0,.54);margin:0;
+            font-size:var(--text-md);line-height:1.5;color:rgba(0,0,0,.54);margin:0;
             max-width:720px;
           }
 
           @media(max-width:800px){
             .tk-cards{grid-template-columns:1fr}
             .tk-table-wrap{overflow-x:auto}
-            .tk-sub{font-size:17px}
+            .tk-sub{font-size:var(--h4)}
           }
           @media(prefers-reduced-motion:reduce){
             .tk-card,.tk-move-btn{transition:none}

@@ -47,11 +47,11 @@ const PAID: Record<string, { bg: string; fg: string }> = {
   pending: { bg: '#fffbeb', fg: '#b45309' },
   failed: { bg: '#fef2f2', fg: '#b91c1c' },
   refunded: { bg: '#eff6ff', fg: '#1d4ed8' },
-  cancelled: { bg: '#f9fafb', fg: 'rgba(0,0,0,.54)' },
+  cancelled: { bg: 'var(--bg-secondary)', fg: 'rgba(0,0,0,.54)' },
 };
 
 const paint = ( s?: string ) =>
-  PAID[ ( s || '' ).toLowerCase() ] || { bg: '#f9fafb', fg: 'rgba(0,0,0,.54)' };
+  PAID[ ( s || '' ).toLowerCase() ] || { bg: 'var(--bg-secondary)', fg: 'rgba(0,0,0,.54)' };
 
 /**
  * Money, from the invoice's own currency field.
@@ -368,72 +368,72 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) 
         /* 1px static: these are figures, not controls. */
         .ir-card{
           display:flex;flex-direction:column;gap:2px;background:#fff;
-          border:1px solid #e5e7eb;border-radius:13px;padding:16px 18px;
+          border:1px solid var(--border);border-radius:13px;padding:16px 18px;
         }
         .ir-n{font-size:22px;font-weight:700;color:#000;line-height:1.27;letter-spacing:-.25px}
-        .ir-l{font-size:14px;color:rgba(0,0,0,.54)}
+        .ir-l{font-size:var(--text-md);color:rgba(0,0,0,.54)}
 
         .ir-filters{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin:0 0 20px}
         .ir-fg{display:flex;flex-direction:column;gap:6px}
-        .ir-fg label{font-size:14px;color:rgba(0,0,0,.54)}
+        .ir-fg label{font-size:var(--text-md);color:rgba(0,0,0,.54)}
         /* The select arm of the next two rules is now UNREACHED - batch 2f replaced this
            page's one select with our own combobox, whose box comes from form-controls.css.
            Left in place rather than edited, as the earlier batches left theirs: the input arm
            is live, and retiring a selector from a list is a separate consolidation.
            No backtick in a styled-jsx comment: this block is a template literal. */
         .ir-fg input,.ir-fg select{
-          font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff;
-          border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;
+          font-family:inherit;font-size:var(--text-md);color:rgba(0,0,0,.898);background:#fff;
+          border:2px solid var(--border);border-radius:13px;padding:9px 12px;min-height:0;
         }
         .ir-fg input{width:260px}
-        .ir-fg input:focus,.ir-fg select:focus{outline:none;border-color:#d1f470}
+        .ir-fg input:focus,.ir-fg select:focus{outline:none;border-color:var(--lime)}
         .ir-actions{margin-left:auto}
 
         .ir-table-wrap{
-          background:#fff;border:1px solid #e5e7eb;border-radius:13px;
+          background:#fff;border:1px solid var(--border);border-radius:13px;
           overflow:hidden;margin:0 0 16px;
         }
         .ir-table{width:100%;border-collapse:collapse}
         .ir-table th{
-          background:#fafafa;padding:11px 16px;text-align:left;font-size:14px;
-          font-weight:600;color:rgba(0,0,0,.54);border-bottom:1px solid #e5e7eb;
+          background:#fafafa;padding:11px 16px;text-align:left;font-size:var(--text-md);
+          font-weight:600;color:rgba(0,0,0,.54);border-bottom:1px solid var(--border);
         }
         .ir-table td{
-          padding:11px 16px;border-bottom:1px solid #e5e7eb;font-size:14px;
+          padding:11px 16px;border-bottom:1px solid var(--border);font-size:var(--text-md);
           color:rgba(0,0,0,.898);
         }
         .ir-table tr:last-child td{border-bottom:none}
-        .ir-mono{font-family:'SF Mono',Monaco,Consolas,monospace;font-size:13px}
+        .ir-mono{font-family:'SF Mono',Monaco,Consolas,monospace;font-size:var(--text-sm)}
         .ir-cust{font-weight:500}
         .ir-total{font-weight:600;white-space:nowrap}
-        .ir-muted{color:rgba(0,0,0,.54);font-size:13px}
-        .ir-when{color:rgba(0,0,0,.54);font-size:13px;white-space:nowrap}
+        .ir-muted{color:rgba(0,0,0,.54);font-size:var(--text-sm)}
+        .ir-when{color:rgba(0,0,0,.54);font-size:var(--text-sm);white-space:nowrap}
         .ir-state{text-align:center;padding:40px;color:rgba(0,0,0,.54)}
         .ir-badge{
           display:inline-flex;align-items:center;padding:4px 12px;border-radius:50px;
-          font-size:13px;font-weight:600;text-transform:capitalize;
+          font-size:var(--text-sm);font-weight:600;text-transform:capitalize;
         }
         .ir-pill{
-          font-family:inherit;font-size:13px;font-weight:500;color:rgba(0,0,0,.898);
-          background:#fff;border:2px solid #e5e7eb;border-radius:50px;
+          font-family:inherit;font-size:var(--text-sm);font-weight:500;color:rgba(0,0,0,.898);
+          background:#fff;border:2px solid var(--border);border-radius:50px;
           padding:6px 14px;cursor:pointer;transition:all .2s ease;
         }
-        .ir-pill:hover{border-color:#d1f470;color:#1a3a2a}
+        .ir-pill:hover{border-color:var(--lime);color:var(--accent)}
         .ir-log-row td{background:#fafafa}
         .ir-log{margin:0;padding-left:18px}
-        .ir-log li{font-size:14px;line-height:1.6;color:rgba(0,0,0,.898)}
+        .ir-log li{font-size:var(--text-md);line-height:1.6;color:rgba(0,0,0,.898)}
         /* --danger, not the success green: a failed delivery must not read as
            a confirmation. */
         .ir-err{color:#dc2626}
         .ir-note{
-          font-size:14px;line-height:1.5;color:rgba(0,0,0,.54);margin:0;max-width:720px;
+          font-size:var(--text-md);line-height:1.5;color:rgba(0,0,0,.54);margin:0;max-width:720px;
         }
 
         @media(max-width:900px){
           .ir-cards{grid-template-columns:repeat(2,1fr)}
           .ir-table-wrap{overflow-x:auto}
           .ir-fg input{width:100%}
-          .ir-sub{font-size:17px}
+          .ir-sub{font-size:var(--h4)}
         }
         @media(prefers-reduced-motion:reduce){ .ir-pill{transition:none} }
       `}</style>

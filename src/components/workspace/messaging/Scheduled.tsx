@@ -19,7 +19,7 @@ const STATUS_COLOR: Record<string, { fg: string; bg: string }> = {
     dispatch_unknown: { fg: '#b91c1c', bg: '#fef2f2' },
     sent: { fg: '#1d4ed8', bg: '#eff6ff' },
     failed: { fg: '#b91c1c', bg: '#fef2f2' },
-    cancelled: { fg: '#6b7280', bg: '#f9fafb' },
+    cancelled: { fg: 'var(--text-muted)', bg: 'var(--bg-secondary)' },
 };
 
 const STATUS_FILTER_OPTIONS: SelectOption[] = [
@@ -110,17 +110,17 @@ const ScheduledPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
             <style jsx>{ `
                 .sc-wrap { padding: 20px; max-width: 1000px; margin: 0 auto; }
                 .sc-toolbar { display: flex; gap: 10px; margin: 12px 0; }
-                .sc-filter { padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: 13px; background: #fff; }
-                .sc-refresh { padding: 9px 16px; border: 1px solid ${colors.border}; border-radius: 10px; background: #fff; font-size: 13px; cursor: pointer; }
+                .sc-filter { padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: var(--text-sm); background: #fff; }
+                .sc-refresh { padding: 9px 16px; border: 1px solid ${colors.border}; border-radius: 10px; background: #fff; font-size: var(--text-sm); cursor: pointer; }
                 .sc-table-wrap { border: 1px solid ${colors.border}; border-radius: 12px; overflow: hidden; background: #fff; }
                 .sc-table { width: 100%; border-collapse: collapse; }
-                .sc-table th { background: ${colors.bgSecondary}; padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 700; color: ${colors.textMuted}; text-transform: uppercase; }
-                .sc-table td { padding: 11px 14px; border-top: 1px solid ${colors.borderLight}; font-size: 13px; color: ${colors.text}; }
+                .sc-table th { background: ${colors.bgSecondary}; padding: 10px 14px; text-align: left; font-size: var(--text-xs); font-weight: 700; color: ${colors.textMuted}; text-transform: uppercase; }
+                .sc-table td { padding: 11px 14px; border-top: 1px solid ${colors.borderLight}; font-size: var(--text-sm); color: ${colors.text}; }
                 .sc-when { white-space: nowrap; }
                 .sc-tpl { font-weight: 600; }
-                .sc-contact { font-family: monospace; font-size: 12px; color: ${colors.textSecondary}; }
-                .sc-status { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 9999px; text-transform: capitalize; }
-                .sc-cancel { padding: 5px 12px; border: 1px solid ${colors.danger}; color: ${colors.danger}; background: #fff; border-radius: 8px; font-size: 12px; cursor: pointer; }
+                .sc-contact { font-family: monospace; font-size: var(--text-xs); color: ${colors.textSecondary}; }
+                .sc-status { font-size: var(--text-xs); font-weight: 700; padding: 3px 9px; border-radius: 9999px; text-transform: capitalize; }
+                .sc-cancel { padding: 5px 12px; border: 1px solid ${colors.danger}; color: ${colors.danger}; background: #fff; border-radius: 8px; font-size: var(--text-xs); cursor: pointer; }
                 .sc-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
                 .sc-empty { text-align: center; padding: 40px; color: ${colors.textMuted}; }
             ` }</style>
