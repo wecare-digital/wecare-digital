@@ -101,7 +101,7 @@ const WelcomeConfigPage: React.FC<PageProps> = ({ signOut, user, embedded = fals
 
       <div style={{ background: '#fff', borderRadius: 12, padding: 24, boxShadow: embedded ? 'none' : '0 1px 3px rgba(0,0,0,0.08)' }}>
         {/* Info banner */}
-        <div style={{ marginBottom: 24, padding: '12px 16px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, color: '#0f2a1d' }}>
+        <div style={{ marginBottom: 24, padding: '12px 16px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, color: '#0f2a1d' }}>
           When enabled, these messages override the default bot welcome. Disable to use the Lambda default welcome text.
         </div>
 
@@ -111,8 +111,8 @@ const WelcomeConfigPage: React.FC<PageProps> = ({ signOut, user, embedded = fals
             onClick={() => setActivePhone(WHATSAPP_PHONES.primary.id)}
             style={{
               flex: 1, padding: '12px 16px', border: '2px solid', borderRadius: 8, cursor: 'pointer',
-              borderColor: activePhone === WHATSAPP_PHONES.primary.id ? '#1a3a2a' : '#e5e7eb',
-              background: activePhone === WHATSAPP_PHONES.primary.id ? '#f9fafb' : '#fff',
+              borderColor: activePhone === WHATSAPP_PHONES.primary.id ? 'var(--accent)' : 'var(--border)',
+              background: activePhone === WHATSAPP_PHONES.primary.id ? 'var(--bg-secondary)' : '#fff',
               fontWeight: activePhone === WHATSAPP_PHONES.primary.id ? 600 : 400,
             }}
           >
@@ -123,8 +123,8 @@ const WelcomeConfigPage: React.FC<PageProps> = ({ signOut, user, embedded = fals
             onClick={() => setActivePhone(WHATSAPP_PHONES.secondary.id)}
             style={{
               flex: 1, padding: '12px 16px', border: '2px solid', borderRadius: 8, cursor: 'pointer',
-              borderColor: activePhone === WHATSAPP_PHONES.secondary.id ? '#1a3a2a' : '#e5e7eb',
-              background: activePhone === WHATSAPP_PHONES.secondary.id ? '#f9fafb' : '#fff',
+              borderColor: activePhone === WHATSAPP_PHONES.secondary.id ? 'var(--accent)' : 'var(--border)',
+              background: activePhone === WHATSAPP_PHONES.secondary.id ? 'var(--bg-secondary)' : '#fff',
               fontWeight: activePhone === WHATSAPP_PHONES.secondary.id ? 600 : 400,
             }}
           >

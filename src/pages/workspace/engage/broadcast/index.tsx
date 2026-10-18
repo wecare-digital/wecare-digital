@@ -25,7 +25,7 @@ interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 type Channel = 'auto' | 'whatsapp' | 'sms' | 'rcs' | 'email';
 const CH_META: Record<Channel, { label: string; fg: string; bg: string }> = {
-    auto: { label: 'Auto (best channel)', fg: '#1a3a2a', bg: '#ecfccb' },
+    auto: { label: 'Auto (best channel)', fg: 'var(--accent)', bg: '#ecfccb' },
     whatsapp: { label: 'WhatsApp', fg: '#15803d', bg: '#f0fdf4' },
     sms: { label: 'SMS', fg: '#1d4ed8', bg: '#eff6ff' },
     rcs: { label: 'RCS', fg: '#0f766e', bg: '#f0fdfa' },
@@ -201,26 +201,26 @@ const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
             <style jsx>{ `
                 .bc-wrap { padding: 20px; max-width: 1100px; margin: 0 auto; }
-                .bc-step-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: ${colors.textMuted}; margin: 16px 0 8px; }
+                .bc-step-label { font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: ${colors.textMuted}; margin: 16px 0 8px; }
                 .bc-channels { display: flex; gap: 10px; flex-wrap: wrap; }
-                .bc-ch { padding: 9px 18px; border: 1px solid ${colors.border}; border-radius: 9999px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer; color: ${colors.textSecondary}; }
+                .bc-ch { padding: 9px 18px; border: 1px solid ${colors.border}; border-radius: 9999px; background: #fff; font-size: var(--text-md); font-weight: 600; cursor: pointer; color: ${colors.textSecondary}; }
                 .bc-ch.active { border-width: 1.5px; }
                 .bc-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 6px; }
                 .bc-aud-toolbar { display: flex; gap: 8px; margin-bottom: 8px; }
-                .bc-search { flex: 1; padding: 8px 12px; border: 1px solid ${colors.border}; border-radius: 9px; font-size: 13px; }
-                .bc-mini { padding: 8px 12px; border: 1px solid ${colors.border}; border-radius: 9px; background: #fff; font-size: 12px; cursor: pointer; }
+                .bc-search { flex: 1; padding: 8px 12px; border: 1px solid ${colors.border}; border-radius: 9px; font-size: var(--text-sm); }
+                .bc-mini { padding: 8px 12px; border: 1px solid ${colors.border}; border-radius: 9px; background: #fff; font-size: var(--text-xs); cursor: pointer; }
                 .bc-aud-list { border: 1px solid ${colors.border}; border-radius: 12px; max-height: 420px; overflow-y: auto; background: #fff; }
                 .bc-aud-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid ${colors.borderLight}; cursor: pointer; }
                 .bc-aud-row:hover { background: ${colors.bgHover}; }
-                .bc-aud-name { font-size: 13px; font-weight: 600; color: ${colors.text}; }
-                .bc-aud-sub { font-size: 12px; color: ${colors.textMuted}; margin-left: auto; }
-                .bc-empty { padding: 30px; text-align: center; color: ${colors.textMuted}; font-size: 13px; }
-                .bc-input, .bc-textarea { width: 100%; padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: 14px; font-family: inherit; margin-bottom: 10px; }
+                .bc-aud-name { font-size: var(--text-sm); font-weight: 600; color: ${colors.text}; }
+                .bc-aud-sub { font-size: var(--text-xs); color: ${colors.textMuted}; margin-left: auto; }
+                .bc-empty { padding: 30px; text-align: center; color: ${colors.textMuted}; font-size: var(--text-sm); }
+                .bc-input, .bc-textarea { width: 100%; padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: var(--text-md); font-family: inherit; margin-bottom: 10px; }
                 .bc-textarea { resize: vertical; }
-                .bc-hint { font-size: 12px; color: ${colors.textMuted}; margin: 0 0 8px; }
-                .bc-send { width: 100%; background: ${colors.primary}; color: #fff; padding: 12px; border: none; border-radius: 11px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 4px; }
+                .bc-hint { font-size: var(--text-xs); color: ${colors.textMuted}; margin: 0 0 8px; }
+                .bc-send { width: 100%; background: ${colors.primary}; color: #fff; padding: 12px; border: none; border-radius: 11px; font-size: var(--text-md); font-weight: 700; cursor: pointer; margin-top: 4px; }
                 .bc-send:disabled { opacity: 0.5; cursor: not-allowed; }
-                .bc-result { margin-top: 10px; font-size: 13px; color: ${colors.text}; font-weight: 600; }
+                .bc-result { margin-top: 10px; font-size: var(--text-sm); color: ${colors.text}; font-weight: 600; }
                 @media (max-width: 800px) { .bc-cols { grid-template-columns: 1fr; } }
             ` }</style>
         </>

@@ -36,7 +36,7 @@ const ConnectWabaPage: React.FC<PageProps> = ( { signOut, user, embedded = false
             </div>
 
             <div style={ { ...card, fontSize: 13, color: '#555' } }>
-                <div style={ { fontWeight: 700, color: '#1a3a2a', marginBottom: 8 } }>Before you start</div>
+                <div style={ { fontWeight: 700, color: 'var(--accent)', marginBottom: 8 } }>Before you start</div>
                 <ul style={ { margin: 0, paddingLeft: 18, lineHeight: 1.7 } }>
                     <li>A Meta Tech Provider Configuration (config id) must be set for this app.</li>
                     <li>Your Meta Business must have completed Business Verification.</li>

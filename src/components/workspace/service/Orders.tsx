@@ -109,13 +109,13 @@ function formatDateTime ( ts?: number ): string {
 
 function statusColor ( status: string ): { bg: string; fg: string } {
   const map: Record<string, { bg: string; fg: string }> = {
-    active: { bg: '#dbeafe', fg: '#1e40af' }, fulfilled: { bg: '#d1f470', fg: '#1a3a2a' },
+    active: { bg: '#dbeafe', fg: '#1e40af' }, fulfilled: { bg: 'var(--lime)', fg: 'var(--accent)' },
     cancelled: { bg: '#fee2e2', fg: '#991b1b' }, pending: { bg: '#fef3c7', fg: '#92400e' },
-    captured: { bg: '#d1f470', fg: '#1a3a2a' }, paid: { bg: '#d1f470', fg: '#1a3a2a' },
+    captured: { bg: 'var(--lime)', fg: 'var(--accent)' }, paid: { bg: 'var(--lime)', fg: 'var(--accent)' },
     failed: { bg: '#fee2e2', fg: '#991b1b' }, refunded: { bg: '#f3e8ff', fg: '#6b21a8' },
     open: { bg: '#dbeafe', fg: '#1e40af' }, in_progress: { bg: '#fef3c7', fg: '#92400e' },
     resolved: { bg: '#d1fae5', fg: '#065f46' }, closed: { bg: '#f3f4f6', fg: '#374151' },
-    none: { bg: '#f3f4f6', fg: '#6b7280' },
+    none: { bg: '#f3f4f6', fg: 'var(--text-muted)' },
     manual: { bg: '#fef3c7', fg: '#92400e' }, shopify: { bg: '#d1fae5', fg: '#065f46' },
     flow: { bg: '#f3e8ff', fg: '#6b21a8' },
   };
@@ -145,7 +145,7 @@ function CopyableId ( { id, short }: { id: string; short?: string } ) {
       onClick={ handleCopy }
       title={ `Click to copy: ${id}` }
       style={ {
-        fontFamily: 'monospace', fontSize: 13, fontWeight: 600, color: '#1a3a2a',
+        fontFamily: 'monospace', fontSize: 13, fontWeight: 600, color: 'var(--accent)',
         cursor: 'pointer', borderBottom: '1px dashed #9ca3af',
         whiteSpace: 'nowrap',
       } }
@@ -286,8 +286,8 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
         {/* ── Header ── */ }
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 } }>
           <div>
-            <h1 style={ { fontSize: 24, fontWeight: 700, color: '#1a3a2a', margin: 0 } }>Order Management</h1>
-            <p style={ { fontSize: 14, color: '#6b7280', margin: '4px 0 0' } }>
+            <h1 style={ { fontSize: 24, fontWeight: 700, color: 'var(--accent)', margin: 0 } }>Order Management</h1>
+            <p style={ { fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' } }>
               { filtered.length } order{ filtered.length !== 1 ? 's' : '' } · Order ID is the central tracking key
             </p>
           </div>
@@ -301,7 +301,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
           <input
             type="text" placeholder="Search order number, source ID, phone, or customer..."
             value={ search } onChange={ e => { setSearch( e.target.value ); setPage( 1 ); } }
-            style={ { flex: 1, minWidth: 220, padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 } }
+            style={ { flex: 1, minWidth: 220, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14 } }
           />
           <Select ariaLabel="Source" value={ sourceFilter }
             onChange={ v => { setSourceFilter( v ); setPage( 1 ); } }
@@ -321,11 +321,11 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
         ) : filtered.length === 0 && !loading ? (
           <EmptyState icon="order" title="No orders found" description="Create a manual order to get started." action={ { label: 'New Order', onClick: () => setShowCreate( true ) } } />
         ) : (
-          <div style={ { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' } }>
+          <div style={ { background: '#fff', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' } }>
             <div style={ { overflowX: 'auto' } }>
               <table style={ { width: '100%', borderCollapse: 'collapse', minWidth: 900 } }>
                 <thead>
-                  <tr style={ { background: '#f9fafb' } }>
+                  <tr style={ { background: 'var(--bg-secondary)' } }>
                     <th style={ thStyle }>Order ID</th>
                     <th style={ thStyle }>Date</th>
                     <th style={ thStyle }>Customer</th>
@@ -338,7 +338,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
                 </thead>
                 <tbody>
                   { loading ? (
-                    <tr><td colSpan={ 8 } style={ { padding: 40, textAlign: 'center', color: '#6b7280' } }>Loading orders...</td></tr>
+                    <tr><td colSpan={ 8 } style={ { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }>Loading orders...</td></tr>
                   ) : paged.map( order => {
                     const short = order.orderNumber || order.shortId || extractShortId( order.orderId );
                     return (
@@ -349,7 +349,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
                         <td style={ { ...tdStyle, fontSize: 13, whiteSpace: 'nowrap' } }>{ formatDate( order.createdAt ) }</td>
                         <td style={ tdStyle }>
                           <div style={ { fontWeight: 500, fontSize: 14 } }>{ order.customerName || '—' }</div>
-                          <div style={ { fontSize: 12, color: '#6b7280', fontFamily: 'monospace' } }>{ order.customerPhone || '' }</div>
+                          <div style={ { fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace' } }>{ order.customerPhone || '' }</div>
                         </td>
                         <td style={ tdStyle }><Badge status={ order.source } /></td>
                         <td style={ { ...tdStyle, fontSize: 13 } }>{ order.itemCount ?? order.items?.length ?? '—' }</td>
@@ -419,7 +419,7 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
       {/* ── Section A: Order Details ── */ }
       <div style={ { marginBottom: 24 } }>
         <div style={ { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 } }>
-          <span style={ { fontSize: 22, fontWeight: 700, fontFamily: 'monospace', color: '#1a3a2a' } }>{ short }</span>
+          <span style={ { fontSize: 22, fontWeight: 700, fontFamily: 'monospace', color: 'var(--accent)' } }>{ short }</span>
           <Badge status={ order.status } />
           <Badge status={ order.paymentStatus } />
         </div>
@@ -435,7 +435,7 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
         </div>
 
         {/* Status controls */ }
-        <div style={ { display: 'flex', gap: 12, padding: 12, background: '#f9fafb', borderRadius: 8 } }>
+        <div style={ { display: 'flex', gap: 12, padding: 12, background: 'var(--bg-secondary)', borderRadius: 8 } }>
           { /* SHAPE (a) - wrapping <label> deleted, label passed. */ }
           <Select label="Order Status" value={ order.status }
             onChange={ v => onStatusUpdate( order.orderId, v ) }
@@ -445,18 +445,18 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
 
       {/* ── Section B: Service Requests ── */ }
       <div style={ { marginBottom: 24 } }>
-        <h3 style={ { fontSize: 16, fontWeight: 600, color: '#1a3a2a', marginBottom: 12 } }>
+        <h3 style={ { fontSize: 16, fontWeight: 600, color: 'var(--accent)', marginBottom: 12 } }>
           Service Requests ({ submissions.length })
         </h3>
         { subsLoading ? (
-          <p style={ { color: '#6b7280', fontSize: 14 } }>Loading requests...</p>
+          <p style={ { color: 'var(--text-muted)', fontSize: 14 } }>Loading requests...</p>
         ) : submissions.length === 0 ? (
-          <p style={ { color: '#6b7280', fontSize: 14, padding: 16, background: '#f9fafb', borderRadius: 8 } }>No service requests linked to this order.</p>
+          <p style={ { color: 'var(--text-muted)', fontSize: 14, padding: 16, background: 'var(--bg-secondary)', borderRadius: 8 } }>No service requests linked to this order.</p>
         ) : (
           <div style={ { display: 'flex', flexDirection: 'column', gap: 8 } }>
             { submissions.map( sub => (
               <div key={ sub.submissionId } style={ {
-                padding: 14, border: '1px solid #e5e7eb', borderRadius: 10,
+                padding: 14, border: '1px solid var(--border)', borderRadius: 10,
                 display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12,
               } }>
                 <div style={ { flex: 1, minWidth: 0 } }>
@@ -468,7 +468,7 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
                     <Badge status={ sub.paymentStatus } />
                   </div>
                   <div style={ { fontSize: 14, fontWeight: 500, marginBottom: 2 } }>{ sub.subject || sub.requestType || '—' }</div>
-                  <div style={ { fontSize: 12, color: '#6b7280' } }>
+                  <div style={ { fontSize: 12, color: 'var(--text-muted)' } }>
                     { sub.flowCode } · { sub.phone } · { formatDateTime( sub.createdAt ) }
                     { sub.paymentAmount ? ` · ₹${( sub.paymentAmount / 100 ).toFixed( 0 )}` : '' }
                   </div>
@@ -489,15 +489,15 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
       {/* ── Section C: Documents ── */ }
       { documents.length > 0 && (
         <div style={ { marginBottom: 24 } }>
-          <h3 style={ { fontSize: 16, fontWeight: 600, color: '#1a3a2a', marginBottom: 12 } }>
+          <h3 style={ { fontSize: 16, fontWeight: 600, color: 'var(--accent)', marginBottom: 12 } }>
             Documents ({ documents.length })
           </h3>
           <div style={ { display: 'flex', flexDirection: 'column', gap: 6 } }>
             { documents.map( ( doc: any ) => (
-              <div key={ doc.documentId } style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', border: '1px solid #e5e7eb', borderRadius: 8 } }>
+              <div key={ doc.documentId } style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: 8 } }>
                 <div>
                   <div style={ { fontWeight: 500, fontSize: 13 } }>{ doc.fileName || 'Document' }</div>
-                  <div style={ { fontSize: 12, color: '#6b7280' } }>{ doc.type || doc.documentType || '—' } · { doc.source || doc.sourceType || '—' }</div>
+                  <div style={ { fontSize: 12, color: 'var(--text-muted)' } }>{ doc.type || doc.documentType || '—' } · { doc.source || doc.sourceType || '—' }</div>
                 </div>
                 <Badge status={ doc.status || doc.verificationStatus || 'uploaded' } />
               </div>
@@ -509,18 +509,18 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
       {/* ── Section D: Status History ── */ }
       { statusHistory.length > 0 && (
         <div style={ { marginBottom: 24 } }>
-          <h3 style={ { fontSize: 16, fontWeight: 600, color: '#1a3a2a', marginBottom: 12 } }>
+          <h3 style={ { fontSize: 16, fontWeight: 600, color: 'var(--accent)', marginBottom: 12 } }>
             Status History ({ statusHistory.length })
           </h3>
           <div style={ { position: 'relative', paddingLeft: 20 } }>
-            <div style={ { position: 'absolute', left: 6, top: 4, bottom: 4, width: 2, background: '#e5e7eb' } } />
+            <div style={ { position: 'absolute', left: 6, top: 4, bottom: 4, width: 2, background: 'var(--border)' } } />
             { statusHistory.slice( 0, 10 ).map( ( h: any, i: number ) => (
               <div key={ h.historyId || i } style={ { position: 'relative', paddingBottom: 14, paddingLeft: 16 } }>
-                <div style={ { position: 'absolute', left: -14, top: 4, width: 10, height: 10, borderRadius: '50%', background: i === 0 ? '#1a3a2a' : '#d1d5db', border: '2px solid #fff' } } />
+                <div style={ { position: 'absolute', left: -14, top: 4, width: 10, height: 10, borderRadius: '50%', background: i === 0 ? 'var(--accent)' : '#d1d5db', border: '2px solid #fff' } } />
                 <div style={ { fontSize: 13, fontWeight: 500, color: '#374151' } }>
                   { h.oldStatus && <><Badge status={ h.oldStatus } /> → </> }<Badge status={ h.newStatus } />
                 </div>
-                { h.notes && <div style={ { fontSize: 12, color: '#6b7280', marginTop: 2 } }>{ h.notes }</div> }
+                { h.notes && <div style={ { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } }>{ h.notes }</div> }
                 <div style={ { fontSize: 11, color: '#9ca3af', marginTop: 2 } }>{ formatDateTime( h.changedAt ) } · { h.changedByName || h.changedBy || 'system' }</div>
               </div>
             ) ) }
@@ -531,8 +531,8 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
       {/* ── Section E: Notes ── */ }
       { order.notes && (
         <div>
-          <h3 style={ { fontSize: 16, fontWeight: 600, color: '#1a3a2a', marginBottom: 8 } }>Admin Notes</h3>
-          <div style={ { padding: 12, background: '#f9fafb', borderRadius: 8, fontSize: 14, whiteSpace: 'pre-wrap' } }>{ order.notes }</div>
+          <h3 style={ { fontSize: 16, fontWeight: 600, color: 'var(--accent)', marginBottom: 8 } }>Admin Notes</h3>
+          <div style={ { padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 14, whiteSpace: 'pre-wrap' } }>{ order.notes }</div>
         </div>
       ) }
     </div>
@@ -542,14 +542,14 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
 // ── Styles ──
 
 const thStyle: React.CSSProperties = {
-  padding: '12px 14px', textAlign: 'left', borderBottom: '1px solid #e5e7eb',
-  fontSize: 12, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase',
+  padding: '12px 14px', textAlign: 'left', borderBottom: '1px solid var(--border)',
+  fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase',
   whiteSpace: 'nowrap',
 };
 const tdStyle: React.CSSProperties = { padding: '12px 14px', fontSize: 14 };
 /* `selectStyle` went with the last native select in this file - it only ever skinned one. */
-const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, marginTop: 4 };
+const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, marginTop: 4 };
 const labelStyle: React.CSSProperties = { fontSize: 14, display: 'block' };
-const metaLabel: React.CSSProperties = { fontSize: 11, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: 2 };
+const metaLabel: React.CSSProperties = { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: 2 };
 
 export default OrdersPage;

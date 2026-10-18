@@ -49,7 +49,7 @@ function Evidence ( { title, count, note, children }: {
       <h3 style={ { fontSize: 13, margin: '0 0 2px' } }>
         { title } <span style={ { color: count ? '#d97706' : '#16a34a' } }>({ count })</span>
       </h3>
-      <p style={ { fontSize: 11, color: '#6b7280', margin: '0 0 6px' } }>{ note }</p>
+      <p style={ { fontSize: 11, color: 'var(--text-muted)', margin: '0 0 6px' } }>{ note }</p>
       { children }
     </div>
   );
@@ -159,12 +159,12 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
   const body = (
       <div className="inner-page">
         <p style={ { fontSize: 13, margin: '0 0 8px' } }>
-          <Link href="/workspace/seo/blog-production" style={ { color: '#1a3a2a' } }>← Production waves</Link>
+          <Link href="/workspace/seo/blog-production" style={ { color: 'var(--accent)' } }>← Production waves</Link>
           { batchId && (
             <>
               { ' · ' }
               <a href={ `/workspace/seo/blog-production?tab=batch&id=${ encodeURIComponent( batchId ) }` }
-                style={ { color: '#1a3a2a' } }>This wave</a>
+                style={ { color: 'var(--accent)' } }>This wave</a>
             </>
           ) }
         </p>
@@ -180,16 +180,16 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
             { notice }
           </div>
         ) }
-        { loading && <p style={ { color: '#6b7280' } }>Loading…</p> }
+        { loading && <p style={ { color: 'var(--text-muted)' } }>Loading…</p> }
 
         { !sourceId && (
           <div className="card" style={ { overflow: 'auto' } }>
             <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
-              <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 13, color: '#6b7280' } }>
+              <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 13, color: 'var(--text-muted)' } }>
                 { batchId ? 'Sources in this wave' : 'Name a source in the URL, or open one from a wave.' }
               </caption>
               <thead>
-                <tr style={ { borderBottom: '2px solid #e5e7eb' } }>
+                <tr style={ { borderBottom: '2px solid var(--border)' } }>
                   <th scope="col" style={ th }>Source</th>
                   <th scope="col" style={ th }>Intake</th>
                   <th scope="col" style={ th }>Read</th>
@@ -208,12 +208,12 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                     <td style={ td }>{ row.articleStatus || '—' }</td>
                     <td style={ td }>
                       <a href={ `/workspace/seo/blog-production?tab=review&source=${ encodeURIComponent( row.sourceId ) }&batch=${ encodeURIComponent( batchId ) }` }
-                        style={ { color: '#1a3a2a' } }>Review</a>
+                        style={ { color: 'var(--accent)' } }>Review</a>
                     </td>
                   </tr>
                 ) ) }
                 { queue.length === 0 && !loading && (
-                  <tr><td colSpan={ 5 } style={ { padding: 32, textAlign: 'center', color: '#6b7280' } }>
+                  <tr><td colSpan={ 5 } style={ { padding: 32, textAlign: 'center', color: 'var(--text-muted)' } }>
                     Nothing to review here.
                   </td></tr>
                 ) }
@@ -233,19 +233,19 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
               { source.sourceUrl && (
                 <p style={ { fontSize: 13, margin: '8px 0 0' } }>
                   <a href={ source.sourceUrl } target="_blank" rel="noopener noreferrer"
-                    style={ { color: '#1a3a2a' } }>
+                    style={ { color: 'var(--accent)' } }>
                     Open the source document
                   </a>
-                  <span style={ { color: '#6b7280' } }> — section 2 is about having read this.</span>
+                  <span style={ { color: 'var(--text-muted)' } }> — section 2 is about having read this.</span>
                 </p>
               ) }
               <div style={ { marginTop: 12 } }>
                 <button onClick={ () => { void analyse(); } } disabled={ busy === 'analyse' }
-                  style={ { padding: '7px 14px', borderRadius: 6, border: '1px solid #1a3a2a', background: '#fff', color: '#1a3a2a', cursor: 'pointer', fontSize: 13 } }>
+                  style={ { padding: '7px 14px', borderRadius: 6, border: '1px solid var(--accent)', background: '#fff', color: 'var(--accent)', cursor: 'pointer', fontSize: 13 } }>
                   { busy === 'analyse' ? 'Analysing…' : analysis ? 'Re-analyse' : 'Analyse this source' }
                 </button>
                 { history.length > 0 && (
-                  <span style={ { fontSize: 12, color: '#6b7280', marginLeft: 12 } }>
+                  <span style={ { fontSize: 12, color: 'var(--text-muted)', marginLeft: 12 } }>
                     { history.length } version{ history.length === 1 ? '' : 's' }; reading version{ ' ' }
                     { analysis?.version }
                   </span>
@@ -267,7 +267,7 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
             { evidence && (
               <div className="card" style={ { padding: 16, marginBottom: 16 } }>
                 <h2 style={ { fontSize: 15, margin: '0 0 4px' } }>Evidence</h2>
-                <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 14px', maxWidth: 680 } }>
+                <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 14px', maxWidth: 680 } }>
                   Derived mechanically from the extracted text, so it is reproducible. None of it is
                   a judgement of quality — that is what you are here to make.
                 </p>
@@ -328,7 +328,7 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                 <h2 style={ { fontSize: 15, margin: '0 0 4px' } }>
                   Record the reading — version { analysis.version }
                 </h2>
-                <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 14px', maxWidth: 680 } }>
+                <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 14px', maxWidth: 680 } }>
                   This is the only place <code>sourceReviewedFully</code> is written, and it is
                   recorded against this exact analysis version. It releases section 2 and nothing
                   else — the eleven section 29 gates are a separate act on the QA page.
@@ -342,7 +342,7 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                 <div style={ { display: 'grid', gap: 12, maxWidth: 780 } }>
                   <label style={ { fontSize: 13 } }>
                     Central distinction the source makes available
-                    <span style={ { color: '#6b7280' } }> — required for a YES, at least 40 characters</span>
+                    <span style={ { color: 'var(--text-muted)' } }> — required for a YES, at least 40 characters</span>
                     <textarea rows={ 3 } style={ { ...field, marginTop: 4 } }
                       value={ form.centralDistinctionCandidate }
                       onChange={ event => setForm( { ...form, centralDistinctionCandidate: event.target.value } ) } />
@@ -356,7 +356,7 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                   <div style={ { display: 'flex', gap: 12, flexWrap: 'wrap' } }>
                     <label style={ { fontSize: 13, flex: 1, minWidth: 180 } }>
                       Original source date
-                      <span style={ { color: '#6b7280' } }> — fills a gap only</span>
+                      <span style={ { color: 'var(--text-muted)' } }> — fills a gap only</span>
                       <input style={ { ...field, marginTop: 4 } } value={ form.originalSourceDate }
                         onChange={ event => setForm( { ...form, originalSourceDate: event.target.value } ) } />
                     </label>
@@ -373,7 +373,7 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                   </label>
                   <div style={ { display: 'flex', gap: 12 } }>
                     <button onClick={ () => { void record( 'YES' ); } } disabled={ busy !== '' }
-                      style={ { padding: '9px 18px', borderRadius: 6, border: 'none', background: '#1a3a2a', color: '#fff', cursor: 'pointer', fontSize: 14 } }>
+                      style={ { padding: '9px 18px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: 14 } }>
                       { busy === 'YES' ? 'Recording…' : 'I have read this source' }
                     </button>
                     <button onClick={ () => { void record( 'NO' ); } } disabled={ busy !== '' }
@@ -386,7 +386,7 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
             ) }
 
             { sourceId && !analysis && !loading && (
-              <div className="card" style={ { padding: 16, color: '#6b7280', fontSize: 13 } }>
+              <div className="card" style={ { padding: 16, color: 'var(--text-muted)', fontSize: 13 } }>
                 No analysis yet. Produce one first — an analysis of nothing is exactly the artifact
                 this step exists to prevent.
               </div>

@@ -51,7 +51,7 @@ function statusBadge ( status: string ) {
     open: { bg: '#dbeafe', fg: '#1e40af' },
     in_progress: { bg: '#fef3c7', fg: '#92400e' },
     waiting: { bg: '#f3e8ff', fg: '#6b21a8' },
-    resolved: { bg: '#d1f470', fg: '#1a3a2a' },
+    resolved: { bg: 'var(--lime)', fg: 'var(--accent)' },
     closed: { bg: '#f3f4f6', fg: '#374151' },
   };
   const c = colors[ status ] || { bg: '#f3f4f6', fg: '#374151' };
@@ -113,14 +113,14 @@ const EnterprisePage: React.FC<PageProps> = ( { signOut, user, embedded = false 
   const columns = [
     {
       key: 'caseId', header: 'Case', width: '100px', render: ( c: api.EnterpriseCase ) => (
-        <button onClick={ () => setSelected( c ) } style={ { background: 'none', border: 'none', color: '#1a3a2a', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 13 } }>
+        <button onClick={ () => setSelected( c ) } style={ { background: 'none', border: 'none', color: 'var(--accent)', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 13 } }>
           { c.caseId.slice( 0, 8 ) }
         </button>
       )
     },
     {
       key: 'subject', header: 'Subject', render: ( c: api.EnterpriseCase ) => (
-        <div><div style={ { fontWeight: 500, fontSize: 14 } }>{ c.subject }</div><div style={ { fontSize: 12, color: '#6b7280' } }>{ c.customerName } · { c.customerPhone }</div></div>
+        <div><div style={ { fontWeight: 500, fontSize: 14 } }>{ c.subject }</div><div style={ { fontSize: 12, color: 'var(--text-muted)' } }>{ c.customerName } · { c.customerPhone }</div></div>
       )
     },
     { key: 'category', header: 'Category', width: '100px', render: ( c: api.EnterpriseCase ) => c.category || '—' },
@@ -148,8 +148,8 @@ const EnterprisePage: React.FC<PageProps> = ( { signOut, user, embedded = false 
       <div style={ { padding: '24px 32px', maxWidth: 1400 } }>
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } }>
           <div>
-            <h1 style={ { fontSize: 24, fontWeight: 700, color: '#1a3a2a', margin: 0 } }>Enterprise Assist</h1>
-            <p style={ { fontSize: 14, color: '#6b7280', margin: '4px 0 0' } }>{ cases.length } cases</p>
+            <h1 style={ { fontSize: 24, fontWeight: 700, color: 'var(--accent)', margin: 0 } }>Enterprise Assist</h1>
+            <p style={ { fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' } }>{ cases.length } cases</p>
           </div>
           <div style={ { display: 'flex', gap: 8 } }>
             <Button variant="secondary" icon="refresh" onClick={ loadData }>Refresh</Button>
@@ -190,7 +190,7 @@ const EnterprisePage: React.FC<PageProps> = ( { signOut, user, embedded = false 
               { selected.resolvedAt && <div><span style={ labelStyle }>Resolved</span><div>{ formatDate( selected.resolvedAt ) }</div></div> }
             </div>
             <div style={ { marginBottom: 12 } }><span style={ labelStyle }>Subject</span><div style={ { fontWeight: 600, fontSize: 16 } }>{ selected.subject }</div></div>
-            { selected.description && <div style={ { marginBottom: 12 } }><span style={ labelStyle }>Description</span><div style={ { padding: 12, background: '#f9fafb', borderRadius: 8, fontSize: 14, whiteSpace: 'pre-wrap' } }>{ selected.description }</div></div> }
+            { selected.description && <div style={ { marginBottom: 12 } }><span style={ labelStyle }>Description</span><div style={ { padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 14, whiteSpace: 'pre-wrap' } }>{ selected.description }</div></div> }
             { selected.resolution && <div><span style={ labelStyle }>Resolution</span><div style={ { padding: 12, background: '#f0fdf4', borderRadius: 8, fontSize: 14, whiteSpace: 'pre-wrap' } }>{ selected.resolution }</div></div> }
           </div>
         ) }
@@ -212,10 +212,10 @@ const EnterprisePage: React.FC<PageProps> = ( { signOut, user, embedded = false 
         <div style={ { display: 'flex', flexDirection: 'column', gap: 14 } }>
           <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
             <label style={ { fontSize: 14 } }>Contact Name<input type="text" value={ createForm.customerName } onChange={ e => setCreateForm( f => ( { ...f, customerName: e.target.value } ) ) } style={ inputStyle } /></label>
-            <label style={ { fontSize: 14 } }>Phone<input type="tel" value={ createForm.customerPhone } onChange={ e => setCreateForm( f => ( { ...f, customerPhone: e.target.value } ) ) } placeholder="+91 9876543210" style={ { ...inputStyle, borderColor: createForm.customerPhone && !isValidPhone( createForm.customerPhone ) ? '#dc2626' : '#e5e7eb' } } />{ createForm.customerPhone && !isValidPhone( createForm.customerPhone ) && <span style={ { fontSize: 11, color: '#dc2626', marginTop: 2 } }>Invalid phone format</span> }</label>
+            <label style={ { fontSize: 14 } }>Phone<input type="tel" value={ createForm.customerPhone } onChange={ e => setCreateForm( f => ( { ...f, customerPhone: e.target.value } ) ) } placeholder="+91 9876543210" style={ { ...inputStyle, borderColor: createForm.customerPhone && !isValidPhone( createForm.customerPhone ) ? '#dc2626' : 'var(--border)' } } />{ createForm.customerPhone && !isValidPhone( createForm.customerPhone ) && <span style={ { fontSize: 11, color: '#dc2626', marginTop: 2 } }>Invalid phone format</span> }</label>
           </div>
           <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
-            <label style={ { fontSize: 14 } }>Email<input type="email" value={ createForm.contactEmail } onChange={ e => setCreateForm( f => ( { ...f, contactEmail: e.target.value } ) ) } placeholder="name@company.com" style={ { ...inputStyle, borderColor: createForm.contactEmail && !isValidEmail( createForm.contactEmail ) ? '#dc2626' : '#e5e7eb' } } />{ createForm.contactEmail && !isValidEmail( createForm.contactEmail ) && <span style={ { fontSize: 11, color: '#dc2626', marginTop: 2 } }>Invalid email format</span> }</label>
+            <label style={ { fontSize: 14 } }>Email<input type="email" value={ createForm.contactEmail } onChange={ e => setCreateForm( f => ( { ...f, contactEmail: e.target.value } ) ) } placeholder="name@company.com" style={ { ...inputStyle, borderColor: createForm.contactEmail && !isValidEmail( createForm.contactEmail ) ? '#dc2626' : 'var(--border)' } } />{ createForm.contactEmail && !isValidEmail( createForm.contactEmail ) && <span style={ { fontSize: 11, color: '#dc2626', marginTop: 2 } }>Invalid email format</span> }</label>
             <label style={ { fontSize: 14 } }>Company<input type="text" value={ createForm.accountName } onChange={ e => setCreateForm( f => ( { ...f, accountName: e.target.value } ) ) } style={ inputStyle } /></label>
           </div>
           <label style={ { fontSize: 14 } }>Subject *<input type="text" value={ createForm.subject } onChange={ e => setCreateForm( f => ( { ...f, subject: e.target.value } ) ) } style={ inputStyle } maxLength={ 200 } /></label>
@@ -231,7 +231,7 @@ const EnterprisePage: React.FC<PageProps> = ( { signOut, user, embedded = false 
 };
 
 /* `selectStyle` went with the last native select in this file - it only ever skinned those. */
-const labelStyle: React.CSSProperties = { fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 2 };
-const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, marginTop: 4 };
+const labelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 2 };
+const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, marginTop: 4 };
 
 export default EnterprisePage;

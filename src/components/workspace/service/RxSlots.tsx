@@ -37,7 +37,7 @@ const FIELD_STYLE: React.CSSProperties = { fontSize: 14 };
 
 function statusBadge ( status: string ) {
   const colors: Record<string, { bg: string; fg: string }> = {
-    available: { bg: '#d1f470', fg: '#1a3a2a' },
+    available: { bg: 'var(--lime)', fg: 'var(--accent)' },
     booked: { bg: '#dbeafe', fg: '#1e40af' },
     blocked: { bg: '#fee2e2', fg: '#991b1b' },
     completed: { bg: '#d1fae5', fg: '#065f46' },
@@ -93,7 +93,7 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
   const columns = [
     {
       key: 'slotId', header: 'ID', width: '90px', render: ( s: api.RxSlot ) => (
-        <button onClick={ () => setSelected( s ) } style={ { background: 'none', border: 'none', color: '#1a3a2a', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 13 } }>
+        <button onClick={ () => setSelected( s ) } style={ { background: 'none', border: 'none', color: 'var(--accent)', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 13 } }>
           { s.slotId.slice( 0, 8 ) }
         </button>
       )
@@ -104,7 +104,7 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
     { key: 'provider', header: 'Provider', width: '120px', render: ( s: api.RxSlot ) => s.provider || '—' },
     {
       key: 'patientName', header: 'Patient', render: ( s: api.RxSlot ) => (
-        <div><div style={ { fontWeight: 500 } }>{ s.patientName || '—' }</div><div style={ { fontSize: 12, color: '#6b7280' } }>{ s.patientPhone }</div></div>
+        <div><div style={ { fontWeight: 500 } }>{ s.patientName || '—' }</div><div style={ { fontSize: 12, color: 'var(--text-muted)' } }>{ s.patientPhone }</div></div>
       )
     },
     {
@@ -122,8 +122,8 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
       <div style={ { padding: '24px 32px', maxWidth: 1400 } }>
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } }>
           <div>
-            <h1 style={ { fontSize: 24, fontWeight: 700, color: '#1a3a2a', margin: 0 } }>RX Slots</h1>
-            <p style={ { fontSize: 14, color: '#6b7280', margin: '4px 0 0' } }>{ slots.length } slots</p>
+            <h1 style={ { fontSize: 24, fontWeight: 700, color: 'var(--accent)', margin: 0 } }>RX Slots</h1>
+            <p style={ { fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' } }>{ slots.length } slots</p>
           </div>
           <div style={ { display: 'flex', gap: 8 } }>
             <Button variant="secondary" icon="refresh" onClick={ loadData }>Refresh</Button>
@@ -163,7 +163,7 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
             <div><span style={ labelStyle }>Provider</span><div>{ selected.provider || '—' }</div></div>
             <div><span style={ labelStyle }>Status</span><div>{ statusBadge( selected.status ) }</div></div>
             <div><span style={ labelStyle }>Patient</span><div>{ selected.patientName || '—' } { selected.patientPhone ? `(${selected.patientPhone})` : '' }</div></div>
-            { selected.notes && <div style={ { gridColumn: '1 / -1' } }><span style={ labelStyle }>Notes</span><div style={ { padding: 8, background: '#f9fafb', borderRadius: 6, fontSize: 14 } }>{ selected.notes }</div></div> }
+            { selected.notes && <div style={ { gridColumn: '1 / -1' } }><span style={ labelStyle }>Notes</span><div style={ { padding: 8, background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 14 } }>{ selected.notes }</div></div> }
           </div>
         ) }
       </Modal>
@@ -199,7 +199,7 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
 
 /* `selectStyle` went with the date filter - its last consumer. It only ever skinned the native
    control, and the pickers draw themselves from form-controls.css. */
-const labelStyle: React.CSSProperties = { fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 2 };
-const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, marginTop: 4 };
+const labelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 2 };
+const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, marginTop: 4 };
 
 export default RxSlotsPage;

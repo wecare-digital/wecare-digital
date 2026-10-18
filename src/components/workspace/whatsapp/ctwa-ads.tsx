@@ -25,7 +25,7 @@ import {
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
-const card: React.CSSProperties = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 18, marginBottom: 16 };
+const card: React.CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: 18, marginBottom: 16 };
 const label: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 };
 const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14, marginBottom: 10, boxSizing: 'border-box' };
 
@@ -166,7 +166,7 @@ const CtwaAdsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
     const body = (
         <div style={ { maxWidth: 1000, margin: '0 auto', padding: embedded ? 0 : 20 } }>
             <h1 style={ { fontSize: 22, fontWeight: 800, marginBottom: 4 } }>Ads that Click to WhatsApp</h1>
-            <p style={ { color: '#6b7280', fontSize: 14, marginBottom: 16 } }>
+            <p style={ { color: 'var(--text-muted)', fontSize: 14, marginBottom: 16 } }>
                 Create ads that open a WhatsApp chat with your business. Ads are created <b>paused</b> — nothing
                 spends until you publish and Meta approves. Uses the Marketing API (<code>ads_management</code>).
             </p>
@@ -249,7 +249,7 @@ const CtwaAdsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
                     ? <div style={ { fontSize: 13, color: '#9ca3af' } }>No ads yet.</div>
                     : (
                         <table style={ { width: '100%', fontSize: 13, borderCollapse: 'collapse' } }>
-                            <thead><tr style={ { textAlign: 'left', color: '#6b7280' } }>
+                            <thead><tr style={ { textAlign: 'left', color: 'var(--text-muted)' } }>
                                 <th style={ { padding: 6 } }>Name</th><th>Status</th><th>Effective</th><th></th>
                             </tr></thead>
                             <tbody>
@@ -260,7 +260,7 @@ const CtwaAdsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
                                         <td>{ a.effective_status }</td>
                                         <td style={ { textAlign: 'right' } }>
                                             { a.status === 'ACTIVE'
-                                                ? <button onClick={ () => doPause( a.id ) } style={ { fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer' } }>Pause</button>
+                                                ? <button onClick={ () => doPause( a.id ) } style={ { fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer' } }>Pause</button>
                                                 : <button onClick={ () => doPublish( a.id ) } style={ { fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', background: '#059669', color: '#fff', cursor: 'pointer' } }>Publish</button> }
                                         </td>
                                     </tr>

@@ -80,7 +80,7 @@ const CHANNEL_BADGES: Record<string, { bg: string; color: string; label: string 
 
 const STATUS_BADGES: Record<string, { bg: string; color: string; label: string }> = {
   pending: { bg: '#fffbeb', color: '#b45309', label: 'Pending' },
-  queued: { bg: '#f9fafb', color: 'rgba(0,0,0,.54)', label: 'Queued' },
+  queued: { bg: 'var(--bg-secondary)', color: 'rgba(0,0,0,.54)', label: 'Queued' },
   sent: { bg: '#eff6ff', color: '#1d4ed8', label: 'Sent' },
   delivered: { bg: '#f0fdfa', color: '#0f766e', label: 'Delivered' },
   read: { bg: '#f0fdf4', color: '#15803d', label: 'Read' },
@@ -128,9 +128,9 @@ const STATUS_FILTER_OPTIONS: SelectOption[] = [
 const FILTER_STYLE: React.CSSProperties = { width: 170 };
 
 const chBadge = ( c: string ) =>
-  CHANNEL_BADGES[ c ] || { bg: '#f9fafb', color: 'rgba(0,0,0,.54)', label: c || 'Unknown' };
+  CHANNEL_BADGES[ c ] || { bg: 'var(--bg-secondary)', color: 'rgba(0,0,0,.54)', label: c || 'Unknown' };
 const stBadge = ( s: string ) =>
-  STATUS_BADGES[ s ] || { bg: '#f9fafb', color: 'rgba(0,0,0,.54)', label: s || 'unknown' };
+  STATUS_BADGES[ s ] || { bg: 'var(--bg-secondary)', color: 'rgba(0,0,0,.54)', label: s || 'unknown' };
 
 const MessageLogsPage: React.FC<PageProps> = ( { signOut, user, embedded, channel } ) => {
   const router = useRouter();
@@ -427,56 +427,56 @@ const MessageLogsPage: React.FC<PageProps> = ( { signOut, user, embedded, channe
         .logs-page{max-width:1300px;margin:0 auto;padding:20px}
         .filters{display:flex;gap:16px;margin:0 0 20px;align-items:flex-end;flex-wrap:wrap}
         .filter-group{display:flex;flex-direction:column;gap:6px}
-        .filter-group label{font-size:14px;color:rgba(0,0,0,.54)}
+        .filter-group label{font-size:var(--text-md);color:rgba(0,0,0,.54)}
         .filter-group select{
-          font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff;
-          border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;
+          font-family:inherit;font-size:var(--text-md);color:rgba(0,0,0,.898);background:#fff;
+          border:2px solid var(--border);border-radius:13px;padding:9px 12px;min-height:0;
         }
-        .filter-group select:focus{outline:none;border-color:#d1f470}
+        .filter-group select:focus{outline:none;border-color:var(--lime)}
         .filter-actions{display:flex;gap:10px;margin-left:auto}
 
         .summary-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:0 0 20px}
         .summary-card{
           display:flex;flex-direction:column;gap:2px;background:#fff;
-          border:1px solid #e5e7eb;border-radius:13px;padding:16px 18px;
+          border:1px solid var(--border);border-radius:13px;padding:16px 18px;
         }
-        .card-value{font-size:24px;font-weight:700;color:#000;line-height:1.2}
+        .card-value{font-size:var(--text-3xl);font-weight:700;color:#000;line-height:1.2}
         .card-value-bad{color:#b91c1c}
-        .card-label{font-size:14px;color:rgba(0,0,0,.54)}
+        .card-label{font-size:var(--text-md);color:rgba(0,0,0,.54)}
 
         .reasons{
           background:#fffbeb;border:1px solid #b45309;border-radius:13px;
           padding:14px 18px;margin:0 0 20px;
         }
-        .reasons-title{font-size:15px;font-weight:600;color:#b45309}
+        .reasons-title{font-size:var(--text-md);font-weight:600;color:#b45309}
         .reasons-list{margin:8px 0 0;padding-left:18px}
-        .reasons-list li{font-size:14px;color:rgba(0,0,0,.898);line-height:1.6}
+        .reasons-list li{font-size:var(--text-md);color:rgba(0,0,0,.898);line-height:1.6}
 
         .table-container{
-          background:#fff;border:1px solid #e5e7eb;border-radius:13px;overflow:hidden;
+          background:#fff;border:1px solid var(--border);border-radius:13px;overflow:hidden;
           margin:0 0 16px;
         }
         .logs-table{width:100%;border-collapse:collapse}
         .logs-table th{
-          background:#fafafa;padding:11px 16px;text-align:left;font-size:14px;
-          font-weight:600;color:rgba(0,0,0,.54);border-bottom:1px solid #e5e7eb;
+          background:#fafafa;padding:11px 16px;text-align:left;font-size:var(--text-md);
+          font-weight:600;color:rgba(0,0,0,.54);border-bottom:1px solid var(--border);
         }
         .logs-table td{
-          padding:11px 16px;border-bottom:1px solid #e5e7eb;font-size:14px;
+          padding:11px 16px;border-bottom:1px solid var(--border);font-size:var(--text-md);
           color:rgba(0,0,0,.898);
         }
         .logs-table tr:last-child td{border-bottom:none}
 
         .badge{
           display:inline-flex;align-items:center;padding:4px 10px;border-radius:50px;
-          font-size:13px;font-weight:600;
+          font-size:var(--text-sm);font-weight:600;
         }
-        .dir{font-size:13px;color:rgba(0,0,0,.54)}
-        .mono{font-family:'SF Mono',Monaco,Consolas,monospace;font-size:13px}
+        .dir{font-size:var(--text-sm);color:rgba(0,0,0,.54)}
+        .mono{font-family:'SF Mono',Monaco,Consolas,monospace;font-size:var(--text-sm)}
         .content{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .when{color:rgba(0,0,0,.54);font-size:13px;white-space:nowrap}
+        .when{color:rgba(0,0,0,.54);font-size:var(--text-sm);white-space:nowrap}
         .why,.raw-err{
-          margin-left:8px;font-size:13px;color:#b91c1c;text-decoration:underline;
+          margin-left:8px;font-size:var(--text-sm);color:#b91c1c;text-decoration:underline;
           cursor:help;
         }
         .state-cell{text-align:center;padding:40px;color:rgba(0,0,0,.54)}

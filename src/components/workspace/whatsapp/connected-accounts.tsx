@@ -32,7 +32,7 @@ interface Tenant {
 }
 
 const card: React.CSSProperties = { background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, padding: 20, marginBottom: 16 };
-const tag = ( c: string ): React.CSSProperties => ( { display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700, background: c === 'CONNECTED' ? '#e6f6ea' : '#fbeaea', color: c === 'CONNECTED' ? '#1a3a2a' : '#a11' } );
+const tag = ( c: string ): React.CSSProperties => ( { display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700, background: c === 'CONNECTED' ? '#e6f6ea' : '#fbeaea', color: c === 'CONNECTED' ? 'var(--accent)' : '#a11' } );
 const btnDanger: React.CSSProperties = { padding: '6px 12px', background: '#7a1a1a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 };
 
 const ConnectedAccountsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
@@ -137,8 +137,8 @@ const ConnectedAccountsPage: React.FC<PageProps> = ( { signOut, user, embedded =
 
             <div style={ card }>
                 <div style={ { display: 'flex', gap: 8, marginBottom: 14 } }>
-                    <button onClick={ () => setMode( 'onboard' ) } style={ { padding: '8px 14px', borderRadius: 8, border: '1px solid #d0d0d0', background: mode === 'onboard' ? '#1a3a2a' : '#fff', color: mode === 'onboard' ? '#fff' : '#333', cursor: 'pointer', fontWeight: 600 } }>Onboard new / existing</button>
-                    <button onClick={ () => setMode( 'migrate' ) } style={ { padding: '8px 14px', borderRadius: 8, border: '1px solid #d0d0d0', background: mode === 'migrate' ? '#1a3a2a' : '#fff', color: mode === 'migrate' ? '#fff' : '#333', cursor: 'pointer', fontWeight: 600 } }>Migrate from another provider</button>
+                    <button onClick={ () => setMode( 'onboard' ) } style={ { padding: '8px 14px', borderRadius: 8, border: '1px solid #d0d0d0', background: mode === 'onboard' ? 'var(--accent)' : '#fff', color: mode === 'onboard' ? '#fff' : '#333', cursor: 'pointer', fontWeight: 600 } }>Onboard new / existing</button>
+                    <button onClick={ () => setMode( 'migrate' ) } style={ { padding: '8px 14px', borderRadius: 8, border: '1px solid #d0d0d0', background: mode === 'migrate' ? 'var(--accent)' : '#fff', color: mode === 'migrate' ? '#fff' : '#333', cursor: 'pointer', fontWeight: 600 } }>Migrate from another provider</button>
                 </div>
                 <div style={ { marginBottom: 12 } }>
                     <div style={ { fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 4 } }>Customer email (optional — auto-creates their limited login)</div>
@@ -175,7 +175,7 @@ const ConnectedAccountsPage: React.FC<PageProps> = ( { signOut, user, embedded =
                                                 { t.steps && t.steps.length > 0 && (
                                                     <div style={ { fontSize: 12, marginTop: 6 } }>
                                                         { t.steps.map( ( s, i ) => (
-                                                            <span key={ i } style={ { marginRight: 10, color: s.ok === true ? '#1a3a2a' : s.ok === false ? '#a11' : '#a60' } }>
+                                                            <span key={ i } style={ { marginRight: 10, color: s.ok === true ? 'var(--accent)' : s.ok === false ? '#a11' : '#a60' } }>
                                                                 { s.ok === true ? '✓' : s.ok === false ? '✕' : '•' } { s.step }
                                                             </span>
                                                         ) ) }
@@ -197,13 +197,13 @@ const ConnectedAccountsPage: React.FC<PageProps> = ( { signOut, user, embedded =
                                                 placeholder="amount" type="number"
                                                 style={ { width: 100, padding: '5px 8px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 13 } } />
                                             <button onClick={ () => topup( t.wabaId ) }
-                                                style={ { padding: '5px 12px', background: '#1a3a2a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 } }>Top up</button>
+                                                style={ { padding: '5px 12px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 } }>Top up</button>
                                             <span style={ { fontSize: 12, color: '#777', marginLeft: 8 } }>Markup { wallets[ t.wabaId || '' ]?.markupPct ?? 0 }%</span>
                                             <input value={ markup[ t.wabaId || '' ] || '' } onChange={ e => setMarkup( m => ( { ...m, [ t.wabaId || '' ]: e.target.value } ) ) }
                                                 placeholder="markup %" type="number"
                                                 style={ { width: 90, padding: '5px 8px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 13 } } />
                                             <button onClick={ () => saveSettings( t.wabaId ) }
-                                                style={ { padding: '5px 12px', background: '#fff', color: '#1a3a2a', border: '1px solid #1a3a2a', borderRadius: 6, cursor: 'pointer', fontSize: 13 } }>Save</button>
+                                                style={ { padding: '5px 12px', background: '#fff', color: 'var(--accent)', border: '1px solid var(--accent)', borderRadius: 6, cursor: 'pointer', fontSize: 13 } }>Save</button>
                                         </div>
                                     </div>
                                 ) ) }

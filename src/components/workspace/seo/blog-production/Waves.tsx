@@ -28,7 +28,7 @@ const STATUS_COLOUR: Record<string, string> = {
   OPEN: '#2563eb',
   INGESTING: '#d97706',
   READY: '#16a34a',
-  CLOSED: '#6b7280',
+  CLOSED: 'var(--text-muted)',
 };
 
 const th: React.CSSProperties = { padding: '10px 12px', textAlign: 'left' };
@@ -151,7 +151,7 @@ const BlogProductionBatches: React.FC<PageProps> = ( { signOut, user, embedded }
                 style={ { padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6 } } />
             </label>
             <button onClick={ () => { void create(); } } disabled={ !form.name.trim() || busy === 'create' }
-              style={ { padding: '9px 18px', borderRadius: 6, border: 'none', background: '#1a3a2a', color: '#fff', cursor: 'pointer', fontSize: 14 } }>
+              style={ { padding: '9px 18px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: 14 } }>
               { busy === 'create' ? 'Creating…' : 'Create wave' }
             </button>
           </div>
@@ -159,11 +159,11 @@ const BlogProductionBatches: React.FC<PageProps> = ( { signOut, user, embedded }
 
         <div className="card" style={ { overflow: 'auto' } }>
           <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
-            <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 13, color: '#6b7280' } }>
+            <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 13, color: 'var(--text-muted)' } }>
               Production waves, newest first
             </caption>
             <thead>
-              <tr style={ { borderBottom: '2px solid #e5e7eb' } }>
+              <tr style={ { borderBottom: '2px solid var(--border)' } }>
                 <th scope="col" style={ th }>Wave</th>
                 <th scope="col" style={ th }>Status</th>
                 <th scope="col" style={ th }>Sources</th>
@@ -182,8 +182,8 @@ const BlogProductionBatches: React.FC<PageProps> = ( { signOut, user, embedded }
                   <tr key={ batch.batchId } style={ { borderBottom: '1px solid #f3f4f6' } }>
                     <td style={ td }>
                       <a href={ `/workspace/seo/blog-production?tab=batch&id=${ encodeURIComponent( batch.batchId ) }` }
-                        style={ { color: '#1a3a2a', fontWeight: 600 } }>{ batch.name }</a>
-                      <div style={ { color: '#6b7280', fontSize: 11 } }>
+                        style={ { color: 'var(--accent)', fontWeight: 600 } }>{ batch.name }</a>
+                      <div style={ { color: 'var(--text-muted)', fontSize: 11 } }>
                         { batch.defaultCategory } · { batch.articleClass }
                       </div>
                       { batch.description && (
@@ -208,11 +208,11 @@ const BlogProductionBatches: React.FC<PageProps> = ( { signOut, user, embedded }
                     <td style={ td }>{ rollup ? rollup.words.toLocaleString() : '—' }</td>
                     <td style={ td }>
                       <a href={ `/workspace/seo/blog-production?tab=batch&id=${ encodeURIComponent( batch.batchId ) }` }
-                        style={ { color: '#1a3a2a', marginRight: 12 } }>Open</a>
+                        style={ { color: 'var(--accent)', marginRight: 12 } }>Open</a>
                       { batch.status !== 'CLOSED' && (
                         <button onClick={ () => { void close( batch.batchId ); } } disabled={ busy === batch.batchId }
                           aria-label={ `Close the wave ${ batch.name }` }
-                          style={ { color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: 0 } }>
+                          style={ { color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: 0 } }>
                           { busy === batch.batchId ? 'Closing…' : 'Close' }
                         </button>
                       ) }
@@ -221,12 +221,12 @@ const BlogProductionBatches: React.FC<PageProps> = ( { signOut, user, embedded }
                 );
               } ) }
               { batches.length === 0 && !loading && (
-                <tr><td colSpan={ 8 } style={ { padding: 40, textAlign: 'center', color: '#6b7280' } }>
+                <tr><td colSpan={ 8 } style={ { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }>
                   No waves yet. Create one above, then upload sources in Blog Studio.
                 </td></tr>
               ) }
               { loading && (
-                <tr><td colSpan={ 8 } style={ { padding: 40, textAlign: 'center', color: '#6b7280' } }>Loading…</td></tr>
+                <tr><td colSpan={ 8 } style={ { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }>Loading…</td></tr>
               ) }
             </tbody>
           </table>

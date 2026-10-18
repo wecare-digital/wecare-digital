@@ -67,7 +67,7 @@ function fmtSize ( bytes?: number ): string {
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
   uploaded: { bg: '#dbeafe', fg: '#1e40af' },
   under_review: { bg: '#e0e7ff', fg: '#3730a3' },
-  approved: { bg: '#d1f470', fg: '#1a3a2a' },
+  approved: { bg: 'var(--lime)', fg: 'var(--accent)' },
   rejected: { bg: '#fee2e2', fg: '#991b1b' },
   reupload_requested: { bg: '#f3e8ff', fg: '#6b21a8' },
 };
@@ -159,19 +159,19 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     {
       key: 'fileName', header: 'Document', render: ( d: api.Document ) => (
         <button onClick={ () => { setSelected( d ); setRemarks( '' ); } } style={ { background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' } }>
-          <div style={ { fontWeight: 500, fontSize: 14, color: '#1a3a2a', textDecoration: 'underline' } }>{ d.fileName || 'Untitled' }</div>
-          <div style={ { fontSize: 12, color: '#6b7280' } }>{ d.type } · { fmtSize( d.fileSize ) }</div>
+          <div style={ { fontWeight: 500, fontSize: 14, color: 'var(--accent)', textDecoration: 'underline' } }>{ d.fileName || 'Untitled' }</div>
+          <div style={ { fontSize: 12, color: 'var(--text-muted)' } }>{ d.type } · { fmtSize( d.fileSize ) }</div>
         </button>
       )
     },
     {
       key: 'customer', header: 'Customer', width: '140px', render: ( d: api.Document ) => (
-        <div><div style={ { fontWeight: 500, fontSize: 13 } }>{ d.customerName || '—' }</div><div style={ { fontSize: 12, color: '#6b7280' } }>{ d.customerPhone }</div></div>
+        <div><div style={ { fontWeight: 500, fontSize: 13 } }>{ d.customerName || '—' }</div><div style={ { fontSize: 12, color: 'var(--text-muted)' } }>{ d.customerPhone }</div></div>
       )
     },
     {
       key: 'orderId', header: 'Order', width: '100px', render: ( d: api.Document ) => d.orderId ? (
-        <span style={ { fontSize: 12, fontFamily: 'monospace', color: '#1a3a2a' } }>{ d.orderId.split( '-' ).pop() }</span>
+        <span style={ { fontSize: 12, fontFamily: 'monospace', color: 'var(--accent)' } }>{ d.orderId.split( '-' ).pop() }</span>
       ) : <span style={ { color: '#9ca3af' } }>—</span>
     },
     { key: 'status', header: 'Status', width: '140px', render: ( d: api.Document ) => <StatusBadge status={ d.status } /> },
@@ -194,8 +194,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       <div style={ { padding: '24px 32px', maxWidth: 1400 } }>
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } }>
           <div>
-            <h1 style={ { fontSize: 24, fontWeight: 700, color: '#1a3a2a', margin: 0 } }>Drop Docs</h1>
-            <p style={ { fontSize: 14, color: '#6b7280', margin: '4px 0 0' } }>Document management — all sources</p>
+            <h1 style={ { fontSize: 24, fontWeight: 700, color: 'var(--accent)', margin: 0 } }>Drop Docs</h1>
+            <p style={ { fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' } }>Document management — all sources</p>
           </div>
           <div style={ { display: 'flex', gap: 8 } }>
             <Button variant="secondary" icon="refresh" onClick={ loadData }>Refresh</Button>
@@ -206,15 +206,15 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         {/* Stats */ }
         <div style={ { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 20 } }>
           { [
-            { label: 'Total', value: stats.total, bg: '#f9fafb' },
+            { label: 'Total', value: stats.total, bg: 'var(--bg-secondary)' },
             { label: 'Uploaded', value: stats.uploaded, bg: '#dbeafe' },
             { label: 'Under Review', value: stats.underReview, bg: '#e0e7ff' },
             { label: 'Approved', value: stats.approved, bg: '#d1fae5' },
             { label: 'Rejected', value: stats.rejected, bg: '#fee2e2' },
           ].map( s => (
             <div key={ s.label } style={ { padding: '12px 16px', background: s.bg, borderRadius: 10, border: '2px solid #f3f4f6' } }>
-              <div style={ { fontSize: 22, fontWeight: 700, color: '#1a3a2a' } }>{ s.value }</div>
-              <div style={ { fontSize: 12, color: '#6b7280' } }>{ s.label }</div>
+              <div style={ { fontSize: 22, fontWeight: 700, color: 'var(--accent)' } }>{ s.value }</div>
+              <div style={ { fontSize: 12, color: 'var(--text-muted)' } }>{ s.label }</div>
             </div>
           ) ) }
         </div>
@@ -264,7 +264,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
             { selected.notes && (
               <div style={ { marginBottom: 16 } }>
                 <span style={ labelStyle }>Remarks</span>
-                <div style={ { padding: 12, background: '#f9fafb', borderRadius: 8, fontSize: 14 } }>{ selected.notes }</div>
+                <div style={ { padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 14 } }>{ selected.notes }</div>
               </div>
             ) }
 
@@ -321,8 +321,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
 };
 
 /* `selectStyle` went with the last native select in this file - it only ever skinned those. */
-const labelStyle: React.CSSProperties = { fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 2 };
-const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, marginTop: 4 };
+const labelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 2 };
+const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, marginTop: 4 };
 const actionBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: '2px 4px' };
 
 export default DocumentsPage;

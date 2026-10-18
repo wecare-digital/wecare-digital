@@ -126,17 +126,17 @@ const ContentLibrary: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
             <style jsx>{ `
                 .cl-wrap { padding: 20px; max-width: 1100px; margin: 0 auto; }
                 .cl-toolbar { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; align-items: center; }
-                .cl-search { flex: 1; min-width: 200px; padding: 9px 14px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: 14px; }
-                .cl-filter { padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: 13px; background: #fff; }
-                .cl-new { padding: 9px 14px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: 13px; color: ${colors.primary}; text-decoration: none; font-weight: 600; }
+                .cl-search { flex: 1; min-width: 200px; padding: 9px 14px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: var(--text-md); }
+                .cl-filter { padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: var(--text-sm); background: #fff; }
+                .cl-new { padding: 9px 14px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: var(--text-sm); color: ${colors.primary}; text-decoration: none; font-weight: 600; }
                 .cl-new:hover { background: ${colors.bgHover}; }
                 .cl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
                 .cl-card { border: 1px solid ${colors.border}; border-radius: 12px; padding: 14px; background: #fff; }
                 .cl-card-head { display: flex; gap: 6px; margin-bottom: 8px; }
-                .cl-pill { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 9999px; text-transform: capitalize; }
-                .cl-name { font-size: 14px; font-weight: 700; color: ${colors.text}; word-break: break-word; }
-                .cl-preview { font-size: 12px; color: ${colors.textSecondary}; margin: 6px 0 0; }
-                .cl-meta { font-size: 11px; color: ${colors.textMuted}; margin-top: 8px; text-transform: capitalize; }
+                .cl-pill { font-size: var(--text-xs); font-weight: 700; padding: 3px 9px; border-radius: 9999px; text-transform: capitalize; }
+                .cl-name { font-size: var(--text-md); font-weight: 700; color: ${colors.text}; word-break: break-word; }
+                .cl-preview { font-size: var(--text-xs); color: ${colors.textSecondary}; margin: 6px 0 0; }
+                .cl-meta { font-size: var(--text-xs); color: ${colors.textMuted}; margin-top: 8px; text-transform: capitalize; }
                 .cl-empty { grid-column: 1/-1; padding: 40px; text-align: center; color: ${colors.textMuted}; }
             ` }</style>
         </>

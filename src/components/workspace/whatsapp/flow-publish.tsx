@@ -81,7 +81,7 @@ const FlowPublishChecklist: React.FC<PageProps> = ( { signOut, user, embedded = 
                         <label style={ { fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 } }>Flow ID</label>
                         <input value={ flowId } onChange={ e => setFlowId( e.target.value ) } placeholder="1234567890" style={ { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 14 } } />
                     </div>
-                    <button onClick={ load } disabled={ loading } style={ { padding: '9px 16px', background: '#1a3a2a', color: '#d1f470', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700 } }>{ loading ? 'Loading…' : 'Load flow' }</button>
+                    <button onClick={ load } disabled={ loading } style={ { padding: '9px 16px', background: 'var(--accent)', color: 'var(--lime)', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700 } }>{ loading ? 'Loading…' : 'Load flow' }</button>
                 </div>
             </div>
 

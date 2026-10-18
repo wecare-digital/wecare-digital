@@ -29,8 +29,8 @@ const INTERVALS = [ 0, 300, 900, 1800, 3600, 7200, 28800, 86400 ];
 const intervalLabel = ( s: number ) =>
     s === 0 ? 'Off' : s < 3600 ? `${s / 60} min` : s < 86400 ? `${s / 3600} hr` : '1 day';
 
-const card: React.CSSProperties = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20, marginBottom: 16 };
-const label: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' };
+const card: React.CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: 20, marginBottom: 16 };
+const label: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' };
 const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, marginBottom: 12 };
 const btn = ( bg: string ): React.CSSProperties => ( { padding: '8px 16px', background: bg, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' } );
 
@@ -62,7 +62,7 @@ type TabBtnProps = { id: Tab; active: boolean; onSelect: ( id: Tab ) => void; ch
 const TabBtn = ( { id, active, onSelect, children }: TabBtnProps ) => (
     <button onClick={ () => onSelect( id ) } style={ {
         padding: '8px 14px', border: 'none', borderBottom: active ? '2px solid #059669' : '2px solid transparent',
-        background: 'none', color: active ? '#059669' : '#6b7280', fontWeight: 600, fontSize: 14, cursor: 'pointer',
+        background: 'none', color: active ? '#059669' : 'var(--text-muted)', fontWeight: 600, fontSize: 14, cursor: 'pointer',
     } }>{ children }</button>
 );
 
@@ -274,7 +274,7 @@ function AiAgentPageBody ( { }: PageProps ) {
                 { enabled && <span style={ { fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 10, background: '#ecfdf5', color: '#047857' } }>AI ON · { audience }</span> }
             </div>
 
-            <div style={ { borderBottom: '1px solid #e5e7eb', marginBottom: 20, display: 'flex', gap: 4, flexWrap: 'wrap' } }>
+            <div style={ { borderBottom: '1px solid var(--border)', marginBottom: 20, display: 'flex', gap: 4, flexWrap: 'wrap' } }>
                 <TabBtn id="settings" active={ tab === 'settings' } onSelect={ setTab }>Status & Settings</TabBtn>
                 <TabBtn id="business" active={ tab === 'business' } onSelect={ setTab }>Business Info</TabBtn>
                 <TabBtn id="faqs" active={ tab === 'faqs' } onSelect={ setTab }>FAQs</TabBtn>
@@ -289,22 +289,22 @@ function AiAgentPageBody ( { }: PageProps ) {
             {/* ── SETTINGS ── */ }
             { tab === 'settings' && ( settingsLoading ? <Spinner /> : (
                 <div style={ card }>
-                    <h3 style={ { margin: '0 0 16px', fontSize: 16, color: '#1a1a1a' } }>Agent behaviour</h3>
+                    <h3 style={ { margin: '0 0 16px', fontSize: 16, color: 'var(--text)' } }>Agent behaviour</h3>
                     <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f3f4f6' } }>
-                        <div><b>AI responder</b><div style={ { fontSize: 12, color: '#6b7280' } }>When on, the AI answers customers directly.</div></div>
+                        <div><b>AI responder</b><div style={ { fontSize: 12, color: 'var(--text-muted)' } }>When on, the AI answers customers directly.</div></div>
                         <button disabled={ saving } onClick={ () => saveSettings( { enabled: !enabled } ) }
                             style={ btn( enabled ? '#dc2626' : '#059669' ) }>{ enabled ? 'Turn OFF' : 'Turn ON' }</button>
                     </div>
                     <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f3f4f6' } }>
-                        <div><b>Audience</b><div style={ { fontSize: 12, color: '#6b7280' } }>Who the AI replies to.</div></div>
+                        <div><b>Audience</b><div style={ { fontSize: 12, color: 'var(--text-muted)' } }>Who the AI replies to.</div></div>
                         <Select ariaLabel="Audience" value={ audience } disabled={ saving }
                             onChange={ v => saveSettings( { aiAudience: v } ) }
                             options={ AUDIENCE_OPTIONS } style={ ROW_SELECT_STYLE } />
                     </div>
                     <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f3f4f6' } }>
-                        <div><b>Handoff to human</b><div style={ { fontSize: 12, color: '#6b7280' } }>{ settings?.handoff?.message || 'Connecting you to our team.' }</div></div>
+                        <div><b>Handoff to human</b><div style={ { fontSize: 12, color: 'var(--text-muted)' } }>{ settings?.handoff?.message || 'Connecting you to our team.' }</div></div>
                         <button disabled={ saving } onClick={ () => saveSettings( { handoff: { enabled: !settings?.handoff?.enabled, message: settings?.handoff?.message || 'Connecting you to our team.' } } ) }
-                            style={ btn( settings?.handoff?.enabled ? '#6b7280' : '#059669' ) }>{ settings?.handoff?.enabled ? 'Enabled' : 'Disabled' }</button>
+                            style={ btn( settings?.handoff?.enabled ? 'var(--text-muted)' : '#059669' ) }>{ settings?.handoff?.enabled ? 'Enabled' : 'Disabled' }</button>
                     </div>
                     <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0' } }>
                         <div><b>Follow-up after inactivity</b></div>
@@ -319,7 +319,7 @@ function AiAgentPageBody ( { }: PageProps ) {
             {/* ── BUSINESS INFO ── */ }
             { tab === 'business' && ( infoLoading ? <Spinner /> : (
                 <div style={ card }>
-                    <h3 style={ { margin: '0 0 16px', fontSize: 16, color: '#1a1a1a' } }>Business info the AI can reference</h3>
+                    <h3 style={ { margin: '0 0 16px', fontSize: 16, color: 'var(--text)' } }>Business info the AI can reference</h3>
                     <label style={ label }>Business description</label>
                     <textarea style={ { ...input, minHeight: 70 } } value={ info.business_description || '' } onChange={ e => setInfo( { ...info, business_description: e.target.value } ) } />
                     <label style={ label }>How to purchase</label>
@@ -350,7 +350,7 @@ function AiAgentPageBody ( { }: PageProps ) {
             { tab === 'faqs' && (
                 <div>
                     <div style={ card }>
-                        <h3 style={ { margin: '0 0 12px', fontSize: 16, color: '#1a1a1a' } }>Add an FAQ (this becomes the AI&apos;s answer)</h3>
+                        <h3 style={ { margin: '0 0 12px', fontSize: 16, color: 'var(--text)' } }>Add an FAQ (this becomes the AI&apos;s answer)</h3>
                         <label style={ label }>Question (as a customer would ask)</label>
                         <input style={ input } value={ newQ } onChange={ e => setNewQ( e.target.value ) } placeholder="What is your return policy?" />
                         <label style={ label }>Answer (complete & self-contained)</label>
@@ -363,11 +363,11 @@ function AiAgentPageBody ( { }: PageProps ) {
                     </div>
                     { faqsLoading ? <Spinner /> : (
                         <div style={ card }>
-                            <h3 style={ { margin: '0 0 12px', fontSize: 16, color: '#1a1a1a' } }>FAQs ({ faqs.length })</h3>
+                            <h3 style={ { margin: '0 0 12px', fontSize: 16, color: 'var(--text)' } }>FAQs ({ faqs.length })</h3>
                             { faqs.length === 0 && <div style={ { color: '#9ca3af', fontSize: 14 } }>No FAQs yet.</div> }
                             { faqs.map( f => (
                                 <div key={ f.id } style={ { borderBottom: '1px solid #f3f4f6', padding: '10px 0' } }>
-                                    <div style={ { fontWeight: 600, color: '#1a1a1a' } }>{ f.question }</div>
+                                    <div style={ { fontWeight: 600, color: 'var(--text)' } }>{ f.question }</div>
                                     <div style={ { fontSize: 13, color: 'rgba(0, 0, 0, 0.54)', margin: '4px 0' } }>{ f.answer }</div>
                                     <button onClick={ async () => {
                                         if ( !f.id ) return;
@@ -385,8 +385,8 @@ function AiAgentPageBody ( { }: PageProps ) {
             { tab === 'skills' && (
                 <div>
                     <div style={ card }>
-                        <h3 style={ { margin: '0 0 8px', fontSize: 16, color: '#1a1a1a' } }>Add a skill (behaviour / tone directive)</h3>
-                        <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 12px' } }>Skills shape how the AI responds. Title must be lowercase letters, numbers and hyphens (e.g. brand-voice).</p>
+                        <h3 style={ { margin: '0 0 8px', fontSize: 16, color: 'var(--text)' } }>Add a skill (behaviour / tone directive)</h3>
+                        <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' } }>Skills shape how the AI responds. Title must be lowercase letters, numbers and hyphens (e.g. brand-voice).</p>
                         <label style={ label }>Title (lowercase-hyphen)</label>
                         <input style={ input } value={ skTitle } onChange={ e => setSkTitle( e.target.value ) } placeholder="brand-voice" />
                         <label style={ label }>When to apply (description)</label>
@@ -401,11 +401,11 @@ function AiAgentPageBody ( { }: PageProps ) {
                     </div>
                     { skillsLoading ? <Spinner /> : (
                         <div style={ card }>
-                            <h3 style={ { margin: '0 0 12px', fontSize: 16, color: '#1a1a1a' } }>Skills ({ skills.length })</h3>
+                            <h3 style={ { margin: '0 0 12px', fontSize: 16, color: 'var(--text)' } }>Skills ({ skills.length })</h3>
                             { skills.length === 0 && <div style={ { color: '#9ca3af', fontSize: 14 } }>No skills yet.</div> }
                             { skills.map( s => (
                                 <div key={ s.id } style={ { borderBottom: '1px solid #f3f4f6', padding: '10px 0' } }>
-                                    <div style={ { fontWeight: 600, color: '#1a1a1a' } }>{ s.title || '(untitled)' }</div>
+                                    <div style={ { fontWeight: 600, color: 'var(--text)' } }>{ s.title || '(untitled)' }</div>
                                     { s.description && <div style={ { fontSize: 12, color: '#9ca3af' } }>{ s.description }</div> }
                                     <div style={ { fontSize: 13, color: 'rgba(0, 0, 0, 0.54)', margin: '4px 0', whiteSpace: 'pre-wrap' } }>{ s.skill }</div>
                                     <button onClick={ async () => {
@@ -424,8 +424,8 @@ function AiAgentPageBody ( { }: PageProps ) {
             { tab === 'websites' && (
                 <div>
                     <div style={ card }>
-                        <h3 style={ { margin: '0 0 8px', fontSize: 16, color: '#1a1a1a' } }>Website knowledge sources</h3>
-                        <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 12px' } }>The AI crawls these URLs and answers from their content.</p>
+                        <h3 style={ { margin: '0 0 8px', fontSize: 16, color: 'var(--text)' } }>Website knowledge sources</h3>
+                        <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' } }>The AI crawls these URLs and answers from their content.</p>
                         <div style={ { display: 'flex', gap: 8 } }>
                             <input style={ { ...input, marginBottom: 0 } } value={ newUrl } onChange={ e => setNewUrl( e.target.value ) } placeholder="https://wecare.digital/" />
                             <button disabled={ saving || !newUrl.trim() } onClick={ async () => {
@@ -455,15 +455,15 @@ function AiAgentPageBody ( { }: PageProps ) {
             {/* ── ROUTING (BOT vs AI) ── */ }
             { tab === 'routing' && ( routingLoading ? <Spinner /> : (
                 <div style={ card }>
-                    <h3 style={ { margin: '0 0 8px', fontSize: 16, color: '#1a1a1a' } }>Bot vs AI routing</h3>
-                    <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 16px' } }>
+                    <h3 style={ { margin: '0 0 8px', fontSize: 16, color: 'var(--text)' } }>Bot vs AI routing</h3>
+                    <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px' } }>
                         When the AI holds a conversation, messages matching these rules are handled by YOUR deterministic
                         bot (menu, flows, catalog, commands). Everything else is answered by the Meta AI. Applies to both WABAs.
                     </p>
                     <div style={ { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 } }>
                         <b>Hybrid routing</b>
                         <button disabled={ saving } onClick={ () => saveRouting( { enabled: !( routing?.enabled ?? true ) } ) }
-                            style={ btn( ( routing?.enabled ?? true ) ? '#059669' : '#6b7280' ) }>
+                            style={ btn( ( routing?.enabled ?? true ) ? '#059669' : 'var(--text-muted)' ) }>
                             { ( routing?.enabled ?? true ) ? 'ON (bot handles triggers)' : 'OFF (AI handles everything)' }
                         </button>
                     </div>
@@ -491,8 +491,8 @@ function AiAgentPageBody ( { }: PageProps ) {
             { tab === 'connectors' && (
                 <div>
                     <div style={ card }>
-                        <h3 style={ { margin: '0 0 8px', fontSize: 16, color: '#1a1a1a' } }>Connectors (external APIs the agent can call)</h3>
-                        <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 12px' } }>
+                        <h3 style={ { margin: '0 0 8px', fontSize: 16, color: 'var(--text)' } }>Connectors (external APIs the agent can call)</h3>
+                        <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' } }>
                             Define an external API the Meta AI can call. Name must be letters/numbers/underscores.
                             For our token-gated tool endpoint use API key auth with header <code>X-Agent-Token</code>.
                             Requires Tech-Provider connector access to be fully provisioned on this WABA.
@@ -535,7 +535,7 @@ function AiAgentPageBody ( { }: PageProps ) {
                                 <div key={ c.id } style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f3f4f6', padding: '10px 0' } }>
                                     <div style={ { fontSize: 13 } }>
                                         <b>{ c.name }</b> <span style={ { color: '#9ca3af' } }>· { c.auth_type } · { c.connection_status?.status || '—' }</span>
-                                        <div style={ { color: '#6b7280', fontSize: 12 } }>{ c.base_url }</div>
+                                        <div style={ { color: 'var(--text-muted)', fontSize: 12 } }>{ c.base_url }</div>
                                     </div>
                                     <button onClick={ async () => {
                                         const ok = await api.aiAgentApi.removeConnector( waba, c.id );
@@ -552,8 +552,8 @@ function AiAgentPageBody ( { }: PageProps ) {
             { tab === 'techprovider' && (
                 <div>
                     <div style={ card }>
-                        <h3 style={ { margin: '0 0 8px', fontSize: 16, color: '#1a1a1a' } }>Tech Provider — both WABAs</h3>
-                        <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 8px' } }>
+                        <h3 style={ { margin: '0 0 8px', fontSize: 16, color: 'var(--text)' } }>Tech Provider — both WABAs</h3>
+                        <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' } }>
                             Per-WABA workspace, eligibility and connector state. Reading connectors works on both WABAs.
                             Connector <b>create</b> on Meta may return a cosmetic <code>500 &quot;Membrane: Authorization failed&quot;</code>
                             while the connector is actually provisioned (backend re-lists and reports the real result).
@@ -585,7 +585,7 @@ function AiAgentPageBody ( { }: PageProps ) {
                                         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 } }>
                                             <div style={ { fontSize: 13 } }>
                                                 <b>{ c.name }</b> <span style={ { color: '#9ca3af' } }>· { c.authType || '—' } · { c.status || '—' }</span>
-                                                <div style={ { color: '#6b7280', fontSize: 12 } }>{ c.baseUrl }</div>
+                                                <div style={ { color: 'var(--text-muted)', fontSize: 12 } }>{ c.baseUrl }</div>
                                             </div>
                                             <div style={ { display: 'flex', gap: 6 } }>
                                                 <button style={ { ...btn( '#f3f4f6' ), padding: '4px 10px', fontSize: 12 } } onClick={ async () => {
@@ -604,7 +604,7 @@ function AiAgentPageBody ( { }: PageProps ) {
                                             </div>
                                         </div>
                                         { det.open && (
-                                            <div style={ { background: '#f9fafb', borderRadius: 8, padding: 10, marginTop: 8, fontSize: 12 } }>
+                                            <div style={ { background: 'var(--bg-secondary)', borderRadius: 8, padding: 10, marginTop: 8, fontSize: 12 } }>
                                                 <div style={ { fontWeight: 600, marginBottom: 4 } }>Call stats</div>
                                                 { det.logs?.stats ? (
                                                     <div style={ { color: '#374151' } }>
@@ -616,7 +616,7 @@ function AiAgentPageBody ( { }: PageProps ) {
                                                 { ( det.tools || [] ).length === 0 && <div style={ { color: '#9ca3af' } }>No tools defined.</div> }
                                                 { ( det.tools || [] ).map( ( t, i ) => (
                                                     <div key={ t.id || i } style={ { borderTop: '1px solid #eef0f2', padding: '4px 0' } }>
-                                                        <b>{ t.name || t.id }</b>{ t.description ? <span style={ { color: '#6b7280' } }> — { t.description }</span> : null }
+                                                        <b>{ t.name || t.id }</b>{ t.description ? <span style={ { color: 'var(--text-muted)' } }> — { t.description }</span> : null }
                                                     </div>
                                                 ) ) }
                                             </div>
@@ -633,8 +633,8 @@ function AiAgentPageBody ( { }: PageProps ) {
             { tab === 'allowlist' && (
                 <div>
                     <div style={ card }>
-                        <h3 style={ { margin: '0 0 8px', fontSize: 16, color: '#1a1a1a' } }>Allowlist</h3>
-                        <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 12px' } }>Only used when Audience = &quot;Allowlisted only&quot;. Add consumer numbers in E.164 (e.g. +918100640044).</p>
+                        <h3 style={ { margin: '0 0 8px', fontSize: 16, color: 'var(--text)' } }>Allowlist</h3>
+                        <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' } }>Only used when Audience = &quot;Allowlisted only&quot;. Add consumer numbers in E.164 (e.g. +918100640044).</p>
                         <div style={ { display: 'flex', gap: 8 } }>
                             <input style={ { ...input, marginBottom: 0 } } value={ newPhone } onChange={ e => setNewPhone( e.target.value ) } placeholder="+918100640044" />
                             <button disabled={ saving || !newPhone.trim() } onClick={ async () => {

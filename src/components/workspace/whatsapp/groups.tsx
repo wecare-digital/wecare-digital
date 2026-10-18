@@ -25,9 +25,9 @@ const WABAS = [
   { id: WHATSAPP_PHONES.secondary.wabaId, phoneId: WHATSAPP_PHONES.secondary.id, metaId: WHATSAPP_PHONES.secondary.metaPhoneId, name: WHATSAPP_PHONES.secondary.name, display: WHATSAPP_PHONES.secondary.display },
 ];
 
-const pill = ( active: boolean ) => ( { padding: '4px 10px', fontSize: 12, border: active ? '2px solid #1a3a2a' : '1px solid #ddd', borderRadius: 4, background: active ? '#f0fdf4' : '#fff', cursor: 'pointer' } );
-const btn = ( bg = '#d1f470', color = '#1a3a2a' ) => ( { padding: '6px 14px', fontSize: 12, background: bg, color, border: 'none', borderRadius: 6, cursor: 'pointer' } );
-const card = { padding: 12, background: '#fff', borderRadius: 6, border: '1px solid #e5e7eb', marginBottom: 16 };
+const pill = ( active: boolean ) => ( { padding: '4px 10px', fontSize: 12, border: active ? '2px solid var(--accent)' : '1px solid #ddd', borderRadius: 4, background: active ? '#f0fdf4' : '#fff', cursor: 'pointer' } );
+const btn = ( bg = 'var(--lime)', color = 'var(--accent)' ) => ( { padding: '6px 14px', fontSize: 12, background: bg, color, border: 'none', borderRadius: 6, cursor: 'pointer' } );
+const card = { padding: 12, background: '#fff', borderRadius: 6, border: '1px solid var(--border)', marginBottom: 16 };
 
 const NEW_APPROVAL_OPTIONS: SelectOption[] = [
   { value: 'auto_approve', label: 'Auto-approve joins' },
@@ -134,25 +134,25 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
       <div className="inner-page-container" style={ { background: '#fff' } }>
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } }>
           <h2 style={ { margin: 0, fontSize: 20 } }>WhatsApp Groups</h2>
-          <button onClick={ () => setShowCreate( true ) } style={ { ...btn(), padding: '8px 16px', border: '1.5px solid #1a3a2a', borderRadius: 13, fontSize: 13 } }>+ Create Group</button>
+          <button onClick={ () => setShowCreate( true ) } style={ { ...btn(), padding: '8px 16px', border: '1.5px solid var(--accent)', borderRadius: 13, fontSize: 13 } }>+ Create Group</button>
         </div>
 
         <div style={ { background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: 14, marginBottom: 20, fontSize: 13 } }>
           <strong>Groups API</strong> — Up to { MAX_P } members/group (invite-only). Supports text, image, video, document, audio, and template messages.
-          Privacy: admin-only posting, hidden member list. <a href="https://developers.facebook.com/docs/whatsapp/cloud-api" target="_blank" rel="noopener noreferrer" style={ { color: '#1a3a2a' } }>Docs ↗</a>
+          Privacy: admin-only posting, hidden member list. <a href="https://developers.facebook.com/docs/whatsapp/cloud-api" target="_blank" rel="noopener noreferrer" style={ { color: 'var(--accent)' } }>Docs ↗</a>
         </div>
 
         <div style={ { display: 'flex', gap: 8, marginBottom: 20 } }>
           { WABAS.map( w => (
             <button key={ w.id } onClick={ () => { setWaba( w ); setSel( null ); setDetail( null ); } }
-              style={ { padding: '8px 16px', borderRadius: 6, border: waba.id === w.id ? '2px solid #1a3a2a' : '1px solid #ddd', background: waba.id === w.id ? '#f9fafb' : '#fff', cursor: 'pointer', fontSize: 13 } }>
+              style={ { padding: '8px 16px', borderRadius: 6, border: waba.id === w.id ? '2px solid var(--accent)' : '1px solid #ddd', background: waba.id === w.id ? 'var(--bg-secondary)' : '#fff', cursor: 'pointer', fontSize: 13 } }>
               { w.name } ({ w.display })
             </button>
           ) ) }
         </div>
 
         { showCreate && (
-          <div style={ { ...card, background: '#f9fafb', padding: 20, marginBottom: 20 } }>
+          <div style={ { ...card, background: 'var(--bg-secondary)', padding: 20, marginBottom: 20 } }>
             <h3 style={ { margin: '0 0 12px', fontSize: 16 } }>Create New Group</h3>
             <p style={ { fontSize: 12, color: '#666', margin: '0 0 12px' } }>Invite-only. Share the invite link after creation.</p>
             <div style={ { display: 'grid', gap: 10, marginBottom: 12 } }>
@@ -193,7 +193,7 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
 
         {/* Detail Panel */ }
         { sel && (
-          <div style={ { marginTop: 20, background: '#f9fafb', padding: 20, borderRadius: 8, border: '1px solid #e5e7eb' } }>
+          <div style={ { marginTop: 20, background: 'var(--bg-secondary)', padding: 20, borderRadius: 8, border: '1px solid var(--border)' } }>
             <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } }>
               <h3 style={ { margin: 0, fontSize: 16 } }>{ detail?.subject || sel.subject || 'Group' }</h3>
               <div style={ { display: 'flex', gap: 6 } }>
@@ -236,7 +236,7 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
                       onChange={ v => handleUpdateSettings( 'join_approval_mode', v ) }
                       options={ JOIN_APPROVAL_OPTIONS } style={ SETTING_SELECT_STYLE } />
                   </div>
-                  <div style={ { borderTop: '1px solid #e5e7eb', paddingTop: 10 } }>
+                  <div style={ { borderTop: '1px solid var(--border)', paddingTop: 10 } }>
                     <span style={ { fontSize: 13, color: '#666' } }>Group Image (URL to square PNG/JPG):</span>
                     <div style={ { display: 'flex', gap: 8, marginTop: 4 } }>
                       <input value={ imageUrl } onChange={ e => setImageUrl( e.target.value ) } placeholder="https://example.com/image.png"
@@ -283,7 +283,7 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
               { joinReqs.length === 0 ? <p style={ { fontSize: 12, color: '#666', margin: 0 } }>No pending requests</p> : (
                 <div style={ { display: 'grid', gap: 6 } }>
                   { joinReqs.map( ( r: any ) => (
-                    <div key={ r.join_request_id } style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: '#f9fafb', borderRadius: 4 } }>
+                    <div key={ r.join_request_id } style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 4 } }>
                       <span style={ { fontSize: 13 } }><MaskedWaId value={ r.wa_id } allowReveal /></span>
                       <div style={ { display: 'flex', gap: 4 } }>
                         <button onClick={ async () => { await api.approveGroupJoinRequests( sel.id, [ r.join_request_id ] ); toast.success( 'Approved' ); setJoinReqs( await api.getGroupJoinRequests( sel.id ) ); viewDetail( sel ); } } style={ btn() }>Approve</button>
@@ -301,10 +301,10 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
                 <h4 style={ { fontSize: 14, marginBottom: 8 } }>Participants ({ pCount })</h4>
                 <div style={ { display: 'flex', flexWrap: 'wrap', gap: 6 } }>
                   { ( detail.participants.data || detail.participants || [] ).map( ( p: any, i: number ) => (
-                    <span key={ i } style={ { padding: '4px 10px', background: '#e5e7eb', borderRadius: 16, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 } }>
+                    <span key={ i } style={ { padding: '4px 10px', background: 'var(--border)', borderRadius: 16, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 } }>
                       <MaskedWaId value={ p.wa_id || p } allowReveal />
                       <button onClick={ async () => { if ( await confirm( `Remove ${p.wa_id || p}?` ) ) { await api.manageGroupParticipants( sel.id, [ p.wa_id || p ], 'remove' ); toast.success( 'Removed' ); viewDetail( sel ); } } }
-                        style={ { background: 'none', border: 'none', cursor: 'pointer', color: '#1a3a2a', fontSize: 14, padding: 0 } }>×</button>
+                        style={ { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 14, padding: 0 } }>×</button>
                     </span>
                   ) ) }
                 </div>

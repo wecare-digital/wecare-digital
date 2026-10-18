@@ -168,7 +168,7 @@ const AddressFieldGroup: React.FC<{
   const composed = formatAddress( value );
   return (
     <>
-      <p style={ { fontSize: 12, fontWeight: 600, color: '#1a3a2a', margin: '8px 0 4px' } }>Delivery Address</p>
+      <p style={ { fontSize: 12, fontWeight: 600, color: 'var(--accent)', margin: '8px 0 4px' } }>Delivery Address</p>
       <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 } }>
         { ADDRESS_FIELDS.map( spec => (
           <div className="form-group" key={ spec.key }>
@@ -185,7 +185,7 @@ const AddressFieldGroup: React.FC<{
         ) ) }
       </div>
       <div className="form-group">
-        <span style={ { fontSize: 12, fontWeight: 600, color: '#1a3a2a' } }>Composed address</span>
+        <span style={ { fontSize: 12, fontWeight: 600, color: 'var(--accent)' } }>Composed address</span>
         <div
           data-address-preview={ idPrefix }
           aria-readonly="true"
@@ -678,7 +678,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
               ) }
               { redemption && (
                 <div className="inner-card" style={ { marginBottom: 16, maxWidth: 500, padding: '10px 14px' } }>
-                  <h4 style={ { margin: '0 0 6px', fontSize: 13, color: '#1a3a2a' } }>Applied on the last invoice</h4>
+                  <h4 style={ { margin: '0 0 6px', fontSize: 13, color: 'var(--accent)' } }>Applied on the last invoice</h4>
                   { redemption.couponCode && typeof redemption.couponDiscount === 'number' && (
                     <div className="pf-preview-row"><span>Coupon { redemption.couponCode }</span><span>{ '\u2212' }{ fmtMoney( redemption.couponDiscount ) }</span></div>
                   ) }
@@ -757,7 +757,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                     if ( !names.some( n => n.includes( 'green' ) && n.includes( 'pack' ) ) ) items.push( { name: 'Green Packing', unitPrice: '49', quantity: '1', gstRate: '18' } );
                     if ( !names.some( n => n.includes( 'notification' ) || n.includes( 'alert' ) ) ) items.push( { name: 'Notification Fee', unitPrice: '19', quantity: '1', gstRate: '18' } );
                     setInvForm( { ...invForm, items } );
-                  } } style={ { marginBottom: 4, fontSize: 12, color: '#1a3a2a' } }>+ Green Packing & Notification Fee</Button>
+                  } } style={ { marginBottom: 4, fontSize: 12, color: 'var(--accent)' } }>+ Green Packing & Notification Fee</Button>
                   <h4 style={ { margin: '12px 0 8px', fontSize: 15 } }>Additional Charges</h4>
                   <div className="pf-form-grid">
                     <div className="form-group"><label htmlFor="pf-shipping">Express / Shipping ({ '\u20B9' })</label><input id="pf-shipping" type="number" value={ invForm.shipping } onChange={ e => setInvForm( { ...invForm, shipping: e.target.value } ) } /></div>
@@ -840,28 +840,28 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                          computing a discount in the browser. The applied coupon
                          figures appear above, after the server has decided them. */ }
                     <div className="pf-preview-row"><span>Manual adjustment</span><span>{ '\u2212' }{ fmtMoney( parseFloat( invForm.discount ) || 0 ) }</span></div>
-                    <div style={ { marginTop: 8, fontSize: 11, color: '#6b7280', lineHeight: 1.45 } }>
+                    <div style={ { marginTop: 8, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.45 } }>
                       Convenience fee and final total are calculated by the server when the invoice is created.
                     </div>
                   </div>
 
                   {/* Post-payment messaging options */ }
                   <div className="inner-card" style={ { marginBottom: 16, maxWidth: 500, padding: '10px 14px' } }>
-                    <h4 style={ { margin: '0 0 6px', fontSize: 13, color: '#1a3a2a' } }>After Payment</h4>
-                    <p style={ { fontSize: 11, color: '#6b7280', margin: '0 0 8px' } }>
+                    <h4 style={ { margin: '0 0 6px', fontSize: 13, color: 'var(--accent)' } }>After Payment</h4>
+                    <p style={ { fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px' } }>
                       When payment is captured, these messages are sent automatically via WhatsApp.
                     </p>
                     <div style={ { display: 'flex', flexDirection: 'column', gap: 4 } }>
                       <label style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151' } }>
-                        <input type="checkbox" defaultChecked disabled style={ { accentColor: '#1a3a2a' } } />
+                        <input type="checkbox" defaultChecked disabled style={ { accentColor: 'var(--accent)' } } />
                         Invoice PDF + payment confirmation
                       </label>
                       <label style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151' } }>
-                        <input type="checkbox" defaultChecked disabled style={ { accentColor: '#1a3a2a' } } />
+                        <input type="checkbox" defaultChecked disabled style={ { accentColor: 'var(--accent)' } } />
                         Order status interactive message
                       </label>
-                      <label style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6b7280' } }>
-                        <input type="checkbox" disabled style={ { accentColor: '#1a3a2a' } } />
+                      <label style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)' } }>
+                        <input type="checkbox" disabled style={ { accentColor: 'var(--accent)' } } />
                         Template message (requires approved template)
                       </label>
                     </div>
@@ -903,7 +903,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                             <td style={ { fontWeight: 600 } }>{ inv.customerName || inv.customerPhone || '\u2014' }</td>
                             <td>{ fmtMoney( inv.total ) }</td>
                             <td><span className={ `status-badge ${badgeClass( inv )}` }>{ inv.status }</span></td>
-                            <td><span style={ { padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 500, background: '#f9fafb', color: '#1a3a2a' } }>{ inv.entryPoint || 'manual' }</span></td>
+                            <td><span style={ { padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 500, background: 'var(--bg-secondary)', color: 'var(--accent)' } }>{ inv.entryPoint || 'manual' }</span></td>
                             <td>{ fmtDate( inv.createdAt ) }</td>
                             <td onClick={ e => e.stopPropagation() }><button onClick={ () => doDeleteInvoice( inv ) } style={ { background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 13, padding: '2px 6px' } } title="Delete">🗑</button></td>
                           </tr>
@@ -921,7 +921,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                       <button onClick={ () => setSelInvoice( null ) } className="pf-close-btn">{ '\u2715' }</button>
                     </div>
                     <div className={ `status-badge ${badgeClass( selInvoice )}` } style={ { marginBottom: 12 } }>{ selInvoice.status }</div>
-                    <div className="pf-detail-row"><span className="label">Source</span><span style={ { padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 500, background: '#f9fafb', color: '#1a3a2a' } }>{ selInvoice.entryPoint || 'manual' }</span></div>
+                    <div className="pf-detail-row"><span className="label">Source</span><span style={ { padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 500, background: 'var(--bg-secondary)', color: 'var(--accent)' } }>{ selInvoice.entryPoint || 'manual' }</span></div>
                     <div className="pf-detail-row"><span className="label">Ref</span><span className="mono">{ selInvoice.referenceId || '\u2014' }</span></div>
                     <div className="pf-detail-row"><span className="label">Customer</span><span>{ selInvoice.customerName || '\u2014' }</span></div>
                     <div className="pf-detail-row"><span className="label">Phone</span><span>{ selInvoice.customerPhone || '\u2014' }</span></div>
@@ -1100,7 +1100,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
               <div className="form-group">
                 <label>Brand</label>
                 <input type="text" value={ DEFAULT_BRAND } readOnly aria-readonly="true" />
-                <p style={ { fontSize: 11, color: '#6b7280', margin: '4px 0 0' } }>Invoices are issued by WECARE.DIGITAL.</p>
+                <p style={ { fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' } }>Invoices are issued by WECARE.DIGITAL.</p>
               </div>
               <Button variant="primary" size="sm" loading={ configSaving } onClick={ () => { setConfigSaving( true ); try { localStorage.setItem( CFG_KEY, JSON.stringify( config ) ); } catch { } setTimeout( () => { setConfigSaving( false ); showMsg( 'Config saved' ); }, 300 ); } }>Save Config</Button>
             </div>

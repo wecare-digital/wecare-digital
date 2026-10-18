@@ -81,7 +81,7 @@ const SecurityPage: React.FC<PageProps> = ( { signOut, user } ) => (
           .sec-page{padding:40px 0}
           .sec-inner{padding:0 20px}
           .sec-h1{letter-spacing:-1.2px;line-height:1.1}
-          .sec-sub{font-size:17px}
+          .sec-sub{font-size:var(--h4)}
         }
         @media(max-width:480px){
           .sec-inner{padding:0 16px}

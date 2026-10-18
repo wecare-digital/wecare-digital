@@ -143,8 +143,8 @@ interface StudioProps extends PageProps {
 type Tab = 'uploads' | 'bulk' | 'standard';
 
 const th: React.CSSProperties = {
-  padding: '8px 10px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#6b7280',
-  borderBottom: '1px solid #e5e7eb',
+  padding: '8px 10px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
+  borderBottom: '1px solid var(--border)',
 };
 const td: React.CSSProperties = { padding: '6px 10px', fontSize: 12, verticalAlign: 'top' };
 const btn: React.CSSProperties = {
@@ -155,7 +155,7 @@ const label: React.CSSProperties = {
   fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4,
 };
 const input: React.CSSProperties = {
-  width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid #e5e7eb',
+  width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid var(--border)',
   fontSize: 13, fontFamily: 'inherit',
 };
 const muted: React.CSSProperties = { fontSize: 11, color: 'rgba(0,0,0,.54)', marginTop: 4 };
@@ -717,7 +717,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
 
       <div style={ { marginBottom: 16 } }>
         <h1 style={ { fontSize: 20, fontWeight: 700, margin: 0 } }>Blog Studio</h1>
-        <p style={ { fontSize: 13, color: '#6b7280', margin: '4px 0 0' } }>
+        <p style={ { fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0' } }>
           PDF and URL intake under the Conversations Content Quality Standard v2.
         </p>
       </div>
@@ -731,7 +731,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
           <button key={ id } onClick={ () => setTab( id ) }
             style={ {
               ...btn,
-              background: tab === id ? '#d1f470' : '#f3f4f6',
+              background: tab === id ? 'var(--lime)' : '#f3f4f6',
               fontWeight: tab === id ? 600 : 400,
             } }>
             { text }
@@ -812,7 +812,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
               } }
               aria-label="Add PDF files"
               style={ {
-                border: `2px dashed ${ dragging ? '#84cc16' : '#e5e7eb' }`,
+                border: `2px dashed ${ dragging ? '#84cc16' : 'var(--border)' }`,
                 background: dragging ? '#f7fee7' : '#fafafa',
                 borderRadius: 10, padding: '28px 16px', textAlign: 'center', cursor: 'pointer',
               } }>
@@ -878,7 +878,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
                 onChange={ ( event ) => setUrlText( event.target.value ) }
                 placeholder={ '# one per line, comments allowed\nhttps://example.com/an-article' }
                 style={ { ...input, fontFamily: 'ui-monospace, monospace', fontSize: 12, resize: 'vertical' } } />
-              <div style={ { fontSize: 11, color: '#6b7280', marginTop: 4 } }>
+              <div style={ { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } }>
                 { urls.length } URL(s) recognised. A URL needs no upload — it is fetched by
                 the worker.
               </div>
@@ -889,7 +889,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
                 disabled={ total === 0 || uploading || hashing }
                 style={ {
                   ...btn,
-                  background: total === 0 || uploading || hashing ? '#f3f4f6' : '#d1f470',
+                  background: total === 0 || uploading || hashing ? '#f3f4f6' : 'var(--lime)',
                   fontWeight: 600,
                 } }>
                 { uploading ? 'Sending…' : `Upload and extract${ total ? ` (${ total })` : '' }` }
@@ -905,7 +905,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
             </div>
             { uploadProgress.total > 0 && (
               <div style={ {
-                marginTop: 12, padding: 10, borderRadius: 8, background: '#f9fafb',
+                marginTop: 12, padding: 10, borderRadius: 8, background: 'var(--bg-secondary)',
                 display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 11,
               } }>
                 <span><strong>{ uploadProgress.total }</strong> selected</span>
@@ -975,7 +975,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
                         <td style={ td }>
                           <div style={ { wordBreak: 'break-all' } }>{ row.sourceRef }</div>
                           { row.sourceTitle && (
-                            <div style={ { color: '#6b7280', fontSize: 11 } }>{ row.sourceTitle }</div>
+                            <div style={ { color: 'var(--text-muted)', fontSize: 11 } }>{ row.sourceTitle }</div>
                           ) }
                           { reviewLink( row ) && (
                             <div>
@@ -1011,7 +1011,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
                               aria-label={ `Propose a draft for ${ row.sourceRef }` }
                               style={ {
                                 ...btn, padding: '2px 8px',
-                                background: aiDraftEnabled ? '#d1f470' : '#f3f4f6',
+                                background: aiDraftEnabled ? 'var(--lime)' : '#f3f4f6',
                               } }>
                               { workingId === row.sourceId ? 'Drafting…' : 'Propose draft' }
                             </button>
@@ -1049,7 +1049,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
               </p>
               { Object.entries( drafts ).map( ( [ sourceId, draft ] ) => (
                 <div key={ sourceId } style={ {
-                  borderTop: '1px solid #e5e7eb', paddingTop: 12, marginTop: 12,
+                  borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12,
                 } }>
                   <div style={ { fontSize: 12, fontWeight: 600, wordBreak: 'break-all' } }>
                     { sourceId }
@@ -1112,7 +1112,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
             <h2 style={ { fontSize: 14, fontWeight: 700, margin: '0 0 8px' } }>
               Bulk path — export a work order instead
             </h2>
-            <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 12px' } }>
+            <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' } }>
               { total === 0
                 ? 'Add at least one source to export a work order.'
                 : `${ files.length } PDF(s) and ${ urls.length } URL(s) selected. ` }
@@ -1132,7 +1132,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
               </button>
             </div>
             <pre style={ {
-              background: '#f9fafb', padding: 12, borderRadius: 8, fontSize: 11, lineHeight: 1.7,
+              background: 'var(--bg-secondary)', padding: 12, borderRadius: 8, fontSize: 11, lineHeight: 1.7,
               margin: '12px 0 0', whiteSpace: 'pre-wrap', color: '#374151',
             } }>{ `python scripts/blog_ingest.py ingest \\
     --work-order ~/Downloads/work-order-<date>.json \\
@@ -1165,7 +1165,7 @@ python scripts/blog_quality_v2.py validate --manifest content/conversations/batc
             <h2 style={ { fontSize: 14, fontWeight: 700, margin: '0 0 4px' } }>
               Which article came from which source
             </h2>
-            <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 12px' } }>
+            <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' } }>
               The CLI path, read from <code>content/conversations/ledger.json</code> at
               build time — a committed file, not an API call, which is why it can hold
               thousands of rows cheaply.
@@ -1176,7 +1176,7 @@ python scripts/blog_quality_v2.py validate --manifest content/conversations/batc
               immediately.
             </p>
             { !ledgerPresent ? (
-              <div style={ { fontSize: 12, color: '#6b7280' } }>
+              <div style={ { fontSize: 12, color: 'var(--text-muted)' } }>
                 No ledger committed yet. It is created by the first{ ' ' }
                 <code>blog_ingest.py ingest</code> run.
               </div>
@@ -1190,7 +1190,7 @@ python scripts/blog_quality_v2.py validate --manifest content/conversations/batc
                 ] as [ string, number ][] ).map( ( [ text, value ] ) => (
                   <div key={ text }>
                     <div style={ { fontSize: 20, fontWeight: 700 } }>{ value }</div>
-                    <div style={ { color: '#6b7280' } }>{ text }</div>
+                    <div style={ { color: 'var(--text-muted)' } }>{ text }</div>
                   </div>
                 ) ) }
               </div>
@@ -1277,7 +1277,7 @@ python scripts/blog_quality_v2.py validate --manifest content/conversations/batc
               <ul style={ { fontSize: 12, color: '#374151', lineHeight: 1.9, paddingLeft: 18, margin: 0 } }>
                 { MACHINE_GATES.map( ( name ) => <li key={ name }><code>{ name }</code></li> ) }
               </ul>
-              <p style={ { fontSize: 11, color: '#6b7280', margin: '10px 0 0', lineHeight: 1.6 } }>
+              <p style={ { fontSize: 11, color: 'var(--text-muted)', margin: '10px 0 0', lineHeight: 1.6 } }>
                 Plus every mechanical clause: provenance and source hash, the length bands,
                 the stock-phrase and self-help detectors, sentence-cadence uniformity,
                 false-biography and unattributed-quotation detection, factual-review flags,

@@ -95,8 +95,8 @@ const RcsSendPageBody: React.FC<PageProps> = ( { embedded } ) => {
             <div style={ { marginBottom: 12 } }>
                 <label style={ { display: 'block', fontWeight: 500, marginBottom: 4 } }>Message Type</label>
                 <div style={ { display: 'flex', gap: 8 } }>
-                    <button onClick={ () => setMessageType( 'template' ) } style={ { padding: '6px 16px', borderRadius: 6, border: messageType === 'template' ? '2px solid #1a3a2a' : '1px solid #d1d5db', background: messageType === 'template' ? '#f0fdf4' : '#fff', cursor: 'pointer' } }>Template</button>
-                    <button onClick={ () => setMessageType( 'text' ) } style={ { padding: '6px 16px', borderRadius: 6, border: messageType === 'text' ? '2px solid #1a3a2a' : '1px solid #d1d5db', background: messageType === 'text' ? '#f0fdf4' : '#fff', cursor: 'pointer' } }>Text</button>
+                    <button onClick={ () => setMessageType( 'template' ) } style={ { padding: '6px 16px', borderRadius: 6, border: messageType === 'template' ? '2px solid var(--accent)' : '1px solid #d1d5db', background: messageType === 'template' ? '#f0fdf4' : '#fff', cursor: 'pointer' } }>Template</button>
+                    <button onClick={ () => setMessageType( 'text' ) } style={ { padding: '6px 16px', borderRadius: 6, border: messageType === 'text' ? '2px solid var(--accent)' : '1px solid #d1d5db', background: messageType === 'text' ? '#f0fdf4' : '#fff', cursor: 'pointer' } }>Text</button>
                 </div>
             </div>
 
@@ -122,7 +122,7 @@ const RcsSendPageBody: React.FC<PageProps> = ( { embedded } ) => {
                 <div style={ { marginBottom: 12 } }>
                     <label style={ { display: 'block', fontWeight: 500, marginBottom: 4 } }>Message Text *</label>
                     <textarea value={ text } onChange={ e => setText( e.target.value ) } placeholder="Enter RCS message..." rows={ 4 } style={ { width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6 } } />
-                    <div style={ { fontSize: 11, color: '#6b7280', marginTop: 4 } }>{ text.length }/2500 characters</div>
+                    <div style={ { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } }>{ text.length }/2500 characters</div>
                 </div>
             ) }
 

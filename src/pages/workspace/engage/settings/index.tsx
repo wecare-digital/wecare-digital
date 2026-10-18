@@ -87,24 +87,24 @@ const SettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
             </div>
             <style jsx>{ `
                 .st-wrap { padding: 20px; max-width: 1000px; margin: 0 auto; }
-                .st-section { font-size: 12px; font-weight: 700; text-transform: uppercase; color: ${colors.textMuted}; margin: 22px 0 10px; }
+                .st-section { font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; color: ${colors.textMuted}; margin: 22px 0 10px; }
                 .st-consent { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
                 .st-consent-card { border: 1px solid ${colors.border}; border-radius: 12px; padding: 14px; background: #fff; }
-                .st-pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 9999px; }
-                .st-consent-num { font-size: 24px; font-weight: 700; color: ${colors.text}; margin: 8px 0 4px; }
+                .st-pill { font-size: var(--text-xs); font-weight: 700; padding: 3px 9px; border-radius: 9999px; }
+                .st-consent-num { font-size: var(--text-3xl); font-weight: 700; color: ${colors.text}; margin: 8px 0 4px; }
                 .st-consent-bar { height: 8px; background: ${colors.bgSecondary}; border-radius: 9999px; overflow: hidden; }
                 .st-consent-bar div { height: 100%; border-radius: 9999px; }
-                .st-consent-pct { font-size: 11px; color: ${colors.textMuted}; margin-top: 4px; }
+                .st-consent-pct { font-size: var(--text-xs); color: ${colors.textMuted}; margin-top: 4px; }
                 .st-senders { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
                 .st-sender { display: flex; flex-direction: column; gap: 2px; border: 1px solid ${colors.border}; border-radius: 10px; padding: 12px; background: #fff; text-decoration: none; }
                 .st-sender:hover { border-color: ${colors.primary}; }
-                .st-sender-ch { font-size: 11px; font-weight: 700; color: ${colors.textMuted}; text-transform: uppercase; }
-                .st-sender-id { font-size: 13px; color: ${colors.text}; }
+                .st-sender-ch { font-size: var(--text-xs); font-weight: 700; color: ${colors.textMuted}; text-transform: uppercase; }
+                .st-sender-id { font-size: var(--text-sm); color: ${colors.text}; }
                 .st-configs { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
                 .st-config { border: 1px solid ${colors.border}; border-radius: 12px; padding: 14px; background: #fff; text-decoration: none; }
                 .st-config:hover { border-color: ${colors.primary}; }
-                .st-config-label { font-size: 14px; font-weight: 700; color: ${colors.text}; }
-                .st-config-desc { font-size: 12px; color: ${colors.textSecondary}; margin: 4px 0 0; }
+                .st-config-label { font-size: var(--text-md); font-weight: 700; color: ${colors.text}; }
+                .st-config-desc { font-size: var(--text-xs); color: ${colors.textSecondary}; margin: 4px 0 0; }
             ` }</style>
         </>
     );

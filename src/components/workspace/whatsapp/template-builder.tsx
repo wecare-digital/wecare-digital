@@ -158,7 +158,7 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
 
             <div style={ { display: 'flex', gap: 4, borderBottom: '1px solid #e5e5e5', marginBottom: 16, flexWrap: 'wrap' } }>
                 { STEPS.map( ( s, i ) => (
-                    <button key={ s } onClick={ () => setStep( i ) } style={ { padding: '8px 12px', border: 'none', borderBottom: step === i ? '2px solid #1a3a2a' : '2px solid transparent', background: 'none', cursor: 'pointer', fontWeight: step === i ? 700 : 500, color: step === i ? '#1a3a2a' : '#888', fontSize: 13 } }>{ i + 1 }. { s }</button>
+                    <button key={ s } onClick={ () => setStep( i ) } style={ { padding: '8px 12px', border: 'none', borderBottom: step === i ? '2px solid var(--accent)' : '2px solid transparent', background: 'none', cursor: 'pointer', fontWeight: step === i ? 700 : 500, color: step === i ? 'var(--accent)' : '#888', fontSize: 13 } }>{ i + 1 }. { s }</button>
                 ) ) }
             </div>
 

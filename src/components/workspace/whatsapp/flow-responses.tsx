@@ -182,12 +182,12 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
   const getStatusBadge = ( status: string ) => {
     const colors: Record<string, string> = {
       pending: '#f59e0b', paid: '#10b981', captured: '#10b981', completed: '#10b981',
-      failed: '#ef4444', expired: '#9ca3af', none: '#6b7280', open: '#3b82f6',
-      in_progress: '#f59e0b', resolved: '#10b981', closed: '#6b7280', cancelled: '#ef4444',
+      failed: '#ef4444', expired: '#9ca3af', none: 'var(--text-muted)', open: '#3b82f6',
+      in_progress: '#f59e0b', resolved: '#10b981', closed: 'var(--text-muted)', cancelled: '#ef4444',
       awaiting_order_verification: '#b45309',
     };
     return (
-      <span style={ { padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, color: '#fff', background: colors[ status ] || '#6b7280' } }>
+      <span style={ { padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, color: '#fff', background: colors[ status ] || 'var(--text-muted)' } }>
         { status === 'awaiting_order_verification' ? 'AWAITING ORDER VERIFICATION' : status?.toUpperCase() || 'UNKNOWN' }
       </span>
     );
@@ -214,7 +214,7 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
         <div style={ { display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' } }>
           { ( [ 'submissions', 'requests', 'logs' ] as const ).map( tab => (
             <button key={ tab } onClick={ () => setActiveSection( tab ) }
-              style={ { padding: '8px 16px', borderRadius: 6, border: activeSection === tab ? '2px solid #1a3a2a' : '1px solid #ddd', background: activeSection === tab ? '#f9fafb' : '#fff', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === tab ? 600 : 400 } }>
+              style={ { padding: '8px 16px', borderRadius: 6, border: activeSection === tab ? '2px solid var(--accent)' : '1px solid #ddd', background: activeSection === tab ? 'var(--bg-secondary)' : '#fff', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === tab ? 600 : 400 } }>
               { tab === 'submissions' ? `Flow Submissions (${submissions.length})` : tab === 'requests' ? `Legacy Requests (${requests.length})` : `Interaction Logs (${logs.length})` }
             </button>
           ) ) }
@@ -250,7 +250,7 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
               <div style={ { overflowX: 'auto' } }>
                 <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
                   <thead>
-                    <tr style={ { borderBottom: '2px solid #e5e7eb', textAlign: 'left' } }>
+                    <tr style={ { borderBottom: '2px solid var(--border)', textAlign: 'left' } }>
                       <th style={ { padding: '8px 10px' } }>Phone</th>
                       <th style={ { padding: '8px 10px' } }>Flow</th>
                       <th style={ { padding: '8px 10px' } }>Ref #</th>
@@ -335,9 +335,9 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
               <p style={ { textAlign: 'center', padding: 40, color: '#666' } }>Loading submit requests...</p>
             ) : requestsError && requests.length === 0 ? (
               <div style={ { textAlign: 'center', padding: 40, color: '#666' } }>
-                <p style={ { fontSize: 16, color: '#1a3a2a' } }>Failed to load requests</p>
+                <p style={ { fontSize: 16, color: 'var(--accent)' } }>Failed to load requests</p>
                 <p style={ { fontSize: 13, marginTop: 8 } }>{ requestsError }</p>
-                <button onClick={ loadRequests } style={ { marginTop: 12, padding: '8px 16px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 } }>Retry</button>
+                <button onClick={ loadRequests } style={ { marginTop: 12, padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 } }>Retry</button>
               </div>
             ) : requests.length === 0 ? (
               <div style={ { textAlign: 'center', padding: 40, color: '#666' } }>
@@ -348,7 +348,7 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
               <div style={ { overflowX: 'auto' } }>
                 <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
                   <thead>
-                    <tr style={ { borderBottom: '2px solid #e5e7eb', textAlign: 'left' } }>
+                    <tr style={ { borderBottom: '2px solid var(--border)', textAlign: 'left' } }>
                       <th style={ { padding: '8px 10px' } }>Phone</th>
                       <th style={ { padding: '8px 10px' } }>Name</th>
                       <th style={ { padding: '8px 10px' } }>Request #</th>
@@ -399,9 +399,9 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
               <p style={ { textAlign: 'center', padding: 40, color: '#666' } }>Loading flow logs...</p>
             ) : logsError && logs.length === 0 ? (
               <div style={ { textAlign: 'center', padding: 40, color: '#666' } }>
-                <p style={ { fontSize: 16, color: '#1a3a2a' } }>Failed to load flow logs</p>
+                <p style={ { fontSize: 16, color: 'var(--accent)' } }>Failed to load flow logs</p>
                 <p style={ { fontSize: 13, marginTop: 8 } }>{ logsError }</p>
-                <button onClick={ loadLogs } style={ { marginTop: 12, padding: '8px 16px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 } }>Retry</button>
+                <button onClick={ loadLogs } style={ { marginTop: 12, padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 } }>Retry</button>
               </div>
             ) : logs.length === 0 ? (
               <div style={ { textAlign: 'center', padding: 40, color: '#666' } }>
@@ -412,7 +412,7 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
               <div style={ { overflowX: 'auto' } }>
                 <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
                   <thead>
-                    <tr style={ { borderBottom: '2px solid #e5e7eb', textAlign: 'left' } }>
+                    <tr style={ { borderBottom: '2px solid var(--border)', textAlign: 'left' } }>
                       <th style={ { padding: '8px 10px' } }>Phone</th>
                       <th style={ { padding: '8px 10px' } }>Action</th>
                       <th style={ { padding: '8px 10px' } }>Screen</th>
@@ -428,7 +428,7 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                         <tr key={ log.id } style={ { borderBottom: '1px solid #f3f4f6' } }>
                           <td style={ { padding: '8px 10px', fontFamily: 'monospace' } }><MaskedPhone value={ log.phone } allowReveal /></td>
                           <td style={ { padding: '8px 10px' } }>
-                            <span style={ { padding: '2px 8px', borderRadius: 4, fontSize: 11, background: log.action === 'INIT' ? '#f9fafb' : log.action === 'data_exchange' ? '#f9fafb' : '#f3f4f6' } }>
+                            <span style={ { padding: '2px 8px', borderRadius: 4, fontSize: 11, background: log.action === 'INIT' ? 'var(--bg-secondary)' : log.action === 'data_exchange' ? 'var(--bg-secondary)' : '#f3f4f6' } }>
                               { log.action }
                             </span>
                           </td>

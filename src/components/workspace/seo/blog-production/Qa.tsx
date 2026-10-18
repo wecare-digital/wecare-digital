@@ -71,7 +71,7 @@ const REVIEW_FLAG_OPTIONS: SelectOption[] = [
    while a native select sized itself to its widest option. */
 const GATE_CHIP_STYLE: React.CSSProperties = {
   fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8,
-  alignItems: 'center', background: '#f9fafb', padding: '6px 10px', borderRadius: 6,
+  alignItems: 'center', background: 'var(--bg-secondary)', padding: '6px 10px', borderRadius: 6,
 };
 const REVIEW_CHIP_STYLE: React.CSSProperties = { ...GATE_CHIP_STYLE, background: '#eff6ff' };
 const GATE_SELECT_STYLE: React.CSSProperties = { flex: '0 0 100px' };
@@ -238,12 +238,12 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
   const body = (
       <div className="inner-page">
         <p style={ { fontSize: 13, margin: '0 0 8px' } }>
-          <Link href="/workspace/seo/blog-production" style={ { color: '#1a3a2a' } }>← Production waves</Link>
+          <Link href="/workspace/seo/blog-production" style={ { color: 'var(--accent)' } }>← Production waves</Link>
           { batchId && (
             <>
               { ' · ' }
               <a href={ `/workspace/seo/blog-production?tab=batch&id=${ encodeURIComponent( batchId ) }` }
-                style={ { color: '#1a3a2a' } }>This wave</a>
+                style={ { color: 'var(--accent)' } }>This wave</a>
             </>
           ) }
         </p>
@@ -259,16 +259,16 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
             { notice }
           </div>
         ) }
-        { loading && <p style={ { color: '#6b7280' } }>Loading…</p> }
+        { loading && <p style={ { color: 'var(--text-muted)' } }>Loading…</p> }
 
         { !sourceId && (
           <div className="card" style={ { overflow: 'auto' } }>
             <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
-              <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 13, color: '#6b7280' } }>
+              <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 13, color: 'var(--text-muted)' } }>
                 { batchId ? 'Sources in this wave' : 'Name a source in the URL, or open one from a wave.' }
               </caption>
               <thead>
-                <tr style={ { borderBottom: '2px solid #e5e7eb' } }>
+                <tr style={ { borderBottom: '2px solid var(--border)' } }>
                   <th scope="col" style={ th }>Source</th>
                   <th scope="col" style={ th }>Article</th>
                   <th scope="col" style={ th }>QA</th>
@@ -287,12 +287,12 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                     <td style={ td }>{ row.pipeline.signedOffBy || '—' }</td>
                     <td style={ td }>
                       <a href={ `/workspace/seo/blog-production?tab=qa&source=${ encodeURIComponent( row.sourceId ) }&batch=${ encodeURIComponent( batchId ) }` }
-                        style={ { color: '#1a3a2a' } }>Review</a>
+                        style={ { color: 'var(--accent)' } }>Review</a>
                     </td>
                   </tr>
                 ) ) }
                 { queue.length === 0 && !loading && (
-                  <tr><td colSpan={ 5 } style={ { padding: 32, textAlign: 'center', color: '#6b7280' } }>
+                  <tr><td colSpan={ 5 } style={ { padding: 32, textAlign: 'center', color: 'var(--text-muted)' } }>
                     Nothing here yet.
                   </td></tr>
                 ) }
@@ -315,7 +315,7 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                       { ' ' }{ run.ranBy } at { run.ranAt }
                     </p>
                   ) : (
-                    <p style={ { fontSize: 13, color: '#6b7280', margin: 0 } }>
+                    <p style={ { fontSize: 13, color: 'var(--text-muted)', margin: 0 } }>
                       No QA run yet. Run one to record what the rules say about this exact version.
                     </p>
                   ) }
@@ -334,7 +334,7 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                   ) }
                 </div>
                 <button onClick={ () => { void runQa(); } } disabled={ busy !== '' }
-                  style={ { padding: '9px 18px', borderRadius: 6, border: '1px solid #1a3a2a', background: '#fff', color: '#1a3a2a', cursor: 'pointer', fontSize: 14 } }>
+                  style={ { padding: '9px 18px', borderRadius: 6, border: '1px solid var(--accent)', background: '#fff', color: 'var(--accent)', cursor: 'pointer', fontSize: 14 } }>
                   { busy === 'qa' ? 'Running…' : run ? 'Run QA again' : 'Run QA' }
                 </button>
               </div>
@@ -412,7 +412,7 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
             { run && !article.releasable && (
               <div className="card" style={ { padding: 16 } }>
                 <h2 style={ { fontSize: 15, margin: '0 0 4px' } }>Sign off</h2>
-                <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 14px', maxWidth: 700 } }>
+                <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 14px', maxWidth: 700 } }>
                   Answering these makes the article RELEASABLE. It does not publish it, and it does
                   not survive an edit to the body.
                 </p>
@@ -444,7 +444,7 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                 </div>
 
                 <h3 style={ { fontSize: 13, margin: '0 0 4px' } }>Declarations (sections 5 and 28)</h3>
-                <p style={ { fontSize: 11, color: '#6b7280', margin: '0 0 8px' } }>
+                <p style={ { fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px' } }>
                   Each must be answered the way the standard requires. Answering one the other way
                   says this article is a duplicate, and it will be refused rather than recorded.
                 </p>
@@ -462,7 +462,7 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                 { ( report?.reviewFlagsRequired || [] ).length > 0 && (
                   <>
                     <h3 style={ { fontSize: 13, margin: '0 0 4px' } }>Factual reviews this body requires (section 20)</h3>
-                    <p style={ { fontSize: 11, color: '#6b7280', margin: '0 0 8px' } }>
+                    <p style={ { fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px' } }>
                       Asked only for the domains this article actually touches.
                     </p>
                     <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 8, marginBottom: 16 } }>
@@ -480,7 +480,7 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
                 <label style={ { fontSize: 13, display: 'block', marginBottom: 12 } }>
                   What you checked and what you are accepting
-                  <span style={ { color: '#6b7280' } }> — at least 40 characters; a signature with
+                  <span style={ { color: 'var(--text-muted)' } }> — at least 40 characters; a signature with
                     no sentence behind it is a click</span>
                   <textarea rows={ 3 } value={ statement }
                     onChange={ event => setStatement( event.target.value ) }
@@ -488,11 +488,11 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                 </label>
 
                 <button onClick={ () => { void signOff(); } } disabled={ busy !== '' || !canSign }
-                  style={ { padding: '9px 18px', borderRadius: 6, border: 'none', background: canSign ? '#1a3a2a' : '#9ca3af', color: '#fff', cursor: canSign ? 'pointer' : 'not-allowed', fontSize: 14 } }>
+                  style={ { padding: '9px 18px', borderRadius: 6, border: 'none', background: canSign ? 'var(--accent)' : '#9ca3af', color: '#fff', cursor: canSign ? 'pointer' : 'not-allowed', fontSize: 14 } }>
                   { busy === 'sign' ? 'Signing…' : 'Sign off' }
                 </button>
                 { !canSign && (
-                  <p style={ { fontSize: 12, color: '#6b7280', margin: '8px 0 0' } }>
+                  <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0' } }>
                     { article.reason }
                   </p>
                 ) }

@@ -42,7 +42,7 @@ const WEBHOOK_FIELDS = [
 const card: React.CSSProperties = { background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, padding: 16, marginBottom: 16 };
 const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, marginTop: 4, marginBottom: 10, fontSize: 14 };
 const label: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#444' };
-const btn: React.CSSProperties = { padding: '9px 16px', background: '#1a3a2a', color: '#d1f470', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 };
+const btn: React.CSSProperties = { padding: '9px 16px', background: 'var(--accent)', color: 'var(--lime)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 };
 
 const BsuidConsole: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
     const toast = useToastContext();

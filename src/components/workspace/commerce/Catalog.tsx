@@ -551,7 +551,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                   <strong>Exact plan hash</strong><br />
                   <code style={{ wordBreak: 'break-all' }}>{metaCatalog.planHash || metaCatalog.currentPlanHash || '—'}</code>
                   {(metaCatalog.blocked?.length || 0) > 0 && (
-                    <span style={{ display: 'block', marginTop: 8, color: '#6b7280' }}>Blocked: {metaCatalog.blocked?.join(', ')}</span>
+                    <span style={{ display: 'block', marginTop: 8, color: 'var(--text-muted)' }}>Blocked: {metaCatalog.blocked?.join(', ')}</span>
                   )}
                 </p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>

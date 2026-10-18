@@ -42,8 +42,8 @@ type SendTab = 'text' | 'template' | 'media' | 'flow' | 'tools' | 'mediamgmt' | 
 const card: React.CSSProperties = { background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, padding: 16, marginBottom: 16 };
 const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, marginTop: 4, marginBottom: 10, fontSize: 14 };
 const label: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#444' };
-const btn: React.CSSProperties = { padding: '9px 16px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 };
-const tabBtn = ( active: boolean ): React.CSSProperties => ( { padding: '8px 14px', border: 'none', borderBottom: active ? '2px solid #1a1a1a' : '2px solid transparent', background: 'none', cursor: 'pointer', fontWeight: active ? 700 : 500, color: active ? '#1a1a1a' : '#777' } );
+const btn: React.CSSProperties = { padding: '9px 16px', background: 'var(--text)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 };
+const tabBtn = ( active: boolean ): React.CSSProperties => ( { padding: '8px 14px', border: 'none', borderBottom: active ? '2px solid var(--text)' : '2px solid transparent', background: 'none', cursor: 'pointer', fontWeight: active ? 700 : 500, color: active ? 'var(--text)' : '#777' } );
 /** Layout only: the two margins the shared `input` object carried. */
 const selectLayout: React.CSSProperties = { marginTop: 4, marginBottom: 10 };
 
@@ -359,7 +359,7 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                         </div>
                         <button style={ btn } onClick={ runValidateTtl }>Validate TTL</button>
                         { ttlResult && (
-                            <div style={ { marginTop: 10, fontSize: 13, color: ttlResult.ok ? '#1a3a2a' : '#a11' } }>
+                            <div style={ { marginTop: 10, fontSize: 13, color: ttlResult.ok ? 'var(--accent)' : '#a11' } }>
                                 { ttlResult.ok ? `Valid — ${ttlResult.human}` : ttlResult.error }
                                 { ttlResult.warnings?.map( ( w, i ) => <div key={ i } style={ { color: '#a60' } }>{ w }</div> ) }
                             </div>
@@ -378,7 +378,7 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                         <button style={ btn } onClick={ runValidateTemplate }>Validate template</button>
                         { validateResult && (
                             <div style={ { marginTop: 10, fontSize: 13 } }>
-                                <div style={ { color: validateResult.ok ? '#1a3a2a' : '#a11', fontWeight: 600 } }>{ validateResult.ok ? 'Valid' : 'Invalid' }</div>
+                                <div style={ { color: validateResult.ok ? 'var(--accent)' : '#a11', fontWeight: 600 } }>{ validateResult.ok ? 'Valid' : 'Invalid' }</div>
                                 { validateResult.errors?.map( ( e, i ) => <div key={ i } style={ { color: '#a11' } }>• { e }</div> ) }
                                 { validateResult.warnings?.map( ( w, i ) => <div key={ i } style={ { color: '#a60' } }>⚠ { w }</div> ) }
                             </div>
@@ -393,7 +393,7 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                         <h3 style={ { marginTop: 0, fontSize: 15 } }>Upload media (single request)</h3>
                         <input style={ input } type="file" onChange={ e => setMmFile( e.target.files?.[ 0 ] || null ) } />
                         <button style={ btn } disabled={ busy } onClick={ uploadMedia }>Upload</button>
-                        { mmUploadedId && <div style={ { marginTop: 8, fontSize: 12, color: '#1a3a2a' } }>Media ID: { mmUploadedId }</div> }
+                        { mmUploadedId && <div style={ { marginTop: 8, fontSize: 12, color: 'var(--accent)' } }>Media ID: { mmUploadedId }</div> }
                     </div>
 
                     <div style={ card }>
@@ -438,7 +438,7 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                         <button style={ btn } disabled={ busy } onClick={ submitFlowAsset }>Upload asset</button>
                         { faAssetResult && (
                             <div style={ { marginTop: 10, fontSize: 13 } }>
-                                <div style={ { color: faAssetResult.hasErrors ? '#a11' : '#1a3a2a', fontWeight: 600 } }>{ faAssetResult.hasErrors ? 'Validation errors' : 'Uploaded' }</div>
+                                <div style={ { color: faAssetResult.hasErrors ? '#a11' : 'var(--accent)', fontWeight: 600 } }>{ faAssetResult.hasErrors ? 'Validation errors' : 'Uploaded' }</div>
                                 { ( faAssetResult.validationErrors || [] ).map( ( v: any, i: number ) => <div key={ i } style={ { color: '#a11' } }>• { typeof v === 'string' ? v : JSON.stringify( v ) }</div> ) }
                             </div>
                         ) }
@@ -470,7 +470,7 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                         <input style={ input } value={ faSyncWaba } onChange={ e => setFaSyncWaba( e.target.value ) } />
                         <button style={ btn } disabled={ busy } onClick={ runSync }>Sync from Meta</button>
                         { faSyncResult && faSyncResult.success && (
-                            <div style={ { marginTop: 10, fontSize: 13, color: '#1a3a2a' } }>Synced { faSyncResult.synced }/{ faSyncResult.total } flows</div>
+                            <div style={ { marginTop: 10, fontSize: 13, color: 'var(--accent)' } }>Synced { faSyncResult.synced }/{ faSyncResult.total } flows</div>
                         ) }
                     </div>
                 </>

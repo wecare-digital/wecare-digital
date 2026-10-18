@@ -201,15 +201,15 @@ const WorkspacePage: React.FC<PageProps> = ({ signOut, user }) => {
           flex-shrink: 0;
         }
         .ws-text { display: block; flex: 1; min-width: 0; }
-        .ws-label { display: block; font-size: 15px; font-weight: 600; color: var(--text); }
-        .ws-desc { display: block; font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+        .ws-label { display: block; font-size: var(--text-md); font-weight: 600; color: var(--text); }
+        .ws-desc { display: block; font-size: var(--text-xs); color: var(--text-muted); margin-top: 1px; }
         .ws-chev { flex-shrink: 0; }
 
         @media (max-width: 768px) {
           .ws-grid { grid-template-columns: 1fr; gap: 8px; }
           .ws-btn { padding: 16px; min-height: 60px; }
-          .ws-label { font-size: 16px; }
-          .ws-desc { font-size: 13px; }
+          .ws-label { font-size: var(--text-base); }
+          .ws-desc { font-size: var(--text-sm); }
           .ws-icon { width: 44px; height: 44px; }
         }
         @media (max-width: 480px) {

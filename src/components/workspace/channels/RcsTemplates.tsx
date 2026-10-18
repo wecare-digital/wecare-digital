@@ -92,7 +92,7 @@ const RcsTemplatesPageBody: React.FC<PageProps> = ( { embedded } ) => {
             {/* Header */ }
             <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } }>
                 <div>
-                    <div style={ { fontSize: 11, color: '#6b7280' } }>Bot: WECARE.DIGITAL (Transactional) | ID: 69e0b2c980cbf50614ffa5fd</div>
+                    <div style={ { fontSize: 11, color: 'var(--text-muted)' } }>Bot: WECARE.DIGITAL (Transactional) | ID: 69e0b2c980cbf50614ffa5fd</div>
                 </div>
                 <div style={ { display: 'flex', gap: 8 } }>
                     <Button variant="primary" onClick={ () => setShowCreate( true ) }>Create Template</Button>
@@ -101,26 +101,26 @@ const RcsTemplatesPageBody: React.FC<PageProps> = ( { embedded } ) => {
             </div>
 
             {/* Templates List */ }
-            { loading ? <div style={ { padding: 40, textAlign: 'center', color: '#6b7280' } }>Loading templates...</div> : (
+            { loading ? <div style={ { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }>Loading templates...</div> : (
                 <div style={ { display: 'grid', gap: 12 } }>
                     { templates.map( ( tpl, i ) => (
-                        <div key={ i } style={ { border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, background: '#fff' } }>
+                        <div key={ i } style={ { border: '1px solid var(--border)', borderRadius: 8, padding: 16, background: '#fff' } }>
                             <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' } }>
                                 <div>
                                     <div style={ { fontWeight: 600, fontSize: 14 } }>{ tpl.name }</div>
-                                    <div style={ { fontSize: 12, color: '#6b7280', marginTop: 2 } }>Type: { tpl.type } { tpl.createdViaApi ? '(API)' : '' }</div>
+                                    <div style={ { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } }>Type: { tpl.type } { tpl.createdViaApi ? '(API)' : '' }</div>
                                 </div>
                                 <span style={ { padding: '2px 8px', borderRadius: 4, fontSize: 11, background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' } }>Active</span>
                             </div>
                             { tpl.textMessageContent && (
-                                <div style={ { marginTop: 8, padding: 10, background: '#f9fafb', borderRadius: 6, fontSize: 13, whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto' } }>
+                                <div style={ { marginTop: 8, padding: 10, background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 13, whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto' } }>
                                     { tpl.textMessageContent }
                                 </div>
                             ) }
                         </div>
                     ) ) }
                     { templates.length === 0 && (
-                        <div style={ { padding: 40, textAlign: 'center', color: '#6b7280', background: '#f9fafb', borderRadius: 8 } }>
+                        <div style={ { padding: 40, textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderRadius: 8 } }>
                             No templates found. Click &quot;Create Template&quot; to add one.
                         </div>
                     ) }
@@ -137,7 +137,7 @@ const RcsTemplatesPageBody: React.FC<PageProps> = ( { embedded } ) => {
                         <div style={ { marginBottom: 12 } }>
                             <label style={ { display: 'block', fontWeight: 500, marginBottom: 4, fontSize: 13 } }>Template Name *</label>
                             <input type="text" value={ newName } onChange={ e => setNewName( e.target.value ) } placeholder="wecare_order_confirm" style={ { width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6 } } />
-                            <div style={ { fontSize: 11, color: '#6b7280', marginTop: 2 } }>Lowercase, underscores only. e.g. wecare_order_confirm</div>
+                            <div style={ { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }>Lowercase, underscores only. e.g. wecare_order_confirm</div>
                         </div>
 
                         {/* Type */ }
@@ -145,9 +145,9 @@ const RcsTemplatesPageBody: React.FC<PageProps> = ( { embedded } ) => {
                             <label style={ { display: 'block', fontWeight: 500, marginBottom: 4, fontSize: 13 } }>Template Type *</label>
                             <div style={ { display: 'flex', gap: 8, flexWrap: 'wrap' } }>
                                 { TEMPLATE_TYPES.map( t => (
-                                    <button key={ t.id } onClick={ () => setNewType( t.id ) } style={ { padding: '8px 14px', borderRadius: 6, border: newType === t.id ? '2px solid #1a3a2a' : '1px solid #d1d5db', background: newType === t.id ? '#f0fdf4' : '#fff', cursor: 'pointer', textAlign: 'left' } }>
+                                    <button key={ t.id } onClick={ () => setNewType( t.id ) } style={ { padding: '8px 14px', borderRadius: 6, border: newType === t.id ? '2px solid var(--accent)' : '1px solid #d1d5db', background: newType === t.id ? '#f0fdf4' : '#fff', cursor: 'pointer', textAlign: 'left' } }>
                                         <div style={ { fontWeight: 500, fontSize: 13 } }>{ t.label }</div>
-                                        <div style={ { fontSize: 11, color: '#6b7280' } }>{ t.desc }</div>
+                                        <div style={ { fontSize: 11, color: 'var(--text-muted)' } }>{ t.desc }</div>
                                     </button>
                                 ) ) }
                             </div>
@@ -156,9 +156,9 @@ const RcsTemplatesPageBody: React.FC<PageProps> = ( { embedded } ) => {
                         {/* Text Message Content */ }
                         { newType === 'text_message' && (
                             <div style={ { marginBottom: 12 } }>
-                                <label style={ { display: 'block', fontWeight: 500, marginBottom: 4, fontSize: 13 } }>Message Text * <span style={ { fontWeight: 400, color: '#6b7280' } }>(max 2500 chars)</span></label>
+                                <label style={ { display: 'block', fontWeight: 500, marginBottom: 4, fontSize: 13 } }>Message Text * <span style={ { fontWeight: 400, color: 'var(--text-muted)' } }>(max 2500 chars)</span></label>
                                 <textarea value={ newText } onChange={ e => setNewText( e.target.value ) } placeholder="Hi [custom_param1b], your order has been confirmed. Thank you!" rows={ 5 } style={ { width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6 } } />
-                                <div style={ { fontSize: 11, color: '#6b7280', marginTop: 2 } }>{ newText.length }/2500 · Use [custom_param1b], [custom_param2b] for variables</div>
+                                <div style={ { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }>{ newText.length }/2500 · Use [custom_param1b], [custom_param2b] for variables</div>
                             </div>
                         ) }
 
@@ -189,7 +189,7 @@ const RcsTemplatesPageBody: React.FC<PageProps> = ( { embedded } ) => {
                             <div style={ { marginBottom: 12 } }>
                                 <label style={ { display: 'block', fontWeight: 500, marginBottom: 4, fontSize: 13 } }>Carousel JSON (array of cards)</label>
                                 <textarea value={ newText } onChange={ e => setNewText( e.target.value ) } placeholder='[{"title":"Card 1","description":"...","media":{"url":"https://...","type":"image"}}]' rows={ 6 } style={ { width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontFamily: 'monospace', fontSize: 12 } } />
-                                <div style={ { fontSize: 11, color: '#6b7280', marginTop: 2 } }>Max 10 cards. Each card: title, description, media (url + type), buttons</div>
+                                <div style={ { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }>Max 10 cards. Each card: title, description, media (url + type), buttons</div>
                             </div>
                         ) }
 

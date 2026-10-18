@@ -34,9 +34,9 @@ function useAutoRefresh ( intervalMs = 60000 ) {
 
 // ─── Design Tokens ───
 const C = {
-  bg: '#fff', bgSoft: '#f9fafb', bgDark: '#1a3a2a', lime: '#d1f470', limeDark: '#b8dc5a',
-  text: '#374151', textDark: '#1a3a2a', textMuted: '#6b7280', textLight: '#9ca3af',
-  border: '#f3f4f6', borderActive: '#d1f470',
+  bg: '#fff', bgSoft: 'var(--bg-secondary)', bgDark: 'var(--accent)', lime: 'var(--lime)', limeDark: '#b8dc5a',
+  text: '#374151', textDark: 'var(--accent)', textMuted: 'var(--text-muted)', textLight: '#9ca3af',
+  border: '#f3f4f6', borderActive: 'var(--lime)',
   green: '#059669', greenBg: '#f0fdf4', red: '#dc2626', redBg: '#fef2f2',
   amber: '#d97706', amberBg: '#fffbeb', blue: '#2563eb', blueBg: '#eff6ff',
   radius: 13, radiusSm: 10,
@@ -796,7 +796,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
               <span style={ { color: C.red, fontSize: 10, marginTop: 4, flexShrink: 0 } }>●</span>
               <div>
                 <span style={ { fontWeight: 600, color: C.textDark } }>{ r.title }</span>
-                <span style={ { ...pill( '#f9fafb', C.textMuted ), marginLeft: 6 } }>{ r.category }</span>
+                <span style={ { ...pill( 'var(--bg-secondary)', C.textMuted ), marginLeft: 6 } }>{ r.category }</span>
                 <div style={ { fontSize: 12, color: C.textMuted, marginTop: 2 } }>{ r.description.slice( 0, 120 ) }...</div>
               </div>
             </div>
@@ -847,7 +847,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
               { CUSTOMERSERVICE_MENU.map( m => (
                 <tr key={ m.row } style={ { borderBottom: `1px solid ${C.border}` } }>
                   <td style={ { padding: '8px 10px', color: C.textMuted, fontWeight: 600 } }>{ m.row }</td>
-                  <td style={ { padding: '8px 10px' } }><span style={ pill( '#f9fafb', C.textMuted ) }>{ m.section }</span></td>
+                  <td style={ { padding: '8px 10px' } }><span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ m.section }</span></td>
                   <td style={ { padding: '8px 10px', fontWeight: 600, color: C.textDark } }>{ m.icon } { m.title }</td>
                   <td style={ { padding: '8px 10px', color: C.text } }>{ m.description }</td>
                   <td style={ { padding: '8px 10px', ...mono, fontSize: 11, color: C.textMuted } }>{ m.flowId }</td>
@@ -937,7 +937,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
             <div style={ { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 } }>
               <span style={ { width: 8, height: 8, borderRadius: '50%', background: cat.color } } />
               <span style={ { fontSize: 14, fontWeight: 700, color: C.textDark } }>{ cat.title }</span>
-              <span style={ pill( '#f9fafb', C.textMuted ) }>{ cat.count }</span>
+              <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ cat.count }</span>
             </div>
             <div style={ { display: 'flex', flexDirection: 'column', gap: 4 } }>
               { cat.items.map( item => (
@@ -1009,7 +1009,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
             <div style={ { flex: 1 } }>
               <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }>
                 <span style={ { fontSize: 14, fontWeight: 600, color: C.textDark } }>{ fn.name }</span>
-                <span style={ pill( '#f9fafb', C.textMuted ) }>{ fn.category }</span>
+                <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ fn.category }</span>
                 { fn.apiRoute !== '-' && <span style={ { ...pill( C.greenBg, C.green ), ...mono } }>{ fn.apiRoute }</span> }
               </div>
               <p style={ { margin: '4px 0 0', fontSize: 12, color: C.textMuted } }>{ fn.description }</p>
@@ -1057,7 +1057,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
                 <td style={ { padding: '10px 12px' } }>{ t.ttl ? <span style={ pill( C.amberBg, C.amber ) }>{ t.ttl }</span> : <span style={ { color: C.textLight } }>—</span> }</td>
                 <td style={ { padding: '10px 12px', ...mono, color: C.textMuted, fontSize: 11 } }>{ t.indexes }</td>
                 <td style={ { padding: '10px 12px', ...mono, color: C.textMuted, fontSize: 11 } }>{ t.usedBy }</td>
-                <td style={ { padding: '10px 12px' } }><span style={ pill( '#f9fafb', C.textMuted ) }>{ t.category }</span></td>
+                <td style={ { padding: '10px 12px' } }><span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ t.category }</span></td>
               </tr>
             ) ) }
           </tbody>
@@ -1091,7 +1091,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
                 <td style={ { padding: '10px 12px', fontWeight: 600, color: C.textDark, ...mono, fontSize: 12 } }>{ r.name }</td>
                 <td style={ { padding: '10px 12px' } }><span style={ pill( C.blueBg, C.blue ) }>{ r.type }</span></td>
                 <td style={ { padding: '10px 12px', color: C.text, maxWidth: 250 } }>{ r.purpose }</td>
-                <td style={ { padding: '10px 12px' } }><span style={ pill( '#f9fafb', C.textMuted ) }>{ r.module }</span></td>
+                <td style={ { padding: '10px 12px' } }><span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ r.module }</span></td>
                 <td style={ { padding: '10px 12px' } }><span style={ pill( C.greenBg, C.green ) }>{ r.env }</span></td>
                 <td style={ { padding: '10px 12px' } }><span style={ { color: C.green, fontSize: 10 } }>● </span>{ r.status }</td>
               </tr>
@@ -1201,7 +1201,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
 
     const renderTreeNode = ( node: any, depth = 0 ): React.ReactNode => (
       <div key={ node.name } style={ { marginLeft: depth * 20, marginBottom: 4 } }>
-        <div style={ { display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 6, background: depth === 0 ? C.bgDark : depth === 1 ? '#f9fafb' : 'transparent', color: depth === 0 ? C.lime : C.text, fontSize: depth <= 1 ? 13 : 12, fontWeight: depth <= 1 ? 600 : 400 } }>
+        <div style={ { display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 6, background: depth === 0 ? C.bgDark : depth === 1 ? 'var(--bg-secondary)' : 'transparent', color: depth === 0 ? C.lime : C.text, fontSize: depth <= 1 ? 13 : 12, fontWeight: depth <= 1 ? 600 : 400 } }>
           { node.children && <span style={ { fontSize: 10 } }>▸</span> }
           { node.name }
         </div>
@@ -1262,7 +1262,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
               <div style={ { fontSize: 12, color: C.textMuted, marginTop: 4 } }>{ q.purpose }</div>
               <div style={ { display: 'flex', gap: 6, marginTop: 6 } }>
                 <span style={ pill( C.amberBg, C.amber ) }>Retention: { q.retention }</span>
-                <span style={ pill( '#f9fafb', C.textMuted ) }>Visibility: { q.visibility }</span>
+                <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>Visibility: { q.visibility }</span>
               </div>
             </div>
           ) ) }
@@ -1293,7 +1293,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
                 <td style={ { padding: '10px 12px', fontWeight: 600, color: C.textDark, ...mono } }>{ c.path }</td>
                 <td style={ { padding: '10px 12px', color: C.text } }>{ c.purpose }</td>
                 <td style={ { padding: '10px 12px', color: C.textMuted } }>{ c.files }</td>
-                <td style={ { padding: '10px 12px' } }><span style={ pill( '#f9fafb', C.textMuted ) }>{ c.linkedTo }</span></td>
+                <td style={ { padding: '10px 12px' } }><span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ c.linkedTo }</span></td>
               </tr>
             ) ) }
           </tbody>
@@ -1327,11 +1327,11 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
             <div key={ i } style={ card() }>
               <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }>
                 <span style={ pill(
-                  r.type === 'Table' ? C.blueBg : r.type === 'Lambda' ? C.greenBg : r.type === 'AWS' ? C.amberBg : r.type === 'Risk' ? C.redBg : '#f9fafb',
+                  r.type === 'Table' ? C.blueBg : r.type === 'Lambda' ? C.greenBg : r.type === 'AWS' ? C.amberBg : r.type === 'Risk' ? C.redBg : 'var(--bg-secondary)',
                   r.type === 'Table' ? C.blue : r.type === 'Lambda' ? C.green : r.type === 'AWS' ? C.amber : r.type === 'Risk' ? C.red : C.textMuted
                 ) }>{ r.type }</span>
                 <span style={ { fontSize: 14, fontWeight: 600, color: C.textDark } }>{ r.name }</span>
-                <span style={ pill( '#f9fafb', C.textMuted ) }>{ r.category }</span>
+                <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ r.category }</span>
               </div>
               <p style={ { margin: '6px 0 0', fontSize: 12, color: C.textMuted } }>{ r.detail }</p>
             </div>
@@ -1377,7 +1377,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           <span style={ pill( C.redBg, C.red ) }>No staging detected</span>
           <span style={ pill( C.redBg, C.red ) }>No dev detected</span>
           <span style={ pill( C.redBg, C.red ) }>{ ENV_VARS.filter( e => e.risk ).length } issues found</span>
-          <span style={ pill( '#f9fafb', C.textMuted ) }>Values permanently redacted</span>
+          <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>Values permanently redacted</span>
         </div>
         <p style={ { fontSize: 13, color: C.textMuted, margin: 0 } }>Inventory contains variable names and risk metadata only. Secret values are never embedded in or revealed by the browser.</p>
       </div>
@@ -1398,7 +1398,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
                   <td style={ { padding: '10px 12px', fontWeight: 600, color: C.textDark, ...mono, fontSize: 12 } }>{ e.key }</td>
                   <td style={ { padding: '10px 12px', ...mono, color: e.sensitive ? C.amber : C.textMuted, fontSize: 12, wordBreak: 'break-all', maxWidth: 340 } }>{ displayValue }</td>
                   <td style={ { padding: '4px 6px', width: 36 } } />
-                  <td style={ { padding: '10px 12px' } }><span style={ pill( e.category.includes( 'Hardcoded' ) ? C.redBg : e.category.includes( '✓' ) ? C.greenBg : '#f9fafb', e.category.includes( 'Hardcoded' ) ? C.red : e.category.includes( '✓' ) ? C.green : C.textMuted ) }>{ e.category }</span></td>
+                  <td style={ { padding: '10px 12px' } }><span style={ pill( e.category.includes( 'Hardcoded' ) ? C.redBg : e.category.includes( '✓' ) ? C.greenBg : 'var(--bg-secondary)', e.category.includes( 'Hardcoded' ) ? C.red : e.category.includes( '✓' ) ? C.green : C.textMuted ) }>{ e.category }</span></td>
                   <td style={ { padding: '10px 12px' } }>{ e.sensitive ? <span style={ pill( C.amberBg, C.amber ) }>Sensitive</span> : <span style={ { color: C.textLight } }>—</span> }</td>
                   <td style={ { padding: '10px 12px', fontSize: 12, color: e.risk?.startsWith( 'CRITICAL' ) ? C.red : C.amber, fontWeight: e.risk ? 600 : 400 } }>{ e.risk || <span style={ { color: C.textLight } }>—</span> }</td>
                 </tr>
@@ -1434,7 +1434,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
               <span style={ { fontSize: 14, fontWeight: 600, color: C.textDark } }>{ log.title }</span>
             </div>
             <div style={ { display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' } }>
-              <span style={ pill( '#f9fafb', C.textMuted ) }>{ log.source }</span>
+              <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ log.source }</span>
               <span style={ pill( C.amberBg, C.amber ) }>{ log.retention }</span>
             </div>
             <p style={ { fontSize: 12, color: C.textMuted, margin: 0 } }>{ log.detail }</p>
@@ -1470,7 +1470,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
               <tr key={ d.name } style={ { borderBottom: `1px solid ${C.border}` } }>
                 <td style={ { padding: '10px 12px', fontWeight: 600, color: C.textDark, ...mono } }>{ d.name }</td>
                 <td style={ { padding: '10px 12px', ...mono, color: C.textMuted } }>{ d.version }</td>
-                <td style={ { padding: '10px 12px' } }><span style={ pill( d.type === 'prod' ? C.blueBg : '#f9fafb', d.type === 'prod' ? C.blue : C.textMuted ) }>{ d.type }</span></td>
+                <td style={ { padding: '10px 12px' } }><span style={ pill( d.type === 'prod' ? C.blueBg : 'var(--bg-secondary)', d.type === 'prod' ? C.blue : C.textMuted ) }>{ d.type }</span></td>
                 <td style={ { padding: '10px 12px' } }>
                   <span style={ pill(
                     d.status === 'ok' ? C.greenBg : d.status === 'warning' ? C.amberBg : C.redBg,
@@ -1504,7 +1504,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
               r.priority === 'Critical' ? C.red : r.priority === 'Important' ? C.amber : C.blue
             ) }>{ r.priority }</span>
             <span style={ { fontSize: 14, fontWeight: 600, color: C.textDark } }>{ r.title }</span>
-            <span style={ pill( '#f9fafb', C.textMuted ) }>{ r.category }</span>
+            <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ r.category }</span>
           </div>
           <p style={ { margin: '8px 0 0', fontSize: 13, color: C.text } }>{ r.description }</p>
         </div>
@@ -1531,7 +1531,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
               imp.priority === 'Critical' ? C.red : imp.priority === 'Important' ? C.amber : C.blue
             ) }>{ imp.priority }</span>
             <span style={ { fontSize: 14, fontWeight: 600, color: C.textDark } }>{ imp.title }</span>
-            <span style={ pill( '#f9fafb', C.textMuted ) }>{ imp.category }</span>
+            <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ imp.category }</span>
           </div>
           <p style={ { margin: '8px 0 0', fontSize: 13, color: C.text } }>{ imp.description }</p>
         </div>
@@ -1571,7 +1571,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
               <div style={ { flex: 1 } }>
                 <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }>
                   <span style={ { fontSize: 14, fontWeight: 600, color: C.textDark } }>{ fn.displayName }</span>
-                  <span style={ pill( '#f9fafb', C.textMuted ) }>{ fn.category }</span>
+                  <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ fn.category }</span>
                   { fn.apiRoute && fn.apiRoute !== '-' && <span style={ { ...pill( C.greenBg, C.green ), ...mono } }>{ fn.apiRoute }</span> }
                 </div>
                 <p style={ { margin: '4px 0 0', fontSize: 12, color: C.textMuted } }>{ fn.description }</p>
@@ -1586,7 +1586,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
                   <div style={ { padding: '10px 12px', background: C.bgSoft, borderRadius: C.radiusSm } }><div style={ label }>Memory</div><div style={ { fontSize: 13, fontWeight: 600, color: C.text, marginTop: 2 } }>{ fn.memory } MB</div></div>
                   <div style={ { padding: '10px 12px', background: C.bgSoft, borderRadius: C.radiusSm } }><div style={ label }>Status</div><div style={ { fontSize: 13, fontWeight: 600, color: C.green, marginTop: 2 } }>{ fn.status }</div></div>
                 </div>
-                <div style={ { marginBottom: 10 } }><div style={ label }>Triggers</div><div style={ { display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 } }>{ fn.triggers.map( t => <span key={ t } style={ pill( '#f9fafb', C.text ) }>{ t }</span> ) }</div></div>
+                <div style={ { marginBottom: 10 } }><div style={ label }>Triggers</div><div style={ { display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 } }>{ fn.triggers.map( t => <span key={ t } style={ pill( 'var(--bg-secondary)', C.text ) }>{ t }</span> ) }</div></div>
                 { Object.keys( fn.envVars ).length > 0 && (
                   <div><div style={ label }>Environment Variables</div><div style={ { background: C.bgSoft, borderRadius: C.radiusSm, padding: 10, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 } }>
                     { Object.entries( fn.envVars ).map( ( [ k, v ] ) => (
@@ -1629,7 +1629,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
             <span style={ pill( asset.type === 'Flow JSON' ? C.lime : C.bgSoft, C.textDark ) }>{ asset.type }</span>
             <span style={ { fontSize: 14, fontWeight: 600, color: C.textDark } }>{ asset.name }</span>
             { asset.status && <span style={ pill( asset.status === 'Published' ? C.greenBg : C.amberBg, asset.status === 'Published' ? C.green : C.amber ) }>{ asset.status }</span> }
-            <span style={ pill( '#f9fafb', C.textMuted ) }>{ asset.category }</span>
+            <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ asset.category }</span>
           </div>
           <p style={ { margin: '4px 0 0', fontSize: 12, color: C.textMuted } }>{ asset.description }</p>
           { expandedAsset === asset.id && (

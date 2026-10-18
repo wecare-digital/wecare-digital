@@ -233,7 +233,7 @@ const SEOTools: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const body = (
       <div className="inner-page" style={ embedded ? { padding: 0 } : undefined }>
         <h1 className="inner-page-title">SEO Tools</h1>
-        <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 24 }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
           Run public-site SEO checks and operations. Blog content is AWS-native; the frontend is a static Amplify export.
         </p>
 
@@ -242,7 +242,7 @@ const SEOTools: React.FC<PageProps> = ({ signOut, user, embedded }) => {
             <div key={t.id} className="card" style={{ padding: '16px 20px' }}>
               <div style={{ marginBottom: 8 }}>
                 <div style={{ fontSize: 15, fontWeight: 600 }}>{t.icon} {t.label}</div>
-                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{t.desc}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{t.desc}</div>
               </div>
               <button
                 className="btn btn-primary"

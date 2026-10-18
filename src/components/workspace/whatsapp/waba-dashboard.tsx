@@ -29,7 +29,7 @@ interface PageProps {
 const QUALITY_COLORS: Record<string, string> = {
   GREEN: '#000',
   YELLOW: '#4a4a4a',
-  RED: '#1a3a2a',
+  RED: 'var(--accent)',
   UNKNOWN: '#6b6b6b',
 };
 
@@ -235,8 +235,8 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
           <div className="loading-state">Loading WABA data...</div>
         ) : loadError && wabas.length === 0 ? (
           <div className="loading-state">
-            <p style={{ color: '#1a3a2a', marginBottom: 8 }}>{loadError}</p>
-            <button onClick={loadData} style={{ padding: '8px 16px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Retry</button>
+            <p style={{ color: 'var(--accent)', marginBottom: 8 }}>{loadError}</p>
+            <button onClick={loadData} style={{ padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Retry</button>
           </div>
         ) : (
           <div className="dashboard-content">
@@ -606,7 +606,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
 
         h1 {
           margin: 0;
-          font-size: 24px;
+          font-size: var(--text-3xl);
         }
 
         .refresh-btn {
@@ -644,7 +644,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
           padding: 10px 16px;
           border: 1px solid #ddd;
           border-radius: 8px;
-          font-size: 14px;
+          font-size: var(--text-md);
           min-width: 300px;
         }
 
@@ -664,7 +664,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
           padding: 10px 20px;
           cursor: pointer;
           border-radius: 13px;
-          font-size: 14px;
+          font-size: var(--text-md);
           color: #000;
           position: relative;
           z-index: 11;
@@ -690,7 +690,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
 
         .info-card h3 {
           margin: 0 0 16px 0;
-          font-size: 16px;
+          font-size: var(--text-base);
           color: #333;
         }
 
@@ -707,19 +707,19 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
         }
 
         .info-item .label {
-          font-size: 12px;
+          font-size: var(--text-xs);
           color: #666;
           text-transform: uppercase;
         }
 
         .info-item .value {
-          font-size: 14px;
+          font-size: var(--text-md);
           font-weight: 500;
         }
 
         .info-item .value.code {
           font-family: monospace;
-          font-size: 12px;
+          font-size: var(--text-xs);
           background: #f5f5f5;
           padding: 4px 8px;
           border-radius: 4px;
@@ -730,7 +730,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
         }
 
         .info-item .value.disabled {
-          color: #1a3a2a;
+          color: var(--accent);
         }
 
         .phone-numbers-section h3 {
@@ -764,7 +764,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
         .quality-badge {
           padding: 4px 12px;
           border-radius: 20px;
-          font-size: 12px;
+          font-size: var(--text-xs);
           color: white;
         }
 
@@ -785,7 +785,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
         .phone-details .detail {
           display: flex;
           justify-content: space-between;
-          font-size: 12px;
+          font-size: var(--text-xs);
         }
 
         .phone-details .label {
@@ -839,7 +839,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
 
         .events-card h3 {
           margin: 0 0 16px 0;
-          font-size: 16px;
+          font-size: var(--text-base);
         }
 
         .events-list {
@@ -879,7 +879,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
         }
 
         .event-details {
-          font-size: 12px;
+          font-size: var(--text-xs);
           color: #666;
         }
 
@@ -892,7 +892,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
         }
 
         .event-time {
-          font-size: 11px;
+          font-size: var(--text-xs);
           color: #999;
           margin-top: 4px;
         }
@@ -919,18 +919,18 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
           display: inline-block;
           padding: 4px 14px;
           border-radius: 20px;
-          font-size: 12px;
+          font-size: var(--text-xs);
           font-weight: 600;
         }
 
         .sns-badge.active {
-          background: #d1f470;
-          color: #1a3a2a;
+          background: var(--lime);
+          color: var(--accent);
         }
 
         .sns-badge.inactive {
           background: #f3f4f6;
-          color: #6b7280;
+          color: var(--text-muted);
         }
 
         .sns-dest-item {
@@ -938,7 +938,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
           flex-direction: column;
           gap: 4px;
           padding: 8px 12px;
-          background: #f9fafb;
+          background: var(--bg-secondary);
           border-radius: 6px;
           margin-bottom: 6px;
         }
@@ -956,7 +956,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
         }
 
         .sns-field label {
-          font-size: 13px;
+          font-size: var(--text-sm);
           font-weight: 500;
           color: #374151;
         }
@@ -965,18 +965,18 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
           padding: 10px 14px;
           border: 1px solid #d1d5db;
           border-radius: 8px;
-          font-size: 13px;
+          font-size: var(--text-sm);
           font-family: monospace;
         }
 
         .sns-field input:focus {
           outline: none;
-          border-color: #1a3a2a;
+          border-color: var(--accent);
           box-shadow: 0 0 0 2px rgba(26, 58, 42, 0.1);
         }
 
         .field-hint {
-          font-size: 11px;
+          font-size: var(--text-xs);
           color: #9ca3af;
         }
 
@@ -990,7 +990,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
           padding: 10px 20px;
           border: none;
           border-radius: 10px;
-          font-size: 13px;
+          font-size: var(--text-sm);
           font-weight: 500;
           cursor: pointer;
           transition: opacity 0.15s;
@@ -1002,8 +1002,8 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
         }
 
         .sns-btn.subscribe {
-          background: #1a3a2a;
-          color: #d1f470;
+          background: var(--accent);
+          color: var(--lime);
         }
 
         .sns-btn.subscribe:hover:not(:disabled) {
@@ -1025,7 +1025,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
         }
 
         .sns-btn.refresh:hover:not(:disabled) {
-          background: #e5e7eb;
+          background: var(--border);
         }
 
         @media (max-width: 768px) {
@@ -1034,7 +1034,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
           .waba-selector-section select { min-width: 100%; }
           .info-grid { grid-template-columns: 1fr 1fr; }
           .phone-cards { grid-template-columns: 1fr; }
-          .phone-number { font-size: 16px; }
+          .phone-number { font-size: var(--text-base); }
         }
 
         @media (max-width: 480px) {

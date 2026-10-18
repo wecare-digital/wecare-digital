@@ -137,12 +137,12 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
   const body = (
       <div className="inner-page">
         <p style={ { fontSize: 13, margin: '0 0 8px' } }>
-          <Link href="/workspace/seo/blog-production" style={ { color: '#1a3a2a' } }>← Production waves</Link>
+          <Link href="/workspace/seo/blog-production" style={ { color: 'var(--accent)' } }>← Production waves</Link>
           { batchId && (
             <>
               { ' · ' }
               <a href={ `/workspace/seo/blog-production?tab=batch&id=${ encodeURIComponent( batchId ) }` }
-                style={ { color: '#1a3a2a' } }>This wave</a>
+                style={ { color: 'var(--accent)' } }>This wave</a>
             </>
           ) }
         </p>
@@ -162,7 +162,7 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
             { notice }
           </div>
         ) }
-        { loading && <p style={ { color: '#6b7280' } }>Loading…</p> }
+        { loading && <p style={ { color: 'var(--text-muted)' } }>Loading…</p> }
 
         { data?.batchState && (
           <div className="card" style={ { padding: 16, marginBottom: 16, display: 'flex', gap: 24, flexWrap: 'wrap' } }>
@@ -176,8 +176,8 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
               [ 'Live and unchecked', verify?.batchState?.awaitingVerification ?? 0, '#d97706' ],
             ] as [ string, number, string | undefined ][] ).map( ( [ label, value, tone ] ) => (
               <div key={ label } style={ { minWidth: 110 } }>
-                <div style={ { fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.4 } }>{ label }</div>
-                <div style={ { fontSize: 20, fontWeight: 700, color: value ? ( tone || '#1a1a1a' ) : '#1a1a1a' } }>{ value }</div>
+                <div style={ { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 } }>{ label }</div>
+                <div style={ { fontSize: 20, fontWeight: 700, color: value ? ( tone || 'var(--text)' ) : 'var(--text)' } }>{ value }</div>
               </div>
             ) ) }
           </div>
@@ -186,11 +186,11 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
         { data?.candidates && (
           <div className="card" style={ { overflow: 'auto', marginBottom: 16 } }>
             <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 12 } }>
-              <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 13, color: '#6b7280' } }>
+              <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 13, color: 'var(--text-muted)' } }>
                 Every source in this wave, with the reason each one can or cannot be released
               </caption>
               <thead>
-                <tr style={ { borderBottom: '2px solid #e5e7eb' } }>
+                <tr style={ { borderBottom: '2px solid var(--border)' } }>
                   <th scope="col" style={ th }>Article</th>
                   <th scope="col" style={ th }>Releasable</th>
                   <th scope="col" style={ th }>Reason</th>
@@ -205,11 +205,11 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                       <div style={ { fontWeight: 600 } }>{ candidate.title || '(untitled)' }</div>
                       <div style={ { color: '#9ca3af', fontSize: 11, wordBreak: 'break-all' } }>{ candidate.slug }</div>
                     </td>
-                    <td style={ { ...td, color: candidate.releasable ? '#16a34a' : '#6b7280', fontWeight: 600 } }>
+                    <td style={ { ...td, color: candidate.releasable ? '#16a34a' : 'var(--text-muted)', fontWeight: 600 } }>
                       { candidate.releasable ? 'yes' : 'no' }
                     </td>
                     <td style={ { ...td, maxWidth: 380, color: 'rgba(0,0,0,.54)' } }>{ candidate.reason }</td>
-                    <td style={ { ...td, color: JOB_COLOUR[ candidate.jobStatus ] || '#6b7280' } }>
+                    <td style={ { ...td, color: JOB_COLOUR[ candidate.jobStatus ] || 'var(--text-muted)' } }>
                       { candidate.jobStatus || '—' }
                     </td>
                     <td style={ td }>
@@ -217,17 +217,17 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                         <button onClick={ () => { void release( candidate.sourceId ); } }
                           disabled={ busy !== '' }
                           aria-label={ `Release ${ candidate.title || candidate.sourceId } into the publish queue` }
-                          style={ { padding: '5px 12px', borderRadius: 6, border: '1px solid #1a3a2a', background: '#fff', color: '#1a3a2a', cursor: 'pointer', fontSize: 12 } }>
+                          style={ { padding: '5px 12px', borderRadius: 6, border: '1px solid var(--accent)', background: '#fff', color: 'var(--accent)', cursor: 'pointer', fontSize: 12 } }>
                           { busy === `release-${ candidate.sourceId }` ? 'Releasing…' : 'Release' }
                         </button>
                       ) }
                       <a href={ `/workspace/seo/blog-production?tab=qa&source=${ encodeURIComponent( candidate.sourceId ) }&batch=${ encodeURIComponent( batchId ) }` }
-                        style={ { color: '#1a3a2a', marginLeft: 8 } }>QA</a>
+                        style={ { color: 'var(--accent)', marginLeft: 8 } }>QA</a>
                     </td>
                   </tr>
                 ) ) }
                 { data.candidates.length === 0 && (
-                  <tr><td colSpan={ 5 } style={ { padding: 32, textAlign: 'center', color: '#6b7280' } }>
+                  <tr><td colSpan={ 5 } style={ { padding: 32, textAlign: 'center', color: 'var(--text-muted)' } }>
                     No sources in this wave.
                   </td></tr>
                 ) }
@@ -238,11 +238,11 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
 
         <div className="card" style={ { overflow: 'auto' } }>
           <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 12 } }>
-            <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 13, color: '#6b7280' } }>
+            <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 13, color: 'var(--text-muted)' } }>
               { batchId ? 'Publish jobs (all waves)' : 'Publish jobs, newest first' }
             </caption>
             <thead>
-              <tr style={ { borderBottom: '2px solid #e5e7eb' } }>
+              <tr style={ { borderBottom: '2px solid var(--border)' } }>
                 <th scope="col" style={ th }>Article</th>
                 <th scope="col" style={ th }>Status</th>
                 <th scope="col" style={ th }>Released by</th>
@@ -267,7 +267,7 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                   <td style={ td }>
                     { job.postUrl ? (
                       <a href={ job.postUrl } target="_blank" rel="noopener noreferrer"
-                        style={ { color: '#1a3a2a' } }>live post</a>
+                        style={ { color: 'var(--accent)' } }>live post</a>
                     ) : '—' }
                   </td>
                   <td style={ td }>
@@ -275,12 +275,12 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                       <>
                         <button onClick={ () => { void publish( job.jobId ); } } disabled={ busy !== '' }
                           aria-label={ `Publish ${ job.articleTitle || job.jobId } to the blog` }
-                          style={ { padding: '5px 12px', borderRadius: 6, border: 'none', background: '#1a3a2a', color: '#fff', cursor: 'pointer', fontSize: 12 } }>
+                          style={ { padding: '5px 12px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: 12 } }>
                           { busy === `publish-${ job.jobId }` ? 'Publishing…' : 'Publish' }
                         </button>
                         <button onClick={ () => { void withdraw( job.jobId ); } } disabled={ busy !== '' }
                           aria-label={ `Withdraw the release of ${ job.articleTitle || job.jobId }` }
-                          style={ { marginLeft: 8, background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 12, padding: 0 } }>
+                          style={ { marginLeft: 8, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12, padding: 0 } }>
                           Withdraw
                         </button>
                       </>
@@ -288,14 +288,14 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                     { ( job.status === 'PUBLISHED' ) && (
                       <button onClick={ () => { void runVerify( job.sourceId ); } } disabled={ busy !== '' }
                         aria-label={ `Verify the live post for ${ job.articleTitle || job.jobId }` }
-                        style={ { padding: '5px 12px', borderRadius: 6, border: '1px solid #1a3a2a', background: '#fff', color: '#1a3a2a', cursor: 'pointer', fontSize: 12 } }>
+                        style={ { padding: '5px 12px', borderRadius: 6, border: '1px solid var(--accent)', background: '#fff', color: 'var(--accent)', cursor: 'pointer', fontSize: 12 } }>
                         { busy === `verify-${ job.sourceId }` ? 'Verifying…' : 'Verify' }
                       </button>
                     ) }
                     { ( job.status === 'REFUSED' || job.status === 'FAILED' ) && (
                       <button onClick={ () => { void release( job.sourceId ); } } disabled={ busy !== '' }
                         aria-label={ `Release ${ job.articleTitle || job.jobId } again` }
-                        style={ { padding: '5px 12px', borderRadius: 6, border: '1px solid #1a3a2a', background: '#fff', color: '#1a3a2a', cursor: 'pointer', fontSize: 12 } }>
+                        style={ { padding: '5px 12px', borderRadius: 6, border: '1px solid var(--accent)', background: '#fff', color: 'var(--accent)', cursor: 'pointer', fontSize: 12 } }>
                         { busy === `release-${ job.sourceId }` ? 'Releasing…' : 'Release again' }
                       </button>
                     ) }
@@ -303,7 +303,7 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                 </tr>
               ) ) }
               { ( data?.queue || [] ).length === 0 && !loading && (
-                <tr><td colSpan={ 6 } style={ { padding: 32, textAlign: 'center', color: '#6b7280' } }>
+                <tr><td colSpan={ 6 } style={ { padding: 32, textAlign: 'center', color: 'var(--text-muted)' } }>
                   Nothing has been released.
                 </td></tr>
               ) }

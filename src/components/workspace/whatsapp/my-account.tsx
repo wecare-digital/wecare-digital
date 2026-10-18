@@ -166,7 +166,7 @@ const MyAccountPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                                 { ledger.slice( 0, 10 ).map( ( l, i ) => (
                                     <div key={ i } style={ { display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderBottom: '1px solid #f5f5f5' } }>
                                         <span style={ { color: '#666' } }>{ l.ts ? new Date( l.ts ).toLocaleString() : '' } · { l.type }{ l.category ? ` (${l.category})` : '' }</span>
-                                        <span style={ { color: l.type === 'topup' ? '#1a3a2a' : '#a11' } }>{ l.type === 'topup' ? '+' : '−' }{ l.amount } · bal { l.balanceAfter }</span>
+                                        <span style={ { color: l.type === 'topup' ? 'var(--accent)' : '#a11' } }>{ l.type === 'topup' ? '+' : '−' }{ l.amount } · bal { l.balanceAfter }</span>
                                     </div>
                                 ) ) }
                             </div>
@@ -175,7 +175,7 @@ const MyAccountPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                         <input value={ addAmt } onChange={ e => setAddAmt( e.target.value ) } type="number" placeholder="amount (INR)"
                             style={ { width: 140, padding: '7px 10px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 14 } } />
                         <button onClick={ addFunds } disabled={ adding }
-                            style={ { padding: '8px 16px', background: adding ? '#ccc' : '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 6, cursor: adding ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 700 } }>
+                            style={ { padding: '8px 16px', background: adding ? '#ccc' : 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: adding ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 700 } }>
                             { adding ? 'Creating link…' : 'Add funds' }
                         </button>
                     </div>
@@ -205,7 +205,7 @@ const MyAccountPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                     <textarea value={ sendText } onChange={ e => setSendText( e.target.value ) } placeholder="Message text"
                         style={ { width: '100%', minHeight: 80, padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 14, marginBottom: 8 } } />
                     <button onClick={ sendMessage } disabled={ sending }
-                        style={ { padding: '9px 16px', background: sending ? '#ccc' : '#1a3a2a', color: '#fff', border: 'none', borderRadius: 6, cursor: sending ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 600 } }>
+                        style={ { padding: '9px 16px', background: sending ? '#ccc' : 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, cursor: sending ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 600 } }>
                         { sending ? 'Sending…' : 'Send message' }
                     </button>
                 </div>

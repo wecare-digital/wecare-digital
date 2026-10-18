@@ -114,7 +114,7 @@ const FaqPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => 
       key: 'question', header: 'Question', render: ( f: api.FaqEntry ) => (
         <div style={ { maxWidth: 400 } }>
           <div style={ { fontWeight: 500, fontSize: 14 } }>{ f.question }</div>
-          <div style={ { fontSize: 12, color: '#6b7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const } }>{ f.answer }</div>
+          <div style={ { fontSize: 12, color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const } }>{ f.answer }</div>
         </div>
       )
     },
@@ -146,8 +146,8 @@ const FaqPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => 
       <div style={ { padding: '24px 32px', maxWidth: 1200 } }>
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } }>
           <div>
-            <h1 style={ { fontSize: 24, fontWeight: 700, color: '#1a3a2a', margin: 0 } }>FAQ Management</h1>
-            <p style={ { fontSize: 14, color: '#6b7280', margin: '4px 0 0' } }>{ faqs.length } entries</p>
+            <h1 style={ { fontSize: 24, fontWeight: 700, color: 'var(--accent)', margin: 0 } }>FAQ Management</h1>
+            <p style={ { fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' } }>{ faqs.length } entries</p>
           </div>
           <Button variant="primary" icon="create" onClick={ openCreate }>Add FAQ</Button>
         </div>
@@ -183,7 +183,7 @@ const FaqPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => 
               options={ CATEGORY_OPTIONS } />
             <label style={ { fontSize: 14 } }>Sort Order<input type="number" value={ form.sortOrder } onChange={ e => setForm( f => ( { ...f, sortOrder: Number( e.target.value ) } ) ) } style={ inputStyle } /></label>
             <label style={ { fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, marginTop: 22 } }>
-              <input type="checkbox" checked={ form.active } onChange={ e => setForm( f => ( { ...f, active: e.target.checked } ) ) } style={ { accentColor: '#1a3a2a' } } /> Active
+              <input type="checkbox" checked={ form.active } onChange={ e => setForm( f => ( { ...f, active: e.target.checked } ) ) } style={ { accentColor: 'var(--accent)' } } /> Active
             </label>
           </div>
         </div>
@@ -193,7 +193,7 @@ const FaqPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => 
   return embedded ? body : <Layout user={ user } onSignOut={ signOut }>{ body }</Layout>;
 };
 
-const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, marginTop: 4 };
+const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, marginTop: 4 };
 /* `selectStyle` went with the last native select in this file - it only ever skinned those. */
 
 export default FaqPage;

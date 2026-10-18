@@ -45,8 +45,8 @@ const SOURCE_COLOUR: Record<string, string> = {
 function Stat ( { label, value, tone }: { label: string; value: React.ReactNode; tone?: string } ) {
   return (
     <div style={ { minWidth: 110 } }>
-      <div style={ { fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.4 } }>{ label }</div>
-      <div style={ { fontSize: 20, fontWeight: 700, color: tone || '#1a1a1a' } }>{ value }</div>
+      <div style={ { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 } }>{ label }</div>
+      <div style={ { fontSize: 20, fontWeight: 700, color: tone || 'var(--text)' } }>{ value }</div>
     </div>
   );
 }
@@ -59,7 +59,7 @@ function Panel ( { title, subtitle, children, action }: {
       <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 } }>
         <div>
           <h2 style={ { fontSize: 15, margin: 0 } }>{ title }</h2>
-          { subtitle && <p style={ { fontSize: 12, color: '#6b7280', margin: '4px 0 0', maxWidth: 620 } }>{ subtitle }</p> }
+          { subtitle && <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 0', maxWidth: 620 } }>{ subtitle }</p> }
         </div>
         { action }
       </div>
@@ -154,7 +154,7 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user, embedded } )
   const body = (
       <div className="inner-page">
         <p style={ { fontSize: 13, margin: '0 0 8px' } }>
-          <Link href="/workspace/seo/blog-production" style={ { color: '#1a3a2a' } }>← Production waves</Link>
+          <Link href="/workspace/seo/blog-production" style={ { color: 'var(--accent)' } }>← Production waves</Link>
         </p>
         <h1 className="inner-page-title">{ batch ? batch.name : 'Loading…' }</h1>
         { batch && (
@@ -171,7 +171,7 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user, embedded } )
             { error }
           </div>
         ) }
-        { loading && <p style={ { color: '#6b7280' } }>Loading…</p> }
+        { loading && <p style={ { color: 'var(--text-muted)' } }>Loading…</p> }
 
         { rollup && (
           <Panel title="Intake"
@@ -185,7 +185,7 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user, embedded } )
               <Stat label="Complete" value={ rollup.complete ? 'yes' : 'no' } />
             </div>
             { rollup.complete && (
-              <p style={ { fontSize: 12, color: '#6b7280', margin: '12px 0 0' } }>
+              <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '12px 0 0' } }>
                 Complete means every source reached a terminal intake state. It does not mean
                 anything is publishable, and nothing here publishes.
               </p>
@@ -197,7 +197,7 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user, embedded } )
           <Panel title="Source reading"
             subtitle="Section 2: an article may not be built from a title or an excerpt. Analysis produces evidence; a person recording that they read it is a separate act."
             action={ <a href={ `/workspace/seo/blog-production?tab=review&batch=${ encodeURIComponent( batchId ) }` }
-              style={ { color: '#1a3a2a', fontSize: 13, fontWeight: 600 } }>Open source review →</a> }>
+              style={ { color: 'var(--accent)', fontSize: 13, fontWeight: 600 } }>Open source review →</a> }>
             <div style={ { display: 'flex', gap: 24, flexWrap: 'wrap' } }>
               <Stat label="Analysed" value={ review.analysed } />
               <Stat label="Read" value={ review.reviewed } tone="#16a34a" />
@@ -214,7 +214,7 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user, embedded } )
           <Panel title="QA and sign-off"
             subtitle="A QA run records what every rule said about one exact version. A sign-off is a person accepting that verdict and answering the eleven judgements no program can make."
             action={ <a href={ `/workspace/seo/blog-production?tab=qa&batch=${ encodeURIComponent( batchId ) }` }
-              style={ { color: '#1a3a2a', fontSize: 13, fontWeight: 600 } }>Open QA review →</a> }>
+              style={ { color: 'var(--accent)', fontSize: 13, fontWeight: 600 } }>Open QA review →</a> }>
             <div style={ { display: 'flex', gap: 24, flexWrap: 'wrap' } }>
               <Stat label="QA run" value={ batchState.qaRun } />
               <Stat label="Signed off" value={ batchState.signedOff } tone="#16a34a" />
@@ -240,7 +240,7 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user, embedded } )
             subtitle="Every article can pass the per-article gate while the wave is unmistakably generated. Advisory: nothing here blocks a release, and the reviewer decides which to send back."
             action={
               <button onClick={ () => { void sweepRepetition(); } } disabled={ busy === 'repetition' }
-                style={ { padding: '7px 14px', borderRadius: 6, border: '1px solid #1a3a2a', background: '#fff', color: '#1a3a2a', cursor: 'pointer', fontSize: 13 } }>
+                style={ { padding: '7px 14px', borderRadius: 6, border: '1px solid var(--accent)', background: '#fff', color: 'var(--accent)', cursor: 'pointer', fontSize: 13 } }>
                 { busy === 'repetition' ? 'Sweeping…' : 'Run a sweep' }
               </button>
             }>
@@ -252,7 +252,7 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user, embedded } )
               <Stat label="Sweeps" value={ repetition.runs } />
             </div>
             { 'articles' in repetition.latestRun && (
-              <p style={ { fontSize: 12, color: '#6b7280', margin: '12px 0 0' } }>
+              <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '12px 0 0' } }>
                 Last sweep: { repetition.latestRun.articles } articles,
                 { ' ' }{ repetition.latestRun.nearDuplicateCount } near-duplicate pair(s),
                 { ' ' }{ repetition.latestRun.dominantPatternCount } dominant pattern(s),
@@ -266,7 +266,7 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user, embedded } )
           <Panel title="Publication"
             subtitle="A release records an operator's decision and writes nothing. Publishing is a separate call."
             action={ <a href={ `/workspace/seo/blog-production?tab=publish&batch=${ encodeURIComponent( batchId ) }` }
-              style={ { color: '#1a3a2a', fontSize: 13, fontWeight: 600 } }>Open publish queue →</a> }>
+              style={ { color: 'var(--accent)', fontSize: 13, fontWeight: 600 } }>Open publish queue →</a> }>
             <div style={ { display: 'flex', gap: 24, flexWrap: 'wrap' } }>
               <Stat label="Unreleased" value={ publish.batchState.unreleased } />
               <Stat label="Queued" value={ publish.batchState.queued } tone={ publish.batchState.queued ? '#2563eb' : undefined } />
@@ -294,11 +294,11 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user, embedded } )
         { batch && (
           <div className="card" style={ { overflow: 'auto' } }>
             <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 12 } }>
-              <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 13, color: '#6b7280' } }>
+              <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 13, color: 'var(--text-muted)' } }>
                 Sources in this wave ({ batch.sources.length } shown)
               </caption>
               <thead>
-                <tr style={ { borderBottom: '2px solid #e5e7eb' } }>
+                <tr style={ { borderBottom: '2px solid var(--border)' } }>
                   <th scope="col" style={ th }>Source</th>
                   <th scope="col" style={ th }>Intake</th>
                   <th scope="col" style={ th }>Article</th>
@@ -316,7 +316,7 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user, embedded } )
                   <tr key={ source.sourceId } style={ { borderBottom: '1px solid #f3f4f6' } }>
                     <td style={ td }>
                       <div style={ { wordBreak: 'break-all', maxWidth: 260 } }>{ source.sourceRef }</div>
-                      { source.title && <div style={ { color: '#6b7280' } }>{ source.title }</div> }
+                      { source.title && <div style={ { color: 'var(--text-muted)' } }>{ source.title }</div> }
                       { source.error && <div style={ { color: '#b91c1c' } }>{ source.error }</div> }
                     </td>
                     <td style={ { ...td, color: SOURCE_COLOUR[ source.status ] || '#374151', fontWeight: 600 } }>
@@ -333,14 +333,14 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user, embedded } )
                     </td>
                     <td style={ td }>
                       <a href={ `/workspace/seo/blog-production?tab=review&source=${ encodeURIComponent( source.sourceId ) }` }
-                        style={ { color: '#1a3a2a', marginRight: 8 } }>Read</a>
+                        style={ { color: 'var(--accent)', marginRight: 8 } }>Read</a>
                       <a href={ `/workspace/seo/blog-production?tab=qa&source=${ encodeURIComponent( source.sourceId ) }` }
-                        style={ { color: '#1a3a2a' } }>QA</a>
+                        style={ { color: 'var(--accent)' } }>QA</a>
                     </td>
                   </tr>
                 ) ) }
                 { batch.sources.length === 0 && (
-                  <tr><td colSpan={ 10 } style={ { padding: 40, textAlign: 'center', color: '#6b7280' } }>
+                  <tr><td colSpan={ 10 } style={ { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }>
                     No sources in this wave yet. Upload them in Blog Studio with this wave selected.
                   </td></tr>
                 ) }

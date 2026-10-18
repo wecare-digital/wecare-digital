@@ -99,7 +99,7 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
         <div style={ { display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' } }>
           { PHONES.map( p => (
             <button key={ p.id } onClick={ () => setSelectedPhone( p ) }
-              style={ { padding: '8px 16px', borderRadius: 6, border: selectedPhone.id === p.id ? '2px solid #1a3a2a' : '1px solid #ddd', background: selectedPhone.id === p.id ? '#f9fafb' : '#fff', cursor: 'pointer', fontSize: 13 } }>
+              style={ { padding: '8px 16px', borderRadius: 6, border: selectedPhone.id === p.id ? '2px solid var(--accent)' : '1px solid #ddd', background: selectedPhone.id === p.id ? 'var(--bg-secondary)' : '#fff', cursor: 'pointer', fontSize: 13 } }>
               { p.name } ({ p.display })
             </button>
           ) ) }
@@ -107,9 +107,9 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
 
         { loading ? <p>Loading...</p> : loadError ? (
           <div style={ { textAlign: 'center', padding: 40, color: '#666' } }>
-            <p style={ { fontSize: 16, color: '#1a3a2a' } }>Profile Unavailable</p>
+            <p style={ { fontSize: 16, color: 'var(--accent)' } }>Profile Unavailable</p>
             <p style={ { fontSize: 13, marginTop: 8 } }>{ loadError }</p>
-            <button onClick={ () => loadProfile( selectedPhone ) } style={ { marginTop: 12, padding: '8px 16px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 } }>
+            <button onClick={ () => loadProfile( selectedPhone ) } style={ { marginTop: 12, padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 } }>
               Retry
             </button>
           </div>
@@ -117,11 +117,11 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
           <>
             {/* Phone Info */ }
             { phoneSettings && (
-              <div style={ { background: '#f9fafb', padding: 16, borderRadius: 8, marginBottom: 20, fontSize: 13 } }>
+              <div style={ { background: 'var(--bg-secondary)', padding: 16, borderRadius: 8, marginBottom: 20, fontSize: 13 } }>
                 <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 } }>
                   <div><span style={ { color: '#666' } }>Phone:</span> { phoneSettings.display_phone_number }</div>
                   <div><span style={ { color: '#666' } }>Name:</span> { phoneSettings.verified_name }</div>
-                  <div><span style={ { color: '#666' } }>Quality:</span> <span style={ { color: phoneSettings.quality_rating === 'GREEN' ? '#1a3a2a' : '#1a3a2a' } }>{ phoneSettings.quality_rating }</span></div>
+                  <div><span style={ { color: '#666' } }>Quality:</span> <span style={ { color: phoneSettings.quality_rating === 'GREEN' ? 'var(--accent)' : 'var(--accent)' } }>{ phoneSettings.quality_rating }</span></div>
                   <div><span style={ { color: '#666' } }>Tier:</span> { phoneSettings.messaging_limit_tier }</div>
                   <div><span style={ { color: '#666' } }>Official:</span> { phoneSettings.is_official_business_account ? 'Yes' : 'No' }</div>
                   <div><span style={ { color: '#666' } }>Name Status:</span> { phoneSettings.name_status }</div>
@@ -172,7 +172,7 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
                   style={ { width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 } } />
               </div>
               <button onClick={ handleSave } disabled={ saving }
-                style={ { padding: '10px 24px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, width: 'fit-content' } }>
+                style={ { padding: '10px 24px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, width: 'fit-content' } }>
                 { saving ? 'Saving...' : 'Save Profile' }
               </button>
               <RawJsonDrawer data={ { profile, phoneSettings } } label="Raw profile + settings JSON" />

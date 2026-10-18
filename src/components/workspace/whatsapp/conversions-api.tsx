@@ -115,14 +115,14 @@ const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = fa
     /* The id came from configuration, not from Meta — so it is reported as configured and
        explicitly unverified. See the note on CapiStatus.dataset in src/api/client.ts. */
     const dsFixed = status?.dataset?.fixed === true;
-    const card: React.CSSProperties = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 18, marginBottom: 18 };
+    const card: React.CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: 18, marginBottom: 18 };
     const label: React.CSSProperties = { display: 'block', fontSize: 13, color: '#374151', marginBottom: 4, fontWeight: 600 };
     const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, marginBottom: 10 };
 
     const body = (
         <div style={ { maxWidth: 980, margin: '0 auto', padding: embedded ? 0 : 20 } }>
             <h1 style={ { fontSize: 22, fontWeight: 800, marginBottom: 4 } }>Conversions API — Click to WhatsApp</h1>
-            <p style={ { color: '#6b7280', fontSize: 14, marginBottom: 18 } }>
+            <p style={ { color: 'var(--text-muted)', fontSize: 14, marginBottom: 18 } }>
                 Log in-thread conversion events (Purchase, Lead, …) back to Meta so Click-to-WhatsApp ad
                 campaigns can optimize and measure. Uses the <code>whatsapp_business_manage_events</code> permission.
             </p>
@@ -136,7 +136,7 @@ const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = fa
             {/* Dataset */ }
             <div style={ card }>
                 <h2 style={ { fontSize: 16, fontWeight: 700, marginBottom: 8 } }>1 · Dataset</h2>
-                <p style={ { fontSize: 13, color: '#6b7280', marginBottom: 10 } }>
+                <p style={ { fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 } }>
                     Meta needs a dataset as the destination for events. One shared dataset
                     <code> 4554612361454941</code> serves <strong>both</strong> WABAs, so events from either
                     business number land in the same Events Manager destination, and per-WABA attribution is
@@ -163,7 +163,7 @@ const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = fa
             {/* Captured clicks */ }
             <div style={ card }>
                 <h2 style={ { fontSize: 16, fontWeight: 700, marginBottom: 8 } }>2 · Captured ad clicks (ctwa_clid)</h2>
-                <p style={ { fontSize: 13, color: '#6b7280', marginBottom: 10 } }>
+                <p style={ { fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 } }>
                     When a customer messages you after tapping a Click-to-WhatsApp ad, the inbound webhook
                     carries a <code>ctwa_clid</code>. We store it against their number so conversions can be attributed.
                 </p>
@@ -171,7 +171,7 @@ const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = fa
                     ? <div style={ { fontSize: 13, color: '#9ca3af' } }>No ad clicks captured yet.</div>
                     : (
                         <table style={ { width: '100%', fontSize: 13, borderCollapse: 'collapse' } }>
-                            <thead><tr style={ { textAlign: 'left', color: '#6b7280' } }>
+                            <thead><tr style={ { textAlign: 'left', color: 'var(--text-muted)' } }>
                                 <th style={ { padding: 6 } }>Phone</th><th>Source</th><th>Headline</th><th>Click ID</th><th>When</th>
                             </tr></thead>
                             <tbody>
@@ -192,7 +192,7 @@ const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = fa
             {/* Log event */ }
             <div style={ card }>
                 <h2 style={ { fontSize: 16, fontWeight: 700, marginBottom: 8 } }>3 · Log a conversion event</h2>
-                <p style={ { fontSize: 13, color: '#6b7280', marginBottom: 10 } }>
+                <p style={ { fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 } }>
                     Purchase events fire automatically on Razorpay payment success. You can also log one manually to
                     verify it appears in Events Manager. Enter a customer phone (we look up their stored click id) or paste a ctwa_clid.
                 </p>
@@ -233,7 +233,7 @@ const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = fa
                     ? <div style={ { fontSize: 13, color: '#9ca3af' } }>No events logged yet.</div>
                     : (
                         <table style={ { width: '100%', fontSize: 13, borderCollapse: 'collapse' } }>
-                            <thead><tr style={ { textAlign: 'left', color: '#6b7280' } }>
+                            <thead><tr style={ { textAlign: 'left', color: 'var(--text-muted)' } }>
                                 <th style={ { padding: 6 } }>When</th><th>Event</th><th>Value</th><th>Phone</th><th>Status</th>
                             </tr></thead>
                             <tbody>

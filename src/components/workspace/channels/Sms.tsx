@@ -345,7 +345,7 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                   <input type="text" placeholder="Search..." value={ searchQuery } onChange={ e => setSearchQuery( e.target.value ) } className="sms-search" />
                   <Pagination currentPage={ page } totalPages={ totalPages } onPageChange={ setPage } />
                 </div>
-                <div className="table-area">{ loading ? <div className="loading-state">Loading...</div> : loadError ? <div style={ { padding: 32, textAlign: 'center' } }><p style={ { color: '#991b1b', fontSize: 13, marginBottom: 8 } }>Failed to load SMS data</p><button onClick={ () => loadAwsData() } style={ { padding: '6px 14px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 13, fontSize: 12, fontWeight: 600, cursor: 'pointer' } }>Retry</button></div> : (
+                <div className="table-area">{ loading ? <div className="loading-state">Loading...</div> : loadError ? <div style={ { padding: 32, textAlign: 'center' } }><p style={ { color: '#991b1b', fontSize: 13, marginBottom: 8 } }>Failed to load SMS data</p><button onClick={ () => loadAwsData() } style={ { padding: '6px 14px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 12, fontWeight: 600, cursor: 'pointer' } }>Retry</button></div> : (
                   <table><thead><tr><th>Time</th><th>Dir</th><th>Contact</th><th className="hide-mobile">Phone</th><th>Message</th><th>Status</th></tr></thead><tbody>
                     { paginatedMessages.map( msg => ( <tr key={ msg.messageId }><td className="time-cell">{ new Date( msg.timestamp ).toLocaleString() }</td><td><span className={ msg.direction === 'INBOUND' ? 'dir-in' : 'dir-out' }>{ msg.direction === 'INBOUND' ? '?' : '?' }</span></td><td>{ msg.contactName || '-' }</td><td className="phone-cell hide-mobile">{ msg.phone }</td><td className="content-cell" title={ msg.content }>{ msg.content?.substring( 0, 40 ) }{ msg.content?.length > 40 ? '...' : '' }</td><td><span className={ `st-badge ${msg.status?.toLowerCase()}` }>{ msg.status }</span></td></tr> ) ) }
                     { paginatedMessages.length === 0 && <tr><td colSpan={ 6 } className="empty-row">No messages</td></tr> }
@@ -388,7 +388,7 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                     { dltTemplates.length === 0 && <tr><td colSpan={ 6 } className="empty-row">No DLT templates. Click &quot;Add Template&quot; to register one, or &quot;Seed Defaults&quot; to add WA-Alert + ivr-default.</td></tr> }
                   </tbody></table>
                 ) }</div>
-                <div style={ { padding: '12px', background: '#f9fafb', borderTop: '1px solid #f3f4f6', fontSize: '12px', color: '#6b7280' } }>
+                <div style={ { padding: '12px', background: 'var(--bg-secondary)', borderTop: '1px solid #f3f4f6', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
                   { dltTemplates.length } template(s) registered · PE ID: <code>1201161991108627443</code> · Sender: <code>WDBEEP</code> · Templates are managed in the DLT Templates tab
                 </div>
               </div>
@@ -406,16 +406,16 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
               <div className="form-group"><label>Type</label><Select ariaLabel="Message type" value={ sendMessageType } onChange={ v => setSendMessageType( v ) } options={ SEND_TYPE_OPTIONS } /></div>
               { isIndianDestination( sendPhone ) ? (
                 <div className="form-group">
-                  <label>DLT Template * <span style={ { fontSize: '11px', color: '#9ca3af' } }>required for +91 · TRAI DLT</span></label>
+                  <label>DLT Template * <span style={ { fontSize: 'var(--text-xs)', color: '#9ca3af' } }>required for +91 · TRAI DLT</span></label>
                   <Select ariaLabel="DLT template" value={ sendDltTemplateKey }
                     onChange={ v => setSendDltTemplateKey( v ) } options={ DLT_KEY_OPTIONS } />
-                  <div style={ { marginTop: '6px', fontSize: '11px', color: '#6b7280' } }>
+                  <div style={ { marginTop: '6px', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
                     Routes via <code>ap-south-1</code> · Sender <code>WDBEEP</code> · Entity <code>1201161991108627443</code> · Template <code>{ DLT_TEMPLATE_OPTIONS.find( t => t.key === sendDltTemplateKey )?.id }</code>
                     <br />Message body must match the approved DLT template content exactly.
                   </div>
                 </div>
               ) : sendPhone ? (
-                <div style={ { marginBottom: '12px', fontSize: '11px', color: '#6b7280' } }>
+                <div style={ { marginBottom: '12px', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
                   Non-India destination · routes via <code>us-east-1</code> · no DLT fields applied
                 </div>
               ) : null }
@@ -468,64 +468,64 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
         .tab-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
         .tab-header-left { display: flex; align-items: center; gap: 8px; }
         .tab-header-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-        .provider-badge { background: #1a3a2a; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
-        .region-badge { background: #f3f4f6; color: #6b7280; padding: 3px 8px; border-radius: 4px; font-size: 10px; }
+        .provider-badge { background: var(--accent); color: #fff; padding: 3px 10px; border-radius: 6px; font-size: var(--text-xs); font-weight: 600; }
+        .region-badge { background: #f3f4f6; color: var(--text-muted); padding: 3px 8px; border-radius: 4px; font-size: var(--text-xs); }
         .controls-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap; }
         .filter-tabs { display: flex; gap: 4px; }
-        .filter-tabs button { padding: 6px 12px; border: 1px solid #e5e7eb; background: #fff; border-radius: 6px; cursor: pointer; font-size: 12px; min-height: 44px; }
-        .filter-tabs button.active { background: #d1f470; color: #1a3a2a; border-color: #1a3a2a; }
-        .sms-search { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; width: 200px; max-width: 100%; font-size: 16px; min-height: 44px; box-sizing: border-box; }
-        .sms-search:focus { outline: none; border-color: #1a3a2a; box-shadow: 0 0 0 3px rgba(209,244,112,0.3); }
-        .table-area { background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; overflow: auto; }
-        .loading-state { padding: 40px; text-align: center; color: #6b7280; }
+        .filter-tabs button { padding: 6px 12px; border: 1px solid var(--border); background: #fff; border-radius: 6px; cursor: pointer; font-size: var(--text-xs); min-height: 44px; }
+        .filter-tabs button.active { background: var(--lime); color: var(--accent); border-color: var(--accent); }
+        .sms-search { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; width: 200px; max-width: 100%; font-size: var(--text-base); min-height: 44px; box-sizing: border-box; }
+        .sms-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(209,244,112,0.3); }
+        .table-area { background: #fff; border-radius: 12px; border: 1px solid var(--border); overflow: auto; }
+        .loading-state { padding: 40px; text-align: center; color: var(--text-muted); }
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f3f4f6; font-size: 12px; white-space: nowrap; }
-        th { background: #f9fafb; font-weight: 600; color: #374151; position: sticky; top: 0; z-index: 1; }
-        tr:hover { background: #f9fafb; }
-        .time-cell { font-size: 11px; color: #6b7280; }
-        .phone-cell { font-family: monospace; color: #1a3a2a; font-size: 11px; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f3f4f6; font-size: var(--text-xs); white-space: nowrap; }
+        th { background: var(--bg-secondary); font-weight: 600; color: #374151; position: sticky; top: 0; z-index: 1; }
+        tr:hover { background: var(--bg-secondary); }
+        .time-cell { font-size: var(--text-xs); color: var(--text-muted); }
+        .phone-cell { font-family: monospace; color: var(--accent); font-size: var(--text-xs); }
         .content-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
-        .name-cell { font-weight: 500; color: #1a1a1a; }
-        .success-cell { color: #1a3a2a; font-weight: 500; }
-        .failed-cell { color: #1a3a2a; font-weight: 500; }
-        .dir-in { background: #1a3a2a; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
-        .dir-out { background: #6b7280; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
-        .st-badge { padding: 2px 6px; border-radius: 4px; font-size: 10px; background: #f1f5f9; color: #6b7280; }
-        .st-badge.sent, .st-badge.delivered { background: #f9fafb; color: #1a3a2a; }
-        .st-badge.failed { background: #f9fafb; color: #1a3a2a; }
-        .empty-row { text-align: center; color: #6b7280; padding: 30px !important; }
+        .name-cell { font-weight: 500; color: var(--text); }
+        .success-cell { color: var(--accent); font-weight: 500; }
+        .failed-cell { color: var(--accent); font-weight: 500; }
+        .dir-in { background: var(--accent); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: var(--text-xs); }
+        .dir-out { background: var(--text-muted); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: var(--text-xs); }
+        .st-badge { padding: 2px 6px; border-radius: 4px; font-size: var(--text-xs); background: #f1f5f9; color: var(--text-muted); }
+        .st-badge.sent, .st-badge.delivered { background: var(--bg-secondary); color: var(--accent); }
+        .st-badge.failed { background: var(--bg-secondary); color: var(--accent); }
+        .empty-row { text-align: center; color: var(--text-muted); padding: 30px !important; }
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
         .modal-content { background: #fff; border-radius: 12px; padding: 20px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; }
         .modal-content.campaign-modal { max-width: 480px; }
-        .modal-content h3 { margin: 0 0 16px 0; color: #1a1a1a; }
+        .modal-content h3 { margin: 0 0 16px 0; color: var(--text); }
         .form-group { margin-bottom: 14px; }
-        .form-group label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 5px; color: #374151; }
-        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; font-family: inherit; box-sizing: border-box; }
-        .form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: #1a3a2a; }
+        .form-group label { display: block; font-size: var(--text-xs); font-weight: 500; margin-bottom: 5px; color: #374151; }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: var(--text-sm); font-family: inherit; box-sizing: border-box; }
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
         .input-row { display: flex; gap: 6px; }
         .input-row input { flex: 1; }
         .form-row { display: flex; gap: 10px; }
         .form-group.half { flex: 1; }
         .checkbox-label { display: flex !important; align-items: center; gap: 6px; cursor: pointer; }
         .checkbox-label input[type="checkbox"] { width: auto; margin: 0; }
-        .pick-btn { padding: 8px 12px; background: #f9fafb; border: 1px solid #1a3a2a; border-radius: 8px; color: #0f2a1d; font-size: 12px; cursor: pointer; }
-        .pick-btn:hover { background: #f9fafb; }
+        .pick-btn { padding: 8px 12px; background: var(--bg-secondary); border: 1px solid var(--accent); border-radius: 8px; color: #0f2a1d; font-size: var(--text-xs); cursor: pointer; }
+        .pick-btn:hover { background: var(--bg-secondary); }
         .pick-btn.full-w { width: 100%; }
         .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
         .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-        .tag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: #f3f4f6; border-radius: 4px; font-size: 11px; }
-        .tag button { background: none; border: none; cursor: pointer; font-size: 14px; padding: 0; }
+        .tag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: #f3f4f6; border-radius: 4px; font-size: var(--text-xs); }
+        .tag button { background: none; border: none; cursor: pointer; font-size: var(--text-md); padding: 0; }
         .contact-picker { max-width: 360px; }
-        .contact-search { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; margin-bottom: 10px; box-sizing: border-box; }
-        .contact-list { max-height: 280px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+        .contact-search { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: var(--text-sm); margin-bottom: 10px; box-sizing: border-box; }
+        .contact-list { max-height: 280px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
         .contact-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6; min-height: 44px; }
-        .contact-row:hover { background: #f9fafb; }
-        .contact-row.selected { background: #f9fafb; }
-        .contact-avatar { width: 36px; height: 36px; background: #1a3a2a; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 13px; flex-shrink: 0; }
+        .contact-row:hover { background: var(--bg-secondary); }
+        .contact-row.selected { background: var(--bg-secondary); }
+        .contact-avatar { width: 36px; height: 36px; background: var(--accent); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: var(--text-sm); flex-shrink: 0; }
         .contact-details { flex: 1; }
-        .c-name { font-size: 13px; font-weight: 500; color: #1a1a1a; }
-        .c-phone { font-size: 11px; color: #6b7280; font-family: monospace; }
-        .check { color: #1a3a2a; font-weight: bold; }
+        .c-name { font-size: var(--text-sm); font-weight: 500; color: var(--text); }
+        .c-phone { font-size: var(--text-xs); color: var(--text-muted); font-family: monospace; }
+        .check { color: var(--accent); font-weight: bold; }
         @media (max-width: 768px) {
           .tab-header { flex-direction: column; align-items: flex-start; }
           .controls-row { flex-direction: column; align-items: stretch; }
@@ -538,7 +538,7 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
           .modal-actions { flex-direction: column; }
           .modal-actions button { width: 100%; }
           .hide-mobile { display: none; }
-          th, td { padding: 8px 10px; font-size: 11px; }
+          th, td { padding: 8px 10px; font-size: var(--text-xs); }
         }
         @media (max-width: 480px) {
           .tab-header-actions { width: 100%; }
