@@ -70,6 +70,14 @@ const FORBIDDEN_PUBLIC_COPY = [
   'The store confirms your final total',
   'This page is not a checkout',
   'Live payment is not on yet',
+  'server-side against the authoritative order total',
+  'decided by us server-side',
+  'not by anything calculated in your browser',
+  'as configured for those offers',
+  'confirm server-side',
+  'amount in paise and the currency',
+  'payment attempt identifier',
+  'where applicable and as configured',
 ];
 
 /** How many orphans to open. All of them would be ~105 file reads for one repeated answer. */
@@ -240,6 +248,21 @@ function main() {
     if ( route === '/' || route === '/contact' ) {
       record( !html.includes( 'Policy details' ), `${route} Policy Details state`,
         html.includes( 'Policy details' ) ? 'Policy Details must not render here' : 'intentionally absent' );
+    }
+
+    if ( route === '/grahak-os' ) {
+      const checkoutLabel = 'Checkout on WhatsApp';
+      const canonicalCheckout = 'href="https://wecare.digital/grahak-os/"';
+      record( html.includes( checkoutLabel ) && html.includes( canonicalCheckout ),
+        '/grahak-os Checkout on WhatsApp destination',
+        html.includes( checkoutLabel ) && html.includes( canonicalCheckout )
+          ? 'canonical Grahak OS destination'
+          : 'CTA label or canonical destination missing' );
+      record( !/href="https:\/\/wa\.me\/[^"]*"[^>]*>\s*Checkout on WhatsApp/i.test( html ),
+        '/grahak-os has no direct WhatsApp checkout link',
+        /href="https:\/\/wa\.me\/[^"]*"[^>]*>\s*Checkout on WhatsApp/i.test( html )
+          ? 'retired wa.me checkout destination returned'
+          : 'no direct wa.me checkout destination' );
     }
   }
 
