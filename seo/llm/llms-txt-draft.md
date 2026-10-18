@@ -17,10 +17,7 @@ WECARE.DIGITAL operates six microservice brands designed to solve real problems 
 
 - [Submit Request](https://wecare.digital/submit-request): Submit a new service request with basic details and Order ID
 - [Track Request](https://wecare.digital/track-request): Check the status of an existing request
-- [Book Appointment](https://wecare.digital/appointment): Book an appointment for supported services
 - [Upload Documents](https://wecare.digital/drop-docs): Securely upload supporting documents to a case
-- [Enterprise Assist](https://wecare.digital/enterprise-assist): Get help with business or service-related cases
-- [Gift Card](https://wecare.digital/gift-card): Buy e-gift cards with custom amount and message
 
 ## Feeds & APIs
 
