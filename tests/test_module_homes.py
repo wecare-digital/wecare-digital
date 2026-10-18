@@ -64,14 +64,14 @@ REMOVED_IDS = {"growth"}
 # resolve to a real page file.
 GROWTH_FORMER_INNER_PAGES = [
     "/workspace/seo",
-    "/workspace/engage/whatsapp/ctwa-ads", "/workspace/engage/whatsapp/conversions-api",
+    "/workspace/engage/whatsapp/settings?tab=ctwa-ads",
+    "/workspace/engage/whatsapp/settings?tab=conversions-api",
 ]
 
 HUBS_THAT_MUST_BE_LAZY = {
     "src/pages/workspace/engage/whatsapp/settings.tsx": 15,
-    "src/pages/workspace/dashboard/index.tsx": 5,
-    "src/pages/workspace/engage/rcs/index.tsx": 4,
-    "src/pages/workspace/engage/ses/index.tsx": 3,
+    "src/pages/workspace/engage/channels/index.tsx": 6,
+    "src/pages/workspace/settings/platform/index.tsx": 7,
 }
 
 
@@ -95,8 +95,9 @@ def homes(nav_source: str) -> list[dict]:
     block = block[: block.index("\n];")]
     out = []
     for entry in re.finditer(
-            r"id:\s*'([^']+)',\s*label:\s*'([^']+)',\s*(?:\n\s*)?path:\s*(null|'[^']*')",
-            block):
+            r"id:\s*'([^']+)',\s*label:\s*'([^']+)',(?:(?!\n\s*\},).)*?"
+            r"path:\s*(null|'[^']*')",
+            block, re.S):
         raw_path = entry.group(3)
         out.append({
             "id": entry.group(1),
@@ -110,7 +111,7 @@ def homes(nav_source: str) -> list[dict]:
 def inner_pages(nav_source: str) -> list[str]:
     block = nav_source.split("export const moduleHomes")[1]
     block = block[: block.index("\n];")]
-    return re.findall(r"'(/[a-z0-9/-]+)'", block)
+    return re.findall(r"'(/[a-z0-9/?=&-]+)'", block)
 
 
 class TestTheDeclaredHomesExist:
@@ -183,12 +184,12 @@ class TestCommunicationsExposesExactlyThree:
         # module's own `path: '[retired public path]'` and reported four.
         inner = block.split("innerPages:")[1]
         inner = inner[: inner.index("]")]
-        pages = re.findall(r"'(/[a-z0-9/-]+)'", inner)
+        pages = re.findall(r"'(/[a-z0-9/?=&-]+)'", inner)
         # WhatsApp Business moved from /workspace/engage/whatsapp to the WhatsApp hub on
         # 2026-10-15: the old route is now a router.replace signpost to the common inbox,
         # so pinning it here would have pinned the common inbox twice.
         assert pages == ["/workspace/engage/inbox", "/workspace/engage/whatsapp/settings",
-                         "/workspace/engage/voice"], (
+                         "/workspace/engage/channels?tab=voice"], (
             f"Communications must expose exactly Common Inbox, WhatsApp Business and "
             f"Business Calling; found {pages}")
 
@@ -247,8 +248,6 @@ class TestInnerPagesLoadLazily:
             assert "function lazyTab<P>" in code, (
                 f"{hub}'s lazyTab is not generic, so it flattens tab prop types")
 
-    def test_the_default_dashboard_tab_stays_eager(self):
-        code = (ROOT / "src/pages/workspace/dashboard/index.tsx").read_text(encoding="utf-8")
-        assert re.search(r"^import OverviewTab from", code, re.M), (
-            "OverviewTab is the default tab; lazy-loading it only adds a round trip "
-            "before the page can show anything")
+    def test_platform_default_tab_is_lazy_like_the_other_heavy_tabs(self):
+        code = (ROOT / "src/pages/workspace/settings/platform/index.tsx").read_text(encoding="utf-8")
+        assert "const MCPConnectionsPage = lazyTab(" in code
