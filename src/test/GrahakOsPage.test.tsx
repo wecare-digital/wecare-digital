@@ -52,11 +52,15 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
   it( 'keeps all page controls on the shared 17px / 600 rung', () => {
     const apiCss = source.slice( source.indexOf( '.api-demo-stack{' ) );
     const policyCss = source.slice( source.indexOf( '.gos-commerce{' ) );
+    // .pill,.pp-pill{font-size:17px} is the later typography-contract shorthand and
+    // intentionally carries no weight. Scope the pp-pill assertion to its actual base
+    // rule so this test validates the rendered control style rather than the shorthand.
+    const ppPillCss = source.slice( source.lastIndexOf( '.pp-pill{' ) );
     const controls: Array<[ string, string ]> = [
       [ source, '.gos-wa-cta' ],
       [ apiCss, '.api-wa-link' ],
       [ source, '.pp-tab' ],
-      [ source, '.pp-pill' ],
+      [ ppPillCss, '.pp-pill' ],
       [ policyCss, '.gos-policy summary' ],
     ];
     for ( const [ css, selector ] of controls ) {
