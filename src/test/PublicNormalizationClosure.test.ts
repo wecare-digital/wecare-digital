@@ -16,7 +16,7 @@ const CANONICAL_PUBLIC = [
   '/ritual-guru/ritva', '/ritual-guru/puja-guidance', '/ritual-guru/diy-puja-kit',
   '/hunar/kaushal', '/hunar/prastuti', '/shipments/track', '/expo-week', '/anew',
   '/niji-setu', '/submit-request', '/request-amendment', '/drop-docs', '/vault',
-  '/request-pickup', '/leave-review', '/privacy', '/terms',
+  '/request-pickup', '/privacy', '/terms',
 ] as const;
 
 const SHARED_PUBLIC_FAMILIES = [
@@ -75,9 +75,9 @@ const walkTsx = ( dir: string ): string[] => {
 };
 
 describe( 'Step 7 public normalization closure', () => {
-  it( 'pins the 31 canonical public routes', () => {
-    expect( CANONICAL_PUBLIC ).toHaveLength( 31 );
-    expect( new Set( CANONICAL_PUBLIC ).size ).toBe( 31 );
+  it( 'pins the 30 canonical public routes', () => {
+    expect( CANONICAL_PUBLIC ).toHaveLength( 30 );
+    expect( new Set( CANONICAL_PUBLIC ).size ).toBe( 30 );
   } );
 
   it( 'pins the exact public HTML allowlist, including shared families and customer-session surfaces', () => {
@@ -220,11 +220,11 @@ describe( 'Step 7 public normalization closure', () => {
     }
   } );
 
-  it( 'keeps the built-export chrome gate on the same exact 43-route parser', () => {
+  it( 'keeps the built-export chrome gate on the same exact 42-route parser', () => {
     const chromecheck = read( 'tools/browser/chromecheck.js' );
     expect( chromecheck ).toContain( "const contentBlock = app.slice( contentAt, gateAt );" );
     expect( chromecheck ).toContain( "const publicBlock = app.slice( gateAt, canonicalAt );" );
-    expect( chromecheck ).toContain( "allowlist.length === 43" );
+    expect( chromecheck ).toContain( "allowlist.length === 42" );
     expect( chromecheck ).toContain( "function exportedInstanceForPattern( pattern )" );
     expect( chromecheck ).toContain( "target = instance;" );
     expect( chromecheck ).not.toContain( "app.slice( gateAt, app.indexOf( ';', gateAt ) )" );

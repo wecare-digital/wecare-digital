@@ -4,6 +4,7 @@ import BrandLockup from './BrandLockup';
 import HeaderCart from './HeaderCart';
 import VoiceSearchMic from './VoiceSearchMic';
 import { SUBSCRIBE_CTA_HREF } from '../content/subscribe';
+import { REVIEW_ENTRY_URL } from '../lib/reviewEntry';
 
 /**
  * No props.
@@ -144,7 +145,7 @@ const COLUMNS: NavColumn[] = [
               { label: 'Pickup Request', href: '/request-pickup/', searchTerms: [ 'shipments', 'pickup' ] },
             ],
           },
-          { label: 'Leave Review', href: '/leave-review/', match: '/leave-review' },
+          { label: 'Leave Review', href: REVIEW_ENTRY_URL, external: true },
           { label: 'Subscribe', href: SUBSCRIBE_CTA_HREF, external: true },
         ],
       },
