@@ -385,6 +385,12 @@ def scan_layout_token_mirror():
         tm = re.search(rf"\\b{re.escape(ts_key)}:\\s*(\\d+)", ts)
         cm = re.search(rf"{re.escape(css_var)}:\\s*([^;]+);", css)
         if not tm or not cm:
+            violations.append({
+                "rule": "layout_token_mirror_missing",
+                "file": DESIGN_TOKENS_TS.relative_to(ROOT).as_posix(),
+                "line": 0,
+                "match": f"{ts_key} / {css_var}",
+                "why": "could not parse both sides of the generic application layout mirror"})
             continue
         expected = f"{tm.group(1)}px"
         actual = cm.group(1).strip()
