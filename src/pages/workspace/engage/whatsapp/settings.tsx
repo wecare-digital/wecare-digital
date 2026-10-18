@@ -40,6 +40,10 @@ function lazyTab<P> ( loader: () => Promise<{ default: React.ComponentType<P> }>
 // src/components/workspace/whatsapp/** so the physical route count drops. The lazy-tab
 // contract is unchanged — each still loads on demand and takes { signOut, user, embedded }.
 // Paths are kept as string literals so webpack can statically resolve each chunk.
+// FEAT-003: the WhatsApp inbox folded into this hub as the `inbox` tab. Its body moved out of
+// the routes tree (it was ./inbox.tsx) into the hub's component directory; it is still a thin
+// wrapper over the omnichannel inbox, pre-filtered to WhatsApp, embeddable via `embedded`.
+const InboxTab = lazyTab( () => import( '../../../../components/workspace/whatsapp/inbox' ) );
 const WABADashboard = lazyTab( () => import( '../../../../components/workspace/whatsapp/waba-dashboard' ) );
 const TemplatesPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/templates' ) );
 const WelcomePage = lazyTab( () => import( '../../../../components/workspace/whatsapp/welcome' ) );
@@ -174,6 +178,9 @@ const BotMenuTab: React.FC = () => (
 );
 
 const TABS: ShellTab[] = [
+  // Inbox — the WhatsApp-filtered omnichannel inbox, folded in from the retired
+  // /workspace/engage/whatsapp/inbox route (FEAT-003).
+  { id: 'inbox', label: 'Inbox' },
   // Messaging
   { id: 'ai-agent', label: '🤖 AI Agent' },
   { id: 'auto-response', label: 'Auto-Response' },
@@ -236,6 +243,7 @@ const WhatsAppSettingsPage: React.FC<PageProps> = ( { signOut, user } ) => {
     >
       { ( activeTab ) => (
         <Suspense fallback={ <div style={ { padding: 40, textAlign: 'center' } }>Loading...</div> }>
+          { activeTab === 'inbox' && <InboxTab signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'ai-agent' && <AiAgentPage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'auto-response' && <AutoResponsePage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'bot-menu' && <BotMenuTab /> }

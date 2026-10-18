@@ -29,6 +29,10 @@ const MetaAgentPage = lazyTab( () => import( '../../../components/workspace/mess
 const DocsScraperPage = lazyTab( () => import( '../../../components/workspace/messaging/DocsScraper' ) );
 const ScheduledPage = lazyTab( () => import( '../../../components/workspace/messaging/Scheduled' ) );
 const Contact360Page = lazyTab( () => import( '../../../components/workspace/messaging/Contact360' ) );
+// FEAT-003: Message logs is a tab on this hub now (beside Analytics), not a standalone sidebar
+// destination. The body stays at ./logs (a real route the per-channel hubs also embed); here it
+// renders unlocked, showing every channel. `../logs` resolves to pages/workspace/engage/logs.
+const LogsPage = lazyTab( () => import( './logs' ) );
 
 const HUB_TABS: ShellTab[] = [
   { id: 'overview', label: 'Overview' },
@@ -36,6 +40,7 @@ const HUB_TABS: ShellTab[] = [
   { id: 'automation', label: 'Automation' },
   { id: 'content', label: 'Content Library' },
   { id: 'analytics', label: 'Analytics' },
+  { id: 'logs', label: 'Message logs' },
   { id: 'cost', label: 'Cost & Usage' },
   { id: 'search', label: 'Message Search' },
   { id: 'meta-agent', label: 'Meta AI Agent' },
@@ -86,11 +91,10 @@ const MessagesPage: React.FC<PageProps> = ({ signOut, user }) => {
 
   const handleQuickAction = (action: string) => {
     if (action === 'send') setSendOpen(true);
-    // "View All Logs — Cross-channel message history" is engage/logs, the one logs view
-    // over MessagesTable for every channel. This went to /workspace/engage/whatsapp, a
-    // WhatsApp-only inbox, which kept neither half of the promise; that URL is now a
-    // signpost, so following it would only have added a redirect to the same mismatch.
-    else if (action === 'logs') router.push('/workspace/engage/logs');
+    // "View All Logs — Cross-channel message history" opens the Message logs tab on this hub
+    // (FEAT-003 folded the standalone engage/logs sidebar destination into a ?tab= view here).
+    // It is the one logs view over MessagesTable for every channel.
+    else if (action === 'logs') router.push('/workspace/engage?tab=logs');
     else if (action === 'contacts') router.push('/workspace/contacts');
   };
 
@@ -150,6 +154,7 @@ const MessagesPage: React.FC<PageProps> = ({ signOut, user }) => {
             {activeTab === 'automation' && <AutomationPage signOut={signOut} user={user} embedded />}
             {activeTab === 'content' && <ContentPage signOut={signOut} user={user} embedded />}
             {activeTab === 'analytics' && <AnalyticsPage signOut={signOut} user={user} embedded />}
+            {activeTab === 'logs' && <LogsPage signOut={signOut} user={user} embedded />}
             {activeTab === 'cost' && <CostPage signOut={signOut} user={user} embedded />}
             {activeTab === 'search' && <SearchPage signOut={signOut} user={user} embedded />}
             {activeTab === 'meta-agent' && <MetaAgentPage signOut={signOut} user={user} embedded />}

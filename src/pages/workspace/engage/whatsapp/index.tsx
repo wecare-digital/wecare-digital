@@ -13,10 +13,11 @@
  * it (the dashboard OverviewTab cards, the Ctrl+M shortcut in useKeyboardShortcuts). A
  * signpost keeps every one of those landing on the inbox instead of a 404.
  *
- * What still needs the inbox to RENDER is untouched: ./inbox.tsx stays a real page,
- * src/test/CssDrivenMotion.test.tsx reads that file (not this one), and the
- * `communications` module home now names /workspace/engage/whatsapp/settings — the
- * WhatsApp Business hub — instead of this URL.
+ * What still needs the inbox to RENDER is untouched: FEAT-003 folded the WhatsApp inbox
+ * into the WhatsApp hub as its `inbox` tab (its body now lives at
+ * src/components/workspace/whatsapp/inbox.tsx, which src/test/CssDrivenMotion.test.tsx reads,
+ * not this file), and the `communications` module home names /workspace/engage/whatsapp/settings
+ * — the WhatsApp Business hub — instead of this URL.
  *
  * Follows the precedents in src/pages/workspace/admin/index.tsx,
  * src/pages/workspace/forms/index.tsx and src/pages/workspace/service/index.tsx.

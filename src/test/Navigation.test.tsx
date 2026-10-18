@@ -24,6 +24,7 @@ import {
 } from '../config/navigation';
 
 const PAGES = path.resolve( __dirname, '../pages' );
+const COMPONENTS = path.resolve( __dirname, '../components' );
 
 /** Does a nav path resolve to a real page file? Query strings are stripped. */
 function pageExists ( navPath: string ): boolean {
@@ -130,9 +131,11 @@ describe( 'nothing became unreachable', () => {
     const all = getAllNavItems().map( ( i ) => i.path );
     // FEAT-005/006: these orphans are now reached as `hub?tab=` deep-links (their dense
     // sections folded into tabbed hubs and their bodies moved under
-    // src/components/workspace/**). The MFA page keeps its own route. Still the one sample
-    // of the orphans with no link anywhere else — only their canonical paths moved.
-    for ( const p of [ '/workspace/access/security', '/workspace/engage/channels', '/workspace/engage?tab=search',
+    // src/components/workspace/**). Still the one sample of the orphans with no link anywhere
+    // else — only their canonical paths moved. (FEAT-003 relocated the MFA page out of this set
+    // into the gear panel; its reachability is proven by the SettingsGear render test, not
+    // getAllNavItems, so it is no longer sampled here.)
+    for ( const p of [ '/workspace/engage/channels', '/workspace/engage?tab=search',
       '/workspace/engage/whatsapp/settings?tab=catalog-builder', '/workspace/engage/whatsapp/settings?tab=embedded-signup',
       '/workspace/settings/platform?tab=design-reference', '/workspace/engage?tab=meta-agent', '/workspace/engage/service-ops?tab=faq' ] )
     {
@@ -183,9 +186,12 @@ describe( 'every nav path resolves to a real page', () => {
 describe( 'no entry point lands on a redirect signpost', () => {
   // Kept on purpose, so a bookmark still lands somewhere. Removing one of these files is a
   // decision about bookmarks, not about navigation, and should fail here first.
-  const SIGNPOSTS = [ '/workspace/admin', '/workspace/service', '/workspace/forms',
-    '/workspace/docs', '/workspace/access', '/workspace/engage/whatsapp',
-    '/workspace/dashboard/waba-usernames' ];
+  // FEAT-003 deleted three signpost FILES (admin, docs, dashboard/waba-usernames) rather than
+  // keeping them as client stubs: their old URLs now resolve through server-side redirect config
+  // (see PR-B-reduction-note.md), not a router.replace page, so they are no longer in this list.
+  // The four that remain are still client signposts kept for bookmarks.
+  const SIGNPOSTS = [ '/workspace/service', '/workspace/forms',
+    '/workspace/access', '/workspace/engage/whatsapp' ];
 
   it( 'keeps every signpost, and each forwards to a destination the nav reaches', () => {
     const all = getAllNavItems().map( ( i ) => i.path );
@@ -256,13 +262,38 @@ describe( 'the settings tree is navigable', () => {
     }
   } );
 
-  it( 'puts Sign-in & MFA first in the account group, since it cannot be reached otherwise', () => {
+  it( 'leads the account group with the Sign-in & MFA in-panel surface, since it cannot be reached otherwise', () => {
+    // FEAT-003: Sign-in & MFA moved OUT of the routes tree into the gear panel. It is no longer
+    // an items[] route (it was '/workspace/access/security'); it is declared on the account
+    // group's `mfaPanel`, which SettingsGear renders FIRST and opens inline (TotpSetup needs the
+    // signed-in user's own token, so it mounts in the gear rather than at a URL). Reachability is
+    // proven by the SettingsGear render test below; here we pin that the gear still leads with it.
     const account = settingsConfig.find( ( g ) => g.id === 'account' );
-    expect( account?.items[ 0 ].path ).toBe( '/workspace/access/security' );
+    expect( account?.mfaPanel?.label ).toBe( 'Sign-in & MFA' );
+    // And it is NOT a route any more: no account items path points at the retired security page.
+    expect( account?.items.map( ( i ) => i.path ) ).not.toContain( '/workspace/access/security' );
   } );
 
   it( 'has no duplicate destination across the whole tree', () => {
     const paths = getSettingsItems().map( ( i ) => i.path );
     expect( new Set( paths ).size ).toBe( paths.length );
+  } );
+
+  it( 'reaches Sign-in & MFA through the gear panel, which mounts TotpSetup inline', () => {
+    // FEAT-003 relocation: the MFA page left the routes tree, so reachability is proven HERE
+    // instead of via getAllNavItems. The gear is the one surface that can mount TotpSetup with
+    // the signed-in user's own token. SettingsGear renders the account group's `mfaPanel` and
+    // opens the real TotpSetup component inline — asserted against its source, the same way
+    // SearchModal.test pins the palette's source.
+    const gear = fs.readFileSync( path.join( COMPONENTS, 'SettingsGear.tsx' ), 'utf8' );
+    expect( gear ).toContain( "import( './security/TotpSetup' )" );
+    expect( gear ).toContain( 'g.mfaPanel' );
+    expect( gear ).toContain( '<TotpSetup />' );
+    // The component that does the enrolling must still exist and still be the TOTP surface.
+    const totp = fs.readFileSync( path.join( COMPONENTS, 'security', 'TotpSetup.tsx' ), 'utf8' );
+    expect( totp ).toContain( 'setUpTOTP' );
+    expect( totp ).toContain( 'verifyTOTPSetup' );
+    // And no page file was left behind at the retired route.
+    expect( fs.existsSync( path.join( PAGES, 'workspace/access/security.tsx' ) ) ).toBe( false );
   } );
 } );

@@ -7,10 +7,12 @@
  * components/FloatingAgent.tsx, components/dashboard/tabs/InternalChatTab.tsx,
  * pages/workspace/engage/inbox/index.tsx and pages/workspace/engage/whatsapp/inbox.tsx.
  *
- * THREE of those four remain. The fourth, pages/workspace/engage/whatsapp/inbox.tsx, was a
- * duplicate of the omnichannel inbox and is now a thin wrapper that renders it with
- * channel="whatsapp", so it no longer imports this helper and no longer declares a scroll
- * container of its own. The history above is kept because it is why this function exists; the
+ * THREE of those four remain. The fourth, the WhatsApp inbox (formerly
+ * pages/workspace/engage/whatsapp/inbox.tsx, folded into the WhatsApp hub by FEAT-003 and now
+ * at components/workspace/whatsapp/inbox.tsx), was a duplicate of the omnichannel inbox and is
+ * now a thin wrapper that renders it with channel="whatsapp", so it no longer imports this
+ * helper and no longer declares a scroll container of its own. The history above is kept
+ * because it is why this function exists; the
  * counts below are the live ones.
  *
  * Passing `behavior: 'smooth'` is a script overriding the stylesheet, and it has one concrete
