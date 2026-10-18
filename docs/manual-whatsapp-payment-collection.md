@@ -16,9 +16,9 @@ create a new template per invoice or fill its order parameters by hand.
 4. Check delivery charges deliberately. Set them to zero when delivery is not charged.
    The form's saved/default delivery value is not a determination that delivery applies.
    Delight and convenience fees are calculated by the invoice engine, not entered manually.
-5. Choose **Create Invoice**. The confirmation states that no payment request has been sent.
-   Select **Review and send payment request** to open that exact saved invoice in **Invoices**.
-   Check its customer,
+5. Choose **Create and send payment request** to create and send one request.
+   For a review first, choose **Save invoice for review**, then **Review and send payment request**
+   to open that exact saved invoice in **Invoices**. Check its customer,
    goods type, amount and delivery details.
 6. Use the primary sender **+91 93309 94400** and choose **Send payment request**. The server
    resolves and verifies the registered payment configuration and reserves the invoice's
@@ -82,3 +82,9 @@ block merging. Review their reported results before releasing a change.
 The convenience fee is 2.5% of the canonical collection amount, plus 18% GST on
 that fee (2.95% effective). Item GST is separate. Existing tax-inclusive catalogue
 prices and captured invoice totals must not have GST added a second time.
+
+Cancel an unpaid invoice with **Cancel Invoice**. Its number and history are retained;
+previous WhatsApp messages are not retracted. The default **Active** invoice list hides
+cancelled invoices, which remain available under **Cancelled** or **All**. Commerce is
+always available without an environment switch. Standard Indian state abbreviations
+(such as WB) and their existing ISO subdivision codes resolve through the shared state table.

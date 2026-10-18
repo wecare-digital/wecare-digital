@@ -774,9 +774,10 @@ def test_physical_delivery_refuses_before_any_reservation_or_provider_read(engin
     assert not _rows(fake, order_keys.INVOICE_COLLECT_PREFIX)
 
 
-def test_physical_delivery_is_validated_and_frozen_before_send(engine, fake):
+@pytest.mark.parametrize('state', ['West Bengal', 'WB', 'IN-WB'])
+def test_physical_delivery_is_validated_and_frozen_before_send(engine, fake, state):
     _seed_invoice(fake, extra={'goodsType': 'physical-goods', 'addressLine1': '12 Example Road',
-        'city': 'Kolkata', 'state': 'West Bengal', 'postalCode': '700012'})
+        'city': 'Kolkata', 'state': state, 'postalCode': '700012'})
     lam = _RecordingLambda()
     response = _drive(engine, fake, lam)
     assert response['statusCode'] == 200, _body(response)

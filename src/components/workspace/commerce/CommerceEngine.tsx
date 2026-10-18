@@ -259,7 +259,7 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                         <Button variant="secondary" onClick={ addItem } disabled={ busy !== '' }>+ Item</Button>
                         <Button onClick={ sendBill } disabled={ busy !== '' }>{ busy === 'bill' ? 'Sending…' : 'Send bill (Review & Pay)' }</Button>
                     </div>
-                    <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '8px 0 0' } }>18% GST + 2.2% convenience fee are added automatically; a GST invoice is generated on payment.</p>
+                    <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '8px 0 0' } }>18% GST and a 2.5% convenience fee, plus 18% GST on that fee, are added automatically; a GST invoice is generated on payment.</p>
                 </div>
 
                 <div style={ card }>

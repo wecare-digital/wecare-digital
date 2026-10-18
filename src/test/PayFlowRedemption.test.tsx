@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 /**
  * PAY FLOW CARRIES THE ONE ALWAYS-ON DISCOUNT, AND COMPUTES NOTHING.
@@ -10,7 +10,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
  * standalone Delight policy (0.5% up to ₹50) on the server. The browser never supplies a discount
  * amount; it renders only the server-owned Delight figure returned on create.
  */
-vi.mock( '../contexts/ConfirmContext', () => ( { useConfirm: () => vi.fn().mockResolvedValue( true ) } ) );
+const confirmAction = vi.fn();
+vi.mock( '../contexts/ConfirmContext', () => ( { useConfirm: () => confirmAction } ) );
 
 const listContacts = vi.fn();
 const listInvoicesEngine = vi.fn();
@@ -18,6 +19,9 @@ const createInvoiceEngine = vi.fn();
 const getInvoiceDeliveryLog = vi.fn();
 const getInvoiceEngine = vi.fn();
 const sendPaymentLink = vi.fn();
+const sendPaymentLinkResult = vi.fn();
+const cancelInvoice = vi.fn();
+const deleteInvoice = vi.fn();
 vi.mock( '../api/client', async importOriginal => ( {
   ...await importOriginal<typeof import( '../api/client' )>(),
   listContacts: ( ...a: unknown[] ) => listContacts( ...a ),
@@ -26,6 +30,9 @@ vi.mock( '../api/client', async importOriginal => ( {
   getInvoiceDeliveryLog: ( ...a: unknown[] ) => getInvoiceDeliveryLog( ...a ),
   getInvoiceEngine: ( ...a: unknown[] ) => getInvoiceEngine( ...a ),
   sendPaymentLink: ( ...a: unknown[] ) => sendPaymentLink( ...a ),
+  sendPaymentLinkResult: ( ...a: unknown[] ) => sendPaymentLinkResult( ...a ),
+  cancelInvoice: ( ...a: unknown[] ) => cancelInvoice( ...a ),
+  deleteInvoice: ( ...a: unknown[] ) => deleteInvoice( ...a ),
 } ) );
 
 import PayFlowPage from '../components/workspace/pay/PayFlow';
@@ -49,26 +56,29 @@ const SERVER_CREATE = {
 beforeEach( () => {
   vi.clearAllMocks();
   window.localStorage.clear();
+  confirmAction.mockResolvedValue( true );
+  cancelInvoice.mockResolvedValue( { status: 'cancelled' } );
   listContacts.mockResolvedValue( [ { ...CUSTOMER } ] );
   listInvoicesEngine.mockResolvedValue( { invoices: [] } );
   getInvoiceDeliveryLog.mockResolvedValue( { deliveryLogs: [] } );
   createInvoiceEngine.mockResolvedValue( SERVER_CREATE );
   getInvoiceEngine.mockResolvedValue( { ...SERVER_CREATE, status: 'created', paymentStatus: 'pending', customerName: CUSTOMER.name, customerPhone: CUSTOMER.phone } );
   sendPaymentLink.mockResolvedValue( { status: 'payment_link_sent' } );
+  sendPaymentLinkResult.mockImplementation( async ( ...args: unknown[] ) => { const data = await sendPaymentLink( ...args ); return data ? { ok: true, data } : { ok: false, failure: { message: 'Sending is not confirmed.' } }; } );
 } );
 
 const openCreateForm = async (): Promise<void> => {
   render( <PayFlowPage embedded /> );
   fireEvent.click( screen.getByRole( 'tab', { name: 'Create' } ) );
   fireEvent.click( await screen.findByText( 'Asha Rao' ) );
-  await waitFor( () => expect( screen.getByRole( 'button', { name: 'Create Invoice' } ) ).toBeInTheDocument() );
+  await waitFor( () => expect( screen.getByRole( 'button', { name: 'Save invoice for review' } ) ).toBeInTheDocument() );
 };
 const priceOneItem = (): void => {
   const prices = screen.getAllByRole( 'spinbutton' );
   fireEvent.change( prices[ 0 ], { target: { value: '1000' } } );
 };
 const submit = (): void => {
-  fireEvent.click( screen.getByRole( 'button', { name: 'Create Invoice' } ) );
+  fireEvent.click( screen.getByRole( 'button', { name: 'Save invoice for review' } ) );
 };
 const lastRequest = (): any => createInvoiceEngine.mock.calls[ 0 ][ 0 ];
 
@@ -195,7 +205,7 @@ describe( 'created invoices lead to explicit review and send', () => {
     priceOneItem();
     submit();
     const next = await screen.findByRole( 'button', { name: 'Review and send payment request' } );
-    expect( screen.getByText( /No WhatsApp payment request has been sent by this create action/ ) ).toBeInTheDocument();
+    expect( screen.getByText( /Invoice saved without sending a WhatsApp payment request/ ) ).toBeInTheDocument();
     expect( sendPaymentLink ).not.toHaveBeenCalled();
     fireEvent.click( next );
     await waitFor( () => expect( getInvoiceEngine ).toHaveBeenCalledWith( 'inv_1' ) );
@@ -215,4 +225,107 @@ describe( 'created invoices lead to explicit review and send', () => {
     expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 );
     expect( sendPaymentLink ).not.toHaveBeenCalled();
   } );
+} );
+
+
+describe( 'explicit create and send', () => {
+  it( 'creates once, then sends that invoice from the primary number', async () => {
+    await openCreateForm(); priceOneItem();
+    fireEvent.click( screen.getByRole( 'button', { name: 'Create and send payment request' } ) );
+    await waitFor( () => expect( sendPaymentLink ).toHaveBeenCalledWith( 'inv_1', 'phone-number-id-waba1-direct-1016149501586345' ) );
+    expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 );
+    expect( createInvoiceEngine.mock.invocationCallOrder[ 0 ] ).toBeLessThan( sendPaymentLink.mock.invocationCallOrder[ 0 ] );
+    await screen.findByText( 'WhatsApp payment request sent.', { selector: 'p' } );
+  } );
+  it( 'retains the saved invoice when sending is unconfirmed and does not create a replacement', async () => {
+    sendPaymentLink.mockResolvedValue( null );
+    await openCreateForm(); priceOneItem();
+    fireEvent.click( screen.getByRole( 'button', { name: 'Create and send payment request' } ) );
+    await screen.findByText( /Sending is not confirmed. Open this saved invoice/ );
+    fireEvent.click( screen.getByRole( 'button', { name: 'View invoice and delivery status' } ) );
+    await waitFor( () => expect( getInvoiceEngine ).toHaveBeenCalledWith( 'inv_1' ) );
+    expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 );
+    expect( sendPaymentLink ).toHaveBeenCalledTimes( 1 );
+  } );
+  it( 'does not label an in-progress dispatch as sent', async () => {
+    sendPaymentLink.mockResolvedValue( { status: 'send_in_progress' } );
+    await openCreateForm(); priceOneItem();
+    fireEvent.click( screen.getByRole( 'button', { name: 'Create and send payment request' } ) );
+    await screen.findByText( /Sending is not confirmed. Open this saved invoice/ );
+    expect( screen.queryByText( 'WhatsApp payment request sent.' ) ).toBeNull();
+  } );
+  it( 'blocks duplicate clicks while invoice creation is pending', async () => {
+    let finish: ( value: typeof SERVER_CREATE ) => void = () => {};
+    createInvoiceEngine.mockReturnValue( new Promise( resolve => { finish = resolve; } ) );
+    await openCreateForm(); priceOneItem();
+    const create = screen.getByRole( 'button', { name: 'Create and send payment request' } );
+    fireEvent.click( create ); fireEvent.click( create );
+    expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 );
+    expect( screen.getByRole( 'button', { name: 'Save invoice for review' } ) ).toBeDisabled();
+    finish( SERVER_CREATE );
+    await waitFor( () => expect( sendPaymentLink ).toHaveBeenCalledTimes( 1 ) );
+  } );
+  it( 'does not send if invoice creation is refused', async () => {
+    createInvoiceEngine.mockResolvedValue( null );
+    await openCreateForm(); priceOneItem();
+    fireEvent.click( screen.getByRole( 'button', { name: 'Create and send payment request' } ) );
+    await screen.findByText( 'Create failed' );
+    expect( sendPaymentLink ).not.toHaveBeenCalled();
+  } );
+} );
+
+const existingInvoice = ( extra: Record<string, unknown> = {} ) => ( {
+  ...SERVER_CREATE, status: 'pending_payment', paymentStatus: 'pending',
+  customerName: CUSTOMER.name, customerPhone: CUSTOMER.phone, createdAt: 1770000000,
+  ...extra,
+} );
+
+describe( 'cancellation replaces withdrawn invoice deletion', () => {
+  it( 'cancels an unpaid invoice and hides it from Active without deleting its record', async () => {
+    const invoice = existingInvoice();
+    listInvoicesEngine.mockResolvedValue( { invoices: [ invoice ] } );
+    cancelInvoice.mockImplementation( async () => {
+      listInvoicesEngine.mockResolvedValue( { invoices: [ { ...invoice, status: 'cancelled', paymentStatus: 'cancelled' } ] } );
+      return { invoiceId: invoice.invoiceId, status: 'cancelled' };
+    } );
+    render( <PayFlowPage embedded /> );
+    fireEvent.click( screen.getByRole( 'tab', { name: 'Invoices' } ) );
+    const row = ( await screen.findByText( 'ref_1' ) ).closest( 'tr' )!;
+    expect( screen.queryByRole( 'button', { name: 'Delete' } ) ).toBeNull();
+    fireEvent.click( within( row ).getByRole( 'button', { name: 'Cancel Invoice' } ) );
+    await waitFor( () => expect( cancelInvoice ).toHaveBeenCalledWith( 'inv_1' ) );
+    await waitFor( () => expect( screen.queryByText( 'ref_1' ) ).toBeNull() );
+    expect( deleteInvoice ).not.toHaveBeenCalled();
+    fireEvent.click( screen.getByRole( 'button', { name: /^Cancelled$/ } ) );
+    expect( await screen.findByText( 'ref_1' ) ).toBeInTheDocument();
+    expect( screen.queryByRole( 'button', { name: 'Cancel Invoice' } ) ).toBeNull();
+  } );
+  it.each( [ 'captured', 'paid', 'refunded', 'disputed' ] )( 'does not offer cancellation for payment status %s', async paymentStatus => {
+    listInvoicesEngine.mockResolvedValue( { invoices: [ existingInvoice( { paymentStatus } ) ] } );
+    render( <PayFlowPage embedded /> );
+    fireEvent.click( screen.getByRole( 'tab', { name: 'Invoices' } ) );
+    fireEvent.click( await screen.findByText( 'ref_1' ) );
+    expect( screen.queryByRole( 'button', { name: 'Cancel Invoice' } ) ).toBeNull();
+    expect( screen.queryByRole( 'button', { name: 'Delete' } ) ).toBeNull();
+  } );
+  it( 'leaves an invoice unchanged when cancellation is declined', async () => {
+    confirmAction.mockResolvedValue( false );
+    listInvoicesEngine.mockResolvedValue( { invoices: [ existingInvoice() ] } );
+    render( <PayFlowPage embedded /> );
+    fireEvent.click( screen.getByRole( 'tab', { name: 'Invoices' } ) );
+    const row = ( await screen.findByText( 'ref_1' ) ).closest( 'tr' )!;
+    fireEvent.click( within( row ).getByRole( 'button', { name: 'Cancel Invoice' } ) );
+    await waitFor( () => expect( confirmAction ).toHaveBeenCalled() );
+    expect( cancelInvoice ).not.toHaveBeenCalled();
+    expect( deleteInvoice ).not.toHaveBeenCalled();
+  } );
+} );
+
+
+it( 'shows the actionable server refusal instead of a generic send failure', async () => {
+  sendPaymentLinkResult.mockResolvedValue( { ok: false, failure: { message: 'Save a valid six-digit delivery PIN before requesting payment.' } } );
+  await openCreateForm(); priceOneItem();
+  fireEvent.click( screen.getByRole( 'button', { name: 'Create and send payment request' } ) );
+  await screen.findByText( /Save a valid six-digit delivery PIN.*Open this saved invoice/ );
+  expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 );
 } );

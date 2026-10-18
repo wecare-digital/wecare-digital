@@ -63,24 +63,15 @@ describe( 'flags default OFF', () => {
 // which is the same shape and is still shipped — so the behaviour these tests protected
 // is not now unguarded. What is gone is the page, not the rule.
 
-describe( 'the Commerce home with the flag off', () => {
-  it( 'explains why it is off instead of showing empty panels', () => {
-    expect( featureFlags.commerceModule ).toBe( false );
+describe( 'Commerce is always available', () => {
+  it( 'has no Commerce switch or disabled-module notice', () => {
+    expect( featureFlags ).not.toHaveProperty( 'commerceModule' );
+    expect( FLAGS_SRC ).not.toContain( 'NEXT_PUBLIC_ENABLE_COMMERCE_MODULE' );
     render( <CommercePage embedded /> );
-    expect( screen.getByText( /Commerce module is switched off/i ) ).toBeTruthy();
-    // Off because every capability already works at its own page, not because it is
-    // unfinished.
-    expect( screen.getByText( /Not because it is unfinished/i ) ).toBeTruthy();
-  } );
-
-  // Moved here from the deleted Growth block rather than dropped with it. The property was
-  // never really about Growth — it is about how a flagged-off module home is allowed to
-  // behave, and that rule outlived the page.
-  it( 'still links to the native pages it gathers, which is the useful part', () => {
-    render( <CommercePage embedded /> );
-    // Catalog is the default tab: the working pages, listed rather than duplicated.
-    expect( screen.getByText( /These already work/i ) ).toBeTruthy();
-    expect( screen.getByRole( 'link', { name: /Invoice records/i } ) ).toBeTruthy();
+    expect( screen.queryByText( /Commerce module is switched off/i ) ).toBeNull();
+    expect( screen.queryByText( /NEXT_PUBLIC_ENABLE_COMMERCE_MODULE/i ) ).toBeNull();
+    expect( screen.getByRole( 'tab', { name: 'Catalog & orders' } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'tab', { name: 'Commerce engine' } ) ).toBeInTheDocument();
   } );
 
   it( 'keeps provider names out of the page name and the tab labels', () => {
