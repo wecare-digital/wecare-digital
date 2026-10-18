@@ -310,18 +310,18 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
       <style jsx>{`
         .pbp{max-width:560px;width:100%}
         .pbp-foot{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:22px 0 0}
-        .pbp-browse{
+        .pbp :global(.pbp-browse){
           display:inline-flex;align-items:center;gap:5px;width:max-content;margin-left:-10px;padding:8px 10px;
           border-radius:10px;color:var(--public-brand-green);
-          font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);line-height:1.4;letter-spacing:-.05px;
+          font-size:17px;font-weight:600;line-height:1.4;letter-spacing:-.05px;
           text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;
           transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
         }
-        .pbp-browse:hover{
+        .pbp :global(.pbp-browse:hover){
           background:var(--public-brand-lime);color:var(--public-brand-green);text-decoration-color:transparent;
-          transform:translateY(-1px);box-shadow:var(--public-lift-shadow);
+          transform:translateY(-1px);box-shadow:0 6px 18px rgba(26,58,42,.12);
         }
-        .pbp-browse:focus-visible{
+        .pbp :global(.pbp-browse:focus-visible){
           background:var(--public-brand-lime);color:var(--public-brand-green);text-decoration-color:transparent;
           outline:3px solid var(--public-brand-green);outline-offset:3px;
         }
@@ -468,8 +468,9 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
         }
 
         @media(prefers-reduced-motion:reduce){
-          .pbp-pill,.pbp-link,.pbp-title,.pbp-search input,.pbp-arrow,.pbp-progress-fill,.pbp-browse{transition:none}
-          .pbp-browse:hover{transform:none;box-shadow:none}
+          .pbp-pill,.pbp-link,.pbp-title,.pbp-search input,.pbp-arrow,.pbp-progress-fill{transition:none}
+          .pbp :global(.pbp-browse){transition:none}
+          .pbp :global(.pbp-browse:hover){transform:none;box-shadow:none}
           /* A reduced-motion reader gets instant page jumps instead of the smooth scroll; the
              track still snaps, it just does not animate the slide. */
           .pbp-track{scroll-behavior:auto}
