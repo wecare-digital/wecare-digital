@@ -42,9 +42,27 @@ the published checkout had both. An order-status template was not configured on 
 3. In an authorized rollout, run the same command without `--dry-run`. Selected functions that
    fail validation/update prevent alias publication for the batch. Publication detects changed
    environment variables even if the code hash is unchanged.
-4. Create/review the order-status preset on the intended WABA, wait for provider approval, then
-   configure outbound `WA_ORDER_STATUS_TEMPLATE` and `WA_ORDER_STATUS_TEMPLATE_LANGUAGE` to that
-   exact approved variant. Publish the environment change and verify the live version.
+4. Create/review the order-status template on the intended WABA, wait for provider approval,
+   then publish the matching outbound environment. The template name and language are already
+   pinned in `config/lambda-env-manifest.json` (`wecare-outbound-whatsapp` →
+   `WA_ORDER_STATUS_TEMPLATE=wecare_order_status`, `WA_ORDER_STATUS_TEMPLATE_LANGUAGE=en`), so
+   the submitted template MUST use that exact name/language or the send path and the release
+   audit both read it as "not configured".
+
+   ```sh
+   # Preview the exact UTILITY / ORDER_STATUS definition without submitting:
+   python scripts/provision_order_status_template.py --dry-run
+   # Submit it to the sender's WABA (approval is Meta's, this does not wait):
+   python scripts/provision_order_status_template.py
+   # Re-run until APPROVED — checks name, status, UTILITY, ORDER_STATUS, language
+   # against the same readback the live gate uses:
+   python scripts/provision_order_status_template.py --verify
+   ```
+
+   Only after `--verify` passes, publish the outbound environment change so the manifest
+   values reach the live function, then verify the live version. Until the template is
+   APPROVED and the env is published, out-of-window order_status updates are not sent (the
+   in-window interactive path is unaffected and keeps working).
 5. Verify live package policy, payment expectations, template readback, frozen quote amounts,
    fulfillment state and settlement reconciliation before enabling customer traffic.
 6. Retire the seven coupon routes, coupon Lambda and table only after all live callers have
