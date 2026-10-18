@@ -35,7 +35,6 @@ const { installVisible } = require( './lib/visible' );
 /**
  * The public routes, matching seocheck.js's list so the two cannot disagree about what
  * "public" means, plus the three index routes seocheck deliberately skips because they are
- * generated rather than authored: /blog/, /store/ and /get/. One /post/ page stands in for
  * all 746 - they share a single template.
  */
 const ROUTES = [
