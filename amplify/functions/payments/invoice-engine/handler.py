@@ -3280,10 +3280,25 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
     if not invoice:
         return _resp(404, {'error': 'Invoice not found'})
 
-    # Don't send payment link for already paid/cancelled invoices
+    # Don't send payment link for already paid/cancelled invoices.
+    #
+    # Two fields, checked both ways on purpose. `status` is the document lifecycle; the ranked
+    # `paymentStatus` is what the MONEY did. A capture writes `paymentStatus='captured'`, and if
+    # `status` was not also flipped to `'paid'` (a divergence the cancel path documents), a guard
+    # that read `status` alone would let this function run on an already-paid invoice and overwrite
+    # `status` back to `pending_payment` - showing a paid customer a fresh "pay now" request. The
+    # ranked check refuses anything at or past CAPTURED (captured/paid/refunded/disputed) exactly
+    # as the reconciliation paths do, so the paid state is preserved regardless of which field
+    # carries it.
     status = invoice.get('status', '')
     if status in ('paid', 'cancelled'):
         return _resp(400, {'error': f'Invoice is {status}, cannot send payment link'})
+    current_ps = invoice.get('paymentStatus', '')
+    if pay_status.rank(current_ps) >= pay_status.STATUS_RANK[pay_status.CAPTURED]:
+        return _resp(400, {
+            'error': 'Invoice is already paid; cannot send a payment request.',
+            'paymentStatus': pay_status.canonical(current_ps),
+        })
 
     customer_phone = invoice.get('customerPhone', '')
     if not customer_phone:
