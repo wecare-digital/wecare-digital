@@ -305,30 +305,6 @@ export const CUSTOMERSERVICE: ProductDef[] = [
     ctaHref: REVIEW_ENTRY_URL,
     ctaNote: 'Continue on WhatsApp →',
   },
-  {
-    slug: 'refer-and-earn',
-    name: 'Refer & Earn',
-    blurb: 'Introduce someone who would find this useful.',
-    title: buildPageTitle( 'Refer and earn' ),
-    description:
-      'Introduce someone to WECARE.DIGITAL - how a referral is recorded, what is recognised, and what depends on the outcome.',
-    frame: 'Refer a',
-    words: cycle( 'friend', 'family', 'client', 'partner' ),
-    sub: 'If this has been useful to you, it may be useful to someone you know.',
-    sectionHeading: 'Introducing someone',
-    lead:
-      'A referral is an introduction, not a lead form. You tell us who to expect and what they are trying to do, or you tell them to mention you - either way the connection is recorded against both of you.',
-    points: [
-      { heading: 'Either direction works', body: 'Introduce them to us, or have them mention your name when they get in touch. Nothing is lost by doing it the informal way.' },
-      { heading: 'They are not cold-called', body: 'An introduction is not permission to market to someone. We wait for them to make contact, or we reach out once because you asked us to.' },
-      { heading: 'You can see where it stands', body: 'Ask at any point whether an introduction you made went anywhere. You will get a straight answer.' },
-    ],
-    note:
-      'What a referral is worth depends on what the person you introduced does next, so it is recognised case by case, not at a fixed rate. Anyone introducing people regularly should ask us about a partner arrangement - a different conversation, with terms written down.',
-    ctaLabel: 'Introduce someone',
-    ctaHref: whatsappKeywordLink( 'Refer and Earn' ),
-    ctaNote: 'Continue on WhatsApp →',
-  },
 ];
 
 /** Throws rather than returning undefined, so a bad slug fails the build, not a visitor. */
