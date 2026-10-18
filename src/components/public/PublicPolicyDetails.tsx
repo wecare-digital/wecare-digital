@@ -17,11 +17,11 @@ const PublicPolicyDetails: React.FC = () => {
     <section className="public-policy-tail" aria-label="Policy details">
       <div className="public-policy-inner">
         <PolicyDetails
-          overview={ policy.overview }
           shipping={ policy.shipping }
           returns={ policy.returns }
           refunds={ policy.refunds }
           disclaimer={ policy.disclaimer }
+          showStatutoryRights={ false }
         />
       </div>
       <style jsx>{`
