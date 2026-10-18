@@ -144,6 +144,7 @@ const STRUCTURAL = [
   { path: '/dastavez/drafting', group: 'services' },
   { path: '/dastavez/registration', group: 'services' },
   { path: '/dastavez/legal-reference', group: 'services' },
+  { path: '/ritual-guru/ritva', group: 'services' },
   { path: '/ritual-guru/puja-guidance', group: 'services' },
   { path: '/ritual-guru/diy-puja-kit', group: 'services' },
   // Hunar's two nested service children (added with PR #769). Grouped 'services' like the other
