@@ -87,7 +87,7 @@ import FloatingAgent from '../components/FloatingAgent';
 import SupportWidget from '../components/SupportWidget';
 import ErrorBoundary from '../components/ErrorBoundary';
 import Header from '../components/Header';
-import Footer from '../components/Footer';
+import Footer from '../components/Footer';\nimport PublicPolicyDetails from '../components/public/PublicPolicyDetails';
 import { ToastProvider } from '../contexts/ToastContext';
 import { ConfirmProvider } from '../contexts/ConfirmContext';
 import { initCapacitor, isNative } from '../lib/capacitor';
