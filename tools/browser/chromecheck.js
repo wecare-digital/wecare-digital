@@ -65,6 +65,7 @@ const MARKERS = {
  */
 const FORBIDDEN_PUBLIC_COPY = [
   'Statutory consumer rights remain unaffected.',
+  'Continue on WhatsApp',
   'final total confirmed at checkout',
   'Review your final total in the cart before payment',
   'The store confirms your final total',
