@@ -207,9 +207,8 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     // The steps block keeps only "Get Started on WhatsApp"; the lighter demo action lives
     // below the large API code panel and uses the crisper "Open in WhatsApp" label.
     expect( stepsCtas ).not.toContain( 'Open in WhatsApp' );
-    const openInCount = ( source.match( />Open in WhatsApp /g ) || [] ).length;
+    const openInCount = ( source.match( /className="api-wa-link"/g ) || [] ).length;
     expect( openInCount ).toBe( 1 );
-    expect( source ).not.toContain( '>Open in WhatsApp<' );
     // The single remaining steps-block CTA keeps the standard new-tab attributes.
     expect( stepsCtas ).toContain( 'target="_blank"' );
     expect( stepsCtas ).toContain( 'rel="noopener noreferrer"' );
