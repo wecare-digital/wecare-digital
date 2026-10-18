@@ -508,7 +508,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
            what this rule did. #1a3a2a on #d1f470 is ~10:1. */
         .category{display:inline-block;align-self:flex-start;background:var(--public-brand-lime);color:var(--public-brand-green);border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;letter-spacing:-.125px;margin-bottom:14px}
         h2{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);margin:0 0 12px}
-        h2 :global(a){color:#000;text-decoration:none;text-underline-offset:3px}
+        h2 :global(a){color:var(--public-heading);text-decoration:none;text-underline-offset:3px}
         h2 :global(a:hover){color:var(--public-brand-green)}
         h2 :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:2px}
         .post-copy p{
@@ -535,7 +535,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
         }
         .blog-search input{
           width:100%;box-sizing:border-box;height:52px;padding:0 44px 0 2px;
-          font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
+          font-size:17px;font-family:inherit;color:var(--public-body);background:transparent;
           border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
