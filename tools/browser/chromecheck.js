@@ -138,9 +138,12 @@ function main() {
 
   console.log( 'chromecheck - header, footer and widget in the built export\n' );
 
-  // Anti-vacuous: if the allowlist parse breaks, everything below would pass over an empty
-  // list and report success while checking nothing.
-  record( allowlist.length >= 15, 'allowlist parsed from _app.tsx', `${allowlist.length} public routes` );
+  // Anti-vacuous AND complete: Step 7 pins the exact public-shell contract at 43
+  // route patterns (31 canonical + 11 shared/customer + redirect-only /404). A smaller
+  // count means this parser dropped coverage; a larger count means the route contract
+  // changed and the closure guards must be reviewed together.
+  record( allowlist.length === 43, 'exact public allowlist parsed from _app.tsx',
+    `${allowlist.length} public routes (expected 43)` );
   record( allowlist.includes( '/404' ),
     'the 404 page is registered as public',
     allowlist.includes( '/404' )
