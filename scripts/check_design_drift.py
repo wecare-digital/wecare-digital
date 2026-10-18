@@ -129,6 +129,32 @@ LAYOUT_TOKEN_MIRROR = {
     "maxWidthWide": "--max-width-wide",
 }
 
+# These are the surfaces that define the public visual system rather than merely inheriting it.
+# The gate strips comments before checking, so a note that names a token cannot fake adoption.
+PUBLIC_TOKEN_CONSUMERS = {
+    SRC / "pages/index.tsx": ("--public-hero-size", "--public-section-size", "--public-body-size", "--public-card-size", "--public-content-max"),
+    SRC / "components/RotatingHero.tsx": ("--public-hero-size", "--public-body-size", "--public-content-max", "--public-copy-max"),
+    SRC / "components/public/ClosingBand.tsx": ("--public-section-size", "--public-body-size", "--public-cta-height"),
+    SRC / "components/PillButton.tsx": ("--public-cta-height", "--public-brand-green", "--public-brand-lime"),
+    SRC / "components/ProductPage.tsx": ("--public-section-size", "--public-body-size", "--public-card-size", "--public-cta-height"),
+    SRC / "components/BlogIndexView.tsx": ("--public-body-size", "--public-card-size", "--public-hairline"),
+    SRC / "components/ShopListingView.tsx": ("--public-body-size", "--public-card-size", "--public-hairline"),
+    SRC / "components/Header.tsx": ("--public-content-max", "--public-brand-green"),
+    SRC / "components/Footer.tsx": ("--public-content-max", "--public-muted"),
+    SRC / "pages/grahak-os/index.tsx": ("--public-hero-size", "--public-section-size", "--public-body-size", "--public-card-size", "--public-content-max"),
+    SRC / "pages/bharat-rx.tsx": ("--public-section-size", "--public-body-size", "--public-card-size", "--public-cta-height"),
+    SRC / "pages/post/[slug].tsx": ("--public-hero-size", "--public-body-size", "--public-card-size", "--public-cta-height"),
+    SRC / "components/ContactLocation.tsx": ("--public-section-size", "--public-cta-height"),
+    SRC / "components/get/GetPage.tsx": ("--public-section-size", "--public-body-size"),
+    SRC / "components/orders/OrdersPage.tsx": ("--public-section-size", "--public-body-size"),
+    SRC / "components/ProductBuyBox.tsx": ("--public-cta-height", "--public-card-size"),
+    SRC / "components/ServiceBuyBox.tsx": ("--public-cta-height", "--public-card-size"),
+    SRC / "components/PublicShare.tsx": ("--public-brand-green", "--public-hairline"),
+    SRC / "components/Pager.tsx": ("--public-brand-green", "--public-hairline"),
+    SRC / "pages/shop/[slug].tsx": ("--public-body-size", "--public-card-size", "--public-cta-height", "--public-hairline"),
+    SRC / "components/VayuLokLive.tsx": ("--public-bg", "--public-brand-lime", "--public-hairline"),
+}
+
 
 # State tokens that must stay visually distinct from one another.
 STATE_TOKENS = ("--success", "--warning", "--info", "--danger")
@@ -372,6 +398,27 @@ def scan_layout_token_mirror():
     return violations
 
 
+def scan_public_token_consumers():
+    """Canonical public surfaces must consume the contract instead of restating its literals."""
+    violations = []
+    for path, tokens in PUBLIC_TOKEN_CONSUMERS.items():
+        rel = path.relative_to(ROOT).as_posix()
+        if not path.exists():
+            violations.append({
+                "rule": "public_token_consumer_missing", "file": rel, "line": 0,
+                "match": "", "why": "expected canonical public surface is missing"})
+            continue
+        code = strip_comments(path.read_text(encoding="utf-8", errors="ignore"), path.suffix)
+        for token in tokens:
+            needle = f"var({token})"
+            if needle not in code:
+                violations.append({
+                    "rule": "public_token_not_consumed", "file": rel, "line": 0,
+                    "match": token,
+                    "why": "public surface restated or lost a canonical design role"})
+    return violations
+
+
 def normalise_colour(value: str) -> str:
     """A colour as an #rrggbb string, compositing rgba() over white.
 
@@ -481,6 +528,7 @@ def main() -> int:
     violations = (scan_retired() + scan_state_collision()
                   + scan_lime_resting_borders() + scan_token_mirror()
                   + scan_public_token_contract() + scan_layout_token_mirror()
+                  + scan_public_token_consumers()
                   + scan_danger_in_success_green()
                   + scan_measure() + scan_font_sans())
 
