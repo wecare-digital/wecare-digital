@@ -469,7 +469,7 @@ const serviceSchema = {
  * organisation.
  *
  * IT IS NOT SET ON THE REQUESTS PAGES, deliberately. /submit-request, /drop-docs, /vault,
- * /request-pickup, /leave-review and /request-amendment are ways to
+ * /request-pickup and /request-amendment are ways to
  * interact with us, not
  * services we sell - "Leave Review" is not an offering, and typing it as a Service to get a
  * richer graph would be describing the site we wish we had. Nor on /terms, /privacy, /contact
@@ -538,7 +538,6 @@ const PUBLIC_PAGE_META: Record<string, {
   // description promising a booking would describe a page that does not exist.
   '/request-pickup': { name: 'Request Pickup', type: 'WebPage', description: 'Ask us to collect documents for a request already under way.' },
   '/shipments/track': { name: 'Track', type: 'WebPage', description: 'Track an order, delivery or service request already with WECARE.DIGITAL.', serviceType: 'Shipment and request tracking' },
-  '/leave-review': { name: 'Leave Review', type: 'WebPage', description: 'Tell us how something went, well or badly.' },
   // THE CATALOGUE INDEX IS RESTORED, 2026-10-10, on owner instruction: /shop/ is browsable again,
   // so this key is back in the map (which is both the public allowlist and the structured-data
   // source - without it the page renders the staff sign-in shell at HTTP 200). It is coupled to

@@ -12,15 +12,9 @@ const CTA_RULE = ( /\.pdp-cta\{([^}]*)\}/.exec( PRODUCT_PAGE ) ?? [] )[ 1 ];
 
 describe( 'request-page disclosure ownership', () => {
   it( 'keeps non-commerce ProductPage routes on the shared Policy Details fallback', () => {
-    for ( const route of [ '/leave-review', '/elsewhere/activities', '/ritual-guru/ritva' ] ) {
+    for ( const route of [ '/elsewhere/activities', '/ritual-guru/ritva' ] ) {
       expect( publicPolicyDetailsForRoute( route ), route ).not.toBeNull();
     }
-
-    const review = publicPolicyDetailsForRoute( '/leave-review' );
-    expect( review?.shipping ).toBe( 'No fulfilment applies to submitting feedback.' );
-    expect( review?.returns ).toContain( 'A review is not a return' );
-    expect( review?.refunds ).toContain( 'does not change refund rights' );
-    expect( review?.disclaimer ).toContain( 'publication is not guaranteed' );
   } );
 
   it( 'does not restore the retired ProductPage boundary-note card', () => {

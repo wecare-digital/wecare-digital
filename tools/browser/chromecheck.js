@@ -201,12 +201,12 @@ function main() {
 
   console.log( 'chromecheck - header, footer and widget in the built export\n' );
 
-  // Anti-vacuous AND complete: Step 7 pins the exact public-shell contract at 43
-  // route patterns (31 canonical + 11 shared/customer + redirect-only /404). A smaller
+  // Anti-vacuous AND complete: Step 7 pins the exact public-shell contract at 42
+  // route patterns (30 canonical + 11 shared/customer + redirect-only /404). A smaller
   // count means this parser dropped coverage; a larger count means the route contract
   // changed and the closure guards must be reviewed together.
-  record( allowlist.length === 43, 'exact public allowlist parsed from _app.tsx',
-    `${allowlist.length} public routes (expected 43)` );
+  record( allowlist.length === 42, 'exact public allowlist parsed from _app.tsx',
+    `${allowlist.length} public routes (expected 42)` );
   record( allowlist.includes( '/404' ),
     'the 404 page is registered as public',
     allowlist.includes( '/404' )
@@ -249,13 +249,6 @@ function main() {
       record( !html.includes( 'Policy details' ), `${route} Policy Details state`,
         html.includes( 'Policy details' ) ? 'Policy Details must not render here' : 'intentionally absent' );
     }
-    if ( route === '/leave-review' ) {
-      record( html.includes( 'Policy details' ), '/leave-review Policy Details state',
-        html.includes( 'Policy details' ) ? 'shared crisp disclosure present' : 'MISSING shared Policy Details' );
-      record( !html.includes( 'pdp-note' ), '/leave-review legacy disclosure state',
-        html.includes( 'pdp-note' ) ? 'retired ProductPage boundary-note surface returned' : 'no legacy note card' );
-    }
-
     if ( route === '/grahak-os' ) {
       const checkoutLabel = 'Checkout on WhatsApp';
       const canonicalCheckout = 'href="https://wecare.digital/grahak-os/"';
