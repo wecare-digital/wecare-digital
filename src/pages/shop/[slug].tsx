@@ -141,10 +141,6 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             <p className="shopd-price" data-wc-no-translate="true">{ product.formattedPrice }</p>
             <p className="shopd-offer-note">One-time purchase · final total confirmed in the cart before payment</p>
 
-            {/* The boundary statement, in the hairline box rather than a lime one - the page's one
-                lime surface is already spent on the button above. Shortened on owner instruction
-                with nothing dropped: where the price came from, who decides the amount, and that
-                nothing is charged. */}
             { sku && policy && (
               <div className="shopd-policy-wrap">
                 <p className="shopd-sku" data-wc-no-translate="true"><strong>SKU:</strong> { sku }</p>
@@ -155,9 +151,6 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
                 />
               </div>
             ) }
-            <p className="shopd-note">
-              Review your final total in the cart before payment.
-            </p>
             {/* The way back to the full catalogue. Restored 2026-10-10 with the /shop index: it
                 was removed on 2026-10-04 because /shop/ 301'd to home, and now points at a real
                 listing again. */}
@@ -208,12 +201,6 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;
             color:#1a3a2a;margin:0;font-variant-numeric:tabular-nums;
           }
-          .shopd-offer-note{
-            max-width:620px;margin:7px 0 0;
-            font-size:var(--public-body-size);font-weight:var(--public-body-weight);
-            line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
-            color:var(--public-body);
-          }
           .shopd-sku{margin:10px 0 0;font-size:13px;line-height:1.3;color:rgba(0,0,0,.54);letter-spacing:.04em;text-transform:uppercase}
           .shopd-oos{margin:12px 0 0;font-size:16px;font-weight:700;line-height:1.4;color:rgba(0,0,0,.54)}
 
@@ -245,18 +232,18 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              site reads the same: near-white #fcfdfb surface, 1px hairline, 14px radius, 22px
              padding, legal-copy type 17px/400/1.55/-.05px on rgba(0,0,0,.898). Was a transparent
              16px/faded aside. 1px static, per the rule: 1px static, 2px hoverable. */
+          .shopd-offer-note{
+            max-width:620px;margin:7px 0 0;
+            font-size:var(--public-body-size);font-weight:var(--public-body-weight);
+            line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+            color:var(--public-body);
+          }
           .shopd-policy-wrap{margin:22px 0 0}
           .shopd-sku{
             margin:0;font-size:17px;font-weight:400;line-height:1.55;
             letter-spacing:-.05px;color:var(--public-body);
           }
           .shopd-sku strong{color:var(--public-brand-green);font-weight:700}
-          .shopd-note{
-            margin:34px 0 0;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
-            background:#fcfdfb;
-            font-size:17px;font-weight:400;line-height:1.55;letter-spacing:-.05px;
-            color:rgba(0,0,0,.898);
-          }
 
           /* The .shopd-back link, restored 2026-10-10 with the /shop index. :global() for the
              same reason as .shopd-cta: it wraps a capitalised <Link> styled-jsx cannot scope. */
