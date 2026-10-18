@@ -222,6 +222,33 @@ describe( 'Share controls', () => {
 describe( 'current shared action dock', () => {
   afterEach( () => { vi.unstubAllGlobals(); } );
 
+  it( 'defaults to the page canonical URL and og:title when app-owned', async () => {
+    const canonical = document.createElement( 'link' );
+    canonical.rel = 'canonical';
+    canonical.href = 'https://wecare.digital/post/canonical-post/?utm_source=test#x';
+    document.head.appendChild( canonical );
+
+    const ogTitle = document.createElement( 'meta' );
+    ogTitle.setAttribute( 'property', 'og:title' );
+    ogTitle.content = 'Canonical Post Title';
+    document.head.appendChild( ogTitle );
+
+    try {
+      render( <PublicShare /> );
+      await waitFor( () => {
+        fireEvent.click( screen.getByRole( 'button', { name: 'Share this page' } ) );
+        expect( screen.getByRole( 'link', { name: 'Share this page on WhatsApp' } ) )
+          .toHaveAttribute(
+            'href',
+            whatsappShareHref( 'Canonical Post Title', 'https://wecare.digital/post/canonical-post/' ),
+          );
+      } );
+    } finally {
+      canonical.remove();
+      ogTitle.remove();
+    }
+  } );
+
   it( 'opens a WhatsApp contact picker and labels every available share action', () => {
     const { container } = render( <PublicShare url="https://wecare.digital/post/x/" title="A Post" /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Share this page' } ) );
