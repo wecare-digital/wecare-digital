@@ -370,6 +370,7 @@ export default function BlogPostPage ( {
           { word: 'revisit', tint: '#ede9fe', dot: '#9849e8' },
           { word: 'return', tint: '#fef9c3', dot: '#ca8a04' },
         ] }
+        sub={ description }
         ariaLabel={ post.title }
       >
         <article className="article-shell">
