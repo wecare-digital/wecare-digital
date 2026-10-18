@@ -20,7 +20,8 @@ than the original state, because it would be inconsistent rather than uniformly 
     inbound-whatsapp-handler  ALSO writes an invoice PNG on the payment path
     system-cleanup            sweeps the prefix; pointed at the wrong root it reports 0
                               objects, and 0 reads as "nothing to clean" rather than an error
-    dashboard (frontend)      mirrors the cleanup prefix list
+    frontend fallback         deliberately does not restate the invoice prefix; the server
+                              remains the one cleanup authority
 
 These are source-level assertions because the live behaviour needs AWS and CI has no
 credentials. The live half was verified separately at the time of the change: a presigned GET
@@ -41,7 +42,7 @@ FUNCTIONS = ROOT / "amplify" / "functions"
 INVOICE_ENGINE = FUNCTIONS / "payments" / "invoice-engine" / "handler.py"
 INBOUND = FUNCTIONS / "messaging" / "inbound-whatsapp-handler" / "handler.py"
 CLEANUP = FUNCTIONS / "operations" / "system-cleanup" / "handler.py"
-DASHBOARD = ROOT / "src" / "pages" / "workspace" / "dashboard" / "index.tsx"
+DATA_TAB = ROOT / "src" / "components" / "dashboard" / "tabs" / "DataTab.tsx"
 
 #: Every site that names the invoice prefix, and the file it lives in.
 PREFIX_SITES = [INVOICE_ENGINE, INBOUND, CLEANUP]
@@ -209,16 +210,16 @@ def test_delivery_does_not_need_a_public_url_at_all():
         "breaks WhatsApp invoice delivery")
 
 
-def test_the_dashboard_cleanup_mirror_agrees_with_the_backend():
-    """The dashboard's prefix list is the fallback shown when the live preview is unreachable,
-    so a wrong root there is displayed exactly when nothing can contradict it. It previously
-    read one level above the data for the same reason."""
-    source = DASHBOARD.read_text(encoding="utf-8")
-    row = next((line for line in source.splitlines() if "'s3_invoices'" in line), "")
-    assert row, "the dashboard no longer lists s3_invoices"
-    assert "SECURE_ROOT" in row, (
-        f"the dashboard's s3_invoices prefix must use SECURE_ROOT to match system-cleanup: {row.strip()}")
-    assert "PUBLIC_ROOT" not in row
+def test_the_frontend_fallback_does_not_restate_the_invoice_prefix():
+    """The consolidated workspace removed the old dashboard mirror.
+
+    DataTab now treats the server preview as the authority and its offline fallback only lists
+    non-sensitive resources. Keeping the invoice prefix out of that fallback prevents a second
+    frontend copy from drifting away from system-cleanup again.
+    """
+    source = DATA_TAB.read_text(encoding="utf-8")
+    assert "s3_invoices" not in source
+    assert "stack/invoices/" not in source
 
 
 def test_a_gated_key_answers_200_with_a_fallback_rather_than_403():
