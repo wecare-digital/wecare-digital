@@ -289,7 +289,13 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
         /* /anew/'s price treatment, verbatim: 22px/700 dark green, tabular numerals, 22px of air
            above, lime reserved for the pill. No unit copy. */
         .sbb-buy{display:flex;flex-wrap:wrap;align-items:baseline;gap:16px;margin:22px 0 0}
-        .sbb-price{font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
+        .sbb-price{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:1.2;letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
+        .sbb-offer-note{
+          max-width:620px;margin:7px 0 0;
+          font-size:var(--public-body-size);font-weight:var(--public-body-weight);
+          line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+          color:var(--public-body);
+        }
 
         .sbb-error{margin:12px 0 0;font-size:14px;color:#b91c1c}
 

@@ -180,7 +180,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
      * records 206px, reports 194px - a 125px spread, where /contact/'s 70px was the previous
      * maximum. It is NOT a layout defect and that is measured, not assumed: the 21-viewport
      * sweep (320-1920, 84 readings) shows the h1 height constant for every word here and on
-     * /contact/, /hunar/ and /leave-review/, because RotatingHero gives the pill its own line.
+     * the contact page, Hunar child pages and the review page, because RotatingHero gives the pill its own line.
      * What it is, is a livelier swing than anywhere else, which is a judgement the owner is
      * entitled to make - so it is recorded rather than quietly tuned away.
      *
@@ -240,8 +240,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
      * depends on somebody who is not us: a courier or partner has to turn up. So the page says
      * what is arranged rather than promised, and names no window, no price and no turnaround -
      * the three things this file's header forbids, and the three a pickup page is most tempted to
-     * invent. "Coming soon" courier pickup on /shipments/ is a different claim and stays as it
-     * is: that row is GENERAL courier pickup with no backend, while this page asks for a
+     * invent. A general courier-pickup concept without a backend is a different claim; this page asks for a
      * collection the same way every other row here asks - through /contact/.
      */
     slug: 'request-pickup',

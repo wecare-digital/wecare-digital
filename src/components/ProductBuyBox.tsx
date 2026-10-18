@@ -26,9 +26,15 @@ interface ProductBuyBoxProps {
   slug: string;
   /** Show the configured product price line. Default true. */
   showPrice?: boolean;
+  /** Quiet line below the price, matching the Grahak OS commerce pattern. */
+  offerNote?: string;
 }
 
-const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( { slug, showPrice = true } ) => {
+const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
+  slug,
+  showPrice = true,
+  offerNote = 'One-time purchase · final total confirmed at checkout',
+} ) => {
   const router = useRouter();
   const [ signedIn, setSignedIn ] = useState( false );
   const [ busy, setBusy ] = useState( false );
@@ -103,9 +109,12 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( { slug, showPrice = true }
 
       {/* Configured price for the fresh catalog line. */}
       { showPrice && (
-        <p className="pbb-buy">
-          <span className="pbb-price" data-wc-no-translate="true">{ line.formattedPrice }</span>
-        </p>
+        <>
+          <p className="pbb-buy">
+            <span className="pbb-price" data-wc-no-translate="true">{ line.formattedPrice }</span>
+          </p>
+          <p className="pbb-offer-note">{ offerNote }</p>
+        </>
       ) }
 
       { error && <p className="pbb-error" role="alert">{ error }</p> }
@@ -128,7 +137,13 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( { slug, showPrice = true }
         .pbb-cta:disabled{opacity:.5;cursor:default}
 
         .pbb-buy{display:flex;flex-wrap:wrap;align-items:baseline;gap:16px;margin:22px 0 0}
-        .pbb-price{font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
+        .pbb-price{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:1.2;letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
+        .pbb-offer-note{
+          max-width:620px;margin:7px 0 0;
+          font-size:var(--public-body-size);font-weight:var(--public-body-weight);
+          line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+          color:var(--public-body);
+        }
 
         .pbb-error{margin:12px 0 0;font-size:14px;color:#b91c1c}
 

@@ -240,7 +240,7 @@ Recorded so the next sweep does not re-derive it. All measured, not assumed.
 - `/orders/` — `PillButton` plus links; no bespoke button.
 - `/get/` `.sf-input`, `/account/sign-in/` `.si-input`, `BlogSubscribe` `.otp` — all
   999px / 1px `#e5e7eb` / 52px (44px for the inline code box), `#1a3a2a` focus ring.
-- `/perks/`, `/shipments/`, `/contact/`, `/vayulok/`, `/refer-and-earn/`, `/leave-review/`,
+- `[retired public path]`, `[retired public path]`, `/contact/`, `/vayulok/`, `[retired public path]`, `/leave-review/`,
   `/submit-request/`, `/request-amendment/`, `/drop-docs/`, `/terms/`, `/privacy/` — no
   bespoke button or field renders; they inherit the shared chrome.
 - `/grahak-os/` `.pp-tab` (lime active tab, 8px) and `span.pill` (white, 50px) — left alone.

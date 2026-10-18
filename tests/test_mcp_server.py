@@ -59,10 +59,15 @@ FAKE_POSTS = [
 
 
 @pytest.fixture(autouse=True)
-def stub_blog(monkeypatch):
-    """No network. Also clears the memo so one test's cache cannot leak into the next."""
+def stub_external_sources(monkeypatch):
+    """No network. Clear both memos so one test's cache cannot leak into the next."""
+    catalog_paths = [
+        page["path"] for page in json.loads(CATALOG_PATH.read_text(encoding="utf-8"))["pages"]
+    ]
     monkeypatch.setattr(mod, "_blog_cache", (0.0, []))
     monkeypatch.setattr(mod, "_fetch_blog", lambda: list(FAKE_POSTS))
+    monkeypatch.setattr(mod, "_sitemap_cache", (0.0, []))
+    monkeypatch.setattr(mod, "_fetch_sitemap_paths", lambda: list(catalog_paths))
     yield
 
 
@@ -648,3 +653,50 @@ class TestCatalogue:
     def test_the_catalogue_advertises_only_versions_the_server_speaks(self):
         catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
         assert set(catalog["ai_surface"]["mcp_protocol_versions"]) == set(mod.PROTOCOL_VERSIONS)
+
+
+# --------------------------------------------------------------------------- #
+# sitemap authority
+# --------------------------------------------------------------------------- #
+
+def test_live_sitemap_is_the_url_authority(monkeypatch):
+    """A stale Lambda bundle cannot keep retired paths alive or hide a new site page."""
+    catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+    stale_paths = {
+        "/shipments", "/dastavez", "/clear-closure",
+        "/ritual-guru", "/refer-and-earn", "/perks",
+    }
+    current_paths = [page["path"] for page in catalog["pages"]]
+
+    stale_catalog = dict(catalog)
+    stale_catalog["pages"] = [
+        page for page in catalog["pages"] if page["path"] != "/shipments/track"
+    ] + [
+        {"path": path, "name": "STALE", "description": "retired", "group": "services"}
+        for path in sorted(stale_paths)
+    ]
+
+    monkeypatch.setattr(mod, "_catalog_cache", stale_catalog)
+    monkeypatch.setattr(mod, "_sitemap_cache", (0.0, []))
+    monkeypatch.setattr(
+        mod,
+        "_fetch_sitemap_paths",
+        lambda: current_paths + [
+            "/post/example-post",
+            "/blog/page/2",
+            "/shop/guided-resolution",
+            "/shop/page/2",
+        ],
+    )
+
+    pages = {page["path"]: page for page in mod._pages()}
+    assert stale_paths.isdisjoint(pages)
+    assert "/shipments/track" in pages
+    assert pages["/shipments/track"]["name"] == "Track"
+    assert pages["/shipments/track"]["group"] == "services"
+
+    # Dynamic sitemap families have dedicated MCP surfaces and must not explode list_pages.
+    assert "/post/example-post" not in pages
+    assert "/blog/page/2" not in pages
+    assert "/shop/guided-resolution" not in pages
+    assert "/shop/page/2" not in pages

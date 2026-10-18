@@ -233,7 +233,7 @@ const SEOTools: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const body = (
       <div className="inner-page" style={ embedded ? { padding: 0 } : undefined }>
         <h1 className="inner-page-title">SEO Tools</h1>
-        <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 24 }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-md)', marginBottom: 24 }}>
           Run public-site SEO checks and operations. Blog content is AWS-native; the frontend is a static Amplify export.
         </p>
 
@@ -241,8 +241,8 @@ const SEOTools: React.FC<PageProps> = ({ signOut, user, embedded }) => {
           {tools.map(t => (
             <div key={t.id} className="card" style={{ padding: '16px 20px' }}>
               <div style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 15, fontWeight: 600 }}>{t.icon} {t.label}</div>
-                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{t.desc}</div>
+                <div style={{ fontSize: 'var(--text-md)', fontWeight: 600 }}>{t.icon} {t.label}</div>
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 4 }}>{t.desc}</div>
               </div>
               <button
                 className="btn btn-primary"
@@ -259,12 +259,12 @@ const SEOTools: React.FC<PageProps> = ({ signOut, user, embedded }) => {
         {log.length > 0 && (
           <div className="card" style={{ padding: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Output</h3>
-              <button className="btn btn-secondary" onClick={clearLog} style={{ fontSize: 12, padding: '4px 12px' }}>Clear</button>
+              <h3 style={{ fontSize: 'var(--text-md)', fontWeight: 600, margin: 0 }}>Output</h3>
+              <button className="btn btn-secondary" onClick={clearLog} style={{ fontSize: 'var(--text-xs)', padding: '4px 12px' }}>Clear</button>
             </div>
             <pre style={{
               background: '#0f1117', color: '#a3e635', padding: 16, borderRadius: 8,
-              fontSize: 12, lineHeight: 1.6, maxHeight: 500, overflowY: 'auto',
+              fontSize: 'var(--text-xs)', lineHeight: 1.6, maxHeight: 500, overflowY: 'auto',
               fontFamily: 'Consolas, Monaco, monospace', whiteSpace: 'pre-wrap',
             }}>
               {log.join('\n')}

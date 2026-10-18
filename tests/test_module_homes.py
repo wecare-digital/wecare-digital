@@ -62,25 +62,12 @@ REMOVED_IDS = {"growth"}
 # unreachable by deletion. Removing them here is the honest bookkeeping, not a weakening:
 # the property this list guards is unchanged, and the three routes that remain must still
 # resolve to a real page file.
-# Two routes left this list on 2026-10-18: /workspace/engage/whatsapp/ctwa-ads and
-# /workspace/engage/whatsapp/conversions-api. The workspace redesign (FEAT-006) folded every
-# WhatsApp capability into the one WhatsApp hub as in-page ?tab= bodies, so these are no longer
-# standalone routes — their surfaces live at /workspace/engage/whatsapp/settings?tab=ctwa-ads
-# and ?tab=conversions-api, with bodies in src/components/workspace/whatsapp/. This is the same
-# conscious tabs-not-pages move as the four SEO routes dropped above, not an orphaning: the
-# surfaces are reachable, they are simply tabs. The SEO hub that remains must still resolve.
 GROWTH_FORMER_INNER_PAGES = [
     "/workspace/seo",
+    "/workspace/engage/whatsapp/settings?tab=ctwa-ads",
+    "/workspace/engage/whatsapp/settings?tab=conversions-api",
 ]
 
-# The hubs whose tab bodies MUST load lazily. The workspace redesign (FEAT-005/006) removed the
-# standalone dashboard, RCS and SES index pages; their lazy tab bodies folded into the surviving
-# hubs, which keep the exact `lazyTab(() => import(...))` pattern this test guards:
-#   * engage/whatsapp/settings.tsx — every WhatsApp capability as a tab (29 bodies).
-#   * engage/channels/index.tsx    — SMS/RCS/Voice/Email/Push, where RCS and SES/Email now live.
-#   * settings/platform/index.tsx  — the infra tabs the old dashboard section folded into.
-# Minimums are a floor below the current body count, so adding a tab never trips this and
-# removing the splitting does.
 HUBS_THAT_MUST_BE_LAZY = {
     "src/pages/workspace/engage/whatsapp/settings.tsx": 15,
     "src/pages/workspace/engage/channels/index.tsx": 6,
@@ -108,10 +95,9 @@ def homes(nav_source: str) -> list[dict]:
     block = block[: block.index("\n];")]
     out = []
     for entry in re.finditer(
-            # A `// ...` comment line may sit between `label:` and `path:` (the
-            # platform-operations entry carries one), so allow comment/whitespace lines there.
-            r"id:\s*'([^']+)',\s*label:\s*'([^']+)',\s*(?:(?:\n\s*(?://[^\n]*)?)*)path:\s*(null|'[^']*')",
-            block):
+            r"id:\s*'([^']+)',\s*label:\s*'([^']+)',(?:(?!\n\s*\},).)*?"
+            r"path:\s*(null|'[^']*')",
+            block, re.S):
         raw_path = entry.group(3)
         out.append({
             "id": entry.group(1),
@@ -125,9 +111,7 @@ def homes(nav_source: str) -> list[dict]:
 def inner_pages(nav_source: str) -> list[str]:
     block = nav_source.split("export const moduleHomes")[1]
     block = block[: block.index("\n];")]
-    # Capture the path, with an optional ?query tail, so a ?tab= deep-link inner page is seen.
-    # route_to_page() strips the query before resolving to a file.
-    return re.findall(r"'(/[a-z0-9/-]+(?:\?[a-z0-9=&-]+)?)'", block)
+    return re.findall(r"'(/[a-z0-9/?=&-]+)'", block)
 
 
 class TestTheDeclaredHomesExist:
@@ -200,12 +184,10 @@ class TestCommunicationsExposesExactlyThree:
         # module's own `path: '[retired public path]'` and reported four.
         inner = block.split("innerPages:")[1]
         inner = inner[: inner.index("]")]
-        pages = re.findall(r"'(/[a-z0-9/-]+(?:\?[a-z0-9=&-]+)?)'", inner)
+        pages = re.findall(r"'(/[a-z0-9/?=&-]+)'", inner)
         # WhatsApp Business moved from /workspace/engage/whatsapp to the WhatsApp hub on
         # 2026-10-15: the old route is now a router.replace signpost to the common inbox,
-        # so pinning it here would have pinned the common inbox twice. Business Calling moved
-        # into the Channels hub as its voice tab in the redesign (FEAT-004/005), so it is now
-        # /workspace/engage/channels?tab=voice rather than a standalone /workspace/engage/voice.
+        # so pinning it here would have pinned the common inbox twice.
         assert pages == ["/workspace/engage/inbox", "/workspace/engage/whatsapp/settings",
                          "/workspace/engage/channels?tab=voice"], (
             f"Communications must expose exactly Common Inbox, WhatsApp Business and "
@@ -243,14 +225,18 @@ class TestInnerPagesLoadLazily:
         code = (ROOT / hub).read_text(encoding="utf-8")
         code = re.sub(r"/\*.*?\*/", "", code, flags=re.S)
         code = "\n".join(re.sub(r"(?<!:)//.*$", "", ln) for ln in code.splitlines())
-        # A page/tab-body module imported statically defeats the split for that tab.
-        # Component and library imports are fine - those are shared, not per-tab. The
-        # redesign's surviving hubs load every tab body lazily, so there is no eager
-        # default tab to exempt any more (the dashboard's OverviewTab was removed with the
-        # dashboard page itself).
+        # A page module imported statically defeats the split for that tab. Component
+        # and library imports are fine - those are shared, not per-tab.
+        #
+        # OverviewTab is exempt and the exemption is load-bearing, not a loophole: it is
+        # the dashboard's DEFAULT tab, so making it dynamic would add a network round
+        # trip before the page can render anything. A separate test asserts it stays
+        # eager, so this pair cannot both be satisfied by accident.
+        eager_by_design = {"OverviewTab"}
         offenders = [
-            m.group(1) for m in re.finditer(
-                r"^import\s+\w+\s+from\s+'(\.[^']*(?:tabs/|pages/)[^']*)'", code, re.M)
+            m.group(2) for m in re.finditer(
+                r"^import\s+(\w+)\s+from\s+'(\.[^']*(?:tabs/|pages/)[^']*)'", code, re.M)
+            if m.group(1) not in eager_by_design
         ]
         assert not offenders, f"{hub} still statically imports tab bodies: {offenders}"
 
@@ -262,3 +248,6 @@ class TestInnerPagesLoadLazily:
             assert "function lazyTab<P>" in code, (
                 f"{hub}'s lazyTab is not generic, so it flattens tab prop types")
 
+    def test_platform_default_tab_is_lazy_like_the_other_heavy_tabs(self):
+        code = (ROOT / "src/pages/workspace/settings/platform/index.tsx").read_text(encoding="utf-8")
+        assert "const MCPConnectionsPage = lazyTab(" in code

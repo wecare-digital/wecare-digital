@@ -169,16 +169,16 @@ const CallHistoryPage: React.FC<PageProps> = ({ signOut, user, embedded = false 
         .history-page { padding: 20px; }
         .history-header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:16px; }
         h2 { margin:0; color:#0f2a1d; }
-        p { margin:4px 0 0; color:#6b7280; font-size:13px; }
+        p { margin:4px 0 0; color:var(--text-muted); font-size:var(--text-sm); }
         .actions,.filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
         .filters { margin-bottom:14px; }
         .filters input,.filters select { padding:8px 10px; border:1px solid #d1d5db; border-radius:8px; background:#fff; }
         .filters input { min-width:260px; }
         .error { margin:10px 0; padding:10px; border:1px solid #fecaca; border-radius:8px; }
-        .table-wrap { overflow:auto; border:1px solid #e5e7eb; border-radius:10px; margin-bottom:12px; }
+        .table-wrap { overflow:auto; border:1px solid var(--border); border-radius:10px; margin-bottom:12px; }
         table { width:100%; border-collapse:collapse; }
-        th,td { padding:9px 10px; border-bottom:1px solid #f3f4f6; font-size:12px; text-align:left; white-space:nowrap; }
-        th { background:#f9fafb; }
+        th,td { padding:9px 10px; border-bottom:1px solid #f3f4f6; font-size:var(--text-xs); text-align:left; white-space:nowrap; }
+        th { background:var(--bg-secondary); }
       `}</style>
     </div>
   );

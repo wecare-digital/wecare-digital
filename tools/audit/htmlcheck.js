@@ -41,14 +41,12 @@ const ROUTES = [
   '/', '/grahak-os/', '/vayulok/', '/contact/', '/terms/', '/privacy/',
   '/orders/', '/bharat-rx/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
-  '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/',
+  '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/',
   '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/', '/blog/', '/get/',
   // The five Customer service pages, added when the header's six labels stopped all resolving
   // to /contact/. Same shape as the product pages: rotating hero plus one content section.
   '/submit-request/', '/request-amendment/', '/drop-docs/', '/leave-review/',
-  // '/store/' is gone: it was a staff page on a public URL and now lives at
-  // /workspace/commerce/catalog. It was the only route failing H1-NONE and NO-MAIN here,
-  // because the Authenticator renders instead of the page when there is no session.
+  // Staff-only commerce pages are intentionally outside this public-page markup harness.
 ];
 
 const only = ( () => { const i = process.argv.indexOf( '--route' ); return i > -1 ? process.argv[ i + 1 ] : null; } )();

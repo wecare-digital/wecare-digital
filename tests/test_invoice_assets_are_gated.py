@@ -43,8 +43,9 @@ INBOUND = FUNCTIONS / "messaging" / "inbound-whatsapp-handler" / "handler.py"
 CLEANUP = FUNCTIONS / "operations" / "system-cleanup" / "handler.py"
 # The frontend dashboard mirror (src/pages/workspace/dashboard/index.tsx) that used to echo the
 # cleanup prefix list was removed in the 2026-10 workspace redesign (the Dashboard section is
-# gone and nothing in src names `s3_invoices` any more). Its guard test is retired below; the
-# backend gating guards (PREFIX_SITES) are the load-bearing ones and are unchanged.
+# gone and nothing in src names `s3_invoices` any more). Its guard test is replaced below by a
+# backend-registry test; the backend gating guards (PREFIX_SITES) are the load-bearing ones and
+# are unchanged.
 
 #: Every site that names the invoice prefix, and the file it lives in.
 PREFIX_SITES = [INVOICE_ENGINE, INBOUND, CLEANUP]
@@ -210,6 +211,16 @@ def test_delivery_does_not_need_a_public_url_at_all():
     assert "'mediaFile': s3_key" in source, (
         "delivery must pass the S3 key, not a URL; if this becomes a link, a gated prefix "
         "breaks WhatsApp invoice delivery")
+
+
+def test_the_cleanup_registry_keeps_invoice_files_on_the_gated_root():
+    """The workspace refactor removed the old dashboard mirror, so the backend cleanup
+    registry is now the single source displayed by cleanup tooling. Keep the real invariant:
+    invoice files must be swept from the same gated prefix the writers use."""
+    source = CLEANUP.read_text(encoding="utf-8")
+    block = source.split("'s3_invoices':", 1)[1].split("},", 1)[0]
+    assert "media_paths.secure('stack/invoices/')" in block
+    assert "media_paths.public('stack/invoices/')" not in block
 
 
 def test_a_gated_key_answers_200_with_a_fallback_rather_than_403():

@@ -264,7 +264,7 @@ const MetaAgentPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                         <p style={ { color: 'var(--text-muted)' } }>No agent settings yet — run onboarding first.</p>
                     ) : (
                         <>
-                            <p style={ { color: 'var(--text-muted)', fontSize: 13, margin: '4px 0 12px' } }>
+                            <p style={ { color: 'var(--text-muted)', fontSize: 'var(--text-sm)', margin: '4px 0 12px' } }>
                                 Agent ID: { settings.agent_id || '—' } · Channel: { settings.channel || 'whatsapp' }
                             </p>
                             <div style={ { display: 'flex', gap: 'var(--space-2)' } }>
@@ -291,12 +291,12 @@ const MetaAgentPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                         <h2 style={ h2 }>Allowlist</h2>
                         <Button variant="secondary" onClick={ loadAllow } disabled={ busy !== '' }>Refresh</Button>
                     </div>
-                    <p style={ { color: 'var(--text-muted)', fontSize: 13, margin: '0 0 10px' } }>Limit the agent to specific consumer numbers (used when Audience = Allowlisted only).</p>
+                    <p style={ { color: 'var(--text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 10px' } }>Limit the agent to specific consumer numbers (used when Audience = Allowlisted only).</p>
                     <div style={ { display: 'flex', gap: 'var(--space-2)', marginBottom: 10 } }>
                         <input value={ allowPhone } onChange={ e => setAllowPhone( e.target.value ) } placeholder="+15551234567" style={ { flex: 1 } } />
                         <Button onClick={ addAllow } disabled={ busy !== '' || !allowPhone.trim() }>Add</Button>
                     </div>
-                    { allow.length === 0 ? <p style={ { color: 'var(--text-muted)', fontSize: 13 } }>No allowlisted numbers.</p> : (
+                    { allow.length === 0 ? <p style={ { color: 'var(--text-muted)', fontSize: 'var(--text-sm)' } }>No allowlisted numbers.</p> : (
                         <ul style={ { listStyle: 'none', padding: 0, margin: 0 } }>
                             { allow.map( ( a: any ) => (
                                 <li key={ a.id } style={ { display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)' } }>
@@ -311,8 +311,8 @@ const MetaAgentPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                 {/* Skills / system instructions */ }
                 <div style={ card }>
                     <h2 style={ h2 }>Skills — system instructions</h2>
-                    <p style={ { color: 'var(--text-muted)', fontSize: 13, margin: '0 0 8px' } }>Instructions that shape how the agent responds (tone, policies, do/don&apos;t).</p>
-                    <textarea value={ skills } onChange={ e => setSkills( e.target.value ) } rows={ 6 } placeholder="e.g. You are WECARE's support assistant. Be concise, polite, and never share pricing you are unsure about…" style={ { width: '100%', fontFamily: 'inherit', fontSize: 13 } } />
+                    <p style={ { color: 'var(--text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 8px' } }>Instructions that shape how the agent responds (tone, policies, do/don&apos;t).</p>
+                    <textarea value={ skills } onChange={ e => setSkills( e.target.value ) } rows={ 6 } placeholder="e.g. You are WECARE's support assistant. Be concise, polite, and never share pricing you are unsure about…" style={ { width: '100%', fontFamily: 'inherit', fontSize: 'var(--text-sm)' } } />
                     <div style={ { marginTop: 8, display: 'flex', gap: 'var(--space-2)' } }>
                         <Button onClick={ saveSkills } disabled={ busy !== '' }>{ busy === 'skills' ? 'Saving…' : 'Save skills' }</Button>
                         <Button variant="secondary" onClick={ loadSkills } disabled={ busy !== '' }>Reload</Button>
@@ -330,12 +330,12 @@ const MetaAgentPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                         <textarea value={ faqA } onChange={ e => setFaqA( e.target.value ) } rows={ 2 } placeholder="Answer" style={ { width: '100%', fontFamily: 'inherit' } } />
                         <div><Button onClick={ addFaq } disabled={ busy !== '' || !faqQ.trim() || !faqA.trim() }>Add FAQ</Button></div>
                     </div>
-                    { faqs.length === 0 ? <p style={ { color: 'var(--text-muted)', fontSize: 13 } }>No FAQs yet.</p> : (
+                    { faqs.length === 0 ? <p style={ { color: 'var(--text-muted)', fontSize: 'var(--text-sm)' } }>No FAQs yet.</p> : (
                         <ul style={ { listStyle: 'none', padding: 0, margin: 0 } }>
                             { faqs.map( ( f: any, i: number ) => (
                                 <li key={ f.id || i } style={ { padding: '8px 0', borderBottom: '1px solid var(--border)' } }>
                                     <div style={ { display: 'flex', justifyContent: 'space-between', gap: 8 } }>
-                                        <div><strong style={ { fontSize: 13 } }>{ f.question }</strong><div style={ { fontSize: 13, color: 'var(--text-muted)' } }>{ f.answer }</div></div>
+                                        <div><strong style={ { fontSize: 'var(--text-sm)' } }>{ f.question }</strong><div style={ { fontSize: 'var(--text-sm)', color: 'var(--text-muted)' } }>{ f.answer }</div></div>
                                         { f.id && <button onClick={ () => removeFaq( f.id ) } style={ { border: 'none', background: 'none', color: 'var(--danger, #dc2626)', cursor: 'pointer', flexShrink: 0 } }>Remove</button> }
                                     </div>
                                 </li>
@@ -347,7 +347,7 @@ const MetaAgentPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                 {/* Thread control */ }
                 <div style={ card }>
                     <h2 style={ h2 }>Thread control</h2>
-                    <p style={ { color: 'var(--text-muted)', fontSize: 13, margin: '0 0 10px' } }>
+                    <p style={ { color: 'var(--text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 10px' } }>
                         Hand a conversation back to the responder that passed it to us, or pass it to a named role.
                         Identify the thread by business-scoped user ID where you have one — that is how a routing
                         event identifies it. Taking a thread is not offered: it requires this account to be the
@@ -371,18 +371,18 @@ const MetaAgentPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                         <Button onClick={ () => threadControl( 'release' ) } disabled={ busy !== '' }>{ busy === 'threadControl' ? 'Working…' : 'Release' }</Button>
                         <Button variant="secondary" onClick={ () => threadControl( 'pass' ) } disabled={ busy !== '' || !tcRole.trim() }>Pass</Button>
                     </div>
-                    { tcOut && <pre style={ { background: 'var(--surface-2, #f5f5f5)', padding: 12, borderRadius: 8, fontSize: 12, overflow: 'auto', maxHeight: 200, marginTop: 10 } }>{ tcOut }</pre> }
+                    { tcOut && <pre style={ { background: 'var(--surface-2, #f5f5f5)', padding: 12, borderRadius: 8, fontSize: 'var(--text-xs)', overflow: 'auto', maxHeight: 200, marginTop: 10 } }>{ tcOut }</pre> }
                 </div>
 
                 {/* Test */ }
                 <div style={ card }>
                     <h2 style={ h2 }>Test the agent</h2>
-                    <p style={ { color: 'var(--text-muted)', fontSize: 13, margin: '0 0 8px' } }>Send a test message and see the agent&apos;s response.</p>
+                    <p style={ { color: 'var(--text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 8px' } }>Send a test message and see the agent&apos;s response.</p>
                     <div style={ { display: 'flex', gap: 'var(--space-2)', marginBottom: 8 } }>
                         <input value={ testMsg } onChange={ e => setTestMsg( e.target.value ) } placeholder="Type a customer message…" style={ { flex: 1 } } />
                         <Button onClick={ runTest } disabled={ busy !== '' || !testMsg.trim() }>{ busy === 'test' ? 'Running…' : 'Send' }</Button>
                     </div>
-                    { testOut && <pre style={ { background: 'var(--surface-2, #f5f5f5)', padding: 12, borderRadius: 8, fontSize: 12, overflow: 'auto', maxHeight: 240 } }>{ testOut }</pre> }
+                    { testOut && <pre style={ { background: 'var(--surface-2, #f5f5f5)', padding: 12, borderRadius: 8, fontSize: 'var(--text-xs)', overflow: 'auto', maxHeight: 240 } }>{ testOut }</pre> }
                 </div>
             </div>
         </>
@@ -393,6 +393,6 @@ const MetaAgentPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
 
 const card: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-4)', marginBottom: 'var(--space-4)', boxShadow: 'var(--shadow-sm)' };
 const h2: React.CSSProperties = { fontSize: 'var(--h4)', fontWeight: 600, margin: '0 0 var(--space-2)', color: 'var(--text)' };
-const lbl: React.CSSProperties = { display: 'block', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 };
+const lbl: React.CSSProperties = { display: 'block', fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginBottom: 6 };
 
 export default MetaAgentPage;

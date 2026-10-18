@@ -101,6 +101,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 logger = logging.getLogger()
@@ -145,14 +146,20 @@ BLOG_API = os.environ.get(
 BLOG_TTL_SECONDS = int(os.environ.get("MCP_BLOG_TTL_SECONDS", "900"))
 BLOG_TIMEOUT_SECONDS = float(os.environ.get("MCP_BLOG_TIMEOUT_SECONDS", "12"))
 
+# The live sitemap is the authority for which public page URLs exist. The packaged
+# catalogue below is metadata only (names, descriptions, groups). This prevents a stale
+# Lambda bundle from continuing to advertise a route after the site has removed it.
+SITEMAP_URL = os.environ.get("MCP_SITEMAP_URL", f"{SITE_URL}/sitemap.xml")
+SITEMAP_TTL_SECONDS = int(os.environ.get("MCP_SITEMAP_TTL_SECONDS", "900"))
+SITEMAP_TIMEOUT_SECONDS = float(os.environ.get("MCP_SITEMAP_TIMEOUT_SECONDS", "8"))
+
 MAX_RESULTS = 50
 DEFAULT_RESULTS = 10
 
-# In the deployed zip the catalogue sits beside this file; `config/public-pages.json` is
-# the single source and the packager copies it in. MCP_CATALOG_PATH exists so the test
-# suite and a local run can point at that source directly instead of needing a build step
-# or a checked-in duplicate - a second copy in the tree is exactly the drift this file's
-# own guard test is meant to prevent.
+# The deployed zip still carries config/public-pages.json, but it is now METADATA,
+# not the URL authority. Names/descriptions/groups are useful to an agent and are not
+# represented by the sitemap standard. URL membership comes from the live sitemap below.
+# MCP_CATALOG_PATH exists so tests and local runs can point at the repository copy.
 _CATALOG_PATH = os.environ.get(
     "MCP_CATALOG_PATH",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "public-pages.json"),
@@ -162,14 +169,34 @@ _CATALOG_PATH = os.environ.get(
 # ── Catalogue ───────────────────────────────────────────────────────────────────
 
 _catalog_cache: Optional[Dict[str, Any]] = None
+_sitemap_cache: Tuple[float, List[str]] = (0.0, [])
+
+# The MCP page catalogue intentionally stays at the "site pages" level. Blog posts,
+# topic/pagination streams and shop detail/pagination URLs are already exposed by their
+# dedicated search tools or parent catalogue pages. They are in sitemap.xml for crawlers
+# but would make list_pages hundreds of entries long and duplicate search_blog.
+_DYNAMIC_SITEMAP_PREFIXES = (
+    "/post/",
+    "/blog/page/",
+    "/blog/topic/",
+    "/shop/page/",
+    "/shop/",
+)
+
+_START_PATHS = {"/", "/contact", "/blog", "/shop", "/orders"}
+_PLATFORM_PATHS = {"/grahak-os", "/vayulok"}
+_CUSTOMER_SERVICE_PATHS = {
+    "/submit-request", "/request-amendment", "/drop-docs", "/vault",
+    "/request-pickup", "/leave-review",
+}
+_LEGAL_PATHS = {"/privacy", "/terms"}
 
 
 def _catalog() -> Dict[str, Any]:
-    """The public page catalogue, read from the zip once per sandbox.
+    """Packaged metadata for public pages, read once per sandbox.
 
-    Lazy rather than module-scope so an unreadable or malformed file surfaces as a
-    JSON-RPC error on one call instead of an import-time crash that takes out every
-    request including `initialize`.
+    A stale copy may have stale metadata, but it cannot keep a stale URL alive because
+    _pages() intersects it with the live sitemap on every sitemap-cache refresh.
     """
     global _catalog_cache
     if _catalog_cache is None:
@@ -178,8 +205,120 @@ def _catalog() -> Dict[str, Any]:
     return _catalog_cache
 
 
+def _fetch_sitemap_paths() -> List[str]:
+    """Fetch canonical public paths from the live sitemap.
+
+    Fail closed on host changes: only URLs on SITE_URL are accepted. A sitemap is public
+    input, not trusted configuration, so external <loc> values never become MCP results.
+    """
+    request = urllib.request.Request(
+        SITEMAP_URL,
+        headers={
+            "Accept": "application/xml,text/xml;q=0.9,*/*;q=0.1",
+            "User-Agent": f"{SERVER_NAME}/{SERVER_VERSION} (+{SITE_URL}/mcp)",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=SITEMAP_TIMEOUT_SECONDS) as response:
+        root = ET.fromstring(response.read())
+
+    site_host = urllib.parse.urlsplit(SITE_URL).netloc.lower()
+    paths: List[str] = []
+    for node in root.iter():
+        if node.tag.rsplit("}", 1)[-1] != "loc" or not node.text:
+            continue
+        parsed = urllib.parse.urlsplit(node.text.strip())
+        if parsed.scheme not in {"http", "https"} or parsed.netloc.lower() != site_host:
+            continue
+        path = parsed.path.rstrip("/") or "/"
+        if path not in paths:
+            paths.append(path)
+
+    if not paths:
+        raise ValueError("sitemap contained no canonical site URLs")
+    return paths
+
+
+def _sitemap_paths() -> List[str]:
+    """Live sitemap paths, cached for 15 minutes per warm sandbox.
+
+    If a refresh fails, an already-fetched sitemap is safer than returning nothing. On a
+    cold sandbox with no prior sitemap, fail closed instead of falling back to the bundled
+    catalogue: serving an error is preferable to resurrecting retired URLs.
+    """
+    global _sitemap_cache
+    fetched_at, paths = _sitemap_cache
+    if paths and (time.time() - fetched_at) < SITEMAP_TTL_SECONDS:
+        return paths
+    try:
+        paths = _fetch_sitemap_paths()
+        _sitemap_cache = (time.time(), paths)
+        return paths
+    except (urllib.error.URLError, OSError, ValueError, ET.ParseError) as exc:
+        logger.warning(json.dumps({
+            "event": "mcp_sitemap_fetch_failed",
+            "errorType": type(exc).__name__,
+            "servingStaleCount": len(paths),
+        }))
+        if paths:
+            return paths
+        raise RuntimeError("The public sitemap is temporarily unavailable") from exc
+
+
+def _is_catalogue_path(path: str) -> bool:
+    return not any(path.startswith(prefix) for prefix in _DYNAMIC_SITEMAP_PREFIXES)
+
+
+def _fallback_group(path: str) -> str:
+    if path in _START_PATHS:
+        return "start"
+    if path in _PLATFORM_PATHS:
+        return "platform"
+    if path in _CUSTOMER_SERVICE_PATHS:
+        return "customerservice"
+    if path in _LEGAL_PATHS:
+        return "legal"
+    return "services"
+
+
+def _fallback_name(path: str) -> str:
+    if path == "/":
+        return "Home"
+    tokens = path.rstrip("/").split("/")[-1].split("-")
+    acronyms = {"os": "OS", "rx": "Rx", "diy": "DIY", "qr": "QR"}
+    return " ".join(acronyms.get(token.lower(), token.capitalize()) for token in tokens)
+
+
 def _pages() -> List[Dict[str, Any]]:
-    return list(_catalog().get("pages") or [])
+    """Public site-page catalogue, with sitemap.xml as URL authority.
+
+    Existing catalogue metadata keeps its curated ordering and prose, but only for paths
+    still present in the live sitemap. A new non-dynamic sitemap page missing from the
+    packaged metadata is surfaced immediately with safe fallback metadata, so an old Lambda
+    cannot omit a newly published page either.
+    """
+    metadata = [dict(page) for page in (_catalog().get("pages") or [])
+                if isinstance(page, dict) and page.get("path")]
+    allowed = {path for path in _sitemap_paths() if _is_catalogue_path(path)}
+    by_path = {str(page["path"]).rstrip("/") or "/": page for page in metadata}
+
+    pages: List[Dict[str, Any]] = []
+    seen = set()
+    for page in metadata:
+        path = str(page.get("path") or "").rstrip("/") or "/"
+        if path not in allowed or path in seen:
+            continue
+        page["path"] = path
+        pages.append(page)
+        seen.add(path)
+
+    for path in sorted(allowed - seen):
+        pages.append({
+            "path": path,
+            "name": _fallback_name(path),
+            "description": "Public page listed in the live WECARE.DIGITAL sitemap.",
+            "group": _fallback_group(path),
+        })
+    return pages
 
 
 def _page_url(path: str) -> str:

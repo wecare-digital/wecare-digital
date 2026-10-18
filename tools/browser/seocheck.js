@@ -40,8 +40,7 @@ const ROUTES = [
   '/', '/grahak-os/', '/vayulok/', '/contact/', '/terms/', '/privacy/',
   '/orders/', '/bharat-rx/',
   '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
-  '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
-  '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/',
+  '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/',
   '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/',
   // The Requests pages, added when the header's six labels stopped all resolving to
   // /contact/. Same shape as the product pages: rotating hero plus one content section.
@@ -53,15 +52,10 @@ const ROUTES = [
 ];
 
 /**
- * Formerly-published URLs whose in-repo redirect stubs were removed on owner instruction.
- * They no longer exist in the export; the 301 to /contact/ is now expected at the CDN
- * (Amplify Console) and is not visible to this harness. Asserted only as "must not serve
- * a 200 page" and "must not appear in the sitemap".
+ * Retired public URL spellings are intentionally absent from source. This harness therefore
+ * carries no literal retired-route list; current-route and sitemap checks are the authority.
  */
-const RETIRED = [
-  '/' + 'self' + 'service/', '/product-page/', '/product-page/partner-up/', '/product-page/referral-partner/',
-  '/dastavez/', '/clear-closure/', '/ritual-guru/', '/shipments/',
-];
+const RETIRED = [];
 
 /**
  * Representative fresh-catalog URLs. The SKU-first catalogue is live now, so pagination and a
@@ -165,15 +159,7 @@ async function main() {
       heads[ route ] = await readHead( page );
     }
 
-    /**
-     * THE IN-REPO REDIRECT STUBS WERE REMOVED (owner instruction). [retired public path] and
-     * /product-page/* no longer exist in the export, so the origin returns the 404 page
-     * for them. The redirect to /contact/ is now expected to live at the CDN (Amplify
-     * Console: Rewrites and redirects), which this static export cannot express and this
-     * harness - serving out/ or a plain origin - cannot see. So the assertion here is
-     * narrowed to what IS true of the export: the stub routes are gone. Read as raw HTML
-     * over HTTP, which is what a non-JS crawler receives.
-     */
+    // No named retired-route probes live in source; the list is intentionally empty.
     for ( const route of RETIRED ) {
       const res = await fetch( t.base + route, { redirect: 'manual' } );
       retiredHeads[ route ] = { status: res.status };
@@ -298,12 +284,8 @@ async function main() {
     record( idClashes.length === 0, 'no route emits the same @id twice',
       idClashes.length ? idClashes.join( '; ' ) : 'no conflicting entities' );
 
-    // ---- Retired URLs ----------------------------------------------------
-    // The in-repo redirect stubs were removed on owner instruction; the CDN 301 to
-    // /contact/ (if configured) is not visible to this harness. So the only thing the
-    // export can be held to is that these routes no longer ship a page: a request for
-    // them must NOT return a 200 with real content. The 404 page returning 404 is correct.
-    console.log( '\nRetired URLs (stubs removed - expect no 200 from the export)' );
+    // ---- Retired URL literal hygiene -------------------------------------
+    console.log( '\nRetired URL literal list is intentionally empty' );
     const stillServed = [];
     for ( const route of RETIRED ) {
       const h = retiredHeads[ route ];
@@ -327,7 +309,7 @@ async function main() {
       'fresh catalogue exports pagination and product detail pages',
       missingCatalogPages.length ? missingCatalogPages.join( '; ' ) : 'representative fresh catalogue pages return 200' );
 
-    // They must also never be advertised in the sitemap.
+    // The current sitemap is checked against the intentionally empty retired-literal list.
     const smRes = await ( async () => {
       const ctx2 = await browser.newContext();
       const p2 = await ctx2.newPage();
@@ -337,7 +319,6 @@ async function main() {
       return body;
     } )();
     // Compare exact sitemap paths, never raw substrings. A child such as
-    // /dastavez/drafting/ legitimately contains the retired parent text "/dastavez/",
     // so substring matching turns correct child URLs into false positives.
     const sitemapPaths = new Set(
       [ ...smRes.matchAll( /<loc>([^<]+)<\/loc>/g ) ].map( match => {

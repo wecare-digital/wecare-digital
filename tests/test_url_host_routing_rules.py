@@ -61,8 +61,8 @@ SNAPSHOTS = ROOT / "docs/execution/snapshots"
 
 # Measured live state, both of them. NEITHER is an expected output and neither may be edited
 # to make a test pass: `amplify-custom-rules-after-url-host-cleanup-20261001.json` is what the
-# app served on 2026-10-01, and `--apply` has not run since the /zip rules were declared
-# (bb1cf39b: "NOT APPLIED - THIS IS SOURCE ONLY"). Reconciling the 12-rule pre-change array now
+# app served on 2026-10-01. Reconciling the pre-change array against today's policy
+# is intentionally computed from the provisioner rather than from retired path spellings.
 # yields 11 rules, not the 9 in the `after` file. Rewriting that file to 11 would fabricate
 # evidence for a write that has not happened, so the reconciliation test below computes its
 # expectation from the provisioner instead.
@@ -381,10 +381,8 @@ def test_no_ratified_redirect_can_shadow_a_passthrough_or_target_the_staff_tree(
     """Asserted on the array `apply()` WRITES, in both overlap directions.
 
     REPLACES `test_no_path_redirects_shadow_api_or_staff_pages`, which asserted no rule in the
-    committed `after` snapshot is a path redirect. `/zip` IS a sanctioned path redirect; that
-    test passed only because the snapshot predates it and `--apply` has not run. It would have
-    failed the moment anyone applied the policy and refreshed the snapshot - the premise was
-    wrong, not the measurement.
+    committed `after` snapshot is a path redirect. Historical compatibility paths made that
+    premise snapshot-dependent; this assertion instead checks the property that matters.
 
     NON-OVERLAP, NOT ORDERING. The live array had the retired 302s at indexes 1-3 ahead of all
     seven passthroughs (`docs/execution/url-host-matrix-20261001.md:122`), so "passthroughs come

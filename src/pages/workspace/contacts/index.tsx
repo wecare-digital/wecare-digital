@@ -17,14 +17,14 @@ import {
   type AddressFormFields,
 } from '../../../lib/address-format';
 
-// SVG Icons — lime + dark green theme (#1a3a2a) — Fix #17: added aria-hidden for decorative icons
-const AddUserIcon = () => (<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none"><path stroke="#1a3a2a" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 5v14m-7-7h14"/></svg>);
-const UploadIcon = () => (<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none"><path fill="none" stroke="#1a3a2a" strokeMiterlimit="10" strokeWidth="1.5" d="M12 2.5v17.14m7.62-9.52L12 2.5l-7.62 7.62m15.24 8.57v3.81H4.38v-3.81"/></svg>);
-const RefreshIcon = () => (<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none"><path fill="#1a3a2a" d="m13.146 11.05-.174-1.992 2.374-.208a5 5 0 1 0 .82 6.173l2.002.5a7 7 0 1 1-1.315-7.996l-.245-2.803L18.6 4.55l.523 5.977z"/></svg>);
-const ExportIcon = () => (<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a3a2a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>);
-const EditIcon = ({ size = 18 }: { size?: number }) => (<svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#1a3a2a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H6.8c-1.68 0-2.52 0-3.162.327a3 3 0 0 0-1.311 1.311C2 6.28 2 7.12 2 8.8v8.4c0 1.68 0 2.52.327 3.162a3 3 0 0 0 1.311 1.311C4.28 22 5.12 22 6.8 22h8.4c1.68 0 2.52 0 3.162-.327a3 3 0 0 0 1.311-1.311C20 19.72 20 18.88 20 17.2V13M8 16h1.675c.489 0 .733 0 .963-.055.204-.05.4-.13.579-.24.201-.123.374-.296.72-.642L21.5 5.5a2.121 2.121 0 0 0-3-3l-9.563 9.563c-.346.346-.519.519-.642.72a2 2 0 0 0-.24.579c-.055.23-.055.474-.055.963z"/></svg>);
-const DeleteIcon = ({ size = 18 }: { size?: number }) => (<svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#1a3a2a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3h6M3 6h18m-2 0-.701 10.52c-.106 1.583-.158 2.374-.499 2.98a3 3 0 0 1-1.298 1.215C16.56 21 15.767 21 14.182 21H9.818c-1.585 0-2.378 0-2.82-.285a3 3 0 0 1-1.298-1.215c-.341-.606-.393-1.397-.499-2.98L5 6m5 4.5v5m4-5v5"/></svg>);
-const SortIcon = ({ dir }: { dir: 'asc' | 'desc' | null }) => (<svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ marginLeft: 4, opacity: dir ? 1 : 0.3 }}><path d="M6 1l3 4H3z" fill={dir === 'asc' ? '#1a3a2a' : '#d1d5db'} /><path d="M6 11l3-4H3z" fill={dir === 'desc' ? '#1a3a2a' : '#d1d5db'} /></svg>);
+// SVG Icons — lime + dark green theme (var(--accent)) — Fix #17: added aria-hidden for decorative icons
+const AddUserIcon = () => (<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none"><path stroke="var(--accent)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 5v14m-7-7h14"/></svg>);
+const UploadIcon = () => (<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none"><path fill="none" stroke="var(--accent)" strokeMiterlimit="10" strokeWidth="1.5" d="M12 2.5v17.14m7.62-9.52L12 2.5l-7.62 7.62m15.24 8.57v3.81H4.38v-3.81"/></svg>);
+const RefreshIcon = () => (<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none"><path fill="var(--accent)" d="m13.146 11.05-.174-1.992 2.374-.208a5 5 0 1 0 .82 6.173l2.002.5a7 7 0 1 1-1.315-7.996l-.245-2.803L18.6 4.55l.523 5.977z"/></svg>);
+const ExportIcon = () => (<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>);
+const EditIcon = ({ size = 18 }: { size?: number }) => (<svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H6.8c-1.68 0-2.52 0-3.162.327a3 3 0 0 0-1.311 1.311C2 6.28 2 7.12 2 8.8v8.4c0 1.68 0 2.52.327 3.162a3 3 0 0 0 1.311 1.311C4.28 22 5.12 22 6.8 22h8.4c1.68 0 2.52 0 3.162-.327a3 3 0 0 0 1.311-1.311C20 19.72 20 18.88 20 17.2V13M8 16h1.675c.489 0 .733 0 .963-.055.204-.05.4-.13.579-.24.201-.123.374-.296.72-.642L21.5 5.5a2.121 2.121 0 0 0-3-3l-9.563 9.563c-.346.346-.519.519-.642.72a2 2 0 0 0-.24.579c-.055.23-.055.474-.055.963z"/></svg>);
+const DeleteIcon = ({ size = 18 }: { size?: number }) => (<svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3h6M3 6h18m-2 0-.701 10.52c-.106 1.583-.158 2.374-.499 2.98a3 3 0 0 1-1.298 1.215C16.56 21 15.767 21 14.182 21H9.818c-1.585 0-2.378 0-2.82-.285a3 3 0 0 1-1.298-1.215c-.341-.606-.393-1.397-.499-2.98L5 6m5 4.5v5m4-5v5"/></svg>);
+const SortIcon = ({ dir }: { dir: 'asc' | 'desc' | null }) => (<svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ marginLeft: 4, opacity: dir ? 1 : 0.3 }}><path d="M6 1l3 4H3z" fill={dir === 'asc' ? 'var(--accent)' : '#d1d5db'} /><path d="M6 11l3-4H3z" fill={dir === 'desc' ? 'var(--accent)' : '#d1d5db'} /></svg>);
 const CloseIcon = () => (<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>);
 
 type SortKey = 'name' | 'phone' | 'email' | 'updatedAt';
@@ -32,14 +32,14 @@ type SortDir = 'asc' | 'desc';
 
 // Fix #20: SortHeader extracted outside component to avoid re-creation on every render
 const SortHeader = ({ label, sKey, sortKey, sortDir, onSort, style }: { label: string; sKey: SortKey; sortKey: SortKey; sortDir: SortDir; onSort: (key: SortKey) => void; style?: React.CSSProperties }) => (
-  <th onClick={() => onSort(sKey)} style={{ cursor: 'pointer', userSelect: 'none', padding: '12px 14px', textAlign: 'left', fontSize: 14, fontWeight: 600, color: '#374151', background: '#f9fafb', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2, ...style }}>
+  <th onClick={() => onSort(sKey)} style={{ cursor: 'pointer', userSelect: 'none', padding: '12px 14px', textAlign: 'left', fontSize: 'var(--text-md)', fontWeight: 600, color: '#374151', background: 'var(--bg-secondary)', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2, ...style }}>
     <span style={{ display: 'inline-flex', alignItems: 'center' }}>{label}<SortIcon dir={sortKey === sKey ? sortDir : null} /></span>
   </th>
 );
 
 const PAGE_SIZE = 25;
 const TAG_OPTIONS = ['VIP', 'Lead', 'Customer', 'Prospect', 'Partner', 'Vendor'] as const;
-const TAG_COLORS: Record<string, string> = { VIP: '#0f2a1d', Lead: '#0f2a1d', Customer: '#1a3a2a', Prospect: '#1a3a2a', Partner: '#34d399', Vendor: '#d1d5db', 'blog-subscriber': '#1a3a2a' };
+const TAG_COLORS: Record<string, string> = { VIP: '#0f2a1d', Lead: '#0f2a1d', Customer: 'var(--accent)', Prospect: 'var(--accent)', Partner: '#34d399', Vendor: '#d1d5db', 'blog-subscriber': '#1a3a2a' };
 const tagLabel = ( tag: string ) => tag.toLowerCase() === 'blog-subscriber' ? 'Blog Subscriber' : tag;
 
 /*
@@ -229,31 +229,31 @@ const ContactActivityTimeline: React.FC<{ phone: string; contactId: string; crea
   return (
     <div style={{ marginTop: 20, borderTop: '2px solid #f3f4f6', paddingTop: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <button onClick={() => setExpanded(!expanded)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#1a3a2a' }}>
+        <button onClick={() => setExpanded(!expanded)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--accent)' }}>
           <span style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block' }}>▶</span>
           Activity ({activities.length})
         </button>
       </div>
       {expanded && (
         <div>
-          {loading && <p style={{ fontSize: 12, color: '#9ca3af' }}>Loading...</p>}
-          {!loading && activities.length === 0 && <p style={{ fontSize: 12, color: '#9ca3af' }}>No activity yet</p>}
+          {loading && <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af' }}>Loading...</p>}
+          {!loading && activities.length === 0 && <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af' }}>No activity yet</p>}
           {activities.map(a => (
             <div key={a.id} style={{ display: 'flex', gap: 8, marginBottom: 12, position: 'relative' }}>
               {/* Timeline line */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 20, flexShrink: 0 }}>
-                <span style={{ fontSize: 14 }}>{a.icon}</span>
-                <div style={{ flex: 1, width: 1, background: '#e5e7eb', marginTop: 4 }} />
+                <span style={{ fontSize: 'var(--text-md)' }}>{a.icon}</span>
+                <div style={{ flex: 1, width: 1, background: 'var(--border)', marginTop: 4 }} />
               </div>
               {/* Content */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: '#374151' }}>{a.title}</p>
-                <p style={{ margin: '2px 0 0', fontSize: 10, color: '#9ca3af' }}>{fmtTs(a.timestamp)}{a.meta ? ` · ${a.meta}` : ''}</p>
+                <p style={{ margin: 0, fontSize: 'var(--text-xs)', fontWeight: 600, color: '#374151' }}>{a.title}</p>
+                <p style={{ margin: '2px 0 0', fontSize: 'var(--text-xs)', color: '#9ca3af' }}>{fmtTs(a.timestamp)}{a.meta ? ` · ${a.meta}` : ''}</p>
                 {a.details && a.details.length > 0 && (
-                  <div style={{ marginTop: 4, padding: '6px 8px', background: '#f9fafb', borderRadius: 6, fontSize: 11 }}>
+                  <div style={{ marginTop: 4, padding: '6px 8px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 'var(--text-xs)' }}>
                     {a.details.map(d => (
                       <div key={d.field} style={{ marginBottom: 2 }}>
-                        <span style={{ color: '#6b7280' }}>{d.field}:</span>{' '}
+                        <span style={{ color: 'var(--text-muted)' }}>{d.field}:</span>{' '}
                         <span style={{ color: '#dc2626', textDecoration: 'line-through' }}>{d.old}</span>{' → '}
                         <span style={{ color: '#059669', fontWeight: 500 }}>{d.new}</span>
                       </div>
@@ -928,12 +928,12 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
 
   // Inline styles for form (bypasses Next.js style jsx scoping)
   const S: Record<string, React.CSSProperties> = {
-    label: { display: 'block', fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 5 },
-    input: { width: '100%', padding: '10px 14px', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 15, outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s', background: '#fff' },
+    label: { display: 'block', fontSize: 'var(--text-md)', fontWeight: 600, color: '#374151', marginBottom: 5 },
+    input: { width: '100%', padding: '10px 14px', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 'var(--text-md)', outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s', background: '#fff' },
     row: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
-    hint: { fontSize: 12, color: '#9ca3af', marginTop: 3 },
+    hint: { fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 3 },
   };
-  const focusStyle = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderColor = '#1a3a2a'; e.target.style.boxShadow = '0 0 0 3px rgba(26,58,42,0.1)'; };
+  const focusStyle = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderColor = 'var(--accent)'; e.target.style.boxShadow = '0 0 0 3px rgba(26,58,42,0.1)'; };
   const blurStyle = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { e.target.style.borderColor = '#f3f4f6'; e.target.style.boxShadow = 'none'; };
 
   const renderContactForm = (isEdit: boolean) => (
@@ -961,7 +961,7 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                 setShowCountryDropdown(false);
               }}
               placeholder="Code"
-              style={{ width: '100%', padding: '8px 8px', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 14, outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s', background: '#fff', color: '#374151', cursor: 'pointer' }}
+              style={{ width: '100%', padding: '8px 8px', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 'var(--text-md)', outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s', background: '#fff', color: '#374151', cursor: 'pointer' }}
               onFocusCapture={focusStyle}
               onBlurCapture={blurStyle}
             />
@@ -977,8 +977,8 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                       key={cc.code}
                       tabIndex={-1}
                       onMouseDown={() => { setFormCountryCode(cc.code); setShowCountryDropdown(false); setCountrySearch(''); }}
-                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: '#374151', transition: 'background 0.15s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 'var(--text-sm)', color: '#374151', transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
                       onMouseLeave={e => e.currentTarget.style.background = '#fff'}
                     >
                       {cc.code} {cc.country}
@@ -999,17 +999,17 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
       {/* WhatsApp Identity row — BSUID, Username, Contact Book Name */}
       <div style={S.row}>
         <div>
-          <label htmlFor="contact-bsuid" style={S.label}>BSUID <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 11 }}>(auto-filled)</span></label>
-          <input id="contact-bsuid" style={{ ...S.input, background: '#f9fafb', color: '#6b7280' }} value={formBsuid} onChange={e => setFormBsuid(e.target.value)} placeholder="e.g. IN.13491208655302741918" onFocus={focusStyle} onBlur={blurStyle} />
+          <label htmlFor="contact-bsuid" style={S.label}>BSUID <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>(auto-filled)</span></label>
+          <input id="contact-bsuid" style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)' }} value={formBsuid} onChange={e => setFormBsuid(e.target.value)} placeholder="e.g. IN.13491208655302741918" onFocus={focusStyle} onBlur={blurStyle} />
         </div>
         <div>
-          <label htmlFor="contact-username" style={S.label}>Username <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 11 }}>(auto-filled)</span></label>
-          <input id="contact-username" style={{ ...S.input, background: '#f9fafb', color: '#6b7280' }} value={formUsername} onChange={e => setFormUsername(e.target.value)} placeholder="e.g. @pablomorales" onFocus={focusStyle} onBlur={blurStyle} />
+          <label htmlFor="contact-username" style={S.label}>Username <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>(auto-filled)</span></label>
+          <input id="contact-username" style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)' }} value={formUsername} onChange={e => setFormUsername(e.target.value)} placeholder="e.g. @pablomorales" onFocus={focusStyle} onBlur={blurStyle} />
         </div>
       </div>
       <div>
-        <label htmlFor="contact-book-name" style={S.label}>Contact Book Name <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 11 }}>(auto from Meta)</span></label>
-        <input id="contact-book-name" style={{ ...S.input, background: '#f9fafb', color: '#6b7280' }} value={formContactBookName} onChange={e => setFormContactBookName(e.target.value)} placeholder="Enter company name" onFocus={focusStyle} onBlur={blurStyle} />
+        <label htmlFor="contact-book-name" style={S.label}>Contact Book Name <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>(auto from Meta)</span></label>
+        <input id="contact-book-name" style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)' }} value={formContactBookName} onChange={e => setFormContactBookName(e.target.value)} placeholder="Enter company name" onFocus={focusStyle} onBlur={blurStyle} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div>
@@ -1033,7 +1033,7 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
         * accessible name and none could be found by label in a test either.
         */}
       <div>
-        <p style={{ ...S.label, marginBottom: 8 }}>Delivery Address <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 11 }}>(used for billing too)</span></p>
+        <p style={{ ...S.label, marginBottom: 8 }}>Delivery Address <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>(used for billing too)</span></p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {ADDRESS_FIELDS.map(spec => (
             <div key={spec.key}>
@@ -1055,19 +1055,19 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
         <div
           data-address-preview="contact"
           aria-readonly="true"
-          style={{ ...S.input, background: '#f9fafb', color: '#6b7280', minHeight: 44, display: 'flex', alignItems: 'center', wordBreak: 'break-word' }}
+          style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)', minHeight: 44, display: 'flex', alignItems: 'center', wordBreak: 'break-word' }}
         >
           {formatAddress(formAddress) || formShippingAddress || '\u2014'}
         </div>
       </div>
       {/* Opt-in toggle */}
       <div>
-        <button type="button" onClick={() => setShowOptIn(!showOptIn)} style={{ fontSize: 14, color: '#1a3a2a', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-          <span style={{ transform: showOptIn ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block', color: '#1a3a2a', fontSize: 16 }}>▶</span>
+        <button type="button" onClick={() => setShowOptIn(!showOptIn)} style={{ fontSize: 'var(--text-md)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+          <span style={{ transform: showOptIn ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block', color: 'var(--accent)', fontSize: 'var(--text-base)' }}>▶</span>
           Opt-in &amp; Allowlist
         </button>
         {showOptIn && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10, padding: 14, background: '#f9fafb', borderRadius: 13, border: '2px solid #f3f4f6' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10, padding: 14, background: 'var(--bg-secondary)', borderRadius: 13, border: '2px solid #f3f4f6' }}>
             {[
               { label: 'WhatsApp Opt-in', val: formOptInWA, set: setFormOptInWA },
               { label: 'WhatsApp Allowlist', val: formAllowlistWA, set: setFormAllowlistWA },
@@ -1076,8 +1076,8 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
               { label: 'Email Opt-in', val: formOptInEmail, set: setFormOptInEmail },
               { label: 'Email Allowlist', val: formAllowlistEmail, set: setFormAllowlistEmail },
             ].map(item => (
-              <label key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, cursor: 'pointer' }}>
-                <input type="checkbox" checked={item.val} onChange={e => item.set(e.target.checked)} style={{ accentColor: '#1a3a2a', width: 16, height: 16 }} />
+              <label key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--text-md)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={item.val} onChange={e => item.set(e.target.checked)} style={{ accentColor: 'var(--accent)', width: 16, height: 16 }} />
                 {item.label}
               </label>
             ))}
@@ -1094,20 +1094,20 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
         {/* Toolbar */}
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 16 }}>
           {/* Contact count badge */}
-          <span style={{ background: '#f9fafb', color: '#1a3a2a', fontWeight: 600, fontSize: 13, padding: '4px 12px', borderRadius: 13 }}>
+          <span style={{ background: 'var(--bg-secondary)', color: 'var(--accent)', fontWeight: 600, fontSize: 'var(--text-sm)', padding: '4px 12px', borderRadius: 13 }}>
             {filteredSorted.length} contact{filteredSorted.length !== 1 ? 's' : ''}
           </span>
 
           {/* Search */}
           <div style={{ position: 'relative', flex: '1 1 200px', maxWidth: 320 }}>
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-              <path stroke="#1a3a2a" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="m21 21-4.35-4.35M11 6a5 5 0 0 1 5 5m3 0a8 8 0 1 1-16 0 8 8 0 0 1 16 0"/>
+              <path stroke="var(--accent)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="m21 21-4.35-4.35M11 6a5 5 0 0 1 5 5m3 0a8 8 0 1 1-16 0 8 8 0 0 1 16 0"/>
             </svg>
-            <input ref={searchInputRef} aria-label="Search contacts" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search contacts..." style={{ width: '100%', padding: '8px 12px 8px 34px', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 14, outline: 'none', background: '#fff' }} onFocus={focusStyle} onBlur={blurStyle} />
+            <input ref={searchInputRef} aria-label="Search contacts" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search contacts..." style={{ width: '100%', padding: '8px 12px 8px 34px', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 'var(--text-md)', outline: 'none', background: '#fff' }} onFocus={focusStyle} onBlur={blurStyle} />
           </div>
 
           {/* Action buttons */}
-          <button onClick={() => { resetForm(); setShowModal(true); }} title="Add contact (N)" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '8px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 13, cursor: 'pointer' }}>
+          <button onClick={() => { resetForm(); setShowModal(true); }} title="Add contact (N)" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '8px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, cursor: 'pointer' }}>
             <AddUserIcon />
           </button>
           <button onClick={() => setShowImport(!showImport)} title="Import contacts" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '8px', background: '#fff', color: '#374151', border: '2px solid #f3f4f6', borderRadius: 13, cursor: 'pointer' }}>
@@ -1123,13 +1123,13 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
           {/* Column visibility */}
           <div style={{ position: 'relative' }}>
             <button onClick={() => setShowColMenu(!showColMenu)} title="Toggle columns" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '8px', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, cursor: 'pointer' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a3a2a" strokeWidth="2"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0H5a2 2 0 0 1-2-2v-4m6 6h10a2 2 0 0 0 2-2v-4M3 9h18M3 15h18"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0H5a2 2 0 0 1-2-2v-4m6 6h10a2 2 0 0 0 2-2v-4M3 9h18M3 15h18"/></svg>
             </button>
             {showColMenu && (
               <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, padding: 8, zIndex: 50, minWidth: 160, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
                 {ALL_COLUMNS.map(col => (
-                  <label key={col.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', fontSize: 13, cursor: 'pointer', borderRadius: 8 }}>
-                    <input type="checkbox" checked={colVisible(col.key)} onChange={() => toggleCol(col.key)} style={{ accentColor: '#1a3a2a' }} />
+                  <label key={col.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', fontSize: 'var(--text-sm)', cursor: 'pointer', borderRadius: 8 }}>
+                    <input type="checkbox" checked={colVisible(col.key)} onChange={() => toggleCol(col.key)} style={{ accentColor: 'var(--accent)' }} />
                     {col.label}
                   </label>
                 ))}
@@ -1140,54 +1140,54 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
 
         {/* Bulk action bar — Fix #9: shows select-all-pages option */}
         {selectedIds.size > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', marginBottom: 12, background: '#f9fafb', borderRadius: 13, border: '2px solid #f3f4f6', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#1a3a2a' }}>{selectedIds.size} selected</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', marginBottom: 12, background: 'var(--bg-secondary)', borderRadius: 13, border: '2px solid #f3f4f6', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--accent)' }}>{selectedIds.size} selected</span>
             {allPageSelected && !allFilteredSelected && filteredSorted.length > PAGE_SIZE && (
-              <button onClick={selectAllFiltered} style={{ fontSize: 12, color: '#1a3a2a', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+              <button onClick={selectAllFiltered} style={{ fontSize: 'var(--text-xs)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
                 Select all {filteredSorted.length} contacts
               </button>
             )}
             <button onClick={handleBulkExport} title="Export selected" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '6px', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, cursor: 'pointer' }}>
               <ExportIcon />
             </button>
-            <button onClick={handleBulkArchive} title="Archive selected" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '6px', background: '#fff', border: '2px solid #1a3a2a', borderRadius: 13, cursor: 'pointer' }}>
+            <button onClick={handleBulkArchive} title="Archive selected" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '6px', background: '#fff', border: '2px solid var(--accent)', borderRadius: 13, cursor: 'pointer' }}>
               <DeleteIcon size={14} />
             </button>
-            <button onClick={() => setSelectedIds(new Set())} style={{ marginLeft: 'auto', fontSize: 12, color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer' }}>Clear selection</button>
+            <button onClick={() => setSelectedIds(new Set())} style={{ marginLeft: 'auto', fontSize: 'var(--text-xs)', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer' }}>Clear selection</button>
           </div>
         )}
 
         {/* Import section */}
         {showImport && (
-          <div style={{ marginBottom: 16, padding: 16, border: '2px solid #f3f4f6', borderRadius: 13, background: '#f9fafb' }}>
+          <div style={{ marginBottom: 16, padding: 16, border: '2px solid #f3f4f6', borderRadius: 13, background: 'var(--bg-secondary)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <label title="Choose CSV/VCF file" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: '#fff', color: '#1a3a2a', border: '2px solid #f3f4f6', borderRadius: 13, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+              <label title="Choose CSV/VCF file" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: '#fff', color: 'var(--accent)', border: '2px solid #f3f4f6', borderRadius: 13, cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: 500 }}>
                 <UploadIcon /> Choose File
                 <input ref={fileInputRef} type="file" accept=".csv,.vcf" onChange={handleFileSelect} style={{ display: 'none' }} />
               </label>
-              <label onClick={downloadTemplate} title="Download template" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: '#fff', color: '#1a3a2a', border: '2px solid #f3f4f6', borderRadius: 13, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+              <label onClick={downloadTemplate} title="Download template" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: '#fff', color: 'var(--accent)', border: '2px solid #f3f4f6', borderRadius: 13, cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: 500 }}>
                 <ExportIcon /> Template
               </label>
             </div>
             {previewData.length > 0 && (
               <div>
-                <p style={{ fontSize: 13, color: '#374151', marginBottom: 8 }}>{previewData.length} contacts ready to import</p>
+                <p style={{ fontSize: 'var(--text-sm)', color: '#374151', marginBottom: 8 }}>{previewData.length} contacts ready to import</p>
                 <div style={{ maxHeight: 150, overflow: 'auto', border: '2px solid #f3f4f6', borderRadius: 13, marginBottom: 8 }}>
-                  <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-                    <thead><tr>{['Name','Phone','Email'].map(h => <th key={h} style={{ padding: '6px 8px', background: '#f9fafb', textAlign: 'left', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0 }}>{h}</th>)}</tr></thead>
+                  <table style={{ width: '100%', fontSize: 'var(--text-xs)', borderCollapse: 'collapse' }}>
+                    <thead><tr>{['Name','Phone','Email'].map(h => <th key={h} style={{ padding: '6px 8px', background: 'var(--bg-secondary)', textAlign: 'left', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0 }}>{h}</th>)}</tr></thead>
                     <tbody>{previewData.slice(0, 10).map((r, i) => <tr key={i}><td style={{ padding: '4px 8px', borderBottom: '1px solid #f3f4f6' }}>{r.name}</td><td style={{ padding: '4px 8px', borderBottom: '1px solid #f3f4f6' }}>{r.phone}</td><td style={{ padding: '4px 8px', borderBottom: '1px solid #f3f4f6' }}>{r.email}</td></tr>)}</tbody>
                   </table>
                 </div>
                 {previewData.length > 10 && (
-                  <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>…and {previewData.length - 10} more</p>
+                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 8 }}>…and {previewData.length - 10} more</p>
                 )}
-                <button onClick={handleImport} disabled={importing} style={{ padding: '8px 16px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 13, fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: importing ? 0.6 : 1 }}>
+                <button onClick={handleImport} disabled={importing} style={{ padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', opacity: importing ? 0.6 : 1 }}>
                   {importing ? 'Importing...' : `Import ${previewData.length} contacts`}
                 </button>
               </div>
             )}
             {importResult && (
-              <p style={{ fontSize: 13, color: '#1a3a2a', marginTop: 8 }}>
+              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--accent)', marginTop: 8 }}>
                 Done: {importResult.created} created, {importResult.updated} updated, {importResult.failed} failed{importResult.errors.length > 0 ? `, ${importResult.errors.length} errors` : ''}
               </p>
             )}
@@ -1208,84 +1208,84 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                   reads as a dead end. Say what happened, say nothing was lost, and
                   give the one action that is actually in reach.
                 */}
-                <p style={{ fontSize: 15, color: '#dc2626', marginBottom: 4 }}>Couldn’t load contacts</p>
-                <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>The server returned an error, so nothing is shown here. No contact was changed or deleted. Try again — if it keeps happening, note the time and report it.</p>
-                <button onClick={() => loadContacts()} style={{ padding: '8px 16px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 13, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Retry</button>
+                <p style={{ fontSize: 'var(--text-md)', color: '#dc2626', marginBottom: 4 }}>Couldn’t load contacts</p>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 12 }}>The server returned an error, so nothing is shown here. No contact was changed or deleted. Try again — if it keeps happening, note the time and report it.</p>
+                <button onClick={() => loadContacts()} style={{ padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>Retry</button>
               </div>
             ) : filteredSorted.length === 0 ? (
               <div style={{ padding: 48, textAlign: 'center' }}>
                 {searchQuery ? (
                   <div>
-                    <p style={{ fontSize: 15, color: '#6b7280' }}>No results for &quot;{searchQuery}&quot;</p>
-                    <button onClick={() => setSearchQuery('')} style={{ marginTop: 8, fontSize: 13, color: '#1a3a2a', background: 'none', border: 'none', cursor: 'pointer' }}>Clear search</button>
+                    <p style={{ fontSize: 'var(--text-md)', color: 'var(--text-muted)' }}>No results for &quot;{searchQuery}&quot;</p>
+                    <button onClick={() => setSearchQuery('')} style={{ marginTop: 8, fontSize: 'var(--text-sm)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>Clear search</button>
                   </div>
                 ) : (
                   <div>
-                    <p style={{ marginBottom: 8 }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1a3a2a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></p>
-                    <p style={{ fontSize: 15, color: '#6b7280' }}>No contacts yet</p>
-                    <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Press <kbd style={{ padding: '2px 6px', background: '#f3f4f6', borderRadius: 4, fontSize: 11 }}>N</kbd> to add one</p>
+                    <p style={{ marginBottom: 8 }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></p>
+                    <p style={{ fontSize: 'var(--text-md)', color: 'var(--text-muted)' }}>No contacts yet</p>
+                    <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 4 }}>Press <kbd style={{ padding: '2px 6px', background: '#f3f4f6', borderRadius: 4, fontSize: 'var(--text-xs)' }}>N</kbd> to add one</p>
                     {/* Was rendered TWICE, identically, and named the DynamoDB table
                         to whoever opened an empty contact list. The connection status
                         is the useful half - it tells the user whether "no contacts"
                         means "none yet" or "could not reach the backend". The table
                         name told them nothing they could act on. */}
-                    <p style={{ fontSize: 11, color: '#d97706', marginTop: 8 }}>API: {api.getConnectionStatus().status}</p>
+                    <p style={{ fontSize: 'var(--text-xs)', color: '#d97706', marginTop: 8 }}>API: {api.getConnectionStatus().status}</p>
                   </div>
                 )}
               </div>
             ) : (
               <div style={{ maxHeight: 'calc(100vh - 240px)', overflow: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-md)' }}>
                   <thead>
                     <tr>
-                      <th style={{ width: 40, padding: '12px 10px', background: '#f9fafb', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>
-                        <input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} style={{ accentColor: '#1a3a2a', width: 16, height: 16 }} />
+                      <th style={{ width: 40, padding: '12px 10px', background: 'var(--bg-secondary)', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>
+                        <input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} style={{ accentColor: 'var(--accent)', width: 16, height: 16 }} />
                       </th>
                       <SortHeader label="Name" sKey="name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                       <SortHeader label="Phone" sKey="phone" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                       <SortHeader label="Email" sKey="email" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                      {colVisible('shipping') && <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 14, fontWeight: 600, color: '#374151', background: '#f9fafb', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Delivery Address</th>}
-                      {colVisible('checkoutAddress') && <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 14, fontWeight: 600, color: '#374151', background: '#f9fafb', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Checkout Address</th>}
+                      {colVisible('shipping') && <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 'var(--text-md)', fontWeight: 600, color: '#374151', background: 'var(--bg-secondary)', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Delivery Address</th>}
+                      {colVisible('checkoutAddress') && <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 'var(--text-md)', fontWeight: 600, color: '#374151', background: 'var(--bg-secondary)', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Checkout Address</th>}
                       {colVisible('updated') && <SortHeader label="Updated" sKey="updatedAt" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
-                      {colVisible('tags') && <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 14, fontWeight: 600, color: '#374151', background: '#f9fafb', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Tags</th>}
-                      <th style={{ width: 100, padding: '12px 10px', background: '#f9fafb', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Actions</th>
+                      {colVisible('tags') && <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 'var(--text-md)', fontWeight: 600, color: '#374151', background: 'var(--bg-secondary)', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Tags</th>}
+                      <th style={{ width: 100, padding: '12px 10px', background: 'var(--bg-secondary)', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {paginatedContacts.map((c, rowIndex) => (
-                      <tr key={c.contactId} onClick={() => setDetailContact(c)} style={{ cursor: 'pointer', transition: 'background 0.15s' }} onMouseEnter={e => (e.currentTarget.style.background = '#f9fafb')} onMouseLeave={e => (e.currentTarget.style.background = '')}>
+                      <tr key={c.contactId} onClick={() => setDetailContact(c)} style={{ cursor: 'pointer', transition: 'background 0.15s' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')} onMouseLeave={e => (e.currentTarget.style.background = '')}>
                         <td style={{ padding: '10px', borderBottom: '1px solid #f3f4f6', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-                          <input type="checkbox" checked={selectedIds.has(c.contactId)} onChange={() => toggleSelect(c.contactId)} style={{ accentColor: '#1a3a2a', width: 16, height: 16 }} />
+                          <input type="checkbox" checked={selectedIds.has(c.contactId)} onChange={() => toggleSelect(c.contactId)} style={{ accentColor: 'var(--accent)', width: 16, height: 16 }} />
                         </td>
                         {/* Name — inline editable (double-click) — Fix #18: cursor hint */}
-                        <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontWeight: 500, fontSize: 14, cursor: 'text' }} title="Double-click to edit" onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ id: c.contactId, field: 'name', value: c.name }); }}>
+                        <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontWeight: 500, fontSize: 'var(--text-md)', cursor: 'text' }} title="Double-click to edit" onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ id: c.contactId, field: 'name', value: c.name }); }}>
                           {inlineEdit?.id === c.contactId && inlineEdit.field === 'name' ? (
-                            <input autoFocus value={inlineEdit.value} onChange={e => setInlineEdit({ ...inlineEdit, value: e.target.value })} onBlur={commitInlineEdit} onKeyDown={e => { if (e.key === 'Enter') commitInlineEdit(); if (e.key === 'Escape') { inlineEditCancelled.current = true; setInlineEdit(null); } }} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '2px solid #1a3a2a', borderRadius: 8, fontSize: 14, outline: 'none' }} />
+                            <input autoFocus value={inlineEdit.value} onChange={e => setInlineEdit({ ...inlineEdit, value: e.target.value })} onBlur={commitInlineEdit} onKeyDown={e => { if (e.key === 'Enter') commitInlineEdit(); if (e.key === 'Escape') { inlineEditCancelled.current = true; setInlineEdit(null); } }} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '2px solid var(--accent)', borderRadius: 8, fontSize: 'var(--text-md)', outline: 'none' }} />
                           ) : (c.name || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>unnamed</span>)}
                         </td>
                         {/* Phone — inline editable (double-click) — Fix #8 */}
-                        <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: 14, cursor: 'text' }} title="Double-click to edit" onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ id: c.contactId, field: 'phone', value: c.phone || '' }); }}>
+                        <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: 'var(--text-md)', cursor: 'text' }} title="Double-click to edit" onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ id: c.contactId, field: 'phone', value: c.phone || '' }); }}>
                           {inlineEdit?.id === c.contactId && inlineEdit.field === 'phone' ? (
-                            <input autoFocus value={inlineEdit.value} onChange={e => setInlineEdit({ ...inlineEdit, value: e.target.value })} onBlur={commitInlineEdit} onKeyDown={e => { if (e.key === 'Enter') commitInlineEdit(); if (e.key === 'Escape') { inlineEditCancelled.current = true; setInlineEdit(null); } }} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '2px solid #1a3a2a', borderRadius: 8, fontSize: 14, outline: 'none' }} />
+                            <input autoFocus value={inlineEdit.value} onChange={e => setInlineEdit({ ...inlineEdit, value: e.target.value })} onBlur={commitInlineEdit} onKeyDown={e => { if (e.key === 'Enter') commitInlineEdit(); if (e.key === 'Escape') { inlineEditCancelled.current = true; setInlineEdit(null); } }} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '2px solid var(--accent)', borderRadius: 8, fontSize: 'var(--text-md)', outline: 'none' }} />
                           ) : (c.phone || '—')}
                         </td>
                         {/* Email — inline editable (double-click) — Fix #18: cursor hint */}
-                        <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: 14, cursor: 'text' }} title="Double-click to edit" onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ id: c.contactId, field: 'email', value: c.email || '' }); }}>
+                        <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: 'var(--text-md)', cursor: 'text' }} title="Double-click to edit" onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ id: c.contactId, field: 'email', value: c.email || '' }); }}>
                           {inlineEdit?.id === c.contactId && inlineEdit.field === 'email' ? (
-                            <input autoFocus value={inlineEdit.value} onChange={e => setInlineEdit({ ...inlineEdit, value: e.target.value })} onBlur={commitInlineEdit} onKeyDown={e => { if (e.key === 'Enter') commitInlineEdit(); if (e.key === 'Escape') { inlineEditCancelled.current = true; setInlineEdit(null); } }} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '2px solid #1a3a2a', borderRadius: 8, fontSize: 14, outline: 'none' }} />
+                            <input autoFocus value={inlineEdit.value} onChange={e => setInlineEdit({ ...inlineEdit, value: e.target.value })} onBlur={commitInlineEdit} onKeyDown={e => { if (e.key === 'Enter') commitInlineEdit(); if (e.key === 'Escape') { inlineEditCancelled.current = true; setInlineEdit(null); } }} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '2px solid var(--accent)', borderRadius: 8, fontSize: 'var(--text-md)', outline: 'none' }} />
                           ) : (c.email || '—')}
                         </td>
-                        {colVisible('shipping') && <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14 }}>{c.shippingAddress || '—'}</td>}
-                        {colVisible('checkoutAddress') && <td title={formatCheckoutAddress(c.checkoutDeliveryAddress)} style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14 }}>{formatCheckoutAddress(c.checkoutDeliveryAddress) || '—'}</td>}
-                        {colVisible('updated') && <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', color: '#6b7280', fontSize: 13 }} title={c.updatedAt ? (() => { const n = Number(c.updatedAt); const d = new Date(!isNaN(n) && n < 1e12 ? n * 1000 : (!isNaN(n) ? n : c.updatedAt)); return isNaN(d.getTime()) ? '' : d.toLocaleString(); })() : ''}>{timeAgo(c.updatedAt)}</td>}
+                        {colVisible('shipping') && <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--text-md)' }}>{c.shippingAddress || '—'}</td>}
+                        {colVisible('checkoutAddress') && <td title={formatCheckoutAddress(c.checkoutDeliveryAddress)} style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--text-md)' }}>{formatCheckoutAddress(c.checkoutDeliveryAddress) || '—'}</td>}
+                        {colVisible('updated') && <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }} title={c.updatedAt ? (() => { const n = Number(c.updatedAt); const d = new Date(!isNaN(n) && n < 1e12 ? n * 1000 : (!isNaN(n) ? n : c.updatedAt)); return isNaN(d.getTime()) ? '' : d.toLocaleString(); })() : ''}>{timeAgo(c.updatedAt)}</td>}
                         {colVisible('tags') && (
                           <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6' }} onClick={e => e.stopPropagation()}>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
                               {(contactTags[c.contactId] || []).map(tag => (
-                                <span key={tag} style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600, color: '#fff', background: TAG_COLORS[tag] || '#6b7280' }}>{tagLabel(tag)}</span>
+                                <span key={tag} style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 600, color: '#fff', background: TAG_COLORS[tag] || 'var(--text-muted)' }}>{tagLabel(tag)}</span>
                               ))}
-                              {c.phoneVerifiedAt && <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600, color: '#1a3a2a', background: '#d1f470', whiteSpace: 'nowrap' }}>✓ WhatsApp verified</span>}
-                              {c.emailVerifiedAt && <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600, color: '#1a3a2a', background: '#d1f470', whiteSpace: 'nowrap' }}>✓ Email verified</span>}
+                              {c.phoneVerifiedAt && <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)', background: 'var(--lime)', whiteSpace: 'nowrap' }}>✓ WhatsApp verified</span>}
+                              {c.emailVerifiedAt && <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)', background: 'var(--lime)', whiteSpace: 'nowrap' }}>✓ Email verified</span>}
                               <div style={{ position: 'relative' }}>
                                 <button 
                                   onClick={(e) => {
@@ -1309,7 +1309,7 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                                     width: 24, 
                                     height: 24, 
                                     borderRadius: '50%', 
-                                    border: '2px solid #1a3a2a', 
+                                    border: '2px solid var(--accent)', 
                                     background: '#fff', 
                                     cursor: 'pointer', 
                                     display: 'flex', 
@@ -1322,9 +1322,9 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                                 >
                                   <span style={{ 
                                     position: 'absolute',
-                                    fontSize: 18, 
+                                    fontSize: 'var(--text-xl)', 
                                     fontWeight: 300, 
-                                    color: '#1a3a2a',
+                                    color: 'var(--accent)',
                                     lineHeight: 1,
                                     fontFamily: 'Arial, sans-serif',
                                     userSelect: 'none'
@@ -1354,21 +1354,21 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
           <div className="contacts-mobile-cards" style={{ padding: '0 16px' }}>
             {loading ? <div style={{ padding: 24 }}><SkeletonTable rows={5} /></div> : loadError ? (
               <div style={{ padding: 48, textAlign: 'center' }}>
-                <p style={{ fontSize: 15, color: '#6b7280', marginBottom: 8 }}>Failed to load contacts</p>
-                <button onClick={() => loadContacts()} style={{ padding: '8px 16px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 13, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Retry</button>
+                <p style={{ fontSize: 'var(--text-md)', color: 'var(--text-muted)', marginBottom: 8 }}>Failed to load contacts</p>
+                <button onClick={() => loadContacts()} style={{ padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>Retry</button>
               </div>
             ) : filteredSorted.length === 0 ? (
               <div style={{ padding: 48, textAlign: 'center' }}>
                 {searchQuery ? (
                   <div>
-                    <p style={{ fontSize: 15, color: '#6b7280' }}>No results for &quot;{searchQuery}&quot;</p>
-                    <button onClick={() => setSearchQuery('')} style={{ marginTop: 8, fontSize: 13, color: '#1a3a2a', background: 'none', border: 'none', cursor: 'pointer' }}>Clear search</button>
+                    <p style={{ fontSize: 'var(--text-md)', color: 'var(--text-muted)' }}>No results for &quot;{searchQuery}&quot;</p>
+                    <button onClick={() => setSearchQuery('')} style={{ marginTop: 8, fontSize: 'var(--text-sm)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>Clear search</button>
                   </div>
                 ) : (
                   <div>
-                    <p style={{ marginBottom: 8 }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#1a3a2a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></p>
-                    <p style={{ fontSize: 15, color: '#6b7280' }}>No contacts yet</p>
-                    <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Tap + to add one</p>
+                    <p style={{ marginBottom: 8 }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></p>
+                    <p style={{ fontSize: 'var(--text-md)', color: 'var(--text-muted)' }}>No contacts yet</p>
+                    <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 4 }}>Tap + to add one</p>
                   </div>
                 )}
               </div>
@@ -1378,7 +1378,7 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                   <div key={c.contactId} className="contact-card" onClick={() => setDetailContact(c)}>
                     <div className="contact-card-header">
                       <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', marginRight: 8 }}>
-                        <input type="checkbox" checked={selectedIds.has(c.contactId)} onChange={() => toggleSelect(c.contactId)} style={{ accentColor: '#1a3a2a', width: 18, height: 18 }} />
+                        <input type="checkbox" checked={selectedIds.has(c.contactId)} onChange={() => toggleSelect(c.contactId)} style={{ accentColor: 'var(--accent)', width: 18, height: 18 }} />
                       </div>
                       <div style={{ flex: 1 }}>
                         <div className="contact-card-name">{c.name || 'Unnamed'}</div>
@@ -1393,10 +1393,10 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                     {((contactTags[c.contactId] || []).length > 0 || c.phoneVerifiedAt || c.emailVerifiedAt) && (
                       <div className="contact-card-tags" aria-label="Contact badges">
                         {(contactTags[c.contactId] || []).map(tag => (
-                          <span key={tag} style={{ flex: '0 0 auto', padding: '3px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600, color: '#fff', background: TAG_COLORS[tag] || '#6b7280', whiteSpace: 'nowrap' }}>{tagLabel(tag)}</span>
+                          <span key={tag} style={{ flex: '0 0 auto', padding: '3px 10px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 600, color: '#fff', background: TAG_COLORS[tag] || 'var(--text-muted)', whiteSpace: 'nowrap' }}>{tagLabel(tag)}</span>
                         ))}
-                        {c.phoneVerifiedAt && <span style={{ flex: '0 0 auto', padding: '3px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600, color: '#1a3a2a', background: '#d1f470', whiteSpace: 'nowrap' }}>✓ WhatsApp verified</span>}
-                        {c.emailVerifiedAt && <span style={{ flex: '0 0 auto', padding: '3px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600, color: '#1a3a2a', background: '#d1f470', whiteSpace: 'nowrap' }}>✓ Email verified</span>}
+                        {c.phoneVerifiedAt && <span style={{ flex: '0 0 auto', padding: '3px 10px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)', background: 'var(--lime)', whiteSpace: 'nowrap' }}>✓ WhatsApp verified</span>}
+                        {c.emailVerifiedAt && <span style={{ flex: '0 0 auto', padding: '3px 10px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)', background: 'var(--lime)', whiteSpace: 'nowrap' }}>✓ Email verified</span>}
                       </div>
                     )}
                     <div className="contact-card-meta">
@@ -1412,17 +1412,17 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
           {/* Detail side panel */}
           {detailContact && (
             <div style={{ width: 340, flexShrink: 0, borderLeft: '2px solid #f3f4f6', background: '#fff', overflow: 'auto', marginLeft: -2, borderRadius: '0 13px 13px 0', maxHeight: 'calc(100vh - 200px)' }}>
-              <div style={{ padding: '16px 20px', background: '#f9fafb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #f3f4f6' }}>
-                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#374151' }}>Contact Details</h3>
+              <div style={{ padding: '16px 20px', background: 'var(--bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #f3f4f6' }}>
+                <h3 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 600, color: '#374151' }}>Contact Details</h3>
                 <button onClick={() => setDetailContact(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
               </div>
               <div style={{ padding: 20 }}>
                 <div style={{ textAlign: 'center', marginBottom: 20 }}>
-                  <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px', fontSize: 24, color: '#1a3a2a', fontWeight: 700 }}>
+                  <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px', fontSize: 'var(--text-3xl)', color: 'var(--accent)', fontWeight: 700 }}>
                     {(detailContact.name || '?')[0]?.toUpperCase()}
                   </div>
-                  <p style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a', margin: 0 }}>{detailContact.name || 'Unnamed'}</p>
-                  <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>{detailContact.phone}</p>
+                  <p style={{ fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--text)', margin: 0 }}>{detailContact.name || 'Unnamed'}</p>
+                  <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', margin: '4px 0 0' }}>{detailContact.phone}</p>
                 </div>
                 {[
                   { label: 'Subscriber ID', value: detailContact.subscriberId || (detailContact.tags || []).find((t: string) => t.startsWith('sub:'))?.replace('sub:', '') || '—' },
@@ -1444,8 +1444,8 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                   { label: 'Last Message', value: timeAgo(detailContact.lastInboundMessageAt) },
                 ].map(item => (
                   <div key={item.label} style={{ marginBottom: 12 }}>
-                    <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.label}</p>
-                    <p style={{ fontSize: 13, color: '#374151', margin: 0, wordBreak: 'break-word' }}>{item.value || '—'}</p>
+                    <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.label}</p>
+                    <p style={{ fontSize: 'var(--text-sm)', color: '#374151', margin: 0, wordBreak: 'break-word' }}>{item.value || '—'}</p>
                   </div>
                 ))}
                 {detailContact.locked && (
@@ -1455,35 +1455,35 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                 )}
                 {/* Tags in detail */}
                 <div style={{ marginBottom: 12 }}>
-                  <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tags</p>
+                  <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tags</p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                     {(contactTags[detailContact.contactId] || []).map(tag => (
-                      <span key={tag} style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, color: '#fff', background: TAG_COLORS[tag] || '#6b7280' }}>{tagLabel(tag)}</span>
+                      <span key={tag} style={{ padding: '2px 8px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 600, color: '#fff', background: TAG_COLORS[tag] || 'var(--text-muted)' }}>{tagLabel(tag)}</span>
                     ))}
-                    {(contactTags[detailContact.contactId] || []).length === 0 && <span style={{ fontSize: 12, color: '#9ca3af' }}>No tags</span>}
+                    {(contactTags[detailContact.contactId] || []).length === 0 && <span style={{ fontSize: 'var(--text-xs)', color: '#9ca3af' }}>No tags</span>}
                   </div>
                 </div>
                 {/* Verification status — server timestamps, not browser claims. */}
                 {(detailContact.phoneVerifiedAt || detailContact.emailVerifiedAt || detailContact.blogSubscribedAt) && (
                   <div style={{ marginBottom: 12 }}>
-                    <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Verification</p>
+                    <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Verification</p>
                     <div style={{ display: 'flex', gap: 6, overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: 4 }}>
-                      {detailContact.phoneVerifiedAt && <span style={{ flex: '0 0 auto', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, color: '#1a3a2a', background: '#d1f470', whiteSpace: 'nowrap' }}>✓ WhatsApp verified</span>}
-                      {detailContact.emailVerifiedAt && <span style={{ flex: '0 0 auto', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, color: '#1a3a2a', background: '#d1f470', whiteSpace: 'nowrap' }}>✓ Email verified</span>}
-                      {detailContact.blogSubscribedAt && <span style={{ flex: '0 0 auto', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, color: '#fff', background: '#1a3a2a', whiteSpace: 'nowrap' }}>Blog Subscriber</span>}
+                      {detailContact.phoneVerifiedAt && <span style={{ flex: '0 0 auto', padding: '2px 8px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)', background: 'var(--lime)', whiteSpace: 'nowrap' }}>✓ WhatsApp verified</span>}
+                      {detailContact.emailVerifiedAt && <span style={{ flex: '0 0 auto', padding: '2px 8px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)', background: 'var(--lime)', whiteSpace: 'nowrap' }}>✓ Email verified</span>}
+                      {detailContact.blogSubscribedAt && <span style={{ flex: '0 0 auto', padding: '2px 8px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 600, color: '#fff', background: 'var(--accent)', whiteSpace: 'nowrap' }}>Blog Subscriber</span>}
                     </div>
                   </div>
                 )}
                 {/* Opt-in status */}
                 <div style={{ marginBottom: 12 }}>
-                  <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Opt-in Status</p>
+                  <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Opt-in Status</p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {[
                       { label: 'WA', on: detailContact.optInWhatsApp },
                       { label: 'SMS', on: detailContact.optInSms },
                       { label: 'Email', on: detailContact.optInEmail },
                     ].map(ch => (
-                      <span key={ch.label} style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500, background: ch.on ? '#f9fafb' : '#f3f4f6', color: ch.on ? '#1a3a2a' : '#9ca3af' }}>
+                      <span key={ch.label} style={{ padding: '2px 8px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 500, background: ch.on ? 'var(--bg-secondary)' : '#f3f4f6', color: ch.on ? 'var(--accent)' : '#9ca3af' }}>
                         {ch.on ? '✓' : '✗'} {ch.label}
                       </span>
                     ))}
@@ -1491,14 +1491,14 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                 </div>
                 {/* Fix #15: Allowlist status */}
                 <div style={{ marginBottom: 12 }}>
-                  <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Allowlist Status</p>
+                  <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Allowlist Status</p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {[
                       { label: 'WA', on: detailContact.allowlistWhatsApp },
                       { label: 'SMS', on: detailContact.allowlistSms },
                       { label: 'Email', on: detailContact.allowlistEmail },
                     ].map(ch => (
-                      <span key={`al-${ch.label}`} style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500, background: ch.on ? '#f9fafb' : '#f3f4f6', color: ch.on ? '#1a3a2a' : '#9ca3af' }}>
+                      <span key={`al-${ch.label}`} style={{ padding: '2px 8px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 500, background: ch.on ? 'var(--bg-secondary)' : '#f3f4f6', color: ch.on ? 'var(--accent)' : '#9ca3af' }}>
                         {ch.on ? '✓' : '✗'} {ch.label}
                       </span>
                     ))}
@@ -1506,8 +1506,8 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                 </div>
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                  <button onClick={() => { handleEdit(detailContact); setDetailContact(null); }} style={{ flex: 1, padding: '8px 12px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 13, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
-                  <button onClick={() => { const c = detailContact; setDetailContact(null); handleArchive(c.contactId, c.name); }} style={{ flex: 1, padding: '8px 12px', background: '#fff', color: '#1a3a2a', border: '2px solid #1a3a2a', borderRadius: 13, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Archive</button>
+                  <button onClick={() => { handleEdit(detailContact); setDetailContact(null); }} style={{ flex: 1, padding: '8px 12px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>Edit</button>
+                  <button onClick={() => { const c = detailContact; setDetailContact(null); handleArchive(c.contactId, c.name); }} style={{ flex: 1, padding: '8px 12px', background: '#fff', color: 'var(--accent)', border: '2px solid var(--accent)', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>Archive</button>
                 </div>
 
                 {/* Activity Timeline */}
@@ -1520,16 +1520,16 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
         {/* Pagination */}
         {totalPages >= 1 && (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 16 }}>
-            <button onClick={() => setCurrentPage(1)} disabled={safeCurrentPage <= 1} title="First page" style={{ padding: '6px 10px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage <= 1 ? 'default' : 'pointer', opacity: safeCurrentPage <= 1 ? 0.4 : 1, fontSize: 13 }}>«</button>
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safeCurrentPage <= 1} style={{ padding: '6px 12px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage <= 1 ? 'default' : 'pointer', opacity: safeCurrentPage <= 1 ? 0.4 : 1, fontSize: 13 }}>‹</button>
+            <button onClick={() => setCurrentPage(1)} disabled={safeCurrentPage <= 1} title="First page" style={{ padding: '6px 10px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage <= 1 ? 'default' : 'pointer', opacity: safeCurrentPage <= 1 ? 0.4 : 1, fontSize: 'var(--text-sm)' }}>«</button>
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safeCurrentPage <= 1} style={{ padding: '6px 12px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage <= 1 ? 'default' : 'pointer', opacity: safeCurrentPage <= 1 ? 0.4 : 1, fontSize: 'var(--text-sm)' }}>‹</button>
             {Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => p === 1 || p === totalPages || Math.abs(p - safeCurrentPage) <= 1).map((p, idx, arr) => (
               <React.Fragment key={p}>
                 {idx > 0 && arr[idx - 1] !== p - 1 && <span style={{ color: '#9ca3af' }}>…</span>}
-                <button onClick={() => setCurrentPage(p)} style={{ padding: '6px 10px', border: '2px solid #f3f4f6', borderRadius: 13, background: p === safeCurrentPage ? '#1a3a2a' : '#fff', color: p === safeCurrentPage ? '#fff' : '#374151', fontWeight: p === safeCurrentPage ? 600 : 400, cursor: 'pointer', fontSize: 13 }}>{p}</button>
+                <button onClick={() => setCurrentPage(p)} style={{ padding: '6px 10px', border: '2px solid #f3f4f6', borderRadius: 13, background: p === safeCurrentPage ? 'var(--accent)' : '#fff', color: p === safeCurrentPage ? '#fff' : '#374151', fontWeight: p === safeCurrentPage ? 600 : 400, cursor: 'pointer', fontSize: 'var(--text-sm)' }}>{p}</button>
               </React.Fragment>
             ))}
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safeCurrentPage >= totalPages} style={{ padding: '6px 12px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage >= totalPages ? 'default' : 'pointer', opacity: safeCurrentPage >= totalPages ? 0.4 : 1, fontSize: 13 }}>›</button>
-            <button onClick={() => setCurrentPage(totalPages)} disabled={safeCurrentPage >= totalPages} title="Last page" style={{ padding: '6px 10px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage >= totalPages ? 'default' : 'pointer', opacity: safeCurrentPage >= totalPages ? 0.4 : 1, fontSize: 13 }}>»</button>
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safeCurrentPage >= totalPages} style={{ padding: '6px 12px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage >= totalPages ? 'default' : 'pointer', opacity: safeCurrentPage >= totalPages ? 0.4 : 1, fontSize: 'var(--text-sm)' }}>›</button>
+            <button onClick={() => setCurrentPage(totalPages)} disabled={safeCurrentPage >= totalPages} title="Last page" style={{ padding: '6px 10px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage >= totalPages ? 'default' : 'pointer', opacity: safeCurrentPage >= totalPages ? 0.4 : 1, fontSize: 'var(--text-sm)' }}>»</button>
           </div>
         )}
       </div>
@@ -1538,14 +1538,14 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
       {showModal && (
         <div role="dialog" aria-modal="true" aria-label="Add Contact" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowModal(false)}>
           <div style={{ background: '#fff', borderRadius: 14, width: 560, maxHeight: '85vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ padding: '20px 24px', background: '#f9fafb', borderRadius: '14px 14px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #f3f4f6' }}>
-              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#374151' }}>Add Contact</h2>
+            <div style={{ padding: '20px 24px', background: 'var(--bg-secondary)', borderRadius: '14px 14px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #f3f4f6' }}>
+              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add Contact</h2>
               <button onClick={() => setShowModal(false)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(false)}
             <div style={{ padding: '16px 24px', borderTop: '2px solid #f3f4f6', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button onClick={() => setShowModal(false)} style={{ padding: '8px 16px', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 13, cursor: 'pointer', color: '#374151' }}>Cancel</button>
-              <button onClick={handleCreate} disabled={saving} style={{ padding: '8px 20px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 13, fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving...' : 'Create'}</button>
+              <button onClick={() => setShowModal(false)} style={{ padding: '8px 16px', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 'var(--text-sm)', cursor: 'pointer', color: '#374151' }}>Cancel</button>
+              <button onClick={handleCreate} disabled={saving} style={{ padding: '8px 20px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving...' : 'Create'}</button>
             </div>
           </div>
         </div>
@@ -1555,14 +1555,14 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
       {showEditModal && editingContact && (
         <div role="dialog" aria-modal="true" aria-label="Edit Contact" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => { setShowEditModal(false); setEditingContact(null); }}>
           <div style={{ background: '#fff', borderRadius: 14, width: 560, maxHeight: '85vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ padding: '20px 24px', background: '#f9fafb', borderRadius: '14px 14px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #f3f4f6' }}>
-              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#374151' }}>Edit Contact</h2>
+            <div style={{ padding: '20px 24px', background: 'var(--bg-secondary)', borderRadius: '14px 14px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #f3f4f6' }}>
+              <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Edit Contact</h2>
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
             </div>
             {renderContactForm(true)}
             <div style={{ padding: '16px 24px', borderTop: '2px solid #f3f4f6', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} style={{ padding: '8px 16px', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 13, cursor: 'pointer', color: '#374151' }}>Cancel</button>
-              <button onClick={handleUpdate} disabled={saving} style={{ padding: '8px 20px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 13, fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving...' : 'Update'}</button>
+              <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} style={{ padding: '8px 16px', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 'var(--text-sm)', cursor: 'pointer', color: '#374151' }}>Cancel</button>
+              <button onClick={handleUpdate} disabled={saving} style={{ padding: '8px 20px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving...' : 'Update'}</button>
             </div>
           </div>
         </div>
@@ -1595,10 +1595,10 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
           {TAG_OPTIONS.map(tag => {
             const active = (contactTags[showTagMenu] || []).includes(tag);
             return (
-              <button key={tag} onClick={() => toggleTag(showTagMenu, tag)} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 10px', border: 'none', background: active ? '#f9fafb' : 'transparent', borderRadius: 8, fontSize: 13, cursor: 'pointer', textAlign: 'left' }}>
+              <button key={tag} onClick={() => toggleTag(showTagMenu, tag)} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 10px', border: 'none', background: active ? 'var(--bg-secondary)' : 'transparent', borderRadius: 8, fontSize: 'var(--text-sm)', cursor: 'pointer', textAlign: 'left' }}>
                 <span style={{ width: 12, height: 12, borderRadius: '50%', background: TAG_COLORS[tag] }}></span>
                 {tag}
-                {active && <span style={{ marginLeft: 'auto', color: '#1a3a2a', fontWeight: 600 }}>✓</span>}
+                {active && <span style={{ marginLeft: 'auto', color: 'var(--accent)', fontWeight: 600 }}>✓</span>}
               </button>
             );
           })}

@@ -70,8 +70,8 @@ const REVIEW_FLAG_OPTIONS: SelectOption[] = [
    control is bounded rather than stretching, because the trigger shows the selected label
    while a native select sized itself to its widest option. */
 const GATE_CHIP_STYLE: React.CSSProperties = {
-  fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8,
-  alignItems: 'center', background: '#f9fafb', padding: '6px 10px', borderRadius: 6,
+  fontSize: 'var(--text-xs)', display: 'flex', justifyContent: 'space-between', gap: 8,
+  alignItems: 'center', background: 'var(--bg-secondary)', padding: '6px 10px', borderRadius: 6,
 };
 const REVIEW_CHIP_STYLE: React.CSSProperties = { ...GATE_CHIP_STYLE, background: '#eff6ff' };
 const GATE_SELECT_STYLE: React.CSSProperties = { flex: '0 0 100px' };
@@ -237,38 +237,38 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
   const body = (
       <div className="inner-page">
-        <p style={ { fontSize: 13, margin: '0 0 8px' } }>
-          <Link href="/workspace/seo/blog-production" style={ { color: '#1a3a2a' } }>← Production waves</Link>
+        <p style={ { fontSize: 'var(--text-sm)', margin: '0 0 8px' } }>
+          <Link href="/workspace/seo/blog-production" style={ { color: 'var(--accent)' } }>← Production waves</Link>
           { batchId && (
             <>
               { ' · ' }
               <a href={ `/workspace/seo/blog-production?tab=batch&id=${ encodeURIComponent( batchId ) }` }
-                style={ { color: '#1a3a2a' } }>This wave</a>
+                style={ { color: 'var(--accent)' } }>This wave</a>
             </>
           ) }
         </p>
         <h1 className="inner-page-title">QA review</h1>
 
         { error && (
-          <div role="alert" style={ { background: '#fef2f2', color: '#b91c1c', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 14 } }>
+          <div role="alert" style={ { background: '#fef2f2', color: '#b91c1c', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 'var(--text-md)' } }>
             { error }
           </div>
         ) }
         { notice && (
-          <div role="status" style={ { background: '#f0fdf4', color: '#15803d', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 14 } }>
+          <div role="status" style={ { background: '#f0fdf4', color: '#15803d', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 'var(--text-md)' } }>
             { notice }
           </div>
         ) }
-        { loading && <p style={ { color: '#6b7280' } }>Loading…</p> }
+        { loading && <p style={ { color: 'var(--text-muted)' } }>Loading…</p> }
 
         { !sourceId && (
           <div className="card" style={ { overflow: 'auto' } }>
-            <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
-              <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 13, color: '#6b7280' } }>
+            <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
+              <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 'var(--text-sm)', color: 'var(--text-muted)' } }>
                 { batchId ? 'Sources in this wave' : 'Name a source in the URL, or open one from a wave.' }
               </caption>
               <thead>
-                <tr style={ { borderBottom: '2px solid #e5e7eb' } }>
+                <tr style={ { borderBottom: '2px solid var(--border)' } }>
                   <th scope="col" style={ th }>Source</th>
                   <th scope="col" style={ th }>Article</th>
                   <th scope="col" style={ th }>QA</th>
@@ -287,12 +287,12 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                     <td style={ td }>{ row.pipeline.signedOffBy || '—' }</td>
                     <td style={ td }>
                       <a href={ `/workspace/seo/blog-production?tab=qa&source=${ encodeURIComponent( row.sourceId ) }&batch=${ encodeURIComponent( batchId ) }` }
-                        style={ { color: '#1a3a2a' } }>Review</a>
+                        style={ { color: 'var(--accent)' } }>Review</a>
                     </td>
                   </tr>
                 ) ) }
                 { queue.length === 0 && !loading && (
-                  <tr><td colSpan={ 5 } style={ { padding: 32, textAlign: 'center', color: '#6b7280' } }>
+                  <tr><td colSpan={ 5 } style={ { padding: 32, textAlign: 'center', color: 'var(--text-muted)' } }>
                     Nothing here yet.
                   </td></tr>
                 ) }
@@ -306,27 +306,27 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
             <div className="card" style={ { padding: 16, marginBottom: 16 } }>
               <div style={ { display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' } }>
                 <div>
-                  <h2 style={ { fontSize: 15, margin: '0 0 6px' } }>Latest QA run</h2>
+                  <h2 style={ { fontSize: 'var(--text-md)', margin: '0 0 6px' } }>Latest QA run</h2>
                   { run ? (
-                    <p style={ { fontSize: 13, color: 'rgba(0,0,0,.54)', margin: 0 } }>
+                    <p style={ { fontSize: 'var(--text-sm)', color: 'rgba(0,0,0,.54)', margin: 0 } }>
                       <strong style={ { color: VERDICT_COLOUR[ run.verdict ] || '#374151' } }>{ run.verdict }</strong>
                       { ' · ' }{ run.blockingCount } blocking · { run.reviewCount } review ·
                       { ' ' }compared against { run.corpusChecked.toLocaleString() } published posts ·
                       { ' ' }{ run.ranBy } at { run.ranAt }
                     </p>
                   ) : (
-                    <p style={ { fontSize: 13, color: '#6b7280', margin: 0 } }>
+                    <p style={ { fontSize: 'var(--text-sm)', color: 'var(--text-muted)', margin: 0 } }>
                       No QA run yet. Run one to record what the rules say about this exact version.
                     </p>
                   ) }
                   { article.runStale && (
-                    <p style={ { fontSize: 13, color: '#b45309', margin: '8px 0 0' } }>
+                    <p style={ { fontSize: 'var(--text-sm)', color: '#b45309', margin: '8px 0 0' } }>
                       The article changed after this run, so the verdict describes different text.
                       Run QA again before signing.
                     </p>
                   ) }
                   { run && run.corpusChecked === 0 && (
-                    <p style={ { fontSize: 13, color: '#b91c1c', margin: '8px 0 0' } }>
+                    <p style={ { fontSize: 'var(--text-sm)', color: '#b91c1c', margin: '8px 0 0' } }>
                       This run could not load the published corpus index, so its NON_DUPLICATION
                       result compared against nothing. A signature over that is a signature over
                       nothing and will be refused.
@@ -334,7 +334,7 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                   ) }
                 </div>
                 <button onClick={ () => { void runQa(); } } disabled={ busy !== '' }
-                  style={ { padding: '9px 18px', borderRadius: 6, border: '1px solid #1a3a2a', background: '#fff', color: '#1a3a2a', cursor: 'pointer', fontSize: 14 } }>
+                  style={ { padding: '9px 18px', borderRadius: 6, border: '1px solid var(--accent)', background: '#fff', color: 'var(--accent)', cursor: 'pointer', fontSize: 'var(--text-md)' } }>
                   { busy === 'qa' ? 'Running…' : run ? 'Run QA again' : 'Run QA' }
                 </button>
               </div>
@@ -342,43 +342,43 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
             { report && (
               <div className="card" style={ { padding: 16, marginBottom: 16 } }>
-                <h2 style={ { fontSize: 15, margin: '0 0 12px' } }>What the rules said</h2>
+                <h2 style={ { fontSize: 'var(--text-md)', margin: '0 0 12px' } }>What the rules said</h2>
                 <div style={ { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 } }>
                   { Object.entries( report.machineGate ).map( ( [ gate, value ] ) => (
-                    <span key={ gate } style={ { background: '#f3f4f6', padding: '3px 10px', borderRadius: 6, fontSize: 12 } }>
+                    <span key={ gate } style={ { background: '#f3f4f6', padding: '3px 10px', borderRadius: 6, fontSize: 'var(--text-xs)' } }>
                       { gate }: <strong>{ value }</strong>
                     </span>
                   ) ) }
                 </div>
                 { report.blocking.length > 0 && (
                   <>
-                    <h3 style={ { fontSize: 13, margin: '0 0 6px', color: '#b91c1c' } }>
+                    <h3 style={ { fontSize: 'var(--text-sm)', margin: '0 0 6px', color: '#b91c1c' } }>
                       Blocking ({ report.blocking.length }) — a mechanical fact, not something a
                       signature can accept
                     </h3>
                     { report.blocking.map( item => (
-                      <p key={ item } style={ { fontSize: 12, background: '#fef2f2', padding: '8px 10px', borderRadius: 6, margin: '0 0 6px' } }>{ item }</p>
+                      <p key={ item } style={ { fontSize: 'var(--text-xs)', background: '#fef2f2', padding: '8px 10px', borderRadius: 6, margin: '0 0 6px' } }>{ item }</p>
                     ) ) }
                   </>
                 ) }
                 { report.review.length > 0 && (
                   <>
-                    <h3 style={ { fontSize: 13, margin: '12px 0 6px', color: '#b45309' } }>
+                    <h3 style={ { fontSize: 'var(--text-sm)', margin: '12px 0 6px', color: '#b45309' } }>
                       Review ({ report.review.length }) — judgement, which is what you are here for
                     </h3>
                     { report.review.map( item => (
-                      <p key={ item } style={ { fontSize: 12, background: '#fffbeb', padding: '8px 10px', borderRadius: 6, margin: '0 0 6px' } }>{ item }</p>
+                      <p key={ item } style={ { fontSize: 'var(--text-xs)', background: '#fffbeb', padding: '8px 10px', borderRadius: 6, margin: '0 0 6px' } }>{ item }</p>
                     ) ) }
                   </>
                 ) }
                 { report.template.checked && (
-                  <p style={ { fontSize: 12, color: report.template.compliant ? '#15803d' : '#b45309', margin: '12px 0 0' } }>
+                  <p style={ { fontSize: 'var(--text-xs)', color: report.template.compliant ? '#15803d' : '#b45309', margin: '12px 0 0' } }>
                     Template { report.template.templateName }:{ ' ' }
                     { report.template.compliant ? 'compliant' : `${ report.template.findings.length } finding(s)` }
                   </p>
                 ) }
                 { report.blocking.length === 0 && report.review.length === 0 && (
-                  <p style={ { fontSize: 13, color: '#15803d', margin: 0 } }>
+                  <p style={ { fontSize: 'var(--text-sm)', color: '#15803d', margin: 0 } }>
                     Nothing mechanical is outstanding. The eleven judgements below are yours.
                   </p>
                 ) }
@@ -387,21 +387,21 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
             { signoff && !article.signoffStale && (
               <div className="card" style={ { padding: 16, marginBottom: 16, background: '#f0fdf4' } }>
-                <h2 style={ { fontSize: 15, margin: '0 0 6px' } }>Signed off</h2>
-                <p style={ { fontSize: 13, color: '#15803d', margin: '0 0 8px' } }>
+                <h2 style={ { fontSize: 'var(--text-md)', margin: '0 0 6px' } }>Signed off</h2>
+                <p style={ { fontSize: 'var(--text-sm)', color: '#15803d', margin: '0 0 8px' } }>
                   { signoff.signedBy } at { signoff.signedAt }
                 </p>
-                <p style={ { fontSize: 13, color: '#374151', margin: '0 0 12px' } }>{ signoff.statement }</p>
+                <p style={ { fontSize: 'var(--text-sm)', color: '#374151', margin: '0 0 12px' } }>{ signoff.statement }</p>
                 <button onClick={ () => { void revoke( signoff.signoffId ); } } disabled={ busy !== '' }
-                  style={ { padding: '7px 14px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', color: '#374151', cursor: 'pointer', fontSize: 13 } }>
+                  style={ { padding: '7px 14px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', color: '#374151', cursor: 'pointer', fontSize: 'var(--text-sm)' } }>
                   Withdraw this signature
                 </button>
               </div>
             ) }
             { signoff && article.signoffStale && (
               <div className="card" style={ { padding: 16, marginBottom: 16, background: '#fffbeb' } }>
-                <h2 style={ { fontSize: 15, margin: '0 0 6px' } }>The signature no longer covers this article</h2>
-                <p style={ { fontSize: 13, color: '#b45309', margin: 0 } }>
+                <h2 style={ { fontSize: 'var(--text-md)', margin: '0 0 6px' } }>The signature no longer covers this article</h2>
+                <p style={ { fontSize: 'var(--text-sm)', color: '#b45309', margin: 0 } }>
                   { signoff.signedBy } signed a different version of the body. That signature was
                   invalidated automatically when the text changed — nothing had to revoke it. Run QA
                   again and sign the current version.
@@ -411,13 +411,13 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
             { run && !article.releasable && (
               <div className="card" style={ { padding: 16 } }>
-                <h2 style={ { fontSize: 15, margin: '0 0 4px' } }>Sign off</h2>
-                <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 14px', maxWidth: 700 } }>
+                <h2 style={ { fontSize: 'var(--text-md)', margin: '0 0 4px' } }>Sign off</h2>
+                <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '0 0 14px', maxWidth: 700 } }>
                   Answering these makes the article RELEASABLE. It does not publish it, and it does
                   not survive an edit to the body.
                 </p>
 
-                <h3 style={ { fontSize: 13, margin: '0 0 8px' } }>The eleven judgements (section 29)</h3>
+                <h3 style={ { fontSize: 'var(--text-sm)', margin: '0 0 8px' } }>The eleven judgements (section 29)</h3>
                 <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 8, marginBottom: 16 } }>
                   { /*
                      * The wrapping <label> is GONE, which is the point of design 1.7(a): a
@@ -443,8 +443,8 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                   ) ) }
                 </div>
 
-                <h3 style={ { fontSize: 13, margin: '0 0 4px' } }>Declarations (sections 5 and 28)</h3>
-                <p style={ { fontSize: 11, color: '#6b7280', margin: '0 0 8px' } }>
+                <h3 style={ { fontSize: 'var(--text-sm)', margin: '0 0 4px' } }>Declarations (sections 5 and 28)</h3>
+                <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '0 0 8px' } }>
                   Each must be answered the way the standard requires. Answering one the other way
                   says this article is a duplicate, and it will be refused rather than recorded.
                 </p>
@@ -461,8 +461,8 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
                 { ( report?.reviewFlagsRequired || [] ).length > 0 && (
                   <>
-                    <h3 style={ { fontSize: 13, margin: '0 0 4px' } }>Factual reviews this body requires (section 20)</h3>
-                    <p style={ { fontSize: 11, color: '#6b7280', margin: '0 0 8px' } }>
+                    <h3 style={ { fontSize: 'var(--text-sm)', margin: '0 0 4px' } }>Factual reviews this body requires (section 20)</h3>
+                    <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '0 0 8px' } }>
                       Asked only for the domains this article actually touches.
                     </p>
                     <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 8, marginBottom: 16 } }>
@@ -478,21 +478,21 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                   </>
                 ) }
 
-                <label style={ { fontSize: 13, display: 'block', marginBottom: 12 } }>
+                <label style={ { fontSize: 'var(--text-sm)', display: 'block', marginBottom: 12 } }>
                   What you checked and what you are accepting
-                  <span style={ { color: '#6b7280' } }> — at least 40 characters; a signature with
+                  <span style={ { color: 'var(--text-muted)' } }> — at least 40 characters; a signature with
                     no sentence behind it is a click</span>
                   <textarea rows={ 3 } value={ statement }
                     onChange={ event => setStatement( event.target.value ) }
-                    style={ { padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, width: '100%', fontFamily: 'inherit', fontSize: 13, marginTop: 4 } } />
+                    style={ { padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, width: '100%', fontFamily: 'inherit', fontSize: 'var(--text-sm)', marginTop: 4 } } />
                 </label>
 
                 <button onClick={ () => { void signOff(); } } disabled={ busy !== '' || !canSign }
-                  style={ { padding: '9px 18px', borderRadius: 6, border: 'none', background: canSign ? '#1a3a2a' : '#9ca3af', color: '#fff', cursor: canSign ? 'pointer' : 'not-allowed', fontSize: 14 } }>
+                  style={ { padding: '9px 18px', borderRadius: 6, border: 'none', background: canSign ? 'var(--accent)' : '#9ca3af', color: '#fff', cursor: canSign ? 'pointer' : 'not-allowed', fontSize: 'var(--text-md)' } }>
                   { busy === 'sign' ? 'Signing…' : 'Sign off' }
                 </button>
                 { !canSign && (
-                  <p style={ { fontSize: 12, color: '#6b7280', margin: '8px 0 0' } }>
+                  <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '8px 0 0' } }>
                     { article.reason }
                   </p>
                 ) }
@@ -501,7 +501,7 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
             { article.releasable && (
               <div className="card" style={ { padding: 16, background: '#f0fdf4' } }>
-                <p style={ { fontSize: 14, color: '#15803d', margin: 0 } }>
+                <p style={ { fontSize: 'var(--text-md)', color: '#15803d', margin: 0 } }>
                   This article is releasable. Releasing is an operator action on the{ ' ' }
                   <a href={ `/workspace/seo/blog-production?tab=publish&batch=${ encodeURIComponent( article.sourceId ? batchId : '' ) }` }
                     style={ { color: '#15803d', fontWeight: 600 } }>publish queue</a>.

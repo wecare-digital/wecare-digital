@@ -217,7 +217,7 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                     <Select ariaLabel="Business number" value={ phoneId }
                         onChange={ v => setPhoneId( v ) }
                         options={ PHONE_ID_OPTIONS } style={ FULL_WIDTH } />
-                    <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0' } }>
+                    <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '8px 0 0' } }>
                         Catalog: <b>{ activeWaba.catalog }</b> · Payments: <b>{ activeWaba.payConfig }</b> (Razorpay)
                     </p>
                     <label style={ { ...lbl, marginTop: 12 } }>Customer phone (E.164 digits)</label>
@@ -241,7 +241,7 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                 <div style={ card }>
                     <h2 style={ h2 }>Compose a bill (native Review &amp; Pay)</h2>
                     <div style={ { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 } }>
-                        <label style={ { fontSize: 13, color: 'var(--text-secondary)' } }>Goods:</label>
+                        <label style={ { fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' } }>Goods:</label>
                         <Select ariaLabel="Goods type" value={ goodsType }
                             onChange={ v => setGoodsType( v as any ) }
                             options={ GOODS_TYPE_OPTIONS } style={ GOODS_SELECT_STYLE } />
@@ -258,7 +258,7 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                         <Button variant="secondary" onClick={ addItem } disabled={ busy !== '' }>+ Item</Button>
                         <Button onClick={ sendBill } disabled={ busy !== '' }>{ busy === 'bill' ? 'Sending…' : 'Send bill (Review & Pay)' }</Button>
                     </div>
-                    <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0' } }>18% GST + 2.2% convenience fee are added automatically; a GST invoice is generated on payment.</p>
+                    <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '8px 0 0' } }>18% GST + 2.2% convenience fee are added automatically; a GST invoice is generated on payment.</p>
                 </div>
 
                 <div style={ card }>
@@ -266,11 +266,11 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                         <h2 style={ h2 }>Post-payment flow</h2>
                         <Button variant="secondary" onClick={ loadPostpay }>Refresh</Button>
                     </div>
-                    <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' } }>
+                    <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '0 0 8px' } }>
                         After a payment is captured, the customer gets a WhatsApp Flow (data_exchange) that shows the real Order # and Payment ID and collects order details. One flow per payment (idempotent).
                     </p>
                     { postpayFlow ? (
-                        <p style={ { fontSize: 13, margin: '0 0 8px' } }>
+                        <p style={ { fontSize: 'var(--text-sm)', margin: '0 0 8px' } }>
                             Flow: <b>{ postpayFlow.flowName || postpayFlow.flowCode }</b> · { postpayFlow.status } · id { postpayFlow.flowId }
                         </p>
                     ) : <p style={ muted }>No post-payment flow registered.</p> }
@@ -278,8 +278,8 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                         <ul style={ list }>
                             { postpaySubs.slice( 0, 15 ).map( ( s: any, i: number ) => (
                                 <li key={ s.submissionId || i } style={ row }>
-                                    <span style={ { fontSize: 13 } }>{ s.referenceId || s.orderId || s.submissionNumber } · { s.phone } · <b>{ s.paymentStatus || s.status }</b></span>
-                                    <span style={ { fontSize: 12, color: 'var(--text-muted)' } }>{ s.createdAt ? new Date( Number( s.createdAt ) * 1000 ).toLocaleDateString() : '' }</span>
+                                    <span style={ { fontSize: 'var(--text-sm)' } }>{ s.referenceId || s.orderId || s.submissionNumber } · { s.phone } · <b>{ s.paymentStatus || s.status }</b></span>
+                                    <span style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ s.createdAt ? new Date( Number( s.createdAt ) * 1000 ).toLocaleDateString() : '' }</span>
                                 </li>
                             ) ) }
                         </ul>
@@ -295,7 +295,7 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                         <ul style={ list }>
                             { orders.slice( 0, 25 ).map( ( o: any, i: number ) => (
                                 <li key={ o.orderId || o.id || i } style={ row }>
-                                    <span style={ { fontSize: 13 } }>{ o.orderId || o.referenceId || o.id }{ o.customerName ? ` · ${o.customerName}` : '' } · ₹{ o.total ?? o.amount ?? '—' } · <b>{ o.orderStatus || o.status || 'pending' }</b></span>
+                                    <span style={ { fontSize: 'var(--text-sm)' } }>{ o.orderId || o.referenceId || o.id }{ o.customerName ? ` · ${o.customerName}` : '' } · ₹{ o.total ?? o.amount ?? '—' } · <b>{ o.orderStatus || o.status || 'pending' }</b></span>
                                     <span style={ { display: 'flex', gap: 4 } }>
                                         { [ 'processing', 'shipped', 'completed', 'canceled' ].map( s => (
                                             <button key={ s } onClick={ () => patchOrderStatus( o.orderId || o.id, s ) } style={ pill }>{ s }</button>
@@ -320,8 +320,8 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                                          API; amountInRupees is the legacy numeric field. `amount`
                                          is paise, so it is deliberately NOT a fallback here - it
                                          would render a 2500 rupee payment as 250000. */ }
-                                    <span style={ { fontSize: 13 } }>{ p.referenceId || p.paymentId || p.id } · ₹{ p.amountRupees ?? p.amountInRupees ?? '—' } · <b>{ p.status || '—' }</b></span>
-                                    <span style={ { fontSize: 12, color: 'var(--text-muted)' } }>{ p.method || p.source || 'razorpay' }</span>
+                                    <span style={ { fontSize: 'var(--text-sm)' } }>{ p.referenceId || p.paymentId || p.id } · ₹{ p.amountRupees ?? p.amountInRupees ?? '—' } · <b>{ p.status || '—' }</b></span>
+                                    <span style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ p.method || p.source || 'razorpay' }</span>
                                 </li>
                             ) ) }
                         </ul>
@@ -336,11 +336,11 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
 
 const card: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-4)', marginBottom: 'var(--space-4)', boxShadow: 'var(--shadow-sm)' };
 const h2: React.CSSProperties = { fontSize: 'var(--h4)', fontWeight: 600, margin: 0, color: 'var(--text)' };
-const lbl: React.CSSProperties = { display: 'block', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 };
-const muted: React.CSSProperties = { color: 'var(--text-muted)', fontSize: 13 };
+const lbl: React.CSSProperties = { display: 'block', fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginBottom: 6 };
+const muted: React.CSSProperties = { color: 'var(--text-muted)', fontSize: 'var(--text-sm)' };
 const list: React.CSSProperties = { listStyle: 'none', padding: 0, margin: 0 };
 const row: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)' };
-const pill: React.CSSProperties = { fontSize: 11, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 999, background: '#fff', cursor: 'pointer' };
-const delBtn: React.CSSProperties = { border: 'none', background: 'none', color: 'var(--danger, #dc2626)', cursor: 'pointer', fontSize: 14 };
+const pill: React.CSSProperties = { fontSize: 'var(--text-xs)', padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 999, background: '#fff', cursor: 'pointer' };
+const delBtn: React.CSSProperties = { border: 'none', background: 'none', color: 'var(--danger, #dc2626)', cursor: 'pointer', fontSize: 'var(--text-md)' };
 
 export default CommercePage;

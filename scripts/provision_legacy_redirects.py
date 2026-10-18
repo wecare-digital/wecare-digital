@@ -39,9 +39,8 @@ def amplify():
 def desired_redirects() -> list[dict]:
     """Only canonicalise the apex host.
 
-    Retired path aliases intentionally fall through to the 404 document. In particular,
-    /zip and /zip/ no longer redirect because the former /shipments/ parent page is retired;
-    the live children are /shipments/track/ and /request-pickup/.
+    Retired path aliases intentionally fall through to the 404 document. No retired
+    customer-facing path is maintained as a compatibility redirect.
     """
     return [
         {"source": "https://wecare.digital", "target": SITE, "status": "301"},

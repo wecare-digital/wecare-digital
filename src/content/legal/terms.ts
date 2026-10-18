@@ -57,7 +57,7 @@ import type { LegalSection } from './types';
  * Move it for any change to a clause; do not move it for a comment. If a reader-facing revision
  * notice is ever wanted back, this is the value it should read from rather than a second date.
  */
-export const TERMS_UPDATED = '2026-09-30';
+export const TERMS_UPDATED = '2026-10-18';
 
 export const TERMS_INTRO: string[] = [
   'These Terms of Service govern your use of the websites, apps, products and services offered under the WECARE.DIGITAL name. We call all of it "the Services".',
@@ -211,9 +211,9 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '14', heading: 'Cancelling, changing and getting money back', id: 's14',
-    inShort: 'What you can cancel, change or recover depends on what it was, why you are asking, and how far along it is. Nothing in this section removes a refund the law requires.',
+    inShort: 'For voluntary cancellations or discretionary adjustments, we do not give cash refunds or refund the original payment method; where eligible, we issue store credit valid for 30 calendar days. Nothing in this section removes a refund or other remedy the law requires.',
     paragraphs: [
-      'Whether you can cancel, return, replace, reschedule, change a service or get a refund depends on the type of product or service, the reason for the request, how far fulfilment has got, the costs already incurred, and the conditions disclosed for that transaction.',
+      'Whether you can cancel, return, replace, reschedule or change a service depends on the type of product or service, the reason for the request, how far fulfilment has got, the costs already incurred, and the conditions disclosed for that transaction. For voluntary cancellations or discretionary adjustments, our standard refund outcome is store credit rather than cash or a return to the original payment method.',
       'Different conditions apply to physical products, customised products, professional services, consultations, appointments, documentation and processing work, bookings, events, travel and experiences, subscriptions, digital products and other specialised services.',
       'The conditions that apply to you may be shown on the service page, the order or booking form, the checkout page, the confirmation, the invoice, or the Service-Specific Terms.',
       'Nothing in this section or its sub-sections limits a refund, replacement, cancellation or other remedy the law requires us to provide.',
@@ -222,17 +222,18 @@ export const TERMS_SECTIONS: LegalSection[] = [
   {
     number: '14.1', heading: 'How an eligible problem can be resolved', id: 's14-1',
     paragraphs: [
-      'Depending on the transaction, and where the law permits, an eligible cancellation or service problem may be resolved by a refund to your original payment method, a WECARE.DIGITAL gift card or account credit, a replacement product, rescheduling, a change to another available service, a replacement booking, an adjustment against another WECARE.DIGITAL service, or another resolution we agree with you.',
-      'Where the law requires us to refund money, we will not impose a gift card, account credit or replacement service instead - unless you choose to accept one, or the law allows it.',
+      'Depending on the transaction, and where the law permits, an eligible voluntary cancellation or discretionary adjustment may be resolved by WECARE.DIGITAL store credit, a replacement product, rescheduling, a change to another available service, a replacement booking, an adjustment against another WECARE.DIGITAL service, or another non-cash resolution we agree with you. Store credit may be issued as account credit or a WECARE.DIGITAL gift-card credit.',
+      'Where the law requires us to refund money, the store-credit-only rule does not override that right. We will provide the monetary refund or other remedy the law requires, unless you choose a lawful alternative.',
     ],
   },
   {
-    number: '14.2', heading: 'Gift card and account-credit refunds', id: 's14-2',
+    number: '14.2', heading: 'Store-credit refunds', id: 's14-2',
     paragraphs: [
-      'For some eligible cancellations, promotional transactions and services, a refund may be available as a WECARE.DIGITAL gift card or account credit - where that option was disclosed for the transaction, or where you choose it.',
-      'A gift card or account credit can be used towards eligible WECARE.DIGITAL products and services. It may carry restrictions we disclose when we issue it, may be non-transferable where we say so, and may be adjusted if the original transaction is later reversed, disputed, or found to involve fraud.',
-      'Gift cards and account credits are not normally redeemable for cash, unless we say so or the law requires it.',
-      'Where a transaction is identified before purchase as eligible for a gift card or credit refund only, that condition can apply to voluntary cancellations and changes - but only as far as the law permits, and it does not remove any refund or remedy the law requires.',
+      'For eligible voluntary cancellations and discretionary adjustments, we do not provide a cash refund or a refund to the original payment method. We issue WECARE.DIGITAL store credit instead, where the transaction is eligible.',
+      'Store credit issued under this refund policy is valid for 30 calendar days from the date of issue. Any unused balance expires at the end of that period and cannot be redeemed after expiry, except where applicable law requires otherwise. We will show or communicate the issue date and expiry date when the credit is issued.',
+      'Store credit can be used towards eligible WECARE.DIGITAL products and services. It may be issued as account credit or a WECARE.DIGITAL gift-card credit, may carry restrictions we disclose when we issue it, may be non-transferable where we say so, and may be adjusted if the original transaction is later reversed, disputed, or found to involve fraud.',
+      'Store credit is not redeemable for cash and is not returned to the original payment method, unless the law requires a monetary refund.',
+      'This store-credit-only rule applies to voluntary cancellations and discretionary adjustments only as far as the law permits. It does not remove any refund, replacement, cancellation or other remedy the law requires.',
     ],
   },
   {
@@ -240,7 +241,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     paragraphs: [
       'If you no longer want the service you originally chose, we or the provider may - where it is available - let you switch to another service, change or reschedule your appointment, change provider, put what you have paid towards another eligible service, or take a gift card or account credit instead.',
       'If the replacement costs more, you may need to pay the difference.',
-      'If it costs less, the difference may be refunded, issued as a gift card or account credit, or adjusted against another eligible service - depending on the Service-Specific Terms and the law - or resolved another way by agreement.',
+      'If it costs less, the difference is normally issued as WECARE.DIGITAL store credit or adjusted against another eligible service, depending on the Service-Specific Terms and the law. If the law requires a monetary refund, that requirement still applies.',
       'Once you have accepted and used a replacement service or an agreed change, we may treat the original cancellation request as resolved to the extent appropriate.',
     ],
   },
@@ -255,7 +256,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
   {
     number: '14.5', heading: 'Standard products', id: 's14-5',
     paragraphs: [
-      'Whether you can return or replace a standard product, or get a refund for it, depends on the conditions disclosed for that product and on the law.',
+      'Whether you can return or replace a standard product depends on the conditions disclosed for that product and on the law. Where we approve a voluntary return or cancellation and no monetary refund is required by law, the value is issued as WECARE.DIGITAL store credit rather than cash.',
     ],
   },
   {
@@ -269,7 +270,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     number: '14.7', heading: 'Services already started', id: 's14-7',
     paragraphs: [
       'Where a service involves professional time, research, documentation, filing, processing, administration, procurement, booking or customisation that has already started, what you can recover may depend on how far it has got, the work already done, the third-party costs already incurred, and the Service-Specific Terms.',
-      'The refundable amount may be reduced by what was reasonably and lawfully spent on work already performed, third-party costs we cannot recover, statutory or government fees already paid, and other disclosed costs attributable to your request.',
+      'The value available for any approved store-credit adjustment may be reduced by what was reasonably and lawfully spent on work already performed, third-party costs we cannot recover, statutory or government fees already paid, and other disclosed costs attributable to your request. Any monetary refund required by law is handled as the law requires.',
       'Any such reduction is still subject to the law.',
     ],
   },
@@ -282,22 +283,22 @@ export const TERMS_SECTIONS: LegalSection[] = [
   {
     number: '14.9', heading: 'When we or a provider cancel', id: 's14-9',
     paragraphs: [
-      'If an accepted transaction cannot be fulfilled and we or the provider cancel it, we may - depending on the circumstances and the law - reschedule the service, provide a replacement, offer an alternative, issue a gift card or account credit, or refund you.',
+      'If an accepted transaction cannot be fulfilled and we or the provider cancel it, we may - depending on the circumstances and the law - reschedule the service, provide a replacement, offer an alternative or issue WECARE.DIGITAL store credit. If the law requires a monetary refund instead, we provide it as required.',
       'Where the law entitles you to your money back, an alternative service, gift card or credit does not replace that entitlement unless you choose to accept it or the law allows it.',
       'Where we charge users for cancelling a confirmed transaction, we will meet the corresponding obligations that apply when the cancellation comes from us.',
     ],
   },
   {
-    number: '14.10', heading: 'How a refund reaches you', id: 's14-10',
+    number: '14.10', heading: 'How store credit and required refunds reach you', id: 's14-10',
     paragraphs: [
-      'An approved refund normally goes back to the payment method you used. It may go elsewhere if you agree to another method, if the service was expressly subject to a lawful gift card or credit-refund condition, if your original payment method cannot reasonably receive it, or if the law requires or permits another method.',
-      'We may offer store credit, a gift card or account credit as an option, but not as a substitute for money where the law requires money.',
+      'For voluntary cancellations or discretionary adjustments, approved value is issued as WECARE.DIGITAL store credit and does not go back to the payment method you used.',
+      'Where the law requires a monetary refund, we normally return it to the payment method you used, unless you agree to another lawful method or the law requires or permits another method. Store credit does not replace a mandatory monetary refund.',
     ],
   },
   {
-    number: '14.11', heading: 'How long a refund takes to appear', id: 's14-11',
+    number: '14.11', heading: 'How long a required monetary refund takes to appear', id: 's14-11',
     paragraphs: [
-      'Once we have processed an approved refund, how long it takes to show up in your bank, card, wallet or other account is down to your bank, card issuer or payment provider.',
+      'Where a monetary refund is required by law and we have processed it, how long it takes to show up in your bank, card, wallet or other account is down to your bank, card issuer or payment provider.',
       'Depending on the provider, that can take up to 30 days or one billing cycle after we process it, unless the law or the provider requires it to be faster.',
       'That external delay does not change the date we initiated the refund.',
     ],
@@ -415,6 +416,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     paragraphs: [
       'We may offer or issue gift cards, vouchers, account credits, promotional balances and refund credits.',
       'One may be bought by you, issued as part of a promotion, issued after an eligible cancellation, issued as an agreed alternative to a money refund, issued after a service change or adjustment, or provided through one of our programmes.',
+      'Store credit issued under section 14 as the outcome of a voluntary cancellation or discretionary adjustment is valid for 30 calendar days from its issue date. Purchased gift cards, promotional balances and other credits may have separate validity terms disclosed when they are issued.',
       'Separate gift card or credit terms may govern purchase, activation, which services they work on, redemption, restrictions, transferability, refunds and cancellation.',
       'Gift cards, credits and promotional balances are not normally redeemable for cash, unless we say so or the law requires it.',
       'Issuing a gift card or credit instead of a money refund does not remove a mandatory consumer right that cannot lawfully be waived.',
@@ -440,7 +442,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
       'A WECARE.DIGITAL gift card may be bought by you, given to you by someone else, or issued by us as part of a promotion or as an agreed alternative to a money refund. When a gift card is bought or issued, it is activated and a balance is loaded onto it in Indian rupees, as disclosed at the time.',
       'You redeem a gift card at checkout against eligible WECARE.DIGITAL products and services. Redemption is applied by us server-side against the authoritative order total; the card pays part or all of what is owed, and any remaining amount is payable by your other chosen payment method. We do not treat a balance shown in your browser as the authority on what a card is worth - the balance we verify in our own systems is.',
       'Partial redemption is supported where the card balance is less than the amount owed: the card covers what it can and the rest is payable separately. Where a redemption is less than the full balance, the remaining balance stays on the card for a later eligible purchase, subject to any validity condition below.',
-      'A gift card may carry validity, expiry, minimum-order, eligible-product or other restrictions where applicable. Any such condition is the one disclosed when the card is bought or issued and as recorded in our own systems; where an expiry or restriction would reduce a right the law does not allow us to reduce, the law prevails and that condition does not apply to that extent.',
+      'A gift card may carry validity, expiry, minimum-order, eligible-product or other restrictions where applicable. Any such condition is the one disclosed when the card is bought or issued and as recorded in our own systems. Store-credit balances issued under section 14 are subject to the 30-calendar-day validity stated in section 14.2. Where an expiry or restriction would reduce a right the law does not allow us to reduce, the law prevails and that condition does not apply to that extent.',
       'Keep a gift-card code secure and treat it like cash: anyone with the code may be able to redeem it. Tell us promptly if you believe a code has been lost, stolen, exposed or used without your authorisation, and we will take reasonable steps - which may include suspending the code while we investigate - but we cannot always recover a balance already spent by someone who had the code. We may void, suspend or reverse a gift card obtained or used through fraud, error, duplicate issuance, automated abuse or another material breach of these Terms.',
       'A promotional balance we give away may carry different conditions from a balance you paid for - for example a shorter validity, a narrower set of eligible products, or no cash-out - and those conditions are disclosed when it is issued. A purchased balance is treated as your money to the extent the law requires.',
       'Gift cards and balances are not normally redeemable for cash, and buying one is a purchase of a gift card rather than a deposit or a banking service. If an order paid for with a gift card is cancelled or refunded, the refund may be returned to the gift card or as account credit rather than as cash, where that is lawful and was disclosed; this does not remove a money refund the law requires. Gift cards are not on sale online at the time of writing, and this clause describes how they work when they are offered.',
@@ -645,13 +647,14 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '32', heading: 'Limits on liability', id: 's32',
-    inShort: 'Neither of us is liable for unforeseeable indirect losses, and our contractual liability for a paid transaction is normally capped at what you paid for it. These limits apply only as far as the law allows, and never to liability that cannot be excluded.',
+    inShort: 'We exclude liability to the fullest extent the law allows. For non-consumer and commercial-use transactions, our contractual liability is nil wherever the law permits. Mandatory consumer, product-liability, fraud, personal-injury and other non-waivable liabilities remain as the law provides.',
     paragraphs: [
-      'This section applies only to the maximum extent permitted by applicable law. We do not exclude or limit, and nothing in these Terms should be read as excluding or limiting, any liability that cannot lawfully be excluded or limited - including liability for death or personal injury caused by negligence, for fraud or fraudulent misrepresentation, for wilful misconduct or gross negligence, and any liability under India\'s consumer protection law or other mandatory law. This savings provision prevails over everything else in this section.',
-      'Subject to that savings provision, and to the maximum extent permitted by applicable law, neither of us is responsible to the other for indirect, incidental, special, punitive or consequential losses, or for loss of profit, revenue, goodwill, data or anticipated savings, that were not reasonably foreseeable as a likely result of the matter complained of.',
-      'Subject to that savings provision, and where our liability may lawfully be limited, our total aggregate liability arising directly from a particular paid transaction will not exceed the amount you paid us for the product or Service the claim is about.',
-      'Where liability cannot lawfully be capped or excluded, the cap and exclusions above do not apply to it, and our liability for that matter is as the law provides.',
-      'Nothing in this section restricts or affects your mandatory rights as a consumer.',
+      'This section applies to the maximum extent permitted by applicable law and is intended to exclude, not merely reduce, liability wherever exclusion is lawful.',
+      'For a User who is not a consumer under applicable consumer law, and for any transaction or use that is for a commercial purpose, our total aggregate contractual and non-contractual liability arising from or connected with the Services is INR 0 wherever the law permits that liability to be excluded.',
+      'If applicable law does not permit a category of liability to be excluded completely but does permit it to be limited, that liability is limited to the lowest amount that the law validly permits in the circumstances.',
+      'To the fullest extent permitted by law, we are not liable for indirect, incidental, special, exemplary, punitive or consequential loss; loss of profit, revenue, business opportunity, goodwill, anticipated savings or data; interruption, delay, third-party failure or loss caused by a provider, network, platform, payment service, carrier, government system or other dependency outside our reasonable control; or a loss that was not a direct and reasonably foreseeable consequence of our breach.',
+      'Nothing in these Terms excludes or limits liability that cannot lawfully be excluded or limited. That includes any mandatory remedy or liability under consumer-protection law, product-liability law, data-protection law or other mandatory law, and liability for fraud or fraudulent misrepresentation, wilful misconduct, or death or personal injury to the extent the law makes it non-excludable.',
+      'If a court, Consumer Commission, regulator or other competent authority finds any exclusion or cap in this section invalid or unfair for a particular claim, that provision is reduced only to the minimum extent necessary and the rest of this section continues to apply.',
     ],
   },
   {

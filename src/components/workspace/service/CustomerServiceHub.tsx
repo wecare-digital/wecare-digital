@@ -71,22 +71,22 @@ const CustomerServicePage: React.FC<PageProps> = ({ signOut, user, embedded }) =
 
   const S = {
     tab: (active: boolean): React.CSSProperties => ({
-      padding: '8px 16px', border: 'none', borderBottom: active ? '2px solid #1a3a2a' : '2px solid transparent',
-      background: 'none', cursor: 'pointer', fontSize: 13, fontWeight: active ? 600 : 400, color: active ? '#1a3a2a' : '#6b7280',
+      padding: '8px 16px', border: 'none', borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
+      background: 'none', cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: active ? 600 : 400, color: active ? 'var(--accent)' : 'var(--text-muted)',
     }),
-    card: { border: '1px solid #e5e7eb', borderRadius: 10, padding: 16, background: '#fff' } as React.CSSProperties,
+    card: { border: '1px solid var(--border)', borderRadius: 10, padding: 16, background: '#fff' } as React.CSSProperties,
   };
 
   const body = (
       <div className="inner-page" style={{ padding: embedded ? '0' : '20px 24px', maxWidth: 1100 }}>
         <div style={{ marginBottom: 16 }}>
-          <h2 style={{ margin: 0, fontSize: 20, color: '#1a3a2a' }}>Customer-Service Hub</h2>
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>
+          <h2 style={{ margin: 0, fontSize: 20, color: 'var(--accent)' }}>Customer-Service Hub</h2>
+          <p style={{ margin: '4px 0 0', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
             All WhatsApp Flow forms, submissions, and message links in one place.
           </p>
         </div>
 
-        <div style={{ borderBottom: '1px solid #e5e7eb', marginBottom: 16, display: 'flex', gap: 4 }}>
+        <div style={{ borderBottom: '1px solid var(--border)', marginBottom: 16, display: 'flex', gap: 4 }}>
           <button style={S.tab(activeTab === 'flows')} onClick={() => setActiveTab('flows')}>Flows</button>
           <button style={S.tab(activeTab === 'submissions')} onClick={() => setActiveTab('submissions')}>Submissions</button>
           <button style={S.tab(activeTab === 'links')} onClick={() => setActiveTab('links')}>Message Links</button>
@@ -97,26 +97,26 @@ const CustomerServicePage: React.FC<PageProps> = ({ signOut, user, embedded }) =
             {FLOW_TYPES.map(flow => (
               <div key={flow.key} style={S.card}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 24 }}>{flow.icon}</span>
+                  <span style={{ fontSize: 'var(--text-3xl)' }}>{flow.icon}</span>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: '#1a3a2a' }}>{flow.label}</div>
-                    <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>{flow.flowId}</div>
+                    <div style={{ fontWeight: 600, fontSize: 'var(--text-md)', color: 'var(--accent)' }}>{flow.label}</div>
+                    <div style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', fontFamily: 'monospace' }}>{flow.flowId}</div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {flow.key === 'submit_request' ? (
-                    <span style={{ fontSize: 11, padding: '2px 8px', background: '#d1f470', borderRadius: 4, fontWeight: 500 }}>Published</span>
+                    <span style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', background: 'var(--lime)', borderRadius: 4, fontWeight: 500 }}>Published</span>
                   ) : (
-                    <span style={{ fontSize: 11, padding: '2px 8px', background: '#fef3c7', borderRadius: 4, fontWeight: 500 }}>Draft</span>
+                    <span style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', background: '#fef3c7', borderRadius: 4, fontWeight: 500 }}>Draft</span>
                   )}
                   {MESSAGE_LINKS[flow.key] && (
                     <a href={MESSAGE_LINKS[flow.key]} target="_blank" rel="noopener noreferrer"
-                       style={{ fontSize: 11, padding: '2px 8px', background: '#e0f2fe', borderRadius: 4, color: '#0369a1', textDecoration: 'none' }}>
+                       style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', background: '#e0f2fe', borderRadius: 4, color: '#0369a1', textDecoration: 'none' }}>
                       wa.me link
                     </a>
                   )}
                 </div>
-                <div style={{ marginTop: 8, fontSize: 12, color: '#6b7280' }}>
+                <div style={{ marginTop: 8, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                   Keywords: {FLOW_TYPES.find(f => f.key === flow.key) ? getKeywords(flow.key).join(', ') : '—'}
                 </div>
               </div>
@@ -133,10 +133,10 @@ const CustomerServicePage: React.FC<PageProps> = ({ signOut, user, embedded }) =
               <Select ariaLabel="Flow" value={filterKey} onChange={v => setFilterKey(v)}
                       options={FLOW_FILTER_OPTIONS} style={{ width: 200 }} />
               <Button variant="secondary" size="sm" loading={loading} onClick={loadSubmissions}>Refresh</Button>
-              <span style={{ fontSize: 12, color: '#6b7280' }}>{filtered.length} submissions</span>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{filtered.length} submissions</span>
             </div>
             <div className="table-container">
-              <table className="inner-table" style={{ width: '100%', fontSize: 12 }}>
+              <table className="inner-table" style={{ width: '100%', fontSize: 'var(--text-xs)' }}>
                 <thead>
                   <tr>
                     <th>ID</th><th>Type</th><th>Phone</th><th>Screen</th><th>Date</th><th>Data</th>
@@ -151,12 +151,12 @@ const CustomerServicePage: React.FC<PageProps> = ({ signOut, user, embedded }) =
                   {filtered.map(s => {
                     return (
                       <tr key={s.id}>
-                        <td style={{ fontFamily: 'monospace', fontSize: 11 }}>{s.id?.slice(0, 12)}</td>
+                        <td style={{ fontFamily: 'monospace', fontSize: 'var(--text-xs)' }}>{s.id?.slice(0, 12)}</td>
                         <td>{s.type || s.action || '—'}</td>
                         <td>{s.phone || '—'}</td>
                         <td>{s.screen || '—'}</td>
                         <td>{fmtDate(s.createdAt)}</td>
-                        <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, color: '#6b7280' }}>
+                        <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                           {s.subject || s.order_id || s.flowData?.slice(0, 60) || '—'}
                         </td>
                       </tr>
@@ -170,27 +170,27 @@ const CustomerServicePage: React.FC<PageProps> = ({ signOut, user, embedded }) =
 
         {activeTab === 'links' && (
           <div>
-            <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 12 }}>
               Share these links to let users open a specific flow directly. Each link pre-fills the keyword message.
             </p>
             <div className="table-container">
-              <table className="inner-table" style={{ width: '100%', fontSize: 13 }}>
+              <table className="inner-table" style={{ width: '100%', fontSize: 'var(--text-sm)' }}>
                 <thead><tr><th>Topic</th><th>Message Link</th><th>Keyword</th></tr></thead>
                 <tbody>
                   {Object.entries(MESSAGE_LINKS).map(([key, link]) => (
                     <tr key={key}>
                       <td style={{ fontWeight: 600 }}>{key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</td>
                       <td>
-                        <a href={link} target="_blank" rel="noopener noreferrer" style={{ color: '#0369a1', fontSize: 12 }}>{link}</a>
+                        <a href={link} target="_blank" rel="noopener noreferrer" style={{ color: '#0369a1', fontSize: 'var(--text-xs)' }}>{link}</a>
                         <button onClick={() => { navigator.clipboard.writeText(link); toast.success('Copied'); }}
-                                style={{ marginLeft: 6, background: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '2px 6px', cursor: 'pointer', fontSize: 10 }}>
+                                style={{ marginLeft: 6, background: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '2px 6px', cursor: 'pointer', fontSize: 'var(--text-xs)' }}>
                           Copy
                         </button>
                       </td>
                       {/* Full set, not a slice: the workspace has to SHOW what the
                           backend actually answers, so an operator can tell a customer
                           which words work. Wraps rather than widening the table. */}
-                      <td style={{ fontSize: 12, color: '#6b7280', wordBreak: 'break-word' }}>{getKeywords(key).join(', ')}</td>
+                      <td style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', wordBreak: 'break-word' }}>{getKeywords(key).join(', ')}</td>
                     </tr>
                   ))}
                 </tbody>

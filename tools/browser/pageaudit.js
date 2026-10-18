@@ -49,7 +49,7 @@ const OUT_JSON = path.join( REPO, 'docs', 'execution', 'page-audit.json' );
 const PUBLIC = [ '/', '/grahak-os/', '/vayulok/', '/bharat-rx/', '/contact/', '/orders/',
   '/terms/', '/privacy/', '/anew/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
-  '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/',
+  '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/',
   '/expo-week/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/', '/niji-setu/',
   '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/leave-review/',
   // The catalogue. This list is only used with --public; the default sweep discovers every
@@ -59,7 +59,6 @@ const PUBLIC = [ '/', '/grahak-os/', '/vayulok/', '/bharat-rx/', '/contact/', '/
   // page and auditing a redirect measures home twice.
   //
   // /shop/kiosk/ is named here because the obscured check below is the one that matters for it:
-  // its top band is hand-written, so the 108px/96px clearance is this page's own and /llm/ is the
   // worked example of getting that wrong.
   '/shop/kiosk/' ];
 
@@ -146,7 +145,6 @@ const PROBE = () => {
   /* IS THE FIRST REAL CONTENT HIDDEN UNDER THE FIXED HEADER?
      The header is position:fixed and 108px tall, dropping to 96px below 768px, so a page
      whose top padding does not match BOTH heights puts its own first line underneath it.
-     /llm/ shipped that way - the page has since been retired, so it is a worked example here
      rather than a route this sweep still visits. It inlined padding:'48px 20px 80px', and a style attribute cannot
      carry a media query, so it could not express the two-height clearance. Its eyebrow sat at
      y=48 with the header's bottom at y=108, and elementFromPoint at the eyebrow's own centre
@@ -253,7 +251,6 @@ const PROBE = () => {
     console.log( `missing header/footer/widget: ${noChrome.length}` );
     console.log( `NO top section after header : ${noTop.length}` );
     /* Reported separately from noTop, because they are different failures. A page can have a
-       perfectly good top section that is simply painted under the header - /llm/ did, before
        that page was retired. */
     const buried = results.filter( r => !r.authShell && VPS.some( v => r.vp[ v.k ]?.obscured === true ) );
     console.log( `first line UNDER the fixed header: ${buried.length}`

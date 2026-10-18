@@ -109,6 +109,7 @@ const COLUMNS: NavColumn[] = [
             children: [
               { label: 'Puja Guidance', href: '/ritual-guru/puja-guidance/', match: '/ritual-guru/puja-guidance', searchTerms: [ 'ritual guru' ] },
               { label: 'DIY Puja Kit', href: '/ritual-guru/diy-puja-kit/', match: '/ritual-guru/diy-puja-kit', searchTerms: [ 'ritual guru' ] },
+              { label: 'Ritva', href: '/ritual-guru/ritva/', match: '/ritual-guru/ritva', searchTerms: [ 'ritual guru', 'astrology', 'vastu' ] },
             ],
           },
           { label: 'Anew', href: '/anew/', match: '/anew' },

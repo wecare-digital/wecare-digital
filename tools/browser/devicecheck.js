@@ -57,7 +57,7 @@ const launchEngine = async () => {
 const ROUTES = [ '/', '/grahak-os/', '/vayulok/', '/bharat-rx/', '/contact/', '/orders/',
   '/terms/', '/privacy/', '/anew/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
-  '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/',
+  '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/',
   '/expo-week/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/', '/vault/', '/404/', '/blog/', '/get/',
   // The catalogue. '/shop/' WAS HERE for the grid's three-to-two-to-one reflow and was removed on
   // 2026-10-04: the owner withdrew the index, so it 301s to the home page, and a harness that

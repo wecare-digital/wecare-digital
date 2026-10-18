@@ -69,14 +69,14 @@ const SearchPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
             </div>
             <style jsx>{ `
                 .se-wrap { padding: 20px; max-width: 800px; margin: 0 auto; }
-                .se-input { width: 100%; padding: 12px 16px; border: 1px solid ${colors.border}; border-radius: 12px; font-size: 16px; margin: 12px 0; }
+                .se-input { width: 100%; padding: 12px 16px; border: 1px solid ${colors.border}; border-radius: 12px; font-size: var(--text-base); margin: 12px 0; }
                 .se-input:focus { outline: none; border-color: ${colors.primary}; }
-                .se-section { font-size: 12px; font-weight: 700; text-transform: uppercase; color: ${colors.textMuted}; margin: 18px 0 6px; }
+                .se-section { font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; color: ${colors.textMuted}; margin: 18px 0 6px; }
                 .se-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid ${colors.borderLight}; border-radius: 10px; margin-bottom: 6px; text-decoration: none; }
                 .se-row:hover { background: ${colors.bgHover}; }
-                .se-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; text-transform: capitalize; }
-                .se-row-title { font-size: 14px; color: ${colors.text}; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-                .se-row-sub { font-size: 11px; color: ${colors.textMuted}; text-transform: capitalize; }
+                .se-badge { font-size: var(--text-xs); font-weight: 700; padding: 2px 8px; border-radius: 9999px; text-transform: capitalize; }
+                .se-row-title { font-size: var(--text-md); color: ${colors.text}; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                .se-row-sub { font-size: var(--text-xs); color: ${colors.textMuted}; text-transform: capitalize; }
                 .se-empty { text-align: center; padding: 30px; color: ${colors.textMuted}; }
             ` }</style>
         </>

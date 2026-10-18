@@ -40,9 +40,9 @@ const WEBHOOK_FIELDS = [
 ];
 
 const card: React.CSSProperties = { background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, padding: 16, marginBottom: 16 };
-const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, marginTop: 4, marginBottom: 10, fontSize: 14 };
-const label: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#444' };
-const btn: React.CSSProperties = { padding: '9px 16px', background: '#1a3a2a', color: '#d1f470', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 };
+const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, marginTop: 4, marginBottom: 10, fontSize: 'var(--text-md)' };
+const label: React.CSSProperties = { fontSize: 'var(--text-xs)', fontWeight: 600, color: '#444' };
+const btn: React.CSSProperties = { padding: '9px 16px', background: 'var(--accent)', color: 'var(--lime)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 'var(--text-md)', fontWeight: 600 };
 
 const BsuidConsole: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
     const toast = useToastContext();
@@ -131,7 +131,7 @@ const BsuidConsole: React.FC<PageProps> = ( { signOut, user, embedded = false } 
         <div style={ { maxWidth: 760, margin: '0 auto', padding: 16 } }>
             <SEO title="BSUID & Usernames" description="WhatsApp BSUID and username tooling" noindex />
             <h1 style={ { fontSize: 22, fontWeight: 700, marginBottom: 4 } }>BSUID &amp; Usernames</h1>
-            <p style={ { color: '#777', fontSize: 13, marginBottom: 16 } }>
+            <p style={ { color: '#777', fontSize: 'var(--text-sm)', marginBottom: 16 } }>
                 Manage WhatsApp username/BSUID webhooks and contact-book entries. BSUIDs appear in webhooks (early Apr 2026) and can be messaged (from July 2026); phone numbers may be hidden for username-adopters.
             </p>
 
@@ -143,10 +143,10 @@ const BsuidConsole: React.FC<PageProps> = ( { signOut, user, embedded = false } 
             </div>
 
             <div style={ card }>
-                <h3 style={ { marginTop: 0, fontSize: 15 } }>Webhook subscriptions</h3>
-                <p style={ { fontSize: 12, color: '#777' } }>Subscribe this WABA\u2019s app to username/BSUID webhook fields.</p>
+                <h3 style={ { marginTop: 0, fontSize: 'var(--text-md)' } }>Webhook subscriptions</h3>
+                <p style={ { fontSize: 'var(--text-xs)', color: '#777' } }>Subscribe this WABA\u2019s app to username/BSUID webhook fields.</p>
                 { WEBHOOK_FIELDS.map( f => (
-                    <label key={ f.field } style={ { display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8, fontSize: 13, cursor: 'pointer' } }>
+                    <label key={ f.field } style={ { display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8, fontSize: 'var(--text-sm)', cursor: 'pointer' } }>
                         <input type="checkbox" checked={ selectedFields.includes( f.field ) } onChange={ () => toggleField( f.field ) } />
                         <span><code>{ f.field }</code> — <span style={ { color: '#666' } }>{ f.desc }</span></span>
                     </label>
@@ -155,20 +155,20 @@ const BsuidConsole: React.FC<PageProps> = ( { signOut, user, embedded = false } 
             </div>
 
             <div style={ card }>
-                <h3 style={ { marginTop: 0, fontSize: 15 } }>Contact book</h3>
-                <p style={ { fontSize: 12, color: '#777', margin: 0 } }>
+                <h3 style={ { marginTop: 0, fontSize: 'var(--text-md)' } }>Contact book</h3>
+                <p style={ { fontSize: 'var(--text-xs)', color: '#777', margin: 0 } }>
                     Meta stores each contact phone number and BSUID in the portfolio contact book automatically. Deletion is disabled here to prevent accidental removal &mdash; a deleted entry stops the phone number appearing in webhooks (subject to the 30-day cache) and cannot be restored.
                 </p>
             </div>
 
             <div style={ card }>
-                <h3 style={ { marginTop: 0, fontSize: 15 } }>Parent BSUID account</h3>
-                <p style={ { fontSize: 12, color: '#777' } }>For managed businesses with multiple portfolios enrolled in a parent BSUID account.</p>
+                <h3 style={ { marginTop: 0, fontSize: 'var(--text-md)' } }>Parent BSUID account</h3>
+                <p style={ { fontSize: 'var(--text-xs)', color: '#777' } }>For managed businesses with multiple portfolios enrolled in a parent BSUID account.</p>
                 <label style={ label }>Business Portfolio ID</label>
                 <input style={ input } value={ businessId } onChange={ e => setBusinessId( e.target.value ) } placeholder="Business ID" />
                 <button style={ btn } disabled={ parentBusy } onClick={ loadParent }>{ parentBusy ? 'Loading…' : 'Get parent BSUID account' }</button>
                 { parentResult && (
-                    <div style={ { marginTop: 10, fontSize: 13 } }>
+                    <div style={ { marginTop: 10, fontSize: 'var(--text-sm)' } }>
                         <div><strong>Account ID:</strong> { parentResult.parentBsuidAccountId || '(none)' }</div>
                         <div><strong>Enrolled portfolios:</strong> { ( parentResult.enrolledBusinessPortfolios || [] ).join( ', ' ) || '(none)' }</div>
                         <RawJsonDrawer data={ parentResult } label="Raw response" />
@@ -178,17 +178,17 @@ const BsuidConsole: React.FC<PageProps> = ( { signOut, user, embedded = false } 
 
             <div style={ { ...card, background: '#f0f9ff', border: '1px solid #bae6fd' } }>
                 <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } }>
-                    <h3 style={ { marginTop: 0, marginBottom: 0, fontSize: 15, color: '#0369a1' } }>Business username</h3>
-                    <button style={ { ...btn, padding: '4px 10px', fontSize: 12, background: '#e0f2fe', color: '#0369a1' } } disabled={ unameLoading } onClick={ loadUsername }>{ unameLoading ? 'Refreshing…' : 'Refresh' }</button>
+                    <h3 style={ { marginTop: 0, marginBottom: 0, fontSize: 'var(--text-md)', color: '#0369a1' } }>Business username</h3>
+                    <button style={ { ...btn, padding: '4px 10px', fontSize: 'var(--text-xs)', background: '#e0f2fe', color: '#0369a1' } } disabled={ unameLoading } onClick={ loadUsername }>{ unameLoading ? 'Refreshing…' : 'Refresh' }</button>
                 </div>
-                <div style={ { marginTop: 10, fontSize: 14 } }>
+                <div style={ { marginTop: 10, fontSize: 'var(--text-md)' } }>
                     { unameLoading ? (
                         <span style={ { color: '#0369a1' } }>Loading…</span>
                     ) : unameInfo?.username ? (
                         <span>
                             Current: <strong>@{ unameInfo.username }</strong>
                             <span style={ {
-                                marginLeft: 8, padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+                                marginLeft: 8, padding: '2px 8px', borderRadius: 999, fontSize: 'var(--text-xs)', fontWeight: 600,
                                 background: unameInfo.status === 'approved' ? '#dcfce7' : '#fef9c3',
                                 color: unameInfo.status === 'approved' ? '#166534' : '#854d0e',
                             } }>
@@ -200,11 +200,11 @@ const BsuidConsole: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                     ) }
                 </div>
                 { suggestions.length > 0 && (
-                    <div style={ { marginTop: 10, fontSize: 13 } }>
+                    <div style={ { marginTop: 10, fontSize: 'var(--text-sm)' } }>
                         <span style={ { color: '#666' } }>Reserved for you: </span>
                         { suggestions.map( s => (
                             <button key={ s } onClick={ () => setClaimInput( s ) }
-                                style={ { marginRight: 6, marginTop: 4, padding: '3px 10px', borderRadius: 999, border: '1px solid #bae6fd', background: '#fff', color: '#0369a1', cursor: 'pointer', fontSize: 12 } }>
+                                style={ { marginRight: 6, marginTop: 4, padding: '3px 10px', borderRadius: 999, border: '1px solid #bae6fd', background: '#fff', color: '#0369a1', cursor: 'pointer', fontSize: 'var(--text-xs)' } }>
                                 @{ s }
                             </button>
                         ) ) }
@@ -216,7 +216,7 @@ const BsuidConsole: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                         <input style={ { ...input, marginBottom: 0 } } value={ claimInput } onChange={ e => setClaimInput( e.target.value ) } placeholder="e.g. wecaredigital" />
                         <button style={ { ...btn, whiteSpace: 'nowrap' } } disabled={ claiming || !claimInput.trim() } onClick={ claimUsername }>{ claiming ? 'Claiming…' : 'Claim' }</button>
                     </div>
-                    <p style={ { fontSize: 11, color: '#777', marginTop: 6, marginBottom: 0 } }>
+                    <p style={ { fontSize: 'var(--text-xs)', color: '#777', marginTop: 6, marginBottom: 0 } }>
                         A username maps 1:1 to this phone number and replaces the number in the chat profile once active. No delete option is provided here to avoid accidental removal.
                     </p>
                 </div>

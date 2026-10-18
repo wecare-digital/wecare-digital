@@ -16,19 +16,18 @@
  * The fourth name, api.Contact, is not a capability: it is the exported `Contact`
  * interface used in a type assertion, has no call site in src/, and stays in api/client.ts.
  *
- * THE FILE STAYS, deliberately. src/test/CssDrivenMotion.test.tsx reads this exact path and
- * asserts it hardcodes no smooth scroll behavior — a TEXT match over the source, so this
- * docblock must not spell the literal it forbids. whatsapp/index.tsx used to import './inbox'
- * and full-screen-wrap it; since 2026-10-15 that route is a router.replace signpost to
- * /workspace/engage/inbox?channel=whatsapp, and nothing imports this file any more. It is
- * kept as a working URL for anyone who bookmarked it, not as a nav destination.
+ * WHERE IT LIVES NOW. FEAT-003 folded the WhatsApp sub-routes into the one WhatsApp hub
+ * (/workspace/engage/whatsapp/settings) as ?tab= views, so this body moved OUT of the routes
+ * tree (it was src/pages/workspace/engage/whatsapp/inbox.tsx) into the hub's component
+ * directory and is now the hub's `inbox` tab. src/test/CssDrivenMotion.test.tsx reads this
+ * exact path and asserts it hardcodes no smooth scroll behaviour — a TEXT match over the
+ * source, so this docblock must not spell the literal it forbids. Nothing else imports it.
  *
  * `embedded` passes straight through rather than being hardcoded, so the omnichannel page
- * decides the shell: bare content when embedded, Layout-wrapped otherwise. That keeps this
- * a working standalone route AND keeps it embeddable.
+ * decides the shell: bare content when embedded, Layout-wrapped otherwise.
  */
 import React from 'react';
-import UnifiedInbox from '../inbox';
+import UnifiedInbox from '../../../pages/workspace/engage/inbox';
 
 interface PageProps {
   signOut?: () => void;

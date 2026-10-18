@@ -26,24 +26,7 @@ User-agent: *
 Allow: /
 
 Disallow: /api/
-# /mock-home/ and /store/ had rules here until 2026-09-29 and no longer do, because both
-# routes are GONE and the rule at the top of this file cuts both ways: a Disallow for a
-# route that does not exist is noise that implies the route does. /mock-home/ (the home
-# page design mock from ef1abc5b) and /store/ (the catalog's old home, which left in
-# 3d229931) both return 404 live, verified before their rules came out. /store/ is worth
-# one extra sentence because its old comment here insisted it was "still a live top-level
-# route": the /store/* API paths are real and DO still exist, but they are reached only at
-# /api/store/* — measured, /api/store/preview-product-image returns 401 while
-# /store/preview-product-image 404s — so they are covered by the /api/ rule above and
-# never needed a rule of their own.
-# All fourteen authenticated families nested under /workspace/ on 2026-09-26, so their
-# individual Disallow lines came out rather than being kept alongside: a Disallow for a
-# route that no longer exists is noise that implies the route does. That covers
-# access, admin, commerce, contacts, dashboard, docs, engage, forms, link, pay, seo,
-# service, settings and task.
-#
-# /engage/ was itself the former /dm/, by way of /workspace/ for about twenty minutes,
-# and is now /workspace/engage/. Retired public paths intentionally fall through to the
+# Retired public paths intentionally fall through to the
 # 404 document; only the host canonicalisation remains an explicit redirect.
 # /api/ stays separate because it is a live root path, not a moved one.
 Disallow: /workspace/

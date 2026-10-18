@@ -40,6 +40,10 @@ function lazyTab<P> ( loader: () => Promise<{ default: React.ComponentType<P> }>
 // src/components/workspace/whatsapp/** so the physical route count drops. The lazy-tab
 // contract is unchanged — each still loads on demand and takes { signOut, user, embedded }.
 // Paths are kept as string literals so webpack can statically resolve each chunk.
+// FEAT-003: the WhatsApp inbox folded into this hub as the `inbox` tab. Its body moved out of
+// the routes tree (it was ./inbox.tsx) into the hub's component directory; it is still a thin
+// wrapper over the omnichannel inbox, pre-filtered to WhatsApp, embeddable via `embedded`.
+const InboxTab = lazyTab( () => import( '../../../../components/workspace/whatsapp/inbox' ) );
 const WABADashboard = lazyTab( () => import( '../../../../components/workspace/whatsapp/waba-dashboard' ) );
 const TemplatesPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/templates' ) );
 const WelcomePage = lazyTab( () => import( '../../../../components/workspace/whatsapp/welcome' ) );
@@ -109,7 +113,7 @@ const CUSTOMERSERVICE_MENU = [
 ];
 
 const pill = ( bg: string, color: string ): React.CSSProperties => ( {
-  display: 'inline-block', padding: '2px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: bg, color,
+  display: 'inline-block', padding: '2px 10px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 600, background: bg, color,
 } );
 
 // ─── Bot Menu Tab Component ───
@@ -117,27 +121,27 @@ const BotMenuTab: React.FC = () => (
   <div style={ { padding: '0 4px' } }>
     <WhatsAppServiceDirectory />
     {/* Main Bot Menu */ }
-    <h3 style={ { fontSize: 15, fontWeight: 700, color: '#1a3a2a', margin: '0 0 6px' } }>WhatsApp Bot Menu (Persistent Menu)</h3>
-    <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 14px' } }>9 menu items across 3 sections — shown when users open the WhatsApp chat.</p>
+    <h3 style={ { fontSize: 'var(--text-md)', fontWeight: 700, color: 'var(--accent)', margin: '0 0 6px' } }>WhatsApp Bot Menu (Persistent Menu)</h3>
+    <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '0 0 14px' } }>9 menu items across 3 sections — shown when users open the WhatsApp chat.</p>
     <div style={ { overflowX: 'auto', marginBottom: 28 } }>
-      <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+      <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
         <thead>
           <tr style={ { borderBottom: '2px solid #f3f4f6' } }>
             { [ '#', 'Section', 'Title', 'Description', 'Action' ].map( h => (
-              <th key={ h } style={ { textAlign: 'left', padding: '8px 10px', fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
+              <th key={ h } style={ { textAlign: 'left', padding: '8px 10px', fontSize: 'var(--text-xs)', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
             ) ) }
           </tr>
         </thead>
         <tbody>
           { BOT_MENU.map( m => (
             <tr key={ m.row } style={ { borderBottom: '1px solid #f3f4f6' } }>
-              <td style={ { padding: '8px 10px', color: '#6b7280', fontWeight: 600 } }>{ m.row }</td>
+              <td style={ { padding: '8px 10px', color: 'var(--text-muted)', fontWeight: 600 } }>{ m.row }</td>
               <td style={ { padding: '8px 10px' } }>
                 <span style={ pill( m.section === 'Start Here' ? '#f0fdf4' : m.section === 'Explore WECARE' ? '#eff6ff' : '#fffbeb', m.section === 'Start Here' ? '#059669' : m.section === 'Explore WECARE' ? '#2563eb' : '#d97706' ) }>{ m.section }</span>
               </td>
-              <td style={ { padding: '8px 10px', fontWeight: 600, color: '#1a3a2a' } }>{ m.icon } { m.title }</td>
+              <td style={ { padding: '8px 10px', fontWeight: 600, color: 'var(--accent)' } }>{ m.icon } { m.title }</td>
               <td style={ { padding: '8px 10px', color: '#374151' } }>{ m.description }</td>
-              <td style={ { padding: '8px 10px', color: '#6b7280', fontSize: 12 } }>{ m.action }</td>
+              <td style={ { padding: '8px 10px', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' } }>{ m.action }</td>
             </tr>
           ) ) }
         </tbody>
@@ -145,26 +149,26 @@ const BotMenuTab: React.FC = () => (
     </div>
 
     {/* Customer Service Sub-Menu */ }
-    <h3 style={ { fontSize: 15, fontWeight: 700, color: '#1a3a2a', margin: '0 0 6px' } }>🚀 Customer Service Menu (Interactive List)</h3>
-    <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 14px' } }>Service menu reference. The directory above shows current keyword entry points and publication status.</p>
+    <h3 style={ { fontSize: 'var(--text-md)', fontWeight: 700, color: 'var(--accent)', margin: '0 0 6px' } }>🚀 Customer Service Menu (Interactive List)</h3>
+    <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '0 0 14px' } }>Service menu reference. The directory above shows current keyword entry points and publication status.</p>
     <div style={ { overflowX: 'auto' } }>
-      <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+      <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
         <thead>
           <tr style={ { borderBottom: '2px solid #f3f4f6' } }>
             { [ '#', 'Section', 'Title', 'Description', 'Flow ID', 'Keywords' ].map( h => (
-              <th key={ h } style={ { textAlign: 'left', padding: '8px 10px', fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
+              <th key={ h } style={ { textAlign: 'left', padding: '8px 10px', fontSize: 'var(--text-xs)', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
             ) ) }
           </tr>
         </thead>
         <tbody>
           { CUSTOMERSERVICE_MENU.map( m => (
             <tr key={ m.row } style={ { borderBottom: '1px solid #f3f4f6' } }>
-              <td style={ { padding: '8px 10px', color: '#6b7280', fontWeight: 600 } }>{ m.row }</td>
-              <td style={ { padding: '8px 10px' } }><span style={ pill( '#f9fafb', '#6b7280' ) }>{ m.section }</span></td>
-              <td style={ { padding: '8px 10px', fontWeight: 600, color: '#1a3a2a' } }>{ m.icon } { m.title }</td>
+              <td style={ { padding: '8px 10px', color: 'var(--text-muted)', fontWeight: 600 } }>{ m.row }</td>
+              <td style={ { padding: '8px 10px' } }><span style={ pill( 'var(--bg-secondary)', 'var(--text-muted)' ) }>{ m.section }</span></td>
+              <td style={ { padding: '8px 10px', fontWeight: 600, color: 'var(--accent)' } }>{ m.icon } { m.title }</td>
               <td style={ { padding: '8px 10px', color: '#374151' } }>{ m.description }</td>
-              <td style={ { padding: '8px 10px', fontFamily: 'monospace', fontSize: 11, color: '#6b7280' } }>{ m.flowId }</td>
-              <td style={ { padding: '8px 10px', fontSize: 11, color: '#6b7280' } }>{ m.keywords }</td>
+              <td style={ { padding: '8px 10px', fontFamily: 'monospace', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ m.flowId }</td>
+              <td style={ { padding: '8px 10px', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ m.keywords }</td>
             </tr>
           ) ) }
         </tbody>
@@ -174,6 +178,9 @@ const BotMenuTab: React.FC = () => (
 );
 
 const TABS: ShellTab[] = [
+  // Inbox — the WhatsApp-filtered omnichannel inbox, folded in from the retired
+  // /workspace/engage/whatsapp/inbox route (FEAT-003).
+  { id: 'inbox', label: 'Inbox' },
   // Messaging
   { id: 'ai-agent', label: '🤖 AI Agent' },
   { id: 'auto-response', label: 'Auto-Response' },
@@ -236,6 +243,7 @@ const WhatsAppSettingsPage: React.FC<PageProps> = ( { signOut, user } ) => {
     >
       { ( activeTab ) => (
         <Suspense fallback={ <div style={ { padding: 40, textAlign: 'center' } }>Loading...</div> }>
+          { activeTab === 'inbox' && <InboxTab signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'ai-agent' && <AiAgentPage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'auto-response' && <AutoResponsePage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'bot-menu' && <BotMenuTab /> }

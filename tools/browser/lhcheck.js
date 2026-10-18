@@ -61,14 +61,13 @@ const ALL_ROUTES = [
   '/', '/grahak-os/', '/vayulok/', '/contact/', '/get/', '/orders/', '/bharat-rx/',
   '/anew/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
-  '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/', '/niji-setu/',
+  '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/', '/niji-setu/',
   '/terms/', '/privacy/', '/blog/',
   // The two routes added on 2026-09-30. Every other ProductPage route scores 100 on the four
   // categories, so these are here to prove the two new ones do too rather than to sample a
   // shape already covered - a new page is exactly where a regression would hide.
   '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/', '/vault/',
-  // '/llm/' was here until 2026-09-30. The page is retired and intentionally returns 404.
-  // The live machine-readable surfaces are /llms.txt and /llms-full.txt.
+  // Machine-readable discovery is covered by the generated discovery files and MCP.
   // The catalogue. '/shop/' - the grid - was removed on 2026-10-04 when the owner withdrew the
   // index: it 301s to the home page, and Lighthouse auditing a redirect measures the home page a
   // second time rather than the catalogue.

@@ -91,14 +91,17 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
 
   const filtering = Boolean( query.trim() );
 
+  const shelfListings = useMemo(
+    () => allListings.filter( listing => listing.showOnShopShelf !== false ),
+    [ allListings ],
+  );
+
   /**
-   * THE WHOLE SHELF IS THE ROW. The rendered experience is one horizontal rail the reader scrolls
-   * or swipes through, so cards are always drawn from `allListings` (every product the site
-   * sells) rather than this route's six-item slice. The prerendered /shop/page/N/ HTML still
-   * exists for a no-JS crawler; this is the interactive surface.
+   * THE PUBLIC SHELF IS THE ROW. Live purchase-only entries can stay in `allListings` for their
+   * direct route and checkout while opting out of this horizontal rail.
    */
   const visible = useMemo( () => {
-    if ( !filtering ) return allListings;
+    if ( !filtering ) return shelfListings;
     const q = query.trim().toLowerCase();
     /*
      * THE FIELDS ARE JOINED WITH A NEWLINE, NOT A SPACE, and that is copied deliberately from
@@ -108,10 +111,10 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
      * appear in a typed query, so it is a boundary a search term cannot cross, while spaces inside
      * one field still match normally.
      */
-    return allListings.filter( listing => (
+    return shelfListings.filter( listing => (
       [ listing.name, listing.blurb ].join( '\n' ).toLowerCase().includes( q )
     ) );
-  }, [ filtering, query, allListings ] );
+  }, [ filtering, query, shelfListings ] );
 
   /**
    * THE PERSPECTIVES-STYLE PAGER, driving the horizontal card row (components/ProductBlogPanel's
@@ -181,7 +184,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
     <RotatingHero
       frame="A shop for"
       words={ SHOP_HERO_WORDS }
-      sub="Every WECARE.DIGITAL product and service on one page, each with its own page to open."
+      sub="Explore WECARE.DIGITAL products and services, each with its own page to open."
       ariaLabel="WECARE.DIGITAL shop"
     >
       <div className="shop-in">
@@ -197,7 +200,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
           value={ query }
           onChange={ setQuery }
           resultCount={ visible.length }
-          totalCount={ allListings.length }
+          totalCount={ shelfListings.length }
           action="/shop/"
           inputId="shop-q"
           label="Search the shop"

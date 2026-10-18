@@ -69,17 +69,17 @@ const CostPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
             </div>
             <style jsx>{ `
                 .co-wrap { padding: 20px; max-width: 800px; margin: 0 auto; }
-                .co-total { font-size: 18px; color: ${colors.text}; margin: 14px 0; }
-                .co-total strong { font-size: 24px; color: ${colors.primary}; }
-                .co-total-sub { font-size: 13px; color: ${colors.textMuted}; }
+                .co-total { font-size: var(--h4); color: ${colors.text}; margin: 14px 0; }
+                .co-total strong { font-size: var(--text-3xl); color: ${colors.primary}; }
+                .co-total-sub { font-size: var(--text-sm); color: ${colors.textMuted}; }
                 .co-table-wrap { border: 1px solid ${colors.border}; border-radius: 12px; overflow: hidden; background: #fff; }
                 .co-table { width: 100%; border-collapse: collapse; }
-                .co-table th { background: ${colors.bgSecondary}; padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 700; color: ${colors.textMuted}; text-transform: uppercase; }
-                .co-table td { padding: 11px 14px; border-top: 1px solid ${colors.borderLight}; font-size: 14px; color: ${colors.text}; }
-                .co-pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 9999px; }
-                .co-rate { width: 90px; padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: 13px; }
+                .co-table th { background: ${colors.bgSecondary}; padding: 10px 14px; text-align: left; font-size: var(--text-xs); font-weight: 700; color: ${colors.textMuted}; text-transform: uppercase; }
+                .co-table td { padding: 11px 14px; border-top: 1px solid ${colors.borderLight}; font-size: var(--text-md); color: ${colors.text}; }
+                .co-pill { font-size: var(--text-xs); font-weight: 700; padding: 3px 9px; border-radius: 9999px; }
+                .co-rate { width: 90px; padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-sm); }
                 .co-cost { font-weight: 700; }
-                .co-note { font-size: 12px; color: ${colors.textMuted}; margin-top: 12px; }
+                .co-note { font-size: var(--text-xs); color: ${colors.textMuted}; margin-top: 12px; }
                 .co-empty { text-align: center; padding: 40px; color: ${colors.textMuted}; }
             ` }</style>
         </>

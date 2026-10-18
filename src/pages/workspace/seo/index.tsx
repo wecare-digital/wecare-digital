@@ -125,10 +125,10 @@ const SEOHub: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                     textDecoration: 'none',
                   } }
                 >
-                  <div style={ { fontSize: 24, width: 40, textAlign: 'center', flexShrink: 0 } }>{ p.icon }</div>
+                  <div style={ { fontSize: 'var(--text-3xl)', width: 40, textAlign: 'center', flexShrink: 0 } }>{ p.icon }</div>
                   <div style={ { flex: 1 } }>
-                    <div style={ { fontSize: 15, fontWeight: 600, color: 'var(--text)' } }>{ p.label }</div>
-                    <div style={ { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } }>{ p.desc }</div>
+                    <div style={ { fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--text)' } }>{ p.label }</div>
+                    <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 2 } }>{ p.desc }</div>
                   </div>
                 </Link>
               ) ) }
@@ -151,8 +151,8 @@ const SEOHub: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 function StatCard ( { label, value }: { label: string; value: any } ) {
   return (
     <div style={ { background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 13, padding: '16px 20px' } }>
-      <div style={ { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' } }>{ label }</div>
-      <div style={ { fontSize: 24, fontWeight: 700, marginTop: 4, color: 'var(--accent)' } }>{ value ?? '—' }</div>
+      <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' } }>{ label }</div>
+      <div style={ { fontSize: 'var(--text-3xl)', fontWeight: 700, marginTop: 4, color: 'var(--accent)' } }>{ value ?? '—' }</div>
     </div>
   );
 }
