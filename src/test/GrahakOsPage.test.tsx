@@ -320,7 +320,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( commerceRule ).toContain( 'font-size:17px' );
     expect( commerceRule ).not.toContain( 'border:1px solid' );
     expect( commerceRule ).not.toContain( 'background:#fcfdfb' );
-    expect( source ).toContain( '.gos-offer-note{max-width:var(--public-copy-max);margin:7px 0 0;font-family:var(--font-sans);font-size:var(--public-body-size)' );
+    expect( source ).not.toContain( '.gos-offer-note{' );
     expect( source ).toContain( '.gos-sku-value{color:var(--public-muted)}' );
   } );
 
