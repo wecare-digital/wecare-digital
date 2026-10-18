@@ -49,7 +49,7 @@ const OUT_JSON = path.join( REPO, 'docs', 'execution', 'page-audit.json' );
 const PUBLIC = [ '/', '/grahak-os/', '/vayulok/', '/bharat-rx/', '/contact/', '/orders/',
   '/terms/', '/privacy/', '/anew/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
-  '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/',
+  '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/',
   '/expo-week/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/', '/niji-setu/',
   '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/leave-review/',
   // The catalogue. This list is only used with --public; the default sweep discovers every

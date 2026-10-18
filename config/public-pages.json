@@ -159,6 +159,12 @@
       "description": "Laws, judgments, rules and public source material organised around a question."
     },
     {
+      "path": "/ritual-guru/ritva",
+      "group": "services",
+      "name": "Ritva",
+      "description": "Personal astrology and Vastu guidance built around your questions, timing and space."
+    },
+    {
       "path": "/ritual-guru/puja-guidance",
       "group": "services",
       "name": "Puja Guidance",

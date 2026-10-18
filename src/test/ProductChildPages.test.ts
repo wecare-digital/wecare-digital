@@ -12,6 +12,7 @@ const CHILDREN = [
   [ '/dastavez/drafting/', 'src/pages/dastavez/drafting.tsx' ],
   [ '/dastavez/registration/', 'src/pages/dastavez/registration.tsx' ],
   [ '/dastavez/legal-reference/', 'src/pages/dastavez/legal-reference.tsx' ],
+  [ '/ritual-guru/ritva/', 'src/pages/ritual-guru/ritva.tsx' ],
   [ '/ritual-guru/puja-guidance/', 'src/pages/ritual-guru/puja-guidance.tsx' ],
   [ '/ritual-guru/diy-puja-kit/', 'src/pages/ritual-guru/diy-puja-kit.tsx' ],
 ] as const;
@@ -54,9 +55,10 @@ describe( 'product family child pages', () => {
     expect( header ).not.toMatch( /href:\s*'\/elsewhere\/?'/ );
   } );
 
-  it( 'keeps Puja Guidance above DIY Puja Kit in the menu', () => {
+  it( 'keeps Ritva, Puja Guidance and DIY Puja Kit in the intended menu order', () => {
     const header = read( 'src/components/Header.tsx' );
-    expect( header.indexOf( "label: 'Puja Guidance'" ) ).toBeGreaterThan( -1 );
+    expect( header.indexOf( "label: 'Ritva'" ) ).toBeGreaterThan( -1 );
+    expect( header.indexOf( "label: 'Puja Guidance'" ) ).toBeGreaterThan( header.indexOf( "label: 'Ritva'" ) );
     expect( header.indexOf( "label: 'DIY Puja Kit'" ) ).toBeGreaterThan( header.indexOf( "label: 'Puja Guidance'" ) );
   } );
 } );

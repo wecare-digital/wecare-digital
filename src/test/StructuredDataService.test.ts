@@ -61,7 +61,7 @@ const OFFERINGS = [
   '/dastavez/drafting', '/dastavez/registration', '/dastavez/legal-reference',
   '/elsewhere/visa', '/elsewhere/trip', '/elsewhere/activities',
   '/expo-week', '/grahak-os', '/hunar/kaushal', '/hunar/prastuti', '/niji-setu',
-  '/ritual-guru/puja-guidance', '/ritual-guru/diy-puja-kit', '/shipments/track', '/vayulok',
+  '/ritual-guru/ritva', '/ritual-guru/puja-guidance', '/ritual-guru/diy-puja-kit', '/shipments/track', '/vayulok',
 ];
 
 /**

@@ -63,6 +63,7 @@ const PUBLIC_EXACT = new Set( [
   '/hunar/kaushal',
   '/hunar/prastuti',
   '/niji-setu',
+  '/ritual-guru/ritva',
   '/ritual-guru/puja-guidance',
   '/ritual-guru/diy-puja-kit',
   // The Customer service pages. Same rule as the product group above: these must stay in

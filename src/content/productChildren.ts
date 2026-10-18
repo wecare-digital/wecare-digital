@@ -167,6 +167,31 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
     },
   },
   {
+    path: '/ritual-guru/ritva/',
+    parent: 'Ritual Guru',
+    product: {
+      slug: 'ritual-guru-ritva',
+      name: 'Ritva',
+      blurb: 'Astrology & Vastu, made personal.',
+      title: 'Ritva — personal astrology & Vastu guidance | WECARE.DIGITAL',
+      description: 'Ritva by Ritual Guru — personal astrology and Vastu guidance built around your questions, timing and space, with clear next steps.',
+      frame: 'Guidance for your',
+      words: cycle( 'timing', 'space', 'choices', 'next move' ),
+      sub: 'Astrology & Vastu, made personal.',
+      sectionHeading: 'What Ritva does',
+      lead: 'Ritva brings astrology and Vastu into one personal guidance flow. Start with the question, timing or space you want to understand, then get the relevant context in plain language.',
+      points: [
+        { heading: 'Start with your question', body: 'Choose astrology, Vastu or both and share only the context needed for the question you want to explore.' },
+        { heading: 'See the reasoning', body: 'Key chart or space observations are explained in plain language, including where interpretation can vary.' },
+        { heading: 'Leave with practical next steps', body: 'The guidance is translated into a small set of actions or considerations you can use without treating a reading as certainty.' },
+      ],
+      note: 'Astrology and Vastu are traditional interpretive practices. Ritva offers guidance and reflection, not guaranteed predictions or a substitute for medical, legal, financial or other professional advice.',
+      ctaLabel: 'Start with Ritva',
+      ctaHref: whatsappKeywordLink( 'Ritva' ),
+      ctaNote: 'Continue on WhatsApp →',
+    },
+  },
+  {
     path: '/ritual-guru/puja-guidance/',
     parent: 'Ritual Guru',
     product: {
