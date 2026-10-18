@@ -68,11 +68,6 @@
       "note": "The five pages that replace an email inbox. A request starts on one of these."
     },
     {
-      "id": "perks",
-      "title": "Extras",
-      "note": "Gift cards, rewards and offers. Non-transacting until a provider is wired up."
-    },
-    {
       "id": "legal",
       "title": "Legal",
       "note": "Published terms and the data-handling policy."
@@ -246,18 +241,6 @@
       "group": "customerservice",
       "name": "Leave Review",
       "description": "Tell us how something went, well or badly."
-    },
-    {
-      "path": "/refer-and-earn",
-      "group": "customerservice",
-      "name": "Refer & Earn",
-      "description": "Introduce someone who would find this useful."
-    },
-    {
-      "path": "/perks",
-      "group": "perks",
-      "name": "Perks",
-      "description": "A little extra for the people we look after. An honest, uncluttered place for the small thank-yous we send your way, and nothing here asks for payment."
     },
     {
       "path": "/privacy",
