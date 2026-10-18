@@ -80,7 +80,8 @@ describe( 'Step 5 public commerce hierarchy coverage', () => {
     expect( sku ).toBeGreaterThan( commerce );
     expect( policy ).toBeGreaterThan( sku );
     expect( source ).toContain( 'productPolicyCopy( product.slug, product.name, product.note )' );
-    expect( source ).toContain( '{ !sku && product.note && (' );
+    expect( source ).not.toContain( '{ !sku && product.note && (' );
+    expect( source ).not.toContain( 'className="pdp-note"' );
   } );
 
   it( 'keeps the two direct static commerce pages on the reference hierarchy', () => {
