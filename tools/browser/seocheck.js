@@ -40,7 +40,6 @@ const ROUTES = [
   '/', '/grahak-os/', '/vayulok/', '/contact/', '/terms/', '/privacy/',
   '/orders/', '/bharat-rx/',
   '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
-  '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
   '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/',
   '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/',
   // The Requests pages, added when the header's six labels stopped all resolving to
@@ -320,7 +319,6 @@ async function main() {
       return body;
     } )();
     // Compare exact sitemap paths, never raw substrings. A child such as
-    // /dastavez/drafting/ legitimately contains the retired parent text "/dastavez/",
     // so substring matching turns correct child URLs into false positives.
     const sitemapPaths = new Set(
       [ ...smRes.matchAll( /<loc>([^<]+)<\/loc>/g ) ].map( match => {
