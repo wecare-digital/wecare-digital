@@ -30,7 +30,12 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
       <p><strong>Shipping / fulfilment:</strong> { shipping }</p>
       <p><strong>Returns:</strong> { returns }</p>
       <p><strong>Refunds & cancellations:</strong> Cancellation is handled as part of the refund policy above. Eligible voluntary cancellations or discretionary adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days, not as cash or a refund to the original payment method, except where applicable law requires otherwise.</p>
-      <p className="wc-policy-disclaimer"><strong>Disclaimer:</strong> { disclaimer } Statutory consumer rights remain unaffected.</p>
+      { disclaimer.split( /\n{2,}/ ).map( ( paragraph, index, paragraphs ) => (
+        <p className="wc-policy-disclaimer" key={ index }>
+          { index === 0 && <strong>Disclaimer:</strong> }{ index === 0 ? ' ' : '' }{ paragraph.trim() }
+          { index === paragraphs.length - 1 && ' Statutory consumer rights remain unaffected.' }
+        </p>
+      ) ) }
     </div>
 
     <style jsx>{`
@@ -43,7 +48,7 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         overflow:hidden;
       }
       .wc-policy summary{
-        min-height:52px;
+        min-height:var(--public-cta-height);
         display:flex;
         align-items:center;
         padding:0 18px;
@@ -59,12 +64,12 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
       .wc-policy summary::after{
         content:'+';
         margin-inline-start:auto;
-        font-size:22px;
+        font-size:var(--public-card-size);
         font-weight:600;
         line-height:1;
       }
       .wc-policy[open] summary::after{content:'−'}
-      .wc-policy summary:hover{background:rgba(209,244,112,.22)}
+      .wc-policy summary:hover{background:var(--public-lime-tint)}
       .wc-policy summary:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:-3px}
       .wc-policy-body{
         padding:0 18px 18px;
