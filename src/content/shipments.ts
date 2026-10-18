@@ -18,7 +18,7 @@ const cycle = ( a: string, b: string, c: string, d: string ): CycleWord[] => [
  * Shipments is a category-only navigation family.
  *
  * This module defines its Track child. Pickup Request is a separate child at /request-pickup/.
- * There is deliberately no /shipments/ parent page.
+ * There is deliberately no public parent page for this navigation family.
  */
 export const SHIPMENT_TRACK: ProductDef = {
   slug: 'shipments-track',
