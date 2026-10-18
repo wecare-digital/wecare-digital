@@ -128,7 +128,7 @@ export default function InstructionsContent () {
   "@type": "BreadcrumbList",
   "itemListElement": [
     { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://wecare.digital/" },
-    { "@type": "ListItem", "position": 2, "name": "BNB Club", "item": "https://wecare.digital/elsewhere/" }
+    { "@type": "ListItem", "position": 2, "name": "Elsewhere · Visa", "item": "https://wecare.digital/elsewhere/visa/" }
   ]
 }
 
