@@ -1642,8 +1642,7 @@ export default function Cart (): React.ReactElement {
       {/* UNIFIED TOP HERO (owner 2026-10-13): every public page carries the same frame + lime pill
           + sub via the shared RotatingHero. A SINGLE word is passed so the pill is static (no
           2400ms rotation) - a cart is a task screen, so the house look without indefinite motion
-          keeps WCAG 2.2.2. RotatingHero auto-mounts the page-tail dock (PublicShare) in its
-          .rh-tail, so the page's own direct <PublicShare /> is removed below. */}
+          keeps WCAG 2.2.2. The global action dock is mounted once by _app after route policy. */}
       <RotatingHero
         frame="Your"
         words={ [ { word: 'cart', tint: '#e0f7c8', dot: '#3da35a' } ] }
