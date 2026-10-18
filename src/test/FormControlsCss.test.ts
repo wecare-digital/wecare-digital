@@ -129,14 +129,14 @@ describe( 'form-controls.css — invariant 4', () => {
       // which this census does not count.
       'src/components/dashboard/tabs/AppBuilderTab.tsx',
       'src/pages/workspace/engage/logs/index.tsx',
-      'src/pages/workspace/engage/push/index.tsx',
-      'src/pages/workspace/engage/sms/index.tsx',
-      'src/pages/workspace/engage/voice-in/index.tsx',
-      'src/pages/workspace/engage/whatsapp/migration.tsx',
-      'src/pages/workspace/engage/whatsapp/templates.tsx',
-      'src/pages/workspace/engage/whatsapp/waba-dashboard.tsx',
-      'src/pages/workspace/forms/responses.tsx',
-      'src/pages/workspace/pay/records.tsx',
+      'src/components/workspace/channels/Push.tsx',
+      'src/components/workspace/channels/Sms.tsx',
+      'src/components/workspace/channels/VoiceIn.tsx',
+      'src/components/workspace/whatsapp/migration.tsx',
+      'src/components/workspace/whatsapp/templates.tsx',
+      'src/components/workspace/whatsapp/waba-dashboard.tsx',
+      'src/components/workspace/service/FormResponses.tsx',
+      'src/components/workspace/pay/InvoiceRecords.tsx',
       'src/pages/workspace/task/index.tsx',
       'src/styles/Dashboard.css',
       'src/styles/Layout.css',
@@ -384,7 +384,7 @@ describe( 'form-controls.css — invariant 4', () => {
     // be allow-listed, because without it this assertion fails the moment that batch writes the
     // very file it exists to protect.
     expect( cbr.files ).toEqual( [
-      'src/pages/workspace/engage/sms/index.tsx',
+      'src/components/workspace/channels/Sms.tsx',
       'src/styles/Dashboard.css',
       'src/styles/Layout.css',
       'src/styles/Pages.css',
