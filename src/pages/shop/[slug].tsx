@@ -10,7 +10,8 @@ import type { ShopProduct } from '../../content/shop';
 import { addItem, setContribution } from '../../lib/cart';
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../../config/contribution';
 import Select from '../../components/ui/Select';
-import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, PRODUCT_SKU_BY_SLUG } from '../../content/productCommerce';
+import PolicyDetails from '../../components/public/PolicyDetails';
+import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCommerce';
 
 /**
  * /shop/<slug>/ - one page per catalogue item.
@@ -48,6 +49,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
   const [ variantId, setVariantId ] = useState<string>( '' );
   const [ added, setAdded ] = useState<boolean>( false );
   const sku = PRODUCT_SKU_BY_SLUG[ product.slug ];
+  const policy = sku ? productPolicyCopy( product.slug, product.name ) : null;
 
   const onAdd = useCallback( (): void => {
     if ( product.id === CONTRIBUTION_PRODUCT_ID ) {
@@ -80,13 +82,6 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
               is the h1 in the band above it. section.pdp names itself the same way on the fourteen
               pages ProductPage renders. */}
           <section className="shopd-about" aria-label={ `About ${product.name}` }>
-            {/* The price sits with the action, not in the top band. data-wc-no-translate because a
-                translated "₹24,999.00" is a different number in a different grouping convention. */}
-            <p className="shopd-price" data-wc-no-translate="true">{ product.formattedPrice }</p>
-            { sku && (
-              <p className="shopd-sku" data-wc-no-translate="true"><strong>SKU:</strong> { sku }</p>
-            ) }
-
             { !product.inStock && (
               <p className="shopd-oos" role="status">Not available right now.</p>
             ) }
@@ -143,19 +138,19 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
                 </button>
               ) }
 
-            {/* The boundary statement, in the hairline box rather than a lime one - the page's one
-                lime surface is already spent on the button above. Shortened on owner instruction
-                with nothing dropped: where the price came from, who decides the amount, and that
-                nothing is charged. */}
-            { sku && (
-              <div className="shopd-policy">
-                <strong>{ PRODUCT_POLICY_TITLE }</strong>
-                <p>{ PRODUCT_POLICY_TEXT }</p>
+            <p className="shopd-price" data-wc-no-translate="true">{ product.formattedPrice }</p>
+            <p className="shopd-offer-note">One-time purchase · final total confirmed in the cart before payment</p>
+
+            { sku && policy && (
+              <div className="shopd-policy-wrap">
+                <p className="shopd-sku" data-wc-no-translate="true"><strong>SKU:</strong> { sku }</p>
+                <PolicyDetails
+                  shipping={ policy.shipping }
+                  returns={ policy.returns }
+                  disclaimer={ policy.disclaimer }
+                />
               </div>
             ) }
-            <p className="shopd-note">
-              Review your final total in the cart before payment.
-            </p>
             {/* The way back to the full catalogue. Restored 2026-10-10 with the /shop index: it
                 was removed on 2026-10-04 because /shop/ 301'd to home, and now points at a real
                 listing again. */}
@@ -237,19 +232,18 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              site reads the same: near-white #fcfdfb surface, 1px hairline, 14px radius, 22px
              padding, legal-copy type 17px/400/1.55/-.05px on rgba(0,0,0,.898). Was a transparent
              16px/faded aside. 1px static, per the rule: 1px static, 2px hoverable. */
-          .shopd-policy{
-            margin:22px 0 0;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
-            background:#fcfdfb;font-size:17px;font-weight:400;line-height:1.55;
-            letter-spacing:-.05px;color:rgba(0,0,0,.898);
+          .shopd-offer-note{
+            max-width:620px;margin:7px 0 0;
+            font-size:var(--public-body-size);font-weight:var(--public-body-weight);
+            line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+            color:var(--public-body);
           }
-          .shopd-policy strong{color:#1a3a2a;font-weight:700}
-          .shopd-policy p{margin:12px 0 0}
-          .shopd-note{
-            margin:34px 0 0;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
-            background:#fcfdfb;
-            font-size:17px;font-weight:400;line-height:1.55;letter-spacing:-.05px;
-            color:rgba(0,0,0,.898);
+          .shopd-policy-wrap{margin:22px 0 0}
+          .shopd-sku{
+            margin:0;font-size:17px;font-weight:400;line-height:1.55;
+            letter-spacing:-.05px;color:var(--public-body);
           }
+          .shopd-sku strong{color:var(--public-brand-green);font-weight:700}
 
           /* The .shopd-back link, restored 2026-10-10 with the /shop index. :global() for the
              same reason as .shopd-cta: it wraps a capitalised <Link> styled-jsx cannot scope. */
