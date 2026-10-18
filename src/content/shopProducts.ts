@@ -15,7 +15,7 @@ export interface ShopListing {
 
 export const SHOP_LISTINGS: ShopListing[] = [
   { slug:'grahak-os', name:'Grahak OS', blurb:'Customer journeys and business workflows in one operating layer.', sku:'GOS7K4M2', href:'/grahak-os/', formattedPrice:'₹899.00', inStock:true, source:'product' },
-  { slug:'bharat-rx', name:'Bharat Rx', blurb:'Practical health-document support for everyday needs.', sku:'BRX5N8Q3', href:'/bharat-rx/', formattedPrice:'₹550.00', inStock:true, source:'product' },
+  { slug:'bharat-rx', name:'Bharat Rx', blurb:'Practical health-document support for everyday needs.', sku:'BRX5N8Q3', href:'/bharat-rx/', formattedPrice:'₹850.00', inStock:true, source:'product' },
   { slug:'elsewhere-visa', name:'Elsewhere · Visa', blurb:'Visa paperwork, preparation and tracking for a planned trip.', sku:'EVS9P4L7', href:'/elsewhere/visa/', formattedPrice:'₹899.00', inStock:true, source:'product' },
   { slug:'elsewhere-trip', name:'Elsewhere · Trip', blurb:'A trip planned around the people actually taking it.', sku:'ETR6M3K8', href:'/elsewhere/trip/', formattedPrice:'₹899.00', inStock:true, source:'product' },
   { slug:'expo-week', name:'Expo Week', blurb:'A virtual travel fair you can walk through from home.', sku:'EXP4Q7N5', href:'/expo-week/', formattedPrice:'₹899.00', inStock:true, source:'product' },
