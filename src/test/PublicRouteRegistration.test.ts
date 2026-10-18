@@ -71,7 +71,13 @@ const readAllowlist = (): Set<string> => {
 
   const gateStart = appSource.indexOf( 'const isPublic' );
   expect( gateStart, 'isPublic not found in _app.tsx - this guard needs updating' ).toBeGreaterThan( -1 );
-  const gateBlock = appSource.slice( gateStart, appSource.indexOf( ';', gateStart ) );
+  const gateEnd = appSource.indexOf( 'const canonicalUrl', gateStart );
+  expect( gateEnd, 'canonicalUrl marker not found after isPublic - this guard needs updating' ).toBeGreaterThan( gateStart );
+  // Do NOT stop at the first semicolon. Comments inside this chain legitimately contain
+  // semicolons (for example "payment; the per-route fallback..."), which previously made
+  // this parser silently drop /checkout/status and /checkout/success from its own view of
+  // the public allowlist while production still rendered them publicly.
+  const gateBlock = appSource.slice( gateStart, gateEnd );
   const literalRoutes = Array.from( gateBlock.matchAll( /router\.pathname === '([^']+)'/g ) ).map( m => m[ 1 ] );
 
   /**
@@ -82,7 +88,9 @@ const readAllowlist = (): Set<string> => {
    */
   const contentStart = appSource.indexOf( 'const isContentPublic' );
   expect( contentStart, 'isContentPublic not found in _app.tsx - this guard needs updating' ).toBeGreaterThan( -1 );
-  const contentBlock = appSource.slice( contentStart, appSource.indexOf( ';', contentStart ) );
+  const contentEnd = appSource.indexOf( 'const isPublic', contentStart );
+  expect( contentEnd, 'isPublic marker not found after isContentPublic - this guard needs updating' ).toBeGreaterThan( contentStart );
+  const contentBlock = appSource.slice( contentStart, contentEnd );
   const contentRoutes = Array.from( contentBlock.matchAll( /router\.pathname === '([^']+)'/g ) ).map( m => m[ 1 ] );
 
   return new Set( [ ...metaRoutes, ...literalRoutes, ...contentRoutes ] );
