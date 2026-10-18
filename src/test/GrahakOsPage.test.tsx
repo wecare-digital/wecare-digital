@@ -159,20 +159,25 @@ describe( 'Grahak OS five approved visual fixes', () => {
     expect( avatarMarkup ).not.toContain( '>W<' );
 
     expect( source ).toContain( '.verified-badge{width:18px;height:18px;background:#25d366' );
-    expect( source ).toContain( 'className="msg sent msg-home-green"' );
-    expect( source ).toContain( 'className="msg sent msg-home-blue"' );
-    expect( source ).toContain( 'className="msg received msg-home-amber"' );
-    expect( source ).toContain( '.msg.msg-home-green{background:#e0f7c8}' );
-    expect( source ).toContain( '.msg.msg-home-blue{background:#dbeafe}' );
-    expect( source ).toContain( '.msg.msg-home-amber{background:#fef3c7}' );
-    expect( source ).toContain( '.msg.sent.msg-home-green::before{border-top-color:#e0f7c8}' );
-    expect( source ).toContain( '.msg.sent.msg-home-blue::before{border-top-color:#dbeafe}' );
+    // The conversation stays two-tone: one consistent bubble treatment for the
+    // business sender and one for the customer receiver. Message-specific hero
+    // palette classes would make a single thread read like unrelated cards.
+    expect( ( source.match( /className="msg sent"/g ) || [] ) ).toHaveLength( 2 );
+    expect( ( source.match( /className="msg received"/g ) || [] ) ).toHaveLength( 2 );
+    expect( source ).toContain( '.msg.sent{background:#d9fdd3' );
+    expect( source ).toContain( '.msg.received{background:#fff' );
+    expect( source ).toContain( '.msg.sent::before' );
+    expect( source ).toContain( 'border-top:8px solid #d9fdd3' );
+    expect( source ).toContain( '.msg.received::before' );
+    expect( source ).toContain( 'border-top:8px solid #fff' );
+    expect( source ).not.toContain( 'msg-home-green' );
+    expect( source ).not.toContain( 'msg-home-blue' );
+    expect( source ).not.toContain( 'msg-home-amber' );
     expect( source ).toContain( '.typing-indicator span{width:7px;height:7px;background:#f0a818' );
     expect( source ).toContain( '.typing-indicator span:nth-child(2){background:#9849e8' );
     expect( source ).toContain( '.typing-indicator span:nth-child(3){background:#3da35a' );
     expect( source ).toContain( '@keyframes typingBubble' );
     expect( source ).toContain( '.typing-indicator{animation:none}' );
-    expect( source ).toContain( '.msg.received.msg-home-amber::before{border-top-color:#fef3c7}' );
     // Renamed .tab -> .pp-tab so the page owns the control outright: the bare .tab
     // class is declared unscoped in Pages.css and Layout.css, which were supplying
     // min-height, box-shadow, font-family and five more properties this page never

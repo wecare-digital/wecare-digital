@@ -334,9 +334,9 @@ response = requests.post(
                         contradicting each other. Keep this string and the panel's
                         "message" value identical; that is the whole point of showing
                         them side by side. */}
-                    <div className="msg sent msg-home-green"><p>Your order #WD-87A6G has been shipped</p><span className="msg-meta"><span className="msg-time">10:30</span><svg className="msg-ticks" viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" focusable="false"><path d="M11.07.65 5.3 8.6 2.3 5.6 1.2 6.7l4.2 4.2L12.2 1.75z" fill="currentColor"/><path d="M15.07.65 9.3 8.6l-.9-.9 6.17-8.4z" fill="currentColor"/></svg></span></div>
-                    <div className="msg sent msg-home-blue"><p>Track here: wecare.digital/track</p><span className="msg-meta"><span className="msg-time">10:30</span><svg className="msg-ticks" viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" focusable="false"><path d="M11.07.65 5.3 8.6 2.3 5.6 1.2 6.7l4.2 4.2L12.2 1.75z" fill="currentColor"/><path d="M15.07.65 9.3 8.6l-.9-.9 6.17-8.4z" fill="currentColor"/></svg></span></div>
-                    <div className="msg received msg-home-amber"><p>When will it arrive?</p><span className="msg-time">10:31</span></div>
+                    <div className="msg sent"><p>Your order #WD-87A6G has been shipped</p><span className="msg-meta"><span className="msg-time">10:30</span><svg className="msg-ticks" viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" focusable="false"><path d="M11.07.65 5.3 8.6 2.3 5.6 1.2 6.7l4.2 4.2L12.2 1.75z" fill="currentColor"/><path d="M15.07.65 9.3 8.6l-.9-.9 6.17-8.4z" fill="currentColor"/></svg></span></div>
+                    <div className="msg sent"><p>Track here: wecare.digital/track</p><span className="msg-meta"><span className="msg-time">10:30</span><svg className="msg-ticks" viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" focusable="false"><path d="M11.07.65 5.3 8.6 2.3 5.6 1.2 6.7l4.2 4.2L12.2 1.75z" fill="currentColor"/><path d="M15.07.65 9.3 8.6l-.9-.9 6.17-8.4z" fill="currentColor"/></svg></span></div>
+                    <div className="msg received"><p>When will it arrive?</p><span className="msg-time">10:31</span></div>
                     <div className="msg received"><p>Can I change the delivery address?</p><span className="msg-time">10:32</span></div>
                     <div className="typing-indicator"><span></span><span></span><span></span></div>
                   </div>
@@ -826,21 +826,14 @@ response = requests.post(
              a rendering fault rather than a deliberate overlap. 66% keeps them clear
              of it. */
           .msg.received{background:#fff;align-self:flex-start;max-width:66%;border-top-left-radius:3px}
-          /* Keep WhatsApp's soft mint as the sent-bubble fallback, then borrow three
-             HOME hero tints for the first three visible bubbles: green, blue and amber.
-             The fourth received bubble stays white, so the mock still reads as a chat
-             rather than a row of branded cards. All three tints keep black body text and
-             the #54656f timestamp comfortably readable. */
+          /* Keep the thread semantically two-tone: every WECARE.DIGITAL message uses
+             WhatsApp's soft mint and every customer message uses white. Bubble colour
+             communicates sender/receiver identity only; individual messages do not
+             borrow unrelated hero palette colours. */
           .msg.sent{background:#d9fdd3;align-self:flex-end;border-top-right-radius:3px}
-          .msg.msg-home-green{background:#e0f7c8}
-          .msg.msg-home-blue{background:#dbeafe}
-          .msg.msg-home-amber{background:#fef3c7}
-          /* Bubble tails match each bubble fill exactly. */
+          /* Bubble tails match each side's single bubble fill exactly. */
           .msg.sent::before{content:'';position:absolute;top:0;right:-7px;width:0;height:0;border-top:8px solid #d9fdd3;border-right:8px solid transparent}
           .msg.received::before{content:'';position:absolute;top:0;left:-7px;width:0;height:0;border-top:8px solid #fff;border-left:8px solid transparent}
-          .msg.sent.msg-home-green::before{border-top-color:#e0f7c8}
-          .msg.sent.msg-home-blue::before{border-top-color:#dbeafe}
-          .msg.received.msg-home-amber::before{border-top-color:#fef3c7}
           .msg{position:relative}
           /* Every sent bubble sits on the right. Two of them previously carried a
              left-msg override that forced them to flex-start, so outgoing messages
