@@ -489,18 +489,15 @@ describe( 'the product page', () => {
     expect( screen.queryByRole( 'link', { name: 'Ask about Kiosk' } ) ).toBeNull();
   } );
 
-  it( 'stays truthful that payment is not live yet, without claiming it is not a checkout', () => {
-    // The boundary statement is the honest part of shipping a priced catalogue while live payment
-    // is off: the store confirms the amount, and proceeding prepares the order without charging.
-    // It no longer claims "this page is not a checkout" now that a cart path exists.
+  it( 'uses concise customer-facing purchase copy without checkout implementation wording', () => {
     const kiosk: ShopProduct = {
       ...SYNTHETIC, id: 'synthetic-kiosk', name: 'Kiosk', slug: 'kiosk', inStock: true,
       formattedPrice: '₹26,999.00', price: '26999.00',
     };
     render( <ShopProductPage product={ kiosk } /> );
-    expect( screen.getByText( /One-time purchase · Review your final total in the cart before payment/ ) ).toBeTruthy();
-    expect( screen.getByText( /Review your final total in the cart before payment/ ) ).toBeTruthy();
-    expect( screen.queryByText( /This page is not a checkout/ ) ).toBeNull();
+    expect( screen.getByText( 'One-time purchase' ) ).toBeTruthy();
+    expect( screen.queryByText( /final total/i ) ).toBeNull();
+    expect( screen.queryByText( /confirmed at checkout/i ) ).toBeNull();
   } );
 
   it( 'marks a product that is out of stock', () => {

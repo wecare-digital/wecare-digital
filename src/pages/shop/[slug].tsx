@@ -139,7 +139,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
               ) }
 
             <p className="shopd-price" data-wc-no-translate="true">{ product.formattedPrice }</p>
-            <p className="shopd-offer-note">One-time purchase · Review your final total in the cart before payment</p>
+            <p className="shopd-offer-note">One-time purchase</p>
 
             { sku && policy && (
               <div className="shopd-policy-wrap">
