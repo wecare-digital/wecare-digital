@@ -148,8 +148,8 @@ describe( 'WECARE.DIGITAL Home', () => {
 
     // 600, not 700. The contract's weight inversion is deliberate and two other
     // pages carry the same guard.
-    expect( css ).toContain( 'font-size:clamp(36px,4.3vw,60px)' );
-    expect( css ).toContain( 'font-weight:600' );
+    expect( css ).toContain( 'font-size:var(--public-hero-size)' );
+    expect( css ).toContain( 'font-weight:var(--public-hero-weight)' );
 
     /**
      * TRACKING IS IN em, AND THAT IS THE ASSERTION.
@@ -333,7 +333,7 @@ describe( 'WECARE.DIGITAL Home', () => {
     const css = cssOf( container );
 
     expect( layout ).toBeInTheDocument();
-    expect( css ).toContain( 'max-width:1300px' );
+    expect( css ).toContain( 'max-width:var(--public-content-max)' );
     // Bottom padding reduced 96->48 (and 64->40 on mobile) when the Subscribe+Share block
     // became the last child of .home-layout, so the air below the row is a balanced ~48px
     // rather than the full section rhythm. The top padding and gaps are unchanged.
