@@ -41,8 +41,6 @@ FUNCTIONS = ROOT / "amplify" / "functions"
 INVOICE_ENGINE = FUNCTIONS / "payments" / "invoice-engine" / "handler.py"
 INBOUND = FUNCTIONS / "messaging" / "inbound-whatsapp-handler" / "handler.py"
 CLEANUP = FUNCTIONS / "operations" / "system-cleanup" / "handler.py"
-DASHBOARD = ROOT / "src" / "pages" / "workspace" / "dashboard" / "index.tsx"
-
 #: Every site that names the invoice prefix, and the file it lives in.
 PREFIX_SITES = [INVOICE_ENGINE, INBOUND, CLEANUP]
 
@@ -209,16 +207,14 @@ def test_delivery_does_not_need_a_public_url_at_all():
         "breaks WhatsApp invoice delivery")
 
 
-def test_the_dashboard_cleanup_mirror_agrees_with_the_backend():
-    """The dashboard's prefix list is the fallback shown when the live preview is unreachable,
-    so a wrong root there is displayed exactly when nothing can contradict it. It previously
-    read one level above the data for the same reason."""
-    source = DASHBOARD.read_text(encoding="utf-8")
-    row = next((line for line in source.splitlines() if "'s3_invoices'" in line), "")
-    assert row, "the dashboard no longer lists s3_invoices"
-    assert "SECURE_ROOT" in row, (
-        f"the dashboard's s3_invoices prefix must use SECURE_ROOT to match system-cleanup: {row.strip()}")
-    assert "PUBLIC_ROOT" not in row
+def test_the_cleanup_registry_keeps_invoice_files_on_the_gated_root():
+    """The workspace refactor removed the old dashboard mirror, so the backend cleanup
+    registry is now the single source displayed by cleanup tooling. Keep the real invariant:
+    invoice files must be swept from the same gated prefix the writers use."""
+    source = CLEANUP.read_text(encoding="utf-8")
+    block = source.split("'s3_invoices':", 1)[1].split("},", 1)[0]
+    assert "media_paths.secure('stack/invoices/')" in block
+    assert "media_paths.public('stack/invoices/')" not in block
 
 
 def test_a_gated_key_answers_200_with_a_fallback_rather_than_403():
