@@ -1274,18 +1274,18 @@ export default function OrdersPage (): React.ReactElement {
              while a declaring headline stays on Inter. */
           .ord-h2{
             font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-            font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;
-            letter-spacing:-1.2px;color:rgba(0,0,0,.95);margin:0 0 14px;
+            font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);
+            letter-spacing:var(--public-section-tracking);color:var(--public-heading);margin:0 0 14px;
           }
           /* The one body rung: 20px/400/1.4/-.125px at rgba(0,0,0,.898), 18px under 767px. */
           .ord-p,.ord-aside{
             font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-            font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;
-            color:rgba(0,0,0,.898);margin:0;
+            font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+            color:var(--public-body);margin:0;
           }
           .ord-gate{display:flex;flex-direction:column;align-items:flex-start;gap:20px}
-          .ord-nodetails{padding:18px;border:1px solid #e5e7eb;border-radius:14px;background:#fff}
-          .ord-link{color:#1a3a2a;font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
+          .ord-nodetails{padding:18px;border:1px solid var(--public-hairline);border-radius:14px;background:#fff}
+          .ord-link{color:var(--public-brand-green);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
 
           /* The state treatment, lifted from .cart-status: a lime tint behind a solid lime
              inline-start edge with #1a3a2a type. A luminance and weight step rather than a hue,
@@ -1293,8 +1293,8 @@ export default function OrdersPage (): React.ReactElement {
              is never the only cue, because every one of these states is also stated in words. */
           .ord-notice{
             font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-            margin:0;padding:14px 16px;border-inline-start:4px solid #d1f470;border-radius:10px;
-            background:rgba(209,244,112,.22);color:#1a3a2a;
+            margin:0;padding:14px 16px;border-inline-start:4px solid var(--public-brand-lime);border-radius:10px;
+            background:var(--public-lime-tint);color:var(--public-brand-green);
             font-size:16px;font-weight:700;line-height:1.5;
           }
 
@@ -1309,22 +1309,22 @@ export default function OrdersPage (): React.ReactElement {
             width:100%;border-collapse:collapse;
             font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
           }
-          .ord-tablewrap{overflow-x:auto;border:1px solid #e5e7eb;border-radius:14px;background:#fff}
+          .ord-tablewrap{overflow-x:auto;border:1px solid var(--public-hairline);border-radius:14px;background:#fff}
           .ord-tablewrap:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
 
           /* 1px and static: these borders never change. The row's hover is a background tint
              only, and the 2px weight stays reserved for hoverable controls. */
           .ord-th{
-            text-align:start;padding:14px 16px;border-block-end:1px solid #e5e7eb;
-            font-size:12px;font-weight:700;letter-spacing:0;color:#1a3a2a;white-space:nowrap;
+            text-align:start;padding:14px 16px;border-block-end:1px solid var(--public-hairline);
+            font-size:12px;font-weight:700;letter-spacing:0;color:var(--public-brand-green);white-space:nowrap;
           }
           .ord-th-num{text-align:end}
-          .ord-tr{border-block-start:1px solid #e5e7eb}
+          .ord-tr{border-block-start:1px solid var(--public-hairline)}
           /* A reading aid, not an affordance: the <tr> has no onClick, no role, no tabindex and
              no cursor:pointer, so there is nothing to discover and fail to activate. Row
              tracking across five columns is what the tint is for. No :active equivalent - a tap
              on a row must do nothing and look like it did nothing. */
-          .ord-tr:hover{background:rgba(209,244,112,.22)}
+          .ord-tr:hover{background:var(--public-lime-tint)}
 
           /* text-align:start and font-weight:400 are RESETS, and required rather than tidy:
              .ord-td is also carried by the <th scope="row"> in column 1, where the UA stylesheet
@@ -1343,7 +1343,7 @@ export default function OrdersPage (): React.ReactElement {
           /* The 14px/400/rgba(0,0,0,.54) sub-line rung, shared by all three sub-lines below the
              identifier. Not 13px: a one-pixel "table cells are tighter" exception is not a
              reason to leave the ladder. */
-          .ord-ref{display:block;font-size:14px;font-weight:400;color:rgba(0,0,0,.54)}
+          .ord-ref{display:block;font-size:14px;font-weight:400;color:var(--public-muted)}
           /* The order-source tag. The SAME sub-line rung as .ord-ref, deliberately: the tag is
              metadata about the row and promoting it with a pill, a background or a brand colour
              would make a label compete with the order number for attention. 700 rather than 400
@@ -1352,14 +1352,14 @@ export default function OrdersPage (): React.ReactElement {
              alone, which is what keeps it legible to a reader who cannot tell these two greys
              apart. Page-local on purpose: the shared control CSS under src/styles/ belongs to
              another worktree and this rule has one consumer. */
-          .ord-src{display:block;font-size:14px;font-weight:700;color:rgba(0,0,0,.54)}
+          .ord-src{display:block;font-size:14px;font-weight:700;color:var(--public-muted)}
           /* Same rung, but it is the Date column's understudy: hidden while that column is
              visible, so the date renders EXACTLY ONCE at every width. Declared display:none
              here, ahead of every media query, and flipped in the SAME query that hides the
              column it replaces - separating the two is what once rendered the date twice above
              767px, and a test that checked only the column would have passed on it. */
-          .ord-subdate{display:none;font-size:14px;font-weight:400;color:rgba(0,0,0,.54)}
-          .ord-invnote{display:block;font-size:14px;font-weight:400;color:rgba(0,0,0,.54)}
+          .ord-subdate{display:none;font-size:14px;font-weight:400;color:var(--public-muted)}
+          .ord-invnote{display:block;font-size:14px;font-weight:400;color:var(--public-muted)}
 
           .ord-ordbtn{
             display:inline-flex;align-items:center;gap:8px;min-height:44px;
@@ -1374,11 +1374,11 @@ export default function OrdersPage (): React.ReactElement {
              .ord-link's, reused rather than coined. */
           .ord-ordbtn:hover,.ord-ordbtn:focus-visible{text-decoration-thickness:2px}
           .ord-ordbtn:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-          .ord-caret{font-size:12px;color:#1a3a2a}
+          .ord-caret{font-size:12px;color:var(--public-brand-green)}
 
-          .ord-tr-open{background:rgba(209,244,112,.22)}
-          .ord-detailcell{padding:0 16px 18px;border-block-end:1px solid #e5e7eb}
-          .ord-live{font-size:14px;color:rgba(0,0,0,.54)}
+          .ord-tr-open{background:var(--public-lime-tint)}
+          .ord-detailcell{padding:0 16px 18px;border-block-end:1px solid var(--public-hairline)}
+          .ord-live{font-size:14px;color:var(--public-muted)}
 
           /* THE ONE PERMITTED HIDE MECHANISM ON THIS PAGE, and it appears exactly once.
              visibility:hidden KEEPS the box, so revealing the hint shifts nothing - which a
@@ -1392,18 +1392,18 @@ export default function OrdersPage (): React.ReactElement {
              and there is nothing for a touch user to miss. */
           .ord-tip{
             display:block;visibility:hidden;
-            font-size:14px;font-weight:400;color:rgba(0,0,0,.54);
+            font-size:14px;font-weight:400;color:var(--public-muted);
           }
           .ord-copy:hover ~ .ord-tip,.ord-copy:focus-visible ~ .ord-tip,.ord-tip-on{visibility:visible}
 
           .ord-facts{margin:0;display:grid;grid-template-columns:96px 1fr;gap:8px 12px;align-items:baseline}
-          .ord-facts dt{font-size:12px;font-weight:700;color:#1a3a2a}
+          .ord-facts dt{font-size:12px;font-weight:700;color:var(--public-brand-green)}
           .ord-facts dd{margin:0;font-size:16px;line-height:1.5;color:#1a1a1a}
           .ord-amount{font-weight:700}
           .ord-status{
             display:inline-flex;flex-direction:column;gap:2px;
-            padding:14px 16px;border-inline-start:3px solid #d1f470;border-radius:10px;
-            background:rgba(209,244,112,.22);color:#1a3a2a;line-height:1.5;
+            padding:14px 16px;border-inline-start:3px solid var(--public-brand-lime);border-radius:10px;
+            background:var(--public-lime-tint);color:var(--public-brand-green);line-height:1.5;
           }
           .ord-status-firm{border-inline-start-width:4px}
           .ord-status-label{font-size:16px;font-weight:600}
@@ -1431,9 +1431,9 @@ export default function OrdersPage (): React.ReactElement {
           .ord-quiet,.ord-inv,.ord-copy{
             align-self:flex-start;display:inline-flex;align-items:center;justify-content:center;
             min-height:44px;padding:0 24px;border:2px solid #d1f470;border-radius:50px;
-            background:#fff;color:#1a3a2a;font:inherit;font-size:17px;font-weight:600;cursor:pointer;
+            background:#fff;color:var(--public-brand-green);font:inherit;font-size:17px;font-weight:600;cursor:pointer;
           }
-          .ord-quiet:hover:not(:disabled),.ord-inv:hover:not(:disabled),.ord-copy:hover:not(:disabled){background:rgba(209,244,112,.22)}
+          .ord-quiet:hover:not(:disabled),.ord-inv:hover:not(:disabled),.ord-copy:hover:not(:disabled){background:var(--public-lime-tint)}
           .ord-quiet:focus-visible,.ord-inv:focus-visible,.ord-copy:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
           .ord-quiet:disabled,.ord-inv:disabled,.ord-copy:disabled{opacity:.55;cursor:default}
 
