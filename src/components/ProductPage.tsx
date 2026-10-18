@@ -61,7 +61,7 @@ interface ProductPageProps {
   /**
    * OPT-IN BREADCRUMB above the product copy. Omit it and the page renders byte for byte what it
    * rendered before, which is what keeps the eight non-shop routes that mount this component - the
-   * seven CUSTOMERSERVICE entries plus /shipments/ - and their pinned tests untouched.
+   * the customer-service entries and their pinned tests untouched.
    *
    * OPT-IN RATHER THAN ALWAYS-ON, AND THAT IS THE DECISION. Those eight are not shop members, so a
    * Home / Shop / <Name> trail would be a false statement on them. The eight products pass one:
@@ -155,8 +155,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
         </ul>
 
         {/* ONE pill for every page that sets only ctaLabel/ctaHref; a SECOND pill appears only
-            when the product carries both ctaLabel2 and ctaHref2 (today just /shipments/, which
-            has a tracking door and a pickup door). The first anchor is byte-for-byte what it was
+            when a product carries both ctaLabel2 and ctaHref2. The first anchor is byte-for-byte what it was
             before this wrapper — same whatsappServiceLink() resolution — so single-CTA pages are
             unchanged. The second anchor uses ctaHref2 directly and is NOT routed through
             whatsappServiceLink(): the slug resolves to one service link, so the pickup button
@@ -167,8 +166,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             two labelled, same-shape pills instead of an action verb plus a floating grey note.
             `ctaLabel` is kept in the content for menus/future use but is no longer the pill face;
             it is consumed nowhere else (verified). A page that declares a second anchor
-            (ctaLabel2/ctaHref2, today only /shipments/) keeps its own labels — Shipments is a
-            tracking/pickup page, not a checkout page, so its two WhatsApp doors are unchanged. */}
+            (ctaLabel2/ctaHref2) keeps its own labels rather than adopting checkout wording. */}
         <div className="pdp-ctas">
           <a className="pdp-cta" href={ whatsappServiceLink( product.slug ) || product.ctaHref }>
             { product.ctaLabel2 ? product.ctaLabel : 'Continue on WhatsApp \u2192' }
@@ -254,7 +252,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              viewport. margin-top:30px lives HERE, not on .pdp-cta, so a page with a single pill
              keeps the exact gap it had before the wrapper existed — the anchor's own line box
              contributed no height, so moving the margin up one level is a no-op for single-CTA
-             pages (RequestNotes.test.ts pins this). gap:12px separates the pair on /shipments/. */
+             pages (RequestNotes.test.ts pins this). gap:12px separates a two-CTA pair. */
           .pdp-ctas{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:30px}
           /* Full-strength #d1f470 with #1a3a2a type - the contract's own-surface pairing -
              and 2px because the hairline rule is that 2px means hoverable. */
