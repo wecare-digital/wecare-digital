@@ -10,9 +10,13 @@ import PublicShare from '../../components/PublicShare';
 import ProductBuyBox from '../../components/ProductBuyBox';
 import PolicyDetails from '../../components/public/PolicyDetails';
 import RotatingHero from '../../components/RotatingHero';
-import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCommerce';
+import { productPolicyCopy } from '../../content/productCommerce';
+import { productCheckoutLine } from '../../config/productCheckout';
 
 const GRAHAK_POLICY = productPolicyCopy( 'grahak-os', 'Grahak OS' );
+const GRAHAK_CHECKOUT = productCheckoutLine( 'grahak-os' );
+const GRAHAK_DISPLAY_PRICE = GRAHAK_CHECKOUT?.formattedPrice.replace( /\.00$/, '' ) ?? null;
+const GRAHAK_SKU = GRAHAK_CHECKOUT?.variantId ?? null;
 
 const GrahakOsPage: React.FC = () => {
   const [visible, setVisible] = useState<Set<string>>(new Set());
@@ -473,13 +477,17 @@ response = requests.post(
                   <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Checkout on WhatsApp &#8594;</a>
                 </div>
                 <ProductBuyBox slug="grahak-os" showPrice={ false } />
-                <p className="gos-price" data-wc-no-translate="true">&#8377;899</p>
+                { GRAHAK_DISPLAY_PRICE && (
+                  <p className="gos-price" data-wc-no-translate="true">{ GRAHAK_DISPLAY_PRICE }</p>
+                ) }
                 <p className="gos-offer-note">One-time consultation · full deployment separate</p>
-                {/* SKU stays visible; the standard policy remains available without dominating
-                    an enterprise consulting offer. The policy text still comes from the shared
-                    productCommerce constants so this page cannot drift from checkout policy. */}
+                {/* Price + SKU come from the same checkout mapping as the checkout action.
+                    They are presented as commerce metadata; page-specific policy wording
+                    remains in the shared PolicyDetails disclosure below. */}
                 <div className="gos-commerce">
-                  <p data-wc-no-translate="true"><strong>SKU:</strong> { PRODUCT_SKU_BY_SLUG['grahak-os'] }</p>
+                  { GRAHAK_SKU && (
+                    <p data-wc-no-translate="true"><strong>SKU:</strong> <span className="gos-sku-value">{ GRAHAK_SKU }</span></p>
+                  ) }
                   <PolicyDetails
                     shipping={ GRAHAK_POLICY.shipping }
                     returns={ GRAHAK_POLICY.returns }
@@ -670,7 +678,7 @@ response = requests.post(
           /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
              above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
           .gos-price{display:block;margin-top:22px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
-          .gos-offer-note{max-width:620px;margin:7px 0 0;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body)}
+          .gos-offer-note{max-width:620px;margin:7px 0 0;font-size:17px;font-weight:400;line-height:1.4;letter-spacing:-.05px;color:var(--public-muted)}
           @media(prefers-reduced-motion:reduce){
             .gos-wa-cta{transition:background-color .2s}
             .gos-wa-cta:hover{transform:none;box-shadow:none}
@@ -716,9 +724,10 @@ response = requests.post(
              their rules stay. */
           .gos-commerce{
             margin-top:14px;max-width:700px;font-family:inherit;font-size:17px;font-weight:400;line-height:1.4;
-            letter-spacing:-.05px;color:var(--public-body);text-align:left;
+            letter-spacing:-.05px;color:var(--public-muted);text-align:left;
           }
           .gos-commerce strong{color:var(--public-brand-green);font-weight:700}
+          .gos-sku-value{color:var(--public-muted)}
           .gos-commerce p{margin:0}
           /* The .gos-closer-head rule was REMOVED with the closer heading markup on owner
              instruction (the "Transform customer engagement with Grahak OS" h2 is gone). */
@@ -1011,9 +1020,8 @@ response = requests.post(
           .api-step-title{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:rgba(0,0,0,.95);margin:0 0 6px}
           /* Supporting line uses the same 20px body rung as Home. */
           .api-step-line{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0}
-          /* Buy block: WhatsApp checkout pill, then price + explanation, then the policy
-             card. gos-wa-cta/gos-price/gos-commerce are shared page rules; only the layout
-             gaps are set here. */
+          /* Buy block: WhatsApp checkout pill, then price + muted supporting note, then SKU
+             and the compact policy disclosure. Only layout gaps are page-local here. */
           .api-steps-buy{max-width:700px}
           .api-steps-ctas{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
           .api-steps-buy .gos-price{text-align:left}
