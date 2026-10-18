@@ -194,7 +194,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
           }
         }
 
-        .lgd-intro{margin:0 0 16px;font-size:19px;font-weight:400;line-height:1.55;letter-spacing:-.125px;color:rgba(0,0,0,.898)}
+        .lgd-intro{margin:0 0 16px;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body)}
 
         /* The one lime surface on the page. A legal document should not be decorated,
            but the "this is not advice" note has to be found before the clauses are
@@ -203,13 +203,13 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
            not have. */
         .lgd-notice{
           margin:28px 0 36px;padding:16px 18px;
-          background:rgba(209,244,112,.22);border-left:4px solid #d1f470;border-radius:8px;
-          font-size:16px;line-height:1.55;color:rgba(0,0,0,.898);
+          background:var(--public-lime-tint);border-left:4px solid var(--public-brand-lime);border-radius:8px;
+          font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted);
         }
 
         /* Deliberately quiet - it sits directly under the lime notice and must not
            compete with it for the same glance. Muted body colour at the intro size. */
-        .lgd-disclaimer{margin:0 0 36px;font-size:15.5px;line-height:1.6;color:rgba(0,0,0,.54)}
+        .lgd-disclaimer{margin:0 0 36px;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted)}
 
         /* SUMMARIES USE NEUTRALS ONLY. Lime is already spoken for on this page: the
            notice block owns it, and it means "read this before the clauses". Repeating
@@ -219,7 +219,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
            is doing the opposite job to the notice - it wants to be skimmed past once the
            reader has found their section, not fixated on. Every value here is already
            in the palette. */
-        .lgd-short{margin:0 0 14px;padding:0 0 0 14px;border-left:2px solid #e5e7eb;font-size:15.5px;font-weight:400;line-height:1.55;color:rgba(0,0,0,.54)}
+        .lgd-short{margin:0 0 14px;padding:0 0 0 14px;border-left:2px solid var(--public-hairline);font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted)}
         /* display:block puts the tag on its own line so the summary text stays a clean
            rectangle - inline, the first line was indented by the tag width and the
            result read as a hanging indent rather than a label. */
@@ -230,10 +230,10 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
            a correction onto an existing token rather than a new one. Lighthouse's axe pass
            flagged four instances on /terms/; the focus-ring sweep never looked at these
            because they are neither indicators nor named labels. */
-        .lgd-short-tag{display:block;margin-bottom:3px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:rgba(0,0,0,.54)}
+        .lgd-short-tag{display:block;margin-bottom:3px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--public-muted)}
 
-        .lgd-toc{margin:0 0 48px;padding:22px 24px;border:1px solid #e5e7eb;border-radius:14px}
-        .lgd-toc-title{margin:0 0 14px;font-size:14px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:rgba(0,0,0,.54)}
+        .lgd-toc{margin:0 0 48px;padding:22px 24px;border:1px solid var(--public-hairline);border-radius:14px}
+        .lgd-toc-title{margin:0 0 14px;font-size:14px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--public-muted)}
         /* ONE column is the base, and two columns are opted into only for the inline
            layout between 768 and 1099px, where the contents sit above the document at
            full width and 45 entries in a single column would be a very long scroll.
@@ -251,7 +251,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
           .lgd-toc-list{columns:2}
         }
         .lgd-toc-list li{break-inside:avoid;margin:0 0 2px}
-        .lgd-toc-link{display:flex;gap:10px;padding:6px 8px;margin:0 -8px;border-radius:7px;font-size:15px;line-height:1.45;color:#1a3a2a;text-decoration:none}
+        .lgd-toc-link{display:flex;gap:10px;padding:6px 8px;margin:0 -8px;border-radius:7px;font-size:15px;line-height:1.45;color:var(--public-brand-green);text-decoration:none}
         /* HOVER AND FOCUS ARE SPLIT, because one rule cannot serve both here.
            This was a single declaration: hover and focus-visible shared the lime tint AND
            outline:none. So a keyboard user's only focus indicator was that tint, which
@@ -264,9 +264,9 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
            on focus as well is deliberate - the two states then look related rather than
            unrelated - but the ring is what makes focus perceivable.
            Do not re-merge these selectors. */
-        .lgd-toc-link:hover{background:rgba(209,244,112,.22)}
-        .lgd-toc-link:focus-visible{background:rgba(209,244,112,.22);outline:3px solid #1a3a2a;outline-offset:1px}
-        .lgd-toc-num{flex:0 0 auto;min-width:22px;font-weight:600;color:rgba(0,0,0,.54)}
+        .lgd-toc-link:hover{background:var(--public-lime-tint)}
+        .lgd-toc-link:focus-visible{background:var(--public-lime-tint);outline:3px solid var(--public-brand-green);outline-offset:1px}
+        .lgd-toc-num{flex:0 0 auto;min-width:22px;font-weight:600;color:var(--public-muted)}
 
         /* scroll-margin-top clears the fixed 108px header. Without it, following a
            contents link puts the heading underneath the header and the reader lands
@@ -274,31 +274,28 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
         .lgd-section{margin:0 0 34px;scroll-margin-top:128px}
         .lgd-section.is-sub{margin-left:0}
 
-        /* Section h2 is the contract's 700 rung - heavier than the hero h1's 600. Scaled
-           down for document use, but the weight relationship is preserved. */
-        .lgd-h2{margin:0 0 12px;font-size:clamp(22px,2.4vw,28px);font-weight:700;line-height:1.2;letter-spacing:-.6px;color:rgba(0,0,0,.95)}
-        .lgd-h3{margin:0 0 10px;font-size:19px;font-weight:700;line-height:1.3;letter-spacing:-.3px;color:rgba(0,0,0,.95)}
+        /* Legal sections use the same public hierarchy as the rest of the site: section H2,
+           then card/subsection H3. Density is handled by the reading measure and spacing, not
+           by inventing a second type ladder for these two routes. */
+        .lgd-h2{margin:0 0 12px;font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking);color:var(--public-heading)}
+        .lgd-h3{margin:0 0 10px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading)}
         /* The clause number sits in the left margin on a wide screen so headings align
            on their text rather than stepping right as numbers get wider. */
-        .lgd-num{display:inline-block;min-width:44px;color:rgba(0,0,0,.54);font-weight:600}
+        .lgd-num{display:inline-block;min-width:44px;color:var(--public-muted);font-weight:600}
 
-        .lgd-p{margin:0 0 12px;font-size:17px;font-weight:400;line-height:1.65;letter-spacing:-.05px;color:rgba(0,0,0,.898)}
+        .lgd-p{margin:0 0 12px;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body)}
         .lgd-p:last-child{margin-bottom:0}
 
-        .lgd-inline-link{color:#1a3a2a;font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
-        .lgd-inline-link:hover{background:rgba(209,244,112,.22)}
+        .lgd-inline-link{color:var(--public-brand-green);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
+        .lgd-inline-link:hover{background:var(--public-lime-tint)}
 
         @media(max-width:767px){
           /* One column: two columns of contents on a phone gives ~20 characters a line. */
           .lgd-toc-list{columns:1}
           .lgd-toc{padding:18px 16px;margin-bottom:36px}
           .lgd-section{scroll-margin-top:112px}
-          .lgd-intro{font-size:18px}
-          .lgd-p{font-size:16.5px}
-          /* Summaries earn their keep on a phone, which is where these documents are
-             actually opened, so they shrink less than the body does. */
-          .lgd-short{font-size:15px;padding-left:12px}
-          .lgd-disclaimer{font-size:15px}
+          /* Keep the shared type ladder intact on narrow screens; only geometry changes. */
+          .lgd-short{padding-left:12px}
           /* Numbers move inline: a 44px gutter on a 320px screen costs 14% of the width. */
           .lgd-num{min-width:0;margin-right:8px}
         }
