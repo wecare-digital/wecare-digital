@@ -294,7 +294,9 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
   } );
 
   it( 'keeps SKU visible and uses the shared PolicyDetails disclosure', () => {
-    expect( source ).toContain( "PRODUCT_SKU_BY_SLUG['grahak-os']" );
+    expect( source ).toContain( "const GRAHAK_CHECKOUT = productCheckoutLine( 'grahak-os' )" );
+    expect( source ).toContain( "const GRAHAK_DISPLAY_PRICE = GRAHAK_CHECKOUT?.formattedPrice.replace( /\\.00$/, '' ) ?? null" );
+    expect( source ).toContain( 'const GRAHAK_SKU = GRAHAK_CHECKOUT?.variantId ?? null' );
     expect( source ).toContain( "const GRAHAK_POLICY = productPolicyCopy( 'grahak-os', 'Grahak OS' )" );
     expect( source ).toContain( '<PolicyDetails' );
     expect( source ).toContain( 'shipping={ GRAHAK_POLICY.shipping }' );
@@ -307,6 +309,9 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( commerceRule ).toContain( 'font-size:17px' );
     expect( commerceRule ).not.toContain( 'border:1px solid' );
     expect( commerceRule ).not.toContain( 'background:#fcfdfb' );
+    expect( source ).toContain( '.gos-offer-note{max-width:620px;margin:7px 0 0;font-size:17px' );
+    expect( source ).toContain( 'color:var(--public-muted)' );
+    expect( source ).toContain( '.gos-sku-value{color:var(--public-muted)}' );
   } );
 
   it( 'uses only existing design tokens for the step block and introduces no new palette', () => {
