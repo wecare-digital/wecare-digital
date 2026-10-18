@@ -232,8 +232,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);
             letter-spacing:var(--public-section-tracking);color:var(--public-heading);margin:0 0 22px;
           }
-          /* The lead runs at the body level but slightly tighter, because it is a paragraph
-             of context rather than a point being made. */
+          /* Narrative lead copy stays on the canonical public body rung. */
           .pdp-lead{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0 0 34px}
           /* When a lead is split into an opener + a main paragraph (today only /anew/), the
              paragraphs sit 16px apart; the 34px below the LAST lead stays as the gap before the
@@ -344,9 +343,6 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              the other seven product pages, where .pdp-wrap is a block - but scoping it says which
              layout it is for. */
           :global(.pdp-wrap.has-aside .page-shell-crumbs){grid-column:1 / -1}
-
-          @media(max-width:767px){
-          }
           @media(min-width:768px){
             :global(.pdp-wrap.has-aside){
               display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,480px);
