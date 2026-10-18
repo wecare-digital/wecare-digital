@@ -6,7 +6,10 @@
   "type": "module",
   "scripts": {
     "sandbox": "ampx sandbox",
-    "deploy": "ampx pipeline-deploy"
+    "deploy": "ampx pipeline-deploy",
+    "postinstall": "node ../scripts/guard_braces_depth.cjs",
+    "predeploy": "node ../scripts/guard_braces_depth.cjs --check",
+    "presandbox": "node ../scripts/guard_braces_depth.cjs --check"
   },
   "dependencies": {
     "@aws-amplify/backend": "^1.23.0",

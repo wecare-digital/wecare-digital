@@ -16,12 +16,16 @@ const listContacts = vi.fn();
 const listInvoicesEngine = vi.fn();
 const createInvoiceEngine = vi.fn();
 const getInvoiceDeliveryLog = vi.fn();
+const getInvoiceEngine = vi.fn();
+const sendPaymentLink = vi.fn();
 vi.mock( '../api/client', async importOriginal => ( {
   ...await importOriginal<typeof import( '../api/client' )>(),
   listContacts: ( ...a: unknown[] ) => listContacts( ...a ),
   listInvoicesEngine: ( ...a: unknown[] ) => listInvoicesEngine( ...a ),
   createInvoiceEngine: ( ...a: unknown[] ) => createInvoiceEngine( ...a ),
   getInvoiceDeliveryLog: ( ...a: unknown[] ) => getInvoiceDeliveryLog( ...a ),
+  getInvoiceEngine: ( ...a: unknown[] ) => getInvoiceEngine( ...a ),
+  sendPaymentLink: ( ...a: unknown[] ) => sendPaymentLink( ...a ),
 } ) );
 
 import PayFlowPage from '../components/workspace/pay/PayFlow';
@@ -49,6 +53,8 @@ beforeEach( () => {
   listInvoicesEngine.mockResolvedValue( { invoices: [] } );
   getInvoiceDeliveryLog.mockResolvedValue( { deliveryLogs: [] } );
   createInvoiceEngine.mockResolvedValue( SERVER_CREATE );
+  getInvoiceEngine.mockResolvedValue( { ...SERVER_CREATE, status: 'created', paymentStatus: 'pending', customerName: CUSTOMER.name, customerPhone: CUSTOMER.phone } );
+  sendPaymentLink.mockResolvedValue( { status: 'payment_link_sent' } );
 } );
 
 const openCreateForm = async (): Promise<void> => {
@@ -180,4 +186,33 @@ it( 'preserves a zero GST rate instead of replacing it with the default rate', a
   await waitFor( () => expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 ) );
   expect( lastRequest().items[ 0 ].gstRate ).toBe( 0 );
   expect( lastRequest() ).not.toHaveProperty( 'paymentConfiguration' );
+} );
+
+
+describe( 'created invoices lead to explicit review and send', () => {
+  it( 'opens the saved invoice without creating or sending another request', async () => {
+    await openCreateForm();
+    priceOneItem();
+    submit();
+    const next = await screen.findByRole( 'button', { name: 'Review and send payment request' } );
+    expect( screen.getByText( /No WhatsApp payment request has been sent by this create action/ ) ).toBeInTheDocument();
+    expect( sendPaymentLink ).not.toHaveBeenCalled();
+    fireEvent.click( next );
+    await waitFor( () => expect( getInvoiceEngine ).toHaveBeenCalledWith( 'inv_1' ) );
+    await waitFor( () => expect( screen.getByRole( 'tab', { name: 'Invoices' } ) ).toHaveAttribute( 'aria-selected', 'true' ) );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Send payment request' } ) );
+    await waitFor( () => expect( sendPaymentLink ).toHaveBeenCalledWith( 'inv_1', 'phone-number-id-waba1-direct-1016149501586345' ) );
+    expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 );
+  } );
+  it( 'retains the created invoice and offers recovery when its readback fails', async () => {
+    getInvoiceEngine.mockResolvedValue( null );
+    await openCreateForm();
+    priceOneItem();
+    submit();
+    fireEvent.click( await screen.findByRole( 'button', { name: 'Review and send payment request' } ) );
+    await screen.findByText( /Could not open the invoice/ );
+    expect( screen.getByRole( 'button', { name: 'Review and send payment request' } ) ).toBeInTheDocument();
+    expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 );
+    expect( sendPaymentLink ).not.toHaveBeenCalled();
+  } );
 } );

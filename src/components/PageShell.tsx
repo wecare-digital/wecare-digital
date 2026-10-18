@@ -19,6 +19,7 @@ interface PageShellProps {
   subtitle?: string;
   tabs: ShellTab[];
   defaultTab?: string;
+  activeTab?: string;
   actions?: React.ReactNode;
   children: (activeTab: string) => React.ReactNode;
   className?: string;
@@ -30,12 +31,14 @@ const PageShell: React.FC<PageShellProps> = ({
   subtitle,
   tabs,
   defaultTab,
+  activeTab: controlledTab,
   actions,
   children,
   className = '',
   onTabChange,
 }) => {
-  const [activeTab, setActiveTab] = useState(defaultTab || tabs[0]?.id || '');
+  const [internalTab, setActiveTab] = useState(defaultTab || tabs[0]?.id || '');
+  const activeTab = controlledTab ?? internalTab;
 
   const handleTabClick = (tabId: string) => {
     setActiveTab(tabId);

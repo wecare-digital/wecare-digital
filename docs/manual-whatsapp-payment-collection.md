@@ -16,7 +16,9 @@ create a new template per invoice or fill its order parameters by hand.
 4. Check delivery charges deliberately. Set them to zero when delivery is not charged.
    The form's saved/default delivery value is not a determination that delivery applies.
    Delight and convenience fees are calculated by the invoice engine, not entered manually.
-5. Choose **Create Invoice**. Open the created invoice in **Invoices** and check its customer,
+5. Choose **Create Invoice**. The confirmation states that no payment request has been sent.
+   Select **Review and send payment request** to open that exact saved invoice in **Invoices**.
+   Check its customer,
    goods type, amount and delivery details.
 6. Use the primary sender **+91 93309 94400** and choose **Send payment request**. The server
    resolves and verifies the registered payment configuration and reserves the invoice's
