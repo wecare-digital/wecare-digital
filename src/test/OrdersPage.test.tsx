@@ -389,7 +389,7 @@ describe( '/orders/ — static source gates', () => {
     const css = Array.from( container.querySelectorAll( 'style' ) )
       .map( node => node.textContent || '' ).join( '\n' );
     expect( css ).toContain( 'min-height:44px' );
-    expect( css ).toContain( 'min-height:52px' );
+    expect( css ).toContain( 'min-height:var(--public-cta-height)' );
   } );
 } );
 
