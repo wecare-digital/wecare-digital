@@ -39,77 +39,77 @@ Behind authentication. Listed so the set is reviewable, but none of these is pub
 
 | Route | Open locally |
 | --- | --- |
-| `[retired public path 2de923b8]/` | [http://localhost:3000/dm/](http://localhost:3000/dm/) |
-| `[retired public path 2de923b8]/analytics/` | [http://localhost:3000/dm/analytics/](http://localhost:3000/dm/analytics/) |
-| `[retired public path 2de923b8]/appointments/` | [http://localhost:3000/dm/appointments/](http://localhost:3000/dm/appointments/) |
-| `[retired public path 2de923b8]/automation/` | [http://localhost:3000/dm/automation/](http://localhost:3000/dm/automation/) |
-| `[retired public path 2de923b8]/broadcast/` | [http://localhost:3000/dm/broadcast/](http://localhost:3000/dm/broadcast/) |
-| `[retired public path 2de923b8]/calls/` | [http://localhost:3000/dm/calls/](http://localhost:3000/dm/calls/) |
-| `[retired public path 2de923b8]/channels/` | [http://localhost:3000/dm/channels/](http://localhost:3000/dm/channels/) |
-| `[retired public path 2de923b8][retired public path 862cdc9c]/` | [http://localhost:3000/dm/commerce/](http://localhost:3000/dm/commerce/) |
-| `[retired public path 2de923b8]/contact-360/` | [http://localhost:3000/dm/contact-360/](http://localhost:3000/dm/contact-360/) |
-| `[retired public path 2de923b8]/content/` | [http://localhost:3000/dm/content/](http://localhost:3000/dm/content/) |
-| `[retired public path 2de923b8]/cost/` | [http://localhost:3000/dm/cost/](http://localhost:3000/dm/cost/) |
-| `[retired public path 2de923b8][retired public path a2557b8d]/` | [http://localhost:3000/dm/docs/](http://localhost:3000/dm/docs/) |
-| `[retired public path 2de923b8]/documents/` | [http://localhost:3000/dm/documents/](http://localhost:3000/dm/documents/) |
-| `[retired public path 2de923b8]/enterprise/` | [http://localhost:3000/dm/enterprise/](http://localhost:3000/dm/enterprise/) |
-| `[retired public path 2de923b8][retired public path 1965ee0f]/` | [http://localhost:3000/dm/faq/](http://localhost:3000/dm/faq/) |
-| `[retired public path 2de923b8]/inbox/` | [http://localhost:3000/dm/inbox/](http://localhost:3000/dm/inbox/) |
-| `[retired public path 2de923b8]/logs/` | [http://localhost:3000/dm/logs/](http://localhost:3000/dm/logs/) |
-| `[retired public path 2de923b8]/meta-agent/` | [http://localhost:3000/dm/meta-agent/](http://localhost:3000/dm/meta-agent/) |
-| `[retired public path 2de923b8]/orders/` | [http://localhost:3000/dm/orders/](http://localhost:3000/dm/orders/) |
-| `[retired public path 2de923b8]/push/` | [http://localhost:3000/dm/push/](http://localhost:3000/dm/push/) |
-| `[retired public path 2de923b8]/rcs/` | [http://localhost:3000/dm/rcs/](http://localhost:3000/dm/rcs/) |
-| `[retired public path 2de923b8]/rcs/campaign/` | [http://localhost:3000/dm/rcs/campaign/](http://localhost:3000/dm/rcs/campaign/) |
-| `[retired public path 2de923b8]/rcs/inbox/` | [http://localhost:3000/dm/rcs/inbox/](http://localhost:3000/dm/rcs/inbox/) |
-| `[retired public path 2de923b8]/rcs/logs/` | [http://localhost:3000/dm/rcs/logs/](http://localhost:3000/dm/rcs/logs/) |
-| `[retired public path 2de923b8]/rcs/send/` | [http://localhost:3000/dm/rcs/send/](http://localhost:3000/dm/rcs/send/) |
-| `[retired public path 2de923b8]/rcs/templates/` | [http://localhost:3000/dm/rcs/templates/](http://localhost:3000/dm/rcs/templates/) |
-| `[retired public path 2de923b8]/reviews/` | [http://localhost:3000/dm/reviews/](http://localhost:3000/dm/reviews/) |
-| `[retired public path 2de923b8]/rx-slots/` | [http://localhost:3000/dm/rx-slots/](http://localhost:3000/dm/rx-slots/) |
-| `[retired public path 2de923b8]/scheduled/` | [http://localhost:3000/dm/scheduled/](http://localhost:3000/dm/scheduled/) |
-| `[retired public path 2de923b8]/search/` | [http://localhost:3000/dm/search/](http://localhost:3000/dm/search/) |
-| `[retired public path 2de923b8]/service-ops/` | [http://localhost:3000/dm/service-ops/](http://localhost:3000/dm/service-ops/) |
-| `[retired public path 2de923b8]/ses/` | [http://localhost:3000/dm/ses/](http://localhost:3000/dm/ses/) |
-| `[retired public path 2de923b8]/ses/campaign/` | [http://localhost:3000/dm/ses/campaign/](http://localhost:3000/dm/ses/campaign/) |
-| `[retired public path 2de923b8]/ses/inbox/` | [http://localhost:3000/dm/ses/inbox/](http://localhost:3000/dm/ses/inbox/) |
-| `[retired public path 2de923b8]/ses/logs/` | [http://localhost:3000/dm/ses/logs/](http://localhost:3000/dm/ses/logs/) |
-| `[retired public path 2de923b8][retired public path 2c56bef4]/` | [http://localhost:3000/dm/settings/](http://localhost:3000/dm/settings/) |
-| `[retired public path 2de923b8]/sms/` | [http://localhost:3000/dm/sms/](http://localhost:3000/dm/sms/) |
-| `[retired public path 2de923b8]/voice-in/` | [http://localhost:3000/dm/voice-in/](http://localhost:3000/dm/voice-in/) |
-| `[retired public path 2de923b8]/voice/` | [http://localhost:3000/dm/voice/](http://localhost:3000/dm/voice/) |
-| `[retired public path 2de923b8]/whatsapp/` | [http://localhost:3000/dm/whatsapp/](http://localhost:3000/dm/whatsapp/) |
-| `[retired public path 2de923b8]/whatsapp/ai-agent/` | [http://localhost:3000/dm/whatsapp/ai-agent/](http://localhost:3000/dm/whatsapp/ai-agent/) |
-| `[retired public path 2de923b8]/whatsapp/auto-response/` | [http://localhost:3000/dm/whatsapp/auto-response/](http://localhost:3000/dm/whatsapp/auto-response/) |
-| `[retired public path 2de923b8]/whatsapp/bsuid/` | [http://localhost:3000/dm/whatsapp/bsuid/](http://localhost:3000/dm/whatsapp/bsuid/) |
-| `[retired public path 2de923b8]/whatsapp/business-profile/` | [http://localhost:3000/dm/whatsapp/business-profile/](http://localhost:3000/dm/whatsapp/business-profile/) |
-| `[retired public path 2de923b8]/whatsapp/calling/` | [http://localhost:3000/dm/whatsapp/calling/](http://localhost:3000/dm/whatsapp/calling/) |
-| `[retired public path 2de923b8]/whatsapp/campaign/` | [http://localhost:3000/dm/whatsapp/campaign/](http://localhost:3000/dm/whatsapp/campaign/) |
-| `[retired public path 2de923b8]/whatsapp/catalog-builder/` | [http://localhost:3000/dm/whatsapp/catalog-builder/](http://localhost:3000/dm/whatsapp/catalog-builder/) |
-| `[retired public path 2de923b8]/whatsapp/connected-accounts/` | [http://localhost:3000/dm/whatsapp/connected-accounts/](http://localhost:3000/dm/whatsapp/connected-accounts/) |
-| `[retired public path 2de923b8]/whatsapp/conversions-api/` | [http://localhost:3000/dm/whatsapp/conversions-api/](http://localhost:3000/dm/whatsapp/conversions-api/) |
-| `[retired public path 2de923b8]/whatsapp/cost-controls/` | [http://localhost:3000/dm/whatsapp/cost-controls/](http://localhost:3000/dm/whatsapp/cost-controls/) |
-| `[retired public path 2de923b8]/whatsapp/ctwa-ads/` | [http://localhost:3000/dm/whatsapp/ctwa-ads/](http://localhost:3000/dm/whatsapp/ctwa-ads/) |
-| `[retired public path 2de923b8]/whatsapp/embedded-signup/` | [http://localhost:3000/dm/whatsapp/embedded-signup/](http://localhost:3000/dm/whatsapp/embedded-signup/) |
-| `[retired public path 2de923b8]/whatsapp/flow-hub/` | [http://localhost:3000/dm/whatsapp/flow-hub/](http://localhost:3000/dm/whatsapp/flow-hub/) |
-| `[retired public path 2de923b8]/whatsapp/flow-publish/` | [http://localhost:3000/dm/whatsapp/flow-publish/](http://localhost:3000/dm/whatsapp/flow-publish/) |
-| `[retired public path 2de923b8]/whatsapp/flow-responses/` | [http://localhost:3000/dm/whatsapp/flow-responses/](http://localhost:3000/dm/whatsapp/flow-responses/) |
-| `[retired public path 2de923b8]/whatsapp/flows/` | [http://localhost:3000/dm/whatsapp/flows/](http://localhost:3000/dm/whatsapp/flows/) |
-| `[retired public path 2de923b8]/whatsapp/groups/` | [http://localhost:3000/dm/whatsapp/groups/](http://localhost:3000/dm/whatsapp/groups/) |
-| `[retired public path 2de923b8]/whatsapp/inbox/` | [http://localhost:3000/dm/whatsapp/inbox/](http://localhost:3000/dm/whatsapp/inbox/) |
-| `[retired public path 2de923b8]/whatsapp/interactive-lists/` | [http://localhost:3000/dm/whatsapp/interactive-lists/](http://localhost:3000/dm/whatsapp/interactive-lists/) |
-| `[retired public path 2de923b8]/whatsapp/logs/` | [http://localhost:3000/dm/whatsapp/logs/](http://localhost:3000/dm/whatsapp/logs/) |
-| `[retired public path 2de923b8]/whatsapp/migration/` | [http://localhost:3000/dm/whatsapp/migration/](http://localhost:3000/dm/whatsapp/migration/) |
-| `[retired public path 2de923b8]/whatsapp/my-account/` | [http://localhost:3000/dm/whatsapp/my-account/](http://localhost:3000/dm/whatsapp/my-account/) |
-| `[retired public path 2de923b8]/whatsapp/scripts/` | [http://localhost:3000/dm/whatsapp/scripts/](http://localhost:3000/dm/whatsapp/scripts/) |
-| `[retired public path 2de923b8]/whatsapp/send-test/` | [http://localhost:3000/dm/whatsapp/send-test/](http://localhost:3000/dm/whatsapp/send-test/) |
-| `[retired public path 2de923b8]/whatsapp/settings/` | [http://localhost:3000/dm/whatsapp/settings/](http://localhost:3000/dm/whatsapp/settings/) |
-| `[retired public path 2de923b8]/whatsapp/tech-partner/` | [http://localhost:3000/dm/whatsapp/tech-partner/](http://localhost:3000/dm/whatsapp/tech-partner/) |
-| `[retired public path 2de923b8]/whatsapp/template-builder/` | [http://localhost:3000/dm/whatsapp/template-builder/](http://localhost:3000/dm/whatsapp/template-builder/) |
-| `[retired public path 2de923b8]/whatsapp/templates/` | [http://localhost:3000/dm/whatsapp/templates/](http://localhost:3000/dm/whatsapp/templates/) |
-| `[retired public path 2de923b8]/whatsapp/waba-dashboard/` | [http://localhost:3000/dm/whatsapp/waba-dashboard/](http://localhost:3000/dm/whatsapp/waba-dashboard/) |
-| `[retired public path 2de923b8]/whatsapp/webhooks/` | [http://localhost:3000/dm/whatsapp/webhooks/](http://localhost:3000/dm/whatsapp/webhooks/) |
-| `[retired public path 2de923b8]/whatsapp/welcome/` | [http://localhost:3000/dm/whatsapp/welcome/](http://localhost:3000/dm/whatsapp/welcome/) |
+| `[retired public path 2de923b8]/` | [http://localhost:3000[retired public path]/](http://localhost:3000[retired public path]/) |
+| `[retired public path 2de923b8]/analytics/` | [http://localhost:3000[retired public path]/analytics/](http://localhost:3000[retired public path]/analytics/) |
+| `[retired public path 2de923b8]/appointments/` | [http://localhost:3000[retired public path]/appointments/](http://localhost:3000[retired public path]/appointments/) |
+| `[retired public path 2de923b8]/automation/` | [http://localhost:3000[retired public path]/automation/](http://localhost:3000[retired public path]/automation/) |
+| `[retired public path 2de923b8]/broadcast/` | [http://localhost:3000[retired public path]/broadcast/](http://localhost:3000[retired public path]/broadcast/) |
+| `[retired public path 2de923b8]/calls/` | [http://localhost:3000[retired public path]/calls/](http://localhost:3000[retired public path]/calls/) |
+| `[retired public path 2de923b8]/channels/` | [http://localhost:3000[retired public path]/channels/](http://localhost:3000[retired public path]/channels/) |
+| `[retired public path 2de923b8][retired public path 862cdc9c]/` | [http://localhost:3000[retired public path]/commerce/](http://localhost:3000[retired public path]/commerce/) |
+| `[retired public path 2de923b8]/contact-360/` | [http://localhost:3000[retired public path]/contact-360/](http://localhost:3000[retired public path]/contact-360/) |
+| `[retired public path 2de923b8]/content/` | [http://localhost:3000[retired public path]/content/](http://localhost:3000[retired public path]/content/) |
+| `[retired public path 2de923b8]/cost/` | [http://localhost:3000[retired public path]/cost/](http://localhost:3000[retired public path]/cost/) |
+| `[retired public path 2de923b8][retired public path a2557b8d]/` | [http://localhost:3000[retired public path]/docs/](http://localhost:3000[retired public path]/docs/) |
+| `[retired public path 2de923b8]/documents/` | [http://localhost:3000[retired public path]/documents/](http://localhost:3000[retired public path]/documents/) |
+| `[retired public path 2de923b8]/enterprise/` | [http://localhost:3000[retired public path]/enterprise/](http://localhost:3000[retired public path]/enterprise/) |
+| `[retired public path 2de923b8][retired public path 1965ee0f]/` | [http://localhost:3000[retired public path]/faq/](http://localhost:3000[retired public path]/faq/) |
+| `[retired public path 2de923b8]/inbox/` | [http://localhost:3000[retired public path]/inbox/](http://localhost:3000[retired public path]/inbox/) |
+| `[retired public path 2de923b8]/logs/` | [http://localhost:3000[retired public path]/logs/](http://localhost:3000[retired public path]/logs/) |
+| `[retired public path 2de923b8]/meta-agent/` | [http://localhost:3000[retired public path]/meta-agent/](http://localhost:3000[retired public path]/meta-agent/) |
+| `[retired public path 2de923b8]/orders/` | [http://localhost:3000[retired public path]/orders/](http://localhost:3000[retired public path]/orders/) |
+| `[retired public path 2de923b8]/push/` | [http://localhost:3000[retired public path]/push/](http://localhost:3000[retired public path]/push/) |
+| `[retired public path 2de923b8]/rcs/` | [http://localhost:3000[retired public path]/rcs/](http://localhost:3000[retired public path]/rcs/) |
+| `[retired public path 2de923b8]/rcs/campaign/` | [http://localhost:3000[retired public path]/rcs/campaign/](http://localhost:3000[retired public path]/rcs/campaign/) |
+| `[retired public path 2de923b8]/rcs/inbox/` | [http://localhost:3000[retired public path]/rcs/inbox/](http://localhost:3000[retired public path]/rcs/inbox/) |
+| `[retired public path 2de923b8]/rcs/logs/` | [http://localhost:3000[retired public path]/rcs/logs/](http://localhost:3000[retired public path]/rcs/logs/) |
+| `[retired public path 2de923b8]/rcs/send/` | [http://localhost:3000[retired public path]/rcs/send/](http://localhost:3000[retired public path]/rcs/send/) |
+| `[retired public path 2de923b8]/rcs/templates/` | [http://localhost:3000[retired public path]/rcs/templates/](http://localhost:3000[retired public path]/rcs/templates/) |
+| `[retired public path 2de923b8]/reviews/` | [http://localhost:3000[retired public path]/reviews/](http://localhost:3000[retired public path]/reviews/) |
+| `[retired public path 2de923b8]/rx-slots/` | [http://localhost:3000[retired public path]/rx-slots/](http://localhost:3000[retired public path]/rx-slots/) |
+| `[retired public path 2de923b8]/scheduled/` | [http://localhost:3000[retired public path]/scheduled/](http://localhost:3000[retired public path]/scheduled/) |
+| `[retired public path 2de923b8]/search/` | [http://localhost:3000[retired public path]/search/](http://localhost:3000[retired public path]/search/) |
+| `[retired public path 2de923b8]/service-ops/` | [http://localhost:3000[retired public path]/service-ops/](http://localhost:3000[retired public path]/service-ops/) |
+| `[retired public path 2de923b8]/ses/` | [http://localhost:3000[retired public path]/ses/](http://localhost:3000[retired public path]/ses/) |
+| `[retired public path 2de923b8]/ses/campaign/` | [http://localhost:3000[retired public path]/ses/campaign/](http://localhost:3000[retired public path]/ses/campaign/) |
+| `[retired public path 2de923b8]/ses/inbox/` | [http://localhost:3000[retired public path]/ses/inbox/](http://localhost:3000[retired public path]/ses/inbox/) |
+| `[retired public path 2de923b8]/ses/logs/` | [http://localhost:3000[retired public path]/ses/logs/](http://localhost:3000[retired public path]/ses/logs/) |
+| `[retired public path 2de923b8][retired public path 2c56bef4]/` | [http://localhost:3000[retired public path]/settings/](http://localhost:3000[retired public path]/settings/) |
+| `[retired public path 2de923b8]/sms/` | [http://localhost:3000[retired public path]/sms/](http://localhost:3000[retired public path]/sms/) |
+| `[retired public path 2de923b8]/voice-in/` | [http://localhost:3000[retired public path]/voice-in/](http://localhost:3000[retired public path]/voice-in/) |
+| `[retired public path 2de923b8]/voice/` | [http://localhost:3000[retired public path]/voice/](http://localhost:3000[retired public path]/voice/) |
+| `[retired public path 2de923b8]/whatsapp/` | [http://localhost:3000[retired public path]/whatsapp/](http://localhost:3000[retired public path]/whatsapp/) |
+| `[retired public path 2de923b8]/whatsapp/ai-agent/` | [http://localhost:3000[retired public path]/whatsapp/ai-agent/](http://localhost:3000[retired public path]/whatsapp/ai-agent/) |
+| `[retired public path 2de923b8]/whatsapp/auto-response/` | [http://localhost:3000[retired public path]/whatsapp/auto-response/](http://localhost:3000[retired public path]/whatsapp/auto-response/) |
+| `[retired public path 2de923b8]/whatsapp/bsuid/` | [http://localhost:3000[retired public path]/whatsapp/bsuid/](http://localhost:3000[retired public path]/whatsapp/bsuid/) |
+| `[retired public path 2de923b8]/whatsapp/business-profile/` | [http://localhost:3000[retired public path]/whatsapp/business-profile/](http://localhost:3000[retired public path]/whatsapp/business-profile/) |
+| `[retired public path 2de923b8]/whatsapp/calling/` | [http://localhost:3000[retired public path]/whatsapp/calling/](http://localhost:3000[retired public path]/whatsapp/calling/) |
+| `[retired public path 2de923b8]/whatsapp/campaign/` | [http://localhost:3000[retired public path]/whatsapp/campaign/](http://localhost:3000[retired public path]/whatsapp/campaign/) |
+| `[retired public path 2de923b8]/whatsapp/catalog-builder/` | [http://localhost:3000[retired public path]/whatsapp/catalog-builder/](http://localhost:3000[retired public path]/whatsapp/catalog-builder/) |
+| `[retired public path 2de923b8]/whatsapp/connected-accounts/` | [http://localhost:3000[retired public path]/whatsapp/connected-accounts/](http://localhost:3000[retired public path]/whatsapp/connected-accounts/) |
+| `[retired public path 2de923b8]/whatsapp/conversions-api/` | [http://localhost:3000[retired public path]/whatsapp/conversions-api/](http://localhost:3000[retired public path]/whatsapp/conversions-api/) |
+| `[retired public path 2de923b8]/whatsapp/cost-controls/` | [http://localhost:3000[retired public path]/whatsapp/cost-controls/](http://localhost:3000[retired public path]/whatsapp/cost-controls/) |
+| `[retired public path 2de923b8]/whatsapp/ctwa-ads/` | [http://localhost:3000[retired public path]/whatsapp/ctwa-ads/](http://localhost:3000[retired public path]/whatsapp/ctwa-ads/) |
+| `[retired public path 2de923b8]/whatsapp/embedded-signup/` | [http://localhost:3000[retired public path]/whatsapp/embedded-signup/](http://localhost:3000[retired public path]/whatsapp/embedded-signup/) |
+| `[retired public path 2de923b8]/whatsapp/flow-hub/` | [http://localhost:3000[retired public path]/whatsapp/flow-hub/](http://localhost:3000[retired public path]/whatsapp/flow-hub/) |
+| `[retired public path 2de923b8]/whatsapp/flow-publish/` | [http://localhost:3000[retired public path]/whatsapp/flow-publish/](http://localhost:3000[retired public path]/whatsapp/flow-publish/) |
+| `[retired public path 2de923b8]/whatsapp/flow-responses/` | [http://localhost:3000[retired public path]/whatsapp/flow-responses/](http://localhost:3000[retired public path]/whatsapp/flow-responses/) |
+| `[retired public path 2de923b8]/whatsapp/flows/` | [http://localhost:3000[retired public path]/whatsapp/flows/](http://localhost:3000[retired public path]/whatsapp/flows/) |
+| `[retired public path 2de923b8]/whatsapp/groups/` | [http://localhost:3000[retired public path]/whatsapp/groups/](http://localhost:3000[retired public path]/whatsapp/groups/) |
+| `[retired public path 2de923b8]/whatsapp/inbox/` | [http://localhost:3000[retired public path]/whatsapp/inbox/](http://localhost:3000[retired public path]/whatsapp/inbox/) |
+| `[retired public path 2de923b8]/whatsapp/interactive-lists/` | [http://localhost:3000[retired public path]/whatsapp/interactive-lists/](http://localhost:3000[retired public path]/whatsapp/interactive-lists/) |
+| `[retired public path 2de923b8]/whatsapp/logs/` | [http://localhost:3000[retired public path]/whatsapp/logs/](http://localhost:3000[retired public path]/whatsapp/logs/) |
+| `[retired public path 2de923b8]/whatsapp/migration/` | [http://localhost:3000[retired public path]/whatsapp/migration/](http://localhost:3000[retired public path]/whatsapp/migration/) |
+| `[retired public path 2de923b8]/whatsapp/my-account/` | [http://localhost:3000[retired public path]/whatsapp/my-account/](http://localhost:3000[retired public path]/whatsapp/my-account/) |
+| `[retired public path 2de923b8]/whatsapp/scripts/` | [http://localhost:3000[retired public path]/whatsapp/scripts/](http://localhost:3000[retired public path]/whatsapp/scripts/) |
+| `[retired public path 2de923b8]/whatsapp/send-test/` | [http://localhost:3000[retired public path]/whatsapp/send-test/](http://localhost:3000[retired public path]/whatsapp/send-test/) |
+| `[retired public path 2de923b8]/whatsapp/settings/` | [http://localhost:3000[retired public path]/whatsapp/settings/](http://localhost:3000[retired public path]/whatsapp/settings/) |
+| `[retired public path 2de923b8]/whatsapp/tech-partner/` | [http://localhost:3000[retired public path]/whatsapp/tech-partner/](http://localhost:3000[retired public path]/whatsapp/tech-partner/) |
+| `[retired public path 2de923b8]/whatsapp/template-builder/` | [http://localhost:3000[retired public path]/whatsapp/template-builder/](http://localhost:3000[retired public path]/whatsapp/template-builder/) |
+| `[retired public path 2de923b8]/whatsapp/templates/` | [http://localhost:3000[retired public path]/whatsapp/templates/](http://localhost:3000[retired public path]/whatsapp/templates/) |
+| `[retired public path 2de923b8]/whatsapp/waba-dashboard/` | [http://localhost:3000[retired public path]/whatsapp/waba-dashboard/](http://localhost:3000[retired public path]/whatsapp/waba-dashboard/) |
+| `[retired public path 2de923b8]/whatsapp/webhooks/` | [http://localhost:3000[retired public path]/whatsapp/webhooks/](http://localhost:3000[retired public path]/whatsapp/webhooks/) |
+| `[retired public path 2de923b8]/whatsapp/welcome/` | [http://localhost:3000[retired public path]/whatsapp/welcome/](http://localhost:3000[retired public path]/whatsapp/welcome/) |
 
 ### seo (13)
 
@@ -240,7 +240,7 @@ Behind authentication. Listed so the set is reviewable, but none of these is pub
 
 | Route | Open locally |
 | --- | --- |
-| `[retired public path]` | [http://localhost:3000/store/](http://localhost:3000/store/) |
+| `[retired public path]` | [http://localhost:3000[retired public path]/](http://localhost:3000[retired public path]/) |
 
 ### task (1)
 
