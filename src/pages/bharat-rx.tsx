@@ -140,8 +140,8 @@ const BharatRxPage: React.FC = () => (
           /* Section h2 is the contract's 700 rung - HEAVIER than the hero h1's 600. That
              inversion is intentional across the site. */
           .brx-h2{
-            font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;
-            letter-spacing:-1.2px;color:rgba(0,0,0,.95);margin:0 0 22px;
+            font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);
+            letter-spacing:var(--public-section-tracking);color:var(--public-heading);margin:0 0 22px;
           }
           .brx-steps{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:20px}
           .brx-step{display:flex;gap:16px;align-items:flex-start}
@@ -155,19 +155,19 @@ const BharatRxPage: React.FC = () => (
             font-size:15px;font-weight:700;
           }
           /* Card-heading rung: 22px/700/-.25px/#000, same as .pp-strip-title. */
-          .brx-step-t{display:block;margin:5px 0 6px;font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:#000}
+          .brx-step-t{display:block;margin:5px 0 6px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:#000}
           /* The one body level: 20px/400/1.4/-.125px. */
-          .brx-p{font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898);margin:0}
+          .brx-p{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0}
           /* Full-strength #d1f470 with #1a3a2a type - the contract's own-surface pairing,
              and 2px because the hairline rule is that 2px means hoverable. */
           .brx-cta{
-            display:inline-flex;align-items:center;min-height:52px;margin-top:30px;
-            padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;
-            background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;
+            display:inline-flex;align-items:center;min-height:var(--public-cta-height);margin-top:30px;
+            padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
+            background:var(--public-brand-lime);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
             transition:background-color .2s,transform .2s,box-shadow .2s;
           }
-          .brx-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-          .brx-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+          .brx-cta:hover{background:var(--public-bg);transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+          .brx-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
           /* THE CANONICAL BOUNDARY CARD, matched to .pdp-note on the product pages so every
              boundary note on the public site reads the same: near-white #fcfdfb surface, 1px
              hairline, 14px radius, 22px padding, and the legal-copy type rung 17px/400/1.55/-.05px
