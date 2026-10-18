@@ -231,12 +231,12 @@ const ProductPage: React.FC<ProductPageProps> = ( {
         <style jsx>{`
           .pdp{max-width:700px}
           .pdp-h2{
-            font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;
-            letter-spacing:-1.2px;color:rgba(0,0,0,.95);margin:0 0 22px;
+            font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);
+            letter-spacing:var(--public-section-tracking);color:var(--public-heading);margin:0 0 22px;
           }
           /* The lead runs at the body level but slightly tighter, because it is a paragraph
              of context rather than a point being made. */
-          .pdp-lead{font-size:20px;font-weight:400;line-height:1.45;letter-spacing:-.125px;color:rgba(0,0,0,.898);margin:0 0 34px}
+          .pdp-lead{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0 0 34px}
           /* When a lead is split into an opener + a main paragraph (today only /anew/), the
              paragraphs sit 16px apart; the 34px below the LAST lead stays as the gap before the
              points. A single-paragraph lead is always :last-of-type, so it keeps 34px untouched. */
@@ -252,8 +252,8 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             background:rgba(209,244,112,.22);color:#1a3a2a;
             font-size:15px;font-weight:700;
           }
-          .pdp-point-t{display:block;margin:5px 0 6px;font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:#000}
-          .pdp-p{font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898);margin:0}
+          .pdp-point-t{display:block;margin:5px 0 6px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:#000}
+          .pdp-p{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0}
 
           /* The CTA row. One or two pills, wrapping rather than overflowing on a narrow
              viewport. margin-top:30px lives HERE, not on .pdp-cta, so a page with a single pill
@@ -264,13 +264,13 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           /* Full-strength #d1f470 with #1a3a2a type - the contract's own-surface pairing -
              and 2px because the hairline rule is that 2px means hoverable. */
           .pdp-cta{
-            display:inline-flex;align-items:center;min-height:52px;
-            padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;
-            background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;
+            display:inline-flex;align-items:center;min-height:var(--public-cta-height);
+            padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
+            background:var(--public-brand-lime);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
             transition:background-color .2s,transform .2s,box-shadow .2s;
           }
-          .pdp-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-          .pdp-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+          .pdp-cta:hover{background:var(--public-bg);transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+          .pdp-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
           /* MICROCOPY under the CTA row now uses the shared global .wc-sweep-note class
              (src/styles/inner-ux.css) - the footer-tagline lime sweep on hover - so there is no
              per-page copy of it here. The element carries className="wc-sweep-note" above. */
