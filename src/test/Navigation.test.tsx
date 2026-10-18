@@ -113,7 +113,14 @@ describe( 'nothing became unreachable', () => {
   it( 'still knows about more destinations than the old sidebar did', () => {
     // The old nav had 88 unique paths. This must not be a reduction in
     // reachability, only in prominence.
-    const unique = new Set( getAllNavItems().map( ( i ) => i.path.split( '?' )[ 0 ] ) );
+    //
+    // FEAT-005/006 folded the dense sections into tabbed hubs and rewrote every former
+    // sub-page into a `hub?tab=<id>` deep-link, so a destination is now identified by its
+    // FULL path (hub + ?tab=), not by the hub route alone — stripping the query would
+    // collapse ~97 capabilities down to 19 hubs and assert the opposite of reachability.
+    // Each distinct full path is one capability the command palette still reaches by name,
+    // so the count is taken over full paths and the ≥87 floor is unchanged.
+    const unique = new Set( getAllNavItems().map( ( i ) => i.path ) );
     expect( unique.size ).toBeGreaterThanOrEqual( 87 );
   } );
 
@@ -121,9 +128,13 @@ describe( 'nothing became unreachable', () => {
     // A sample of the 21 orphans, including the MFA page the owner asked to keep
     // and which cannot be reached any other way.
     const all = getAllNavItems().map( ( i ) => i.path );
-    for ( const p of [ '/workspace/access/security', '/workspace/engage/channels', '/workspace/engage/search',
-      '/workspace/engage/whatsapp/catalog-builder', '/workspace/engage/whatsapp/embedded-signup',
-      '/workspace/dashboard/design-reference', '/workspace/engage/meta-agent', '/workspace/engage/faq' ] )
+    // FEAT-005/006: these orphans are now reached as `hub?tab=` deep-links (their dense
+    // sections folded into tabbed hubs and their bodies moved under
+    // src/components/workspace/**). The MFA page keeps its own route. Still the one sample
+    // of the orphans with no link anywhere else — only their canonical paths moved.
+    for ( const p of [ '/workspace/access/security', '/workspace/engage/channels', '/workspace/engage?tab=search',
+      '/workspace/engage/whatsapp/settings?tab=catalog-builder', '/workspace/engage/whatsapp/settings?tab=embedded-signup',
+      '/workspace/settings/platform?tab=design-reference', '/workspace/engage?tab=meta-agent', '/workspace/engage/service-ops?tab=faq' ] )
     {
       expect( all ).toContain( p );
     }
@@ -134,8 +145,11 @@ describe( 'nothing became unreachable', () => {
     // '/workspace/forms/create' was in this list until 2026-09-25. It was deleted as a ComingSoon
     // stub, so asserting the nav still reaches it would now assert the opposite of what
     // this file is for. FeatureFlags.test.tsx carries the inverse check for it.
-    for ( const p of [ '/workspace/dashboard/cors-settings', '/workspace/engage/whatsapp/ai-agent',
-      '/workspace/engage/whatsapp/scripts', '/workspace/forms/responses' ] )
+    // FEAT-005/006: same destinations, now reached as hub?tab= deep-links — CORS under the
+    // Platform hub, the two WhatsApp tools under the WhatsApp hub, Form responses under the
+    // Service hub.
+    for ( const p of [ '/workspace/settings/platform?tab=cors-settings', '/workspace/engage/whatsapp/settings?tab=ai-agent',
+      '/workspace/engage/whatsapp/settings?tab=scripts', '/workspace/engage/service-ops?tab=form-responses' ] )
     {
       expect( all ).toContain( p );
     }

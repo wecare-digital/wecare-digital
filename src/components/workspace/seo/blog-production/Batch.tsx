@@ -21,15 +21,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import Layout from '../../../../../components/Layout';
-import SEO from '../../../../../components/SEO';
-import * as seoApi from '../../../../../api/seo';
+import Layout from '../../../../components/Layout';
+import SEO from '../../../../components/SEO';
+import * as seoApi from '../../../../api/seo';
 import type {
   BlogBatchDetail, BlogBatchReviewState, BlogPublishResponse, BlogQaResponse,
   BlogRepetitionRunView, BlogVerifyResponse,
-} from '../../../../../api/seo';
+} from '../../../../api/seo';
 
-interface PageProps { signOut?: () => void; user?: any; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const th: React.CSSProperties = { padding: '8px 10px', textAlign: 'left' };
 const td: React.CSSProperties = { padding: '8px 10px', verticalAlign: 'top' };
@@ -68,7 +68,7 @@ function Panel ( { title, subtitle, children, action }: {
   );
 }
 
-const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user } ) => {
+const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
   const router = useRouter();
   const batchId = typeof router.query.id === 'string' ? router.query.id : '';
 
@@ -133,13 +133,17 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user } ) => {
 
   if ( !batchId )
   {
+    const empty = (
+        <div className="inner-page">
+          <h1 className="inner-page-title">Blog Production wave</h1>
+          <p>No wave was named. <Link href="/workspace/seo/blog-production">Back to the wave list</Link>.</p>
+        </div>
+    );
+    if ( embedded ) return empty;
     return (
       <Layout user={ user } onSignOut={ signOut }>
         <SEO title="Blog Production wave" description="One production wave" />
-        <div className="inner-page">
-          <h1 className="inner-page-title">Blog Production wave</h1>
-          <p>No wave was named. <Link href="/workspace/seo/blog-production/">Back to the wave list</Link>.</p>
-        </div>
+        { empty }
       </Layout>
     );
   }
@@ -147,13 +151,10 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user } ) => {
   const rollup = batch?.rollup;
   const batchState = qa?.batchState;
 
-  return (
-    <Layout user={ user } onSignOut={ signOut }>
-      <SEO title={ batch ? `${ batch.name } — Blog Production` : 'Blog Production wave' }
-        description="One production wave and every stage's state" />
+  const body = (
       <div className="inner-page">
         <p style={ { fontSize: 13, margin: '0 0 8px' } }>
-          <Link href="/workspace/seo/blog-production/" style={ { color: '#1a3a2a' } }>← Production waves</Link>
+          <Link href="/workspace/seo/blog-production" style={ { color: '#1a3a2a' } }>← Production waves</Link>
         </p>
         <h1 className="inner-page-title">{ batch ? batch.name : 'Loading…' }</h1>
         { batch && (
@@ -195,7 +196,7 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user } ) => {
         { review && (
           <Panel title="Source reading"
             subtitle="Section 2: an article may not be built from a title or an excerpt. Analysis produces evidence; a person recording that they read it is a separate act."
-            action={ <a href={ `/workspace/seo/blog-production/review/?batch=${ encodeURIComponent( batchId ) }` }
+            action={ <a href={ `/workspace/seo/blog-production?tab=review&batch=${ encodeURIComponent( batchId ) }` }
               style={ { color: '#1a3a2a', fontSize: 13, fontWeight: 600 } }>Open source review →</a> }>
             <div style={ { display: 'flex', gap: 24, flexWrap: 'wrap' } }>
               <Stat label="Analysed" value={ review.analysed } />
@@ -212,7 +213,7 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user } ) => {
         { batchState && (
           <Panel title="QA and sign-off"
             subtitle="A QA run records what every rule said about one exact version. A sign-off is a person accepting that verdict and answering the eleven judgements no program can make."
-            action={ <a href={ `/workspace/seo/blog-production/qa/?batch=${ encodeURIComponent( batchId ) }` }
+            action={ <a href={ `/workspace/seo/blog-production?tab=qa&batch=${ encodeURIComponent( batchId ) }` }
               style={ { color: '#1a3a2a', fontSize: 13, fontWeight: 600 } }>Open QA review →</a> }>
             <div style={ { display: 'flex', gap: 24, flexWrap: 'wrap' } }>
               <Stat label="QA run" value={ batchState.qaRun } />
@@ -264,7 +265,7 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user } ) => {
         { publish?.batchState && (
           <Panel title="Publication"
             subtitle="A release records an operator's decision and writes nothing. Publishing is a separate call."
-            action={ <a href={ `/workspace/seo/blog-production/publish/?batch=${ encodeURIComponent( batchId ) }` }
+            action={ <a href={ `/workspace/seo/blog-production?tab=publish&batch=${ encodeURIComponent( batchId ) }` }
               style={ { color: '#1a3a2a', fontSize: 13, fontWeight: 600 } }>Open publish queue →</a> }>
             <div style={ { display: 'flex', gap: 24, flexWrap: 'wrap' } }>
               <Stat label="Unreleased" value={ publish.batchState.unreleased } />
@@ -331,9 +332,9 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user } ) => {
                       { source.pipeline.repetitionStatus || '—' }
                     </td>
                     <td style={ td }>
-                      <a href={ `/workspace/seo/blog-production/review/?source=${ encodeURIComponent( source.sourceId ) }` }
+                      <a href={ `/workspace/seo/blog-production?tab=review&source=${ encodeURIComponent( source.sourceId ) }` }
                         style={ { color: '#1a3a2a', marginRight: 8 } }>Read</a>
-                      <a href={ `/workspace/seo/blog-production/qa/?source=${ encodeURIComponent( source.sourceId ) }` }
+                      <a href={ `/workspace/seo/blog-production?tab=qa&source=${ encodeURIComponent( source.sourceId ) }` }
                         style={ { color: '#1a3a2a' } }>QA</a>
                     </td>
                   </tr>
@@ -348,6 +349,14 @@ const BlogProductionBatch: React.FC<PageProps> = ( { signOut, user } ) => {
           </div>
         ) }
       </div>
+  );
+
+  if ( embedded ) return body;
+  return (
+    <Layout user={ user } onSignOut={ signOut }>
+      <SEO title={ batch ? `${ batch.name } — Blog Production` : 'Blog Production wave' }
+        description="One production wave and every stage's state" />
+      { body }
     </Layout>
   );
 };

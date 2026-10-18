@@ -1,5 +1,5 @@
-import { REVIEW_FLOW_ID, REVIEW_ENTRY_KEYWORDS } from '../../../../lib/reviewEntry';
-import { canonicalFlowId } from '../../../../lib/canonicalFlows';
+import { REVIEW_FLOW_ID, REVIEW_ENTRY_KEYWORDS } from '../../../lib/reviewEntry';
+import { canonicalFlowId } from '../../../lib/canonicalFlows';
 /**
  * System Architecture — Project Control Center
  * Complete end-to-end dashboard for the entire WECARE.DIGITAL platform.
@@ -7,10 +7,10 @@ import { canonicalFlowId } from '../../../../lib/canonicalFlows';
  */
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import Layout from '../../../../components/Layout';
-import SEO from '../../../../components/SEO';
+import Layout from '../../../components/Layout';
+import SEO from '../../../components/SEO';
 
-interface PageProps { signOut?: () => void; user?: any; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 // ─── Auto-Refresh Hook ───
 function useAutoRefresh ( intervalMs = 60000 ) {
@@ -31,8 +31,6 @@ function useAutoRefresh ( intervalMs = 60000 ) {
 
   return { lastRefresh, isAutoRefresh, refresh, toggleAutoRefresh };
 }
-
-interface PageProps { signOut?: () => void; user?: any; }
 
 // ─── Design Tokens ───
 const C = {
@@ -656,7 +654,7 @@ function buildSearchIndex (): SearchEntry[] {
 // Dynamic — updated by auto-refresh hook
 
 // ─── Main Component ───
-const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user } ) => {
+const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
   const { lastRefresh, isAutoRefresh, refresh, toggleAutoRefresh } = useAutoRefresh( 60000 );
   const LAST_SCAN = lastRefresh.toISOString().slice( 0, 16 ).replace( 'T', ' ' );
   const [ activeTab, setActiveTab ] = useState( 'overview' );
@@ -1672,9 +1670,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user } ) => {
   };
 
   // ─── Main Render ───
-  return (
-    <Layout onSignOut={ signOut } user={ user }>
-      <SEO title="Project Control Center" description="Unified admin dashboard — architecture, Lambda, code repo, risks" noindex />
+  const body = (
       <div className="inner-page-container" style={ { background: C.bg } }>
         {/* Page Header */ }
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 } }>
@@ -1728,6 +1724,13 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user } ) => {
           { renderTab() }
         </div>
       </div>
+  );
+
+  if ( embedded ) return body;
+  return (
+    <Layout onSignOut={ signOut } user={ user }>
+      <SEO title="Project Control Center" description="Unified admin dashboard — architecture, Lambda, code repo, risks" noindex />
+      { body }
     </Layout>
   );
 };

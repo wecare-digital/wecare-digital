@@ -24,16 +24,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import Layout from '../../../../../components/Layout';
-import SEO from '../../../../../components/SEO';
-import Select, { type SelectOption } from '../../../../../components/ui/Select';
-import { usePromptDialog } from '../../../../../contexts/ConfirmContext';
-import * as seoApi from '../../../../../api/seo';
+import Layout from '../../../../components/Layout';
+import SEO from '../../../../components/SEO';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
+import { usePromptDialog } from '../../../../contexts/ConfirmContext';
+import * as seoApi from '../../../../api/seo';
 import type {
   BlogQaReport, BlogQaResponse, BlogSourceView,
-} from '../../../../../api/seo';
+} from '../../../../api/seo';
 
-interface PageProps { signOut?: () => void; user?: any; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const td: React.CSSProperties = { padding: '8px 10px', verticalAlign: 'top' };
 const th: React.CSSProperties = { padding: '8px 10px', textAlign: 'left' };
@@ -76,7 +76,7 @@ const GATE_CHIP_STYLE: React.CSSProperties = {
 const REVIEW_CHIP_STYLE: React.CSSProperties = { ...GATE_CHIP_STYLE, background: '#eff6ff' };
 const GATE_SELECT_STYLE: React.CSSProperties = { flex: '0 0 100px' };
 
-const BlogQaReview: React.FC<PageProps> = ( { signOut, user } ) => {
+const BlogQaReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
   const router = useRouter();
   const prompt = usePromptDialog();
   const sourceId = typeof router.query.source === 'string' ? router.query.source : '';
@@ -235,16 +235,14 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user } ) => {
     && ( state?.humanGates || [] ).every( gate => gates[ gate ] && gates[ gate ] !== 'FAIL' ),
   );
 
-  return (
-    <Layout user={ user } onSignOut={ signOut }>
-      <SEO title="QA review — Blog Production" description="Run QA and record a gate sign-off" />
+  const body = (
       <div className="inner-page">
         <p style={ { fontSize: 13, margin: '0 0 8px' } }>
-          <Link href="/workspace/seo/blog-production/" style={ { color: '#1a3a2a' } }>← Production waves</Link>
+          <Link href="/workspace/seo/blog-production" style={ { color: '#1a3a2a' } }>← Production waves</Link>
           { batchId && (
             <>
               { ' · ' }
-              <a href={ `/workspace/seo/blog-production/batch/?id=${ encodeURIComponent( batchId ) }` }
+              <a href={ `/workspace/seo/blog-production?tab=batch&id=${ encodeURIComponent( batchId ) }` }
                 style={ { color: '#1a3a2a' } }>This wave</a>
             </>
           ) }
@@ -288,7 +286,7 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user } ) => {
                     </td>
                     <td style={ td }>{ row.pipeline.signedOffBy || '—' }</td>
                     <td style={ td }>
-                      <a href={ `/workspace/seo/blog-production/qa/?source=${ encodeURIComponent( row.sourceId ) }&batch=${ encodeURIComponent( batchId ) }` }
+                      <a href={ `/workspace/seo/blog-production?tab=qa&source=${ encodeURIComponent( row.sourceId ) }&batch=${ encodeURIComponent( batchId ) }` }
                         style={ { color: '#1a3a2a' } }>Review</a>
                     </td>
                   </tr>
@@ -505,7 +503,7 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user } ) => {
               <div className="card" style={ { padding: 16, background: '#f0fdf4' } }>
                 <p style={ { fontSize: 14, color: '#15803d', margin: 0 } }>
                   This article is releasable. Releasing is an operator action on the{ ' ' }
-                  <a href={ `/workspace/seo/blog-production/publish/?batch=${ encodeURIComponent( article.sourceId ? batchId : '' ) }` }
+                  <a href={ `/workspace/seo/blog-production?tab=publish&batch=${ encodeURIComponent( article.sourceId ? batchId : '' ) }` }
                     style={ { color: '#15803d', fontWeight: 600 } }>publish queue</a>.
                 </p>
               </div>
@@ -513,6 +511,13 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user } ) => {
           </>
         ) }
       </div>
+  );
+
+  if ( embedded ) return body;
+  return (
+    <Layout user={ user } onSignOut={ signOut }>
+      <SEO title="QA review — Blog Production" description="Run QA and record a gate sign-off" />
+      { body }
     </Layout>
   );
 };

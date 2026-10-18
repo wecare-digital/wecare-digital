@@ -5,9 +5,9 @@
  * standalone pages to this hub. Tools, Blog SEO (blog-manager) and Site Pages SEO
  * (pages-manager) render here as in-page tabs via their `embedded` prop, so every
  * seoToolsFetch call site inside them is unchanged. The staged blog-production
- * pipeline (waves → source review → QA → publish) and Blog Studio stay as
- * deep-linkable sub-pages reached from the Blog pipeline tab, because they are
- * queue-shaped work that keeps its own URL.
+ * pipeline (waves → wave detail → source review → QA → publish) folded (FEAT-006)
+ * into one /workspace/seo/blog-production hub with step tabs, reached from the Blog
+ * pipeline tab; Blog Studio stays as its own SSG sub-page.
  *
  * This is the AWS-native SeoToolsTable surface (seoToolsFetch), NOT the old Wix SEO:
  * the Wix-era seoFetch pages were retired before the redesign.
@@ -48,9 +48,11 @@ const TABS: ShellTab[] = [
 const PIPELINE = [
   { path: '/workspace/seo/blog-studio', label: 'Blog Studio', desc: 'Upload sources and draft articles', icon: '🧪' },
   { path: '/workspace/seo/blog-production', label: 'Production waves', desc: 'Intake, source reading, QA, publish, verification', icon: '🏭' },
-  { path: '/workspace/seo/blog-production/review', label: 'Source review', desc: 'Read a source against its evidence (section 2)', icon: '🔍' },
-  { path: '/workspace/seo/blog-production/qa', label: 'QA review', desc: 'Run QA and record the gate sign-off', icon: '✅' },
-  { path: '/workspace/seo/blog-production/publish', label: 'Publish queue', desc: 'Release, publish and verify — nothing automatic', icon: '🚀' },
+  // FEAT-006: the staged pipeline folded into one hub with step tabs; each stage is a
+  // ?tab= deep-link on /workspace/seo/blog-production.
+  { path: '/workspace/seo/blog-production?tab=review', label: 'Source review', desc: 'Read a source against its evidence (section 2)', icon: '🔍' },
+  { path: '/workspace/seo/blog-production?tab=qa', label: 'QA review', desc: 'Run QA and record the gate sign-off', icon: '✅' },
+  { path: '/workspace/seo/blog-production?tab=publish', label: 'Publish queue', desc: 'Release, publish and verify — nothing automatic', icon: '🚀' },
 ];
 
 // FEAT-005: /workspace/seo?tab=<id> deep-links open the matching tab.
@@ -119,14 +121,14 @@ const SEOHub: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                   href={ p.path }
                   style={ {
                     display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px',
-                    background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: 13,
+                    background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 13,
                     textDecoration: 'none',
                   } }
                 >
                   <div style={ { fontSize: 24, width: 40, textAlign: 'center', flexShrink: 0 } }>{ p.icon }</div>
                   <div style={ { flex: 1 } }>
-                    <div style={ { fontSize: 15, fontWeight: 600, color: '#1a1a1a' } }>{ p.label }</div>
-                    <div style={ { fontSize: 12, color: '#6b7280', marginTop: 2 } }>{ p.desc }</div>
+                    <div style={ { fontSize: 15, fontWeight: 600, color: 'var(--text)' } }>{ p.label }</div>
+                    <div style={ { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } }>{ p.desc }</div>
                   </div>
                 </Link>
               ) ) }
@@ -148,9 +150,9 @@ const SEOHub: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
 function StatCard ( { label, value }: { label: string; value: any } ) {
   return (
-    <div style={ { background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: 13, padding: '16px 20px' } }>
-      <div style={ { fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' } }>{ label }</div>
-      <div style={ { fontSize: 24, fontWeight: 700, marginTop: 4, color: '#1a3a2a' } }>{ value ?? '—' }</div>
+    <div style={ { background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 13, padding: '16px 20px' } }>
+      <div style={ { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' } }>{ label }</div>
+      <div style={ { fontSize: 24, fontWeight: 700, marginTop: 4, color: 'var(--accent)' } }>{ value ?? '—' }</div>
     </div>
   );
 }

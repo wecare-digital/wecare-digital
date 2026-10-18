@@ -15,8 +15,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const push = vi.fn();
+// The Dashboard section was removed in the workspace redesign; the landing is the common inbox.
 vi.mock( 'next/router', () => ( {
-  useRouter: () => ( { push, pathname: '/workspace/dashboard' } ),
+  useRouter: () => ( { push, pathname: '/workspace/engage/inbox' } ),
 } ) );
 
 import SearchModal from '../components/SearchModal';
@@ -74,7 +75,10 @@ describe( 'SearchModal is derived from navigation.ts', () => {
     // error. The other six are unchanged and the assertion is still an exact
     // `toContain` per path rather than a substring match, because the whole point of
     // this test is that a specific destination is reachable by name.
-    for ( const p of [ '/workspace/engage/inbox', '/workspace/engage/sms', '/workspace/engage/rcs', '/workspace/engage/ses',
+    // FEAT-005: SMS/RCS/Email folded into the Channels hub as in-page tabs, reached as
+    // ?tab= deep-links — the same destinations, still reachable by name in the palette.
+    for ( const p of [ '/workspace/engage/inbox', '/workspace/engage/channels?tab=sms',
+      '/workspace/engage/channels?tab=rcs', '/workspace/engage/channels?tab=email',
       '/workspace/engage/settings', '/workspace/access/security' ] )
     {
       expect( paths ).toContain( p );
@@ -91,9 +95,10 @@ describe( 'SearchModal behaviour', () => {
 
   it( 'offers the inbox before anything is typed', () => {
     render( <SearchModal isOpen onClose={ () => undefined } /> );
-    // Label is 'Inbox' since the nav restructure; it was 'Unified Inbox' when the
-    // sidebar still had a separate page per channel to be unified against.
-    expect( screen.getAllByText( /Inbox/ ).length ).toBeGreaterThan( 0 );
+    // The inbox landing (/workspace/engage/inbox) is the first default result. Its nav label
+    // is 'Messages' since the flat-sidebar restructure (the common inbox IS the Messages
+    // stream), so the palette offers it by that name before anything is typed.
+    expect( screen.getAllByText( 'Messages' ).length ).toBeGreaterThan( 0 );
   } );
 
   it( 'finds a page the hardcoded list had no entry for', () => {
@@ -110,21 +115,23 @@ describe( 'SearchModal behaviour', () => {
   } );
 
   it( 'disambiguates same-named pages by their parent section', () => {
-    // Two different pages are both labelled "Commerce": Store -> Commerce
-    // (/workspace/engage/commerce) and the gear's Modules -> Commerce (/workspace/commerce).
-    // Without the parent as a subtitle they are indistinguishable in a flat result list,
-    // which is why getAllNavItems carries `parent`.
+    // Two different destinations are both labelled "SMS": the inbox filter
+    // (Messages -> /workspace/engage/inbox?channel=sms, the daily stream) and the channel
+    // configuration tab (Other channels -> /workspace/engage/channels?tab=sms). Without the
+    // parent as a subtitle they are indistinguishable in a flat result list, which is why
+    // getAllNavItems carries `parent`.
     //
-    // The example was "Inbox" until 2026-10-15: the sidebar stream and the gear's
-    // "WhatsApp Inbox". That gear row was removed as a second URL for the same inbox, so
-    // one "Inbox" is left and it no longer exercises the property.
-    const commerce = getAllNavItems().filter( ( i ) => i.label === 'Commerce' );
-    expect( new Set( commerce.map( ( i ) => i.path ) ).size ).toBe( 2 );
-    expect( new Set( commerce.map( ( i ) => i.parent ) ) ).toEqual( new Set( [ 'Store', 'Modules' ] ) );
+    // The example was "Commerce" (Store vs Modules) until the workspace redesign folded the
+    // Store -> Commerce page into the Commerce hub as a ?tab= tab, collapsing it to one path;
+    // and "Inbox" before that. SMS now exercises the same property: same label, two parents,
+    // two distinct paths.
+    const sms = getAllNavItems().filter( ( i ) => i.label === 'SMS' );
+    expect( new Set( sms.map( ( i ) => i.path ) ).size ).toBe( 2 );
+    expect( new Set( sms.map( ( i ) => i.parent ) ) ).toEqual( new Set( [ 'Messages', 'Other channels' ] ) );
     render( <SearchModal isOpen onClose={ () => undefined } /> );
-    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'commerce' } } );
-    expect( screen.getAllByText( 'Commerce' ) ).toHaveLength( 2 );
-    expect( screen.getByText( 'Store' ) ).toBeInTheDocument();
-    expect( screen.getByText( 'Modules' ) ).toBeInTheDocument();
+    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'sms' } } );
+    expect( screen.getAllByText( 'SMS' ) ).toHaveLength( 2 );
+    expect( screen.getByText( 'Messages' ) ).toBeInTheDocument();
+    expect( screen.getByText( 'Other channels' ) ).toBeInTheDocument();
   } );
 } );

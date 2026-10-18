@@ -9,19 +9,17 @@
  */
 
 import React from 'react';
-import Layout from '../../../../components/Layout';
-import SEO from '../../../../components/SEO';
-import { C, status as STATUS } from '../../../../lib/design-tokens';
+import Layout from '../../../components/Layout';
+import SEO from '../../../components/SEO';
+import { C, status as STATUS } from '../../../lib/design-tokens';
 
-interface PageProps { signOut?: () => void; user?: any; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 // Design tokens come from the shared source of truth: src/lib/design-tokens.ts
 // (which mirrors src/styles/tokens.css). Do NOT hardcode hex values here.
 
-const DesignReferencePage: React.FC<PageProps> = ( { signOut, user } ) => {
-    return (
-        <Layout user={ user } onSignOut={ signOut }>
-            <SEO title="Design Reference | WECARE.DIGITAL" description="Complete design system reference" noindex={ true } />
+const DesignReferencePage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
+    const body = (
             <div className="inner-page" style={ { padding: 0, overflow: 'auto', background: '#fff' } }>
                 <div style={ { maxWidth: 1400, margin: '0 auto', padding: '32px 24px' } }>
 
@@ -1625,6 +1623,13 @@ const DesignReferencePage: React.FC<PageProps> = ( { signOut, user } ) => {
 
                 </div>
             </div>
+    );
+
+    if ( embedded ) return body;
+    return (
+        <Layout user={ user } onSignOut={ signOut }>
+            <SEO title="Design Reference | WECARE.DIGITAL" description="Complete design system reference" noindex={ true } />
+            { body }
         </Layout>
     );
 };

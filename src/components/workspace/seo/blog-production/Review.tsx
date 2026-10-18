@@ -25,14 +25,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import Layout from '../../../../../components/Layout';
-import SEO from '../../../../../components/SEO';
-import * as seoApi from '../../../../../api/seo';
+import Layout from '../../../../components/Layout';
+import SEO from '../../../../components/SEO';
+import * as seoApi from '../../../../api/seo';
 import type {
   BlogAnalysisDetail, BlogAnalysisView, BlogSourceDetail, BlogSourceView,
-} from '../../../../../api/seo';
+} from '../../../../api/seo';
 
-interface PageProps { signOut?: () => void; user?: any; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const td: React.CSSProperties = { padding: '8px 10px', verticalAlign: 'top' };
 const th: React.CSSProperties = { padding: '8px 10px', textAlign: 'left' };
@@ -55,7 +55,7 @@ function Evidence ( { title, count, note, children }: {
   );
 }
 
-const BlogSourceReview: React.FC<PageProps> = ( { signOut, user } ) => {
+const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
   const router = useRouter();
   const sourceId = typeof router.query.source === 'string' ? router.query.source : '';
   const batchId = typeof router.query.batch === 'string' ? router.query.batch : '';
@@ -156,17 +156,14 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user } ) => {
 
   const evidence = analysis?.evidence;
 
-  return (
-    <Layout user={ user } onSignOut={ signOut }>
-      <SEO title="Source review — Blog Production"
-        description="Read the source and record that it was read" />
+  const body = (
       <div className="inner-page">
         <p style={ { fontSize: 13, margin: '0 0 8px' } }>
-          <Link href="/workspace/seo/blog-production/" style={ { color: '#1a3a2a' } }>← Production waves</Link>
+          <Link href="/workspace/seo/blog-production" style={ { color: '#1a3a2a' } }>← Production waves</Link>
           { batchId && (
             <>
               { ' · ' }
-              <a href={ `/workspace/seo/blog-production/batch/?id=${ encodeURIComponent( batchId ) }` }
+              <a href={ `/workspace/seo/blog-production?tab=batch&id=${ encodeURIComponent( batchId ) }` }
                 style={ { color: '#1a3a2a' } }>This wave</a>
             </>
           ) }
@@ -210,7 +207,7 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user } ) => {
                     </td>
                     <td style={ td }>{ row.articleStatus || '—' }</td>
                     <td style={ td }>
-                      <a href={ `/workspace/seo/blog-production/review/?source=${ encodeURIComponent( row.sourceId ) }&batch=${ encodeURIComponent( batchId ) }` }
+                      <a href={ `/workspace/seo/blog-production?tab=review&source=${ encodeURIComponent( row.sourceId ) }&batch=${ encodeURIComponent( batchId ) }` }
                         style={ { color: '#1a3a2a' } }>Review</a>
                     </td>
                   </tr>
@@ -397,6 +394,14 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user } ) => {
           </>
         ) }
       </div>
+  );
+
+  if ( embedded ) return body;
+  return (
+    <Layout user={ user } onSignOut={ signOut }>
+      <SEO title="Source review — Blog Production"
+        description="Read the source and record that it was read" />
+      { body }
     </Layout>
   );
 };

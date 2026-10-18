@@ -675,6 +675,9 @@ response = requests.post(
             .gos-policy summary{transition:none}
             .gos-policy summary:hover{transform:none;box-shadow:none}
           }
+          /* .api-wa-link's reduced-motion override lives beside the .api-wa-link base rule
+             further down, so it is written AFTER that base rule — otherwise an override placed
+             before the base declaration is clobbered by it at equal specificity. */
 
           /* The rotating channel pill - its lozenge, dot, width glide, word fade,
              entrance and the narrow-width "drop to its own line below 375px" fix - now
@@ -1048,6 +1051,10 @@ response = requests.post(
           .api-wa-link{display:inline-flex;align-items:center;gap:5px;width:max-content;margin-left:-10px;padding:8px 10px;border-radius:10px;color:#1a3a2a;font-size:17px;font-weight:600;line-height:1.4;letter-spacing:-.05px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}
           .api-wa-link:hover{background:#d1f470;color:#1a3a2a;text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 6px 18px rgba(26,58,42,.12)}
           .api-wa-link:focus-visible{background:#d1f470;color:#1a3a2a;text-decoration-color:transparent;outline:3px solid #1a3a2a;outline-offset:3px}
+          @media(prefers-reduced-motion:reduce){
+            .api-wa-link{transition:none}
+            .api-wa-link:hover{transform:none}
+          }
           /* No border-bottom. The .12 hairline here was standing in for structure
              that the code pane's own stroke now provides - the hero solves this the
              same way, with .code-header carrying nothing and .code-body's outline

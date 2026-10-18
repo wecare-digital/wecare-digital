@@ -5,18 +5,18 @@
  * Link Preview Validator, Assigned Users, and AI-Provider Pricing Policy.
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import Layout from '../../../../components/Layout';
-import SEO from '../../../../components/SEO';
-import Button from '../../../../components/ui/Button';
-import Spinner from '../../../../components/ui/Spinner';
-import { useToastContext } from '../../../../contexts/ToastContext';
-import { useConfirm } from '../../../../contexts/ConfirmContext';
-import Select, { type SelectOption } from '../../../../components/ui/Select';
-import DateTimeField from '../../../../components/ui/DateTimeField';
-import * as api from '../../../../api/client';
-import { WHATSAPP_PHONES } from '../../../../config/constants';
+import Layout from '../../../components/Layout';
+import SEO from '../../../components/SEO';
+import Button from '../../../components/ui/Button';
+import Spinner from '../../../components/ui/Spinner';
+import { useToastContext } from '../../../contexts/ToastContext';
+import { useConfirm } from '../../../contexts/ConfirmContext';
+import Select, { type SelectOption } from '../../../components/ui/Select';
+import DateTimeField from '../../../components/ui/DateTimeField';
+import * as api from '../../../api/client';
+import { WHATSAPP_PHONES } from '../../../config/constants';
 
-interface PageProps { signOut?: () => void; user?: any; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const PHONES = [
     { label: `WABA 1 · ${WHATSAPP_PHONES.primary.name}`, phoneId: WHATSAPP_PHONES.primary.metaPhoneId, wabaId: WHATSAPP_PHONES.primary.wabaId },
@@ -46,16 +46,14 @@ const DIRECT_SEND_CATEGORY_OPTIONS: SelectOption[] = [
 const ACCOUNT_SELECT_STYLE: React.CSSProperties = { flex: '0 0 320px' };
 const FIELD_SELECT_STYLE: React.CSSProperties = { marginTop: 4 };
 
-export default function WAGraphTools ( { signOut, user }: PageProps ) {
+export default function WAGraphTools ( { signOut, user, embedded }: PageProps ) {
     const toast = useToastContext();
     const confirm = useConfirm();
     const [ tab, setTab ] = useState<Tab>( 'Schedules' );
     const [ phoneIdx, setPhoneIdx ] = useState( 0 );
     const phone = PHONES[ phoneIdx ];
 
-    return (
-        <Layout onSignOut={ signOut } user={ user }>
-            <SEO title="WA Graph Tools" description="WhatsApp Business Platform admin tools" />
+    const body = (
             <div style={ { padding: 24, maxWidth: 1000 } }>
                 <h1 style={ { fontSize: 'var(--h2)', fontWeight: 600, margin: 0 } }>WhatsApp Graph Admin Tools</h1>
                 <p style={ { color: 'var(--text-secondary)', marginTop: 8 } }>
@@ -103,6 +101,13 @@ export default function WAGraphTools ( { signOut, user }: PageProps ) {
                 { tab === 'Assigned Users' && <AssignedUsersTab wabaId={ phone.wabaId } toast={ toast } confirm={ confirm } /> }
                 { tab === 'AI Pricing Policy' && <AiPolicyTab toast={ toast } confirm={ confirm } /> }
             </div>
+    );
+
+    if ( embedded ) return body;
+    return (
+        <Layout onSignOut={ signOut } user={ user }>
+            <SEO title="WA Graph Tools" description="WhatsApp Business Platform admin tools" />
+            { body }
         </Layout>
     );
 }

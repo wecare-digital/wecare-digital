@@ -189,9 +189,11 @@ export const navigationConfig: NavItem[] = [
       { path: '/workspace/seo?tab=pages', label: 'Site Pages SEO' },
       { path: '/workspace/seo/blog-studio', label: 'Blog Studio' },
       { path: '/workspace/seo/blog-production', label: 'Production waves' },
-      { path: '/workspace/seo/blog-production/review', label: 'Source review' },
-      { path: '/workspace/seo/blog-production/qa', label: 'QA review' },
-      { path: '/workspace/seo/blog-production/publish', label: 'Publish queue' },
+      // FEAT-006: the staged pipeline folded into one hub with step tabs; each stage is a
+      // ?tab= deep-link that pageExists resolves (query stripped) to the one hub route.
+      { path: '/workspace/seo/blog-production?tab=review', label: 'Source review' },
+      { path: '/workspace/seo/blog-production?tab=qa', label: 'QA review' },
+      { path: '/workspace/seo/blog-production?tab=publish', label: 'Publish queue' },
     ],
   },
 ];
@@ -365,23 +367,29 @@ export const settingsConfig: SettingsGroup[] = [
       // 'Dashboard Overview' (/workspace/dashboard) was the first row here until the
       // Dashboard section was removed. It was an analytics page with no surviving owner;
       // the workspace landing is now /workspace/engage/inbox, so no row replaces it.
-      { path: '/workspace/settings/mcp-connections', label: 'MCP Connections' },
+      // FEAT-006: the seven Platform infra pages folded into ONE hub
+      // (/workspace/settings/platform) with in-page tabs. Their bodies moved out of the
+      // routes tree into src/components/workspace/platform/**, so each row deep-links the
+      // hub with its ?tab= id. pageExists strips the query and resolves all of them to the
+      // one platform/index.tsx hub route. Every workspaceMCP / api/client.ts call inside
+      // those bodies is unchanged.
+      { path: '/workspace/settings/platform?tab=mcp-connections', label: 'MCP Connections' },
       // Labelled 'Control Center' until 2026-10-07, which promised a place you operate
       // from. It is a static snapshot of the architecture, hand-maintained, and it has
       // measurably drifted: it lists `wecare-meta-analytics` as an active function on
       // route /meta-analytics and names a MetaAnalyticsLog table, and the live account
       // has neither. The label now says what the page is, so a reader treats it as a
       // document to check rather than a console to trust.
-      { path: '/workspace/settings/platform/system-architecture', label: 'Architecture snapshot' },
-      { path: '/workspace/settings/platform/lambda-functions', label: 'Lambda Functions' },
-      { path: '/workspace/settings/platform/code-repo', label: 'Code Repo' },
+      { path: '/workspace/settings/platform?tab=system-architecture', label: 'Architecture snapshot' },
+      { path: '/workspace/settings/platform?tab=lambda-functions', label: 'Lambda Functions' },
+      { path: '/workspace/settings/platform?tab=code-repo', label: 'Code Repo' },
       // 'WABA Usernames' (/workspace/dashboard/waba-usernames) was a row here until
       // 2026-10-15. It was a smaller copy of WhatsApp -> BSUID & Usernames (same
       // getBusinessUsername / claimBusinessUsername calls, same two numbers, none of the
       // suggestions or webhook fields), so the route is now a signpost to that page.
-      { path: '/workspace/settings/platform/wa-graph-tools', label: 'WA Graph Tools' },
-      { path: '/workspace/settings/platform/cors-settings', label: 'CORS Settings' },
-      { path: '/workspace/settings/platform/design-reference', label: 'Design Reference' },
+      { path: '/workspace/settings/platform?tab=wa-graph-tools', label: 'WA Graph Tools' },
+      { path: '/workspace/settings/platform?tab=cors-settings', label: 'CORS Settings' },
+      { path: '/workspace/settings/platform?tab=design-reference', label: 'Design Reference' },
       // Internal Agent moved up to the "Your account" group — see the note there. The
       // redesign keeps Settings as exactly two rows (Sign-in & MFA + Internal Agent); the
       // Platform group remains for infrastructure reachability via the palette.
@@ -485,9 +493,11 @@ export const moduleHomes: ModuleHome[] = [
   },
   {
     id: 'platform-operations', label: 'Platform Operations',
-    path: '/workspace/settings/platform/system-architecture',
-    innerPages: ['/workspace/settings/platform/lambda-functions', '/workspace/settings/platform/code-repo',
-      '/workspace/settings/platform/cors-settings', '/workspace/settings/platform/design-reference'],
+    // FEAT-006: the Platform infra pages folded into one hub with in-page tabs; the home
+    // and its inner pages deep-link the hub with ?tab= ids.
+    path: '/workspace/settings/platform?tab=system-architecture',
+    innerPages: ['/workspace/settings/platform?tab=lambda-functions', '/workspace/settings/platform?tab=code-repo',
+      '/workspace/settings/platform?tab=cors-settings', '/workspace/settings/platform?tab=design-reference'],
   },
   {
     id: 'settings', label: 'Settings', path: null,

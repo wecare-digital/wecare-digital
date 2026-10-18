@@ -119,7 +119,8 @@ describe( 'public page consolidation contracts', () => {
     for ( const path of [ '/workspace/access', '/workspace/docs', '/workspace/engage/whatsapp', '/workspace/dashboard/waba-usernames' ] ) {
       expect( paths ).not.toContain( path );
     }
-    expect( paths ).toContain( '/workspace/engage/whatsapp/bsuid' );
+    // FEAT-005: BSUID & Usernames is a tab on the WhatsApp hub now, reached as a ?tab= deep-link.
+    expect( paths ).toContain( '/workspace/engage/whatsapp/settings?tab=bsuid' );
     expect( paths ).toContain( '/workspace/access/security' );
   } );
 } );

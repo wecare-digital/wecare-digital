@@ -197,7 +197,7 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
         <BottomNav onMore={ () => setIsMobileMenuOpen( !isMobileMenuOpen ) } moreOpen={ isMobileMenuOpen } />
         <aside className={ `sidebar ${isMobileMenuOpen ? 'open' : ''} ${sidebarCollapsed ? 'collapsed' : ''}` }>
           {/* Brand */ }
-          <div style={ { padding: '10px 12px 6px', flexShrink: 0, borderBottom: '2px solid #d1f470' } }>
+          <div style={ { padding: '10px 12px 6px', flexShrink: 0, borderBottom: '2px solid var(--lime)' } }>
             { !sidebarCollapsed ? (
               /* ONE BRAND, SHARED WITH THE PUBLIC HEADER.
                  This used to be a hand-rolled inline lockup reading "Bharat" / "Stack" at
@@ -226,12 +226,12 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                       width: 22, height: 22, padding: 0, cursor: 'pointer',
                       borderRadius: 7, border: '1px solid #e3ecc9',
-                      background: 'rgba(209,244,112,.22)',
+                      background: 'var(--lime-tint)',
                     } }
                   >
                     <span style={ {
                       width: 6, height: 6, boxSizing: 'border-box',
-                      borderRight: '2px solid #1a3a2a', borderBottom: '2px solid #1a3a2a',
+                      borderRight: '2px solid var(--accent)', borderBottom: '2px solid var(--accent)',
                       opacity: .85,
                       transform: brandDropdownOpen ? 'translateY(1px) rotate(225deg)' : 'translateY(-1px) rotate(45deg)',
                       transition: 'transform .2s',
@@ -240,10 +240,10 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
                   { brandDropdownOpen && (
                     <>
                       <div onClick={ () => setBrandDropdownOpen( false ) } style={ { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998 } } />
-                      <div style={ { position: 'absolute', top: 'calc(100% + 4px)', left: 0, background: '#fcfdfb', border: '1px solid #e5e7eb', borderTop: '3px solid #d1f470', borderRadius: 14, padding: '8px 0', minWidth: 170, boxShadow: '0 8px 28px rgba(0,0,0,0.12)', zIndex: 9999, display: 'flex', flexDirection: 'column' } }>
-                        <Link href="/" onClick={ () => setBrandDropdownOpen( false ) } style={ { display: 'block', padding: '10px 20px', fontSize: 14, fontWeight: 500, color: '#1a3a2a', textDecoration: 'none' } }>Home</Link>
-                        <Link href="/workspace/engage/inbox" onClick={ () => setBrandDropdownOpen( false ) } style={ { display: 'block', padding: '10px 20px', fontSize: 14, fontWeight: 500, color: '#1a3a2a', textDecoration: 'none' } }>CRM</Link>
-                        <Link href="/workspace/access" onClick={ () => setBrandDropdownOpen( false ) } style={ { display: 'block', padding: '10px 20px', fontSize: 14, fontWeight: 500, color: '#1a3a2a', textDecoration: 'none' } }>Sign in</Link>
+                      <div style={ { position: 'absolute', top: 'calc(100% + 4px)', left: 0, background: '#fcfdfb', border: '1px solid var(--border)', borderTop: '3px solid var(--lime)', borderRadius: 14, padding: '8px 0', minWidth: 170, boxShadow: '0 8px 28px rgba(0,0,0,0.12)', zIndex: 9999, display: 'flex', flexDirection: 'column' } }>
+                        <Link href="/" onClick={ () => setBrandDropdownOpen( false ) } style={ { display: 'block', padding: '10px 20px', fontSize: 14, fontWeight: 500, color: 'var(--accent)', textDecoration: 'none' } }>Home</Link>
+                        <Link href="/workspace/engage/inbox" onClick={ () => setBrandDropdownOpen( false ) } style={ { display: 'block', padding: '10px 20px', fontSize: 14, fontWeight: 500, color: 'var(--accent)', textDecoration: 'none' } }>CRM</Link>
+                        <Link href="/workspace/access" onClick={ () => setBrandDropdownOpen( false ) } style={ { display: 'block', padding: '10px 20px', fontSize: 14, fontWeight: 500, color: 'var(--accent)', textDecoration: 'none' } }>Sign in</Link>
                       </div>
                     </>
                   ) }
@@ -264,7 +264,7 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
             <div className="sidebar-search">
               <div className="sidebar-search-input-wrapper">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={ { marginLeft: 10, flexShrink: 0 } }>
-                  <path stroke="#1a3a2a" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="m21 21-4.35-4.35M11 6a5 5 0 0 1 5 5m3 0a8 8 0 1 1-16 0 8 8 0 0 1 16 0" />
+                  <path stroke="var(--accent)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="m21 21-4.35-4.35M11 6a5 5 0 0 1 5 5m3 0a8 8 0 1 1-16 0 8 8 0 0 1 16 0" />
                 </svg>
                 <input
                   type="text"
@@ -329,7 +329,7 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
               <button className="btn-signout" onClick={ onSignOut } style={ { width: '100%', fontSize: 11 } }>Out</button>
             ) }
             { !sidebarCollapsed && (
-              <a href={ CONTACT_URL } target="_blank" rel="noopener noreferrer" style={ { display: 'block', marginTop: 8, fontSize: 13, fontWeight: 500, color: '#6b7280', textDecoration: 'none', transition: 'color 0.2s' } }>
+              <a href={ CONTACT_URL } target="_blank" rel="noopener noreferrer" style={ { display: 'block', marginTop: 8, fontSize: 13, fontWeight: 500, color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.2s' } }>
                 Contact Us
               </a>
             ) }

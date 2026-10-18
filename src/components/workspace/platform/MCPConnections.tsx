@@ -30,7 +30,7 @@ const statusNames: Record<string, string> = {
 };
 interface Authorization { url: string; expires: number; }
 
-export default function MCPConnections({ user, signOut }: { user?: any; signOut?: () => void }) {
+export default function MCPConnections({ user, signOut, embedded }: { user?: any; signOut?: () => void; embedded?: boolean }) {
   const role = useUserRole();
   const admin = role.groups.includes('Admin');
   const [connections, setConnections] = useState<MCPConnection[]>([]);
@@ -90,9 +90,7 @@ export default function MCPConnections({ user, signOut }: { user?: any; signOut?
     }
     finally { setBusy(false); }
   };
-  return <Layout user={user} onSignOut={signOut}>
-    <SEO title="MCP Connections" description="Manage workspace integrations" noindex />
-    <main className={`inner-page-container ${styles.page}`}>
+  const body = <main className={`inner-page-container ${styles.page}`}>
       <header className={styles.header}>
         <div><Link href="/workspace/engage/inbox/">Messages</Link><h1>MCP Connections</h1>
           <p>Connect accounts and check your workspace integrations in one place.</p></div>
@@ -142,6 +140,11 @@ export default function MCPConnections({ user, signOut }: { user?: any; signOut?
           <div aria-live="polite">{activity.length ? <ul>{activity.map((entry, i) => <li key={`${i}-${entry}`}>{entry}</li>)}</ul> : <p>Your checks will appear here.</p>}</div>
         </section>
       </>}
-    </main>
+    </main>;
+
+  if (embedded) return body;
+  return <Layout user={user} onSignOut={signOut}>
+    <SEO title="MCP Connections" description="Manage workspace integrations" noindex />
+    {body}
   </Layout>;
 }

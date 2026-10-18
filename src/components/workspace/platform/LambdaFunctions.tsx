@@ -5,14 +5,15 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import Layout from '../../../../components/Layout';
-import SEO from '../../../../components/SEO';
-import { useToastContext } from '../../../../contexts/ToastContext';
-import { verifyAdminAccess } from '../../../../api/client';
+import Layout from '../../../components/Layout';
+import SEO from '../../../components/SEO';
+import { useToastContext } from '../../../contexts/ToastContext';
+import { verifyAdminAccess } from '../../../api/client';
 
 interface PageProps {
   signOut?: () => void;
   user?: any;
+  embedded?: boolean;
 }
 
 interface LambdaFunction {
@@ -88,7 +89,7 @@ const CATEGORIES = [ 'All', 'Core', 'Messaging', 'AI', 'Payments', 'Operations',
 
 const isServerManagedSecret = ( value: string ) => /^\*+$/.test( value.trim() );
 
-const LambdaFunctionsPage: React.FC<PageProps> = ( { signOut, user } ) => {
+const LambdaFunctionsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
   const [ search, setSearch ] = useState( '' );
   const [ category, setCategory ] = useState( 'All' );
   const [ expandedFn, setExpandedFn ] = useState<string | null>( null );
@@ -130,9 +131,7 @@ const LambdaFunctionsPage: React.FC<PageProps> = ( { signOut, user } ) => {
     }
   };
 
-  return (
-    <Layout onSignOut={ signOut } user={ user }>
-      <SEO title="Lambda Functions" description="Manage Lambda Functions" noindex />
+  const body = (
       <div className="inner-page-container" style={ { background: '#fff' } }>
         {/* Header */ }
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 } }>
@@ -280,6 +279,13 @@ const LambdaFunctionsPage: React.FC<PageProps> = ( { signOut, user } ) => {
           </div>
         ) }
       </div>
+  );
+
+  if ( embedded ) return body;
+  return (
+    <Layout onSignOut={ signOut } user={ user }>
+      <SEO title="Lambda Functions" description="Manage Lambda Functions" noindex />
+      { body }
     </Layout>
   );
 };

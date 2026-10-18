@@ -501,8 +501,10 @@ describe( 'a Popover inside an above-popover container uses layer="overlay"', ()
     // Named rather than counted, because these two are the regression. The whole-tree scan
     // above would also catch their removal, but it would report them as "some file" - and a
     // future edit to either modal is the likeliest way the prop goes missing again.
+    // Pay Flow folded into the Payments hub as an embedded tab; its body moved to
+    // src/components/workspace/pay/PayFlow.tsx in the workspace redesign.
     const payFlow = codeOnly( readFileSync(
-      join( SRC, 'pages', 'workspace', 'pay', 'flow', 'index.tsx' ), 'utf8' ) );
+      join( SRC, 'components', 'workspace', 'pay', 'PayFlow.tsx' ), 'utf8' ) );
     // Brand is now fixed; its read-only input has no popover to place.
     expect( payFlow ).toMatch( /<input[^>]*aria-label="Brand"[^>]*readOnly/ );
     expect( payFlow ).not.toMatch( /<Select[^>]*ariaLabel="Brand"/ );

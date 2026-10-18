@@ -4,15 +4,15 @@
  * Backed by waba-management (?action=cors-status / action=cors-apply).
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import Layout from '../../../../components/Layout';
-import SEO from '../../../../components/SEO';
-import Button from '../../../../components/ui/Button';
-import { useToastContext } from '../../../../contexts/ToastContext';
-import * as api from '../../../../api/client';
+import Layout from '../../../components/Layout';
+import SEO from '../../../components/SEO';
+import Button from '../../../components/ui/Button';
+import { useToastContext } from '../../../contexts/ToastContext';
+import * as api from '../../../api/client';
 
-interface PageProps { signOut?: () => void; user?: any; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
-const CorsSettingsPage: React.FC<PageProps> = ( { signOut, user } ) => {
+const CorsSettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     const toast = useToastContext();
     const [ loading, setLoading ] = useState( true );
     const [ saving, setSaving ] = useState( false );
@@ -87,10 +87,8 @@ const CorsSettingsPage: React.FC<PageProps> = ( { signOut, user } ) => {
     // Union of recommended + any custom/current already selected, for the checklist.
     const allOrigins = Array.from( new Set( [ ...( status?.recommendedOrigins || [] ), ...selected ] ) );
 
-    return (
-        <Layout user={ user } onSignOut={ signOut }>
-            <SEO title="CORS Manager" description="Manage allowed origins for the WECARE.DIGITAL APIs" />
-            <div style={ { padding: 24, maxWidth: 860 } }>
+    const body = (
+        <div style={ { padding: 24, maxWidth: 860 } }>
                 <h2 style={ { margin: '0 0 6px', color: '#1a3a2a' } }>CORS Manager</h2>
                 <p style={ { color: '#6b7280', fontSize: 14, marginTop: 0 } }>
                     Control which website/app origins may call the APIs. Core origins (dashboard + native app) are always
@@ -157,6 +155,13 @@ const CorsSettingsPage: React.FC<PageProps> = ( { signOut, user } ) => {
                     </>
                 ) }
             </div>
+    );
+
+    if ( embedded ) return body;
+    return (
+        <Layout user={ user } onSignOut={ signOut }>
+            <SEO title="CORS Manager" description="Manage allowed origins for the WECARE.DIGITAL APIs" />
+            { body }
         </Layout>
     );
 };

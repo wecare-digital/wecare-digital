@@ -23,13 +23,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import Layout from '../../../../../components/Layout';
-import SEO from '../../../../../components/SEO';
-import { usePromptDialog } from '../../../../../contexts/ConfirmContext';
-import * as seoApi from '../../../../../api/seo';
-import type { BlogPublishResponse, BlogVerifyResponse } from '../../../../../api/seo';
+import Layout from '../../../../components/Layout';
+import SEO from '../../../../components/SEO';
+import { usePromptDialog } from '../../../../contexts/ConfirmContext';
+import * as seoApi from '../../../../api/seo';
+import type { BlogPublishResponse, BlogVerifyResponse } from '../../../../api/seo';
 
-interface PageProps { signOut?: () => void; user?: any; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const td: React.CSSProperties = { padding: '8px 10px', verticalAlign: 'top' };
 const th: React.CSSProperties = { padding: '8px 10px', textAlign: 'left' };
@@ -42,7 +42,7 @@ const JOB_COLOUR: Record<string, string> = {
   FAILED: '#b91c1c',
 };
 
-const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user } ) => {
+const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
   const router = useRouter();
   const prompt = usePromptDialog();
   const batchId = typeof router.query.batch === 'string' ? router.query.batch : '';
@@ -134,17 +134,14 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user } ) => {
       + `. ${ result.note }`;
   } );
 
-  return (
-    <Layout user={ user } onSignOut={ signOut }>
-      <SEO title="Publish queue — Blog Production"
-        description="Release and publish articles that have been signed off" />
+  const body = (
       <div className="inner-page">
         <p style={ { fontSize: 13, margin: '0 0 8px' } }>
-          <Link href="/workspace/seo/blog-production/" style={ { color: '#1a3a2a' } }>← Production waves</Link>
+          <Link href="/workspace/seo/blog-production" style={ { color: '#1a3a2a' } }>← Production waves</Link>
           { batchId && (
             <>
               { ' · ' }
-              <a href={ `/workspace/seo/blog-production/batch/?id=${ encodeURIComponent( batchId ) }` }
+              <a href={ `/workspace/seo/blog-production?tab=batch&id=${ encodeURIComponent( batchId ) }` }
                 style={ { color: '#1a3a2a' } }>This wave</a>
             </>
           ) }
@@ -224,7 +221,7 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user } ) => {
                           { busy === `release-${ candidate.sourceId }` ? 'Releasing…' : 'Release' }
                         </button>
                       ) }
-                      <a href={ `/workspace/seo/blog-production/qa/?source=${ encodeURIComponent( candidate.sourceId ) }&batch=${ encodeURIComponent( batchId ) }` }
+                      <a href={ `/workspace/seo/blog-production?tab=qa&source=${ encodeURIComponent( candidate.sourceId ) }&batch=${ encodeURIComponent( batchId ) }` }
                         style={ { color: '#1a3a2a', marginLeft: 8 } }>QA</a>
                     </td>
                   </tr>
@@ -314,6 +311,14 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user } ) => {
           </table>
         </div>
       </div>
+  );
+
+  if ( embedded ) return body;
+  return (
+    <Layout user={ user } onSignOut={ signOut }>
+      <SEO title="Publish queue — Blog Production"
+        description="Release and publish articles that have been signed off" />
+      { body }
     </Layout>
   );
 };

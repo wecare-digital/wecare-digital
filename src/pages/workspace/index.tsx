@@ -88,7 +88,7 @@ const families: Family[] = [
   { id: 'task', label: 'Tasks', desc: 'Work items, assignments and follow-ups', path: '/workspace/task/', Icon: CheckListIcon, color: '#14B8A6' },
   { id: 'seo', label: 'SEO', desc: 'Sitemaps, metadata and search tooling', path: '/workspace/seo/', Icon: SearchIcon, color: '#A855F7' },
   { id: 'service', label: 'Service', desc: 'Customer requests and service desk', path: '/workspace/engage/service-ops/', Icon: AdvisorIcon, color: '#EF4444' },
-  { id: 'admin', label: 'Architecture snapshot', desc: 'Hand-maintained map of routes, functions, storage and risks', path: '/workspace/settings/platform/system-architecture/', Icon: OverviewIcon, color: '#64748B' },
+  { id: 'admin', label: 'Architecture snapshot', desc: 'Hand-maintained map of routes, functions, storage and risks', path: '/workspace/settings/platform?tab=system-architecture', Icon: OverviewIcon, color: '#64748B' },
   // No index.tsx under settings/ — link the page that exists, not the directory.
   { id: 'settings', label: 'Settings', desc: 'Internal agent and system configuration', path: '/workspace/settings/internal-agent/', Icon: SettingsIcon, color: '#6B7280' },
 ];
@@ -104,14 +104,14 @@ const WorkspacePage: React.FC<PageProps> = ({ signOut, user }) => {
       />
       <div className="inner-page-container" style={{ maxWidth: 960 }}>
         <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>Workspace</h1>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px' }}>Workspace</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
             Everything in one place. Pick an area to get started.
           </p>
         </div>
 
         <div
-          style={{ fontSize: 12, fontWeight: 600, color: '#1a3a2a', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}
+          style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}
         >
           Areas
         </div>
@@ -171,25 +171,25 @@ const WorkspacePage: React.FC<PageProps> = ({ signOut, user }) => {
           gap: 14px;
           width: 100%;
           padding: 14px 16px;
-          background: #fff;
-          border: 1.5px solid #e5e7eb;
+          background: var(--surface);
+          border: 1.5px solid var(--border);
           border-radius: 13px;
           cursor: pointer;
           transition: all 0.15s;
           text-align: left;
-          font-family: inherit;
+          font-family: var(--font-sans);
           -webkit-tap-highlight-color: transparent;
         }
         .ws-btn:hover,
         .ws-btn:active {
-          border-color: #d1f470;
+          border-color: var(--lime);
           background: rgba(209, 244, 112, 0.04);
         }
         /* Keyboard users get the same affordance as a pointer hover, plus a ring. */
         .ws-btn:focus-visible {
-          outline: 2px solid #1a3a2a;
+          outline: 2px solid var(--accent);
           outline-offset: 2px;
-          border-color: #d1f470;
+          border-color: var(--lime);
         }
         .ws-icon {
           width: 40px;
@@ -201,8 +201,8 @@ const WorkspacePage: React.FC<PageProps> = ({ signOut, user }) => {
           flex-shrink: 0;
         }
         .ws-text { display: block; flex: 1; min-width: 0; }
-        .ws-label { display: block; font-size: 15px; font-weight: 600; color: #1a1a1a; }
-        .ws-desc { display: block; font-size: 12px; color: #6b7280; margin-top: 1px; }
+        .ws-label { display: block; font-size: 15px; font-weight: 600; color: var(--text); }
+        .ws-desc { display: block; font-size: 12px; color: var(--text-muted); margin-top: 1px; }
         .ws-chev { flex-shrink: 0; }
 
         @media (max-width: 768px) {

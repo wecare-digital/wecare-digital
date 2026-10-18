@@ -4,13 +4,13 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Layout from '../../../../components/Layout';
-import SEO from '../../../../components/SEO';
-import { useToastContext } from '../../../../contexts/ToastContext';
-import Select, { type SelectOption } from '../../../../components/ui/Select';
-import * as api from '../../../../api/client';
+import Layout from '../../../components/Layout';
+import SEO from '../../../components/SEO';
+import { useToastContext } from '../../../contexts/ToastContext';
+import Select, { type SelectOption } from '../../../components/ui/Select';
+import * as api from '../../../api/client';
 
-interface PageProps { signOut?: () => void; user?: any; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 interface CodeAsset {
   id: string;
@@ -107,7 +107,7 @@ const TYPE_COLORS: Record<string, string> = {
   script: '#f3e8ff',
 };
 
-const CodeRepo: React.FC<PageProps> = ({ signOut, user }) => {
+const CodeRepo: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -127,9 +127,7 @@ const CodeRepo: React.FC<PageProps> = ({ signOut, user }) => {
     return acc;
   }, {} as Record<string, CodeAsset[]>);
 
-  return (
-    <Layout user={user} onSignOut={signOut}>
-      <SEO title="Code Repository" description="Browse and review all backend code assets" noindex={true} />
+  const body = (
       <div className="inner-page" style={{ padding: '20px 24px', maxWidth: 1200 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div>
@@ -236,6 +234,13 @@ const CodeRepo: React.FC<PageProps> = ({ signOut, user }) => {
           </div>
         )}
       </div>
+  );
+
+  if (embedded) return body;
+  return (
+    <Layout user={user} onSignOut={signOut}>
+      <SEO title="Code Repository" description="Browse and review all backend code assets" noindex={true} />
+      {body}
     </Layout>
   );
 };
