@@ -618,40 +618,6 @@ class _Rig:
         table.rows[matching[0]] = row
         return row
 
-    def make_gift_card_split(self, redeem_paise):
-        """Rewrite the stored rows into a SPLIT TENDER part-funded by a settled WECARE gift card,
-        and return the Razorpay leg.
-
-        WHY SURGERY AND NOT A FIXTURE. The website prepare takes no second tender, so the basket is
-        priced for real, the gateway order is created for real, and only the STORED figures are
-        rewritten afterwards into the row shape a settled card leaves:
-
-          attempt.amountPaise            the FULL payable, unchanged (section 8 requires it)
-          attempt.razorpayChargedPaise   the leg
-          attempt.giftCardRedeemedPaise  the other tender (`finalization.OTHER_TENDER_PAISE_ATTRS`)
-          attempt card-ladder evidence   required paise, transaction id, GC_REDEEMED rank
-          PAYREF#.amountPaise            the leg (what `reconcile_payment` compares a capture to)
-          GATEWAYORDER#.amountPaise      the leg (what `verify_callback` compares it to)
-
-        Everything downstream of the capture -- the second-tender gate, `_tenders_reconcile` and
-        the recorded verified capture -- then runs on real code reading real rows.
-        """
-        from lambda_utils.ecommerce import gift_card_settlement as gcs
-        payable = int(self.attempt_row()["amountPaise"])
-        leg = payable - int(redeem_paise)
-        assert leg > 0, "a split tender still needs a positive Razorpay leg"
-        self.patch_attempt(**{
-            "razorpayChargedPaise": leg,
-            gcs.REQUIRED_PAISE_ATTR: int(redeem_paise),
-            gcs.REDEEMED_PAISE_ATTR: int(redeem_paise),
-            gcs.TRANSACTION_ID_ATTR: "gc-txn-fixture",
-            # The stage is derived from the RANK attribute and from nothing else.
-            gcs.RANK_ATTRIBUTE: gcs.STAGE_RANK[gcs.GC_REDEEMED],
-        })
-        self.patch_row(order_keys.PAYMENT_REFERENCE_PREFIX, amountPaise=leg)
-        self.patch_row(order_keys.GATEWAY_ORDER_PREFIX, amountPaise=leg)
-        return leg
-
     def age_everything(self, seconds):
         """Push every timestamp on every row back by `seconds`, to cross a window deliberately."""
         for name in (KEYS_TABLE, ATTEMPTS_TABLE):
@@ -1329,7 +1295,7 @@ def test_only_the_choke_point_can_emit_a_payable_modal():
 def test_the_browser_amount_and_the_attempt_amount_are_different_expressions():
     """The split, re-pinned here because the choke point moved it out of one function.
 
-    `tests/test_gift_cards_iam_and_table.py`'s SEAM-G14 row asserts this by requiring
+    The former secondary-tender contract asserted this by requiring
     `_browser_options` and `payment_attempt.build` to appear in the SAME function with different
     `amount_paise` expressions. The choke point deliberately separates them -- there is now
     exactly one `_browser_options` call site and it is not in the function that builds the attempt
@@ -1527,30 +1493,16 @@ def test_website_prepare_makes_no_lambda_invoke(rig):
 
 
 def test_the_constants_match_the_modules_they_mirror():
-    """Every literal that mirrors another module's constant, pinned pair by pair.
-
-    Each of these is a cross-module literal rather than an import, and each has a reason: an
-    import cycle between sibling `ecommerce` modules, or the handler's import-closure assertion.
-    A divergence in any of them produces NO error -- only a silently disabled check.
-    """
-    from lambda_utils.ecommerce import gift_card_settlement
+    """Cross-module literals that still have a live producer stay pinned."""
+    from lambda_utils.ecommerce import finalization
     from lambda_utils.integrations import razorpay_orders
 
-    # The verified-capture attribute, declared as an obligation by the gift-card ladder and
-    # written only by finalization.
-    from lambda_utils.ecommerce import finalization
-    assert (finalization.VERIFIED_CAPTURED_PAISE_ATTR
-            == gift_card_settlement.RAZORPAY_VERIFIED_PAISE_ATTR)
-    # The one other tender finalization reconciles, by the gift-card ladder's own name.
-    assert finalization.OTHER_TENDER_PAISE_ATTRS == (gift_card_settlement.REDEEMED_PAISE_ATTR,)
-    # The checkout mode the finalizer accepts.
+    assert finalization.VERIFIED_CAPTURED_PAISE_ATTR == "verifiedCapturedPaise"
+    assert finalization.OTHER_TENDER_PAISE_ATTRS == ()
     assert website_checkout.CHECKOUT_MODE_WEBSITE in finalization.ACCEPTED_CHECKOUT_MODES
     assert "AWS_NATIVE" in finalization.ACCEPTED_CHECKOUT_MODES
-    # The receipt length both sides slice/compare on. A divergence produces no error, only a
-    # correlation that silently stops matching.
     assert (order_keys.RAZORPAY_RECEIPT_MAX_LENGTH
             == razorpay_orders.RECEIPT_MAX_LENGTH)
-    # The create horizon, shared by the request-key claim and the basket claim.
     assert (website_checkout.CREATE_CLAIM_STALE_SECONDS
             == order_keys.CART_CREATE_CLAIM_STALE_SECONDS)
 
@@ -1691,18 +1643,12 @@ def test_no_response_or_log_can_carry_the_key_secret(rig, caplog):
 GATEWAY_ORDER_ID = "order_GRAFT_1"
 
 
-def _paid_flow(r, *, request_key="K_final", redeem_paise=0, payment_id="pay_final_1"):
-    """prepare -> (optional split surgery) -> stubbed capture. Returns `(leg, options)`.
-
-    One helper so every row below starts from the SAME prepared state and differs only in the
-    one thing it is about.
-    """
+def _paid_flow(r, *, request_key="K_final", payment_id="pay_final_1"):
+    """prepare -> stubbed Razorpay capture. Returns `(leg, options)`."""
     code, body = r.prepare(request_key)
     assert code == 200 and body["status"] == "CHECKOUT_OPTIONS_READY", body
     options = body["options"]
     leg = int(options["amountPaise"])
-    if redeem_paise:
-        leg = r.make_gift_card_split(redeem_paise)
     r.stub_capture(payment_id=payment_id, amount_paise=leg)
     return leg, options
 
@@ -1752,141 +1698,18 @@ def test_a_website_attempt_can_be_finalized_at_all(rig):
     assert r.attempt_row()[finalization_module().VERIFIED_CAPTURED_PAISE_ATTR] == leg
 
 
-def test_the_verified_razorpay_leg_is_recorded_not_the_order_total(rig):
-    """Under split tender the recorded verified capture is the provider's leg, never the total.
-
-    `verified_captured_paise` is the Razorpay leg's own confirmed figure, and recording the full
-    payable instead would over-report the capture. The anti-vacuity anchor is that the leg and
-    the payable are DIFFERENT numbers; the evidence lives on the attempt row.
-    """
+def test_the_verified_razorpay_capture_matches_the_frozen_payable(rig):
+    """With secondary tenders retired, the provider capture must equal the frozen payable."""
     r = rig()
-    redeem = 40000
-    leg, options = _paid_flow(r, request_key="K_fin_2", redeem_paise=redeem)
+    leg, options = _paid_flow(r, request_key="K_fin_2")
     payable = int(r.attempt_row()["amountPaise"])
-    assert leg != payable, "the fixture produced no split, so this row would prove nothing"
+    assert leg == payable
 
     code, body = r.verify(order_id=options["orderId"], payment_id="pay_final_1")
     assert code == 200 and body["status"] == "VERIFIED_PAID", body
-
-    # The provider's confirmed capture is stored as SEAM-G13 evidence — the leg, not the payable.
     recorded = int(r.attempt_row()[finalization_module().VERIFIED_CAPTURED_PAISE_ATTR])
-    assert recorded == leg
-    assert recorded != payable
-    assert _stage_of(r)[0] == "ORDER_FINALIZED"
-
-
-def test_a_one_paise_tender_disagreement_fails_closed(rig):
-    """One paise is a mismatch. Exact integers, no tolerance, and the order is not finalized.
-
-    The internal order record IS created -- it is evidence that money moved and must survive --
-    but `_tenders_reconcile` refuses before the terminal stage, so the order rests at
-    NEEDS_RECONCILIATION and never reaches ORDER_FINALIZED.
-    """
-    r = rig()
-    redeem = 40000
-    leg, options = _paid_flow(r, request_key="K_fin_3", redeem_paise=redeem)
-    # The other tender now claims ONE PAISE MORE than the split actually was.
-    from lambda_utils.ecommerce import gift_card_settlement
-    r.patch_attempt(**{gift_card_settlement.REDEEMED_PAISE_ATTR: redeem + 1})
-
-    code, body = r.verify(order_id=options["orderId"], payment_id="pay_final_1")
-    assert code == 200 and body["status"] == "VERIFIED_PAID", body
-
-    assert len(r.db.rows(ORDERS_TABLE)) == 1, "the paid evidence must still be recorded"
-    assert _stage_of(r) == ("NEEDS_RECONCILIATION", "TENDER_SUM_MISMATCH")
-    assert r.db.rows(ORDERS_TABLE)[0]["finalizationStage"] == "INTERNAL_ORDER_CREATED"
-
-
-def test_an_ordinary_card_free_order_with_a_zero_leg_is_not_refused(rig):
-    """The second-tender gate tests the VALUE and never the key.
-
-    An ordinary website attempt carries no tender attribute at all, and tender evidence recorded
-    as 0 -- a card noted before anything is debited -- is still not a second leg. A presence test
-    would refuse such an order; it must finalize.
-    """
-    r = rig()
-    leg, options = _paid_flow(r, request_key="K_fin_5")
-    fin = finalization_module()
-    assert not [name for name in fin.OTHER_TENDER_PAISE_ATTRS if name in r.attempt_row()], (
-        "the website prepare takes no second tender, so it writes no tender attribute")
-    r.patch_attempt(**{name: 0 for name in fin.OTHER_TENDER_PAISE_ATTRS})
-
-    code, body = r.verify(order_id=options["orderId"], payment_id="pay_final_1")
-    assert code == 200 and body["status"] == "VERIFIED_PAID", body
-    assert len(r.db.rows(ORDERS_TABLE)) == 1
-    assert _stage_of(r)[0] == "ORDER_FINALIZED"
-
-
-def test_an_unreadable_tender_leg_is_refused(rig, caplog):
-    """An amount we cannot read is not the same as no amount. Refused BEFORE `accept_paid`."""
-    import logging
-    r = rig()
-    leg, options = _paid_flow(r, request_key="K_fin_6")
-    r.patch_attempt(**{finalization_module().OTHER_TENDER_PAISE_ATTRS[0]: "not-a-number"})
-
-    with caplog.at_level(logging.ERROR):
-        code, body = r.verify(order_id=options["orderId"], payment_id="pay_final_1")
-    assert code == 200 and body["status"] == "VERIFIED_PAID", body
-    # No order record at all: the gate is above `accept_paid`, so `record_paid` never ran.
-    assert r.db.rows(ORDERS_TABLE) == []
-    assert not r.attempt_row().get("finalizationStage")
-    events = [json.loads(record.getMessage()).get("event")
-              for record in caplog.records if record.getMessage().startswith("{")]
-    assert "checkout_finalize_unreadable_tender" in events, events
-    # The capture is still recorded, because that happens first and unconditionally.
-    assert r.attempt_row()[finalization_module().VERIFIED_CAPTURED_PAISE_ATTR] == leg
-
-
-def test_an_unsettled_wecare_gift_card_is_refused(rig, caplog):
-    """Leg A: the WECARE store card has its own ladder, and `accept_paid` consults none of it."""
-    import logging
-    from lambda_utils.ecommerce import gift_card_settlement
-    r = rig()
-    leg, options = _paid_flow(r, request_key="K_fin_7")
-    # A required redemption with no evidence that it happened.
-    r.patch_attempt(**{gift_card_settlement.REQUIRED_PAISE_ATTR: 30000})
-
-    with caplog.at_level(logging.ERROR):
-        code, body = r.verify(order_id=options["orderId"], payment_id="pay_final_1")
-    assert code == 200 and body["status"] == "VERIFIED_PAID", body
-    assert r.db.rows(ORDERS_TABLE) == []
-    events = [json.loads(record.getMessage()).get("event")
-              for record in caplog.records if record.getMessage().startswith("{")]
-    assert "checkout_finalize_gift_card_unsettled" in events, events
-
-
-def test_a_settled_wecare_gift_card_is_not_refused_by_the_ladder_gate(rig):
-    """The other side of leg A: a card with its stage AND its transaction id passes the gate.
-
-    It then meets `_tenders_reconcile`, which is a fact about money rather than about the ladder,
-    so a settled card whose legs sum correctly finalizes and one whose legs do not fails closed
-    there. Asserted as "not refused BY THE LADDER", which is what this gate decides.
-    """
-    from lambda_utils.ecommerce import gift_card_settlement
-    r = rig()
-    redeem = 30000
-    leg, options = _paid_flow(r, request_key="K_fin_8")
-    # A WECARE card, settled, funding part of the basket. `giftCardRedeemedPaise` is the tender
-    # `OTHER_TENDER_PAISE_ATTRS` names, so the sum closes against the payable.
-    r.patch_attempt(**{
-        gift_card_settlement.REQUIRED_PAISE_ATTR: redeem,
-        gift_card_settlement.REDEEMED_PAISE_ATTR: redeem,
-        gift_card_settlement.TRANSACTION_ID_ATTR: "gc-txn-fixture",
-        # The stage is derived from the RANK attribute and from nothing else, so the rank is what
-        # a settled card actually carries on the row.
-        gift_card_settlement.RANK_ATTRIBUTE:
-            gift_card_settlement.STAGE_RANK[gift_card_settlement.GC_REDEEMED],
-        "razorpayChargedPaise": leg - redeem,
-    })
-    r.patch_row(order_keys.PAYMENT_REFERENCE_PREFIX, amountPaise=leg - redeem)
-    r.patch_row(order_keys.GATEWAY_ORDER_PREFIX, amountPaise=leg - redeem)
-    r.stub_capture(payment_id="pay_final_1", amount_paise=leg - redeem)
-
-    code, body = r.verify(order_id=options["orderId"], payment_id="pay_final_1")
-    assert code == 200 and body["status"] == "VERIFIED_PAID", body
-    assert len(r.db.rows(ORDERS_TABLE)) == 1, "a settled card must not be refused by the ladder gate"
-    # The verified capture recorded is the Razorpay leg, not the payable and not the card's.
-    assert int(r.attempt_row()[finalization_module().VERIFIED_CAPTURED_PAISE_ATTR]) == leg - redeem
+    assert recorded == payable
+    assert finalization_module().OTHER_TENDER_PAISE_ATTRS == ()
     assert _stage_of(r)[0] == "ORDER_FINALIZED"
 
 
@@ -2122,35 +1945,26 @@ def test_the_closed_tab_poll_writes_exactly_one_order_record(rig):
     assert r.db.count_prefix(order_keys.ORDER_NUMBER_PREFIX) == 1
 
 
-def test_the_status_leg_refuses_rather_than_substituting_the_payable(rig):
-    """With no stored capture the status leg ASKS THE PROVIDER. It never substitutes the payable.
-
-    Under split tender the payable is a different number, and substituting it is exactly the
-    full-amount-instead-of-leg defect this graft removes. Two halves: an unavailable provider
-    writes nothing at all, and an available one stores the LEG.
-    """
+def test_the_status_leg_requires_provider_readback_before_finalizing(rig):
+    """A closed-tab status poll never invents a capture when the provider is unavailable."""
     r = rig()
-    redeem = 35000
-    leg, options = _paid_flow(r, request_key="K_status_2", redeem_paise=redeem,
-                              payment_id="pay_tab_2")
+    leg, options = _paid_flow(r, request_key="K_status_2", payment_id="pay_tab_2")
     payable = int(r.attempt_row()["amountPaise"])
-    assert leg != payable, "no split, so this row would prove nothing"
+    assert leg == payable
     _webhook_reconcile(r, payment_id="pay_tab_2", amount_paise=leg)
 
-    # 1. The provider cannot be reached: nothing is written and nothing is substituted.
     r.stub_capture(raises=RuntimeError("provider unavailable"))
     code, _body = r.status(options["paymentAttemptId"])
     assert code == 200
     assert r.db.rows(ORDERS_TABLE) == []
     assert finalization_module().VERIFIED_CAPTURED_PAISE_ATTR not in r.attempt_row()
 
-    # 2. The provider answers: the stored figure is the LEG, never the payable.
     r.stub_capture(payment_id="pay_tab_2", amount_paise=leg)
     code, _body = r.status(options["paymentAttemptId"])
     assert code == 200
     assert len(r.db.rows(ORDERS_TABLE)) == 1
     stored = r.attempt_row()[finalization_module().VERIFIED_CAPTURED_PAISE_ATTR]
-    assert stored == leg and stored != payable
+    assert stored == payable
 
 
 def test_a_claim_without_a_reference_alarms_once_instead_of_polling_forever(rig, caplog):
