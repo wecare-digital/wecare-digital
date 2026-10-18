@@ -328,9 +328,9 @@ response = requests.post(
                         contradicting each other. Keep this string and the panel's
                         "message" value identical; that is the whole point of showing
                         them side by side. */}
-                    <div className="msg sent"><p>Your order #WD-87A6G has been shipped</p><span className="msg-meta"><span className="msg-time">10:30</span><svg className="msg-ticks" viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" focusable="false"><path d="M11.07.65 5.3 8.6 2.3 5.6 1.2 6.7l4.2 4.2L12.2 1.75z" fill="currentColor"/><path d="M15.07.65 9.3 8.6l-.9-.9 6.17-8.4z" fill="currentColor"/></svg></span></div>
-                    <div className="msg sent"><p>Track here: wecare.digital/track</p><span className="msg-meta"><span className="msg-time">10:30</span><svg className="msg-ticks" viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" focusable="false"><path d="M11.07.65 5.3 8.6 2.3 5.6 1.2 6.7l4.2 4.2L12.2 1.75z" fill="currentColor"/><path d="M15.07.65 9.3 8.6l-.9-.9 6.17-8.4z" fill="currentColor"/></svg></span></div>
-                    <div className="msg received"><p>When will it arrive?</p><span className="msg-time">10:31</span></div>
+                    <div className="msg sent msg-home-green"><p>Your order #WD-87A6G has been shipped</p><span className="msg-meta"><span className="msg-time">10:30</span><svg className="msg-ticks" viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" focusable="false"><path d="M11.07.65 5.3 8.6 2.3 5.6 1.2 6.7l4.2 4.2L12.2 1.75z" fill="currentColor"/><path d="M15.07.65 9.3 8.6l-.9-.9 6.17-8.4z" fill="currentColor"/></svg></span></div>
+                    <div className="msg sent msg-home-blue"><p>Track here: wecare.digital/track</p><span className="msg-meta"><span className="msg-time">10:30</span><svg className="msg-ticks" viewBox="0 0 16 11" width="16" height="11" aria-hidden="true" focusable="false"><path d="M11.07.65 5.3 8.6 2.3 5.6 1.2 6.7l4.2 4.2L12.2 1.75z" fill="currentColor"/><path d="M15.07.65 9.3 8.6l-.9-.9 6.17-8.4z" fill="currentColor"/></svg></span></div>
+                    <div className="msg received msg-home-amber"><p>When will it arrive?</p><span className="msg-time">10:31</span></div>
                     <div className="msg received"><p>Can I change the delivery address?</p><span className="msg-time">10:32</span></div>
                     <div className="typing-indicator"><span></span><span></span><span></span></div>
                   </div>
@@ -465,9 +465,9 @@ response = requests.post(
                     call-to-action here renders as the single .gos-wa-cta pill. The redundant
                     second "See it on WhatsApp" .gos-wa-cta that used to sit beside it was
                     REMOVED on owner instruction - this steps block now carries just the one
-                    "Get Started on WhatsApp" pill; the demo link sits below the API code panel. */}
+                    "Checkout on WhatsApp" pill; the demo link sits below the API code panel. */}
                 <div className="api-steps-ctas">
-                  <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
+                  <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Checkout on WhatsApp &#8594;</a>
                 </div>
                 <ProductBuyBox slug="grahak-os" showPrice={ false } />
                 <p className="gos-price" data-wc-no-translate="true">&#8377;899</p>
@@ -519,7 +519,7 @@ response = requests.post(
             touchpoint "OTPs" pill and the capabilities strip, and the dedicated section was not
             needed. The QR lived only in this section and goes with it; the WhatsApp CTA remains
             beneath the API code panel as "Open demo in WhatsApp" and the API section also keeps its
-            "Get Started on WhatsApp" pill. If the QR is ever wanted back, the verified asset is
+            "Checkout on WhatsApp" pill. If the QR is ever wanted back, the verified asset is
             still at public/images/grahak-os-whatsapp-qr.svg. */}
 
         {/* The bottom closer section (<section id="gos-closer">) was REMOVED here on owner
@@ -527,7 +527,7 @@ response = requests.post(
             that duplicate CTA is gone, and the page's only "Open demo in WhatsApp" link now lives
             directly below the large API code panel (.api-wa-link). The .gos-closer* CSS and the
             gos-closer entrance-animation target went with it; a test guards the removal by
-            substring. The api-steps "Get Started on WhatsApp" pill and the ₹899 price/SKU/policy
+            substring. The api-steps "Checkout on WhatsApp" pill and the ₹899 price/SKU/policy
             stay in the same section. */}
 
         {/* Subscribe + Share. The page's sections are full-bleed, so the block is wrapped in a
@@ -653,7 +653,7 @@ response = requests.post(
 
           /* The hero no longer has a CTA pill (the .gos-buy block was removed on owner
              instruction), and the bottom closer was removed too, so .gos-wa-cta now styles
-             ONLY the api-steps "Get Started on WhatsApp" pill. The old closer-only .gos-ctas
+             ONLY the api-steps "Checkout on WhatsApp" pill. The old closer-only .gos-ctas
              row wrapper went with the closer. */
           /* Primary WhatsApp pill: full-lime, the page's one allowed lime surface for the
              primary action - mirrors ProductPage's .pdp-cta. 52px min target. */
@@ -845,18 +845,21 @@ response = requests.post(
              a rendering fault rather than a deliberate overlap. 66% keeps them clear
              of it. */
           .msg.received{background:#fff;align-self:flex-start;max-width:66%;border-top-left-radius:3px}
-          /* WhatsApp's OWN outgoing green (#d9fdd3), not the brand lime (#d1f470). The
-             lime was the loudest tell that this was a brand mockup rather than a real
-             WhatsApp thread - WhatsApp sent bubbles are a soft mint, and #d9fdd3 is the
-             value WhatsApp Web ships. The timestamp grey below was already chosen for AA
-             contrast and stays legible on this slightly lighter fill. */
+          /* Keep WhatsApp's soft mint as the sent-bubble fallback, then borrow three
+             HOME hero tints for the first three visible bubbles: green, blue and amber.
+             The fourth received bubble stays white, so the mock still reads as a chat
+             rather than a row of branded cards. All three tints keep black body text and
+             the #54656f timestamp comfortably readable. */
           .msg.sent{background:#d9fdd3;align-self:flex-end;border-top-right-radius:3px}
-          /* Bubble tails - the small notch at the top corner of the first bubble in a
-             group. Real WhatsApp draws these and their absence made every bubble read as a
-             plain rounded rectangle. Built from a CSS triangle positioned at the squared
-             corner so each colour matches its bubble. */
+          .msg.msg-home-green{background:#e0f7c8}
+          .msg.msg-home-blue{background:#dbeafe}
+          .msg.msg-home-amber{background:#fef3c7}
+          /* Bubble tails match each bubble fill exactly. */
           .msg.sent::before{content:'';position:absolute;top:0;right:-7px;width:0;height:0;border-top:8px solid #d9fdd3;border-right:8px solid transparent}
           .msg.received::before{content:'';position:absolute;top:0;left:-7px;width:0;height:0;border-top:8px solid #fff;border-left:8px solid transparent}
+          .msg.sent.msg-home-green::before{border-top-color:#e0f7c8}
+          .msg.sent.msg-home-blue::before{border-top-color:#dbeafe}
+          .msg.received.msg-home-amber::before{border-top-color:#fef3c7}
           .msg{position:relative}
           /* Every sent bubble sits on the right. Two of them previously carried a
              left-msg override that forced them to flex-start, so outgoing messages
