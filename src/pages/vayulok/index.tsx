@@ -198,7 +198,7 @@ const VayuLokPage: React.FC = () => {
 
 
       <style jsx>{`
-        .vl-share-wrap{width:100%;max-width:1300px;margin:0 auto;padding:0 24px 48px;box-sizing:border-box}
+        .vl-share-wrap{width:100%;max-width:var(--public-content-max);margin:0 auto;padding:0 var(--public-page-gutter) 48px;box-sizing:border-box}
         @media(max-width:767px){ .vl-share-wrap{padding:0 16px 40px} }
         /* The hero's shell, headline, badge spacing and subtext are RotatingHero's own rh-*
            rules. This page keeps only what is its own: the globe column and the split. */
