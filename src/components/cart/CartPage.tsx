@@ -190,9 +190,9 @@ const CONTRIBUTION_UNAVAILABLE_MESSAGE = 'Contributions are not available right 
 const CONTRIBUTION_NOT_PAYABLE_MESSAGE =
   'Contributions cannot be taken right now. Nothing has been charged.';
 /**
- * Discounts are payment facts, not cart decoration. The live checkout has no redemption
- * endpoint today and Delight is not seeded in the live CouponsTable. This page therefore
- * exposes status only and never a dead Apply control.
+ * Discounts are payment facts, not cart decoration. Delight is the always-on server-owned
+ * default and is priced by checkout, not by the browser. This page therefore explains the
+ * automatic policy but never derives a rupee discount or exposes a dead Apply control.
  */
 /** Where an unauthenticated shopper is sent, and returned from, before checkout. */
 const SIGN_IN_PATH = '/account/sign-in/?return=/cart/';
@@ -536,7 +536,7 @@ function RedemptionPanel (): React.ReactElement {
         <span className="cart-capability-icon" aria-hidden="true">local_offer</span>
         <div>
           <strong>Delight</strong>
-          <p>Temporarily unavailable. No discount has been applied to this cart.</p>
+          <p>Delight discount is applied automatically at checkout.</p>
         </div>
       </div>
       <style jsx>{`

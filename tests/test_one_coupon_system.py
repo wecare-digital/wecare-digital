@@ -291,7 +291,7 @@ def test_the_cart_reference_surface_is_status_only_until_redemption_is_real():
     text = CART_PAGE.read_text(encoding="utf-8")
     assert "REDEMPTION_URL" not in text
     assert "/ecommerce/redemption" not in text
-    assert "Temporarily unavailable. No discount has been applied to this cart." in text
+    assert "Delight discount is applied automatically at checkout." in text
     assert "<strong>Gift cards</strong>" not in text
     assert "gift-card code" not in text.lower()
     assert "CHECKOUT_COUPONS" not in text
