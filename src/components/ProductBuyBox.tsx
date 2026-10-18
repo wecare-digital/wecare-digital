@@ -114,7 +114,7 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
       { showPrice && (
         <>
           <p className="pbb-buy">
-            <span className="pbb-price" data-wc-no-translate="true">{ displayPrice || line.formattedPrice }</span>
+            <span className="pbb-price" data-wc-no-translate="true">{ displayPrice ?? line.formattedPrice }</span>
           </p>
           <p className="pbb-offer-note">{ offerNote }</p>
         </>
