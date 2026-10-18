@@ -165,7 +165,7 @@ rather than two individually-correct status codes.
 | 58 | `/workspace/` | 200 Authenticator shell, `Disallow` in robots | 200 | **unchanged — staff entry, neither hidden nor opened** |
 | 59 | `/workspace/access/` | 200 | 200 | unchanged |
 | 60 | `/account/sign-in/` | 200 | 200 | unchanged — customer auth |
-| 61–72 | `/ /shop/ /cart/ /orders/ /blog/ /contact/ /checkout/status/ /grahak-os/ /vayulok/ /terms/ /anew/ /clear-closure/` | 200 | 200 | unchanged |
+| 61–72 | `/ /shop/ /cart/ /orders/ /blog/ /contact/ /checkout/status/ /grahak-os/ /vayulok/ /terms/ /anew/ [retired public path]` | 200 | 200 | unchanged |
 | 73 | `POST /api/razorpay-webhook` | **401** | **401** | unchanged — signature rejection, not a page |
 | 74 | `POST /api/auth/validate` | 401 | 401 | unchanged |
 | 75 | `POST /api/payments/webhook` | 404 | 404 | unchanged |
@@ -396,15 +396,15 @@ are that Search Console property's own, over its full retained window:
 |---|---|---:|---:|
 | `[retired public path b180810d]` | `/submit-request/` | **1,128** | 4 |
 | `[retired public path 74ea5c7a]` | `/anew/` | 531 | 3 |
-| `[retired public path 14041cbc]` | `/clear-closure/` | 499 | 1 |
+| `[retired public path 14041cbc]` | `[retired public path]` | 499 | 1 |
 | `[retired public path 32bc4583]` | `/terms/` | 379 | 0 |
 | `[retired public path 9109e567]` | `/expo-week/` | 292 | 1 |
 | `[retired public path f1430fb7]` | `/terms/` | 241 | 1 |
-| `[retired public path 5b217199]` | `/ritual-guru/` | 226 | 0 |
+| `[retired public path 5b217199]` | `[retired public path]` | 226 | 0 |
 | `[retired public path b7b8d296]` | `/anew/` | 212 | 1 |
 | `[retired public path 3b13e953]` | `/orders/` | 201 | 2 |
 | `[retired public path a324e726]` | `/bharat-rx/` | 188 | 3 |
-| `[retired public path fb3e74a7]` | `/refer-and-earn/` | 132 | 0 |
+| `[retired public path fb3e74a7]` | `[retired public path]` | 132 | 0 |
 | `[retired public path 1965ee0f]` | `/contact/` | 127 | 4 |
 | `[retired public path 2cc974af]` | `/` | 8 | 0 |
 | | **subtotal** | **4,164** | **20** |
