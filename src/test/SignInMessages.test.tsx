@@ -78,7 +78,7 @@ describe('the sign-in error states use no red validation colour', () => {
       SIGN_IN_SOURCE.indexOf('.si-error{'),
       SIGN_IN_SOURCE.indexOf('.si-back{'),
     );
-    expect(errorBlock).toContain('#1a3a2a');            // the deep-green type
+    expect(errorBlock).toContain('color:var(--public-brand-green)'); // canonical deep-green type
     expect(errorBlock).toContain('rgba(209,244,112');   // the lime tint (#d1f470)
     // No red hue anywhere in the error treatment.
     expect(errorBlock).not.toMatch(/#f?[a-f0-9]*0{2}[a-f0-9]{0,2}\b.*red/i);

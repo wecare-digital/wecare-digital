@@ -594,7 +594,7 @@
       "classes": [
         "sbb-select"
       ],
-      "decls": "min-height:48px;padding:0 14px;border:1px solid #d1d5db;border-radius:10px; background:#fff;font-size:15px;color:#1a1a1a;min-width:min(100%,420px);",
+      "decls": "min-height:48px;padding:0 14px;border:1px solid #d1d5db;border-radius:10px; background:#fff;font-size:15px;color:var(--public-body);min-width:min(100%,420px);",
       "file": "src/components/ServiceBuyBox.tsx",
       "geometry": true,
       "line": 271,

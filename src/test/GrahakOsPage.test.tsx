@@ -221,6 +221,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
   const source = readFileSync( pagePath, 'utf8' );
   const homePath = resolve( process.cwd(), 'src/pages/index.tsx' );
   const home = readFileSync( homePath, 'utf8' );
+  const productBuyBox = readFileSync( resolve( process.cwd(), 'src/components/ProductBuyBox.tsx' ), 'utf8' );
 
   it( 'carries the owner-approved consulting heading on the .api-info h2 rung', () => {
     // Exact owner-approved heading theme. The old left-column heading is gone.
@@ -261,8 +262,6 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
   // pinned to this section, not to the whole page (the closer carries its own CTA).
   const stepsCtas = source.match( /className="api-steps-ctas">([\s\S]*?)<\/div>/ )?.[ 1 ] || '';
 
-  const home = readFileSync( resolve( process.cwd(), 'src/pages/index.tsx' ), 'utf8' );
-
   it( 'keeps the single WhatsApp CTA and attaches the fresh catalog checkout', () => {
     // The existing WhatsApp door stays exactly once in this steps block, while the fresh
     // catalog checkout is mounted separately without duplicating the visible ₹899 price.
@@ -276,12 +275,12 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( stepsCtas ).toContain( 'Checkout on WhatsApp' );
     expect( stepsCtas ).not.toContain( 'Open demo in WhatsApp' );
     expect( source ).toContain( "import ProductBuyBox from '../../components/ProductBuyBox';" );
-    expect( source ).toContain( '<ProductBuyBox slug="grahak-os" showPrice={ false } />' );
+    expect( source ).toMatch( /<ProductBuyBox\s+slug="grahak-os"\s+displayPrice=\{ GRAHAK_DISPLAY_PRICE \|\| undefined \}\s+offerNote="One-time consultation · full deployment separate"\s*\/>/ );
     expect( source ).toContain( "const GRAHAK_DISPLAY_PRICE = GRAHAK_CHECKOUT?.formattedPrice.replace( /\\.00$/, '' ) ?? null" );
-    expect( source ).toContain( '<p className="gos-price" data-wc-no-translate="true">{ GRAHAK_DISPLAY_PRICE }</p>' );
-    expect( source ).toContain( '<p className="gos-offer-note">One-time consultation · full deployment separate</p>' );
+    expect( source ).not.toContain( 'className="gos-price"' );
+    expect( source ).not.toContain( 'className="gos-offer-note"' );
     expect( source ).not.toContain( 'AI agents · from deployment to business outcomes' );
-    const offerRule = cssRuleFor( source, '.gos-offer-note' );
+    const offerRule = cssRuleFor( productBuyBox, '.pbb-offer-note' );
     expect( cssValue( offerRule, 'font-size' ) ).toBe( cssValue( cssRuleFor( home, '.home-sub' ), 'font-size' ) );
     expect( cssValue( offerRule, 'font-weight' ) ).toBe( cssValue( cssRuleFor( home, '.home-sub' ), 'font-weight' ) );
     expect( cssValue( offerRule, 'line-height' ) ).toBe( cssValue( cssRuleFor( home, '.home-sub' ), 'line-height' ) );
@@ -468,7 +467,7 @@ describe( 'Grahak OS: bottom closer section removed entirely', () => {
 
   it( 'keeps the shared price/SKU/policy in the api-steps block, not the removed closer', () => {
     // The commerce still exists on the page (in api-steps), proving the removal was scoped.
-    expect( source ).toContain( '<p className="gos-price" data-wc-no-translate="true">{ GRAHAK_DISPLAY_PRICE }</p>' );
+    expect( source ).toContain( 'displayPrice={ GRAHAK_DISPLAY_PRICE || undefined }' );
     expect( source ).toContain( 'const GRAHAK_SKU = GRAHAK_CHECKOUT?.variantId ?? null' );
     expect( source ).toContain( '<PolicyDetails' );
     expect( source ).toContain( 'shipping={ GRAHAK_POLICY.shipping }' );
