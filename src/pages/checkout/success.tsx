@@ -133,8 +133,8 @@ export default function CheckoutSuccess (): React.ReactElement {
              as bare blue underlined text. */
           .cs-card :global(.cs-btn){
             display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);
-            padding-inline:26px;border-radius:50px;font-family:inherit;font-size:17px;
-            font-weight:600;text-decoration:none;line-height:normal;
+            padding-inline:26px;border-radius:var(--public-cta-radius);font-family:inherit;font-size:var(--public-cta-font-size);
+            font-weight:var(--public-cta-font-weight);text-decoration:none;line-height:normal;
             transition:background-color .2s,transform .2s,box-shadow .2s;
           }
           .cs-card :global(.cs-btn-primary){
