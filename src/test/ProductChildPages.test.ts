@@ -55,10 +55,10 @@ describe( 'product family child pages', () => {
     expect( header ).not.toMatch( /href:\s*'\/elsewhere\/?'/ );
   } );
 
-  it( 'keeps Ritva, Puja Guidance and DIY Puja Kit in the intended menu order', () => {
+  it( 'keeps Ritva at the bottom of the Ritual Guru menu', () => {
     const header = read( 'src/components/Header.tsx' );
-    expect( header.indexOf( "label: 'Ritva'" ) ).toBeGreaterThan( -1 );
-    expect( header.indexOf( "label: 'Puja Guidance'" ) ).toBeGreaterThan( header.indexOf( "label: 'Ritva'" ) );
+    expect( header.indexOf( "label: 'Puja Guidance'" ) ).toBeGreaterThan( -1 );
     expect( header.indexOf( "label: 'DIY Puja Kit'" ) ).toBeGreaterThan( header.indexOf( "label: 'Puja Guidance'" ) );
+    expect( header.indexOf( "label: 'Ritva'" ) ).toBeGreaterThan( header.indexOf( "label: 'DIY Puja Kit'" ) );
   } );
 } );
