@@ -470,8 +470,8 @@ response = requests.post(
                   <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
                 </div>
                 <ProductBuyBox slug="grahak-os" showPrice={ false } />
-                <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · AI agents · from deployment to business outcomes</span></p>
-                <p className="gos-offer-note">One-time consultation session for outcome mapping and deployment planning. Full solution deployment is separate.</p>
+                <p className="gos-price" data-wc-no-translate="true">&#8377;899</p>
+                <p className="gos-offer-note">One-time consultation · full deployment separate</p>
                 {/* SKU stays visible; the standard policy remains available without dominating
                     an enterprise consulting offer. The policy text still comes from the shared
                     productCommerce constants so this page cannot drift from checkout policy. */}
@@ -666,13 +666,14 @@ response = requests.post(
           /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
              above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
           .gos-price{display:block;margin-top:22px;font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
-          .gos-price-unit{font-size:16px;font-weight:400;color:rgba(0,0,0,.6);letter-spacing:-.125px}
-          .gos-offer-note{max-width:620px;margin:9px 0 0;font-size:15px;font-weight:500;line-height:1.5;color:rgba(0,0,0,.68)}
+          .gos-offer-note{max-width:620px;margin:7px 0 0;font-size:16px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.6)}
           @media(prefers-reduced-motion:reduce){
             .gos-wa-cta{transition:background-color .2s}
             .gos-wa-cta:hover{transform:none;box-shadow:none}
             .api-wa-link{transition:none}
             .api-wa-link:hover{transform:none}
+            .gos-policy summary{transition:none}
+            .gos-policy summary:hover{transform:none;box-shadow:none}
           }
 
           /* The rotating channel pill - its lozenge, dot, width glide, word fade,
@@ -709,15 +710,21 @@ response = requests.post(
              .gos-commerce / .gos-price below are still used by the api-steps block above, so
              their rules stay. */
           .gos-commerce{
-            margin-top:14px;max-width:700px;font-size:14px;font-weight:400;line-height:1.5;
-            letter-spacing:0;color:rgba(0,0,0,.58);text-align:left;
+            margin-top:14px;max-width:700px;font-size:15px;font-weight:400;line-height:1.55;
+            letter-spacing:-.025px;color:rgba(0,0,0,.62);text-align:left;
           }
-          .gos-commerce strong{color:#1a3a2a;font-weight:700}
+          .gos-commerce strong{color:#1a3a2a;font-weight:650}
           .gos-commerce p{margin:0}
           .gos-policy{margin-top:8px}
-          .gos-policy summary{width:max-content;cursor:pointer;color:#1a3a2a;font-weight:650;text-decoration:underline;text-underline-offset:3px}
-          .gos-policy summary:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;border-radius:4px}
-          .gos-policy p{max-width:640px;margin-top:10px;color:rgba(0,0,0,.58)}
+          .gos-policy summary{
+            display:inline-flex;align-items:center;width:max-content;padding:6px 9px;border-radius:8px;
+            cursor:pointer;color:#1a3a2a;background:rgba(209,244,112,.18);font-size:15px;font-weight:600;
+            line-height:1.2;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;
+            transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
+          }
+          .gos-policy summary:hover{background:#d1f470;text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1)}
+          .gos-policy summary:focus-visible{background:#d1f470;text-decoration-color:transparent;outline:3px solid #1a3a2a;outline-offset:3px}
+          .gos-policy p{max-width:640px;margin-top:10px;padding:0 2px;color:rgba(0,0,0,.62);font-size:14px;line-height:1.6}
           /* The .gos-closer-head rule was REMOVED with the closer heading markup on owner
              instruction (the "Transform customer engagement with Grahak OS" h2 is gone). */
 
