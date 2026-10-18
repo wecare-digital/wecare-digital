@@ -279,7 +279,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
                           SIBLING after the card link, still inside the <li>: the card stays
                           clickable to the post, and each tag is its own link to a search. */}
                       <Link className="pbp-link" href={ `/post/${card.slug}/` } tabIndex={ pageIndex === activePage ? undefined : -1 }>
-                        <span className="pbp-title">{ card.title }</span>
+                        <h3 className="pbp-title">{ card.title }</h3>
                         { card.excerpt && <span className="pbp-excerpt">{ card.excerpt }</span> }
                       </Link>
                       {/* REAL TAGS, the shared component. Up to CARD_TAGS of the post's own tags,
@@ -325,7 +325,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
         .pbp-pill{
           display:inline-flex;align-items:center;min-height:44px;padding:0 18px;
           border:1px solid var(--public-hairline);border-radius:50px;background:#fff;
-          color:var(--public-brand-green);font-size:16px;font-weight:600;font-family:inherit;cursor:pointer;
+          color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);font-family:inherit;cursor:pointer;
           transition:background-color .2s,border-color .2s;
         }
         .pbp-pill:hover{border-color:var(--public-brand-green)}
@@ -349,7 +349,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
           border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime);
         }
 
-        .pbp-empty{margin:0;font-size:16px;line-height:1.4;color:var(--public-muted)}
+        .pbp-empty{margin:0;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted)}
 
         /* THE PAGER TRACK. A horizontal scroll-snap container, one page wide, that holds the pages
            side by side. scroll-snap-type:x mandatory makes a touch swipe settle cleanly on a page;
@@ -441,10 +441,10 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
            .pbp-link below is reached through the structure rather than a scoped class. The old
            per-card .pbp-chip went with the markup: the chips are links now and live in BlogTags. */
         .pbp-card :global(.pbp-tagrow){margin-top:4px;padding-top:0;border-top:0}
-        .pbp-title{font-size:20px;font-weight:700;line-height:1.3;letter-spacing:-.2px;color:#000}
+        .pbp-title{margin:0;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading)}
         /* The short review: the post excerpt, clamped to two lines so no card runs long. */
         .pbp-excerpt{
-          font-size:16px;line-height:1.45;color:rgba(0,0,0,.62);
+          font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);
           display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
         }
 

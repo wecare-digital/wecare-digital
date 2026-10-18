@@ -199,26 +199,11 @@ async function main() {
     // 28px treatment avoids turning a utility panel heading into a second page-section heading.
 
     /**
-     * DOCUMENTED EXCEPTIONS: headings that ARE section headings and are deliberately NOT on
-     * the shared rung. This is a different category from NON_SECTION above, and conflating
-     * the two was hiding a real distinction.
-     *
-     * NON_SECTION means "not a section heading at all" - a card title, a widget label, an
-     * eyebrow marked up as an h2. Those are correctly small and scaling them would be a
-     * regression.
-     *
-     * An entry here is a genuine section heading with a deliberate, recorded reason to sit
-     * off the rung. Each one needs a justification, because the default answer is no: an
-     * exception with no reason is just drift with a comment on it.
+     * No page-level section-h2 exceptions remain. Dense surfaces such as Terms and Privacy use
+     * the shared section rung now; density is handled by measure and spacing, not a second type
+     * ladder. NON_SECTION above still excludes headings that are semantically widget/card labels.
      */
-    const RUNG_EXCEPTIONS = [
-      {
-        match: /(^|\.)lgd-h2(\.|$)/,
-        why: '/terms/ and /privacy/ carry 71 numbered legal sections between them - 47 and 24. At 40px '
-          + 'each one reads as a page title and the documents become a wall of headings; at '
-          + '28px they read as the clause headings they are. Density, not drift.',
-      },
-    ];
+    const RUNG_EXCEPTIONS = [];
     const exceptionFor = cls => RUNG_EXCEPTIONS.find( e => e.match.test( cls ) );
 
     console.log( '\nSection-h2 conformance @1280' );
