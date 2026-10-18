@@ -127,11 +127,11 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
         .pbb-cta{
           display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);
           padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
-          background:var(--public-bg);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);cursor:pointer;
+          background:#fff;color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);cursor:pointer;
           transition:background-color .2s,transform .2s,box-shadow .2s;
         }
         .pbb-cta:hover:not(:disabled){
-          background:var(--public-brand-lime);transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
+          background:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow);
         }
         .pbb-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         .pbb-cta:disabled{opacity:.5;cursor:default}
