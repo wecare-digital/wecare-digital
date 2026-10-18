@@ -1801,9 +1801,8 @@ export default function Cart (): React.ReactElement {
                 />
               ) }
 
-              {/* Catalogue prices are for display; the server approves the payable total. */}
               <p className="cart-note">
-                The store confirms your final total, including taxes and fees, before payment.
+                Taxes and fees are shown before payment.
               </p>
 
               {/* The WhatsApp claim sentence. Defined once above, beside the reason it is not

@@ -58,6 +58,20 @@ const MARKERS = {
   lockup: { re: /class="[^"]*\bbrand-lockup\b/, what: 'the brand lockup' },
 };
 
+/**
+ * Customer-visible copy that was explicitly retired. This gate reads the BUILT HTML, not source,
+ * so comments and internal implementation notes cannot create false positives. Any reappearance
+ * means a visitor can see wording already removed during the public-surface audit.
+ */
+const FORBIDDEN_PUBLIC_COPY = [
+  'Statutory consumer rights remain unaffected.',
+  'final total confirmed at checkout',
+  'Review your final total in the cart before payment',
+  'The store confirms your final total',
+  'This page is not a checkout',
+  'Live payment is not on yet',
+];
+
 /** How many orphans to open. All of them would be ~105 file reads for one repeated answer. */
 const ORPHAN_SAMPLE = 8;
 
@@ -218,6 +232,21 @@ function main() {
     const missing = Object.entries( MARKERS ).filter( ( [ , m ] ) => !m.re.test( html ) );
     record( missing.length === 0, `${route}${via}`,
       missing.length ? `MISSING ${missing.map( ( [ , m ] ) => m.what ).join( ', ' )}` : `${Math.round( html.length / 1024 )}kb` );
+
+    const retired = FORBIDDEN_PUBLIC_COPY.filter( phrase => html.includes( phrase ) );
+    record( retired.length === 0, `${route}${via} customer-facing copy`,
+      retired.length ? `RETIRED COPY: ${retired.join( ' | ' )}` : 'no retired/internal wording' );
+
+    if ( route === '/' || route === '/contact' ) {
+      record( !html.includes( 'Policy details' ), `${route} Policy Details state`,
+        html.includes( 'Policy details' ) ? 'Policy Details must not render here' : 'intentionally absent' );
+    }
+    if ( route === '/leave-review' ) {
+      record( html.includes( 'Policy details' ), '/leave-review Policy Details state',
+        html.includes( 'Policy details' ) ? 'shared crisp disclosure present' : 'MISSING shared Policy Details' );
+      record( !html.includes( 'pdp-note' ), '/leave-review legacy disclosure state',
+        html.includes( 'pdp-note' ) ? 'retired ProductPage boundary-note surface returned' : 'no legacy note card' );
+    }
   }
 
   /**

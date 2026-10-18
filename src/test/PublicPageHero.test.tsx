@@ -318,16 +318,11 @@ describe( 'the money copy survived being shortened', () => {
     expect( read( 'src/pages/checkout/status.tsx' ) ).toContain( 'Do not pay again.' );
   } );
 
-  it( 'still says what the cart does and does not do', async () => {
-    // The boundary note belongs to a cart with something in it; the empty state has nothing to make
-    // a statement about.
+  it( 'keeps the cart payment note customer-facing and concise', async () => {
     cartLib.addItem( KIOSK(), 1 );
     const { container } = render( <Cart /> );
-    // The server decides the final total before payment. The page must not make
-    // a blanket no-charge claim or display internal release flag commentary.
-    await waitFor( () => expect( container.textContent || '' ).toContain( 'before payment' ) );
-    expect( container.textContent || '' ).toMatch( /confirms your final total/ );
-    expect( container.textContent || '' ).not.toMatch( /Live payment is not on yet|charges you nothing/ );
+    await waitFor( () => expect( container.textContent || '' ).toContain( 'Taxes and fees are shown before payment.' ) );
+    expect( container.textContent || '' ).not.toMatch( /final total|server-authoritative|Live payment is not on yet|charges you nothing/i );
   } );
 } );
 
