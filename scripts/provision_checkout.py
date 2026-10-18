@@ -402,8 +402,7 @@ def expected_role_policy(acct: str | None = None) -> dict:
     """Least-privilege inline policy for the current checkout import closure.
 
     Kept as one pure builder so create, reconcile and tests all reason about the same document.
-    Coupons and gift cards are owned by their own functions and roles (`wecare-coupons`,
-    `wecare-gift-cards`); their stores are not imported by checkout and therefore do not belong
+    Coupons are owned by `wecare-coupons`; their store is not imported by checkout and therefore does not belong
     in this role.
     """
     acct = acct or account_id()
