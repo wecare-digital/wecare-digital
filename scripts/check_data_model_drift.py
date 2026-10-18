@@ -206,9 +206,6 @@ UNDECLARED_ALLOWED: dict[str, str] = {
                       "counters and per-customer limits owned by wecare-coupons. Deliberately "
                       "not modelled here: it is the coupon service's issuance record, not "
                       "part of the CRM data model.",
-    "GiftCardsTable": "Provisioned by scripts/provision_gift_cards_table.py; a liability ledger "
-                      "owned by wecare-gift-cards. Not modelled here because its partition key "
-                      "is an HMAC of a bearer code, which has no place in a GraphQL model.",
     "ThreadOwnershipTable":
         "Provisioned 2026-10-06 by scripts/provision_thread_ownership_table.py for WhatsApp "
         "Conversation Routing. Deliberately not modelled here: it is operational routing "
