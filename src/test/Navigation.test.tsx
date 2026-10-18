@@ -186,12 +186,15 @@ describe( 'every nav path resolves to a real page', () => {
 describe( 'no entry point lands on a redirect signpost', () => {
   // Kept on purpose, so a bookmark still lands somewhere. Removing one of these files is a
   // decision about bookmarks, not about navigation, and should fail here first.
-  // FEAT-003 deleted three signpost FILES (admin, docs, dashboard/waba-usernames) rather than
-  // keeping them as client stubs: their old URLs now resolve through server-side redirect config
-  // (see PR-B-reduction-note.md), not a router.replace page, so they are no longer in this list.
-  // The four that remain are still client signposts kept for bookmarks.
-  const SIGNPOSTS = [ '/workspace/service', '/workspace/forms',
-    '/workspace/access', '/workspace/engage/whatsapp' ];
+  // FEAT-003 folds hub pages, but keeps the client router.replace signpost FILES so legacy
+  // bookmarks still forward in-repo (there is no editable server-side UI redirect table for
+  // workspace paths; provision_legacy_redirects.py refuses workspace entries). admin, docs and
+  // dashboard/waba-usernames are restored as tiny signposts (v1 review response) so the three
+  // old URLs resolve instead of 404ing through the static-export catch-all. Each forwards to a
+  // destination a nav row reaches (verified below).
+  const SIGNPOSTS = [ '/workspace/admin', '/workspace/service', '/workspace/forms',
+    '/workspace/docs', '/workspace/access', '/workspace/engage/whatsapp',
+    '/workspace/dashboard/waba-usernames' ];
 
   it( 'keeps every signpost, and each forwards to a destination the nav reaches', () => {
     const all = getAllNavItems().map( ( i ) => i.path );
