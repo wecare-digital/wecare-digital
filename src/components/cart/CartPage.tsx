@@ -811,7 +811,7 @@ export default function Cart (): React.ReactElement {
         if ( intent.kind !== 'ok' || intent.intent.variantId !== submit.variantId )
         {
           return { kind: 'SERVICE_REFUSED', message: intent.kind === 'refused'
-            ? intent.message : 'We could not prepare your service. Nothing has been charged. Try again.' };
+            ? intent.message : 'We could not start your service. Nothing has been charged. Please try again.' };
         }
         rememberServiceIntent( submit.variantId, intent.intent.intentId );
         serviceIntent = intent.intent.intentId;
