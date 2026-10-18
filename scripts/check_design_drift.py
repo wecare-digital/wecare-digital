@@ -136,6 +136,7 @@ PUBLIC_TOKEN_CONSUMERS = {
     SRC / "components/RotatingHero.tsx": ("--public-hero-size", "--public-body-size", "--public-content-max", "--public-copy-max"),
     SRC / "components/public/ClosingBand.tsx": ("--public-section-size", "--public-body-size", "--public-cta-height"),
     SRC / "components/public/PolicyDetails.tsx": ("--public-body-size", "--public-hairline", "--public-brand-green"),
+    SRC / "components/public/PublicPolicyDetails.tsx": ("--public-content-max", "--public-page-gutter"),
     SRC / "components/PillButton.tsx": ("--public-cta-height", "--public-brand-green", "--public-brand-lime"),
     SRC / "components/ProductPage.tsx": ("--public-section-size", "--public-body-size", "--public-card-size", "--public-cta-height"),
     SRC / "components/BlogIndexView.tsx": ("--public-body-size", "--public-card-size", "--public-hairline"),
