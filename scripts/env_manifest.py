@@ -67,6 +67,22 @@ INJECTED = {"AWS_REGION", "AWS_EXECUTION_ENV", "AWS_LAMBDA_FUNCTION_NAME",
 # otherwise report drift forever.
 VOLATILE = {"SECRETS_REFRESHED_AT", "SECRETS_ROTATED_AT"}
 
+# Retired feature flags. The code no longer reads these, so a value still set live is a stale
+# leftover a deploy should scrub - not configuration this manifest should enshrine. Recording
+# one would both contradict the source (CHECKOUT_INITIATION_ENABLED was removed: initiation is
+# always on) and fight the contract tests that assert it is absent. Excluded by name so the
+# recorded state matches the code, and the live-vs-manifest gap stays visible as the drift it is.
+RETIRED = {"CHECKOUT_INITIATION_ENABLED"}
+
+# Readiness EXPECTATIONS, not credentials: they are compared against a live provider
+# readback so a disagreement refuses the send - they are meant to be legible in the clear
+# and the contract tests pin their literal values (see test_provision_checkout_contract and
+# test_whatsapp_payments_are_template_only). The Razorpay merchant id in particular also sits
+# inside a stored secret, so the `value in every` guard would otherwise fingerprint it and
+# erase the very expectation the manifest exists to record. Exempted by KEY, never by value,
+# so a real credential embedded elsewhere is still caught.
+PLAINTEXT_EXPECTATION_KEYS = {"EXPECTED_PROVIDER_MID", "EXPECTED_CONFIGURATION_NAME"}
+
 
 def fp(v: str) -> str:
     return "sha256:" + hashlib.sha256(v.encode()).hexdigest()[:12]
@@ -102,12 +118,13 @@ def live_env(lam) -> dict[str, dict[str, str]]:
             env = (f.get("Environment") or {}).get("Variables") or {}
             out[f["FunctionName"]] = {
                 k: v for k, v in sorted(env.items())
-                if k not in INJECTED and k not in VOLATILE
+                if k not in INJECTED and k not in VOLATILE and k not in RETIRED
             }
     return dict(sorted(out.items()))
 
 
-def classify(value: str, creds: dict[str, str], every: set[str]) -> tuple[str, str | None]:
+def classify(value: str, creds: dict[str, str], every: set[str],
+             key: str = "") -> tuple[str, str | None]:
     """Return (stored_form, refusal_reason).
 
     Credential matching is by substring, not equality. A credential rarely sits
@@ -117,11 +134,19 @@ def classify(value: str, creds: dict[str, str], every: set[str]) -> tuple[str, s
     because some of them are short generic strings (a trunk name, a domain) that
     are substrings of half the table names in the account, and refusing on those
     would make the guard useless.
+
+    A readiness-expectation key is stored in the clear: it is a value the manifest
+    exists to record, not a credential, and the `value in every` guard below would
+    otherwise fingerprint one that also appears inside a stored secret. The embedded-
+    credential check still runs first, so a key that genuinely carries a secret is
+    still caught rather than waved through by its name.
     """
     for secret, label in creds.items():
         if secret in value:
             where = "holds" if secret == value else "contains"
             return value, f"{where} {label}"
+    if key in PLAINTEXT_EXPECTATION_KEYS:
+        return value, None
     if value in every:
         return fp(value), None
     for pat in SHAPES:
@@ -137,7 +162,7 @@ def build(lam, sm) -> tuple[dict, list[str]]:
     for fn, env in live_env(lam).items():
         row = {}
         for k, v in env.items():
-            stored, refuse = classify(v, creds, every)
+            stored, refuse = classify(v, creds, every, key=k)
             if refuse:
                 refusals.append(f"{fn} -> {k}: {refuse}")
             if stored != v:
