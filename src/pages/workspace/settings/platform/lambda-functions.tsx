@@ -5,10 +5,10 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import Layout from '../../../components/Layout';
-import SEO from '../../../components/SEO';
-import { useToastContext } from '../../../contexts/ToastContext';
-import { verifyAdminAccess } from '../../../api/client';
+import Layout from '../../../../components/Layout';
+import SEO from '../../../../components/SEO';
+import { useToastContext } from '../../../../contexts/ToastContext';
+import { verifyAdminAccess } from '../../../../api/client';
 
 interface PageProps {
   signOut?: () => void;

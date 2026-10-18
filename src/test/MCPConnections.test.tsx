@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
-import Page from '../pages/workspace/dashboard/mcp-connections';
+import Page from '../pages/workspace/settings/mcp-connections';
 import { workspaceMCP } from '../lib/workspace-mcp';
 import { useUserRole } from '../hooks/useUserRole';
 vi.mock('../components/Layout', () => ({ default: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));

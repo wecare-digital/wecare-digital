@@ -35,7 +35,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 import SEO from '../../components/SEO';
 import {
-  DashboardIcon, MessageIcon, ContactsIcon, StoreIcon, PaymentIcon, LinkIcon,
+  MessageIcon, ContactsIcon, StoreIcon, PaymentIcon, LinkIcon,
   FormIcon, DocumentIcon, CheckListIcon, SearchIcon, AdvisorIcon,
   OverviewIcon, SettingsIcon,
 } from '../../lib/icons';
@@ -59,22 +59,22 @@ interface Family {
  * NO TILE POINTS AT A REDIRECT STUB (2026-10-15). Five tiles used to: forms/, docs/,
  * service/ and admin/ are router.replace signposts kept only so old bookmarks land
  * somewhere, and access/ is the sign-in landing, which sends a signed-in user straight
- * to /workspace/dashboard. A 200 from a signpost is not a destination, so each tile now
+ * to the workspace landing. A 200 from a signpost is not a destination, so each tile now
  * names the page its signpost delivers, and says what that page is:
  *   forms/   -> forms/responses              (label kept: it is the forms queue)
  *   docs/    -> engage/documents             ("Drop Docs" — the old "Provider
  *               documentation and changelog" text described the Docs Scraper, which
  *               this tile never reached; that is engage/docs, in the gear)
  *   service/ -> engage/service-ops           (label kept)
- *   admin/   -> dashboard/system-architecture ("Architecture snapshot", the gear's
- *               label for the same page — it is a document, not an admin console)
- * The Access tile is GONE rather than repointed: its signpost lands on the dashboard,
- * which is the first tile here, and nothing in the app is "Users, roles and
- * permissions". Sign-in & MFA is in the gear's account group. Navigation.test.tsx
- * asserts each path below is a real page and none is a signpost.
+ *   admin/   -> settings/platform/system-architecture ("Architecture snapshot", the
+ *               gear's label for the same page — it is a document, not an admin console)
+ * The Dashboard tile and the Access tile are both GONE: the Dashboard section was
+ * removed and the workspace landing is now /workspace/engage/inbox, and the Access
+ * signpost lands there too, while nothing in the app is "Users, roles and permissions".
+ * Sign-in & MFA is in the gear's account group. Navigation.test.tsx asserts each path
+ * below is a real page and none is a signpost.
  */
 const families: Family[] = [
-  { id: 'dashboard', label: 'Dashboard', desc: 'System overview, health and live metrics', path: '/workspace/dashboard/', Icon: DashboardIcon, color: '#3B82F6' },
   { id: 'engage', label: 'Messages', desc: 'WhatsApp, SMS, Voice, Email, RCS and Push', path: '/workspace/engage/', Icon: MessageIcon, color: '#25D366' },
   { id: 'contacts', label: 'Contacts', desc: 'Contact records, segments and history', path: '/workspace/contacts/', Icon: ContactsIcon, color: '#8B5CF6' },
   { id: 'commerce', label: 'Commerce', desc: 'Catalogue, orders and store integration', path: '/workspace/commerce/', Icon: StoreIcon, color: '#F59E0B' },
@@ -85,7 +85,7 @@ const families: Family[] = [
   { id: 'task', label: 'Tasks', desc: 'Work items, assignments and follow-ups', path: '/workspace/task/', Icon: CheckListIcon, color: '#14B8A6' },
   { id: 'seo', label: 'SEO', desc: 'Sitemaps, metadata and search tooling', path: '/workspace/seo/', Icon: SearchIcon, color: '#A855F7' },
   { id: 'service', label: 'Service', desc: 'Customer requests and service desk', path: '/workspace/engage/service-ops/', Icon: AdvisorIcon, color: '#EF4444' },
-  { id: 'admin', label: 'Architecture snapshot', desc: 'Hand-maintained map of routes, functions, storage and risks', path: '/workspace/dashboard/system-architecture/', Icon: OverviewIcon, color: '#64748B' },
+  { id: 'admin', label: 'Architecture snapshot', desc: 'Hand-maintained map of routes, functions, storage and risks', path: '/workspace/settings/platform/system-architecture/', Icon: OverviewIcon, color: '#64748B' },
   // No index.tsx under settings/ — link the page that exists, not the directory.
   { id: 'settings', label: 'Settings', desc: 'Internal agent and system configuration', path: '/workspace/settings/internal-agent/', Icon: SettingsIcon, color: '#6B7280' },
 ];

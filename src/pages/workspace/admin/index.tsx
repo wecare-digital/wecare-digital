@@ -6,6 +6,6 @@ import { useRouter } from 'next/router';
 
 export default function AdminRedirect() {
   const router = useRouter();
-  useEffect(() => { router.replace('/workspace/dashboard/system-architecture'); }, [router]);
+  useEffect(() => { router.replace('/workspace/settings/platform/system-architecture'); }, [router]);
   return null;
 }

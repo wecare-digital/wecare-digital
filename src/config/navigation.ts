@@ -142,7 +142,7 @@ export const navigationConfig: NavItem[] = [
       // order work, not infrastructure. Until now nothing linked it at all: 535 lines
       // and the only four callers of initSecureUpload/confirmSecureUpload/
       // listSecureFiles/revokeSecureFile, reachable only by typing the URL.
-      { path: '/workspace/dashboard/secure-files', label: 'Secure Files' },
+      { path: '/workspace/service/secure-files', label: 'Secure Files' },
       { path: '/workspace/engage/enterprise', label: 'Enterprise' },
       { path: '/workspace/engage/reviews', label: 'Reviews' },
       { path: '/workspace/engage/faq', label: 'FAQ' },
@@ -239,10 +239,9 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/access/security', label: 'Sign-in & MFA' },
       // '/workspace/access' ("Access") was a second row here. It is the sign-in landing,
       // and for a signed-in user - the only person who can open this gear - it does
-      // nothing but router.replace to /workspace/dashboard (access/index.tsx), which is
-      // already "Dashboard Overview" under Platform. A row labelled Access that lands on
-      // the dashboard is a promise the page does not keep. The PAGE stays: it is where
-      // "Sign in" links go.
+      // nothing but router.replace to /workspace/engage/inbox (access/index.tsx), which is
+      // the workspace landing. A row labelled Access that lands on the inbox is a promise
+      // the page does not keep. The PAGE stays: it is where "Sign in" links go.
     ],
   },
   {
@@ -374,24 +373,26 @@ export const settingsConfig: SettingsGroup[] = [
     icon: 'dashboard',
     hint: 'Infrastructure, architecture, diagnostics',
     items: [
-      { path: '/workspace/dashboard', label: 'Dashboard Overview' },
-      { path: '/workspace/dashboard/mcp-connections', label: 'MCP Connections' },
+      // 'Dashboard Overview' (/workspace/dashboard) was the first row here until the
+      // Dashboard section was removed. It was an analytics page with no surviving owner;
+      // the workspace landing is now /workspace/engage/inbox, so no row replaces it.
+      { path: '/workspace/settings/mcp-connections', label: 'MCP Connections' },
       // Labelled 'Control Center' until 2026-10-07, which promised a place you operate
       // from. It is a static snapshot of the architecture, hand-maintained, and it has
       // measurably drifted: it lists `wecare-meta-analytics` as an active function on
       // route /meta-analytics and names a MetaAnalyticsLog table, and the live account
       // has neither. The label now says what the page is, so a reader treats it as a
       // document to check rather than a console to trust.
-      { path: '/workspace/dashboard/system-architecture', label: 'Architecture snapshot' },
-      { path: '/workspace/dashboard/lambda-functions', label: 'Lambda Functions' },
-      { path: '/workspace/dashboard/code-repo', label: 'Code Repo' },
+      { path: '/workspace/settings/platform/system-architecture', label: 'Architecture snapshot' },
+      { path: '/workspace/settings/platform/lambda-functions', label: 'Lambda Functions' },
+      { path: '/workspace/settings/platform/code-repo', label: 'Code Repo' },
       // 'WABA Usernames' (/workspace/dashboard/waba-usernames) was a row here until
       // 2026-10-15. It was a smaller copy of WhatsApp -> BSUID & Usernames (same
       // getBusinessUsername / claimBusinessUsername calls, same two numbers, none of the
       // suggestions or webhook fields), so the route is now a signpost to that page.
-      { path: '/workspace/dashboard/wa-graph-tools', label: 'WA Graph Tools' },
-      { path: '/workspace/dashboard/cors-settings', label: 'CORS Settings' },
-      { path: '/workspace/dashboard/design-reference', label: 'Design Reference' },
+      { path: '/workspace/settings/platform/wa-graph-tools', label: 'WA Graph Tools' },
+      { path: '/workspace/settings/platform/cors-settings', label: 'CORS Settings' },
+      { path: '/workspace/settings/platform/design-reference', label: 'Design Reference' },
       // The operator's own assistant, and deliberately NOT next to "AI Agent" under
       // Messaging tools: that one answers customers on WhatsApp, this one configures the
       // admin helper, and two rows reading "agent" in one settings screen would invite
@@ -455,11 +456,11 @@ export interface ModuleHome {
 
 export const moduleHomes: ModuleHome[] = [
   {
-    id: 'home', label: 'Home', path: '/workspace/dashboard',
-    innerPages: ['/workspace/dashboard/system-architecture', '/workspace/dashboard/lambda-functions',
-      '/workspace/dashboard/code-repo', '/workspace/dashboard/cors-settings'],
-    note: 'Tab bodies are lazy via next/dynamic; OverviewTab stays eager because it is '
-      + 'the default tab and lazy-loading it would only add a round trip.',
+    id: 'home', label: 'Home', path: '/workspace/engage/inbox',
+    innerPages: [],
+    note: 'The Dashboard section was removed; the workspace landing is now the common '
+      + 'inbox. The former platform tabs live under /workspace/settings/platform/* and '
+      + 'are listed by the platform-operations module home below.',
   },
   {
     id: 'communications', label: 'Communications', path: '/workspace/engage',
@@ -499,9 +500,9 @@ export const moduleHomes: ModuleHome[] = [
   },
   {
     id: 'platform-operations', label: 'Platform Operations',
-    path: '/workspace/dashboard/system-architecture',
-    innerPages: ['/workspace/dashboard/lambda-functions', '/workspace/dashboard/code-repo',
-      '/workspace/dashboard/cors-settings', '/workspace/dashboard/design-reference'],
+    path: '/workspace/settings/platform/system-architecture',
+    innerPages: ['/workspace/settings/platform/lambda-functions', '/workspace/settings/platform/code-repo',
+      '/workspace/settings/platform/cors-settings', '/workspace/settings/platform/design-reference'],
   },
   {
     id: 'settings', label: 'Settings', path: null,

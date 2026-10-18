@@ -4,11 +4,11 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Layout from '../../../components/Layout';
-import SEO from '../../../components/SEO';
-import { useToastContext } from '../../../contexts/ToastContext';
-import Select, { type SelectOption } from '../../../components/ui/Select';
-import * as api from '../../../api/client';
+import Layout from '../../../../components/Layout';
+import SEO from '../../../../components/SEO';
+import { useToastContext } from '../../../../contexts/ToastContext';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
+import * as api from '../../../../api/client';
 
 interface PageProps { signOut?: () => void; user?: any; }
 

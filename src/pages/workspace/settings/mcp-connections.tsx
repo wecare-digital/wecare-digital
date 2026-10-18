@@ -94,7 +94,7 @@ export default function MCPConnections({ user, signOut }: { user?: any; signOut?
     <SEO title="MCP Connections" description="Manage workspace integrations" noindex />
     <main className={`inner-page-container ${styles.page}`}>
       <header className={styles.header}>
-        <div><Link href="/workspace/dashboard/">Dashboard</Link><h1>MCP Connections</h1>
+        <div><Link href="/workspace/engage/inbox/">Messages</Link><h1>MCP Connections</h1>
           <p>Connect accounts and check your workspace integrations in one place.</p></div>
         {admin && <Button icon="refresh" disabled={busy} onClick={() => void load()}>Refresh</Button>}
       </header>

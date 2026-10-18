@@ -4,11 +4,11 @@
  * Backed by waba-management (?action=cors-status / action=cors-apply).
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import Layout from '../../../components/Layout';
-import SEO from '../../../components/SEO';
-import Button from '../../../components/ui/Button';
-import { useToastContext } from '../../../contexts/ToastContext';
-import * as api from '../../../api/client';
+import Layout from '../../../../components/Layout';
+import SEO from '../../../../components/SEO';
+import Button from '../../../../components/ui/Button';
+import { useToastContext } from '../../../../contexts/ToastContext';
+import * as api from '../../../../api/client';
 
 interface PageProps { signOut?: () => void; user?: any; }
 

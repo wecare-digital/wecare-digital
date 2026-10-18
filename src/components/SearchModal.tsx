@@ -47,7 +47,7 @@ const NAVIGATION_ITEMS: SearchResult[] = getAllNavItems().map( ( item, index ) =
 } ) );
 
 /** The handful worth offering before anything is typed. */
-const DEFAULT_PATHS = [ '/workspace/engage/inbox', '/workspace/contacts', '/workspace/dashboard', '/workspace/engage/broadcast',
+const DEFAULT_PATHS = [ '/workspace/engage/inbox', '/workspace/contacts', '/workspace/engage/service-ops', '/workspace/engage/broadcast',
   '/workspace/engage/settings', '/workspace/access/security' ];
 const DEFAULT_RESULTS: SearchResult[] = DEFAULT_PATHS
   .map( ( p ) => NAVIGATION_ITEMS.find( ( i ) => i.path === p ) )

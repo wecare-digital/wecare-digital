@@ -238,7 +238,7 @@ const PushPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
                 <div className="push-field">
                   <label>Custom Data (JSON, optional)</label>
-                  <textarea rows={ 2 } value={ pushData } onChange={ e => setPushData( e.target.value ) } placeholder='{"url": "/workspace/dashboard", "type": "alert"}' style={ { fontFamily: 'monospace', fontSize: 13 } } />
+                  <textarea rows={ 2 } value={ pushData } onChange={ e => setPushData( e.target.value ) } placeholder='{"url": "/workspace/engage/inbox", "type": "alert"}' style={ { fontFamily: 'monospace', fontSize: 13 } } />
                 </div>
 
                 {/* Preview */ }

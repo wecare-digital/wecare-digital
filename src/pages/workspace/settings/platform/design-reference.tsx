@@ -9,9 +9,9 @@
  */
 
 import React from 'react';
-import Layout from '../../../components/Layout';
-import SEO from '../../../components/SEO';
-import { C, status as STATUS } from '../../../lib/design-tokens';
+import Layout from '../../../../components/Layout';
+import SEO from '../../../../components/SEO';
+import { C, status as STATUS } from '../../../../lib/design-tokens';
 
 interface PageProps { signOut?: () => void; user?: any; }
 

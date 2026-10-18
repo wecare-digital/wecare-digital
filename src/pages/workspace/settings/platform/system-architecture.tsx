@@ -1,5 +1,5 @@
-import { REVIEW_FLOW_ID, REVIEW_ENTRY_KEYWORDS } from '../../../lib/reviewEntry';
-import { canonicalFlowId } from '../../../lib/canonicalFlows';
+import { REVIEW_FLOW_ID, REVIEW_ENTRY_KEYWORDS } from '../../../../lib/reviewEntry';
+import { canonicalFlowId } from '../../../../lib/canonicalFlows';
 /**
  * System Architecture — Project Control Center
  * Complete end-to-end dashboard for the entire WECARE.DIGITAL platform.
@@ -7,8 +7,8 @@ import { canonicalFlowId } from '../../../lib/canonicalFlows';
  */
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import Layout from '../../../components/Layout';
-import SEO from '../../../components/SEO';
+import Layout from '../../../../components/Layout';
+import SEO from '../../../../components/SEO';
 
 interface PageProps { signOut?: () => void; user?: any; }
 
@@ -384,11 +384,10 @@ const ENV_VARS: EnvVar[] = [
 // ─── Data: Frontend Routes ───
 interface FrontendRoute { path: string; label: string; backend: string; tables: string; }
 const FRONTEND_ROUTES: FrontendRoute[] = [
-  // Dashboard
-  { path: '/workspace/dashboard', label: 'Dashboard Overview', backend: 'billing, meta-analytics', tables: 'MetaAnalyticsLog' },
-  { path: '/workspace/dashboard/system-architecture', label: 'Project Control Center', backend: '(this page)', tables: '-' },
-  { path: '/workspace/dashboard/lambda-functions', label: 'Lambda Functions', backend: '(static data)', tables: '-' },
-  { path: '/workspace/dashboard/code-repo', label: 'Code Repo', backend: '(static data)', tables: '-' },
+  // Platform (Settings)
+  { path: '/workspace/settings/platform/system-architecture', label: 'Project Control Center', backend: '(this page)', tables: '-' },
+  { path: '/workspace/settings/platform/lambda-functions', label: 'Lambda Functions', backend: '(static data)', tables: '-' },
+  { path: '/workspace/settings/platform/code-repo', label: 'Code Repo', backend: '(static data)', tables: '-' },
   // WhatsApp
   { path: '/workspace/engage/inbox?channel=whatsapp', label: 'WhatsApp Inbox', backend: 'messages-read, inbound-whatsapp, outbound-whatsapp', tables: 'WhatsAppInbound, WhatsAppOutbound, Contact' },
   { path: '/workspace/engage/whatsapp/templates', label: 'WA Templates', backend: 'whatsapp-templates, whatsapp-template-management', tables: 'TemplateAnalytics' },
@@ -445,14 +444,14 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
 interface CodeFolder { path: string; purpose: string; files: string; linkedTo: string; }
 const CODE_MAP: CodeFolder[] = [
   { path: 'src/pages/', purpose: 'Next.js page routes (Pages Router)', files: '~50 pages', linkedTo: 'Frontend routing' },
-  { path: 'src/pages/workspace/dashboard/', purpose: 'Dashboard + Admin + Control Center', files: '6 pages', linkedTo: '/workspace/dashboard/*' },
+  { path: 'src/pages/workspace/settings/platform/', purpose: 'Platform control: architecture, lambdas, code repo, CORS', files: '6 pages', linkedTo: '/workspace/settings/platform/*' },
   { path: 'src/pages/workspace/engage/whatsapp/', purpose: 'WhatsApp messaging pages (21 sub-pages)', files: '21 pages', linkedTo: '/workspace/engage/whatsapp/*' },
   { path: 'src/pages/workspace/engage/', purpose: 'Multi-channel messaging (SMS, Voice, Email, RCS, Push)', files: '~15 pages', linkedTo: '/workspace/engage/*' },
   { path: 'src/pages/workspace/pay/', purpose: 'Payment pages (overview, flow, link)', files: '3 pages', linkedTo: '/workspace/pay/*' },
   { path: 'src/pages/workspace/link/', purpose: 'URL shortener (list, create, logs)', files: '3 pages', linkedTo: '/workspace/link/*' },
   { path: 'src/components/', purpose: 'Reusable UI components', files: '~25 components', linkedTo: 'All pages' },
   { path: 'src/components/ui/', purpose: 'Base UI primitives (Button, Modal, Tabs, Table)', files: '~10 components', linkedTo: 'All pages' },
-  { path: 'src/components/dashboard/', purpose: 'Dashboard-specific widgets', files: '~5 components', linkedTo: '/workspace/dashboard' },
+  { path: 'src/components/dashboard/', purpose: 'Shared workspace widgets', files: '~5 components', linkedTo: '/workspace/*' },
   { path: 'src/api/client.ts', purpose: 'API service layer with retry logic', files: '1 file', linkedTo: 'API Gateway → Lambda' },
   { path: 'src/config/constants.ts', purpose: 'App constants (AWS, payment, WhatsApp config)', files: '1 file', linkedTo: 'All services' },
   { path: 'src/config/navigation.ts', purpose: 'Sidebar navigation configuration', files: '1 file', linkedTo: 'Layout' },
@@ -547,8 +546,7 @@ const CODE_ASSETS: CodeAsset[] = [
   // dashboard route below; the customer-facing answer arrives over WhatsApp, not as a page.
   { id: 'ss-faq', category: 'Customer Service Flows', name: '❓ FAQ', description: 'View frequently asked questions.', path: '/workspace/engage/faq', type: 'Page Link', status: 'Active' },
   // Frontend Pages
-  { id: 'p-dashboard', category: 'Frontend Pages', name: 'Dashboard Overview', description: 'Main analytics dashboard with billing, conversation metrics.', path: 'src/pages/workspace/dashboard/index.tsx', type: 'Page' },
-  { id: 'p-control', category: 'Frontend Pages', name: 'Project Control Center', description: '18-tab system architecture dashboard — single source of truth.', path: 'src/pages/workspace/dashboard/system-architecture.tsx', type: 'Page' },
+  { id: 'p-control', category: 'Frontend Pages', name: 'Project Control Center', description: '18-tab system architecture dashboard, single source of truth.', path: 'src/pages/workspace/settings/platform/system-architecture.tsx', type: 'Page' },
   { id: 'p-wa-inbox', category: 'Frontend Pages', name: 'WhatsApp Inbox', description: 'Bookmark signpost to the unified inbox filtered to WhatsApp.', path: 'src/pages/workspace/engage/whatsapp/index.tsx', type: 'Page' },
   { id: 'p-wa-templates', category: 'Frontend Pages', name: 'WhatsApp Templates', description: 'Template management — create, edit, send, analytics.', path: 'src/pages/workspace/engage/whatsapp/templates.tsx', type: 'Page' },
   { id: 'p-wa-flows', category: 'Frontend Pages', name: 'WhatsApp Flows', description: 'Flow builder and management for WhatsApp Business Flows.', path: 'src/pages/workspace/engage/whatsapp/flows.tsx', type: 'Page' },
