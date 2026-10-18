@@ -38,12 +38,20 @@ PY_CANON = ROOT / 'amplify/functions/shared/lambda_utils/canonical_flows.py'
 READBACK = ROOT / 'outputs/flow-retirement-2026-10-09.json'
 
 # The wired surfaces that must not restate a stale id as a literal.
+#
+# The 2026-10 workspace redesign (105 -> 28 pages) moved the four frontend surfaces from
+# `src/pages/workspace/...` pages into `src/components/workspace/...` components:
+#   selfservice.tsx            -> service/CustomerServiceHub.tsx (the flow table, now keyed on
+#                                 canonicalFlowId(...) rather than literals)
+#   whatsapp/scripts.tsx (page) -> components/workspace/whatsapp/scripts.tsx
+#   dashboard/system-architecture.tsx -> components/workspace/platform/SystemArchitecture.tsx
+# The WhatsApp settings surface is still the page src/pages/workspace/engage/whatsapp/settings.tsx.
 WIRED_FILES = [
     ROOT / 'amplify/functions/messaging/inbound-whatsapp-handler/handler.py',
-    ROOT / 'src/pages/workspace/forms/selfservice.tsx',
+    ROOT / 'src/components/workspace/service/CustomerServiceHub.tsx',
     ROOT / 'src/pages/workspace/engage/whatsapp/settings.tsx',
-    ROOT / 'src/pages/workspace/engage/whatsapp/scripts.tsx',
-    ROOT / 'src/pages/workspace/dashboard/system-architecture.tsx',
+    ROOT / 'src/components/workspace/whatsapp/scripts.tsx',
+    ROOT / 'src/components/workspace/platform/SystemArchitecture.tsx',
 ]
 
 # Non-canonical ids that previously appeared for an in-scope capability and must stay gone.

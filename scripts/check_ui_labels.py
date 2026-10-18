@@ -69,29 +69,30 @@ import provider_allowlist  # noqa: E402
 # Adding an entry here is a deliberate decision that this screen is a technical
 # surface shown to operators, not ordinary product UI.
 AUTHORISED_SURFACES = {
-    "src/pages/workspace/dashboard/system-architecture.tsx":
+    "src/components/workspace/platform/SystemArchitecture.tsx":
         "Technical Details: the architecture map exists to show operators the topology.",
-    "src/pages/workspace/dashboard/lambda-functions.tsx":
+    "src/components/workspace/platform/LambdaFunctions.tsx":
         "Technical Details: a function inventory is the page's entire subject.",
-    "src/pages/workspace/dashboard/code-repo.tsx":
+    "src/components/workspace/platform/CodeRepo.tsx":
         "Technical Details: repository and deployment surface for operators.",
-    "src/pages/workspace/dashboard/design-reference.tsx":
+    "src/components/workspace/platform/DesignReference.tsx":
         "Internal design reference, not a customer-facing screen.",
     "src/components/dashboard/tabs/SystemTab.tsx":
         "Technical Details tab: system state per resource.",
     "src/components/dashboard/tabs/DataTab.tsx":
         "Technical Details tab: per-table row counts.",
-    "src/pages/workspace/dashboard/index.tsx":
-        "Operator dashboard shell that hosts the Technical Details tabs.",
+    "src/pages/workspace/settings/platform/index.tsx":
+        "Operator Platform hub shell that hosts the Technical Details tabs "
+        "(workspace redesign FEAT-006; replaced the removed dashboard shell).",
     "src/config/constants.ts":
         "Configuration, not UI. Endpoints belong here rather than in a component.",
-    "src/pages/workspace/engage/whatsapp/webhooks.tsx":
+    "src/components/workspace/whatsapp/webhooks.tsx":
         "Technical Details: a webhook inventory for operators, whose whole content is "
         "endpoint URLs, handlers and delivery status.",
-    "src/pages/workspace/engage/whatsapp/calling.tsx":
+    "src/components/workspace/whatsapp/calling.tsx":
         "Operator screen carrying a service/resource/purpose infrastructure panel for "
         "WhatsApp Calling. Not customer-facing.",
-    "src/pages/workspace/engage/whatsapp/waba-dashboard.tsx":
+    "src/components/workspace/whatsapp/waba-dashboard.tsx":
         "Technical Details: WABA and SNS subscription state for operators.",
     # --- added 2026-09-24, clearing the 20 tracked medium violations -------------
     "src/components/seo/InstructionsContent.tsx":
@@ -99,11 +100,11 @@ AUTHORISED_SURFACES = {
         "the entire content. Same reason system-architecture.tsx is authorised; it only "
         "shows up separately because it was moved out of src/pages/ to stop Next "
         "publishing it as a chrome-less route.",
-    "src/pages/workspace/engage/whatsapp/cost-controls.tsx":
+    "src/components/workspace/whatsapp/cost-controls.tsx":
         "Technical Details: the page lists the AWS services under cost control, so the "
         "service names ARE the subject. Renaming them would leave an operator unable to "
         "match a line here to a line on the bill.",
-    "src/pages/workspace/engage/whatsapp/migration.tsx":
+    "src/components/workspace/whatsapp/migration.tsx":
         "Technical Details: a WABA migration screen showing callback URL, phone ids and "
         "where the verify token lives. Naming Secrets Manager is the by-reference form "
         "that secret-handling.md asks for - it tells an operator where to look without "

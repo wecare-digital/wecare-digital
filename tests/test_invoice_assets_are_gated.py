@@ -41,7 +41,10 @@ FUNCTIONS = ROOT / "amplify" / "functions"
 INVOICE_ENGINE = FUNCTIONS / "payments" / "invoice-engine" / "handler.py"
 INBOUND = FUNCTIONS / "messaging" / "inbound-whatsapp-handler" / "handler.py"
 CLEANUP = FUNCTIONS / "operations" / "system-cleanup" / "handler.py"
-DASHBOARD = ROOT / "src" / "pages" / "workspace" / "dashboard" / "index.tsx"
+# The frontend dashboard mirror (src/pages/workspace/dashboard/index.tsx) that used to echo the
+# cleanup prefix list was removed in the 2026-10 workspace redesign (the Dashboard section is
+# gone and nothing in src names `s3_invoices` any more). Its guard test is retired below; the
+# backend gating guards (PREFIX_SITES) are the load-bearing ones and are unchanged.
 
 #: Every site that names the invoice prefix, and the file it lives in.
 PREFIX_SITES = [INVOICE_ENGINE, INBOUND, CLEANUP]
@@ -207,18 +210,6 @@ def test_delivery_does_not_need_a_public_url_at_all():
     assert "'mediaFile': s3_key" in source, (
         "delivery must pass the S3 key, not a URL; if this becomes a link, a gated prefix "
         "breaks WhatsApp invoice delivery")
-
-
-def test_the_dashboard_cleanup_mirror_agrees_with_the_backend():
-    """The dashboard's prefix list is the fallback shown when the live preview is unreachable,
-    so a wrong root there is displayed exactly when nothing can contradict it. It previously
-    read one level above the data for the same reason."""
-    source = DASHBOARD.read_text(encoding="utf-8")
-    row = next((line for line in source.splitlines() if "'s3_invoices'" in line), "")
-    assert row, "the dashboard no longer lists s3_invoices"
-    assert "SECURE_ROOT" in row, (
-        f"the dashboard's s3_invoices prefix must use SECURE_ROOT to match system-cleanup: {row.strip()}")
-    assert "PUBLIC_ROOT" not in row
 
 
 def test_a_gated_key_answers_200_with_a_fallback_rather_than_403():
