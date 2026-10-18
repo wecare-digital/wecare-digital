@@ -254,6 +254,7 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
       <p className="sbb-buy">
         <span className="sbb-price" data-wc-no-translate="true">{ `\u20B9${ phase.price.rupees }` }</span>
       </p>
+      <p className="sbb-offer-note">One-time purchase · final total confirmed at checkout</p>
 
       { error && <p className="sbb-error" role="alert">{ error }</p> }
 
