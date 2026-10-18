@@ -445,7 +445,7 @@ describe( 'the cart store', () => {
         catalogItemId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         options: { variantId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' },
       },
-      quantity: 2,
+      quantity: 1,
     } ] );
   } );
 
@@ -513,7 +513,7 @@ describe( 'toLineItems emits references and quantities ONLY', () => {
     cart.addItem( OTHER, 1 );
     const lineItems = cart.toLineItems();
     expect( lineItems ).toEqual( [
-      { catalogReference: { catalogItemId: 'prod-abc-123' }, quantity: 2 },
+      { catalogReference: { catalogItemId: 'prod-abc-123' }, quantity: 1 },
       { catalogReference: { catalogItemId: 'prod-def-456' }, quantity: 1 },
     ] );
     for ( const item of lineItems )
@@ -645,7 +645,7 @@ describe( 'the cart page proceed flow', () => {
     expect( prepare.body.action ).toBe( 'prepare' );
     expect( typeof prepare.body.requestKey ).toBe( 'string' );
     expect( prepare.body.requestKey.length ).toBeGreaterThan( 8 );
-    expect( prepare.body.lineItems ).toEqual( [ { catalogReference: { catalogItemId: 'prod-abc-123' }, quantity: 2 } ] );
+    expect( prepare.body.lineItems ).toEqual( [ { catalogReference: { catalogItemId: 'prod-abc-123' }, quantity: 1 } ] );
     // No financial figure on the wire.
     expect( prepare.init.body as string ).not.toMatch( /price|amount|currency|formattedPrice/i );
     // And the readiness question carried no address, no phone and no body beyond the action.
@@ -2183,30 +2183,18 @@ describe( 'two clicks cannot post two prepares - the measured live blocker', () 
   } );
 } );
 
-describe( 'the public cart uses SVG quantity controls without a Qty field', () => {
-  it( 'renders minus and plus buttons for an ordinary catalogue product', async () => {
+describe( 'the public cart is single-unit and has no quantity control', () => {
+  it( 'renders no Qty field or stepper for an ordinary catalogue product', async () => {
     signedIn();
     stubFetch( { profile: { body: PROFILE_READY } } );
-    cart.addItem( PRODUCT, 1 );
+    cart.addItem( PRODUCT, 3 );
     const { container } = render( <Cart /> );
 
     expect( await screen.findByText( PRODUCT.name ) ).toBeInTheDocument();
     expect( screen.queryByLabelText( 'Qty' ) ).toBeNull();
     expect( screen.queryByRole( 'spinbutton' ) ).toBeNull();
-
-    const decrease = screen.getByRole( 'button', { name: `Decrease quantity for ${PRODUCT.name}` } );
-    const increase = screen.getByRole( 'button', { name: `Increase quantity for ${PRODUCT.name}` } );
-    expect( decrease.querySelector( 'svg' ) ).not.toBeNull();
-    expect( increase.querySelector( 'svg' ) ).not.toBeNull();
-    expect( container.querySelector( '.cart-stepper-value' ) ).toHaveTextContent( '1' );
-
-    fireEvent.click( increase );
-    expect( cart.readCart()[ 0 ].quantity ).toBe( 2 );
-    expect( container.querySelector( '.cart-stepper-value' ) ).toHaveTextContent( '2' );
-
-    fireEvent.click( decrease );
+    expect( container.querySelector( '.cart-stepper' ) ).toBeNull();
     expect( cart.readCart()[ 0 ].quantity ).toBe( 1 );
-    expect( container.querySelector( '.cart-stepper-value' ) ).toHaveTextContent( '1' );
   } );
 } );
 
@@ -2269,7 +2257,9 @@ describe( 'the contribution row CHOOSES an amount, it does not count copies', ()
     window.localStorage.clear();
     cart.addItem( PRODUCT, 1 );
     render( <Cart /> );
-    expect( await screen.findByLabelText( /Coupon code/i ) ).toBeInTheDocument();
+    expect( await screen.findByText( 'Delight' ) ).toBeInTheDocument();
+    expect( screen.getByText( 'Temporarily unavailable. No discount has been applied to this cart.' ) )
+      .toBeInTheDocument();
   } );
 } );
 

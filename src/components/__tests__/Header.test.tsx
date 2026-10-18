@@ -479,7 +479,6 @@ describe( 'Header', () => {
     const expected = [
       [ 'VayuLok', 'M460-160q-50 0-85-35t-35-85h80' ],
       [ 'Bharat Rx', 'M345-120q-94 0-159.5-65.5T120-345' ],
-      [ 'Hunar', 'm387-412 35-114-92-74h114' ],
       [ 'Niji Setu', 'M440-280H280q-83 0-141.5-58.5T80-480' ],
       [ 'Submit Request', 'M200-120q-33 0-56.5-23.5T120-200' ],
       [ 'Vault', 'M480-320 280-520l56-58 104 104' ],
@@ -489,6 +488,11 @@ describe( 'Header', () => {
       const icon = screen.getByRole( 'link', { name: label } ).querySelector( 'svg.nav-row-icon-material path' );
       expect( icon?.getAttribute( 'd' ) ).toContain( prefix );
     }
+
+    const hunar = screen.getByText( 'Hunar' ).closest( '.nav-family-label' );
+    const hunarIcon = hunar?.querySelector( 'svg.nav-row-icon-material path' );
+    expect( hunarIcon?.getAttribute( 'd' ) ).toContain( 'm387-412 35-114-92-74h114' );
+    expect( screen.queryByRole( 'link', { name: 'Hunar' } ) ).toBeNull();
 
     const referHeading = screen.getByText( 'Refer & Earn' );
     const referIcon = referHeading.parentElement?.querySelector( 'svg.nav-section-icon-material path' );

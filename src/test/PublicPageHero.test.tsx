@@ -578,8 +578,10 @@ describe( 'the cart keeps its own top band, and every Phase-2 addition lands BEL
     expect( band.textContent || '' ).not.toMatch( /Amount in rupees/ );
     expect( band.textContent || '' ).not.toMatch( /paid on its own/ );
 
-    // And the additions really are on the page, below it - so this is not passing vacuously.
-    expect( container.querySelectorAll( 'input' ).length ).toBeGreaterThan( 0 );
+    // And the cart additions really are on the page, below it - so this is not passing
+    // vacuously. Contribution amount is static by design; there need not be an input anywhere.
+    expect( container.querySelector( '.cart-amount-static' ) ).not.toBeNull();
+    expect( band.querySelector( '.cart-amount-static' ) ).toBeNull();
     cartLib.clearCart();
   } );
 
