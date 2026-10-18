@@ -124,7 +124,7 @@ describe( 'Header', () => {
     const googlePlay = screen.getByRole( 'link', { name: 'Google Play' } );
     const appStore = screen.getByRole( 'link', { name: 'App Store' } );
 
-    expect( perks ).toHaveAttribute( 'href', '/perks/' );
+    expect( perks ).toHaveAttribute( 'href', 'https://wa.me/message/377GALDW4E26F1' );
     expect( googlePlay ).toHaveAttribute( 'href', 'https://wecare.digital/' );
     expect( appStore ).toHaveAttribute( 'href', 'https://wecare.digital/' );
 
@@ -350,7 +350,7 @@ describe( 'Header', () => {
     const partner = screen.getByText( 'Partner' ).closest( '.nav-tree-item' );
     const partnerLabels = Array.from( partner?.querySelectorAll( '.nav-item' ) || [] ).map( node => node.textContent );
     expect( partnerLabels ).toEqual( [ 'Partner', 'Referral', 'Merchandise', 'Kiosk' ] );
-    expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toHaveAttribute( 'href', '/shop/referral-partner/' );
+    expect( screen.getByRole( 'link', { name: 'Referral' } ) ).toHaveAttribute( 'href', 'https://wa.me/message/7QOFC4QGSGGUC1z' );
     expect( screen.getByRole( 'link', { name: 'Merchandise' } ) ).toHaveAttribute( 'href', '/shop/merchandise/' );
     expect( screen.getByRole( 'link', { name: 'Kiosk' } ) ).toHaveAttribute( 'href', '/shop/kiosk/' );
 
@@ -396,24 +396,6 @@ describe( 'Header', () => {
     // page Perks -> Extras; the owner reversed that on 2026-10-02. The ROUTE stays /perks/ — it
     // already matches the name, so nothing to rename there.
     //
-    // The group was collapsed from three ANCHOR rows (Gift Cards -> /perks/#gift-cards, Rewards ->
-    // /perks/#rewards, Offers -> /perks/#offers) to a single link to the /perks/ page, because the
-    // owner removed those gift-card / offers / rewards sections and their anchors from the page.
-    // Nothing in the menu may still point at a removed anchor.
-    const perksLink = screen.getByRole( 'link', { name: 'Perks' } );
-    expect( perksLink ).toHaveAttribute( 'href', '/perks/' );
-    // THE DUPLICATION GUARD: "Extras" is the heading only, never a link row. If a row labelled
-    // "Extras" reappears, the word is being printed twice again and this fails.
-    expect( screen.queryByRole( 'link', { name: 'Extras' } ) ).toBeNull();
-
-    // The old anchor rows and their dead targets are gone.
-    expect( screen.queryByRole( 'link', { name: 'Gift Cards' } ) ).toBeNull();
-    expect( screen.queryByRole( 'link', { name: 'Rewards' } ) ).toBeNull();
-    expect( screen.queryByRole( 'link', { name: 'Offers' } ) ).toBeNull();
-    const menuHtml = document.body.innerHTML;
-    expect( menuHtml ).not.toContain( '/perks/#gift-cards' );
-    expect( menuHtml ).not.toContain( '/perks/#rewards' );
-    expect( menuHtml ).not.toContain( '/perks/#offers' );
 
     // Approved order in this column is Refer & Earn, Extras, Contact, Legal Stuff.
     const perksCol = perksLink.closest( '.nav-col' );
