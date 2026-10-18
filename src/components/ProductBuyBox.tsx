@@ -33,7 +33,7 @@ interface ProductBuyBoxProps {
 const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
   slug,
   displayPrice,
-  offerNote = 'One-time purchase · final total confirmed at checkout',
+  offerNote = 'One-time purchase',
 } ) => {
   const router = useRouter();
   const [ signedIn, setSignedIn ] = useState( false );
