@@ -241,7 +241,7 @@ describe( '/orders/ review button with the flag ON', () => {
     /*
      * Rather than rendering an unattributed button. A review door inside a per-order panel
      * that carries no order would attribute nothing while looking like it does, and
-     * /leave-review/ already is the unattributed door for anyone who wants one.
+     * the direct Leave Review menu action is the unattributed door for anyone who wants one.
      */
     const { container } = await renderOrders(
       answer( 200, { orders: [ row( { orderNumber: '', referenceId: '' } ) ] } ) );
