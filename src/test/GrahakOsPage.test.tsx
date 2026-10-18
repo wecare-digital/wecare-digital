@@ -301,6 +301,9 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( '<details className="gos-policy">' );
     expect( source ).toContain( '<summary>Policy details</summary>' );
     expect( source ).toContain( '<strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }' );
+    expect( source ).toContain( '<p className="gos-policy-disclaimer"><strong>Disclaimer:</strong>' );
+    expect( source ).toContain( 'The ₹899 purchase shown here covers the one-time Grahak OS consultation only.' );
+    expect( source ).toContain( 'Statutory consumer rights remain unaffected.' );
     expect( source ).toContain( "import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, PRODUCT_SKU_BY_SLUG } from '../../content/productCommerce';" );
     const commerceRule = cssRuleFor( source, '.gos-commerce' );
     expect( commerceRule ).toContain( 'font-size:17px' );
