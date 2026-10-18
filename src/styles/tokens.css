@@ -88,6 +88,62 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'SF Mono', Monaco, Consolas, monospace;
 
+  /* ========================================
+   * CANONICAL PUBLIC PAGE CONTRACT
+   * Home is the visual reference; public components consume these values instead of
+   * restating them page-by-page. Workspace keeps its denser application scale below.
+   * ======================================== */
+  --public-bg: #ffffff;
+  --public-text: #1a1a1a;
+  --public-heading: rgba(0, 0, 0, 0.95);
+  --public-body: rgba(0, 0, 0, 0.898);
+  --public-brand-green: #1a3a2a;
+  --public-brand-lime: #d1f470;
+  --public-hairline: #e5e7eb;
+
+  --public-accent-blue: #2563eb;
+  --public-accent-blue-tint: #dbeafe;
+  --public-accent-amber: #f0a818;
+  --public-accent-amber-tint: #fef3c7;
+  --public-accent-purple: #9849e8;
+  --public-accent-purple-tint: #ede9fe;
+  --public-accent-green: #3da35a;
+  --public-accent-green-tint: #e0f7c8;
+  --public-accent-red: #dc2626;
+  --public-accent-red-tint: #fee2e2;
+
+  --public-hero-size: clamp(36px, 4.3vw, 60px);
+  --public-hero-weight: 600;
+  --public-hero-leading: 1.04;
+  --public-hero-tracking: -0.04em;
+
+  --public-section-size: clamp(28px, 3.2vw, 40px);
+  --public-section-weight: 700;
+  --public-section-leading: 1.08;
+  --public-section-tracking: -1.2px;
+
+  --public-body-size: 20px;
+  --public-body-weight: 400;
+  --public-body-leading: 1.4;
+  --public-body-tracking: -0.125px;
+
+  --public-card-size: 22px;
+  --public-card-weight: 700;
+  --public-card-leading: 1.27;
+  --public-card-tracking: -0.25px;
+
+  --public-content-max: 1300px;
+  --public-reading-max: 700px;
+  --public-copy-max: 560px;
+  --public-section-gap: 96px;
+  --public-page-gutter: 24px;
+
+  --public-cta-height: 52px;
+  --public-cta-radius: 50px;
+  --public-cta-border: 2px;
+  --public-cta-font-size: 17px;
+  --public-cta-font-weight: 600;
+
   /* Font Sizes */
   --text-xs: 12px;
   --text-sm: 13px;
@@ -164,7 +220,7 @@
   /* ========================================
    * LAYOUT
    * ======================================== */
-  --max-width: 1200px;
+  --max-width: 1300px;
   --sidebar-width: 240px;
   --header-height: 60px;
 
