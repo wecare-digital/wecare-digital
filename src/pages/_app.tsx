@@ -88,6 +88,7 @@ import SupportWidget from '../components/SupportWidget';
 import ErrorBoundary from '../components/ErrorBoundary';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import PublicShare from '../components/PublicShare';
 import PublicPolicyDetails from '../components/public/PublicPolicyDetails';
 import { ToastProvider } from '../contexts/ToastContext';
 import { ConfirmProvider } from '../contexts/ConfirmContext';
@@ -1132,7 +1133,24 @@ export default function App ( { Component, pageProps }: AppProps ) {
         <Header />
         <Component { ...pageProps } />
         <PublicPolicyDetails />
+        <div className="public-action-tail">
+          <PublicShare />
+        </div>
         <Footer />
+        <style jsx>{`
+          .public-action-tail{
+            width:100%;
+            max-width:var(--public-content-max);
+            margin:0 auto;
+            padding:0 var(--public-page-gutter) 48px;
+            box-sizing:border-box;
+            font-family:var(--font-sans);
+            color:var(--public-text);
+          }
+          @media(max-width:767px){
+            .public-action-tail{padding-inline:16px;padding-bottom:40px}
+          }
+        `}</style>
         {/* WhatsApp contact + page translation. This comment used to read "translation +
             read-aloud, public pages only, and deliberately not on the authenticated
             dashboard" and both halves are now wrong, which is why it is rewritten rather
