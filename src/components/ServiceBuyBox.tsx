@@ -293,8 +293,8 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
         .sbb-price{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
         .sbb-offer-note{
           max-width:620px;margin:7px 0 0;
-          font-size:17px;font-weight:var(--public-body-weight);
-          line-height:var(--public-body-leading);letter-spacing:-.05px;
+          font-size:var(--public-body-size);font-weight:var(--public-body-weight);
+          line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
           color:var(--public-muted);
         }
 
