@@ -145,8 +145,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
               <div className="shopd-policy-wrap">
                 <p className="shopd-sku" data-wc-no-translate="true"><strong>SKU:</strong> <span className="shopd-sku-value">{ sku }</span></p>
                 <PolicyDetails
-                  overview={ null }
-                  shipping={ policy.shipping }
+                      shipping={ policy.shipping }
                   returns={ policy.returns }
                   refunds={ policy.refunds }
                   disclaimer={ policy.disclaimer }

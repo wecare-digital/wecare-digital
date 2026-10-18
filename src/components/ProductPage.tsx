@@ -183,7 +183,6 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           <div className="pdp-commerce">
             <p className="pdp-sku" data-wc-no-translate="true"><strong>SKU:</strong> <span className="pdp-sku-value">{ sku }</span></p>
             <PolicyDetails
-              overview={ null }
               shipping={ policy.shipping }
               returns={ policy.returns }
               refunds={ policy.refunds }

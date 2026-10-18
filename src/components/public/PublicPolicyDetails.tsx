@@ -21,7 +21,6 @@ const PublicPolicyDetails: React.FC = () => {
           returns={ policy.returns }
           refunds={ policy.refunds }
           disclaimer={ policy.disclaimer }
-          showStatutoryRights={ false }
         />
       </div>
       <style jsx>{`

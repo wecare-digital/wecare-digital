@@ -33,10 +33,10 @@ describe( 'public PolicyDetails coverage', () => {
       expect( policy, route ).not.toBeNull();
       expect( Object.keys( policy || {} ).sort(), route )
         .toEqual( [ 'disclaimer', 'refunds', 'returns', 'shipping' ] );
-      expect( policy?.shipping.length, route ).toBeGreaterThan( 20 );
-      expect( policy?.returns.length, route ).toBeGreaterThan( 20 );
-      expect( policy?.refunds.length, route ).toBeGreaterThan( 20 );
-      expect( policy?.disclaimer.length, route ).toBeGreaterThan( 20 );
+      for ( const field of Object.values( policy || {} ) ) {
+        expect( field.length, route ).toBeGreaterThan( 15 );
+        expect( field.split( /\s+/ ).length, route ).toBeLessThanOrEqual( 24 );
+      }
     }
   } );
 
@@ -46,7 +46,7 @@ describe( 'public PolicyDetails coverage', () => {
       'utf8',
     );
     expect( source ).not.toContain( 'policy.overview' );
-    expect( source ).toContain( 'showStatutoryRights={ false }' );
+    expect( source ).not.toContain( 'showStatutoryRights' );
   } );
 
   it( 'does not duplicate product-level PolicyDetails', () => {
@@ -62,12 +62,13 @@ describe( 'public PolicyDetails coverage', () => {
     expect( publicPolicyDetailsForRoute( '/404' ) ).toBeNull();
   } );
 
-  it( 'uses route-specific wording rather than one shared paragraph for unrelated pages', () => {
+  it( 'keeps route-specific policy meaning without forcing artificial wording differences', () => {
     const contact = publicPolicyDetailsForRoute( '/contact' );
     const privacy = publicPolicyDetailsForRoute( '/privacy' );
     const cart = publicPolicyDetailsForRoute( '/cart' );
-    expect( contact?.shipping ).not.toBe( privacy?.shipping );
+    expect( contact?.refunds ).not.toBe( privacy?.refunds );
     expect( privacy?.refunds ).not.toBe( cart?.refunds );
+    expect( contact?.disclaimer ).not.toBe( privacy?.disclaimer );
     expect( contact?.disclaimer ).not.toBe( cart?.disclaimer );
   } );
 } );

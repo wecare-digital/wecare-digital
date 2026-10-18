@@ -1,5 +1,5 @@
 import React from 'react';
-import { PRODUCT_POLICY_TITLE, PRODUCT_REFUNDS } from '../../content/productCommerce';
+import { PRODUCT_REFUNDS } from '../../content/productCommerce';
 
 export interface PolicyDetailsCopy {
   shipping: string;
@@ -9,37 +9,32 @@ export interface PolicyDetailsCopy {
 
 interface PolicyDetailsProps extends PolicyDetailsCopy {
   className?: string;
-  overview?: string | null;
   refunds?: string;
-  showStatutoryRights?: boolean;
 }
 
 /**
  * Canonical public commerce-policy disclosure.
  *
- * The UI is deliberately one object across product/service pages; only the copy changes.
- * Cancellation lives inside Refunds, rather than becoming a fourth policy category.
+ * Keep this to four concise concepts only: fulfilment, returns,
+ * refunds/cancellations, and disclaimer. No extra preface or legal footer
+ * is appended here.
  */
 const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
   shipping,
   returns,
   disclaimer,
   className,
-  overview = null,
   refunds = PRODUCT_REFUNDS,
-  showStatutoryRights = true,
 } ) => (
   <details className={ ['wc-policy', className].filter( Boolean ).join( ' ' ) }>
     <summary>Policy details</summary>
     <div className="wc-policy-body">
-      { overview && <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { overview }</p> }
       <p><strong>Shipping / fulfilment:</strong> { shipping }</p>
       <p><strong>Returns:</strong> { returns }</p>
       <p><strong>Refunds & cancellations:</strong> { refunds }</p>
-      { disclaimer.split( /\n{2,}/ ).map( ( paragraph, index, paragraphs ) => (
+      { disclaimer.split( /\n{2,}/ ).map( ( paragraph, index ) => (
         <p className="wc-policy-disclaimer" key={ index }>
           { index === 0 && <strong>Disclaimer:</strong> }{ index === 0 ? ' ' : '' }{ paragraph.trim() }
-          { showStatutoryRights && index === paragraphs.length - 1 && ' Statutory consumer rights remain unaffected.' }
         </p>
       ) ) }
     </div>
