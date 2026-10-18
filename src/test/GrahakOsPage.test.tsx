@@ -193,7 +193,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( "import ProductBuyBox from '../../components/ProductBuyBox';" );
     expect( source ).toContain( '<ProductBuyBox slug="grahak-os" showPrice={ false } />' );
     // Match /anew/'s compact price-unit pattern: price + product + concise scope on one line.
-    expect( source ).toContain( '&#8377;899<span className="gos-price-unit"> · Grahak OS · enterprise AI consulting</span>' );
+    expect( source ).toContain( '&#8377;899<span className="gos-price-unit"> · AI agent deployment · enterprise outcomes</span>' );
     // The redundant second explanatory sentence is gone; the compact line carries the meaning.
     expect( source ).not.toContain( 'gos-price-note' );
     expect( source ).not.toContain( 'A consulting solution for organisations and businesses.' );
