@@ -52,8 +52,7 @@ const PUBLIC = [ '/', '/grahak-os/', '/vayulok/', '/bharat-rx/', '/contact/', '/
   '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/',
   '/expo-week/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/', '/niji-setu/',
   '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/leave-review/',
-  '/refer-and-earn/',
-  // The catalogue. This list is only used with --public; the default sweep discovers every
+    // The catalogue. This list is only used with --public; the default sweep discovers every
   // exported route, so the shop pages are already audited either way. COUNT CORRECTED 2026-10-04:
   // this comment said "all eight shop pages" - the index was withdrawn on owner instruction that
   // day, so it is SEVEN now, and '/shop/' was removed from this list because it 301s to the home
