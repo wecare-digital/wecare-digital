@@ -259,12 +259,10 @@ response = requests.post(
           every other public page resolved `main`. The class is unchanged, so no CSS moves. */}
       <main className="page">
 
-        {/* NO hero CTA pill. The "Get Started on WhatsApp" pill was removed from the hero on
-            owner instruction, so the hero is just the headline, sub and mockup, with a plain
-            "Open in WhatsApp" text link below the code panel (.code-wa-link). The paid
-            checkout (the "Get Started on WhatsApp" pill + the ₹899 price) lives in the
-            api-steps block. RotatingHero's children slot is left unset. This note sits before
-            the element because a JSX comment cannot appear between an element's attributes. */}
+        {/* NO hero CTA. The hero is only the headline, sub and mockup. The single
+            "Open in WhatsApp" demo link now belongs to the large API code panel in the
+            enterprise-outcomes section below, while paid checkout stays in the api-steps
+            block. RotatingHero's children slot is left unset. */}
         <RotatingHero
           insideMain
           noShare
@@ -380,12 +378,6 @@ response = requests.post(
   headers={"Authorization": bearer}
 )`}</pre>
                   </div>
-                  {/* Final row of the mockup: the demo link sits immediately below the Python
-                      panel. On wide screens the shared stack is kept INSIDE the white mockup,
-                      so the link cannot hang outside the card or collide with the next section. */}
-                  <div className="code-wa-row">
-                    <a className="code-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Open in WhatsApp <span aria-hidden="true">↗</span></a>
-                  </div>
                 </div>
               </div>
             </div>
@@ -460,13 +452,13 @@ response = requests.post(
               {/* Checkout + demo buttons. The paid-checkout door on this page is the
                   WhatsApp CTA pill (.gos-wa-cta) - ProductBuyBox was deliberately removed,
                   so this reuses that exact pill mechanism and surfaces the existing ₹899
-                  price. The separate demo link lives below the hero Python panel. */}
+                  price. The separate demo link lives below the large API code panel opposite. */}
               <div className="api-steps-buy">
                 {/* UNIFIED WHATSAPP CTA STYLE (owner instruction): the WhatsApp
                     call-to-action here renders as the single .gos-wa-cta pill. The redundant
                     second "See it on WhatsApp" .gos-wa-cta that used to sit beside it was
                     REMOVED on owner instruction - this steps block now carries just the one
-                    "Get Started on WhatsApp" pill; the demo link remains in the hero. */}
+                    "Get Started on WhatsApp" pill; the demo link sits below the API code panel. */}
                 <div className="api-steps-ctas">
                   <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
                 </div>
@@ -481,13 +473,20 @@ response = requests.post(
                 </div>
               </div>
             </div>
-            <div className="api-demo">
-              <div className="code-tabs">
-                {codeExamples.map((c, i) => (
-                  <button key={i} className={`pp-tab ${activeCode === i ? 'active' : ''}`} onClick={() => setActiveCode(i)}>{c.lang}</button>
-                ))}
+            <div className="api-demo-stack">
+              <div className="api-demo">
+                <div className="code-tabs">
+                  {codeExamples.map((c, i) => (
+                    <button key={i} className={`pp-tab ${activeCode === i ? 'active' : ''}`} onClick={() => setActiveCode(i)}>{c.lang}</button>
+                  ))}
+                </div>
+                <pre className="code-block">{codeExamples[activeCode].code}</pre>
               </div>
-              <pre className="code-block">{codeExamples[activeCode].code}</pre>
+              <div className="api-wa-row">
+                <a className="api-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">
+                  Open in WhatsApp <span aria-hidden="true">↗</span>
+                </a>
+              </div>
             </div>
           </div>
         </section>
@@ -508,16 +507,17 @@ response = requests.post(
         {/* OTP / Verifications section REMOVED on owner instruction. Its content overlapped the
             touchpoint "OTPs" pill and the capabilities strip, and the dedicated section was not
             needed. The QR lived only in this section and goes with it; the WhatsApp CTA remains
-            in the hero (the below-code "See it on WhatsApp" text link) and the API section's
+            beneath the API code panel as "Open in WhatsApp" and the API section also keeps its
             "Get Started on WhatsApp" pill. If the QR is ever wanted back, the verified asset is
             still at public/images/grahak-os-whatsapp-qr.svg. */}
 
         {/* The bottom closer section (<section id="gos-closer">) was REMOVED here on owner
             instruction. It had been stripped to a single "See it on WhatsApp" WhatsApp pill;
-            that duplicate CTA is gone, and the page's only "See it on WhatsApp" link now lives
-            below the hero code panel (.code-wa-link). The .gos-closer* CSS and the gos-closer
-            entrance-animation target went with it; a test guards the removal by substring. The
-            api-steps "Get Started on WhatsApp" pill and the ₹899 price/SKU/policy stay above. */}
+            that duplicate CTA is gone, and the page's only "Open in WhatsApp" demo link now lives
+            directly below the large API code panel (.api-wa-link). The .gos-closer* CSS and the
+            gos-closer entrance-animation target went with it; a test guards the removal by
+            substring. The api-steps "Get Started on WhatsApp" pill and the ₹899 price/SKU/policy
+            stay in the same section. */}
 
         {/* Subscribe + Share. The page's sections are full-bleed, so the block is wrapped in a
             .pp-inner column - the same 1300px / 24px measure the rest of the page content uses -
@@ -649,22 +649,8 @@ response = requests.post(
           .gos-wa-cta{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s}
           .gos-wa-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
           .gos-wa-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-          /* Below-code secondary link. On owner instruction this is a PLAIN INLINE TEXT
-             LINK, not a pill: no surface, no border, no radius, no min-height box. Dark-green
-             #1a3a2a text at 15px with an underline and a trailing ↗ arrow so it reads clearly
-             as a hyperlink. Dark-green on the white hero is ~12:1, well past AA. Hover shifts
-             the text to the lime-pair dark green feel by dropping the underline / keeping the
-             colour and strengthening the underline; focus-visible draws the shared ring. */
-          /* The Python panel and its demo link are one unit. On desktop the stack stays inside
-             the mockup: the panel keeps its lower-right overlap, while the link becomes the
-             mockup's final row directly below it. The wrapper is 52px taller and the stack moves
-             52px inward (-28px -> 24px), so the panel's top edge stays where it was while the
-             link gains a real white section beneath it. */
-          .code-stack{position:absolute;right:0;bottom:24px;width:60%;max-width:340px;display:flex;flex-direction:column;align-items:stretch;gap:8px}
-          .code-wa-row{width:100%;display:flex;justify-content:flex-start}
-          .code-wa-link{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;color:#1a3a2a;font-size:15px;font-weight:600;text-decoration:underline;text-underline-offset:3px;transition:opacity .2s}
-          .code-wa-link:hover{opacity:.72}
-          .code-wa-link:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;border-radius:4px}
+          /* Hero Python panel only. Its demo link moved to the large API editor below. */
+          .code-stack{position:absolute;right:0;bottom:24px;width:60%;max-width:340px;display:flex;flex-direction:column;align-items:stretch}
           .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;width:100%;box-sizing:border-box}
           /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
              above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
@@ -673,7 +659,8 @@ response = requests.post(
           @media(prefers-reduced-motion:reduce){
             .gos-wa-cta{transition:background-color .2s}
             .gos-wa-cta:hover{transform:none;box-shadow:none}
-            .code-wa-link{transition:none}
+            .api-wa-link{transition:none}
+            .api-wa-link:hover{transform:none}
           }
 
           /* The rotating channel pill - its lozenge, dot, width glide, word fade,
@@ -1024,7 +1011,15 @@ response = requests.post(
           /* 16px -> 14px to match the hero .code-box. The two panels are the same
              object at two sizes, and the mobile override was already 14px, so this
              also stops the radius changing across breakpoints. */
+          .api-demo-stack{display:flex;flex-direction:column;align-items:stretch;gap:12px;min-width:0}
           .api-demo{background:#000;border-radius:14px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.12)}
+          /* Secondary demo action: aligned to the code panel's left edge and deliberately
+             lighter than the paid WhatsApp pill. It is transparent at rest; hover/focus
+             borrows the active-tab lime so the relationship to the editor is immediate. */
+          .api-wa-row{display:flex;justify-content:flex-start}
+          .api-wa-link{display:inline-flex;align-items:center;gap:5px;width:max-content;margin-left:-10px;padding:8px 10px;border-radius:10px;color:#1a3a2a;font-size:15px;font-weight:700;line-height:1.25;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}
+          .api-wa-link:hover{background:#d1f470;color:#1a3a2a;text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 6px 18px rgba(26,58,42,.12)}
+          .api-wa-link:focus-visible{background:#d1f470;color:#1a3a2a;text-decoration-color:transparent;outline:3px solid #1a3a2a;outline-offset:3px}
           /* No border-bottom. The .12 hairline here was standing in for structure
              that the code pane's own stroke now provides - the hero solves this the
              same way, with .code-header carrying nothing and .code-body's outline
@@ -1116,7 +1111,6 @@ response = requests.post(
             .chat-area{min-height:320px}
             .code-stack{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:none;align-self:stretch}
             .code-box{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%}
-            .code-wa-row{width:100%;justify-content:flex-end}
             .hero-visual-col{padding-bottom:0}
           }
 
@@ -1147,7 +1141,6 @@ response = requests.post(
             .code-stack{position:relative;right:auto;left:12px;bottom:16px;width:55%;max-width:none;align-self:flex-start}
             .code-box{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%}
             .phone{left:16px;top:16px;width:52%}
-            .code-wa-row{width:100%;justify-content:flex-start}
             .hero-visual-col{padding-bottom:0}
             
             .section-header{padding:0 20px}
@@ -1160,7 +1153,8 @@ response = requests.post(
             .api-grid{grid-template-columns:1fr;gap:36px;text-align:left}
             .api-info h2{text-align:left}
             .api-desc{max-width:100%;text-align:left}
-            .api-demo{max-width:500px;margin:0}
+            .api-demo-stack{max-width:500px;margin:0}
+            .api-demo{max-width:100%;margin:0}
             
             
           }
@@ -1193,7 +1187,6 @@ response = requests.post(
             
             .code-stack{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%;align-self:stretch}
             .code-box{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%;margin:0;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,.1);align-self:flex-start}
-            .code-wa-row{width:100%;justify-content:center}
             .code-header{padding:14px 16px}
             .dots{gap:6px}
             .dot-red,.dot-yellow,.dot-green{width:12px;height:12px}
@@ -1222,12 +1215,15 @@ response = requests.post(
                already first in source order so the grid stacks it first; the explicit
                order makes that intent survive any future markup reordering. */
             .api-steps{order:0}
-            .api-demo{order:1;border-radius:14px;max-width:100%;margin:0}
+            .api-demo-stack{order:1;max-width:100%;margin:0}
+            .api-demo{border-radius:14px;max-width:100%;margin:0}
             .api-steps-list{max-width:100%}
             .api-steps-buy{max-width:100%}
             .code-tabs{padding:16px;gap:10px;justify-content:flex-start;flex-wrap:wrap}
             .pp-tab{padding:14px 24px;font-size:18px}
             .code-block{font-size:14px;padding:18px;min-height:auto;text-align:left;white-space:pre-wrap;word-break:break-word;overflow-x:visible;line-height:1.7}
+            .api-wa-row{justify-content:flex-start}
+            .api-wa-link{margin-left:-8px;padding:8px}
             
             
           }
