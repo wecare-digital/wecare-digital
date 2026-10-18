@@ -156,7 +156,7 @@ Select product → Overview | Media | Channel IDs | Flow mapping | Sync history
 
 Keep business products distinct from provider mapping, linked by explicit IDs. Combine overlapping catalog/commerce/builder actions into product detail or a mapping editor. Do not display unavailable shipping/tracking services as active integrations.
 
-Backend: audit authoritative product and mapping contracts before exposing dead catalog helpers; establish a supported list/detail route where needed. Sync jobs need run status, last successful sync, per-item failures and bounded retries. Resolve public product links to `/shop/[slug]`, not `/product-page/{slug}`.
+Backend: audit authoritative product and mapping contracts before exposing dead catalog helpers; establish a supported list/detail route where needed. Sync jobs need run status, last successful sync, per-item failures and bounded retries. Resolve public product links to `/shop/[slug]`, not `[retired public path]/{slug}`.
 
 ## 8. Work: human tasks and durable agent runs
 
