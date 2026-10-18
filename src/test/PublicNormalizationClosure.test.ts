@@ -114,7 +114,7 @@ describe( 'Step 7 public normalization closure', () => {
       }
     }
 
-    expect( EMBEDDED_POLICY_ROUTES ).toHaveLength( 20 );
+    expect( EMBEDDED_POLICY_ROUTES.size ).toBe( 20 );
   } );
 
   it( 'covers every shared public family with fallback or embedded policy as intended', () => {
