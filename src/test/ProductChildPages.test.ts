@@ -37,7 +37,11 @@ describe( 'product family child pages', () => {
     expect( fs.existsSync( path.join( ROOT, 'src/pages/elsewhere.tsx' ) ) ).toBe( false );
     expect( read( 'src/content/products.ts' ) ).not.toContain( "slug: 'elsewhere'" );
     expect( read( 'src/pages/_app.tsx' ) ).not.toMatch( /^\s*'\/elsewhere'\s*:/m );
-    expect( read( 'scripts/generate-sitemap.js' ) ).not.toMatch( /^\s*'\/elsewhere',?\s*$/m );
+    const sitemap = read( 'scripts/generate-sitemap.js' );
+    const publicExact = sitemap.match( /const PUBLIC_EXACT = new Set\( \[([\s\S]*?)\]\s*\);/ )?.[ 1 ] || '';
+    expect( publicExact ).not.toMatch( /^\s*'\/elsewhere',?\s*$/m );
+    // /elsewhere MAY appear in RETIRED_FAMILY_PARENTS; that guard is what prevents the
+    // category label from ever becoming a sitemap destination again.
 
     const header = read( 'src/components/Header.tsx' );
     expect( header ).toContain( "label: 'Elsewhere'" );
