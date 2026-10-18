@@ -49,8 +49,8 @@ export interface ProductBlogPanelProps {
 }
 
 /**
- * HOW MANY CARDS PER PAGE. Four reads as a comfortable page in the rail: enough to feel like a
- * spread, few enough that a page rarely needs to scroll. The last page simply holds the remainder.
+ * HOW MANY CARDS PER PAGE. Three gives each article enough room to read as editorial content
+ * rather than a compressed widget. The last page simply holds the remainder.
  */
 const CARDS_PER_PAGE = 3;
 
@@ -116,7 +116,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
   }, [ cards, category, query ] );
 
   // Group the filtered cards into fixed-size pages. The pager scrolls between these horizontally;
-  // each page scrolls vertically on its own if its four cards overflow the rail.
+  // three editorial entries per page keeps the rail readable without an inner vertical scroller.
   const pages = useMemo<BlogCard[][]>( () => {
     const out: BlogCard[][] = [];
     for ( let i = 0; i < filtered.length; i += CARDS_PER_PAGE ) {
@@ -221,8 +221,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
       ) }
       {/* THE SWIPEABLE PAGER. The track is a horizontal scroll-snap container: each child .pbp-page
           is one viewport wide, so a touch swipe snaps page to page natively, and the arrow buttons
-          / arrow keys drive the same scrollTo. Each page is its own vertical scroller, so swiping
-          sideways and scrolling a long page down never fight. */}
+          / arrow keys drive the same scrollTo. */}
       { filtered.length === 0
         ? <p className="pbp-empty" aria-live="polite">No posts match that search.</p>
         : (
@@ -380,9 +379,9 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
         .pbp-track::-webkit-scrollbar{display:none}
         .pbp-track:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:14px}
 
-        /* ONE PAGE. Exactly the track's width so one page shows at a time and the next sits just
-           off-screen to swipe to. Its own vertical scroller: four cards usually fit, but a page
-           that overflows scrolls down on its own without disturbing the horizontal swipe. */
+        /* ONE PAGE. Exactly the track's width so one editorial page shows at a time and the next
+           sits just off-screen to swipe to. Three entries keep the rail readable without nesting
+           another vertical scroll area inside the page. */
         .pbp-page{
           list-style:none;margin:0;padding:2px 2px 0;
           flex:0 0 100%;width:100%;box-sizing:border-box;
