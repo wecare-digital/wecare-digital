@@ -121,7 +121,7 @@ const BharatRxPage: React.FC = () => (
         <ProductBuyBox slug="bharat-rx" />
 
         <div className="brx-commerce">
-          <p className="brx-sku" data-wc-no-translate="true"><strong>SKU:</strong> { PRODUCT_SKU_BY_SLUG['bharat-rx'] }</p>
+          <p className="brx-sku" data-wc-no-translate="true"><strong>SKU:</strong> <span className="brx-sku-value">{ PRODUCT_SKU_BY_SLUG['bharat-rx'] }</span></p>
           <PolicyDetails
             overview={ null }
             shipping={ BHARAT_RX_POLICY.shipping }
@@ -181,7 +181,8 @@ const BharatRxPage: React.FC = () => (
             margin:0;font-size:17px;font-weight:400;line-height:1.4;
             letter-spacing:-.05px;color:var(--public-muted);
           }
-          .brx-sku strong{color:var(--public-muted);font-weight:600}
+          .brx-sku strong{color:var(--public-brand-green);font-weight:700}
+          .brx-sku-value{color:var(--public-muted)}
         `}</style>
       </section>
 
