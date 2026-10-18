@@ -157,8 +157,8 @@ const SubmitRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
           ) ) }
         </div>
 
-        <h1 style={ { fontSize: 24, fontWeight: 700, color: 'var(--accent)', margin: '0 0 4px' } }>Submit Request</h1>
-        <p style={ { fontSize: 14, color: 'var(--text-muted)', margin: '0 0 24px' } }>
+        <h1 style={ { fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--accent)', margin: '0 0 4px' } }>Submit Request</h1>
+        <p style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', margin: '0 0 24px' } }>
           { step === 'ORDER_SELECT' && 'Select the order you need help with' }
           { step === 'SUBMIT_FORM' && 'Describe your request' }
           { step === 'TERMS' && 'Review terms and conditions' }
@@ -196,10 +196,10 @@ const SubmitRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                     onMouseLeave={ e => ( e.currentTarget.style.borderColor = '#f3f4f6' ) }
                   >
                     <div>
-                      <div style={ { fontWeight: 600, fontSize: 14, color: 'var(--accent)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 400 } }>
+                      <div style={ { fontWeight: 600, fontSize: 'var(--text-md)', color: 'var(--accent)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 400 } }>
                         { formatOrderLabel( o ) }
                       </div>
-                      <div style={ { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } }>
+                      <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 2 } }>
                         { o.customerName || 'Customer' } · { o.itemsSummary || `${o.itemCount || 0} items` }
                       </div>
                     </div>
@@ -219,7 +219,7 @@ const SubmitRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
         { step === 'SUBMIT_FORM' && selectedOrder && (
           <div style={ cardStyle }>
             <div style={ { padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: 8, marginBottom: 16 } }>
-              <div style={ { fontSize: 12, color: 'var(--text-muted)' } }>Selected Order</div>
+              <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>Selected Order</div>
               <div style={ { fontWeight: 600, color: 'var(--accent)' } }>{ formatOrderLabel( selectedOrder ) }</div>
             </div>
             { /* SHAPE (a), design 5.2 - the wrapping <label> is gone and Select owns the pair. */ }
@@ -231,7 +231,7 @@ const SubmitRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
             </label>
             <label style={ labelStyle }>Description *
               <textarea value={ form.description } onChange={ e => setForm( f => ( { ...f, description: e.target.value } ) ) } placeholder="Provide details about your request..." rows={ 5 } style={ { ...inputStyle, resize: 'vertical' } } maxLength={ 2000 } />
-              <div style={ { fontSize: 11, color: '#9ca3af', textAlign: 'right', marginTop: 2 } }>{ form.description.length }/2000</div>
+              <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', textAlign: 'right', marginTop: 2 } }>{ form.description.length }/2000</div>
             </label>
             <div style={ { display: 'flex', gap: 8, marginTop: 16 } }>
               <Button variant="secondary" onClick={ () => setStep( 'ORDER_SELECT' ) }>Back</Button>
@@ -243,7 +243,7 @@ const SubmitRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
         {/* STEP 3: TERMS */ }
         { step === 'TERMS' && (
           <div style={ cardStyle }>
-            <div style={ { padding: 16, background: 'var(--bg-secondary)', borderRadius: 8, marginBottom: 16, fontSize: 14, lineHeight: 1.6, maxHeight: 300, overflowY: 'auto' } }>
+            <div style={ { padding: 16, background: 'var(--bg-secondary)', borderRadius: 8, marginBottom: 16, fontSize: 'var(--text-md)', lineHeight: 1.6, maxHeight: 300, overflowY: 'auto' } }>
               <p style={ { fontWeight: 600, marginBottom: 8 } }>Terms & Conditions</p>
               <p>By submitting this service request, you agree to the following:</p>
               <ul style={ { paddingLeft: 20, margin: '8px 0' } }>
@@ -254,7 +254,7 @@ const SubmitRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                 <li>Refunds, if applicable, will be processed to the original payment method.</li>
               </ul>
             </div>
-            <label style={ { display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, cursor: 'pointer' } }>
+            <label style={ { display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--text-md)', cursor: 'pointer' } }>
               <input type="checkbox" checked={ termsAccepted } onChange={ e => setTermsAccepted( e.target.checked ) } style={ { accentColor: 'var(--accent)', width: 18, height: 18 } } />
               I agree to the terms and conditions
             </label>
@@ -272,7 +272,7 @@ const SubmitRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
               <div><span style={ metaLabel }>Order</span><div style={ { fontWeight: 600 } }>{ formatOrderLabel( selectedOrder ) }</div></div>
               <div><span style={ metaLabel }>Request Type</span><div>{ form.requestType }</div></div>
               <div style={ { gridColumn: '1 / -1' } }><span style={ metaLabel }>Subject</span><div>{ form.subject }</div></div>
-              <div style={ { gridColumn: '1 / -1' } }><span style={ metaLabel }>Description</span><div style={ { padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 14, whiteSpace: 'pre-wrap' } }>{ form.description }</div></div>
+              <div style={ { gridColumn: '1 / -1' } }><span style={ metaLabel }>Description</span><div style={ { padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 'var(--text-md)', whiteSpace: 'pre-wrap' } }>{ form.description }</div></div>
             </div>
             <div style={ { display: 'flex', gap: 8 } }>
               <Button variant="secondary" onClick={ () => setStep( 'TERMS' ) }>Back</Button>
@@ -284,12 +284,12 @@ const SubmitRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
         {/* STEP 5: THANK YOU */ }
         { step === 'THANK_YOU' && result && (
           <div style={ { ...cardStyle, textAlign: 'center', padding: 40 } }>
-            <div style={ { fontSize: 48, marginBottom: 12 } }>✅</div>
+            <div style={ { fontSize: 'var(--h1)', marginBottom: 12 } }>✅</div>
             <h2 style={ { fontSize: 20, fontWeight: 700, color: 'var(--accent)', margin: '0 0 8px' } }>Request Submitted</h2>
-            <p style={ { fontSize: 14, color: 'var(--text-muted)', margin: '0 0 16px' } }>
+            <p style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', margin: '0 0 16px' } }>
               Your request <strong>{ result.submissionNumber }</strong> has been submitted successfully.
             </p>
-            <p style={ { fontSize: 13, color: '#9ca3af', margin: '0 0 24px' } }>
+            <p style={ { fontSize: 'var(--text-sm)', color: '#9ca3af', margin: '0 0 24px' } }>
               You will receive status updates via WhatsApp. You can also track your request from the Track Request page.
             </p>
             <div style={ { display: 'flex', gap: 8, justifyContent: 'center' } }>
@@ -306,9 +306,9 @@ const SubmitRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
 };
 
 const cardStyle: React.CSSProperties = { border: '2px solid #f3f4f6', borderRadius: 13, padding: 24, background: '#fff' };
-const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, marginTop: 4, boxSizing: 'border-box' };
-const labelStyle: React.CSSProperties = { display: 'block', fontSize: 14, fontWeight: 500, color: '#374151', marginBottom: 14 };
-const metaLabel: React.CSSProperties = { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 };
-const pillStyle: React.CSSProperties = { display: 'inline-block', padding: '2px 8px', borderRadius: 9999, fontSize: 11, fontWeight: 600 };
+const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 'var(--text-md)', marginTop: 4, boxSizing: 'border-box' };
+const labelStyle: React.CSSProperties = { display: 'block', fontSize: 'var(--text-md)', fontWeight: 500, color: '#374151', marginBottom: 14 };
+const metaLabel: React.CSSProperties = { display: 'block', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 2 };
+const pillStyle: React.CSSProperties = { display: 'inline-block', padding: '2px 8px', borderRadius: 9999, fontSize: 'var(--text-xs)', fontWeight: 600 };
 
 export default SubmitRequestPage;

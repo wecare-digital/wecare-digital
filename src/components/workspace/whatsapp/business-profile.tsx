@@ -99,7 +99,7 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
         <div style={ { display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' } }>
           { PHONES.map( p => (
             <button key={ p.id } onClick={ () => setSelectedPhone( p ) }
-              style={ { padding: '8px 16px', borderRadius: 6, border: selectedPhone.id === p.id ? '2px solid var(--accent)' : '1px solid #ddd', background: selectedPhone.id === p.id ? 'var(--bg-secondary)' : '#fff', cursor: 'pointer', fontSize: 13 } }>
+              style={ { padding: '8px 16px', borderRadius: 6, border: selectedPhone.id === p.id ? '2px solid var(--accent)' : '1px solid #ddd', background: selectedPhone.id === p.id ? 'var(--bg-secondary)' : '#fff', cursor: 'pointer', fontSize: 'var(--text-sm)' } }>
               { p.name } ({ p.display })
             </button>
           ) ) }
@@ -107,9 +107,9 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
 
         { loading ? <p>Loading...</p> : loadError ? (
           <div style={ { textAlign: 'center', padding: 40, color: '#666' } }>
-            <p style={ { fontSize: 16, color: 'var(--accent)' } }>Profile Unavailable</p>
-            <p style={ { fontSize: 13, marginTop: 8 } }>{ loadError }</p>
-            <button onClick={ () => loadProfile( selectedPhone ) } style={ { marginTop: 12, padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 } }>
+            <p style={ { fontSize: 'var(--text-base)', color: 'var(--accent)' } }>Profile Unavailable</p>
+            <p style={ { fontSize: 'var(--text-sm)', marginTop: 8 } }>{ loadError }</p>
+            <button onClick={ () => loadProfile( selectedPhone ) } style={ { marginTop: 12, padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 'var(--text-sm)' } }>
               Retry
             </button>
           </div>
@@ -117,7 +117,7 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
           <>
             {/* Phone Info */ }
             { phoneSettings && (
-              <div style={ { background: 'var(--bg-secondary)', padding: 16, borderRadius: 8, marginBottom: 20, fontSize: 13 } }>
+              <div style={ { background: 'var(--bg-secondary)', padding: 16, borderRadius: 8, marginBottom: 20, fontSize: 'var(--text-sm)' } }>
                 <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 } }>
                   <div><span style={ { color: '#666' } }>Phone:</span> { phoneSettings.display_phone_number }</div>
                   <div><span style={ { color: '#666' } }>Name:</span> { phoneSettings.verified_name }</div>
@@ -139,40 +139,40 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
             {/* Edit Form */ }
             <div style={ { display: 'grid', gap: 16 } }>
               <div>
-                <label style={ { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 } }>About (max 139 chars)</label>
+                <label style={ { display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 4 } }>About (max 139 chars)</label>
                 <input value={ form.about } onChange={ e => setForm( { ...form, about: e.target.value } ) } maxLength={ 139 }
-                  style={ { width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 } } />
+                  style={ { width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 'var(--text-md)' } } />
               </div>
               <div>
-                <label style={ { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 } }>Description (max 512 chars)</label>
+                <label style={ { display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 4 } }>Description (max 512 chars)</label>
                 <textarea value={ form.description } onChange={ e => setForm( { ...form, description: e.target.value } ) } maxLength={ 512 } rows={ 3 }
-                  style={ { width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, resize: 'vertical' } } />
+                  style={ { width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 'var(--text-md)', resize: 'vertical' } } />
               </div>
               <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 16 } }>
                 <div>
-                  <label style={ { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 } }>Email</label>
+                  <label style={ { display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 4 } }>Email</label>
                   <input value={ form.email } onChange={ e => setForm( { ...form, email: e.target.value } ) }
-                    style={ { width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 } } />
+                    style={ { width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 'var(--text-md)' } } />
                 </div>
                 <div>
-                  <label style={ { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 } }>Vertical</label>
+                  <label style={ { display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 4 } }>Vertical</label>
                   <Select ariaLabel="Vertical" value={ form.vertical }
                     onChange={ v => setForm( { ...form, vertical: v } ) }
                     options={ VERTICAL_OPTIONS } />
                 </div>
               </div>
               <div>
-                <label style={ { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 } }>Address</label>
+                <label style={ { display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 4 } }>Address</label>
                 <input value={ form.address } onChange={ e => setForm( { ...form, address: e.target.value } ) }
-                  style={ { width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 } } />
+                  style={ { width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 'var(--text-md)' } } />
               </div>
               <div>
-                <label style={ { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 } }>Websites (comma-separated)</label>
+                <label style={ { display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 4 } }>Websites (comma-separated)</label>
                 <input value={ form.websites } onChange={ e => setForm( { ...form, websites: e.target.value } ) } placeholder="https://wecare.digital"
-                  style={ { width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 } } />
+                  style={ { width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 'var(--text-md)' } } />
               </div>
               <button onClick={ handleSave } disabled={ saving }
-                style={ { padding: '10px 24px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, width: 'fit-content' } }>
+                style={ { padding: '10px 24px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 'var(--text-md)', width: 'fit-content' } }>
                 { saving ? 'Saving...' : 'Save Profile' }
               </button>
               <RawJsonDrawer data={ { profile, phoneSettings } } label="Raw profile + settings JSON" />

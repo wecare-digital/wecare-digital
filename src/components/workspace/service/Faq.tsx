@@ -113,19 +113,19 @@ const FaqPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => 
     {
       key: 'question', header: 'Question', render: ( f: api.FaqEntry ) => (
         <div style={ { maxWidth: 400 } }>
-          <div style={ { fontWeight: 500, fontSize: 14 } }>{ f.question }</div>
-          <div style={ { fontSize: 12, color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const } }>{ f.answer }</div>
+          <div style={ { fontWeight: 500, fontSize: 'var(--text-md)' } }>{ f.question }</div>
+          <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const } }>{ f.answer }</div>
         </div>
       )
     },
     {
       key: 'category', header: 'Category', width: '110px', render: ( f: api.FaqEntry ) => (
-        <span style={ { padding: '2px 8px', borderRadius: 9999, fontSize: 12, fontWeight: 500, background: '#f3f4f6', color: '#374151' } }>{ f.category }</span>
+        <span style={ { padding: '2px 8px', borderRadius: 9999, fontSize: 'var(--text-xs)', fontWeight: 500, background: '#f3f4f6', color: '#374151' } }>{ f.category }</span>
       )
     },
     {
       key: 'active', header: 'Active', width: '70px', render: ( f: api.FaqEntry ) => (
-        <button onClick={ () => handleToggleActive( f ) } style={ { background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 } } title={ f.active ? 'Active — click to deactivate' : 'Inactive — click to activate' }>
+        <button onClick={ () => handleToggleActive( f ) } style={ { background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--text-xl)' } } title={ f.active ? 'Active — click to deactivate' : 'Inactive — click to activate' }>
           { f.active ? '✅' : '⬜' }
         </button>
       )
@@ -146,8 +146,8 @@ const FaqPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => 
       <div style={ { padding: '24px 32px', maxWidth: 1200 } }>
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } }>
           <div>
-            <h1 style={ { fontSize: 24, fontWeight: 700, color: 'var(--accent)', margin: 0 } }>FAQ Management</h1>
-            <p style={ { fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' } }>{ faqs.length } entries</p>
+            <h1 style={ { fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--accent)', margin: 0 } }>FAQ Management</h1>
+            <p style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', margin: '4px 0 0' } }>{ faqs.length } entries</p>
           </div>
           <Button variant="primary" icon="create" onClick={ openCreate }>Add FAQ</Button>
         </div>
@@ -174,15 +174,15 @@ const FaqPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => 
         <><Button variant="secondary" onClick={ () => setShowModal( false ) }>Cancel</Button><Button variant="primary" loading={ saving } onClick={ handleSave }>{ editing ? 'Update' : 'Create' }</Button></>
       }>
         <div style={ { display: 'flex', flexDirection: 'column', gap: 14 } }>
-          <label style={ { fontSize: 14 } }>Question *<input type="text" value={ form.question } onChange={ e => setForm( f => ( { ...f, question: e.target.value } ) ) } style={ inputStyle } /></label>
-          <label style={ { fontSize: 14 } }>Answer *<textarea value={ form.answer } onChange={ e => setForm( f => ( { ...f, answer: e.target.value } ) ) } rows={ 5 } style={ { ...inputStyle, resize: 'vertical' } } /></label>
+          <label style={ { fontSize: 'var(--text-md)' } }>Question *<input type="text" value={ form.question } onChange={ e => setForm( f => ( { ...f, question: e.target.value } ) ) } style={ inputStyle } /></label>
+          <label style={ { fontSize: 'var(--text-md)' } }>Answer *<textarea value={ form.answer } onChange={ e => setForm( f => ( { ...f, answer: e.target.value } ) ) } rows={ 5 } style={ { ...inputStyle, resize: 'vertical' } } /></label>
           <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 } }>
             { /* SHAPE (a), design 5.2 - the wrapping <label> is gone and Select owns the pair. */ }
             <Select label="Category" value={ form.category }
               onChange={ v => setForm( f => ( { ...f, category: v } ) ) }
               options={ CATEGORY_OPTIONS } />
-            <label style={ { fontSize: 14 } }>Sort Order<input type="number" value={ form.sortOrder } onChange={ e => setForm( f => ( { ...f, sortOrder: Number( e.target.value ) } ) ) } style={ inputStyle } /></label>
-            <label style={ { fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, marginTop: 22 } }>
+            <label style={ { fontSize: 'var(--text-md)' } }>Sort Order<input type="number" value={ form.sortOrder } onChange={ e => setForm( f => ( { ...f, sortOrder: Number( e.target.value ) } ) ) } style={ inputStyle } /></label>
+            <label style={ { fontSize: 'var(--text-md)', display: 'flex', alignItems: 'center', gap: 8, marginTop: 22 } }>
               <input type="checkbox" checked={ form.active } onChange={ e => setForm( f => ( { ...f, active: e.target.checked } ) ) } style={ { accentColor: 'var(--accent)' } } /> Active
             </label>
           </div>
@@ -193,7 +193,7 @@ const FaqPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => 
   return embedded ? body : <Layout user={ user } onSignOut={ signOut }>{ body }</Layout>;
 };
 
-const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, marginTop: 4 };
+const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 'var(--text-md)', marginTop: 4 };
 /* `selectStyle` went with the last native select in this file - it only ever skinned those. */
 
 export default FaqPage;

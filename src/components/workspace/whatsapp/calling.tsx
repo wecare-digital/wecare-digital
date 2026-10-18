@@ -2027,41 +2027,41 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
               <h3 style={ { margin: '0 0 6px', fontSize: 'var(--text-md)', color: '#0f2a1d' } }>Enable & Configure Calling</h3>
               <p style={ { margin: 0, fontSize: 'var(--text-sm)', color: '#0f2a1d' } }>
                 Use this to enable the call icon on your WhatsApp number, set business hours, and restrict calling to specific countries.
-                This sends a POST to <code style={ { background: '#f3f4f6', padding: '1px 4px', borderRadius: 3, fontSize: 12 } }>/{ '{phone-number-id}' }/settings</code> with the calling configuration.
+                This sends a POST to <code style={ { background: '#f3f4f6', padding: '1px 4px', borderRadius: 3, fontSize: 'var(--text-xs)' } }>/{ '{phone-number-id}' }/settings</code> with the calling configuration.
               </p>
             </div>
 
             {/* Phone selector */ }
             <div style={ { ...s.card } }>
-              <div style={ { fontSize: 13, fontWeight: 600, marginBottom: 10 } }>Select Phone Number</div>
+              <div style={ { fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 10 } }>Select Phone Number</div>
               <div style={ { display: 'flex', gap: 8, flexWrap: 'wrap' } }>
                 { PHONE_NUMBERS.map( ( p, i ) => (
                   <button key={ i } onClick={ () => { setSettingsPhone( p ); } }
-                    style={ { padding: '8px 16px', borderRadius: 6, border: settingsPhone.metaId === p.metaId ? '2px solid var(--accent)' : '1px solid #ddd', background: settingsPhone.metaId === p.metaId ? 'var(--bg-secondary)' : '#fff', cursor: 'pointer', fontSize: 13 } }>
+                    style={ { padding: '8px 16px', borderRadius: 6, border: settingsPhone.metaId === p.metaId ? '2px solid var(--accent)' : '1px solid #ddd', background: settingsPhone.metaId === p.metaId ? 'var(--bg-secondary)' : '#fff', cursor: 'pointer', fontSize: 'var(--text-sm)' } }>
                     { p.name } ({ p.display })
-                    { p.callingReady && <span style={ { marginLeft: 6, fontSize: 11, color: 'var(--accent)' } }>Ready</span> }
-                    { !p.callingReady && <span style={ { marginLeft: 6, fontSize: 11, color: 'var(--accent)' } }>Needs 2K</span> }
+                    { p.callingReady && <span style={ { marginLeft: 6, fontSize: 'var(--text-xs)', color: 'var(--accent)' } }>Ready</span> }
+                    { !p.callingReady && <span style={ { marginLeft: 6, fontSize: 'var(--text-xs)', color: 'var(--accent)' } }>Needs 2K</span> }
                   </button>
                 ) ) }
               </div>
-              <div style={ { marginTop: 8, fontSize: 12, color: 'var(--text-muted)' } }>
-                Meta Phone ID: <code style={ { fontSize: 11 } }>{ settingsPhone.metaId }</code> | Tier: { settingsPhone.tier } | Quality: { settingsPhone.quality }
+              <div style={ { marginTop: 8, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
+                Meta Phone ID: <code style={ { fontSize: 'var(--text-xs)' } }>{ settingsPhone.metaId }</code> | Tier: { settingsPhone.tier } | Quality: { settingsPhone.quality }
               </div>
             </div>
 
             {/* Settings Form */ }
             <div style={ { ...s.card, marginTop: 12 } }>
-              <h4 style={ { margin: '0 0 14px', fontSize: 14 } }>Calling Configuration</h4>
+              <h4 style={ { margin: '0 0 14px', fontSize: 'var(--text-md)' } }>Calling Configuration</h4>
               <div style={ { display: 'grid', gap: 16 } }>
                 {/* Call Icon Visibility */ }
                 <div>
-                  <label style={ { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 } }>Call Icon Visibility</label>
+                  <label style={ { display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 6 } }>Call Icon Visibility</label>
                   <div style={ { display: 'flex', gap: 12 } }>
-                    <label style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' } }>
+                    <label style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-sm)', cursor: 'pointer' } }>
                       <input type="radio" name="visibility" checked={ callingVisibility === 'default' } onChange={ () => setCallingVisibility( 'default' ) } style={ { accentColor: 'var(--accent)' } } />
                       <span>Default (show call icon)</span>
                     </label>
-                    <label style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' } }>
+                    <label style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-sm)', cursor: 'pointer' } }>
                       <input type="radio" name="visibility" checked={ callingVisibility === 'disable_all' } onChange={ () => setCallingVisibility( 'disable_all' ) } style={ { accentColor: 'var(--accent)' } } />
                       <span>Disable All (hide call icon)</span>
                     </label>
@@ -2070,38 +2070,38 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
 
                 {/* Country Restriction */ }
                 <div>
-                  <label style={ { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 } }>Restrict to Countries (comma-separated ISO codes)</label>
+                  <label style={ { display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 4 } }>Restrict to Countries (comma-separated ISO codes)</label>
                   <input value={ restrictCountries } onChange={ e => setRestrictCountries( e.target.value ) } placeholder="IN, AE, GB"
-                    style={ { width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 } } />
-                  <div style={ { fontSize: 11, color: '#9ca3af', marginTop: 4 } }>Only users in these countries will see the call icon. Leave empty for all countries.</div>
+                    style={ { width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 'var(--text-md)' } } />
+                  <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 4 } }>Only users in these countries will see the call icon. Leave empty for all countries.</div>
                 </div>
 
                 {/* Callback Permission */ }
                 <div>
-                  <label style={ { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 } }>Callback Permission Request</label>
+                  <label style={ { display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 6 } }>Callback Permission Request</label>
                   <div style={ { display: 'flex', gap: 12 } }>
-                    <label style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' } }>
+                    <label style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-sm)', cursor: 'pointer' } }>
                       <input type="radio" name="callbackPerm" checked={ callbackPermission === 'ENABLED' } onChange={ () => setCallbackPermission( 'ENABLED' ) } style={ { accentColor: 'var(--accent)' } } />
                       <span>Enabled (auto-show permission UI when a user calls)</span>
                     </label>
-                    <label style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' } }>
+                    <label style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-sm)', cursor: 'pointer' } }>
                       <input type="radio" name="callbackPerm" checked={ callbackPermission === 'DISABLED' } onChange={ () => setCallbackPermission( 'DISABLED' ) } style={ { accentColor: 'var(--accent)' } } />
                       <span>Disabled</span>
                     </label>
                   </div>
-                  <div style={ { fontSize: 11, color: '#9ca3af', marginTop: 4 } }>Calling a user requires explicit permission. Enable to request it automatically when a user calls your business.</div>
+                  <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 4 } }>Calling a user requires explicit permission. Enable to request it automatically when a user calls your business.</div>
                 </div>
 
                 {/* Audio Codecs */ }
                 <div>
-                  <label style={ { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 } }>Audio Codecs</label>
+                  <label style={ { display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 6 } }>Audio Codecs</label>
                   <div style={ { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, marginBottom: 8 } }>
-                    <span style={ { fontSize: 12, fontWeight: 700, color: '#166534' } }>Opus</span>
-                    <span style={ { fontSize: 12, color: '#166534' } }>Default codec (best quality, lowest bandwidth) — always enabled.</span>
+                    <span style={ { fontSize: 'var(--text-xs)', fontWeight: 700, color: '#166534' } }>Opus</span>
+                    <span style={ { fontSize: 'var(--text-xs)', color: '#166534' } }>Default codec (best quality, lowest bandwidth) — always enabled.</span>
                   </div>
                   <div style={ { display: 'flex', gap: 16 } }>
                     { ( [ 'PCMA', 'PCMU' ] as const ).map( codec => (
-                      <label key={ codec } style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' } }>
+                      <label key={ codec } style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-sm)', cursor: 'pointer' } }>
                         <input type="checkbox" checked={ audioCodecs.includes( codec ) }
                           onChange={ e => setAudioCodecs( prev => e.target.checked ? [ ...prev, codec ] : prev.filter( x => x !== codec ) ) }
                           style={ { accentColor: 'var(--accent)' } } />
@@ -2109,15 +2109,15 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
                       </label>
                     ) ) }
                   </div>
-                  <div style={ { fontSize: 11, color: '#9ca3af', marginTop: 4 } }>Enable G.711 only for interoperability with legacy telephony / PSTN gateways. Adds transcoding latency and uses more bandwidth.</div>
+                  <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 4 } }>Enable G.711 only for interoperability with legacy telephony / PSTN gateways. Adds transcoding latency and uses more bandwidth.</div>
                 </div>
 
                 {/* Voicemail (advanced passthrough) */ }
                 <details style={ { border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' } }>
-                  <summary style={ { fontSize: 13, fontWeight: 500, cursor: 'pointer' } }>Voicemail (advanced)</summary>
+                  <summary style={ { fontSize: 'var(--text-sm)', fontWeight: 500, cursor: 'pointer' } }>Voicemail (advanced)</summary>
                   <div style={ { marginTop: 10 } }>
                     <div style={ { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, marginBottom: 10 } }>
-                      <span style={ { fontSize: 11, color: '#92400e', lineHeight: 1.5 } }>
+                      <span style={ { fontSize: 'var(--text-xs)', color: '#92400e', lineHeight: 1.5 } }>
                         Voicemail is not part of Meta&apos;s published Calling API reference (as of Nov 2025).
                         This editor passes a raw JSON <code>voicemail</code> object straight through to
                         <code> POST /{ '{phone-number-id}' }/settings</code>. Use only with a schema confirmed by your Meta contact.
@@ -2128,20 +2128,20 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
                       onChange={ e => { setVoicemailJson( e.target.value ); setVoicemailError( '' ); } }
                       placeholder={ '{\n  "status": "ENABLED",\n  "timeout_seconds": 30\n}' }
                       rows={ 7 }
-                      style={ { width: '100%', padding: '8px 12px', border: `1px solid ${voicemailError ? '#ef4444' : '#ddd'}`, borderRadius: 6, fontSize: 12, fontFamily: 'monospace' } } />
-                    { voicemailError && <div style={ { fontSize: 11, color: '#ef4444', marginTop: 4 } }>{ voicemailError }</div> }
-                    <div style={ { fontSize: 11, color: '#9ca3af', marginTop: 4 } }>Leave empty to omit voicemail settings. Must be a valid JSON object.</div>
+                      style={ { width: '100%', padding: '8px 12px', border: `1px solid ${voicemailError ? '#ef4444' : '#ddd'}`, borderRadius: 6, fontSize: 'var(--text-xs)', fontFamily: 'monospace' } } />
+                    { voicemailError && <div style={ { fontSize: 'var(--text-xs)', color: '#ef4444', marginTop: 4 } }>{ voicemailError }</div> }
+                    <div style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 4 } }>Leave empty to omit voicemail settings. Must be a valid JSON object.</div>
                   </div>
                 </details>
 
                 {/* Call availability — always 24/7 (call_hours disabled at Meta) */ }
                 <div>
-                  <label style={ { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 8 } }>
+                  <label style={ { display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 8 } }>
                     Call Availability
                   </label>
                   <div style={ { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8 } }>
-                    <span style={ { fontSize: 12, fontWeight: 700, color: '#166534', background: '#dcfce7', padding: '2px 8px', borderRadius: 9999 } }>24 / 7</span>
-                    <span style={ { fontSize: 12, color: '#166534' } }>Calls accepted at any time, every day. Business call hours are disabled.</span>
+                    <span style={ { fontSize: 'var(--text-xs)', fontWeight: 700, color: '#166534', background: '#dcfce7', padding: '2px 8px', borderRadius: 9999 } }>24 / 7</span>
+                    <span style={ { fontSize: 'var(--text-xs)', color: '#166534' } }>Calls accepted at any time, every day. Business call hours are disabled.</span>
                   </div>
                 </div>
               </div>
@@ -2149,11 +2149,11 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
               {/* Save Button */ }
               <div style={ { display: 'flex', gap: 12, alignItems: 'center', marginTop: 20 } }>
                 <button onClick={ saveCallingSettings } disabled={ savingSettings }
-                  style={ { padding: '10px 24px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 } }>
+                  style={ { padding: '10px 24px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 'var(--text-md)', fontWeight: 600 } }>
                   { savingSettings ? 'Saving...' : 'Enable Calling / Save Settings' }
                 </button>
                 <button onClick={ loadCallingSettings } disabled={ loadingSettings }
-                  style={ { padding: '10px 16px', background: '#fff', border: '1px solid #d1d5db', borderRadius: 8, cursor: 'pointer', fontSize: 13 } }>
+                  style={ { padding: '10px 16px', background: '#fff', border: '1px solid #d1d5db', borderRadius: 8, cursor: 'pointer', fontSize: 'var(--text-sm)' } }>
                   { loadingSettings ? 'Loading...' : 'Refresh Current Settings' }
                 </button>
               </div>
@@ -2162,8 +2162,8 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
             {/* Current Settings Response */ }
             { callingSettingsResult && (
               <div style={ { ...s.card, marginTop: 12 } }>
-                <h4 style={ { margin: '0 0 8px', fontSize: 14 } }>Current Settings (from Meta API)</h4>
-                <pre style={ { background: '#000', color: '#e2e8f0', padding: 14, borderRadius: 8, fontSize: 12, overflow: 'auto', maxHeight: 250 } }>
+                <h4 style={ { margin: '0 0 8px', fontSize: 'var(--text-md)' } }>Current Settings (from Meta API)</h4>
+                <pre style={ { background: '#000', color: '#e2e8f0', padding: 14, borderRadius: 8, fontSize: 'var(--text-xs)', overflow: 'auto', maxHeight: 250 } }>
                   { JSON.stringify( callingSettingsResult, null, 2 ) }
                 </pre>
               </div>
@@ -2171,13 +2171,13 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
 
             {/* API Reference */ }
             <div style={ { ...s.card, marginTop: 12 } }>
-              <h4 style={ { margin: '0 0 8px', fontSize: 14 } }>API Reference</h4>
-              <div style={ { fontSize: 13, color: '#666', lineHeight: 1.8 } }>
-                <div>Enable calling: <code style={ { fontSize: 12, background: '#f3f4f6', padding: '2px 6px', borderRadius: 4 } }>POST /{ '{phone-number-id}' }/settings</code> with <code>calling</code> object</div>
-                <div>call_icon_visibility: <code style={ { fontSize: 12 } }>&quot;default&quot;</code> (show) or <code style={ { fontSize: 12 } }>&quot;disable_all&quot;</code> (hide)</div>
+              <h4 style={ { margin: '0 0 8px', fontSize: 'var(--text-md)' } }>API Reference</h4>
+              <div style={ { fontSize: 'var(--text-sm)', color: '#666', lineHeight: 1.8 } }>
+                <div>Enable calling: <code style={ { fontSize: 'var(--text-xs)', background: '#f3f4f6', padding: '2px 6px', borderRadius: 4 } }>POST /{ '{phone-number-id}' }/settings</code> with <code>calling</code> object</div>
+                <div>call_icon_visibility: <code style={ { fontSize: 'var(--text-xs)' } }>&quot;default&quot;</code> (show) or <code style={ { fontSize: 'var(--text-xs)' } }>&quot;disable_all&quot;</code> (hide)</div>
                 <div>restrict_to_user_countries: Array of ISO country codes (e.g. [&quot;IN&quot;, &quot;AE&quot;])</div>
-                <div>callback_permission_status: <code style={ { fontSize: 12 } }>&quot;ENABLED&quot;</code> / <code style={ { fontSize: 12 } }>&quot;DISABLED&quot;</code></div>
-                <div>audio.additional_codecs: <code style={ { fontSize: 12 } }>[&quot;PCMA&quot;,&quot;PCMU&quot;]</code> (G.711; Opus is always default)</div>
+                <div>callback_permission_status: <code style={ { fontSize: 'var(--text-xs)' } }>&quot;ENABLED&quot;</code> / <code style={ { fontSize: 'var(--text-xs)' } }>&quot;DISABLED&quot;</code></div>
+                <div>audio.additional_codecs: <code style={ { fontSize: 'var(--text-xs)' } }>[&quot;PCMA&quot;,&quot;PCMU&quot;]</code> (G.711; Opus is always default)</div>
                 <div>call_hours: status + timezone_id + weekly_operating_hours (max 2/day, no overlap) + holiday_schedule</div>
                 <div>Docs: <a href="https://developers.facebook.com/docs/whatsapp/cloud-api/calling/call-control" target="_blank" rel="noopener noreferrer" style={ { color: 'var(--accent)' } }>Call Control Settings ↗</a></div>
               </div>

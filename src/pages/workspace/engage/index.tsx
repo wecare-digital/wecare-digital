@@ -100,7 +100,7 @@ const MessagesPage: React.FC<PageProps> = ({ signOut, user }) => {
       <div className="inner-page-container" style={{ maxWidth: 960 }}>
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px' }}>Messages</h1>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>Send and manage messages across all channels</p>
+          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', margin: 0 }}>Send and manage messages across all channels</p>
         </div>
 
         {/* Quick Actions */}
@@ -117,7 +117,7 @@ const MessagesPage: React.FC<PageProps> = ({ signOut, user }) => {
         </div>
 
         {/* Channel Cards */}
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Channels</div>
+        <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Channels</div>
         <div className="dm-channels">
           {channels.map((ch) => (
             <button key={ch.id} onClick={() => router.push(ch.path)} className="dm-ch-btn">
@@ -164,33 +164,33 @@ const MessagesPage: React.FC<PageProps> = ({ signOut, user }) => {
         <div className="dm-modal-backdrop" onClick={() => setSendOpen(false)}>
           <div className="dm-modal" onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid rgba(209,244,112,0.3)' }}>
-              <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>Send Message</span>
-              <button onClick={() => setSendOpen(false)} style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(209,244,112,0.15)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: 'var(--accent)' }}>×</button>
+              <span style={{ fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--text)' }}>Send Message</span>
+              <button onClick={() => setSendOpen(false)} style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(209,244,112,0.15)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 'var(--text-base)', color: 'var(--accent)' }}>×</button>
             </div>
             <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--accent)', marginBottom: 6 }}>Channel</label>
+                <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--accent)', marginBottom: 6 }}>Channel</label>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {channels.map((ch) => (
                     <button key={ch.id} onClick={() => setSendChannel(ch.id)}
-                      style={{ padding: '7px 14px', borderRadius: 10, fontSize: 12, fontWeight: sendChannel === ch.id ? 600 : 500, background: sendChannel === ch.id ? 'var(--lime)' : '#fff', color: sendChannel === ch.id ? 'var(--accent)' : 'var(--text-muted)', border: sendChannel === ch.id ? '1.5px solid var(--accent)' : '1.5px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
+                      style={{ padding: '7px 14px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: sendChannel === ch.id ? 600 : 500, background: sendChannel === ch.id ? 'var(--lime)' : '#fff', color: sendChannel === ch.id ? 'var(--accent)' : 'var(--text-muted)', border: sendChannel === ch.id ? '1.5px solid var(--accent)' : '1.5px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
                       {ch.label}
                     </button>
                   ))}
                 </div>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--accent)', marginBottom: 6 }}>To (phone or email)</label>
-                <input value={sendTo} onChange={e => setSendTo(e.target.value)} placeholder="+91 98xxx xxxxx" style={{ width: '100%', height: 42, padding: '10px 14px', fontSize: 14, color: 'var(--text)', background: '#fff', border: '1.5px solid var(--lime)', borderRadius: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--accent)', marginBottom: 6 }}>To (phone or email)</label>
+                <input value={sendTo} onChange={e => setSendTo(e.target.value)} placeholder="+91 98xxx xxxxx" style={{ width: '100%', height: 42, padding: '10px 14px', fontSize: 'var(--text-md)', color: 'var(--text)', background: '#fff', border: '1.5px solid var(--lime)', borderRadius: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--accent)', marginBottom: 6 }}>Message</label>
-                <textarea value={sendMsg} onChange={e => setSendMsg(e.target.value)} placeholder="Type your message..." rows={3} style={{ width: '100%', padding: '10px 14px', fontSize: 14, color: 'var(--text)', background: '#fff', border: '1.5px solid var(--lime)', borderRadius: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+                <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--accent)', marginBottom: 6 }}>Message</label>
+                <textarea value={sendMsg} onChange={e => setSendMsg(e.target.value)} placeholder="Type your message..." rows={3} style={{ width: '100%', padding: '10px 14px', fontSize: 'var(--text-md)', color: 'var(--text)', background: '#fff', border: '1.5px solid var(--lime)', borderRadius: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 20px', borderTop: '1px solid rgba(209,244,112,0.3)' }}>
-              <button onClick={() => setSendOpen(false)} style={{ padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 500, background: '#fff', color: 'var(--accent)', border: '1.5px solid var(--lime)', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-              <button style={{ padding: '8px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, background: 'var(--lime)', color: 'var(--accent)', border: '1.5px solid var(--lime)', cursor: 'pointer', fontFamily: 'inherit' }}>Send</button>
+              <button onClick={() => setSendOpen(false)} style={{ padding: '8px 16px', borderRadius: 10, fontSize: 'var(--text-sm)', fontWeight: 500, background: '#fff', color: 'var(--accent)', border: '1.5px solid var(--lime)', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+              <button style={{ padding: '8px 20px', borderRadius: 10, fontSize: 'var(--text-sm)', fontWeight: 600, background: 'var(--lime)', color: 'var(--accent)', border: '1.5px solid var(--lime)', cursor: 'pointer', fontFamily: 'inherit' }}>Send</button>
             </div>
           </div>
         </div>

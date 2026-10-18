@@ -143,22 +143,22 @@ interface StudioProps extends PageProps {
 type Tab = 'uploads' | 'bulk' | 'standard';
 
 const th: React.CSSProperties = {
-  padding: '8px 10px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
+  padding: '8px 10px', textAlign: 'left', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-muted)',
   borderBottom: '1px solid var(--border)',
 };
-const td: React.CSSProperties = { padding: '6px 10px', fontSize: 12, verticalAlign: 'top' };
+const td: React.CSSProperties = { padding: '6px 10px', fontSize: 'var(--text-xs)', verticalAlign: 'top' };
 const btn: React.CSSProperties = {
-  padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12,
+  padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 'var(--text-xs)',
   fontFamily: 'inherit',
 };
 const label: React.CSSProperties = {
-  fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4,
+  fontSize: 'var(--text-xs)', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4,
 };
 const input: React.CSSProperties = {
   width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid var(--border)',
-  fontSize: 13, fontFamily: 'inherit',
+  fontSize: 'var(--text-sm)', fontFamily: 'inherit',
 };
-const muted: React.CSSProperties = { fontSize: 11, color: 'rgba(0,0,0,.54)', marginTop: 4 };
+const muted: React.CSSProperties = { fontSize: 'var(--text-xs)', color: 'rgba(0,0,0,.54)', marginTop: 4 };
 
 /** One colour per source status, so a stalled batch is legible without reading the words. */
 const STATUS_COLOUR: Record<string, string> = {
@@ -717,7 +717,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
 
       <div style={ { marginBottom: 16 } }>
         <h1 style={ { fontSize: 20, fontWeight: 700, margin: 0 } }>Blog Studio</h1>
-        <p style={ { fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0' } }>
+        <p style={ { fontSize: 'var(--text-sm)', color: 'var(--text-muted)', margin: '4px 0 0' } }>
           PDF and URL intake under the Conversations Content Quality Standard v2.
         </p>
       </div>
@@ -742,7 +742,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
       { tab === 'uploads' && (
         <div style={ { maxWidth: 1040 } }>
           <div className="card" style={ { padding: 16, marginBottom: 16 } }>
-            <p style={ { fontSize: 12, color: '#374151', lineHeight: 1.7, margin: 0 } }>
+            <p style={ { fontSize: 'var(--text-xs)', color: '#374151', lineHeight: 1.7, margin: 0 } }>
               <strong>This tab uploads for real.</strong> Sources registered here go to S3,
               are extracted by a backend worker and appear below with a live status. It is
               the primary live path for any total volume. Large selections are automatically
@@ -754,7 +754,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
 
           { apiError && (
             <div className="card" style={ { padding: 16, marginBottom: 16 } }>
-              <div style={ { fontSize: 12, color: '#b91c1c' } }>
+              <div style={ { fontSize: 'var(--text-xs)', color: '#b91c1c' } }>
                 The source list could not be read: { apiError }
               </div>
               <button onClick={ () => { void refresh(); } }
@@ -816,7 +816,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
                 background: dragging ? '#f7fee7' : '#fafafa',
                 borderRadius: 10, padding: '28px 16px', textAlign: 'center', cursor: 'pointer',
               } }>
-              <div style={ { fontSize: 13, fontWeight: 600, color: '#374151' } }>
+              <div style={ { fontSize: 'var(--text-sm)', fontWeight: 600, color: '#374151' } }>
                 { hashing ? 'Hashing…' : 'Drop PDFs here, or click to choose' }
               </div>
               <div style={ muted }>
@@ -853,7 +853,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
                       <tr key={ file.sha256 } style={ { borderBottom: '1px solid #f3f4f6' } }>
                         <td style={ td }>{ file.name }</td>
                         <td style={ td }>{ formatBytes( file.size ) }</td>
-                        <td style={ { ...td, fontFamily: 'ui-monospace, monospace', fontSize: 11 } }>
+                        <td style={ { ...td, fontFamily: 'ui-monospace, monospace', fontSize: 'var(--text-xs)' } }>
                           { file.sha256.slice( 0, 12 ) }…
                         </td>
                         <td style={ td }>{ file.category }</td>
@@ -877,8 +877,8 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
               <textarea id="blog-studio-urls" value={ urlText } rows={ 6 }
                 onChange={ ( event ) => setUrlText( event.target.value ) }
                 placeholder={ '# one per line, comments allowed\nhttps://example.com/an-article' }
-                style={ { ...input, fontFamily: 'ui-monospace, monospace', fontSize: 12, resize: 'vertical' } } />
-              <div style={ { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } }>
+                style={ { ...input, fontFamily: 'ui-monospace, monospace', fontSize: 'var(--text-xs)', resize: 'vertical' } } />
+              <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 4 } }>
                 { urls.length } URL(s) recognised. A URL needs no upload — it is fetched by
                 the worker.
               </div>
@@ -898,7 +898,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
                 onClick={ () => { setFiles( [] ); setUrlText( '' ); addLog( 'Selection cleared' ); } }>
                 Clear selection
               </button>
-              <span style={ { fontSize: 11, color: 'rgba(0,0,0,.54)' } }>
+              <span style={ { fontSize: 'var(--text-xs)', color: 'rgba(0,0,0,.54)' } }>
                 Each PDF is sent straight to S3 with a presigned URL, then confirmed. A
                 source already known by its SHA-256 is skipped rather than duplicated.
               </span>
@@ -906,7 +906,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
             { uploadProgress.total > 0 && (
               <div style={ {
                 marginTop: 12, padding: 10, borderRadius: 8, background: 'var(--bg-secondary)',
-                display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 11,
+                display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 'var(--text-xs)',
               } }>
                 <span><strong>{ uploadProgress.total }</strong> selected</span>
                 <span><strong>{ uploadProgress.registered }</strong> registered</span>
@@ -920,17 +920,17 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
           <div className="card" style={ { padding: 20, marginBottom: 16 } }>
             <div style={ { display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' } }>
               <div>
-                <h2 style={ { fontSize: 14, fontWeight: 700, margin: '0 0 2px' } }>
+                <h2 style={ { fontSize: 'var(--text-md)', fontWeight: 700, margin: '0 0 2px' } }>
                   Uploaded sources
                 </h2>
-                <div style={ { fontSize: 11, color: 'rgba(0,0,0,.54)' } }>
+                <div style={ { fontSize: 'var(--text-xs)', color: 'rgba(0,0,0,.54)' } }>
                   { sourceTruncated
                     ? `Showing ${ sourceShown } recent rows of ${ sourceTotal } total sources`
                     : `${ sourceTotal } total source(s)` }
                 </div>
               </div>
               <div style={ { display: 'flex', gap: 8, alignItems: 'center' } }>
-                <span style={ { fontSize: 11, color: 'rgba(0,0,0,.54)' } }>
+                <span style={ { fontSize: 'var(--text-xs)', color: 'rgba(0,0,0,.54)' } }>
                   { inFlight > 0
                     ? `${ inFlight } in flight — refreshing every ${ POLL_INTERVAL_MS / 1000 }s`
                     : 'Nothing in flight' }
@@ -941,19 +941,19 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
                 </button>
               </div>
             </div>
-            <div style={ { display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, marginBottom: 12 } }>
+            <div style={ { display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 'var(--text-xs)', marginBottom: 12 } }>
               { SOURCE_STATUSES.map( ( name ) => (
                 <div key={ name }>
-                  <div style={ { fontSize: 18, fontWeight: 700, color: STATUS_COLOUR[ name ] } }>
+                  <div style={ { fontSize: 'var(--text-xl)', fontWeight: 700, color: STATUS_COLOUR[ name ] } }>
                     { liveRollup[ name ] || 0 }
                   </div>
-                  <div style={ { color: 'rgba(0,0,0,.54)', fontSize: 11 } }>{ name }</div>
+                  <div style={ { color: 'rgba(0,0,0,.54)', fontSize: 'var(--text-xs)' } }>{ name }</div>
                 </div>
               ) ) }
             </div>
 
             { sources.length === 0 ? (
-              <div style={ { fontSize: 12, color: 'rgba(0,0,0,.54)' } }>
+              <div style={ { fontSize: 'var(--text-xs)', color: 'rgba(0,0,0,.54)' } }>
                 No sources uploaded through this page yet.
               </div>
             ) : (
@@ -975,19 +975,19 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
                         <td style={ td }>
                           <div style={ { wordBreak: 'break-all' } }>{ row.sourceRef }</div>
                           { row.sourceTitle && (
-                            <div style={ { color: 'var(--text-muted)', fontSize: 11 } }>{ row.sourceTitle }</div>
+                            <div style={ { color: 'var(--text-muted)', fontSize: 'var(--text-xs)' } }>{ row.sourceTitle }</div>
                           ) }
                           { reviewLink( row ) && (
                             <div>
                               <a href={ reviewLink( row ) } target="_blank" rel="noopener noreferrer"
                                 aria-label={ `Open the source document for ${ row.sourceRef } in a new tab` }
-                                style={ { fontSize: 11 } }>
+                                style={ { fontSize: 'var(--text-xs)' } }>
                                 Open the source document
                               </a>
                             </div>
                           ) }
                           { row.error && (
-                            <div style={ { color: '#b91c1c', fontSize: 11 } }>{ row.error }</div>
+                            <div style={ { color: '#b91c1c', fontSize: 'var(--text-xs)' } }>{ row.error }</div>
                           ) }
                         </td>
                         <td style={ td }>{ row.sourceType }</td>
@@ -1025,7 +1025,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
             ) }
 
             { !aiDraftEnabled && (
-              <p style={ { fontSize: 11, color: 'rgba(0,0,0,.54)', margin: '12px 0 0', lineHeight: 1.6 } }>
+              <p style={ { fontSize: 'var(--text-xs)', color: 'rgba(0,0,0,.54)', margin: '12px 0 0', lineHeight: 1.6 } }>
                 AI drafting is switched off in the cost flags
                 ( <code>ENABLE_BEDROCK_ASSIST</code> ), so <strong>Propose draft</strong> is
                 disabled rather than failing on the first click. Extraction and the quality
@@ -1036,10 +1036,10 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
 
           { Object.keys( drafts ).length > 0 && (
             <div className="card" style={ { padding: 20, marginBottom: 16 } }>
-              <h2 style={ { fontSize: 14, fontWeight: 700, margin: '0 0 4px' } }>
+              <h2 style={ { fontSize: 'var(--text-md)', fontWeight: 700, margin: '0 0 4px' } }>
                 Proposals, not approvals
               </h2>
-              <p style={ { fontSize: 12, color: '#374151', lineHeight: 1.7, margin: '0 0 12px' } }>
+              <p style={ { fontSize: 'var(--text-xs)', color: '#374151', lineHeight: 1.7, margin: '0 0 12px' } }>
                 A draft below is something the model wrote and nothing more. It cannot reach
                 <code> READY_TO_PUBLISH </code>, and not as a matter of policy: the fields
                 that record the eleven section 29 human gates are outside the whitelist the
@@ -1051,27 +1051,27 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
                 <div key={ sourceId } style={ {
                   borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12,
                 } }>
-                  <div style={ { fontSize: 12, fontWeight: 600, wordBreak: 'break-all' } }>
+                  <div style={ { fontSize: 'var(--text-xs)', fontWeight: 600, wordBreak: 'break-all' } }>
                     { sourceId }
                   </div>
-                  <div style={ { display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 8, fontSize: 12 } }>
+                  <div style={ { display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 8, fontSize: 'var(--text-xs)' } }>
                     <div>
                       <div style={ { fontWeight: 700 } }>{ draft.aiDraft.assessment.status }</div>
-                      <div style={ { color: 'rgba(0,0,0,.54)', fontSize: 11 } }>gate status</div>
+                      <div style={ { color: 'rgba(0,0,0,.54)', fontSize: 'var(--text-xs)' } }>gate status</div>
                     </div>
                     <div>
                       <div style={ { fontWeight: 700 } }>{ draft.aiDraft.assessment.words }</div>
-                      <div style={ { color: 'rgba(0,0,0,.54)', fontSize: 11 } }>words</div>
+                      <div style={ { color: 'rgba(0,0,0,.54)', fontSize: 'var(--text-xs)' } }>words</div>
                     </div>
                     <div>
                       <div style={ { fontWeight: 700 } }>
                         { draft.readyToPublish ? 'yes' : 'no' }
                       </div>
-                      <div style={ { color: 'rgba(0,0,0,.54)', fontSize: 11 } }>ready to publish</div>
+                      <div style={ { color: 'rgba(0,0,0,.54)', fontSize: 'var(--text-xs)' } }>ready to publish</div>
                     </div>
                     <div>
                       <div style={ { fontWeight: 700 } }>{ draft.aiDraft.model || '—' }</div>
-                      <div style={ { color: 'rgba(0,0,0,.54)', fontSize: 11 } }>model</div>
+                      <div style={ { color: 'rgba(0,0,0,.54)', fontSize: 'var(--text-xs)' } }>model</div>
                     </div>
                   </div>
                   { ( [
@@ -1080,12 +1080,12 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
                     [ 'Human gates outstanding', draft.aiDraft.assessment.humanGatesOutstanding, '#374151' ],
                   ] as [ string, string[], string ][] ).map( ( [ heading, items, colour ] ) => (
                     <div key={ heading } style={ { marginTop: 10 } }>
-                      <div style={ { fontSize: 11, fontWeight: 600, color: colour } }>
+                      <div style={ { fontSize: 'var(--text-xs)', fontWeight: 600, color: colour } }>
                         { heading } ({ items.length })
                       </div>
                       { items.length > 0 ? (
                         <ul style={ {
-                          fontSize: 11, color: '#374151', lineHeight: 1.7, paddingLeft: 18,
+                          fontSize: 'var(--text-xs)', color: '#374151', lineHeight: 1.7, paddingLeft: 18,
                           margin: '4px 0 0',
                         } }>
                           { items.map( ( item ) => <li key={ item }>{ item }</li> ) }
@@ -1096,11 +1096,11 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
                     </div>
                   ) ) }
                   { draft.aiDraft.notes && (
-                    <p style={ { fontSize: 11, color: '#374151', margin: '10px 0 0', lineHeight: 1.6 } }>
+                    <p style={ { fontSize: 'var(--text-xs)', color: '#374151', margin: '10px 0 0', lineHeight: 1.6 } }>
                       Model notes: { draft.aiDraft.notes }
                     </p>
                   ) }
-                  <p style={ { fontSize: 11, color: 'rgba(0,0,0,.54)', margin: '10px 0 0', lineHeight: 1.6 } }>
+                  <p style={ { fontSize: 'var(--text-xs)', color: 'rgba(0,0,0,.54)', margin: '10px 0 0', lineHeight: 1.6 } }>
                     { draft.note }
                   </p>
                 </div>
@@ -1109,10 +1109,10 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
           ) }
 
           <div className="card" style={ { padding: 20, marginBottom: 16 } }>
-            <h2 style={ { fontSize: 14, fontWeight: 700, margin: '0 0 8px' } }>
+            <h2 style={ { fontSize: 'var(--text-md)', fontWeight: 700, margin: '0 0 8px' } }>
               Bulk path — export a work order instead
             </h2>
-            <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' } }>
+            <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '0 0 12px' } }>
               { total === 0
                 ? 'Add at least one source to export a work order.'
                 : `${ files.length } PDF(s) and ${ urls.length } URL(s) selected. ` }
@@ -1132,7 +1132,7 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
               </button>
             </div>
             <pre style={ {
-              background: 'var(--bg-secondary)', padding: 12, borderRadius: 8, fontSize: 11, lineHeight: 1.7,
+              background: 'var(--bg-secondary)', padding: 12, borderRadius: 8, fontSize: 'var(--text-xs)', lineHeight: 1.7,
               margin: '12px 0 0', whiteSpace: 'pre-wrap', color: '#374151',
             } }>{ `python scripts/blog_ingest.py ingest \\
     --work-order ~/Downloads/work-order-<date>.json \\
@@ -1147,9 +1147,9 @@ python scripts/blog_quality_v2.py validate --manifest content/conversations/batc
 
           { log.length > 0 && (
             <div className="card" style={ { padding: 16 } }>
-              <h2 style={ { fontSize: 13, fontWeight: 600, margin: '0 0 8px' } }>Activity</h2>
+              <h2 style={ { fontSize: 'var(--text-sm)', fontWeight: 600, margin: '0 0 8px' } }>Activity</h2>
               <div style={ {
-                fontFamily: 'ui-monospace, monospace', fontSize: 11, color: 'rgba(0,0,0,.54)',
+                fontFamily: 'ui-monospace, monospace', fontSize: 'var(--text-xs)', color: 'rgba(0,0,0,.54)',
                 maxHeight: 160, overflowY: 'auto',
               } }>
                 { log.map( ( line, index ) => <div key={ index }>{ line }</div> ) }
@@ -1162,10 +1162,10 @@ python scripts/blog_quality_v2.py validate --manifest content/conversations/batc
       { tab === 'bulk' && (
         <div style={ { maxWidth: 1100 } }>
           <div className="card" style={ { padding: 20, marginBottom: 16 } }>
-            <h2 style={ { fontSize: 14, fontWeight: 700, margin: '0 0 4px' } }>
+            <h2 style={ { fontSize: 'var(--text-md)', fontWeight: 700, margin: '0 0 4px' } }>
               Which article came from which source
             </h2>
-            <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' } }>
+            <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '0 0 12px' } }>
               The CLI path, read from <code>content/conversations/ledger.json</code> at
               build time — a committed file, not an API call, which is why it can hold
               thousands of rows cheaply.
@@ -1176,12 +1176,12 @@ python scripts/blog_quality_v2.py validate --manifest content/conversations/batc
               immediately.
             </p>
             { !ledgerPresent ? (
-              <div style={ { fontSize: 12, color: 'var(--text-muted)' } }>
+              <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
                 No ledger committed yet. It is created by the first{ ' ' }
                 <code>blog_ingest.py ingest</code> run.
               </div>
             ) : (
-              <div style={ { display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 12 } }>
+              <div style={ { display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 'var(--text-xs)' } }>
                 { ( [
                   [ 'Sources', rollup.total ],
                   [ 'With an article', rollup.withArticle ],
@@ -1216,10 +1216,10 @@ python scripts/blog_quality_v2.py validate --manifest content/conversations/batc
                       <td style={ td }>
                         <div style={ { wordBreak: 'break-all' } }>{ row.sourceRef }</div>
                         { row.sourceTitle && (
-                          <div style={ { color: '#9ca3af', fontSize: 11 } }>{ row.sourceTitle }</div>
+                          <div style={ { color: '#9ca3af', fontSize: 'var(--text-xs)' } }>{ row.sourceTitle }</div>
                         ) }
                         { row.error && (
-                          <div style={ { color: '#b91c1c', fontSize: 11 } }>{ row.error }</div>
+                          <div style={ { color: '#b91c1c', fontSize: 'var(--text-xs)' } }>{ row.error }</div>
                         ) }
                       </td>
                       <td style={ td }>{ row.sourceType }</td>
@@ -1244,23 +1244,23 @@ python scripts/blog_quality_v2.py validate --manifest content/conversations/batc
       { tab === 'standard' && (
         <div style={ { maxWidth: 820 } }>
           <div className="card" style={ { padding: 20, marginBottom: 16 } }>
-            <h2 style={ { fontSize: 14, fontWeight: 700, margin: '0 0 8px' } }>
+            <h2 style={ { fontSize: 'var(--text-md)', fontWeight: 700, margin: '0 0 8px' } }>
               The pipeline cannot approve an article
             </h2>
-            <p style={ { fontSize: 13, color: '#374151', lineHeight: 1.7, margin: '0 0 12px' } }>
+            <p style={ { fontSize: 'var(--text-sm)', color: '#374151', lineHeight: 1.7, margin: '0 0 12px' } }>
               Section 29 of the standard asks for a verdict on whether the writing is
               independently Anew rather than cosmetically rewritten, on whether it sounds
               like WECARE.DIGITAL, and on whether the material deserves its own article.
               Section 30 asks whether a reader would feel it was written because there was
               something worth saying. No program can answer those.
             </p>
-            <p style={ { fontSize: 13, color: '#374151', lineHeight: 1.7, margin: '0 0 12px' } }>
+            <p style={ { fontSize: 'var(--text-sm)', color: '#374151', lineHeight: 1.7, margin: '0 0 12px' } }>
               So the automated checks only ever move a record <strong>down</strong>. A
               record that passes every one of them lands on <code>EDITORIAL_QA</code>.
               Reaching <code>READY_TO_PUBLISH</code> — the only status that may enter the
               publish queue — requires a person to have recorded the eleven human gates.
             </p>
-            <p style={ { fontSize: 13, color: '#374151', lineHeight: 1.7, margin: 0 } }>
+            <p style={ { fontSize: 'var(--text-sm)', color: '#374151', lineHeight: 1.7, margin: 0 } }>
               That applies to the AI draft on the <strong>Uploads</strong> tab without an
               exception. A model draft is a <strong>proposal</strong>: it may write the
               title, body, metadata and tags, and it may write nothing else. The human-gate
@@ -1271,13 +1271,13 @@ python scripts/blog_quality_v2.py validate --manifest content/conversations/batc
 
           <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } }>
             <div className="card" style={ { padding: 16 } }>
-              <h3 style={ { fontSize: 13, fontWeight: 700, margin: '0 0 8px' } }>
+              <h3 style={ { fontSize: 'var(--text-sm)', fontWeight: 700, margin: '0 0 8px' } }>
                 Decided automatically
               </h3>
-              <ul style={ { fontSize: 12, color: '#374151', lineHeight: 1.9, paddingLeft: 18, margin: 0 } }>
+              <ul style={ { fontSize: 'var(--text-xs)', color: '#374151', lineHeight: 1.9, paddingLeft: 18, margin: 0 } }>
                 { MACHINE_GATES.map( ( name ) => <li key={ name }><code>{ name }</code></li> ) }
               </ul>
-              <p style={ { fontSize: 11, color: 'var(--text-muted)', margin: '10px 0 0', lineHeight: 1.6 } }>
+              <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '10px 0 0', lineHeight: 1.6 } }>
                 Plus every mechanical clause: provenance and source hash, the length bands,
                 the stock-phrase and self-help detectors, sentence-cadence uniformity,
                 false-biography and unattributed-quotation detection, factual-review flags,
@@ -1287,20 +1287,20 @@ python scripts/blog_quality_v2.py validate --manifest content/conversations/batc
               </p>
             </div>
             <div className="card" style={ { padding: 16 } }>
-              <h3 style={ { fontSize: 13, fontWeight: 700, margin: '0 0 8px' } }>
+              <h3 style={ { fontSize: 'var(--text-sm)', fontWeight: 700, margin: '0 0 8px' } }>
                 Requires a human verdict
               </h3>
-              <ul style={ { fontSize: 12, color: '#374151', lineHeight: 1.9, paddingLeft: 18, margin: 0 } }>
+              <ul style={ { fontSize: 'var(--text-xs)', color: '#374151', lineHeight: 1.9, paddingLeft: 18, margin: 0 } }>
                 { HUMAN_GATES.map( ( name ) => <li key={ name }><code>{ name }</code></li> ) }
               </ul>
             </div>
           </div>
 
           <div className="card" style={ { padding: 16, marginTop: 16 } }>
-            <h3 style={ { fontSize: 13, fontWeight: 700, margin: '0 0 8px' } }>
+            <h3 style={ { fontSize: 'var(--text-sm)', fontWeight: 700, margin: '0 0 8px' } }>
               Publication stays gated, and stays two-phase
             </h3>
-            <p style={ { fontSize: 12, color: '#374151', lineHeight: 1.7, margin: 0 } }>
+            <p style={ { fontSize: 'var(--text-xs)', color: '#374151', lineHeight: 1.7, margin: 0 } }>
               Nothing on this page publishes. A released article goes out from the publish
               queue in Blog Production, where <strong>Publish</strong> calls{ ' ' }
               <code>POST seo-tools blog-publish</code> and nothing else does. And because the

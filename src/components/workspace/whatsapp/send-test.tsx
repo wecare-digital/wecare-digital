@@ -40,9 +40,9 @@ const RESUME_TARGET_OPTIONS: SelectOption[] = [
 type SendTab = 'text' | 'template' | 'media' | 'flow' | 'tools' | 'mediamgmt' | 'flowadmin' | 'product';
 
 const card: React.CSSProperties = { background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, padding: 16, marginBottom: 16 };
-const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, marginTop: 4, marginBottom: 10, fontSize: 14 };
-const label: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#444' };
-const btn: React.CSSProperties = { padding: '9px 16px', background: 'var(--text)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 };
+const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, marginTop: 4, marginBottom: 10, fontSize: 'var(--text-md)' };
+const label: React.CSSProperties = { fontSize: 'var(--text-xs)', fontWeight: 600, color: '#444' };
+const btn: React.CSSProperties = { padding: '9px 16px', background: 'var(--text)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 'var(--text-md)', fontWeight: 600 };
 const tabBtn = ( active: boolean ): React.CSSProperties => ( { padding: '8px 14px', border: 'none', borderBottom: active ? '2px solid var(--text)' : '2px solid transparent', background: 'none', cursor: 'pointer', fontWeight: active ? 700 : 500, color: active ? 'var(--text)' : '#777' } );
 /** Layout only: the two margins the shared `input` object carried. */
 const selectLayout: React.CSSProperties = { marginTop: 4, marginBottom: 10 };
@@ -248,7 +248,7 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
         <div style={ { maxWidth: 820, margin: '0 auto', padding: 16 } }>
             <SEO title="WhatsApp Send Test Console" description="Send live WhatsApp test messages and validate templates/TTL." noindex />
             <h1 style={ { fontSize: 22, fontWeight: 700, marginBottom: 4 } }>Send Test Console</h1>
-            <p style={ { color: '#777', fontSize: 13, marginBottom: 16 } }>Send live test messages and validate templates/TTL against the deployed WhatsApp Business API.</p>
+            <p style={ { color: '#777', fontSize: 'var(--text-sm)', marginBottom: 16 } }>Send live test messages and validate templates/TTL against the deployed WhatsApp Business API.</p>
 
             <div style={ card }>
                 <div style={ { display: 'flex', gap: 16, flexWrap: 'wrap' } }>
@@ -339,9 +339,9 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
             { tab === 'tools' && (
                 <>
                     <div style={ card }>
-                        <h3 style={ { marginTop: 0, fontSize: 15 } }>Template TTL</h3>
+                        <h3 style={ { marginTop: 0, fontSize: 'var(--text-md)' } }>Template TTL</h3>
                         { ttlRules && (
-                            <div style={ { fontSize: 12, color: '#666', marginBottom: 8 } }>
+                            <div style={ { fontSize: 'var(--text-xs)', color: '#666', marginBottom: 8 } }>
                                 { Object.entries( ttlRules.categories ).map( ( [ c, r ] ) => <div key={ c }>{ r.description }</div> ) }
                             </div>
                         ) }
@@ -359,7 +359,7 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                         </div>
                         <button style={ btn } onClick={ runValidateTtl }>Validate TTL</button>
                         { ttlResult && (
-                            <div style={ { marginTop: 10, fontSize: 13, color: ttlResult.ok ? 'var(--accent)' : '#a11' } }>
+                            <div style={ { marginTop: 10, fontSize: 'var(--text-sm)', color: ttlResult.ok ? 'var(--accent)' : '#a11' } }>
                                 { ttlResult.ok ? `Valid — ${ttlResult.human}` : ttlResult.error }
                                 { ttlResult.warnings?.map( ( w, i ) => <div key={ i } style={ { color: '#a60' } }>{ w }</div> ) }
                             </div>
@@ -367,17 +367,17 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                     </div>
 
                     <div style={ card }>
-                        <h3 style={ { marginTop: 0, fontSize: 15 } }>Template validation</h3>
-                        <div style={ { fontSize: 12, color: '#666', marginBottom: 8 } }>
+                        <h3 style={ { marginTop: 0, fontSize: 'var(--text-md)' } }>Template validation</h3>
+                        <div style={ { fontSize: 'var(--text-xs)', color: '#666', marginBottom: 8 } }>
                             Presets:{ ' ' }
                             { presets.map( p => (
-                                <button key={ p.name } onClick={ () => loadPreset( p.name ) } style={ { ...btn, padding: '3px 8px', fontSize: 11, marginRight: 6, background: '#444' } }>{ p.name }{ p.hasFlowButton ? ' (flow)' : '' }</button>
+                                <button key={ p.name } onClick={ () => loadPreset( p.name ) } style={ { ...btn, padding: '3px 8px', fontSize: 'var(--text-xs)', marginRight: 6, background: '#444' } }>{ p.name }{ p.hasFlowButton ? ' (flow)' : '' }</button>
                             ) ) }
                         </div>
-                        <textarea style={ { ...input, minHeight: 140, fontFamily: 'monospace', fontSize: 12 } } value={ validateJson } onChange={ e => setValidateJson( e.target.value ) } placeholder='{"name":"order_ok","language":"en","category":"UTILITY","components":[...]}' />
+                        <textarea style={ { ...input, minHeight: 140, fontFamily: 'monospace', fontSize: 'var(--text-xs)' } } value={ validateJson } onChange={ e => setValidateJson( e.target.value ) } placeholder='{"name":"order_ok","language":"en","category":"UTILITY","components":[...]}' />
                         <button style={ btn } onClick={ runValidateTemplate }>Validate template</button>
                         { validateResult && (
-                            <div style={ { marginTop: 10, fontSize: 13 } }>
+                            <div style={ { marginTop: 10, fontSize: 'var(--text-sm)' } }>
                                 <div style={ { color: validateResult.ok ? 'var(--accent)' : '#a11', fontWeight: 600 } }>{ validateResult.ok ? 'Valid' : 'Invalid' }</div>
                                 { validateResult.errors?.map( ( e, i ) => <div key={ i } style={ { color: '#a11' } }>• { e }</div> ) }
                                 { validateResult.warnings?.map( ( w, i ) => <div key={ i } style={ { color: '#a60' } }>⚠ { w }</div> ) }
@@ -390,25 +390,25 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
             { tab === 'mediamgmt' && (
                 <>
                     <div style={ card }>
-                        <h3 style={ { marginTop: 0, fontSize: 15 } }>Upload media (single request)</h3>
+                        <h3 style={ { marginTop: 0, fontSize: 'var(--text-md)' } }>Upload media (single request)</h3>
                         <input style={ input } type="file" onChange={ e => setMmFile( e.target.files?.[ 0 ] || null ) } />
                         <button style={ btn } disabled={ busy } onClick={ uploadMedia }>Upload</button>
-                        { mmUploadedId && <div style={ { marginTop: 8, fontSize: 12, color: 'var(--accent)' } }>Media ID: { mmUploadedId }</div> }
+                        { mmUploadedId && <div style={ { marginTop: 8, fontSize: 'var(--text-xs)', color: 'var(--accent)' } }>Media ID: { mmUploadedId }</div> }
                     </div>
 
                     <div style={ card }>
-                        <h3 style={ { marginTop: 0, fontSize: 15 } }>Resumable upload (chunked)</h3>
-                        <p style={ { fontSize: 12, color: '#777', marginTop: 0 } }>Uses the same file picked above. Sends 256KB chunks then finishes.</p>
+                        <h3 style={ { marginTop: 0, fontSize: 'var(--text-md)' } }>Resumable upload (chunked)</h3>
+                        <p style={ { fontSize: 'var(--text-xs)', color: '#777', marginTop: 0 } }>Uses the same file picked above. Sends 256KB chunks then finishes.</p>
                         <div style={ label }>Finish as</div>
                         <Select ariaLabel="Finish as" value={ mmResumeTarget }
                             onChange={ v => setMmResumeTarget( v as any ) }
                             options={ RESUME_TARGET_OPTIONS } style={ selectLayout } />
                         <button style={ btn } disabled={ busy } onClick={ resumableUpload }>Start resumable upload</button>
-                        { mmProgress && <div style={ { marginTop: 8, fontSize: 12, color: '#444' } }>{ mmProgress }</div> }
+                        { mmProgress && <div style={ { marginTop: 8, fontSize: 'var(--text-xs)', color: '#444' } }>{ mmProgress }</div> }
                     </div>
 
                     <div style={ card }>
-                        <h3 style={ { marginTop: 0, fontSize: 15 } }>Lookup / delete media</h3>
+                        <h3 style={ { marginTop: 0, fontSize: 'var(--text-md)' } }>Lookup / delete media</h3>
                         <div style={ label }>Media ID</div>
                         <input style={ input } value={ mmLookupId } onChange={ e => setMmLookupId( e.target.value ) } placeholder="media id" />
                         <div style={ { display: 'flex', gap: 8 } }>
@@ -416,7 +416,7 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                             <button style={ { ...btn, background: '#7a1a1a' } } onClick={ removeMedia }>Delete</button>
                         </div>
                         { mmInfo && (
-                            <div style={ { marginTop: 10, fontSize: 12, color: '#444' } }>
+                            <div style={ { marginTop: 10, fontSize: 'var(--text-xs)', color: '#444' } }>
                                 <div>MIME: { mmInfo.mimeType } · { mmInfo.fileSize } bytes</div>
                                 <div>URL (masked): { mmInfo.url }</div>
                                 <div>Expires in: { mmInfo.urlExpiresInSeconds }s</div>
@@ -430,14 +430,14 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
             { tab === 'flowadmin' && (
                 <>
                     <div style={ card }>
-                        <h3 style={ { marginTop: 0, fontSize: 15 } }>Upload flow asset (FLOW_JSON)</h3>
+                        <h3 style={ { marginTop: 0, fontSize: 'var(--text-md)' } }>Upload flow asset (FLOW_JSON)</h3>
                         <div style={ label }>Flow ID</div>
                         <input style={ input } value={ faFlowId } onChange={ e => setFaFlowId( e.target.value ) } placeholder="Meta flow id" />
                         <div style={ label }>Flow JSON</div>
-                        <textarea style={ { ...input, minHeight: 140, fontFamily: 'monospace', fontSize: 12 } } value={ faFlowJson } onChange={ e => setFaFlowJson( e.target.value ) } placeholder='{"version":"7.0","screens":[...]}' />
+                        <textarea style={ { ...input, minHeight: 140, fontFamily: 'monospace', fontSize: 'var(--text-xs)' } } value={ faFlowJson } onChange={ e => setFaFlowJson( e.target.value ) } placeholder='{"version":"7.0","screens":[...]}' />
                         <button style={ btn } disabled={ busy } onClick={ submitFlowAsset }>Upload asset</button>
                         { faAssetResult && (
-                            <div style={ { marginTop: 10, fontSize: 13 } }>
+                            <div style={ { marginTop: 10, fontSize: 'var(--text-sm)' } }>
                                 <div style={ { color: faAssetResult.hasErrors ? '#a11' : 'var(--accent)', fontWeight: 600 } }>{ faAssetResult.hasErrors ? 'Validation errors' : 'Uploaded' }</div>
                                 { ( faAssetResult.validationErrors || [] ).map( ( v: any, i: number ) => <div key={ i } style={ { color: '#a11' } }>• { typeof v === 'string' ? v : JSON.stringify( v ) }</div> ) }
                             </div>
@@ -445,7 +445,7 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                     </div>
 
                     <div style={ card }>
-                        <h3 style={ { marginTop: 0, fontSize: 15 } }>Migrate flows between WABAs</h3>
+                        <h3 style={ { marginTop: 0, fontSize: 'var(--text-md)' } }>Migrate flows between WABAs</h3>
                         <div style={ { display: 'flex', gap: 12 } }>
                             <div style={ { flex: 1 } }>
                                 <div style={ label }>Source WABA ID</div>
@@ -458,19 +458,19 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                         </div>
                         <button style={ btn } disabled={ busy } onClick={ runMigrate }>Migrate</button>
                         { faMigrateResult && (
-                            <div style={ { marginTop: 10, fontSize: 13, color: '#444' } }>
+                            <div style={ { marginTop: 10, fontSize: 'var(--text-sm)', color: '#444' } }>
                                 Migrated: { ( faMigrateResult.migratedFlows || [] ).length } · Failed: { ( faMigrateResult.failedFlows || [] ).length }
                             </div>
                         ) }
                     </div>
 
                     <div style={ card }>
-                        <h3 style={ { marginTop: 0, fontSize: 15 } }>Sync flows into registry</h3>
+                        <h3 style={ { marginTop: 0, fontSize: 'var(--text-md)' } }>Sync flows into registry</h3>
                         <div style={ label }>WABA ID</div>
                         <input style={ input } value={ faSyncWaba } onChange={ e => setFaSyncWaba( e.target.value ) } />
                         <button style={ btn } disabled={ busy } onClick={ runSync }>Sync from Meta</button>
                         { faSyncResult && faSyncResult.success && (
-                            <div style={ { marginTop: 10, fontSize: 13, color: 'var(--accent)' } }>Synced { faSyncResult.synced }/{ faSyncResult.total } flows</div>
+                            <div style={ { marginTop: 10, fontSize: 'var(--text-sm)', color: 'var(--accent)' } }>Synced { faSyncResult.synced }/{ faSyncResult.total } flows</div>
                         ) }
                     </div>
                 </>

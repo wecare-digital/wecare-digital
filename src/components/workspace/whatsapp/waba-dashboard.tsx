@@ -455,7 +455,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
                 {/* Current Status */}
                 <div className="info-card">
                   <h3>SNS Event Subscription</h3>
-                  <p style={{ fontSize: 13, color: '#666', margin: '0 0 16px' }}>
+                  <p style={{ fontSize: 'var(--text-sm)', color: '#666', margin: '0 0 16px' }}>
                     Subscribe this WABA to an SNS topic to receive WhatsApp events (message status, template updates, phone quality changes).
                     AWS will publish events to the configured SNS topic.
                   </p>
@@ -478,8 +478,8 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
                           <span className="label" style={{ display: 'block', marginBottom: 8 }}>Active Event Destinations</span>
                           {snsStatus.liveEventDestinations.map((dest, idx) => (
                             <div key={idx} className="sns-dest-item">
-                              <span className="value code" style={{ fontSize: 12 }}>{dest.eventDestinationArn}</span>
-                              {dest.roleArn && <span className="value code" style={{ fontSize: 11, color: '#888' }}>Role: {dest.roleArn}</span>}
+                              <span className="value code" style={{ fontSize: 'var(--text-xs)' }}>{dest.eventDestinationArn}</span>
+                              {dest.roleArn && <span className="value code" style={{ fontSize: 'var(--text-xs)', color: '#888' }}>Role: {dest.roleArn}</span>}
                             </div>
                           ))}
                         </div>
@@ -487,7 +487,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
 
                       {/* Stored config info */}
                       {snsStatus?.storedConfig?.subscribedAt && (
-                        <div style={{ marginTop: 12, fontSize: 12, color: '#888' }}>
+                        <div style={{ marginTop: 12, fontSize: 'var(--text-xs)', color: '#888' }}>
                           Last subscribed: {new Date(snsStatus.storedConfig.subscribedAt).toLocaleString()}
                         </div>
                       )}
@@ -554,7 +554,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
                 {/* How it works */}
                 <div className="info-card">
                   <h3>How SNS Events Work</h3>
-                  <div style={{ fontSize: 13, color: '#555', lineHeight: 1.6 }}>
+                  <div style={{ fontSize: 'var(--text-sm)', color: '#555', lineHeight: 1.6 }}>
                     <p>When subscribed, Meta sends WhatsApp webhook events to the configured endpoint:</p>
                     <ul style={{ paddingLeft: 20, margin: '8px 0' }}>
                       <li>Message delivery status (sent, delivered, read, failed)</li>

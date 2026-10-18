@@ -109,7 +109,7 @@ const CUSTOMERSERVICE_MENU = [
 ];
 
 const pill = ( bg: string, color: string ): React.CSSProperties => ( {
-  display: 'inline-block', padding: '2px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: bg, color,
+  display: 'inline-block', padding: '2px 10px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 600, background: bg, color,
 } );
 
 // ─── Bot Menu Tab Component ───
@@ -117,14 +117,14 @@ const BotMenuTab: React.FC = () => (
   <div style={ { padding: '0 4px' } }>
     <WhatsAppServiceDirectory />
     {/* Main Bot Menu */ }
-    <h3 style={ { fontSize: 15, fontWeight: 700, color: 'var(--accent)', margin: '0 0 6px' } }>WhatsApp Bot Menu (Persistent Menu)</h3>
-    <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 14px' } }>9 menu items across 3 sections — shown when users open the WhatsApp chat.</p>
+    <h3 style={ { fontSize: 'var(--text-md)', fontWeight: 700, color: 'var(--accent)', margin: '0 0 6px' } }>WhatsApp Bot Menu (Persistent Menu)</h3>
+    <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '0 0 14px' } }>9 menu items across 3 sections — shown when users open the WhatsApp chat.</p>
     <div style={ { overflowX: 'auto', marginBottom: 28 } }>
-      <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+      <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
         <thead>
           <tr style={ { borderBottom: '2px solid #f3f4f6' } }>
             { [ '#', 'Section', 'Title', 'Description', 'Action' ].map( h => (
-              <th key={ h } style={ { textAlign: 'left', padding: '8px 10px', fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
+              <th key={ h } style={ { textAlign: 'left', padding: '8px 10px', fontSize: 'var(--text-xs)', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
             ) ) }
           </tr>
         </thead>
@@ -137,7 +137,7 @@ const BotMenuTab: React.FC = () => (
               </td>
               <td style={ { padding: '8px 10px', fontWeight: 600, color: 'var(--accent)' } }>{ m.icon } { m.title }</td>
               <td style={ { padding: '8px 10px', color: '#374151' } }>{ m.description }</td>
-              <td style={ { padding: '8px 10px', color: 'var(--text-muted)', fontSize: 12 } }>{ m.action }</td>
+              <td style={ { padding: '8px 10px', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' } }>{ m.action }</td>
             </tr>
           ) ) }
         </tbody>
@@ -145,14 +145,14 @@ const BotMenuTab: React.FC = () => (
     </div>
 
     {/* Customer Service Sub-Menu */ }
-    <h3 style={ { fontSize: 15, fontWeight: 700, color: 'var(--accent)', margin: '0 0 6px' } }>🚀 Customer Service Menu (Interactive List)</h3>
-    <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 14px' } }>Service menu reference. The directory above shows current keyword entry points and publication status.</p>
+    <h3 style={ { fontSize: 'var(--text-md)', fontWeight: 700, color: 'var(--accent)', margin: '0 0 6px' } }>🚀 Customer Service Menu (Interactive List)</h3>
+    <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '0 0 14px' } }>Service menu reference. The directory above shows current keyword entry points and publication status.</p>
     <div style={ { overflowX: 'auto' } }>
-      <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+      <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
         <thead>
           <tr style={ { borderBottom: '2px solid #f3f4f6' } }>
             { [ '#', 'Section', 'Title', 'Description', 'Flow ID', 'Keywords' ].map( h => (
-              <th key={ h } style={ { textAlign: 'left', padding: '8px 10px', fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
+              <th key={ h } style={ { textAlign: 'left', padding: '8px 10px', fontSize: 'var(--text-xs)', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
             ) ) }
           </tr>
         </thead>
@@ -163,8 +163,8 @@ const BotMenuTab: React.FC = () => (
               <td style={ { padding: '8px 10px' } }><span style={ pill( 'var(--bg-secondary)', 'var(--text-muted)' ) }>{ m.section }</span></td>
               <td style={ { padding: '8px 10px', fontWeight: 600, color: 'var(--accent)' } }>{ m.icon } { m.title }</td>
               <td style={ { padding: '8px 10px', color: '#374151' } }>{ m.description }</td>
-              <td style={ { padding: '8px 10px', fontFamily: 'monospace', fontSize: 11, color: 'var(--text-muted)' } }>{ m.flowId }</td>
-              <td style={ { padding: '8px 10px', fontSize: 11, color: 'var(--text-muted)' } }>{ m.keywords }</td>
+              <td style={ { padding: '8px 10px', fontFamily: 'monospace', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ m.flowId }</td>
+              <td style={ { padding: '8px 10px', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ m.keywords }</td>
             </tr>
           ) ) }
         </tbody>

@@ -76,7 +76,7 @@ const SOURCE_ICONS: Record<string, string> = { whatsapp: '💬', flow: '🔄', u
 
 function StatusBadge ( { status }: { status: string } ) {
   const c = STATUS_COLORS[ status ] || { bg: '#f3f4f6', fg: '#374151' };
-  return <span style={ { display: 'inline-block', padding: '2px 8px', borderRadius: 9999, fontSize: 12, fontWeight: 600, background: c.bg, color: c.fg } }>{ status.replace( /_/g, ' ' ) }</span>;
+  return <span style={ { display: 'inline-block', padding: '2px 8px', borderRadius: 9999, fontSize: 'var(--text-xs)', fontWeight: 600, background: c.bg, color: c.fg } }>{ status.replace( /_/g, ' ' ) }</span>;
 }
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
@@ -153,25 +153,25 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const columns = [
     {
       key: 'source', header: 'Src', width: '40px', render: ( d: api.Document ) => (
-        <span title={ d.source } style={ { fontSize: 16 } }>{ SOURCE_ICONS[ d.source ] || '📄' }</span>
+        <span title={ d.source } style={ { fontSize: 'var(--text-base)' } }>{ SOURCE_ICONS[ d.source ] || '📄' }</span>
       )
     },
     {
       key: 'fileName', header: 'Document', render: ( d: api.Document ) => (
         <button onClick={ () => { setSelected( d ); setRemarks( '' ); } } style={ { background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' } }>
-          <div style={ { fontWeight: 500, fontSize: 14, color: 'var(--accent)', textDecoration: 'underline' } }>{ d.fileName || 'Untitled' }</div>
-          <div style={ { fontSize: 12, color: 'var(--text-muted)' } }>{ d.type } · { fmtSize( d.fileSize ) }</div>
+          <div style={ { fontWeight: 500, fontSize: 'var(--text-md)', color: 'var(--accent)', textDecoration: 'underline' } }>{ d.fileName || 'Untitled' }</div>
+          <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ d.type } · { fmtSize( d.fileSize ) }</div>
         </button>
       )
     },
     {
       key: 'customer', header: 'Customer', width: '140px', render: ( d: api.Document ) => (
-        <div><div style={ { fontWeight: 500, fontSize: 13 } }>{ d.customerName || '—' }</div><div style={ { fontSize: 12, color: 'var(--text-muted)' } }>{ d.customerPhone }</div></div>
+        <div><div style={ { fontWeight: 500, fontSize: 'var(--text-sm)' } }>{ d.customerName || '—' }</div><div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ d.customerPhone }</div></div>
       )
     },
     {
       key: 'orderId', header: 'Order', width: '100px', render: ( d: api.Document ) => d.orderId ? (
-        <span style={ { fontSize: 12, fontFamily: 'monospace', color: 'var(--accent)' } }>{ d.orderId.split( '-' ).pop() }</span>
+        <span style={ { fontSize: 'var(--text-xs)', fontFamily: 'monospace', color: 'var(--accent)' } }>{ d.orderId.split( '-' ).pop() }</span>
       ) : <span style={ { color: '#9ca3af' } }>—</span>
     },
     { key: 'status', header: 'Status', width: '140px', render: ( d: api.Document ) => <StatusBadge status={ d.status } /> },
@@ -194,8 +194,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       <div style={ { padding: '24px 32px', maxWidth: 1400 } }>
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } }>
           <div>
-            <h1 style={ { fontSize: 24, fontWeight: 700, color: 'var(--accent)', margin: 0 } }>Drop Docs</h1>
-            <p style={ { fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' } }>Document management — all sources</p>
+            <h1 style={ { fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--accent)', margin: 0 } }>Drop Docs</h1>
+            <p style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', margin: '4px 0 0' } }>Document management — all sources</p>
           </div>
           <div style={ { display: 'flex', gap: 8 } }>
             <Button variant="secondary" icon="refresh" onClick={ loadData }>Refresh</Button>
@@ -214,7 +214,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
           ].map( s => (
             <div key={ s.label } style={ { padding: '12px 16px', background: s.bg, borderRadius: 10, border: '2px solid #f3f4f6' } }>
               <div style={ { fontSize: 22, fontWeight: 700, color: 'var(--accent)' } }>{ s.value }</div>
-              <div style={ { fontSize: 12, color: 'var(--text-muted)' } }>{ s.label }</div>
+              <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ s.label }</div>
             </div>
           ) ) }
         </div>
@@ -257,20 +257,20 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               <div><span style={ labelStyle }>Status</span><div><StatusBadge status={ selected.status } /></div></div>
               <div><span style={ labelStyle }>Uploaded</span><div>{ fmtDate( selected.createdAt ) }</div></div>
               <div><span style={ labelStyle }>Customer</span><div>{ selected.customerName || '—' } ({ selected.customerPhone || '—' })</div></div>
-              { selected.orderId && <div><span style={ labelStyle }>Order ID</span><div style={ { fontFamily: 'monospace', fontSize: 13 } }>{ selected.orderId }</div></div> }
-              { selected.mimeType && <div><span style={ labelStyle }>MIME Type</span><div style={ { fontSize: 13 } }>{ selected.mimeType }</div></div> }
+              { selected.orderId && <div><span style={ labelStyle }>Order ID</span><div style={ { fontFamily: 'monospace', fontSize: 'var(--text-sm)' } }>{ selected.orderId }</div></div> }
+              { selected.mimeType && <div><span style={ labelStyle }>MIME Type</span><div style={ { fontSize: 'var(--text-sm)' } }>{ selected.mimeType }</div></div> }
               { selected.reviewedBy && <div><span style={ labelStyle }>Reviewed By</span><div>{ selected.reviewedBy } · { fmtDate( selected.reviewedAt ) }</div></div> }
             </div>
             { selected.notes && (
               <div style={ { marginBottom: 16 } }>
                 <span style={ labelStyle }>Remarks</span>
-                <div style={ { padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 14 } }>{ selected.notes }</div>
+                <div style={ { padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 'var(--text-md)' } }>{ selected.notes }</div>
               </div>
             ) }
 
             {/* Action Remarks */ }
             <div style={ { marginBottom: 16 } }>
-              <label style={ { fontSize: 14, fontWeight: 500 } }>
+              <label style={ { fontSize: 'var(--text-md)', fontWeight: 500 } }>
                 Action Remarks (optional)
                 <textarea value={ remarks } onChange={ e => setRemarks( e.target.value ) } rows={ 2 } placeholder="Add remarks for this action..." style={ { ...inputStyle, resize: 'vertical' } } />
               </label>
@@ -299,19 +299,19 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       }>
         <div style={ { display: 'flex', flexDirection: 'column', gap: 14 } }>
           <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
-            <label style={ { fontSize: 14 } }>Customer Name<input type="text" value={ createForm.customerName } onChange={ e => setCreateForm( f => ( { ...f, customerName: e.target.value } ) ) } style={ inputStyle } /></label>
-            <label style={ { fontSize: 14 } }>Phone<input type="tel" value={ createForm.customerPhone } onChange={ e => setCreateForm( f => ( { ...f, customerPhone: e.target.value } ) ) } placeholder="+91..." style={ inputStyle } /></label>
+            <label style={ { fontSize: 'var(--text-md)' } }>Customer Name<input type="text" value={ createForm.customerName } onChange={ e => setCreateForm( f => ( { ...f, customerName: e.target.value } ) ) } style={ inputStyle } /></label>
+            <label style={ { fontSize: 'var(--text-md)' } }>Phone<input type="tel" value={ createForm.customerPhone } onChange={ e => setCreateForm( f => ( { ...f, customerPhone: e.target.value } ) ) } placeholder="+91..." style={ inputStyle } /></label>
           </div>
           <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
             { /* SHAPE (a), design 5.2 - the wrapping <label> is gone and Select owns the pair. */ }
             <Select label="Document Type" value={ createForm.type }
               onChange={ v => setCreateForm( f => ( { ...f, type: v } ) ) }
               options={ TYPE_SELECT_OPTIONS } />
-            <label style={ { fontSize: 14 } }>Order ID (optional)<input type="text" value={ createForm.orderId } onChange={ e => setCreateForm( f => ( { ...f, orderId: e.target.value } ) ) } placeholder="WD-ORD-..." style={ inputStyle } /></label>
+            <label style={ { fontSize: 'var(--text-md)' } }>Order ID (optional)<input type="text" value={ createForm.orderId } onChange={ e => setCreateForm( f => ( { ...f, orderId: e.target.value } ) ) } placeholder="WD-ORD-..." style={ inputStyle } /></label>
           </div>
-          <label style={ { fontSize: 14 } }>File Name<input type="text" value={ createForm.fileName } onChange={ e => setCreateForm( f => ( { ...f, fileName: e.target.value } ) ) } placeholder="e.g. prescription_jan2026.pdf" style={ inputStyle } /></label>
-          <label style={ { fontSize: 14 } }>Notes<textarea value={ createForm.notes } onChange={ e => setCreateForm( f => ( { ...f, notes: e.target.value } ) ) } rows={ 2 } placeholder="Any remarks about this document..." style={ { ...inputStyle, resize: 'vertical' } } /></label>
-          <div style={ { padding: 12, background: '#fef3c7', borderRadius: 8, fontSize: 13, color: '#92400e' } }>
+          <label style={ { fontSize: 'var(--text-md)' } }>File Name<input type="text" value={ createForm.fileName } onChange={ e => setCreateForm( f => ( { ...f, fileName: e.target.value } ) ) } placeholder="e.g. prescription_jan2026.pdf" style={ inputStyle } /></label>
+          <label style={ { fontSize: 'var(--text-md)' } }>Notes<textarea value={ createForm.notes } onChange={ e => setCreateForm( f => ( { ...f, notes: e.target.value } ) ) } rows={ 2 } placeholder="Any remarks about this document..." style={ { ...inputStyle, resize: 'vertical' } } /></label>
+          <div style={ { padding: 12, background: '#fef3c7', borderRadius: 8, fontSize: 'var(--text-sm)', color: '#92400e' } }>
             This creates a document record. To attach the actual file, the customer can send it via WhatsApp or you can update the storage key later.
           </div>
         </div>
@@ -321,8 +321,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
 };
 
 /* `selectStyle` went with the last native select in this file - it only ever skinned those. */
-const labelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 2 };
-const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, marginTop: 4 };
-const actionBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: '2px 4px' };
+const labelStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'block', marginBottom: 2 };
+const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 'var(--text-md)', marginTop: 4 };
+const actionBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--text-base)', padding: '2px 4px' };
 
 export default DocumentsPage;

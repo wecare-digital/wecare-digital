@@ -45,13 +45,13 @@ const FIELD_SELECT_STYLE: React.CSSProperties = { marginBottom: 12 };
 const S = {
     tab: ( active: boolean ): React.CSSProperties => ( {
         padding: '8px 16px', border: 'none', borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
-        background: 'none', cursor: 'pointer', fontSize: 13, fontWeight: active ? 600 : 400, color: active ? 'var(--accent)' : 'var(--text-muted)',
+        background: 'none', cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: active ? 600 : 400, color: active ? 'var(--accent)' : 'var(--text-muted)',
     } ),
     card: { border: '1px solid var(--border)', borderRadius: 10, padding: 16, background: '#fff', marginBottom: 16 } as React.CSSProperties,
-    label: { fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 500 } as React.CSSProperties,
-    input: { width: '100%', padding: '8px 12px', border: '1.5px solid var(--lime)', borderRadius: 8, fontSize: 13, marginBottom: 12 } as React.CSSProperties,
+    label: { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 500 } as React.CSSProperties,
+    input: { width: '100%', padding: '8px 12px', border: '1.5px solid var(--lime)', borderRadius: 8, fontSize: 'var(--text-sm)', marginBottom: 12 } as React.CSSProperties,
     grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 } as React.CSSProperties,
-    pill: ( bg: string, c: string ): React.CSSProperties => ( { background: bg, color: c, padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600 } ),
+    pill: ( bg: string, c: string ): React.CSSProperties => ( { background: bg, color: c, padding: '2px 8px', borderRadius: 999, fontSize: 'var(--text-xs)', fontWeight: 600 } ),
 };
 
 export default function CatalogBuilderPage ( { signOut, user, embedded }: PageProps ) {
@@ -65,7 +65,7 @@ export default function CatalogBuilderPage ( { signOut, user, embedded }: PagePr
             <div className="inner-page" style={ { padding: '20px 24px', maxWidth: 1100 } }>
                 <div style={ { marginBottom: 16 } }>
                     <h2 style={ { margin: 0, fontSize: 20, color: 'var(--accent)' } }>Catalog &amp; Flow Builder</h2>
-                    <p style={ { margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)' } }>
+                    <p style={ { margin: '4px 0 0', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
                         Add products to your WhatsApp catalog and create Flows — one place, secure server-side calls.
                     </p>
                 </div>
@@ -75,7 +75,7 @@ export default function CatalogBuilderPage ( { signOut, user, embedded }: PagePr
                     <Select ariaLabel="Account" value={ String( acctIdx ) }
                         onChange={ v => setAcctIdx( Number( v ) ) }
                         options={ ACCOUNT_OPTIONS } style={ ACCOUNT_SELECT_STYLE } />
-                    <span style={ { marginLeft: 12, fontSize: 11, color: '#9ca3af' } }>
+                    <span style={ { marginLeft: 12, fontSize: 'var(--text-xs)', color: '#9ca3af' } }>
                         catalog { acct.catalogId } · waba { acct.wabaId }
                     </span>
                 </div>
@@ -261,7 +261,7 @@ function ProductTab ( { acct, toast, confirm }: { acct: typeof ACCOUNTS[ number 
     return (
         <div>
             <div style={ S.card }>
-                <h3 style={ { margin: '0 0 12px', fontSize: 15, color: 'var(--accent)' } }>{ editId ? 'Edit product' : 'New product' }</h3>
+                <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-md)', color: 'var(--accent)' } }>{ editId ? 'Edit product' : 'New product' }</h3>
                 <div style={ S.grid }>
                     { /* retailer_id is the SKU identity and the update payload cannot change it, so it is read-only while editing */ }
                     <div><label style={ S.label }>SKU / Retailer ID *</label><input style={ editId ? { ...S.input, background: '#f3f4f6', color: 'var(--text-muted)' } : S.input } value={ form.retailerId } disabled={ !!editId } onChange={ e => set( 'retailerId', e.target.value ) } placeholder="PMD9Q3P6" /></div>
@@ -286,23 +286,23 @@ function ProductTab ( { acct, toast, confirm }: { acct: typeof ACCOUNTS[ number 
                         : <Button variant="primary" onClick={ handleCreate } loading={ saving }>Create product</Button> }
                     { editId && <Button variant="secondary" onClick={ cancelEdit }>Cancel edit</Button> }
                 </div>
-                <p style={ { fontSize: 11, color: '#9ca3af', marginTop: 8 } }>
+                <p style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 8 } }>
                     New products need Meta&apos;s automated WhatsApp commerce review (NO_REVIEW → APPROVED) before they appear in the catalog browse. Use a public https image or it will fail review.
                 </p>
             </div>
 
             <div style={ S.card }>
                 <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } }>
-                    <h3 style={ { margin: 0, fontSize: 15, color: 'var(--accent)' } }>Products in catalog { loading ? '' : `(${products.length})` }</h3>
+                    <h3 style={ { margin: 0, fontSize: 'var(--text-md)', color: 'var(--accent)' } }>Products in catalog { loading ? '' : `(${products.length})` }</h3>
                     <Button variant="secondary" size="sm" onClick={ load } loading={ loading }>Refresh</Button>
                 </div>
-                { products.length === 0 && !loading && <p style={ { fontSize: 13, color: '#9ca3af' } }>No products yet.</p> }
+                { products.length === 0 && !loading && <p style={ { fontSize: 'var(--text-sm)', color: '#9ca3af' } }>No products yet.</p> }
                 <div style={ S.grid }>
                     { products.map( ( p, i ) => (
                         <div key={ p.id || i } style={ { border: '1px solid var(--border)', borderRadius: 8, padding: 12, outline: editId === p.id ? '2px solid var(--accent)' : 'none' } }>
-                            <div style={ { fontWeight: 600, fontSize: 13, color: 'var(--accent)' } }>{ p.name }</div>
-                            <div style={ { fontSize: 11, color: 'var(--text-muted)', margin: '2px 0' } }>{ p.retailerId }</div>
-                            <div style={ { fontSize: 13, marginBottom: 8 } }>{ p.price } <span style={ S.pill( '#e0f2fe', '#0369a1' ) }>{ p.availability }</span></div>
+                            <div style={ { fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--accent)' } }>{ p.name }</div>
+                            <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '2px 0' } }>{ p.retailerId }</div>
+                            <div style={ { fontSize: 'var(--text-sm)', marginBottom: 8 } }>{ p.price } <span style={ S.pill( '#e0f2fe', '#0369a1' ) }>{ p.availability }</span></div>
                             <div style={ { display: 'flex', gap: 6 } }>
                                 <Button variant="secondary" size="sm" onClick={ () => startEdit( p ) }>Edit</Button>
                                 <Button variant="danger" size="sm" onClick={ () => handleDelete( p ) }>Delete</Button>
@@ -359,7 +359,7 @@ function FlowTab ( { acct, toast }: { acct: typeof ACCOUNTS[ number ]; toast: an
     return (
         <div>
             <div style={ S.card }>
-                <h3 style={ { margin: '0 0 12px', fontSize: 15, color: 'var(--accent)' } }>New flow</h3>
+                <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-md)', color: 'var(--accent)' } }>New flow</h3>
                 <div style={ S.grid }>
                     <div style={ { gridColumn: '1 / -1' } }><label style={ S.label }>Flow name *</label><input style={ S.input } value={ name } onChange={ e => setName( e.target.value ) } placeholder="03.WD_POSTPAY_REQUEST" /></div>
                     <div><label style={ S.label }>Category</label>
@@ -368,14 +368,14 @@ function FlowTab ( { acct, toast }: { acct: typeof ACCOUNTS[ number ]; toast: an
                     </div>
                 </div>
                 <Button variant="primary" onClick={ handleCreate } loading={ creating }>Create flow</Button>
-                <p style={ { fontSize: 11, color: '#9ca3af', marginTop: 8 } }>
+                <p style={ { fontSize: 'var(--text-xs)', color: '#9ca3af', marginTop: 8 } }>
                     Creates a DRAFT flow on { acct.label }. Add screens/JSON in the Flow Builder, then publish it here or in Flow Hub.
                 </p>
             </div>
 
             <div style={ S.card }>
                 <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } }>
-                    <h3 style={ { margin: 0, fontSize: 15, color: 'var(--accent)' } }>Flows { loading ? '' : `(${flows.length})` }</h3>
+                    <h3 style={ { margin: 0, fontSize: 'var(--text-md)', color: 'var(--accent)' } }>Flows { loading ? '' : `(${flows.length})` }</h3>
                     <Button variant="secondary" size="sm" onClick={ load } loading={ loading }>Refresh</Button>
                 </div>
                 <div className="table-container">
@@ -386,7 +386,7 @@ function FlowTab ( { acct, toast }: { acct: typeof ACCOUNTS[ number ]; toast: an
                                 <tr key={ f.id }>
                                     <td>{ f.name }</td>
                                     <td><span style={ statusPill( f.status ) }>{ f.status }</span></td>
-                                    <td style={ { fontFamily: 'monospace', fontSize: 11 } }>{ f.id }</td>
+                                    <td style={ { fontFamily: 'monospace', fontSize: 'var(--text-xs)' } }>{ f.id }</td>
                                     <td>{ f.status === 'DRAFT' && <Button variant="secondary" size="sm" onClick={ () => handlePublish( f.id ) }>Publish</Button> }</td>
                                 </tr>
                             ) ) }

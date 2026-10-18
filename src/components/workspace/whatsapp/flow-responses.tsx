@@ -187,19 +187,19 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
       awaiting_order_verification: '#b45309',
     };
     return (
-      <span style={ { padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, color: '#fff', background: colors[ status ] || 'var(--text-muted)' } }>
+      <span style={ { padding: '2px 8px', borderRadius: 4, fontSize: 'var(--text-xs)', fontWeight: 600, color: '#fff', background: colors[ status ] || 'var(--text-muted)' } }>
         { status === 'awaiting_order_verification' ? 'AWAITING ORDER VERIFICATION' : status?.toUpperCase() || 'UNKNOWN' }
       </span>
     );
   };
 
   const getWabaBadge = ( flowToken: string ) => {
-    if ( !flowToken ) return <span style={ { color: '#9ca3af', fontSize: 11 } }>—</span>;
+    if ( !flowToken ) return <span style={ { color: '#9ca3af', fontSize: 'var(--text-xs)' } }>—</span>;
     const isPhone2 = flowToken.includes( '-waba-2-' );
     const isPhone1 = flowToken.includes( '-waba-1-' );
-    if ( isPhone2 ) return <span style={ { padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, color: '#fff', background: '#7c3aed' } }>Phone 2</span>;
-    if ( isPhone1 ) return <span style={ { padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, color: '#fff', background: '#2563eb' } }>Phone 1</span>;
-    return <span style={ { padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, color: '#fff', background: '#9ca3af' } }>Legacy</span>;
+    if ( isPhone2 ) return <span style={ { padding: '2px 6px', borderRadius: 4, fontSize: 'var(--text-xs)', fontWeight: 600, color: '#fff', background: '#7c3aed' } }>Phone 2</span>;
+    if ( isPhone1 ) return <span style={ { padding: '2px 6px', borderRadius: 4, fontSize: 'var(--text-xs)', fontWeight: 600, color: '#fff', background: '#2563eb' } }>Phone 1</span>;
+    return <span style={ { padding: '2px 6px', borderRadius: 4, fontSize: 'var(--text-xs)', fontWeight: 600, color: '#fff', background: '#9ca3af' } }>Legacy</span>;
   };
 
   const formatPaise = ( p: number ) => p ? `₹${( p / 100 ).toFixed( 0 )}` : '—';
@@ -214,7 +214,7 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
         <div style={ { display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' } }>
           { ( [ 'submissions', 'requests', 'logs' ] as const ).map( tab => (
             <button key={ tab } onClick={ () => setActiveSection( tab ) }
-              style={ { padding: '8px 16px', borderRadius: 6, border: activeSection === tab ? '2px solid var(--accent)' : '1px solid #ddd', background: activeSection === tab ? 'var(--bg-secondary)' : '#fff', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === tab ? 600 : 400 } }>
+              style={ { padding: '8px 16px', borderRadius: 6, border: activeSection === tab ? '2px solid var(--accent)' : '1px solid #ddd', background: activeSection === tab ? 'var(--bg-secondary)' : '#fff', cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: activeSection === tab ? 600 : 400 } }>
               { tab === 'submissions' ? `Flow Submissions (${submissions.length})` : tab === 'requests' ? `Legacy Requests (${requests.length})` : `Interaction Logs (${logs.length})` }
             </button>
           ) ) }
@@ -234,7 +234,7 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                 onChange={ v => setPaymentFilter( v ) }
                 options={ PAYMENT_FILTER_OPTIONS } style={ FILTER_SELECT_STYLE } />
               <button onClick={ loadSubmissions } disabled={ subsLoading }
-                style={ { padding: '6px 14px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13 } }>
+                style={ { padding: '6px 14px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 'var(--text-sm)' } }>
                 { subsLoading ? 'Loading...' : '↻ Refresh' }
               </button>
             </div>
@@ -243,12 +243,12 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
               <p style={ { textAlign: 'center', padding: 40, color: '#666' } }>Loading flow submissions...</p>
             ) : submissions.length === 0 ? (
               <div style={ { textAlign: 'center', padding: 40, color: '#666' } }>
-                <p style={ { fontSize: 16 } }>No flow submissions found</p>
-                <p style={ { fontSize: 13 } }>Submissions appear here when users complete WhatsApp Flows</p>
+                <p style={ { fontSize: 'var(--text-base)' } }>No flow submissions found</p>
+                <p style={ { fontSize: 'var(--text-sm)' } }>Submissions appear here when users complete WhatsApp Flows</p>
               </div>
             ) : (
               <div style={ { overflowX: 'auto' } }>
-                <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+                <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
                   <thead>
                     <tr style={ { borderBottom: '2px solid var(--border)', textAlign: 'left' } }>
                       <th style={ { padding: '8px 10px' } }>Phone</th>
@@ -267,16 +267,16 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                       <tr key={ s.submissionId } style={ { borderBottom: '1px solid #f3f4f6' } }>
                         <td style={ { padding: '8px 10px', fontFamily: 'monospace' } }><MaskedPhone value={ s.phone } allowReveal /></td>
                         <td style={ { padding: '8px 10px' } }>
-                          <span style={ { background: '#e0e7ff', color: '#3730a3', padding: '1px 6px', borderRadius: 9999, fontSize: 11 } }>{ s.flowCode }</span>
+                          <span style={ { background: '#e0e7ff', color: '#3730a3', padding: '1px 6px', borderRadius: 9999, fontSize: 'var(--text-xs)' } }>{ s.flowCode }</span>
                         </td>
-                        <td style={ { padding: '8px 10px', fontFamily: 'monospace', fontSize: 11 } }>{ s.submissionNumber || '-' }</td>
+                        <td style={ { padding: '8px 10px', fontFamily: 'monospace', fontSize: 'var(--text-xs)' } }>{ s.submissionNumber || '-' }</td>
                         <td style={ { padding: '8px 10px', maxWidth: 280 } }>
                           {s.flowType === 'customer_idea' ? (
                             <details>
                               <summary style={{ cursor: 'pointer' }}>{s.subject || 'Customer idea'}</summary>
                               <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{s.description}</p>
-                              <p style={{ fontSize: 12 }}>{s.contactId ? "Linked to this sender's contact record." : 'Contact link unavailable'}</p>
-                              <p style={{ fontSize: 12 }}>Saved in customer reviews.</p>
+                              <p style={{ fontSize: 'var(--text-xs)' }}>{s.contactId ? "Linked to this sender's contact record." : 'Contact link unavailable'}</p>
+                              <p style={{ fontSize: 'var(--text-xs)' }}>Saved in customer reviews.</p>
                             </details>
                           ) : s.flowType === 'invoice_copy' ? (
                             <details>
@@ -308,7 +308,7 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                         </td>
                         <td style={ { padding: '8px 10px' } }>{ getStatusBadge( s.paymentStatus ) }</td>
                         <td style={ { padding: '8px 10px' } }>{ formatPaise( s.paymentAmount || 0 ) }</td>
-                        <td style={ { padding: '8px 10px', fontSize: 12, color: '#666' } }>{ formatDate( s.createdAt ) }</td>
+                        <td style={ { padding: '8px 10px', fontSize: 'var(--text-xs)', color: '#666' } }>{ formatDate( s.createdAt ) }</td>
                       </tr>
                     ) ) }
                   </tbody>
@@ -326,7 +326,7 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                 onChange={ v => setStatusFilter( v ) }
                 options={ REQUEST_STATUS_FILTER_OPTIONS } style={ FILTER_SELECT_STYLE } />
               <button onClick={ loadRequests } disabled={ requestsLoading }
-                style={ { padding: '6px 14px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13 } }>
+                style={ { padding: '6px 14px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 'var(--text-sm)' } }>
                 { requestsLoading ? 'Loading...' : '↻ Refresh' }
               </button>
             </div>
@@ -335,18 +335,18 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
               <p style={ { textAlign: 'center', padding: 40, color: '#666' } }>Loading submit requests...</p>
             ) : requestsError && requests.length === 0 ? (
               <div style={ { textAlign: 'center', padding: 40, color: '#666' } }>
-                <p style={ { fontSize: 16, color: 'var(--accent)' } }>Failed to load requests</p>
-                <p style={ { fontSize: 13, marginTop: 8 } }>{ requestsError }</p>
-                <button onClick={ loadRequests } style={ { marginTop: 12, padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 } }>Retry</button>
+                <p style={ { fontSize: 'var(--text-base)', color: 'var(--accent)' } }>Failed to load requests</p>
+                <p style={ { fontSize: 'var(--text-sm)', marginTop: 8 } }>{ requestsError }</p>
+                <button onClick={ loadRequests } style={ { marginTop: 12, padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 'var(--text-sm)' } }>Retry</button>
               </div>
             ) : requests.length === 0 ? (
               <div style={ { textAlign: 'center', padding: 40, color: '#666' } }>
-                <p style={ { fontSize: 16 } }>No submit requests yet</p>
-                <p style={ { fontSize: 13 } }>Requests appear here when users complete the WhatsApp Flow</p>
+                <p style={ { fontSize: 'var(--text-base)' } }>No submit requests yet</p>
+                <p style={ { fontSize: 'var(--text-sm)' } }>Requests appear here when users complete the WhatsApp Flow</p>
               </div>
             ) : (
               <div style={ { overflowX: 'auto' } }>
-                <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+                <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
                   <thead>
                     <tr style={ { borderBottom: '2px solid var(--border)', textAlign: 'left' } }>
                       <th style={ { padding: '8px 10px' } }>Phone</th>
@@ -366,14 +366,14 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                       <tr key={ req.id } style={ { borderBottom: '1px solid #f3f4f6' } }>
                         <td style={ { padding: '8px 10px', fontFamily: 'monospace' } }><MaskedPhone value={ req.phone } allowReveal /></td>
                         <td style={ { padding: '8px 10px' } }>{ req.senderName || '-' }</td>
-                        <td style={ { padding: '8px 10px', fontFamily: 'monospace', fontSize: 11 } }>{ req.requestNumber || '-' }</td>
-                        <td style={ { padding: '8px 10px', fontFamily: 'monospace', fontSize: 11 } }>{ req.invoiceNumber || '-' }</td>
+                        <td style={ { padding: '8px 10px', fontFamily: 'monospace', fontSize: 'var(--text-xs)' } }>{ req.requestNumber || '-' }</td>
+                        <td style={ { padding: '8px 10px', fontFamily: 'monospace', fontSize: 'var(--text-xs)' } }>{ req.invoiceNumber || '-' }</td>
                         <td style={ { padding: '8px 10px' } }>{ req.orderId || '-' }</td>
                         <td style={ { padding: '8px 10px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>{ req.subject || '-' }</td>
                         <td style={ { padding: '8px 10px' } }>{ getStatusBadge( req.paymentStatus ) }</td>
                         <td style={ { padding: '8px 10px' } }>{ formatPaise( ( req as any ).paymentAmount || 0 ) }</td>
                         <td style={ { padding: '8px 10px' } }>{ getWabaBadge( ( req as any ).flowToken || '' ) }</td>
-                        <td style={ { padding: '8px 10px', fontSize: 12, color: '#666' } }>{ formatDate( req.createdAt ) }</td>
+                        <td style={ { padding: '8px 10px', fontSize: 'var(--text-xs)', color: '#666' } }>{ formatDate( req.createdAt ) }</td>
                       </tr>
                     ) ) }
                   </tbody>
@@ -388,9 +388,9 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
           <div>
             <div style={ { display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' } }>
               <input value={ phoneFilter } onChange={ e => setPhoneFilter( e.target.value ) } placeholder="Filter by phone..."
-                style={ { padding: '6px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13, width: 200 } } />
+                style={ { padding: '6px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 'var(--text-sm)', width: 200 } } />
               <button onClick={ loadLogs } disabled={ logsLoading }
-                style={ { padding: '6px 14px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13 } }>
+                style={ { padding: '6px 14px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 'var(--text-sm)' } }>
                 { logsLoading ? 'Loading...' : '↻ Refresh' }
               </button>
             </div>
@@ -399,18 +399,18 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
               <p style={ { textAlign: 'center', padding: 40, color: '#666' } }>Loading flow logs...</p>
             ) : logsError && logs.length === 0 ? (
               <div style={ { textAlign: 'center', padding: 40, color: '#666' } }>
-                <p style={ { fontSize: 16, color: 'var(--accent)' } }>Failed to load flow logs</p>
-                <p style={ { fontSize: 13, marginTop: 8 } }>{ logsError }</p>
-                <button onClick={ loadLogs } style={ { marginTop: 12, padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 } }>Retry</button>
+                <p style={ { fontSize: 'var(--text-base)', color: 'var(--accent)' } }>Failed to load flow logs</p>
+                <p style={ { fontSize: 'var(--text-sm)', marginTop: 8 } }>{ logsError }</p>
+                <button onClick={ loadLogs } style={ { marginTop: 12, padding: '8px 16px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 'var(--text-sm)' } }>Retry</button>
               </div>
             ) : logs.length === 0 ? (
               <div style={ { textAlign: 'center', padding: 40, color: '#666' } }>
-                <p style={ { fontSize: 16 } }>No flow interaction logs yet</p>
-                <p style={ { fontSize: 13 } }>Logs appear here when users interact with WhatsApp Flows</p>
+                <p style={ { fontSize: 'var(--text-base)' } }>No flow interaction logs yet</p>
+                <p style={ { fontSize: 'var(--text-sm)' } }>Logs appear here when users interact with WhatsApp Flows</p>
               </div>
             ) : (
               <div style={ { overflowX: 'auto' } }>
-                <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+                <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
                   <thead>
                     <tr style={ { borderBottom: '2px solid var(--border)', textAlign: 'left' } }>
                       <th style={ { padding: '8px 10px' } }>Phone</th>
@@ -428,15 +428,15 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                         <tr key={ log.id } style={ { borderBottom: '1px solid #f3f4f6' } }>
                           <td style={ { padding: '8px 10px', fontFamily: 'monospace' } }><MaskedPhone value={ log.phone } allowReveal /></td>
                           <td style={ { padding: '8px 10px' } }>
-                            <span style={ { padding: '2px 8px', borderRadius: 4, fontSize: 11, background: log.action === 'INIT' ? 'var(--bg-secondary)' : log.action === 'data_exchange' ? 'var(--bg-secondary)' : '#f3f4f6' } }>
+                            <span style={ { padding: '2px 8px', borderRadius: 4, fontSize: 'var(--text-xs)', background: log.action === 'INIT' ? 'var(--bg-secondary)' : log.action === 'data_exchange' ? 'var(--bg-secondary)' : '#f3f4f6' } }>
                               { log.action }
                             </span>
                           </td>
                           <td style={ { padding: '8px 10px' } }>{ log.screen || '-' }</td>
-                          <td style={ { padding: '8px 10px', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontFamily: 'monospace' } }>
+                          <td style={ { padding: '8px 10px', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--text-xs)', fontFamily: 'monospace' } }>
                             { parsedData ? Object.entries( parsedData ).map( ( [ k, v ] ) => `${k}: ${v}` ).join( ', ' ) : ( log.dataKeys?.join( ', ' ) || '-' ) }
                           </td>
-                          <td style={ { padding: '8px 10px', fontSize: 12, color: '#666' } }>{ formatDate( log.createdAt ) }</td>
+                          <td style={ { padding: '8px 10px', fontSize: 'var(--text-xs)', color: '#666' } }>{ formatDate( log.createdAt ) }</td>
                         </tr>
                       );
                     } ) }

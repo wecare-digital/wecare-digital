@@ -90,7 +90,7 @@ const CorsSettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
     const body = (
         <div style={ { padding: 24, maxWidth: 860 } }>
                 <h2 style={ { margin: '0 0 6px', color: 'var(--accent)' } }>CORS Manager</h2>
-                <p style={ { color: 'var(--text-muted)', fontSize: 14, marginTop: 0 } }>
+                <p style={ { color: 'var(--text-muted)', fontSize: 'var(--text-md)', marginTop: 0 } }>
                     Control which website/app origins may call the APIs. Core origins (dashboard + native app) are always
                     kept so you can never lock yourself out. Use <strong>Allow all</strong> only as a temporary escape hatch.
                 </p>
@@ -101,9 +101,9 @@ const CorsSettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                     <>
                         {/* Current live status */ }
                         <div style={ { background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 18 } }>
-                            <div style={ { fontWeight: 600, fontSize: 13, marginBottom: 8, color: 'var(--accent)' } }>Live API status</div>
+                            <div style={ { fontWeight: 600, fontSize: 'var(--text-sm)', marginBottom: 8, color: 'var(--accent)' } }>Live API status</div>
                             { status?.apis?.map( a => (
-                                <div key={ a.apiId } style={ { fontSize: 12, color: '#374151', marginBottom: 4 } }>
+                                <div key={ a.apiId } style={ { fontSize: 'var(--text-xs)', color: '#374151', marginBottom: 4 } }>
                                     <strong>{ a.name || a.apiId }</strong>{ ' ' }
                                     { a.error ? <span style={ { color: '#b91c1c' } }>error: { a.error }</span>
                                         : a.allowAll ? <span style={ { color: '#b45309' } }>● allows ALL origins (*)</span>
@@ -115,22 +115,22 @@ const CorsSettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                         {/* Allow-all toggle */ }
                         <label style={ { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, cursor: 'pointer' } }>
                             <input type="checkbox" checked={ allowAll } onChange={ e => setAllowAll( e.target.checked ) } style={ { width: 18, height: 18 } } />
-                            <span style={ { fontSize: 14, fontWeight: 600, color: allowAll ? '#b45309' : 'var(--accent)' } }>
+                            <span style={ { fontSize: 'var(--text-md)', fontWeight: 600, color: allowAll ? '#b45309' : 'var(--accent)' } }>
                                 Allow all origins (*) — permissive, not recommended for production
                             </span>
                         </label>
 
                         {/* Origin checklist */ }
                         <div style={ { opacity: allowAll ? 0.45 : 1, pointerEvents: allowAll ? 'none' : 'auto' } }>
-                            <div style={ { fontWeight: 600, fontSize: 13, marginBottom: 8, color: 'var(--accent)' } }>Allowed origins</div>
+                            <div style={ { fontWeight: 600, fontSize: 'var(--text-sm)', marginBottom: 8, color: 'var(--accent)' } }>Allowed origins</div>
                             { allOrigins.map( o => {
                                 const core = status?.coreOrigins.includes( o );
                                 const on = selected.includes( o );
                                 return (
                                     <label key={ o } style={ { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', cursor: core ? 'default' : 'pointer' } }>
                                         <input type="checkbox" checked={ on } disabled={ core } onChange={ () => toggleOrigin( o ) } style={ { width: 16, height: 16 } } />
-                                        <span style={ { fontSize: 13, fontFamily: 'monospace', color: '#374151' } }>{ o }</span>
-                                        { core && <span style={ { fontSize: 10, background: 'var(--accent)', color: '#fff', padding: '1px 6px', borderRadius: 8 } }>core</span> }
+                                        <span style={ { fontSize: 'var(--text-sm)', fontFamily: 'monospace', color: '#374151' } }>{ o }</span>
+                                        { core && <span style={ { fontSize: 'var(--text-xs)', background: 'var(--accent)', color: '#fff', padding: '1px 6px', borderRadius: 8 } }>core</span> }
                                     </label>
                                 );
                             } ) }
@@ -141,7 +141,7 @@ const CorsSettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                                     value={ customInput }
                                     onChange={ e => setCustomInput( e.target.value ) }
                                     placeholder="Add custom origin e.g. https://partner.example.com"
-                                    style={ { flex: 1, padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13 } }
+                                    style={ { flex: 1, padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 'var(--text-sm)' } }
                                     onKeyDown={ e => { if ( e.key === 'Enter' ) addCustom(); } }
                                 />
                                 <Button variant="secondary" size="sm" onClick={ addCustom }>Add</Button>

@@ -43,7 +43,7 @@ const C = {
 };
 
 const pill = ( bg: string, color: string ): React.CSSProperties => ( {
-  display: 'inline-block', padding: '2px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: bg, color,
+  display: 'inline-block', padding: '2px 10px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 600, background: bg, color,
 } );
 
 const card = ( active = false ): React.CSSProperties => ( {
@@ -54,9 +54,9 @@ const statCard = ( bg: string, color: string ): React.CSSProperties => ( {
   padding: '14px 16px', background: bg, borderRadius: C.radius, border: `2px solid ${C.border}`,
 } );
 
-const sectionTitle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: C.textDark, margin: '0 0 12px' };
-const label: React.CSSProperties = { fontSize: 10, color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em' };
-const mono: React.CSSProperties = { fontFamily: 'monospace', fontSize: 12 };
+const sectionTitle: React.CSSProperties = { fontSize: 'var(--text-md)', fontWeight: 700, color: C.textDark, margin: '0 0 12px' };
+const label: React.CSSProperties = { fontSize: 'var(--text-xs)', color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em' };
+const mono: React.CSSProperties = { fontFamily: 'monospace', fontSize: 'var(--text-xs)' };
 
 // ─── Tab Definitions ───
 const TABS = [
@@ -721,8 +721,8 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           { label: 'Risks Found', value: `${RISKS.length}`, color: C.redBg, text: C.red },
         ].map( s => (
           <div key={ s.label } style={ statCard( s.color, s.text ) }>
-            <div style={ { fontSize: 28, fontWeight: 800, color: s.text } }>{ s.value }</div>
-            <div style={ { fontSize: 12, fontWeight: 500, color: C.textMuted, marginTop: 2 } }>{ s.label }</div>
+            <div style={ { fontSize: 'var(--h1)', fontWeight: 800, color: s.text } }>{ s.value }</div>
+            <div style={ { fontSize: 'var(--text-xs)', fontWeight: 500, color: C.textMuted, marginTop: 2 } }>{ s.label }</div>
           </div>
         ) ) }
       </div>
@@ -730,7 +730,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
       {/* System Summary */ }
       <div style={ card() }>
         <h3 style={ sectionTitle }>System Summary</h3>
-        <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, fontSize: 13, color: C.text } }>
+        <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, fontSize: 'var(--text-sm)', color: C.text } }>
           <div>
             <div style={ label }>Platform</div>
             <div style={ { marginTop: 4 } }>Next.js 16 + React 19 + AWS Amplify Gen 2</div>
@@ -792,12 +792,12 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
         </div>
         <div style={ { marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 } }>
           { RISKS.filter( r => r.priority === 'Critical' ).map( r => (
-            <div key={ r.id } style={ { display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13 } }>
-              <span style={ { color: C.red, fontSize: 10, marginTop: 4, flexShrink: 0 } }>●</span>
+            <div key={ r.id } style={ { display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 'var(--text-sm)' } }>
+              <span style={ { color: C.red, fontSize: 'var(--text-xs)', marginTop: 4, flexShrink: 0 } }>●</span>
               <div>
                 <span style={ { fontWeight: 600, color: C.textDark } }>{ r.title }</span>
                 <span style={ { ...pill( 'var(--bg-secondary)', C.textMuted ), marginLeft: 6 } }>{ r.category }</span>
-                <div style={ { fontSize: 12, color: C.textMuted, marginTop: 2 } }>{ r.description.slice( 0, 120 ) }...</div>
+                <div style={ { fontSize: 'var(--text-xs)', color: C.textMuted, marginTop: 2 } }>{ r.description.slice( 0, 120 ) }...</div>
               </div>
             </div>
           ) ) }
@@ -806,13 +806,13 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
       {/* WhatsApp Bot Menu */ }
       <div style={ card() }>
         <h3 style={ sectionTitle }>WhatsApp Bot Menu (Persistent Menu)</h3>
-        <p style={ { fontSize: 13, color: C.textMuted, margin: '0 0 12px' } }>9 menu items across 3 sections — shown to users when they open the WhatsApp chat.</p>
+        <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: '0 0 12px' } }>9 menu items across 3 sections — shown to users when they open the WhatsApp chat.</p>
         <div style={ { overflowX: 'auto' } }>
-          <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+          <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
             <thead>
               <tr style={ { borderBottom: `2px solid ${C.border}` } }>
                 { [ '#', 'Section', 'Title', 'Description', 'Action' ].map( h => (
-                  <th key={ h } style={ { textAlign: 'left', padding: '8px 10px', fontSize: 11, color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
+                  <th key={ h } style={ { textAlign: 'left', padding: '8px 10px', fontSize: 'var(--text-xs)', color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
                 ) ) }
               </tr>
             </thead>
@@ -823,7 +823,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
                   <td style={ { padding: '8px 10px' } }><span style={ pill( m.section === 'Start Here' ? C.greenBg : m.section === 'Explore WECARE' ? C.blueBg : C.amberBg, m.section === 'Start Here' ? C.green : m.section === 'Explore WECARE' ? C.blue : C.amber ) }>{ m.section }</span></td>
                   <td style={ { padding: '8px 10px', fontWeight: 600, color: C.textDark } }>{ m.icon } { m.title }</td>
                   <td style={ { padding: '8px 10px', color: C.text } }>{ m.description }</td>
-                  <td style={ { padding: '8px 10px', color: C.textMuted, fontSize: 12 } }>{ m.action }</td>
+                  <td style={ { padding: '8px 10px', color: C.textMuted, fontSize: 'var(--text-xs)' } }>{ m.action }</td>
                 </tr>
               ) ) }
             </tbody>
@@ -833,13 +833,13 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
       {/* Customer Service Sub-Menu */ }
       <div style={ card() }>
         <h3 style={ sectionTitle }>🚀 Customer Service Menu (WhatsApp Interactive List)</h3>
-        <p style={ { fontSize: 13, color: C.textMuted, margin: '0 0 12px' } }>9 customer-service options — triggered when user taps &quot;🚀 Customer Service&quot; from the bot menu. Each row opens a WhatsApp Flow.</p>
+        <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: '0 0 12px' } }>9 customer-service options — triggered when user taps &quot;🚀 Customer Service&quot; from the bot menu. Each row opens a WhatsApp Flow.</p>
         <div style={ { overflowX: 'auto' } }>
-          <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+          <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
             <thead>
               <tr style={ { borderBottom: `2px solid ${C.border}` } }>
                 { [ '#', 'Section', 'Title', 'Description', 'Flow ID', 'Keywords' ].map( h => (
-                  <th key={ h } style={ { textAlign: 'left', padding: '8px 10px', fontSize: 11, color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
+                  <th key={ h } style={ { textAlign: 'left', padding: '8px 10px', fontSize: 'var(--text-xs)', color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
                 ) ) }
               </tr>
             </thead>
@@ -850,8 +850,8 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
                   <td style={ { padding: '8px 10px' } }><span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ m.section }</span></td>
                   <td style={ { padding: '8px 10px', fontWeight: 600, color: C.textDark } }>{ m.icon } { m.title }</td>
                   <td style={ { padding: '8px 10px', color: C.text } }>{ m.description }</td>
-                  <td style={ { padding: '8px 10px', ...mono, fontSize: 11, color: C.textMuted } }>{ m.flowId }</td>
-                  <td style={ { padding: '8px 10px', fontSize: 11, color: C.textMuted } }>{ m.keywords }</td>
+                  <td style={ { padding: '8px 10px', ...mono, fontSize: 'var(--text-xs)', color: C.textMuted } }>{ m.flowId }</td>
+                  <td style={ { padding: '8px 10px', fontSize: 'var(--text-xs)', color: C.textMuted } }>{ m.keywords }</td>
                 </tr>
               ) ) }
             </tbody>
@@ -867,7 +867,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
       <div style={ card() }>
         <h3 style={ sectionTitle }>Full System Architecture</h3>
         <div style={ { background: '#000', borderRadius: C.radiusSm, padding: 20, overflowX: 'auto' } }>
-          <pre style={ { color: '#e2e8f0', fontSize: 12, lineHeight: 1.6, fontFamily: 'monospace', margin: 0, whiteSpace: 'pre' } }>{ `
+          <pre style={ { color: '#e2e8f0', fontSize: 'var(--text-xs)', lineHeight: 1.6, fontFamily: 'monospace', margin: 0, whiteSpace: 'pre' } }>{ `
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │                              WECARE.DIGITAL ARCHITECTURE                            │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
@@ -936,12 +936,12 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           <div key={ cat.title } style={ card() }>
             <div style={ { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 } }>
               <span style={ { width: 8, height: 8, borderRadius: '50%', background: cat.color } } />
-              <span style={ { fontSize: 14, fontWeight: 700, color: C.textDark } }>{ cat.title }</span>
+              <span style={ { fontSize: 'var(--text-md)', fontWeight: 700, color: C.textDark } }>{ cat.title }</span>
               <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ cat.count }</span>
             </div>
             <div style={ { display: 'flex', flexDirection: 'column', gap: 4 } }>
               { cat.items.map( item => (
-                <div key={ item } style={ { fontSize: 12, color: C.textMuted, ...mono } }>{ item }</div>
+                <div key={ item } style={ { fontSize: 'var(--text-xs)', color: C.textMuted, ...mono } }>{ item }</div>
               ) ) }
             </div>
           </div>
@@ -955,7 +955,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
     <div style={ { display: 'flex', flexDirection: 'column', gap: 12 } }>
       <div style={ card() }>
         <h3 style={ sectionTitle }>Frontend → Backend → Database Flow</h3>
-        <p style={ { fontSize: 13, color: C.textMuted, margin: '0 0 16px' } }>Every frontend route mapped to its backend services and database tables.</p>
+        <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: '0 0 16px' } }>Every frontend route mapped to its backend services and database tables.</p>
       </div>
       <div style={ { display: 'flex', flexDirection: 'column', gap: 8 } }>
         { FRONTEND_ROUTES.map( route => (
@@ -963,10 +963,10 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
             <div style={ { display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' } }>
               <div style={ { minWidth: 180 } }>
                 <div style={ label }>Frontend Route</div>
-                <div style={ { ...mono, fontSize: 13, fontWeight: 600, color: C.textDark, marginTop: 4 } }>{ route.path }</div>
-                <div style={ { fontSize: 12, color: C.textMuted } }>{ route.label }</div>
+                <div style={ { ...mono, fontSize: 'var(--text-sm)', fontWeight: 600, color: C.textDark, marginTop: 4 } }>{ route.path }</div>
+                <div style={ { fontSize: 'var(--text-xs)', color: C.textMuted } }>{ route.label }</div>
               </div>
-              <div style={ { fontSize: 18, color: C.textLight, alignSelf: 'center' } }>→</div>
+              <div style={ { fontSize: 'var(--text-xl)', color: C.textLight, alignSelf: 'center' } }>→</div>
               <div style={ { minWidth: 200, flex: 1 } }>
                 <div style={ label }>Backend Services</div>
                 <div style={ { display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 } }>
@@ -975,7 +975,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
                   ) ) }
                 </div>
               </div>
-              <div style={ { fontSize: 18, color: C.textLight, alignSelf: 'center' } }>→</div>
+              <div style={ { fontSize: 'var(--text-xl)', color: C.textLight, alignSelf: 'center' } }>→</div>
               <div style={ { minWidth: 200, flex: 1 } }>
                 <div style={ label }>Database Tables</div>
                 <div style={ { display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 } }>
@@ -996,31 +996,31 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
     <div style={ { display: 'flex', flexDirection: 'column', gap: 12 } }>
       <div style={ { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 } }>
         { lambdaCategories.map( cat => (
-          <button key={ cat } onClick={ () => setLambdaFilter( cat ) } style={ { padding: '6px 14px', borderRadius: C.radius, border: `2px solid ${lambdaFilter === cat ? C.bgDark : C.border}`, background: lambdaFilter === cat ? C.bgDark : C.bg, color: lambdaFilter === cat ? C.lime : C.textMuted, fontSize: 12, fontWeight: 600, cursor: 'pointer' } }>
+          <button key={ cat } onClick={ () => setLambdaFilter( cat ) } style={ { padding: '6px 14px', borderRadius: C.radius, border: `2px solid ${lambdaFilter === cat ? C.bgDark : C.border}`, background: lambdaFilter === cat ? C.bgDark : C.bg, color: lambdaFilter === cat ? C.lime : C.textMuted, fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' } }>
             { cat } { cat !== 'All' && `(${LAMBDAS.filter( l => l.category === cat ).length})` }
           </button>
         ) ) }
       </div>
-      <p style={ { fontSize: 13, color: C.textMuted, margin: 0 } }>{ filteredLambdas.length } service{ filteredLambdas.length !== 1 ? 's' : '' }</p>
+      <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>{ filteredLambdas.length } service{ filteredLambdas.length !== 1 ? 's' : '' }</p>
       { filteredLambdas.map( fn => (
         <div key={ fn.name } style={ card( expandedItems.has( fn.name ) ) }>
           <button onClick={ () => toggleExpand( fn.name ) } style={ { width: '100%', display: 'flex', alignItems: 'center', gap: 12, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 } }>
-            <span style={ { fontSize: 10, color: C.green } }>●</span>
+            <span style={ { fontSize: 'var(--text-xs)', color: C.green } }>●</span>
             <div style={ { flex: 1 } }>
               <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }>
-                <span style={ { fontSize: 14, fontWeight: 600, color: C.textDark } }>{ fn.name }</span>
+                <span style={ { fontSize: 'var(--text-md)', fontWeight: 600, color: C.textDark } }>{ fn.name }</span>
                 <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ fn.category }</span>
                 { fn.apiRoute !== '-' && <span style={ { ...pill( C.greenBg, C.green ), ...mono } }>{ fn.apiRoute }</span> }
               </div>
-              <p style={ { margin: '4px 0 0', fontSize: 12, color: C.textMuted } }>{ fn.description }</p>
+              <p style={ { margin: '4px 0 0', fontSize: 'var(--text-xs)', color: C.textMuted } }>{ fn.description }</p>
             </div>
-            <span style={ { transform: expandedItems.has( fn.name ) ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.15s', fontSize: 12, color: C.textLight } }>▶</span>
+            <span style={ { transform: expandedItems.has( fn.name ) ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.15s', fontSize: 'var(--text-xs)', color: C.textLight } }>▶</span>
           </button>
           { expandedItems.has( fn.name ) && (
             <div style={ { marginTop: 12, paddingTop: 12, borderTop: `2px solid ${C.border}`, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 } }>
-              <div><div style={ label }>Trigger</div><div style={ { fontSize: 13, marginTop: 4 } }>{ fn.trigger }</div></div>
-              <div><div style={ label }>Tables</div><div style={ { fontSize: 13, marginTop: 4, ...mono } }>{ fn.tables }</div></div>
-              <div><div style={ label }>Runtime</div><div style={ { fontSize: 13, marginTop: 4 } }>Python 3.12</div></div>
+              <div><div style={ label }>Trigger</div><div style={ { fontSize: 'var(--text-sm)', marginTop: 4 } }>{ fn.trigger }</div></div>
+              <div><div style={ label }>Tables</div><div style={ { fontSize: 'var(--text-sm)', marginTop: 4, ...mono } }>{ fn.tables }</div></div>
+              <div><div style={ label }>Runtime</div><div style={ { fontSize: 'var(--text-sm)', marginTop: 4 } }>Python 3.12</div></div>
             </div>
           ) }
         </div>
@@ -1033,18 +1033,18 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
     <div style={ { display: 'flex', flexDirection: 'column', gap: 12 } }>
       <div style={ { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 } }>
         { tableCategories.map( cat => (
-          <button key={ cat } onClick={ () => setTableFilter( cat ) } style={ { padding: '6px 14px', borderRadius: C.radius, border: `2px solid ${tableFilter === cat ? C.bgDark : C.border}`, background: tableFilter === cat ? C.bgDark : C.bg, color: tableFilter === cat ? C.lime : C.textMuted, fontSize: 12, fontWeight: 600, cursor: 'pointer' } }>
+          <button key={ cat } onClick={ () => setTableFilter( cat ) } style={ { padding: '6px 14px', borderRadius: C.radius, border: `2px solid ${tableFilter === cat ? C.bgDark : C.border}`, background: tableFilter === cat ? C.bgDark : C.bg, color: tableFilter === cat ? C.lime : C.textMuted, fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' } }>
             { cat } { cat !== 'All' && `(${DB_TABLES.filter( t => t.category === cat ).length})` }
           </button>
         ) ) }
       </div>
-      <p style={ { fontSize: 13, color: C.textMuted, margin: 0 } }>{ filteredTables.length } table{ filteredTables.length !== 1 ? 's' : '' } — PAY_PER_REQUEST billing</p>
+      <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>{ filteredTables.length } table{ filteredTables.length !== 1 ? 's' : '' } — PAY_PER_REQUEST billing</p>
       <div style={ { overflowX: 'auto' } }>
-        <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+        <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
           <thead>
             <tr style={ { borderBottom: `2px solid ${C.border}` } }>
               { [ 'Table', 'Purpose', 'Key', 'TTL', 'Indexes', 'Used By', 'Category' ].map( h => (
-                <th key={ h } style={ { textAlign: 'left', padding: '10px 12px', fontSize: 11, color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
+                <th key={ h } style={ { textAlign: 'left', padding: '10px 12px', fontSize: 'var(--text-xs)', color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
               ) ) }
             </tr>
           </thead>
@@ -1055,8 +1055,8 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
                 <td style={ { padding: '10px 12px', color: C.text, maxWidth: 250 } }>{ t.purpose }</td>
                 <td style={ { padding: '10px 12px', ...mono, color: C.textMuted } }>{ t.keyFields }</td>
                 <td style={ { padding: '10px 12px' } }>{ t.ttl ? <span style={ pill( C.amberBg, C.amber ) }>{ t.ttl }</span> : <span style={ { color: C.textLight } }>—</span> }</td>
-                <td style={ { padding: '10px 12px', ...mono, color: C.textMuted, fontSize: 11 } }>{ t.indexes }</td>
-                <td style={ { padding: '10px 12px', ...mono, color: C.textMuted, fontSize: 11 } }>{ t.usedBy }</td>
+                <td style={ { padding: '10px 12px', ...mono, color: C.textMuted, fontSize: 'var(--text-xs)' } }>{ t.indexes }</td>
+                <td style={ { padding: '10px 12px', ...mono, color: C.textMuted, fontSize: 'var(--text-xs)' } }>{ t.usedBy }</td>
                 <td style={ { padding: '10px 12px' } }><span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ t.category }</span></td>
               </tr>
             ) ) }
@@ -1074,26 +1074,26 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
     <div style={ { display: 'flex', flexDirection: 'column', gap: 12 } }>
       <div style={ card() }>
         <h3 style={ sectionTitle }>AWS Resources ({ AWS_RESOURCES.length } services)</h3>
-        <p style={ { fontSize: 13, color: C.textMuted, margin: 0 } }>All AWS resources used by the platform. Account: 775261844268 | Region: us-east-1</p>
+        <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>All AWS resources used by the platform. Account: 775261844268 | Region: us-east-1</p>
       </div>
       <div style={ { overflowX: 'auto' } }>
-        <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+        <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
           <thead>
             <tr style={ { borderBottom: `2px solid ${C.border}` } }>
               { [ 'Resource', 'Type', 'Purpose', 'Module', 'Environment', 'Status' ].map( h => (
-                <th key={ h } style={ { textAlign: 'left', padding: '10px 12px', fontSize: 11, color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
+                <th key={ h } style={ { textAlign: 'left', padding: '10px 12px', fontSize: 'var(--text-xs)', color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
               ) ) }
             </tr>
           </thead>
           <tbody>
             { AWS_RESOURCES.map( ( r, i ) => (
               <tr key={ i } style={ { borderBottom: `1px solid ${C.border}` } }>
-                <td style={ { padding: '10px 12px', fontWeight: 600, color: C.textDark, ...mono, fontSize: 12 } }>{ r.name }</td>
+                <td style={ { padding: '10px 12px', fontWeight: 600, color: C.textDark, ...mono, fontSize: 'var(--text-xs)' } }>{ r.name }</td>
                 <td style={ { padding: '10px 12px' } }><span style={ pill( C.blueBg, C.blue ) }>{ r.type }</span></td>
                 <td style={ { padding: '10px 12px', color: C.text, maxWidth: 250 } }>{ r.purpose }</td>
                 <td style={ { padding: '10px 12px' } }><span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ r.module }</span></td>
                 <td style={ { padding: '10px 12px' } }><span style={ pill( C.greenBg, C.green ) }>{ r.env }</span></td>
-                <td style={ { padding: '10px 12px' } }><span style={ { color: C.green, fontSize: 10 } }>● </span>{ r.status }</td>
+                <td style={ { padding: '10px 12px' } }><span style={ { color: C.green, fontSize: 'var(--text-xs)' } }>● </span>{ r.status }</td>
               </tr>
             ) ) }
           </tbody>
@@ -1202,7 +1202,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
     const renderTreeNode = ( node: any, depth = 0 ): React.ReactNode => (
       <div key={ node.name } style={ { marginLeft: depth * 20, marginBottom: 4 } }>
         <div style={ { display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 6, background: depth === 0 ? C.bgDark : depth === 1 ? 'var(--bg-secondary)' : 'transparent', color: depth === 0 ? C.lime : C.text, fontSize: depth <= 1 ? 13 : 12, fontWeight: depth <= 1 ? 600 : 400 } }>
-          { node.children && <span style={ { fontSize: 10 } }>▸</span> }
+          { node.children && <span style={ { fontSize: 'var(--text-xs)' } }>▸</span> }
           { node.name }
         </div>
         { node.children?.map( ( child: any ) => renderTreeNode( child, depth + 1 ) ) }
@@ -1224,14 +1224,14 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
     <div style={ { display: 'flex', flexDirection: 'column', gap: 12 } }>
       <div style={ card() }>
         <h3 style={ sectionTitle }>S3 Bucket: wecare-digital-get</h3>
-        <p style={ { fontSize: 13, color: C.textMuted, margin: 0 } }>Two top-level roots: <code style={ mono }>o/</code> (public) and <code style={ mono }>secure/</code> (gated at the edge, presigned access only). <code style={ mono }>o/</code> is a location, not a permission — everything outside <code style={ mono }>secure/</code> is public. Within <code style={ mono }>o/</code>: <code style={ mono }>stack/</code> is user data (wipeable) and <code style={ mono }>stream/</code> is static assets (permanent). Served as <code style={ mono }>wecare.digital/get/&lt;key&gt;</code>; the bucket name is not a hostname.</p>
+        <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>Two top-level roots: <code style={ mono }>o/</code> (public) and <code style={ mono }>secure/</code> (gated at the edge, presigned access only). <code style={ mono }>o/</code> is a location, not a permission — everything outside <code style={ mono }>secure/</code> is public. Within <code style={ mono }>o/</code>: <code style={ mono }>stack/</code> is user data (wipeable) and <code style={ mono }>stream/</code> is static assets (permanent). Served as <code style={ mono }>wecare.digital/get/&lt;key&gt;</code>; the bucket name is not a hostname.</p>
       </div>
       <div style={ { overflowX: 'auto' } }>
-        <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+        <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
           <thead>
             <tr style={ { borderBottom: `2px solid ${C.border}` } }>
               { [ 'Path', 'Purpose', 'Read By', 'Written By' ].map( h => (
-                <th key={ h } style={ { textAlign: 'left', padding: '10px 12px', fontSize: 11, color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
+                <th key={ h } style={ { textAlign: 'left', padding: '10px 12px', fontSize: 'var(--text-xs)', color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
               ) ) }
             </tr>
           </thead>
@@ -1258,8 +1258,8 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
             { name: 'stack-wecare-digital-outbound-dlq', purpose: 'Failed outbound messages', retention: '7 days', visibility: '5 min' },
           ].map( q => (
             <div key={ q.name } style={ { padding: 12, background: C.bgSoft, borderRadius: C.radiusSm } }>
-              <div style={ { ...mono, fontSize: 12, fontWeight: 600, color: C.textDark, wordBreak: 'break-all' } }>{ q.name }</div>
-              <div style={ { fontSize: 12, color: C.textMuted, marginTop: 4 } }>{ q.purpose }</div>
+              <div style={ { ...mono, fontSize: 'var(--text-xs)', fontWeight: 600, color: C.textDark, wordBreak: 'break-all' } }>{ q.name }</div>
+              <div style={ { fontSize: 'var(--text-xs)', color: C.textMuted, marginTop: 4 } }>{ q.purpose }</div>
               <div style={ { display: 'flex', gap: 6, marginTop: 6 } }>
                 <span style={ pill( C.amberBg, C.amber ) }>Retention: { q.retention }</span>
                 <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>Visibility: { q.visibility }</span>
@@ -1276,14 +1276,14 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
     <div style={ { display: 'flex', flexDirection: 'column', gap: 12 } }>
       <div style={ card() }>
         <h3 style={ sectionTitle }>Codebase Structure</h3>
-        <p style={ { fontSize: 13, color: C.textMuted, margin: 0 } }>Monorepo: wecare.digital — Next.js frontend + Amplify Gen 2 backend</p>
+        <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>Monorepo: wecare.digital — Next.js frontend + Amplify Gen 2 backend</p>
       </div>
       <div style={ { overflowX: 'auto' } }>
-        <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+        <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
           <thead>
             <tr style={ { borderBottom: `2px solid ${C.border}` } }>
               { [ 'Folder', 'Purpose', 'Files', 'Linked To' ].map( h => (
-                <th key={ h } style={ { textAlign: 'left', padding: '10px 12px', fontSize: 11, color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
+                <th key={ h } style={ { textAlign: 'left', padding: '10px 12px', fontSize: 'var(--text-xs)', color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
               ) ) }
             </tr>
           </thead>
@@ -1314,12 +1314,12 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           onChange={ e => setSearchQuery( e.target.value ) }
           placeholder="Search tables, Lambda functions, AWS resources, routes, env vars, risks... (Ctrl+K)"
           aria-label="Search system architecture"
-          style={ { width: '100%', padding: '12px 16px 12px 40px', border: `2px solid ${C.border}`, borderRadius: C.radius, fontSize: 14, outline: 'none', boxSizing: 'border-box' } }
+          style={ { width: '100%', padding: '12px 16px 12px 40px', border: `2px solid ${C.border}`, borderRadius: C.radius, fontSize: 'var(--text-md)', outline: 'none', boxSizing: 'border-box' } }
           autoFocus
         />
       </div>
       { searchQuery && (
-        <p style={ { fontSize: 13, color: C.textMuted, margin: 0 } }>{ searchResults.length } result{ searchResults.length !== 1 ? 's' : '' } for &quot;{ searchQuery }&quot;</p>
+        <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>{ searchResults.length } result{ searchResults.length !== 1 ? 's' : '' } for &quot;{ searchQuery }&quot;</p>
       ) }
       { searchResults.length > 0 && (
         <div style={ { display: 'flex', flexDirection: 'column', gap: 8 } }>
@@ -1330,17 +1330,17 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
                   r.type === 'Table' ? C.blueBg : r.type === 'Lambda' ? C.greenBg : r.type === 'AWS' ? C.amberBg : r.type === 'Risk' ? C.redBg : 'var(--bg-secondary)',
                   r.type === 'Table' ? C.blue : r.type === 'Lambda' ? C.green : r.type === 'AWS' ? C.amber : r.type === 'Risk' ? C.red : C.textMuted
                 ) }>{ r.type }</span>
-                <span style={ { fontSize: 14, fontWeight: 600, color: C.textDark } }>{ r.name }</span>
+                <span style={ { fontSize: 'var(--text-md)', fontWeight: 600, color: C.textDark } }>{ r.name }</span>
                 <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ r.category }</span>
               </div>
-              <p style={ { margin: '6px 0 0', fontSize: 12, color: C.textMuted } }>{ r.detail }</p>
+              <p style={ { margin: '6px 0 0', fontSize: 'var(--text-xs)', color: C.textMuted } }>{ r.detail }</p>
             </div>
           ) ) }
         </div>
       ) }
       { !searchQuery && (
         <div style={ card() }>
-          <p style={ { fontSize: 13, color: C.textMuted, margin: 0 } }>
+          <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>
             Search across { searchIndex.length } indexed items: { DB_TABLES.length } tables, { LAMBDAS.length } Lambda functions, { AWS_RESOURCES.length } AWS resources, { FRONTEND_ROUTES.length } routes, { STORAGE_PATHS.length } storage paths, { CODE_MAP.length } code folders, { ENV_VARS.length } env vars, { RISKS.length } risks, { IMPROVEMENTS.length } improvements.
           </p>
         </div>
@@ -1379,14 +1379,14 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           <span style={ pill( C.redBg, C.red ) }>{ ENV_VARS.filter( e => e.risk ).length } issues found</span>
           <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>Values permanently redacted</span>
         </div>
-        <p style={ { fontSize: 13, color: C.textMuted, margin: 0 } }>Inventory contains variable names and risk metadata only. Secret values are never embedded in or revealed by the browser.</p>
+        <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>Inventory contains variable names and risk metadata only. Secret values are never embedded in or revealed by the browser.</p>
       </div>
       <div style={ { overflowX: 'auto' } }>
-        <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+        <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
           <thead>
             <tr style={ { borderBottom: `2px solid ${C.border}` } }>
               { [ 'Variable', 'Value', '', 'Category', 'Sensitive', 'Risk' ].map( ( h, i ) => (
-                <th key={ h || `eye-${i}` } style={ { textAlign: 'left', padding: '10px 12px', fontSize: 11, color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, width: h === '' ? 36 : undefined } }>{ h }</th>
+                <th key={ h || `eye-${i}` } style={ { textAlign: 'left', padding: '10px 12px', fontSize: 'var(--text-xs)', color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, width: h === '' ? 36 : undefined } }>{ h }</th>
               ) ) }
             </tr>
           </thead>
@@ -1395,12 +1395,12 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
               const displayValue = e.sensitive ? 'Server-side / redacted' : e.value;
               return (
                 <tr key={ e.key } style={ { borderBottom: `1px solid ${C.border}`, background: e.risk?.startsWith( 'CRITICAL' ) ? '#fef2f2' : 'transparent' } }>
-                  <td style={ { padding: '10px 12px', fontWeight: 600, color: C.textDark, ...mono, fontSize: 12 } }>{ e.key }</td>
-                  <td style={ { padding: '10px 12px', ...mono, color: e.sensitive ? C.amber : C.textMuted, fontSize: 12, wordBreak: 'break-all', maxWidth: 340 } }>{ displayValue }</td>
+                  <td style={ { padding: '10px 12px', fontWeight: 600, color: C.textDark, ...mono, fontSize: 'var(--text-xs)' } }>{ e.key }</td>
+                  <td style={ { padding: '10px 12px', ...mono, color: e.sensitive ? C.amber : C.textMuted, fontSize: 'var(--text-xs)', wordBreak: 'break-all', maxWidth: 340 } }>{ displayValue }</td>
                   <td style={ { padding: '4px 6px', width: 36 } } />
                   <td style={ { padding: '10px 12px' } }><span style={ pill( e.category.includes( 'Hardcoded' ) ? C.redBg : e.category.includes( '✓' ) ? C.greenBg : 'var(--bg-secondary)', e.category.includes( 'Hardcoded' ) ? C.red : e.category.includes( '✓' ) ? C.green : C.textMuted ) }>{ e.category }</span></td>
                   <td style={ { padding: '10px 12px' } }>{ e.sensitive ? <span style={ pill( C.amberBg, C.amber ) }>Sensitive</span> : <span style={ { color: C.textLight } }>—</span> }</td>
-                  <td style={ { padding: '10px 12px', fontSize: 12, color: e.risk?.startsWith( 'CRITICAL' ) ? C.red : C.amber, fontWeight: e.risk ? 600 : 400 } }>{ e.risk || <span style={ { color: C.textLight } }>—</span> }</td>
+                  <td style={ { padding: '10px 12px', fontSize: 'var(--text-xs)', color: e.risk?.startsWith( 'CRITICAL' ) ? C.red : C.amber, fontWeight: e.risk ? 600 : 400 } }>{ e.risk || <span style={ { color: C.textLight } }>—</span> }</td>
                 </tr>
               );
             } ) }
@@ -1415,7 +1415,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
     <div style={ { display: 'flex', flexDirection: 'column', gap: 12 } }>
       <div style={ card() }>
         <h3 style={ sectionTitle }>Logs & Change History</h3>
-        <p style={ { fontSize: 13, color: C.textMuted, margin: 0 } }>Log sources and change tracking across the platform.</p>
+        <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>Log sources and change tracking across the platform.</p>
       </div>
       <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 } }>
         { [
@@ -1430,14 +1430,14 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
         ].map( log => (
           <div key={ log.title } style={ card() }>
             <div style={ { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } }>
-              <span style={ { fontSize: 10, color: log.status === 'Active' ? C.green : C.red } }>●</span>
-              <span style={ { fontSize: 14, fontWeight: 600, color: C.textDark } }>{ log.title }</span>
+              <span style={ { fontSize: 'var(--text-xs)', color: log.status === 'Active' ? C.green : C.red } }>●</span>
+              <span style={ { fontSize: 'var(--text-md)', fontWeight: 600, color: C.textDark } }>{ log.title }</span>
             </div>
             <div style={ { display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' } }>
               <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ log.source }</span>
               <span style={ pill( C.amberBg, C.amber ) }>{ log.retention }</span>
             </div>
-            <p style={ { fontSize: 12, color: C.textMuted, margin: 0 } }>{ log.detail }</p>
+            <p style={ { fontSize: 'var(--text-xs)', color: C.textMuted, margin: 0 } }>{ log.detail }</p>
           </div>
         ) ) }
       </div>
@@ -1454,14 +1454,14 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           <span style={ pill( C.amberBg, C.amber ) }>{ DEPENDENCIES.filter( d => d.status === 'warning' ).length } Warnings</span>
           <span style={ pill( C.redBg, C.red ) }>{ DEPENDENCIES.filter( d => d.status === 'outdated' ).length } Outdated</span>
         </div>
-        <p style={ { fontSize: 13, color: C.textMuted, margin: '8px 0 0' } }>Node ≥24.0.0 | npm 11.6.2 | { DEPENDENCIES.filter( d => d.type === 'prod' ).length } production, { DEPENDENCIES.filter( d => d.type === 'dev' ).length } dev dependencies</p>
+        <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: '8px 0 0' } }>Node ≥24.0.0 | npm 11.6.2 | { DEPENDENCIES.filter( d => d.type === 'prod' ).length } production, { DEPENDENCIES.filter( d => d.type === 'dev' ).length } dev dependencies</p>
       </div>
       <div style={ { overflowX: 'auto' } }>
-        <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+        <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
           <thead>
             <tr style={ { borderBottom: `2px solid ${C.border}` } }>
               { [ 'Package', 'Version', 'Type', 'Status', 'Notes' ].map( h => (
-                <th key={ h } style={ { textAlign: 'left', padding: '10px 12px', fontSize: 11, color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
+                <th key={ h } style={ { textAlign: 'left', padding: '10px 12px', fontSize: 'var(--text-xs)', color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 } }>{ h }</th>
               ) ) }
             </tr>
           </thead>
@@ -1477,7 +1477,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
                     d.status === 'ok' ? C.green : d.status === 'warning' ? C.amber : C.red
                   ) }>{ d.status }</span>
                 </td>
-                <td style={ { padding: '10px 12px', color: C.textMuted, fontSize: 12 } }>{ d.note }</td>
+                <td style={ { padding: '10px 12px', color: C.textMuted, fontSize: 'var(--text-xs)' } }>{ d.note }</td>
               </tr>
             ) ) }
           </tbody>
@@ -1491,7 +1491,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
     <div style={ { display: 'flex', flexDirection: 'column', gap: 12 } }>
       <div style={ { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 } }>
         { [ 'All', 'Critical', 'Important', 'Nice to have' ].map( p => (
-          <button key={ p } onClick={ () => setRiskFilter( p ) } style={ { padding: '6px 14px', borderRadius: C.radius, border: `2px solid ${riskFilter === p ? C.bgDark : C.border}`, background: riskFilter === p ? C.bgDark : C.bg, color: riskFilter === p ? C.lime : C.textMuted, fontSize: 12, fontWeight: 600, cursor: 'pointer' } }>
+          <button key={ p } onClick={ () => setRiskFilter( p ) } style={ { padding: '6px 14px', borderRadius: C.radius, border: `2px solid ${riskFilter === p ? C.bgDark : C.border}`, background: riskFilter === p ? C.bgDark : C.bg, color: riskFilter === p ? C.lime : C.textMuted, fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' } }>
             { p } { p !== 'All' && `(${RISKS.filter( r => r.priority === p ).length})` }
           </button>
         ) ) }
@@ -1503,10 +1503,10 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
               r.priority === 'Critical' ? C.redBg : r.priority === 'Important' ? C.amberBg : C.blueBg,
               r.priority === 'Critical' ? C.red : r.priority === 'Important' ? C.amber : C.blue
             ) }>{ r.priority }</span>
-            <span style={ { fontSize: 14, fontWeight: 600, color: C.textDark } }>{ r.title }</span>
+            <span style={ { fontSize: 'var(--text-md)', fontWeight: 600, color: C.textDark } }>{ r.title }</span>
             <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ r.category }</span>
           </div>
-          <p style={ { margin: '8px 0 0', fontSize: 13, color: C.text } }>{ r.description }</p>
+          <p style={ { margin: '8px 0 0', fontSize: 'var(--text-sm)', color: C.text } }>{ r.description }</p>
         </div>
       ) ) }
     </div>
@@ -1530,10 +1530,10 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
               imp.priority === 'Critical' ? C.redBg : imp.priority === 'Important' ? C.amberBg : C.blueBg,
               imp.priority === 'Critical' ? C.red : imp.priority === 'Important' ? C.amber : C.blue
             ) }>{ imp.priority }</span>
-            <span style={ { fontSize: 14, fontWeight: 600, color: C.textDark } }>{ imp.title }</span>
+            <span style={ { fontSize: 'var(--text-md)', fontWeight: 600, color: C.textDark } }>{ imp.title }</span>
             <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ imp.category }</span>
           </div>
-          <p style={ { margin: '8px 0 0', fontSize: 13, color: C.text } }>{ imp.description }</p>
+          <p style={ { margin: '8px 0 0', fontSize: 'var(--text-sm)', color: C.text } }>{ imp.description }</p>
         </div>
       ) ) }
     </div>
@@ -1553,38 +1553,38 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
     <div style={ { display: 'flex', flexDirection: 'column', gap: 12 } }>
       <div style={ { display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' } }>
         <div style={ { position: 'relative', flex: 1, maxWidth: 400 } }>
-          <input value={ lambdaDetailSearch } onChange={ e => setLambdaDetailSearch( e.target.value ) } placeholder="Search functions..." aria-label="Search Lambda functions" style={ { width: '100%', padding: '10px 14px', border: `2px solid ${C.border}`, borderRadius: C.radius, fontSize: 14, outline: 'none', boxSizing: 'border-box' } } />
+          <input value={ lambdaDetailSearch } onChange={ e => setLambdaDetailSearch( e.target.value ) } placeholder="Search functions..." aria-label="Search Lambda functions" style={ { width: '100%', padding: '10px 14px', border: `2px solid ${C.border}`, borderRadius: C.radius, fontSize: 'var(--text-md)', outline: 'none', boxSizing: 'border-box' } } />
         </div>
         <div style={ { display: 'flex', gap: 4, flexWrap: 'wrap' } }>
           { LAMBDA_DETAIL_CATEGORIES.map( cat => (
-            <button key={ cat } onClick={ () => setLambdaDetailFilter( cat ) } style={ { padding: '6px 14px', borderRadius: C.radius, border: `2px solid ${lambdaDetailFilter === cat ? C.bgDark : C.border}`, background: lambdaDetailFilter === cat ? C.bgDark : C.bg, color: lambdaDetailFilter === cat ? C.lime : C.textMuted, fontSize: 12, fontWeight: 600, cursor: 'pointer' } }>{ cat }</button>
+            <button key={ cat } onClick={ () => setLambdaDetailFilter( cat ) } style={ { padding: '6px 14px', borderRadius: C.radius, border: `2px solid ${lambdaDetailFilter === cat ? C.bgDark : C.border}`, background: lambdaDetailFilter === cat ? C.bgDark : C.bg, color: lambdaDetailFilter === cat ? C.lime : C.textMuted, fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' } }>{ cat }</button>
           ) ) }
         </div>
       </div>
-      <p style={ { fontSize: 13, color: C.textMuted, margin: 0 } }>{ filteredLambdaDetail.length } function{ filteredLambdaDetail.length !== 1 ? 's' : '' } — with env vars, runtime, memory, triggers</p>
+      <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>{ filteredLambdaDetail.length } function{ filteredLambdaDetail.length !== 1 ? 's' : '' } — with env vars, runtime, memory, triggers</p>
       { filteredLambdaDetail.map( fn => {
         const isExp = expandedItems.has( 'ld-' + fn.name );
         return (
           <div key={ fn.name } style={ card( isExp ) }>
             <button onClick={ () => toggleExpand( 'ld-' + fn.name ) } style={ { width: '100%', display: 'flex', alignItems: 'center', gap: 12, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 } }>
-              <span style={ { fontSize: 10, color: C.green } }>●</span>
+              <span style={ { fontSize: 'var(--text-xs)', color: C.green } }>●</span>
               <div style={ { flex: 1 } }>
                 <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }>
-                  <span style={ { fontSize: 14, fontWeight: 600, color: C.textDark } }>{ fn.displayName }</span>
+                  <span style={ { fontSize: 'var(--text-md)', fontWeight: 600, color: C.textDark } }>{ fn.displayName }</span>
                   <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ fn.category }</span>
                   { fn.apiRoute && fn.apiRoute !== '-' && <span style={ { ...pill( C.greenBg, C.green ), ...mono } }>{ fn.apiRoute }</span> }
                 </div>
-                <p style={ { margin: '4px 0 0', fontSize: 12, color: C.textMuted } }>{ fn.description }</p>
+                <p style={ { margin: '4px 0 0', fontSize: 'var(--text-xs)', color: C.textMuted } }>{ fn.description }</p>
               </div>
-              <span style={ { transform: isExp ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.15s', fontSize: 12, color: C.textLight } }>▶</span>
+              <span style={ { transform: isExp ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.15s', fontSize: 'var(--text-xs)', color: C.textLight } }>▶</span>
             </button>
             { isExp && (
               <div style={ { marginTop: 12, paddingTop: 12, borderTop: `2px solid ${C.border}` } }>
                 <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 12 } }>
-                  <div style={ { padding: '10px 12px', background: C.bgSoft, borderRadius: C.radiusSm } }><div style={ label }>Runtime</div><div style={ { fontSize: 13, fontWeight: 600, color: C.text, marginTop: 2 } }>{ fn.runtime }</div></div>
-                  <div style={ { padding: '10px 12px', background: C.bgSoft, borderRadius: C.radiusSm } }><div style={ label }>Timeout</div><div style={ { fontSize: 13, fontWeight: 600, color: C.text, marginTop: 2 } }>{ fn.timeout }s</div></div>
-                  <div style={ { padding: '10px 12px', background: C.bgSoft, borderRadius: C.radiusSm } }><div style={ label }>Memory</div><div style={ { fontSize: 13, fontWeight: 600, color: C.text, marginTop: 2 } }>{ fn.memory } MB</div></div>
-                  <div style={ { padding: '10px 12px', background: C.bgSoft, borderRadius: C.radiusSm } }><div style={ label }>Status</div><div style={ { fontSize: 13, fontWeight: 600, color: C.green, marginTop: 2 } }>{ fn.status }</div></div>
+                  <div style={ { padding: '10px 12px', background: C.bgSoft, borderRadius: C.radiusSm } }><div style={ label }>Runtime</div><div style={ { fontSize: 'var(--text-sm)', fontWeight: 600, color: C.text, marginTop: 2 } }>{ fn.runtime }</div></div>
+                  <div style={ { padding: '10px 12px', background: C.bgSoft, borderRadius: C.radiusSm } }><div style={ label }>Timeout</div><div style={ { fontSize: 'var(--text-sm)', fontWeight: 600, color: C.text, marginTop: 2 } }>{ fn.timeout }s</div></div>
+                  <div style={ { padding: '10px 12px', background: C.bgSoft, borderRadius: C.radiusSm } }><div style={ label }>Memory</div><div style={ { fontSize: 'var(--text-sm)', fontWeight: 600, color: C.text, marginTop: 2 } }>{ fn.memory } MB</div></div>
+                  <div style={ { padding: '10px 12px', background: C.bgSoft, borderRadius: C.radiusSm } }><div style={ label }>Status</div><div style={ { fontSize: 'var(--text-sm)', fontWeight: 600, color: C.green, marginTop: 2 } }>{ fn.status }</div></div>
                 </div>
                 <div style={ { marginBottom: 10 } }><div style={ label }>Triggers</div><div style={ { display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 } }>{ fn.triggers.map( t => <span key={ t } style={ pill( 'var(--bg-secondary)', C.text ) }>{ t }</span> ) }</div></div>
                 { Object.keys( fn.envVars ).length > 0 && (
@@ -1615,27 +1615,27 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
   const renderCodeRepo = () => (
     <div style={ { display: 'flex', flexDirection: 'column', gap: 12 } }>
       <div style={ { display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' } }>
-        <input value={ codeRepoSearch } onChange={ e => setCodeRepoSearch( e.target.value ) } placeholder="Search flows, lambdas, templates..." aria-label="Search code assets" style={ { flex: 1, maxWidth: 400, padding: '10px 14px', border: `2px solid ${C.border}`, borderRadius: C.radius, fontSize: 14, outline: 'none', boxSizing: 'border-box' } } />
+        <input value={ codeRepoSearch } onChange={ e => setCodeRepoSearch( e.target.value ) } placeholder="Search flows, lambdas, templates..." aria-label="Search code assets" style={ { flex: 1, maxWidth: 400, padding: '10px 14px', border: `2px solid ${C.border}`, borderRadius: C.radius, fontSize: 'var(--text-md)', outline: 'none', boxSizing: 'border-box' } } />
         <div style={ { display: 'flex', gap: 4, flexWrap: 'wrap' } }>
           { CODE_ASSET_CATEGORIES.map( cat => (
-            <button key={ cat } onClick={ () => setCodeRepoCategory( cat ) } style={ { padding: '6px 14px', borderRadius: C.radius, border: `2px solid ${codeRepoCategory === cat ? C.bgDark : C.border}`, background: codeRepoCategory === cat ? C.bgDark : C.bg, color: codeRepoCategory === cat ? C.lime : C.textMuted, fontSize: 12, fontWeight: 600, cursor: 'pointer' } }>{ cat }</button>
+            <button key={ cat } onClick={ () => setCodeRepoCategory( cat ) } style={ { padding: '6px 14px', borderRadius: C.radius, border: `2px solid ${codeRepoCategory === cat ? C.bgDark : C.border}`, background: codeRepoCategory === cat ? C.bgDark : C.bg, color: codeRepoCategory === cat ? C.lime : C.textMuted, fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' } }>{ cat }</button>
           ) ) }
         </div>
       </div>
-      <p style={ { fontSize: 13, color: C.textMuted, margin: 0 } }>{ filteredCodeAssets.length } asset{ filteredCodeAssets.length !== 1 ? 's' : '' }</p>
+      <p style={ { fontSize: 'var(--text-sm)', color: C.textMuted, margin: 0 } }>{ filteredCodeAssets.length } asset{ filteredCodeAssets.length !== 1 ? 's' : '' }</p>
       { filteredCodeAssets.map( asset => (
         <div key={ asset.id } style={ card( expandedAsset === asset.id ) } onClick={ () => setExpandedAsset( expandedAsset === asset.id ? null : asset.id ) } role="button" tabIndex={ 0 }>
           <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }>
             <span style={ pill( asset.type === 'Flow JSON' ? C.lime : C.bgSoft, C.textDark ) }>{ asset.type }</span>
-            <span style={ { fontSize: 14, fontWeight: 600, color: C.textDark } }>{ asset.name }</span>
+            <span style={ { fontSize: 'var(--text-md)', fontWeight: 600, color: C.textDark } }>{ asset.name }</span>
             { asset.status && <span style={ pill( asset.status === 'Published' ? C.greenBg : C.amberBg, asset.status === 'Published' ? C.green : C.amber ) }>{ asset.status }</span> }
             <span style={ pill( 'var(--bg-secondary)', C.textMuted ) }>{ asset.category }</span>
           </div>
-          <p style={ { margin: '4px 0 0', fontSize: 12, color: C.textMuted } }>{ asset.description }</p>
+          <p style={ { margin: '4px 0 0', fontSize: 'var(--text-xs)', color: C.textMuted } }>{ asset.description }</p>
           { expandedAsset === asset.id && (
             <div style={ { marginTop: 10, padding: '8px 10px', background: C.bgSoft, borderRadius: C.radiusSm } }>
               <div style={ label }>File Path</div>
-              <code style={ { ...mono, color: C.textDark, fontSize: 11 } }>{ asset.path }</code>
+              <code style={ { ...mono, color: C.textDark, fontSize: 'var(--text-xs)' } }>{ asset.path }</code>
             </div>
           ) }
         </div>
@@ -1676,15 +1676,15 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 } }>
           <div>
             <h2 style={ { margin: 0, fontSize: 22, fontWeight: 700, color: C.textDark } }>Project Control Center</h2>
-            <p style={ { margin: '4px 0 0', fontSize: 13, color: C.textMuted } }>
+            <p style={ { margin: '4px 0 0', fontSize: 'var(--text-sm)', color: C.textMuted } }>
               Full system architecture — { LAMBDAS.length } Lambda functions · { DB_TABLES.length } tables · { AWS_RESOURCES.length } AWS resources · { STORAGE_PATHS.length } storage paths
             </p>
           </div>
           <div style={ { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } }>
-            <button onClick={ refresh } title="Refresh now" style={ { padding: '6px 12px', borderRadius: C.radius, border: `2px solid ${C.border}`, background: C.bg, color: C.textMuted, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 } }>
+            <button onClick={ refresh } title="Refresh now" style={ { padding: '6px 12px', borderRadius: C.radius, border: `2px solid ${C.border}`, background: C.bg, color: C.textMuted, fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 } }>
               ↻ Refresh
             </button>
-            <button onClick={ toggleAutoRefresh } title={ isAutoRefresh ? 'Disable auto-refresh' : 'Enable auto-refresh' } style={ { padding: '6px 12px', borderRadius: C.radius, border: `2px solid ${isAutoRefresh ? C.borderActive : C.border}`, background: isAutoRefresh ? C.bgDark : C.bg, color: isAutoRefresh ? C.lime : C.textMuted, fontSize: 12, fontWeight: 600, cursor: 'pointer' } }>
+            <button onClick={ toggleAutoRefresh } title={ isAutoRefresh ? 'Disable auto-refresh' : 'Enable auto-refresh' } style={ { padding: '6px 12px', borderRadius: C.radius, border: `2px solid ${isAutoRefresh ? C.borderActive : C.border}`, background: isAutoRefresh ? C.bgDark : C.bg, color: isAutoRefresh ? C.lime : C.textMuted, fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' } }>
               { isAutoRefresh ? '⏱ Auto' : '⏸ Paused' }
             </button>
             <span style={ pill( C.greenBg, C.green ) }>Scan: { LAST_SCAN }</span>
@@ -1706,7 +1706,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
                   border: `2px solid ${activeTab === tab.id ? C.bgDark : 'transparent'}`,
                   background: activeTab === tab.id ? C.bgDark : 'transparent',
                   color: activeTab === tab.id ? C.lime : C.textMuted,
-                  fontSize: 12,
+                  fontSize: 'var(--text-xs)',
                   fontWeight: 600,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',

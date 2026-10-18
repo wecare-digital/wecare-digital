@@ -29,15 +29,15 @@ interface MenuConfig { header: string; body: string; footer: string; buttonText:
 
 // ── Styles ──
 const S = {
-  tab: (on: boolean): React.CSSProperties => ({ padding: '7px 14px', border: 'none', borderBottom: on ? '2px solid var(--accent)' : '2px solid transparent', background: 'none', cursor: 'pointer', fontSize: 12, fontWeight: on ? 600 : 400, color: on ? 'var(--accent)' : 'var(--text-muted)' }),
+  tab: (on: boolean): React.CSSProperties => ({ padding: '7px 14px', border: 'none', borderBottom: on ? '2px solid var(--accent)' : '2px solid transparent', background: 'none', cursor: 'pointer', fontSize: 'var(--text-xs)', fontWeight: on ? 600 : 400, color: on ? 'var(--accent)' : 'var(--text-muted)' }),
   card: { border: '1px solid var(--border)', borderRadius: 8, padding: 14, marginBottom: 10, background: '#fff' } as React.CSSProperties,
-  input: { width: '100%', padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12 } as React.CSSProperties,
-  textarea: { width: '100%', padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12, minHeight: 60, resize: 'vertical' as const, fontFamily: 'inherit' } as React.CSSProperties,
-  btn: { padding: '5px 12px', border: '1.5px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: 'var(--accent)' } as React.CSSProperties,
-  btnP: { padding: '6px 16px', border: 'none', borderRadius: 6, background: 'var(--lime)', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--accent)' } as React.CSSProperties,
+  input: { width: '100%', padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 'var(--text-xs)' } as React.CSSProperties,
+  textarea: { width: '100%', padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 'var(--text-xs)', minHeight: 60, resize: 'vertical' as const, fontFamily: 'inherit' } as React.CSSProperties,
+  btn: { padding: '5px 12px', border: '1.5px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)' } as React.CSSProperties,
+  btnP: { padding: '6px 16px', border: 'none', borderRadius: 6, background: 'var(--lime)', cursor: 'pointer', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)' } as React.CSSProperties,
   toggle: (on: boolean): React.CSSProperties => ({ width: 34, height: 18, borderRadius: 9, border: 'none', cursor: 'pointer', background: on ? 'var(--accent)' : '#d1d5db', position: 'relative', transition: 'all 0.2s' }),
   dot: (on: boolean): React.CSSProperties => ({ position: 'absolute', top: 2, left: on ? 17 : 2, width: 14, height: 14, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }),
-  label: { fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 3, display: 'block' } as React.CSSProperties,
+  label: { fontSize: 'var(--text-xs)', fontWeight: 600, color: '#374151', marginBottom: 3, display: 'block' } as React.CSSProperties,
 };
 
 const AutoResponsePageBody: React.FC<Props> = () => {
@@ -142,21 +142,21 @@ const AutoResponsePageBody: React.FC<Props> = () => {
       {tab === 'triggers' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>Keyword → WhatsApp Flow mapping. Empty = Lambda defaults.</p>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>Keyword → WhatsApp Flow mapping. Empty = Lambda defaults.</p>
             <div style={{ display: 'flex', gap: 6 }}><button style={S.btn} onClick={addTrig}>+ Add</button><button style={S.btnP} onClick={saveTriggers} disabled={saving}>{saving ? '...' : 'Save'}</button></div>
           </div>
-          {trigLoading && <p style={{ color: '#9ca3af', fontSize: 12 }}>Loading...</p>}
+          {trigLoading && <p style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>Loading...</p>}
           {Object.keys(triggers).length === 0 && !trigLoading && <div style={{ ...S.card, textAlign: 'center', color: '#9ca3af', padding: 24 }}>No overrides. Lambda defaults active.</div>}
           {Object.entries(triggers).map(([k, t]) => (
             <div key={k} style={{ ...S.card, opacity: t.enabled ? 1 : 0.5, borderLeft: `3px solid ${t.enabled ? 'var(--lime)' : '#d1d5db'}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                    <code style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>{k}</code>
-                    {t.flowId && <span style={{ fontSize: 10, color: '#9ca3af', fontFamily: 'monospace' }}>Flow: {t.flowId}</span>}
+                    <code style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)' }}>{k}</code>
+                    {t.flowId && <span style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', fontFamily: 'monospace' }}>Flow: {t.flowId}</span>}
                   </div>
-                  <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginBottom: 3 }}>{(t.keywords || []).map((kw, i) => <span key={i} style={{ padding: '1px 5px', background: 'var(--lime)', borderRadius: 3, fontSize: 10 }}>{kw}</span>)}</div>
-                  {editTrig !== k && <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>{t.message?.body?.slice(0, 60)}</p>}
+                  <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginBottom: 3 }}>{(t.keywords || []).map((kw, i) => <span key={i} style={{ padding: '1px 5px', background: 'var(--lime)', borderRadius: 3, fontSize: 'var(--text-xs)' }}>{kw}</span>)}</div>
+                  {editTrig !== k && <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t.message?.body?.slice(0, 60)}</p>}
                 </div>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   <button style={S.toggle(t.enabled)} onClick={() => updateTrig(k, 'enabled', !t.enabled)}><span style={S.dot(t.enabled)} /></button>
@@ -184,10 +184,10 @@ const AutoResponsePageBody: React.FC<Props> = () => {
       {tab === 'customerservice' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>The list message sent when user types &quot;customerservice&quot;. Empty = Lambda defaults.</p>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>The list message sent when user types &quot;customerservice&quot;. Empty = Lambda defaults.</p>
             <button style={S.btnP} onClick={saveSsMenu} disabled={saving}>{saving ? '...' : 'Save'}</button>
           </div>
-          {ssLoading && <p style={{ color: '#9ca3af', fontSize: 12 }}>Loading...</p>}
+          {ssLoading && <p style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>Loading...</p>}
           {ssMenu ? (
             <div>
               <div style={{ ...S.card }}>
@@ -203,7 +203,7 @@ const AutoResponsePageBody: React.FC<Props> = () => {
                   <input style={{ ...S.input, fontWeight: 600, border: 'none', padding: '3px 0', marginBottom: 6 }} value={sec.title} onChange={e => updateSectionTitle(ssMenu, setSsMenu as any, si, e.target.value)} />
                   {sec.rows.map((row, ri) => (
                     <div key={ri} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 2fr', gap: 4, marginBottom: 4 }}>
-                      <input style={{ ...S.input, fontSize: 10, color: '#9ca3af' }} value={row.id} readOnly />
+                      <input style={{ ...S.input, fontSize: 'var(--text-xs)', color: '#9ca3af' }} value={row.id} readOnly />
                       <input style={S.input} value={row.title} onChange={e => updateRow(ssMenu, setSsMenu as any, si, ri, 'title', e.target.value)} />
                       <input style={S.input} value={row.description} onChange={e => updateRow(ssMenu, setSsMenu as any, si, ri, 'description', e.target.value)} />
                     </div>
@@ -219,10 +219,10 @@ const AutoResponsePageBody: React.FC<Props> = () => {
       {tab === 'mainmenu' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>The list message sent on &quot;hi&quot; / &quot;menu&quot; / &quot;start&quot;. Empty = Lambda defaults.</p>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>The list message sent on &quot;hi&quot; / &quot;menu&quot; / &quot;start&quot;. Empty = Lambda defaults.</p>
             <button style={S.btnP} onClick={saveMainMenu} disabled={saving}>{saving ? '...' : 'Save'}</button>
           </div>
-          {mmLoading && <p style={{ color: '#9ca3af', fontSize: 12 }}>Loading...</p>}
+          {mmLoading && <p style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>Loading...</p>}
           {mainMenu ? (
             <div>
               <div style={{ ...S.card }}>
@@ -238,7 +238,7 @@ const AutoResponsePageBody: React.FC<Props> = () => {
                   <input style={{ ...S.input, fontWeight: 600, border: 'none', padding: '3px 0', marginBottom: 6 }} value={sec.title} onChange={e => updateSectionTitle(mainMenu, setMainMenu as any, si, e.target.value)} />
                   {sec.rows.map((row, ri) => (
                     <div key={ri} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 2fr', gap: 4, marginBottom: 4 }}>
-                      <input style={{ ...S.input, fontSize: 10, color: '#9ca3af' }} value={row.id} readOnly />
+                      <input style={{ ...S.input, fontSize: 'var(--text-xs)', color: '#9ca3af' }} value={row.id} readOnly />
                       <input style={S.input} value={row.title} onChange={e => updateRow(mainMenu, setMainMenu as any, si, ri, 'title', e.target.value)} />
                       <input style={S.input} value={row.description} onChange={e => updateRow(mainMenu, setMainMenu as any, si, ri, 'description', e.target.value)} />
                     </div>
@@ -254,17 +254,17 @@ const AutoResponsePageBody: React.FC<Props> = () => {
       {tab === 'welcome' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>Greeting sent to brand-new contacts on first message.</p>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>Greeting sent to brand-new contacts on first message.</p>
             <button style={S.btnP} onClick={saveWelcome} disabled={saving}>{saving ? '...' : 'Save'}</button>
           </div>
-          {welLoading && <p style={{ color: '#9ca3af', fontSize: 12 }}>Loading...</p>}
+          {welLoading && <p style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>Loading...</p>}
           <div style={S.card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>Welcome Message</label>
+              <label style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--accent)' }}>Welcome Message</label>
               <button style={S.toggle(welcomeEnabled)} onClick={() => setWelcomeEnabled(!welcomeEnabled)}><span style={S.dot(welcomeEnabled)} /></button>
             </div>
             <textarea style={{ ...S.textarea, minHeight: 80 }} value={welcomeText} onChange={e => setWelcomeText(e.target.value)} placeholder="Hi there! 👋 Welcome to WECARE.DIGITAL..." />
-            <p style={{ fontSize: 10, color: '#9ca3af', margin: '6px 0 0' }}>After this message, the main menu list is also sent automatically.</p>
+            <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', margin: '6px 0 0' }}>After this message, the main menu list is also sent automatically.</p>
           </div>
         </div>
       )}

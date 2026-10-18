@@ -18,7 +18,7 @@ import { API_BASE } from '../../../config/constants';
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const card: React.CSSProperties = { background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, padding: 20, marginBottom: 16 };
-const row: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0f0f0', fontSize: 14 };
+const row: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0f0f0', fontSize: 'var(--text-md)' };
 const key: React.CSSProperties = { color: '#777' };
 
 const MyAccountPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
@@ -128,16 +128,16 @@ const MyAccountPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         <div style={ { maxWidth: 720, margin: '0 auto', padding: 16 } }>
             <SEO title="My WhatsApp Account" description="Your linked WhatsApp Business Account." noindex />
             <h1 style={ { fontSize: 22, fontWeight: 700, marginBottom: 4 } }>My WhatsApp Account</h1>
-            <p style={ { color: '#777', fontSize: 13, marginBottom: 16 } }>Your linked WhatsApp Business Account and its status.</p>
+            <p style={ { color: '#777', fontSize: 'var(--text-sm)', marginBottom: 16 } }>Your linked WhatsApp Business Account and its status.</p>
 
             { loading ? <div style={ { color: '#777' } }>Loading…</div>
                 : isAdmin ? (
                     <div style={ card }>
-                        <p style={ { fontSize: 14, margin: 0 } }>You’re signed in as an admin. Manage all connected accounts on the <strong>Connected Accounts</strong> page.</p>
+                        <p style={ { fontSize: 'var(--text-md)', margin: 0 } }>You’re signed in as an admin. Manage all connected accounts on the <strong>Connected Accounts</strong> page.</p>
                     </div>
                 ) : !linked ? (
                     <div style={ card }>
-                        <p style={ { fontSize: 14, margin: 0 } }>No WhatsApp Business Account is linked to your login yet. Please contact WECARE.DIGITAL to complete onboarding.</p>
+                        <p style={ { fontSize: 'var(--text-md)', margin: 0 } }>No WhatsApp Business Account is linked to your login yet. Please contact WECARE.DIGITAL to complete onboarding.</p>
                     </div>
                 ) : (
                     <div style={ card }>
@@ -152,19 +152,19 @@ const MyAccountPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
 
             { !loading && !isAdmin && linked && (
                 <div style={ card }>
-                    <h3 style={ { marginTop: 0, fontSize: 16 } }>Wallet & Usage</h3>
+                    <h3 style={ { marginTop: 0, fontSize: 'var(--text-base)' } }>Wallet & Usage</h3>
                     <div style={ row }>
                         <span style={ key }>Prepaid balance</span>
                         <span style={ { fontWeight: 700 } }>{ wallet ? `${wallet.balance} ${wallet.currency}` : '—' }
-                            { wallet?.status === 'SUSPENDED' && <span style={ { color: '#a11', marginLeft: 8, fontSize: 12 } }>SUSPENDED — top up to resume</span> }
+                            { wallet?.status === 'SUSPENDED' && <span style={ { color: '#a11', marginLeft: 8, fontSize: 'var(--text-xs)' } }>SUSPENDED — top up to resume</span> }
                         </span>
                     </div>
-                    <div style={ { marginTop: 10, fontSize: 13, color: '#555' } }>Recent activity</div>
-                    { ledger.length === 0 ? <div style={ { fontSize: 13, color: '#999', marginTop: 4 } }>No usage yet.</div>
+                    <div style={ { marginTop: 10, fontSize: 'var(--text-sm)', color: '#555' } }>Recent activity</div>
+                    { ledger.length === 0 ? <div style={ { fontSize: 'var(--text-sm)', color: '#999', marginTop: 4 } }>No usage yet.</div>
                         : (
                             <div style={ { marginTop: 6 } }>
                                 { ledger.slice( 0, 10 ).map( ( l, i ) => (
-                                    <div key={ i } style={ { display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderBottom: '1px solid #f5f5f5' } }>
+                                    <div key={ i } style={ { display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)', padding: '4px 0', borderBottom: '1px solid #f5f5f5' } }>
                                         <span style={ { color: '#666' } }>{ l.ts ? new Date( l.ts ).toLocaleString() : '' } · { l.type }{ l.category ? ` (${l.category})` : '' }</span>
                                         <span style={ { color: l.type === 'topup' ? 'var(--accent)' : '#a11' } }>{ l.type === 'topup' ? '+' : '−' }{ l.amount } · bal { l.balanceAfter }</span>
                                     </div>
@@ -173,21 +173,21 @@ const MyAccountPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                         ) }
                     <div style={ { marginTop: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } }>
                         <input value={ addAmt } onChange={ e => setAddAmt( e.target.value ) } type="number" placeholder="amount (INR)"
-                            style={ { width: 140, padding: '7px 10px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 14 } } />
+                            style={ { width: 140, padding: '7px 10px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 'var(--text-md)' } } />
                         <button onClick={ addFunds } disabled={ adding }
-                            style={ { padding: '8px 16px', background: adding ? '#ccc' : 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: adding ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 700 } }>
+                            style={ { padding: '8px 16px', background: adding ? '#ccc' : 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: adding ? 'not-allowed' : 'pointer', fontSize: 'var(--text-md)', fontWeight: 700 } }>
                             { adding ? 'Creating link…' : 'Add funds' }
                         </button>
                     </div>
-                    <p style={ { fontSize: 12, color: '#999', marginTop: 8 } }>Secure payment via Razorpay. Your balance updates automatically after payment.</p>
+                    <p style={ { fontSize: 'var(--text-xs)', color: '#999', marginTop: 8 } }>Secure payment via Razorpay. Your balance updates automatically after payment.</p>
                     { analytics && (
                         <div style={ { marginTop: 14, paddingTop: 12, borderTop: '1px solid #f0f0f0' } }>
-                            <div style={ { fontSize: 13, fontWeight: 600, marginBottom: 6 } }>Usage (last 30 days)</div>
-                            <div style={ { fontSize: 13, color: '#444' } }>
+                            <div style={ { fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 6 } }>Usage (last 30 days)</div>
+                            <div style={ { fontSize: 'var(--text-sm)', color: '#444' } }>
                                 { analytics.messageCount || 0 } messages · spent { analytics.totalSpend || 0 } { analytics.currency } · topped up { analytics.totalTopup || 0 } { analytics.currency }
                             </div>
                             { analytics.spendByCategory && Object.keys( analytics.spendByCategory ).length > 0 && (
-                                <div style={ { fontSize: 12, color: '#666', marginTop: 4 } }>
+                                <div style={ { fontSize: 'var(--text-xs)', color: '#666', marginTop: 4 } }>
                                     { Object.entries( analytics.spendByCategory ).map( ( [ c, v ]: any ) => `${c}: ${v}` ).join( ' · ' ) }
                                 </div>
                             ) }
@@ -198,14 +198,14 @@ const MyAccountPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
 
             { !loading && !isAdmin && linked && (
                 <div style={ card }>
-                    <h3 style={ { marginTop: 0, fontSize: 16 } }>Send a message</h3>
-                    <p style={ { fontSize: 12, color: '#777', marginTop: 0 } }>Sends from your WhatsApp number. Charged to your prepaid wallet.</p>
+                    <h3 style={ { marginTop: 0, fontSize: 'var(--text-base)' } }>Send a message</h3>
+                    <p style={ { fontSize: 'var(--text-xs)', color: '#777', marginTop: 0 } }>Sends from your WhatsApp number. Charged to your prepaid wallet.</p>
                     <input value={ sendTo } onChange={ e => setSendTo( e.target.value ) } placeholder="Recipient (E.164, e.g. 919900000000)"
-                        style={ { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 14, marginBottom: 8 } } />
+                        style={ { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 'var(--text-md)', marginBottom: 8 } } />
                     <textarea value={ sendText } onChange={ e => setSendText( e.target.value ) } placeholder="Message text"
-                        style={ { width: '100%', minHeight: 80, padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 14, marginBottom: 8 } } />
+                        style={ { width: '100%', minHeight: 80, padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 'var(--text-md)', marginBottom: 8 } } />
                     <button onClick={ sendMessage } disabled={ sending }
-                        style={ { padding: '9px 16px', background: sending ? '#ccc' : 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, cursor: sending ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 600 } }>
+                        style={ { padding: '9px 16px', background: sending ? '#ccc' : 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, cursor: sending ? 'not-allowed' : 'pointer', fontSize: 'var(--text-md)', fontWeight: 600 } }>
                         { sending ? 'Sending…' : 'Send message' }
                     </button>
                 </div>
@@ -214,15 +214,15 @@ const MyAccountPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
             { !loading && !isAdmin && linked && (
                 <div style={ card }>
                     <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }>
-                        <h3 style={ { margin: 0, fontSize: 16 } }>Recent messages</h3>
-                        <button onClick={ loadMessages } style={ { padding: '5px 10px', border: '1px solid #d0d0d0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 12 } }>Refresh</button>
+                        <h3 style={ { margin: 0, fontSize: 'var(--text-base)' } }>Recent messages</h3>
+                        <button onClick={ loadMessages } style={ { padding: '5px 10px', border: '1px solid #d0d0d0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 'var(--text-xs)' } }>Refresh</button>
                     </div>
-                    { messages.length === 0 ? <div style={ { fontSize: 13, color: '#999', marginTop: 8 } }>No messages yet.</div>
+                    { messages.length === 0 ? <div style={ { fontSize: 'var(--text-sm)', color: '#999', marginTop: 8 } }>No messages yet.</div>
                         : (
                             <div style={ { marginTop: 8 } }>
                                 { messages.map( ( m, i ) => (
-                                    <div key={ m.id || i } style={ { padding: '8px 0', borderBottom: '1px solid #f5f5f5', fontSize: 13 } }>
-                                        <div style={ { display: 'flex', justifyContent: 'space-between', color: '#666', fontSize: 11 } }>
+                                    <div key={ m.id || i } style={ { padding: '8px 0', borderBottom: '1px solid #f5f5f5', fontSize: 'var(--text-sm)' } }>
+                                        <div style={ { display: 'flex', justifyContent: 'space-between', color: '#666', fontSize: 'var(--text-xs)' } }>
                                             <span>{ m.direction === 'inbound' ? '⬇ received' : '⬆ sent' }{ m.senderPhone ? ` · ${m.senderPhone}` : '' }</span>
                                             <span>{ m.timestamp ? new Date( m.timestamp * 1000 ).toLocaleString() : '' } · { m.status }</span>
                                         </div>

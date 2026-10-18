@@ -38,7 +38,7 @@ const td: React.CSSProperties = { padding: '8px 10px', verticalAlign: 'top' };
 const th: React.CSSProperties = { padding: '8px 10px', textAlign: 'left' };
 const field: React.CSSProperties = {
   padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, width: '100%',
-  fontFamily: 'inherit', fontSize: 13,
+  fontFamily: 'inherit', fontSize: 'var(--text-sm)',
 };
 
 function Evidence ( { title, count, note, children }: {
@@ -46,10 +46,10 @@ function Evidence ( { title, count, note, children }: {
 } ) {
   return (
     <div style={ { marginBottom: 14 } }>
-      <h3 style={ { fontSize: 13, margin: '0 0 2px' } }>
+      <h3 style={ { fontSize: 'var(--text-sm)', margin: '0 0 2px' } }>
         { title } <span style={ { color: count ? '#d97706' : '#16a34a' } }>({ count })</span>
       </h3>
-      <p style={ { fontSize: 11, color: 'var(--text-muted)', margin: '0 0 6px' } }>{ note }</p>
+      <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '0 0 6px' } }>{ note }</p>
       { children }
     </div>
   );
@@ -158,7 +158,7 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
 
   const body = (
       <div className="inner-page">
-        <p style={ { fontSize: 13, margin: '0 0 8px' } }>
+        <p style={ { fontSize: 'var(--text-sm)', margin: '0 0 8px' } }>
           <Link href="/workspace/seo/blog-production" style={ { color: 'var(--accent)' } }>← Production waves</Link>
           { batchId && (
             <>
@@ -171,12 +171,12 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
         <h1 className="inner-page-title">Source review</h1>
 
         { error && (
-          <div role="alert" style={ { background: '#fef2f2', color: '#b91c1c', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 14 } }>
+          <div role="alert" style={ { background: '#fef2f2', color: '#b91c1c', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 'var(--text-md)' } }>
             { error }
           </div>
         ) }
         { notice && (
-          <div role="status" style={ { background: '#f0fdf4', color: '#15803d', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 14 } }>
+          <div role="status" style={ { background: '#f0fdf4', color: '#15803d', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 'var(--text-md)' } }>
             { notice }
           </div>
         ) }
@@ -184,8 +184,8 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
 
         { !sourceId && (
           <div className="card" style={ { overflow: 'auto' } }>
-            <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
-              <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 13, color: 'var(--text-muted)' } }>
+            <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
+              <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 'var(--text-sm)', color: 'var(--text-muted)' } }>
                 { batchId ? 'Sources in this wave' : 'Name a source in the URL, or open one from a wave.' }
               </caption>
               <thead>
@@ -225,13 +225,13 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
         { source && (
           <>
             <div className="card" style={ { padding: 16, marginBottom: 16 } }>
-              <h2 style={ { fontSize: 15, margin: '0 0 8px' } }>{ source.sourceRef }</h2>
-              <p style={ { fontSize: 13, color: 'rgba(0,0,0,.54)', margin: 0 } }>
+              <h2 style={ { fontSize: 'var(--text-md)', margin: '0 0 8px' } }>{ source.sourceRef }</h2>
+              <p style={ { fontSize: 'var(--text-sm)', color: 'rgba(0,0,0,.54)', margin: 0 } }>
                 { source.status } · { source.category } · { source.articleClass }
                 { source.extractedWords ? ` · ${ source.extractedWords } words extracted` : '' }
               </p>
               { source.sourceUrl && (
-                <p style={ { fontSize: 13, margin: '8px 0 0' } }>
+                <p style={ { fontSize: 'var(--text-sm)', margin: '8px 0 0' } }>
                   <a href={ source.sourceUrl } target="_blank" rel="noopener noreferrer"
                     style={ { color: 'var(--accent)' } }>
                     Open the source document
@@ -241,11 +241,11 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
               ) }
               <div style={ { marginTop: 12 } }>
                 <button onClick={ () => { void analyse(); } } disabled={ busy === 'analyse' }
-                  style={ { padding: '7px 14px', borderRadius: 6, border: '1px solid var(--accent)', background: '#fff', color: 'var(--accent)', cursor: 'pointer', fontSize: 13 } }>
+                  style={ { padding: '7px 14px', borderRadius: 6, border: '1px solid var(--accent)', background: '#fff', color: 'var(--accent)', cursor: 'pointer', fontSize: 'var(--text-sm)' } }>
                   { busy === 'analyse' ? 'Analysing…' : analysis ? 'Re-analyse' : 'Analyse this source' }
                 </button>
                 { history.length > 0 && (
-                  <span style={ { fontSize: 12, color: 'var(--text-muted)', marginLeft: 12 } }>
+                  <span style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginLeft: 12 } }>
                     { history.length } version{ history.length === 1 ? '' : 's' }; reading version{ ' ' }
                     { analysis?.version }
                   </span>
@@ -255,10 +255,10 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
 
             { source.extractPreview && (
               <details className="card" style={ { padding: 16, marginBottom: 16 } }>
-                <summary style={ { cursor: 'pointer', fontSize: 14, fontWeight: 600 } }>
+                <summary style={ { cursor: 'pointer', fontSize: 'var(--text-md)', fontWeight: 600 } }>
                   Extracted text
                 </summary>
-                <pre style={ { whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.6, marginTop: 12, color: '#374151' } }>
+                <pre style={ { whiteSpace: 'pre-wrap', fontSize: 'var(--text-xs)', lineHeight: 1.6, marginTop: 12, color: '#374151' } }>
                   { source.sourceExtract || source.extractPreview }
                 </pre>
               </details>
@@ -266,12 +266,12 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
 
             { evidence && (
               <div className="card" style={ { padding: 16, marginBottom: 16 } }>
-                <h2 style={ { fontSize: 15, margin: '0 0 4px' } }>Evidence</h2>
-                <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 14px', maxWidth: 680 } }>
+                <h2 style={ { fontSize: 'var(--text-md)', margin: '0 0 4px' } }>Evidence</h2>
+                <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '0 0 14px', maxWidth: 680 } }>
                   Derived mechanically from the extracted text, so it is reproducible. None of it is
                   a judgement of quality — that is what you are here to make.
                 </p>
-                <div style={ { display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 16, fontSize: 12, color: 'rgba(0,0,0,.54)' } }>
+                <div style={ { display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 16, fontSize: 'var(--text-xs)', color: 'rgba(0,0,0,.54)' } }>
                   <span>{ evidence.words.toLocaleString() } words</span>
                   <span>{ evidence.paragraphs } paragraphs</span>
                   <span>{ evidence.sentences } sentences</span>
@@ -281,7 +281,7 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                 <Evidence title="First-person passages" count={ evidence.firstPersonPassages.length }
                   note="Section 18: a first-person story in the source must not survive as Anew's own biography. Remove, generalise or attribute each one.">
                   { evidence.firstPersonPassages.slice( 0, 6 ).map( passage => (
-                    <p key={ passage.paragraph } style={ { fontSize: 12, background: '#fffbeb', padding: '8px 10px', borderRadius: 6, margin: '0 0 6px' } }>
+                    <p key={ passage.paragraph } style={ { fontSize: 'var(--text-xs)', background: '#fffbeb', padding: '8px 10px', borderRadius: 6, margin: '0 0 6px' } }>
                       ¶{ passage.paragraph } ({ passage.markers } markers): { passage.text }
                     </p>
                   ) ) }
@@ -290,7 +290,7 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                 <Evidence title="Checkable claims" count={ evidence.checkableClaims.length }
                   note="Section 20: a domain claim may not sit behind an N/A review. A flag here means the QA sign-off will require that review as an explicit YES.">
                   { evidence.checkableClaims.slice( 0, 6 ).map( claim => (
-                    <p key={ claim.sentence } style={ { fontSize: 12, background: '#eff6ff', padding: '8px 10px', borderRadius: 6, margin: '0 0 6px' } }>
+                    <p key={ claim.sentence } style={ { fontSize: 'var(--text-xs)', background: '#eff6ff', padding: '8px 10px', borderRadius: 6, margin: '0 0 6px' } }>
                       { claim.reviewFlags.join( ', ' ) || 'quantity' }: { claim.text }
                     </p>
                   ) ) }
@@ -299,7 +299,7 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                 <Evidence title="Quotations" count={ evidence.quotations.length }
                   note={ `Section 19: a quotation keeps its attribution through reconstruction. ${ evidence.unattributedQuotations } have no attribution nearby.` }>
                   { evidence.quotations.slice( 0, 5 ).map( ( quotation, index ) => (
-                    <p key={ index } style={ { fontSize: 12, padding: '8px 10px', borderRadius: 6, margin: '0 0 6px', background: quotation.attributionNearby ? '#f0fdf4' : '#fef2f2' } }>
+                    <p key={ index } style={ { fontSize: 'var(--text-xs)', padding: '8px 10px', borderRadius: 6, margin: '0 0 6px', background: quotation.attributionNearby ? '#f0fdf4' : '#fef2f2' } }>
                       { quotation.attributionNearby ? 'attributed' : 'no attribution nearby' }: “{ quotation.text }”
                     </p>
                   ) ) }
@@ -307,7 +307,7 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
 
                 <Evidence title="Named individuals" count={ evidence.namedIndividuals.length }
                   note="Section 19 privacy. Over-reported on purpose: a missed obligation is a disclosure, an over-report is a glance at a list.">
-                  <p style={ { fontSize: 12, color: 'rgba(0,0,0,.54)', margin: 0 } }>
+                  <p style={ { fontSize: 'var(--text-xs)', color: 'rgba(0,0,0,.54)', margin: 0 } }>
                     { evidence.namedIndividuals.slice( 0, 20 ).join( ' · ' ) || 'none' }
                   </p>
                 </Evidence>
@@ -315,7 +315,7 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                 <Evidence title="Obsolete wrapper" count={ evidence.obsoleteMarkers.length }
                   note="Section 3: a workshop date, a price, a phone number, a dead platform. Each is something the reconstruction has to deal with.">
                   { evidence.obsoleteMarkers.map( marker => (
-                    <p key={ marker.kind } style={ { fontSize: 12, background: '#fffbeb', padding: '8px 10px', borderRadius: 6, margin: '0 0 6px' } }>
+                    <p key={ marker.kind } style={ { fontSize: 'var(--text-xs)', background: '#fffbeb', padding: '8px 10px', borderRadius: 6, margin: '0 0 6px' } }>
                       <strong>{ marker.kind }</strong>: { marker.text }
                     </p>
                   ) ) }
@@ -325,59 +325,59 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
 
             { analysis && (
               <div className="card" style={ { padding: 16 } }>
-                <h2 style={ { fontSize: 15, margin: '0 0 4px' } }>
+                <h2 style={ { fontSize: 'var(--text-md)', margin: '0 0 4px' } }>
                   Record the reading — version { analysis.version }
                 </h2>
-                <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 14px', maxWidth: 680 } }>
+                <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '0 0 14px', maxWidth: 680 } }>
                   This is the only place <code>sourceReviewedFully</code> is written, and it is
                   recorded against this exact analysis version. It releases section 2 and nothing
                   else — the eleven section 29 gates are a separate act on the QA page.
                 </p>
                 { analysis.sourceReviewedFully && (
-                  <p style={ { fontSize: 13, color: analysis.sourceReviewedFully === 'YES' ? '#15803d' : '#b45309', margin: '0 0 12px' } }>
+                  <p style={ { fontSize: 'var(--text-sm)', color: analysis.sourceReviewedFully === 'YES' ? '#15803d' : '#b45309', margin: '0 0 12px' } }>
                     Already recorded as <strong>{ analysis.sourceReviewedFully }</strong> by{ ' ' }
                     { analysis.reviewedBy } at { analysis.reviewedAt }.
                   </p>
                 ) }
                 <div style={ { display: 'grid', gap: 12, maxWidth: 780 } }>
-                  <label style={ { fontSize: 13 } }>
+                  <label style={ { fontSize: 'var(--text-sm)' } }>
                     Central distinction the source makes available
                     <span style={ { color: 'var(--text-muted)' } }> — required for a YES, at least 40 characters</span>
                     <textarea rows={ 3 } style={ { ...field, marginTop: 4 } }
                       value={ form.centralDistinctionCandidate }
                       onChange={ event => setForm( { ...form, centralDistinctionCandidate: event.target.value } ) } />
                   </label>
-                  <label style={ { fontSize: 13 } }>
+                  <label style={ { fontSize: 'var(--text-sm)' } }>
                     Wrapper to remove
                     <textarea rows={ 2 } style={ { ...field, marginTop: 4 } }
                       value={ form.wrapperToRemove }
                       onChange={ event => setForm( { ...form, wrapperToRemove: event.target.value } ) } />
                   </label>
                   <div style={ { display: 'flex', gap: 12, flexWrap: 'wrap' } }>
-                    <label style={ { fontSize: 13, flex: 1, minWidth: 180 } }>
+                    <label style={ { fontSize: 'var(--text-sm)', flex: 1, minWidth: 180 } }>
                       Original source date
                       <span style={ { color: 'var(--text-muted)' } }> — fills a gap only</span>
                       <input style={ { ...field, marginTop: 4 } } value={ form.originalSourceDate }
                         onChange={ event => setForm( { ...form, originalSourceDate: event.target.value } ) } />
                     </label>
-                    <label style={ { fontSize: 13, flex: 1, minWidth: 180 } }>
+                    <label style={ { fontSize: 'var(--text-sm)', flex: 1, minWidth: 180 } }>
                       Original source title
                       <input style={ { ...field, marginTop: 4 } } value={ form.originalSourceTitle }
                         onChange={ event => setForm( { ...form, originalSourceTitle: event.target.value } ) } />
                     </label>
                   </div>
-                  <label style={ { fontSize: 13 } }>
+                  <label style={ { fontSize: 'var(--text-sm)' } }>
                     Notes
                     <textarea rows={ 2 } style={ { ...field, marginTop: 4 } } value={ form.reviewNotes }
                       onChange={ event => setForm( { ...form, reviewNotes: event.target.value } ) } />
                   </label>
                   <div style={ { display: 'flex', gap: 12 } }>
                     <button onClick={ () => { void record( 'YES' ); } } disabled={ busy !== '' }
-                      style={ { padding: '9px 18px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: 14 } }>
+                      style={ { padding: '9px 18px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: 'var(--text-md)' } }>
                       { busy === 'YES' ? 'Recording…' : 'I have read this source' }
                     </button>
                     <button onClick={ () => { void record( 'NO' ); } } disabled={ busy !== '' }
-                      style={ { padding: '9px 18px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', color: '#374151', cursor: 'pointer', fontSize: 14 } }>
+                      style={ { padding: '9px 18px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', color: '#374151', cursor: 'pointer', fontSize: 'var(--text-md)' } }>
                       { busy === 'NO' ? 'Recording…' : 'Not usable' }
                     </button>
                   </div>
@@ -386,7 +386,7 @@ const BlogSourceReview: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
             ) }
 
             { sourceId && !analysis && !loading && (
-              <div className="card" style={ { padding: 16, color: 'var(--text-muted)', fontSize: 13 } }>
+              <div className="card" style={ { padding: 16, color: 'var(--text-muted)', fontSize: 'var(--text-sm)' } }>
                 No analysis yet. Produce one first — an analysis of nothing is exactly the artifact
                 this step exists to prevent.
               </div>

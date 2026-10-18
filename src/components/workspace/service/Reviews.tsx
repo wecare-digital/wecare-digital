@@ -53,7 +53,7 @@ function statusBadge ( status: string ) {
     flagged: { bg: '#fee2e2', fg: '#991b1b' },
   };
   const c = colors[ status ] || { bg: '#f3f4f6', fg: '#374151' };
-  return <span style={ { display: 'inline-block', padding: '2px 8px', borderRadius: 9999, fontSize: 12, fontWeight: 600, background: c.bg, color: c.fg } }>{ status }</span>;
+  return <span style={ { display: 'inline-block', padding: '2px 8px', borderRadius: 9999, fontSize: 'var(--text-xs)', fontWeight: 600, background: c.bg, color: c.fg } }>{ status }</span>;
 }
 
 function stars ( rating?: number ) {
@@ -107,14 +107,14 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
   const columns = [
     {
       key: 'rating', header: 'Rating', width: '100px', render: ( r: api.Review ) => (
-        <span style={ { color: '#f59e0b', fontSize: 14, letterSpacing: 1 } }>{ stars( r.rating ) }</span>
+        <span style={ { color: '#f59e0b', fontSize: 'var(--text-md)', letterSpacing: 1 } }>{ stars( r.rating ) }</span>
       )
     },
     {
       key: 'customerName', header: 'Customer', render: ( r: api.Review ) => (
         <div>
-          <div style={ { fontWeight: 500, fontSize: 14 } }>{ r.customerName || '—' }</div>
-          <div style={ { fontSize: 12, color: 'var(--text-muted)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const } }>{ r.comment || 'No comment' }</div>
+          <div style={ { fontWeight: 500, fontSize: 'var(--text-md)' } }>{ r.customerName || '—' }</div>
+          <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const } }>{ r.comment || 'No comment' }</div>
         </div>
       )
     },
@@ -138,7 +138,7 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
       // /leave-review/ has no reference by design, and an empty cell reads as missing data.
       key: 'orderId', header: 'Reference', width: '150px',
       render: ( r: api.Review ) => (
-        <span style={ { fontSize: 13, color: r.orderId ? 'var(--text)' : 'var(--text-muted)' } }>
+        <span style={ { fontSize: 'var(--text-sm)', color: r.orderId ? 'var(--text)' : 'var(--text-muted)' } }>
           { r.orderId || '—' }
         </span>
       ),
@@ -163,8 +163,8 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
       <div style={ { padding: '24px 32px', maxWidth: 1400 } }>
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } }>
           <div>
-            <h1 style={ { fontSize: 24, fontWeight: 700, color: 'var(--accent)', margin: 0 } }>Reviews</h1>
-            <p style={ { fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' } }>{ reviews.length } reviews</p>
+            <h1 style={ { fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--accent)', margin: 0 } }>Reviews</h1>
+            <p style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', margin: '4px 0 0' } }>{ reviews.length } reviews</p>
           </div>
           <Button variant="secondary" icon="refresh" onClick={ loadData }>Refresh</Button>
         </div>
@@ -206,8 +206,8 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
         { selected && (
           <div>
             <div style={ { textAlign: 'center', marginBottom: 16 } }>
-              <div style={ { color: '#f59e0b', fontSize: 28, letterSpacing: 2 } }>{ stars( selected.rating ) }</div>
-              <div style={ { fontSize: 14, color: 'var(--text-muted)', marginTop: 4 } }>{ selected.rating ? `${selected.rating}/5` : 'Customer idea' }</div>
+              <div style={ { color: '#f59e0b', fontSize: 'var(--h1)', letterSpacing: 2 } }>{ stars( selected.rating ) }</div>
+              <div style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', marginTop: 4 } }>{ selected.rating ? `${selected.rating}/5` : 'Customer idea' }</div>
             </div>
             <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 } }>
               <div><span style={ labelStyle }>Customer</span><div style={ { fontWeight: 500 } }>{ selected.customerName || '—' }</div></div>
@@ -222,12 +222,12 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
                    it is read by anyone. */ }
               { selected.orderId && <div><span style={ labelStyle }>Reference</span><div>{ selected.orderId }</div></div> }
             </div>
-            { selected.comment && <div style={ { marginBottom: 12 } }><span style={ labelStyle }>Comment</span><div style={ { padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 14, whiteSpace: 'pre-wrap' } }>{ selected.comment }</div></div> }
-            { selected.response && <div style={ { marginBottom: 12 } }><span style={ labelStyle }>Response</span><div style={ { padding: 12, background: '#f0fdf4', borderRadius: 8, fontSize: 14, whiteSpace: 'pre-wrap' } }>{ selected.response }</div></div> }
+            { selected.comment && <div style={ { marginBottom: 12 } }><span style={ labelStyle }>Comment</span><div style={ { padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 'var(--text-md)', whiteSpace: 'pre-wrap' } }>{ selected.comment }</div></div> }
+            { selected.response && <div style={ { marginBottom: 12 } }><span style={ labelStyle }>Response</span><div style={ { padding: 12, background: '#f0fdf4', borderRadius: 8, fontSize: 'var(--text-md)', whiteSpace: 'pre-wrap' } }>{ selected.response }</div></div> }
             { !selected.response && (
               <div style={ { marginBottom: 12 } }>
                 <span style={ labelStyle }>Write Response</span>
-                <textarea id="review-response" rows={ 3 } placeholder="Write a response to this review..." style={ { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, marginTop: 4, resize: 'vertical' } } />
+                <textarea id="review-response" rows={ 3 } placeholder="Write a response to this review..." style={ { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 'var(--text-md)', marginTop: 4, resize: 'vertical' } } />
               </div>
             ) }
             <div style={ { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 } }>
@@ -258,7 +258,7 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
  * so three unsized filters would resize as they are used; one width holds the row still.
  */
 const filterStyle: React.CSSProperties = { width: 160 };
-const labelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 2 };
-const actionBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: '2px 4px' };
+const labelStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'block', marginBottom: 2 };
+const actionBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--text-base)', padding: '2px 4px' };
 
 export default ReviewsPage;

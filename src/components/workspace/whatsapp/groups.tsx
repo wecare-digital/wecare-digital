@@ -25,8 +25,8 @@ const WABAS = [
   { id: WHATSAPP_PHONES.secondary.wabaId, phoneId: WHATSAPP_PHONES.secondary.id, metaId: WHATSAPP_PHONES.secondary.metaPhoneId, name: WHATSAPP_PHONES.secondary.name, display: WHATSAPP_PHONES.secondary.display },
 ];
 
-const pill = ( active: boolean ) => ( { padding: '4px 10px', fontSize: 12, border: active ? '2px solid var(--accent)' : '1px solid #ddd', borderRadius: 4, background: active ? '#f0fdf4' : '#fff', cursor: 'pointer' } );
-const btn = ( bg = 'var(--lime)', color = 'var(--accent)' ) => ( { padding: '6px 14px', fontSize: 12, background: bg, color, border: 'none', borderRadius: 6, cursor: 'pointer' } );
+const pill = ( active: boolean ) => ( { padding: '4px 10px', fontSize: 'var(--text-xs)', border: active ? '2px solid var(--accent)' : '1px solid #ddd', borderRadius: 4, background: active ? '#f0fdf4' : '#fff', cursor: 'pointer' } );
+const btn = ( bg = 'var(--lime)', color = 'var(--accent)' ) => ( { padding: '6px 14px', fontSize: 'var(--text-xs)', background: bg, color, border: 'none', borderRadius: 6, cursor: 'pointer' } );
 const card = { padding: 12, background: '#fff', borderRadius: 6, border: '1px solid var(--border)', marginBottom: 16 };
 
 const NEW_APPROVAL_OPTIONS: SelectOption[] = [
@@ -134,10 +134,10 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
       <div className="inner-page-container" style={ { background: '#fff' } }>
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } }>
           <h2 style={ { margin: 0, fontSize: 20 } }>WhatsApp Groups</h2>
-          <button onClick={ () => setShowCreate( true ) } style={ { ...btn(), padding: '8px 16px', border: '1.5px solid var(--accent)', borderRadius: 13, fontSize: 13 } }>+ Create Group</button>
+          <button onClick={ () => setShowCreate( true ) } style={ { ...btn(), padding: '8px 16px', border: '1.5px solid var(--accent)', borderRadius: 13, fontSize: 'var(--text-sm)' } }>+ Create Group</button>
         </div>
 
-        <div style={ { background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: 14, marginBottom: 20, fontSize: 13 } }>
+        <div style={ { background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: 14, marginBottom: 20, fontSize: 'var(--text-sm)' } }>
           <strong>Groups API</strong> — Up to { MAX_P } members/group (invite-only). Supports text, image, video, document, audio, and template messages.
           Privacy: admin-only posting, hidden member list. <a href="https://developers.facebook.com/docs/whatsapp/cloud-api" target="_blank" rel="noopener noreferrer" style={ { color: 'var(--accent)' } }>Docs ↗</a>
         </div>
@@ -145,7 +145,7 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
         <div style={ { display: 'flex', gap: 8, marginBottom: 20 } }>
           { WABAS.map( w => (
             <button key={ w.id } onClick={ () => { setWaba( w ); setSel( null ); setDetail( null ); } }
-              style={ { padding: '8px 16px', borderRadius: 6, border: waba.id === w.id ? '2px solid var(--accent)' : '1px solid #ddd', background: waba.id === w.id ? 'var(--bg-secondary)' : '#fff', cursor: 'pointer', fontSize: 13 } }>
+              style={ { padding: '8px 16px', borderRadius: 6, border: waba.id === w.id ? '2px solid var(--accent)' : '1px solid #ddd', background: waba.id === w.id ? 'var(--bg-secondary)' : '#fff', cursor: 'pointer', fontSize: 'var(--text-sm)' } }>
               { w.name } ({ w.display })
             </button>
           ) ) }
@@ -153,11 +153,11 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
 
         { showCreate && (
           <div style={ { ...card, background: 'var(--bg-secondary)', padding: 20, marginBottom: 20 } }>
-            <h3 style={ { margin: '0 0 12px', fontSize: 16 } }>Create New Group</h3>
-            <p style={ { fontSize: 12, color: '#666', margin: '0 0 12px' } }>Invite-only. Share the invite link after creation.</p>
+            <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-base)' } }>Create New Group</h3>
+            <p style={ { fontSize: 'var(--text-xs)', color: '#666', margin: '0 0 12px' } }>Invite-only. Share the invite link after creation.</p>
             <div style={ { display: 'grid', gap: 10, marginBottom: 12 } }>
-              <input value={ newSubject } onChange={ e => setNewSubject( e.target.value ) } placeholder="Group name" style={ { padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 } } />
-              <input value={ newDesc } onChange={ e => setNewDesc( e.target.value ) } placeholder="Description (optional)" style={ { padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 } } />
+              <input value={ newSubject } onChange={ e => setNewSubject( e.target.value ) } placeholder="Group name" style={ { padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 'var(--text-md)' } } />
+              <input value={ newDesc } onChange={ e => setNewDesc( e.target.value ) } placeholder="Description (optional)" style={ { padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 'var(--text-md)' } } />
               <Select ariaLabel="Join approval" value={ newApproval } onChange={ v => setNewApproval( v ) }
                 options={ NEW_APPROVAL_OPTIONS } />
             </div>
@@ -176,8 +176,8 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
               <div key={ g.id } style={ { ...card, marginBottom: 0 } }>
                 <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }>
                   <div>
-                    <span style={ { fontWeight: 600, fontSize: 15 } }>{ g.subject || 'Unnamed' }</span>
-                    { g.total_participant_count != null && <span style={ { marginLeft: 8, fontSize: 12, color: '#666' } }>{ g.total_participant_count }/{ MAX_P }</span> }
+                    <span style={ { fontWeight: 600, fontSize: 'var(--text-md)' } }>{ g.subject || 'Unnamed' }</span>
+                    { g.total_participant_count != null && <span style={ { marginLeft: 8, fontSize: 'var(--text-xs)', color: '#666' } }>{ g.total_participant_count }/{ MAX_P }</span> }
                   </div>
                   <div style={ { display: 'flex', gap: 6 } }>
                     <button onClick={ () => viewDetail( g ) } style={ pill( sel?.id === g.id ) }>Details</button>
@@ -185,7 +185,7 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
                       style={ { ...pill( false ), background: '#fee2e2', color: '#991b1b', border: 'none' } }>Delete</button>
                   </div>
                 </div>
-                <div style={ { fontSize: 11, color: '#999', marginTop: 4 } }>{ g.id }</div>
+                <div style={ { fontSize: 'var(--text-xs)', color: '#999', marginTop: 4 } }>{ g.id }</div>
               </div>
             ) ) }
           </div>
@@ -195,7 +195,7 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
         { sel && (
           <div style={ { marginTop: 20, background: 'var(--bg-secondary)', padding: 20, borderRadius: 8, border: '1px solid var(--border)' } }>
             <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } }>
-              <h3 style={ { margin: 0, fontSize: 16 } }>{ detail?.subject || sel.subject || 'Group' }</h3>
+              <h3 style={ { margin: 0, fontSize: 'var(--text-base)' } }>{ detail?.subject || sel.subject || 'Group' }</h3>
               <div style={ { display: 'flex', gap: 6 } }>
                 <button onClick={ () => setShowSettings( !showSettings ) } style={ pill( showSettings ) }>⚙ Settings</button>
                 <button onClick={ () => { setSel( null ); setDetail( null ); setInviteLink( '' ); } } style={ pill( false ) }>Close</button>
@@ -203,7 +203,7 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
             </div>
 
             { detail && (
-              <div style={ { fontSize: 13, marginBottom: 16, display: 'grid', gap: 4 } }>
+              <div style={ { fontSize: 'var(--text-sm)', marginBottom: 16, display: 'grid', gap: 4 } }>
                 <div><span style={ { color: '#666' } }>Description:</span> { detail.description || 'None' }</div>
                 <div><span style={ { color: '#666' } }>Join mode:</span> { detail.join_approval_mode || 'auto_approve' }</div>
                 <div><span style={ { color: '#666' } }>Messaging:</span> { detail.messaging_permission === 'admins' ? '🔒 Admin-only' : '💬 Everyone can post' }</div>
@@ -216,31 +216,31 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
             {/* Settings Panel */ }
             { showSettings && (
               <div style={ card }>
-                <h4 style={ { fontSize: 14, margin: '0 0 12px' } }>Group Settings & Privacy</h4>
+                <h4 style={ { fontSize: 'var(--text-md)', margin: '0 0 12px' } }>Group Settings & Privacy</h4>
                 <div style={ { display: 'grid', gap: 10 } }>
                   <div style={ { display: 'flex', alignItems: 'center', gap: 8 } }>
-                    <span style={ { fontSize: 13, minWidth: 140 } }>Who can post:</span>
+                    <span style={ { fontSize: 'var(--text-sm)', minWidth: 140 } }>Who can post:</span>
                     <Select ariaLabel="Who can post" value={ detail?.messaging_permission || 'all' }
                       onChange={ v => handleUpdateSettings( 'messaging_permission', v ) }
                       options={ MESSAGING_PERMISSION_OPTIONS } style={ SETTING_SELECT_STYLE } />
                   </div>
                   <div style={ { display: 'flex', alignItems: 'center', gap: 8 } }>
-                    <span style={ { fontSize: 13, minWidth: 140 } }>Member visibility:</span>
+                    <span style={ { fontSize: 'var(--text-sm)', minWidth: 140 } }>Member visibility:</span>
                     <Select ariaLabel="Member visibility" value={ detail?.member_visibility || 'all' }
                       onChange={ v => handleUpdateSettings( 'member_visibility', v ) }
                       options={ MEMBER_VISIBILITY_OPTIONS } style={ SETTING_SELECT_STYLE } />
                   </div>
                   <div style={ { display: 'flex', alignItems: 'center', gap: 8 } }>
-                    <span style={ { fontSize: 13, minWidth: 140 } }>Join approval:</span>
+                    <span style={ { fontSize: 'var(--text-sm)', minWidth: 140 } }>Join approval:</span>
                     <Select ariaLabel="Join approval" value={ detail?.join_approval_mode || 'auto_approve' }
                       onChange={ v => handleUpdateSettings( 'join_approval_mode', v ) }
                       options={ JOIN_APPROVAL_OPTIONS } style={ SETTING_SELECT_STYLE } />
                   </div>
                   <div style={ { borderTop: '1px solid var(--border)', paddingTop: 10 } }>
-                    <span style={ { fontSize: 13, color: '#666' } }>Group Image (URL to square PNG/JPG):</span>
+                    <span style={ { fontSize: 'var(--text-sm)', color: '#666' } }>Group Image (URL to square PNG/JPG):</span>
                     <div style={ { display: 'flex', gap: 8, marginTop: 4 } }>
                       <input value={ imageUrl } onChange={ e => setImageUrl( e.target.value ) } placeholder="https://example.com/image.png"
-                        style={ { flex: 1, padding: '6px 10px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 } } />
+                        style={ { flex: 1, padding: '6px 10px', border: '1px solid #ddd', borderRadius: 4, fontSize: 'var(--text-sm)' } } />
                       <button onClick={ handleSetImage } style={ btn() }>Set Image</button>
                     </div>
                   </div>
@@ -250,10 +250,10 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
 
             {/* Invite Link */ }
             <div style={ card }>
-              <h4 style={ { fontSize: 14, margin: '0 0 8px' } }>Invite Link</h4>
+              <h4 style={ { fontSize: 'var(--text-md)', margin: '0 0 8px' } }>Invite Link</h4>
               { inviteLink ? (
                 <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }>
-                  <code style={ { fontSize: 12, background: '#f3f4f6', padding: '4px 8px', borderRadius: 4, wordBreak: 'break-all' } }>{ inviteLink }</code>
+                  <code style={ { fontSize: 'var(--text-xs)', background: '#f3f4f6', padding: '4px 8px', borderRadius: 4, wordBreak: 'break-all' } }>{ inviteLink }</code>
                   <button onClick={ () => { navigator.clipboard.writeText( inviteLink ); toast.success( 'Copied' ); } } style={ pill( false ) }>Copy</button>
                   <button onClick={ async () => { if ( await confirm( 'Reset link?' ) ) { const l = await api.resetGroupInviteLink( sel.id ); if ( l ) { setInviteLink( l ); toast.success( 'Reset' ); } } } }
                     style={ { ...pill( false ), color: '#991b1b', borderColor: '#fca5a5' } }>Reset</button>
@@ -266,7 +266,7 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
             {/* Join Requests — shown for approval_required groups, also always show with a load button */ }
             <div style={ card }>
               <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } }>
-                <h4 style={ { fontSize: 14, margin: 0 } }>Join Requests</h4>
+                <h4 style={ { fontSize: 'var(--text-md)', margin: 0 } }>Join Requests</h4>
                 <div style={ { display: 'flex', gap: 6 } }>
                   { joinReqs.length > 0 && (
                     <button onClick={ async () => {
@@ -280,11 +280,11 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
                   <button onClick={ async () => { setJoinReqs( await api.getGroupJoinRequests( sel.id ) ); } } style={ pill( false ) }>Refresh</button>
                 </div>
               </div>
-              { joinReqs.length === 0 ? <p style={ { fontSize: 12, color: '#666', margin: 0 } }>No pending requests</p> : (
+              { joinReqs.length === 0 ? <p style={ { fontSize: 'var(--text-xs)', color: '#666', margin: 0 } }>No pending requests</p> : (
                 <div style={ { display: 'grid', gap: 6 } }>
                   { joinReqs.map( ( r: any ) => (
                     <div key={ r.join_request_id } style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 4 } }>
-                      <span style={ { fontSize: 13 } }><MaskedWaId value={ r.wa_id } allowReveal /></span>
+                      <span style={ { fontSize: 'var(--text-sm)' } }><MaskedWaId value={ r.wa_id } allowReveal /></span>
                       <div style={ { display: 'flex', gap: 4 } }>
                         <button onClick={ async () => { await api.approveGroupJoinRequests( sel.id, [ r.join_request_id ] ); toast.success( 'Approved' ); setJoinReqs( await api.getGroupJoinRequests( sel.id ) ); viewDetail( sel ); } } style={ btn() }>Approve</button>
                         <button onClick={ async () => { await api.rejectGroupJoinRequests( sel.id, [ r.join_request_id ] ); toast.success( 'Rejected' ); setJoinReqs( await api.getGroupJoinRequests( sel.id ) ); } } style={ { ...btn( '#fee2e2', '#991b1b' ) } }>Reject</button>
@@ -298,13 +298,13 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
             {/* Participants */ }
             { detail?.participants && (
               <div style={ { marginBottom: 16 } }>
-                <h4 style={ { fontSize: 14, marginBottom: 8 } }>Participants ({ pCount })</h4>
+                <h4 style={ { fontSize: 'var(--text-md)', marginBottom: 8 } }>Participants ({ pCount })</h4>
                 <div style={ { display: 'flex', flexWrap: 'wrap', gap: 6 } }>
                   { ( detail.participants.data || detail.participants || [] ).map( ( p: any, i: number ) => (
-                    <span key={ i } style={ { padding: '4px 10px', background: 'var(--border)', borderRadius: 16, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 } }>
+                    <span key={ i } style={ { padding: '4px 10px', background: 'var(--border)', borderRadius: 16, fontSize: 'var(--text-xs)', display: 'flex', alignItems: 'center', gap: 4 } }>
                       <MaskedWaId value={ p.wa_id || p } allowReveal />
                       <button onClick={ async () => { if ( await confirm( `Remove ${p.wa_id || p}?` ) ) { await api.manageGroupParticipants( sel.id, [ p.wa_id || p ], 'remove' ); toast.success( 'Removed' ); viewDetail( sel ); } } }
-                        style={ { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 14, padding: 0 } }>×</button>
+                        style={ { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 'var(--text-md)', padding: 0 } }>×</button>
                     </span>
                   ) ) }
                 </div>
@@ -313,7 +313,7 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
 
             {/* Send Message — supports text, image, document */ }
             <div style={ card }>
-              <h4 style={ { fontSize: 14, margin: '0 0 8px' } }>Send Group Message</h4>
+              <h4 style={ { fontSize: 'var(--text-md)', margin: '0 0 8px' } }>Send Group Message</h4>
               <div style={ { display: 'flex', gap: 6, marginBottom: 8 } }>
                 { ( [ 'text', 'image', 'document' ] as const ).map( t => (
                   <button key={ t } onClick={ () => setMsgType( t ) } style={ pill( msgType === t ) }>{ t === 'text' ? '💬 Text' : t === 'image' ? '🖼 Image' : '📄 Document' }</button>
@@ -322,16 +322,16 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
               { msgType === 'text' ? (
                 <div style={ { display: 'flex', gap: 8 } }>
                   <input value={ msgText } onChange={ e => setMsgText( e.target.value ) } placeholder="Type a message..."
-                    style={ { flex: 1, padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 } }
+                    style={ { flex: 1, padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 'var(--text-md)' } }
                     onKeyDown={ e => e.key === 'Enter' && handleSend() } />
                   <button onClick={ handleSend } disabled={ sending } style={ btn() }>{ sending ? '...' : 'Send' }</button>
                 </div>
               ) : (
                 <div style={ { display: 'grid', gap: 8 } }>
                   <input value={ mediaUrl } onChange={ e => setMediaUrl( e.target.value ) } placeholder={ `${msgType === 'image' ? 'Image' : 'Document'} URL (https://...)` }
-                    style={ { padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 } } />
+                    style={ { padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 'var(--text-sm)' } } />
                   <input value={ caption } onChange={ e => setCaption( e.target.value ) } placeholder="Caption (optional)"
-                    style={ { padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 } } />
+                    style={ { padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 'var(--text-sm)' } } />
                   <button onClick={ handleSend } disabled={ sending } style={ { ...btn(), width: 'fit-content' } }>{ sending ? 'Sending...' : `Send ${msgType}` }</button>
                 </div>
               ) }

@@ -52,10 +52,10 @@ const boxStyle: React.CSSProperties = {
   padding: 18, marginBottom: 16,
 };
 const fieldStyle: React.CSSProperties = {
-  display: 'block', width: '100%', padding: '9px 12px', fontSize: 14,
+  display: 'block', width: '100%', padding: '9px 12px', fontSize: 'var(--text-md)',
   borderRadius: 8, border: '1px solid #cbd5d1', marginTop: 5,
 };
-const muted: React.CSSProperties = { color: '#66746f', fontSize: 12 };
+const muted: React.CSSProperties = { color: '#66746f', fontSize: 'var(--text-xs)' };
 const rowStyle: React.CSSProperties = {
   padding: '11px 0', borderBottom: '1px solid #e4e9e7', display: 'flex',
   alignItems: 'center', gap: 14, flexWrap: 'wrap',
@@ -343,7 +343,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
         {tab === 'products' && (
           <div style={{ display: 'grid', gap: 18, gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 350px), 1fr))' }}>
             <section style={boxStyle} aria-label="Products">
-              <h2 style={{ fontSize: 18, marginTop: 0 }}>Products</h2>
+              <h2 style={{ fontSize: 'var(--text-xl)', marginTop: 0 }}>Products</h2>
               <input style={fieldStyle} aria-label="Search products" placeholder="Search products"
                 value={search} onChange={e => setSearch(e.target.value)} />
               <div style={{ maxHeight: 530, overflowY: 'auto', marginTop: 12 }}>
@@ -367,7 +367,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
             <section style={boxStyle} aria-label="Product editor">
               {selected ? (
                 <>
-                  <h2 style={{ fontSize: 18, marginTop: 0 }}>Edit {selected.title}</h2>
+                  <h2 style={{ fontSize: 'var(--text-xl)', marginTop: 0 }}>Edit {selected.title}</h2>
                   <p style={muted}>Product ID {selected.id} · Slug /{selected.slug}/ · Version {selected.updatedAt}</p>
                   <label>Title
                     <input style={fieldStyle} value={editTitle}
@@ -462,7 +462,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
             </section>
 
             <section style={boxStyle} aria-label="Create draft product">
-              <h2 style={{ fontSize: 18, marginTop: 0 }}>Create draft</h2>
+              <h2 style={{ fontSize: 'var(--text-xl)', marginTop: 0 }}>Create draft</h2>
               <p style={muted}>New products start unpublished with zero available stock.</p>
               <label>Product name
                 <input style={fieldStyle} value={newTitle}
@@ -499,7 +499,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
 
         {tab === 'orders' && (
           <section style={boxStyle}>
-            <h2 style={{ fontSize: 18 }}>AWS order history</h2>
+            <h2 style={{ fontSize: 'var(--text-xl)' }}>AWS order history</h2>
             <p style={muted}>Orders are read from the existing native order service.</p>
             {orders.length ? (
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -523,12 +523,12 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
 
         {tab === 'meta' && (
           <section style={boxStyle}>
-            <h2 style={{ fontSize: 18 }}>Meta commerce synchronization</h2>
+            <h2 style={{ fontSize: 'var(--text-xl)' }}>Meta commerce synchronization</h2>
             <p>Product prices come from AWS ProductsTable. Meta is a projected sales channel,
               not the product database. Sync application and approvals stay owner-gated.</p>
             {!metaCatalog ? <p>Meta plan not loaded.</p> : (
               <div style={{ marginTop: 12 }}>
-                <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 600 }}>WhatsApp Catalog Approval</h3>
+                <h3 style={{ margin: '0 0 4px', fontSize: 'var(--text-base)', fontWeight: 600 }}>WhatsApp Catalog Approval</h3>
                 <p style={muted}>Changes are published to Meta only after this exact plan is approved
                   AND the release gates are open. Apply writes to the live catalog; everything before
                   it is reversible.</p>
@@ -543,11 +543,11 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                   ] as [string, React.ReactNode][]).map(([label, value]) => (
                     <div key={label} style={{ ...boxStyle, background: '#f8faf8', minWidth: 110, padding: '8px 12px' }}>
                       <span style={muted}>{label}</span><br />
-                      <span style={{ fontWeight: 600, fontSize: 13 }}>{value}</span>
+                      <span style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{value}</span>
                     </div>
                   ))}
                 </div>
-                <p style={{ fontSize: 12 }}>
+                <p style={{ fontSize: 'var(--text-xs)' }}>
                   <strong>Exact plan hash</strong><br />
                   <code style={{ wordBreak: 'break-all' }}>{metaCatalog.planHash || metaCatalog.currentPlanHash || '—'}</code>
                   {(metaCatalog.blocked?.length || 0) > 0 && (
@@ -565,11 +565,11 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                     disabled={metaCatalogBusy || !['APPLYING', 'APPLY_SUBMITTED', 'APPLIED'].includes(metaCatalog.approval?.status || '')}>Readback provider</button>
                 </div>
                 {(!metaCatalog.enabled || metaCatalog.dryRun !== false) && (
-                  <p style={{ marginTop: 10, color: '#92400e', fontSize: 12 }}>
+                  <p style={{ marginTop: 10, color: '#92400e', fontSize: 'var(--text-xs)' }}>
                     Apply is intentionally locked: production catalog writes are disabled / dry-run.
                     Open the release gates (enabled + dry-run off) before Apply can run.</p>
                 )}
-                {metaCatalogMessage && <p style={{ marginTop: 10, fontSize: 12 }} role="status">{metaCatalogMessage}</p>}
+                {metaCatalogMessage && <p style={{ marginTop: 10, fontSize: 'var(--text-xs)' }} role="status">{metaCatalogMessage}</p>}
               </div>
             )}
           </section>

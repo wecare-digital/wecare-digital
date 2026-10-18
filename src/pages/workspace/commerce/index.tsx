@@ -47,7 +47,7 @@ const ModuleHomeOff: React.FC = () => (
       </p>
       <p style={ { fontSize: 'var(--text-sm)', color: '#92400e', lineHeight: 1.6, margin: 0 } }>
         Set
-        <code style={ { margin: '0 4px', padding: '1px 6px', borderRadius: 4, background: 'var(--bg)', fontSize: 12 } }>NEXT_PUBLIC_ENABLE_COMMERCE_MODULE=true</code>
+        <code style={ { margin: '0 4px', padding: '1px 6px', borderRadius: 4, background: 'var(--bg)', fontSize: 'var(--text-xs)' } }>NEXT_PUBLIC_ENABLE_COMMERCE_MODULE=true</code>
         to gather them here.
       </p>
     </div>

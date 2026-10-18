@@ -26,8 +26,8 @@ import {
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const card: React.CSSProperties = { background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: 18, marginBottom: 16 };
-const label: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 };
-const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14, marginBottom: 10, boxSizing: 'border-box' };
+const label: React.CSSProperties = { display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, color: '#374151', marginBottom: 4 };
+const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 'var(--text-md)', marginBottom: 10, boxSizing: 'border-box' };
 
 const WABAS: { key: WabaKey; label: string }[] = [
     { key: 'WABA1', label: 'WABA1 · +91 93309 94400' },
@@ -166,14 +166,14 @@ const CtwaAdsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
     const body = (
         <div style={ { maxWidth: 1000, margin: '0 auto', padding: embedded ? 0 : 20 } }>
             <h1 style={ { fontSize: 22, fontWeight: 800, marginBottom: 4 } }>Ads that Click to WhatsApp</h1>
-            <p style={ { color: 'var(--text-muted)', fontSize: 14, marginBottom: 16 } }>
+            <p style={ { color: 'var(--text-muted)', fontSize: 'var(--text-md)', marginBottom: 16 } }>
                 Create ads that open a WhatsApp chat with your business. Ads are created <b>paused</b> — nothing
                 spends until you publish and Meta approves. Uses the Marketing API (<code>ads_management</code>).
             </p>
 
             <div style={ { ...card, background: '#fffbeb', borderColor: '#fde68a' } }>
-                <b style={ { fontSize: 13 } }>Prerequisite</b>
-                <p style={ { fontSize: 13, color: '#92400e', margin: '4px 0 0' } }>
+                <b style={ { fontSize: 'var(--text-sm)' } }>Prerequisite</b>
+                <p style={ { fontSize: 'var(--text-sm)', color: '#92400e', margin: '4px 0 0' } }>
                     The Facebook Page used for the ad must have a WhatsApp Business number connected
                     (Meta Business Suite → Page → Settings → WhatsApp). Without it, Meta rejects the ad set
                     with &quot;Page with WhatsApp Business account required&quot;.
@@ -205,7 +205,7 @@ const CtwaAdsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
 
             {/* Create */ }
             <div style={ card }>
-                <h2 style={ { fontSize: 16, fontWeight: 700, marginBottom: 10 } }>Create ad</h2>
+                <h2 style={ { fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: 10 } }>Create ad</h2>
                 <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
                     <div>
                         <label style={ label }>WhatsApp number (destination)</label>
@@ -231,7 +231,7 @@ const CtwaAdsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
                     <div>
                         <label style={ label }>Ad image (optional)</label>
                         <input style={ { ...input, padding: 6 } } type="file" accept="image/*" onChange={ onUpload } />
-                        { imageHash && <span style={ { fontSize: 11, color: '#065f46' } }>image_hash set ✓</span> }
+                        { imageHash && <span style={ { fontSize: 'var(--text-xs)', color: '#065f46' } }>image_hash set ✓</span> }
                     </div>
                     <div style={ { gridColumn: '1 / span 2' } }><label style={ label }>Greeting message (shown in chat)</label><input style={ input } value={ greeting } onChange={ e => setGreeting( e.target.value ) } /></div>
                     <div style={ { gridColumn: '1 / span 2' } }><label style={ label }>Autofill message (pre-typed for the customer)</label><input style={ input } value={ autofill } onChange={ e => setAutofill( e.target.value ) } /></div>
@@ -242,13 +242,13 @@ const CtwaAdsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
             {/* Ads list */ }
             <div style={ card }>
                 <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } }>
-                    <h2 style={ { fontSize: 16, fontWeight: 700, margin: 0 } }>Your ads</h2>
+                    <h2 style={ { fontSize: 'var(--text-base)', fontWeight: 700, margin: 0 } }>Your ads</h2>
                     <Button onClick={ loadAds } disabled={ busy !== '' }>{ busy === 'ads' ? 'Loading…' : 'Refresh' }</Button>
                 </div>
                 { ads.length === 0
-                    ? <div style={ { fontSize: 13, color: '#9ca3af' } }>No ads yet.</div>
+                    ? <div style={ { fontSize: 'var(--text-sm)', color: '#9ca3af' } }>No ads yet.</div>
                     : (
-                        <table style={ { width: '100%', fontSize: 13, borderCollapse: 'collapse' } }>
+                        <table style={ { width: '100%', fontSize: 'var(--text-sm)', borderCollapse: 'collapse' } }>
                             <thead><tr style={ { textAlign: 'left', color: 'var(--text-muted)' } }>
                                 <th style={ { padding: 6 } }>Name</th><th>Status</th><th>Effective</th><th></th>
                             </tr></thead>
@@ -260,8 +260,8 @@ const CtwaAdsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
                                         <td>{ a.effective_status }</td>
                                         <td style={ { textAlign: 'right' } }>
                                             { a.status === 'ACTIVE'
-                                                ? <button onClick={ () => doPause( a.id ) } style={ { fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer' } }>Pause</button>
-                                                : <button onClick={ () => doPublish( a.id ) } style={ { fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', background: '#059669', color: '#fff', cursor: 'pointer' } }>Publish</button> }
+                                                ? <button onClick={ () => doPause( a.id ) } style={ { fontSize: 'var(--text-xs)', padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer' } }>Pause</button>
+                                                : <button onClick={ () => doPublish( a.id ) } style={ { fontSize: 'var(--text-xs)', padding: '4px 10px', borderRadius: 6, border: 'none', background: '#059669', color: '#fff', cursor: 'pointer' } }>Publish</button> }
                                         </td>
                                     </tr>
                                 ) ) }

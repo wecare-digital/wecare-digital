@@ -1075,7 +1075,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                             title={ ( m as any ).revokeResolution === 'inferred'
                                                                 ? 'Matched by timing — WhatsApp does not say which message was deleted.'
                                                                 : undefined }
-                                                            style={ { fontSize: 11, fontStyle: 'italic', opacity: 0.7, marginTop: 2 } }
+                                                            style={ { fontSize: 'var(--text-xs)', fontStyle: 'italic', opacity: 0.7, marginTop: 2 } }
                                                         >
                                                             Deleted by sender{ ( m as any ).revokeResolution === 'inferred' ? ' · matched by timing' : '' }
                                                         </span>

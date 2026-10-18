@@ -238,7 +238,7 @@ const PushPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
                 <div className="push-field">
                   <label>Custom Data (JSON, optional)</label>
-                  <textarea rows={ 2 } value={ pushData } onChange={ e => setPushData( e.target.value ) } placeholder='{"url": "/workspace/engage/inbox", "type": "alert"}' style={ { fontFamily: 'monospace', fontSize: 13 } } />
+                  <textarea rows={ 2 } value={ pushData } onChange={ e => setPushData( e.target.value ) } placeholder='{"url": "/workspace/engage/inbox", "type": "alert"}' style={ { fontFamily: 'monospace', fontSize: 'var(--text-sm)' } } />
                 </div>
 
                 {/* Preview */ }
@@ -286,9 +286,9 @@ const PushPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                       { devices.map( ( d, i ) => (
                         <tr key={ i }>
                           <td><span className={ `push-badge ${d.platform}` }>{ d.platform === 'ios' ? 'iOS' : 'Android' }</span></td>
-                          <td style={ { fontSize: 13 } }>{ d.userId }</td>
-                          <td style={ { fontFamily: 'monospace', fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>{ d.deviceId }</td>
-                          <td style={ { fontSize: 12, color: 'var(--text-muted)' } }>{ new Date( d.registeredAt ).toLocaleString() }</td>
+                          <td style={ { fontSize: 'var(--text-sm)' } }>{ d.userId }</td>
+                          <td style={ { fontFamily: 'monospace', fontSize: 'var(--text-xs)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>{ d.deviceId }</td>
+                          <td style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ new Date( d.registeredAt ).toLocaleString() }</td>
                           <td><button className="push-icon-btn" title="Remove"><TrashIcon /></button></td>
                         </tr>
                       ) ) }
@@ -312,14 +312,14 @@ const PushPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                     { logs.map( l => (
                       <tr key={ l.id }>
                         <td>
-                          <div style={ { fontWeight: 500, fontSize: 13 } }>{ l.title }</div>
-                          <div style={ { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }>{ l.body.length > 60 ? l.body.slice( 0, 60 ) + '...' : l.body }</div>
+                          <div style={ { fontWeight: 500, fontSize: 'var(--text-sm)' } }>{ l.title }</div>
+                          <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 2 } }>{ l.body.length > 60 ? l.body.slice( 0, 60 ) + '...' : l.body }</div>
                         </td>
                         <td><span className={ `push-badge ${l.platform}` }>{ l.platform === 'all' ? 'All' : l.platform === 'ios' ? 'iOS' : 'Android' }</span></td>
-                        <td style={ { fontSize: 12 } }>{ l.targetType }</td>
+                        <td style={ { fontSize: 'var(--text-xs)' } }>{ l.targetType }</td>
                         <td style={ { fontWeight: 600, color: 'var(--accent)' } }>{ l.sent }</td>
                         <td style={ { fontWeight: 600, color: l.failed > 0 ? '#dc2626' : 'var(--text-muted)' } }>{ l.failed }</td>
-                        <td style={ { fontSize: 12, color: 'var(--text-muted)' } }>{ new Date( l.sentAt ).toLocaleString() }</td>
+                        <td style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ new Date( l.sentAt ).toLocaleString() }</td>
                       </tr>
                     ) ) }
                   </tbody>

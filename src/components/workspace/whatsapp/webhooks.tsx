@@ -103,7 +103,7 @@ const WebhooksPage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
         <div style={ { display: 'flex', gap: 8, marginBottom: 20 } }>
           { WABAS.map( w => (
             <button key={ w.id } onClick={ () => setSelectedWaba( w ) }
-              style={ { padding: '8px 16px', borderRadius: 6, border: selectedWaba.id === w.id ? '2px solid var(--accent)' : '1px solid #ddd', background: selectedWaba.id === w.id ? 'var(--bg-secondary)' : '#fff', cursor: 'pointer', fontSize: 13 } }>
+              style={ { padding: '8px 16px', borderRadius: 6, border: selectedWaba.id === w.id ? '2px solid var(--accent)' : '1px solid #ddd', background: selectedWaba.id === w.id ? 'var(--bg-secondary)' : '#fff', cursor: 'pointer', fontSize: 'var(--text-sm)' } }>
               { w.name } ({ w.display })
             </button>
           ) ) }
@@ -111,31 +111,31 @@ const WebhooksPage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
 
         {/* Meta Webhook Configuration */ }
         <div style={ { marginBottom: 24, background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: 16 } }>
-          <h3 style={ { fontSize: 16, marginBottom: 12, color: '#0369a1' } }>Meta App Webhook Configuration</h3>
-          <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 13 } }>
-            <div><span style={ { color: '#666', fontWeight: 500 } }>Callback URL:</span><br /><code style={ { fontSize: 12, background: '#e0f2fe', padding: '2px 6px', borderRadius: 4 } }>{ META_WEBHOOK_CONFIG.callbackUrl }</code></div>
+          <h3 style={ { fontSize: 'var(--text-base)', marginBottom: 12, color: '#0369a1' } }>Meta App Webhook Configuration</h3>
+          <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 'var(--text-sm)' } }>
+            <div><span style={ { color: '#666', fontWeight: 500 } }>Callback URL:</span><br /><code style={ { fontSize: 'var(--text-xs)', background: '#e0f2fe', padding: '2px 6px', borderRadius: 4 } }>{ META_WEBHOOK_CONFIG.callbackUrl }</code></div>
             <div><span style={ { color: '#666', fontWeight: 500 } }>Verify Token:</span><br /><span>Configured server-side</span></div>
             <div><span style={ { color: '#666', fontWeight: 500 } }>WABA1 App:</span> { META_WEBHOOK_CONFIG.waba1.appId } ({ META_WEBHOOK_CONFIG.waba1.appName })</div>
             <div><span style={ { color: '#666', fontWeight: 500 } }>WABA2 App:</span> { META_WEBHOOK_CONFIG.waba2.appId } ({ META_WEBHOOK_CONFIG.waba2.appName })</div>
           </div>
-          <p style={ { fontSize: 12, color: '#666', marginTop: 8, marginBottom: 0 } }>
+          <p style={ { fontSize: 'var(--text-xs)', color: '#666', marginTop: 8, marginBottom: 0 } }>
             Configure in Meta App Dashboard → WhatsApp → Configuration → Callback URL
           </p>
         </div>
 
         {/* Active Webhook Endpoints */ }
         <div style={ { marginBottom: 24 } }>
-          <h3 style={ { fontSize: 16, marginBottom: 12 } }>Active Webhook Endpoints</h3>
+          <h3 style={ { fontSize: 'var(--text-base)', marginBottom: 12 } }>Active Webhook Endpoints</h3>
           <div style={ { display: 'grid', gap: 10 } }>
             { EXISTING_WEBHOOKS.map( wh => (
               <div key={ wh.name } style={ { background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: 14 } }>
                 <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }>
-                  <span style={ { fontWeight: 600, fontSize: 14 } }>{ wh.name }</span>
-                  <span style={ { padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, color: '#fff', background: 'var(--accent)' } }>{ wh.status }</span>
+                  <span style={ { fontWeight: 600, fontSize: 'var(--text-md)' } }>{ wh.name }</span>
+                  <span style={ { padding: '2px 8px', borderRadius: 4, fontSize: 'var(--text-xs)', fontWeight: 600, color: '#fff', background: 'var(--accent)' } }>{ wh.status }</span>
                 </div>
-                <div style={ { fontSize: 12, color: '#666', marginTop: 4 } }>URL: { wh.url }</div>
-                <div style={ { fontSize: 12, color: '#666' } }>Lambda: { wh.lambda } | Verification: { wh.verification }</div>
-                <div style={ { fontSize: 12, color: '#666' } }>Fields: { wh.fields.join( ', ' ) }</div>
+                <div style={ { fontSize: 'var(--text-xs)', color: '#666', marginTop: 4 } }>URL: { wh.url }</div>
+                <div style={ { fontSize: 'var(--text-xs)', color: '#666' } }>Lambda: { wh.lambda } | Verification: { wh.verification }</div>
+                <div style={ { fontSize: 'var(--text-xs)', color: '#666' } }>Fields: { wh.fields.join( ', ' ) }</div>
               </div>
             ) ) }
           </div>
@@ -144,23 +144,23 @@ const WebhooksPage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
         {/* App Subscriptions */ }
         <div style={ { marginBottom: 24 } }>
           <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } }>
-            <h3 style={ { fontSize: 16, margin: 0 } }>App Subscriptions (WABA: { selectedWaba.id })</h3>
+            <h3 style={ { fontSize: 'var(--text-base)', margin: 0 } }>App Subscriptions (WABA: { selectedWaba.id })</h3>
             <div style={ { display: 'flex', gap: 8, alignItems: 'center' } }>
               <LastSyncIndicator at={ lastSync } onSync={ () => loadSubs( selectedWaba ) } syncing={ loading } />
-              <button onClick={ handleSubscribe } disabled={ subscribing } style={ { padding: '6px 14px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12 } }>
+              <button onClick={ handleSubscribe } disabled={ subscribing } style={ { padding: '6px 14px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 'var(--text-xs)' } }>
                 { subscribing ? '...' : 'Subscribe App' }
               </button>
-              <button onClick={ handleUnsubscribe } disabled={ subscribing } style={ { padding: '6px 14px', background: '#fff', color: 'var(--accent)', border: '1px solid var(--accent)', borderRadius: 6, cursor: 'pointer', fontSize: 12 } }>
+              <button onClick={ handleUnsubscribe } disabled={ subscribing } style={ { padding: '6px 14px', background: '#fff', color: 'var(--accent)', border: '1px solid var(--accent)', borderRadius: 6, cursor: 'pointer', fontSize: 'var(--text-xs)' } }>
                 Unsubscribe
               </button>
             </div>
           </div>
           { loading ? <p>Loading...</p> : subscriptions.length === 0 ? (
-            <p style={ { color: '#666', fontSize: 13 } }>No subscriptions found. Click &quot;Subscribe App&quot; to subscribe.</p>
+            <p style={ { color: '#666', fontSize: 'var(--text-sm)' } }>No subscriptions found. Click &quot;Subscribe App&quot; to subscribe.</p>
           ) : (
             <div style={ { display: 'grid', gap: 8 } }>
               { subscriptions.map( ( sub: any, i: number ) => (
-                <div key={ i } style={ { background: '#fff', border: '1px solid var(--border)', borderRadius: 6, padding: 12, fontSize: 13 } }>
+                <div key={ i } style={ { background: '#fff', border: '1px solid var(--border)', borderRadius: 6, padding: 12, fontSize: 'var(--text-sm)' } }>
                   <div style={ { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } }>
                     <strong>{ sub.name || sub.whatsapp_business_api_data?.name || `App ${i + 1}` }</strong>
                     <StatusBadge status="ACTIVE" />
@@ -174,8 +174,8 @@ const WebhooksPage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
 
         {/* Available Webhook Fields Reference */ }
         <div>
-          <h3 style={ { fontSize: 16, marginBottom: 12 } }>Available Webhook Fields</h3>
-          <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
+          <h3 style={ { fontSize: 'var(--text-base)', marginBottom: 12 } }>Available Webhook Fields</h3>
+          <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
             <thead>
               <tr style={ { background: 'var(--bg-secondary)' } }>
                 <th style={ { padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--border)' } }>Field</th>

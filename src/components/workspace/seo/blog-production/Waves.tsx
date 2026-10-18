@@ -116,21 +116,21 @@ const BlogProductionBatches: React.FC<PageProps> = ( { signOut, user, embedded }
   const body = (
       <div className="inner-page">
         <h1 className="inner-page-title">Blog Production</h1>
-        <p style={ { color: 'rgba(0,0,0,.54)', fontSize: 14, maxWidth: 760 } }>
+        <p style={ { color: 'rgba(0,0,0,.54)', fontSize: 'var(--text-md)', maxWidth: 760 } }>
           A batch holds the sources for one production wave. Every total below is computed from the
           source records on each load, so it cannot disagree with them.
         </p>
 
         { error && (
-          <div role="alert" style={ { background: '#fef2f2', color: '#b91c1c', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 14 } }>
+          <div role="alert" style={ { background: '#fef2f2', color: '#b91c1c', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 'var(--text-md)' } }>
             { error }
           </div>
         ) }
 
         <div className="card" style={ { marginBottom: 20, padding: 16 } }>
-          <h2 style={ { fontSize: 16, margin: '0 0 12px' } }>New wave</h2>
+          <h2 style={ { fontSize: 'var(--text-base)', margin: '0 0 12px' } }>New wave</h2>
           <div style={ { display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' } }>
-            <label style={ { display: 'flex', flexDirection: 'column', fontSize: 13, gap: 4 } }>
+            <label style={ { display: 'flex', flexDirection: 'column', fontSize: 'var(--text-sm)', gap: 4 } }>
               Name
               <input value={ form.name } onChange={ event => setForm( { ...form, name: event.target.value } ) }
                 style={ { padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, minWidth: 240 } } />
@@ -145,21 +145,21 @@ const BlogProductionBatches: React.FC<PageProps> = ( { signOut, user, embedded }
             <Select label="Article class" value={ form.articleClass }
               onChange={ v => setForm( { ...form, articleClass: v } ) }
               options={ classOptions } />
-            <label style={ { display: 'flex', flexDirection: 'column', fontSize: 13, gap: 4, flex: 1, minWidth: 220 } }>
+            <label style={ { display: 'flex', flexDirection: 'column', fontSize: 'var(--text-sm)', gap: 4, flex: 1, minWidth: 220 } }>
               Description
               <input value={ form.description } onChange={ event => setForm( { ...form, description: event.target.value } ) }
                 style={ { padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6 } } />
             </label>
             <button onClick={ () => { void create(); } } disabled={ !form.name.trim() || busy === 'create' }
-              style={ { padding: '9px 18px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: 14 } }>
+              style={ { padding: '9px 18px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: 'var(--text-md)' } }>
               { busy === 'create' ? 'Creating…' : 'Create wave' }
             </button>
           </div>
         </div>
 
         <div className="card" style={ { overflow: 'auto' } }>
-          <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
-            <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 13, color: 'var(--text-muted)' } }>
+          <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
+            <caption style={ { captionSide: 'top', textAlign: 'left', padding: '10px 12px', fontSize: 'var(--text-sm)', color: 'var(--text-muted)' } }>
               Production waves, newest first
             </caption>
             <thead>
@@ -183,18 +183,18 @@ const BlogProductionBatches: React.FC<PageProps> = ( { signOut, user, embedded }
                     <td style={ td }>
                       <a href={ `/workspace/seo/blog-production?tab=batch&id=${ encodeURIComponent( batch.batchId ) }` }
                         style={ { color: 'var(--accent)', fontWeight: 600 } }>{ batch.name }</a>
-                      <div style={ { color: 'var(--text-muted)', fontSize: 11 } }>
+                      <div style={ { color: 'var(--text-muted)', fontSize: 'var(--text-xs)' } }>
                         { batch.defaultCategory } · { batch.articleClass }
                       </div>
                       { batch.description && (
-                        <div style={ { color: '#9ca3af', fontSize: 11 } }>{ batch.description }</div>
+                        <div style={ { color: '#9ca3af', fontSize: 'var(--text-xs)' } }>{ batch.description }</div>
                       ) }
                     </td>
                     <td style={ { ...td, color: STATUS_COLOUR[ batch.status ] || '#374151', fontWeight: 600 } }>
                       { batch.status }
                       { /* Shown only when the cached value has fallen behind the derived one. */ }
                       { lagging && (
-                        <div style={ { color: '#9ca3af', fontWeight: 400, fontSize: 11 } }>
+                        <div style={ { color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' } }>
                           cached: { batch.storedStatus }
                         </div>
                       ) }
@@ -212,7 +212,7 @@ const BlogProductionBatches: React.FC<PageProps> = ( { signOut, user, embedded }
                       { batch.status !== 'CLOSED' && (
                         <button onClick={ () => { void close( batch.batchId ); } } disabled={ busy === batch.batchId }
                           aria-label={ `Close the wave ${ batch.name }` }
-                          style={ { color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: 0 } }>
+                          style={ { color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--text-sm)', padding: 0 } }>
                           { busy === batch.batchId ? 'Closing…' : 'Close' }
                         </button>
                       ) }

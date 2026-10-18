@@ -132,7 +132,7 @@ const CodeRepo: React.FC<PageProps> = ({ signOut, user, embedded }) => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 20, color: 'var(--accent)' }}>Code Repository</h2>
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
+            <p style={{ margin: '4px 0 0', fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
               {CODE_ASSETS.length} assets · Browse, search, and review all backend code
             </p>
           </div>
@@ -145,7 +145,7 @@ const CodeRepo: React.FC<PageProps> = ({ signOut, user, embedded }) => {
             placeholder="Search flows, lambdas, templates..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--lime)', borderRadius: 8, fontSize: 13 }}
+            style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--lime)', borderRadius: 8, fontSize: 'var(--text-sm)' }}
           />
           {/* The lime border this control carried is NOT reproduced. Lime is the actionable
               colour in this system and must not become a passive control fill or edge, so the
@@ -162,8 +162,8 @@ const CodeRepo: React.FC<PageProps> = ({ signOut, user, embedded }) => {
         {/* Asset List */}
         {Object.entries(grouped).map(([category, assets]) => (
           <div key={category} style={{ marginBottom: 24 }}>
-            <h3 style={{ fontSize: 15, color: 'var(--accent)', margin: '0 0 10px', borderBottom: '1px solid var(--lime)', paddingBottom: 6 }}>
-              {category} <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 12 }}>({assets.length})</span>
+            <h3 style={{ fontSize: 'var(--text-md)', color: 'var(--accent)', margin: '0 0 10px', borderBottom: '1px solid var(--lime)', paddingBottom: 6 }}>
+              {category} <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>({assets.length})</span>
             </h3>
             {assets.map(asset => (
               <div
@@ -185,17 +185,17 @@ const CodeRepo: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                       display: 'inline-block',
                       padding: '2px 8px',
                       borderRadius: 4,
-                      fontSize: 11,
+                      fontSize: 'var(--text-xs)',
                       fontWeight: 600,
                       background: TYPE_COLORS[asset.type] || 'var(--border)',
                       color: 'var(--accent)',
                     }}>
                       {TYPE_LABELS[asset.type] || asset.type}
                     </span>
-                    <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--accent)' }}>{asset.name}</span>
+                    <span style={{ fontSize: 'var(--text-md)', fontWeight: 500, color: 'var(--accent)' }}>{asset.name}</span>
                     {asset.status && (
                       <span style={{
-                        fontSize: 11,
+                        fontSize: 'var(--text-xs)',
                         padding: '1px 6px',
                         borderRadius: 4,
                         background: asset.status === 'Published' ? 'var(--lime)' : '#fef3c7',
@@ -206,16 +206,16 @@ const CodeRepo: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                       </span>
                     )}
                   </div>
-                  <span style={{ fontSize: 12, color: '#9ca3af' }}>{expandedId === asset.id ? '▲' : '▼'}</span>
+                  <span style={{ fontSize: 'var(--text-xs)', color: '#9ca3af' }}>{expandedId === asset.id ? '▲' : '▼'}</span>
                 </div>
-                <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                <p style={{ margin: '4px 0 0', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', lineHeight: 1.4 }}>
                   {asset.description}
                 </p>
                 {expandedId === asset.id && (
-                  <div style={{ marginTop: 10, padding: '8px 10px', background: '#f0f2f5', borderRadius: 6, fontSize: 12 }}>
+                  <div style={{ marginTop: 10, padding: '8px 10px', background: '#f0f2f5', borderRadius: 6, fontSize: 'var(--text-xs)' }}>
                     <div style={{ marginBottom: 4 }}>
                       <span style={{ color: 'var(--text-muted)' }}>Path: </span>
-                      <code style={{ color: 'var(--accent)', fontFamily: 'monospace', fontSize: 11 }}>{asset.path}</code>
+                      <code style={{ color: 'var(--accent)', fontFamily: 'monospace', fontSize: 'var(--text-xs)' }}>{asset.path}</code>
                     </div>
                     <div>
                       <span style={{ color: 'var(--text-muted)' }}>Type: </span>
