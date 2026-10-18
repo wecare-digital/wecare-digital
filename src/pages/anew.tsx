@@ -8,8 +8,8 @@ import { productBySlug } from '../content/products';
 import { listPublicBlogPosts, listBlogCards, type BlogCard } from '../lib/public-blog';
 
 /** /anew/ owns its URL and static seed. The complete card index is fetched after hydration,
- * using the same static transport as /blog/. Four cards per category keep initial content
- * useful for readers and crawlers without serialising the corpus into __NEXT_DATA__.
+ * using the same static transport as /blog/. Three cards per category match the editorial rail page
+ * while keeping initial content useful for readers and crawlers without serialising the corpus.
  * Keep /anew registered in PUBLIC_PAGE_META, PUBLIC_EXACT and the generated catalogue.
  */
 
@@ -55,7 +55,7 @@ export const getStaticProps: GetStaticProps<AnewPageProps> = async () => {
     const category = card.category || '';
     const count = counts.get( category ) || 0;
     counts.set( category, count + 1 );
-    return count < 4;
+    return count < 3;
   } );
   return { props: { blogCards: initialCards, blogCategories } };
 };
