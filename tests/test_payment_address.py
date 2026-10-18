@@ -104,3 +104,16 @@ def test_unknown_channel_precedes_address_access(channel):
     with pytest.raises(pa.UnpayableAddress) as exc:
         pa.assert_payable(None, channel=channel)
     assert exc.value.code == "UNKNOWN_CHANNEL"
+
+
+@pytest.mark.parametrize("name,expected", list(pa.india_address.INDIA_SUBDIVISIONS.items()))
+def test_indian_state_codes_share_the_exact_name_tax_and_delivery_mapping(name, expected):
+    for value in (name, expected[0], expected[0].split("-", 1)[1], expected[0].lower()):
+        assert pa.india_address.india_subdivision(value) == expected
+        pa.assert_payable(_india(state=value), channel=pa.WHATSAPP_ORDER_DETAILS)
+
+
+@pytest.mark.parametrize("code", ["XX", "IN-XX", "US-WB", "WB-UNKNOWN"])
+def test_unrecognized_state_codes_are_still_refused(code):
+    with pytest.raises(pa.UnpayableAddress):
+        pa.assert_payable(_india(state=code), channel=pa.WHATSAPP_ORDER_DETAILS)

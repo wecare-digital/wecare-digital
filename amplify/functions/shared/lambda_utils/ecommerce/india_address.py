@@ -127,6 +127,13 @@ def india_subdivision(state: Any) -> tuple:
     key = INDIA_ALIASES.get(key, key)
     resolved = INDIA_SUBDIVISIONS.get(key)
     if resolved is None:
+        # Stored CRM profiles also use ISO subdivisions and their two-letter suffix.
+        # Derive accepted codes from the same tax/delivery table; never guess a state.
+        code = key.upper()
+        iso_code = code if code.startswith("IN-") else "IN-" + code
+        resolved = next((value for value in INDIA_SUBDIVISIONS.values()
+                         if value[0] == iso_code), None)
+    if resolved is None:
         raise UnmappableAddress(
             f"no ISO 3166-2 subdivision is mapped for the Indian state {str(state or '')!r}. "
             f"The subdivision is the place of supply and decides the CGST/SGST versus IGST "
