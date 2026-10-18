@@ -147,7 +147,15 @@ describe( 'Grahak OS five approved visual fixes', () => {
     expect( avatarMarkup ).not.toContain( '>W<' );
 
     expect( source ).toContain( '.verified-badge{width:18px;height:18px;background:#25d366' );
-    expect( source ).toContain( '.msg.sent{background:#d9fdd3' );
+    expect( source ).toContain( 'className="msg sent msg-home-green"' );
+    expect( source ).toContain( 'className="msg sent msg-home-blue"' );
+    expect( source ).toContain( 'className="msg received msg-home-amber"' );
+    expect( source ).toContain( '.msg.msg-home-green{background:#e0f7c8}' );
+    expect( source ).toContain( '.msg.msg-home-blue{background:#dbeafe}' );
+    expect( source ).toContain( '.msg.msg-home-amber{background:#fef3c7}' );
+    expect( source ).toContain( '.msg.sent.msg-home-green::before{border-top-color:#e0f7c8}' );
+    expect( source ).toContain( '.msg.sent.msg-home-blue::before{border-top-color:#dbeafe}' );
+    expect( source ).toContain( '.msg.received.msg-home-amber::before{border-top-color:#fef3c7}' );
     // Renamed .tab -> .pp-tab so the page owns the control outright: the bare .tab
     // class is declared unscoped in Pages.css and Layout.css, which were supplying
     // min-height, box-shadow, font-family and five more properties this page never
@@ -253,13 +261,13 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     // The existing WhatsApp door stays exactly once in this steps block, while the fresh
     // catalog checkout is mounted separately without duplicating the visible ₹899 price.
     expect( source ).toContain( 'className="api-steps-ctas"' );
-    expect( source ).toContain( '<a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>' );
-    // The steps block now carries EXACTLY ONE WhatsApp CTA: "Get Started on WhatsApp".
+    expect( source ).toContain( '<a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Checkout on WhatsApp &#8594;</a>' );
+    // The steps block now carries EXACTLY ONE WhatsApp CTA: "Checkout on WhatsApp".
     // The redundant second demo pill here was removed on owner instruction; the lighter
     // "Open demo in WhatsApp" link lives only beneath the large API code panel.
     const stepsCtaCount = ( stepsCtas.match( /className="gos-wa-cta"/g ) || [] ).length;
     expect( stepsCtaCount ).toBe( 1 );
-    expect( stepsCtas ).toContain( 'Get Started on WhatsApp' );
+    expect( stepsCtas ).toContain( 'Checkout on WhatsApp' );
     expect( stepsCtas ).not.toContain( 'Open demo in WhatsApp' );
     expect( source ).toContain( "import ProductBuyBox from '../../components/ProductBuyBox';" );
     expect( source ).toContain( '<ProductBuyBox slug="grahak-os" showPrice={ false } />' );
@@ -278,7 +286,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     // used to carry the secondary demo action here is long gone (do not reintroduce it).
     const codeNoComments = source.replace( /\/\*[\s\S]*?\*\//g, '' ).replace( /^\s*\/\/.*$/gm, '' );
     expect( codeNoComments ).not.toContain( 'api-action-link' );
-    // The steps block keeps only "Get Started on WhatsApp"; the lighter demo action lives
+    // The steps block keeps only "Checkout on WhatsApp"; the lighter demo action lives
     // below the large API code panel and uses the explicit "Open demo in WhatsApp" label.
     expect( stepsCtas ).not.toContain( 'Open demo in WhatsApp' );
     const openInCount = ( source.match( /className="api-wa-link"/g ) || [] ).length;
