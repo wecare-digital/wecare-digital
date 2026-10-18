@@ -471,7 +471,7 @@ response = requests.post(
                   <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
                 </div>
                 <ProductBuyBox slug="grahak-os" showPrice={ false } />
-                <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · Grahak OS · enterprise AI consulting</span></p>
+                <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · AI agent deployment · enterprise outcomes</span></p>
                 {/* Same mechanism as the api-steps block above: SKU via the imported
                     PRODUCT_SKU_BY_SLUG map and the policy via PRODUCT_POLICY_TITLE /
                     PRODUCT_POLICY_TEXT - not retyped. */}
