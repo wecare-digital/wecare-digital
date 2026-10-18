@@ -224,25 +224,6 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
 
         { children }
 
-        {/* THE SUBSCRIBE + SHARE BLOCK, inside the hero's own content measure (.rh-layout), so it
-            aligns with the page content and sits at the content end with no viewport-height void.
-            Rendered here means every page that uses RotatingHero (Contact, Terms, Privacy, Bharat
-            Rx, the product/service pages) gets one consistent, aligned block.
-
-            GATED ON `!noShare` ONLY, NOT on `subordinate`. The owner unified the blog surfaces
-            onto this one global block: /blog (and its paginated/topic variants, via
-            BlogIndexView) now WANT the auto-mounted PublicShare rather than their own old
-            Subscribe band, so they no longer pass `noShare`. A `subordinate` page is still a
-            section of someone else's page for landmark/heading purposes, but that is orthogonal
-            to whether it carries the Subscribe+Share block - so the gate is `noShare` alone.
-            `noShare` is kept for any page that genuinely must not carry the block. */}
-        {/* ONE PAGE-TAIL DOCK. PublicShare owns the same compact Contribute + Subscribe + Share
-            icon band on every public surface, including Home. */}
-        { !noShare && (
-          <div className="rh-tail">
-            <PublicShare />
-          </div>
-        ) }
       </div>
 
       <style jsx>{`
@@ -269,9 +250,6 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
           padding:80px 24px 48px;box-sizing:border-box;
           display:flex;flex-direction:column;gap:var(--public-section-gap);
         }
-        /* THE TAIL PAIR - Contribute + Subscribe/Share - is one flex child of .rh-layout, so the
-           96px flex gap sits ONCE above the pair, not between the two blocks. Inside, the blocks
-           carry their own separators and spacing, so this wrapper adds no gap of its own. */
         /* align-items:flex-start replaces an align-self on the badge: without it the
            flex default stretches the pill to the full 1300px measure. */
         .rh-hero{display:flex;flex-direction:column;align-items:flex-start}
