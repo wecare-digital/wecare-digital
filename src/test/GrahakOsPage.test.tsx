@@ -301,6 +301,10 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( '<details className="gos-policy">' );
     expect( source ).toContain( '<summary>Policy details</summary>' );
     expect( source ).toContain( '<strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }' );
+    expect( source ).toContain( '<strong>Shipping / fulfilment:</strong> The Grahak OS consultation is delivered digitally' );
+    expect( source ).toContain( '<strong>Returns:</strong> There is no physical return for the Grahak OS consultation.' );
+    expect( source ).toContain( '<strong>Refunds & cancellations:</strong> Cancellation is handled only as part of the refund policy above.' );
+    expect( source ).toContain( 'WECARE.DIGITAL store credit valid for 30 calendar days' );
     expect( source ).toContain( '<p className="gos-policy-disclaimer"><strong>Disclaimer:</strong>' );
     expect( source ).toContain( 'The ₹899 purchase shown here covers the one-time Grahak OS consultation only.' );
     expect( source ).toContain( 'Statutory consumer rights remain unaffected.' );
