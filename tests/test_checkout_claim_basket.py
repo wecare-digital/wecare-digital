@@ -58,6 +58,18 @@ OWNED = {"addressLine1": "12 Dalhousie Square", "city": "Kolkata",
 #: implementation.
 COLLECTION_PAISE = 2499900
 
+
+def _delighted_quote():
+    """The quote a PRODUCT basket is priced to: the gross collection less the always-on Delight
+    goodwill discount (0.5% up to ₹100), then the convenience fee + GST. The WhatsApp claim path
+    and the website path both run through `_native_quote`, which auto-applies Delight on products,
+    so the payable the webhook and the browser see is this, not the gross `compute_quote`. Derived
+    through the SAME renderer the handler uses so the parity assertions keep proving "one
+    calculator, to the paise" rather than hardcoding a number."""
+    from lambda_utils.ecommerce import default_coupon
+    net = COLLECTION_PAISE - default_coupon.delight_paise(COLLECTION_PAISE)
+    return compute_quote(net)
+
 CART_TABLE = "stack-wecare-digital-CartTable"
 PRODUCTS_TABLE = "stack-wecare-digital-ProductsTable"
 
@@ -561,7 +573,7 @@ def _verify(h, monkeypatch):
     `compute_quote` payable, in integer paise, with the currency compared explicitly as INR by the
     code under test. Nothing here captures, refunds or reads a payment configuration.
     """
-    payable = compute_quote(COLLECTION_PAISE).total_payable_paise
+    payable = _delighted_quote().total_payable_paise
     monkeypatch.setattr(h.razorpay_orders, "verify_checkout_signature", lambda **_: True)
     monkeypatch.setattr(
         h.razorpay_verify, "verifier_for_event",
@@ -720,18 +732,26 @@ def test_the_payable_for_a_whatsapp_basket_is_compute_quote_exactly_in_integer_p
     body, created = _prepare(h, monkeypatch, request_key="request-claim-money-1",
                              line_items=line_items_from(claim["lines"]))
 
-    quote = compute_quote(COLLECTION_PAISE)
+    # A product basket carries the always-on Delight goodwill discount (0.5% up to ₹100), so the
+    # collection the fee is computed on is the ProductsTable price LESS that discount. Same
+    # calculator, to the paise -- the discount is the only thing that moved.
+    from lambda_utils.ecommerce import default_coupon
+    delight = default_coupon.delight_paise(COLLECTION_PAISE)
+    net_collection = COLLECTION_PAISE - delight
+    quote = _delighted_quote()
+    assert delight > 0
     assert created["amount"] == quote.total_payable_paise
     assert body["options"]["amountPaise"] == quote.total_payable_paise
     assert body["options"]["currency"] == "INR"
     # Integers, not Decimals and certainly not floats, all the way out.
     assert type(created["amount"]) is int
-    # The collection is the ProductsTable price; the only things added are the fee and its GST.
-    assert quote.total_payable_paise == (COLLECTION_PAISE
+    # The collection is the ProductsTable price less Delight; the only other things added are the
+    # fee and its GST.
+    assert quote.total_payable_paise == (net_collection
                                          + quote.convenience_fee_paise
                                          + quote.convenience_gst_paise)
     # The goods GST is NOT re-added, which is what the replaced path did with `gst_rate: 18.0`.
-    assert quote.collection_before_convenience_paise == COLLECTION_PAISE
+    assert quote.collection_before_convenience_paise == net_collection
 
 
 def test_the_same_basket_claimed_on_either_channel_costs_the_same(env):
@@ -754,7 +774,7 @@ def test_the_same_basket_claimed_on_either_channel_costs_the_same(env):
     _whatsapp, whatsapp_order = _prepare(h, monkeypatch, request_key="request-parity-whatsapp")
 
     assert whatsapp_order["amount"] == website_order["amount"]
-    assert whatsapp_order["amount"] == compute_quote(COLLECTION_PAISE).total_payable_paise
+    assert whatsapp_order["amount"] == _delighted_quote().total_payable_paise
 
 
 # ── the action wiring ─────────────────────────────────────────────────────────

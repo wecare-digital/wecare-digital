@@ -42,6 +42,20 @@ def _product_row():
             "variants": [{"sku": VARIANT_UUID, "priceMinor": 59900, "inventory": 5, "trackInventory": True, "inventoryVerified": True}]}
 
 
+def _after_delight(subtotal_paise):
+    """The website/native PRODUCT collection after the always-on Delight default (0.5% up to
+    ₹100), computed through the SAME renderer the handler uses so the test proves the discount is
+    applied without hardcoding a brittle paise figure. ProductsTable authority is still proven by
+    `subtotal_paise` being the catalogue price, never the client's."""
+    import pathlib as _pl
+    import sys as _sys
+    _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1] / "amplify/functions/shared"))
+    from lambda_utils.ecommerce import default_coupon
+    discount = default_coupon.delight_paise(subtotal_paise)
+    assert discount > 0  # the default must actually take something off a product order
+    return subtotal_paise - discount
+
+
 def test_service_prices_use_native_catalog_even_without_cutover_flags(monkeypatch):
     h = _load()
     monkeypatch.delenv("CHECKOUT_MODE", raising=False)
@@ -83,9 +97,11 @@ def test_native_snapshot_prices_from_products_table(monkeypatch):
                    "quantity": 2, "requiresDelivery": True}]
     snapshot = h._website_snapshot(_Identity(), line_items, now=1000)
 
-    # subtotal 2 * 59900 = 119800; free delivery, inclusive tax -> collection 119800
-    assert snapshot.quote.collection_before_convenience_paise == 119800
-    assert snapshot.quote.total_payable_paise > 119800
+    # subtotal 2 * 59900 = 119800; free delivery, inclusive tax; then the Delight default
+    # discount (0.5% up to ₹100) comes off the product collection.
+    expected = _after_delight(119800)
+    assert snapshot.quote.collection_before_convenience_paise == expected
+    assert snapshot.quote.total_payable_paise > expected
     assert "aws-native" in str(snapshot.frozen_data)
 
 
@@ -98,7 +114,8 @@ def test_native_mode_ignores_client_supplied_price(monkeypatch):
     line_items = [{"productId": PRODUCT_UUID, "variantId": VARIANT_UUID,
                    "quantity": 1, "unitPricePaise": 1, "requiresDelivery": True}]
     snapshot = h._website_snapshot(_Identity(), line_items, now=1000)
-    assert snapshot.quote.collection_before_convenience_paise == 59900
+    # Priced from ProductsTable (59900), not the client's 1 paise, then less the Delight default.
+    assert snapshot.quote.collection_before_convenience_paise == _after_delight(59900)
 
 
 
@@ -118,7 +135,7 @@ def test_native_quote_accepts_the_actual_storefront_catalog_reference(monkeypatc
         "unitPricePaise": 1,  # client tampering must be ignored
     }]
     snapshot = h._website_snapshot(_Identity(), items, now=1000)
-    assert snapshot.quote.collection_before_convenience_paise == 119800
+    assert snapshot.quote.collection_before_convenience_paise == _after_delight(119800)
     assert snapshot.frozen_data["items"] == [{
         # native line identity: lineItemId == variantId so the narrow
         # paid-basket guard can hash the basket (empty lineItemId disables it)
@@ -164,7 +181,7 @@ def test_every_checkout_mode_env_prices_from_products_table(monkeypatch, env_mod
     h = _load()
     monkeypatch.setattr(h, "_native_product_reader", lambda: (lambda pid: _product_row()))
     snapshot = h._website_snapshot(_Identity(), [_line(qty=1)], now=1000)
-    assert snapshot.quote.collection_before_convenience_paise == 59900
+    assert snapshot.quote.collection_before_convenience_paise == _after_delight(59900)
     assert snapshot.frozen_data["items"][0]["unitPricePaise"] == 59900
     assert h.CHECKOUT_MODE == "AWS_NATIVE"
 
@@ -184,7 +201,7 @@ def test_line_order_does_not_create_a_second_payment_identity(monkeypatch):
     a = h._website_snapshot(_Identity(), lines_a, now=1000)
     b = h._website_snapshot(_Identity(), [_line(qty=3)], now=1001)
     assert a.cart_id == b.cart_id
-    assert a.quote.collection_before_convenience_paise == 3 * 59900
+    assert a.quote.collection_before_convenience_paise == _after_delight(3 * 59900)
     assert a.frozen_data["items"] == [{
         "lineItemId": VARIANT_UUID,
         "productId": PRODUCT_UUID, "variantId": VARIANT_UUID,

@@ -19,18 +19,12 @@ SHARED = ROOT / "amplify" / "functions" / "shared"
 sys.path.insert(0, str(SHARED))
 
 from lambda_utils.ecommerce import coupon_store  # noqa: E402
+from lambda_utils.ecommerce import default_coupon  # noqa: E402
 
 TABLE = coupon_store.DEFAULT_TABLE_NAME
-DELIGHT = {
-    "code": "Delight",
-    "name": "Delight",
-    "discountKind": coupon_store.PERCENT_OFF,
-    "percentOffBps": 5,
-    "maximumDiscountPaise": 10000,
-        "scopeNamespace": "stores",
-        "startTimeMs": 1792175400000,  # 17 Oct 2026 00:00 IST
-    "currency": "INR",
-}
+#: The ONE definition of the Delight coupon lives in `default_coupon`; the seed reads it so the
+#: durable CouponsTable row and the runtime default cannot drift (0.5% == 50 bps, ₹100 cap).
+DELIGHT = default_coupon.seed_payload()
 
 
 def canonical(row):

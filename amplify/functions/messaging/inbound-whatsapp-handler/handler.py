@@ -7738,12 +7738,80 @@ def _link_media_to_service_request(contact_id: str, s3_key: str, media_type: str
         logger.warning(json.dumps({'event': 'link_media_error', 'error': str(e), 'requestId': request_id}))
 
 
+def _link_flow_submission_to_order(reference_id: str, submission_id: str,
+                                   canonical_address: Optional[Dict], request_id: str) -> None:
+    """Write the flow's info back onto the ONE OrderTable row it belongs to.
+
+    THE JOIN, in the only direction that is safe. The flow echoes a `reference_id`
+    (`WD-PAY-...`), not the canonical OrderTable `orderId` (`WD-ORD-...`), so this resolves the
+    order through the immutable CommerceKeys chain the payment already wrote:
+    `PAYREF#<ref>` -> paymentAttemptId -> `PAYMENTATTEMPT#<attempt>` -> orderIdRef. That chain is
+    the one `paid_submit_request` and the webhook use, so no new index and no trust in a
+    customer-supplied id. When the order does not exist yet (a pending/failed attempt resolves to
+    None) this is a no-op, which is the correct answer, not an error.
+
+    What it writes onto the order: the flow `submissionId` (so the Order<->FlowSubmission join
+    exists in BOTH directions — the submission already carries the reference), and the delivery
+    address the flow collected (the canonical `checkoutDeliveryAddress` Map + the declared
+    `shippingAddress` string column the schema already has). It NEVER touches the five money /
+    identity keys the finalization conflict guard compares (`customerId`, `paymentAttemptId`,
+    `providerPaymentId`, `snapshotHash`, `orderNumber`) — this is attribution and fulfilment data
+    added beside the frozen record, conditional on the order existing so a race cannot create one.
+    """
+    if not reference_id:
+        return
+    try:
+        keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+        payref = order_keys.resolve_payment_reference(keys, reference_id)
+        attempt_id = str((payref or {}).get('paymentAttemptId') or '')
+        claim = order_keys.resolve_order_for_payment(keys, attempt_id) if attempt_id else None
+        order_id = str((claim or {}).get('orderIdRef') or '')
+        if not order_id:
+            # No order yet (pending/failed/legacy reference). The submission still stands on its
+            # own; there is simply nothing to link to.
+            return
+        now = int(time.time())
+        expr_names = {}
+        expr_vals = {':sid': submission_id, ':ua': now}
+        set_parts = ['flowSubmissionId=:sid', 'updatedAt=:ua']
+        if canonical_address is not None:
+            from lambda_utils.ecommerce import contact_address
+            wf = contact_address.contact_write_fields(canonical_address, now=now)
+            # `shippingAddress` is the declared OrderTable column; `checkoutDeliveryAddress` is the
+            # same canonical Map the contact carries, so an order and its contact describe one
+            # address, not two that can drift.
+            expr_names['#cda'] = contact_address.ATTRIBUTE
+            set_parts += ['shippingAddress=:sa', '#cda=:cda']
+            expr_vals.update({':sa': wf['shippingAddress'],
+                              ':cda': wf[contact_address.ATTRIBUTE]})
+        kwargs = {
+            'Key': {'orderId': order_id},
+            'UpdateExpression': 'SET ' + ', '.join(set_parts),
+            # Only an existing order is updated — never create one here. Finalization owns order
+            # creation; this adds fulfilment data to a row that already committed.
+            'ConditionExpression': 'attribute_exists(orderId)',
+            'ExpressionAttributeValues': expr_vals,
+        }
+        if expr_names:
+            kwargs['ExpressionAttributeNames'] = expr_names
+        dynamodb.Table(shared_tables.orders_table_name()).update_item(**kwargs)
+        logger.info(json.dumps({'event': 'flow_submission_linked_to_order', 'orderId': order_id,
+                                'submissionId': submission_id, 'requestId': request_id}))
+    except Exception as link_error:  # noqa: BLE001
+        # The submission and the contact are already saved; failing to decorate the order must not
+        # fail the whole post-pay handling or send the customer a second confirmation. Logged for
+        # staff, swallowed here — the order record is still authoritative without this label.
+        logger.warning(json.dumps({'event': 'flow_order_link_failed', 'referenceId': reference_id,
+                                    'error': str(link_error)[:300], 'requestId': request_id}))
+
+
 def _handle_postpay_submission(data: Dict, contact_id: str, sender_phone: str,
                                phone_number_id: str, request_id: str) -> None:
     """Handle a post-payment (endpointless) flow completion. The flow's 'complete'
     action returns reference_id + order/payment ids + the customer's details.
-    Saves ONE submission per payment (idempotent, keyed on reference_id) and sends
-    a confirmation message."""
+    Saves ONE submission per payment (idempotent, keyed on reference_id), links that
+    submission and its address back onto the matching OrderTable row, and sends a
+    confirmation message."""
     try:
         # New multi-screen flow uses request_id + order_number (+ full address/details).
         # Stay backward-compatible with the old payload (reference_id/delivery_note).
@@ -7754,10 +7822,24 @@ def _handle_postpay_submission(data: Dict, contact_id: str, sender_phone: str,
         now = int(time.time())
         # Key on the unique Request ID (falls back to reference for old payloads).
         sub_id = request_sr_id or f'postpay-{reference_id}'
-        # Compose a human-readable shipping address from the flow's address fields.
-        addr_parts = [data.get('address', ''), data.get('landmark', ''), data.get('city', ''),
-                      data.get('state', ''), data.get('pin', '')]
-        address_str = ', '.join(str(p).strip() for p in addr_parts if str(p).strip())
+        from lambda_utils.ecommerce import contact_address
+        # ONE address shape: validate the flow's address fields through `contact_address` so the
+        # contact back-write below stores the canonical Map, not a parallel flat row. `canonical`
+        # is None when the flow carried no usable address (a service with no delivery) — the
+        # submission row is still saved, only the contact address back-write is skipped.
+        try:
+            canonical = contact_address.normalize_for_storage(
+                contact_address.map_meta_address(data))
+        except contact_address.UnusableAddress:
+            canonical = None
+        # The human one-liner for the submission record. From the canonical Map when we have one,
+        # else composed from the raw flow fields so an address-less service still reads sensibly.
+        if canonical is not None:
+            address_str = str(canonical.get('fullAddress') or '')
+        else:
+            addr_parts = [data.get('address', ''), data.get('landmark', ''), data.get('city', ''),
+                          data.get('state', ''), data.get('pin', '')]
+            address_str = ', '.join(str(p).strip() for p in addr_parts if str(p).strip())
         form = {k: v for k, v in data.items() if k not in ('flow_token',)}
         item = {
             'submissionId': sub_id,
@@ -7804,6 +7886,11 @@ def _handle_postpay_submission(data: Dict, contact_id: str, sender_phone: str,
                                         'requestId': request_id}))
                 return  # already recorded — do not send a second confirmation
             raise
+        # Link this submission + its address back onto the ONE OrderTable row (resolved through
+        # the immutable PAYREF chain). After the idempotent put above, so a redelivered flow does
+        # not re-link; before the contact write so the order and contact get one consistent
+        # address in the same handling.
+        _link_flow_submission_to_order(reference_id, sub_id, canonical, request_id)
         # Update the customer's saved address from the flow so future orders pre-fill.
         try:
             if contact_id:
@@ -7812,13 +7899,21 @@ def _handle_postpay_submission(data: Dict, contact_id: str, sender_phone: str,
                 _uexpr = 'SET openServiceRequestId=:rid, openServiceRequestAt=:ua, updatedAt=:ua'
                 _names = {}
                 _vals = {':rid': sub_id, ':ua': now}
-                if address_str:
-                    _uexpr += (', shippingAddress=:sa, addressLine1=:al, city=:cy, '
-                               '#st=:st, postalCode=:pc, landmark=:lm')
-                    _names['#st'] = 'state'
-                    _vals.update({':sa': address_str, ':al': str(data.get('address', '')),
-                                  ':cy': str(data.get('city', '')), ':st': str(data.get('state', '')),
-                                  ':pc': str(data.get('pin', '')), ':lm': str(data.get('landmark', ''))})
+                if canonical is not None:
+                    # Canonical Map + flat columns from the SAME normalised address, matching
+                    # `_handle_address_submission` so the Address-Message path and the post-pay flow
+                    # path leave an identical shape on the contact.
+                    wf = contact_address.contact_write_fields(canonical, now=now)
+                    _uexpr += (', shippingAddress=:sa, addressLine1=:al, addressLine2=:a2, city=:cy, '
+                               '#st=:st, postalCode=:pc, landmark=:lm, #co=:co, #cda=:cda, #cau=:cau')
+                    _names.update({'#st': 'state', '#co': 'country',
+                                   '#cda': contact_address.ATTRIBUTE,
+                                   '#cau': contact_address.UPDATED_ATTRIBUTE})
+                    _vals.update({':sa': wf['shippingAddress'], ':al': wf['addressLine1'],
+                                  ':a2': wf['addressLine2'], ':cy': wf['city'], ':st': wf['state'],
+                                  ':pc': wf['postalCode'], ':lm': wf['landmark'], ':co': wf['country'],
+                                  ':cda': wf[contact_address.ATTRIBUTE],
+                                  ':cau': wf[contact_address.UPDATED_ATTRIBUTE]})
                 _kwargs = {'Key': {'id': contact_id}, 'UpdateExpression': _uexpr,
                            'ExpressionAttributeValues': _vals}
                 if _names:
@@ -7847,38 +7942,49 @@ def _handle_address_submission(nfm: Dict, contact_id: str, sender_phone: str,
     name='address_message'). Parses response_json and saves the structured
     shipping address to the contact so checkout / order_details can reuse it."""
     try:
+        from lambda_utils.ecommerce import contact_address
         raw = nfm.get('response_json', '{}')
         data = json.loads(raw) if isinstance(raw, str) else (raw or {})
         vals = data.get('values', data) or {}
-        house = vals.get('house_number', '')
-        floor = vals.get('floor_number', '')
-        tower = vals.get('tower_number', '')
-        building = vals.get('building_name', '')
-        addr = vals.get('address', '')
-        landmark = vals.get('landmark_area', '')
-        city = vals.get('city', '')
-        state = vals.get('state', '')
-        pin = vals.get('in_pin_code', '')
         name = vals.get('name', '')
-        parts = [house, (f'Floor {floor}' if floor else ''), tower, building, addr, landmark, city, state, pin]
-        address_str = ', '.join(p for p in parts if p)
+        # ONE address shape: fold Meta's Address-Message fields into the canonical `_RULES` keys and
+        # validate through `contact_address`, exactly as `customer_orders.update_profile` does. A
+        # structurally-bad address (missing a required field) is skipped rather than written as a
+        # half row — the customer can resubmit, and no divergent flat-only row is left behind.
+        try:
+            address = contact_address.normalize_for_storage(
+                contact_address.map_meta_address(vals))
+        except contact_address.UnusableAddress as bad:
+            logger.info(json.dumps({
+                'event': 'address_submission_unusable', 'code': bad.code, 'field': bad.field,
+                'phone_suffix': sender_phone[-4:] if sender_phone else '', 'requestId': request_id}))
+            return
         logger.info(json.dumps({
             'event': 'address_submission', 'phone_suffix': sender_phone[-4:] if sender_phone else '',
-            'savedAddressId': data.get('saved_address_id', ''), 'pin': pin, 'city': city,
+            'savedAddressId': data.get('saved_address_id', ''),
+            'pin': address.get('postalCode', ''), 'city': address.get('city', ''),
             'requestId': request_id,
         }))
         if not contact_id:
             return
         ct = dynamodb.Table(CONTACTS_TABLE)
-        expr_names = {'#st': 'state'}
+        now = int(time.time())
+        # The canonical Map + its timestamp + the legacy flat columns, all projected from the ONE
+        # normalised address so they cannot drift. `contact_write_fields` owns that projection.
+        write_fields = contact_address.contact_write_fields(address, now=now)
+        expr_names = {'#st': 'state', '#co': 'country', '#cda': contact_address.ATTRIBUTE,
+                      '#cau': contact_address.UPDATED_ATTRIBUTE}
         expr_vals = {
-            ':sa': address_str, ':hn': house, ':fl': floor, ':tw': tower, ':bn': building,
-            ':al': addr, ':lm': landmark, ':cy': city, ':st': state, ':pc': pin,
-            ':co': 'India', ':ua': int(time.time()),
+            ':sa': write_fields['shippingAddress'], ':al': write_fields['addressLine1'],
+            ':a2': write_fields['addressLine2'], ':lm': write_fields['landmark'],
+            ':cy': write_fields['city'], ':st': write_fields['state'],
+            ':pc': write_fields['postalCode'], ':co': write_fields['country'],
+            ':cda': write_fields[contact_address.ATTRIBUTE],
+            ':cau': write_fields[contact_address.UPDATED_ATTRIBUTE], ':ua': now,
         }
-        update_expr = ('SET shippingAddress=:sa, houseNumber=:hn, floorNumber=:fl, towerNumber=:tw, '
-                       'buildingName=:bn, addressLine1=:al, landmark=:lm, city=:cy, #st=:st, '
-                       'postalCode=:pc, country=:co, updatedAt=:ua')
+        update_expr = ('SET shippingAddress=:sa, addressLine1=:al, addressLine2=:a2, landmark=:lm, '
+                       'city=:cy, #st=:st, postalCode=:pc, #co=:co, #cda=:cda, #cau=:cau, '
+                       'updatedAt=:ua')
         if name:
             update_expr += ', contactBookName=:nm'
             expr_vals[':nm'] = name

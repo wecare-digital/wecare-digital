@@ -419,9 +419,10 @@ def test_a_coupon_or_gift_card_cannot_be_applied_to_money_already_captured(engin
 # ══════════════════════════════════════════════════════════════════════════════
 
 def test_the_additive_path_still_produces_its_previous_figures(engine):
-    """The one property this change must not break: with no flag, the tax goes ON TOP and the
-    2.5% + GST convenience fee is still added, to the same figures as before.
-    1000.00 + 180.00 tax = 1180.00 collection; 2.5% = 29.50; 18% of that = 5.31; total 1214.81.
+    """The additive path: tax goes ON TOP and the 2.5% + GST convenience fee is added, now with
+    the always-on Delight goodwill discount (0.5% up to Rs100) auto-applied on a plain pay_flow
+    invoice. 1000.00 + 180.00 tax = 1180.00 collection; Delight 0.5% = 5.90, so the fee is 2.5%
+    of the discounted 1174.10 (29.35) + 18% GST (5.28) = 34.63; total 1208.73.
     """
     module, _keys, counter, invoices, items, _payments = engine
     body = {
@@ -439,9 +440,10 @@ def test_the_additive_path_still_produces_its_previous_figures(engine):
     assert status == 201, payload
     row = _stored(invoices, payload["invoiceId"])
     assert _paise(row["subtotal"]) == 100000
+    assert _paise(row["discount"]) == 590       # Delight, 0.5% of the 1180.00 collection
     assert _paise(row["tax"]) == 18000
-    assert _paise(row["convenienceFee"]) == 3481
-    assert _paise(row["total"]) == 121481
+    assert _paise(row["convenienceFee"]) == 3463
+    assert _paise(row["total"]) == 120873
     # The additive line is stored at the GROSS item amount, as it always was.
     lines = items.lines_for(payload["invoiceId"])
     assert _paise(lines[0]["amount"]) == 100000
@@ -465,7 +467,10 @@ def test_the_additive_path_is_untouched_by_an_expected_total_it_did_not_ask_for(
     status, payload = _created(module, body)
 
     assert status == 201, payload
-    assert _paise(_stored(invoices, payload["invoiceId"])["total"]) == 121481
+    # Delight auto-applies on this plain pay_flow invoice, so the additive total is 1208.73 (see
+    # test_the_additive_path_still_produces_its_previous_figures). `expectedTotalPaise` still does
+    # nothing on the additive path — the mode flag, not this field, decides tax-inclusive.
+    assert _paise(_stored(invoices, payload["invoiceId"])["total"]) == 120873
 
 
 # ══════════════════════════════════════════════════════════════════════════════

@@ -59,6 +59,11 @@ from lambda_utils.ecommerce import order_keys, wa_payment_request
 # what makes the invoice surface and the website cart ONE system rather than two that agree today.
 from lambda_utils.ecommerce import coupon_store, gift_card_store, redemption
 from lambda_utils.ecommerce import store_redemption_provider
+# The ONE address authority. Imported so this handler reads the canonical `checkoutDeliveryAddress`
+# Map a contact carries (with a legacy flat-column fallback) rather than re-deriving the address
+# shape here — the same convergence `customer_orders.update_profile` and the WhatsApp Address
+# Message writer are on.
+from lambda_utils.ecommerce import contact_address
 # The attribute names the settlement ladder already owns. Imported rather than retyped: a
 # hand-typed `giftCardRequiredPaise` that drifts by one character leaves `is_fully_settled`
 # reading `required == 0`, which settles a gift-card order on the Razorpay leg alone.
@@ -837,6 +842,32 @@ def _assert_inr(body: Dict) -> None:
         raise RedemptionRefused(400, 'UNSUPPORTED_CURRENCY')
 
 
+def _delight_applies(entry_point: str, gift_card_code: str,
+                     amount_is_tax_inclusive: bool, manual_discount: float) -> bool:
+    """True when the always-on Delight goodwill discount should auto-apply to this invoice.
+
+    Only on customer-origin invoices that compute their own total: `pay_flow`, `whatsapp_payment`
+    and `manual` -- the three entry points that also auto-compute the convenience fee. NEVER on:
+
+      - a tax-inclusive capture (`amountIsTaxInclusive`): the invoice total must equal the amount
+        already collected, and coupons are refused on that path outright;
+      - a gift-card order: a gift card is tender, not a price change, and those invoices are
+        pinned byte-for-byte, so stacking a goodwill discount onto one is out of scope here;
+      - an invoice already carrying a MANUAL staff discount: that is a deliberate goodwill credit
+        the operator set, and the automatic goodwill discount must not silently stack a second
+        one on top of it. A manual adjustment and the Delight default are both "goodwill", and
+        two goodwills on one invoice is a figure nobody chose;
+      - a `webhook`-minted invoice: it records a settlement that already happened, so there is no
+        collection to discount.
+
+    The explicit-coupon case is handled by the caller (it takes the branch above this one); this
+    gate only decides whether to SUBSTITUTE the default when no code and no manual discount apply.
+    """
+    if amount_is_tax_inclusive or gift_card_code or manual_discount:
+        return False
+    return entry_point in ('pay_flow', 'manual', 'whatsapp_payment')
+
+
 def _apply_coupon_leg(*, code: str, collection_paise: int, reference_id: str,
                       provider) -> redemption.CouponResult:
     """Price one coupon against the collection that FEEDS the convenience-fee calculator.
@@ -1308,6 +1339,29 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
             # One conversion back into the rupee pipeline (M4). `Decimal` -> `float` is exact for
             # a two-decimal amount, and every figure that decided the discount was integer paise.
             discount = manual_discount + float(coupon_discount_rupees)
+        elif _delight_applies(entry_point, gift_card_code, amount_is_tax_inclusive,
+                              manual_discount):
+            # AUTO-APPLY the always-on Delight goodwill discount (0.5% up to ₹100) when the
+            # customer named no coupon of their own. Priced IN-MEMORY through the shared default
+            # definition and the one renderer (`coupon_store.discount_paise`), so it needs no
+            # CouponsTable read and no hold/usage-count/redemption record -- Delight is a fixed
+            # owner policy, not a limited-use campaign coupon. The figure cannot drift from the
+            # website's, which prices the same definition.
+            from lambda_utils.ecommerce import default_coupon
+            collection_before_coupon = (subtotal - manual_discount + shipping + effective_gp
+                                        + effective_nf + handling + tax)
+            delight_discount_paise = default_coupon.delight_paise(
+                _rupees_to_paise(collection_before_coupon))
+            if delight_discount_paise > 0:
+                coupon_discount_paise = delight_discount_paise
+                coupon_discount_rupees = _paise_to_rupees(coupon_discount_paise)
+                stored_coupon_code = coupon_store.normalise_code(default_coupon.DELIGHT_CODE)
+                discount = manual_discount + float(coupon_discount_rupees)
+                # Recorded so the receipt and the Meta discount row can name it, but NOT held:
+                # a policy default has no COUPONHOLD#/COUPONUSE#/COUPONREDEEM# and is exempt from
+                # the single-use and per-customer limits that apply only to campaign coupons.
+                redemption_attributes['couponCode'] = stored_coupon_code
+                redemption_attributes['couponDiscount'] = _dec(coupon_discount_rupees)
     except RedemptionRefused as refusal:
         logger.info(json.dumps({
             'event': 'invoice_redemption_refused',
@@ -1569,6 +1623,13 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
             })
 
     logger.info(json.dumps({'event': 'invoice_created', 'invoiceId': invoice_id, 'invoiceNumber': invoice_number, 'referenceId': reference_id, 'total': float(total), 'requestId': request_id}))
+
+    # ONE logical order across channels: bind this statutory invoice to the fulfilment OrderTable
+    # row it settles, in BOTH directions, so a WhatsApp payment and a website payment resolve to
+    # one joinable order identity. The two records stay SEPARATE (an immutable GST document vs a
+    # mutable order), which is correct — this is a cross-link, not a merge, and it never touches a
+    # financial field or the order's finalization conflict keys.
+    _cross_link_invoice_and_order(reference_id, invoice_id, invoice_number, request_id)
     created: Dict[str, Any] = {
         'invoiceId': invoice_id, 'invoiceNumber': invoice_number, 'referenceId': reference_id,
         'total': float(total), 'convenienceFee': float(convenience_fee),
@@ -1591,6 +1652,115 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         created['amountPayable'] = float(redemption_attributes['amountPayable'])
     return _resp(201, created)
 
+
+
+def _cross_link_invoice_and_order(reference_id: str, invoice_id: str, invoice_number: str,
+                                  request_id: str) -> None:
+    """Bind this invoice to the ONE OrderTable row it settles, in both directions. Never raises.
+
+    ONE LOGICAL ORDER ACROSS CHANNELS, as a joinable identity rather than a merged row. A website
+    payment and a WhatsApp payment each produce a statutory invoice AND (on the finalised leg) an
+    order record; this makes the two directly joinable so a reader does not have to re-derive the
+    link from `referenceId` every time, and so the two documents provably describe one order.
+
+    The order id is resolved through the SAME immutable CommerceKeys chain the payment already
+    wrote — `PAYREF#<ref>` -> paymentAttemptId -> `PAYMENTATTEMPT#<attempt>` -> orderIdRef — never
+    from a client field. The invoice's own `orderId` column historically holds the Razorpay
+    PROVIDER order id (a different namespace), so the internal link is written to a distinct
+    `internalOrderId` attribute rather than overloading it.
+
+    What it writes:
+      * onto the INVOICE row: `internalOrderId` (+ `orderNumber`) — attribution, not a financial
+        field, so it does not touch the `_INVOICE_FINANCIAL_FIELDS` immutability contract.
+      * onto the ORDER row: `invoiceId` (+ `invoiceNumber`) — conditional on the order existing,
+        and never any of the five finalization association-conflict keys.
+
+    A reference that resolves to no order yet (a legacy/pre-commerce invoice, or an attempt with
+    no finalised order) is a NO-OP: the invoice stands on its own and there is simply nothing to
+    link. All failures are logged and swallowed — the invoice and the order are already the
+    authoritative records; a missing cross-link must not fail invoice creation or burden the
+    statutory path.
+    """
+    if not reference_id or not invoice_id:
+        return
+    try:
+        keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+        payref = order_keys.resolve_payment_reference(keys, reference_id)
+        attempt_id = str((payref or {}).get('paymentAttemptId') or '')
+        claim = order_keys.resolve_order_for_payment(keys, attempt_id) if attempt_id else None
+        order_id = str((claim or {}).get('orderIdRef') or '')
+        order_number = str((claim or {}).get('orderNumber') or '')
+        if not order_id:
+            return
+        now = int(time.time())
+        # Invoice -> order (attribution; the invoice row is ours, written just above).
+        try:
+            dynamodb.Table(INVOICES_TABLE).update_item(
+                Key={'invoiceId': invoice_id},
+                UpdateExpression='SET internalOrderId=:oid, orderNumber=:onum, updatedAt=:now',
+                ConditionExpression='attribute_exists(invoiceId)',
+                ExpressionAttributeValues={':oid': order_id, ':onum': order_number, ':now': now})
+        except Exception as inv_err:  # noqa: BLE001
+            if not order_keys.is_conditional_failure(inv_err):
+                raise
+        # Order -> invoice (conditional on the order existing; never creates one, never touches a
+        # money/identity key the finalization conflict guard compares).
+        try:
+            dynamodb.Table(shared_tables.orders_table_name()).update_item(
+                Key={'orderId': order_id},
+                UpdateExpression='SET invoiceId=:iid, invoiceNumber=:inum, updatedAt=:now',
+                ConditionExpression='attribute_exists(orderId)',
+                ExpressionAttributeValues={':iid': invoice_id, ':inum': invoice_number or '',
+                                           ':now': now})
+        except Exception as ord_err:  # noqa: BLE001
+            if not order_keys.is_conditional_failure(ord_err):
+                raise
+        logger.info(json.dumps({'event': 'invoice_order_cross_linked', 'invoiceId': invoice_id,
+                                'orderId': order_id, 'referenceId': reference_id,
+                                'requestId': request_id}))
+    except Exception as link_error:  # noqa: BLE001
+        logger.warning(json.dumps({'event': 'invoice_order_cross_link_failed',
+                                    'referenceId': reference_id, 'invoiceId': invoice_id,
+                                    'error': str(link_error)[:300], 'requestId': request_id}))
+
+
+def _contact_address_fields(contact: Optional[Dict]) -> Dict[str, str]:
+    """The invoice-body address keys for a contact, from the ONE canonical address shape.
+
+    Prefers the structured `checkoutDeliveryAddress` Map via `contact_address.from_contact`
+    (never raises; returns None when absent or malformed), and falls back to the legacy flat
+    columns for a contact row written before the address convergence. Returns the exact keys the
+    invoice body and the `shipping_info` pre-fill downstream read, so the statutory invoice path
+    is unchanged in shape — only its SOURCE is unified.
+
+    `addressLine2` maps to the Map's `locality` (the receipt prints it as the landmark line), and
+    `shippingAddress`/`billingAddress` carry the composed one-liner so the string readers in
+    `receipt_layout` still have a value. `billingAddress` mirrors shipping: we collect one address
+    per customer (see `contact_address`'s module docstring), so there is no separate billing one.
+    """
+    contact = contact or {}
+    address = contact_address.from_contact(contact)
+    if address is not None:
+        one_line = str(address.get('fullAddress') or '')
+        return {
+            'shippingAddress': one_line,
+            'billingAddress': one_line,
+            'addressLine1': str(address.get('addressLine1') or ''),
+            'addressLine2': str(address.get('locality') or ''),
+            'city': str(address.get('city') or ''),
+            'state': str(address.get('state') or ''),
+            'postalCode': str(address.get('postalCode') or ''),
+        }
+    # Legacy flat-column fallback (a contact saved before convergence has no Map yet).
+    return {
+        'shippingAddress': str(contact.get('shippingAddress') or ''),
+        'billingAddress': str(contact.get('billingAddress') or ''),
+        'addressLine1': str(contact.get('addressLine1') or ''),
+        'addressLine2': str(contact.get('landmark') or ''),
+        'city': str(contact.get('city') or ''),
+        'state': str(contact.get('state') or ''),
+        'postalCode': str(contact.get('postalCode') or ''),
+    }
 
 
 def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
@@ -1679,13 +1849,10 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
         'customerPhone': contact_phone,
         'paidByPhone': contact_phone,
         'customerEmail': contact.get('email', payment.get('email', '')) if contact else payment.get('email', ''),
-        'shippingAddress': contact.get('shippingAddress', '') if contact else '',
-        'billingAddress': contact.get('billingAddress', '') if contact else '',
-        'addressLine1': contact.get('addressLine1', '') if contact else '',
-        'addressLine2': contact.get('landmark', '') if contact else '',
-        'city': contact.get('city', '') if contact else '',
-        'state': contact.get('state', '') if contact else '',
-        'postalCode': contact.get('postalCode', '') if contact else '',
+        # ONE address shape: prefer the canonical `checkoutDeliveryAddress` Map, fall back to the
+        # legacy flat columns for a contact row written before the convergence. `_contact_address_fields`
+        # returns the flat projection the invoice body and the shipping_info pre-fill both consume.
+        **_contact_address_fields(contact),
         'items': body.get('items', [{'name': body.get('itemName', 'Payment'),
                                      'amount': _paise_to_rupees(captured_paise),
                                      'quantity': 1}]),
@@ -3806,12 +3973,17 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
         # which persists addressLine1/city/state/postalCode/landmark on the contact).
         c = contact or {}
         a_name = cust_name or c.get('contactBookName') or c.get('name') or 'Customer'
-        a_line1 = invoice.get('addressLine1') or c.get('addressLine1') or ''
-        a_city = invoice.get('city') or c.get('city') or ''
-        a_state = invoice.get('state') or c.get('state') or ''
-        a_postal = str(invoice.get('postalCode') or c.get('postalCode') or '')
+        # ONE address shape: the invoice's own stored fields win (they were frozen at create), then
+        # the contact's canonical `checkoutDeliveryAddress` Map via `_contact_address_fields`
+        # (legacy flat columns as its fallback), so this pre-fill reads the same source every other
+        # path now does rather than reaching for raw flat columns directly.
+        cf = _contact_address_fields(c)
+        a_line1 = invoice.get('addressLine1') or cf['addressLine1']
+        a_city = invoice.get('city') or cf['city']
+        a_state = invoice.get('state') or cf['state']
+        a_postal = str(invoice.get('postalCode') or cf['postalCode'])
         a_land = (invoice.get('addressLine2') or invoice.get('landmark')
-                  or c.get('landmark') or '')
+                  or cf['addressLine2'])
         if a_line1 and a_city and a_postal:
             # Known address → pre-fill so the customer can confirm in one tap.
             order_details_obj['shipping_info'] = {
