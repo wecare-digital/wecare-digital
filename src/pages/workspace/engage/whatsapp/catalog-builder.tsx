@@ -13,7 +13,7 @@ import * as api from '../../../../api/client';
 import { CDN_DOMAIN } from '../../../../lib/media-paths';
 import Select, { type SelectOption } from '../../../../components/ui/Select';
 
-interface PageProps { signOut?: () => void; user?: any; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 // Per-WABA flow identifiers (source of truth for the builder). The catalog is NOT per-WABA any
 // more: both WABAs share the one `wecare_shop` catalog 1457045652952851, so a product added here
@@ -54,16 +54,14 @@ const S = {
     pill: ( bg: string, c: string ): React.CSSProperties => ( { background: bg, color: c, padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600 } ),
 };
 
-export default function CatalogBuilderPage ( { signOut, user }: PageProps ) {
+export default function CatalogBuilderPage ( { signOut, user, embedded }: PageProps ) {
     const toast = useToastContext();
     const confirm = useConfirm();
     const [ tab, setTab ] = useState<'product' | 'flow'>( 'product' );
     const [ acctIdx, setAcctIdx ] = useState( 0 );
     const acct = ACCOUNTS[ acctIdx ];
 
-    return (
-        <Layout user={ user } onSignOut={ signOut }>
-            <SEO title="Catalog & Flow Builder" description="Add catalog products and create WhatsApp Flows" />
+    const body = (
             <div className="inner-page" style={ { padding: '20px 24px', maxWidth: 1100 } }>
                 <div style={ { marginBottom: 16 } }>
                     <h2 style={ { margin: 0, fontSize: 20, color: '#1a3a2a' } }>Catalog &amp; Flow Builder</h2>
@@ -90,6 +88,13 @@ export default function CatalogBuilderPage ( { signOut, user }: PageProps ) {
                 { tab === 'product' && <ProductTab acct={ acct } toast={ toast } confirm={ confirm } /> }
                 { tab === 'flow' && <FlowTab acct={ acct } toast={ toast } /> }
             </div>
+    );
+
+    if ( embedded ) return body;
+    return (
+        <Layout user={ user } onSignOut={ signOut }>
+            <SEO title="Catalog & Flow Builder" description="Add catalog products and create WhatsApp Flows" />
+            { body }
         </Layout>
     );
 }

@@ -21,6 +21,13 @@ import FaqPage from '../faq';
 import SubmitRequestPage from '../../service/submit-request';
 import TrackRequestPage from '../../service/track-request';
 import AmendRequestPage from '../../service/amend-request';
+import SecureFilesPage from '../../service/secure-files';
+// Former Forms destinations — Service absorbs Forms (FEAT-004). Each is `embedded`-ready
+// so its api/client.ts calls are unchanged; the standalone forms/* routes stay as thin
+// signposts into this hub for bookmarks.
+import FormResponsesPage from '../../forms/responses';
+import CustomerServiceHubPage from '../../forms/selfservice';
+import RequestResponsesPage from '../../request/responses';
 
 interface PageProps { signOut?: () => void; user?: any; }
 
@@ -29,10 +36,14 @@ const TABS: ShellTab[] = [
     { id: 'submit', label: 'Submit Request', divider: true },
     { id: 'track', label: 'Track Request' },
     { id: 'amend', label: 'Amend Request' },
+    { id: 'responses', label: 'Responses', divider: true },
+    { id: 'form-responses', label: 'Form responses' },
+    { id: 'selfservice', label: 'Customer Service Hub' },
     { id: 'appointments', label: 'Appointments', divider: true },
     { id: 'rx-slots', label: 'RX Slots' },
     { id: 'documents', label: 'Drop Docs', divider: true },
-    { id: 'enterprise', label: 'Enterprise' },
+    { id: 'secure-files', label: 'Secure Files' },
+    { id: 'enterprise', label: 'Enterprise', divider: true },
     { id: 'reviews', label: 'Reviews' },
     { id: 'faq', label: 'FAQ' },
 ];
@@ -52,9 +63,13 @@ const ServiceOpsPage: React.FC<PageProps> = ( { signOut, user } ) => (
                     { activeTab === 'submit' && <SubmitRequestPage signOut={ signOut } user={ user } embedded /> }
                     { activeTab === 'track' && <TrackRequestPage signOut={ signOut } user={ user } embedded /> }
                     { activeTab === 'amend' && <AmendRequestPage signOut={ signOut } user={ user } embedded /> }
+                    { activeTab === 'responses' && <RequestResponsesPage signOut={ signOut } user={ user } embedded /> }
+                    { activeTab === 'form-responses' && <FormResponsesPage signOut={ signOut } user={ user } embedded /> }
+                    { activeTab === 'selfservice' && <CustomerServiceHubPage signOut={ signOut } user={ user } embedded /> }
                     { activeTab === 'appointments' && <AppointmentsPage signOut={ signOut } user={ user } embedded /> }
                     { activeTab === 'rx-slots' && <RxSlotsPage signOut={ signOut } user={ user } embedded /> }
                     { activeTab === 'documents' && <DocumentsPage signOut={ signOut } user={ user } embedded /> }
+                    { activeTab === 'secure-files' && <SecureFilesPage signOut={ signOut } user={ user } embedded /> }
                     { activeTab === 'enterprise' && <EnterprisePage signOut={ signOut } user={ user } embedded /> }
                     { activeTab === 'reviews' && <ReviewsPage signOut={ signOut } user={ user } embedded /> }
                     { activeTab === 'faq' && <FaqPage signOut={ signOut } user={ user } embedded /> }

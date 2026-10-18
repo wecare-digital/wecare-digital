@@ -12,7 +12,7 @@ import InstructionsContent from '../../../components/seo/InstructionsContent';
 import { useConfirmDanger } from '../../../components/wa';
 import { seoToolsFetch } from '../../../api/seo';
 
-interface PageProps { signOut?: () => void; user?: any; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 interface BlogPost {
   id: string; title: string; slug: string; excerpt: string; url: string;
   seoTitle: string; metaDescription: string; focusKeyword: string; keywords: string[];
@@ -35,7 +35,7 @@ const th: React.CSSProperties = { padding: '8px 10px', textAlign: 'left', fontSi
 const td: React.CSSProperties = { padding: '6px 10px' };
 const btn: React.CSSProperties = { padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' };
 
-const BlogSeoManager: React.FC<PageProps> = ({ signOut, user }) => {
+const BlogSeoManager: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const confirmDanger = useConfirmDanger();
   const [tab, setTab] = useState<Tab>('posts');
   const [posts, setPosts] = useState<BlogPost[]>([]);
@@ -129,10 +129,8 @@ const BlogSeoManager: React.FC<PageProps> = ({ signOut, user }) => {
   const noSeoCount = posts.filter(p => !p.hasCustomSeo && !p.seoTitle && !p.metaDescription).length;
   const stats = { total: posts.length, pending: posts.filter(p => !getAudit(p.slug)).length, audited: posts.filter(p => getAudit(p.slug)?.status === 'pending_review').length, approved: posts.filter(p => getAudit(p.slug)?.status === 'approved').length, applied: posts.filter(p => getAudit(p.slug)?.status === 'applied').length };
 
-  return (
-    <Layout user={user} onSignOut={signOut}>
-      <SEO title="SEO Autopilot" description="AI SEO for all pages" />
-      <div className="inner-page">
+  const body = (
+      <div className="inner-page" style={ embedded ? { padding: 0 } : undefined }>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <div>
             <h1 className="inner-page-title" style={{ margin: 0 }}>SEO Autopilot</h1>
@@ -212,6 +210,13 @@ const BlogSeoManager: React.FC<PageProps> = ({ signOut, user }) => {
           <pre style={{ background: '#0f1117', color: '#a3e635', padding: 16, borderRadius: 8, fontSize: 12, lineHeight: 1.6, maxHeight: 200, overflowY: 'auto', fontFamily: 'Consolas, Monaco, monospace', whiteSpace: 'pre-wrap' }}>{log.join('\n')}</pre>
         </div>)}
       </div>
+  );
+
+  if (embedded) return body;
+  return (
+    <Layout user={user} onSignOut={signOut}>
+      <SEO title="SEO Autopilot" description="AI SEO for all pages" />
+      {body}
     </Layout>
   );
 };

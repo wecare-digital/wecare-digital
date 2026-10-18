@@ -55,6 +55,21 @@ const FlowResponsesPage = lazyTab( () => import( './flow-responses' ) );
 const FlowHubPage = lazyTab( () => import( './flow-hub' ) );
 const MigrationPage = lazyTab( () => import( './migration' ) );
 const AiAgentPage = lazyTab( () => import( './ai-agent' ) );
+// Folded in from standalone routes during the workspace redesign (FEAT-004). These were
+// their own gear rows; each is `embedded`-ready, so the only change is that the hub now
+// renders them as additional lazy tabs. No api/client.ts call inside them was touched.
+const ConnectedAccountsPage = lazyTab( () => import( './connected-accounts' ) );
+const EmbeddedSignupPage = lazyTab( () => import( './embedded-signup' ) );
+const MyAccountPage = lazyTab( () => import( './my-account' ) );
+const BsuidPage = lazyTab( () => import( './bsuid' ) );
+const TechPartnerPage = lazyTab( () => import( './tech-partner' ) );
+const TemplateBuilderPage = lazyTab( () => import( './template-builder' ) );
+const FlowPublishPage = lazyTab( () => import( './flow-publish' ) );
+const CatalogBuilderPage = lazyTab( () => import( './catalog-builder' ) );
+const SendTestPage = lazyTab( () => import( './send-test' ) );
+const ConversionsApiPage = lazyTab( () => import( './conversions-api' ) );
+const CtwaAdsPage = lazyTab( () => import( './ctwa-ads' ) );
+const CostControlsPage = lazyTab( () => import( './cost-controls' ) );
 
 interface PageProps {
   signOut?: () => void;
@@ -157,24 +172,42 @@ const BotMenuTab: React.FC = () => (
 );
 
 const TABS: ShellTab[] = [
+  // Messaging
   { id: 'ai-agent', label: '🤖 AI Agent' },
   { id: 'auto-response', label: 'Auto-Response' },
   { id: 'bot-menu', label: 'Bot Menu' },
   { id: 'scripts', label: 'Scripts' },
   { id: 'campaign', label: 'Campaign' },
-  { id: 'templates', label: 'Templates' },
-  { id: 'lists', label: 'List Msgs', divider: true },
-  { id: 'flows', label: 'Flows' },
-  { id: 'flow-hub', label: 'Flows Hub' },
-  { id: 'flow-responses', label: 'Flow Data' },
+  { id: 'send-test', label: 'Send Test' },
+  { id: 'lists', label: 'List Msgs' },
   { id: 'welcome', label: 'Welcome' },
-  { id: 'calling', label: 'Calling', divider: true },
   { id: 'groups', label: 'Groups' },
-  { id: 'logs', label: 'Logs', divider: true },
-  { id: 'profile', label: 'Profile', divider: true },
-  { id: 'webhooks', label: 'Webhooks' },
-  { id: 'waba', label: 'WABA' },
+  // Templates
+  { id: 'templates', label: 'Templates', divider: true },
+  { id: 'template-builder', label: 'Template Builder' },
+  // Flows
+  { id: 'flows', label: 'Flows', divider: true },
+  { id: 'flow-hub', label: 'Flows Hub' },
+  { id: 'flow-publish', label: 'Flow Publish' },
+  { id: 'flow-responses', label: 'Flow Data' },
+  { id: 'catalog-builder', label: 'Catalog & Flow Builder' },
+  // AI / Marketing
+  { id: 'ctwa-ads', label: 'Ads to WhatsApp', divider: true },
+  { id: 'conversions-api', label: 'Conversions API' },
+  // Account / WABA
+  { id: 'waba', label: 'WABA', divider: true },
+  { id: 'embedded-signup', label: 'Connect WABA' },
+  { id: 'connected-accounts', label: 'Connected Accounts' },
+  { id: 'my-account', label: 'My Account' },
+  { id: 'profile', label: 'Profile' },
+  { id: 'bsuid', label: 'BSUID & Usernames' },
   { id: 'migration', label: 'Migration' },
+  { id: 'tech-partner', label: 'Tech Partner' },
+  // Infra
+  { id: 'webhooks', label: 'Webhooks', divider: true },
+  { id: 'cost-controls', label: 'Cost Controls' },
+  { id: 'calling', label: 'Calling' },
+  { id: 'logs', label: 'Logs' },
 ];
 
 const WhatsAppSettingsPage: React.FC<PageProps> = ( { signOut, user } ) => (
@@ -192,19 +225,31 @@ const WhatsAppSettingsPage: React.FC<PageProps> = ( { signOut, user } ) => (
           { activeTab === 'bot-menu' && <BotMenuTab /> }
           { activeTab === 'scripts' && <ScriptsPage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'campaign' && <CampaignPage signOut={ signOut } user={ user } embedded /> }
+          { activeTab === 'send-test' && <SendTestPage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'templates' && <TemplatesPage signOut={ signOut } user={ user } embedded /> }
+          { activeTab === 'template-builder' && <TemplateBuilderPage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'lists' && <InteractiveListsPage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'flows' && <FlowsPage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'flow-hub' && <FlowHubPage signOut={ signOut } user={ user } embedded /> }
+          { activeTab === 'flow-publish' && <FlowPublishPage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'flow-responses' && <FlowResponsesPage signOut={ signOut } user={ user } embedded /> }
+          { activeTab === 'catalog-builder' && <CatalogBuilderPage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'welcome' && <WelcomePage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'calling' && <CallingPage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'groups' && <GroupsPage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'logs' && <LogsPage signOut={ signOut } user={ user } embedded channel="whatsapp" /> }
           { activeTab === 'profile' && <BusinessProfilePage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'webhooks' && <WebhooksPage signOut={ signOut } user={ user } embedded /> }
+          { activeTab === 'cost-controls' && <CostControlsPage signOut={ signOut } user={ user } embedded /> }
+          { activeTab === 'ctwa-ads' && <CtwaAdsPage signOut={ signOut } user={ user } embedded /> }
+          { activeTab === 'conversions-api' && <ConversionsApiPage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'waba' && <WABADashboard signOut={ signOut } user={ user } embedded /> }
+          { activeTab === 'embedded-signup' && <EmbeddedSignupPage signOut={ signOut } user={ user } embedded /> }
+          { activeTab === 'connected-accounts' && <ConnectedAccountsPage signOut={ signOut } user={ user } embedded /> }
+          { activeTab === 'my-account' && <MyAccountPage signOut={ signOut } user={ user } embedded /> }
+          { activeTab === 'bsuid' && <BsuidPage signOut={ signOut } user={ user } embedded /> }
           { activeTab === 'migration' && <MigrationPage signOut={ signOut } user={ user } embedded /> }
+          { activeTab === 'tech-partner' && <TechPartnerPage signOut={ signOut } user={ user } embedded /> }
         </Suspense>
       ) }
     </PageShell>

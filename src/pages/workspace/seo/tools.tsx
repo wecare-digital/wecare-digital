@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 
-interface PageProps { signOut?: () => void; user?: any; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const SITE_BASE = 'https://wecare.digital';
 const BLOG_PUBLIC_API = `${process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api'}/seo-tools/blog-public`;
@@ -16,7 +16,7 @@ const ALL_PAGES = [
   '/', '/grahak-os', '/vayulok', '/contact', '/shop', '/blog',
 ];
 
-const SEOTools: React.FC<PageProps> = ({ signOut, user }) => {
+const SEOTools: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const [log, setLog] = useState<string[]>([]);
   const [running, setRunning] = useState('');
 
@@ -230,10 +230,8 @@ const SEOTools: React.FC<PageProps> = ({ signOut, user }) => {
     { id: 'pagespeed', label: 'PageSpeed Check', desc: 'Run Google PageSpeed Insights on public pages (mobile)', action: runPageSpeed, icon: '⚡' },
   ];
 
-  return (
-    <Layout user={user} onSignOut={signOut}>
-      <SEO title="SEO Tools" description="SEO management tools for wecare.digital" />
-      <div className="inner-page">
+  const body = (
+      <div className="inner-page" style={ embedded ? { padding: 0 } : undefined }>
         <h1 className="inner-page-title">SEO Tools</h1>
         <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 24 }}>
           Run public-site SEO checks and operations. Blog content is AWS-native; the frontend is a static Amplify export.
@@ -274,6 +272,13 @@ const SEOTools: React.FC<PageProps> = ({ signOut, user }) => {
           </div>
         )}
       </div>
+  );
+
+  if (embedded) return body;
+  return (
+    <Layout user={user} onSignOut={signOut}>
+      <SEO title="SEO Tools" description="SEO management tools for wecare.digital" />
+      {body}
     </Layout>
   );
 };

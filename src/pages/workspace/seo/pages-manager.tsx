@@ -12,7 +12,7 @@ import SEO from '../../../components/SEO';
 import InstructionsContent from '../../../components/seo/InstructionsContent';
 import { seoToolsFetch } from '../../../api/seo';
 
-interface PageProps { signOut?: () => void; user?: any; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 interface SitePage {
   path: string; name: string; type: string; url: string;
   title: string; metaDescription: string; keywords: string[];
@@ -49,7 +49,7 @@ const SYSTEM_PAGES: SitePage[] = [
   { path: '/orders/', name: 'Orders', type: 'system', url: `${BASE}/orders/`, title: 'Orders', metaDescription: '', keywords: [], jsonLdTypes: [], hasJsonLd: false, canonical: '' },
 ];
 
-const PagesManager: React.FC<PageProps> = ({ signOut, user }) => {
+const PagesManager: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const [tab, setTab] = useState<Tab>('site');
   const [sitePages, setSitePages] = useState<SitePage[]>([]);
   const [products, setProducts] = useState<ProductPage[]>([]);
@@ -160,10 +160,8 @@ const PagesManager: React.FC<PageProps> = ({ signOut, user }) => {
     ['instructions', 'Instructions', '📖'],
   ];
 
-  return (
-    <Layout user={user} onSignOut={signOut}>
-      <SEO title="SEO Pages Manager" description="AI SEO for all pages" />
-      <div className="inner-page">
+  const body = (
+      <div className="inner-page" style={ embedded ? { padding: 0 } : undefined }>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <div>
             <h1 className="inner-page-title" style={{ margin: 0 }}>SEO Pages Manager</h1>
@@ -201,6 +199,13 @@ const PagesManager: React.FC<PageProps> = ({ signOut, user }) => {
           <pre style={{ background: '#0f1117', color: '#a3e635', padding: 16, borderRadius: 8, fontSize: 12, lineHeight: 1.6, maxHeight: 200, overflowY: 'auto', fontFamily: 'Consolas, Monaco, monospace', whiteSpace: 'pre-wrap' }}>{log.join('\n')}</pre>
         </div>)}
       </div>
+  );
+
+  if (embedded) return body;
+  return (
+    <Layout user={user} onSignOut={signOut}>
+      <SEO title="SEO Pages Manager" description="AI SEO for all pages" />
+      {body}
     </Layout>
   );
 };

@@ -16,7 +16,7 @@ import Spinner from '../../../components/ui/Spinner';
 import * as api from '../../../api/client';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 
-interface PageProps { signOut?: () => void; user?: any; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 interface NativeVariant {
   sku: string;
@@ -100,7 +100,7 @@ async function nativeCall(
   return data;
 }
 
-const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
+const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const [tab, setTab] = useState<Tab>('products');
   const [products, setProducts] = useState<NativeProduct[]>([]);
   const [orders, setOrders] = useState<api.Order[]>([]);
@@ -313,9 +313,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
   });
   const totalVariants = products.reduce((count, p) => count + (p.variants || []).length, 0);
 
-  return (
-    <Layout user={user} onSignOut={signOut}>
-      <SEO title="AWS Product Catalog" description="WECARE.DIGITAL AWS-native product management" />
+  const body = (
       <div style={{ paddingBottom: 40 }}>
         <PageHeader
           title="Product Catalog"
@@ -577,6 +575,13 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user }) => {
           </section>
         )}
       </div>
+  );
+
+  if (embedded) return body;
+  return (
+    <Layout user={user} onSignOut={signOut}>
+      <SEO title="AWS Product Catalog" description="WECARE.DIGITAL AWS-native product management" />
+      {body}
     </Layout>
   );
 };

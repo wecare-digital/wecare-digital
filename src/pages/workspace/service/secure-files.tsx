@@ -39,8 +39,6 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import type { SecureFile } from '../../../api/client';
 
-interface PageProps { signOut?: () => void; user?: any; }
-
 const MAX_BYTES = 200 * 1024 * 1024;
 
 function formatBytes ( bytes: number ): string {
@@ -59,7 +57,9 @@ const STATUS_COLOURS: Record<string, { bg: string; fg: string; border: string }>
     revoked: { bg: '#fee2e2', fg: '#991b1b', border: '#ef4444' },
 };
 
-export default function SecureFilesPage ( { signOut, user }: PageProps ) {
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
+
+export default function SecureFilesPage ( { signOut, user, embedded }: PageProps ) {
     const toast = useToastContext();
     const confirm = useConfirm();
 
@@ -208,10 +208,8 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
         }
     };
 
-    return (
-        <Layout onSignOut={ signOut } user={ user }>
-            <SEO title="Secure Files" description="Share a file with a verified customer" />
-
+    const body = (
+        <>
             <div className="sf-wrap">
                 <header className="sf-head">
                     <p className="sf-eyebrow">Secure sharing</p>
@@ -586,6 +584,14 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
                   .sf-cta:hover:not(:disabled){transform:none}
                 }
             ` }</style>
+        </>
+    );
+
+    if ( embedded ) return body;
+    return (
+        <Layout onSignOut={ signOut } user={ user }>
+            <SEO title="Secure Files" description="Share a file with a verified customer" />
+            { body }
         </Layout>
     );
 }

@@ -12,7 +12,7 @@ import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
 import * as api from '../../../api/client';
 
-interface PageProps { signOut?: () => void; user?: any; }
+interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 type FlowSubmission = api.FlowLog;
 
@@ -49,7 +49,7 @@ const fmtDate = (ts: number) => {
   return new Date(ms).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
 };
 
-const CustomerServicePage: React.FC<PageProps> = ({ signOut, user }) => {
+const CustomerServicePage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const toast = useToastContext();
   const [activeTab, setActiveTab] = useState<'flows' | 'submissions' | 'links'>('flows');
   const [submissions, setSubmissions] = useState<FlowSubmission[]>([]);
@@ -77,10 +77,8 @@ const CustomerServicePage: React.FC<PageProps> = ({ signOut, user }) => {
     card: { border: '1px solid #e5e7eb', borderRadius: 10, padding: 16, background: '#fff' } as React.CSSProperties,
   };
 
-  return (
-    <Layout user={user} onSignOut={signOut}>
-      <SEO title="Customer-Service" description="WhatsApp Flow forms and submissions" />
-      <div className="inner-page" style={{ padding: '20px 24px', maxWidth: 1100 }}>
+  const body = (
+      <div className="inner-page" style={{ padding: embedded ? '0' : '20px 24px', maxWidth: 1100 }}>
         <div style={{ marginBottom: 16 }}>
           <h2 style={{ margin: 0, fontSize: 20, color: '#1a3a2a' }}>Customer-Service Hub</h2>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>
@@ -201,6 +199,13 @@ const CustomerServicePage: React.FC<PageProps> = ({ signOut, user }) => {
           </div>
         )}
       </div>
+  );
+
+  if (embedded) return body;
+  return (
+    <Layout user={user} onSignOut={signOut}>
+      <SEO title="Customer-Service" description="WhatsApp Flow forms and submissions" />
+      {body}
     </Layout>
   );
 };
