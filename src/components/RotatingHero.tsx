@@ -152,7 +152,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
     // The shutter used to default to scaleX(1) - a white panel covering the pill's tint - and
     // the dot to scale(0), with .rh-layout.show removing both once this effect had run. So
     // anything that stopped that class arriving left the headline followed by a blank white
-    // lozenge with no dot, permanently. Measured on the built /elsewhere/ with scripting
+    // lozenge with no dot, permanently. Measured on a built product-family child page with scripting
     // disabled: shutter matrix(1,0,0,1,0,0), dot matrix(0,0,0,0,0,0).
     //
     // index.tsx carried the same bug and was fixed; this component was not, so every page
