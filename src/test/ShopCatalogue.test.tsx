@@ -498,8 +498,8 @@ describe( 'the product page', () => {
       formattedPrice: '₹26,999.00', price: '26999.00',
     };
     render( <ShopProductPage product={ kiosk } /> );
+    expect( screen.getByText( /One-time purchase · Review your final total in the cart before payment/ ) ).toBeTruthy();
     expect( screen.getByText( /Review your final total in the cart before payment/ ) ).toBeTruthy();
-    expect( screen.getByText( /before payment/ ) ).toBeTruthy();
     expect( screen.queryByText( /This page is not a checkout/ ) ).toBeNull();
   } );
 

@@ -88,6 +88,7 @@ import SupportWidget from '../components/SupportWidget';
 import ErrorBoundary from '../components/ErrorBoundary';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import PublicPolicyDetails from '../components/public/PublicPolicyDetails';
 import { ToastProvider } from '../contexts/ToastContext';
 import { ConfirmProvider } from '../contexts/ConfirmContext';
 import { initCapacitor, isNative } from '../lib/capacitor';
@@ -492,7 +493,7 @@ const PUBLIC_PAGE_META: Record<string, {
   // promises a product the page does not offer is worse than none.
   '/bharat-rx': { name: 'Bharat Rx', type: 'WebPage', description: 'Consults, appointments, reminders and records in one place.', serviceType: 'Health consultations, appointments and records' },
   // Product pages. Elsewhere is a category-only menu family, so there is deliberately no
-  // /elsewhere parent page. Its three real child pages are registered directly instead.
+  // Elsewhere is a non-clickable family label; its three child pages are registered directly.
   // Descriptions are shorter than the pages' own meta descriptions on purpose: this feeds
   // WebPage.description in the schema graph, while ProductPage.tsx owns the search-result copy.
   '/elsewhere/visa': { name: 'Visa', type: 'WebPage', description: 'Visa document preparation, application readiness and tracking.', serviceType: 'Visa application assistance' },
@@ -510,7 +511,7 @@ const PUBLIC_PAGE_META: Record<string, {
   // to redirect from.
   '/anew': { name: 'Anew', type: 'WebPage', description: 'Reflection-led conversations that create clarity and action.', serviceType: 'Reflective conversation and coaching' },
   // Hunar is now a non-clickable family label. Kaushal owns skills/learning; Prastuti owns
-  // CV/profile/pitch presentation. The retired /hunar parent is intentionally not registered.
+  // CV/profile/pitch presentation. Hunar is a non-clickable family label.
   '/hunar/kaushal': { name: 'Kaushal', type: 'WebPage', description: 'A focused skills and learning path built around what you want to do next.', serviceType: 'Skills learning and development support' },
   '/hunar/prastuti': { name: 'Prastuti', type: 'WebPage', description: 'CV, professional profile and pitch deck creation built from real experience.', serviceType: 'CV, professional profile and pitch deck creation' },
   '/niji-setu': { name: 'Niji Setu', type: 'WebPage', description: 'A QR code people scan to reach you on a masked call.', serviceType: 'Number masking and call connection' },
@@ -1130,6 +1131,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
             no direct gtag.js accompanies it. */}
         <Header />
         <Component { ...pageProps } />
+        <PublicPolicyDetails />
         <Footer />
         {/* WhatsApp contact + page translation. This comment used to read "translation +
             read-aloud, public pages only, and deliberately not on the authenticated

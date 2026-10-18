@@ -45,7 +45,6 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
     expectSameType( '.api-step-title', '.home-flow-list strong' );
     expectSameType( '.gos-price', '.home-flow-list strong' );
     expectSameType( '.api-step-line', '.home-flow-list span' );
-    expectSameType( '.gos-offer-note', '.home-flow-list span' );
   } );
 
   it( 'keeps all page controls on the shared 17px / 600 rung', () => {
@@ -64,13 +63,13 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
     ];
     for ( const [ css, selector ] of controls ) {
       const rule = cssRuleFor( css, selector );
-      expect( cssValue( rule, 'font-size' ) ).toBe( '17px' );
-      expect( cssValue( rule, 'font-weight' ) ).toBe( '600' );
+      expect( [ '17px', 'var(--public-cta-font-size)' ] ).toContain( cssValue( rule, 'font-size' ) );
+      expect( [ '600', 'var(--public-cta-font-weight)' ] ).toContain( cssValue( rule, 'font-weight' ) );
     }
   } );
 
   it( 'uses one scalable hero tracking value instead of breakpoint-specific pixel tracking', () => {
-    expect( cssRuleFor( source, '.hero-left h1' ) ).toContain( 'letter-spacing:-0.04em' );
+    expect( cssRuleFor( source, '.hero-left h1' ) ).toContain( 'letter-spacing:var(--public-hero-tracking)' );
     expect( code ).not.toContain( '.hero-left h1{letter-spacing:' );
     expect( code ).not.toContain( 'line-height:1.12' );
   } );
@@ -125,7 +124,7 @@ describe( 'Grahak OS five approved visual fixes', () => {
     const avatarRule = cssRuleFor( source, '.avatar' );
     expect( avatarRule ).toContain( 'width:40px' );
     expect( avatarRule ).toContain( 'height:40px' );
-    expect( avatarRule ).toContain( 'background:#d1f470' );
+    expect( avatarRule ).toContain( 'background:var(--public-brand-lime)' );
     expect( avatarRule ).toContain( 'border-radius:50%' );
     expect( avatarRule ).toContain( 'overflow:hidden' );
     expect( avatarRule ).toContain( 'box-shadow:0 0 0 2px rgba(255,255,255,.6)' );
@@ -157,7 +156,7 @@ describe( 'Grahak OS five approved visual fixes', () => {
     // class is declared unscoped in Pages.css and Layout.css, which were supplying
     // min-height, box-shadow, font-family and five more properties this page never
     // asked for. The lime pair being guarded here is unchanged.
-    expect( source ).toContain( '.pp-tab.active{background:#d1f470;color:#1a3a2a' );
+    expect( source ).toContain( '.pp-tab.active{background:var(--public-brand-lime);color:var(--public-brand-green)' );
     // The class must stay pp- prefixed. Reverting it to .tab silently reopens the leak.
     expect( source ).toContain( 'className={`pp-tab ' );
     // The "Trusted by Meta" section was removed on owner instruction, so the Meta
@@ -268,13 +267,14 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( stepsCtas ).not.toContain( 'Open demo in WhatsApp' );
     expect( source ).toContain( "import ProductBuyBox from '../../components/ProductBuyBox';" );
     expect( source ).toContain( '<ProductBuyBox slug="grahak-os" showPrice={ false } />' );
-    expect( source ).toContain( '<p className="gos-price" data-wc-no-translate="true">&#8377;899</p>' );
+    expect( source ).toContain( "const GRAHAK_DISPLAY_PRICE = GRAHAK_CHECKOUT?.formattedPrice.replace( /\\.00$/, '' ) ?? null" );
+    expect( source ).toContain( '<p className="gos-price" data-wc-no-translate="true">{ GRAHAK_DISPLAY_PRICE }</p>' );
     expect( source ).toContain( '<p className="gos-offer-note">One-time consultation · full deployment separate</p>' );
     expect( source ).not.toContain( 'AI agents · from deployment to business outcomes' );
     const offerRule = cssRuleFor( source, '.gos-offer-note' );
-    expect( offerRule ).toContain( 'font-size:20px' );
+    expect( offerRule ).toContain( 'font-size:17px' );
     expect( offerRule ).toContain( 'font-weight:400' );
-    expect( offerRule ).toContain( 'color:rgba(0,0,0,.898)' );
+    expect( offerRule ).toContain( 'color:var(--public-muted)' );
     expect( source ).not.toContain( 'A consulting solution for organisations and businesses.' );
   } );
 
@@ -294,12 +294,16 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
   } );
 
   it( 'keeps SKU visible and uses the shared PolicyDetails disclosure', () => {
-    expect( source ).toContain( "PRODUCT_SKU_BY_SLUG['grahak-os']" );
+    expect( source.replace( /\/\*[\s\S]*?\*\//g, '' ) ).not.toContain( "PRODUCT_SKU_BY_SLUG['grahak-os']" );
     expect( source ).toContain( "const GRAHAK_POLICY = productPolicyCopy( 'grahak-os', 'Grahak OS' )" );
+    expect( source ).toContain( "const GRAHAK_CHECKOUT = productCheckoutLine( 'grahak-os' )" );
+    expect( source ).toContain( 'const GRAHAK_SKU = GRAHAK_CHECKOUT?.variantId ?? null' );
     expect( source ).toContain( '<PolicyDetails' );
     expect( source ).toContain( 'shipping={ GRAHAK_POLICY.shipping }' );
     expect( source ).toContain( 'returns={ GRAHAK_POLICY.returns }' );
     expect( source ).toContain( 'disclaimer={ GRAHAK_POLICY.disclaimer }' );
+    expect( source ).toContain( 'overview={ null }' );
+    expect( source ).toContain( 'refunds={ GRAHAK_REFUNDS }' );
     expect( source ).not.toContain( '<details className="gos-policy">' );
     expect( source ).not.toContain( 'PRODUCT_POLICY_TEXT' );
 
@@ -307,17 +311,19 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( commerceRule ).toContain( 'font-size:17px' );
     expect( commerceRule ).not.toContain( 'border:1px solid' );
     expect( commerceRule ).not.toContain( 'background:#fcfdfb' );
+    expect( source ).toContain( '.gos-offer-note{max-width:620px;margin:7px 0 0;font-size:17px' );
+    expect( source ).toContain( '.gos-sku-value{color:var(--public-muted)}' );
   } );
 
   it( 'uses only existing design tokens for the step block and introduces no new palette', () => {
     const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
     // Lime disc + dark-green text, the page's own tokens.
     expect( code ).toContain( '.api-step-num{' );
-    expect( code ).toContain( 'background:#d1f470;color:#1a3a2a' );
+    expect( code ).toContain( 'background:var(--public-brand-lime);color:var(--public-brand-green)' );
     // Supporting line uses the Home body rung.
     expect( code ).toContain( '.api-step-line{' );
-    expect( code ).toContain( 'font-size:20px' );
-    expect( code ).toContain( 'color:rgba(0,0,0,.898)' );
+    expect( code ).toContain( 'font-size:var(--public-body-size)' );
+    expect( code ).toContain( 'color:var(--public-body)' );
     // No retired colours leak into the step block CSS.
     expect( code ).not.toContain( '#2f6b52' );
     expect( code ).not.toContain( '#075e54' );
@@ -380,7 +386,7 @@ describe( 'Grahak OS: API-panel "Open demo in WhatsApp" link', () => {
     expect( stackRule ).toContain( 'gap:12px' );
     expect( rowRule ).toContain( 'justify-content:flex-start' );
 
-    expect( linkRule ).toContain( 'color:#1a3a2a' );
+    expect( linkRule ).toContain( 'color:var(--public-brand-green)' );
     expect( linkRule ).toContain( 'font-size:17px' );
     expect( linkRule ).toContain( 'font-weight:600' );
     expect( linkRule ).toContain( 'line-height:1.4' );
@@ -390,16 +396,16 @@ describe( 'Grahak OS: API-panel "Open demo in WhatsApp" link', () => {
     expect( linkRule ).not.toContain( 'border-radius:50px' );
     expect( linkRule ).not.toContain( 'min-height:52px' );
 
-    expect( code ).toContain( '.api-wa-link:hover{background:#d1f470' );
+    expect( code ).toContain( '.api-wa-link:hover{background:var(--public-brand-lime)' );
     expect( code ).toContain( 'transform:translateY(-1px)' );
-    expect( code ).toContain( '.api-wa-link:focus-visible{background:#d1f470' );
-    expect( code ).toContain( 'outline:3px solid #1a3a2a' );
+    expect( code ).toContain( '.api-wa-link:focus-visible{background:var(--public-brand-lime)' );
+    expect( code ).toContain( 'outline:3px solid var(--public-brand-green)' );
   } );
 
   it( 'keeps the solid lime paid WhatsApp CTA distinct and untouched', () => {
     const ctaRule = cssRuleFor( source, '.gos-wa-cta' );
-    expect( ctaRule ).toContain( 'background:#d1f470' );
-    expect( ctaRule ).toContain( 'border-radius:50px' );
+    expect( ctaRule ).toContain( 'background:var(--public-brand-lime)' );
+    expect( ctaRule ).toContain( 'border-radius:var(--public-cta-radius)' );
   } );
 } );
 
@@ -437,13 +443,13 @@ describe( 'Grahak OS: bottom closer section removed entirely', () => {
   } );
 
   it( 'keeps the shared price/SKU/policy in the api-steps block, not the removed closer', () => {
-    // The commerce still exists on the page (in api-steps), proving the removal was scoped. The
-    // policy is rendered through the shared PolicyDetails disclosure (not inline PRODUCT_POLICY_TEXT),
-    // which is the canonical public-commerce pattern the sibling test below pins and the
-    // PublicCommercePattern suite requires — so this asserts the disclosure, not the raw text.
-    expect( source ).toContain( '<p className="gos-price" data-wc-no-translate="true">&#8377;899' );
-    expect( source ).toContain( "PRODUCT_SKU_BY_SLUG['grahak-os']" );
+    // The commerce still exists on the page (in api-steps), proving the removal was scoped.
+    expect( source ).toContain( '<p className="gos-price" data-wc-no-translate="true">{ GRAHAK_DISPLAY_PRICE }</p>' );
+    expect( source ).toContain( 'const GRAHAK_SKU = GRAHAK_CHECKOUT?.variantId ?? null' );
     expect( source ).toContain( '<PolicyDetails' );
+    expect( source ).toContain( 'shipping={ GRAHAK_POLICY.shipping }' );
+    expect( source ).toContain( 'returns={ GRAHAK_POLICY.returns }' );
+    expect( source ).toContain( 'disclaimer={ GRAHAK_POLICY.disclaimer }' );
   } );
 } );
 
@@ -497,7 +503,7 @@ describe( 'Grahak OS: "Every touchpoint" pills carry multiple homepage hues', ()
     // Base geometry keeps the pinned 17px type and the dark body text.
     expect( code ).toContain( '.pp-pill{' );
     expect( code ).toContain( 'font-size:17px' );
-    expect( code ).toContain( 'color:rgba(0,0,0,.898)' );
+    expect( code ).toContain( 'color:var(--public-body)' );
     // Six hues from the homepage palette, now each a thin COLOURED BORDER on a WHITE
     // background - amber/green dot hues used only as border (they fail as TEXT), blue as
     // a border on white, lime as the brand pair. The earlier filled tint backgrounds were
@@ -507,7 +513,7 @@ describe( 'Grahak OS: "Every touchpoint" pills carry multiple homepage hues', ()
     expect( code ).toContain( '.pp-pill--green{border-color:#3da35a;background:#fff}' );
     expect( code ).toContain( '.pp-pill--purple{border-color:#9849e8;background:#fff}' );
     expect( code ).toContain( '.pp-pill--red{border-color:#dc2626;background:#fff}' );
-    expect( code ).toContain( '.pp-pill--lime{border-color:#d1f470;background:#fff;color:#1a3a2a}' );
+    expect( code ).toContain( '.pp-pill--lime{border-color:var(--public-brand-lime);background:#fff;color:var(--public-brand-green)}' );
     // The dropped tint fills must NOT appear on the pill rules (scoped to the pill
     // selectors so a legitimate use of the hex elsewhere on the page is not caught).
     expect( code ).not.toContain( '.pp-pill--amber{border-color:#f0a818;background:#fef3c7}' );
@@ -516,7 +522,7 @@ describe( 'Grahak OS: "Every touchpoint" pills carry multiple homepage hues', ()
     expect( code ).not.toContain( '.pp-pill--red{border-color:#dc2626;background:#fee2e2}' );
     // Hover keeps each pill's own hue (no more forcing every pill to the lime border);
     // it only lifts and casts the existing shadow.
-    expect( code ).toContain( '.pp-pill:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}' );
+    expect( code ).toContain( '.pp-pill:hover{transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}' );
   } );
 
   it( 'introduces no retired colour via the new pill hues', () => {

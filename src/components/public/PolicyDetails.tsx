@@ -9,6 +9,8 @@ export interface PolicyDetailsCopy {
 
 interface PolicyDetailsProps extends PolicyDetailsCopy {
   className?: string;
+  overview?: string | null;
+  refunds?: string;
 }
 
 /**
@@ -22,69 +24,77 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
   returns,
   disclaimer,
   className,
+  overview = PRODUCT_POLICY_TEXT,
+  refunds = 'Cancellation is handled as part of the refund policy above. Eligible voluntary cancellations or discretionary adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days, not as cash or a refund to the original payment method, except where applicable law requires otherwise.',
 } ) => (
   <details className={ ['wc-policy', className].filter( Boolean ).join( ' ' ) }>
     <summary>Policy details</summary>
     <div className="wc-policy-body">
-      <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }</p>
+      { overview && <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { overview }</p> }
       <p><strong>Shipping / fulfilment:</strong> { shipping }</p>
       <p><strong>Returns:</strong> { returns }</p>
-      <p><strong>Refunds & cancellations:</strong> Cancellation is handled as part of the refund policy above. Eligible voluntary cancellations or discretionary adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days, not as cash or a refund to the original payment method, except where applicable law requires otherwise.</p>
-      <p className="wc-policy-disclaimer"><strong>Disclaimer:</strong> { disclaimer } Statutory consumer rights remain unaffected.</p>
+      <p><strong>Refunds & cancellations:</strong> { refunds }</p>
+      { disclaimer.split( /\n{2,}/ ).map( ( paragraph, index, paragraphs ) => (
+        <p className="wc-policy-disclaimer" key={ index }>
+          { index === 0 && <strong>Disclaimer:</strong> }{ index === 0 ? ' ' : '' }{ paragraph.trim() }
+          { index === paragraphs.length - 1 && ' Statutory consumer rights remain unaffected.' }
+        </p>
+      ) ) }
     </div>
 
     <style jsx>{`
-      .wc-policy{
-        margin:12px 0 0;
-        border:1px solid var(--public-hairline);
-        border-radius:14px;
-        background:#fcfdfb;
-        color:var(--public-body);
-        overflow:hidden;
-      }
+      .wc-policy{margin:8px 0 0;font-family:inherit}
       .wc-policy summary{
-        min-height:52px;
-        display:flex;
+        display:inline-flex;
         align-items:center;
-        padding:0 18px;
+        width:max-content;
+        padding:6px 9px;
+        border-radius:8px;
         cursor:pointer;
         color:var(--public-brand-green);
+        background:var(--public-lime-tint);
+        font-family:inherit;
         font-size:17px;
-        font-weight:700;
+        font-weight:600;
         line-height:1.4;
+        letter-spacing:-.05px;
+        text-decoration:underline;
+        text-decoration-thickness:1.5px;
+        text-underline-offset:3px;
         list-style:none;
-        transition:background-color .2s,transform .2s,box-shadow .2s;
+        transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
       }
       .wc-policy summary::-webkit-details-marker{display:none}
-      .wc-policy summary::after{
-        content:'+';
-        margin-inline-start:auto;
-        font-size:22px;
-        font-weight:600;
-        line-height:1;
+      .wc-policy summary:hover{
+        background:var(--public-brand-lime);
+        text-decoration-color:transparent;
+        transform:translateY(-1px);
+        box-shadow:0 5px 14px rgba(26,58,42,.1);
       }
-      .wc-policy[open] summary::after{content:'−'}
-      .wc-policy summary:hover{background:rgba(209,244,112,.22)}
-      .wc-policy summary:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:-3px}
-      .wc-policy-body{
-        padding:0 18px 18px;
-        border-top:1px solid var(--public-hairline);
+      .wc-policy summary:focus-visible{
+        background:var(--public-brand-lime);
+        text-decoration-color:transparent;
+        outline:3px solid var(--public-brand-green);
+        outline-offset:3px;
       }
+      .wc-policy-body{padding:0}
       .wc-policy p{
-        margin:14px 0 0;
+        max-width:640px;
+        margin:10px 0 0;
+        padding:8px 0 8px 12px;
+        border-inline-start:3px solid var(--public-brand-lime);
         font-size:var(--public-body-size);
         font-weight:var(--public-body-weight);
         line-height:var(--public-body-leading);
         letter-spacing:var(--public-body-tracking);
-        color:var(--public-body);
+        color:var(--public-muted);
+        text-wrap:pretty;
       }
       .wc-policy strong{color:var(--public-brand-green);font-weight:700}
-      .wc-policy-disclaimer{
-        padding-top:14px;
-        border-top:1px solid var(--public-hairline);
-      }
+      .wc-policy-disclaimer{padding-top:8px;border-top:1px solid var(--public-hairline)}
       @media(prefers-reduced-motion:reduce){
         .wc-policy summary{transition:none}
+        .wc-policy summary:hover{transform:none;box-shadow:none}
       }
     `}</style>
   </details>

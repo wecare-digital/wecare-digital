@@ -543,7 +543,7 @@ function RedemptionPanel (): React.ReactElement {
         <span className="cart-capability-icon" aria-hidden="true">redeem</span>
         <div>
           <strong>Delight</strong>
-          <p>Applied automatically at checkout. Every order gets a little back, on us.</p>
+          <p>Delight discount is applied automatically at checkout.</p>
         </div>
       </div>
       <style jsx>{`
@@ -1737,11 +1737,11 @@ export default function Cart (): React.ReactElement {
                   server-authoritative: Delight is priced by the invoice engine at checkout, not in
                   the browser.
 
-                  NOT RENDERED ON A CART CONTAINING A CONTRIBUTION. A discount would make the
+                  NOT RENDERED ON A CART CONTAINING A CONTRIBUTION OR EXACT-PRICE SERVICE. A discount would make the
                   recorded amount differ from the amount contributed, so the server suppresses
                   Delight on a contribution and this panel is hidden to match. A render-time read of
                   `items` is correct here. */}
-              { !items.some( isContributionItem ) && <RedemptionPanel /> }
+              { !items.some( item => isContributionItem( item ) || SERVICE_PRODUCT_IDS.has( item.productId || '' ) ) && <RedemptionPanel /> }
 
               {/* THE RETURNING CUSTOMER SEES WHAT WE ALREADY KNOW, not a form. Rendered only on
                   'ready', which means profile complete AND an address on file, so the Deliver row

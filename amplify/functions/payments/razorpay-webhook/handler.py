@@ -1513,7 +1513,7 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
                     'isOrderStatus': True,
                     'orderStatusDetails': {
                         'reference_id': reference_id,
-                        'order_status': 'completed',
+                        'order_status': 'processing',  # capture authorizes fulfillment; it does not complete it
                         # `amountPaise` is the new integer key. `amount` is KEPT for one release
                         # because the sender accepts both and the OTHER producer
                         # (inbound-whatsapp-handler) still sends only the rupee key - dropping it

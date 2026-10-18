@@ -460,6 +460,54 @@ def test_the_additive_path_still_produces_its_previous_figures(engine):
     assert counter.advances == 1
 
 
+@pytest.mark.parametrize("entry_point", [
+    "manual", "pay_flow", "whatsapp_payment", "inbox", "commerce",
+])
+def test_every_fresh_collection_entry_point_gets_the_same_default_pricing(engine, entry_point):
+    """Attribution labels must not fork Delight or convenience-fee policy."""
+    module, _keys, _counter, invoices, _items, _payments = engine
+    body = {
+        "referenceId": f"WD-PAY-PARITY-{entry_point}",
+        "customerPhone": PHONE,
+        "entryPoint": entry_point,
+        "items": [{"name": "Collection", "amount": 1000.0, "quantity": 1}],
+        "gstRate": 18,
+        "currency": "INR",
+        "fy": FY,
+    }
+
+    status, payload = _created(module, body, request_id=f"req-{entry_point}")
+
+    assert status == 201, payload
+    row = _stored(invoices, payload["invoiceId"])
+    assert _paise(row["discount"]) == 590
+    assert _paise(row["convenienceFee"]) == 3463
+    assert _paise(row["total"]) == 120873
+
+
+@pytest.mark.parametrize("entry_point", ["submit_request_flow", "flow_payment"])
+def test_exact_price_service_entry_points_do_not_receive_delight_or_auto_fee(engine, entry_point):
+    """Exact-price service contracts remain explicit exceptions to default collection pricing."""
+    module, _keys, _counter, invoices, _items, _payments = engine
+    body = {
+        "referenceId": f"WD-PAY-SERVICE-{entry_point}",
+        "customerPhone": PHONE,
+        "entryPoint": entry_point,
+        "items": [{"name": "Exact service", "amount": 1000.0, "quantity": 1}],
+        "gstRate": 18,
+        "currency": "INR",
+        "fy": FY,
+    }
+
+    status, payload = _created(module, body, request_id=f"req-{entry_point}")
+
+    assert status == 201, payload
+    row = _stored(invoices, payload["invoiceId"])
+    assert _paise(row.get("discount", 0)) == 0
+    assert _paise(row.get("convenienceFee", 0)) == 0
+    assert _paise(row["total"]) == 118000
+
+
 def test_the_additive_path_is_untouched_by_an_expected_total_it_did_not_ask_for(engine):
     """`expectedTotalPaise` alone does nothing. The mode is the flag, and only the flag."""
     module, _keys, _counter, invoices, _items, _payments = engine
@@ -569,3 +617,56 @@ def test_a_payment_with_no_usable_integer_amount_refuses_rather_than_invoicing_z
     assert counter.advances == 0
     assert invoices.rows == {}
     assert items.rows == {}
+
+
+@pytest.mark.parametrize('entry_point', ['manual', 'pay_flow', 'whatsapp_payment', 'inbox', 'commerce'])
+@pytest.mark.parametrize('goods,gst', [(1000, 0), (1000, 18), (20000, 0)])
+def test_delight_matches_catalogue_goods_with_delivery_and_fees(engine, entry_point, goods, gst):
+    from lambda_utils.ecommerce import catalog_pricing, default_coupon, checkout_pricing
+    module, _, _, invoices, *_ = engine
+    body = {'referenceId': 'WD-PAY-PARITY', 'customerPhone': PHONE,
+            'entryPoint': entry_point, 'fy': FY, 'gstRate': gst,
+            'items': [{'name': 'Goods', 'amount': goods, 'quantity': 1, 'gstRate': gst}],
+            'shipping': 100, 'handling': 0}
+    status, payload = _created(module, body)
+    assert status == 201, payload
+    row = _stored(invoices, payload['invoiceId'])
+    gross_paise = goods * (100 + gst)
+    summary = catalog_pricing.price_cart(
+        [catalog_pricing.CatalogLine('goods', 'sku', 1, gross_paise)],
+        coupon_definition=default_coupon.delight_definition(), delivery_paise=10000)
+    assert _paise(row['discount']) == summary.discount_paise
+    expected = checkout_pricing.compute_quote(summary.total_paise)
+    assert _paise(row['total']) == expected.total_payable_paise
+
+
+@pytest.mark.parametrize('inline', [False, True])
+def test_packing_notification_handling_and_shipping_do_not_increase_delight(engine, inline):
+    module, _, _, invoices, *_ = engine
+    items = [{'name':'Goods', 'amount':1000, 'quantity':1, 'gstRate':18}]
+    if inline:
+        items += [{'name':'Green Packing','amount':50,'quantity':1,'gstRate':18},
+                  {'name':'Notification Fee','amount':25,'quantity':1,'gstRate':18}]
+    body = {'referenceId':'WD-PAY-FEES', 'customerPhone':PHONE,'entryPoint':'pay_flow',
+            'fy':FY, 'gstRate':18, 'items':items,'shipping':175,'greenPacking':50,
+            'notificationFee':25,'handling':30}
+    status, payload = _created(module, body)
+    assert status == 201, payload
+    assert _paise(_stored(invoices,payload['invoiceId'])['discount']) == 590
+
+
+@pytest.mark.parametrize('extra,code', [
+    ({'couponCode':'OLD10'}, 'COUPONS_RETIRED'),
+    ({'discount':100}, 'MANUAL_DISCOUNTS_RETIRED'),
+    ({'discount':'NaN'}, 'MANUAL_DISCOUNTS_RETIRED'),
+    ({'discount':'invalid'}, 'MANUAL_DISCOUNTS_RETIRED'),
+])
+def test_retired_discount_inputs_refuse_before_number_allocation(engine, extra, code):
+    module, _, counter, invoices, *_ = engine
+    body={'referenceId':'WD-PAY-RETIRED','customerPhone':PHONE, 'entryPoint':'pay_flow',
+          'items':[{'name':'Goods','amount':1000,'quantity':1}], 'fy':FY, **extra}
+    status, payload = _created(module,body)
+    assert status == 400
+    assert payload['errorCode'] == code
+    assert counter.advances == 0
+    assert invoices.numbered == []

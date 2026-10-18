@@ -179,7 +179,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              colour and weight are inherited from this rule instead of taken from the
              control tokens - the label here is the page's 700-weight dark green, not a
              workspace field label. */
-          .shopd-in :global(.shopd-options){display:flex;flex-direction:column;gap:8px;color:#1a3a2a;margin:20px 0;font-weight:700}
+          .shopd-in :global(.shopd-options){display:flex;flex-direction:column;gap:8px;color:var(--public-brand-green);margin:20px 0;font-weight:700}
           .shopd-in :global(.shopd-options .ui-field-label){color:inherit;font-weight:inherit;margin-block-end:0;cursor:pointer}
           /* NO BACKTICK IN A styled-jsx COMMENT - this block is a template literal, so one
              around a selector name terminates it and the parser reports a cascade of JSX errors
@@ -198,17 +198,17 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              reason .shop-price records: lime means actionable and the page's one lime surface is
              the button. #1a3a2a on white is about 11:1. Tabular figures. */
           .shopd-price{
-            font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;
-            color:#1a3a2a;margin:0;font-variant-numeric:tabular-nums;
+            font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);
+            color:var(--public-brand-green);margin:0;font-variant-numeric:tabular-nums;
           }
-          .shopd-sku{margin:10px 0 0;font-size:13px;line-height:1.3;color:rgba(0,0,0,.54);letter-spacing:.04em;text-transform:uppercase}
-          .shopd-oos{margin:12px 0 0;font-size:16px;font-weight:700;line-height:1.4;color:rgba(0,0,0,.54)}
+          .shopd-sku{margin:10px 0 0;font-size:13px;line-height:1.3;color:var(--public-muted);letter-spacing:.04em;text-transform:uppercase}
+          .shopd-oos{margin:12px 0 0;font-size:16px;font-weight:700;line-height:1.4;color:var(--public-muted)}
 
           .shopd-about{margin:0}
           /* The single body rung the contract allows, identical to .pdp-p and the blog excerpts. */
           .shopd-p{
-            font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;
-            color:rgba(0,0,0,.898);margin:18px 0 0;
+            font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+            color:var(--public-body);margin:18px 0 0;
           }
 
           /* .pdp-cta, value for value: full-strength #d1f470 with #1a3a2a type, and a 2px border
@@ -219,14 +219,14 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              Without :global() the compiled rule matches nothing and the CTA renders as bare blue
              underlined text. */
           .shopd-in :global(.shopd-cta){
-            display:inline-flex;align-items:center;min-height:52px;margin-top:34px;
-            padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;
-            background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;
+            display:inline-flex;align-items:center;min-height:var(--public-cta-height);margin-top:34px;
+            padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
+            background:var(--public-brand-lime);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
             font-family:inherit;line-height:normal;cursor:pointer;
             transition:background-color .2s,transform .2s,box-shadow .2s;
           }
-          .shopd-in :global(.shopd-cta:hover){background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-          .shopd-in :global(.shopd-cta:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px}
+          .shopd-in :global(.shopd-cta:hover){background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
+          .shopd-in :global(.shopd-cta:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
 
           /* THE CANONICAL BOUNDARY CARD, matched to .pdp-note so every boundary note on the public
              site reads the same: near-white #fcfdfb surface, 1px hairline, 14px radius, 22px
@@ -249,11 +249,11 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              same reason as .shopd-cta: it wraps a capitalised <Link> styled-jsx cannot scope. */
           .shopd-back{margin:28px 0 0}
           .shopd-in :global(.shopd-back a){
-            font-size:16px;font-weight:600;color:#1a3a2a;text-decoration:underline;
+            font-size:16px;font-weight:600;color:var(--public-brand-green);text-decoration:underline;
             text-underline-offset:3px;
           }
           .shopd-in :global(.shopd-back a:hover){text-decoration:none}
-          .shopd-in :global(.shopd-back a:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px}
+          .shopd-in :global(.shopd-back a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
 
           @media(max-width:767px){
             .shopd-p{font-size:18px}

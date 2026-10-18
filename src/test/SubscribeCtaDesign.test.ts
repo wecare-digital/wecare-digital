@@ -46,8 +46,8 @@ describe( 'WhatsApp subscribe CTA design', () => {
     expect( action ).toContain( 'align-items:center' );
     expect( action ).toContain( 'justify-content:center' );
 
-    expect( subscribe ).toContain( 'background:#d1f470' );
-    expect( subscribe ).toContain( 'border-color:#1a3a2a' );
+    expect( subscribe ).toContain( 'background:var(--public-brand-lime)' );
+    expect( subscribe ).toContain( 'border-color:var(--public-brand-green)' );
     expect( share ).toContain( '.ps-subscribe:hover{background:#fff}' );
     expect( share ).toContain(
       '.ps-action:focus-visible,.ps-menu-item:focus-visible{'

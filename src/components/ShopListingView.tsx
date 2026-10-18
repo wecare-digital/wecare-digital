@@ -306,12 +306,12 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
           .shop-arrow{
             display:inline-flex;align-items:center;justify-content:center;
             width:44px;height:44px;flex:0 0 auto;
-            border:2px solid #1a3a2a;border-radius:50%;background:#fff;
-            color:#1a3a2a;font-size:20px;line-height:1;font-family:inherit;cursor:pointer;
+            border:2px solid var(--public-brand-green);border-radius:50%;background:#fff;
+            color:var(--public-brand-green);font-size:20px;line-height:1;font-family:inherit;cursor:pointer;
             transition:background-color .2s,border-color .2s,opacity .2s;
           }
-          .shop-arrow:hover:not(:disabled){background:#d1f470}
-          .shop-arrow:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+          .shop-arrow:hover:not(:disabled){background:var(--public-brand-lime)}
+          .shop-arrow:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
           .shop-arrow:disabled{opacity:.3;cursor:default;border-color:#cfd4d9;color:rgba(0,0,0,.4)}
           /* The position bar: hairline track, lime fill, no numbers - the one place lime marks
              progress rather than action, fine as a thin bar. The fill width is set inline from
@@ -320,7 +320,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
             width:100%;height:6px;border-radius:50px;background:#eef0f2;overflow:hidden;
           }
           .shop-progress-fill{
-            height:100%;border-radius:50px;background:#d1f470;transition:width .2s ease;
+            height:100%;border-radius:50px;background:var(--public-brand-lime);transition:width .2s ease;
           }
 
           /* ONE HORIZONTAL ROW THAT SCROLLS - the brief: blog-style cards, laid out in a single
@@ -366,7 +366,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
             flex:0 0 320px;scroll-snap-align:start;
             display:flex;flex-direction:column;gap:10px;
             padding:26px;background:#fff;
-            border:1px solid #e5e7eb;border-radius:14px;
+            border:1px solid var(--public-hairline);border-radius:14px;
             border-inline-start:3px solid #3da35a;
             overflow:hidden;color:inherit;
             transition:border-color .2s,transform .2s,box-shadow .2s;
@@ -375,35 +375,35 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
           .shop-card:nth-child(3n+3){border-inline-start-color:#9849e8}
           /* The home CTA's treatment, and the only shadow this design language allows. */
           .shop-card:hover{
-            border-color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
+            border-color:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow);
           }
           .shop-card-image{
             display:block;width:calc(100% + 52px);height:auto;aspect-ratio:1/1;object-fit:cover;
-            margin:-26px -26px 10px;border-bottom:1px solid #e5e7eb;background:#fff;
+            margin:-26px -26px 10px;border-bottom:1px solid var(--public-hairline);background:#fff;
           }
           .shop-in :global(.shop-card-action){
             display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;
-            min-height:44px;margin-top:auto;padding:0 18px;border:2px solid #1a3a2a;
-            border-radius:50px;background:#fff;color:#1a3a2a;font-size:16px;font-weight:600;
+            min-height:44px;margin-top:auto;padding:0 18px;border:2px solid var(--public-brand-green);
+            border-radius:50px;background:#fff;color:var(--public-brand-green);font-size:16px;font-weight:600;
             text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s;
           }
-          .shop-in :global(.shop-card-action:hover){background:#d1f470;transform:translateY(-1px)}
-          .shop-in :global(.shop-card-action:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px}
+          .shop-in :global(.shop-card-action:hover){background:var(--public-brand-lime);transform:translateY(-1px)}
+          .shop-in :global(.shop-card-action:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
 
           /* The one card-heading rung, 22px/700/1.27/-.25px on solid black, and the one body
              rung, 20px/400/1.4/-.125px at rgba(0,0,0,.898) - the same two the blog listing and
              the home page's cards use. The blurb is clamped so a long tagline does not set the
              height of its row. */
           .shop-card-name{
-            font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:#000;
+            font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:#000;
           }
           .shop-card-sku{
             font-size:13px;font-weight:700;line-height:1.3;letter-spacing:.04em;
-            color:rgba(0,0,0,.54);text-transform:uppercase;
+            color:var(--public-muted);text-transform:uppercase;
           }
           .shop-card-tag{
-            font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;
-            color:rgba(0,0,0,.898);
+            font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+            color:var(--public-body);
             display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
           }
           .shop-card-foot{display:flex;align-items:baseline;gap:12px;margin-top:4px}
@@ -413,17 +413,17 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
              a ProductDef entry carries no price, so this page never prints a number nobody
              quoted. */
           .shop-card-price{
-            font-size:18px;font-weight:700;line-height:1.3;color:#1a3a2a;
+            font-size:18px;font-weight:700;line-height:1.3;color:var(--public-brand-green);
             font-variant-numeric:tabular-nums;
           }
           .shop-card-oos{
-            font-size:14px;font-weight:700;line-height:1.3;color:rgba(0,0,0,.54);
+            font-size:14px;font-weight:700;line-height:1.3;color:var(--public-muted);
           }
 
           /* The honest miss, on the blog listing's own empty-state rung. */
           .shop-empty{
             border:1px dashed #d1d5db;border-radius:14px;padding:40px;text-align:center;
-            font-size:20px;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.54);
+            font-size:20px;line-height:1.4;letter-spacing:-.125px;color:var(--public-muted);
           }
 
           /* 767px is the home page's narrow step, which RotatingHero above also breaks at. The

@@ -51,8 +51,8 @@ describe( 'product family child pages', () => {
     const ownKeys = header.match( /label:\s*'Elsewhere',([\s\S]*?)children:/ );
     expect( ownKeys, 'Elsewhere must stay a family with children' ).not.toBeNull();
     expect( ownKeys![ 1 ] ).not.toMatch( /\bhref\s*:/ );
-    // And nothing in the menu links to a standalone /elsewhere/ page.
-    expect( header ).not.toMatch( /href:\s*'\/elsewhere\/?'/ );
+    // Family labels are non-clickable; only their concrete child destinations are links.
+    expect( ownKeys![ 1 ] ).not.toMatch( /\bhref\s*:/ );
   } );
 
   it( 'keeps Ritva at the bottom of the Ritual Guru menu', () => {

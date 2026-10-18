@@ -717,23 +717,24 @@ def _tax_halves_rupees(tax_value) -> tuple:
         return cgst, tax_dec - cgst
 
 
-def _delight_applies(entry_point: str, amount_is_tax_inclusive: bool) -> bool:
-    """True when the always-on Delight goodwill discount should auto-apply to this invoice.
+# Entry points that record settled money or preserve an exact-price service contract.
+_EXACT_PRICE_OR_SETTLED_ENTRY_POINTS = frozenset({
+    'webhook', 'website_checkout', 'submit_request_flow', 'flow_payment',
+})
 
-    Only on customer-origin invoices that compute their own total: `pay_flow`, `whatsapp_payment`
-    and `manual` -- the three entry points that also auto-compute the convenience fee. NEVER on:
 
-      - a tax-inclusive capture (`amountIsTaxInclusive`): the invoice total must equal the amount
-        already collected, so there is no collection left to discount;
-      - a `webhook`-minted invoice: it records a settlement that already happened, so there is no
-        collection to discount.
+def _new_collection_pricing_applies(entry_point: str,
+                                    amount_is_tax_inclusive: bool) -> bool:
+    """Every fresh collection uses the same fee policy, regardless of its UI origin."""
+    return (not amount_is_tax_inclusive
+            and entry_point not in _EXACT_PRICE_OR_SETTLED_ENTRY_POINTS)
 
-    There is no coupon and no manual discount any more, so this is the ONLY discount gate: when it
-    is true, Delight applies; when it is false, the invoice carries no discount.
-    """
-    if amount_is_tax_inclusive:
-        return False
-    return entry_point in ('pay_flow', 'manual', 'whatsapp_payment')
+
+def _delight_applies(entry_point: str, amount_is_tax_inclusive: bool,
+                     manual_discount: float = 0) -> bool:
+    """Exclude settled amounts, exact-price services and legacy manual adjustments."""
+    return (not manual_discount
+            and _new_collection_pricing_applies(entry_point, amount_is_tax_inclusive))
 
 
 # ─── Create Invoice ───
@@ -749,6 +750,22 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
             'error': 'Gift cards are retired and are no longer accepted',
             'errorCode': 'GIFT_CARDS_RETIRED',
         })
+    if str(body.get('couponCode') or '').strip():
+        captured = bool(body.get('amountIsTaxInclusive'))
+        return _resp(400, {
+            'error': 'Discount codes are retired; eligible orders receive Delight automatically',
+            'errorCode': 'AMOUNT_ALREADY_CAPTURED' if captured else 'COUPONS_RETIRED',
+        })
+    if not body.get('amountIsTaxInclusive'):
+        try:
+            manual_discount = Decimal(str(body.get('discount') or 0))
+        except (InvalidOperation, ValueError, TypeError):
+            manual_discount = Decimal('NaN')
+        if not manual_discount.is_finite() or manual_discount != 0:
+            return _resp(400, {
+                'error': 'Manual discounts are retired; eligible orders receive Delight automatically',
+                'errorCode': 'MANUAL_DISCOUNTS_RETIRED',
+            })
     payment_id = body.get('paymentId', '')
     table = dynamodb.Table(INVOICES_TABLE)
 
@@ -1050,8 +1067,8 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     # ── The always-on Delight discount, applied BEFORE the fee because it is a price change ──
     #
     # There is no coupon code and no manual staff discount any more: the ONLY discount an invoice
-    # carries is the fixed Delight policy (0.5% up to ₹50). Applied on the three customer-origin
-    # entry points (`_delight_applies`), reducing the collection the convenience-fee calculator
+    # carries is the fixed Delight policy (0.5% up to ₹50). Applied to eligible fresh collections
+    # across entry points (`_delight_applies`), reducing the collection the convenience-fee calculator
     # consumes so a smaller order genuinely costs a smaller fee. The figure comes from
     # `default_coupon.delight_paise` — the SAME standalone computation the website/WhatsApp native
     # path uses — so an invoice and a cart for one order can never disagree. Pure arithmetic: no
@@ -1067,10 +1084,19 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     stored_coupon_code = ''
 
     if _delight_applies(entry_point, amount_is_tax_inclusive):
-        collection_before_discount = (subtotal + shipping + effective_gp
-                                      + effective_nf + handling + tax)
+        # Native catalogue prices are GST-inclusive. Use the same goods basis here:
+        # supply plus its included tax, excluding delivery, handling and fee lines.
+        # Packing/notification charges can arrive inline or as separate legacy fields.
+        goods_gross = Decimal('0')
+        for item in items:
+            name = str(item.get('name') or '').lower()
+            if ('green' in name and 'pack' in name) or 'notification' in name or 'alert' in name:
+                continue
+            amount = Decimal(str(item.get('amount', 0))) * int(item.get('quantity', 1))
+            rate = Decimal(str(item.get('gstRate', gst_rate)))
+            goods_gross += amount * (Decimal('1') + rate / Decimal('100'))
         delight_discount_paise = default_coupon.delight_paise(
-            _rupees_to_paise(collection_before_discount))
+            _rupees_to_paise(goods_gross))
         if delight_discount_paise > 0:
             coupon_discount_paise = delight_discount_paise
             coupon_discount_rupees = _paise_to_rupees(coupon_discount_paise)
@@ -1096,7 +1122,7 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         # Keep this zero Decimal too: Decimal + float is a TypeError and, more importantly,
         # captured-money arithmetic must never leave exact decimal space.
         convenience_fee = Decimal('0')
-    elif entry_point in ('pay_flow', 'manual', 'whatsapp_payment'):
+    elif _new_collection_pricing_applies(entry_point, amount_is_tax_inclusive):
         collection = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax
         quote = checkout_pricing.compute_quote(_rupees_to_paise(collection))
         canonical_fee_paise = quote.convenience_fee_paise + quote.convenience_gst_paise

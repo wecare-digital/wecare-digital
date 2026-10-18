@@ -246,7 +246,7 @@ describe( 'the control itself', () => {
     const css = container.querySelector( 'style' )?.textContent || '';
 
     const hover = /\.hdr-cart:hover\{([^}]*)\}/.exec( css )?.[ 1 ] || '';
-    expect( hover ).toContain( 'background:#d1f470' );
+    expect( hover ).toContain( 'background:var(--public-brand-lime)' );
     // The glyph is NOT recoloured - it stays #1a3a2a, which is 10.03:1 on lime. A colour declaration
     // here would be the reverted treatment creeping back.
     expect( hover ).not.toMatch( /(^|;)\s*color:/ );
@@ -281,13 +281,13 @@ describe( 'the control itself', () => {
       path.join( process.cwd(), 'src', 'components', 'Header.tsx' ), 'utf8',
     );
     const menuHover = /\.nav-trigger:hover[^{]*\{([^}]*)\}/.exec( header )?.[ 1 ] || '';
-    const menuColour = /background:(#[0-9a-f]{3,8})/i.exec( menuHover )?.[ 1 ];
+    const menuColour = /background:([^;}]+)/i.exec( menuHover )?.[ 1 ];
     expect( menuColour ).toBeTruthy();
 
     const { container } = render( <HeaderCart /> );
     const css = container.querySelector( 'style' )?.textContent || '';
     const bagHover = /\.hdr-cart:hover\{([^}]*)\}/.exec( css )?.[ 1 ] || '';
-    const bagColour = /background:(#[0-9a-f]{3,8})/i.exec( bagHover )?.[ 1 ];
+    const bagColour = /background:([^;}]+)/i.exec( bagHover )?.[ 1 ];
 
     expect( bagColour ).toBe( menuColour );
   } );

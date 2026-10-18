@@ -551,13 +551,13 @@ export default function FilesPage () {
                    rather than an <h1> (the hero owns the page's one h1); the rule is unchanged
                    because it styles by CLASS, not by tag, so the rung is pixel-identical. */
                 .sf-title{
-                  margin:0 0 16px;font-size:clamp(28px,3.2vw,40px);font-weight:700;
-                  line-height:1.08;letter-spacing:-1.2px;color:rgba(0,0,0,.95);
+                  margin:0 0 16px;font-size:var(--public-section-size);font-weight:var(--public-section-weight);
+                  line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking);color:var(--public-heading);
                 }
                 /* The one body level. */
                 .sf-lead{
-                  margin:0 0 28px;font-size:20px;font-weight:400;line-height:1.4;
-                  letter-spacing:-.125px;color:rgba(0,0,0,.898);
+                  margin:0 0 28px;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);
+                  letter-spacing:var(--public-body-tracking);color:var(--public-body);
                 }
 
                 .sf-form{display:block}
@@ -566,12 +566,12 @@ export default function FilesPage () {
                    is a rung this site does not use for a field label. */
                 .sf-label{
                   display:block;margin:0 0 8px;font-size:14px;font-weight:700;
-                  letter-spacing:-.1px;color:#1a3a2a;
+                  letter-spacing:-.1px;color:var(--public-brand-green);
                 }
                 /* Matched to .si-hint on /account/sign-in, so the one line of guidance under the
                    number field reads the same on both sign-in surfaces. */
                 .sf-hint{
-                  margin:0 0 20px;font-size:16px;line-height:1.55;color:rgba(0,0,0,.54);
+                  margin:0 0 20px;font-size:16px;line-height:1.55;color:var(--public-muted);
                 }
                 /* THE CODE FIELD NOW DRESSES LIKE .si-input, byte for byte: 52px (matching the
                    pill below it, so the field and the button it feeds are the same height), 1px
@@ -586,10 +586,10 @@ export default function FilesPage () {
                 .sf-input{
                   width:100%;box-sizing:border-box;min-height:52px;padding:0 16px;
                   margin:0 0 20px;font-family:inherit;font-size:17px;color:#1a1a1a;
-                  background:#fff;border:1px solid #e5e7eb;border-radius:999px;
+                  background:#fff;border:1px solid var(--public-hairline);border-radius:999px;
                   transition:border-color .2s;
                 }
-                .sf-input:focus{outline:none;border-color:#1a3a2a}
+                .sf-input:focus{outline:none;border-color:var(--public-brand-green)}
                 .sf-input:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;box-shadow:0 0 0 3px rgba(209,244,112,.28)}
                 .sf-input:disabled{opacity:.6}
                 /* NO .sf-input-code RULE ANY MORE. The code field had bespoke 22px/600/centred
@@ -627,7 +627,7 @@ export default function FilesPage () {
                   border:0;background:transparent;color:rgba(26,58,42,.72);
                   font-family:inherit;font-size:15px;cursor:pointer;
                 }
-                .sf-quiet:hover{color:#1a3a2a;text-decoration:underline}
+                .sf-quiet:hover{color:var(--public-brand-green);text-decoration:underline}
                 .sf-quiet:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
 
                 /* White card on the tinted panel, so each file reads as its own object. */
@@ -665,11 +665,11 @@ export default function FilesPage () {
                    what survives forced-colors and reduced colour discrimination. Logical
                    inline-start, so the edge follows the reading direction. */
                 .sf-note-bad{
-                  background:rgba(209,244,112,.22);border-inline-start:4px solid #d1f470;
-                  font-weight:700;color:#1a3a2a;
+                  background:var(--public-lime-tint);border-inline-start:4px solid var(--public-brand-lime);
+                  font-weight:700;color:var(--public-brand-green);
                 }
                 .sf-note-ok{
-                  background:#fff;border-inline-start:4px solid #1a3a2a;color:#1a3a2a;
+                  background:#fff;border-inline-start:4px solid #1a3a2a;color:var(--public-brand-green);
                 }
 
                 @media(prefers-reduced-motion:reduce){
