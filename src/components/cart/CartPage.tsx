@@ -210,7 +210,7 @@ const SIGN_IN_PATH = '/account/sign-in/?return=/cart/';
  * A constant rather than four string literals so the claim has exactly one definition to audit, and
  * so a future edit cannot drift one copy of it onto a path that cannot support it.
  */
-const NOT_PREPARED = 'We could not prepare this order. No charge was made - please try again shortly.';
+const NOT_PREPARED = 'We could not start this order. No charge was made. Please try again shortly.';
 
 /** The inline states this page can show without leaving it. Handoffs navigate instead. */
 type Notice =
