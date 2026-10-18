@@ -155,7 +155,7 @@ const BharatRxPage: React.FC = () => (
             font-size:15px;font-weight:700;
           }
           /* Card-heading rung: 22px/700/-.25px/#000, same as .pp-strip-title. */
-          .brx-step-t{display:block;margin:5px 0 6px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:#000}
+          .brx-step-t{display:block;margin:5px 0 6px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading)}
           /* The one body level: 20px/400/1.4/-.125px. */
           .brx-p{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0}
           /* Full-strength #d1f470 with #1a3a2a type - the contract's own-surface pairing,
@@ -176,14 +176,10 @@ const BharatRxPage: React.FC = () => (
              be read is legible. 1px static, per the rule: 1px static, 2px hoverable. */
           .brx-commerce{margin:22px 0 0}
           .brx-sku{
-            margin:0;font-size:17px;font-weight:400;line-height:1.55;
-            letter-spacing:-.05px;color:var(--public-body);
+            margin:0;font-size:17px;font-weight:400;line-height:1.4;
+            letter-spacing:-.05px;color:var(--public-muted);
           }
-          .brx-sku strong{color:var(--public-brand-green);font-weight:700}
-          @media(max-width:767px){
-            .brx-p{font-size:18px}
-            .brx-step-t{font-size:20px}
-          }
+          .brx-sku strong{color:var(--public-muted);font-weight:600}
         `}</style>
       </section>
 
