@@ -17,6 +17,26 @@ describe( 'canonical public commerce pattern', () => {
     expect( policy ).not.toContain( 'overview' );
   } );
 
+  it( 'keeps public commerce microcopy free of internal checkout wording', () => {
+    const product = read( 'src/components/ProductBuyBox.tsx' );
+    const service = read( 'src/components/ServiceBuyBox.tsx' );
+    const shop = read( 'src/pages/shop/[slug].tsx' );
+
+    for ( const [ file, source ] of [
+      [ 'ProductBuyBox', product ],
+      [ 'ServiceBuyBox', service ],
+      [ 'shop/[slug]', shop ],
+    ] as const ) {
+      expect( source, file ).not.toContain( 'final total confirmed at checkout' );
+      expect( source, file ).not.toContain( 'Review your final total in the cart before payment' );
+      expect( source, file ).not.toContain( 'One-time purchase ·' );
+    }
+
+    expect( product ).toContain( "offerNote = 'One-time purchase'" );
+    expect( service ).toContain( '>One-time service</p>' );
+    expect( shop ).toContain( '>One-time purchase</p>' );
+  } );
+
   it( 'keeps both checkout rails in CTA -> price -> offer-note order', () => {
     for ( const [ file, prefix ] of [
       [ 'src/components/ProductBuyBox.tsx', 'pbb' ],
