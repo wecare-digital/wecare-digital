@@ -323,7 +323,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     /*
-     * ADDED for the customer-experience upgrade (/shipments, formerly /zip). WHY A SUB-CLAUSE OF 15, not a new numbered
+     * ADDED for the customer-experience upgrade around shipment services. WHY A SUB-CLAUSE OF 15, not a new numbered
      * section: numbers here are load-bearing (see types.ts) and "How to contact us" is the last
      * top-level section by owner instruction, so a new top-level section would either renumber
      * citations or push contact out of last place. Delivery and fulfilment live under 15, so the
