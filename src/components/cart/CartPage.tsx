@@ -1905,8 +1905,8 @@ export default function Cart (): React.ReactElement {
           /* The body rung: 20px/400/1.4/-.125px at rgba(0,0,0,.898). It was 18px at .7 alpha,
              which is neither of the two rungs this site has. */
           .cart-body{
-            font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;
-            color:rgba(0,0,0,.898);margin:0;
+            font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+            color:var(--public-body);margin:0;
           }
           .cart-empty{margin:0}
           .cart-list{list-style:none;margin:0;padding:0}
@@ -1920,19 +1920,19 @@ export default function Cart (): React.ReactElement {
           /* The card-heading rung: 22px/700/lh1.27/-.25px, the same three numbers as .shop-name
              and .shopd-price, which is what makes the cart read as the same site as the catalogue.
              It was 20px/600, a rung that exists nowhere else. */
-          .cart-name{font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;margin:0 0 8px}
+          .cart-name{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);margin:0 0 8px}
           /* EVERY LINK RULE GOES THROUGH :global(). styled-jsx adds its scoping class only to
              lowercase DOM tags it can see in this file, never to a capitalised component, so the
              compiled rule for a next/link child would match nothing. */
-          .cart-name :global(a){color:#000;text-decoration:none;text-underline-offset:3px}
-          .cart-name :global(a:hover){color:#1a3a2a}
-          .cart-name :global(a:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px;border-radius:2px}
+          .cart-name :global(a){color:var(--public-heading);text-decoration:none;text-underline-offset:3px}
+          .cart-name :global(a:hover){color:var(--public-brand-green)}
+          .cart-name :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:2px}
           /* Price in dark green, never lime: lime means actionable and the page's one lime surface
              is the button below. #1a3a2a on white is about 11:1. Tabular figures so a column of
              prices lines up on the decimal. */
           .cart-price{
-            font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;
-            color:#1a3a2a;margin:0;font-variant-numeric:tabular-nums;
+            font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);
+            color:var(--public-brand-green);margin:0;font-variant-numeric:tabular-nums;
           }
           /* THE VARIANT CHOOSER, NOW OUR OWN COMBOBOX (batch 2f). What was a .cart-option-label
              wrapping a .cart-option select is one Select, so .cart-option is the className on
@@ -1962,7 +1962,7 @@ export default function Cart (): React.ReactElement {
              That is the one direction a gate must never fail in. */
           .cart-row-main :global(.cart-option){
             display:flex;flex-direction:column;gap:6px;margin-top:12px;max-width:260px;
-            font-size:14px;font-weight:700;color:#1a3a2a;
+            font-size:14px;font-weight:700;color:var(--public-brand-green);
           }
           .cart-row-main :global(.cart-option .ui-field-label){
             margin-block-end:0;color:inherit;font-size:inherit;font-weight:inherit;
@@ -1972,7 +1972,7 @@ export default function Cart (): React.ReactElement {
              not a dropdown. Styled to read as the committed figure beside its label. */
           .cart-amount-static{
             display:inline-flex;align-items:center;min-height:var(--control-h);
-            font-family:inherit;font-size:16px;font-weight:700;color:#1a3a2a;
+            font-family:inherit;font-size:16px;font-weight:700;color:var(--public-brand-green);
             font-variant-numeric:tabular-nums;
           }
           /* Icon-only remove (trash), 44px target. Was an underlined "Remove" text link; now a
@@ -1980,10 +1980,10 @@ export default function Cart (): React.ReactElement {
           .cart-remove{
             display:inline-flex;align-items:center;justify-content:center;
             width:44px;height:44px;min-height:44px;padding:0;
-            border:none;background:none;color:#1a3a2a;cursor:pointer;border-radius:999px;
+            border:none;background:none;color:var(--public-brand-green);cursor:pointer;border-radius:999px;
           }
           .cart-remove:hover{background:rgba(209,244,112,.22);color:#0f2a1d}
-          .cart-remove:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+          .cart-remove:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
           /* THE CANONICAL BOUNDARY CARD, matched to .pdp-note (and now to .shopd-note / .brx-note,
              which were migrated with it) so every boundary note on the public site reads the same:
              near-white #fcfdfb surface, 1px hairline, 14px radius, 22px padding, legal-copy type
@@ -2012,7 +2012,7 @@ export default function Cart (): React.ReactElement {
           .cart-status{
             margin:20px 0 0;padding:14px 16px;border-radius:10px;
             background:rgba(209,244,112,.22);border-inline-start:3px solid #d1f470;
-            font-size:16px;line-height:1.5;color:#1a3a2a;
+            font-size:16px;line-height:1.5;color:var(--public-brand-green);
           }
           .cart-status-firm{border-inline-start-width:4px;font-weight:700}
 
@@ -2026,20 +2026,19 @@ export default function Cart (): React.ReactElement {
           .cart-back{margin:28px 0 0;font-size:16px;line-height:1.55}
           .cart-back :global(a){
             display:inline-flex;align-items:center;min-height:44px;
-            color:#1a3a2a;font-weight:700;text-underline-offset:3px;
+            color:var(--public-brand-green);font-weight:700;text-underline-offset:3px;
           }
-          .cart-back :global(a:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px;border-radius:2px}
+          .cart-back :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:2px}
           .cart-utility{
             display:flex;align-items:center;gap:10px 22px;flex-wrap:wrap;
             margin:20px 0 0;padding:16px 0 0;border-block-start:1px solid #e5e7eb;
           }
           .cart-utility :global(a){
             display:inline-flex;align-items:center;min-height:44px;
-            color:#1a3a2a;font-size:16px;font-weight:700;text-underline-offset:3px;
+            color:var(--public-brand-green);font-size:16px;font-weight:700;text-underline-offset:3px;
           }
-          .cart-utility :global(a:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px;border-radius:2px}
+          .cart-utility :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:2px}
           @media(max-width:767px){
-            .cart-body{font-size:18px}
             .cart-row{gap:16px}
             .cart-utility{display:grid;grid-template-columns:1fr}
             .cart-utility :global(a){width:100%}
