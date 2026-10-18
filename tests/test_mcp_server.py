@@ -468,10 +468,10 @@ class TestTools:
         2026-10-10."""
         _, body = rpc("tools/call", {"name": "list_pages", "arguments": {"group": "customerservice"}})
         payload = body["result"]["structuredContent"]
-        assert payload["count"] == 7
+        assert payload["count"] == 6
         assert {p["path"] for p in payload["pages"]} == {
             "/submit-request", "/request-amendment", "/drop-docs", "/vault",
-            "/request-pickup", "/leave-review", "/refer-and-earn",
+            "/request-pickup", "/leave-review",
         }
 
     def test_an_unknown_group_names_the_valid_ones(self):
