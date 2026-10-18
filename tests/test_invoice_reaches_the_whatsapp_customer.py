@@ -528,3 +528,16 @@ def test_receipt_dispatch_releases_a_definitively_rejected_engine_call(webhook, 
         assert webhook._deliver_invoice_on_whatsapp(INVOICE_ID, PHONE, WABA1, 'reject') is False
     assert order_keys.resolve_invoice_delivery(fake.Table(KEYS), INVOICE_ID,
                                                channel='whatsapp-dispatch') is None
+
+
+def test_sent_word_without_provider_message_id_remains_unconfirmed(engine, fake):
+    import io
+    class NoProviderMessageId:
+        def invoke(self, **kwargs):
+            return {'Payload': io.BytesIO(json.dumps({'statusCode': 200,
+                'body': json.dumps({'status': 'sent'})}).encode())}
+    _seed(fake)
+    result = _send(engine, fake, NoProviderMessageId())
+    assert result['statusCode'] == 202
+    claim = order_keys.resolve_invoice_delivery(fake.Table(KEYS), INVOICE_ID)
+    assert claim['deliveryStatus'] != order_keys.DELIVERY_CONFIRMED

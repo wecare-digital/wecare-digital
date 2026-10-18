@@ -812,7 +812,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                          create, and there is no manual adjustment to preview. The applied Delight
                          figure appears above once the server has decided it. */ }
                     <div style={ { marginTop: 8, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', lineHeight: 1.45 } }>
-                      Delight is applied automatically. The server confirms the discount, convenience fee and final total when the invoice is created.
+                      Delight is applied automatically. Convenience fee and final total are calculated by the server when the invoice is created.
                     </div>
                   </div>
 

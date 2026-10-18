@@ -133,7 +133,7 @@ describe( 'manual invoice-backed payment collection', () => {
     await waitFor( () => expect( sendPaymentLink ).toHaveBeenCalledWith(
       'inv-manual', 'phone-number-id-waba1-direct-1016149501586345' ) );
     expect( createInvoiceEngine.mock.calls[ 0 ][ 0 ] ).toMatchObject( {
-      goodsType: 'digital-goods', entryPoint: 'inbox', items: [ { name: 'Consultation', amount: 100, gstRate: 18 } ],
+      goodsType: 'physical-goods', entryPoint: 'inbox', items: [ { name: 'Consultation', amount: 100, gstRate: 18 } ],
     } );
     expect( createInvoiceEngine.mock.calls[ 0 ][ 0 ] ).not.toHaveProperty( 'discount' );
     expect( createInvoiceEngine.mock.calls[ 0 ][ 0 ] ).not.toHaveProperty( 'paymentConfiguration' );
