@@ -235,9 +235,9 @@ def test_the_invoice_and_cart_paths_import_the_same_authority():
 # ── the browser computes nothing ──────────────────────────────────────────────
 
 
-def test_src_declares_exactly_one_redemption_url_and_it_is_the_cart_page():
-    """The cart panel is the reference surface. A second declaration anywhere in `src/` would be a
-    second customer-facing apply path, which is the thing "one system" rules out."""
+def test_src_declares_no_browser_redemption_url_until_checkout_owns_it():
+    """The live cart exposes status only. No browser surface may revive a UI-only redemption
+    endpoint before checkout pricing, reservation and settlement own the same discount fact."""
     declarations = []
     for path in _frontend_sources(SRC):
         text = path.read_text(encoding="utf-8")
@@ -245,13 +245,12 @@ def test_src_declares_exactly_one_redemption_url_and_it_is_the_cart_page():
             declarations.append((path.relative_to(ROOT).as_posix(),
                                  text.count("const REDEMPTION_URL")))
 
-    assert declarations == [(CART_PAGE.relative_to(ROOT).as_posix(), 1)], declarations
+    assert declarations == [], declarations
 
 
-def test_no_second_fetch_to_a_coupon_or_gift_card_endpoint_exists_in_src():
-    """Exactly one page talks to a redemption endpoint directly. Everything else goes through the
-    typed API client, which is how the staff invoice form reaches the same authority: it sends a
-    CODE on `createInvoiceEngine` and the server applies it."""
+def test_no_browser_fetch_to_a_coupon_or_gift_card_endpoint_exists_in_src():
+    """The current public checkout has no Apply control and therefore no browser redemption fetch.
+    Staff/server pricing may still use the shared authority; public pages must not invent one."""
     endpoint = re.compile(r"(ecommerce/redemption|/coupons/|/gift-cards/)")
     offenders = []
     for path in _page_sources():
@@ -259,7 +258,7 @@ def test_no_second_fetch_to_a_coupon_or_gift_card_endpoint_exists_in_src():
             if endpoint.search(line):
                 offenders.append((path.relative_to(ROOT).as_posix(), number, line.strip()))
 
-    assert [o[0] for o in offenders] == [CART_PAGE.relative_to(ROOT).as_posix()], offenders
+    assert offenders == [], offenders
 
 
 def test_no_page_computes_a_coupon_or_gift_card_amount_in_the_browser():
@@ -292,15 +291,14 @@ def test_no_page_computes_a_coupon_or_gift_card_amount_in_the_browser():
     assert offenders == [], offenders
 
 
-def test_the_cart_reference_surface_is_still_the_cart_reference_surface():
-    """A belt-and-braces restatement of what `test_whatsapp_order_coupon_parity.py` already pins,
-    here because THIS file is the one an implementer reads when they decide to "unify" the
-    surfaces and reach for the cart panel first."""
+def test_the_cart_reference_surface_is_status_only_until_redemption_is_real():
+    """The cart may explain capability, but it must not offer an Apply path that checkout cannot
+    price and settle authoritatively."""
     text = CART_PAGE.read_text(encoding="utf-8")
-    assert text.count("const REDEMPTION_URL") == 1
-    assert "/ecommerce/redemption" in text
-    # The panel renders the server's reasons; it does not hold a coupon table of its own.
-    assert "COUPON_MESSAGES" in text
+    assert "REDEMPTION_URL" not in text
+    assert "/ecommerce/redemption" not in text
+    assert "Temporarily unavailable. No discount has been applied to this cart." in text
+    assert "Not available yet. A gift-card code cannot be used for payment right now." in text
     assert "CHECKOUT_COUPONS" not in text
 
 

@@ -245,15 +245,14 @@ def test_the_invoice_path_uses_the_same_coupon_authority_as_the_cart():
     assert "apply_coupon" in calls or "_apply_coupon_leg" in ast.unparse(create)
 
 
-def test_the_claim_leaves_the_coupon_panel_exactly_where_it_was():
-    """The cart page's coupon panel is unchanged by this feature, which is what "by construction"
-    means in the browser: the customer applies a coupon on `/cart/` after the claim, through the
-    same `/ecommerce/redemption` call a website basket uses."""
+def test_the_claim_keeps_the_cart_redemption_surface_status_only():
+    """A WhatsApp-origin basket must not gain a coupon path that the website cart does not have.
+    The claim effect is present, while redemption remains an unavailable status surface."""
     cart_page = (ROOT / "src/components/cart/CartPage.tsx").read_text()
-    assert "REDEMPTION_URL" in cart_page
-    # The claim effect must not touch the redemption call.
     assert "basket" in cart_page, "the claim effect is present"
-    assert cart_page.count("const REDEMPTION_URL") == 1
+    assert "REDEMPTION_URL" not in cart_page
+    assert "/ecommerce/redemption" not in cart_page
+    assert "Temporarily unavailable. No discount has been applied to this cart." in cart_page
 
 
 # ── gift cards: the hand-off adds no tender ───────────────────────────────────

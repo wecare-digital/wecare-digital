@@ -33,22 +33,6 @@
       "variantLabel": "Standard"
     },
     {
-      "slug": "clear-closure",
-      "title": "Clear Closure",
-      "canonicalPath": "/clear-closure/",
-      "priceMinor": null,
-      "catalogImageKey": "",
-      "variantLabel": "Standard"
-    },
-    {
-      "slug": "dastavez",
-      "title": "Dastavez",
-      "canonicalPath": "/dastavez/",
-      "priceMinor": null,
-      "catalogImageKey": "",
-      "variantLabel": "Standard"
-    },
-    {
       "slug": "expo-week",
       "title": "Expo Week",
       "canonicalPath": "/expo-week/",
@@ -90,13 +74,5 @@
       "catalogImageKey": "",
       "variantLabel": "Standard"
     },
-    {
-      "slug": "ritual-guru",
-      "title": "Ritual Guru",
-      "canonicalPath": "/ritual-guru/",
-      "priceMinor": null,
-      "catalogImageKey": "",
-      "variantLabel": "Standard"
-    }
   ]
 }
