@@ -329,3 +329,13 @@ it( 'shows the actionable server refusal instead of a generic send failure', asy
   await screen.findByText( /Save a valid six-digit delivery PIN.*Open this saved invoice/ );
   expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 );
 } );
+
+
+it( 'creates physical invoices and offers no digital bypass', async () => {
+  await openCreateForm();
+  expect( screen.queryByRole( 'combobox', { name: 'Goods type' } ) ).toBeNull();
+  priceOneItem();
+  submit();
+  await waitFor( () => expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 ) );
+  expect( lastRequest().goodsType ).toBe( 'physical-goods' );
+} );

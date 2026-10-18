@@ -99,10 +99,6 @@ const STATUS_FILTERS = [
  * state. GOODS_TYPE keeps both literals exactly, because `goodsType` travels into the invoice
  * request at :217 and a third spelling would be a new value rather than a new control.
  */
-const GOODS_TYPE_OPTIONS: SelectOption[] = [
-  { value: 'digital-goods', label: 'Digital Goods' },
-  { value: 'physical-goods', label: 'Physical Goods' },
-];
 /* LAYOUT ONLY - the box is the trigger's. Both sit in flex rows inside the invoice detail
    panel and the dues table, so each one states its own flex basis rather than a width. */
 const DETAIL_SELECT_STYLE: React.CSSProperties = { flex: 1 };
@@ -201,7 +197,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
   const [ deliveryLogs, setDeliveryLogs ] = useState<InvoiceDeliveryLog[]>( [] );
   const [ actionLoading, setActionLoading ] = useState( '' );
   const [ paymentGateway, setPaymentGateway ] = useState( 'razorpay' );
-  const [ goodsType, setGoodsType ] = useState<'digital-goods' | 'physical-goods'>( 'digital-goods' );
+  const goodsType = 'physical-goods' as const;
   /* WABA1, the only number permitted to take a payment (`wa_payment_request.PAYMENT_SENDERS`).
      This defaulted to WABA2, so every staff send from a freshly loaded page was refused
      WA_PAY_SENDER_NOT_PERMITTED before it reached Meta - a default that guaranteed a refusal. */
@@ -794,12 +790,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                     </div>
                     <div className="form-group">
                       <label>Goods Type</label>
-                      { /* The cast is preserved verbatim and the two option values are exactly
-                           the two members of that union - `goodsType` travels into the invoice
-                           request, so the value contract may not be loosened. */ }
-                      <Select ariaLabel="Goods type" value={ goodsType }
-                        onChange={ v => setGoodsType( v as any ) }
-                        options={ GOODS_TYPE_OPTIONS } />
+                      <span>Physical goods — confirmed delivery address required</span>
                     </div>
                   </div>
                   { goodsType === 'physical-goods' && !selCustomer?.shippingAddress && (
@@ -821,7 +812,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                          create, and there is no manual adjustment to preview. The applied Delight
                          figure appears above once the server has decided it. */ }
                     <div style={ { marginTop: 8, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', lineHeight: 1.45 } }>
-                      Convenience fee and final total are calculated by the server when the invoice is created.
+                      Delight is applied automatically. The server confirms the discount, convenience fee and final total when the invoice is created.
                     </div>
                   </div>
 

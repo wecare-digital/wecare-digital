@@ -48,10 +48,7 @@ const WABAS = [
 const PHONE_ID_OPTIONS: SelectOption[] = WABAS.map(
     w => ( { value: w.phoneId, label: w.label } )
 );
-const GOODS_TYPE_OPTIONS: SelectOption[] = [
-    { value: 'physical-goods', label: 'Physical goods (saved delivery address)' },
-    { value: 'digital-goods', label: 'Digital goods' },
-];
+
 
 /* LAYOUT ONLY - what the inline `width: '100%'` carried; the box is the trigger's. The goods
    chooser is a flex child beside a caption, and a native select sized itself to its widest
@@ -67,7 +64,7 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
     const [ toPhone, setToPhone ] = useState( '' );
     const [ busy, setBusy ] = useState( '' );
     const [ items, setItems ] = useState<LineItem[]>( [ { name: '', amount: '', quantity: '1' } ] );
-    const [ goodsType, setGoodsType ] = useState<'physical-goods' | 'digital-goods'>( 'physical-goods' );
+    const goodsType = 'physical-goods' as const;
     const [ orders, setOrders ] = useState<any[]>( [] );
     const [ payments, setPayments ] = useState<any[]>( [] );
     // `products`, `productSearch`, `feeds` and `feedUrl` were declared here. All four
@@ -243,9 +240,7 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                     <h2 style={ h2 }>Compose a bill (native Review &amp; Pay)</h2>
                     <div style={ { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 } }>
                         <label style={ { fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' } }>Goods:</label>
-                        <Select ariaLabel="Goods type" value={ goodsType }
-                            onChange={ v => setGoodsType( v as any ) }
-                            options={ GOODS_TYPE_OPTIONS } style={ GOODS_SELECT_STYLE } />
+                        <span>Physical goods — confirmed delivery address required</span>
                     </div>
                     { items.map( ( it, idx ) => (
                         <div key={ idx } style={ { display: 'flex', gap: 6, marginBottom: 6 } }>

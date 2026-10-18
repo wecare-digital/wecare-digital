@@ -33,6 +33,7 @@ rather than an order, and Razorpay's redelivery provides the recovery.
 from __future__ import annotations
 
 import json
+import urllib.parse
 import logging
 import time
 import urllib.error
@@ -57,8 +58,8 @@ class MetaBindingUnavailable(RuntimeError):
     """We do not know. NEVER means 'not paid'."""
 
 
-def _default_load_token() -> str:
-    """Read the Meta token at request time, by reference, and return it to the caller only.
+def _default_load_token() -> Any:
+    """Read Meta credentials at request time; return them only to the HTTP adapter.
 
     No logging expression anywhere in this module takes the token, not masked and not reduced to
     a boolean: CodeQL tracks taint across function boundaries and has already failed this build
@@ -68,7 +69,9 @@ def _default_load_token() -> str:
     raw = boto3.client('secretsmanager').get_secret_value(SecretId=META_TOKEN_SECRET)
     body = raw.get('SecretString', '') or ''
     try:
-        return str(json.loads(body).get('access_token') or '').strip()
+        credentials = json.loads(body)
+        return {'access_token': str(credentials.get('access_token') or '').strip(),
+                'app_secret': str(credentials.get('app_secret') or '').strip()}
     except (json.JSONDecodeError, TypeError, AttributeError):
         return body.strip()
 
@@ -107,12 +110,17 @@ def lookup_payment(*, reference_id: str, phone_number_id: str, config_name: str,
         raise MetaBindingUnavailable('the reservation carries no phone id')
 
     opener = urlopen or urllib.request.urlopen
-    token = (load_token or _default_load_token)()
+    credentials = (load_token or _default_load_token)()
+    token = credentials.get('access_token', '') if isinstance(credentials, dict) else credentials
+    app_secret = credentials.get('app_secret', '') if isinstance(credentials, dict) else ''
     if not token:
         raise MetaBindingUnavailable('no Meta credential available')
 
     url = '%s/%s/%s/payments/%s/%s' % (GRAPH_HOST, META_API_VERSION, phone,
                                        config_name, reference_id)
+    if app_secret:
+        from lambda_utils.appsecret import build_appsecret_proof
+        url += '?' + urllib.parse.urlencode({'appsecret_proof': build_appsecret_proof(token, app_secret)})
     request = urllib.request.Request(
         url, headers={'Authorization': 'Bearer %s' % token}, method='GET')
     try:
@@ -128,29 +136,43 @@ def lookup_payment(*, reference_id: str, phone_number_id: str, config_name: str,
                        type(error).__name__, reference_id)
         raise MetaBindingUnavailable('Meta lookup unavailable') from error
 
-    payments = (body or {}).get('payments') or []
-    if not payments:
-        raise MetaBindingUnavailable('Meta reports no payment for this reference')
-    entry = payments[0] or {}
+    payments = body.get('payments', []) if isinstance(body, dict) else []
+    if not isinstance(payments, list):
+        raise MetaBindingUnavailable('Meta payment response is malformed')
+    candidates = []
+    for entry in payments:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get('reference_id') and entry['reference_id'] != reference_id:
+            raise MetaBindingUnavailable('Meta returned a different reference')
+        transactions = entry.get('transactions')
+        records = transactions if isinstance(transactions, list) else [entry]
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            status = payment_status.canonical(record.get('status') or entry.get('status'))
+            if status != payment_status.CAPTURED:
+                continue
+            gateway = record.get('payment_gateway') or {}
+            if not isinstance(gateway, dict):
+                continue
+            receipt = record.get('receipt') or {}
+            if not isinstance(receipt, dict):
+                continue
+            order_id = str(record.get('provider_order_id') or gateway.get('order_id')
+                           or receipt.get('provider_order_id') or record.get('order_id') or '')
+            payment_id = str(record.get('provider_payment_id') or gateway.get('payment_id')
+                             or record.get('payment_id') or record.get('id') or '')
+            if order_id:
+                candidates.append((order_id, payment_id, status))
+    # More than one captured binding needs reconciliation; never select the first arbitrarily.
+    candidates = list(dict.fromkeys(candidates))
+    if len(candidates) != 1:
+        raise MetaBindingUnavailable('Meta reports no unique captured gateway binding')
+    gateway_order_id, gateway_payment_id, status = candidates[0]
+    return {'gatewayOrderId': gateway_order_id, 'gatewayPaymentId': gateway_payment_id,
+            'status': status}
 
-    # Canonical, never a raw literal. The exact prior defect is on record: Meta answering `paid`
-    # against a raw `captured` comparison was recorded as REJECTED_MISMATCH, rejecting real money.
-    status = payment_status.canonical(entry.get('status'))
-    if status != payment_status.CAPTURED:
-        raise MetaBindingUnavailable('Meta does not report a captured payment')
-
-    gateway_order_id = str(entry.get('provider_order_id')
-                           or (entry.get('receipt') or {}).get('provider_order_id')
-                           or entry.get('order_id') or '')
-    if not gateway_order_id:
-        raise MetaBindingUnavailable('Meta reports no gateway order id')
-
-    return {
-        'gatewayOrderId': gateway_order_id,
-        'gatewayPaymentId': str(entry.get('provider_payment_id')
-                                or entry.get('payment_id') or ''),
-        'status': status,
-    }
 
 
 def bind_attempt(keys_table: Any, *, reference_id: str, phone_number_id: str,

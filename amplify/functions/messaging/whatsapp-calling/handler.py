@@ -1727,16 +1727,8 @@ def _is_sms_on_call_enabled() -> bool:
 
 
 def _is_postcall_wa_enabled() -> bool:
-    """Check if the post-call WhatsApp message is enabled. Default: True."""
-    try:
-        table = dynamodb.Table(SYSTEM_CONFIG_TABLE)
-        result = table.get_item(Key={'id': 'whatsapp_calling_postcall_wa'})
-        item = result.get('Item')
-        if item:
-            return str(item.get('configValue', 'true')).lower() == 'true'
-    except Exception as e:
-        logger.warning(f"Failed to read postcall_wa config: {e}")
-    return True  # Default: enabled
+    """Post-call WhatsApp notifications are always enabled by owner policy."""
+    return True
 
 
 # ── SMS Dedup: prevent duplicate SMS to the same number within a cooldown window ──
@@ -2197,18 +2189,7 @@ def _update_config(event: Dict, request_id: str) -> Dict[str, Any]:
             logger.error(f"Failed to update sms_on_call config: {e}")
             return _response(500, {'error': str(e)})
 
-    post_call_wa = body.get('postCallWa')
-    if post_call_wa is not None:
-        try:
-            table.put_item(Item={
-                'id': 'whatsapp_calling_postcall_wa',
-                'configValue': str(post_call_wa).lower(),
-                'updatedAt': Decimal(str(int(time.time()))),
-            })
-            logger.info(f"Post-call WhatsApp set to: {post_call_wa}")
-        except Exception as e:
-            logger.error(f"Failed to update postcall_wa config: {e}")
-            return _response(500, {'error': str(e)})
+    post_call_wa = True  # Ignore retired clients' off switch.
 
     auto_thumb = body.get('autoThumb')
     if auto_thumb is not None:

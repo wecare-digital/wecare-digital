@@ -1224,6 +1224,82 @@ def _handle_blog_contribution_captured(payment: Dict, request_id: str) -> None:
                                  'stage': 'contribution', 'requestId': request_id}))
 
 
+def _materialize_paid_invoice_order(reference_id: str, outcome: Dict, request_id: str) -> None:
+    """Resume the complete manual order projection from stored verified payment evidence."""
+    from lambda_utils import shared_tables
+    from lambda_utils.ecommerce import paid_invoice_order, wa_payment_request
+    if (not outcome.get('hasOrder')
+            or outcome.get('checkoutMode') != wa_payment_request.WA_NATIVE_CHECKOUT_MODE):
+        return
+    try:
+        invoices = dynamodb.Table(INVOICES_TABLE).query(
+            IndexName='referenceId-index', KeyConditionExpression='referenceId = :ref',
+            ExpressionAttributeValues={':ref': reference_id}, Limit=2).get('Items', [])
+        if len(invoices) != 1:
+            raise ValueError('unique saved invoice required')
+        invoice = invoices[0]
+        keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+        reference = order_keys.resolve_payment_reference(keys, reference_id) or {}
+        attempt_id = reference.get('paymentAttemptId')
+        if not attempt_id:
+            raise ValueError('stored payment attempt required')
+        attempts = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE)
+        attempt = attempts.get_item(Key={'paymentAttemptId': attempt_id}, ConsistentRead=True).get('Item') or {}
+        contact = dynamodb.Table(shared_tables.contacts_table_name()).get_item(
+            Key={'id': invoice.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
+        items = dynamodb.Table(shared_tables.invoice_items_table_name()).query(
+            KeyConditionExpression='invoiceId = :invoice',
+            ExpressionAttributeValues={':invoice': invoice['invoiceId']}).get('Items', [])
+        row = paid_invoice_order.build(invoice=invoice, attempt=attempt, contact=contact,
+            outcome=outcome, items=items, now=int(time.time()))
+        paid_invoice_order.store(orders=dynamodb.Table(shared_tables.orders_table_name()), row=row)
+        attempts.update_item(Key={'paymentAttemptId': attempt_id},
+            UpdateExpression='SET finalizationStage = :stage, orderId = :order, orderNumber = :number',
+            ConditionExpression='verifiedProviderPaymentId = :provider AND verifiedCapturedPaise = :amount',
+            ExpressionAttributeValues={':stage': row['finalizationStage'], ':order': row['orderId'],
+                ':number': row['orderNumber'], ':provider': row['providerPaymentId'], ':amount': row['amountPaise']})
+        dynamodb.Table(INVOICES_TABLE).update_item(Key={'invoiceId': invoice['invoiceId']},
+            UpdateExpression='SET orderId = :order, orderNumber = :number',
+            ConditionExpression='referenceId = :ref',
+            ExpressionAttributeValues={':order': row['orderId'], ':number': row['orderNumber'], ':ref': reference_id})
+        logger.info(json.dumps({'event': 'paid_invoice_order_projected',
+            'referenceId': reference_id, 'stage': row['finalizationStage'], 'requestId': request_id}))
+    except Exception as error:
+        logger.error(json.dumps({'event': 'paid_invoice_order_projection_failed',
+            'referenceId': reference_id, 'error': type(error).__name__, 'requestId': request_id}))
+        # Leave a durable intake record AND fail this delivery so the webhook lease can retry.
+        provider_id = str(outcome.get('providerPaymentId') or '')
+        if provider_id:
+            order_keys.record_capture_quarantine(dynamodb.Table(COMMERCE_KEYS_TABLE),
+                payment_id=provider_id, reference_id=reference_id,
+                outcome='PAID_ORDER_PROJECTION_FAILED', extra={'stage': 'ORDER_PROJECTION'})
+        raise RuntimeError('paid invoice order projection incomplete') from None
+
+
+def _notification_recipient(reference_id: str, provider_contact: str) -> str:
+    """The billed customer owns invoice notifications; the payer may be someone else."""
+    try:
+        items = dynamodb.Table(INVOICES_TABLE).query(
+            IndexName='referenceId-index', KeyConditionExpression='referenceId = :ref',
+            ExpressionAttributeValues={':ref': reference_id}, Limit=2).get('Items', [])
+        if len(items) > 1:
+            return ''
+        if items:
+            return str(items[0].get('customerPhone') or '')
+        reference = order_keys.resolve_payment_reference(
+            dynamodb.Table(COMMERCE_KEYS_TABLE), reference_id) or {}
+        if reference.get('invoiceId'):
+            invoice = dynamodb.Table(INVOICES_TABLE).get_item(
+                Key={'invoiceId': reference['invoiceId']}, ConsistentRead=True).get('Item') or {}
+            if invoice.get('referenceId') == reference_id:
+                return str(invoice.get('customerPhone') or '')
+        return ''
+    except Exception as error:
+        logger.warning(json.dumps({'event': 'payment_recipient_unavailable',
+            'referenceId': reference_id, 'error': type(error).__name__}))
+        return ''
+
+
 def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     """Handle payment.captured — the main success event. Store payment + mark invoice paid + trigger invoice."""
     payment = event_data.get('payment', {}).get('entity', {})
@@ -1402,6 +1478,8 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     # runs AFTER `_post_payment_handler` returns - so the invoice delivery that call now performs
     # had no sender to use. Resolved here instead, so the GST invoice returns from the SAME
     # number that collected the payment, and the WABA1 default travels WITH the resolution.
+    _materialize_paid_invoice_order(reference_id, outcome or {}, request_id)
+    contact = _notification_recipient(reference_id, contact)
     originating_phone_id = _resolve_originating_phone(reference_id) or WABA1_PHONE_ID
 
     _post_payment_handler(payment_id, contact, email, description, notes, request_id,
@@ -2495,6 +2573,8 @@ def _post_payment_handler(payment_id: str, contact: str,
             and contact and invoice_id):
         delivered = _deliver_invoice_on_whatsapp(
             invoice_id, contact, originating_phone_id, request_id)
+        if not delivered:
+            raise RuntimeError('Invoice receipt delivery is pending')
 
     # ── Step 5: ask for a review, AFTER the invoice and FAIL-OPEN ──
     #
@@ -2594,74 +2674,48 @@ def _generate_invoice_assets(invoice_id: str, request_id: str) -> None:
 
 def _deliver_invoice_on_whatsapp(invoice_id: str, contact: str, phone_number_id: str,
                                  request_id: str) -> bool:
-    """Step 4: hand the already-rendered GST invoice to the engine for delivery.
-
-    It sends NO `force`, deliberately: the engine's own delivery claim is the idempotency
-    control, and `force` defaults to False there, so a redelivered capture gets
-    `already_delivered` and sends nothing. Exactly-once is by claim rather than by hope, and the
-    claim is inside the engine so the operator button passes through it too.
-
-    `deliveryReason` is NOT in the payload. Nothing reads it, and an unread payload key is
-    self-documentation that a log line already does better.
-    """
-    clean_phone = (contact or '').replace('+', '').replace(' ', '').replace('-', '')
-    if not clean_phone.startswith('91') and len(clean_phone) == 10:
-        clean_phone = '91' + clean_phone
-
-    # ── a DISPATCH claim, which answers a different question from the engine's ──
-    #
-    # Two claims, two questions, and they are not redundant:
-    #
-    #   `#whatsapp-dispatch` (here)  "have I already asked the engine to deliver this?"
-    #   `#whatsapp`          (engine) "may I send this document?"
-    #
-    # The ENGINE's claim is the authority on sending, and it has to live there so the operator
-    # button and any future caller pass through it. But Razorpay redelivers, and with only that
-    # claim every redelivery fans out another async invoke that can do nothing but be refused -
-    # four deliveries, four invokes, one send. A conditional write here makes the dispatch count
-    # match the send count.
-    #
-    # Fails toward DISPATCHING on a storage error: a duplicate invoke is refused downstream,
-    # whereas a skipped one is a GST invoice that never went.
+    """Observe engine acceptance; an accepted Lambda invoke alone is not delivery evidence."""
+    from lambda_utils.comms.numbers import to_e164
+    recipient = to_e164(contact)
+    if not recipient:
+        return False
+    table = dynamodb.Table(COMMERCE_KEYS_TABLE)
     try:
-        from lambda_utils.ecommerce import order_keys
-        if not order_keys.claim_invoice_delivery(
-                dynamodb.Table(COMMERCE_KEYS_TABLE), invoice_id=invoice_id,
+        if not order_keys.claim_invoice_delivery(table, invoice_id=invoice_id,
                 channel='whatsapp-dispatch', extra={'requestId': request_id}):
-            logger.info(json.dumps({'event': 'invoice_delivery_already_dispatched',
-                                    'invoiceId': invoice_id, 'requestId': request_id}))
-            return False
-    except Exception as e:  # noqa: BLE001
-        logger.info(json.dumps({'event': 'invoice_delivery_dispatch_claim_skipped',
-                                'invoiceId': invoice_id, 'error': type(e).__name__,
-                                'requestId': request_id}))
-
-    try:
-        lambda_client.invoke(
-            FunctionName='wecare-invoice-engine',
-            InvocationType='Event',
-            Payload=json.dumps({
-                'rawPath': f'/invoices/{invoice_id}/send-whatsapp',
+            previous = order_keys.resolve_invoice_delivery(table, invoice_id,
+                                                            channel='whatsapp-dispatch') or {}
+            return previous.get('deliveryStatus') == order_keys.DELIVERY_CONFIRMED
+        response = lambda_client.invoke(
+            FunctionName='wecare-invoice-engine:live', InvocationType='RequestResponse',
+            Payload=json.dumps({'rawPath': f'/invoices/{invoice_id}/send-whatsapp',
                 'requestContext': {'http': {'method': 'POST'}},
                 'pathParameters': {'invoiceId': invoice_id},
-                'body': json.dumps({
-                    'invoiceId': invoice_id,
-                    'toWhatsAppNumber': f'+{clean_phone}',
-                    'phoneNumberId': phone_number_id or WABA1_PHONE_ID,
-                }),
-            }),
-        )
-    except Exception as e:  # noqa: BLE001
-        # Type only, and never raised: a delivery failure must not fail the webhook and make
-        # Razorpay retry a whole captured payment. The invoice stays deliverable, because the
-        # engine releases its claim when a send does not land.
-        logger.error(json.dumps({'event': 'invoice_delivery_dispatch_error',
-                                 'invoiceId': invoice_id, 'error': type(e).__name__,
-                                 'requestId': request_id}))
+                'body': json.dumps({'invoiceId': invoice_id, 'toWhatsAppNumber': recipient,
+                    'phoneNumberId': phone_number_id or WABA1_PHONE_ID})}))
+        if response.get('FunctionError'):
+            return False
+        result = json.loads(response['Payload'].read())
+        body = result.get('body') or {}
+        if isinstance(body, str):
+            body = json.loads(body)
+        status = body.get('status')
+        message_id = body.get('waMessageId') or body.get('whatsappMessageId')
+        accepted = (int(result.get('statusCode') or 0) == 200 and message_id
+                    and status in ('accepted', 'sent', 'delivered', 'read', 'already_delivered'))
+        if accepted:
+            order_keys.confirm_invoice_delivery(table, invoice_id=invoice_id,
+                channel='whatsapp-dispatch', wa_message_id=message_id)
+            return True
+        if status in ('failed', 'rejected') or int(result.get('statusCode') or 0) in (400, 401, 403, 404):
+            order_keys.release_invoice_delivery(table, invoice_id=invoice_id,
+                                                channel='whatsapp-dispatch')
         return False
-    logger.info(json.dumps({'event': 'invoice_delivery_dispatched', 'invoiceId': invoice_id,
-                            'phoneId': phone_number_id, 'requestId': request_id}))
-    return True
+    except Exception as error:
+        # The engine may already have submitted the message. Preserve the pending claim.
+        logger.error(json.dumps({'event': 'invoice_delivery_dispatch_uncertain',
+            'invoiceId': invoice_id, 'error': type(error).__name__, 'requestId': request_id}))
+        return False
 
 
 def _request_review_on_whatsapp(invoice_id: str, contact: str, phone_number_id: str,

@@ -200,10 +200,6 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
 
   // IVR SMS state
   const [ smsOnCall, setSmsOnCall ] = useState( true );
-  // Post-call WhatsApp notification toggle. Sends plain text since 2026-10-02;
-  // the wd_menu video template it used to send was deleted at Meta.
-  const [ postCallWa, setPostCallWa ] = useState( true );
-
   // Auto 👍 reaction toggle (all messages, templates & call notifications)
   const [ autoThumb, setAutoThumb ] = useState( true );
   const [ smsTestPhone, setSmsTestPhone ] = useState( '+919903300044' );
@@ -606,7 +602,6 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
           setAutoPickupMode( data.autoPickupMode );
         }
         if ( data.smsOnCall !== undefined ) setSmsOnCall( data.smsOnCall !== false );
-        if ( data.postCallWa !== undefined ) setPostCallWa( data.postCallWa !== false );
         if ( data.autoThumb !== undefined ) setAutoThumb( data.autoThumb !== false );
       }
     } catch ( e ) { console.error( 'Config load error:', e ); }
@@ -1289,31 +1284,9 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
               </div>
             </div>
 
-            {/* Post-call WhatsApp notification toggle */ }
-            <div style={ { ...s.card, marginTop: '12px', border: '1px solid var(--border)', background: 'var(--bg-secondary)' } }>
-              <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } }>
-                <div>
-                  <h4 style={ { margin: 0, fontSize: 'var(--text-sm)', color: '#0f2a1d' } }>Post-call WhatsApp message</h4>
-                  <p style={ { margin: '4px 0 0', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>After a call ends, send a short WhatsApp follow-up message. Disable to skip the post-call WhatsApp follow-up.</p>
-                </div>
-                <label style={ { display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs)', color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' } }>
-                  <input type="checkbox" checked={ postCallWa } onChange={ async () => {
-                    const newVal = !postCallWa;
-                    setPostCallWa( newVal );
-                    try
-                    {
-                      await fetch( `${API_BASE}/whatsapp/config`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify( { postCallWa: newVal } ),
-                      } );
-                      toast.success( `Post-call WhatsApp ${newVal ? 'enabled' : 'disabled'}` );
-                    } catch { toast.error( 'Failed to save' ); }
-                  } }
-                    style={ { width: '14px', height: '14px', accentColor: 'var(--accent)' } } />
-                  Post-call WhatsApp
-                </label>
-              </div>
-            </div>
+            <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
+              Post-call WhatsApp follow-up messages are always enabled.
+            </p>
 
             {/* Auto 👍 reaction toggle (global: all messages, templates & calls) */ }
             <div style={ { ...s.card, marginTop: '12px', border: '1px solid var(--border)', background: 'var(--bg-secondary)' } }>

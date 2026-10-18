@@ -253,6 +253,25 @@ def test_meta_status_is_compared_canonically(fake):
                 load_token=lambda: 'TOKEN')
 
 
+def test_meta_nested_transactions_supply_gateway_binding():
+    found = mpb.lookup_payment(
+        reference_id=REFERENCE, phone_number_id=WABA1, config_name='WECAREDIGITAL',
+        urlopen=_MetaLookup(payments=[{'reference_id': REFERENCE,
+            'transactions': [{'status': 'success', 'id': PAYMENT,
+                'payment_gateway': {'order_id': GATEWAY_ORDER, 'payment_id': PAYMENT}}]}]),
+        load_token=lambda: 'TOKEN')
+    assert found['gatewayOrderId'] == GATEWAY_ORDER
+    assert found['gatewayPaymentId'] == PAYMENT
+
+
+def test_meta_does_not_adopt_a_different_reference():
+    with pytest.raises(mpb.MetaBindingUnavailable):
+        mpb.lookup_payment(
+            reference_id=REFERENCE, phone_number_id=WABA1, config_name='WECAREDIGITAL',
+            urlopen=_MetaLookup(payments=[{'reference_id': 'OTHER', 'status': 'captured',
+                'provider_order_id': GATEWAY_ORDER}]), load_token=lambda: 'TOKEN')
+
+
 @pytest.mark.parametrize('payments', [[], [{'status': 'captured'}]])
 def test_an_unusable_meta_answer_never_asserts_not_paid(payments, fake):
     """`MetaBindingUnavailable` means WE DO NOT KNOW. `reconcile_payment` turns that into

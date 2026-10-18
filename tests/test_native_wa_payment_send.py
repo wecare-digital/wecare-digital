@@ -819,3 +819,8 @@ def test_invoice_transaction_uses_single_serialization_at_real_sdk_wire(engine, 
     attempt = wire['TransactItems'][3]['Put']['Item']
     assert isinstance(attempt['paymentAttemptId']['S'], str)
     assert attempt['amountPaise'] == {'N': '59900'}
+
+
+def test_a_legacy_manual_digital_flag_cannot_bypass_delivery_validation(engine):
+    with pytest.raises(engine.payment_address.UnpayableAddress):
+        engine._payment_delivery_info({'entryPoint': 'manual', 'goodsType': 'digital-goods'}, {}, PHONE)

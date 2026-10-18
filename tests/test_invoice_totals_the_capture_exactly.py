@@ -702,3 +702,27 @@ def test_additive_tax_uses_exact_decimal_half_paise_rounding(engine):
     invoice = invoices.rows[json.loads(response['body'])['invoiceId']]
     assert invoice['tax'] == Decimal('0.01')
     assert invoice['total'] == Decimal('0.11')
+
+
+@pytest.mark.parametrize('entry_point', ['manual', 'pay_flow', 'whatsapp'])
+def test_new_staff_invoice_is_physical_and_has_delight(engine, entry_point):
+    module, _, _, invoices, *_ = engine
+    status, result = _created(module, {'referenceId': 'WD-PAY-PHYSICAL',
+        'customerPhone': PHONE, 'entryPoint': entry_point, 'fy': FY,
+        'goodsType': 'digital-goods',
+        'items': [{'name': 'Goods', 'amount': 3, 'quantity': 1, 'gstRate': 18}],
+        'shipping': 1})
+    assert status == 201
+    row = _stored(invoices, result['invoiceId'])
+    assert row['goodsType'] == 'physical-goods'
+    assert row['couponCode'] == 'DELIGHT'
+    assert row['couponDiscount'] == Decimal('0.01')
+    assert result['couponDiscount'] == 0.01
+
+
+def test_saved_invoice_readback_keeps_the_delight_line(engine):
+    module, *_ = engine
+    row = module._normalize_invoice({'invoiceId': 'saved', 'discount': Decimal('5'),
+        'couponCode': 'DELIGHT', 'couponDiscount': Decimal('5')})
+    assert row['couponCode'] == 'DELIGHT'
+    assert row['couponDiscount'] == 5
