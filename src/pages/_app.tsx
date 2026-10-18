@@ -559,8 +559,8 @@ const PUBLIC_PAGE_META: Record<string, {
   // shape: renderAllowlist() in that generator and allRoutes() in StructuredDataService.test.ts
   // both parse this block as text and both require literals.
   '/shop': { name: 'Shop', type: 'WebPage', description: 'Every WECARE.DIGITAL product and service on one page, each linking to its own page.' },
-  // Shipments is a non-clickable family label. Track lives at /shipments/track/ and
-  // Pickup Request remains the separate /request-pickup/ child.
+  // Shipments is a non-clickable family label. Its live destinations are the tracking
+  // page and the separate pickup-request page.
 };
 
 /** Public redirect changes use scripts/provision_legacy_redirects.py and its ratified list.
@@ -774,25 +774,8 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // NOT in PUBLIC_PAGE_META, because entries there acquire WebPage structured data and a
   // sitemap entry, and advertising a redirect stub to a crawler is the opposite of the
   // intent. The page sets its own robots noindex and canonicals to the destination.
-  // '/llm' USED TO BE ON THIS LIST AND IS DELIBERATELY GONE (2026-09-30).
-  //
-  // It was an HTML page describing the AI-facing surface: the MCP endpoint at /mcp, the two
-  // llms.txt files, and the terms for citing this content. Retired because it was a fifth
-  // copy of facts that have to agree - the endpoint URL, the three protocol versions, the
-  // five tool names, the list of things the endpoint cannot do - and a documentation page
-  // that drifts from the thing it documents is worse than no page: it sends an operator to
-  // an endpoint that answers differently from the description they were given.
-  //
-  // Nothing was lost. Its content moved into the surfaces its audience actually reads:
-  // /mcp itself answers `initialize` with an `instructions` string and `tools/list` with the
-  // tools and their schemas, get_site_summary returns the citation terms, and /llms.txt now
-  // carries the client config snippet and the cannot-do list. config/public-pages.json holds
-  // all of it, and src/test/PublicAiSurface.test.ts holds it in step with the handler.
-  //
-  // /llm and /llm/ 301 to /llms.txt - see RETIRED in scripts/provision_legacy_redirects.py.
-  // Do NOT re-add the line below to "fix" a stale link; the redirect is the fix. Re-adding a
-  // route here while that 301 is live gives one URL two answers depending on whether the
-  // request reaches the CDN rule or the export.
+  // The machine-readable AI surfaces are documented by MCP and the generated discovery
+  // files; there is no separate public HTML documentation route to keep in sync.
   const isPublic = router.pathname === '/'
     || router.pathname === '/404'
     || router.pathname === '/get'

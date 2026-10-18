@@ -45,8 +45,7 @@ const ROUTES = [
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
   '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/',
   '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/',
-  // '/store/' was in this list and has moved to /workspace/commerce/catalog - it was a
-  // staff page behind the Authenticator, so it never had a band structure to measure.
+  // Staff-only commerce pages are intentionally outside this public-page harness.
   '/blog/', '/get/',
   // The Requests pages, added when the header's six labels stopped all resolving to
   // /contact/. Same shape as the product pages: rotating hero plus one content section.
