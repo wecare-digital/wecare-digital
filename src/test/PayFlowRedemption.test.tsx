@@ -5,27 +5,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 /**
  * PAY FLOW SPEAKS THE ONE COUPON SYSTEM, AND COMPUTES NOTHING.
  *
- * The staff invoice form is the surface that used to carry its own discount mechanism: a rupee
- * field labelled "Promo / Discount" whose default was '15', so EVERY Pay Flow invoice was
- * discounted by Rs.15 before anyone typed anything. That silent default was the real duplicate of
- * the coupon system, and these tests pin its removal alongside the coupon and gift-card fields
- * that replace it.
- *
- * WHAT IS ASSERTED, and why each one would regress silently otherwise:
- *   1. The coupon and gift-card inputs exist and are LABELLED, so they can be found by name.
- *   2. A create sends `couponCode` / `giftCardCode` in the request body — and sends a code and
- *      nothing else. There is no field through which an amount could leave the browser.
- *   3. Every displayed figure is the SERVER's. The success response here carries numbers that
- *      no local calculation of this form's inputs could produce, and those are the numbers that
- *      must appear. This is the test that fails the moment someone "helpfully" previews a
- *      discount client-side.
- *   4. An invalid / expired / insufficient-balance refusal renders the message for the server's
- *      typed `errorCode` and NO amount.
- *   5. There is exactly ONE address input group and no free-text address textarea acting as an
- *      input, and the preview equals `formatAddress` from the shared module.
- *   6. The brand chooser offers only WECARE.DIGITAL, and the manual adjustment defaults to 0.
+ * Gift cards are retired. The staff invoice form now carries only an optional
+ * coupon code plus the separate manual adjustment. The browser never supplies a
+ * coupon amount; it renders only the server-owned discount returned on create.
  */
-
 vi.mock( '../contexts/ConfirmContext', () => ( { useConfirm: () => vi.fn().mockResolvedValue( true ) } ) );
 
 const listContacts = vi.fn();
@@ -48,18 +31,15 @@ const CUSTOMER = {
   email: 'asha@example.com', shippingAddress: '', billingAddress: '',
 };
 
-/** A 201 whose figures no local arithmetic over this form's inputs could produce. */
 const SERVER_CREATE = {
   invoiceId: 'inv_1',
   invoiceNumber: 'WD/2026/0001',
   referenceId: 'ref_1',
   total: 1234.56,
   couponCode: 'SAVE100',
-  couponDiscount: 777.77,        // not 10% of anything typed below
-  giftCardAppliedPaise: 43210,   // Rs.432.10, server authority, integer paise
-  amountPayable: 802.46,
+  couponDiscount: 777.77,
+  amountPayable: 1234.56,
   couponReason: 'APPLIED',
-  giftCardReason: 'APPLIED',
 };
 
 beforeEach( () => {
@@ -71,7 +51,6 @@ beforeEach( () => {
   createInvoiceEngineResult.mockResolvedValue( { ok: true, invoice: SERVER_CREATE } );
 } );
 
-/** Render, open the Create tab, pick the one customer, and land on the invoice form. */
 const openCreateForm = async (): Promise<void> => {
   render( <PayFlowPage embedded /> );
   fireEvent.click( screen.getByRole( 'tab', { name: 'Create' } ) );
@@ -79,7 +58,6 @@ const openCreateForm = async (): Promise<void> => {
   await waitFor( () => expect( screen.getByLabelText( 'Coupon code' ) ).toBeInTheDocument() );
 };
 
-/** Fill one priced line so `submitInvoice` does not refuse the form. */
 const priceOneItem = (): void => {
   const prices = screen.getAllByRole( 'spinbutton' );
   fireEvent.change( prices[ 0 ], { target: { value: '1000' } } );
@@ -89,33 +67,29 @@ const submit = (): void => {
   fireEvent.click( screen.getByRole( 'button', { name: 'Create Invoice' } ) );
 };
 
-/** The request body handed to the API client on the last create. */
 const lastRequest = (): any => createInvoiceEngineResult.mock.calls[ 0 ][ 0 ];
 
-describe( 'the coupon and gift-card fields', () => {
-  it( 'render on the invoice create form, each with a label', async () => {
+describe( 'the coupon-only redemption field', () => {
+  it( 'renders the coupon input and no retired gift-card input', async () => {
     await openCreateForm();
     expect( screen.getByLabelText( 'Coupon code' ) ).toBeInTheDocument();
-    expect( screen.getByLabelText( 'Gift card code' ) ).toBeInTheDocument();
+    expect( screen.queryByLabelText( 'Gift card code' ) ).toBeNull();
   } );
 
-  it( 'sends couponCode and giftCardCode on the create', async () => {
+  it( 'sends couponCode and never giftCardCode', async () => {
     await openCreateForm();
     priceOneItem();
     fireEvent.change( screen.getByLabelText( 'Coupon code' ), { target: { value: ' save100 ' } } );
-    fireEvent.change( screen.getByLabelText( 'Gift card code' ), { target: { value: 'GC-ABCD' } } );
     submit();
 
     await waitFor( () => expect( createInvoiceEngineResult ).toHaveBeenCalledTimes( 1 ) );
     expect( lastRequest().couponCode ).toBe( 'save100' );
-    expect( lastRequest().giftCardCode ).toBe( 'GC-ABCD' );
+    expect( 'giftCardCode' in lastRequest() ).toBe( false );
   } );
 
-  it( 'omits both keys entirely when the code fields are empty, so the no-codes path is untouched', async () => {
+  it( 'omits couponCode when the field is empty', async () => {
     await openCreateForm();
     priceOneItem();
-    fireEvent.change( screen.getByLabelText( 'Coupon code' ), { target: { value: '' } } );
-    fireEvent.change( screen.getByLabelText( 'Gift card code' ), { target: { value: '' } } );
     submit();
 
     await waitFor( () => expect( createInvoiceEngineResult ).toHaveBeenCalledTimes( 1 ) );
@@ -123,7 +97,7 @@ describe( 'the coupon and gift-card fields', () => {
     expect( 'giftCardCode' in lastRequest() ).toBe( false );
   } );
 
-  it( 'sends no amount-shaped redemption field, ever', async () => {
+  it( 'sends no browser-authored redemption amount', async () => {
     await openCreateForm();
     priceOneItem();
     fireEvent.change( screen.getByLabelText( 'Coupon code' ), { target: { value: 'SAVE100' } } );
@@ -138,48 +112,28 @@ describe( 'the coupon and gift-card fields', () => {
   } );
 } );
 
-describe( 'amounts are server-authoritative, never browser math', () => {
-  it( 'renders the coupon discount, gift-card amount and payable EXACTLY as the server returned them', async () => {
+describe( 'coupon amounts are server-authoritative', () => {
+  it( 'renders the coupon discount exactly as the server returned it', async () => {
     await openCreateForm();
     priceOneItem();
     fireEvent.change( screen.getByLabelText( 'Coupon code' ), { target: { value: 'SAVE100' } } );
-    fireEvent.change( screen.getByLabelText( 'Gift card code' ), { target: { value: 'GC-ABCD' } } );
     submit();
 
-    // Rs.777.77 is the server's figure and is not derivable from the Rs.1000 line above.
     await waitFor( () => expect( screen.getByText( /Coupon SAVE100/ ) ).toBeInTheDocument() );
-    expect( screen.getByText( '\u2212\u20B9777.77' ) ).toBeInTheDocument();
-    // 43210 integer paise, formatted without a division.
-    expect( screen.getByText( '\u2212\u20B9432.10' ) ).toBeInTheDocument();
-    expect( screen.getByText( '\u20B9802.46' ) ).toBeInTheDocument();
-  } );
-
-  it( 'never echoes the gift-card code back into a visible label', async () => {
-    const { container } = render( <PayFlowPage embedded /> );
-    fireEvent.click( screen.getByRole( 'tab', { name: 'Create' } ) );
-    fireEvent.click( await screen.findByText( 'Asha Rao' ) );
-    await waitFor( () => expect( screen.getByLabelText( 'Gift card code' ) ).toBeInTheDocument() );
-    priceOneItem();
-    fireEvent.change( screen.getByLabelText( 'Gift card code' ), { target: { value: 'GC-ABCD' } } );
-    submit();
-
-    await waitFor( () => expect( createInvoiceEngineResult ).toHaveBeenCalledTimes( 1 ) );
-    await waitFor( () => expect( container.textContent || '' ).not.toContain( 'GC-ABCD' ) );
+    expect( screen.getByText( '−₹777.77' ) ).toBeInTheDocument();
   } );
 } );
 
-describe( 'a refusal renders the server reason and no amount', () => {
+describe( 'a coupon refusal renders the server reason and no applied amount', () => {
   it.each( [
     [ 'UNKNOWN_CODE', /not valid/i ],
     [ 'COUPON_EXPIRED', /expired/i ],
-    [ 'INSUFFICIENT_BALANCE', /no balance left/i ],
     [ 'HELD_BY_ANOTHER_CART', /used elsewhere/i ],
   ] )( 'shows the %s message', async ( errorCode, fragment ) => {
     createInvoiceEngineResult.mockResolvedValue( { ok: false, status: 400, errorCode, retryable: false } );
     await openCreateForm();
     priceOneItem();
     fireEvent.change( screen.getByLabelText( 'Coupon code' ), { target: { value: 'X' } } );
-    fireEvent.change( screen.getByLabelText( 'Gift card code' ), { target: { value: 'Y' } } );
     submit();
 
     await waitFor( () => expect( screen.getByText( fragment as RegExp ) ).toBeInTheDocument() );
@@ -194,20 +148,18 @@ describe( 'a refusal renders the server reason and no amount', () => {
     submit();
 
     await waitFor( () => {
-      expect( screen.getByText( 'The coupon or gift card could not be applied.' ) ).toBeInTheDocument();
+      expect( screen.getByText( 'The coupon could not be applied.' ) ).toBeInTheDocument();
     } );
   } );
 
-  it( 'does NOT blame the coupon for a failure on a create whose code fields were cleared', async () => {
+  it( 'does not blame the coupon when no coupon code was sent', async () => {
     createInvoiceEngineResult.mockResolvedValue( { ok: false, status: 500, errorCode: 'CREATE_FAILED', retryable: false } );
     await openCreateForm();
     priceOneItem();
-    fireEvent.change( screen.getByLabelText( 'Coupon code' ), { target: { value: '' } } );
-    fireEvent.change( screen.getByLabelText( 'Gift card code' ), { target: { value: '' } } );
     submit();
 
     await waitFor( () => expect( createInvoiceEngineResult ).toHaveBeenCalledTimes( 1 ) );
-    expect( screen.queryByText( 'The coupon or gift card could not be applied.' ) ).toBeNull();
+    expect( screen.queryByText( 'The coupon could not be applied.' ) ).toBeNull();
   } );
 } );
 
