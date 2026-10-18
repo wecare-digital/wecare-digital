@@ -16,7 +16,7 @@ interface PolicyDetailsProps extends PolicyDetailsCopy {
  * Canonical public commerce-policy disclosure.
  *
  * Keep this to four concise concepts only: fulfilment, returns,
- * refunds/cancellations, and disclaimer. No overview or legal footer
+ * refunds/cancellations, and disclaimer. No extra preface or legal footer
  * is appended here.
  */
 const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
