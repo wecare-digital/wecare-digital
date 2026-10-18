@@ -41,6 +41,7 @@ from crm_fake_dynamo import FakeDynamo  # noqa: E402
 from lambda_utils.ecommerce import (  # noqa: E402
     contact_address, order_creation, whatsapp_basket as wb)
 from lambda_utils.ecommerce.checkout_pricing import compute_quote  # noqa: E402
+from lambda_utils.ecommerce import default_coupon  # noqa: E402
 from lambda_utils.identity import customer as customer_identity  # noqa: E402
 from lambda_utils.integrations import razorpay_orders  # noqa: E402
 
@@ -58,6 +59,14 @@ OWNED = {"addressLine1": "12 Dalhousie Square", "city": "Kolkata",
          "state": "West Bengal", "postalCode": "700001"}
 #: AWS-native single-unit collection (product price; native shipping free by default).
 COLLECTION_PAISE = 2499900
+#: The amount actually payable for this PRODUCT order. The checkout applies the always-on Delight
+#: goodwill discount (0.5% up to ₹100) to the collection SERVER-SIDE before the convenience fee and
+#: GST are added, so the gateway order — and the capture readback the verify leg checks — are both
+#: this discounted total, not the raw collection. Computed the same way the handler does so the
+#: stub cannot silently drift from the real amount.
+PAYABLE_PAISE = compute_quote(
+    COLLECTION_PAISE - default_coupon.delight_paise(COLLECTION_PAISE)
+).total_payable_paise
 CART_TABLE = "stack-wecare-digital-CartTable"
 PRODUCTS_TABLE = "stack-wecare-digital-ProductsTable"
 GATEWAY_ORDER_ID = "order_R7_4_fixture"
@@ -206,7 +215,7 @@ def env(monkeypatch):
     monkeypatch.setattr(h, "_native_product_reader",
                         lambda: (lambda pid: dict(NATIVE_PRODUCT_ROW)))
 
-    payable = compute_quote(COLLECTION_PAISE).total_payable_paise
+    payable = PAYABLE_PAISE
 
     def create_order(*, amount_paise, receipt, notes):
         log.record("razorpay_orders.create_order")
@@ -408,5 +417,5 @@ def test_the_order_row_carries_the_whatsapp_channel_and_the_website_checkout_mod
     assert orders[0]["channel"] == "whatsapp"
     assert orders[0]["checkoutMode"] == "WEBSITE_RAZORPAY_STANDARD"
     assert orders[0]["currency"] == "INR"
-    assert orders[0]["amountPaise"] == compute_quote(COLLECTION_PAISE).total_payable_paise
+    assert orders[0]["amountPaise"] == PAYABLE_PAISE
     assert type(orders[0]["amountPaise"]) is int
