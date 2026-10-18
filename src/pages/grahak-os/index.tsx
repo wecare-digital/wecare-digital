@@ -627,7 +627,7 @@ response = requests.post(
              cannot style a composite component from here, so anything visual added
              to this rule would silently do nothing. */
           .hero-eyebrow{margin:0 0 20px}
-          .hero-left h1{font-size:clamp(36px,4.3vw,60px);font-weight:600;line-height:1.04;margin:0 0 24px;/* TRACKING IN em, NOT px. A fixed px value against a fluid clamp() font means the
+          .hero-left h1{font-size:var(--public-hero-size);font-weight:var(--public-hero-weight);line-height:var(--public-hero-leading);margin:0 0 24px;/* TRACKING IN em, NOT px. A fixed px value against a fluid clamp() font means the
              OPTICAL tightness changes with the viewport: measured across the breakpoints it ran
              -2.22% to -6.11% of the font size, a 2.75x spread, worst at 768-820px where the font
              is still on its 36px floor while the tracking was chosen for 60px. -0.04em is -4% at
@@ -652,8 +652,8 @@ response = requests.post(
              still looked like it ran edge to edge. 400px holds a comfortable
              ~60-70 characters per line and wraps to more lines, which also closes
              part of the height difference against the mockup column. */
-          .hero-left p{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0 0 18px;max-width:400px}
-          .hero-left p.hero-sub{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0;max-width:400px}
+          .hero-left p{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0 0 18px;max-width:400px}
+          .hero-left p.hero-sub{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0;max-width:400px}
 
           /* The hero no longer has a CTA pill (the .gos-buy block was removed on owner
              instruction), and the bottom closer was removed too, so .gos-wa-cta now styles
@@ -669,8 +669,8 @@ response = requests.post(
           .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;width:100%;box-sizing:border-box}
           /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
              above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
-          .gos-price{display:block;margin-top:22px;font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
-          .gos-offer-note{max-width:620px;margin:7px 0 0;font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898)}
+          .gos-price{display:block;margin-top:22px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
+          .gos-offer-note{max-width:620px;margin:7px 0 0;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body)}
           @media(prefers-reduced-motion:reduce){
             .gos-wa-cta{transition:background-color .2s}
             .gos-wa-cta:hover{transform:none;box-shadow:none}
@@ -926,9 +926,9 @@ response = requests.post(
              There was also a real reason to move: at 1280px the hero h1 resolves to 55.04px,
              so a 53.76px section h2 sat 1.28px below its own h1 and the size hierarchy
              collapsed - only the 700/600 weight inversion separated them. */
-          .section-header h2,.api-info h2{font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;letter-spacing:-1.2px;color:rgba(0,0,0,.95)}
+          .section-header h2,.api-info h2{font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking);color:var(--public-heading)}
           .section-header h2{margin:0 0 14px;text-align:center;width:100%;white-space:pre-line}
-          .section-header p{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0;text-align:center;width:100%}
+          .section-header p{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0;text-align:center;width:100%}
           
           /* Touchpoint Section */
           .touchpoint{padding:60px 0;background:#fff}
@@ -980,14 +980,14 @@ response = requests.post(
              that width runs past a comfortable measure. The cap belongs on the text, not
              on the grid - that is what let the grid align with the hero while the
              paragraph stays readable. */
-          .api-desc{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0;max-width:460px}
+          .api-desc{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0;max-width:460px}
           /* "In action" block in the left column, sitting under the API copy and
              opposite the code panel. 36px top margin separates it from the paragraph
              without needing a divider. */
           .api-action{margin:36px 0 0;max-width:460px}
           /* h3 on the card-heading rung (22px/700), one step below the section h2 above
              it in the same column, so the outline is h2 -> h3 with no skipped level. */
-          .api-action-head{font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:rgba(0,0,0,.95);margin:0 0 16px}
+          .api-action-head{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading);margin:0 0 16px}
           /* The .api-action-link lighter text-link CSS was REMOVED with its markup: every
              WhatsApp CTA now uses the single unified .gos-wa-cta pill (owner instruction),
              so the second style is dead. A test guards that the class name no longer
@@ -1008,9 +1008,9 @@ response = requests.post(
           .api-step-body{min-width:0}
           /* Card-heading rung (22px/700), one step below the section h2 in the same
              column, so the outline is h2 -> h3 with no skipped level. */
-          .api-step-title{font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:rgba(0,0,0,.95);margin:0 0 6px}
+          .api-step-title{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading);margin:0 0 6px}
           /* Supporting line uses the same 20px body rung as Home. */
-          .api-step-line{font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898);margin:0}
+          .api-step-line{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0}
           /* Buy block: WhatsApp checkout pill, then price + explanation, then the policy
              card. gos-wa-cta/gos-price/gos-commerce are shared page rules; only the layout
              gaps are set here. */
