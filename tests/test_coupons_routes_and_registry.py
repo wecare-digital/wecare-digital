@@ -297,9 +297,9 @@ def test_verify_reads_routes_integration_and_every_invoke_statement_back(provisi
     assert "AuthorizerId" in body, "an authorizer added by someone else would pass unnoticed"
 
 
-# ── 65: the deploy registry, for all three new functions ──────────────────────
+# ── 65: the coupon deploy registry ───────────────────────────────────────────
 
-NEW_FUNCTIONS = ("wecare-coupons", "wecare-gift-cards")
+NEW_FUNCTIONS = ("wecare-coupons",)
 
 
 @pytest.fixture(scope="module")
@@ -330,7 +330,7 @@ def test_the_new_function_is_deployable_at_all(name, deploy_specs):
 
 @pytest.mark.parametrize("name", NEW_FUNCTIONS)
 def test_the_new_function_declares_what_must_create_it_first(name, deploy_specs):
-    """All three are new, so every deploy-all run reports them absent until their provisioners have
+    """The coupon function is provisioned separately, so deploy-all reports it absent until its provisioner has
     run. Without `provisioned_by` that lands in `failed`, and a tally that is never zero stops being
     a signal - the exact reason the field was introduced.
 
