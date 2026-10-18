@@ -683,7 +683,7 @@ describe( 'the cart page proceed flow', () => {
      * and no charge claim in the wrong direction.
      */
     expect( await screen.findByText(
-      'We could not prepare this order. No charge was made - please try again shortly.',
+      'We could not start this order. No charge was made. Please try again shortly.',
     ) ).toBeTruthy();
     expect( navigatedTo ).toBe( '' );
     expect( cart.readCart() ).toHaveLength( 1 );
