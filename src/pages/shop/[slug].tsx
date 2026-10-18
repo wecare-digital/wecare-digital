@@ -234,8 +234,8 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              16px/faded aside. 1px static, per the rule: 1px static, 2px hoverable. */
           .shopd-offer-note{
             max-width:620px;margin:7px 0 0;
-            font-size:17px;font-weight:var(--public-body-weight);
-            line-height:var(--public-body-leading);letter-spacing:-.05px;
+            font-size:var(--public-body-size);font-weight:var(--public-body-weight);
+            line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
             color:var(--public-muted);
           }
           .shopd-policy-wrap{margin:22px 0 0}
@@ -254,9 +254,6 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
           }
           .shopd-in :global(.shopd-back a:hover){text-decoration:none}
           .shopd-in :global(.shopd-back a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
-
-          @media(max-width:767px){
-          }
           @media(prefers-reduced-motion:reduce){
             .shopd-in :global(.shopd-cta){transition:none}
             .shopd-in :global(.shopd-cta:hover){transform:none;box-shadow:none}
