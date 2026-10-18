@@ -99,7 +99,7 @@ describe( 'public page consolidation contracts', () => {
       categories={ [ 'Conversations' ] } /> );
     await screen.findByRole( 'button', { name: 'Try again' } );
     expect( screen.getByRole( 'link', { name: /Seed article/ } ) ).toBeInTheDocument();
-    expect( screen.getByRole( 'link', { name: 'Browse the blog' } ) ).toHaveAttribute( 'href', '/blog/' );
+    expect( screen.getByRole( 'link', { name: 'Browse all perspectives' } ) ).toHaveAttribute( 'href', '/blog/' );
     fireEvent.click( screen.getByRole( 'button', { name: 'Try again' } ) );
     expect( await screen.findByRole( 'link', { name: /Tail article/ } ) ).toBeInTheDocument();
   } );
