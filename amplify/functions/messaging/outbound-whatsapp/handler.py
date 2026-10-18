@@ -1763,7 +1763,7 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
         }))
         
         # Emit success metric
-        _emit_delivery_metric('success', is_template=False)
+        _emit_delivery_metric('success', is_template=bool(template_name))
         
         return {
             'statusCode': 200,
