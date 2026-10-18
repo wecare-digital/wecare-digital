@@ -268,18 +268,6 @@ SPECS: List[Spec] = [
         "ecommerce/customer-invoice",
         provisioned_by="python scripts/provision_customer_invoice.py",
     ),
-    # Coupon issuance and eligibility. Owns stack-wecare-digital-CouponsTable. AWS-native: the
-    # local row is the sole authority and `coupon_store.discount_paise` prices the discount on
-    # the native checkout path. NOT standalone: it imports lambda_utils.customer_auth, response,
-    # logging and ecommerce.coupon_store.
-    Spec(
-        "wecare-coupons",
-        "ecommerce/coupons",
-        provisioned_by="python scripts/provision_coupons_table.py && "
-                       "python scripts/provision_coupons_role.py && "
-                       "python scripts/provision_coupons_function.py && "
-                       "python scripts/provision_coupons_routes.py",
-    ),
     # The AWS-native catalogue -> Meta projection (formerly PHASE W). Invoked by the ProductsTable
     # change stream through an event-source mapping on its `live` alias, with a six-hourly
     # EventBridge schedule as the backstop. No HTTP API route and no function URL: it has no
@@ -733,6 +721,49 @@ def deploy(lam, spec: Spec, zip_bytes: bytes, current: dict) -> str:
     return "updated"
 
 
+PAYMENT_CONFIG_TARGETS = frozenset({'wecare-invoice-engine', 'wecare-outbound-whatsapp'})
+PAYMENT_CONFIG_KEYS = ('EXPECTED_CONFIGURATION_NAME', 'EXPECTED_PROVIDER_MID')
+
+
+def prepare_payment_environment(lam, name: str, current: dict, *,
+                                sync_from_checkout: bool, dry_run: bool) -> dict:
+    """Keep payment callers aligned with the published checkout's expected merchant.
+
+    Copies only two non-secret expectations, never credentials or feature flags. Runtime
+    readiness still verifies the configuration against Meta before sending any payment.
+    RevisionId prevents overwriting a concurrent configuration edit.
+    """
+    if name not in PAYMENT_CONFIG_TARGETS:
+        return current
+    environment = dict(current.get('Environment', {}).get('Variables', {}))
+    if not sync_from_checkout:
+        if any(not str(environment.get(key, '')).strip() for key in PAYMENT_CONFIG_KEYS):
+            raise ValueError('payment expectations missing; use --sync-payment-config after '
+                             'verifying the published checkout merchant configuration')
+        return current
+    source = lam.get_function_configuration(FunctionName='wecare-checkout', Qualifier='live')
+    source_environment = source.get('Environment', {}).get('Variables', {})
+    if any(not str(source_environment.get(key, '')).strip() for key in PAYMENT_CONFIG_KEYS):
+        raise ValueError('published checkout has incomplete payment expectations')
+    desired = {**environment, **{key: source_environment[key] for key in PAYMENT_CONFIG_KEYS}}
+    if desired == environment:
+        return current
+    if dry_run:
+        print('    WOULD SYNC payment expectations from wecare-checkout:live')
+        return {**current, 'Environment': {'Variables': desired}}
+    revision = current.get('RevisionId')
+    if not revision:
+        raise ValueError('configuration read did not return RevisionId')
+    lam.update_function_configuration(FunctionName=name, RevisionId=revision,
+                                      Environment={'Variables': desired})
+    lam.get_waiter('function_updated_v2').wait(FunctionName=name)
+    updated = lam.get_function_configuration(FunctionName=name)
+    actual = updated.get('Environment', {}).get('Variables', {})
+    if any(actual.get(key) != value for key, value in desired.items()) or set(actual) != set(desired):
+        raise ValueError('payment environment readback differs from the requested configuration')
+    return updated
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -741,6 +772,8 @@ def main() -> int:
                     help="build and validate packages, upload nothing")
     ap.add_argument("--no-publish", action="store_true",
                     help="skip snapstart_publish.py (leaves the `live` alias on old code)")
+    ap.add_argument("--sync-payment-config", action="store_true",
+                    help="copy payment expectations from checkout:live to invoice/outbound before publishing")
     ap.add_argument("--list", action="store_true", help="print the function map and exit")
     args = ap.parse_args()
 
@@ -831,6 +864,16 @@ def main() -> int:
             failures.append(spec.name)
             continue
 
+        try:
+            current = prepare_payment_environment(
+                lam, spec.name, current, sync_from_checkout=args.sync_payment_config,
+                dry_run=args.dry_run)
+        except Exception as exc:  # configuration failure must prevent code publication
+            print(f"    payment configuration failed: {exc}")
+            tally["failed"] += 1
+            failures.append(spec.name)
+            continue
+
         print(f"    packaged {len(members)} files, {len(zip_bytes)} bytes")
 
         if args.dry_run:
@@ -889,7 +932,7 @@ def main() -> int:
     if args.no_publish:
         print("\n--no-publish: `live` aliases still point at the previous code.")
         print("Run `python scripts/snapstart_publish.py` to actually ship.")
-    elif deployed:
+    elif deployed and not failures:
         print("\nPublishing versions + moving the `live` alias "
               "(the API invokes :live, not $LATEST)...\n")
         publish_rc = subprocess.call(
@@ -897,6 +940,8 @@ def main() -> int:
              "--only-stale", *deployed]
         )
 
+    if failures and deployed and not args.no_publish:
+        print("Refusing to move live aliases: at least one selected function failed validation/update.")
     return 1 if (failures or publish_rc) else 0
 
 

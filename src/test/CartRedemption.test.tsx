@@ -3,28 +3,34 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /**
- * The public cart deliberately exposes redemption CAPABILITY STATUS only.
+ * The public cart STATES the one always-on discount, and computes nothing.
  *
- * Delight is applied automatically by server pricing, so the browser must not render an
- * Apply/Remove workflow or calculate its amount. Gift cards are retired and must not reappear
- * as a status tile or input.
+ * There is no coupon system and no gift-card system any more. Delight is a fixed owner policy
+ * (0.5% of the order, capped at ₹50) the server applies at checkout — no code, no Apply/Remove
+ * workflow, no redemption endpoint from the browser. The panel shows the policy as an ACTIVE
+ * lime-green pill (not an amber "unavailable" placeholder) and never a per-cart rupee figure.
  */
-describe( 'Cart redemption capability is status-only', () => {
+describe( 'Cart states the always-on Delight discount, status-only', () => {
   const source = readFileSync(
     resolve( process.cwd(), 'src/components/cart/CartPage.tsx' ),
     'utf8',
   );
 
-  it( 'shows truthful Delight status and no retired gift-card surface', () => {
+  it( 'shows the active lime-green Delight pill and no retired gift-card surface', () => {
     expect( source ).toContain( '<strong>Delight</strong>' );
     expect( source ).toContain(
       'Delight discount is applied automatically at checkout.',
+    );
+    // Active green, not the old amber "temporarily unavailable" placeholder.
+    expect( source ).toContain( '.cart-capability-delight{background:#ecfdf3}' );
+    expect( source ).not.toContain(
+      'Temporarily unavailable. No discount has been applied to this cart.',
     );
     expect( source ).not.toContain( '<strong>Gift cards</strong>' );
     expect( source ).not.toContain( 'cart-capability-gift' );
   } );
 
-  it( 'has no browser redemption endpoint or Apply/Remove form', () => {
+  it( 'has no browser redemption endpoint, Apply/Remove form, or code field', () => {
     expect( source ).not.toContain( 'REDEMPTION_URL' );
     expect( source ).not.toContain( '/ecommerce/redemption' );
     expect( source ).not.toContain( 'Coupon code' );
@@ -32,9 +38,9 @@ describe( 'Cart redemption capability is status-only', () => {
     expect( source ).not.toContain( 'COUPON_MESSAGES' );
   } );
 
-  it( 'keeps the status panel out of contribution baskets', () => {
+  it( 'keeps the Delight panel out of contribution baskets', () => {
     expect( source ).toContain(
-      '{ !items.some( isContributionItem ) && <RedemptionPanel /> }',
+      "{ !items.some( item => isContributionItem( item ) || SERVICE_PRODUCT_IDS.has( item.productId || '' ) ) && <RedemptionPanel /> }",
     );
   } );
 

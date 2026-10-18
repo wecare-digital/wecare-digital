@@ -14,7 +14,7 @@ import {
 } from '../../../lib/address-format';
 
 interface PP { signOut?: () => void; user?: any; embedded?: boolean; }
-interface FC { default_gst_rate: number; default_shipping: number; default_promo: number; gstin: string; default_item_name: string; purposes: string[]; }
+interface FC { default_gst_rate: number; default_shipping: number; gstin: string; default_item_name: string; purposes: string[]; }
 interface IR { name: string; unitPrice: string; quantity: string; gstRate: string; }
 
 /*
@@ -43,34 +43,13 @@ const NEW_ITEM = (): IR => ( { name: '', unitPrice: '', quantity: '1', gstRate: 
  */
 const DEFAULT_BRAND = 'WECARE.DIGITAL';
 /*
- * `discount` DEFAULTS TO '0', and that single character is the point of decision D4.
- *
- * It was '15' (with DEF_CFG.default_promo 15 to match), so EVERY Pay Flow invoice was discounted
- * by Rs.15 before anyone typed anything - a silent, unrequested, unrecorded price change on every
- * document. That default was the real duplicate of the coupon system. The field itself stays,
- * relabelled "Manual adjustment": a goodwill credit is a legitimate staff line and is not a
- * coupon, and it is now previewed on its own row beside the coupon's.
+ * No `discount` field on the invoice form. Manual discount entry is retired and there is no coupon
+ * system: the only discount an invoice carries is the always-on Delight policy (0.5% up to Rs50),
+ * applied by the server on create. The form sends no discount and no coupon code; the browser
+ * never computes a discount figure.
  */
-const EMPTY_INV = { items: [ NEW_ITEM() ] as IR[], shipping: '49', discount: '0', purpose: DEFAULT_BRAND, orderId: '' };
-const DEF_CFG: FC = { default_gst_rate: 18, default_shipping: 49, default_promo: 0, gstin: DEFAULT_GSTIN || '19AAFFW7196L1Z8', default_item_name: 'Services/Goods', purposes: [ DEFAULT_BRAND ] };
-/**
- * Human copy per server-returned refusal code, mirroring cart.tsx's COUPON_MESSAGES /
- * GIFT_CARD_MESSAGES. Keyed on the `errorCode` FEAT-002 answers with, never on prose, and the
- * fallback is honest about not knowing rather than guessing the nearest reason.
- */
-const REDEMPTION_MESSAGES: Record<string, string> = {
-  UNKNOWN_CODE: 'That coupon code is not valid.',
-  COUPON_EXPIRED: 'That coupon has expired.',
-  COUPON_INELIGIBLE: 'That coupon cannot be used on this invoice.',
-  COUPON_KIND_UNSUPPORTED: 'That kind of coupon cannot be applied to an invoice.',
-  MINIMUM_SUBTOTAL: 'The invoice total is below that coupon\u2019s minimum.',
-  HELD_BY_ANOTHER_CART: 'That coupon is being used elsewhere right now. Try again shortly.',
-  COUPON_STORE_UNAVAILABLE: 'Coupons are not available right now. Try again shortly.',
-  UNSUPPORTED_CURRENCY: 'Codes can only be applied to an invoice in rupees.',
-  AMOUNT_MISMATCH: 'The discount did not reconcile against the total, so nothing was applied.',
-  PAYABLE_BELOW_GATEWAY_MINIMUM: 'That would leave less than \u20B91 to pay, which cannot be charged.',
-};
-const REDEMPTION_UNKNOWN = 'The coupon could not be applied.';
+const EMPTY_INV = { items: [ NEW_ITEM() ] as IR[], shipping: '49', purpose: DEFAULT_BRAND, orderId: '' };
+const DEF_CFG: FC = { default_gst_rate: 18, default_shipping: 49, gstin: DEFAULT_GSTIN || '19AAFFW7196L1Z8', default_item_name: 'Services/Goods', purposes: [ DEFAULT_BRAND ] };
 const TABS: ShellTab[] = [
   { id: 'customers', label: 'Customers' },
   { id: 'create', label: 'Create' },
@@ -235,21 +214,17 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
      point: one typed field set, one composed string, no second free-text input to disagree. */
   const [ editAddress, setEditAddress ] = useState<AddressFormFields>( EMPTY_ADDRESS_FIELDS );
   /*
-   * COUPON: a code, and nothing else, ever leaves this form.
+   * DISCOUNT: nothing about one ever leaves this form.
    *
-   * There is no state here for a discount AMOUNT and no arithmetic anywhere in this file that
-   * touches one. `redemption` holds what the SERVER returned on a 201 and `redemptionMsg` holds
-   * the message for the typed `errorCode` it refused with - the same discipline cart.tsx's
-   * RedemptionPanel follows, for the same reason: a browser-computed discount is a figure the
-   * customer can see and the ledger never agreed to.
+   * There is no state here for a discount amount and no arithmetic anywhere in this file that
+   * touches one. `redemption` holds only what the SERVER returned on a 201, so the applied Delight
+   * figure can be previewed - the same discipline cart.tsx follows: a browser-computed discount is
+   * a figure the customer can see and the ledger never agreed to.
    */
-  // Starts EMPTY: the always-on Delight discount is applied automatically by the invoice engine
-  // when no explicit coupon and no manual discount are set, so this field is only for an
-  // additional explicit coupon. Pre-filling 'Delight' here would route it through the explicit
-  // coupon path (a CouponsTable read) instead of the server's in-memory default.
-  const [ couponCode, setCouponCode ] = useState( '' );
+  // The always-on Delight discount is applied automatically by the invoice engine on every
+  // customer-origin invoice. There is no coupon code to type and no manual discount to set, so
+  // the only redemption state is the SERVER's answer, held to preview the applied Delight line.
   const [ redemption, setRedemption ] = useState<api.CreateInvoiceEngineResponse | null>( null );
-  const [ redemptionMsg, setRedemptionMsg ] = useState( '' );
   const [ config, setConfig ] = useState<FC>( () => loadSavedConfig() );
   const [ configSaving, setConfigSaving ] = useState( false );
   const [ msg, setMsg ] = useState<{ text: string; type: 'success' | 'error' } | null>( null );
@@ -394,7 +369,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
     if ( !selCustomer ) { showMsg( 'Select a customer first', 'error' ); return; }
     if ( !invForm.items.some( it => parseFloat( it.unitPrice ) > 0 ) ) { showMsg( 'Add at least one item', 'error' ); return; }
     setCreating( true );
-    setRedemptionMsg( '' );
     try
     {
       const req: CreateInvoiceEngineRequest = {
@@ -411,47 +385,28 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
         goodsType: goodsType,
         items: invForm.items.map( it => ( { name: it.name || config.default_item_name, amount: parseFloat( it.unitPrice ) || 0, quantity: parseInt( it.quantity ) || 1, gstRate: parseFloat( it.gstRate ) || config.default_gst_rate } ) ),
         shipping: parseFloat( invForm.shipping ) || 0,
-        discount: parseFloat( invForm.discount ) || 0, gstRate: config.default_gst_rate,
+        gstRate: config.default_gst_rate,
         purpose: DEFAULT_BRAND, orderId: invForm.orderId, gstin: config.gstin,
         preferredGateway: paymentGateway,
         paymentConfiguration: getPGConfigName( paymentGateway, sendPhone ),
-        // A CODE, and only when one was typed. Omitted entirely otherwise, because FEAT-002
-        // guarantees the no-codes path behaves byte for byte as it did before coupons existed -
-        // sending '' would put it through the redemption branch for nothing.
-        ...( couponCode.trim() ? { couponCode: couponCode.trim() } : {} ),
+        // No discount is sent: the invoice engine auto-applies the standalone Delight policy
+        // (0.5% up to Rs50) server-side. There is no coupon code and no manual adjustment to pass.
       };
-      /*
-       * `createInvoiceEngineResult`, not `createInvoiceEngine`, because a coupon refusal is a 400
-       * carrying a typed `errorCode` and the plain wrapper collapses every non-2xx to `null`.
-       * "Create failed" in front of a staff member who typed a valid-looking code is not an
-       * answer; "That coupon has expired" is.
-       */
-      const result = await api.createInvoiceEngineResult( req );
-      if ( result.ok )
+      // The server applies Delight and never refuses on a discount, so the plain wrapper is
+      // enough; the response carries the applied Delight figure for the preview below.
+      const r = await api.createInvoiceEngine( req );
+      if ( r )
       {
-        const r = result.invoice;
         showMsg( `Invoice ${r.invoiceNumber} created \u2014 \u20B9${r.total}` );
         // Every figure here is the SERVER's. Nothing on this page recomputes a discount.
         setRedemption( r );
         setInvForm( { ...EMPTY_INV, items: [ NEW_ITEM() ] } );
-        setCouponCode( '' );
         setSelCustomer( null );
         loadInvoices();
       }
       else
       {
         setRedemption( null );
-        /*
-         * The server's typed code decides the words, and only when a code was actually sent. A
-         * create can fail for a dozen reasons that have nothing to do with a coupon, and
-         * answering "the coupon could not be applied" to one of those would send a staff member
-         * to retype a code that was never the problem. An UNRECOGNISED errorCode on a request
-         * that did carry a code degrades to the honest unknown-reason line.
-         */
-        if ( req.couponCode )
-        {
-          setRedemptionMsg( REDEMPTION_MESSAGES[ result.errorCode ] || REDEMPTION_UNKNOWN );
-        }
         showMsg( 'Create failed', 'error' );
       }
     } catch ( e ) { showMsg( 'Create failed', 'error' ); }
@@ -664,23 +619,19 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
           { activeTab === 'create' && (
             <div className="pf-tab-body">
               { /*
-                 * WHAT THE SERVER DECIDED ABOUT THE coupon.
+                 * WHAT THE SERVER DECIDED ABOUT THE Delight discount.
                  *
                  * Outside the customer-step branch on purpose: a successful create clears
                  * `selCustomer` to reset the form, so anything rendered inside that branch
-                 * unmounts at exactly the moment it has something to say. Every figure below is
+                 * unmounts at exactly the moment it has something to say. The figure below is
                  * read straight off the response — there is no arithmetic on this page that
-                 * produces a discount, and `fmtPaise` formats the coupon result by slicing the
-                 * integer-paise string rather than dividing it.
+                 * produces a discount.
                  */ }
-              { redemptionMsg && (
-                <div className="msg-bar error" style={ { margin: '0 0 12px', fontSize: 'var(--text-xs)' } } role="status">{ redemptionMsg }</div>
-              ) }
               { redemption && (
                 <div className="inner-card" style={ { marginBottom: 16, maxWidth: 500, padding: '10px 14px' } }>
-                  <h4 style={ { margin: '0 0 6px', fontSize: 'var(--text-sm)', color: 'var(--accent)' } }>Applied on the last invoice</h4>
-                  { redemption.couponCode && typeof redemption.couponDiscount === 'number' && (
-                    <div className="pf-preview-row"><span>Coupon { redemption.couponCode }</span><span>{ '\u2212' }{ fmtMoney( redemption.couponDiscount ) }</span></div>
+                  <h4 style={ { margin: '0 0 6px', fontSize: 13, color: '#1a3a2a' } }>Applied on the last invoice</h4>
+                  { typeof redemption.couponDiscount === 'number' && redemption.couponDiscount > 0 && (
+                    <div className="pf-preview-row"><span>Delight</span><span>{ '\u2212' }{ fmtMoney( redemption.couponDiscount ) }</span></div>
                   ) }
                 </div>
               ) }
@@ -761,22 +712,10 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                   <h4 style={ { margin: '12px 0 8px', fontSize: 'var(--text-md)' } }>Additional Charges</h4>
                   <div className="pf-form-grid">
                     <div className="form-group"><label htmlFor="pf-shipping">Express / Shipping ({ '\u20B9' })</label><input id="pf-shipping" type="number" value={ invForm.shipping } onChange={ e => setInvForm( { ...invForm, shipping: e.target.value } ) } /></div>
-                    { /* DECISION D4: "Manual adjustment", not "Promo / Discount", and it defaults
-                         to 0. A goodwill credit a staff member decides on is a different fact
-                         from a coupon the store issued, and the old shared label over a silent
-                         Rs.15 default was what made them look like one mechanism. */ }
-                    <div className="form-group"><label htmlFor="pf-manual-adjustment">Manual adjustment ({ '\u20B9' })</label><input id="pf-manual-adjustment" type="number" value={ invForm.discount } onChange={ e => setInvForm( { ...invForm, discount: e.target.value } ) } /></div>
-
                   </div>
-                  {/* Coupon code only; the server remains the pricing authority. */}
-                  <h4 style={ { margin: '12px 0 8px', fontSize: 'var(--text-md)' } }>Coupon</h4>
-                  <div className="pf-form-grid">
-                    <div className="form-group">
-                      <label htmlFor="pf-coupon-code">Coupon code</label>
-                      <input id="pf-coupon-code" type="text" autoComplete="off" value={ couponCode }
-                        onChange={ e => setCouponCode( e.target.value ) } placeholder="Optional" />
-                    </div>
-                  </div>
+                  {/* No coupon field and no manual-adjustment field: there is no coupon system and
+                      manual discount entry is retired. The always-on Delight discount (0.5% up to
+                      Rs50) is applied by the server on create and previewed above after it answers. */}
                   { /* The server's answer about these codes is rendered ABOVE the customer step,
                        outside this branch, because a successful create clears the selected
                        customer and would otherwise unmount the one record of what was applied. */ }
@@ -834,12 +773,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                     } ) }
                     <div className="pf-preview-row"><span>Tax (GST)</span><span>{ fmtMoney( calcTax() ) }</span></div>
                     <div className="pf-preview-row"><span>Express</span><span>{ fmtMoney( parseFloat( invForm.shipping ) || 0 ) }</span></div>
-                    { /* The manual adjustment gets its OWN preview row, and there is deliberately
-                         no coupon row beside it: a coupon's value is the server's answer and is
-                         not known until the create comes back, so showing one here would mean
-                         computing a discount in the browser. The applied coupon
-                         figures appear above, after the server has decided them. */ }
-                    <div className="pf-preview-row"><span>Manual adjustment</span><span>{ '\u2212' }{ fmtMoney( parseFloat( invForm.discount ) || 0 ) }</span></div>
+                    { /* No discount row here: Delight is the server's answer, known only after
+                         create, and there is no manual adjustment to preview. The applied Delight
+                         figure appears above once the server has decided it. */ }
                     <div style={ { marginTop: 8, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', lineHeight: 1.45 } }>
                       Convenience fee and final total are calculated by the server when the invoice is created.
                     </div>
@@ -933,18 +869,17 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                       <div className="pf-detail-row"><span className="label">Subtotal</span><span>{ fmtMoney( selInvoice.subtotal ) }</span></div>
                       <div className="pf-detail-row"><span className="label">GST</span><span>{ fmtMoney( selInvoice.tax ) }</span></div>
                       <div className="pf-detail-row"><span className="label">Express</span><span>{ fmtMoney( selInvoice.shipping ) }</span></div>
-                      { /* TWO LINES FOR TWO FACTS, matching what `_build_invoice_html` and
-                           `_generate_receipt_png` now print. `invoice.discount` is the SUM of the
-                           staff adjustment and the coupon (Meta validates
-                           total == subtotal + tax + shipping - discount, so it has to be), which
-                           makes the manual part `discount - couponDiscount`. An invoice raised
-                           before coupons existed carries no `couponDiscount` at all, and that
-                           absence is why the coupon row is conditional rather than showing
-                           Rs.0.00 - which would claim a coupon was applied and was worthless. */ }
-                      { typeof selInvoice.couponDiscount === 'number' && (
-                        <div className="pf-detail-row"><span className="label">Coupon { selInvoice.couponCode || '' }</span><span>{ '\u2212' }{ fmtMoney( selInvoice.couponDiscount ) }</span></div>
+                      { /* The Delight discount line. `couponDiscount` holds the Delight figure
+                           (the field name is legacy on the stored row). A legacy invoice raised
+                           before manual entry was retired may carry a manual remainder in
+                           `discount - couponDiscount`; it is shown as "Promo" only when non-zero so
+                           a modern Delight-only invoice does not print an empty line. */ }
+                      { typeof selInvoice.couponDiscount === 'number' && selInvoice.couponDiscount > 0 && (
+                        <div className="pf-detail-row"><span className="label">Delight</span><span>{ '\u2212' }{ fmtMoney( selInvoice.couponDiscount ) }</span></div>
                       ) }
-                      <div className="pf-detail-row"><span className="label">Manual adjustment</span><span>{ '\u2212' }{ fmtMoney( selInvoice.discount - ( selInvoice.couponDiscount || 0 ) ) }</span></div>
+                      { ( selInvoice.discount - ( selInvoice.couponDiscount || 0 ) ) > 0 && (
+                        <div className="pf-detail-row"><span className="label">Promo</span><span>{ '\u2212' }{ fmtMoney( selInvoice.discount - ( selInvoice.couponDiscount || 0 ) ) }</span></div>
+                      ) }
                       { selInvoice.convenienceFee > 0 && <div className="pf-detail-row"><span className="label">Convenience fee</span><span>{ fmtMoney( selInvoice.convenienceFee ) }</span></div> }
                       <div className="pf-detail-total"><span>Total</span><span>{ fmtMoney( selInvoice.total ) }</span></div>
                     </div>
@@ -1089,7 +1024,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
               <h3 style={ { margin: '0 0 16px', fontSize: 'var(--text-xl)' } }>Flow Configuration</h3>
               <div className="form-group"><label>Default GST Rate (%)</label><input type="number" value={ config.default_gst_rate } onChange={ e => setConfig( { ...config, default_gst_rate: parseFloat( e.target.value ) || 0 } ) } /></div>
               <div className="form-group"><label>Default Express / Shipping ({ '\u20B9' })</label><input type="number" value={ config.default_shipping } onChange={ e => setConfig( { ...config, default_shipping: parseFloat( e.target.value ) || 0 } ) } /></div>
-              <div className="form-group"><label>Default Manual adjustment ({ '\u20B9' })</label><input type="number" value={ config.default_promo } onChange={ e => setConfig( { ...config, default_promo: parseFloat( e.target.value ) || 0 } ) } /></div>
               <div className="form-group"><label>GSTIN</label><input type="text" value={ config.gstin } onChange={ e => setConfig( { ...config, gstin: e.target.value } ) } /></div>
               <div className="form-group"><label>Default Item Name</label><input type="text" value={ config.default_item_name } onChange={ e => setConfig( { ...config, default_item_name: e.target.value } ) } /></div>
               { /* THE BRAND LIST EDITOR IS GONE, not hidden. The owner asked for the brand

@@ -122,6 +122,9 @@ describe( 'form-controls.css — invariant 4', () => {
       'src/components/AddressFields.tsx',
       'src/components/ServiceBuyBox.tsx',
       'src/components/dashboard/tabs/AppBuilderTab.tsx',
+      // Workspace redesign (FEAT-005): the engage/* channel pages, forms/responses and
+      // pay/records moved out of the routes tree into src/components/workspace/*. Same skinned
+      // <select> rules, new home — a rename on this allow-list, not a new control.
       'src/components/workspace/channels/Push.tsx',
       'src/components/workspace/channels/Sms.tsx',
       'src/components/workspace/channels/VoiceIn.tsx',
@@ -378,6 +381,7 @@ describe( 'form-controls.css — invariant 4', () => {
     // be allow-listed, because without it this assertion fails the moment that batch writes the
     // very file it exists to protect.
     expect( cbr.files ).toEqual( [
+      // Workspace redesign (FEAT-005): engage/sms/index.tsx moved to this component.
       'src/components/workspace/channels/Sms.tsx',
       'src/styles/Dashboard.css',
       'src/styles/Layout.css',

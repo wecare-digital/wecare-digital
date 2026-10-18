@@ -1,4 +1,6 @@
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import HomePage from '../pages/index';
@@ -313,10 +315,9 @@ describe( 'WECARE.DIGITAL Home', () => {
   it( 'declares the Inter stack rather than inheriting it from Amplify', () => {
     const css = cssOf( render( <HomePage /> ).container );
 
-    // This page rendered in Inter only because @aws-amplify/ui-react's styles.css
-    // sets a font-family on body. --font-sans in Pages.css has no Inter to fall
-    // back to, so the declaration has to be here.
-    expect( css ).toContain( "font-family:'Inter',-apple-system" );
+    expect( css ).toContain( 'font-family:var(--font-sans)' );
+    const tokens = readFileSync( resolve( process.cwd(), 'src/styles/tokens.css' ), 'utf8' );
+    expect( tokens ).toContain( "--font-sans: 'Inter'," );
   } );
 
   it( 'keeps homepage content below the public header at every breakpoint', () => {

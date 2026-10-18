@@ -91,6 +91,14 @@ def current_state(lam, name: str) -> Tuple[Optional[str], Optional[str], Optiona
     return alias_version, alias_sha, latest_sha
 
 
+def environment_matches(lam, name: str, version: str) -> bool:
+    """CodeSha256 excludes environment variables, which are frozen on publication."""
+    served = lam.get_function_configuration(FunctionName=f'{name}:{version}')
+    latest = lam.get_function_configuration(FunctionName=name)
+    return (served.get('Environment', {}).get('Variables', {})
+            == latest.get('Environment', {}).get('Variables', {}))
+
+
 def wait_active(lam, name: str, version: str) -> bool:
     qualified = f"{name}:{version}"
     for _ in range(POLL_ATTEMPTS):
@@ -126,7 +134,12 @@ def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool) -> str:
         print(f"    no {ALIAS} alias; invokes $LATEST directly, nothing to move")
         return "skipped"
 
-    already_current = alias_sha is not None and alias_sha == latest_sha
+    try:
+        already_current = (alias_sha is not None and alias_sha == latest_sha
+                           and environment_matches(lam, name, alias_version))
+    except ClientError as exc:
+        print(f"    cannot verify published environment: {exc.response['Error']['Code']}")
+        return "failed"
     print(f"  {name}")
     print(f"    alias {ALIAS} -> v{alias_version}   current: {already_current}")
 

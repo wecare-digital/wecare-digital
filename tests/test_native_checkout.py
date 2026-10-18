@@ -58,17 +58,21 @@ def test_quote_native_cart_produces_payable_snapshot():
     assert "aws-native" in str(snap.frozen_data)
 
 
-def test_quote_applies_coupon_and_shipping():
+def test_quote_applies_delight_and_shipping():
     cart = _cart(qty=2)  # subtotal 100000
-    coupon = {"discountKind": "PERCENT_OFF", "percentOffBps": 1000}  # 10% -> 10000
+    # The only discount is the always-on Delight (0.5% up to ₹50), computed standalone from the
+    # subtotal. The definition's `percentOffBps` is NOT an arbitrary coupon rate any more — there
+    # is no coupon engine; a non-None definition only signals "apply Delight". The figure is
+    # `default_coupon.delight_paise(100000)` = 500 (0.5%, under the 5000-paise cap), NOT 10%.
+    coupon = {"discountKind": "PERCENT_OFF", "percentOffBps": 1000}
     snap = ncheck.quote_native_cart(
         cart, product_reader=reader, customer_id="cust-1",
         created_at=1000, ttl_seconds=900,
         shipping_policy=sh.ShippingPolicy(flat_rate_paise=9900, free_above_paise=200000),
         coupon_definition=coupon, gst_bps=0,
     )
-    # collection = 100000 - 10000 + 9900 = 99900
-    assert snap.quote.collection_before_convenience_paise == 99900
+    # collection = 100000 - 500 (Delight) + 9900 = 109400
+    assert snap.quote.collection_before_convenience_paise == 109400
 
 
 def test_quote_fails_closed_on_insufficient_stock():

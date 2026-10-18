@@ -419,6 +419,7 @@ def test_the_staff_flow_page_defaults_to_and_offers_only_the_payment_capable_sen
     import pathlib
     import re
 
+    # Moved from a page to a component in the 2026-10 workspace redesign (105 -> 28 pages).
     source = (pathlib.Path(REPO) / 'src' / 'components' / 'workspace' / 'pay'
               / 'PayFlow.tsx').read_text(encoding='utf-8')
     sender_ids = set(re.findall(r"'(phone-number-id-[a-z0-9-]+)'", source))

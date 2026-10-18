@@ -77,10 +77,9 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
     # scripts/provision_customer_orders.py, so a deploy-all run before that is legitimately
     # awaiting provisioning rather than failing. A code update cannot create the index, and
     # without the index the function answers 503.
-    # wecare-coupons added 2026-10-02: coupon issuance and eligibility, owning
-    # stack-wecare-digital-CouponsTable. Never created in AWS - its table, its own least-privilege
-    # role and its seven routes are all first-provisioned by scripts/provision_coupons_*.py, so a
-    # deploy-all run before that is legitimately awaiting provisioning rather than failing.
+    # wecare-coupons was REMOVED 2026-10-18: the coupon system is retired entirely (no coupon
+    # Lambda, no CouponsTable, no /coupons routes). The only discount is the standalone Delight
+    # policy, which is pure arithmetic in default_coupon.py and provisions nothing.
     # wecare-blog-subscribe added 2026-10-02: the public OTP-gated blog subscriber front door.
     # It intentionally has its own least-privilege role/routes and must be first-created by
     # provision_blog_subscribe.py before deploy-all can update its code.
@@ -115,7 +114,6 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
                        "wecare-customer-profile", "wecare-blog-subscribe", "wecare-customer-registration", "wecare-checkout",
                        "wecare-customer-orders", "wecare-service-requests",
                        "wecare-customer-invoice",
-                       "wecare-coupons",
                        "wecare-meta-catalog-sync"]
 
 
@@ -145,3 +143,51 @@ def test_qrcode_is_no_longer_imported_at_runtime():
     # information does not.
     assert "stream/media/m/qr-customerservice.png" in handler
     assert "wecare.digital/customerservice" in handler
+
+
+@pytest.mark.parametrize('name', ['wecare-invoice-engine', 'wecare-outbound-whatsapp'])
+def test_payment_deploy_refuses_missing_expectations_without_explicit_sync(deploy_module, name):
+    from unittest.mock import MagicMock
+    lam = MagicMock()
+    with pytest.raises(ValueError, match='payment expectations missing'):
+        deploy_module.prepare_payment_environment(lam, name, {'Environment': {'Variables': {}}},
+            sync_from_checkout=False, dry_run=False)
+    lam.update_function_configuration.assert_not_called()
+
+
+def test_payment_environment_sync_preserves_other_settings_and_revision(deploy_module):
+    from unittest.mock import MagicMock
+    lam = MagicMock()
+    old = {'RevisionId':'revision-1','Environment':{'Variables':{'SEND_MODE':'LIVE'}}}
+    expected = {'SEND_MODE':'LIVE','EXPECTED_CONFIGURATION_NAME':'verified-config',
+                'EXPECTED_PROVIDER_MID':'verified-mid'}
+    lam.get_function_configuration.side_effect = [
+        {'Environment':{'Variables':{'EXPECTED_CONFIGURATION_NAME':'verified-config',
+            'EXPECTED_PROVIDER_MID':'verified-mid','DO_NOT_COPY_SECRET':'never-copied'}}},
+        {'Environment':{'Variables':expected}},
+    ]
+    deploy_module.prepare_payment_environment(lam,'wecare-invoice-engine',old,
+        sync_from_checkout=True,dry_run=False)
+    lam.update_function_configuration.assert_called_once_with(FunctionName='wecare-invoice-engine',
+        RevisionId='revision-1',Environment={'Variables':expected})
+    lam.get_waiter.return_value.wait.assert_called_once_with(FunctionName='wecare-invoice-engine')
+
+
+def test_payment_environment_dry_run_never_mutates_aws(deploy_module):
+    from unittest.mock import MagicMock
+    lam = MagicMock()
+    lam.get_function_configuration.return_value = {'Environment':{'Variables':{
+        'EXPECTED_CONFIGURATION_NAME':'verified-config','EXPECTED_PROVIDER_MID':'verified-mid'}}}
+    deploy_module.prepare_payment_environment(lam,'wecare-outbound-whatsapp',{},
+        sync_from_checkout=True,dry_run=True)
+    lam.update_function_configuration.assert_not_called()
+
+
+def test_payment_sync_refuses_an_unconfigured_source(deploy_module):
+    from unittest.mock import MagicMock
+    lam=MagicMock()
+    lam.get_function_configuration.return_value={'Environment':{'Variables':{}}}
+    with pytest.raises(ValueError,match='incomplete payment expectations'):
+        deploy_module.prepare_payment_environment(lam,'wecare-invoice-engine',{},
+            sync_from_checkout=True,dry_run=False)
+    lam.update_function_configuration.assert_not_called()

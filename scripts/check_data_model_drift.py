@@ -140,6 +140,12 @@ EXPLICIT_TABLE: dict[str, str] = {
 PHANTOM_ALLOWED: dict[str, str] = {}
 
 UNDECLARED_ALLOWED: dict[str, str] = {
+    "CouponsTable":
+        "RETIRED 2026-10-18: the coupon system was removed entirely (no coupon Lambda, no "
+        "coupon_store, no /coupons routes). The only discount is now the standalone Delight "
+        "policy, pure arithmetic in default_coupon.py with no table. This live table is pending "
+        "deletion from AWS; it is allowed here so the gate stays green until that destructive "
+        "infra step runs, and must be removed from this allowlist once the table is gone.",
     "ProductsTable": "AWS-native catalog authority (10 products, 23 variants), provisioned by scripts/provision_products_table.py and declared in amplify/catalog-resources.ts.",
     "CartTable": "AWS-native cart store with TTL, declared in amplify/catalog-resources.ts; operational state, not a CRM model.",
     "CustomerSessionsTable": "Customer session store owned by amplify/infra/customer-sessions.json (CloudFormation stack wecare-customer-sessions).",
@@ -202,10 +208,6 @@ UNDECLARED_ALLOWED: dict[str, str] = {
         "`expiresAt` - a download grant is deliberately short-lived, so expiry is "
         "the point of the record rather than a cache detail. Not modelled here for "
         "the same reason as PstnSoftphoneSessions: Amplify does not own that clock.",
-    "CouponsTable":   "Provisioned by scripts/provision_coupons_table.py; issuance, usage "
-                      "counters and per-customer limits owned by wecare-coupons. Deliberately "
-                      "not modelled here: it is the coupon service's issuance record, not "
-                      "part of the CRM data model.",
     "ThreadOwnershipTable":
         "Provisioned 2026-10-06 by scripts/provision_thread_ownership_table.py for WhatsApp "
         "Conversation Routing. Deliberately not modelled here: it is operational routing "

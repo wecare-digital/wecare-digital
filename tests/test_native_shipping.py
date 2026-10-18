@@ -47,19 +47,24 @@ def test_client_cannot_name_a_cheaper_option():
 
 
 def test_full_native_supply_chain():
-    """cart lines -> shipping -> coupon discount -> supply tax -> price_cart ->
-    compute_quote. The whole native supply total, end to end."""
+    """cart lines -> shipping -> Delight discount -> supply tax -> price_cart ->
+    compute_quote. The whole native supply total, end to end.
+
+    The only discount is the always-on Delight (0.5% up to ₹50), computed standalone from the
+    subtotal. There is no coupon engine, so the definition's `percentOffBps` is NOT honoured as an
+    arbitrary rate; a non-None definition only signals "apply Delight". For a 100000-paise
+    subtotal that is `default_coupon.delight_paise(100000)` = 500 (0.5%, under the 5000 cap)."""
     from lambda_utils.ecommerce import checkout_pricing
     policy = sh.ShippingPolicy(flat_rate_paise=9900, free_above_paise=200000)
     lines = [_line(qty=2, price=50000)]              # subtotal 100000
     delivery = sh.resolve_delivery_paise(lines, 100000, policy)   # 9900 (below 200000)
-    coupon = {"discountKind": "PERCENT_OFF", "percentOffBps": 1000}  # 10% -> 10000
-    tax = cp.supply_tax_paise(100000 - 10000, gst_bps=0, intra_state=True)  # inclusive prices
+    coupon = {"discountKind": "PERCENT_OFF", "percentOffBps": 1000}
+    tax = cp.supply_tax_paise(100000 - 500, gst_bps=0, intra_state=True)  # inclusive prices
     summary = cp.price_cart(lines, coupon_definition=coupon,
                             delivery_paise=delivery, tax_paise=tax.gst_paise)
     assert summary.subtotal_paise == 100000
-    assert summary.discount_paise == 10000
+    assert summary.discount_paise == 500        # Delight, 0.5% of 100000
     assert summary.delivery_paise == 9900
-    assert summary.total_paise == 100000 - 10000 + 9900 == 99900
+    assert summary.total_paise == 100000 - 500 + 9900 == 109400
     quote = checkout_pricing.compute_quote(summary.total_paise)
-    assert quote.total_payable_paise > 99900  # fee + GST added on the collection
+    assert quote.total_payable_paise > 109400  # fee + GST added on the collection

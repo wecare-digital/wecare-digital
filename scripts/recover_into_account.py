@@ -60,7 +60,6 @@ PY = sys.executable
 ORDER = [
     # 1. Tables
     "provision_products_table.py",
-    "provision_coupons_table.py",
     "provision_payment_attempts_table.py",
     "provision_agent_approvals_table.py",
     "provision_thread_ownership_table.py",

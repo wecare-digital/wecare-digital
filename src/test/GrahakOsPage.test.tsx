@@ -294,7 +294,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
   } );
 
   it( 'keeps SKU visible and uses the shared PolicyDetails disclosure', () => {
-    expect( source ).not.toContain( "PRODUCT_SKU_BY_SLUG['grahak-os']" );
+    expect( source.replace( /\/\*[\s\S]*?\*\//g, '' ) ).not.toContain( "PRODUCT_SKU_BY_SLUG['grahak-os']" );
     expect( source ).toContain( "const GRAHAK_POLICY = productPolicyCopy( 'grahak-os', 'Grahak OS' )" );
     expect( source ).toContain( "const GRAHAK_CHECKOUT = productCheckoutLine( 'grahak-os' )" );
     expect( source ).toContain( 'const GRAHAK_SKU = GRAHAK_CHECKOUT?.variantId ?? null' );
@@ -522,7 +522,7 @@ describe( 'Grahak OS: "Every touchpoint" pills carry multiple homepage hues', ()
     expect( code ).not.toContain( '.pp-pill--red{border-color:#dc2626;background:#fee2e2}' );
     // Hover keeps each pill's own hue (no more forcing every pill to the lime border);
     // it only lifts and casts the existing shadow.
-    expect( code ).toContain( '.pp-pill:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}' );
+    expect( code ).toContain( '.pp-pill:hover{transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}' );
   } );
 
   it( 'introduces no retired colour via the new pill hues', () => {

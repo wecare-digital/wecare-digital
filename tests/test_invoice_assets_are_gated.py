@@ -41,6 +41,12 @@ FUNCTIONS = ROOT / "amplify" / "functions"
 INVOICE_ENGINE = FUNCTIONS / "payments" / "invoice-engine" / "handler.py"
 INBOUND = FUNCTIONS / "messaging" / "inbound-whatsapp-handler" / "handler.py"
 CLEANUP = FUNCTIONS / "operations" / "system-cleanup" / "handler.py"
+# The frontend dashboard mirror (src/pages/workspace/dashboard/index.tsx) that used to echo the
+# cleanup prefix list was removed in the 2026-10 workspace redesign (the Dashboard section is
+# gone and nothing in src names `s3_invoices` any more). Its guard test is replaced below by a
+# backend-registry test; the backend gating guards (PREFIX_SITES) are the load-bearing ones and
+# are unchanged.
+
 #: Every site that names the invoice prefix, and the file it lives in.
 PREFIX_SITES = [INVOICE_ENGINE, INBOUND, CLEANUP]
 

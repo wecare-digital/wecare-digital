@@ -51,9 +51,11 @@ from lambda_utils.ecommerce import order_channel, business_identity, checkout_pr
 # `send_payment_link` reserves BEFORE it sends, so a retried send re-sends the same
 # `reference_id` instead of minting a second one for one invoice.
 from lambda_utils.ecommerce import order_keys, wa_payment_request
-# ── the ONE coupon authority ──
-from lambda_utils.ecommerce import coupon_store, redemption
-from lambda_utils.ecommerce import store_redemption_provider
+# The one, always-on discount: Delight (0.5% up to ₹50), a fixed owner policy computed standalone.
+# There is no coupon system and no gift-card system any more — this handler asks `default_coupon`
+# for the one figure and writes it onto the invoice like any other line. Nothing here reads a
+# table, holds a reservation, or refuses: Delight is pure arithmetic over the collection.
+from lambda_utils.ecommerce import default_coupon
 # The ONE address authority. Imported so this handler reads the canonical `checkoutDeliveryAddress`
 # Map a contact carries (with a legacy flat-column fallback) rather than re-deriving the address
 # shape here — the same convergence `customer_orders.update_profile` and the WhatsApp Address
@@ -100,8 +102,6 @@ INVOICE_ASSETS_TABLE = shared_tables.invoice_assets_table_name()
 INVOICE_DELIVERY_TABLE = shared_tables.invoice_delivery_table_name()
 PAYMENTS_TABLE = os.environ.get('PAYMENTS_TABLE', 'stack-wecare-digital-PaymentsTable')
 CONTACTS_TABLE = shared_tables.contacts_table_name()
-# Coupon store configuration.
-COUPONS_TABLE = os.environ.get(coupon_store.TABLE_ENV_KEY, coupon_store.DEFAULT_TABLE_NAME)
 SYSTEM_CONFIG_TABLE = os.environ.get('SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 
@@ -621,52 +621,6 @@ def get_next_sequence_preview(body: Dict, request_id: str) -> Dict:
         return _resp(500, {'error': str(e)})
 
 
-# ─── Coupon authority, shared with website checkout ───
-class RedemptionRefused(Exception):
-    """A coupon refusal, carrying the HTTP status and the machine code to answer with.
-
-    `code` is always one of OUR closed codes, never provider prose: the frontend branches on it
-    and a message that changes with a vendor's wording is not a contract.
-    """
-
-    def __init__(self, status: int, code: str, *, retryable: bool = False) -> None:
-        super().__init__(code)
-        self.status = status
-        self.code = code
-        self.retryable = retryable
-
-
-#: `redemption`'s typed reasons mapped onto the error codes this route answers with.
-#:
-#: NARROWING, recorded rather than hidden: `redemption`'s vocabulary is deliberately closed and is
-#: the only thing that crosses the provider seam, so the precise `coupon_store` verdict
-#: (`USAGE_LIMIT_REACHED`, `HELD_BY_ANOTHER_CART`, ...) is NOT surfaced to the caller. Reading it
-#: here would mean a second eligibility read against the same table, by this handler, next to the
-#: one the provider already did - a second authority for the sake of a longer error string.
-#: `store_redemption_provider.validate_coupon` logs the exact verdict, so staff diagnosis is
-#: intact; the customer-facing distinction (wrong code / not usable now / not usable here) is kept.
-COUPON_REFUSAL_CODE = {
-    redemption.COUPON_INVALID: 'UNKNOWN_CODE',
-    redemption.COUPON_EXPIRED: 'COUPON_EXPIRED',
-    redemption.COUPON_INELIGIBLE: 'COUPON_INELIGIBLE',
-}
-
-
-#: The hold TTL for a coupon reserved by an invoice. The module default is 900s, which is a
-#: browser checkout's lifetime; an invoice is sent on WhatsApp and paid hours later, so the hold
-#: must outlive the conversation. 86400 is `coupon_store.hold`'s documented maximum.
-COUPON_HOLD_TTL_SECONDS = 86400
-
-
-
-def _redemption_provider(customer_id: str = ''):
-    """The one concrete coupon provider."""
-    return store_redemption_provider.StoreRedemptionProvider(
-        coupons_table=dynamodb.Table(COUPONS_TABLE),
-        customer_id=customer_id or None,
-    )
-
-
 def _rupees_to_paise(value, *, code: str = 'AMOUNT_MISMATCH') -> int:
     """Rupees to integer paise, ONCE, at the boundary. No float arithmetic anywhere past here.
 
@@ -678,10 +632,10 @@ def _rupees_to_paise(value, *, code: str = 'AMOUNT_MISMATCH') -> int:
     """
     paise = _dec(value) * 100
     if paise != paise.to_integral_value():
-        raise RedemptionRefused(400, code)
+        raise ValueError(code)
     as_int = int(paise)
     if as_int < 0:
-        raise RedemptionRefused(400, code)
+        raise ValueError(code)
     return as_int
 
 
@@ -763,121 +717,24 @@ def _tax_halves_rupees(tax_value) -> tuple:
         return cgst, tax_dec - cgst
 
 
-def _assert_inr(body: Dict) -> None:
-    """Compare the currency EXPLICITLY. Never infer it from an amount.
-
-    An amount tells you a magnitude, never a currency, and `redemption` raises
-    `UNSUPPORTED_CURRENCY` on a non-INR `currency=` kwarg precisely so the comparison is made
-    rather than defaulted away. Checked before anything is read from a table.
-    """
-    if str(body.get('currency') or 'INR').upper() != redemption.REDEMPTION_CURRENCY:
-        raise RedemptionRefused(400, 'UNSUPPORTED_CURRENCY')
-
-
-#: Entry points whose amount is already settled or whose service contract is exact-price.
-#:
-#: Everything else is a NEW COLLECTION and receives the same server-owned pricing policy:
-#: automatic Delight (unless an explicit/manual discount replaces it) and the canonical
-#: convenience fee. This is intentionally a DENYLIST of semantic exceptions rather than an
-#: allowlist of UI callers: adding a new invoice composer must not silently create a sixth price.
+# Entry points that record settled money or preserve an exact-price service contract.
 _EXACT_PRICE_OR_SETTLED_ENTRY_POINTS = frozenset({
-    'webhook',              # reconstructs money that already moved
-    'website_checkout',     # post-payment customer receipt projection
-    'submit_request_flow',  # exact-price service
-    'flow_payment',         # exact-price service
+    'webhook', 'website_checkout', 'submit_request_flow', 'flow_payment',
 })
 
 
 def _new_collection_pricing_applies(entry_point: str,
                                     amount_is_tax_inclusive: bool) -> bool:
-    """Whether this invoice is a fresh collection priced by the invoice engine."""
+    """Every fresh collection uses the same fee policy, regardless of its UI origin."""
     return (not amount_is_tax_inclusive
             and entry_point not in _EXACT_PRICE_OR_SETTLED_ENTRY_POINTS)
 
 
-def _delight_applies(entry_point: str,
-                     amount_is_tax_inclusive: bool, manual_discount: float) -> bool:
-    """True when the always-on Delight goodwill discount should auto-apply to this invoice.
-
-    Delight is the default for every NEW COLLECTION, regardless of which staff/customer surface
-    originated it. That includes `manual`, `pay_flow`, `whatsapp_payment`, `inbox` and
-    `commerce`; the entry-point label is attribution, not a pricing switch.
-
-    It is deliberately suppressed when:
-
-      - a tax-inclusive capture is being reconstructed;
-      - the invoice is an exact-price service flow;
-      - the invoice already carries a MANUAL staff discount.
-
-    The explicit-coupon case is handled by the caller (it takes the branch above this one).
-    """
-    if manual_discount:
-        return False
-    return _new_collection_pricing_applies(entry_point, amount_is_tax_inclusive)
-
-
-def _apply_coupon_leg(*, code: str, collection_paise: int, reference_id: str,
-                      provider) -> redemption.CouponResult:
-    """Price one coupon against the collection that FEEDS the convenience-fee calculator.
-
-    A coupon is a PRICE CHANGE, so it is applied here - before the fee and its GST - and a
-    smaller cart genuinely costs a smaller fee. Returns the `CouponResult`; raises
-    `RedemptionRefused` on every refusal, so nothing downstream has to re-check.
-
-    The raise/return split is `store_redemption_provider`'s and is load-bearing: a code the
-    customer got wrong comes back as a typed REASON, while a coupon that genuinely exists and
-    cannot be priced on this surface (`FREE_SHIPPING`, `BUY_X_GET_Y`, an unmet minimum subtotal)
-    RAISES. Both end in a refusal here, because silently collecting the full amount after
-    promising a discount is the one outcome worse than an error.
-    """
-    try:
-        applied = redemption.apply_coupon(
-            code=code, collection_before_discount_paise=collection_paise,
-            cart_ref=reference_id, provider=provider,
-            currency=redemption.REDEMPTION_CURRENCY)
-    except coupon_store.CouponStoreUnavailable:
-        # Retryable, never "invalid". A throttle reported as absence refuses a live coupon.
-        raise RedemptionRefused(503, 'COUPON_STORE_UNAVAILABLE', retryable=True) from None
-    except coupon_store.CouponHeldByAnotherCart:
-        raise RedemptionRefused(409, 'HELD_BY_ANOTHER_CART') from None
-    except coupon_store.CouponError as exc:
-        raise RedemptionRefused(400, exc.code) from None
-    except redemption.RedemptionError as exc:
-        raise RedemptionRefused(400, exc.reason) from None
-    if not applied.applied:
-        raise RedemptionRefused(400, COUPON_REFUSAL_CODE.get(applied.reason, 'UNKNOWN_CODE'))
-    return applied
-
-
-def _hold_coupon(*, code: str, reference_id: str) -> None:
-    """Reserve the coupon for THIS invoice. Idempotent for the same `referenceId` by construction.
-
-    `coupon_store.hold`'s condition is
-    `attribute_not_exists(activeHoldCartId) OR activeHoldCartId = :me OR activeHoldExpiresAtMs <
-    :now`, so re-posting the same create body re-takes the same hold instead of conflicting. The
-    hold is advisory; the authoritative single-use guarantee is the conditional `COUPONREDEEM#`
-    put at capture, which is why an unpaid invoice holding a coupon costs nothing permanent.
-    """
-    try:
-        coupon_store.hold(dynamodb.Table(COUPONS_TABLE), code=code, cart_id=reference_id,
-                          ttl_seconds=COUPON_HOLD_TTL_SECONDS)
-    except coupon_store.CouponHeldByAnotherCart:
-        raise RedemptionRefused(409, 'HELD_BY_ANOTHER_CART') from None
-    except coupon_store.CouponStoreUnavailable:
-        raise RedemptionRefused(503, 'COUPON_STORE_UNAVAILABLE', retryable=True) from None
-    except coupon_store.CouponError as exc:
-        raise RedemptionRefused(400, exc.code) from None
-
-
-def _refusal_response(exc: RedemptionRefused) -> Dict:
-    """One response shape for every refusal, mirroring `INVOICE_SEQUENCE_UNAVAILABLE`."""
-    payload: Dict[str, Any] = {
-        'error': 'The coupon could not be applied',
-        'errorCode': exc.code,
-    }
-    if exc.retryable:
-        payload['retryable'] = True
-    return _resp(exc.status, payload)
+def _delight_applies(entry_point: str, amount_is_tax_inclusive: bool,
+                     manual_discount: float = 0) -> bool:
+    """Exclude settled amounts, exact-price services and legacy manual adjustments."""
+    return (not manual_discount
+            and _new_collection_pricing_applies(entry_point, amount_is_tax_inclusive))
 
 
 # ─── Create Invoice ───
@@ -893,6 +750,22 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
             'error': 'Gift cards are retired and are no longer accepted',
             'errorCode': 'GIFT_CARDS_RETIRED',
         })
+    if str(body.get('couponCode') or '').strip():
+        captured = bool(body.get('amountIsTaxInclusive'))
+        return _resp(400, {
+            'error': 'Discount codes are retired; eligible orders receive Delight automatically',
+            'errorCode': 'AMOUNT_ALREADY_CAPTURED' if captured else 'COUPONS_RETIRED',
+        })
+    if not body.get('amountIsTaxInclusive'):
+        try:
+            manual_discount = Decimal(str(body.get('discount') or 0))
+        except (InvalidOperation, ValueError, TypeError):
+            manual_discount = Decimal('NaN')
+        if not manual_discount.is_finite() or manual_discount != 0:
+            return _resp(400, {
+                'error': 'Manual discounts are retired; eligible orders receive Delight automatically',
+                'errorCode': 'MANUAL_DISCOUNTS_RETIRED',
+            })
     payment_id = body.get('paymentId', '')
     table = dynamodb.Table(INVOICES_TABLE)
 
@@ -1191,78 +1064,49 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         )
         tax = round(tax, 2)
 
-    # ── Optional coupon, applied BEFORE the fee because a coupon is a price change ──
+    # ── The always-on Delight discount, applied BEFORE the fee because it is a price change ──
     #
-    # Guarded on a code being present, so an invoice raised with neither code runs the identical
-    # arithmetic it ran before this feature existed - the no-code total is unchanged byte for
-    # byte, which is the one property this whole block must not break.
-    coupon_code = str(body.get('couponCode') or '').strip()
-    # The manual staff adjustment, kept separate from the coupon so the two are never confused:
-    # a goodwill credit is not a coupon, and only one of them is reconciled against a definition.
-    manual_discount = discount
+    # There is no coupon code and no manual staff discount any more: the ONLY discount an invoice
+    # carries is the fixed Delight policy (0.5% up to ₹50). Applied to eligible fresh collections
+    # across entry points (`_delight_applies`), reducing the collection the convenience-fee calculator
+    # consumes so a smaller order genuinely costs a smaller fee. The figure comes from
+    # `default_coupon.delight_paise` — the SAME standalone computation the website/WhatsApp native
+    # path uses — so an invoice and a cart for one order can never disagree. Pure arithmetic: no
+    # table, no provider, no hold, no refusal path.
+    #
+    # `discount` is Delight-only from here on: a tax-inclusive capture already forced it to
+    # Decimal('0'), and every other entry point starts at zero because manual discount entry is
+    # retired. Delight overwrites it below when it applies.
+    discount = discount if amount_is_tax_inclusive else 0
     coupon_discount_rupees = Decimal('0')
     coupon_discount_paise = 0
     redemption_attributes: Dict[str, Any] = {}
     stored_coupon_code = ''
-    provider = None
 
-    try:
-        if coupon_code:
-            _assert_inr(body)
-            provider = _redemption_provider(
-                body.get(customer_uuid.ATTRIBUTE, '')
-                if customer_uuid.is_customer_uuid(body.get(customer_uuid.ATTRIBUTE, '')) else '')
-
-        if coupon_code:
-            # The collection the convenience-fee calculator consumes, in integer paise, converted
-            # once. The coupon reduces THIS, so the fee and its GST are computed on the discounted
-            # figure - `redemption.py`'s documented order, and the reason a coupon genuinely makes
-            # a cart cheaper rather than only looking cheaper.
-            collection_before_coupon = (subtotal - manual_discount + shipping + effective_gp
-                                        + effective_nf + handling + tax)
-            applied = _apply_coupon_leg(
-                code=coupon_code,
-                collection_paise=_rupees_to_paise(collection_before_coupon),
-                reference_id=reference_id, provider=provider)
-            coupon_discount_paise = applied.discount_paise
+    if _delight_applies(entry_point, amount_is_tax_inclusive):
+        # Native catalogue prices are GST-inclusive. Use the same goods basis here:
+        # supply plus its included tax, excluding delivery, handling and fee lines.
+        # Packing/notification charges can arrive inline or as separate legacy fields.
+        goods_gross = Decimal('0')
+        for item in items:
+            name = str(item.get('name') or '').lower()
+            if ('green' in name and 'pack' in name) or 'notification' in name or 'alert' in name:
+                continue
+            amount = Decimal(str(item.get('amount', 0))) * int(item.get('quantity', 1))
+            rate = Decimal(str(item.get('gstRate', gst_rate)))
+            goods_gross += amount * (Decimal('1') + rate / Decimal('100'))
+        delight_discount_paise = default_coupon.delight_paise(
+            _rupees_to_paise(goods_gross))
+        if delight_discount_paise > 0:
+            coupon_discount_paise = delight_discount_paise
             coupon_discount_rupees = _paise_to_rupees(coupon_discount_paise)
-            stored_coupon_code = coupon_store.normalise_code(coupon_code)
-            # One conversion back into the rupee pipeline (M4). `Decimal` -> `float` is exact for
-            # a two-decimal amount, and every figure that decided the discount was integer paise.
-            discount = manual_discount + float(coupon_discount_rupees)
-        elif _delight_applies(entry_point, amount_is_tax_inclusive, manual_discount):
-            # AUTO-APPLY the always-on Delight goodwill discount (0.5% up to ₹100) when the
-            # customer named no coupon of their own. Priced IN-MEMORY through the shared default
-            # definition and the one renderer (`coupon_store.discount_paise`), so it needs no
-            # CouponsTable read and no hold/usage-count/redemption record -- Delight is a fixed
-            # owner policy, not a limited-use campaign coupon. The figure cannot drift from the
-            # website's, which prices the same definition.
-            from lambda_utils.ecommerce import default_coupon
-            collection_before_coupon = (subtotal - manual_discount + shipping + effective_gp
-                                        + effective_nf + handling + tax)
-            delight_discount_paise = default_coupon.delight_paise(
-                _rupees_to_paise(collection_before_coupon))
-            if delight_discount_paise > 0:
-                coupon_discount_paise = delight_discount_paise
-                coupon_discount_rupees = _paise_to_rupees(coupon_discount_paise)
-                stored_coupon_code = coupon_store.normalise_code(default_coupon.DELIGHT_CODE)
-                discount = manual_discount + float(coupon_discount_rupees)
-                # Recorded so the receipt and the Meta discount row can name it, but NOT held:
-                # a policy default has no COUPONHOLD#/COUPONUSE#/COUPONREDEEM# and is exempt from
-                # the single-use and per-customer limits that apply only to campaign coupons.
-                redemption_attributes['couponCode'] = stored_coupon_code
-                redemption_attributes['couponDiscount'] = _dec(coupon_discount_rupees)
-    except RedemptionRefused as refusal:
-        logger.info(json.dumps({
-            'event': 'invoice_redemption_refused',
-            'stage': 'coupon',
-            'errorCode': refusal.code,
-            'couponCode': coupon_code,
-            'referenceId': reference_id,
-            'note': 'no invoice number consumed',
-            'requestId': request_id,
-        }))
-        return _refusal_response(refusal)
+            stored_coupon_code = default_coupon.DELIGHT_CODE
+            discount = float(coupon_discount_rupees)
+            # Recorded so the receipt and the Meta discount row can name the "Delight" line, but
+            # NOT held: a fixed owner policy has no COUPONHOLD#/COUPONUSE#/COUPONREDEEM# and is
+            # exempt from the single-use and per-customer limits a campaign coupon would have had.
+            redemption_attributes['couponCode'] = stored_coupon_code
+            redemption_attributes['couponDiscount'] = _dec(coupon_discount_rupees)
 
     # Convenience fee policy has ONE home: checkout_pricing.compute_quote.
     # For new/manual/WhatsApp collections the server derives the fee from the exact post-discount,
@@ -1335,24 +1179,6 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
                 'expectedTotalPaise': expected_total_paise,
                 'computedTotalPaise': computed_total_paise,
             })
-    # Hold an accepted coupon only after pricing succeeds.
-    try:
-        if coupon_code:
-            _hold_coupon(code=stored_coupon_code, reference_id=reference_id)
-            redemption_attributes['couponCode'] = stored_coupon_code
-            redemption_attributes['couponDiscount'] = _dec(coupon_discount_rupees)
-    except RedemptionRefused as refusal:
-        logger.info(json.dumps({
-            'event': 'invoice_redemption_refused',
-            'stage': 'hold',
-            'errorCode': refusal.code,
-            'couponCode': coupon_code,
-            'referenceId': reference_id,
-            'note': 'no invoice number consumed',
-            'requestId': request_id,
-        }))
-        return _refusal_response(refusal)
-
     # ── Only now is a GST invoice number consumed ──
     #
     # Every refusal above has already answered. This is the last thing that can fail, and it is
@@ -1449,10 +1275,10 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         'paidAt': body.get('paidAt', 0),
     }
 
-    # Coupon attributes, present only when a code was supplied. Absent rather than
-    # zero on every other invoice, so an invoice raised before this feature existed stays
-    # distinguishable from one where a customer deliberately applied nothing - `0` and "no coupon"
-    # are different facts and a reader must be able to tell them apart.
+    # The Delight discount attributes (couponCode="DELIGHT", couponDiscount), present ONLY when
+    # Delight actually applied. Absent rather than zero otherwise, so an invoice that carried no
+    # discount stays distinguishable from one discounted by ₹0 — different facts a reader must be
+    # able to tell apart.
     invoice.update(redemption_attributes)
 
     # Unconditional: the claim above already established exclusivity for the derived id,
@@ -1507,15 +1333,12 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         'invoiceId': invoice_id, 'invoiceNumber': invoice_number, 'referenceId': reference_id,
         'total': float(total), 'convenienceFee': float(convenience_fee),
     }
-    # What the SERVER decided, echoed back so the form renders our figure and never its own. The
-    # browser sends a code and nothing else; there is no field here it could have supplied an
-    # amount through. A refusal never reaches this point - it answered 4xx/503 above - so a reason
-    # present here is always `APPLIED`, and it is carried anyway because the form branches on it.
-    if coupon_code:
+    # The Delight discount the SERVER applied, echoed back so the form renders our figure. Present
+    # only when Delight actually discounted this invoice; a fixed policy, so there is no reason
+    # code and nothing the browser could have supplied.
+    if stored_coupon_code:
         created['couponCode'] = stored_coupon_code
         created['couponDiscount'] = float(coupon_discount_rupees)
-        created['couponReason'] = redemption.COUPON_APPLIED
-        created['amountPayable'] = float(redemption_attributes['amountPayable'])
     return _resp(201, created)
 
 
@@ -1808,10 +1631,14 @@ def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
     """Update an existing invoice (admin). Blocks amount changes on paid/cancelled invoices."""
     table = dynamodb.Table(INVOICES_TABLE)
 
-    # A coupon cannot be changed on an existing invoice; create a new invoice instead.
-    if 'couponCode' in body:
+    # Defensive 400 for a stale client that still sends a code. There is no coupon system and no
+    # gift-card system any more — the only discount is the always-on Delight policy the engine
+    # applies at creation — so a code on an update cannot mean anything. REFUSING rather than
+    # silently dropping it: a 200 that looked like a code had been applied, while the full amount
+    # was still collected, would be the dangerous alternative.
+    if 'couponCode' in body or 'giftCardCode' in body:
         return _resp(400, {
-            'error': 'A coupon can only be applied when the invoice is created',
+            'error': 'A discount code cannot be applied to an invoice; none is supported',
             'errorCode': 'USE_CREATE',
         })
 
@@ -2079,8 +1906,8 @@ def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     # halvings - see `_split_tax_halves`. Read off the stored row rather than off the `tax` float
     # above, so the breakdown is derived from the figure the document actually carries.
     cgst, sgst = _tax_halves_rupees(invoice.get('tax', 0))
-    # Coupon/manual discount breakdown.
-    coupon_code_shown = str(invoice.get('couponCode', '') or '')
+    # The discount line. `couponDiscount` holds the Delight figure; the manual remainder exists
+    # only on legacy rows raised before manual entry was retired (`discount - couponDiscount`).
     coupon_discount_dec = Decimal(str(invoice.get('couponDiscount', 0) or 0))
     manual_discount_dec = Decimal(str(invoice.get('discount', 0) or 0)) - coupon_discount_dec
 
@@ -2224,7 +2051,7 @@ td{{padding:3px 2px;vertical-align:top;color:#000}}
 <div class="divider"></div>
 <div class="total-row"><span>Subtotal</span><span>{subtotal:,.2f}</span></div>
 {'<div class="total-row"><span>Promo</span><span>-' + f'{manual_discount_dec:,.2f}' + '</span></div>' if manual_discount_dec else ''}
-{'<div class="total-row"><span>Coupon ' + coupon_code_shown + '</span><span>-' + f'{coupon_discount_dec:,.2f}' + '</span></div>' if coupon_discount_dec else ''}
+{'<div class="total-row"><span>Delight</span><span>-' + f'{coupon_discount_dec:,.2f}' + '</span></div>' if coupon_discount_dec else ''}
 {'<div class="total-row"><span>Express</span><span>' + f'{shipping_amt:,.2f}' + '</span></div>' if shipping_amt else ''}
 {'<div class="total-row"><span>Green Packing</span><span>' + f'{green_packing_amt:,.2f}' + '</span></div>' if green_packing_amt else ''}
 {'<div class="total-row"><span>Notification Fee</span><span>' + f'{notification_fee_amt:,.2f}' + '</span></div>' if notification_fee_amt else ''}
@@ -2824,8 +2651,8 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
 
     # ═══ TOTALS ═══
     #
-    # Coupon/manual discount breakdown.
-    coupon_code_shown = str(invoice.get('couponCode', '') or '')
+    # The discount line. `couponDiscount` holds the Delight figure; the manual remainder exists
+    # only on legacy rows raised before manual entry was retired (`discount - couponDiscount`).
     coupon_discount_dec = Decimal(str(invoice.get('couponDiscount', 0) or 0))
     manual_discount_dec = Decimal(str(invoice.get('discount', 0) or 0)) - coupon_discount_dec
 
@@ -2835,7 +2662,7 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
         _lr("Promo", f"-{manual_discount_dec:,.2f}", F)
         y += LINE_H
     if coupon_discount_dec:
-        _lr(f"Coupon {coupon_code_shown}"[:24], f"-{coupon_discount_dec:,.2f}", F)
+        _lr("Delight", f"-{coupon_discount_dec:,.2f}", F)
         y += LINE_H
     if shipping_amt:
         _lr("Express", f"{shipping_amt:,.2f}", F)

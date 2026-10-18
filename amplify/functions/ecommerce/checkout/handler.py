@@ -721,10 +721,11 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
         "updatedAt": 0,  # stable across retries of the exact same basket
         "lineItems": native_lines,
     }
-    # The always-on "Delight" goodwill discount (0.5% up to ₹100), auto-applied SERVER-SIDE on
-    # every PRODUCT order so the customer cannot clear it from the browser. Priced through the one
-    # coupon renderer (`coupon_store.discount_paise` via the shared default definition), clamped at
-    # the subtotal and capped at ₹100 inside that renderer.
+    # The always-on "Delight" goodwill discount (0.5% up to ₹50), auto-applied SERVER-SIDE on
+    # every PRODUCT order so the customer cannot clear it from the browser. Priced by the one
+    # standalone computation (`default_coupon.delight_paise` via `catalog_pricing.coupon_discount_paise`),
+    # clamped at the subtotal and capped at ₹50. There is no coupon system and no gift-card system
+    # any more: the figure is pure arithmetic, no table read and no coupon engine.
     #
     # SUPPRESSED for a basket that contains a SERVICE line (Submit Request / Vault / Drop Docs /
     # Amendment / Pickup): a service is priced "to the paise" against its exact catalogue price, a

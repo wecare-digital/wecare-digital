@@ -36,6 +36,8 @@ import boto3.dynamodb.conditions  # the real resource loads this; the fixture mo
 
 ROOT = Path(__file__).resolve().parents[1]
 FUNCTION = ROOT / "amplify/functions/payments/invoice-engine/handler.py"
+# The Pay Flow staff invoice composer moved out of the routes tree in the workspace redesign
+# (FEAT-005): it is now the component mounted as the `flow` tab of /workspace/pay.
 FLOW_PAGE = ROOT / "src/components/workspace/pay/PayFlow.tsx"
 API_CLIENT = ROOT / "src/api/client.ts"
 

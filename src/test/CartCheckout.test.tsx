@@ -12,7 +12,7 @@ import { colors } from '../lib/design-tokens';
 import { MEDIA_BASE } from '../config/share';
 import type { ShopProduct } from '../content/shop';
 import { KNOWN_CATALOGUE_PRODUCT_IDS, SHOP_PRODUCTS } from '../content/shop';
-import { SERVICES_PRODUCT_ID } from '../config/services';
+import { SERVICES_PRODUCT_ID, SERVICE_CHOICES } from '../config/services';
 import type { StoredAddress } from '../components/AddressFields';
 import * as customerAuth from '../lib/customerAuth';
 
@@ -2242,6 +2242,23 @@ describe( 'the contribution row CHOOSES an amount, it does not count copies', ()
     expect( cart.readCart() ).toHaveLength( 1 );
     expect( cart.readCart()[ 0 ].variantId ).toBe( ONLY.variantId );
     expect( cart.readCart()[ 0 ].quantity ).toBe( 1 );
+  } );
+
+  it( 'does not promise Delight for exact-price services or mixed baskets', async () => {
+    signedIn();
+    stubFetch( { profile: { body: PROFILE_READY } } );
+    const service = SERVICE_CHOICES[ 0 ];
+    window.localStorage.setItem( 'wecare.cart.v1', JSON.stringify( [ {
+      productId: service.productId, variantId: service.variantId,
+      ref: `${service.productId}:${service.variantId}`, slug: service.slug,
+      name: service.label, formattedPrice: '₹49.00', quantity: 1,
+    } ] ) );
+    const first = render( <Cart /> );
+    expect( screen.queryByText( 'Delight' ) ).toBeNull();
+    first.unmount();
+    cart.addItem( PRODUCT, 1 );
+    render( <Cart /> );
+    expect( screen.queryByText( 'Delight' ) ).toBeNull();
   } );
 
   it( 'hides RedemptionPanel on a contribution cart and shows it otherwise', async () => {

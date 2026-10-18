@@ -70,7 +70,6 @@ KEYS = _table("stack-wecare-digital-CommerceKeys")
 PRODUCTS = _table("stack-wecare-digital-ProductsTable")
 ATTEMPTS = _table("stack-wecare-digital-PaymentAttemptsTable")
 ORDERS = _table("stack-wecare-digital-OrderTable")
-COUPONS = _table("stack-wecare-digital-CouponsTable")
 
 
 @dataclass(frozen=True)
@@ -110,7 +109,6 @@ CASES: tuple[Case, ...] = (
     Case(CHECKOUT_ROLE, "dynamodb:DeleteItem", ORDERS, "denied"),
     Case(CHECKOUT_ROLE, "dynamodb:DeleteItem", PRODUCTS, "denied"),
     Case(CHECKOUT_ROLE, "dynamodb:Scan", KEYS, "denied"),
-    Case(CHECKOUT_ROLE, "dynamodb:UpdateItem", COUPONS, "denied"),
     # service-requests: paid-claim reads only, and only the three row families.
     Case(SERVICE_ROLE, "dynamodb:GetItem", KEYS, "allowed", "PAYREF#X"),
     Case(SERVICE_ROLE, "dynamodb:GetItem", KEYS, "allowed", "PAYMENTATTEMPT#X"),

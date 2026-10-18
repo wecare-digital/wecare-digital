@@ -12,6 +12,8 @@ from lambda_utils.ecommerce import business_identity, checkout_pricing  # noqa: 
 OUTBOUND = ROOT / "amplify" / "functions" / "messaging" / "outbound-whatsapp" / "handler.py"
 INVOICE = ROOT / "amplify" / "functions" / "payments" / "invoice-engine" / "handler.py"
 FRONTEND_CONSTANTS = ROOT / "src" / "config" / "constants.ts"
+# The staff Pay Flow moved from a page (src/pages/workspace/pay/flow/index.tsx) to a component in
+# the 2026-10 workspace redesign (105 -> 28 pages).
 PAY_FLOW = ROOT / "src" / "components" / "workspace" / "pay" / "PayFlow.tsx"
 
 

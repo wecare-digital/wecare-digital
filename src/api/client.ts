@@ -4770,20 +4770,20 @@ export interface Invoice {
   updatedAt: number;
   paidAt: number;
   /**
-   * The coupon that was applied at create, normalised and server-authored.
+   * The always-on Delight discount recorded on the invoice. `couponCode` is the fixed `DELIGHT`
+   * code and nothing a browser supplied; there is no coupon system and no gift-card system any
+   * more.
    *
-   * All four redemption fields below are OPTIONAL, and that is a contract rather than caution:
-   * an invoice raised before this feature existed carries none of them, so `undefined` ("no
-   * coupon was ever considered") must stay distinguishable from `0` ("a coupon was applied and
-   * it was worth nothing"). Rendering `₹0.00` for the first case would be a lie about the
-   * document.
+   * Both fields are OPTIONAL, and that is a contract rather than caution: an invoice raised
+   * before Delight existed (or one it did not apply to) carries neither, so `undefined` ("no
+   * Delight applied") must stay distinguishable from `0` ("Delight applied and was worth
+   * nothing"). Rendering `₹0.00` for the first case would be a lie about the document.
    */
   couponCode?: string;
   /**
-   * The coupon's share of `discount`, in rupees. `discount` is the SUM of the staff's manual
-   * adjustment and this, because Meta validates `total == subtotal + tax + shipping - discount`
-   * and both invoice renderers already read it that way. The manual part is `discount -
-   * couponDiscount`.
+   * Delight's share of `discount`, in rupees. On a current invoice `discount == couponDiscount`
+   * (manual entry is retired); a legacy row may carry a manual remainder of `discount -
+   * couponDiscount`. Meta validates `total == subtotal + tax + shipping - discount`.
    */
   couponDiscount?: number;
   remarks?: string | InvoiceRemark[];
@@ -4823,24 +4823,17 @@ export interface CreateInvoiceEngineRequest {
   state?: string;
   postalCode?: string;
   landmark?: string;
-  /**
-   * A coupon code to apply when the invoice is created. A CODE and nothing else.
-   *
-   * There is deliberately no field on this request through which a browser could send a discount
-   * amount: the figure is decided server-side by `coupon_store.discount_paise` through the one
-   * `RedemptionProvider` the website cart also uses, and the browser's value is only a request.
-   * A coupon the store refuses fails the whole create with a typed `errorCode` rather than being
-   * dropped, because collecting the full amount after promising a discount is worse than an error.
-   *
-   * Applying one later is NOT supported: `PUT /invoices/{id}` answers `400 USE_CREATE`.
+  /*
+   * There is NO coupon field and NO gift-card field on this request. The only discount an invoice
+   * carries is the server's always-on Delight policy (0.5% up to ₹50), applied by the invoice
+   * engine itself — a browser cannot send a discount code, and `discount` above exists only for
+   * legacy/webhook callers, not for a staff-entered manual adjustment.
    */
-  couponCode?: string;
 }
 
 /**
- * What the server decided about a create. Every redemption field is optional for the same reason
- * the `Invoice` ones are, and every amount is the SERVER's: a form must render these rather than
- * recompute anything locally.
+ * What the server decided about a create. Every amount is the SERVER's: a form must render these
+ * rather than recompute anything locally.
  */
 export interface CreateInvoiceEngineResponse {
   invoiceId: string;
@@ -4848,12 +4841,10 @@ export interface CreateInvoiceEngineResponse {
   referenceId?: string;
   total: number;
   convenienceFee?: number;
-  /** The normalised code that was actually applied. */
+  /** The fixed `DELIGHT` code, present only when the always-on Delight discount applied. */
   couponCode?: string;
-  /** Rupees the coupon took off, server-computed. */
+  /** Rupees Delight took off, server-computed. */
   couponDiscount?: number;
-  /** `APPLIED`. A refusal never reaches here — it answers 4xx/503 with an `errorCode`. */
-  couponReason?: string;
 }
 
 // Create invoice directly

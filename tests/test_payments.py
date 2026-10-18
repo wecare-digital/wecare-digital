@@ -211,6 +211,22 @@ class TestOrderStatusSend:
         assert payload['interactive']['action']['name'] == 'review_order'
         assert store.call_args.kwargs['is_template'] is False
 
+    @pytest.mark.parametrize('changes', [
+        {}, {'status':'PAUSED'}, {'language':'hi'}, {'category':'MARKETING'},
+        {'sub_category':'OTHER'},
+    ])
+    def test_status_template_readback_checks_type_language_and_approval(self, changes):
+        row={'name':'verified_status','status':'APPROVED','category':'UTILITY',
+             'sub_category':'ORDER_STATUS','language':'en',**changes}
+        with patch.object(self.h,'WA_ORDER_STATUS_TEMPLATE','verified_status'), \
+             patch.object(self.h,'WA_ORDER_STATUS_TEMPLATE_LANGUAGE','en'), \
+             patch.object(self.h,'_waba_for_sender',return_value='sender-waba'), \
+             patch.object(self.h,'_fetch_approved_templates',return_value={'data':[row]}) as fetch:
+            result=self.h._approved_order_status_template('phone-1','req')
+        assert result == ('verified_status' if not changes else '')
+        fetch.assert_called_once_with('sender-waba')
+
+
 
 class TestPairRateLimit:
     """Test per-recipient pair rate limiting."""

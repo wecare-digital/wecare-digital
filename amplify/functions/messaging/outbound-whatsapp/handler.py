@@ -804,7 +804,14 @@ def _approved_order_status_template(phone_number_id: str, request_id: str) -> st
         }))
         return ''
     try:
-        approved = payment_readiness._approved_template_names(_fetch_approved_templates(waba_id))
+        rows = _fetch_approved_templates(waba_id).get('data', [])
+        approved = {
+            row.get('name') for row in rows if isinstance(row, dict)
+            and row.get('status') == 'APPROVED'
+            and row.get('category') == 'UTILITY'
+            and row.get('sub_category') == 'ORDER_STATUS'
+            and row.get('language') == WA_ORDER_STATUS_TEMPLATE_LANGUAGE
+        }
     except Exception as error:  # noqa: BLE001 - fail closed on provider/read errors
         logger.warning(json.dumps({
             'event': 'order_status_template_read_failed',

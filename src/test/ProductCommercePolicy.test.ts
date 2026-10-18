@@ -19,9 +19,9 @@ describe( 'shared product policy summary', () => {
 
   it( 'keeps page-specific fulfilment and disclaimer copy behind one resolver', () => {
     const grahak = productPolicyCopy( 'grahak-os', 'Grahak OS' );
-    expect( grahak.shipping ).toContain( 'delivered digitally' );
-    expect( grahak.returns ).toContain( 'no physical return' );
-    expect( grahak.disclaimer ).toContain( 'Full deployment' );
+    expect( grahak.shipping ).toMatch( /delivered digitally/i );
+    expect( grahak.returns ).toContain( 'nothing physical to return' );
+    expect( grahak.disclaimer ).toContain( 'Deployment, implementation, integrations' );
 
     const kit = productPolicyCopy( 'ritual-guru-diy-puja-kit', 'DIY Puja Kit' );
     expect( kit.shipping ).toContain( 'physical fulfilment' );
