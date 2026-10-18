@@ -1,4 +1,5 @@
 import React from 'react';
+import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE } from '../../content/productCommerce';
 
 export interface PolicyDetailsCopy {
   shipping: string;
@@ -8,6 +9,8 @@ export interface PolicyDetailsCopy {
 
 interface PolicyDetailsProps extends PolicyDetailsCopy {
   className?: string;
+  overview?: string | null;
+  refunds?: string;
 }
 
 /**
@@ -21,13 +24,16 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
   returns,
   disclaimer,
   className,
+  overview = PRODUCT_POLICY_TEXT,
+  refunds = 'Cancellation is handled as part of the refund policy above. Eligible voluntary cancellations or discretionary adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days, not as cash or a refund to the original payment method, except where applicable law requires otherwise.',
 } ) => (
   <details className={ ['wc-policy', className].filter( Boolean ).join( ' ' ) }>
     <summary>Policy details</summary>
     <div className="wc-policy-body">
+      { overview && <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { overview }</p> }
       <p><strong>Shipping / fulfilment:</strong> { shipping }</p>
       <p><strong>Returns:</strong> { returns }</p>
-      <p><strong>Refunds & cancellations:</strong> Cancellation is handled as part of the refund policy above. Eligible voluntary cancellations or discretionary adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days, not as cash or a refund to the original payment method, except where applicable law requires otherwise.</p>
+      <p><strong>Refunds & cancellations:</strong> { refunds }</p>
       { disclaimer.split( /\n{2,}/ ).map( ( paragraph, index, paragraphs ) => (
         <p className="wc-policy-disclaimer" key={ index }>
           { index === 0 && <strong>Disclaimer:</strong> }{ index === 0 ? ' ' : '' }{ paragraph.trim() }
@@ -85,7 +91,7 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         text-wrap:pretty;
       }
       .wc-policy strong{color:var(--public-brand-green);font-weight:700}
-      .wc-policy-disclaimer{padding-top:8px}
+      .wc-policy-disclaimer{padding-top:8px;border-top:1px solid var(--public-hairline)}
       @media(prefers-reduced-motion:reduce){
         .wc-policy summary{transition:none}
         .wc-policy summary:hover{transform:none;box-shadow:none}
