@@ -27,7 +27,7 @@ export const PRODUCT_SKU_BY_SLUG: Readonly<Record<string, string>> = {
   'contribute': 'CNT5Q2M8',
 };
 
-export const PRODUCT_POLICY_TITLE = 'Shipping, cancellation & refunds';
+export const PRODUCT_POLICY_TITLE = 'Shipping, returns & refunds';
 
 export const PRODUCT_POLICY_TEXT =
-  'Shipping or fulfilment timing depends on the product or service. Cancellation may not be available once work, processing or customisation has started. For voluntary cancellations or discretionary adjustments, cash refunds and refunds to the original payment method are not available; where eligible, we issue WECARE.DIGITAL store credit instead. Store credit issued under this policy is valid for 30 calendar days from the date of issue; any unused balance expires at the end of that period, unless applicable law requires otherwise. This does not limit any refund, replacement or other remedy required by applicable law.';
+  'Shipping or fulfilment timing depends on the product or service and is disclosed for the transaction. Return eligibility depends on the product or service, its condition, whether work or customisation has started, and applicable law. Refunds include approved voluntary cancellations and discretionary adjustments: cash refunds and refunds to the original payment method are not available; where eligible, we issue WECARE.DIGITAL store credit instead. Store credit issued under this policy is valid for 30 calendar days from the date of issue; any unused balance expires at the end of that period, unless applicable law requires otherwise. This does not limit any refund, replacement, return or other remedy required by applicable law.';
