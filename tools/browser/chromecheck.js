@@ -113,6 +113,47 @@ const htmlFor = route => {
   return fs.existsSync( file ) ? fs.readFileSync( file, 'utf8' ) : null;
 };
 
+/**
+ * Resolve one real exported instance for a dynamic Pages Router pattern.
+ *
+ * Walk every path segment, expanding bracketed segments to actual exported directories.
+ * This matters for families with more than one parameter: /blog/topic/[topic]/page/[page]
+ * must resolve through both [topic] and [page], not stop at the topic landing page.
+ */
+function exportedInstanceForPattern( pattern ) {
+  const parts = pattern.split( '/' ).filter( Boolean );
+  let states = [ { dir: OUT, routeParts: [] } ];
+
+  for ( const part of parts ) {
+    const dynamic = part.startsWith( '[' ) && part.endsWith( ']' );
+    const next = [];
+
+    for ( const state of states ) {
+      if ( dynamic ) {
+        if ( !fs.existsSync( state.dir ) ) continue;
+        for ( const entry of fs.readdirSync( state.dir, { withFileTypes: true } ) ) {
+          if ( !entry.isDirectory() || entry.name.startsWith( '_' ) ) continue;
+          next.push( {
+            dir: path.join( state.dir, entry.name ),
+            routeParts: [ ...state.routeParts, entry.name ],
+          } );
+        }
+      } else {
+        const dir = path.join( state.dir, part );
+        if ( fs.existsSync( dir ) && fs.statSync( dir ).isDirectory() ) {
+          next.push( { dir, routeParts: [ ...state.routeParts, part ] } );
+        }
+      }
+    }
+
+    states = next;
+    if ( states.length === 0 ) return null;
+  }
+
+  const hit = states.find( state => fs.existsSync( path.join( state.dir, 'index.html' ) ) );
+  return hit ? `/${hit.routeParts.join( '/' )}` : null;
+}
+
 /** Every exported page, as routes. */
 function exportedRoutes() {
   const found = [];
@@ -156,25 +197,7 @@ function main() {
     // which has no file of its own.
     let target = route, via = '';
     if ( route.includes( '[' ) ) {
-      /**
-       * THE DIRECTORY IS EVERY SEGMENT BEFORE THE PARAMETER, not just the first one.
-       *
-       * This read `route.split('/')[1]` until 2026-09-28, which silently assumed every
-       * dynamic route is exactly two segments deep. That held while `/post/[slug]` was the
-       * only one. `/blog/page/[page]` then failed with "no exported instance" even though
-       * the export was correct and contained 35 of them: the lookup resolved to `out/blog`
-       * and searched its children for an `index.html`, the only child being `page/`, which
-       * has none — `/blog/page/1/` is deliberately never emitted because page 1 is `/blog/`.
-       * So a correct export was reported as a missing route, and `Build and test` went red
-       * on a harness bug rather than a defect.
-       */
-      const parts = route.split( '/' ).filter( Boolean );
-      const paramAt = parts.findIndex( p => p.startsWith( '[' ) );
-      const prefix = parts.slice( 0, paramAt );
-      const dir = path.join( OUT, ...prefix );
-      const instance = fs.existsSync( dir )
-        ? fs.readdirSync( dir ).find( d => fs.existsSync( path.join( dir, d, 'index.html' ) ) )
-        : null;
+      const instance = exportedInstanceForPattern( route );
       if ( !instance )
       {
         if ( OPTIONAL_EMPTY_DYNAMIC.has( route ) )
@@ -185,7 +208,7 @@ function main() {
         record( false, `${route}`, 'no exported instance of this dynamic route' );
         continue;
       }
-      target = `/${prefix.join( '/' )}/${instance}`;
+      target = instance;
       via = ` (via ${target})`;
     }
 
