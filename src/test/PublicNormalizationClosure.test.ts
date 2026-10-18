@@ -225,8 +225,11 @@ describe( 'Step 7 public normalization closure', () => {
     expect( chromecheck ).toContain( "const contentBlock = app.slice( contentAt, gateAt );" );
     expect( chromecheck ).toContain( "const publicBlock = app.slice( gateAt, canonicalAt );" );
     expect( chromecheck ).toContain( "allowlist.length === 43" );
+    expect( chromecheck ).toContain( "function exportedInstanceForPattern( pattern )" );
+    expect( chromecheck ).toContain( "target = instance;" );
     expect( chromecheck ).not.toContain( "app.slice( gateAt, app.indexOf( ';', gateAt ) )" );
     expect( chromecheck ).not.toContain( "app.slice( contentAt, app.indexOf( ';', contentAt ) )" );
+    expect( chromecheck ).not.toContain( "const paramAt = parts.findIndex" );
   } );
 
 } );
