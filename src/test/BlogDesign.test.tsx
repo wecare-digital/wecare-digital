@@ -473,14 +473,14 @@ describe( 'Blog design alignment', () => {
     const css = styleBlockWith( container, '.post-card{' );
 
     // The home card-heading rung, and the single body rung the whole public site shares.
-    expect( css ).toContain( 'h2{font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px' );
-    expect( css ).toContain( 'font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;' );
+    expect( css ).toContain( 'h2{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking)' );
+    expect( css ).toContain( 'font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);' );
     // The home accent device, in the contract's order. The set is closed at these three.
     expect( css ).toContain( 'border-inline-start:3px solid #3da35a' );
     expect( css ).toContain( '.post-card:nth-child(3n+2){border-inline-start-color:#2563eb}' );
     expect( css ).toContain( '.post-card:nth-child(3n+3){border-inline-start-color:#9849e8}' );
     // The home CTA's hover: a 2px lift plus the one shadow this design language allows.
-    expect( css ).toContain( '.post-card:hover{border-color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}' );
+    expect( css ).toContain( '.post-card:hover{border-color:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}' );
     // The home breakpoints, replacing the 1050/680 pair that disagreed with the hero above.
     expect( css ).toContain( '@media(max-width:1024px)' );
     expect( css ).toContain( '@media(max-width:767px)' );
@@ -489,7 +489,7 @@ describe( 'Blog design alignment', () => {
     // :global(). It used to name .category-switch button, which nothing has rendered since the
     // categories became routes, so a reader asking for less motion still got the lift.
     expect( css ).toContain( '.post-card,.category-switch :global(a){transition:none}' );
-    expect( css ).toContain( 'outline:3px solid #1a3a2a' );
+    expect( css ).toContain( 'outline:3px solid var(--public-brand-green)' );
 
     // THREE REGRESSIONS THIS NOW GUARDS, asserted against declarations with the comments
     // stripped - see declarationsOnly. The translucent focus ring measures 1.51:1 against white
@@ -708,9 +708,9 @@ describe( 'Blog post page', () => {
     // verbatim on .post-title.
     expect( css ).toContain( '.article-shell{max-width:700px' );
     expect( css ).toContain( 'article{max-width:700px' );
-    expect( css ).toContain( '.post-title{font-size:clamp(36px,4.3vw,60px);line-height:1.04;letter-spacing:-0.04em;color:rgba(0,0,0,.95)' );
+    expect( css ).toContain( '.post-title{font-size:var(--public-hero-size);line-height:var(--public-hero-leading);letter-spacing:var(--public-hero-tracking);color:var(--public-heading)' );
     expect( css ).toContain( 'text-wrap:balance;max-width:20ch' );
-    expect( css ).toContain( 'font-size:20px;line-height:1.55;letter-spacing:-.125px' );
+    expect( css ).toContain( 'font-size:var(--public-body-size);line-height:1.55;letter-spacing:var(--public-body-tracking)' );
     expect( css ).toContain( '.content :global(p + p){margin-top:28px}' );
   } );
 
@@ -736,7 +736,7 @@ describe( 'Blog post page', () => {
      * #1a3a2a. Do not reintroduce an alpha - outline-offset is what softens a ring, and it
      * costs no contrast.
      */
-    expect( css ).toContain( '.content :global(a:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px;border-radius:2px}' );
+    expect( css ).toContain( '.content :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:2px}' );
     // Scoped to this component's own style block and stripped of comments, because the note
     // above names the value it replaced - see styleBlockWith and declarationsOnly at the top.
     expect( declarationsOnly( styleBlockWith( container, '.content :global(a:focus-visible)' ) ) )
@@ -824,14 +824,14 @@ describe( 'Blog post page', () => {
     expect( css ).toContain( '.post-related-list li:last-child:nth-child(odd){grid-column:1 / -1}' );
 
     // The home card-heading rung and the home accent order, matching the listing grid.
-    expect( css ).toContain( '.post-related-card h3{margin:0;flex:1;font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px}' );
+    expect( css ).toContain( '.post-related-card h3{margin:0;flex:1;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking)}' );
     expect( css ).toContain( '.post-related-card:nth-child(2){border-inline-start-color:#2563eb}' );
     expect( css ).toContain( '.post-related-card:nth-child(3){border-inline-start-color:#9849e8}' );
-    expect( css ).toContain( '.post-related-card:hover{border-color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}' );
+    expect( css ).toContain( '.post-related-card:hover{border-color:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}' );
 
     // The closing link is the home CTA object, and its focus ring is the opaque one.
-    expect( css ).toContain( 'border:2px solid #1a3a2a;border-radius:50px;background:#d1f470;' );
-    expect( css ).toContain( '.post-related :global(.post-related-all:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px}' );
+    expect( css ).toContain( 'border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);background:var(--public-brand-lime);' );
+    expect( css ).toContain( '.post-related :global(.post-related-all:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}' );
 
     // Nothing lifts for a reader who asked for less motion - this page had no such block.
     expect( css ).toContain( '@media(prefers-reduced-motion:reduce)' );
@@ -1131,7 +1131,7 @@ describe( 'Blog pills sit on the home page design language', () => {
     // reads as barely-not-white rather than as a green badge. A category badge naming the
     // post's category is identity, so it has the same requirement and takes the same answer.
     // No border, which .tab.active, .msg.sent and BrandBadge also carry none of.
-    expect( css ).toContain( '.category{display:inline-block;background:#d1f470;color:#1a3a2a;border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;letter-spacing:-.125px;margin-bottom:18px}' );
+    expect( css ).toContain( '.category{display:inline-block;background:var(--public-brand-lime);color:var(--public-brand-green);border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;letter-spacing:-.125px;margin-bottom:18px}' );
   } );
 
   it( 'keeps every lime state tint on the one documented alpha', () => {

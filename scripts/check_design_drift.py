@@ -129,6 +129,34 @@ LAYOUT_TOKEN_MIRROR = {
     "maxWidthWide": "--max-width-wide",
 }
 
+# These are the surfaces that define the public visual system rather than merely inheriting it.
+# The gate strips comments before checking, so a note that names a token cannot fake adoption.
+PUBLIC_TOKEN_CONSUMERS = {
+    SRC / "pages/index.tsx": ("--public-hero-size", "--public-section-size", "--public-body-size", "--public-card-size", "--public-content-max"),
+    SRC / "components/RotatingHero.tsx": ("--public-hero-size", "--public-body-size", "--public-content-max", "--public-copy-max"),
+    SRC / "components/public/ClosingBand.tsx": ("--public-section-size", "--public-body-size", "--public-cta-height"),
+    SRC / "components/public/PolicyDetails.tsx": ("--public-body-size", "--public-hairline", "--public-brand-green"),
+    SRC / "components/PillButton.tsx": ("--public-cta-height", "--public-brand-green", "--public-brand-lime"),
+    SRC / "components/ProductPage.tsx": ("--public-section-size", "--public-body-size", "--public-card-size", "--public-cta-height"),
+    SRC / "components/BlogIndexView.tsx": ("--public-body-size", "--public-card-size", "--public-hairline"),
+    SRC / "components/ShopListingView.tsx": ("--public-body-size", "--public-card-size", "--public-hairline"),
+    SRC / "components/Header.tsx": ("--public-content-max", "--public-brand-green"),
+    SRC / "components/HeaderCart.tsx": ("--public-brand-green", "--public-brand-lime"),
+    SRC / "components/Footer.tsx": ("--public-content-max", "--public-muted"),
+    SRC / "pages/grahak-os/index.tsx": ("--public-hero-size", "--public-section-size", "--public-body-size", "--public-card-size", "--public-content-max"),
+    SRC / "pages/bharat-rx.tsx": ("--public-section-size", "--public-body-size", "--public-card-size", "--public-cta-height"),
+    SRC / "pages/post/[slug].tsx": ("--public-hero-size", "--public-body-size", "--public-card-size", "--public-cta-height"),
+    SRC / "components/ContactLocation.tsx": ("--public-section-size", "--public-cta-height"),
+    SRC / "components/get/GetPage.tsx": ("--public-section-size", "--public-body-size"),
+    SRC / "components/orders/OrdersPage.tsx": ("--public-section-size", "--public-body-size"),
+    SRC / "components/ProductBuyBox.tsx": ("--public-cta-height", "--public-card-size"),
+    SRC / "components/ServiceBuyBox.tsx": ("--public-cta-height", "--public-card-size"),
+    SRC / "components/PublicShare.tsx": ("--public-brand-green", "--public-hairline"),
+    SRC / "components/Pager.tsx": ("--public-brand-green", "--public-hairline"),
+    SRC / "pages/shop/[slug].tsx": ("--public-body-size", "--public-card-size", "--public-cta-height"),
+    SRC / "components/VayuLokLive.tsx": ("--public-bg", "--public-brand-lime", "--public-hairline"),
+}
+
 
 # State tokens that must stay visually distinct from one another.
 STATE_TOKENS = ("--success", "--warning", "--info", "--danger")
@@ -322,7 +350,7 @@ def scan_token_mirror():
 
 
 def _normalise_css_value(value: str) -> str:
-    return re.sub(r"\\s+", "", value.strip()).lower()
+    return re.sub(r"\s+", "", value.strip()).lower()
 
 
 def scan_public_token_contract():
@@ -332,7 +360,7 @@ def scan_public_token_contract():
     css = strip_comments(TOKENS_CSS.read_text(encoding="utf-8"), ".css")
     violations = []
     for token, expected in PUBLIC_TOKEN_CONTRACT.items():
-        m = re.search(rf"{re.escape(token)}:\\s*([^;]+);", css)
+        m = re.search(rf"{re.escape(token)}:\s*([^;]+);", css)
         if not m:
             violations.append({
                 "rule": "public_token_missing", "file": TOKENS_CSS.relative_to(ROOT).as_posix(),
@@ -342,7 +370,7 @@ def scan_public_token_contract():
         if _normalise_css_value(actual) != _normalise_css_value(expected):
             violations.append({
                 "rule": "public_token_drift", "file": TOKENS_CSS.relative_to(ROOT).as_posix(),
-                "line": css[:m.start(1)].count("\\n") + 1,
+                "line": css[:m.start(1)].count("\n") + 1,
                 "match": f"{token}={actual}",
                 "why": f"public contract requires {expected}"})
     return violations
@@ -356,9 +384,15 @@ def scan_layout_token_mirror():
     ts = strip_comments(DESIGN_TOKENS_TS.read_text(encoding="utf-8"), ".ts")
     violations = []
     for ts_key, css_var in LAYOUT_TOKEN_MIRROR.items():
-        tm = re.search(rf"\\b{re.escape(ts_key)}:\\s*(\\d+)", ts)
-        cm = re.search(rf"{re.escape(css_var)}:\\s*([^;]+);", css)
+        tm = re.search(rf"\b{re.escape(ts_key)}:\s*(\d+)", ts)
+        cm = re.search(rf"{re.escape(css_var)}:\s*([^;]+);", css)
         if not tm or not cm:
+            violations.append({
+                "rule": "layout_token_mirror_missing",
+                "file": DESIGN_TOKENS_TS.relative_to(ROOT).as_posix(),
+                "line": 0,
+                "match": f"{ts_key} / {css_var}",
+                "why": "could not parse both sides of the generic application layout mirror"})
             continue
         expected = f"{tm.group(1)}px"
         actual = cm.group(1).strip()
@@ -366,9 +400,30 @@ def scan_layout_token_mirror():
             violations.append({
                 "rule": "layout_token_mirror_mismatch",
                 "file": DESIGN_TOKENS_TS.relative_to(ROOT).as_posix(),
-                "line": ts[:tm.start()].count("\\n") + 1,
+                "line": ts[:tm.start()].count("\n") + 1,
                 "match": f"{ts_key}={tm.group(1)} vs {css_var}={actual}",
                 "why": "generic application layout tokens must agree; public measure uses --public-content-max"})
+    return violations
+
+
+def scan_public_token_consumers():
+    """Canonical public surfaces must consume the contract instead of restating its literals."""
+    violations = []
+    for path, tokens in PUBLIC_TOKEN_CONSUMERS.items():
+        rel = path.relative_to(ROOT).as_posix()
+        if not path.exists():
+            violations.append({
+                "rule": "public_token_consumer_missing", "file": rel, "line": 0,
+                "match": "", "why": "expected canonical public surface is missing"})
+            continue
+        code = strip_comments(path.read_text(encoding="utf-8", errors="ignore"), path.suffix)
+        for token in tokens:
+            needle = f"var({token})"
+            if needle not in code:
+                violations.append({
+                    "rule": "public_token_not_consumed", "file": rel, "line": 0,
+                    "match": token,
+                    "why": "public surface restated or lost a canonical design role"})
     return violations
 
 
@@ -481,6 +536,7 @@ def main() -> int:
     violations = (scan_retired() + scan_state_collision()
                   + scan_lime_resting_borders() + scan_token_mirror()
                   + scan_public_token_contract() + scan_layout_token_mirror()
+                  + scan_public_token_consumers()
                   + scan_danger_in_success_green()
                   + scan_measure() + scan_font_sans())
 

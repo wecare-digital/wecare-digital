@@ -222,10 +222,10 @@ const PillButton: React.FC<PillButtonProps> = ( {
            declarations become a harmless restatement rather than the only source. */
         .pill{
           display:inline-flex;align-items:center;justify-content:center;isolation:isolate;
-          min-height:52px;box-sizing:border-box;
-          border:2px solid #1a3a2a;border-radius:999px;background:#d1f470;
+          min-height:var(--public-cta-height);box-sizing:border-box;
+          border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);background:var(--public-brand-lime);
           padding:0 28px;cursor:pointer;
-          color:#1a3a2a;font-family:inherit;font-size:17px;font-weight:600;text-decoration:none;
+          color:var(--public-brand-green);font-family:inherit;font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
           transition:background-color .2s,transform .2s,box-shadow .2s;
         }
         .pill-block{display:flex;width:100%}
@@ -240,7 +240,7 @@ const PillButton: React.FC<PillButtonProps> = ( {
         .pill-action{
           display:inline-flex;align-items:center;justify-content:center;
           min-inline-size:0;
-          color:#1a3a2a;font-size:17px;font-weight:600;line-height:1.2;
+          color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);line-height:1.2;
           text-align:center;
         }
 
@@ -252,14 +252,14 @@ const PillButton: React.FC<PillButtonProps> = ( {
            shade" - wrong, because the label is 17px bold and WCAG's large-text exemption only
            begins at 18.66px bold (or 24px regular). White gives #1a3a2a type 12.48:1 instead. */
         .pill:hover:not([disabled]):not([aria-disabled='true']){
-          background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
+          background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow);
         }
         .pill:active:not([disabled]):not([aria-disabled='true']){transform:translateY(0)}
 
         /* FOCUS. The site's #1a3a2a indicator at 3px, offset OUTSIDE the pill so the ring reads as
            one ring around the whole control (unlike PhoneField, which has two focusable segments
            and insets per segment; this pill is ONE control, so one outer ring is correct). */
-        .pill:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+        .pill:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
 
         /* DISABLED/BUSY: dim the whole pill, drop the pointer. Covers both the native button
            :disabled and the belt-and-braces attribute. */

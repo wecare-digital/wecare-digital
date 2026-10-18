@@ -254,6 +254,7 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
       <p className="sbb-buy">
         <span className="sbb-price" data-wc-no-translate="true">{ `\u20B9${ phase.price.rupees }` }</span>
       </p>
+      <p className="sbb-offer-note">One-time purchase · final total confirmed at checkout</p>
 
       { error && <p className="sbb-error" role="alert">{ error }</p> }
 
@@ -266,24 +267,24 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
         .sbb{display:flex;flex-direction:column;align-items:flex-start;gap:0;margin-top:12px}
         .sbb-target{margin:0 0 14px}
         .sbb-pick{display:flex;flex-direction:column;gap:6px}
-        .sbb-pick-label{font-size:15px;font-weight:600;color:#1a3a2a}
+        .sbb-pick-label{font-size:15px;font-weight:600;color:var(--public-brand-green)}
         .sbb-select{
           min-height:48px;padding:0 14px;border:1px solid #d1d5db;border-radius:10px;
           background:#fff;font-size:15px;color:#1a1a1a;min-width:min(100%,420px);
         }
-        .sbb-select:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+        .sbb-select:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
         .sbb-hint{margin:0 0 2px;font-size:14px;color:#6b7280}
 
         .sbb-cta{
-          display:inline-flex;align-items:center;justify-content:center;min-height:52px;
-          padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;
-          background:#fff;color:#1a3a2a;font-size:17px;font-weight:600;cursor:pointer;
+          display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);
+          padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
+          background:#fff;color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);cursor:pointer;
           transition:background-color .2s,transform .2s,box-shadow .2s;
         }
         .sbb-cta:hover:not(:disabled){
-          background:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
+          background:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow);
         }
-        .sbb-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+        .sbb-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         .sbb-cta:disabled{opacity:.5;cursor:default}
 
         /* /anew/'s price treatment, verbatim: 22px/700 dark green, tabular numerals, 22px of air
