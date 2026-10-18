@@ -398,10 +398,10 @@ describe( 'Header', () => {
     //
 
     // Approved order in this column is Refer & Earn, Extras, Contact, Legal Stuff.
-    const perksCol = perksLink.closest( '.nav-col' );
-    expect( perksCol?.textContent ).toContain( 'Contact' );
-    expect( perksCol?.textContent ).toContain( 'Legal Stuff' );
-    const groups = Array.from( perksCol?.querySelectorAll( '.nav-group' ) || [] );
+    const extrasCol = screen.getByText( 'Extras' ).closest( '.nav-col' );
+    expect( extrasCol?.textContent ).toContain( 'Contact' );
+    expect( extrasCol?.textContent ).toContain( 'Legal Stuff' );
+    const groups = Array.from( extrasCol?.querySelectorAll<HTMLElement>( '.nav-group' ) ?? [] );
     const contactIndex = groups.findIndex( g => g.textContent?.startsWith( 'Contact' ) );
     const perksIndex = groups.findIndex( g => g.textContent?.startsWith( 'Extras' ) );
     const legalIndex = groups.findIndex( g => g.textContent?.startsWith( 'Legal Stuff' ) );
