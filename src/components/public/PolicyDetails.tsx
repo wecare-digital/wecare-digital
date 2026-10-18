@@ -11,6 +11,7 @@ interface PolicyDetailsProps extends PolicyDetailsCopy {
   className?: string;
   overview?: string | null;
   refunds?: string;
+  showStatutoryRights?: boolean;
 }
 
 /**
@@ -26,6 +27,7 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
   className,
   overview = PRODUCT_POLICY_TEXT,
   refunds = 'Cancellation is handled as part of the refund policy above. Eligible voluntary cancellations or discretionary adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days, not as cash or a refund to the original payment method, except where applicable law requires otherwise.',
+  showStatutoryRights = true,
 } ) => (
   <details className={ ['wc-policy', className].filter( Boolean ).join( ' ' ) }>
     <summary>Policy details</summary>
@@ -37,7 +39,7 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
       { disclaimer.split( /\n{2,}/ ).map( ( paragraph, index, paragraphs ) => (
         <p className="wc-policy-disclaimer" key={ index }>
           { index === 0 && <strong>Disclaimer:</strong> }{ index === 0 ? ' ' : '' }{ paragraph.trim() }
-          { index === paragraphs.length - 1 && ' Statutory consumer rights remain unaffected.' }
+          { showStatutoryRights && index === paragraphs.length - 1 && ' Statutory consumer rights remain unaffected.' }
         </p>
       ) ) }
     </div>
