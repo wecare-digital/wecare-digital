@@ -1718,6 +1718,24 @@ def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
             'errorCode': 'USE_CREATE',
         })
 
+    # A non-zero `discount` is likewise refused, BEFORE the issued-immutability answer below, so
+    # the reason a client sees is "discounts are retired" rather than the generic immutability
+    # 409 - and so even a hypothetical unissued draft can never carry a client-set discount. The
+    # only discount an invoice holds is the server-computed Delight frozen at creation; manual
+    # entry is retired here exactly as it is in `create_invoice`. A zero is allowed through as a
+    # harmless no-op (a client echoing the stored zero).
+    if 'discount' in body:
+        try:
+            sent_discount = Decimal(str(body.get('discount') or 0))
+        except (InvalidOperation, ValueError, TypeError):
+            sent_discount = Decimal('NaN')
+        if not sent_discount.is_finite() or sent_discount != 0:
+            return _resp(400, {
+                'error': ('Discounts are not editable; eligible orders carry the automatic '
+                          'Delight discount applied by the engine at creation.'),
+                'errorCode': 'MANUAL_DISCOUNTS_RETIRED',
+            })
+
     # ── D5: `status` and `paymentStatus` are not client-writable, on any row state ──
     #
     # Refused BEFORE the row is read, because the answer does not depend on the row. A draft is
@@ -1787,24 +1805,6 @@ def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
                                                            pay_status.REFUNDED):
             return _resp(400, {'error': f'Cannot modify amounts on {ex_status} invoice (paymentStatus={ex_ps})'})
 
-    # `discount` is NOT client-writable, even on a draft. Manual discount entry is retired
-    # (`create_invoice` refuses it with MANUAL_DISCOUNTS_RETIRED), and the ONLY discount an
-    # invoice carries is the server-computed Delight. Accepting it here was the one back-door
-    # that could overwrite Delight on a draft edit - a client re-sending a draft with changed
-    # amounts and `discount: 0` would silently drop the Delight line. Refused rather than
-    # dropped, so a stale client learns instead of believing a discount it named was applied.
-    if 'discount' in body:
-        try:
-            sent_discount = Decimal(str(body.get('discount') or 0))
-        except (InvalidOperation, ValueError, TypeError):
-            sent_discount = Decimal('NaN')
-        if not sent_discount.is_finite() or sent_discount != 0:
-            return _resp(400, {
-                'error': ('Discounts are not editable; eligible orders carry the automatic '
-                          'Delight discount, recomputed by the engine.'),
-                'errorCode': 'MANUAL_DISCOUNTS_RETIRED',
-            })
-
     update_parts = []
     values = {}
     names = {}
@@ -1814,10 +1814,11 @@ def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
     # body can reach either attribute. The financial fields stay listed because a DRAFT is still
     # fully editable - the issued check above is what removes them once a number exists.
     #
-    # `discount` is NOT in this list: it is server-computed Delight, refused above if a client
-    # sends a non-zero one, and recomputed below whenever the subtotal that feeds it changes, so a
-    # draft amount edit PRESERVES Delight (re-derived from the new subtotal) rather than trusting
-    # or dropping a client figure.
+    # `discount` is NOT in this list: it is server-computed Delight (refused above if a client
+    # sends a non-zero one), never client-writable. On the live path this is doubly protected -
+    # every created invoice is ISSUED (it carries an invoiceNumber), so the immutability guard
+    # above already refuses any amount edit; the Delight figure a reopen needs is the one frozen
+    # on the row at creation, which the cancel + re-raise path reuses verbatim.
     allowed = ['customerName', 'customerPhone', 'paidByPhone', 'customerEmail',
                'shippingAddress', 'billingAddress', 'goodsType',
                'shipping', 'handling', 'gstRate', 'tax', 'convenienceFee', 'total',
@@ -1831,30 +1832,6 @@ def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
             names[attr] = key
             v = body[key]
             values[val] = _dec(v) if isinstance(v, (int, float)) else v
-
-    # ── Preserve Delight when a draft's goods amount changes ──
-    #
-    # If the subtotal (the goods value Delight is a percentage of) is edited on a draft that
-    # currently carries Delight, the stored `discount` no longer matches. Re-derive it from the
-    # same single computation `create_invoice` uses (`default_coupon.delight_paise`) so the edited
-    # invoice keeps Delight correct for its new amount instead of a figure frozen at the old
-    # subtotal. Only acts on a row that already had Delight (couponCode == DELIGHT); a row that
-    # never had it is untouched.
-    if 'subtotal' in body and str(existing.get('couponCode') or '') == default_coupon.DELIGHT_CODE:
-        try:
-            new_subtotal = Decimal(str(body.get('subtotal') or 0))
-            recomputed = _paise_to_rupees(
-                default_coupon.delight_paise(_rupees_to_paise(new_subtotal)))
-            values[':discount'] = _dec(recomputed)
-            names['#discount'] = 'discount'
-            update_parts.append('#discount = :discount')
-            values[':couponDiscount'] = _dec(recomputed)
-            names['#couponDiscount'] = 'couponDiscount'
-            update_parts.append('#couponDiscount = :couponDiscount')
-        except (InvalidOperation, ValueError, TypeError):
-            # A malformed subtotal is caught by the amount validators; here it just means
-            # "leave the stored Delight untouched" rather than write a bad figure.
-            pass
 
     if not update_parts:
         return _resp(400, {'error': 'No fields to update'})

@@ -195,8 +195,24 @@ def _inclusive_body(total_paise: int, **overrides) -> dict:
     return body
 
 
-def _created(module, body, request_id="req-exact"):
-    """`create_invoice` plus the stored row, so every assertion reads what was PERSISTED."""
+#: A complete, India-payable delivery address. Physical staff collections now require one at
+#: create time (create_invoice refuses DELIVERY_REQUIRED without it), so these PRICING tests -
+#: which are about Delight/tax/fee arithmetic, not address absence - default to a valid address.
+#: A body may still omit it (with_address=False) to exercise the refusal, or override any field.
+_VALID_ADDRESS = {
+    'addressLine1': '12 MG Road', 'city': 'Pune', 'state': 'Maharashtra',
+    'postalCode': '411001', 'countryCode': 'IN',
+}
+
+
+def _created(module, body, request_id="req-exact", *, with_address=True):
+    """`create_invoice` plus the stored row, so every assertion reads what was PERSISTED.
+
+    `with_address` defaults the valid delivery address for the physical-staff-order gate; set it
+    False (or pass explicit address fields in `body`) to test the address requirement itself.
+    """
+    if with_address:
+        body = {**{k: v for k, v in _VALID_ADDRESS.items() if k not in body}, **body}
     response = module.create_invoice(body, request_id)
     payload = json.loads(response["body"])
     return response["statusCode"], payload
@@ -697,7 +713,8 @@ def test_invalid_additive_amounts_refuse_before_allocating_an_invoice(engine, ch
 def test_additive_tax_uses_exact_decimal_half_paise_rounding(engine):
     module, _keys, _counter, invoices, _items, _payments = engine
     response = module.create_invoice({'customerPhone': PHONE, 'fy': FY,
-        'entryPoint': 'manual', 'items': [{'name': 'Goods', 'amount': '0.10', 'quantity': 1, 'gstRate': 5}]}, 'half-paise')
+        'entryPoint': 'manual', 'items': [{'name': 'Goods', 'amount': '0.10', 'quantity': 1, 'gstRate': 5}],
+        **_VALID_ADDRESS}, 'half-paise')
     assert response['statusCode'] == 201
     invoice = invoices.rows[json.loads(response['body'])['invoiceId']]
     assert invoice['tax'] == Decimal('0.01')
@@ -726,3 +743,92 @@ def test_saved_invoice_readback_keeps_the_delight_line(engine):
         'couponCode': 'DELIGHT', 'couponDiscount': Decimal('5')})
     assert row['couponCode'] == 'DELIGHT'
     assert row['couponDiscount'] == 5
+
+
+@pytest.mark.parametrize('entry_point', ['manual', 'pay_flow', 'whatsapp'])
+def test_physical_staff_order_without_address_is_refused_before_a_number(engine, entry_point):
+    """A physical staff order with no delivery address is refused at create, burning no number."""
+    module, _keys, counter, invoices, *_ = engine
+    before = counter.advances
+    status, result = _created(module, {'referenceId': 'WD-PAY-NOADDR',
+        'customerPhone': PHONE, 'entryPoint': entry_point, 'fy': FY,
+        'items': [{'name': 'Goods', 'amount': 3, 'quantity': 1, 'gstRate': 18}]},
+        with_address=False)
+    assert status == 400
+    assert result['errorCode'] == 'DELIVERY_REQUIRED'
+    # No GST number consumed on a refusal - the series stays gapless. The refusal is placed
+    # before the dedup claim row, so no placeholder invoice row is written either.
+    assert counter.advances == before
+    assert invoices.rows == {}
+
+
+@pytest.mark.parametrize('field', ['addressLine1', 'city', 'state', 'postalCode'])
+def test_a_partial_address_is_also_refused(engine, field):
+    """Any one missing mandatory address field refuses DELIVERY_REQUIRED, naming the field."""
+    module, *_ = engine
+    address = dict(_VALID_ADDRESS)
+    address[field] = ''
+    body = {'referenceId': f'WD-PAY-PARTIAL-{field}', 'customerPhone': PHONE,
+            'entryPoint': 'pay_flow', 'fy': FY,
+            'items': [{'name': 'Goods', 'amount': 3, 'quantity': 1, 'gstRate': 18}], **address}
+    status, result = _created(module, body, with_address=False)
+    assert status == 400
+    assert result['errorCode'] == 'DELIVERY_REQUIRED'
+    assert result['field'] == field
+
+
+def test_a_non_india_pin_is_refused_as_unpayable(engine):
+    """A complete address whose PIN cannot settle on the India payment channel is refused."""
+    module, *_ = engine
+    status, result = _created(module, {'referenceId': 'WD-PAY-BADPIN', 'customerPhone': PHONE,
+        'entryPoint': 'pay_flow', 'fy': FY,
+        'items': [{'name': 'Goods', 'amount': 3, 'quantity': 1, 'gstRate': 18}],
+        'addressLine1': '12 MG Road', 'city': 'Pune', 'state': 'Maharashtra',
+        'postalCode': 'ABC123', 'countryCode': 'IN'}, with_address=False)
+    assert status == 400
+    assert result['errorCode'] == 'INVALID_PIN'
+
+
+def test_a_digital_staff_order_needs_no_address(engine):
+    """Digital goods are not delivery-gated: a staff digital invoice is created with no address."""
+    module, *_ = engine
+    status, result = _created(module, {'referenceId': 'WD-PAY-DIGITAL', 'customerPhone': PHONE,
+        'entryPoint': 'webhook', 'fy': FY, 'goodsType': 'digital-goods',
+        'items': [{'name': 'Service', 'amount': 3, 'quantity': 1, 'gstRate': 18}]},
+        with_address=False)
+    assert status == 201
+
+
+def test_delight_is_preserved_by_immutability_an_issued_amount_edit_is_refused(engine):
+    """A created invoice is ISSUED, so its Delight-bearing amounts cannot be edited away.
+
+    This is how Delight is preserved when an invoice is reopened: the figure is frozen on the row
+    at creation and the engine refuses any later amount edit, so a reopen (cancel + re-raise)
+    reuses the same stored Delight rather than recomputing or dropping it.
+    """
+    module, _keys, _counter, invoices, *_ = engine
+    status, created = _created(module, {'referenceId': 'WD-PAY-REOPEN', 'customerPhone': PHONE,
+        'entryPoint': 'pay_flow', 'fy': FY,
+        'items': [{'name': 'Goods', 'amount': 1000, 'quantity': 1, 'gstRate': 0}]})
+    assert status == 201
+    row = _stored(invoices, created['invoiceId'])
+    assert row['couponCode'] == 'DELIGHT'
+    assert row['couponDiscount'] == Decimal('5')  # 0.5% of 1000
+    # An amount edit on the issued row is refused; the stored Delight is untouched.
+    response = module.update_invoice(created['invoiceId'], {'subtotal': 2000}, 'req-reopen')
+    assert response['statusCode'] == 409
+    assert json.loads(response['body'])['errorCode'] == 'INVOICE_ISSUED_IMMUTABLE'
+    assert _stored(invoices, created['invoiceId'])['couponDiscount'] == Decimal('5')
+
+
+def test_update_refuses_a_client_supplied_discount(engine):
+    """A non-zero client discount on update is refused (manual discounts retired), before the
+    issued-immutability answer, so even a draft could never carry a client-set discount."""
+    module, *_ = engine
+    status, created = _created(module, {'referenceId': 'WD-PAY-NODISC', 'customerPhone': PHONE,
+        'entryPoint': 'pay_flow', 'fy': FY,
+        'items': [{'name': 'Goods', 'amount': 1000, 'quantity': 1, 'gstRate': 0}]})
+    assert status == 201
+    response = module.update_invoice(created['invoiceId'], {'discount': 500}, 'req-disc')
+    assert response['statusCode'] == 400
+    assert json.loads(response['body'])['errorCode'] == 'MANUAL_DISCOUNTS_RETIRED'
