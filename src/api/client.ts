@@ -4786,21 +4786,6 @@ export interface Invoice {
    * couponDiscount`.
    */
   couponDiscount?: number;
-  /**
-   * Integer PAISE of gift-card balance this invoice requires, written as settlement evidence at
-   * create. Paise rather than rupees because `gift_card_settlement` owns the attribute and the
-   * whole gift-card ledger is integer paise; converting it here would introduce the rounding the
-   * ledger exists to avoid.
-   */
-  giftCardRequiredPaise?: number;
-  /** Integer paise actually debited. ZERO until the payment-attempt producer redeems the card. */
-  giftCardRedeemedPaise?: number;
-  /** `****1234`. The last four of the code is the ONLY part ever stored or shown in clear. */
-  giftCardLast4?: string;
-  /** True when the gift card covers the whole total, so no gateway order may ever be created. */
-  giftCardFullyCovered?: boolean;
-  /** Rupees Razorpay will collect after the verified gift-card redemption. May be `0`. */
-  amountPayable?: number;
   remarks?: string | InvoiceRemark[];
   items?: InvoiceItem[];
   assets?: InvoiceAsset[];
@@ -4850,12 +4835,6 @@ export interface CreateInvoiceEngineRequest {
    * Applying one later is NOT supported: `PUT /invoices/{id}` answers `400 USE_CREATE`.
    */
   couponCode?: string;
-  /**
-   * A gift-card code to verify when the invoice is created. Validated and recorded only — the
-   * balance is NOT debited here, because an unpaid invoice must never burn balance and the debit
-   * belongs to the producer that mints the payment attempt.
-   */
-  giftCardCode?: string;
 }
 
 /**
@@ -4873,15 +4852,8 @@ export interface CreateInvoiceEngineResponse {
   couponCode?: string;
   /** Rupees the coupon took off, server-computed. */
   couponDiscount?: number;
-  /** Integer paise of gift-card balance applied to this invoice. */
-  giftCardAppliedPaise?: number;
-  /** Rupees left for Razorpay after the gift card. `0` on a fully covered invoice. */
-  amountPayable?: number;
-  /** True when nothing is left to charge, so no payment link may be sent. */
-  giftCardFullyCovered?: boolean;
   /** `APPLIED`. A refusal never reaches here — it answers 4xx/503 with an `errorCode`. */
   couponReason?: string;
-  giftCardReason?: string;
 }
 
 // Create invoice directly
@@ -4896,9 +4868,8 @@ export async function createInvoiceEngine ( request: CreateInvoiceEngineRequest 
  * A create that reports WHY it was refused.
  *
  * `createInvoiceEngine` stays exactly as it is, because ~every other caller wants the invoice or
- * nothing. But `apiCall` collapses a non-2xx to `null`, and FEAT-002 answers every coupon and
- * gift-card refusal as a 4xx/503 carrying a typed `errorCode` - `COUPON_EXPIRED`,
- * `INSUFFICIENT_BALANCE`, `HELD_BY_ANOTHER_CART`, and the fourteen others. A form that can only
+ * nothing. But `apiCall` collapses a non-2xx to `null`, and FEAT-002 answers every coupon refusal as a 4xx/503 carrying a typed `errorCode` - `COUPON_EXPIRED`,
+ * `HELD_BY_ANOTHER_CART`, and the fourteen others. A form that can only
  * see `null` has to say "Create failed" and the staff member has no idea which code to fix.
  *
  * So this follows `hardDeleteContact`'s precedent and uses `authFetch` directly: the refusal code
