@@ -66,10 +66,10 @@ KEYWORDS = [
 REVIEW_ENTRY = ROOT / 'src/lib/reviewEntry.ts'
 
 PAGE = ROOT / 'src/content/customerservice.ts'
-SELFSERVICE = ROOT / 'src/pages/workspace/forms/selfservice.tsx'
-SCRIPTS = ROOT / 'src/pages/workspace/engage/whatsapp/scripts.tsx'
+SELFSERVICE = ROOT / 'src/components/workspace/service/CustomerServiceHub.tsx'
+SCRIPTS = ROOT / 'src/components/workspace/whatsapp/scripts.tsx'
 SETTINGS = ROOT / 'src/pages/workspace/engage/whatsapp/settings.tsx'
-SYSARCH = ROOT / 'src/pages/workspace/dashboard/system-architecture.tsx'
+SYSARCH = ROOT / 'src/components/workspace/platform/SystemArchitecture.tsx'
 
 WORKSPACE_FILES = [SELFSERVICE, SCRIPTS, SETTINGS, SYSARCH]
 
