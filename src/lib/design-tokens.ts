@@ -155,7 +155,9 @@ export const zIndex = {
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
 export const layout = {
-    maxWidth: 1200,
+    // Mirrors `--max-width` in src/styles/tokens.css (bumped to 1300px in the public design-system
+    // unification); check_design_drift.scan_layout_token_mirror pins the two equal.
+    maxWidth: 1300,
     maxWidthWide: 1400,
     sidebarWidth: 240,
     headerHeight: 60,

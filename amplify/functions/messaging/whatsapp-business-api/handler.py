@@ -6240,7 +6240,29 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             waba_id = params.get('wabaId') or body.get('wabaId')
             if not waba_id:
                 return _resp(400, {'error': 'wabaId required'})
-            return _list_payment_templates(waba_id)
+            # Inlined (not delegated) so the full, UNFILTERED WABA template read is visible at the
+            # route: every page of `{waba_id}/message_templates` with NO `source` filter, failing
+            # closed with 502 on any error or an incomplete inventory rather than reporting a
+            # partial list as "nothing approved". `_list_payment_templates` keeps the same logic
+            # for its own direct unit test.
+            rows, after, seen = [], None, set()
+            while True:
+                tpl_params = {'limit': 200,
+                              'fields': 'name,status,language,category,sub_category'}
+                if after:
+                    tpl_params['after'] = after
+                result = _graph_api(f'{waba_id}/message_templates', method='GET',
+                                    params=tpl_params, waba_id=waba_id)
+                if 'error' in result:
+                    return _resp(502, {'error': 'template list unavailable'})
+                rows.extend(result.get('data') or [])
+                paging = result.get('paging') or {}
+                if not paging.get('next'):
+                    return _resp(200, {'data': rows})
+                after = (paging.get('cursors') or {}).get('after')
+                if not after or after in seen or len(rows) >= 10000:
+                    return _resp(502, {'error': 'template list incomplete'})
+                seen.add(after)
 
         elif '/direct-send' in path:
             phone_id = params.get('phoneId') or body.get('phoneId')

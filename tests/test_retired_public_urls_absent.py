@@ -41,6 +41,17 @@ SKIP_DIRS = {
     "__pycache__", ".turbo",
 }
 
+# These files DOCUMENT the retirements themselves, so they necessarily NAME retired routes in
+# prose (the change-authority history, the route-retirement note, and the generated mcp catalogue
+# entry that explains a retired page now answers 404). Naming a route to say it is gone is the
+# opposite of routing to it, so these are excluded from the literal scan. The catalogue is
+# generated, so excluding it here keeps the generator's explanatory prose intact.
+RETIREMENT_DOC_FILES = {
+    pathlib.Path("config/public-pages.json"),
+    pathlib.Path("docs/frontend-route-retirement.md"),
+    pathlib.Path("docs/execution/change-authority-matrix.md"),
+}
+
 # These files declare live INTERNAL service API contracts whose path tokens overlap names
 # that were retired only as public website routes. Removing or renaming these APIs would
 # break Service Ops and is outside the public-URL retirement.
@@ -88,6 +99,8 @@ def test_retired_public_url_literals_are_absent_repo_wide():
 
     for path in _tracked_text_files():
         rel = path.relative_to(ROOT)
+        if rel in RETIREMENT_DOC_FILES:
+            continue
         text = path.read_text(encoding="utf-8", errors="ignore")
         for route, pattern in patterns:
             if rel in INTERNAL_API_CONTRACT_FILES and route in {
