@@ -185,7 +185,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( '<a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>' );
     // The steps block now carries EXACTLY ONE WhatsApp CTA: "Get Started on WhatsApp".
     // The redundant second "Open in WhatsApp" pill here was removed on owner
-    // instruction; the demo button lives only in the closer now.
+    // instruction; the demo link lives only beneath the hero Python panel.
     const stepsCtaCount = ( stepsCtas.match( /className="gos-wa-cta"/g ) || [] ).length;
     expect( stepsCtaCount ).toBe( 1 );
     expect( stepsCtas ).toContain( 'Get Started on WhatsApp' );
@@ -193,7 +193,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( "import ProductBuyBox from '../../components/ProductBuyBox';" );
     expect( source ).toContain( '<ProductBuyBox slug="grahak-os" showPrice={ false } />' );
     // Match /anew/'s compact price-unit pattern: price + product + concise scope on one line.
-    expect( source ).toContain( '&#8377;899<span className="gos-price-unit"> · AI agent deployment · enterprise outcomes</span>' );
+    expect( source ).toContain( '&#8377;899<span className="gos-price-unit"> · AI agents · from deployment to business outcomes</span>' );
     // The redundant second explanatory sentence is gone; the compact line carries the meaning.
     expect( source ).not.toContain( 'gos-price-note' );
     expect( source ).not.toContain( 'A consulting solution for organisations and businesses.' );
@@ -289,11 +289,18 @@ describe( 'Grahak OS: below-code "Open in WhatsApp" inline text link', () => {
     expect( stackRule ).toContain( 'position:absolute' );
     expect( stackRule ).toContain( 'width:60%' );
     expect( stackRule ).toContain( 'max-width:340px' );
+    expect( stackRule ).toContain( 'bottom:24px' );
     expect( stackRule ).toContain( 'gap:8px' );
     expect( rowRule ).toContain( 'width:100%' );
     expect( rowRule ).not.toContain( 'position:absolute' );
     expect( boxRule ).toContain( 'position:relative' );
     expect( boxRule ).toContain( 'width:100%' );
+    const mockupRule = cssRuleFor( source, '.mockup-wrapper' );
+    expect( mockupRule ).toContain( 'min-height:610px' );
+    // The link is now inside the white mockup instead of hanging below it via a negative bottom.
+    expect( stackRule ).not.toContain( 'bottom:-28px' );
+    const visualRule = cssRuleFor( source, '.hero-visual-col' );
+    expect( visualRule ).not.toContain( 'padding-bottom:28px' );
 
     // A focus-visible ring exists so the link stays keyboard-visible.
     expect( code ).toContain( '.code-wa-link:focus-visible{' );
