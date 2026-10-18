@@ -158,7 +158,7 @@ const COLUMNS: NavColumn[] = [
             label: 'Partner',
             searchTerms: [ 'refer', 'earn' ],
             children: [
-              { label: 'Referral', href: 'https://wa.me/message/7QOFC4QGSGGUC1z', external: true, searchTerms: [ 'partner', 'refer', 'earn' ] },
+              { label: 'Referral', href: 'https://wa.me/message/S6A2QEXZSYXTG1', external: true, searchTerms: [ 'partner', 'refer', 'earn' ] },
               { label: 'Merchandise', href: '/shop/merchandise/', searchTerms: [ 'partner', 'refer', 'earn' ] },
               { label: 'Kiosk', href: '/shop/kiosk/', searchTerms: [ 'partner', 'refer', 'earn' ] },
             ],
