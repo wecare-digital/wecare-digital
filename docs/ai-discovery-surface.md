@@ -11,7 +11,6 @@ non-obvious to deploy.
 | `/mcp` | Read-only MCP server, Streamable HTTP | **High.** A protocol with clients that exist today |
 | `/llms.txt` | Curated markdown map of the public pages | Low. A convention no vendor has committed to |
 | `/llms-full.txt` | The same plus every article title and summary | Low, same reason |
-| `/llm/` | Human-readable description of all of the above | It is documentation, not a signal |
 
 The honest ranking is deliberate. `/mcp` is the one that changes what an agent can do:
 it connects once and then asks a specific question — "which page covers dispute
@@ -129,9 +128,7 @@ is how it sits at the bottom without shadowing the ~123 exported pages. Do not c
 a plain `200`: that matches unconditionally and would serve the home page for the whole
 site.
 
-`/llm` needs **no** rule. It is an ordinary exported page, so the `/llm` -> `/llm/` redirect
-is the same one every other page gets and is harmless for a browser. `/llms.txt` needs no
-rule either, because it has an extension and the slash normalizer leaves it alone.
+The retired human-readable AI documentation route has no rewrite. The live machine-readable surfaces are `/mcp`, `/llms.txt` and `/llms-full.txt`.
 
 ### One standing hazard
 
@@ -175,7 +172,7 @@ module — a React allowlist, two Node generators, a Python Lambda, and a TS con
 `src/lib/ai-surface.ts` restates a handful of values rather than importing the catalogue,
 and that is measured rather than lazy: `resolveJsonModule` would inline the whole document
 — every description plus the 20-line `_comment` block — into the client chunk, and JSON
-imports are not tree-shaken per key, so `/llm/` would ship ~8 kB of commentary to render
+imports are not tree-shaken per key, so the retired human-readable AI page used to ship ~8 kB of commentary to render
 five bullet points.
 
 ### The robots.txt footgun, stated plainly
