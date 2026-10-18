@@ -290,8 +290,20 @@ EDITORIAL_PREPARATION_WRAPPER_RE = re.compile(
     re.IGNORECASE,
 )
 
+# The migration artifact this catches is detached EDITORIAL narration: a disembodied
+# source "recommending / suggesting / noting / describing" as if the recipe were an author.
+# It must fire ONLY on those advisory verbs — not on physical description of the dish, where
+# "The recipe" is an ordinary subject: "The recipe is intentionally spare.", "The recipe
+# makes four servings.", "The recipe uses fresh herbs.", "The recipe requires two rises."
+# are all correct prose and every one appears in the already-published corpora. Verbs like
+# makes/uses/has/requires/starts/works are therefore excluded; the advisory set mirrors
+# EDITORIAL_PREPARATION_WRAPPER_RE. The possessive ("The recipe's heat…") stays a match
+# because it is narration regardless of the verb.
 EDITORIAL_DETACHED_RECIPE_RE = re.compile(
-    r"(?:^|[.!?]\s+)The recipe(?:'s|’s)?\b",
+    r"(?:^|[.!?]\s+)The recipe(?:"
+    r"(?:'s|’s)\b"
+    r"|\s+(?:describes|suggests|notes|offers|presents|explains|recommends|advises|"
+    r"frames|treats|considers|cautions|encourages|introduces)\b)",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -405,11 +417,21 @@ def check_editorial_corruption(record: Dict[str, Any]) -> List[Finding]:
                     "capitalized 'Here' appears mid-sentence in Gastronomy copy, a known migration-removal artifact"))
                 break
 
+    # §24 asks for a public summary, not specifically the `excerpt` field. The native
+    # store keeps `excerpt` and `metaDescription` as independent public fields and derives
+    # each from the other when one is absent (storage.create → excerpt or body;
+    # seo_engine._meta_description → metaDescription or excerpt), so a record that carries a
+    # metaDescription already HAS a public summary even with no separate excerpt. The 108+
+    # already-published legacy manifests store only metaDescription; requiring excerpt too
+    # would hard-block healthy live copy, which is the exact failure a corruption gate must
+    # not create. EXCERPT_MISSING therefore fires only when there is NO public summary at
+    # all; META_MISSING (also §24) still independently requires the metaDescription.
     excerpt = text_field(record, "excerpt")
-    if not excerpt:
+    meta_description = text_field(record, "metaDescription")
+    if not excerpt and not meta_description:
         out.append(_block("24", "EXCERPT_MISSING", "public excerpt is required"))
     for field_name, value in (("excerpt", excerpt),
-                              ("metaDescription", text_field(record, "metaDescription"))):
+                              ("metaDescription", meta_description)):
         if value and _metadata_looks_truncated(value):
             out.append(_block(
                 "24", "PUBLIC_METADATA_TRUNCATED",
@@ -1608,6 +1630,12 @@ def check_status_field(record: Dict[str, Any]) -> List[Finding]:
 LEGACY_SOFTENED_CODES: Tuple[str, ...] = (
     "BODY_TOO_THIN", "NO_PARAGRAPH_SPACING", "META_LENGTH", "AI_RHYTHM",
     "GENERIC_SELF_HELP", "CLICKBAIT_OPENING", "FALSE_ANEW_BIOGRAPHY",
+    # A metaDescription clipped at migration (the legacy corpus has 48 cut uniformly at
+    # ~155 chars) is a real defect worth REVIEW, but hard-failing the build on already-
+    # published content is the "cries wolf, gets switched off" outcome the softening exists
+    # to avoid. Still BLOCKs for a NEW record, where a truncated description is an authoring
+    # defect to fix before publish; only legacy records are softened to REVIEW.
+    "PUBLIC_METADATA_TRUNCATED",
 )
 
 
