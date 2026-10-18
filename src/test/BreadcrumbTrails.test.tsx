@@ -94,12 +94,10 @@ describe( 'the product-family trails', () => {
       expect( names.get( route ), `${route} is not in products.ts or productChildren.ts` ).toBeDefined();
       expect( trail[ trail.length - 1 ].label ).toBe( names.get( route ) );
     }
-    // A child's parent crumb is the parent productChildren.ts declares, when it has a page.
+    // Family labels have no route, so every child sits directly under Shop.
     for ( const child of PRODUCT_CHILDREN ) {
       const trail = BREADCRUMB_TRAILS[ child.path.replace( /\/$/, '' ) ];
-      const parent = trail[ trail.length - 2 ];
-      if ( child.parentHref ) expect( parent ).toEqual( { label: child.parent, href: child.parentHref } );
-      else expect( parent ).toEqual( { label: 'Shop', href: '/shop/' } );
+      expect( trail[ trail.length - 2 ] ).toEqual( { label: 'Shop', href: '/shop/' } );
     }
   } );
 
