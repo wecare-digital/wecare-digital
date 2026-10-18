@@ -270,10 +270,10 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
         .sbb-pick-label{font-size:15px;font-weight:600;color:var(--public-brand-green)}
         .sbb-select{
           min-height:48px;padding:0 14px;border:1px solid #d1d5db;border-radius:10px;
-          background:#fff;font-size:15px;color:#1a1a1a;min-width:min(100%,420px);
+          background:#fff;font-size:15px;color:var(--public-body);min-width:min(100%,420px);
         }
         .sbb-select:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
-        .sbb-hint{margin:0 0 2px;font-size:14px;color:#6b7280}
+        .sbb-hint{margin:0 0 2px;font-size:14px;color:var(--public-muted)}
 
         .sbb-cta{
           display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);
@@ -290,12 +290,12 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
         /* /anew/'s price treatment, verbatim: 22px/700 dark green, tabular numerals, 22px of air
            above, lime reserved for the pill. No unit copy. */
         .sbb-buy{display:flex;flex-wrap:wrap;align-items:baseline;gap:16px;margin:22px 0 0}
-        .sbb-price{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:1.2;letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
+        .sbb-price{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
         .sbb-offer-note{
           max-width:620px;margin:7px 0 0;
-          font-size:var(--public-body-size);font-weight:var(--public-body-weight);
-          line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
-          color:var(--public-body);
+          font-size:17px;font-weight:var(--public-body-weight);
+          line-height:var(--public-body-leading);letter-spacing:-.05px;
+          color:var(--public-muted);
         }
 
         .sbb-error{margin:12px 0 0;font-size:14px;color:#b91c1c}
