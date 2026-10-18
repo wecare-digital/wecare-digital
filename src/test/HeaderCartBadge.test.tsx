@@ -86,10 +86,10 @@ describe( 'the count is read after mount, never during the server render', () =>
     expect( markup ).toContain( 'Shopping Bag' );
   } );
 
-  it( 'shows the count once the effect has run', async () => {
+  it( 'shows the single-unit line count once the effect has run', async () => {
     cart.addItem( PRODUCT, 3 );
     const { container } = render( <HeaderCart /> );
-    await waitFor( () => expect( digits( container ) ).toBe( '3' ) );
+    await waitFor( () => expect( digits( container ) ).toBe( '1' ) );
   } );
 } );
 
@@ -109,44 +109,28 @@ describe( 'zero, one and many', () => {
     expect( bag() ).toHaveAccessibleName( /1 item$/ );
   } );
 
-  it( 'sums quantities across lines, not lines', async () => {
+  it( 'counts distinct single-unit lines', async () => {
     cart.addItem( PRODUCT, 2 );
     cart.addItem( OTHER, 3 );
     const { container } = render( <HeaderCart /> );
-    // Two lines, five units. The badge is a count of things a shopper is buying, not of rows.
-    await waitFor( () => expect( digits( container ) ).toBe( '5' ) );
-    expect( bag() ).toHaveAccessibleName( /5 items/ );
+    await waitFor( () => expect( digits( container ) ).toBe( '2' ) );
+    expect( bag() ).toHaveAccessibleName( /2 items/ );
   } );
 
-  it( 'caps the drawn badge at 99+ while the spoken name stays exact', async () => {
+  it( 'does not inflate the badge when the same product is added repeatedly', async () => {
+    cart.addItem( PRODUCT, 250 );
     cart.addItem( PRODUCT, 250 );
     const { container } = render( <HeaderCart /> );
-    // The glyph is 36px wide and its hollow body narrower still; three or more digits inside it
-    // stop being a number. The accessible
-    // name is not width-constrained, so it keeps the real figure rather than inheriting the cap.
-    await waitFor( () => expect( digits( container ) ).toBe( '99+' ) );
-    expect( bag() ).toHaveAccessibleName( /250 items/ );
-
-    /*
-     * AND THE CAPPED BADGE GETS THE NARROW RUNG. Measured on the built page: at the badge's normal
-     * 12px, "99+" renders 22.56px wide against a hollow bag body only 19.5px across, so it crosses
-     * the outline. data-wide drops that case to 10px with tighter tracking - 18.2px, inside the
-     * body - and leaves one and two digits at the full 12px.
-     *
-     * An ATTRIBUTE rather than a second class name, because styled-jsx scopes a static className
-     * string and a ternary there risks losing the scope class silently.
-     */
-    expect( container.querySelector( '.hdr-cart-n' ) ).toHaveAttribute( 'data-wide', 'true' );
-    const css = container.querySelector( 'style' )?.textContent || '';
-    expect( css ).toMatch( /\.hdr-cart-n\[data-wide\]\{[^}]*font-size:10px/ );
+    await waitFor( () => expect( digits( container ) ).toBe( '1' ) );
+    expect( bag() ).toHaveAccessibleName( /1 item$/ );
+    expect( container.querySelector( '.hdr-cart-n' ) ).not.toHaveAttribute( 'data-wide' );
   } );
 
-  it( 'leaves one and two digits at the full size', async () => {
+  it( 'leaves two distinct lines at the full badge size', async () => {
     cart.addItem( PRODUCT, 12 );
+    cart.addItem( OTHER, 12 );
     const { container } = render( <HeaderCart /> );
-    await waitFor( () => expect( digits( container ) ).toBe( '12' ) );
-    // The narrow rung is for the three-character cap only. Two digits measure 15.05px in a 19.5px
-    // body, so they have no reason to shrink.
+    await waitFor( () => expect( digits( container ) ).toBe( '2' ) );
     expect( container.querySelector( '.hdr-cart-n' ) ).not.toHaveAttribute( 'data-wide' );
   } );
 } );
@@ -160,7 +144,7 @@ describe( 'the badge follows the cart without a navigation', () => {
     // OTHER tabs and never in the one that made the write, so /shop/<slug>/'s add-to-cart button
     // would leave this badge stale until the next page load.
     act( () => { cart.addItem( PRODUCT, 2 ); } );
-    await waitFor( () => expect( digits( container ) ).toBe( '2' ) );
+    await waitFor( () => expect( digits( container ) ).toBe( '1' ) );
   } );
 
   it( 'empties when the cart is cleared', async () => {
@@ -350,7 +334,7 @@ describe( 'the control itself', () => {
   it( 'flags the drawn number as untranslatable, the way prices are', async () => {
     cart.addItem( PRODUCT, 2 );
     const { container } = render( <HeaderCart /> );
-    await waitFor( () => expect( digits( container ) ).toBe( '2' ) );
+    await waitFor( () => expect( digits( container ) ).toBe( '1' ) );
     // A regrouped numeral is a different number. Belt and braces - the glyph is aria-hidden, which
     // the walker already skips - but it keeps the handling of numbers consistent across the site.
     expect( container.querySelector( '.hdr-cart-n' ) )
