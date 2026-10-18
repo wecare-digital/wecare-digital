@@ -409,6 +409,8 @@ function robotsDisallows () {
   return [];
 }
 
+const routes = findHtmlFiles( OUT_DIR );
+
 const retiredFamilyRoutes = routes.filter( route => RETIRED_FAMILY_PARENTS.has( route ) );
 if ( retiredFamilyRoutes.length > 0 )
 {
@@ -419,8 +421,6 @@ if ( retiredFamilyRoutes.length > 0 )
   );
   process.exit( 1 );
 }
-
-const routes = findHtmlFiles( OUT_DIR );
 const postRoutes = routes.filter( route => route.startsWith( '/post/' ) );
 
 const missing = [ ...PUBLIC_EXACT ].filter( route => !routes.includes( route ) );
