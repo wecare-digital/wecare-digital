@@ -181,7 +181,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
 
         { sku && policy && (
           <div className="pdp-commerce">
-            <p className="pdp-sku" data-wc-no-translate="true"><strong>SKU:</strong> { sku }</p>
+            <p className="pdp-sku" data-wc-no-translate="true"><strong>SKU:</strong> <span className="pdp-sku-value">{ sku }</span></p>
             <PolicyDetails
               overview={ null }
               shipping={ policy.shipping }
@@ -275,7 +275,8 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             margin:0;font-size:17px;font-weight:400;line-height:1.4;
             letter-spacing:-.05px;color:var(--public-muted);
           }
-          .pdp-sku strong{color:var(--public-muted);font-weight:600}
+          .pdp-sku strong{color:var(--public-brand-green);font-weight:700}
+          .pdp-sku-value{color:var(--public-muted)}
           .pdp-note{
             margin:34px 0 0;padding:22px;
             border:1px solid var(--public-hairline);border-radius:14px;

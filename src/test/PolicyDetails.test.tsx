@@ -17,6 +17,10 @@ describe( 'PolicyDetails', () => {
       />,
     );
 
+    expect( html ).not.toContain( 'Shipping, returns &amp; refunds' );
+    expect( html ).toContain( 'Refunds &amp; cancellations:' );
+    expect( html ).toContain( policy.refunds );
+
     const disclaimerParagraphs = html.match( /<p[^>]*wc-policy-disclaimer[^>]*>[\s\S]*?<\/p>/g ) || [];
     expect( disclaimerParagraphs ).toHaveLength( 2 );
     expect( disclaimerParagraphs[ 0 ] ).toContain( 'Anew is a guided written reflection' );
