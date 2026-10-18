@@ -444,8 +444,8 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
            per-card .pbp-chip went with the markup: the chips are links now and live in BlogTags. */
         .pbp-card :global(.pbp-tagrow){margin-top:12px;padding-top:0;border-top:0}
         .pbp-title{
-          margin:0;font-size:clamp(20px,2vw,24px);font-weight:var(--public-card-weight);
-          line-height:1.22;letter-spacing:var(--public-card-tracking);color:var(--public-heading);
+          margin:0;font-size:var(--public-card-size);font-weight:var(--public-card-weight);
+          line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading);
           transition:color .2s;
         }
         .pbp-excerpt{
