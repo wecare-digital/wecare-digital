@@ -480,6 +480,7 @@ response = requests.post(
                   <details className="gos-policy">
                     <summary>Policy details</summary>
                     <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }</p>
+                    <p className="gos-policy-disclaimer"><strong>Disclaimer:</strong> The ₹899 purchase shown here covers the one-time Grahak OS consultation only. Full deployment, implementation, integrations and third-party platform or messaging charges are separate unless expressly included in writing. Channel availability, approvals and delivery can depend on third-party providers and your configuration. Statutory consumer rights remain unaffected.</p>
                   </details>
                 </div>
               </div>

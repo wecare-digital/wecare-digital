@@ -30,4 +30,4 @@ export const PRODUCT_SKU_BY_SLUG: Readonly<Record<string, string>> = {
 export const PRODUCT_POLICY_TITLE = 'Shipping, cancellation & refunds';
 
 export const PRODUCT_POLICY_TEXT =
-  'Shipping or fulfilment timing depends on the product or service. Cancellation may not be available once work, processing or customisation has started. Where a refund or other remedy is available, it is handled under the applicable service terms and law and may include the original payment method, store credit, replacement or rescheduling.';
+  'Shipping or fulfilment timing depends on the product or service. Cancellation may not be available once work, processing or customisation has started. For voluntary cancellations or discretionary adjustments, cash refunds and refunds to the original payment method are not available; where eligible, we issue WECARE.DIGITAL store credit instead. This does not limit any refund, replacement or other remedy required by applicable law.';
