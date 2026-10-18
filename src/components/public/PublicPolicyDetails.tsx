@@ -14,17 +14,8 @@ const PublicPolicyDetails: React.FC = () => {
   if ( !policy ) return null;
 
   return (
-    <section
-      aria-label="Policy details"
-      style={ {
-        width: '100%',
-        maxWidth: 1300,
-        margin: '0 auto',
-        padding: '0 24px 48px',
-        boxSizing: 'border-box',
-      } }
-    >
-      <div style={ { width: '100%', maxWidth: 700 } }>
+    <section className="public-policy-tail" aria-label="Policy details">
+      <div className="public-policy-inner">
         <PolicyDetails
           overview={ policy.overview }
           shipping={ policy.shipping }
@@ -33,6 +24,21 @@ const PublicPolicyDetails: React.FC = () => {
           disclaimer={ policy.disclaimer }
         />
       </div>
+      <style jsx>{`
+        .public-policy-tail{
+          width:100%;
+          max-width:var(--public-content-max);
+          margin:0 auto;
+          padding:0 var(--public-page-gutter) 48px;
+          box-sizing:border-box;
+          font-family:var(--font-sans);
+          color:var(--public-text);
+        }
+        .public-policy-inner{width:100%;max-width:var(--public-reading-max)}
+        @media(max-width:767px){
+          .public-policy-tail{padding-inline:16px;padding-bottom:40px}
+        }
+      `}</style>
     </section>
   );
 };
