@@ -444,10 +444,12 @@ class TestReadOnlyGuarantee:
 
 class TestTools:
     def test_search_pages_finds_a_page_by_its_description(self):
-        _, body = rpc("tools/call", {"name": "search_pages", "arguments": {"query": "dispute resolution"}})
+        # Search a concrete public child page. Family labels such as Clear Closure no longer
+        # have their own route and therefore must not be kept alive just to satisfy this test.
+        _, body = rpc("tools/call", {"name": "search_pages", "arguments": {"query": "pitch deck"}})
         payload = body["result"]["structuredContent"]
         assert payload["count"] >= 1
-        assert payload["pages"][0]["path"] == "/clear-closure"
+        assert payload["pages"][0]["path"] == "/hunar/prastuti"
 
     def test_returned_urls_carry_the_trailing_slash(self):
         """next.config.js sets trailingSlash, so the slashless form 301s. Handing an agent
