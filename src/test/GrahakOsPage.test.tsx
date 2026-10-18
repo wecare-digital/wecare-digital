@@ -45,7 +45,6 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
     expectSameType( '.api-step-title', '.home-flow-list strong' );
     expectSameType( '.gos-price', '.home-flow-list strong' );
     expectSameType( '.api-step-line', '.home-flow-list span' );
-    expectSameType( '.gos-offer-note', '.home-flow-list span' );
   } );
 
   it( 'keeps all page controls on the shared 17px / 600 rung', () => {
@@ -268,13 +267,14 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( stepsCtas ).not.toContain( 'Open demo in WhatsApp' );
     expect( source ).toContain( "import ProductBuyBox from '../../components/ProductBuyBox';" );
     expect( source ).toContain( '<ProductBuyBox slug="grahak-os" showPrice={ false } />' );
-    expect( source ).toContain( '<p className="gos-price" data-wc-no-translate="true">&#8377;899</p>' );
+    expect( source ).toContain( "const GRAHAK_DISPLAY_PRICE = GRAHAK_CHECKOUT?.formattedPrice.replace( /\\.00$/, '' ) ?? null" );
+    expect( source ).toContain( '<p className="gos-price" data-wc-no-translate="true">{ GRAHAK_DISPLAY_PRICE }</p>' );
     expect( source ).toContain( '<p className="gos-offer-note">One-time consultation · full deployment separate</p>' );
     expect( source ).not.toContain( 'AI agents · from deployment to business outcomes' );
     const offerRule = cssRuleFor( source, '.gos-offer-note' );
-    expect( offerRule ).toContain( 'font-size:var(--public-body-size)' );
-    expect( offerRule ).toContain( 'font-weight:var(--public-body-weight)' );
-    expect( offerRule ).toContain( 'color:var(--public-body)' );
+    expect( offerRule ).toContain( 'font-size:17px' );
+    expect( offerRule ).toContain( 'font-weight:400' );
+    expect( offerRule ).toContain( 'color:var(--public-muted)' );
     expect( source ).not.toContain( 'A consulting solution for organisations and businesses.' );
   } );
 
@@ -302,6 +302,9 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( 'shipping={ GRAHAK_POLICY.shipping }' );
     expect( source ).toContain( 'returns={ GRAHAK_POLICY.returns }' );
     expect( source ).toContain( 'disclaimer={ GRAHAK_POLICY.disclaimer }' );
+    expect( source ).toContain( 'overview={ null }' );
+    expect( source ).toContain( 'refunds={ GRAHAK_REFUNDS }' );
+    expect( source ).toContain( "const GRAHAK_REFUNDS = 'Cancellation may not be available once work has started." );
     expect( source ).not.toContain( '<details className="gos-policy">' );
     expect( source ).not.toContain( 'PRODUCT_POLICY_TEXT' );
 
@@ -443,8 +446,8 @@ describe( 'Grahak OS: bottom closer section removed entirely', () => {
 
   it( 'keeps the shared price/SKU/policy in the api-steps block, not the removed closer', () => {
     // The commerce still exists on the page (in api-steps), proving the removal was scoped.
-    expect( source ).toContain( '<p className="gos-price" data-wc-no-translate="true">&#8377;899' );
-    expect( source ).toContain( "PRODUCT_SKU_BY_SLUG['grahak-os']" );
+    expect( source ).toContain( '<p className="gos-price" data-wc-no-translate="true">{ GRAHAK_DISPLAY_PRICE }</p>' );
+    expect( source ).toContain( 'const GRAHAK_SKU = GRAHAK_CHECKOUT?.variantId ?? null' );
     expect( source ).toContain( '<PolicyDetails' );
     expect( source ).toContain( 'shipping={ GRAHAK_POLICY.shipping }' );
     expect( source ).toContain( 'returns={ GRAHAK_POLICY.returns }' );
