@@ -46,12 +46,10 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
     expectSameType( '.gos-price', '.home-flow-list strong' );
     expectSameType( '.api-step-line', '.home-flow-list span' );
     expectSameType( '.gos-offer-note', '.home-flow-list span' );
-    expectSameType( '.gos-policy p', '.home-flow-list span' );
   } );
 
   it( 'keeps all page controls on the shared 17px / 600 rung', () => {
     const apiCss = source.slice( source.indexOf( '.api-demo-stack{' ) );
-    const policyCss = source.slice( source.indexOf( '.gos-commerce{' ) );
     // There are three pp-pill rules: the typography shorthand, the actual base rule,
     // and the reduced-motion override. Anchor to the base rule explicitly so this test
     // cannot accidentally read either non-typographic rule.
@@ -63,7 +61,6 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
       [ apiCss, '.api-wa-link' ],
       [ source, '.pp-tab' ],
       [ ppPillCss, '.pp-pill' ],
-      [ policyCss, '.gos-policy summary' ],
     ];
     for ( const [ css, selector ] of controls ) {
       const rule = cssRuleFor( css, selector );
@@ -296,43 +293,20 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( stepsCtas ).toContain( 'rel="noopener noreferrer"' );
   } );
 
-  it( 'keeps SKU visible and moves the shared policy into a lightweight disclosure', () => {
+  it( 'keeps SKU visible and uses the shared PolicyDetails disclosure', () => {
     expect( source ).toContain( "PRODUCT_SKU_BY_SLUG['grahak-os']" );
-    expect( source ).toContain( '<details className="gos-policy">' );
-    expect( source ).toContain( '<summary>Policy details</summary>' );
-    expect( source ).toContain( '<strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }' );
-    expect( source ).toContain( '<strong>Shipping / fulfilment:</strong> The Grahak OS consultation is delivered digitally' );
-    expect( source ).toContain( '<strong>Returns:</strong> There is no physical return for the Grahak OS consultation.' );
-    expect( source ).toContain( '<strong>Refunds & cancellations:</strong> Cancellation is handled only as part of the refund policy above.' );
-    expect( source ).toContain( 'WECARE.DIGITAL store credit valid for 30 calendar days' );
-    expect( source ).toContain( '<p className="gos-policy-disclaimer"><strong>Disclaimer:</strong>' );
-    expect( source ).toContain( 'The ₹899 purchase shown here covers the one-time Grahak OS consultation only.' );
-    expect( source ).toContain( 'Statutory consumer rights remain unaffected.' );
-    expect( source ).toContain( "import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, PRODUCT_SKU_BY_SLUG } from '../../content/productCommerce';" );
+    expect( source ).toContain( "const GRAHAK_POLICY = productPolicyCopy( 'grahak-os', 'Grahak OS' )" );
+    expect( source ).toContain( '<PolicyDetails' );
+    expect( source ).toContain( 'shipping={ GRAHAK_POLICY.shipping }' );
+    expect( source ).toContain( 'returns={ GRAHAK_POLICY.returns }' );
+    expect( source ).toContain( 'disclaimer={ GRAHAK_POLICY.disclaimer }' );
+    expect( source ).not.toContain( '<details className="gos-policy">' );
+    expect( source ).not.toContain( 'PRODUCT_POLICY_TEXT' );
+
     const commerceRule = cssRuleFor( source, '.gos-commerce' );
     expect( commerceRule ).toContain( 'font-size:17px' );
     expect( commerceRule ).not.toContain( 'border:1px solid' );
     expect( commerceRule ).not.toContain( 'background:#fcfdfb' );
-
-    // Scope to the commerce block so the lookup cannot accidentally read the
-    // earlier prefers-reduced-motion override for .gos-policy summary.
-    const policyCssStart = source.indexOf( '.gos-commerce{' );
-    expect( policyCssStart ).toBeGreaterThan( -1 );
-    const policyCss = source.slice( policyCssStart );
-    const summaryRule = cssRuleFor( policyCss, '.gos-policy summary' );
-    const policyBodyRule = cssRuleFor( policyCss, '.gos-policy p' );
-    expect( summaryRule ).toContain( 'color:#1a3a2a' );
-    expect( summaryRule ).toContain( 'font-family:inherit' );
-    expect( summaryRule ).toContain( 'font-size:17px' );
-    expect( summaryRule ).toContain( 'font-weight:600' );
-    expect( summaryRule ).toContain( 'background:rgba(209,244,112,.18)' );
-    expect( policyBodyRule ).toContain( 'font-family:inherit' );
-    expect( policyBodyRule ).toContain( 'font-size:20px' );
-    expect( policyBodyRule ).toContain( 'font-weight:400' );
-    expect( policyBodyRule ).toContain( 'line-height:1.4' );
-    expect( policyBodyRule ).toContain( 'border-inline-start:3px solid #d1f470' );
-    expect( policyCss ).toContain( '.gos-policy summary:hover{background:#d1f470' );
-    expect( policyCss ).toContain( '.gos-policy summary:focus-visible{background:#d1f470' );
   } );
 
   it( 'uses only existing design tokens for the step block and introduces no new palette', () => {
