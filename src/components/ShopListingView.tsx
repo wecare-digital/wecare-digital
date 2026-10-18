@@ -395,7 +395,7 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
              the home page's cards use. The blurb is clamped so a long tagline does not set the
              height of its row. */
           .shop-card-name{
-            font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:#000;
+            font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading);
           }
           .shop-card-sku{
             font-size:13px;font-weight:700;line-height:1.3;letter-spacing:.04em;
