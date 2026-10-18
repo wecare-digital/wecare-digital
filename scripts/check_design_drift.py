@@ -151,7 +151,7 @@ PUBLIC_TOKEN_CONSUMERS = {
     SRC / "components/ServiceBuyBox.tsx": ("--public-cta-height", "--public-card-size"),
     SRC / "components/PublicShare.tsx": ("--public-brand-green", "--public-hairline"),
     SRC / "components/Pager.tsx": ("--public-brand-green", "--public-hairline"),
-    SRC / "pages/shop/[slug].tsx": ("--public-body-size", "--public-card-size", "--public-cta-height", "--public-hairline"),
+    SRC / "pages/shop/[slug].tsx": ("--public-body-size", "--public-card-size", "--public-cta-height"),
     SRC / "components/VayuLokLive.tsx": ("--public-bg", "--public-brand-lime", "--public-hairline"),
 }
 
