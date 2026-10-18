@@ -66,16 +66,11 @@ const REDEMPTION_MESSAGES: Record<string, string> = {
   MINIMUM_SUBTOTAL: 'The invoice total is below that coupon\u2019s minimum.',
   HELD_BY_ANOTHER_CART: 'That coupon is being used elsewhere right now. Try again shortly.',
   COUPON_STORE_UNAVAILABLE: 'Coupons are not available right now. Try again shortly.',
-  GIFT_CARD_INVALID: 'That gift-card code is not valid.',
-  GIFT_CARD_EXPIRED: 'That gift card has expired.',
-  GIFT_CARD_INELIGIBLE: 'That gift card cannot be used for this invoice.',
-  INSUFFICIENT_BALANCE: 'That gift card has no balance left to use.',
-  GIFT_CARD_STORE_UNAVAILABLE: 'Gift cards are not available right now. Try again shortly.',
   UNSUPPORTED_CURRENCY: 'Codes can only be applied to an invoice in rupees.',
   AMOUNT_MISMATCH: 'The discount did not reconcile against the total, so nothing was applied.',
   PAYABLE_BELOW_GATEWAY_MINIMUM: 'That would leave less than \u20B91 to pay, which cannot be charged.',
 };
-const REDEMPTION_UNKNOWN = 'The coupon or gift card could not be applied.';
+const REDEMPTION_UNKNOWN = 'The coupon could not be applied.';
 const TABS: ShellTab[] = [
   { id: 'customers', label: 'Customers' },
   { id: 'create', label: 'Create' },
@@ -240,7 +235,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
      point: one typed field set, one composed string, no second free-text input to disagree. */
   const [ editAddress, setEditAddress ] = useState<AddressFormFields>( EMPTY_ADDRESS_FIELDS );
   /*
-   * COUPON AND GIFT CARD: a code, and nothing else, ever leaves this form.
+   * COUPON: a code, and nothing else, ever leaves this form.
    *
    * There is no state here for a discount AMOUNT and no arithmetic anywhere in this file that
    * touches one. `redemption` holds what the SERVER returned on a 201 and `redemptionMsg` holds
@@ -253,7 +248,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
   // additional explicit coupon. Pre-filling 'Delight' here would route it through the explicit
   // coupon path (a CouponsTable read) instead of the server's in-memory default.
   const [ couponCode, setCouponCode ] = useState( '' );
-  const [ giftCardCode, setGiftCardCode ] = useState( '' );
   const [ redemption, setRedemption ] = useState<api.CreateInvoiceEngineResponse | null>( null );
   const [ redemptionMsg, setRedemptionMsg ] = useState( '' );
   const [ config, setConfig ] = useState<FC>( () => loadSavedConfig() );
@@ -425,7 +419,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
         // guarantees the no-codes path behaves byte for byte as it did before coupons existed -
         // sending '' would put it through the redemption branch for nothing.
         ...( couponCode.trim() ? { couponCode: couponCode.trim() } : {} ),
-        ...( giftCardCode.trim() ? { giftCardCode: giftCardCode.trim() } : {} ),
       };
       /*
        * `createInvoiceEngineResult`, not `createInvoiceEngine`, because a coupon refusal is a 400
@@ -441,11 +434,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
         // Every figure here is the SERVER's. Nothing on this page recomputes a discount.
         setRedemption( r );
         setInvForm( { ...EMPTY_INV, items: [ NEW_ITEM() ] } );
-        // The gift-card code is a bearer secret: it is cleared and never echoed back into a
-        // visible label. The coupon code is not a secret, and the server's NORMALISED spelling of
-        // it comes back on the response, so that is what gets shown.
         setCouponCode( '' );
-        setGiftCardCode( '' );
         setSelCustomer( null );
         loadInvoices();
       }
@@ -459,7 +448,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
          * to retype a code that was never the problem. An UNRECOGNISED errorCode on a request
          * that did carry a code degrades to the honest unknown-reason line.
          */
-        if ( req.couponCode || req.giftCardCode )
+        if ( req.couponCode )
         {
           setRedemptionMsg( REDEMPTION_MESSAGES[ result.errorCode ] || REDEMPTION_UNKNOWN );
         }
@@ -675,13 +664,13 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
           { activeTab === 'create' && (
             <div className="pf-tab-body">
               { /*
-                 * WHAT THE SERVER DECIDED ABOUT THE COUPON AND THE GIFT CARD.
+                 * WHAT THE SERVER DECIDED ABOUT THE coupon.
                  *
                  * Outside the customer-step branch on purpose: a successful create clears
                  * `selCustomer` to reset the form, so anything rendered inside that branch
                  * unmounts at exactly the moment it has something to say. Every figure below is
                  * read straight off the response — there is no arithmetic on this page that
-                 * produces a discount, and `fmtPaise` formats the gift-card leg by slicing the
+                 * produces a discount, and `fmtPaise` formats the coupon result by slicing the
                  * integer-paise string rather than dividing it.
                  */ }
               { redemptionMsg && (
@@ -692,17 +681,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                   <h4 style={ { margin: '0 0 6px', fontSize: 13, color: '#1a3a2a' } }>Applied on the last invoice</h4>
                   { redemption.couponCode && typeof redemption.couponDiscount === 'number' && (
                     <div className="pf-preview-row"><span>Coupon { redemption.couponCode }</span><span>{ '\u2212' }{ fmtMoney( redemption.couponDiscount ) }</span></div>
-                  ) }
-                  { typeof redemption.giftCardAppliedPaise === 'number' && (
-                    <div className="pf-preview-row"><span>Paid by gift card</span><span>{ '\u2212' }{ fmtPaise( redemption.giftCardAppliedPaise ) }</span></div>
-                  ) }
-                  { typeof redemption.amountPayable === 'number' && (
-                    <div className="pf-preview-row"><span>Left to pay</span><span>{ fmtMoney( redemption.amountPayable ) }</span></div>
-                  ) }
-                  { redemption.giftCardFullyCovered && (
-                    <p style={ { fontSize: 11, color: '#6b7280', margin: '6px 0 0' } }>
-                      Fully covered by the gift card, so no payment link can be sent for it.
-                    </p>
                   ) }
                 </div>
               ) }
@@ -790,20 +768,13 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                     <div className="form-group"><label htmlFor="pf-manual-adjustment">Manual adjustment ({ '\u20B9' })</label><input id="pf-manual-adjustment" type="number" value={ invForm.discount } onChange={ e => setInvForm( { ...invForm, discount: e.target.value } ) } /></div>
 
                   </div>
-                  { /* COUPON + GIFT CARD. Codes only: there is no input on this page through
-                       which an amount could be sent, and no arithmetic here that produces one.
-                       Everything displayed below comes back from the server. */ }
-                  <h4 style={ { margin: '12px 0 8px', fontSize: 15 } }>Coupon &amp; Gift Card</h4>
+                  {/* Coupon code only; the server remains the pricing authority. */}
+                  <h4 style={ { margin: '12px 0 8px', fontSize: 15 } }>Coupon</h4>
                   <div className="pf-form-grid">
                     <div className="form-group">
                       <label htmlFor="pf-coupon-code">Coupon code</label>
                       <input id="pf-coupon-code" type="text" autoComplete="off" value={ couponCode }
                         onChange={ e => setCouponCode( e.target.value ) } placeholder="Optional" />
-                    </div>
-                    <div className="form-group">
-                      <label htmlFor="pf-giftcard-code">Gift card code</label>
-                      <input id="pf-giftcard-code" type="text" autoComplete="off" value={ giftCardCode }
-                        onChange={ e => setGiftCardCode( e.target.value ) } placeholder="Optional" />
                     </div>
                   </div>
                   { /* The server's answer about these codes is rendered ABOVE the customer step,
@@ -976,16 +947,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                       <div className="pf-detail-row"><span className="label">Manual adjustment</span><span>{ '\u2212' }{ fmtMoney( selInvoice.discount - ( selInvoice.couponDiscount || 0 ) ) }</span></div>
                       { selInvoice.convenienceFee > 0 && <div className="pf-detail-row"><span className="label">Convenience fee</span><span>{ fmtMoney( selInvoice.convenienceFee ) }</span></div> }
                       <div className="pf-detail-total"><span>Total</span><span>{ fmtMoney( selInvoice.total ) }</span></div>
-                      { /* Gift-card tender, below the total because it is NOT a price change: the
-                           total is what the invoice is for, `amountPayable` is what Razorpay will
-                           collect. `giftCardLast4` is the only part of a code ever stored or
-                           shown in clear. */ }
-                      { typeof selInvoice.giftCardRequiredPaise === 'number' && (
-                        <div className="pf-detail-row"><span className="label">Paid by gift card { selInvoice.giftCardLast4 ? `****${selInvoice.giftCardLast4}` : '' }</span><span>{ '\u2212' }{ fmtPaise( selInvoice.giftCardRequiredPaise ) }</span></div>
-                      ) }
-                      { typeof selInvoice.amountPayable === 'number' && (
-                        <div className="pf-detail-row"><span className="label">Left to pay</span><span>{ fmtMoney( selInvoice.amountPayable ) }</span></div>
-                      ) }
                     </div>
                     { selInvoice.items && selInvoice.items.length > 0 && (
                       <div className="pf-section-divider">
@@ -1183,7 +1144,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                 </div>
                 { /* The same eight fields and the same composition as the customer modal, from
                      the same module. The free-text address textarea that was here is the
-                     read-only preview now; a coupon or gift-card code is NOT editable from here
+                     read-only preview now; a coupon code is NOT editable from here
                      at all, because `update_invoice` answers 400 USE_CREATE for one. */ }
                 <AddressFieldGroup
                   idPrefix="pf-inv-addr"
