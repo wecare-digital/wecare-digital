@@ -492,6 +492,7 @@ response = requests.post(
                     disclaimer={ GRAHAK_POLICY.disclaimer }
                     overview={ null }
                     refunds={ GRAHAK_REFUNDS }
+                    showStatutoryRights={ false }
                   />
                 </div>
               </div>
@@ -882,10 +883,11 @@ response = requests.post(
              actual overlapping double-tick shape. color drives the fill via
              currentColor. */
           .msg-ticks{color:#53bdeb;flex:0 0 auto;display:block}
-          .typing-indicator{background:#fff;padding:10px 14px;border-radius:8px;align-self:flex-start;display:flex;gap:4px}
-          .typing-indicator span{width:7px;height:7px;background:#1a3a2a;border-radius:50%;animation:bounce 1.4s infinite}
-          .typing-indicator span:nth-child(2){background:#86b817;animation-delay:.2s}
-          .typing-indicator span:nth-child(3){background:#c3e85a;animation-delay:.4s}
+          .typing-indicator{background:#fff;padding:10px 14px;border-radius:8px;align-self:flex-start;display:flex;gap:4px;animation:typingBubble 2.8s cubic-bezier(.16,1,.3,1) infinite}
+          .typing-indicator span{width:7px;height:7px;background:#f0a818;border-radius:50%;animation:bounce 1.4s infinite}
+          .typing-indicator span:nth-child(2){background:#9849e8;animation-delay:.2s}
+          .typing-indicator span:nth-child(3){background:#3da35a;animation-delay:.4s}
+          @keyframes typingBubble{0%,100%{transform:translateY(0);box-shadow:0 0 0 rgba(26,58,42,0)}50%{transform:translateY(-2px);box-shadow:0 6px 16px rgba(26,58,42,.10)}}
           @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-3px)}}
 
           /* Code Box */
@@ -1351,6 +1353,7 @@ response = requests.post(
                the base state became the finished one. Matching .anim alone would leave the
                armed sections still transitioning under reduced motion. */
             .anim,.anim.is-armed{transition:none}
+            .typing-indicator{animation:none}
             .typing-indicator span{animation:none}
             .pill{transition:none}
           }
