@@ -65,6 +65,7 @@ const MARKERS = {
  */
 const FORBIDDEN_PUBLIC_COPY = [
   'Statutory consumer rights remain unaffected.',
+  'Continue on WhatsApp',
   'final total confirmed at checkout',
   'Review your final total in the cart before payment',
   'The store confirms your final total',
@@ -252,17 +253,17 @@ function main() {
 
     if ( route === '/grahak-os' ) {
       const checkoutLabel = 'Checkout on WhatsApp';
-      const canonicalCheckout = 'href="https://wecare.digital/grahak-os/"';
-      record( html.includes( checkoutLabel ) && html.includes( canonicalCheckout ),
+      const checkoutHref = 'href="https://wa.me/message/APDM5HUWH26SG1"';
+      record( html.includes( checkoutLabel ) && html.includes( checkoutHref ),
         '/grahak-os Checkout on WhatsApp destination',
-        html.includes( checkoutLabel ) && html.includes( canonicalCheckout )
-          ? 'canonical Grahak OS destination'
-          : 'CTA label or canonical destination missing' );
-      record( !/href="https:\/\/wa\.me\/[^"]*"[^>]*>\s*Checkout on WhatsApp/i.test( html ),
-        '/grahak-os has no direct WhatsApp checkout link',
-        /href="https:\/\/wa\.me\/[^"]*"[^>]*>\s*Checkout on WhatsApp/i.test( html )
-          ? 'retired wa.me checkout destination returned'
-          : 'no direct wa.me checkout destination' );
+        html.includes( checkoutLabel ) && html.includes( checkoutHref )
+          ? 'original WhatsApp destination preserved'
+          : 'CTA label or WhatsApp destination missing' );
+      record( !/href="https:\/\/wecare\.digital\/grahak-os\/"[^>]*>\s*Checkout on WhatsApp/i.test( html ),
+        '/grahak-os does not self-link its checkout CTA',
+        /href="https:\/\/wecare\.digital\/grahak-os\/"[^>]*>\s*Checkout on WhatsApp/i.test( html )
+          ? 'checkout CTA reloads the page instead of opening WhatsApp'
+          : 'no self-link regression' );
     }
   }
 

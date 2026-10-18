@@ -193,6 +193,13 @@ def test_the_typescript_source_matches_the_backend():
     assert _ts_const_array(REVIEW_ENTRY, 'REVIEW_ENTRY_KEYWORDS') == KEYWORDS
 
 
+def test_the_whatsapp_site_menu_uses_the_same_review_short_link():
+    """The WhatsApp interactive menu must not point back at the retired website route."""
+    handler = (ROOT / 'amplify/functions/messaging/inbound-whatsapp-handler/handler.py').read_text()
+    assert f"'wd_review': ('Leave Review', '{WA_SHORT_LINK}')" in handler
+    assert "'wd_review': ('Leave Review', '/leave-review/')" not in handler
+
+
 def test_every_review_surface_reads_the_shared_module_rather_than_restating_it():
     """The guard that makes drift structurally impossible instead of merely detectable.
 

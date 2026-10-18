@@ -57,13 +57,25 @@ describe( 'public visible-copy audit', () => {
     expect( terms ).toContain( 'the applicable offer rules decide which code is used' );
   } );
 
-  it( 'routes every Checkout on WhatsApp CTA to Grahak OS rather than directly to wa.me', () => {
+  it( 'changes the Grahak CTA text without changing its WhatsApp destination', () => {
     const grahak = read( 'src/pages/grahak-os/index.tsx' );
     const checkoutLinks = Array.from(
       grahak.matchAll( /<a[^>]*href="([^"]+)"[^>]*>\s*Checkout on WhatsApp(?:\s|&|<)/g ),
     ).map( match => match[ 1 ] );
 
-    expect( checkoutLinks ).toEqual( [ 'https://wecare.digital/grahak-os/' ] );
-    expect( grahak ).not.toMatch( /href="https:\/\/wa\.me\/[^"]*"[^>]*>\s*Checkout on WhatsApp/i );
+    expect( checkoutLinks ).toEqual( [ 'https://wa.me/message/APDM5HUWH26SG1' ] );
+    expect( grahak ).not.toMatch( /href="https:\/\/wecare\.digital\/grahak-os\/"[^>]*>\s*Checkout on WhatsApp/i );
+  } );
+
+  it( 'keeps retired Continue on WhatsApp wording out of public checkout surfaces', () => {
+    const publicCheckoutSources = [
+      read( 'src/pages/grahak-os/index.tsx' ),
+      read( 'src/pages/bharat-rx.tsx' ),
+      read( 'src/components/ProductPage.tsx' ),
+      read( 'src/components/PublicShare.tsx' ),
+    ].join( '\n' );
+
+    expect( publicCheckoutSources ).not.toContain( 'Continue on WhatsApp' );
+    expect( publicCheckoutSources ).toContain( 'Checkout on WhatsApp' );
   } );
 } );

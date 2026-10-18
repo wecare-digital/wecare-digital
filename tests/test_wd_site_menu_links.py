@@ -32,6 +32,12 @@ SITEMAP = ROOT / 'scripts/generate-sitemap.js'
 MAX_ROWS, MAX_TITLE, MAX_DESCRIPTION = 10, 24, 72
 MAX_BODY, MAX_BUTTON, MAX_HEADER = 1024, 20, 60
 
+EXTERNAL_LEAVES = {
+    'wd_referral': 'https://wa.me/message/S6A2QEXZSYXTG1',
+    'wd_perks': 'https://wa.me/message/377GALDW4E26F1',
+    'wd_review': 'https://wa.me/message/ZM74K2H2BIFOA1',
+}
+
 
 def _literal(name: str):
     """The literal value assigned to a module-level `name` in the handler source."""
@@ -86,7 +92,7 @@ def test_every_leaf_links_a_page_the_export_builds(leaf_id):
     name, path = LEAVES[leaf_id]
     assert name.strip(), leaf_id
     if path.startswith('https://wa.me/message/'):
-        assert leaf_id in {'wd_referral', 'wd_perks'}, (leaf_id, path)
+        assert EXTERNAL_LEAVES.get(leaf_id) == path, (leaf_id, path)
         return
     assert path.startswith('/') and path.endswith('/'), (
         f'{leaf_id}: {path!r} must be root-relative with the load-bearing trailing slash')
