@@ -1432,7 +1432,7 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         'paidAt': body.get('paidAt', 0),
     }
 
-    # Coupon / gift-card attributes, present ONLY when a code was supplied. Absent rather than
+    # Coupon attributes, present only when a code was supplied. Absent rather than
     # zero on every other invoice, so an invoice raised before this feature existed stays
     # distinguishable from one where a customer deliberately applied nothing - `0` and "no coupon"
     # are different facts and a reader must be able to tell them apart.
