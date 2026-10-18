@@ -282,9 +282,15 @@ describe( 'Grahak OS: API-panel "Open demo in WhatsApp" link', () => {
   } );
 
   it( 'uses a lime hover/focus treatment without turning into the paid CTA pill', () => {
-    const stackRule = cssRuleFor( source, '.api-demo-stack' );
-    const rowRule = cssRuleFor( source, '.api-wa-row' );
-    const linkRule = cssRuleFor( source, '.api-wa-link' );
+    // The reduced-motion override appears earlier in the file as
+    // .api-wa-link{transition:none}. Scope these lookups to the API-panel CSS block so
+    // this test reads the base visual rule rather than the accessibility override.
+    const apiCssStart = source.indexOf( '.api-demo-stack{' );
+    expect( apiCssStart ).toBeGreaterThan( -1 );
+    const apiCss = source.slice( apiCssStart );
+    const stackRule = cssRuleFor( apiCss, '.api-demo-stack' );
+    const rowRule = cssRuleFor( apiCss, '.api-wa-row' );
+    const linkRule = cssRuleFor( apiCss, '.api-wa-link' );
 
     expect( stackRule ).toContain( 'display:flex' );
     expect( stackRule ).toContain( 'flex-direction:column' );
