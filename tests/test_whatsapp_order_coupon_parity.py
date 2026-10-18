@@ -252,7 +252,7 @@ def test_the_claim_keeps_the_cart_redemption_surface_status_only():
     assert "basket" in cart_page, "the claim effect is present"
     assert "REDEMPTION_URL" not in cart_page
     assert "/ecommerce/redemption" not in cart_page
-    assert "Temporarily unavailable. No discount has been applied to this cart." in cart_page
+    assert "Delight discount is applied automatically at checkout." in cart_page
 
 def test_the_retired_gift_card_surface_does_not_reappear_in_the_handoff():
     """The WhatsApp hand-off carries no retired gift-card or redemption-tender field."""
