@@ -82,13 +82,6 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
               is the h1 in the band above it. section.pdp names itself the same way on the fourteen
               pages ProductPage renders. */}
           <section className="shopd-about" aria-label={ `About ${product.name}` }>
-            {/* The price sits with the action, not in the top band. data-wc-no-translate because a
-                translated "₹24,999.00" is a different number in a different grouping convention. */}
-            <p className="shopd-price" data-wc-no-translate="true">{ product.formattedPrice }</p>
-            { sku && (
-              <p className="shopd-sku" data-wc-no-translate="true"><strong>SKU:</strong> { sku }</p>
-            ) }
-
             { !product.inStock && (
               <p className="shopd-oos" role="status">Not available right now.</p>
             ) }
@@ -144,6 +137,9 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
                   { product.id === CONTRIBUTION_PRODUCT_ID ? 'Contribute ₹250' : `Add ${ product.name } to cart` }
                 </button>
               ) }
+
+            <p className="shopd-price" data-wc-no-translate="true">{ product.formattedPrice }</p>
+            <p className="shopd-offer-note">One-time purchase · final total confirmed in the cart before payment</p>
 
             {/* The boundary statement, in the hairline box rather than a lime one - the page's one
                 lime surface is already spent on the button above. Shortened on owner instruction
@@ -211,6 +207,12 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
           .shopd-price{
             font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;
             color:#1a3a2a;margin:0;font-variant-numeric:tabular-nums;
+          }
+          .shopd-offer-note{
+            max-width:620px;margin:7px 0 0;
+            font-size:var(--public-body-size);font-weight:var(--public-body-weight);
+            line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+            color:var(--public-body);
           }
           .shopd-sku{margin:10px 0 0;font-size:13px;line-height:1.3;color:rgba(0,0,0,.54);letter-spacing:.04em;text-transform:uppercase}
           .shopd-oos{margin:12px 0 0;font-size:16px;font-weight:700;line-height:1.4;color:rgba(0,0,0,.54)}
