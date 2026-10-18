@@ -180,8 +180,6 @@ const BharatRxPage: React.FC = () => (
             letter-spacing:-.05px;color:var(--public-muted);
           }
           .brx-sku strong{color:var(--public-muted);font-weight:600}
-          @media(max-width:767px){
-          }
         `}</style>
       </section>
 
