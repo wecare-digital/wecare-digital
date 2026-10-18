@@ -128,15 +128,18 @@ describe( 'form-controls.css — invariant 4', () => {
       // amount). Its variant picker is the <Select> component (a <button role="combobox">),
       // which this census does not count.
       'src/components/dashboard/tabs/AppBuilderTab.tsx',
+      // Workspace redesign (FEAT-005): the engage/* channel pages, forms/responses and
+      // pay/records moved out of the routes tree into src/components/workspace/*. Same skinned
+      // <select> rules, new home — a rename on this allow-list, not a new control.
+      'src/components/workspace/channels/Push.tsx',
+      'src/components/workspace/channels/Sms.tsx',
+      'src/components/workspace/channels/VoiceIn.tsx',
+      'src/components/workspace/pay/InvoiceRecords.tsx',
+      'src/components/workspace/service/FormResponses.tsx',
+      'src/components/workspace/whatsapp/migration.tsx',
+      'src/components/workspace/whatsapp/templates.tsx',
+      'src/components/workspace/whatsapp/waba-dashboard.tsx',
       'src/pages/workspace/engage/logs/index.tsx',
-      'src/pages/workspace/engage/push/index.tsx',
-      'src/pages/workspace/engage/sms/index.tsx',
-      'src/pages/workspace/engage/voice-in/index.tsx',
-      'src/pages/workspace/engage/whatsapp/migration.tsx',
-      'src/pages/workspace/engage/whatsapp/templates.tsx',
-      'src/pages/workspace/engage/whatsapp/waba-dashboard.tsx',
-      'src/pages/workspace/forms/responses.tsx',
-      'src/pages/workspace/pay/records.tsx',
       'src/pages/workspace/task/index.tsx',
       'src/styles/Dashboard.css',
       'src/styles/Layout.css',
@@ -384,7 +387,8 @@ describe( 'form-controls.css — invariant 4', () => {
     // be allow-listed, because without it this assertion fails the moment that batch writes the
     // very file it exists to protect.
     expect( cbr.files ).toEqual( [
-      'src/pages/workspace/engage/sms/index.tsx',
+      // Workspace redesign (FEAT-005): engage/sms/index.tsx moved to this component.
+      'src/components/workspace/channels/Sms.tsx',
       'src/styles/Dashboard.css',
       'src/styles/Layout.css',
       'src/styles/Pages.css',
