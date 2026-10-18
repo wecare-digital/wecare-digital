@@ -78,7 +78,7 @@ export function addCatalogResources ( stack: Stack ) {
  *
  * A cart is a short-lived working document, so unlike ProductsTable it carries a
  * TTL (expiresTtl) to reap abandoned carts automatically — a cart is NOT a
- * liability ledger (contrast gift_card_store, where TTL is deliberately off). The
+ * liability ledger. The
  * ORDER record, not the cart, is the durable artifact; a reaped cart loses only
  * an in-progress session, never a paid order.
  *
