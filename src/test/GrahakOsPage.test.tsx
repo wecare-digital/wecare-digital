@@ -293,7 +293,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( stepsCtas ).toContain( 'rel="noopener noreferrer"' );
   } );
 
-  it( 'keeps SKU visible and uses the one shared PolicyDetails disclosure', () => {
+  it( 'keeps SKU visible and uses the shared PolicyDetails disclosure', () => {
     expect( source ).toContain( "PRODUCT_SKU_BY_SLUG['grahak-os']" );
     expect( source ).toContain( "const GRAHAK_POLICY = productPolicyCopy( 'grahak-os', 'Grahak OS' )" );
     expect( source ).toContain( '<PolicyDetails' );
