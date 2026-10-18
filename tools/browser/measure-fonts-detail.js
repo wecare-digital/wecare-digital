@@ -8,12 +8,7 @@
 
 const { launch, gotoStable } = require( './lib/browser' );
 const { target } = require( './lib/serve' );
-
-const ROUTES = [
-  '/', '/grahak-os', '/vayulok', '/contact', '/terms', '/privacy',
-  '/orders', '/bharat-rx', '/elsewhere', '/expo-week', '/dastavez',
-  '/clear-closure', '/ritual-guru', '/anew', '/niji-setu',
-];
+const { PUBLIC_ROUTES } = require( './lib/public-routes' );
 
 ( async () => {
   const wanted = process.argv.slice( 2 );
@@ -22,7 +17,7 @@ const ROUTES = [
   const page = await browser.newPage();
   try {
     await page.setViewportSize( { width: 1440, height: 1000 } );
-    for ( const route of ROUTES ) {
+    for ( const route of PUBLIC_ROUTES ) {
       await gotoStable( page, route.endsWith( '/' ) ? t.base + route : t.base + route + '/' );
       const hits = await page.evaluate( ( wanted ) => {
         const walker = document.createTreeWalker( document.body, NodeFilter.SHOW_TEXT );
