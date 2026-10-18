@@ -462,13 +462,13 @@ const HomePage: React.FC = () => {
            specifies clamp(32px,4.2vw,54px), which exists on /grahak-os/ and nowhere else;
            reconciling the two is an owner decision, and typecheck.js reports the gap. */
         .home-flow-title{
-          font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;
-          letter-spacing:-1.2px;color:rgba(0,0,0,.95);margin:0 0 14px;
+          font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);
+          letter-spacing:var(--public-section-tracking);color:var(--public-heading);margin:0 0 14px;
         }
         /* The one body level: 20px/400/1.4/-.125px. */
         .home-flow-lead{
-          font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;
-          color:rgba(0,0,0,.898);margin:0 0 24px;
+          font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+          color:var(--public-body);margin:0 0 24px;
         }
         /* EQUAL-HEIGHT ROWS, AND THAT IS THE FIX RATHER THAN A PREFERENCE.
            Each beat's lime rule is a border-inline-start on its own li, so every bar was
@@ -555,13 +555,13 @@ const HomePage: React.FC = () => {
            carried no letter-spacing while every other body rung uses -.125px.
            Both are now on their proper rungs. Everything here is Inter, as it already was -
            there was never a font-family mismatch, only a size one. */
-        .home-flow-list strong{display:block;margin:0 0 6px;font-size:22px;font-weight:700;letter-spacing:-.25px;line-height:1.27;color:#000}
+        .home-flow-list strong{display:block;margin:0 0 6px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);line-height:var(--public-card-leading);color:#000}
         /* Body rung at the neutral colour rgba(0,0,0,.898), matching .home-flow-lead,
            .home-sub and .home-close-lead. It was rgba(0,0,0,.54) (muted grey), which made
            this the only body copy on the page at that colour and read as a different, lighter
            treatment than the closing-band list beside it (which was #1a3a2a green). Both
            lists are now on the one neutral body colour so the two sections read as siblings. */
-        .home-flow-list span{display:block;font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898)}
+        .home-flow-list span{display:block;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:rgba(0,0,0,.898)}
 
         @media(max-width:1024px){
           .home-flow{grid-template-columns:minmax(0,1fr);gap:32px}
@@ -614,7 +614,7 @@ const HomePage: React.FC = () => {
            have been pushed 96px apart. */
         .home-layout{
           width:100%;
-          max-width:1300px;
+          max-width:var(--public-content-max);
           margin:0 auto;
           padding:80px 24px 48px;
           box-sizing:border-box;
@@ -651,11 +651,11 @@ const HomePage: React.FC = () => {
            overrides go, so there is one number here instead of three and the next change to
            font-size cannot desynchronise them again. */
         .home-head{
-          font-size:clamp(36px,4.3vw,60px);
-          font-weight:600;
-          line-height:1.04;
-          letter-spacing:-0.04em;
-          color:rgba(0,0,0,.95);
+          font-size:var(--public-hero-size);
+          font-weight:var(--public-hero-weight);
+          line-height:var(--public-hero-leading);
+          letter-spacing:var(--public-hero-tracking);
+          color:var(--public-heading);
           margin:0;
           max-width:900px;
         }
@@ -669,7 +669,7 @@ const HomePage: React.FC = () => {
           font-weight:400;
           line-height:1.4;
           letter-spacing:-.125px;
-          color:rgba(0,0,0,.898);
+          color:var(--public-body);
           margin:24px 0 0;
           max-width:560px;
           /* At a flat 560px this sentence broke after "over" and left "scale." alone
