@@ -1566,7 +1566,7 @@ def _handle_reaction_send(message_id: str, contact_id: str, recipient_phone: str
         }))
         
         # Emit success metric
-        _emit_delivery_metric('success', is_template=bool(template_name))
+        _emit_delivery_metric('success', is_template=False)
         
         return {
             'statusCode': 200,
