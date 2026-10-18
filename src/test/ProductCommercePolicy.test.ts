@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PRODUCT_REFUNDS, productPolicyCopy } from '../content/productCommerce';
+import { PRODUCT_REFUNDS, PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../content/productCommerce';
 
 describe( 'shared product policy summary', () => {
   it( 'keeps the shared refund rule concise and law-safe', () => {
@@ -18,6 +18,16 @@ describe( 'shared product policy summary', () => {
     expect( commerce ).not.toContain( retiredFooter );
     expect( policy ).not.toContain( 'showStatutoryRights' );
     expect( policy ).not.toContain( 'overview' );
+  } );
+
+
+  it( 'keeps every commerce policy field crisp', () => {
+    for ( const slug of Object.keys( PRODUCT_SKU_BY_SLUG ) ) {
+      const policy = productPolicyCopy( slug, slug );
+      for ( const [ field, copy ] of Object.entries( policy ) ) {
+        expect( copy.split( /\s+/ ).length, `${slug} ${field}` ).toBeLessThanOrEqual( 40 );
+      }
+    }
   } );
 
   it( 'keeps page-specific fulfilment and disclaimer copy behind one resolver', () => {
@@ -38,7 +48,7 @@ describe( 'shared product policy summary', () => {
       'A deliberately long page note that must not replace the crisp policy override.',
     );
     expect( visa.disclaimer ).toBe(
-      'WECARE.DIGITAL can prepare and track the application; approval and processing time remain with the relevant authority.'
+      'We can prepare and track the application; approval and timing remain with the relevant authority.'
     );
 
     const anew = productPolicyCopy(
