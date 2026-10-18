@@ -272,9 +272,9 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( '<p className="gos-offer-note">One-time consultation · full deployment separate</p>' );
     expect( source ).not.toContain( 'AI agents · from deployment to business outcomes' );
     const offerRule = cssRuleFor( source, '.gos-offer-note' );
-    expect( offerRule ).toContain( 'font-size:20px' );
-    expect( offerRule ).toContain( 'font-weight:400' );
-    expect( offerRule ).toContain( 'color:rgba(0,0,0,.898)' );
+    expect( offerRule ).toContain( 'font-size:var(--public-body-size)' );
+    expect( offerRule ).toContain( 'font-weight:var(--public-body-weight)' );
+    expect( offerRule ).toContain( 'color:var(--public-body)' );
     expect( source ).not.toContain( 'A consulting solution for organisations and businesses.' );
   } );
 
@@ -313,11 +313,11 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
     // Lime disc + dark-green text, the page's own tokens.
     expect( code ).toContain( '.api-step-num{' );
-    expect( code ).toContain( 'background:#d1f470;color:#1a3a2a' );
+    expect( code ).toContain( 'background:var(--public-brand-lime);color:var(--public-brand-green)' );
     // Supporting line uses the Home body rung.
     expect( code ).toContain( '.api-step-line{' );
-    expect( code ).toContain( 'font-size:20px' );
-    expect( code ).toContain( 'color:rgba(0,0,0,.898)' );
+    expect( code ).toContain( 'font-size:var(--public-body-size)' );
+    expect( code ).toContain( 'color:var(--public-body)' );
     // No retired colours leak into the step block CSS.
     expect( code ).not.toContain( '#2f6b52' );
     expect( code ).not.toContain( '#075e54' );
@@ -380,7 +380,7 @@ describe( 'Grahak OS: API-panel "Open demo in WhatsApp" link', () => {
     expect( stackRule ).toContain( 'gap:12px' );
     expect( rowRule ).toContain( 'justify-content:flex-start' );
 
-    expect( linkRule ).toContain( 'color:#1a3a2a' );
+    expect( linkRule ).toContain( 'color:var(--public-brand-green)' );
     expect( linkRule ).toContain( 'font-size:17px' );
     expect( linkRule ).toContain( 'font-weight:600' );
     expect( linkRule ).toContain( 'line-height:1.4' );
@@ -390,10 +390,10 @@ describe( 'Grahak OS: API-panel "Open demo in WhatsApp" link', () => {
     expect( linkRule ).not.toContain( 'border-radius:50px' );
     expect( linkRule ).not.toContain( 'min-height:52px' );
 
-    expect( code ).toContain( '.api-wa-link:hover{background:#d1f470' );
+    expect( code ).toContain( '.api-wa-link:hover{background:var(--public-brand-lime)' );
     expect( code ).toContain( 'transform:translateY(-1px)' );
-    expect( code ).toContain( '.api-wa-link:focus-visible{background:#d1f470' );
-    expect( code ).toContain( 'outline:3px solid #1a3a2a' );
+    expect( code ).toContain( '.api-wa-link:focus-visible{background:var(--public-brand-lime)' );
+    expect( code ).toContain( 'outline:3px solid var(--public-brand-green)' );
   } );
 
   it( 'keeps the solid lime paid WhatsApp CTA distinct and untouched', () => {
@@ -494,7 +494,7 @@ describe( 'Grahak OS: "Every touchpoint" pills carry multiple homepage hues', ()
     // Base geometry keeps the pinned 17px type and the dark body text.
     expect( code ).toContain( '.pp-pill{' );
     expect( code ).toContain( 'font-size:17px' );
-    expect( code ).toContain( 'color:rgba(0,0,0,.898)' );
+    expect( code ).toContain( 'color:var(--public-body)' );
     // Six hues from the homepage palette, now each a thin COLOURED BORDER on a WHITE
     // background - amber/green dot hues used only as border (they fail as TEXT), blue as
     // a border on white, lime as the brand pair. The earlier filled tint backgrounds were
