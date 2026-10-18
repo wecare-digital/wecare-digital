@@ -5,7 +5,6 @@ import type { ReactNode } from 'react';
 import { Fragment, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import PublicShare from '../../components/PublicShare';
 import RotatingHero from '../../components/RotatingHero';
 import {
   SOCIAL_CARD_URL, SOCIAL_CARD_W, SOCIAL_CARD_H, SOCIAL_CARD_TYPE, SOCIAL_CARD_ALT, SHARE_CARD_TYPE,
@@ -139,10 +138,11 @@ export default function BlogPostPage ( {
    * cards fully visible rather than a permanently transparent block. Doing it the other way round
    * - opacity:0 in CSS, opacity:1 from script - is how a page ships an invisible section.
    *
-   * IT ARMS THE ARTICLE BUT WATCHES THE SHARE ROW. The article starts at the top of the page and
-   * is already intersecting on load, so observing it would fire the reveal immediately and the
-   * animation would play off-screen where nobody sees it. The share row is the first element of
-   * the tail, so it is the honest trigger for "the reader has reached the end".
+   * IT ARMS THE ARTICLE BUT WATCHES THE POST NAVIGATION. The article starts at the top of the
+   * page and is already intersecting on load, so observing it would fire the reveal immediately
+   * and the animation would play off-screen. The newer/older navigation is the first article-tail
+   * control now that the global action dock is app-owned, so it is the honest "reader reached the
+   * end" trigger.
    *
    * classList, NOT setState: this is a visual side effect that changes nothing React renders,
    * which is the documented use for an effect and avoids a cascading render. It is also what
@@ -151,11 +151,11 @@ export default function BlogPostPage ( {
    * One-shot. It is an entrance, not a scroll effect, so the observer disconnects on the first
    * hit and scrolling back up does not replay it.
    */
-  const shareRef = useRef<HTMLDivElement | null>( null );
+  const tailRef = useRef<HTMLElement | null>( null );
   const postSearchFormRef = useRef<HTMLFormElement | null>( null );
   const postSearchInputRef = useRef<HTMLInputElement | null>( null );
   useEffect( () => {
-    const el = shareRef.current;
+    const el = tailRef.current;
     const article = el?.closest( 'article' );
     if ( !el || !article ) return;
     if ( typeof IntersectionObserver === 'undefined' ) return;
@@ -361,8 +361,7 @@ export default function BlogPostPage ( {
           carries the quiet "what you do with a piece" verb instead. RotatingHero owns the <main>
           and the ONE h1 (the hero), so the page keeps exactly one h1 (htmlcheck H1-MANY). Single
           dynamic template, so every post - today's and any added tomorrow - gets it automatically.
-          noShare is set because the post keeps its own PublicShare at the .post-share reveal
-          sentinel (mid-content), so the hero must not auto-mount a second dock. */}
+          The shared action dock is outside this template and owned once by _app. */}
       <RotatingHero
         frame="Read and"
         words={ [
@@ -372,7 +371,6 @@ export default function BlogPostPage ( {
           { word: 'return', tint: '#fef9c3', dot: '#ca8a04' },
         ] }
         ariaLabel={ post.title }
-        noShare
       >
         <article className="article-shell">
           {/* A REAL TRAIL, replacing a single "← Blog" back link at 13px/650 - the only
@@ -444,30 +442,8 @@ export default function BlogPostPage ( {
               typecheck.js would hold to the 40px/700 section-h2 rung. */}
           <BlogTags tags={ post.tags || [] } className="tags" ariaLabel="Tags on this post" />
 
-          {/* THE OLD INLINE SUBSCRIBE PILL IS GONE. The post page used to carry its own
-              `.blog-wa-subscribe` WhatsApp pill and a `.wc-sweep-note` "Continue on WhatsApp →"
-              microcopy line here, plus its own `.post-share` ShareLinks row below Contribution.
-              The owner unified every public surface onto the ONE global Contribute+Subscribe+Share block
-              (components/PublicShare), so both the old Subscribe pill and the page's own Share row
-              are removed and PublicShare below provides Contribute, Subscribe and Share in one block.
-              There is exactly ONE Subscribe+Share on the page now. */}
-          {/* THE GLOBAL CONTRIBUTE + SUBSCRIBE + SHARE BLOCK, AT THE END OF THE READING.
-              The page no longer renders its own ShareLinks row; PublicShare is the ONE
-              Contribute+Subscribe+Share block every public surface carries - the compact Contribute menu,
-              Subscribe, then Share (the icon row for THIS page's own URL + title) in one block.
-              canonical + post.title are passed as the share target, NOT router.asPath or the
-              seoTitle: what gets shared has to be the address the page declares as its own
-              (no utm string, no #hash) and the title without the " | WECARE.DIGITAL" tab suffix,
-              because og:site_name already says whose link it is. PublicShare would resolve these
-              from location/document itself, but passing them keeps the static export correct and
-              avoids a stale value pre-hydration.
-              The .post-share wrapper stays as the IntersectionObserver reveal sentinel - shareRef
-              still names it, so the staged entrance of this block, the pager and the related cards
-              is unchanged. Its own hairline border is dropped (see the CSS note) because
-              PublicShare carries its own full-width separator. */}
-          <div className="post-share" ref={ shareRef }>
-            <PublicShare url={ canonical } title={ post.title } />
-          </div>
+          {/* Contribute + Subscribe + Share is mounted once by _app after the route policy.
+              This article therefore owns only its reading-tail navigation and related posts. */}
 
           {/* WALKING THE STREAM, ONE POST AT A TIME.
               Until now the only way out of a post was back up to the listing, so reading two in a
@@ -486,7 +462,7 @@ export default function BlogPostPage ( {
               THE DEAD END IS RENDERED AND aria-hidden. Rendering it keeps the two boxes the same
               size so the row does not reflow between posts, and aria-hidden stops a screen reader
               announcing a control that does nothing. Copied from .pager-step.is-off. */}
-          <nav className="post-nav" aria-label="Newer and older posts">
+          <nav ref={ tailRef } className="post-nav" aria-label="Newer and older posts">
             { newer
               ? <Link className="post-nav-step is-prev" rel="prev" href={ `/post/${newer.slug}/` }>
                 <span className="post-nav-dir"><i className="post-nav-mark" aria-hidden="true" />Newer</span>
@@ -623,37 +599,26 @@ export default function BlogPostPage ( {
            layout rule, the .tags :global(a) pill, the four .tag-h0..3 dots and the hover/focus
            and reduced-motion handling all live there now, so the one component styles itself on
            every surface it renders. Nothing was dropped; it is the same block, in one place. */
-        /* THE OLD .blog-wa-subscribe PILL CSS IS GONE, with the markup it styled. The post page
-           no longer carries its own Subscribe pill (or the .wc-sweep-note microcopy that named
-           its destination); the global PublicShare block below provides Subscribe + Share, and
-           it styles its own .ps-subscribe pill. */
-        /* THE .post-share WRAPPER IS NOW JUST THE REVEAL SENTINEL. It wraps the global
-           PublicShare, which carries its OWN full-width hairline separator and its own top
-           spacing, so this wrapper must not add a second 1px rule and extra padding on top of
-           PublicShare's - that would read as a double divider. The margin-top keeps the block off
-           the Contribution above it; the border and padding move into PublicShare itself. */
-        .post-share{margin-top:4px}
-
+        /* Subscribe/Contribute/Share is app-owned and sits after the route policy, outside this
+           article. The article-tail reveal now covers only navigation and related posts. */
         /* THE ENTRANCE, AND THE FINISHED STATE IS THE DEFAULT.
            Everything below is scoped to article.is-armed, a class the page adds only after
            confirming an IntersectionObserver exists and the reader has not asked for less motion.
-           Without it these three blocks are simply visible - which is what a crawler, a
+           Without it these two blocks are simply visible - which is what a crawler, a
            no-JavaScript reader and a failed bundle all get. The home page's reveal is built the
            same way and records why: the inverse, hiding in CSS and showing from script, is how a
            page ships a section nobody can see.
            14px and .56s cubic-bezier(.22,.61,.36,1) are the home page's own reveal values, not new
            ones - the footer tagline and the closing points use the same pair. */
-        article.is-armed .post-share,
         article.is-armed .post-nav,
         article.is-armed .post-related{
           opacity:0;transform:translateY(14px);
           transition:opacity .56s cubic-bezier(.22,.61,.36,1),transform .56s cubic-bezier(.22,.61,.36,1);
         }
-        article.is-armed.is-in .post-share,
         article.is-armed.is-in .post-related,
         article.is-armed.is-in .post-nav{opacity:1;transform:none}
         /* Staggered in reading order, with the home page's own .09s-ish spacing between steps, so
-           the three arrive as a sequence rather than a single block appearing. */
+           the two arrive as a sequence rather than a single block appearing. */
         article.is-armed.is-in .post-nav{transition-delay:.1s}
         article.is-armed.is-in .post-related{transition-delay:.2s}
         /* THE ESCAPE HATCH, AND IT IS NOT OPTIONAL. These blocks are nothing but links. If the
@@ -662,7 +627,6 @@ export default function BlogPostPage ( {
            without scrolling - a keyboard reader would be moving focus into invisible controls.
            focus-within reveals the tail the moment anything inside it takes focus. The home page
            carries the same hatch on its closing band for the same reason. */
-        article.is-armed:focus-within .post-share,
         article.is-armed:focus-within .post-nav,
         article.is-armed:focus-within .post-related{opacity:1;transform:none}
 
@@ -821,9 +785,8 @@ export default function BlogPostPage ( {
              braces do different jobs. The effect reads the preference once, on mount, and never
              arms if it is set - that covers the normal case. This covers the one the script
              cannot: the preference being turned on AFTER the class is already on the node, at
-             which point the only thing that can put the three blocks back is CSS. Scoped to
+             which point the only thing that can put both blocks back is CSS. Scoped to
              .is-armed so it beats the armed rule rather than beating it by accident. */
-          article.is-armed .post-share,
           article.is-armed .post-nav,
           article.is-armed .post-related{opacity:1;transform:none;transition:none}
         }
