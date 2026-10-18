@@ -191,16 +191,8 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           </div>
         ) }
 
-        {/* Pages with no commerce SKU still keep their boundary note as a quiet card. Commerce
-            pages use the concise route-specific disclaimer from productPolicyCopy instead; the
-            longer narrative note is not repeated beneath Policy details. */}
-        { !sku && product.note && (
-          <div className="pdp-note">
-            { product.note.split( /\n{2,}/ ).map( ( para, i ) => (
-              <p className="pdp-note-p" key={ i }>{ para.trim() }</p>
-            ) ) }
-          </div>
-        ) }
+        {/* Non-commerce ProductPage routes use the shared _app PolicyDetails fallback.
+            Do not render the legacy boundary-note card here as a second disclosure style. */}
 
         {/* Contribute + Subscribe + Share is mounted once by _app after the route policy.
             ProductPage must not add a second page-level action dock. */}
@@ -276,24 +268,6 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           }
           .pdp-sku strong{color:var(--public-brand-green);font-weight:700}
           .pdp-sku-value{color:var(--public-muted)}
-          .pdp-note{
-            margin:34px 0 0;padding:22px;
-            border:1px solid var(--public-hairline);border-radius:14px;
-            background:#fcfdfb;
-          }
-          /* The paragraphs inside the note carry the legal-copy type. The box owns the outer
-             spacing (its 22px padding), so a paragraph has no outer margin except the gap between
-             paragraphs: 12px between, nothing before the first or after the last, so a single-
-             paragraph note sits exactly as it did when .pdp-note was itself the <p>. */
-          .pdp-note-p{
-            margin:0;
-            font-size:17px;font-weight:400;line-height:1.55;letter-spacing:-.05px;
-            color:var(--public-muted);
-          }
-          .pdp-note-p + .pdp-note-p{margin-top:12px}
-
-          /* The share row sits below the boundary note with its own air. */
-
           /* THE TWO-COLUMN WRAP, SCOPED TO .has-aside so every other product page is untouched.
              Default (no aside): a plain block, so .pdp keeps its own 700px measure exactly as
              before. With an aside: a grid - a flexible product column on the left and a fixed
