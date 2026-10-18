@@ -247,6 +247,21 @@ function main() {
       record( !html.includes( 'pdp-note' ), '/leave-review legacy disclosure state',
         html.includes( 'pdp-note' ) ? 'retired ProductPage boundary-note surface returned' : 'no legacy note card' );
     }
+
+    if ( route === '/grahak-os' ) {
+      const checkoutLabel = 'Checkout on WhatsApp';
+      const canonicalCheckout = 'href="https://wecare.digital/grahak-os/"';
+      record( html.includes( checkoutLabel ) && html.includes( canonicalCheckout ),
+        '/grahak-os Checkout on WhatsApp destination',
+        html.includes( checkoutLabel ) && html.includes( canonicalCheckout )
+          ? 'canonical Grahak OS destination'
+          : 'CTA label or canonical destination missing' );
+      record( !/href="https:\/\/wa\.me\/[^"]*"[^>]*>\s*Checkout on WhatsApp/i.test( html ),
+        '/grahak-os has no direct WhatsApp checkout link',
+        /href="https:\/\/wa\.me\/[^"]*"[^>]*>\s*Checkout on WhatsApp/i.test( html )
+          ? 'retired wa.me checkout destination returned'
+          : 'no direct wa.me checkout destination' );
+    }
   }
 
   /**
