@@ -70,10 +70,10 @@ describe( 'public page consolidation contracts', () => {
     expect( 'props' in result ).toBe( true );
     if ( !( 'props' in result ) ) throw new Error( 'Expected static props' );
     const props = await result.props;
-    expect( props.blogCards ).toHaveLength( 8 );
+    expect( props.blogCards ).toHaveLength( 6 );
     expect( props.blogCategories ).toEqual( [ 'Conversations', 'Gastronomy' ] );
     for ( const category of props.blogCategories ) {
-      expect( props.blogCards.filter( card => card.category === category ) ).toHaveLength( 4 );
+      expect( props.blogCards.filter( card => card.category === category ) ).toHaveLength( 3 );
     }
   } );
 
@@ -82,7 +82,7 @@ describe( 'public page consolidation contracts', () => {
       slug: `p-${index}`, title: `Later article ${index}`, category: 'Conversations', tags: index === 8 ? [ 'rare-tag' ] : [],
     } ) );
     vi.mocked( loadBlogCardIndex ).mockResolvedValueOnce( cards );
-    const { container } = render( <ProductBlogPanel cards={ cards.slice( 0, 4 ) } categories={ [ 'Conversations' ] } /> );
+    const { container } = render( <ProductBlogPanel cards={ cards.slice( 0, 3 ) } categories={ [ 'Conversations' ] } /> );
     await waitFor( () => expect( container.querySelectorAll( '.pbp-card' ) ).toHaveLength( 9 ) );
     fireEvent.click( screen.getByRole( 'button', { name: 'Next page' } ) );
     expect( screen.getByRole( 'progressbar' ) ).toHaveAttribute( 'aria-valuenow', '2' );

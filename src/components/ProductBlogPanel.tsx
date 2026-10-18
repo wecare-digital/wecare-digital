@@ -52,10 +52,10 @@ export interface ProductBlogPanelProps {
  * HOW MANY CARDS PER PAGE. Four reads as a comfortable page in the rail: enough to feel like a
  * spread, few enough that a page rarely needs to scroll. The last page simply holds the remainder.
  */
-const CARDS_PER_PAGE = 4;
+const CARDS_PER_PAGE = 3;
 
 /** How many tag chips a card shows at most, so a heavily-tagged post does not run its card long. */
-const CARD_TAGS = 3;
+const CARD_TAGS = 2;
 
 /** True when the OS asks for reduced motion, so page changes jump instead of sliding. SSR-safe. */
 function prefersReducedMotion (): boolean {
@@ -178,43 +178,11 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
           Paging lives at the top so it is reachable without scrolling past the cards; the slim
           progress bar sits directly under this row as the position indicator. */}
       <div className="pbp-head">
-        <h2 className="pbp-h">{ heading }</h2>
-        { showPager && (
-          <div className="pbp-arrows">
-            <button
-              type="button"
-              className="pbp-arrow"
-              aria-label="Previous page"
-              disabled={ activePage === 0 }
-              onClick={ () => goToPage( activePage - 1 ) }
-            >‹</button>
-            <button
-              type="button"
-              className="pbp-arrow"
-              aria-label="Next page"
-              disabled={ activePage >= pageCount - 1 }
-              onClick={ () => goToPage( activePage + 1 ) }
-            >›</button>
-          </div>
-        ) }
-      </div>
-
-      {/* POSITION BAR under the header - lime fill, tracks (activePage+1)/pageCount. */}
-      { showPager && (
-        <div
-          className="pbp-progress-track"
-          role="progressbar"
-          aria-label="Position through the pages"
-          aria-valuemin={ 1 }
-          aria-valuemax={ pageCount }
-          aria-valuenow={ activePage + 1 }
-        >
-          <div
-            className="pbp-progress-fill"
-            style={ { width: `${( ( activePage + 1 ) / pageCount ) * 100}%` } }
-          />
+        <div className="pbp-intro">
+          <h2 className="pbp-h">{ heading }</h2>
+          <p className="pbp-deck">Ideas worth another look.</p>
         </div>
-      ) }
+      </div>
 
       {/* Category switch - the two real categories, no "All". Lime when active, hairline when
           not; the site's pill language, no new colours. */}
@@ -244,10 +212,13 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
         <VoiceSearchMic onTranscript={ transcript => { setQuery( transcript ); resetToFirstPage(); } } />
       </div>
 
-      { initialCategories && !allCards && <p role="status">
-        { failed ? <>More posts could not be loaded. <button type="button" onClick={ () => setAttempt( value => value + 1 ) }>Try again</button> </> : 'Loading more posts… ' }
-        <Link href="/blog/">Browse the blog</Link>
-      </p> }
+      { initialCategories && !allCards && (
+        <div className={ failed ? 'pbp-load is-error' : 'pbp-load pbp-sr' } role="status">
+          { failed
+            ? <>More posts could not be loaded. <button type="button" onClick={ () => setAttempt( value => value + 1 ) }>Try again</button></>
+            : 'Loading more posts…' }
+        </div>
+      ) }
       {/* THE SWIPEABLE PAGER. The track is a horizontal scroll-snap container: each child .pbp-page
           is one viewport wide, so a touch swipe snaps page to page natively, and the arrow buttons
           / arrow keys drive the same scrollTo. Each page is its own vertical scroller, so swiping
@@ -295,33 +266,71 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
             </div>
         ) }
 
-      {/* THE RSS SUBSCRIBE AFFORDANCE, icon-only, at the foot of the panel - the same component
-          /blog/ places below its grid, so both surfaces advertise the feed with one control. It
-          sits under the pager track, end-aligned to the panel's measure. */}
-      <div className="pbp-rss">
+      { showPager && (
+        <div className="pbp-nav" aria-label="Perspectives pagination">
+          <button
+            type="button"
+            className="pbp-arrow"
+            aria-label="Previous page"
+            disabled={ activePage === 0 }
+            onClick={ () => goToPage( activePage - 1 ) }
+          >‹</button>
+          <div
+            className="pbp-progress-track"
+            role="progressbar"
+            aria-label="Position through the pages"
+            aria-valuemin={ 1 }
+            aria-valuemax={ pageCount }
+            aria-valuenow={ activePage + 1 }
+          >
+            <div
+              className="pbp-progress-fill"
+              style={ { width: `${( ( activePage + 1 ) / pageCount ) * 100}%` } }
+            />
+          </div>
+          <button
+            type="button"
+            className="pbp-arrow"
+            aria-label="Next page"
+            disabled={ activePage >= pageCount - 1 }
+            onClick={ () => goToPage( activePage + 1 ) }
+          >›</button>
+        </div>
+      ) }
+
+      <div className="pbp-foot">
+        <Link className="pbp-browse" href="/blog/">Browse all perspectives <span aria-hidden="true">→</span></Link>
         <RssIcon />
       </div>
 
       <style jsx>{`
-        .pbp{max-width:560px}
-        /* The RSS icon's row at the foot of the panel, end-aligned under the cards. */
-        .pbp-rss{display:flex;justify-content:flex-end;margin:16px 0 0}
+        .pbp{max-width:560px;width:100%}
+        .pbp-foot{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:22px 0 0}
+        .pbp-browse{
+          display:inline-flex;align-items:center;gap:8px;
+          color:var(--public-brand-green);font-size:15px;font-weight:700;line-height:1.4;
+          text-decoration:none;
+        }
+        .pbp-browse:hover{text-decoration:underline;text-underline-offset:3px}
+        .pbp-browse:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:4px}
 
         /* HEADER ROW: heading left, pager arrows pinned right. Baseline-aligned so the arrows sit
            on the heading's line rather than floating. The progress bar follows directly below. */
-        .pbp-head{
-          display:flex;align-items:center;justify-content:space-between;gap:12px;
-          margin:0 0 12px;
-        }
+        .pbp-head{margin:0 0 24px}
+        .pbp-intro{display:flex;flex-direction:column;gap:8px}
         .pbp-h{
-          font-size:clamp(22px,2.4vw,28px);font-weight:700;line-height:1.1;
-          letter-spacing:-.5px;color:rgba(0,0,0,.95);margin:0;
+          font-size:clamp(24px,2.6vw,30px);font-weight:700;line-height:1.08;
+          letter-spacing:-.6px;color:rgba(0,0,0,.95);margin:0;
         }
-        /* The two arrows as a tight pair in the top-right corner. */
-        .pbp-arrows{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+        .pbp-deck{
+          margin:0;max-width:34ch;
+          font-size:var(--public-body-size);font-weight:var(--public-body-weight);
+          line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+          color:var(--public-muted);
+        }
 
         /* PILLS - the site's pill geometry. Lime active, hairline inactive, no new colours. */
-        .pbp-pills{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+        .pbp-pills{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 20px}
         .pbp-pill{
           display:inline-flex;align-items:center;min-height:44px;padding:0 18px;
           border:1px solid var(--public-hairline);border-radius:50px;background:#fff;
@@ -333,7 +342,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
         .pbp-pill:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
 
         /* BORDERLESS SEARCH. One quiet bottom hairline plus the shared lime voice mic. */
-        .pbp-search{position:relative;margin:0 0 16px}
+        .pbp-search{position:relative;margin:0 0 28px}
         .pbp-sr{
           position:absolute;width:1px;height:1px;padding:0;margin:-1px;
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
@@ -375,17 +384,13 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
            off-screen to swipe to. Its own vertical scroller: four cards usually fit, but a page
            that overflows scrolls down on its own without disturbing the horizontal swipe. */
         .pbp-page{
-          list-style:none;margin:0;padding:2px;
+          list-style:none;margin:0;padding:2px 2px 0;
           flex:0 0 100%;width:100%;box-sizing:border-box;
           scroll-snap-align:start;scroll-snap-stop:always;
-          display:flex;flex-direction:column;gap:10px;
-          /* dvh over vh so collapsing mobile browser chrome (address bar) does not clip the page;
-             the vh line is the fallback for engines without dynamic viewport units. */
-          max-height:min(70vh,620px);
-          max-height:min(70dvh,620px);
-          overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+          display:flex;flex-direction:column;gap:24px;
         }
-        .pbp-card{margin:0}
+        .pbp-card{margin:0;padding:0 0 24px;border-bottom:1px solid var(--public-hairline)}
+        .pbp-card:last-child{padding-bottom:0;border-bottom:0}
 
         /* PAGER CONTROLS: arrows flanking the progress bar, which stretches to fill the row.
         /* PAGER ARROWS - lime-themed, matching our pill language. Dark-green border and lime type
@@ -404,12 +409,13 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
         .pbp-arrow:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
         .pbp-arrow:disabled{opacity:.3;cursor:default;border-color:#cfd4d9;color:rgba(0,0,0,.4)}
 
-        /* POSITION BAR under the header. Full width, hairline track, lime fill - our colour. The
-           one place lime marks progress rather than action, fine as a thin bar. No numbers. 16px
-           of air below it sits it off the pills that follow. */
+        .pbp-nav{
+          display:grid;grid-template-columns:44px minmax(0,1fr) 44px;
+          align-items:center;gap:12px;margin:26px 0 0;
+        }
         .pbp-progress-track{
-          width:100%;height:6px;border-radius:50px;background:#eef0f2;overflow:hidden;
-          margin:0 0 16px;
+          width:100%;height:5px;border-radius:50px;background:#eef0f2;overflow:hidden;
+          margin:0;
         }
         .pbp-progress-fill{
           height:100%;border-radius:50px;background:var(--public-brand-lime);
@@ -422,16 +428,12 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
            rgba(209,244,112,.18) is used rather than full-strength lime so a whole card hovering
            does not read as a second CTA; the dark-green border is what says "actionable". */
         .pbp-link{
-          display:flex;flex-direction:column;gap:6px;
-          padding:16px;border:1px solid var(--public-hairline);border-radius:14px;background:#fcfdfb;
-          text-decoration:none;color:inherit;
-          transition:border-color .2s,background-color .2s,transform .2s,box-shadow .2s;
+          display:flex;flex-direction:column;gap:9px;
+          padding:0;text-decoration:none;color:inherit;
+          transition:color .2s;
         }
-        .pbp-link:hover{
-          border-color:var(--public-brand-green);background:rgba(209,244,112,.18);
-          transform:translateY(-2px);box-shadow:var(--public-lift-shadow);
-        }
-        .pbp-link:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
+        .pbp-link:hover .pbp-title{color:var(--public-brand-green)}
+        .pbp-link:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:4px;border-radius:4px}
 
         /* TAG ROW at the foot of a card, now the shared BlogTags component (nav.tags.pbp-tagrow).
            BlogTags styles the pills themselves - the dot, the hairline, the lime hover; this only
@@ -440,17 +442,19 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
            is a composite component, so styled-jsx does not scope it from here - the same reason
            .pbp-link below is reached through the structure rather than a scoped class. The old
            per-card .pbp-chip went with the markup: the chips are links now and live in BlogTags. */
-        .pbp-card :global(.pbp-tagrow){margin-top:4px;padding-top:0;border-top:0}
-        .pbp-title{margin:0;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading)}
-        /* The short review: the post excerpt, clamped to two lines so no card runs long. */
+        .pbp-card :global(.pbp-tagrow){margin-top:12px;padding-top:0;border-top:0}
+        .pbp-title{
+          margin:0;font-size:clamp(20px,2vw,24px);font-weight:var(--public-card-weight);
+          line-height:1.22;letter-spacing:var(--public-card-tracking);color:var(--public-heading);
+          transition:color .2s;
+        }
         .pbp-excerpt{
           font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);
-          display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+          display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
         }
 
         @media(prefers-reduced-motion:reduce){
-          .pbp-pill,.pbp-link,.pbp-search input,.pbp-arrow,.pbp-progress-fill{transition:none}
-          .pbp-link:hover{transform:none;box-shadow:none}
+          .pbp-pill,.pbp-link,.pbp-title,.pbp-search input,.pbp-arrow,.pbp-progress-fill{transition:none}
           /* A reduced-motion reader gets instant page jumps instead of the smooth scroll; the
              track still snaps, it just does not animate the slide. */
           .pbp-track{scroll-behavior:auto}
