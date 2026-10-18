@@ -5,7 +5,7 @@ const mock = vi.hoisted( () => ( { save: vi.fn(), success: vi.fn(), error: vi.fn
 vi.mock( '../api/client', () => ( { getSystemConfig: vi.fn().mockResolvedValue( null ), updateSystemConfig: mock.save } ) );
 vi.mock( '../contexts/ToastContext', () => ( { useToastContext: () => ( { success: mock.success, error: mock.error } ) } ) );
 vi.mock( '../components/Layout', () => ( { default: ( { children }: { children: React.ReactNode } ) => <div>{children}</div> } ) );
-import Welcome from '../pages/workspace/engage/whatsapp/welcome';
+import Welcome from '../components/workspace/whatsapp/welcome';
 afterEach( () => { cleanup(); vi.clearAllMocks(); } );
 describe( 'welcome settings retain drafts on unconfirmed saves', () => {
   it( 'shows an error and retains the text instead of claiming success', async () => {

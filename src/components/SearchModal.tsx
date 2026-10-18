@@ -47,7 +47,7 @@ const NAVIGATION_ITEMS: SearchResult[] = getAllNavItems().map( ( item, index ) =
 } ) );
 
 /** The handful worth offering before anything is typed. */
-const DEFAULT_PATHS = [ '/workspace/engage/inbox', '/workspace/contacts', '/workspace/dashboard', '/workspace/engage/broadcast',
+const DEFAULT_PATHS = [ '/workspace/engage/inbox', '/workspace/contacts', '/workspace/engage/service-ops', '/workspace/engage/broadcast',
   '/workspace/engage/settings', '/workspace/access/security' ];
 const DEFAULT_RESULTS: SearchResult[] = DEFAULT_PATHS
   .map( ( p ) => NAVIGATION_ITEMS.find( ( i ) => i.path === p ) )
@@ -244,30 +244,33 @@ const SearchModal: React.FC<SearchModalProps> = ( {
         </div>
       </div>
 
+      {/* R5 token adoption: palette chrome reads the home-page tokens from tokens.css
+          (--text-*, --text-light/muted, --bg-hover, --bg-secondary, --border) instead of
+          hardcoded greys, so it matches the rest of the workspace. */}
       <style jsx>{ `
         .search-hint {
-          font-size: 12px;
-          color: #9ca3af;
+          font-size: var(--text-xs);
+          color: var(--text-light);
           padding: 4px 8px;
-          background: #f3f4f6;
+          background: var(--bg-hover);
           border-radius: 4px;
         }
         .search-result-type {
           font-size: 10px;
-          color: #9ca3af;
+          color: var(--text-light);
           text-transform: uppercase;
           padding: 2px 6px;
-          background: #f3f4f6;
+          background: var(--bg-hover);
           border-radius: 4px;
         }
         .search-footer {
           display: flex;
           gap: 16px;
           padding: 12px 20px;
-          background: #f9fafb;
-          border-top: 1px solid #e5e7eb;
-          font-size: 12px;
-          color: #6b7280;
+          background: var(--bg-secondary);
+          border-top: 1px solid var(--border);
+          font-size: var(--text-xs);
+          color: var(--text-muted);
         }
       `}</style>
     </div>

@@ -716,6 +716,67 @@ input, textarea, select {
   clip-path: none;
 }
 
+/* HOME-PAGE SCROLL CUE under the flat nav. Mirrors the public header's Products rail
+   (Header.tsx `.nav-products-more`): a 44x44 lime circle with a dark-green focus ring,
+   rendered only when the nav overflows and `.is-hidden` once fully scrolled so it leaves
+   the a11y tree AND the layout cannot be clicked. The button is >=44px for the touch
+   floor; `prefers-reduced-motion` drops the hover transition. */
+.sidebar-nav-cue-row {
+  flex: 0 0 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  box-sizing: border-box;
+}
+
+.sidebar-nav-cue-row.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.sidebar-nav-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #d1f470;
+  color: #0f2a1d;
+  cursor: pointer;
+  transition: background-color .16s ease, transform .16s ease, box-shadow .16s ease;
+}
+
+.sidebar-nav-more:hover {
+  background: #c5ed51;
+  transform: translateY(-1px) scale(1.06);
+  box-shadow: 0 4px 12px rgba(26, 58, 42, .16);
+}
+
+.sidebar-nav-more:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 5px #1a3a2a;
+}
+
+.sidebar-nav-more-icon {
+  display: block;
+  width: 28px;
+  height: 28px;
+  fill: currentColor;
+  transform: scaleX(1.08);
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-nav-more {
+    transition: none;
+  }
+}
+
 /* THE WEBKIT/BLINK HALF OF THE LIME SCROLLBAR WAS DELETED HERE - four
    .sidebar-nav::-webkit-scrollbar* rules, a lime thumb and a darker-lime hover, both
    !important, at a third width of 8px. Their comment said the !important existed to out-rank

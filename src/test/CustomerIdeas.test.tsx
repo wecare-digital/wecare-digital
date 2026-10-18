@@ -18,7 +18,7 @@ vi.mock('../api/client', () => ({
   ]),
 }));
 
-import FlowResponsesPage from '../pages/workspace/engage/whatsapp/flow-responses';
+import FlowResponsesPage from '../components/workspace/whatsapp/flow-responses';
 
 describe('customer ideas in the workspace', () => {
   it('shows the full thought, contact and explicit follow-up permission without replacing legacy submissions', async () => {

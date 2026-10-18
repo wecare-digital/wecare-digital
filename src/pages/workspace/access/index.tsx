@@ -19,10 +19,10 @@ interface PageProps {
 const AccessPage: React.FC<PageProps> = ({ user }) => {
   const router = useRouter();
 
-  // If user is authenticated (passed from _app.tsx), redirect to dashboard
+  // If user is authenticated (passed from _app.tsx), redirect to the workspace
   useEffect(() => {
     if (user) {
-      router.replace('/workspace/dashboard');
+      router.replace('/workspace/engage/inbox');
     }
   }, [user, router]);
 
@@ -35,7 +35,7 @@ const AccessPage: React.FC<PageProps> = ({ user }) => {
       <div className="acp-wrap">
         <div className="acp-card">
           <BrandBadge label="WECARE.DIGITAL" />
-          <p className="acp-note">Redirecting to your dashboard…</p>
+          <p className="acp-note">Redirecting to your workspace…</p>
         </div>
         <style jsx>{`
           /* Brought onto the palette. This used #f5f5f5 behind #1a1a1a with a

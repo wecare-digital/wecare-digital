@@ -9,7 +9,7 @@
  * The import-level endpoint diff taken before this reduction (api.* symbols here minus api.*
  * symbols there) printed four names, of which exactly three are calls, and every one is
  * already reachable elsewhere, so no capability was dropped to get here:
- *   clearAllInboxData       — workspace/dashboard/index.tsx
+ *   clearAllInboxData       — formerly workspace/dashboard/index.tsx (page since removed)
  *   deleteContact           — workspace/contacts/index.tsx (single and batch)
  *   sendWhatsAppInteractive — components/InteractiveMessageComposer.tsx, which the
  *                             omnichannel inbox already renders

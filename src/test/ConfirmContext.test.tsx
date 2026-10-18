@@ -67,9 +67,9 @@ vi.mock( '../api/seo', async importOriginal => ( {
 
 import { ConfirmProvider, usePromptDialog, useConfirm } from '../contexts/ConfirmContext';
 import TemplateSender from '../components/TemplateSender';
-import SecureFilesPage from '../pages/workspace/dashboard/secure-files';
-import CtwaAdsPage from '../pages/workspace/engage/whatsapp/ctwa-ads';
-import BlogSeoManager from '../pages/workspace/seo/blog-manager';
+import SecureFilesPage from '../components/workspace/service/SecureFiles';
+import CtwaAdsPage from '../components/workspace/whatsapp/ctwa-ads';
+import BlogSeoManager from '../components/workspace/seo/BlogManager';
 
 type PromptOptions = Parameters<ReturnType<typeof usePromptDialog>>[ 0 ];
 

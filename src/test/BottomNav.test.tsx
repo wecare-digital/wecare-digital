@@ -85,7 +85,9 @@ describe( 'behaviour', () => {
     const current = screen.getAllByRole( 'button' )
       .filter( ( b ) => b.getAttribute( 'aria-current' ) === 'page' );
     expect( current ).toHaveLength( 1 );
-    expect( current[ 0 ].textContent ).toContain( 'Inbox' );
+    // The first stream is the common inbox; the flat sidebar labels it "Messages"
+    // (its path stays /workspace/engage/inbox). This asserts the label the row renders.
+    expect( current[ 0 ].textContent ).toContain( navigationConfig[ 0 ].label );
   } );
 
   it( 'reflects the drawer being open on the More button', () => {

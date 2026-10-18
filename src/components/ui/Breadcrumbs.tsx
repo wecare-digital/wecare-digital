@@ -22,9 +22,9 @@ interface BreadcrumbsProps {
 function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   const crumbs: BreadcrumbItem[] = [];
   
-  // Always start with Dashboard
-  if (pathname !== '/workspace/dashboard') {
-    crumbs.push({ label: 'Dashboard', path: '/workspace/dashboard', isLast: false });
+  // Always start with Messages (the workspace root)
+  if (pathname !== '/workspace/engage/inbox') {
+    crumbs.push({ label: 'Messages', path: '/workspace/engage/inbox', isLast: false });
   }
   
   // Find matching nav items
@@ -73,8 +73,8 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ className }) => {
   const router = useRouter();
   const breadcrumbs = getBreadcrumbs(router.pathname);
   
-  // Don't show breadcrumbs on dashboard or if only one item
-  if (router.pathname === '/workspace/dashboard' || breadcrumbs.length <= 1) {
+  // Don't show breadcrumbs on the workspace root or if only one item
+  if (router.pathname === '/workspace/engage/inbox' || breadcrumbs.length <= 1) {
     return null;
   }
   

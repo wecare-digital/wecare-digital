@@ -46,7 +46,7 @@ vi.mock( '../api/client', async importOriginal => ( {
     listCatalogFlows: vi.fn().mockResolvedValue( [] ),
 } ) );
 
-import CatalogBuilderPage from '../pages/workspace/engage/whatsapp/catalog-builder';
+import CatalogBuilderPage from '../components/workspace/whatsapp/catalog-builder';
 
 /** A list row as _list_catalog_products normalizes it: the Meta id, and a formatted price. */
 const ROW = {

@@ -27,7 +27,9 @@ import { describe, expect, it } from 'vitest';
  */
 
 const ROOT = path.resolve( __dirname, '..', '..' );
-const TAB = path.join( ROOT, 'src', 'pages', 'workspace', 'dashboard', 'wa-graph-tools.tsx' );
+// The WA Graph Tools page (with the Direct Send tab) folded into the Platform hub in the
+// workspace redesign: its body moved to src/components/workspace/platform/WaGraphTools.tsx.
+const TAB = path.join( ROOT, 'src', 'components', 'workspace', 'platform', 'WaGraphTools.tsx' );
 const CLIENT = path.join( ROOT, 'src', 'api', 'client.ts' );
 
 const tab = fs.readFileSync( TAB, 'utf8' );

@@ -3,7 +3,9 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 
 const root = path.resolve( process.cwd() );
-const page = fs.readFileSync( path.join( root, 'src/pages/workspace/commerce/catalog.tsx' ), 'utf8' );
+// Catalog folded into the Commerce hub as an embedded tab; its body moved to
+// src/components/workspace/commerce/Catalog.tsx in the workspace redesign.
+const page = fs.readFileSync( path.join( root, 'src/components/workspace/commerce/Catalog.tsx' ), 'utf8' );
 const client = fs.readFileSync( path.join( root, 'src/api/client.ts' ), 'utf8' );
 
 describe( 'Meta catalog owner approval workspace controls', () => {

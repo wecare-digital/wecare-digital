@@ -60,7 +60,7 @@ export const useNavigationShortcuts = () => {
   const router = useRouter();
 
   const shortcuts: ShortcutConfig[] = [
-    { key: 'd', ctrl: true, action: () => router.push('/workspace/dashboard'), description: 'Go to Dashboard' },
+    { key: 'd', ctrl: true, action: () => router.push('/workspace/engage/inbox'), description: 'Go to Messages' },
     { key: 'm', ctrl: true, action: () => router.push('/workspace/engage/inbox?channel=whatsapp'), description: 'Go to Messages' },
     { key: 'c', ctrl: true, shift: true, action: () => router.push('/workspace/contacts'), description: 'Go to Contacts' },
     { key: 'b', ctrl: true, action: () => router.push('/workspace/engage/whatsapp/campaign'), description: 'Go to Campaign' },
@@ -97,7 +97,7 @@ export const getShortcutGroups = () => [
   {
     title: 'Navigation',
     shortcuts: [
-      { keys: ['Ctrl', 'D'], description: 'Dashboard' },
+      { keys: ['Ctrl', 'D'], description: 'Messages' },
       { keys: ['Ctrl', 'M'], description: 'Messages' },
       { keys: ['Ctrl', 'Shift', 'C'], description: 'Contacts' },
       { keys: ['Ctrl', 'B'], description: 'Campaign' },

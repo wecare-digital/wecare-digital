@@ -35,7 +35,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 import SEO from '../../components/SEO';
 import {
-  DashboardIcon, MessageIcon, ContactsIcon, StoreIcon, PaymentIcon, LinkIcon,
+  MessageIcon, ContactsIcon, StoreIcon, PaymentIcon, LinkIcon,
   FormIcon, DocumentIcon, CheckListIcon, SearchIcon, AdvisorIcon,
   OverviewIcon, SettingsIcon,
 } from '../../lib/icons';
@@ -59,33 +59,36 @@ interface Family {
  * NO TILE POINTS AT A REDIRECT STUB (2026-10-15). Five tiles used to: forms/, docs/,
  * service/ and admin/ are router.replace signposts kept only so old bookmarks land
  * somewhere, and access/ is the sign-in landing, which sends a signed-in user straight
- * to /workspace/dashboard. A 200 from a signpost is not a destination, so each tile now
+ * to the workspace landing. A 200 from a signpost is not a destination, so each tile now
  * names the page its signpost delivers, and says what that page is:
  *   forms/   -> forms/responses              (label kept: it is the forms queue)
  *   docs/    -> engage/documents             ("Drop Docs" — the old "Provider
  *               documentation and changelog" text described the Docs Scraper, which
  *               this tile never reached; that is engage/docs, in the gear)
  *   service/ -> engage/service-ops           (label kept)
- *   admin/   -> dashboard/system-architecture ("Architecture snapshot", the gear's
- *               label for the same page — it is a document, not an admin console)
- * The Access tile is GONE rather than repointed: its signpost lands on the dashboard,
- * which is the first tile here, and nothing in the app is "Users, roles and
- * permissions". Sign-in & MFA is in the gear's account group. Navigation.test.tsx
- * asserts each path below is a real page and none is a signpost.
+ *   admin/   -> settings/platform/system-architecture ("Architecture snapshot", the
+ *               gear's label for the same page — it is a document, not an admin console)
+ * The Dashboard tile and the Access tile are both GONE: the Dashboard section was
+ * removed and the workspace landing is now /workspace/engage/inbox, and the Access
+ * signpost lands there too, while nothing in the app is "Users, roles and permissions".
+ * Sign-in & MFA is in the gear's account group. Navigation.test.tsx asserts each path
+ * below is a real page and none is a signpost.
  */
 const families: Family[] = [
-  { id: 'dashboard', label: 'Dashboard', desc: 'System overview, health and live metrics', path: '/workspace/dashboard/', Icon: DashboardIcon, color: '#3B82F6' },
   { id: 'engage', label: 'Messages', desc: 'WhatsApp, SMS, Voice, Email, RCS and Push', path: '/workspace/engage/', Icon: MessageIcon, color: '#25D366' },
   { id: 'contacts', label: 'Contacts', desc: 'Contact records, segments and history', path: '/workspace/contacts/', Icon: ContactsIcon, color: '#8B5CF6' },
   { id: 'commerce', label: 'Commerce', desc: 'Catalogue, orders and store integration', path: '/workspace/commerce/', Icon: StoreIcon, color: '#F59E0B' },
   { id: 'pay', label: 'Payments', desc: 'Invoices, collections and reconciliation', path: '/workspace/pay/', Icon: PaymentIcon, color: '#10B981' },
   { id: 'link', label: 'Links', desc: 'Short links and click analytics', path: '/workspace/link/', Icon: LinkIcon, color: '#6366F1' },
-  { id: 'forms', label: 'Forms', desc: 'Customer service forms and submissions', path: '/workspace/forms/responses/', Icon: FormIcon, color: '#EC4899' },
-  { id: 'docs', label: 'Drop Docs', desc: 'Documents customers send in, for review and approval', path: '/workspace/engage/documents/', Icon: DocumentIcon, color: '#0EA5E9' },
+  // FEAT-005: Form responses and Drop Docs are tabs on the Service hub now; the tiles deep-link
+  // the hub with a ?tab= id (the standalone forms/responses and engage/documents routes were
+  // relocated out of the pages tree).
+  { id: 'forms', label: 'Forms', desc: 'Customer service forms and submissions', path: '/workspace/engage/service-ops?tab=form-responses', Icon: FormIcon, color: '#EC4899' },
+  { id: 'docs', label: 'Drop Docs', desc: 'Documents customers send in, for review and approval', path: '/workspace/engage/service-ops?tab=documents', Icon: DocumentIcon, color: '#0EA5E9' },
   { id: 'task', label: 'Tasks', desc: 'Work items, assignments and follow-ups', path: '/workspace/task/', Icon: CheckListIcon, color: '#14B8A6' },
   { id: 'seo', label: 'SEO', desc: 'Sitemaps, metadata and search tooling', path: '/workspace/seo/', Icon: SearchIcon, color: '#A855F7' },
   { id: 'service', label: 'Service', desc: 'Customer requests and service desk', path: '/workspace/engage/service-ops/', Icon: AdvisorIcon, color: '#EF4444' },
-  { id: 'admin', label: 'Architecture snapshot', desc: 'Hand-maintained map of routes, functions, storage and risks', path: '/workspace/dashboard/system-architecture/', Icon: OverviewIcon, color: '#64748B' },
+  { id: 'admin', label: 'Architecture snapshot', desc: 'Hand-maintained map of routes, functions, storage and risks', path: '/workspace/settings/platform?tab=system-architecture', Icon: OverviewIcon, color: '#64748B' },
   // No index.tsx under settings/ — link the page that exists, not the directory.
   { id: 'settings', label: 'Settings', desc: 'Internal agent and system configuration', path: '/workspace/settings/internal-agent/', Icon: SettingsIcon, color: '#6B7280' },
 ];
@@ -101,14 +104,14 @@ const WorkspacePage: React.FC<PageProps> = ({ signOut, user }) => {
       />
       <div className="inner-page-container" style={{ maxWidth: 960 }}>
         <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>Workspace</h1>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px' }}>Workspace</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
             Everything in one place. Pick an area to get started.
           </p>
         </div>
 
         <div
-          style={{ fontSize: 12, fontWeight: 600, color: '#1a3a2a', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}
+          style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}
         >
           Areas
         </div>
@@ -168,25 +171,25 @@ const WorkspacePage: React.FC<PageProps> = ({ signOut, user }) => {
           gap: 14px;
           width: 100%;
           padding: 14px 16px;
-          background: #fff;
-          border: 1.5px solid #e5e7eb;
+          background: var(--surface);
+          border: 1.5px solid var(--border);
           border-radius: 13px;
           cursor: pointer;
           transition: all 0.15s;
           text-align: left;
-          font-family: inherit;
+          font-family: var(--font-sans);
           -webkit-tap-highlight-color: transparent;
         }
         .ws-btn:hover,
         .ws-btn:active {
-          border-color: #d1f470;
+          border-color: var(--lime);
           background: rgba(209, 244, 112, 0.04);
         }
         /* Keyboard users get the same affordance as a pointer hover, plus a ring. */
         .ws-btn:focus-visible {
-          outline: 2px solid #1a3a2a;
+          outline: 2px solid var(--accent);
           outline-offset: 2px;
-          border-color: #d1f470;
+          border-color: var(--lime);
         }
         .ws-icon {
           width: 40px;
@@ -198,8 +201,8 @@ const WorkspacePage: React.FC<PageProps> = ({ signOut, user }) => {
           flex-shrink: 0;
         }
         .ws-text { display: block; flex: 1; min-width: 0; }
-        .ws-label { display: block; font-size: 15px; font-weight: 600; color: #1a1a1a; }
-        .ws-desc { display: block; font-size: 12px; color: #6b7280; margin-top: 1px; }
+        .ws-label { display: block; font-size: 15px; font-weight: 600; color: var(--text); }
+        .ws-desc { display: block; font-size: 12px; color: var(--text-muted); margin-top: 1px; }
         .ws-chev { flex-shrink: 0; }
 
         @media (max-width: 768px) {

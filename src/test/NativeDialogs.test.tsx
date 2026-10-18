@@ -258,13 +258,16 @@ describe( 'no native browser dialogs outside src/test/', () => {
   } );
 
   it( 'routes all six migrated sites through a hook', () => {
+    // The six sites keep their no-native-dialog guarantee at their CURRENT paths: the
+    // workspace redesign (FEAT-005/006) relocated five of them out of src/pages/workspace/**
+    // into src/components/workspace/** when their dense sections folded into tabbed hubs.
     const expected: [ string, RegExp ][] = [
       [ 'src/components/TemplateSender.tsx', /useConfirm\b/ ],
-      [ 'src/pages/workspace/dashboard/secure-files.tsx', /useConfirm\b/ ],
-      [ 'src/pages/workspace/engage/whatsapp/ctwa-ads.tsx', /useConfirmDanger\b/ ],
-      [ 'src/pages/workspace/seo/blog-manager.tsx', /useConfirmDanger\b/ ],
-      [ 'src/pages/workspace/seo/blog-production/qa/index.tsx', /usePromptDialog\b/ ],
-      [ 'src/pages/workspace/seo/blog-production/publish/index.tsx', /usePromptDialog\b/ ],
+      [ 'src/components/workspace/service/SecureFiles.tsx', /useConfirm\b/ ],
+      [ 'src/components/workspace/whatsapp/ctwa-ads.tsx', /useConfirmDanger\b/ ],
+      [ 'src/components/workspace/seo/BlogManager.tsx', /useConfirmDanger\b/ ],
+      [ 'src/components/workspace/seo/blog-production/Qa.tsx', /usePromptDialog\b/ ],
+      [ 'src/components/workspace/seo/blog-production/Publish.tsx', /usePromptDialog\b/ ],
     ];
     for ( const [ file, hook ] of expected ) {
       const src = codeOnly( fs.readFileSync( path.join( REPO, file ), 'utf8' ) );

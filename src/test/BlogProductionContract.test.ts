@@ -27,7 +27,27 @@ import { describe, expect, it } from 'vitest';
 
 const ROOT = path.resolve( __dirname, '..', '..' );
 const LAMBDA = path.join( ROOT, 'amplify', 'functions', 'operations', 'seo-tools' );
-const PAGES = path.join( ROOT, 'src', 'pages', 'workspace', 'seo', 'blog-production' );
+// The staged blog-production pipeline folded into one /workspace/seo/blog-production hub
+// in the workspace redesign (FEAT-006); each stage's body moved OUT of the routes tree into
+// src/components/workspace/seo/blog-production/** (same source, same seoApi calls, only the
+// Layout wrapper became an `embedded` guard). The contract the backend and UI share is a set
+// of literals in those bodies, so this repoints at the bodies and maps each former
+// stage route to its component file.
+const PAGES = path.join( ROOT, 'src', 'components', 'workspace', 'seo', 'blog-production' );
+
+/** Former stage route (as this file named it) -> its relocated component file. */
+const STAGE_FILE: Record<string, string> = {
+  'index.tsx': 'Waves.tsx',
+  'batch/index.tsx': 'Batch.tsx',
+  'qa/index.tsx': 'Qa.tsx',
+  'publish/index.tsx': 'Publish.tsx',
+  'review/index.tsx': 'Review.tsx',
+};
+
+/** Read a former stage page by the route name this file used, via the relocation map. */
+function readStage ( stage: string ): string {
+  return fs.readFileSync( path.join( PAGES, STAGE_FILE[ stage ] ), 'utf8' );
+}
 
 function read ( ...parts: string[] ): string {
   return fs.readFileSync( path.join( ...parts ), 'utf8' );
@@ -69,7 +89,7 @@ describe( 'Blog Production dashboard contract', () => {
     const backend = pythonPairs( read( LAMBDA, 'blog_qa.py' ), 'DECLARATIONS' );
     expect( backend.length ).toBe( 8 );
 
-    const page = read( PAGES, 'qa', 'index.tsx' );
+    const page = readStage( 'qa/index.tsx' );
     const declared = [ ...page.matchAll( /\[ '([a-zA-Z]+)', '(YES|NO)' \]/g ) ].map(
       found => [ found[ 1 ], found[ 2 ] ] as [ string, string ] );
     expect( declared.sort() ).toEqual( backend.sort() );
@@ -78,7 +98,7 @@ describe( 'Blog Production dashboard contract', () => {
   it( 'the QA page reads the human gates from the response rather than hard-coding them', () => {
     // Eleven gates, and the list is section 29's. Hard-coding it here would drift the moment the
     // standard adds one, so the page maps over `state.humanGates` from the route.
-    const page = read( PAGES, 'qa', 'index.tsx' );
+    const page = readStage( 'qa/index.tsx' );
     expect( page ).toContain( 'state?.humanGates' );
     expect( page ).toContain( 'state?.gateAnswers' );
     for ( const gate of [ 'DISTINCTION', 'SOURCE_FIDELITY', 'HUMAN_QUALITY_TEST' ] )
@@ -93,7 +113,7 @@ describe( 'Blog Production dashboard contract', () => {
     // plain text, so the distinction disappears on the one page where it matters.
     const statuses = pythonStrings( read( LAMBDA, 'blog_publish.py' ), 'JOB_STATUSES' );
     expect( statuses ).toEqual( [ 'QUEUED', 'PUBLISHING', 'PUBLISHED', 'REFUSED', 'FAILED' ] );
-    const page = read( PAGES, 'publish', 'index.tsx' );
+    const page = readStage( 'publish/index.tsx' );
     for ( const status of statuses )
     {
       expect( page, `${ status } has no colour on the publish page` ).toContain(
@@ -104,7 +124,7 @@ describe( 'Blog Production dashboard contract', () => {
   it( 'the batches page colours every batch status the backend can return', () => {
     const statuses = pythonStrings( read( LAMBDA, 'blog_batches.py' ), 'BATCH_STATUSES' );
     expect( statuses.length ).toBeGreaterThan( 0 );
-    const page = read( PAGES, 'index.tsx' );
+    const page = readStage( 'index.tsx' );
     for ( const status of statuses )
     {
       expect( page, `${ status } has no colour on the batches page` ).toContain(
@@ -121,7 +141,7 @@ describe( 'Blog Production dashboard contract', () => {
       expect( source, `${ status } is not a status in blog_sources` ).toContain(
         `${ status } = "${ status }"` );
     }
-    const page = read( PAGES, 'batch', 'index.tsx' );
+    const page = readStage( 'batch/index.tsx' );
     for ( const status of statuses )
     {
       expect( page, `${ status } has no colour on the batch page` ).toContain( `${ status }:` );
@@ -142,7 +162,7 @@ describe( 'Blog Production dashboard contract', () => {
     for ( const page of [ 'index.tsx', 'batch/index.tsx', 'qa/index.tsx',
       'publish/index.tsx', 'review/index.tsx' ] )
     {
-      const text = read( PAGES, ...page.split( '/' ) );
+      const text = readStage( page );
       for ( const assertion of assertions )
       {
         expect( text, `${ page } hard-codes ${ assertion }` ).not.toContain( assertion );
@@ -172,19 +192,19 @@ describe( 'Blog Production dashboard contract', () => {
     // button on the batch page would be the convenience that breaks it.
     for ( const page of [ 'index.tsx', 'batch/index.tsx', 'qa/index.tsx', 'review/index.tsx' ] )
     {
-      const text = read( PAGES, ...page.split( '/' ) );
+      const text = readStage( page );
       expect( text, `${ page } calls publishBlogArticle` ).not.toContain(
         'publishBlogArticle' );
       expect( text, `${ page } calls releaseBlogArticle` ).not.toContain(
         'releaseBlogArticle' );
     }
-    const publish = read( PAGES, 'publish', 'index.tsx' );
+    const publish = readStage( 'publish/index.tsx' );
     expect( publish ).toContain( 'publishBlogArticle' );
     expect( publish ).toContain( 'releaseBlogArticle' );
   } );
 
   it( 'the publish page exposes only the AWS-native publication path', () => {
-    const publish = read( PAGES, 'publish', 'index.tsx' );
+    const publish = readStage( 'publish/index.tsx' );
     expect( publish ).toContain( 'publishBlogArticle' );
     expect( publish ).toContain( 'AWS-native' );
     // No provider-side kill switch (a "...WritesDisabled" flag or a "..._CREDENTIALS_DISABLED"
@@ -197,11 +217,11 @@ describe( 'Blog Production dashboard contract', () => {
     for ( const page of [ 'index.tsx', 'batch/index.tsx', 'qa/index.tsx',
       'publish/index.tsx' ] )
     {
-      const text = read( PAGES, ...page.split( '/' ) );
+      const text = readStage( page );
       expect( text, `${ page } calls recordBlogSourceReview` ).not.toContain(
         'recordBlogSourceReview' );
     }
-    expect( read( PAGES, 'review', 'index.tsx' ) ).toContain( 'recordBlogSourceReview' );
+    expect( readStage( 'review/index.tsx' ) ).toContain( 'recordBlogSourceReview' );
   } );
 
   it( 'every page uses a query string rather than a dynamic route segment', () => {
@@ -221,12 +241,14 @@ describe( 'Blog Production dashboard contract', () => {
 
   it( 'the SEO hub links to the production pages', () => {
     // A page nobody can navigate to is a page nobody uses.
+    // FEAT-006: the staged pipeline folded into one hub with step tabs; the SEO hub links
+    // the waves route and each stage as a ?tab= deep-link on it.
     const hub = read( ROOT, 'src', 'pages', 'workspace', 'seo', 'index.tsx' );
     for ( const route of [
       '/workspace/seo/blog-production',
-      '/workspace/seo/blog-production/review',
-      '/workspace/seo/blog-production/qa',
-      '/workspace/seo/blog-production/publish',
+      '/workspace/seo/blog-production?tab=review',
+      '/workspace/seo/blog-production?tab=qa',
+      '/workspace/seo/blog-production?tab=publish',
     ] )
     {
       expect( hub, `the SEO hub does not link to ${ route }` ).toContain( `'${ route }'` );
