@@ -372,14 +372,9 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
                 ariaLabel="Blog pages"
               />
             ) }
-            {/* THE SUBSCRIBE + SHARE BLOCK IS THE GLOBAL ONE NOW. The owner unified the blog
-                surfaces onto components/PublicShare, auto-mounted by RotatingHero at the end of
-                this hero's own content measure (RotatingHero no longer gates it on `subordinate`,
-                and this view no longer passes `noShare`). The old three-part BlogFooterCTA band -
-                its own Subscribe pill and Share row - is removed so the index carries exactly ONE
-                Subscribe+Share, the same block every other public page carries. PublicShare
-                resolves this page's own canonical URL and title itself, so there is no shareUrl to
-                pass. */}
+            {/* The old blog-specific Subscribe/Share band stays removed. _app owns the one
+                Contribute + Subscribe + Share dock for every public HTML route, after policy,
+                so this view and RotatingHero deliberately render no action dock of their own. */}
 
             {/* THE RSS SUBSCRIBE AFFORDANCE, ICON-ONLY, AT THE BOTTOM. It replaces the old text
                 pill that sat in a toolbar at the top; on owner instruction it is now a compact
