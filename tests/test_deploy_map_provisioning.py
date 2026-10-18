@@ -77,10 +77,9 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
     # scripts/provision_customer_orders.py, so a deploy-all run before that is legitimately
     # awaiting provisioning rather than failing. A code update cannot create the index, and
     # without the index the function answers 503.
-    # wecare-coupons added 2026-10-02: coupon issuance and eligibility, owning
-    # stack-wecare-digital-CouponsTable. Never created in AWS - its table, its own least-privilege
-    # role and its seven routes are all first-provisioned by scripts/provision_coupons_*.py, so a
-    # deploy-all run before that is legitimately awaiting provisioning rather than failing.
+    # wecare-coupons was REMOVED 2026-10-18: the coupon system is retired entirely (no coupon
+    # Lambda, no CouponsTable, no /coupons routes). The only discount is the standalone Delight
+    # policy, which is pure arithmetic in default_coupon.py and provisions nothing.
     # wecare-blog-subscribe added 2026-10-02: the public OTP-gated blog subscriber front door.
     # It intentionally has its own least-privilege role/routes and must be first-created by
     # provision_blog_subscribe.py before deploy-all can update its code.
@@ -115,7 +114,6 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
                        "wecare-customer-profile", "wecare-blog-subscribe", "wecare-customer-registration", "wecare-checkout",
                        "wecare-customer-orders", "wecare-service-requests",
                        "wecare-customer-invoice",
-                       "wecare-coupons",
                        "wecare-meta-catalog-sync"]
 
 

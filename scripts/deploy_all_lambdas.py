@@ -268,18 +268,6 @@ SPECS: List[Spec] = [
         "ecommerce/customer-invoice",
         provisioned_by="python scripts/provision_customer_invoice.py",
     ),
-    # Coupon issuance and eligibility. Owns stack-wecare-digital-CouponsTable. AWS-native: the
-    # local row is the sole authority and `coupon_store.discount_paise` prices the discount on
-    # the native checkout path. NOT standalone: it imports lambda_utils.customer_auth, response,
-    # logging and ecommerce.coupon_store.
-    Spec(
-        "wecare-coupons",
-        "ecommerce/coupons",
-        provisioned_by="python scripts/provision_coupons_table.py && "
-                       "python scripts/provision_coupons_role.py && "
-                       "python scripts/provision_coupons_function.py && "
-                       "python scripts/provision_coupons_routes.py",
-    ),
     # The AWS-native catalogue -> Meta projection (formerly PHASE W). Invoked by the ProductsTable
     # change stream through an event-source mapping on its `live` alias, with a six-hourly
     # EventBridge schedule as the backstop. No HTTP API route and no function URL: it has no

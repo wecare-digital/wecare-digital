@@ -77,46 +77,46 @@ def test_no_coupon_is_zero_discount():
     assert coupon_discount_paise(None, subtotal_paise=50000) == 0
 
 
-def test_money_off_coupon_discount():
-    coupon = {"discountKind": "MONEY_OFF", "moneyOffPaise": 10000}
-    assert coupon_discount_paise(coupon, subtotal_paise=50000) == 10000
+# There is no coupon engine any more: `coupon_discount_paise` always computes the standalone
+# Delight policy (0.5% of the subtotal, capped at ₹50) for ANY non-None definition. The
+# definition's old `discountKind`/`percentOffBps`/`moneyOffPaise` fields are IGNORED — a non-None
+# definition only signals "apply Delight". These tests pin that standalone behaviour.
+def test_delight_discount_is_half_a_percent():
+    coupon = {"code": "DELIGHT"}
+    # 0.5% of 50000 paise = 250, well under the ₹50 (5000-paise) cap.
+    assert coupon_discount_paise(coupon, subtotal_paise=50000) == 250
 
 
-def test_percent_off_coupon_discount():
-    coupon = {"discountKind": "PERCENT_OFF", "percentOffBps": 1000}  # 10%
-    assert coupon_discount_paise(coupon, subtotal_paise=50000) == 5000
+def test_delight_ignores_any_rate_on_the_definition():
+    # A definition carrying a 10% rate does NOT get 10%: Delight is a fixed 0.5% policy.
+    coupon = {"discountKind": "PERCENT_OFF", "percentOffBps": 1000}  # 10% — ignored
+    assert coupon_discount_paise(coupon, subtotal_paise=50000) == 250
 
 
-def test_money_off_clamped_at_subtotal():
-    coupon = {"discountKind": "MONEY_OFF", "moneyOffPaise": 90000}
-    # cannot discount more than the cart is worth -> no negative total
-    assert coupon_discount_paise(coupon, subtotal_paise=50000) == 50000
+def test_delight_capped_at_fifty_rupees():
+    coupon = {"code": "DELIGHT"}
+    # 0.5% of ₹2,00,000 would be ₹1000, but the cap holds it to ₹50 (5000 paise).
+    assert coupon_discount_paise(coupon, subtotal_paise=20000000) == 5000
 
 
 def test_price_cart_end_to_end_feeds_compute_quote():
     """price_cart -> authoritative_total_paise -> checkout_pricing.compute_quote.
-    This is the full native checkout chain."""
+    This is the full native checkout chain, with the standalone Delight discount."""
     from lambda_utils.ecommerce import checkout_pricing
     lines = [_line(qty=2, price=50000)]  # subtotal 100000
-    coupon = {"discountKind": "PERCENT_OFF", "percentOffBps": 1000}  # 10% -> 10000 off
+    coupon = {"code": "DELIGHT"}  # Delight: 0.5% of 100000 = 500
     summary = price_cart(lines, coupon_definition=coupon, delivery_paise=4000, tax_paise=0)
     assert summary.subtotal_paise == 100000
-    assert summary.discount_paise == 10000
-    assert summary.total_paise == 100000 - 10000 + 4000 == 94000
+    assert summary.discount_paise == 500
+    assert summary.total_paise == 100000 - 500 + 4000 == 103500
     collection = __import__(
         "lambda_utils.ecommerce.catalog_pricing", fromlist=["authoritative_total_paise"]
     ).authoritative_total_paise(summary)
     quote = checkout_pricing.compute_quote(collection)
-    # fee = round_half_up(94000 * 250/10000) = 2350; gst = round_half_up(2350*1800/10000)=423
-    assert quote.convenience_fee_paise == 2350
-    assert quote.convenience_gst_paise == 423
-    assert quote.total_payable_paise == 94000 + 2350 + 423 == 96773
-
-
-def test_unsupported_coupon_kind_raises():
-    coupon = {"discountKind": "FREE_SHIPPING"}
-    with pytest.raises(Exception):
-        coupon_discount_paise(coupon, subtotal_paise=50000)
+    # fee = round_half_up(103500 * 250/10000) = 2588; gst = round_half_up(2588*1800/10000) = 466
+    assert quote.convenience_fee_paise == 2588
+    assert quote.convenience_gst_paise == 466
+    assert quote.total_payable_paise == 103500 + 2588 + 466 == 106554
 
 
 # ── native supply tax (reuses checkout_pricing.round_half_up + split_gst) ────

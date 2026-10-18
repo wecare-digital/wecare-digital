@@ -1,148 +1,94 @@
-"""The always-on "Delight" discount: 0.5% of the collection, capped at ₹100, rate never shown.
+"""The always-on "Delight" discount: 0.5% of the collection, capped at ₹50. Hard-coded, standalone.
 
 Why this module exists
 ----------------------
-The owner's rule is that EVERY order carries a small goodwill discount by default -- 0.5% off,
-never more than ₹100 -- auto-applied on both the website and the WhatsApp paths, unless the
-customer has a better explicit coupon. This module is the ONE runtime home for that definition and
-the precedence rule. It holds no state, reads no table, and renders no amount itself: the amount is
-computed by `coupon_store.discount_paise` (the single discount renderer) so there is never a second
-discount engine to drift from the first.
+The owner's rule is that EVERY order carries one small goodwill discount by default -- 0.5% off,
+never more than ₹50 -- auto-applied on BOTH the website and the WhatsApp checkout paths. There is
+no coupon system and no gift-card system any more: Delight is a FIXED policy baked into code, not a
+row in any table, not something a customer types, and not something staff can edit. This module is
+its ONE home: the single integer-paise computation and the one definition both pricing paths read.
 
-`scripts/seed_delight_coupon.py` writes the matching durable `CouponsTable` row (for the staff
-coupon list, the audit trail, and so `DELIGHT` resolves if ever typed as an explicit code). The
-seed payload is produced HERE (`seed_payload`) so the durable row and the runtime default cannot
-disagree.
+Standalone by design
+--------------------
+This module reads no table and imports no coupon engine. The discount is pure integer arithmetic
+(basis points over the collection, clamped by the cap and by the collection itself), so there is
+exactly one place the figure is decided and nothing it can drift from.
 
 The rate is NEVER shown to the customer
 ---------------------------------------
-`DISPLAY_LABEL` is the only customer-facing string. The 0.5% rate and the ₹100 cap are internal
-mechanics; every surface prints "Delight discount" and the rupee amount, never the percent.
-
-Auto-apply vs a better explicit coupon
---------------------------------------
-`choose_definition(explicit, collection_paise=...)` returns the single definition a path should
-price: the explicit coupon when it discounts at least as much at this collection, otherwise the
-Delight default. It never stacks the two -- a path applies exactly one coupon definition, so the
-customer gets the better of the two, never both summed.
+`DISPLAY_LABEL` is the only customer-facing string. The 0.5% rate and the ₹50 cap are internal
+mechanics; every surface prints "Delight" and the rupee amount, never the percent.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Mapping, Optional
-
-from . import coupon_store
+from typing import Any, Dict
 
 #: The customer-facing label. The ONLY string any surface prints for this discount; the rate and
 #: the cap are internal and must never appear next to it.
-DISPLAY_LABEL = "Delight discount"
+DISPLAY_LABEL = "Delight"
 
-#: Issued code. `coupon_store.normalise_code` upper-cases it, so the durable row's key is
-#: `COUPON#DELIGHT` whether seeded as "Delight" or "DELIGHT".
-DELIGHT_CODE = "Delight"
+#: Stored on the invoice/order row so a receipt can name the discount line. Upper-cased on write.
+DELIGHT_CODE = "DELIGHT"
 
-#: 0.5% == 50 basis points. (An earlier revision stored 5 bps == 0.05%, a tenfold
-#: under-discount.) Permitted as a sub-percent rate because the cap below bounds the payout.
+#: 100 paise to the rupee. Local, so this module depends on nothing else for its arithmetic.
+PAISE_PER_RUPEE = 100
+
+#: 0.5% == 50 basis points. (An earlier revision stored 5 bps == 0.05%, a tenfold under-discount.)
+#: A sub-percent rate is fine because the cap below bounds the payout.
 DELIGHT_PERCENT_OFF_BPS = 50
 
-#: ₹100 ceiling, in whole-rupee paise.
-DELIGHT_MAXIMUM_DISCOUNT_PAISE = 100 * coupon_store.PAISE_PER_RUPEE
+#: Basis-point denominator: 10000 bps == 100%. `bps / 10000` is the fraction of the collection.
+_BPS_DENOMINATOR = 10000
 
-#: 17 Oct 2026 00:00 IST, matching the durable seed row. A goodwill default is active from the
-#: start; a seeder may override it.
-DELIGHT_START_TIME_MS = 1792175400000
-
-
-def delight_definition() -> Dict[str, Any]:
-    """The in-memory Delight definition row the pricing path prices against.
-
-    Returned fresh each call (never a shared mutable) so a caller that mutates its copy cannot
-    poison the next quote. Shaped exactly as `coupon_store.discount_paise` reads: a `PERCENT_OFF`
-    kind carrying `percentOffBps` and `maximumDiscountPaise`.
-
-    Deliberately NOT loaded from the CouponsTable on the hot path: the default must price an order
-    even if the table read fails, and it is a fixed owner policy rather than a staff-edited
-    campaign. `seed_payload` writes the matching durable row; a test pins the two equal.
-    """
-    return {
-        "code": DELIGHT_CODE,
-        "name": DISPLAY_LABEL,
-        "discountKind": coupon_store.PERCENT_OFF,
-        "percentOffBps": DELIGHT_PERCENT_OFF_BPS,
-        "maximumDiscountPaise": DELIGHT_MAXIMUM_DISCOUNT_PAISE,
-        "currency": coupon_store.CURRENCY,
-    }
-
-
-def seed_payload() -> Dict[str, Any]:
-    """The create payload that seeds the durable Delight row in the CouponsTable.
-
-    Carries `scopeNamespace: "stores"` so the create passes the `SCOPE_OR_MINIMUM_SUBTOTAL_REQUIRED`
-    rule (the discount is site-wide), and the start time the policy began. Idempotent at the store
-    layer: a second create raises `CouponConflict`, which the seeder treats as "already present".
-    """
-    return {
-        "code": DELIGHT_CODE,
-        "name": DISPLAY_LABEL,
-        "discountKind": coupon_store.PERCENT_OFF,
-        "percentOffBps": DELIGHT_PERCENT_OFF_BPS,
-        "maximumDiscountPaise": DELIGHT_MAXIMUM_DISCOUNT_PAISE,
-        "scopeNamespace": "stores",
-        "startTimeMs": DELIGHT_START_TIME_MS,
-        "currency": coupon_store.CURRENCY,
-    }
+#: ₹50 ceiling, in whole-rupee paise. The discount is never more than this however large the cart.
+DELIGHT_MAXIMUM_DISCOUNT_PAISE = 50 * PAISE_PER_RUPEE
 
 
 def delight_paise(collection_paise: int) -> int:
-    """The Delight discount for a collection, through the ONE renderer. Zero for a zero collection.
+    """The Delight discount in integer paise for a collection. Zero for a zero/empty collection.
 
-    A thin DELEGATING wrapper over `coupon_store.discount_paise(delight_definition(), ...)` so
-    callers do not re-read the definition shape; it performs no coupon arithmetic of its own.
-    Named `delight_paise` rather than `discount_paise` precisely because it is not a second
-    discount authority -- `coupon_store.discount_paise` remains the one place a coupon is priced.
-    Clamped at the collection and capped at ₹100 inside that renderer.
+    THE ONE PLACE THIS FIGURE IS DECIDED. Pure integer arithmetic, no float, no table, no coupon
+    engine:
+
+        0.5% of the collection  ==  collection_paise * 50 // 10000
+
+    then clamped by the ₹50 cap AND by the collection itself (a discount can never exceed what is
+    being bought, so it can never make a total negative). Integer floor division matches how the
+    retired `coupon_store` priced a PERCENT_OFF coupon, so the figure is identical to the one the
+    old path produced for the same rate -- only the cap changed (₹100 -> ₹50) and the dependency
+    on the coupon store is gone.
     """
-    return coupon_store.discount_paise(delight_definition(), collection_paise=collection_paise)
+    collection = int(collection_paise)
+    if collection <= 0:
+        return 0
+    raw = collection * DELIGHT_PERCENT_OFF_BPS // _BPS_DENOMINATOR
+    return min(raw, DELIGHT_MAXIMUM_DISCOUNT_PAISE, collection)
 
 
-def choose_definition(
-    explicit_definition: Optional[Mapping[str, Any]],
-    *,
-    collection_paise: int,
-) -> Dict[str, Any]:
-    """The single coupon definition a path should price, given the customer's explicit coupon.
+def delight_definition() -> Dict[str, Any]:
+    """The in-memory Delight definition the native checkout pricing path passes through.
 
-    Returns the Delight default when no explicit coupon is in play; otherwise returns whichever of
-    the two discounts MORE at `collection_paise`, so the default never leaves a customer worse off
-    than the coupon they chose and a chosen coupon that beats the default is honoured. Never stacks
-    them -- the caller prices exactly ONE returned definition.
-
-    `collection_paise` is required: "which coupon is better" has no answer without the amount both
-    are measured against.
+    A small descriptor the native cart (`catalog_pricing.coupon_discount_paise` →
+    `native_checkout.quote_native_cart`) reads to signal "apply Delight". It carries the code, the
+    label and the policy figures; `catalog_pricing` applies `delight_paise` to the collection, so
+    both the website/WhatsApp native path and the invoice path price the SAME figure from the SAME
+    computation. Returned fresh each call so a caller that mutates its copy cannot poison the next
+    quote.
     """
-    default = delight_definition()
-    if explicit_definition is None:
-        return default
-    explicit = dict(explicit_definition)
-    try:
-        explicit_discount = coupon_store.discount_paise(
-            explicit, collection_paise=collection_paise)
-    except coupon_store.CouponError:
-        # An explicit coupon that cannot be priced against this collection (unmet minimum,
-        # unsupported kind) is not better than the default; fall back rather than refuse the
-        # whole order over an inapplicable code.
-        return default
-    default_discount = coupon_store.discount_paise(default, collection_paise=collection_paise)
-    return explicit if explicit_discount >= default_discount else default
+    return {
+        "code": DELIGHT_CODE,
+        "name": DISPLAY_LABEL,
+        "percentOffBps": DELIGHT_PERCENT_OFF_BPS,
+        "maximumDiscountPaise": DELIGHT_MAXIMUM_DISCOUNT_PAISE,
+    }
 
 
 __all__ = [
     "DELIGHT_CODE",
     "DELIGHT_MAXIMUM_DISCOUNT_PAISE",
     "DELIGHT_PERCENT_OFF_BPS",
-    "DELIGHT_START_TIME_MS",
     "DISPLAY_LABEL",
-    "choose_definition",
+    "PAISE_PER_RUPEE",
     "delight_definition",
     "delight_paise",
-    "seed_payload",
 ]

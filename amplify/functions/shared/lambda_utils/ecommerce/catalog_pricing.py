@@ -114,9 +114,9 @@ def build_price_summary(
     """Compute the authoritative supply priceSummary from resolved catalog lines.
 
     `subtotal = sum(line.total_paise)` — the per-line identity every summary carries.
-    All adjustments are inputs (resolved upstream: coupon via
-    `coupon_store.discount_paise`, delivery via the shipping resolver, tax via the
-    place-of-supply GST build). This function owns the ARITHMETIC and the
+    All adjustments are inputs (resolved upstream: the discount via
+    `coupon_discount_paise` → `default_coupon.delight_paise`, delivery via the shipping resolver,
+    tax via the place-of-supply GST build). This function owns the ARITHMETIC and the
     invariants, not the policy of how each component was derived.
     """
     if not lines:
@@ -197,34 +197,29 @@ def coupon_discount_paise(
     *,
     subtotal_paise: int,
 ) -> int:
-    """Native coupon discount for a cart, from the AWS-authoritative definition.
+    """The native cart's Delight discount against the subtotal, the single server-side bridge.
 
-    The AWS-authoritative coupon *definition* lives in `coupon_store`, and
-    `coupon_store.discount_paise` renders a discount from it (Pay Flow invoices use
-    the same renderer). This function is the single bridge that lets the native
-    checkout path render that SAME discount against the native subtotal — so the
-    discount is decided by the AWS definition, never by the browser, preserving
-    the "validate returns a verdict, pricing is server-side" boundary.
+    There is no coupon system any more: the only `coupon_definition` ever passed is the always-on
+    Delight default (`default_coupon.delight_definition()`). This function is the ONE bridge that
+    lets the native checkout path render the SAME Delight figure the invoice path renders — the
+    discount is decided SERVER-SIDE from the fixed policy, never by the browser.
 
-    `coupon_definition` is the already-loaded, already-ELIGIBLE definition row
-    (eligibility is `coupon_store.evaluate`'s separate job; this is arithmetic
-    only). A None definition means no coupon → zero discount. The discount is
-    clamped at the subtotal by `coupon_store.discount_paise` itself, so it can
-    never make the collection negative.
+    A `None` definition means no discount → 0. Otherwise the figure is
+    `default_coupon.delight_paise(subtotal)` (0.5% of the subtotal, capped at ₹50, clamped at the
+    subtotal), so it can never make the collection negative. The function keeps its name because
+    both `native_checkout.quote_native_cart` and `price_cart` call it and a test pins the discount
+    computation to exactly this function plus `default_coupon.delight_paise`.
 
-    Imported lazily so this pure pricing module carries no hard dependency on the
-    coupon store for callers that never apply a coupon, and so the two modules do
-    not form an import cycle.
+    Imported lazily so this pure pricing module carries no import-time dependency and the two
+    modules do not form a cycle.
     """
     _nonneg_paise(subtotal_paise, "subtotal_paise")
     if coupon_definition is None:
         return 0
-    from lambda_utils.ecommerce import coupon_store
-    discount = coupon_store.discount_paise(
-        dict(coupon_definition), collection_paise=subtotal_paise
-    )
-    # Defensive: coupon_store already clamps, but the pricing identity depends on
-    # discount <= subtotal, so assert it here too rather than trust the caller.
+    from lambda_utils.ecommerce import default_coupon
+    discount = default_coupon.delight_paise(subtotal_paise)
+    # The pricing identity depends on discount <= subtotal; `delight_paise` already clamps there,
+    # and this re-asserts it rather than trusting the caller.
     return _nonneg_paise(min(int(discount), subtotal_paise), "coupon_discount_paise")
 
 
