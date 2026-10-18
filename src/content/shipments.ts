@@ -51,5 +51,5 @@ export const SHIPMENT_TRACK: ProductDef = {
     'Collections and deliveries can depend on couriers and partners. We can tell you the latest confirmed status, but we will not promise a delivery time that has not been confirmed.',
   ctaLabel: 'Track on WhatsApp',
   ctaHref: 'https://wa.me/message/WGN4NMFLFSJVB1',
-  ctaNote: 'Continue on WhatsApp →',
+  ctaNote: 'Checkout on WhatsApp →',
 };
