@@ -24,9 +24,12 @@
  * original's deliberate vagueness about WHICH data each service collects is preserved,
  * because that varies by service and inventing specifics would be a false statement.
  *
- * STILL NEEDS A LAWYER for two things I could not resolve by editing: the DPDP Act 2023
- * requires a named Data Protection Officer or equivalent contact, and consent notices
- * should be itemised per purpose. Both need a decision from the business and its counsel.
+ * STILL NEEDS COUNSEL REVIEW for service-specific consent notices and any future designation
+ * as a Significant Data Fiduciary. The DPDP Act requires publication of business contact
+ * information for a Data Protection Officer where one is applicable, or otherwise a person
+ * able to answer data-processing questions. This policy publishes the Privacy and Grievance
+ * Desk contact; do not describe a statutory DPO as appointed unless the business has actually
+ * made that appointment or is legally required to do so.
  *
  * THAT NOTE BELONGS HERE AND NOWHERE ELSE. It was briefly written into section 23 as a
  * rendered paragraph beginning "PENDING LEGAL REVIEW", which published an internal
@@ -44,7 +47,7 @@ import type { LegalSection } from './types';
  * engineering revision marker, not a line the reader sees - nothing outside src/content/legal/
  * reads it.
  */
-export const PRIVACY_UPDATED = '2026-10-01';
+export const PRIVACY_UPDATED = '2026-10-18';
 
 export const PRIVACY_INTRO: string[] = [
   'This policy explains what personal data WECARE.DIGITAL collects, why we collect it, who we share it with, how long we keep it, and what you can ask us to do about it.',
@@ -348,11 +351,11 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     number: '23', heading: 'Questions and complaints', id: 's23',
-    inShort: 'Email one@wecare.digital or call +91 9330994400. You can always go to a data-protection authority instead.',
+    inShort: 'Email one@wecare.digital or call +91 9330994400. Use our grievance process first where the law requires it; statutory escalation rights remain available.',
     paragraphs: [
       'For any question, request or complaint about your personal data, contact our Privacy and Grievance Desk: email one@wecare.digital, or call +91 9330994400. Our postal address is in section 24.',
       'We may ask for enough information to verify your identity or authority before acting on a request.',
-      'If you are not satisfied with our response, you keep any right you have to approach a data-protection authority, board, regulator, court or other lawful forum. Using our grievance process first is not a precondition.',
+      'If you are not satisfied with our response, you keep any right you have to approach the Data Protection Board of India, another competent authority, regulator, court or other lawful forum. Where applicable data-protection law requires you to exhaust our grievance process before approaching the Board, that requirement applies.',
     ],
   },
   {
@@ -383,9 +386,10 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     number: '23.1', heading: 'Governing law and where disputes are heard', id: 's23-1',
     paragraphs: [
       'This policy is governed by the laws of India.',
-      'Nothing in this policy limits your right to approach the Data Protection Board of India, another data-protection authority, a regulator, a Consumer Commission, a court or any other forum available to you under the law. Using our grievance process first is not a precondition.',
+      'This policy describes our data-handling commitments and statutory obligations. It does not create a separate warranty, indemnity or assumption of liability beyond what applicable law requires. Any contractual limitation of liability in our Terms applies only to the extent it can lawfully apply to a privacy-related claim and never overrides a non-waivable data-protection right, remedy, direction or penalty.',
+      'Nothing in this policy removes any right to approach the Data Protection Board of India, another data-protection authority, a regulator, a Consumer Commission, a court or any other forum available to you under the law. Where the law requires our grievance process to be exhausted before a particular escalation, that procedural requirement applies.',
       'For a dispute about this policy that is not within the jurisdiction of a mandatory statutory, consumer or data-protection forum, the courts of competent jurisdiction in Kolkata, West Bengal have jurisdiction, subject to the law.',
-      'This matches section 39 of our Terms of Service, so one dispute is not directed to two different places. Where a statutory forum is available to you, that route prevails over this one.',
+      'This matches section 39 of our Terms of Service, so one dispute is not directed to two different places. Where a statutory forum is available to you, that route prevails over this one, subject to any required grievance step before escalation.',
     ],
   },
   {
@@ -394,7 +398,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     paragraphs: [
       'Brand: WECARE.DIGITAL, operated under the business name WECARE.DIGITAL BHARATWORKS.',
       'Address: The W.B.S.I.D.C. Building, Unit 1/20 81/2/7, Phears Lane, Kolkata, West Bengal 700012, India.',
-      'Email one@wecare.digital or call +91 9330994400 with any question about this policy or about how we handle personal data.',
+      'Email one@wecare.digital or call +91 9330994400 with any question about this policy or about how we handle personal data. These are our published business contacts for privacy questions unless we separately identify another legally required contact.',
     ],
   },
 ];
