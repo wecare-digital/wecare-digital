@@ -477,11 +477,11 @@ response = requests.post(
                 <div className="api-steps-ctas">
                   <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Checkout on WhatsApp &#8594;</a>
                 </div>
-                <ProductBuyBox slug="grahak-os" showPrice={ false } />
-                { GRAHAK_DISPLAY_PRICE && (
-                  <p className="gos-price" data-wc-no-translate="true">{ GRAHAK_DISPLAY_PRICE }</p>
-                ) }
-                <p className="gos-offer-note">One-time consultation · full deployment separate</p>
+                <ProductBuyBox
+                  slug="grahak-os"
+                  displayPrice={ GRAHAK_DISPLAY_PRICE || undefined }
+                  offerNote="One-time consultation · full deployment separate"
+                />
                 <div className="gos-commerce">
                   { GRAHAK_SKU && (
                     <p data-wc-no-translate="true"><strong>SKU:</strong> <span className="gos-sku-value">{ GRAHAK_SKU }</span></p>
@@ -675,10 +675,6 @@ response = requests.post(
           /* Hero Python panel only. Its demo link moved to the large API editor below. */
           .code-stack{position:absolute;right:0;bottom:24px;width:60%;max-width:340px;display:flex;flex-direction:column;align-items:stretch}
           .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;width:100%;box-sizing:border-box}
-          /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
-             above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
-          .gos-price{display:block;margin-top:22px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
-          .gos-offer-note{max-width:var(--public-copy-max);margin:7px 0 0;font-family:var(--font-sans);font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted);text-wrap:balance}
           @media(prefers-reduced-motion:reduce){
             .gos-wa-cta{transition:background-color .2s}
             .gos-wa-cta:hover{transform:none;box-shadow:none}
@@ -1025,7 +1021,6 @@ response = requests.post(
              gaps are set here. */
           .api-steps-buy{max-width:700px}
           .api-steps-ctas{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-          .api-steps-buy .gos-price{text-align:left}
           /* Pure black, matching the hero .code-box. This panel was the last slate
              holdout: #1e293b is on the contract's retired list specifically "as the
              code panel body", yet it survived here after the hero panel was moved to

@@ -27,6 +27,8 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
   const homePath = resolve( process.cwd(), 'src/pages/index.tsx' );
   const source = readFileSync( pagePath, 'utf8' );
   const home = readFileSync( homePath, 'utf8' );
+  const productBuyBoxPath = resolve( process.cwd(), 'src/components/ProductBuyBox.tsx' );
+  const productBuyBox = readFileSync( productBuyBoxPath, 'utf8' );
   const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
 
   const expectSameType = ( actualSelector: string, homeSelector: string ) => {
@@ -43,7 +45,11 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
     expectSameType( '.section-header h2,.api-info h2', '.home-flow-title' );
     expectSameType( '.section-header p', '.home-flow-lead' );
     expectSameType( '.api-step-title', '.home-flow-list strong' );
-    expectSameType( '.gos-price', '.home-flow-list strong' );
+    const buyBoxPrice = cssRuleFor( productBuyBox, '.pbb-price' );
+    const homeCard = cssRuleFor( home, '.home-flow-list strong' );
+    for ( const property of [ 'font-size', 'font-weight', 'line-height', 'letter-spacing' ] ) {
+      expect( cssValue( buyBoxPrice, property ) ).toBe( cssValue( homeCard, property ) );
+    }
     expectSameType( '.api-step-line', '.home-flow-list span' );
   } );
 
@@ -320,7 +326,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( commerceRule ).toContain( 'font-size:17px' );
     expect( commerceRule ).not.toContain( 'border:1px solid' );
     expect( commerceRule ).not.toContain( 'background:#fcfdfb' );
-    expect( source ).toContain( '.gos-offer-note{max-width:var(--public-copy-max);margin:7px 0 0;font-family:var(--font-sans);font-size:var(--public-body-size)' );
+    expect( source ).not.toContain( '.gos-offer-note{' );
     expect( source ).toContain( '.gos-sku-value{color:var(--public-muted)}' );
   } );
 

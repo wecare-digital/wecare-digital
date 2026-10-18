@@ -26,6 +26,8 @@ interface ProductBuyBoxProps {
   slug: string;
   /** Show the configured product price line. Default true. */
   showPrice?: boolean;
+  /** Optional presentation-only price string. Checkout still uses the configured server-authoritative line. */
+  displayPrice?: string;
   /** Quiet line below the price, matching the Grahak OS commerce pattern. */
   offerNote?: string;
 }
@@ -33,6 +35,7 @@ interface ProductBuyBoxProps {
 const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
   slug,
   showPrice = true,
+  displayPrice,
   offerNote = 'One-time purchase · final total confirmed at checkout',
 } ) => {
   const router = useRouter();
@@ -111,7 +114,7 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
       { showPrice && (
         <>
           <p className="pbb-buy">
-            <span className="pbb-price" data-wc-no-translate="true">{ line.formattedPrice }</span>
+            <span className="pbb-price" data-wc-no-translate="true">{ displayPrice ?? line.formattedPrice }</span>
           </p>
           <p className="pbb-offer-note">{ offerNote }</p>
         </>
@@ -139,10 +142,10 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
         .pbb-buy{display:flex;flex-wrap:wrap;align-items:baseline;gap:16px;margin:22px 0 0}
         .pbb-price{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
         .pbb-offer-note{
-          max-width:620px;margin:7px 0 0;
+          max-width:var(--public-copy-max);margin:7px 0 0;font-family:var(--font-sans);
           font-size:var(--public-body-size);font-weight:var(--public-body-weight);
           line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
-          color:var(--public-muted);
+          color:var(--public-muted);text-wrap:balance;
         }
 
         .pbb-error{margin:12px 0 0;font-size:14px;color:#b91c1c}
