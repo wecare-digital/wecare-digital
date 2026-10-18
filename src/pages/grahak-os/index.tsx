@@ -678,7 +678,7 @@ response = requests.post(
           /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
              above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
           .gos-price{display:block;margin-top:22px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
-          .gos-offer-note{max-width:620px;margin:7px 0 0;font-size:17px;font-weight:400;line-height:1.4;letter-spacing:-.05px;color:var(--public-muted)}
+          .gos-offer-note{max-width:620px;margin:7px 0 0;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted)}
           @media(prefers-reduced-motion:reduce){
             .gos-wa-cta{transition:background-color .2s}
             .gos-wa-cta:hover{transform:none;box-shadow:none}
@@ -1226,7 +1226,7 @@ response = requests.post(
             .code-body{font-size:15px;padding:16px;line-height:1.6;text-align:left}
             
             .section-header{margin-bottom:28px;padding:0 20px;text-align:center}
-            .section-header h2{margin-bottom:12px;line-height:1.15;text-align:center}
+            .section-header h2{margin-bottom:12px;line-height:var(--public-section-leading);text-align:center}
             .section-header p{text-align:center}
             
             .touchpoint{padding:44px 0}
@@ -1318,13 +1318,13 @@ response = requests.post(
             .chat-area{min-height:120px}
           }
 
-          /* ========== TYPOGRAPHY CONTRACT ========== */
+          /* ========== TYPOGRAPHY CONTRACT (shared public tokens) ========== */
           /* Match Home's public-page ladder: 60px hero, 40px section heading,
              22px card title, 20px body and 17px controls. Code text and the phone
              mock remain intentional interface exceptions. The hero h1 and body
              already own the exact Home values in their base rules. */
-          .section-header h2{font-size:clamp(28px,3.2vw,40px);line-height:1.08;letter-spacing:-1.2px}
-          .section-header p{font-size:20px;line-height:1.4;letter-spacing:-.125px}
+          .section-header h2{font-size:var(--public-section-size);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking)}
+          .section-header p{font-size:var(--public-body-size);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking)}
           /* 17px explicit, not var(--text-base). That token is declared twice —
              tokens.css:83 says 16px, Pages.css:59 says 15px — and only Pages.css is
              imported by _app.tsx, so the pills were 15px by accident of import
@@ -1346,8 +1346,8 @@ response = requests.post(
              the build while this note was being written, which is the trap documented at the
              top of the design contract. */
           .pill,.pp-pill{font-size:17px}
-          .api-info h2{font-size:clamp(28px,3.2vw,40px);line-height:1.08;letter-spacing:-1.2px}
-          .api-desc{font-size:20px;line-height:1.4;letter-spacing:-.125px}
+          .api-info h2{font-size:var(--public-section-size);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking)}
+          .api-desc{font-size:var(--public-body-size);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking)}
           .pp-tab{font-size:17px}
           
           /* ========== REDUCED MOTION ========== */
