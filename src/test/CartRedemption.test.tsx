@@ -5,9 +5,9 @@ import { resolve } from 'node:path';
 /**
  * The public cart deliberately exposes redemption CAPABILITY STATUS only.
  *
- * Delight is not seeded in the live coupon authority, so the browser must not render an
- * Apply/Remove workflow or call a redemption endpoint. Gift cards are retired and must not
- * reappear as a status tile or input.
+ * Delight is applied automatically by server pricing, so the browser must not render an
+ * Apply/Remove workflow or calculate its amount. Gift cards are retired and must not reappear
+ * as a status tile or input.
  */
 describe( 'Cart redemption capability is status-only', () => {
   const source = readFileSync(
@@ -18,7 +18,7 @@ describe( 'Cart redemption capability is status-only', () => {
   it( 'shows truthful Delight status and no retired gift-card surface', () => {
     expect( source ).toContain( '<strong>Delight</strong>' );
     expect( source ).toContain(
-      'Temporarily unavailable. No discount has been applied to this cart.',
+      'Delight discount is applied automatically at checkout.',
     );
     expect( source ).not.toContain( '<strong>Gift cards</strong>' );
     expect( source ).not.toContain( 'cart-capability-gift' );
