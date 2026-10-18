@@ -1149,6 +1149,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
             no direct gtag.js accompanies it. */}
         <Header />
         <Component { ...pageProps } />
+        <PublicPolicyDetails />
         <Footer />
         {/* WhatsApp contact + page translation. This comment used to read "translation +
             read-aloud, public pages only, and deliberately not on the authenticated
