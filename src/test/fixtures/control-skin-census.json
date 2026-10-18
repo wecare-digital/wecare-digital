@@ -7,7 +7,7 @@
       "radio"
     ],
     "files": [
-      "src/pages/workspace/engage/sms/index.tsx",
+      "src/components/workspace/channels/Sms.tsx",
       "src/styles/Dashboard.css",
       "src/styles/Layout.css",
       "src/styles/Pages.css",
@@ -20,7 +20,7 @@
       {
         "classes": [],
         "decls": "width: auto; margin: 0;",
-        "file": "src/pages/workspace/engage/sms/index.tsx",
+        "file": "src/components/workspace/channels/Sms.tsx",
         "geometry": false,
         "line": 510,
         "mech": "B-styledjsx",
@@ -101,7 +101,7 @@
         "decls": "outline: none !important; box-shadow: none !important;",
         "file": "src/styles/Layout.css",
         "geometry": false,
-        "line": 1917,
+        "line": 1978,
         "mech": "A-global",
         "mode": "element",
         "pairing": false,
@@ -121,7 +121,7 @@
         "decls": "outline: none !important; outline-width: 0 !important; outline-offset: 0 !important; box-shadow: none !important; border: none !important;",
         "file": "src/styles/Layout.css",
         "geometry": true,
-        "line": 1922,
+        "line": 1983,
         "mech": "A-global",
         "mode": "element",
         "pairing": false,
@@ -503,15 +503,15 @@
     "src/components/AddressFields.tsx",
     "src/components/ServiceBuyBox.tsx",
     "src/components/dashboard/tabs/AppBuilderTab.tsx",
+    "src/components/workspace/channels/Push.tsx",
+    "src/components/workspace/channels/Sms.tsx",
+    "src/components/workspace/channels/VoiceIn.tsx",
+    "src/components/workspace/pay/InvoiceRecords.tsx",
+    "src/components/workspace/service/FormResponses.tsx",
+    "src/components/workspace/whatsapp/migration.tsx",
+    "src/components/workspace/whatsapp/templates.tsx",
+    "src/components/workspace/whatsapp/waba-dashboard.tsx",
     "src/pages/workspace/engage/logs/index.tsx",
-    "src/pages/workspace/engage/push/index.tsx",
-    "src/pages/workspace/engage/sms/index.tsx",
-    "src/pages/workspace/engage/voice-in/index.tsx",
-    "src/pages/workspace/engage/whatsapp/migration.tsx",
-    "src/pages/workspace/engage/whatsapp/templates.tsx",
-    "src/pages/workspace/engage/whatsapp/waba-dashboard.tsx",
-    "src/pages/workspace/forms/responses.tsx",
-    "src/pages/workspace/pay/records.tsx",
     "src/pages/workspace/task/index.tsx",
     "src/styles/Dashboard.css",
     "src/styles/Layout.css",
@@ -685,6 +685,267 @@
     },
     {
       "classes": [],
+      "decls": "width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;color:#1a1a1a;background:#fff;min-height:44px;font-family:inherit;box-sizing:border-box",
+      "file": "src/components/workspace/channels/Push.tsx",
+      "geometry": true,
+      "line": 392,
+      "mech": "C-injected",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "padding": false
+      },
+      "sel": ".push-field input,.push-field textarea,.push-field select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; font-family: inherit; box-sizing: border-box;",
+      "file": "src/components/workspace/channels/Sms.tsx",
+      "geometry": true,
+      "line": 503,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "padding": false
+      },
+      "sel": ".form-group input, .form-group textarea, .form-group select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline: none; border-color: #1a3a2a;",
+      "file": "src/components/workspace/channels/Sms.tsx",
+      "geometry": false,
+      "line": 504,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "outline": false
+      },
+      "sel": ".form-group input:focus, .form-group textarea:focus, .form-group select:focus",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "padding:8px 10px; border:1px solid #d1d5db; border-radius:8px; background:#fff;",
+      "file": "src/components/workspace/channels/VoiceIn.tsx",
+      "geometry": true,
+      "line": 175,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "padding": false
+      },
+      "sel": ".filters input,.filters select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff; border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;",
+      "file": "src/components/workspace/pay/InvoiceRecords.tsx",
+      "geometry": true,
+      "line": 384,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "padding": false
+      },
+      "sel": ".ir-fg input,.ir-fg select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline:none;border-color:#d1f470",
+      "file": "src/components/workspace/pay/InvoiceRecords.tsx",
+      "geometry": false,
+      "line": 389,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "outline": false
+      },
+      "sel": ".ir-fg input:focus,.ir-fg select:focus",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff; border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;",
+      "file": "src/components/workspace/service/FormResponses.tsx",
+      "geometry": true,
+      "line": 346,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "padding": false
+      },
+      "sel": ".fr-fg input,.fr-fg select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline:none;border-color:#d1f470",
+      "file": "src/components/workspace/service/FormResponses.tsx",
+      "geometry": false,
+      "line": 351,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "outline": false
+      },
+      "sel": ".fr-fg input:focus,.fr-fg select:focus",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline: none; border-color: #1a3a2a; box-shadow: 0 0 0 2px rgba(26,58,42,0.1);",
+      "file": "src/components/workspace/whatsapp/migration.tsx",
+      "geometry": false,
+      "line": 247,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "box-shadow": false,
+        "outline": false
+      },
+      "sel": "input:focus, select:focus",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;",
+      "file": "src/components/workspace/whatsapp/templates.tsx",
+      "geometry": true,
+      "line": 1533,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "padding": false
+      },
+      "sel": ".form-group input, .form-group select, .form-group textarea",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline: none; border-color: #000;",
+      "file": "src/components/workspace/whatsapp/templates.tsx",
+      "geometry": false,
+      "line": 1543,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "outline": false
+      },
+      "sel": ".form-group input:focus, .form-group select:focus, .form-group textarea:focus",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; min-width: 300px;",
+      "file": "src/components/workspace/whatsapp/waba-dashboard.tsx",
+      "geometry": true,
+      "line": 643,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "padding": false
+      },
+      "sel": ".waba-selector-section select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
       "decls": "font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff; border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;",
       "file": "src/pages/workspace/engage/logs/index.tsx",
       "geometry": true,
@@ -721,267 +982,6 @@
         "outline": false
       },
       "sel": ".filter-group select:focus",
-      "spec": [
-        0,
-        2,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;color:#1a1a1a;background:#fff;min-height:44px;font-family:inherit;box-sizing:border-box",
-      "file": "src/pages/workspace/engage/push/index.tsx",
-      "geometry": true,
-      "line": 392,
-      "mech": "C-injected",
-      "mode": "element",
-      "pairing": true,
-      "props": {
-        "background": false,
-        "border": false,
-        "border-radius": false,
-        "font-size": false,
-        "min-height": false,
-        "padding": false
-      },
-      "sel": ".push-field input,.push-field textarea,.push-field select",
-      "spec": [
-        0,
-        1,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; font-family: inherit; box-sizing: border-box;",
-      "file": "src/pages/workspace/engage/sms/index.tsx",
-      "geometry": true,
-      "line": 503,
-      "mech": "B-styledjsx",
-      "mode": "element",
-      "pairing": true,
-      "props": {
-        "border": false,
-        "border-radius": false,
-        "font-size": false,
-        "padding": false
-      },
-      "sel": ".form-group input, .form-group textarea, .form-group select",
-      "spec": [
-        0,
-        1,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "outline: none; border-color: #1a3a2a;",
-      "file": "src/pages/workspace/engage/sms/index.tsx",
-      "geometry": false,
-      "line": 504,
-      "mech": "B-styledjsx",
-      "mode": "element",
-      "pairing": false,
-      "props": {
-        "border-color": false,
-        "outline": false
-      },
-      "sel": ".form-group input:focus, .form-group textarea:focus, .form-group select:focus",
-      "spec": [
-        0,
-        2,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "padding:8px 10px; border:1px solid #d1d5db; border-radius:8px; background:#fff;",
-      "file": "src/pages/workspace/engage/voice-in/index.tsx",
-      "geometry": true,
-      "line": 175,
-      "mech": "B-styledjsx",
-      "mode": "element",
-      "pairing": true,
-      "props": {
-        "background": false,
-        "border": false,
-        "border-radius": false,
-        "padding": false
-      },
-      "sel": ".filters input,.filters select",
-      "spec": [
-        0,
-        1,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "outline: none; border-color: #1a3a2a; box-shadow: 0 0 0 2px rgba(26,58,42,0.1);",
-      "file": "src/pages/workspace/engage/whatsapp/migration.tsx",
-      "geometry": false,
-      "line": 247,
-      "mech": "B-styledjsx",
-      "mode": "element",
-      "pairing": false,
-      "props": {
-        "border-color": false,
-        "box-shadow": false,
-        "outline": false
-      },
-      "sel": "input:focus, select:focus",
-      "spec": [
-        0,
-        1,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;",
-      "file": "src/pages/workspace/engage/whatsapp/templates.tsx",
-      "geometry": true,
-      "line": 1533,
-      "mech": "B-styledjsx",
-      "mode": "element",
-      "pairing": true,
-      "props": {
-        "border": false,
-        "border-radius": false,
-        "font-size": false,
-        "padding": false
-      },
-      "sel": ".form-group input, .form-group select, .form-group textarea",
-      "spec": [
-        0,
-        1,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "outline: none; border-color: #000;",
-      "file": "src/pages/workspace/engage/whatsapp/templates.tsx",
-      "geometry": false,
-      "line": 1543,
-      "mech": "B-styledjsx",
-      "mode": "element",
-      "pairing": false,
-      "props": {
-        "border-color": false,
-        "outline": false
-      },
-      "sel": ".form-group input:focus, .form-group select:focus, .form-group textarea:focus",
-      "spec": [
-        0,
-        2,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; min-width: 300px;",
-      "file": "src/pages/workspace/engage/whatsapp/waba-dashboard.tsx",
-      "geometry": true,
-      "line": 643,
-      "mech": "B-styledjsx",
-      "mode": "element",
-      "pairing": false,
-      "props": {
-        "border": false,
-        "border-radius": false,
-        "font-size": false,
-        "padding": false
-      },
-      "sel": ".waba-selector-section select",
-      "spec": [
-        0,
-        1,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff; border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;",
-      "file": "src/pages/workspace/forms/responses.tsx",
-      "geometry": true,
-      "line": 346,
-      "mech": "B-styledjsx",
-      "mode": "element",
-      "pairing": true,
-      "props": {
-        "background": false,
-        "border": false,
-        "border-radius": false,
-        "font-size": false,
-        "min-height": false,
-        "padding": false
-      },
-      "sel": ".fr-fg input,.fr-fg select",
-      "spec": [
-        0,
-        1,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "outline:none;border-color:#d1f470",
-      "file": "src/pages/workspace/forms/responses.tsx",
-      "geometry": false,
-      "line": 351,
-      "mech": "B-styledjsx",
-      "mode": "element",
-      "pairing": false,
-      "props": {
-        "border-color": false,
-        "outline": false
-      },
-      "sel": ".fr-fg input:focus,.fr-fg select:focus",
-      "spec": [
-        0,
-        2,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff; border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;",
-      "file": "src/pages/workspace/pay/records.tsx",
-      "geometry": true,
-      "line": 384,
-      "mech": "B-styledjsx",
-      "mode": "element",
-      "pairing": true,
-      "props": {
-        "background": false,
-        "border": false,
-        "border-radius": false,
-        "font-size": false,
-        "min-height": false,
-        "padding": false
-      },
-      "sel": ".ir-fg input,.ir-fg select",
-      "spec": [
-        0,
-        1,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "outline:none;border-color:#d1f470",
-      "file": "src/pages/workspace/pay/records.tsx",
-      "geometry": false,
-      "line": 389,
-      "mech": "B-styledjsx",
-      "mode": "element",
-      "pairing": false,
-      "props": {
-        "border-color": false,
-        "outline": false
-      },
-      "sel": ".ir-fg input:focus,.ir-fg select:focus",
       "spec": [
         0,
         2,
