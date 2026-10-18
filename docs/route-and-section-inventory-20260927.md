@@ -56,21 +56,21 @@ header. So bands 2 and 3 have no mock yet — that is the work you're asking for
 | 2 | 1 | 25 | 13262 | `/privacy/` |
 | 2 | 1 | 2 | 1388 | `[retired public path aaee9dd4]/` |
 | 2 | 1 | 1 | 1464 | `/bharat-rx/` |
-| 2 | 1 | 1 | 1585 | `/elsewhere/` |
+| 2 | 1 | 1 | 1585 | `[retired public path]` |
 | 2 | 1 | 1 | 1442 | `/expo-week/` |
-| 2 | 1 | 1 | 1585 | `/dastavez/` |
-| 2 | 1 | 1 | 1614 | `/clear-closure/` |
-| 2 | 1 | 1 | 1442 | `/ritual-guru/` |
+| 2 | 1 | 1 | 1585 | `[retired public path]` |
+| 2 | 1 | 1 | 1614 | `[retired public path]` |
+| 2 | 1 | 1 | 1442 | `[retired public path]` |
 | 2 | 1 | 1 | 1614 | `/anew/` |
 | 2 | 1 | 1 | 1471 | `/niji-setu/` |
 | 2 | 1 | **746** | **81558** | `/blog/` |
-| 3 | **0** | 0 | 900 | `/store/` |
+| 3 | **0** | 0 | 900 | `[retired public path]` |
 | 4 | 1 | 0 | 900 | `/get/` |
 
 Three things fall out of that table on their own:
 
-**The seven product pages are one template, twice over.** `/elsewhere/`, `/expo-week/`,
-`/dastavez/`, `/clear-closure/`, `/ritual-guru/`, `/anew/`, `/niji-setu/` all render
+**The seven product pages are one template, twice over.** `[retired public path]`, `/expo-week/`,
+`[retired public path]`, `[retired public path]`, `[retired public path]`, `/anew/`, `/niji-setu/` all render
 `div.rh-hero` at exactly 269px followed by one `section.pdp`, and their heights cluster in
 three values (1442 / 1585 / 1614) because only the bullet count differs. `/bharat-rx/` and
 `[retired public path aaee9dd4]/` share the hero and swap the second band. That is good consistency, and it means
@@ -110,16 +110,16 @@ point at `/contact/`, documented in `Header.tsx:55`. It is a *destination* probl
 
 ### Findings
 
-#### R1 — `/store/` is an internal page sitting on a public URL, and it serves a sign-in wall at HTTP 200
+#### R1 — `[retired public path]` is an internal page sitting on a public URL, and it serves a sign-in wall at HTTP 200
 
-`src/pages/store/index.tsx` imports the authenticated `Layout`. `/store/` is **not** in
+`src/pages/store/index.tsx` imports the authenticated `Layout`. `[retired public path]` is **not** in
 `_app.tsx`'s public allowlist, so an anonymous visitor gets the public marketing header and
 footer wrapped around the **staff Amplify Authenticator**. Measured in `out/store/index.html`:
 `amplify-authenticator` markup present, `div.ag-shell` rendered, **zero `<main>` elements and
 zero `<h1>`** — the only public route on the site failing both.
 
 This is the exact shape `_app.tsx:713` records as already having caused a live exposure on
-`/contact-test/`, and that comment names `/store/` as having been "clean" at the time. It is
+`/contact-test/`, and that comment names `[retired public path]` as having been "clean" at the time. It is
 not clean now. It is also unreachable as a public page — 0 inbound links from any of the other
 870 documents, and absent from the sitemap — while `navigation.ts:133` lists it as a sidebar
 destination labelled *Catalog*.
@@ -127,7 +127,7 @@ destination labelled *Catalog*.
 **Your proposed tree is right about this one:** `/store` belongs under
 `/workspace/commerce/`. It is the single strongest argument in the restructure.
 
-Compounding it, `/store/*` is simultaneously an **API prefix**: `_routes.json` declares
+Compounding it, `[retired public path]*` is simultaneously an **API prefix**: `_routes.json` declares
 `GET /store/preview-product-image`, `POST /store/generate-product-image` and
 `POST /store/convert-flag`. One path prefix is doing three jobs — public page, staff page,
 API namespace.
@@ -205,7 +205,7 @@ keeps one, on all 871 pages.
 #### R8 — Workspace pages ship the public marketing header
 
 `out/workspace/engage/index.html` contains hrefs to `/`, `/anew/`, `/bharat-rx/`,
-`/clear-closure/`, `/contact/`, `/dastavez/`, `/elsewhere/`, `/expo-week/`, `/grahak-os/`,
+`[retired public path]`, `/contact/`, `[retired public path]`, `[retired public path]`, `/expo-week/`, `/grahak-os/`,
 `[retired public path aaee9dd4]/` — the full product mega-menu — and **zero `/workspace/*` hrefs**, because the
 operator shell is client-rendered behind the auth gate. An authenticated page's static
 document is therefore entirely marketing navigation.
