@@ -331,8 +331,7 @@ export default function CheckoutStatus (): React.ReactElement {
           )}
         </section>
 
-        {/* The page-tail dock is AUTO-MOUNTED by RotatingHero (in its .rh-tail), so the page no
-            longer renders its own <PublicShare /> here - that would show the dock twice. */}
+        {/* The global Contribute + Subscribe + Share dock is mounted once by _app after policy. */}
 
         <style jsx>{`
           /* No top padding, no measure, no font stack: PageTopBand owns all three. 700px is the
