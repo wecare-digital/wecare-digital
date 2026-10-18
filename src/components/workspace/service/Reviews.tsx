@@ -134,8 +134,8 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
       // staff member looking for an order number that does not exist. "Reference" is true
       // of both shapes, and the prefix tells them which one they are holding.
       //
-      // `—` rather than blank for an unattributed review: a review left from
-      // /leave-review/ has no reference by design, and an empty cell reads as missing data.
+      // `—` rather than blank for an unattributed review: a review opened from
+      // the direct Leave Review menu action has no reference by design, and an empty cell reads as missing data.
       key: 'orderId', header: 'Reference', width: '150px',
       render: ( r: api.Review ) => (
         <span style={ { fontSize: 'var(--text-sm)', color: r.orderId ? 'var(--text)' : 'var(--text-muted)' } }>

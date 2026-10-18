@@ -44,7 +44,7 @@ const ROUTES = [
   '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/',
   // The Requests pages, added when the header's six labels stopped all resolving to
   // /contact/. Same shape as the product pages: rotating hero plus one content section.
-  '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/leave-review/',
+  '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/',
   // The clean-slate Shop currently exports only the listing. Product detail and pagination
   // routes are generated only when fresh ProductsTable rows exist; do not pin retired fixtures
   // back into the browser contract just to keep an old SEO probe alive.

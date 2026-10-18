@@ -45,7 +45,7 @@ const ROUTES = [
   '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/', '/blog/', '/get/',
   // The five Customer service pages, added when the header's six labels stopped all resolving
   // to /contact/. Same shape as the product pages: rotating hero plus one content section.
-  '/submit-request/', '/request-amendment/', '/drop-docs/', '/leave-review/',
+  '/submit-request/', '/request-amendment/', '/drop-docs/',
   // Staff-only commerce pages are intentionally outside this public-page markup harness.
 ];
 

@@ -41,7 +41,7 @@
     "name": "WECARE.DIGITAL",
     "url": "https://wecare.digital",
     "tagline": "Customer operations for Bharat, run over the channels people already use.",
-    "summary": "WECARE.DIGITAL runs customer engagement and service operations for businesses in India across WhatsApp, RCS, SMS, email and voice, alongside a set of focused consumer services. Public pages describe what each service does; requests, amendments, documents and reviews are handled through the customer-service pages rather than by email.",
+    "summary": "WECARE.DIGITAL runs customer engagement and service operations for businesses in India across WhatsApp, RCS, SMS, email and voice, alongside a set of focused consumer services. Public pages describe what each service does; requests, amendments and documents use the customer-service pages, while Leave Review opens the published WhatsApp entry directly.",
     "language": "en-IN",
     "country": "IN",
     "sitemap": "https://wecare.digital/sitemap.xml"
@@ -65,7 +65,7 @@
     {
       "id": "customerservice",
       "title": "Customer service",
-      "note": "The six pages that replace an email inbox. A request starts on one of these."
+      "note": "The five public request pages that replace an email inbox. A request starts on one of these."
     },
     {
       "id": "legal",
@@ -241,12 +241,6 @@
       "group": "customerservice",
       "name": "Request Pickup",
       "description": "Ask us to collect documents for a request already under way."
-    },
-    {
-      "path": "/leave-review",
-      "group": "customerservice",
-      "name": "Leave Review",
-      "description": "Tell us how something went, well or badly."
     },
     {
       "path": "/privacy",

@@ -1,6 +1,7 @@
 import ast
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,8 +39,15 @@ def test_public_faq_buttons_target_current_public_pages():
     # Keep its destination in the generated public-page contract.
     routes = {rule['source']: rule['target'] for rule in redirects.desired_redirects()
               if rule['status'] == '301' and rule['source'].startswith('/')}
+    review_source = (ROOT / 'src/lib/reviewEntry.ts').read_text()
+    review_match = re.search(r"export const REVIEW_ENTRY_URL\s*=\s*'([^']+)'", review_source)
+    assert review_match
+    review_url = review_match.group(1)
     for entry in faq['faqs']:
         if entry.get('ctaPath'):
             path = entry['ctaPath']
+            if path.startswith('https://'):
+                assert path == review_url, path
+                continue
             target = routes.get(path, path)
             assert (target.rstrip('/') or '/') in pages, path

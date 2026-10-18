@@ -3,7 +3,7 @@
  * source of truth for the Leave Review door.
  *
  * WHY A MODULE RATHER THAN A LITERAL PER FILE. Five surfaces describe this one door: the
- * public `/leave-review/` page CTA and four workspace tables that staff read when telling a
+ * public Leave Review menu action and four workspace tables that staff read when telling a
  * customer what to type. Before this, each restated the id and a keyword list of its own, and
  * four of them restated a Flow id that was not present on the WABA at all — so the workspace
  * confidently advertised a door that did not exist. One module makes a one-sided edit
@@ -25,8 +25,8 @@
 export const REVIEW_FLOW_ID = '1578178897413815';
 
 /**
- * The owner's WhatsApp short link, and the one public CTA on these pages that is not the
- * contact page.
+ * The owner's WhatsApp short link used by the public Leave Review menu action and the
+ * review workspace.
  *
  * It resolves to WABA 1 (919330994400) with the prefill `Leave Review`. Lowercased that is
  * `leave review`, the FIRST entry in `REVIEW_ENTRY_KEYWORDS`, so the customer's own outbound
