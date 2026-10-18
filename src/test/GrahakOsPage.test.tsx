@@ -193,7 +193,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( "import ProductBuyBox from '../../components/ProductBuyBox';" );
     expect( source ).toContain( '<ProductBuyBox slug="grahak-os" showPrice={ false } />' );
     // Match /anew/'s compact price-unit pattern: price + product + concise scope on one line.
-    expect( source ).toContain( '&#8377;899<span className="gos-price-unit"> · Grahak OS · enterprise AI consulting</span>' );
+    expect( source ).toContain( '&#8377;899<span className="gos-price-unit"> · AI agent deployment · enterprise outcomes</span>' );
     // The redundant second explanatory sentence is gone; the compact line carries the meaning.
     expect( source ).not.toContain( 'gos-price-note' );
     expect( source ).not.toContain( 'A consulting solution for organisations and businesses.' );
@@ -247,10 +247,9 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
 } );
 
 /**
- * The below-code "Open in WhatsApp" link stays a PLAIN INLINE TEXT LINK, but its normal-flow
- * row now matches the Python panel's desktop width (60%, capped at 340px). That keeps the link
- * visually anchored to the panel while reserving layout height, avoiding the overlap regression
- * caused by absolutely positioning the link outside the mockup wrapper.
+ * The below-code "Open in WhatsApp" link stays a PLAIN INLINE TEXT LINK, but it now shares
+ * a .code-stack positioning wrapper with the Python panel itself. That makes "directly below"
+ * structural instead of relying on a second row merely having the same width.
  */
 describe( 'Grahak OS: below-code "Open in WhatsApp" inline text link', () => {
   const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
@@ -264,7 +263,7 @@ describe( 'Grahak OS: below-code "Open in WhatsApp" inline text link', () => {
     expect( linkCount ).toBe( 1 );
   } );
 
-  it( 'styles it as a plain text link, NOT a pill, and right-aligns it under the code panel', () => {
+  it( 'styles it as a plain text link and anchors it structurally to the Python panel', () => {
     const linkRule = cssRuleFor( source, '.code-wa-link' );
     // Text link: dark-green text, 15px, underlined - no pill surface, border or radius.
     expect( linkRule ).toContain( 'color:#1a3a2a' );
@@ -273,21 +272,33 @@ describe( 'Grahak OS: below-code "Open in WhatsApp" inline text link', () => {
     expect( linkRule ).not.toContain( 'border:2px solid' );
     expect( linkRule ).not.toContain( 'border-radius:50px' );
     expect( linkRule ).not.toContain( 'min-height:52px' );
-    // Not a pill: it must not carry the solid lime fill or a transparent-pill surface.
     expect( linkRule ).not.toContain( 'background:#d1f470' );
-    // The normal-flow row mirrors the Python panel's desktop measure and aligns to its edge.
-    const rowRule = cssRuleFor( source, '.code-wa-row' );
-    expect( rowRule ).toContain( 'width:60%' );
-    expect( rowRule ).toContain( 'max-width:340px' );
-    expect( rowRule ).toContain( 'align-self:flex-end' );
-    expect( rowRule ).not.toContain( 'position:absolute' );
     expect( linkRule ).not.toContain( 'position:absolute' );
+
+    // The Python panel and the link now share one positioning wrapper.
+    const stackStart = source.indexOf( '<div className="code-stack">' );
+    const boxStart = source.indexOf( '<div className="code-box" dir="ltr">', stackStart );
+    const rowStart = source.indexOf( '<div className="code-wa-row">', boxStart );
+    expect( stackStart ).toBeGreaterThan( -1 );
+    expect( boxStart ).toBeGreaterThan( stackStart );
+    expect( rowStart ).toBeGreaterThan( boxStart );
+
+    const stackRule = cssRuleFor( source, '.code-stack' );
+    const rowRule = cssRuleFor( source, '.code-wa-row' );
+    const boxRule = cssRuleFor( source, '.code-box' );
+    expect( stackRule ).toContain( 'position:absolute' );
+    expect( stackRule ).toContain( 'width:60%' );
+    expect( stackRule ).toContain( 'max-width:340px' );
+    expect( stackRule ).toContain( 'gap:8px' );
+    expect( rowRule ).toContain( 'width:100%' );
+    expect( rowRule ).not.toContain( 'position:absolute' );
+    expect( boxRule ).toContain( 'position:relative' );
+    expect( boxRule ).toContain( 'width:100%' );
+
     // A focus-visible ring exists so the link stays keyboard-visible.
     expect( code ).toContain( '.code-wa-link:focus-visible{' );
-    // No retired colour creeps into the link CSS.
     expect( linkRule ).not.toContain( '#2f6b52' );
     expect( linkRule ).not.toContain( '#075e54' );
-    // The old outlined ghost pill is gone entirely - markup and CSS.
     expect( source ).not.toContain( 'gos-wa-ghost' );
   } );
 
