@@ -79,6 +79,54 @@ TOKEN_MIRROR = {
 }
 DESIGN_TOKENS_TS = SRC / "lib/design-tokens.ts"
 
+# Public-page values are namespaced so the marketing scale can stay independent from the
+# denser workspace/application scale. Brand primitives alias the global foundation instead
+# of copying literals, so changing the brand in one place cannot leave public pages behind.
+PUBLIC_TOKEN_CONTRACT = {
+    "--public-bg": "var(--bg)",
+    "--public-text": "var(--text)",
+    "--public-heading": "rgba(0, 0, 0, 0.95)",
+    "--public-body": "rgba(0, 0, 0, 0.898)",
+    "--public-brand-green": "var(--accent)",
+    "--public-brand-lime": "var(--lime)",
+    "--public-hairline": "var(--border)",
+    "--public-hero-size": "clamp(36px, 4.3vw, 60px)",
+    "--public-hero-weight": "600",
+    "--public-hero-leading": "1.04",
+    "--public-hero-tracking": "-0.04em",
+    "--public-section-size": "clamp(28px, 3.2vw, 40px)",
+    "--public-section-weight": "700",
+    "--public-section-leading": "1.08",
+    "--public-section-tracking": "-1.2px",
+    "--public-body-size": "20px",
+    "--public-body-weight": "400",
+    "--public-body-leading": "1.4",
+    "--public-body-tracking": "-0.125px",
+    "--public-card-size": "22px",
+    "--public-card-weight": "700",
+    "--public-card-leading": "1.27",
+    "--public-card-tracking": "-0.25px",
+    "--public-content-max": "1300px",
+    "--public-reading-max": "700px",
+    "--public-copy-max": "560px",
+    "--public-section-gap": "96px",
+    "--public-page-gutter": "24px",
+    "--public-cta-height": "52px",
+    "--public-cta-radius": "50px",
+    "--public-cta-border": "2px",
+    "--public-cta-font-size": "17px",
+    "--public-cta-font-weight": "600",
+}
+
+# design-tokens.ts owns the application layout scale; public pages have their own namespaced
+# 1300px measure above. Keeping this mirror explicit prevents the generic token from silently
+# becoming a second public token and resizing authenticated surfaces by import order.
+LAYOUT_TOKEN_MIRROR = {
+    "maxWidth": "--max-width",
+    "maxWidthWide": "--max-width-wide",
+}
+
+
 # State tokens that must stay visually distinct from one another.
 STATE_TOKENS = ("--success", "--warning", "--info", "--danger")
 
@@ -270,6 +318,57 @@ def scan_token_mirror():
     return violations
 
 
+def _normalise_css_value(value: str) -> str:
+    return re.sub(r"\\s+", "", value.strip()).lower()
+
+
+def scan_public_token_contract():
+    """The public token block must remain the measured contract, not a second drift surface."""
+    if not TOKENS_CSS.exists():
+        return []
+    css = strip_comments(TOKENS_CSS.read_text(encoding="utf-8"), ".css")
+    violations = []
+    for token, expected in PUBLIC_TOKEN_CONTRACT.items():
+        m = re.search(rf"{re.escape(token)}:\\s*([^;]+);", css)
+        if not m:
+            violations.append({
+                "rule": "public_token_missing", "file": TOKENS_CSS.relative_to(ROOT).as_posix(),
+                "line": 0, "match": token, "why": "canonical public token is missing"})
+            continue
+        actual = m.group(1).strip()
+        if _normalise_css_value(actual) != _normalise_css_value(expected):
+            violations.append({
+                "rule": "public_token_drift", "file": TOKENS_CSS.relative_to(ROOT).as_posix(),
+                "line": css[:m.start(1)].count("\\n") + 1,
+                "match": f"{token}={actual}",
+                "why": f"public contract requires {expected}"})
+    return violations
+
+
+def scan_layout_token_mirror():
+    """The generic TS/CSS application layout scale must agree; public 1300px stays namespaced."""
+    if not DESIGN_TOKENS_TS.exists() or not TOKENS_CSS.exists():
+        return []
+    css = strip_comments(TOKENS_CSS.read_text(encoding="utf-8"), ".css")
+    ts = strip_comments(DESIGN_TOKENS_TS.read_text(encoding="utf-8"), ".ts")
+    violations = []
+    for ts_key, css_var in LAYOUT_TOKEN_MIRROR.items():
+        tm = re.search(rf"\\b{re.escape(ts_key)}:\\s*(\\d+)", ts)
+        cm = re.search(rf"{re.escape(css_var)}:\\s*([^;]+);", css)
+        if not tm or not cm:
+            continue
+        expected = f"{tm.group(1)}px"
+        actual = cm.group(1).strip()
+        if _normalise_css_value(actual) != _normalise_css_value(expected):
+            violations.append({
+                "rule": "layout_token_mirror_mismatch",
+                "file": DESIGN_TOKENS_TS.relative_to(ROOT).as_posix(),
+                "line": ts[:tm.start()].count("\\n") + 1,
+                "match": f"{ts_key}={tm.group(1)} vs {css_var}={actual}",
+                "why": "generic application layout tokens must agree; public measure uses --public-content-max"})
+    return violations
+
+
 def normalise_colour(value: str) -> str:
     """A colour as an #rrggbb string, compositing rgba() over white.
 
@@ -378,6 +477,7 @@ def main() -> int:
 
     violations = (scan_retired() + scan_state_collision()
                   + scan_lime_resting_borders() + scan_token_mirror()
+                  + scan_public_token_contract() + scan_layout_token_mirror()
                   + scan_danger_in_success_green()
                   + scan_measure() + scan_font_sans())
 
