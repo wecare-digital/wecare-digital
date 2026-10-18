@@ -50,18 +50,18 @@ const allRoutes = (): string[] => {
 };
 
 /**
- * The eleven products and platform services, written out rather than derived.
+ * Public product and platform offerings, written out rather than derived.
  *
  * Deriving this from the file would make the test a tautology - it would agree with whatever
  * _app.tsx said, including a mistake. Written out, adding a twelfth is a deliberate decision
  * about whether the new page really is an offering.
  */
 const OFFERINGS = [
-  '/anew', '/bharat-rx', '/clear-closure', '/dastavez',
+  '/anew', '/bharat-rx',
   '/dastavez/drafting', '/dastavez/registration', '/dastavez/legal-reference',
   '/elsewhere/visa', '/elsewhere/trip', '/elsewhere/activities',
-  '/expo-week', '/grahak-os', '/hunar/kaushal', '/hunar/prastuti', '/niji-setu', '/ritual-guru',
-  '/ritual-guru/puja-guidance', '/ritual-guru/diy-puja-kit', '/vayulok',
+  '/expo-week', '/grahak-os', '/hunar/kaushal', '/hunar/prastuti', '/niji-setu',
+  '/ritual-guru/puja-guidance', '/ritual-guru/diy-puja-kit', '/shipments/track', '/vayulok',
 ];
 
 /**
@@ -88,7 +88,7 @@ const NOT_OFFERINGS = [
   // controls as non-transacting. A Service node would describe a site we do not have. (The former
   // gift-card / offers / rewards sections on Perks were removed on owner instruction, so Perks no
   // longer "gathers" anything; and the Shipments route moved from /zip/ on 2026-10-02.)
-  '/shipments', '/perks',
+  '/perks',
 ];
 
 describe( 'per-page Service structured data', () => {

@@ -59,7 +59,7 @@ interface SearchableNavLink extends NavLink {
  *
  * Structural headings stay on the existing small uppercase rung.
  * Every family and every destination uses the same 19px/600 navigation rung.
- * Elsewhere and Hunar are non-clickable family labels; their children are the destinations.
+ * Product families are non-clickable labels; only their child destinations are pages.
  * Search is derived from this same graph.
  */
 const COLUMNS: NavColumn[] = [
@@ -90,8 +90,6 @@ const COLUMNS: NavColumn[] = [
           { label: 'Expo Week', href: '/expo-week/', match: '/expo-week' },
           {
             label: 'Dastavez',
-            href: '/dastavez/',
-            match: '/dastavez',
             children: [
               { label: 'Drafting', href: '/dastavez/drafting/', match: '/dastavez/drafting', searchTerms: [ 'dastavez' ] },
               { label: 'Registration', href: '/dastavez/registration/', match: '/dastavez/registration', searchTerms: [ 'dastavez' ] },
@@ -100,8 +98,6 @@ const COLUMNS: NavColumn[] = [
           },
           {
             label: 'Clear Closure',
-            href: '/clear-closure/',
-            match: '/clear-closure',
             children: [
               { label: 'Guided Resolution', href: '/shop/guided-resolution/' },
               { label: 'Case Submission', href: '/shop/file-assist/' },
@@ -110,8 +106,6 @@ const COLUMNS: NavColumn[] = [
           },
           {
             label: 'Ritual Guru',
-            href: '/ritual-guru/',
-            match: '/ritual-guru',
             children: [
               { label: 'Puja Guidance', href: '/ritual-guru/puja-guidance/', match: '/ritual-guru/puja-guidance', searchTerms: [ 'ritual guru' ] },
               { label: 'DIY Puja Kit', href: '/ritual-guru/diy-puja-kit/', match: '/ritual-guru/diy-puja-kit', searchTerms: [ 'ritual guru' ] },
@@ -145,7 +139,7 @@ const COLUMNS: NavColumn[] = [
             label: 'Shipments',
             searchTerms: [ 'track', 'pickup' ],
             children: [
-              { label: 'Track', href: '/shipments/', searchTerms: [ 'shipments', 'tracking' ] },
+              { label: 'Track', href: '/shipments/track/', match: '/shipments/track', searchTerms: [ 'shipments', 'tracking' ] },
               { label: 'Pickup Request', href: '/request-pickup/', searchTerms: [ 'shipments', 'pickup' ] },
             ],
           },

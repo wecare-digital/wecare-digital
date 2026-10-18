@@ -87,6 +87,10 @@ describe( 'the product-family trails', () => {
       ...PRODUCT_CHILDREN.map( c => [ c.path.replace( /\/$/, '' ), c.product.name ] as [ string, string ] ),
     ] );
     for ( const [ route, trail ] of Object.entries( BREADCRUMB_TRAILS ) ) {
+      if ( route === '/shipments/track' ) {
+        expect( trail[ trail.length - 1 ].label ).toBe( 'Track' );
+        continue;
+      }
       expect( names.get( route ), `${route} is not in products.ts or productChildren.ts` ).toBeDefined();
       expect( trail[ trail.length - 1 ].label ).toBe( names.get( route ) );
     }

@@ -26,8 +26,6 @@ import type { Crumb } from '../components/Breadcrumbs';
  */
 const HOME: Crumb = { label: 'Home', href: '/' };
 const SHOP: Crumb = { label: 'Shop', href: '/shop/' };
-const DASTAVEZ: Crumb = { label: 'Dastavez', href: '/dastavez/' };
-const RITUAL_GURU: Crumb = { label: 'Ritual Guru', href: '/ritual-guru/' };
 
 const here = ( label: string ): Crumb => ( { label } );
 
@@ -35,24 +33,21 @@ export const BREADCRUMB_TRAILS: Readonly<Record<string, readonly Crumb[]>> = {
   // Product pages: Home / Shop / <Product>, matching what /shop/<slug>/ renders, so the trail
   // from the listing into a product is unbroken.
   '/expo-week': [ HOME, SHOP, here( 'Expo Week' ) ],
-  '/dastavez': [ HOME, SHOP, here( 'Dastavez' ) ],
-  '/clear-closure': [ HOME, SHOP, here( 'Clear Closure' ) ],
-  '/ritual-guru': [ HOME, SHOP, here( 'Ritual Guru' ) ],
   '/anew': [ HOME, SHOP, here( 'Anew' ) ],
   '/hunar/kaushal': [ HOME, SHOP, here( 'Kaushal' ) ],
   '/hunar/prastuti': [ HOME, SHOP, here( 'Prastuti' ) ],
   '/niji-setu': [ HOME, SHOP, here( 'Niji Setu' ) ],
-  // Elsewhere and Hunar are families with no page of their own (Header renders each as a label),
-  // so their children sit directly under Shop. A parent crumb would have to link a URL that 404s.
+  // Product families have no page of their own (Header renders each as a label), so their
+  // children sit directly under Shop. A parent crumb would have to link a URL that 404s.
   '/elsewhere/visa': [ HOME, SHOP, here( 'Visa' ) ],
   '/elsewhere/trip': [ HOME, SHOP, here( 'Trip' ) ],
   '/elsewhere/activities': [ HOME, SHOP, here( 'Activities' ) ],
-  // Family children with a parent page.
-  '/dastavez/drafting': [ HOME, SHOP, DASTAVEZ, here( 'Drafting' ) ],
-  '/dastavez/registration': [ HOME, SHOP, DASTAVEZ, here( 'Registration' ) ],
-  '/dastavez/legal-reference': [ HOME, SHOP, DASTAVEZ, here( 'Legal Reference' ) ],
-  '/ritual-guru/puja-guidance': [ HOME, SHOP, RITUAL_GURU, here( 'Puja Guidance' ) ],
-  '/ritual-guru/diy-puja-kit': [ HOME, SHOP, RITUAL_GURU, here( 'DIY Puja Kit' ) ],
+  '/dastavez/drafting': [ HOME, SHOP, here( 'Drafting' ) ],
+  '/dastavez/registration': [ HOME, SHOP, here( 'Registration' ) ],
+  '/dastavez/legal-reference': [ HOME, SHOP, here( 'Legal Reference' ) ],
+  '/ritual-guru/puja-guidance': [ HOME, SHOP, here( 'Puja Guidance' ) ],
+  '/ritual-guru/diy-puja-kit': [ HOME, SHOP, here( 'DIY Puja Kit' ) ],
+  '/shipments/track': [ HOME, SHOP, here( 'Track' ) ],
 };
 
 /**

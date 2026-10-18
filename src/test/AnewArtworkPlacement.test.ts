@@ -34,16 +34,18 @@ describe( 'catalog artwork placement', () => {
       'src/pages/hunar/prastuti.tsx',
       'src/pages/niji-setu.tsx',
       'src/pages/expo-week.tsx',
-      'src/pages/dastavez.tsx',
-      'src/pages/clear-closure.tsx',
-      'src/pages/ritual-guru.tsx',
+      'src/pages/dastavez/drafting.tsx',
+      'src/pages/dastavez/registration.tsx',
+      'src/pages/dastavez/legal-reference.tsx',
+      'src/pages/ritual-guru/puja-guidance.tsx',
+      'src/pages/ritual-guru/diy-puja-kit.tsx',
       'src/pages/submit-request.tsx',
       'src/pages/request-amendment.tsx',
       'src/pages/drop-docs.tsx',
       'src/pages/vault.tsx',
       'src/pages/request-pickup.tsx',
       'src/pages/leave-review.tsx',
-      'src/pages/shipments.tsx',
+      'src/pages/shipments/track.tsx',
     ] ) {
       const source = read( rel );
       expect(

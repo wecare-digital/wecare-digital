@@ -110,12 +110,6 @@
       "description": "Check the status of an order, delivery, request or booking."
     },
     {
-      "path": "/shipments",
-      "group": "start",
-      "name": "Shipments",
-      "description": "Everything about your request, delivery or pickup in one place. Track what you already have with WECARE.DIGITAL, or ask us to arrange a pickup, on WhatsApp."
-    },
-    {
       "path": "/grahak-os",
       "group": "platform",
       "name": "Grahak OS",
@@ -194,28 +188,16 @@
       "description": "CV, professional profile and pitch deck creation built from real experience."
     },
     {
+      "path": "/shipments/track",
+      "group": "services",
+      "name": "Track",
+      "description": "Track an order, delivery or service request already with WECARE.DIGITAL."
+    },
+    {
       "path": "/expo-week",
       "group": "services",
       "name": "Expo Week",
       "description": "A virtual travel fair and immersive digital expo."
-    },
-    {
-      "path": "/dastavez",
-      "group": "services",
-      "name": "Dastavez",
-      "description": "Business documentation and registrations in India."
-    },
-    {
-      "path": "/clear-closure",
-      "group": "services",
-      "name": "Clear Closure",
-      "description": "Online dispute resolution, fully online."
-    },
-    {
-      "path": "/ritual-guru",
-      "group": "services",
-      "name": "Ritual Guru",
-      "description": "Curated, temple-grade puja kits."
     },
     {
       "path": "/anew",

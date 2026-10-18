@@ -33,7 +33,7 @@ export const SHOP_LISTINGS: ShopListing[] = [
   { slug:'request-amendment', name:'Request · Amendment', blurb:'Change a detail on a request already in motion.', sku:'RAM5Q8K4', href:'/request-amendment/', formattedPrice:'₹199.00', inStock:true, source:'product' },
   { slug:'drop-docs', name:'Request · Drop Docs', blurb:'Send the paperwork an existing request needs.', sku:'RDD9P3M7', href:'/drop-docs/', formattedPrice:'₹199.00', inStock:true, source:'product' },
   { slug:'vault', name:'Request · Vault', blurb:'Get a copy of a document held against your request.', sku:'RVT6K4Q8', href:'/vault/', formattedPrice:'₹49.00', inStock:true, source:'product' },
-  { slug:'shipments-track', name:'Shipment · Track', blurb:'Track what is on its way.', sku:'SHT8M5P3', href:'/shipments/', formattedPrice:'₹49.00', inStock:true, source:'product' },
+  { slug:'shipments-track', name:'Shipment · Track', blurb:'Track what is on its way.', sku:'SHT8M5P3', href:'/shipments/track/', formattedPrice:'₹49.00', inStock:true, source:'product' },
   { slug:'request-pickup', name:'Shipment · Pickup', blurb:'Arrange collection of paperwork for an existing request.', sku:'SHP7Q4N9', href:'/request-pickup/', formattedPrice:'₹650.00', inStock:true, source:'product' },
   { slug:'referral-partner', name:'Partner · Referral', blurb:'Introduce someone who would find WECARE.DIGITAL useful.', sku:'PRF5M8K2', href:'/refer-and-earn/', formattedPrice:'₹899.00', inStock:true, source:'product' },
   { slug:'merchandise', name:'Partner · Merchandise', blurb:'WECARE.DIGITAL merchandise.', sku:'PMD9Q3P6', href:'/shop/merchandise/', formattedPrice:'₹1,999.00', inStock:true, source:'product' },

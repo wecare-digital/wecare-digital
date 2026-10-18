@@ -5,16 +5,14 @@ import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
 export interface ProductChildPage {
   path: string;
   parent: string;
-  parentHref?: string;
   product: ProductDef;
 }
 
 /**
  * Product-family children shown in the public menu.
  *
- * These are real public pages but they are NOT top-level Shop catalogue products. Keeping
- * them outside PRODUCTS means category-only families such as Elsewhere do not reappear as
- * purchasable tiles on /shop/, while every child can still use the same ProductPage /
+ * These are real public pages under non-clickable family labels. The family names themselves
+ * have no route; only these destinations render. Each child uses the shared ProductPage /
  * RotatingHero detail-page contract.
  */
 export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
@@ -96,7 +94,6 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
   {
     path: '/dastavez/drafting/',
     parent: 'Dastavez',
-    parentHref: '/dastavez/',
     product: {
       slug: 'dastavez-drafting',
       name: 'Drafting',
@@ -122,7 +119,6 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
   {
     path: '/dastavez/registration/',
     parent: 'Dastavez',
-    parentHref: '/dastavez/',
     product: {
       slug: 'dastavez-registration',
       name: 'Registration',
@@ -148,7 +144,6 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
   {
     path: '/dastavez/legal-reference/',
     parent: 'Dastavez',
-    parentHref: '/dastavez/',
     product: {
       slug: 'dastavez-legal-reference',
       name: 'Legal Reference',
@@ -174,7 +169,6 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
   {
     path: '/ritual-guru/puja-guidance/',
     parent: 'Ritual Guru',
-    parentHref: '/ritual-guru/',
     product: {
       slug: 'ritual-guru-puja-guidance',
       name: 'Puja Guidance',
@@ -200,7 +194,6 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
   {
     path: '/ritual-guru/diy-puja-kit/',
     parent: 'Ritual Guru',
-    parentHref: '/ritual-guru/',
     product: {
       slug: 'ritual-guru-diy-puja-kit',
       name: 'DIY Puja Kit',

@@ -48,8 +48,6 @@ const PUBLIC_EXACT = new Set( [
   // Product pages. These must stay in step with PUBLIC_PAGE_META in _app.tsx:
   // a route missing there renders an empty body with HTTP 200, so advertising it here
   // without it there would put blank pages in front of a crawler.
-  '/clear-closure',
-  '/dastavez',
   '/dastavez/drafting',
   '/dastavez/registration',
   '/dastavez/legal-reference',
@@ -63,7 +61,6 @@ const PUBLIC_EXACT = new Set( [
   '/hunar/kaushal',
   '/hunar/prastuti',
   '/niji-setu',
-  '/ritual-guru',
   '/ritual-guru/puja-guidance',
   '/ritual-guru/diy-puja-kit',
   // The Customer service pages. Same rule as the product group above: these must stay in
@@ -77,6 +74,7 @@ const PUBLIC_EXACT = new Set( [
   // Request Pickup joined the group on 2026-10-10 as the fifth service request variant.
   // Alphabetical, so it follows /request-amendment.
   '/request-pickup',
+  '/shipments/track',
   '/submit-request',
   // Vault is the return leg of Drop Docs: one page sends paperwork in, this one asks for a
   // copy back. It is NOT /get/, which stays out of the sitemap because it needs a verified
@@ -93,7 +91,6 @@ const PUBLIC_EXACT = new Set( [
   // here without that entry would put blank pages in front of a crawler. /perks is also the
   // repaired destination for the gift-card links.
   '/perks',
-  '/shipments',
 ] );
 // '/blog/page/' is pages 2..N of the paginated blog index. It has to be a prefix rather than
 // exact entries because the count moves with the corpus - 834 posts at 24 a page is 35 pages

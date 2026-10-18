@@ -499,12 +499,9 @@ const PUBLIC_PAGE_META: Record<string, {
   '/elsewhere/trip': { name: 'Trip', type: 'WebPage', description: 'Travel planning and coordination around the people taking the trip.', serviceType: 'Travel planning and coordination' },
   '/elsewhere/activities': { name: 'Activities', type: 'WebPage', description: 'Travel activities selected around place, timing and itinerary.', serviceType: 'Travel activity planning' },
   '/expo-week': { name: 'Expo Week', type: 'WebPage', description: 'A virtual travel fair and immersive digital expo.', serviceType: 'Virtual travel fair and digital expo' },
-  '/dastavez': { name: 'Dastavez', type: 'WebPage', description: 'Business documentation and registrations in India.', serviceType: 'Business documentation and company registration' },
   '/dastavez/drafting': { name: 'Drafting', type: 'WebPage', description: 'Structured business document preparation from the facts you provide.', serviceType: 'Business document drafting' },
   '/dastavez/registration': { name: 'Registration', type: 'WebPage', description: 'Registration paperwork and filing steps organised end to end.', serviceType: 'Business registration support' },
   '/dastavez/legal-reference': { name: 'Legal Reference', type: 'WebPage', description: 'Laws, judgments, rules and public source material organised around a question.', serviceType: 'Legal reference research' },
-  '/clear-closure': { name: 'Clear Closure', type: 'WebPage', description: 'Online dispute resolution, fully online.', serviceType: 'Online dispute resolution' },
-  '/ritual-guru': { name: 'Ritual Guru', type: 'WebPage', description: 'Curated, temple-grade puja kits.', serviceType: 'Puja kit supply' },
   '/ritual-guru/puja-guidance': { name: 'Puja Guidance', type: 'WebPage', description: 'Step-by-step practical guidance for a puja you are performing yourself.', serviceType: 'Self-led puja guidance' },
   '/ritual-guru/diy-puja-kit': { name: 'DIY Puja Kit', type: 'WebPage', description: 'Clearly labelled puja essentials with a preparation checklist.', serviceType: 'DIY puja kit supply' },
   // Renamed twice: '[retired public path]' -> '[retired public path]' -> '/anew'. The route moved with the
@@ -537,6 +534,7 @@ const PUBLIC_PAGE_META: Record<string, {
   // says "ask us to collect" rather than "book a pickup": a courier has to agree, so a
   // description promising a booking would describe a page that does not exist.
   '/request-pickup': { name: 'Request Pickup', type: 'WebPage', description: 'Ask us to collect documents for a request already under way.' },
+  '/shipments/track': { name: 'Track', type: 'WebPage', description: 'Track an order, delivery or service request already with WECARE.DIGITAL.', serviceType: 'Shipment and request tracking' },
   '/leave-review': { name: 'Leave Review', type: 'WebPage', description: 'Tell us how something went, well or badly.' },
   '/refer-and-earn': { name: 'Refer & Earn', type: 'WebPage', description: 'Introduce someone who would find this useful.' },
   // THE CATALOGUE INDEX IS RESTORED, 2026-10-10, on owner instruction: /shop/ is browsable again,
@@ -561,22 +559,8 @@ const PUBLIC_PAGE_META: Record<string, {
   // shape: renderAllowlist() in that generator and allRoutes() in StructuredDataService.test.ts
   // both parse this block as text and both require literals.
   '/shop': { name: 'Shop', type: 'WebPage', description: 'Every WECARE.DIGITAL product and service on one page, each linking to its own page.' },
-  // Shipments gathers the request/delivery/pickup actions in one place. It links the real request
-  // routes (orders, request-amendment, drop-docs, vault, leave-review) and renders anything with
-  // no backend (pickup/visit/delivery tracking) as a clearly non-transacting item.
-  //
-  // THIS ENTRY IS WHY THE RENAME DID NOT LAND THE FIRST TIME. The key was '/zip' and the `name`
-  // was the literal string 'Zip', so even after the nav label was changed to "Shipments" the page
-  // still PUBLISHED itself as "Zip" — this `name` feeds the WebPage schema emitted on the route
-  // AND config/public-pages.json, so the retired name went out to crawlers and to every consumer
-  // of that config. Renaming the nav row alone could never fix it. On owner instruction
-  // (2026-10-02) the name is gone entirely: key, `name`, route and page file all read shipments.
-  // The description below is a LITERAL, not SHIPMENTS.description, on purpose:
-  // scripts/generate-public-pages.js reads this map by static text parse (it must not import
-  // _app.tsx, which runs Amplify.configure), so a non-literal value makes it see no entry and
-  // refuse. Drift from src/content/shipments.ts is instead guarded by an equality assertion in
-  // src/test/ShipmentsPage.test.tsx, the same shape the CTA-1 href already uses.
-  '/shipments': { name: 'Shipments', type: 'WebPage', description: 'Everything about your request, delivery or pickup in one place. Track what you already have with WECARE.DIGITAL, or ask us to arrange a pickup, on WhatsApp.' },
+  // Shipments is a non-clickable family label. Track lives at /shipments/track/ and
+  // Pickup Request remains the separate /request-pickup/ child.
   // Perks is a home-styled landing page for the small thank-yous we send customers, and the
   // repaired destination for the gift-card links that used to point at a 404. The owner removed
   // the former gift-card / offers / rewards sections, so the page is now a calm, honest landing
@@ -585,7 +569,7 @@ const PUBLIC_PAGE_META: Record<string, {
   // THE NAME IS "PERKS" AGAIN. An earlier instruction renamed it Perks -> Extras; the owner
   // reversed that on 2026-10-02, because the nav rendered the row "Extras" directly beneath a
   // group heading also reading "Extras". `name` was still 'Extras' here, which — exactly as with
-  // the Shipments entry above — fed the page's WebPage schema and config/public-pages.json, so the
+  // the old Shipments parent entry — fed the page's WebPage schema and config/public-pages.json, so the
   // wrong name was published regardless of the label. The ROUTE KEY STAYS '/perks' and needs no
   // change: it already matches the name. config/public-pages.json takes its `name` from here, so
   // it is regenerated to "Perks" to stay in parity (PublicAiSurface test).

@@ -21,7 +21,6 @@ export const PRODUCT_SKU_BY_SLUG: Readonly<Record<string, string>> = {
   'drop-docs': 'RDD9P3M7',
   'vault': 'RVT6K4Q8',
   'shipments-track': 'SHT8M5P3',
-  'shipments': 'SHT8M5P3',
   'request-pickup': 'SHP7Q4N9',
   'referral-partner': 'PRF5M8K2',
   'merchandise': 'PMD9Q3P6',
