@@ -44,7 +44,6 @@ const CANONICAL_ROUTES: Array<[ string, string, string ]> = [
   [ '/drop-docs/', 'src/pages/drop-docs.tsx', 'ProductPage' ],
   [ '/vault/', 'src/pages/vault.tsx', 'ProductPage' ],
   [ '/request-pickup/', 'src/pages/request-pickup.tsx', 'ProductPage' ],
-  [ '/leave-review/', 'src/pages/leave-review.tsx', 'ProductPage' ],
   [ '/privacy/', 'src/pages/privacy.tsx', '<RotatingHero' ],
   [ '/terms/', 'src/pages/terms.tsx', '<RotatingHero' ],
 ];
@@ -75,7 +74,7 @@ const SHARED_HERO_OWNERS = [
 
 describe( 'Step 3 public hero route matrix', () => {
   it( 'keeps the canonical route inventory complete', () => {
-    expect( CANONICAL_ROUTES ).toHaveLength( 31 );
+    expect( CANONICAL_ROUTES ).toHaveLength( 30 );
   } );
 
   it.each( CANONICAL_ROUTES )( '%s reaches the intended hero owner', ( route, file, marker ) => {

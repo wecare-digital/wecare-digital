@@ -44,7 +44,6 @@ describe( 'catalog artwork placement', () => {
       'src/pages/drop-docs.tsx',
       'src/pages/vault.tsx',
       'src/pages/request-pickup.tsx',
-      'src/pages/leave-review.tsx',
       'src/pages/shipments/track.tsx',
     ] ) {
       const source = read( rel );

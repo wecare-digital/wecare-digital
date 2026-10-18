@@ -9,8 +9,8 @@
  * pointing at it through mainEntity.
  *
  * THE ABSENCES ARE THE POINT OF THIS FILE. It would be easy, and wrong, to type every public
- * route as a Service to get a richer graph. /leave-review is not an offering; /terms is not a
- * product. Those are page kinds and ways to interact with us, and describing them as services
+ * route as a Service to get a richer graph. /terms is not a product. Those are page kinds and
+ * ways to interact with us, and describing them as services
  * would be describing a site we do not have. A test that only checked the positives would let
  * that happen on the next edit, so the negatives are asserted just as hard.
  *
@@ -81,7 +81,6 @@ const OFFERINGS = [
 const NOT_OFFERINGS = [
   '/shop',
   '/submit-request', '/request-amendment', '/drop-docs', '/vault', '/request-pickup',
-  '/leave-review',
   '/terms', '/privacy', '/contact', '/orders',
 ];
 

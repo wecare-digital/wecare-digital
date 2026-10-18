@@ -62,12 +62,6 @@ const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
     refunds: 'Refunds and cancellations depend on whether preparation has started.',
     disclaimer: 'Ritva is spiritual guidance, not medical, legal, financial or other regulated professional advice.',
   },
-  '/leave-review': {
-    shipping: 'No fulfilment applies to submitting feedback.',
-    returns: 'A review is not a return; product or service issues belong to the order.',
-    refunds: 'Submitting or editing feedback does not change refund rights.',
-    disclaimer: 'Feedback may be moderated for privacy, relevance or abuse; publication is not guaranteed.',
-  },
   '/privacy': {
     shipping: 'No fulfilment applies to this page.',
     returns: 'Nothing on this page is returnable.',

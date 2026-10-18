@@ -240,6 +240,183 @@ SOURCE_REMNANT_PATTERNS: Tuple[str, ...] = (
 #: Section 20. Presence of any of these means the matching review flag must be an
 #: explicit YES, not N/A. The point is not to ban the subject, it is to stop a record
 #: declaring a review "not applicable" while making the claim anyway.
+
+
+# Public-copy corruption classes discovered by the October 2026 independent corpus audit.
+# These are live-copy integrity failures, not style preferences, so they are intentionally
+# NOT included in LEGACY_SOFTENED_CODES.
+EDITORIAL_ORPHAN_VERBS: Tuple[str, ...] = (
+    "recommends", "suggests", "offers", "uses", "presents", "describes", "explains",
+    "notes", "advises", "considers", "keeps", "gives", "allows", "rests", "pairs",
+    "serves", "prepares", "makes", "solves", "aims", "leaves", "combines",
+    "introduces", "encourages", "includes", "treats", "frames", "cautions", "adapts",
+    "explicitly", "frequently", "regularly",
+)
+
+EDITORIAL_KNOWN_FUSED_WORDS = frozenset({
+    "appearspecifically", "carefullygives", "schedulenotes", "heatexplicitly",
+    "measurementgives", "rollinggives", "roleschooses", "tastinguses",
+    "graduallyspecifically", "mealpairs", "stereotypepresents", "contextpresents",
+    "fatgives", "defaultpresents", "easilya", "togetherdivides", "lightasks", "formkanji",
+})
+
+EDITORIAL_CAMEL_ALLOWLIST = frozenset({
+    "YouTube", "iPhone", "iPad", "iCloud", "JavaScript", "ChatGPT", "LinkedIn",
+    "WordPress", "PowerPoint", "OpenAI", "PayPal", "GitHub", "WhatsApp", "OneLogin",
+    "OnePassword",
+})
+
+EDITORIAL_SOURCE_REFERENCE_RE = re.compile(
+    r"\b(?:from\s+the\s+recipe\s+on\s+book\s+p\.|book\s+p\.\s*\d+|"
+    r"source\s+ref(?:erence)?\s*:|source\s+file\s*:|blogsrc_|blogbatch_|"
+    r"archive[_ -]?derived|original[_ -]?109)\b",
+    re.IGNORECASE,
+)
+
+EDITORIAL_BROKEN_POSSESSIVE_RE = re.compile(
+    r"\b(?:the|a|an|using|from|follow|across)\s+[’']s\b",
+    re.IGNORECASE,
+)
+
+EDITORIAL_MALFORMED_RE = re.compile(
+    r"\b(?:uses briefly using|fusion Here:|Across the,|according to how says|"
+    r"throughout the as|from there, the offers|recommended note)\b",
+    re.IGNORECASE,
+)
+
+EDITORIAL_PREPARATION_WRAPPER_RE = re.compile(
+    r"\bThe preparation\s+(?:describes|suggests|notes|uses|offers|presents|explains|"
+    r"recommends|gives|allows|keeps|pairs|serves|makes|calls|includes|frames|treats)\b",
+    re.IGNORECASE,
+)
+
+EDITORIAL_DETACHED_RECIPE_RE = re.compile(
+    r"(?:^|[.!?]\s+)The recipe(?:'s|’s)?\b",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _terminally_punctuated_public_copy(value: str) -> bool:
+    return bool(re.search(r"[.!?…][\"'”’\)\]]*$", value.strip()))
+
+
+def _metadata_looks_truncated(value: str) -> bool:
+    value = value.strip()
+    if not value:
+        return True
+    if re.search(r",\s*(?:\.|\.\.\.)\s*$|\.{4,}\s*$", value):
+        return True
+    trimmed = re.sub(r"[.!?…\"'”’\)\]]+$", "", value).rstrip()
+    if re.search(r"(?:^|\s)[a-z]$", trimmed):
+        return True
+    return len(value) >= 120 and not _terminally_punctuated_public_copy(value)
+
+
+def check_editorial_corruption(record: Dict[str, Any]) -> List[Finding]:
+    """Hard blockers for public-copy corruption found by the October 2026 audit."""
+    out: List[Finding] = []
+    body = body_of(record)
+    category = str(record.get("category") or "").strip()
+
+    structural_patterns = (
+        ("FUSED_INGREDIENTS_HEADING", r"(?m)^Ingredients(?=\*|\-|\d)",
+         "Ingredients is fused to the first ingredient instead of being a Markdown heading"),
+        ("FUSED_METHOD_HEADING", r"(?m)^Method(?=\d+[.)]|[A-Z][a-z])",
+         "Method is fused to the first numbered step or sentence"),
+        ("PLAIN_SECTION_HEADING", r"(?m)^(?:Ingredients|Method)\s*$",
+         "Ingredients/Method must be Markdown headings, not collapsed plain-text labels"),
+    )
+    for code, pattern, message in structural_patterns:
+        if re.search(pattern, body):
+            out.append(_block("26", code, message))
+
+    for token in re.findall(r"\b[A-Za-z]{2,}[a-z][A-Z][a-z]{2,}[A-Za-z]*\b", body):
+        if token not in EDITORIAL_CAMEL_ALLOWLIST:
+            out.append(_block(
+                "26", "FUSED_WORD_BOUNDARY",
+                f"possible lost word/heading boundary in {token!r}; restore the intended spacing "
+                "or explicitly allow the proper name"))
+            break
+
+    lowered_body = body.lower()
+    for token in EDITORIAL_KNOWN_FUSED_WORDS:
+        if re.search(r"\b" + re.escape(token) + r"\b", lowered_body):
+            out.append(_block(
+                "26", "FUSED_LOWERCASE_WORDS",
+                f"known migration join {token!r} survives in the body"))
+            break
+
+    public_surfaces = [("body", strip_markdown(body))]
+    for field_name in ("excerpt", "metaDescription"):
+        value = text_field(record, field_name)
+        if value:
+            public_surfaces.append((field_name, value))
+
+    for surface_name, surface_text in public_surfaces:
+        if EDITORIAL_BROKEN_POSSESSIVE_RE.search(surface_text):
+            out.append(_block(
+                "18", "BROKEN_SOURCE_POSSESSIVE",
+                f"broken source-name removal survives in {surface_name}"))
+            break
+        if EDITORIAL_SOURCE_REFERENCE_RE.search(surface_text):
+            out.append(_block(
+                "18", "SOURCE_REFERENCE_LEAK",
+                f"internal source/reference metadata leaked into public {surface_name}"))
+            break
+        if EDITORIAL_MALFORMED_RE.search(surface_text):
+            out.append(_block(
+                "18", "MALFORMED_SOURCE_REMNANT",
+                f"known source-removal grammar damage survives in public {surface_name}"))
+            break
+        if re.search(r"\ba suitable version uses\b", surface_text, re.IGNORECASE):
+            out.append(_block(
+                "18", "DETACHED_SOURCE_NARRATION",
+                f"source-facing 'a suitable version uses' wrapper survives in {surface_name}"))
+            break
+
+    orphan = "|".join(re.escape(v) for v in EDITORIAL_ORPHAN_VERBS)
+    prose = strip_markdown(body)
+    if re.search(rf"(?:^|[.!?]\s+)(?:also\s+)?(?:{orphan})\b", prose):
+        out.append(_block(
+            "18", "ORPHAN_PROSE_START",
+            "a sentence begins with a lower-case source/narrator verb and is missing its subject"))
+    if re.search(
+            rf"\b(?:Because|Although|While|If|When|Since|Where|As|Despite the name)"
+            rf",?\s+(?:also\s+)?(?:{orphan})\b",
+            prose):
+        out.append(_block(
+            "18", "MISSING_SUBJECT_AFTER_CLAUSE",
+            "a subordinate clause is followed by a source/narrator verb with no grammatical subject"))
+
+    if category == "Gastronomy":
+        if EDITORIAL_DETACHED_RECIPE_RE.search(prose):
+            out.append(_block(
+                "18", "DETACHED_RECIPE_NARRATION",
+                "Gastronomy prose is narrated as 'The recipe...' instead of stating the culinary point directly"))
+        if EDITORIAL_PREPARATION_WRAPPER_RE.search(prose):
+            out.append(_block(
+                "18", "DETACHED_PREPARATION_NARRATION",
+                "Gastronomy prose is narrated as 'The preparation...' instead of stating the point directly"))
+        for line in body.splitlines():
+            match = re.search(r"\bHere\b", line)
+            if match and line[:match.start()].strip():
+                out.append(_block(
+                    "18", "MID_SENTENCE_CAPITAL_HERE",
+                    "capitalized 'Here' appears mid-sentence in Gastronomy copy, a known migration-removal artifact"))
+                break
+
+    excerpt = text_field(record, "excerpt")
+    if not excerpt:
+        out.append(_block("24", "EXCERPT_MISSING", "public excerpt is required"))
+    for field_name, value in (("excerpt", excerpt),
+                              ("metaDescription", text_field(record, "metaDescription"))):
+        if value and _metadata_looks_truncated(value):
+            out.append(_block(
+                "24", "PUBLIC_METADATA_TRUNCATED",
+                f"{field_name} appears cut off or ends in malformed truncation punctuation"))
+
+    return out
+
 FACT_DOMAIN_TRIGGERS: Dict[str, Tuple[str, ...]] = {
     "healthReviewComplete": (
         "cortisol", "dopamine", "serotonin", "amygdala", "neuroplasticity", "diagnosis",
@@ -1477,6 +1654,7 @@ def check_record(record: Dict[str, Any], corpus: Optional[CorpusIndex] = None,
     findings += check_title(record)
     findings += check_slug_and_dates(record)
     findings += check_seo_and_metadata(record)
+    findings += check_editorial_corruption(record)
     findings += check_formatting_and_images(record)
     findings += check_status_field(record)
     if str(record.get("category") or "").strip() == "Gastronomy":

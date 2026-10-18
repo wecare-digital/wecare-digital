@@ -912,7 +912,7 @@ export default function OrdersPage (): React.ReactElement {
                       //
                       // '' omits the row entirely rather than rendering an unattributed button.
                       // A review door in a per-order panel that carries no order would attribute
-                      // nothing while looking like it does, and /leave-review/ already is the
+                      // nothing while looking like it does, and the direct Leave Review menu action is the
                       // unattributed door for anyone who wants one. `isCarriableReference` is the
                       // same bound the Lambda enforces on arrival, so the legacy spaced order
                       // number ('WD-ORD - A1B2C3D4 - …') drops out here instead of travelling as

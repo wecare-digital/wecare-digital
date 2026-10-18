@@ -2,6 +2,7 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Header from '../Header';
+import { REVIEW_ENTRY_URL } from '../../lib/reviewEntry';
 
 const routerState = vi.hoisted( () => ( { pathname: '/', asPath: '' } ) );
 vi.mock( 'next/router', () => ( { useRouter: () => routerState } ) );
@@ -106,6 +107,7 @@ describe( 'Header', () => {
     const request = screen.getByText( 'Request' ).closest( '.nav-group' );
     expect( Array.from( request?.querySelectorAll( '.nav-item' ) || [] ).map( n => n.textContent ) )
       .toEqual( [ 'Orders', 'Submit Request', 'Request Amendment', 'Drop Docs', 'Vault', 'Shipments', 'Track', 'Pickup Request', 'Leave Review', 'Subscribe' ] );
+    expect( screen.getByRole( 'link', { name: 'Leave Review' } ) ).toHaveAttribute( 'href', REVIEW_ENTRY_URL );
   } );
 
   it( 'keeps Blog published but hides it from public navigation and navigation search', () => {

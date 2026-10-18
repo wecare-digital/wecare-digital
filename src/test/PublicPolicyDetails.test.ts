@@ -9,7 +9,6 @@ describe( 'public PolicyDetails coverage', () => {
     '/vayulok',
     '/elsewhere/activities',
     '/ritual-guru/ritva',
-    '/leave-review',
     '/privacy',
     '/terms',
     '/shop',

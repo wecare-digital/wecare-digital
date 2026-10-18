@@ -21,7 +21,7 @@ THE SINGLE SOURCE OF TRUTH, AND WHY IT IS NOW A MODULE
 There are TWO sources that must agree, in two languages that cannot import each other:
 
   * Python — `DEFAULT_FLOW_TRIGGERS['leave_review']` in the inbound handler.
-  * TypeScript — `src/lib/reviewEntry.ts`, which the public page CTA and all four workspace
+  * TypeScript — `src/lib/reviewEntry.ts`, which the public menu action and all four workspace
     tables import.
 
 `KEYWORDS` below is the owner-decided ordered set, encoded ONCE here, and BOTH sources are
@@ -65,7 +65,7 @@ KEYWORDS = [
 #: The one TypeScript source every review surface reads.
 REVIEW_ENTRY = ROOT / 'src/lib/reviewEntry.ts'
 
-PAGE = ROOT / 'src/content/customerservice.ts'
+HEADER = ROOT / 'src/components/Header.tsx'
 # The 2026-10 workspace redesign (105 -> 28 pages) moved these review surfaces from
 # `src/pages/workspace/...` pages into `src/components/workspace/...` components. selfservice
 # became the service hub (which also carries MESSAGE_LINKS.leave_review); the WhatsApp settings
@@ -214,11 +214,11 @@ def test_every_review_surface_reads_the_shared_module_rather_than_restating_it()
         assert 'leave a review' not in source.lower(), \
             f'{path.name} restates the keyword list literally; use REVIEW_ENTRY_KEYWORDS'
 
-    page = PAGE.read_text()
-    assert 'reviewEntry' in page, 'the /leave-review/ page does not import reviewEntry'
-    assert 'REVIEW_ENTRY_URL' in page
-    assert WA_SHORT_LINK not in page, \
-        'the page restates the short link literally; import REVIEW_ENTRY_URL instead'
+    header = HEADER.read_text()
+    assert 'reviewEntry' in header, 'the Leave Review menu action does not import reviewEntry'
+    assert 'REVIEW_ENTRY_URL' in header
+    assert WA_SHORT_LINK not in header, \
+        'the menu restates the short link literally; import REVIEW_ENTRY_URL instead'
 
 
 def test_the_retired_flow_ids_and_link_are_gone_repo_wide():
@@ -257,8 +257,8 @@ def test_the_retired_flow_ids_and_link_are_gone_repo_wide():
     assert not hits, 'retired leave-review identifiers still present:\n  ' + '\n  '.join(hits)
 
 
-def test_the_page_cta_and_the_workspace_link_are_the_same_short_link():
-    """One door, one URL. The page button and the workspace's copyable link must not diverge,
+def test_the_menu_action_and_the_workspace_link_are_the_same_short_link():
+    """One door, one URL. The menu action and the workspace's copyable link must not diverge,
     because the link's Meta-side prefill (`Leave Review`) is what matches the first keyword.
 
     Keyed on `MESSAGE_LINKS.leave_review` rather than on the file containing the URL anywhere,
@@ -267,6 +267,6 @@ def test_the_page_cta_and_the_workspace_link_are_the_same_short_link():
     source = SELFSERVICE.read_text()
     match = re.search(r'leave_review:\s*(REVIEW_ENTRY_URL)\b', source)
     assert match, 'selfservice MESSAGE_LINKS.leave_review does not read REVIEW_ENTRY_URL'
-    # Both the page and the workspace resolve that identifier to the asserted constant.
+    # Both the menu and the workspace resolve that identifier to the asserted constant.
     assert _ts_const(REVIEW_ENTRY, 'REVIEW_ENTRY_URL') == WA_SHORT_LINK
-    assert 'REVIEW_ENTRY_URL' in PAGE.read_text()
+    assert 'REVIEW_ENTRY_URL' in HEADER.read_text()

@@ -71,7 +71,6 @@ const PUBLIC_EXACT = new Set( [
   // there serves an empty body at HTTP 200 - i.e. it would put blank pages in front of a
   // crawler. They replaced six menu labels that all resolved to /contact/.
   '/drop-docs',
-  '/leave-review',
   '/request-amendment',
   // Request Pickup joined the group on 2026-10-10 as the fifth service request variant.
   // Alphabetical, so it follows /request-amendment.

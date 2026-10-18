@@ -187,7 +187,7 @@ _START_PATHS = {"/", "/contact", "/blog", "/shop", "/orders"}
 _PLATFORM_PATHS = {"/grahak-os", "/vayulok"}
 _CUSTOMER_SERVICE_PATHS = {
     "/submit-request", "/request-amendment", "/drop-docs", "/vault",
-    "/request-pickup", "/leave-review",
+    "/request-pickup",
 }
 _LEGAL_PATHS = {"/privacy", "/terms"}
 
