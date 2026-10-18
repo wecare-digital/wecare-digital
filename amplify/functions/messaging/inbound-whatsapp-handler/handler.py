@@ -247,7 +247,7 @@ WD_LEAF_LINKS: Dict[str, Tuple[str, str]] = {
     'wd_vault': ('Vault', '/vault/'),
     'wd_track': ('Track', '/shipments/track/'),
     'wd_pickup': ('Pickup Request', '/request-pickup/'),
-    'wd_review': ('Leave Review', '/leave-review/'),
+    'wd_review': ('Leave Review', 'https://wa.me/message/ZM74K2H2BIFOA1'),
     # Refer & Earn children
     'wd_merchandise': ('Merchandise', '/shop/merchandise/'),
     'wd_kiosk': ('Kiosk', '/shop/kiosk/'),
