@@ -344,7 +344,8 @@ response = requests.post(
                     It also pins .file-name, which uses margin-left:auto to push the filename
                     to the far end of the header; inside a locked subtree that physical
                     property is now correct rather than accidentally correct. */}
-                <div className="code-box" dir="ltr">
+                <div className="code-stack">
+                  <div className="code-box" dir="ltr">
                   <div className="code-header">
                     <div className="dots"><span className="dot-red"></span><span className="dot-yellow"></span><span className="dot-green"></span></div>
                     {/* A filename. The code body below is already safe because
@@ -378,15 +379,14 @@ response = requests.post(
   },
   headers={"Authorization": bearer}
 )`}</pre>
+                  </div>
+                  {/* Keep the demo link in the SAME positioning wrapper as the Python panel.
+                      This makes its geometry structural instead of inferred from matching widths:
+                      wherever the panel moves, this row stays immediately beneath it. */}
+                  <div className="code-wa-row">
+                    <a className="code-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Open in WhatsApp <span aria-hidden="true">↗</span></a>
+                  </div>
                 </div>
-              </div>
-              {/* Match the Python panel's width instead of positioning the link outside normal
-                  flow. On desktop this row is the same 60% / 340px measure as .code-box and
-                  right-aligned with it, so the link sits directly beneath that panel. The row
-                  itself stays in flow, reserving height and preventing overlap with the next
-                  section. Stacked breakpoints widen/centre the row with the code panel. */}
-              <div className="code-wa-row">
-                <a className="code-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Open in WhatsApp <span aria-hidden="true">↗</span></a>
               </div>
             </div>
           </div>
@@ -655,14 +655,16 @@ response = requests.post(
              as a hyperlink. Dark-green on the white hero is ~12:1, well past AA. Hover shifts
              the text to the lime-pair dark green feel by dropping the underline / keeping the
              colour and strengthening the underline; focus-visible draws the shared ring. */
-          .code-wa-row{width:60%;max-width:340px;align-self:flex-end;display:flex;justify-content:flex-start}
+          /* The Python panel and its demo link are one unit. On desktop the unit keeps the
+             panel's existing lower-right overlap, then extends 28px below the mockup for the
+             plain text link. hero-visual-col reserves that extension so the next section cannot
+             collide with it. */
+          .code-stack{position:absolute;right:0;bottom:-28px;width:60%;max-width:340px;display:flex;flex-direction:column;align-items:stretch;gap:8px}
+          .code-wa-row{width:100%;display:flex;justify-content:flex-start}
           .code-wa-link{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;color:#1a3a2a;font-size:15px;font-weight:600;text-decoration:underline;text-underline-offset:3px;transition:opacity .2s}
           .code-wa-link:hover{opacity:.72}
           .code-wa-link:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;border-radius:4px}
-          /* The mockup and the below-code link share a flex column; the link is RIGHT-aligned
-             under the mockup (align-items:flex-end) at desktop width. Narrow widths re-centre
-             it in the responsive blocks below so it never overflows the stacked column. */
-          .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;width:100%}
+          .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;width:100%;padding-bottom:28px;box-sizing:border-box}
           /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
              above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
           .gos-price{display:block;margin-top:22px;font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
@@ -877,7 +879,7 @@ response = requests.post(
           /* Code Box */
           /* Pure black, not slate. The panel reads as a terminal against the warm
              chat beige, and the slate #1e293b muddied that contrast. */
-          .code-box{position:absolute;right:0;bottom:0;width:60%;max-width:340px;background:#000;border-radius:14px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.2)}
+          .code-box{position:relative;width:100%;max-width:none;background:#000;border-radius:14px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.2)}
           .code-header{display:flex;align-items:center;padding:10px 14px;background:#000}
           .dots{display:flex;gap:5px}
           .dot-red,.dot-yellow,.dot-green{width:10px;height:10px;border-radius:50%}
@@ -1111,8 +1113,10 @@ response = requests.post(
             .mockup-wrapper{display:flex;flex-direction:column;gap:14px;aspect-ratio:auto;min-height:0;align-items:flex-start}
             .phone{position:relative;left:auto;top:auto;width:100%;max-width:100%}
             .chat-area{min-height:320px}
+            .code-stack{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:none;align-self:stretch}
             .code-box{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%}
-            .code-wa-row{width:100%;max-width:none;justify-content:flex-end}
+            .code-wa-row{width:100%;justify-content:flex-end}
+            .hero-visual-col{padding-bottom:0}
           }
 
           @media(max-width:1024px){
@@ -1139,10 +1143,11 @@ response = requests.post(
             .mockup-wrapper{display:flex;flex-direction:column;gap:14px;max-width:480px;aspect-ratio:auto;min-height:0;margin:0;padding:20px;align-items:flex-start}
             .phone{position:relative;left:auto;top:auto;width:100%;max-width:100%}
             .chat-area{min-height:300px}
+            .code-stack{position:relative;right:auto;left:12px;bottom:16px;width:55%;max-width:none;align-self:flex-start}
             .code-box{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%}
             .phone{left:16px;top:16px;width:52%}
-            .code-box{right:auto;left:12px;bottom:16px;width:55%}
-            .code-wa-row{width:55%;max-width:none;justify-content:flex-start}
+            .code-wa-row{width:100%;justify-content:flex-start}
+            .hero-visual-col{padding-bottom:0}
             
             .section-header{padding:0 20px}
 
@@ -1185,8 +1190,9 @@ response = requests.post(
             .typing-indicator{padding:12px 16px}
             .typing-indicator span{width:8px;height:8px}
             
-            .code-box{position:relative;right:auto;bottom:auto;width:100%;max-width:100%;margin:0;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,.1);align-self:flex-start}
-            .code-wa-row{width:100%;max-width:380px;align-self:center;justify-content:center}
+            .code-stack{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%;align-self:stretch}
+            .code-box{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%;margin:0;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,.1);align-self:flex-start}
+            .code-wa-row{width:100%;justify-content:center}
             .code-header{padding:14px 16px}
             .dots{gap:6px}
             .dot-red,.dot-yellow,.dot-green{width:12px;height:12px}
