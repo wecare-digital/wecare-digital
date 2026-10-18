@@ -3,13 +3,51 @@
  * Each channel has its own page; this is the central hub
  */
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
+import PageShell, { ShellTab } from '../../../components/PageShell';
 import { WhatsAppIcon, SmsIcon, VoiceIcon, EmailIcon, RcsIcon, LogsIcon, ContactsIcon, CreateIcon } from '../../../lib/icons';
 
 interface PageProps { signOut?: () => void; user?: any; }
+
+// FEAT-005: the messaging automation/tooling pages (Automation, Content Library, Analytics,
+// Cost & Usage, Message Search, Meta AI Agent, Docs Scraper, Scheduled, Contact 360) are in-page
+// tabs on this Messages hub now — their bodies moved OUT of the routes tree into
+// src/components/workspace/messaging/** so each stops being its own route. Loaded on demand.
+function lazyTab<P> ( loader: () => Promise<{ default: React.ComponentType<P> }> ) {
+  return dynamic( loader, { ssr: false } );
+}
+const AutomationPage = lazyTab( () => import( '../../../components/workspace/messaging/Automation' ) );
+const ContentPage = lazyTab( () => import( '../../../components/workspace/messaging/Content' ) );
+const AnalyticsPage = lazyTab( () => import( '../../../components/workspace/messaging/Analytics' ) );
+const CostPage = lazyTab( () => import( '../../../components/workspace/messaging/Cost' ) );
+const SearchPage = lazyTab( () => import( '../../../components/workspace/messaging/Search' ) );
+const MetaAgentPage = lazyTab( () => import( '../../../components/workspace/messaging/MetaAgent' ) );
+const DocsScraperPage = lazyTab( () => import( '../../../components/workspace/messaging/DocsScraper' ) );
+const ScheduledPage = lazyTab( () => import( '../../../components/workspace/messaging/Scheduled' ) );
+const Contact360Page = lazyTab( () => import( '../../../components/workspace/messaging/Contact360' ) );
+
+const HUB_TABS: ShellTab[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'scheduled', label: 'Scheduled', divider: true },
+  { id: 'automation', label: 'Automation' },
+  { id: 'content', label: 'Content Library' },
+  { id: 'analytics', label: 'Analytics' },
+  { id: 'cost', label: 'Cost & Usage' },
+  { id: 'search', label: 'Message Search' },
+  { id: 'meta-agent', label: 'Meta AI Agent' },
+  { id: 'docs', label: 'Docs Scraper' },
+  { id: 'contact-360', label: 'Contact 360' },
+];
+
+// FEAT-005: /workspace/engage?tab=<id> deep-links open the matching tab.
+function resolveDefaultTab ( raw: string | string[] | undefined ): string {
+  const id = Array.isArray( raw ) ? raw[ 0 ] : raw;
+  return id && HUB_TABS.some( ( t ) => t.id === id ) ? id : 'overview';
+}
 
 /* Push notification bell icon */
 const PushIcon: React.FC<{ size?: number; color?: string }> = ({ size = 18, color = '#1a3a2a' }) => (
@@ -22,12 +60,15 @@ const PushIcon: React.FC<{ size?: number; color?: string }> = ({ size = 18, colo
 // which since 2026-10-15 is a router.replace signpost to this same URL, so the tile
 // lands where it always did, minus a redirect.
 const channels = [
+  // FEAT-005: the per-channel routes (sms/rcs/ses/voice/push) are now tabs on the single
+  // Channels hub, reached as /workspace/engage/channels?tab=<id>. WhatsApp stays an inbox
+  // filter. These tiles land on the right Channels tab, minus the removed standalone routes.
   { id: 'whatsapp', label: 'WhatsApp', desc: 'Business API messaging, campaigns & templates', path: '/workspace/engage/inbox?channel=whatsapp', Icon: WhatsAppIcon, color: '#25D366', count: 0 },
-  { id: 'sms', label: 'SMS', desc: 'Transactional and promotional SMS', path: '/workspace/engage/sms', Icon: SmsIcon, color: '#3B82F6', count: 0 },
-  { id: 'voice', label: 'Voice', desc: 'Outbound calls & CDR logs', path: '/workspace/engage/voice', Icon: VoiceIcon, color: '#8B5CF6', count: 0 },
-  { id: 'email', label: 'Email', desc: 'Amazon SES campaigns & inbox', path: '/workspace/engage/ses', Icon: EmailIcon, color: '#EF4444', count: 0 },
-  { id: 'rcs', label: 'RCS', desc: 'Rich Communication Services', path: '/workspace/engage/rcs', Icon: RcsIcon, color: '#F59E0B', count: 0 },
-  { id: 'push', label: 'Push', desc: 'Apple APNs & Android FCM notifications', path: '/workspace/engage/push', Icon: PushIcon, color: '#6366F1', count: 0 },
+  { id: 'sms', label: 'SMS', desc: 'Transactional and promotional SMS', path: '/workspace/engage/channels?tab=sms', Icon: SmsIcon, color: '#3B82F6', count: 0 },
+  { id: 'voice', label: 'Voice', desc: 'Outbound calls & CDR logs', path: '/workspace/engage/channels?tab=voice', Icon: VoiceIcon, color: '#8B5CF6', count: 0 },
+  { id: 'email', label: 'Email', desc: 'Amazon SES campaigns & inbox', path: '/workspace/engage/channels?tab=email', Icon: EmailIcon, color: '#EF4444', count: 0 },
+  { id: 'rcs', label: 'RCS', desc: 'Rich Communication Services', path: '/workspace/engage/channels?tab=rcs', Icon: RcsIcon, color: '#F59E0B', count: 0 },
+  { id: 'push', label: 'Push', desc: 'Apple APNs & Android FCM notifications', path: '/workspace/engage/channels?tab=push', Icon: PushIcon, color: '#6366F1', count: 0 },
 ];
 
 const quickActions = [
@@ -53,9 +94,9 @@ const MessagesPage: React.FC<PageProps> = ({ signOut, user }) => {
     else if (action === 'contacts') router.push('/workspace/contacts');
   };
 
-  return (
-    <Layout user={user} onSignOut={signOut}>
-      <SEO title="Messages" description="Messaging hub — WhatsApp, SMS, Voice, Email, RCS" />
+  const defaultTab = resolveDefaultTab(router.query.tab);
+
+  const overview = (
       <div className="inner-page-container" style={{ maxWidth: 960 }}>
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>Messages</h1>
@@ -90,6 +131,33 @@ const MessagesPage: React.FC<PageProps> = ({ signOut, user }) => {
           ))}
         </div>
       </div>
+  );
+
+  return (
+    <Layout user={user} onSignOut={signOut}>
+      <SEO title="Messages" description="Messaging hub — WhatsApp, SMS, Voice, Email, RCS" />
+      <PageShell
+        key={defaultTab}
+        title="Messages"
+        subtitle="Channels, automation, content, analytics and search in one place"
+        tabs={HUB_TABS}
+        defaultTab={defaultTab}
+      >
+        {(activeTab) => (
+          <Suspense fallback={<div style={{ padding: 40, textAlign: 'center' }}>Loading…</div>}>
+            {activeTab === 'overview' && overview}
+            {activeTab === 'scheduled' && <ScheduledPage signOut={signOut} user={user} embedded />}
+            {activeTab === 'automation' && <AutomationPage signOut={signOut} user={user} embedded />}
+            {activeTab === 'content' && <ContentPage signOut={signOut} user={user} embedded />}
+            {activeTab === 'analytics' && <AnalyticsPage signOut={signOut} user={user} embedded />}
+            {activeTab === 'cost' && <CostPage signOut={signOut} user={user} embedded />}
+            {activeTab === 'search' && <SearchPage signOut={signOut} user={user} embedded />}
+            {activeTab === 'meta-agent' && <MetaAgentPage signOut={signOut} user={user} embedded />}
+            {activeTab === 'docs' && <DocsScraperPage signOut={signOut} user={user} embedded />}
+            {activeTab === 'contact-360' && <Contact360Page signOut={signOut} user={user} embedded />}
+          </Suspense>
+        )}
+      </PageShell>
 
       {/* Send Message Modal */}
       {sendOpen && (

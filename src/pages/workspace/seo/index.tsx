@@ -15,6 +15,7 @@
 import React, { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import PageShell, { ShellTab } from '../../../components/PageShell';
@@ -28,9 +29,12 @@ function lazyTab<P> ( loader: () => Promise<{ default: React.ComponentType<P> }>
   return dynamic( loader, { ssr: false } );
 }
 
-const SEOToolsPage = lazyTab( () => import( './tools' ) );
-const BlogManagerPage = lazyTab( () => import( './blog-manager' ) );
-const PagesManagerPage = lazyTab( () => import( './pages-manager' ) );
+// FEAT-005: the Tools/Blog SEO/Site Pages SEO tab bodies moved OUT of src/pages/workspace/seo/**
+// into src/components/workspace/seo/** so each stops being its own route. Every seoToolsFetch
+// call inside them is unchanged.
+const SEOToolsPage = lazyTab( () => import( '../../../components/workspace/seo/Tools' ) );
+const BlogManagerPage = lazyTab( () => import( '../../../components/workspace/seo/BlogManager' ) );
+const PagesManagerPage = lazyTab( () => import( '../../../components/workspace/seo/PagesManager' ) );
 
 const TABS: ShellTab[] = [
   { id: 'overview', label: 'Overview' },
@@ -49,7 +53,15 @@ const PIPELINE = [
   { path: '/workspace/seo/blog-production/publish', label: 'Publish queue', desc: 'Release, publish and verify — nothing automatic', icon: '🚀' },
 ];
 
+// FEAT-005: /workspace/seo?tab=<id> deep-links open the matching tab.
+function resolveDefaultTab ( raw: string | string[] | undefined ): string {
+  const id = Array.isArray( raw ) ? raw[ 0 ] : raw;
+  return id && TABS.some( ( t ) => t.id === id ) ? id : 'overview';
+}
+
 const SEOHub: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
+  const router = useRouter();
+  const defaultTab = resolveDefaultTab( router.query.tab );
   const [ liveStats, setLiveStats ] = useState<any>( null );
   const [ loading, setLoading ] = useState( true );
 
@@ -79,10 +91,11 @@ const SEOHub: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
   const content = (
     <PageShell
+      key={ defaultTab }
       title="SEO"
       subtitle="AWS-native SEO — tools, blog & site-page optimisation, blog pipeline"
       tabs={ TABS }
-      defaultTab="overview"
+      defaultTab={ defaultTab }
     >
       { ( activeTab ) => (
         <Suspense fallback={ <div style={ { padding: 40, textAlign: 'center' } }>Loading…</div> }>

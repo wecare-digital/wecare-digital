@@ -8,6 +8,7 @@ import { canonicalFlowId } from '../../../../lib/canonicalFlows';
 
 import React, { Suspense } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/router';
 import Layout from '../../../../components/Layout';
 import PageShell, { ShellTab } from '../../../../components/PageShell';
 
@@ -35,41 +36,42 @@ function lazyTab<P> ( loader: () => Promise<{ default: React.ComponentType<P> }>
   return dynamic( loader, { ssr: false } );
 }
 
-const WABADashboard = lazyTab( () => import( './waba-dashboard' ) );
-const TemplatesPage = lazyTab( () => import( './templates' ) );
-const WelcomePage = lazyTab( () => import( './welcome' ) );
-const CampaignPage = lazyTab( () => import( './campaign' ) );
+// FEAT-005: the tab bodies moved OUT of the routes tree (src/pages/workspace/**) into
+// src/components/workspace/whatsapp/** so the physical route count drops. The lazy-tab
+// contract is unchanged — each still loads on demand and takes { signOut, user, embedded }.
+// Paths are kept as string literals so webpack can statically resolve each chunk.
+const WABADashboard = lazyTab( () => import( '../../../../components/workspace/whatsapp/waba-dashboard' ) );
+const TemplatesPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/templates' ) );
+const WelcomePage = lazyTab( () => import( '../../../../components/workspace/whatsapp/welcome' ) );
+const CampaignPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/campaign' ) );
 // Unified logs, preset to WhatsApp. ./logs was 265 lines over the same canonical
 // table as dm/logs; its error decoding, CSV export, pagination and contact-name
-// resolution all moved into dm/logs rather than being dropped.
+// resolution all moved into dm/logs rather than being dropped. Still a real route.
 const LogsPage = lazyTab( () => import( '../logs' ) );
-const InteractiveListsPage = lazyTab( () => import( './interactive-lists' ) );
-const FlowsPage = lazyTab( () => import( './flows' ) );
-const CallingPage = lazyTab( () => import( './calling' ) );
-const GroupsPage = lazyTab( () => import( './groups' ) );
-const BusinessProfilePage = lazyTab( () => import( './business-profile' ) );
-const WebhooksPage = lazyTab( () => import( './webhooks' ) );
-const AutoResponsePage = lazyTab( () => import( './auto-response' ) );
-const ScriptsPage = lazyTab( () => import( './scripts' ) );
-const FlowResponsesPage = lazyTab( () => import( './flow-responses' ) );
-const FlowHubPage = lazyTab( () => import( './flow-hub' ) );
-const MigrationPage = lazyTab( () => import( './migration' ) );
-const AiAgentPage = lazyTab( () => import( './ai-agent' ) );
-// Folded in from standalone routes during the workspace redesign (FEAT-004). These were
-// their own gear rows; each is `embedded`-ready, so the only change is that the hub now
-// renders them as additional lazy tabs. No api/client.ts call inside them was touched.
-const ConnectedAccountsPage = lazyTab( () => import( './connected-accounts' ) );
-const EmbeddedSignupPage = lazyTab( () => import( './embedded-signup' ) );
-const MyAccountPage = lazyTab( () => import( './my-account' ) );
-const BsuidPage = lazyTab( () => import( './bsuid' ) );
-const TechPartnerPage = lazyTab( () => import( './tech-partner' ) );
-const TemplateBuilderPage = lazyTab( () => import( './template-builder' ) );
-const FlowPublishPage = lazyTab( () => import( './flow-publish' ) );
-const CatalogBuilderPage = lazyTab( () => import( './catalog-builder' ) );
-const SendTestPage = lazyTab( () => import( './send-test' ) );
-const ConversionsApiPage = lazyTab( () => import( './conversions-api' ) );
-const CtwaAdsPage = lazyTab( () => import( './ctwa-ads' ) );
-const CostControlsPage = lazyTab( () => import( './cost-controls' ) );
+const InteractiveListsPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/interactive-lists' ) );
+const FlowsPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/flows' ) );
+const CallingPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/calling' ) );
+const GroupsPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/groups' ) );
+const BusinessProfilePage = lazyTab( () => import( '../../../../components/workspace/whatsapp/business-profile' ) );
+const WebhooksPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/webhooks' ) );
+const AutoResponsePage = lazyTab( () => import( '../../../../components/workspace/whatsapp/auto-response' ) );
+const ScriptsPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/scripts' ) );
+const FlowResponsesPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/flow-responses' ) );
+const FlowHubPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/flow-hub' ) );
+const MigrationPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/migration' ) );
+const AiAgentPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/ai-agent' ) );
+const ConnectedAccountsPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/connected-accounts' ) );
+const EmbeddedSignupPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/embedded-signup' ) );
+const MyAccountPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/my-account' ) );
+const BsuidPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/bsuid' ) );
+const TechPartnerPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/tech-partner' ) );
+const TemplateBuilderPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/template-builder' ) );
+const FlowPublishPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/flow-publish' ) );
+const CatalogBuilderPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/catalog-builder' ) );
+const SendTestPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/send-test' ) );
+const ConversionsApiPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/conversions-api' ) );
+const CtwaAdsPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/ctwa-ads' ) );
+const CostControlsPage = lazyTab( () => import( '../../../../components/workspace/whatsapp/cost-controls' ) );
 
 interface PageProps {
   signOut?: () => void;
@@ -210,13 +212,27 @@ const TABS: ShellTab[] = [
   { id: 'logs', label: 'Logs' },
 ];
 
-const WhatsAppSettingsPage: React.FC<PageProps> = ( { signOut, user } ) => (
+// FEAT-005: deep-links arrive as /workspace/engage/whatsapp?tab=<id>. The query value is
+// a tab id in TABS; fall back to the Bot Menu when it is absent or unrecognised.
+function resolveDefaultTab ( raw: string | string[] | undefined ): string {
+  const id = Array.isArray( raw ) ? raw[ 0 ] : raw;
+  return id && TABS.some( ( t ) => t.id === id ) ? id : 'bot-menu';
+}
+
+const WhatsAppSettingsPage: React.FC<PageProps> = ( { signOut, user } ) => {
+  const router = useRouter();
+  // PageShell seeds its active tab from defaultTab once (useState). On a static export the
+  // ?tab= query is only known after hydration, so key the shell on the resolved tab: when
+  // the query arrives the shell remounts and opens the deep-linked tab.
+  const defaultTab = resolveDefaultTab( router.query.tab );
+  return (
   <Layout user={ user } onSignOut={ signOut }>
     <PageShell
+      key={ defaultTab }
       title="WhatsApp"
       subtitle="Business API — Messaging, Campaigns, Templates, Bot Menu & More"
       tabs={ TABS }
-      defaultTab="bot-menu"
+      defaultTab={ defaultTab }
     >
       { ( activeTab ) => (
         <Suspense fallback={ <div style={ { padding: 40, textAlign: 'center' } }>Loading...</div> }>
@@ -254,6 +270,7 @@ const WhatsAppSettingsPage: React.FC<PageProps> = ( { signOut, user } ) => (
       ) }
     </PageShell>
   </Layout>
-);
+  );
+};
 
 export default WhatsAppSettingsPage;

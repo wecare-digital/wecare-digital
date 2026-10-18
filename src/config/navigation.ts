@@ -94,9 +94,12 @@ export const navigationConfig: NavItem[] = [
       { path: '/workspace/engage/inbox?channel=email', label: 'Email' },
       { path: '/workspace/engage/inbox?channel=voice', label: 'Calls' },
       { path: '/workspace/engage/broadcast', label: 'Broadcast' },
-      { path: '/workspace/engage/scheduled', label: 'Scheduled' },
+      // Scheduled and Contact 360 are tabs on the Messages hub (FEAT-005), reached as ?tab= on
+      // /workspace/engage. Broadcast and Message logs keep their own routes (the channel tabs
+      // embed them).
+      { path: '/workspace/engage?tab=scheduled', label: 'Scheduled' },
       { path: '/workspace/engage/logs', label: 'Message logs' },
-      { path: '/workspace/engage/contact-360', label: 'Contact 360' },
+      { path: '/workspace/engage?tab=contact-360', label: 'Contact 360' },
     ],
   },
   {
@@ -105,53 +108,55 @@ export const navigationConfig: NavItem[] = [
     icon: 'contacts',
   },
   {
-    // Index + catalog as in-page tabs on /workspace/commerce. The catalog page and the
-    // commerce engage view stay reachable for the palette.
+    // Catalog + commerce engine as in-page tabs on /workspace/commerce. FEAT-005 moved the
+    // tab bodies OUT of the routes tree, so the palette deep-links the hub with a ?tab= query
+    // (Navigation.test's pageExists strips the query, resolving each to the commerce hub).
     path: '/workspace/commerce',
     label: 'Commerce',
     icon: 'store',
     children: [
-      { path: '/workspace/commerce/catalog', label: 'Catalog' },
-      { path: '/workspace/engage/commerce', label: 'Commerce engine' },
+      { path: '/workspace/commerce?tab=catalog', label: 'Catalog' },
+      { path: '/workspace/commerce?tab=engine', label: 'Commerce engine' },
     ],
   },
   {
-    // Overview + records + flow as in-page tabs on /workspace/pay.
+    // Pay Flow + invoice records as in-page tabs on /workspace/pay (FEAT-005: tab bodies
+    // relocated, deep-links are ?tab= queries on the hub).
     path: '/workspace/pay',
     label: 'Payments',
     icon: 'payment',
     children: [
       // The ledger: what was billed, paid and delivered. Read-only on purpose -
       // cancel, delete and resend all move money or message a customer.
-      { path: '/workspace/pay/records', label: 'Invoice records' },
-      { path: '/workspace/pay/flow', label: 'Pay Flow' },
+      { path: '/workspace/pay?tab=records', label: 'Invoice records' },
+      { path: '/workspace/pay?tab=flow', label: 'Pay Flow' },
     ],
   },
   {
     // SERVICE — the unified customer-request front door. The former Forms destinations
-    // (responses, self-service hub) and the request submit/track/amend flows collapse
-    // into this one page's in-page tabs; the children index each tab's canonical path so
-    // the palette still reaches them and no page is orphaned.
+    // (responses, self-service hub) and the request submit/track/amend flows are in-page
+    // tabs on this hub. FEAT-005 relocated the tab bodies out of the routes tree, so each
+    // child deep-links the hub with its ?tab= id; request/responses keeps its own route.
     path: '/workspace/engage/service-ops',
     label: 'Service',
     icon: 'order',
     children: [
-      { path: '/workspace/request/responses', label: 'Responses' },
-      { path: '/workspace/forms/responses', label: 'Form responses' },
-      { path: '/workspace/forms/' + 'self' + 'service', label: 'Customer Service Hub' },
-      { path: '/workspace/engage/orders', label: 'Orders' },
-      { path: '/workspace/service/submit-request', label: 'Submit Request' },
-      { path: '/workspace/service/track-request', label: 'Track Request' },
-      { path: '/workspace/service/amend-request', label: 'Amend Request' },
-      { path: '/workspace/engage/appointments', label: 'Appointments' },
-      { path: '/workspace/engage/rx-slots', label: 'RX Slots' },
-      { path: '/workspace/engage/documents', label: 'Drop Docs' },
+      { path: '/workspace/engage/service-ops?tab=responses', label: 'Responses' },
+      { path: '/workspace/engage/service-ops?tab=form-responses', label: 'Form responses' },
+      { path: '/workspace/engage/service-ops?tab=selfservice', label: 'Customer Service Hub' },
+      { path: '/workspace/engage/service-ops?tab=orders', label: 'Orders' },
+      { path: '/workspace/engage/service-ops?tab=submit', label: 'Submit Request' },
+      { path: '/workspace/engage/service-ops?tab=track', label: 'Track Request' },
+      { path: '/workspace/engage/service-ops?tab=amend', label: 'Amend Request' },
+      { path: '/workspace/engage/service-ops?tab=appointments', label: 'Appointments' },
+      { path: '/workspace/engage/service-ops?tab=rx-slots', label: 'RX Slots' },
+      { path: '/workspace/engage/service-ops?tab=documents', label: 'Drop Docs' },
       // Beside Drop Docs because the two are the same errand in opposite directions:
       // Drop Docs collects a file from a customer, Secure Files delivers one to them.
-      { path: '/workspace/service/secure-files', label: 'Secure Files' },
-      { path: '/workspace/engage/enterprise', label: 'Enterprise' },
-      { path: '/workspace/engage/reviews', label: 'Reviews' },
-      { path: '/workspace/engage/faq', label: 'FAQ' },
+      { path: '/workspace/engage/service-ops?tab=secure-files', label: 'Secure Files' },
+      { path: '/workspace/engage/service-ops?tab=enterprise', label: 'Enterprise' },
+      { path: '/workspace/engage/service-ops?tab=reviews', label: 'Reviews' },
+      { path: '/workspace/engage/service-ops?tab=faq', label: 'FAQ' },
     ],
   },
   {
@@ -176,9 +181,12 @@ export const navigationConfig: NavItem[] = [
     label: 'SEO',
     icon: 'search',
     children: [
-      { path: '/workspace/seo/tools', label: 'Tools' },
-      { path: '/workspace/seo/blog-manager', label: 'Blog SEO' },
-      { path: '/workspace/seo/pages-manager', label: 'Site Pages SEO' },
+      // Tools / Blog SEO / Site Pages SEO are in-page tabs on the SEO hub (FEAT-005 relocated
+      // their bodies out of the routes tree), so they deep-link the hub with a ?tab= id. The
+      // staged blog pipeline keeps its own queue routes.
+      { path: '/workspace/seo?tab=tools', label: 'Tools' },
+      { path: '/workspace/seo?tab=blog', label: 'Blog SEO' },
+      { path: '/workspace/seo?tab=pages', label: 'Site Pages SEO' },
       { path: '/workspace/seo/blog-studio', label: 'Blog Studio' },
       { path: '/workspace/seo/blog-production', label: 'Production waves' },
       { path: '/workspace/seo/blog-production/review', label: 'Source review' },
@@ -227,34 +235,38 @@ export const settingsConfig: SettingsGroup[] = [
       // Inbox -> WhatsApp child opens - and an inbox is a daily stream, which by the rule
       // at the top of this file is sidebar work, not configure-once. The route is now a
       // router.replace signpost to /workspace/engage/inbox?channel=whatsapp.
-      { path: '/workspace/engage/whatsapp/waba-dashboard', label: 'WABA Dashboard' },
-      { path: '/workspace/engage/whatsapp/embedded-signup', label: 'Connect WABA' },
-      { path: '/workspace/engage/whatsapp/connected-accounts', label: 'Connected Accounts' },
-      { path: '/workspace/engage/whatsapp/my-account', label: 'My WhatsApp Account' },
-      { path: '/workspace/engage/whatsapp/business-profile', label: 'Business Profile' },
-      { path: '/workspace/engage/whatsapp/webhooks', label: 'Webhooks' },
-      { path: '/workspace/engage/whatsapp/bsuid', label: 'BSUID & Usernames' },
-      { path: '/workspace/engage/whatsapp/migration', label: 'WABA Migration' },
+      // FEAT-005: every WhatsApp capability is a tab on the WhatsApp hub
+      // (/workspace/engage/whatsapp/settings). The tab bodies moved out of the routes tree, so
+      // each row deep-links the hub with its ?tab= id. pageExists strips the query and resolves
+      // all of them to the one settings.tsx hub route.
+      { path: '/workspace/engage/whatsapp/settings?tab=waba', label: 'WABA Dashboard' },
+      { path: '/workspace/engage/whatsapp/settings?tab=embedded-signup', label: 'Connect WABA' },
+      { path: '/workspace/engage/whatsapp/settings?tab=connected-accounts', label: 'Connected Accounts' },
+      { path: '/workspace/engage/whatsapp/settings?tab=my-account', label: 'My WhatsApp Account' },
+      { path: '/workspace/engage/whatsapp/settings?tab=profile', label: 'Business Profile' },
+      { path: '/workspace/engage/whatsapp/settings?tab=webhooks', label: 'Webhooks' },
+      { path: '/workspace/engage/whatsapp/settings?tab=bsuid', label: 'BSUID & Usernames' },
+      { path: '/workspace/engage/whatsapp/settings?tab=migration', label: 'WABA Migration' },
       { path: '/workspace/engage/whatsapp/settings', label: 'WhatsApp Settings' },
-      { path: '/workspace/engage/whatsapp/send-test', label: 'Send Test' },
-      { path: '/workspace/engage/whatsapp/campaign', label: 'WhatsApp Campaign' },
-      { path: '/workspace/engage/whatsapp/interactive-lists', label: 'Interactive Lists' },
-      { path: '/workspace/engage/whatsapp/auto-response', label: 'Auto Response' },
-      { path: '/workspace/engage/whatsapp/conversions-api', label: 'Conversions API (CTWA)' },
-      { path: '/workspace/engage/whatsapp/ctwa-ads', label: 'Ads to WhatsApp (CTWA)' },
-      { path: '/workspace/engage/whatsapp/tech-partner', label: 'Tech Partner Readiness' },
-      { path: '/workspace/engage/whatsapp/templates', label: 'Templates' },
-      { path: '/workspace/engage/whatsapp/template-builder', label: 'Template Builder' },
-      { path: '/workspace/engage/whatsapp/catalog-builder', label: 'Catalog & Flow Builder' },
-      { path: '/workspace/engage/whatsapp/flow-hub', label: 'Flow Hub' },
-      { path: '/workspace/engage/whatsapp/flows', label: 'Flows' },
-      { path: '/workspace/engage/whatsapp/flow-publish', label: 'Flow Publish Checklist' },
-      { path: '/workspace/engage/whatsapp/flow-responses', label: 'Flow Responses' },
-      { path: '/workspace/engage/whatsapp/groups', label: 'Groups' },
-      { path: '/workspace/engage/whatsapp/calling', label: 'Calling' },
-      { path: '/workspace/engage/whatsapp/cost-controls', label: 'Cost Controls' },
-      { path: '/workspace/engage/whatsapp/scripts', label: 'Scripts' },
-      { path: '/workspace/engage/whatsapp/welcome', label: 'Welcome Message' },
+      { path: '/workspace/engage/whatsapp/settings?tab=send-test', label: 'Send Test' },
+      { path: '/workspace/engage/whatsapp/settings?tab=campaign', label: 'WhatsApp Campaign' },
+      { path: '/workspace/engage/whatsapp/settings?tab=lists', label: 'Interactive Lists' },
+      { path: '/workspace/engage/whatsapp/settings?tab=auto-response', label: 'Auto Response' },
+      { path: '/workspace/engage/whatsapp/settings?tab=conversions-api', label: 'Conversions API (CTWA)' },
+      { path: '/workspace/engage/whatsapp/settings?tab=ctwa-ads', label: 'Ads to WhatsApp (CTWA)' },
+      { path: '/workspace/engage/whatsapp/settings?tab=tech-partner', label: 'Tech Partner Readiness' },
+      { path: '/workspace/engage/whatsapp/settings?tab=templates', label: 'Templates' },
+      { path: '/workspace/engage/whatsapp/settings?tab=template-builder', label: 'Template Builder' },
+      { path: '/workspace/engage/whatsapp/settings?tab=catalog-builder', label: 'Catalog & Flow Builder' },
+      { path: '/workspace/engage/whatsapp/settings?tab=flow-hub', label: 'Flow Hub' },
+      { path: '/workspace/engage/whatsapp/settings?tab=flows', label: 'Flows' },
+      { path: '/workspace/engage/whatsapp/settings?tab=flow-publish', label: 'Flow Publish Checklist' },
+      { path: '/workspace/engage/whatsapp/settings?tab=flow-responses', label: 'Flow Responses' },
+      { path: '/workspace/engage/whatsapp/settings?tab=groups', label: 'Groups' },
+      { path: '/workspace/engage/whatsapp/settings?tab=calling', label: 'Calling' },
+      { path: '/workspace/engage/whatsapp/settings?tab=cost-controls', label: 'Cost Controls' },
+      { path: '/workspace/engage/whatsapp/settings?tab=scripts', label: 'Scripts' },
+      { path: '/workspace/engage/whatsapp/settings?tab=welcome', label: 'Welcome Message' },
     ],
   },
   {
@@ -269,13 +281,15 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/engage', label: 'Messages hub' },
       { path: '/workspace/engage/channels', label: 'All channels' },
       { path: '/workspace/engage/settings', label: 'Channel Settings' },
-      { path: '/workspace/engage/sms', label: 'SMS' },
-      { path: '/workspace/engage/rcs', label: 'RCS' },
-      { path: '/workspace/engage/ses', label: 'Email' },
-      { path: '/workspace/engage/push', label: 'Push' },
+      // FEAT-005: each non-WhatsApp channel is a tab on the Channels hub; the per-channel
+      // routes were relocated out of the pages tree, so these deep-link the hub with a ?tab= id.
+      { path: '/workspace/engage/channels?tab=sms', label: 'SMS' },
+      { path: '/workspace/engage/channels?tab=rcs', label: 'RCS' },
+      { path: '/workspace/engage/channels?tab=email', label: 'Email' },
+      { path: '/workspace/engage/channels?tab=push', label: 'Push' },
       // Call CONFIGURATION. The call RECORDS are [retired public path]/inbox?channel=voice.
-      { path: '/workspace/engage/voice', label: 'Voice (outbound)' },
-      { path: '/workspace/engage/voice-in', label: 'Call History' },
+      { path: '/workspace/engage/channels?tab=voice', label: 'Voice (outbound)' },
+      { path: '/workspace/engage/channels?tab=voice-in', label: 'Call History' },
     ],
   },
   {
@@ -284,14 +298,16 @@ export const settingsConfig: SettingsGroup[] = [
     icon: 'settings',
     hint: 'Automation, content, analytics, cost',
     items: [
-      { path: '/workspace/engage/automation', label: 'Automation' },
-      { path: '/workspace/engage/content', label: 'Content Library' },
-      { path: '/workspace/engage/analytics', label: 'Analytics' },
-      { path: '/workspace/engage/cost', label: 'Cost & Usage' },
-      { path: '/workspace/engage/search', label: 'Message Search' },
-      { path: '/workspace/engage/meta-agent', label: 'Meta AI Agent' },
-      { path: '/workspace/engage/whatsapp/ai-agent', label: 'AI Agent' },
-      { path: '/workspace/engage/docs', label: 'Docs Scraper' },
+      // FEAT-005: these automation/content/analytics tools are in-page tabs on the Messages hub
+      // now; each deep-links /workspace/engage with its ?tab= id.
+      { path: '/workspace/engage?tab=automation', label: 'Automation' },
+      { path: '/workspace/engage?tab=content', label: 'Content Library' },
+      { path: '/workspace/engage?tab=analytics', label: 'Analytics' },
+      { path: '/workspace/engage?tab=cost', label: 'Cost & Usage' },
+      { path: '/workspace/engage?tab=search', label: 'Message Search' },
+      { path: '/workspace/engage?tab=meta-agent', label: 'Meta AI Agent' },
+      { path: '/workspace/engage/whatsapp/settings?tab=ai-agent', label: 'AI Agent' },
+      { path: '/workspace/engage?tab=docs', label: 'Docs Scraper' },
       { path: '/workspace/link', label: 'Short Links' },
     ],
   },
@@ -334,9 +350,10 @@ export const settingsConfig: SettingsGroup[] = [
     hint: 'SEO dashboard, tools and content SEO',
     items: [
       { path: '/workspace/seo', label: 'SEO Dashboard' },
-      { path: '/workspace/seo/tools', label: 'Tools' },
-      { path: '/workspace/seo/blog-manager', label: 'Blog SEO' },
-      { path: '/workspace/seo/pages-manager', label: 'Site Pages SEO' },
+      // FEAT-005: Tools / Blog SEO / Site Pages SEO are in-page tabs on the SEO hub now.
+      { path: '/workspace/seo?tab=tools', label: 'Tools' },
+      { path: '/workspace/seo?tab=blog', label: 'Blog SEO' },
+      { path: '/workspace/seo?tab=pages', label: 'Site Pages SEO' },
     ],
   },
   {
@@ -437,18 +454,18 @@ export const moduleHomes: ModuleHome[] = [
     // became a signpost to the common inbox (the first entry here) - so naming it would
     // have listed the common inbox twice and WhatsApp Business not at all. It is now the
     // WhatsApp hub: every WhatsApp capability except the inbox, as lazy tabs.
-    innerPages: ['/workspace/engage/inbox', '/workspace/engage/whatsapp/settings', '/workspace/engage/voice'],
+    innerPages: ['/workspace/engage/inbox', '/workspace/engage/whatsapp/settings', '/workspace/engage/channels?tab=voice'],
     note: 'Common Inbox, WhatsApp Business and Business Calling — exactly three, as '
       + 'specified. The other channels (SMS, RCS, Email, Push) are filters on the '
       + 'common inbox plus configuration under the gear, not peers of these three.',
   },
   {
     id: 'customers', label: 'Customers', path: '/workspace/contacts',
-    innerPages: ['/workspace/engage/contact-360'],
+    innerPages: ['/workspace/engage?tab=contact-360'],
   },
   {
     id: 'commerce', label: 'Commerce', path: '/workspace/commerce',
-    innerPages: ['/workspace/commerce/catalog', '/workspace/engage/commerce', '/workspace/pay', '/workspace/pay/records'],
+    innerPages: ['/workspace/commerce?tab=catalog', '/workspace/commerce?tab=engine', '/workspace/pay', '/workspace/pay?tab=records'],
     note: 'Behind NEXT_PUBLIC_ENABLE_COMMERCE_MODULE, and OFF — not because it is '
       + 'unfinished but because the storefront is live, so a new surface over a '
       + 'production store opens deliberately. With the flag off it links to the working '
@@ -462,9 +479,9 @@ export const moduleHomes: ModuleHome[] = [
   // unreachable, only the grouping page went.
   {
     id: 'service-operations', label: 'Service Operations', path: '/workspace/engage/service-ops',
-    innerPages: ['/workspace/service/submit-request', '/workspace/service/track-request',
-      '/workspace/service/amend-request', '/workspace/engage/appointments', '/workspace/engage/rx-slots',
-      '/workspace/engage/documents', '/workspace/engage/enterprise', '/workspace/engage/reviews', '/workspace/engage/faq'],
+    innerPages: ['/workspace/engage/service-ops?tab=submit', '/workspace/engage/service-ops?tab=track',
+      '/workspace/engage/service-ops?tab=amend', '/workspace/engage/service-ops?tab=appointments', '/workspace/engage/service-ops?tab=rx-slots',
+      '/workspace/engage/service-ops?tab=documents', '/workspace/engage/service-ops?tab=enterprise', '/workspace/engage/service-ops?tab=reviews', '/workspace/engage/service-ops?tab=faq'],
   },
   {
     id: 'platform-operations', label: 'Platform Operations',

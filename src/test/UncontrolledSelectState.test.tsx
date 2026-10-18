@@ -54,8 +54,8 @@ vi.mock( '../api/client', async importOriginal => ( {
     updateSubmissionStatus: ( ...a: unknown[] ) => updateSubmissionStatus( ...a ),
 } ) );
 
-import FlowResponsesPage from '../pages/workspace/engage/whatsapp/flow-responses';
-import MetaAgentPage from '../pages/workspace/engage/meta-agent/index';
+import FlowResponsesPage from '../components/workspace/whatsapp/flow-responses';
+import MetaAgentPage from '../components/workspace/messaging/MetaAgent';
 
 beforeEach( () => {
     vi.clearAllMocks();

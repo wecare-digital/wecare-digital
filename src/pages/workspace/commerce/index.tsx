@@ -15,6 +15,7 @@
  */
 import React, { Suspense } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import PageShell, { ShellTab } from '../../../components/PageShell';
@@ -25,21 +26,32 @@ function lazyTab<P> ( loader: () => Promise<{ default: React.ComponentType<P> }>
   return dynamic( loader, { ssr: false } );
 }
 
-const CatalogPage = lazyTab( () => import( './catalog' ) );
-const CommerceEnginePage = lazyTab( () => import( '../engage/commerce' ) );
+// FEAT-005: the catalog and commerce-engine tab bodies moved OUT of src/pages/workspace/**
+// into src/components/workspace/commerce/** so each stops being its own route.
+const CatalogPage = lazyTab( () => import( '../../../components/workspace/commerce/Catalog' ) );
+const CommerceEnginePage = lazyTab( () => import( '../../../components/workspace/commerce/CommerceEngine' ) );
 
 const TABS: ShellTab[] = [
   { id: 'catalog', label: 'Catalog & orders' },
   { id: 'engine', label: 'Commerce engine' },
 ];
 
+// FEAT-005: /workspace/commerce?tab=<id> deep-links open the matching tab.
+function resolveDefaultTab ( raw: string | string[] | undefined ): string {
+  const id = Array.isArray( raw ) ? raw[ 0 ] : raw;
+  return id && TABS.some( ( t ) => t.id === id ) ? id : 'catalog';
+}
+
 const CommerceHub: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
+  const router = useRouter();
+  const defaultTab = resolveDefaultTab( router.query.tab );
   const content = (
     <PageShell
+      key={ defaultTab }
       title="Commerce"
       subtitle="Catalog, orders and store operations"
       tabs={ TABS }
-      defaultTab="catalog"
+      defaultTab={ defaultTab }
     >
       { ( activeTab ) => (
         <Suspense fallback={ <div style={ { padding: 40, textAlign: 'center' } }>Loading…</div> }>

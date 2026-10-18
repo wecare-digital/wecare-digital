@@ -23,7 +23,7 @@ vi.mock( '../api/client', async importOriginal => ( {
   getInvoiceDeliveryLog: ( ...a: unknown[] ) => getInvoiceDeliveryLog( ...a ),
 } ) );
 
-import PayFlowPage from '../pages/workspace/pay/flow';
+import PayFlowPage from '../components/workspace/pay/PayFlow';
 import { ADDRESS_FIELDS, formatAddress } from '../lib/address-format';
 
 const CUSTOMER = {

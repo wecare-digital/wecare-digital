@@ -10,6 +10,7 @@
  */
 import React, { Suspense } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/router';
 import Layout from '../../../../components/Layout';
 import SEO from '../../../../components/SEO';
 import PageShell, { ShellTab } from '../../../../components/PageShell';
@@ -21,12 +22,14 @@ function lazyTab<P> ( loader: () => Promise<{ default: React.ComponentType<P> }>
     return dynamic( loader, { ssr: false } );
 }
 
-const SmsPage = lazyTab( () => import( '../sms' ) );
-const RcsPage = lazyTab( () => import( '../rcs' ) );
-const VoicePage = lazyTab( () => import( '../voice' ) );
-const VoiceInPage = lazyTab( () => import( '../voice-in' ) );
-const EmailPage = lazyTab( () => import( '../ses' ) );
-const PushPage = lazyTab( () => import( '../push' ) );
+// FEAT-005: the channel tab bodies moved OUT of src/pages/workspace/engage/** into
+// src/components/workspace/channels/** so each stops being its own route.
+const SmsPage = lazyTab( () => import( '../../../../components/workspace/channels/Sms' ) );
+const RcsPage = lazyTab( () => import( '../../../../components/workspace/channels/Rcs' ) );
+const VoicePage = lazyTab( () => import( '../../../../components/workspace/channels/Voice' ) );
+const VoiceInPage = lazyTab( () => import( '../../../../components/workspace/channels/VoiceIn' ) );
+const EmailPage = lazyTab( () => import( '../../../../components/workspace/channels/Ses' ) );
+const PushPage = lazyTab( () => import( '../../../../components/workspace/channels/Push' ) );
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
@@ -39,13 +42,22 @@ const TABS: ShellTab[] = [
     { id: 'push', label: 'Push' },
 ];
 
+// FEAT-005: /workspace/engage/channels?tab=<id> deep-links open the matching tab.
+function resolveDefaultTab ( raw: string | string[] | undefined ): string {
+    const id = Array.isArray( raw ) ? raw[ 0 ] : raw;
+    return id && TABS.some( ( t ) => t.id === id ) ? id : 'sms';
+}
+
 const ChannelsHub: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
+    const router = useRouter();
+    const defaultTab = resolveDefaultTab( router.query.tab );
     const content = (
         <PageShell
+            key={ defaultTab }
             title="Channels"
             subtitle="SMS, RCS, Voice, Email & Push — every channel beside WhatsApp"
             tabs={ TABS }
-            defaultTab="sms"
+            defaultTab={ defaultTab }
         >
             { ( activeTab ) => (
                 <Suspense fallback={ <div style={ { padding: 40, textAlign: 'center' } }>Loading…</div> }>

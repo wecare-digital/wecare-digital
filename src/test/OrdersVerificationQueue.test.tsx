@@ -19,7 +19,7 @@ vi.mock('../api/client', () => ({
     paymentStatus: 'none', createdAt: 1 }]),
 }));
 
-import FlowResponsesPage from '../pages/workspace/engage/whatsapp/flow-responses';
+import FlowResponsesPage from '../components/workspace/whatsapp/flow-responses';
 
 it('shows customer-supplied reference as a verification task without claiming a linked order or payment', async () => {
   render(<FlowResponsesPage embedded />);

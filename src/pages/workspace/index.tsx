@@ -80,8 +80,11 @@ const families: Family[] = [
   { id: 'commerce', label: 'Commerce', desc: 'Catalogue, orders and store integration', path: '/workspace/commerce/', Icon: StoreIcon, color: '#F59E0B' },
   { id: 'pay', label: 'Payments', desc: 'Invoices, collections and reconciliation', path: '/workspace/pay/', Icon: PaymentIcon, color: '#10B981' },
   { id: 'link', label: 'Links', desc: 'Short links and click analytics', path: '/workspace/link/', Icon: LinkIcon, color: '#6366F1' },
-  { id: 'forms', label: 'Forms', desc: 'Customer service forms and submissions', path: '/workspace/forms/responses/', Icon: FormIcon, color: '#EC4899' },
-  { id: 'docs', label: 'Drop Docs', desc: 'Documents customers send in, for review and approval', path: '/workspace/engage/documents/', Icon: DocumentIcon, color: '#0EA5E9' },
+  // FEAT-005: Form responses and Drop Docs are tabs on the Service hub now; the tiles deep-link
+  // the hub with a ?tab= id (the standalone forms/responses and engage/documents routes were
+  // relocated out of the pages tree).
+  { id: 'forms', label: 'Forms', desc: 'Customer service forms and submissions', path: '/workspace/engage/service-ops?tab=form-responses', Icon: FormIcon, color: '#EC4899' },
+  { id: 'docs', label: 'Drop Docs', desc: 'Documents customers send in, for review and approval', path: '/workspace/engage/service-ops?tab=documents', Icon: DocumentIcon, color: '#0EA5E9' },
   { id: 'task', label: 'Tasks', desc: 'Work items, assignments and follow-ups', path: '/workspace/task/', Icon: CheckListIcon, color: '#14B8A6' },
   { id: 'seo', label: 'SEO', desc: 'Sitemaps, metadata and search tooling', path: '/workspace/seo/', Icon: SearchIcon, color: '#A855F7' },
   { id: 'service', label: 'Service', desc: 'Customer requests and service desk', path: '/workspace/engage/service-ops/', Icon: AdvisorIcon, color: '#EF4444' },
