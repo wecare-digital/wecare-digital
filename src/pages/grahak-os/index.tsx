@@ -488,9 +488,7 @@ response = requests.post(
                     shipping={ GRAHAK_POLICY.shipping }
                     returns={ GRAHAK_POLICY.returns }
                     disclaimer={ GRAHAK_POLICY.disclaimer }
-                    overview={ null }
                     refunds={ GRAHAK_REFUNDS }
-                    showStatutoryRights={ false }
                   />
                 </div>
               </div>
