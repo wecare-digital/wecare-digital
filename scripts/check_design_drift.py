@@ -144,7 +144,7 @@ PUBLIC_TOKEN_CONSUMERS = {
     SRC / "components/Header.tsx": ("--public-content-max", "--public-brand-green"),
     SRC / "components/HeaderCart.tsx": ("--public-brand-green", "--public-brand-lime"),
     SRC / "components/Footer.tsx": ("--public-content-max", "--public-muted"),
-    SRC / "pages/grahak-os/index.tsx": ("--public-hero-size", "--public-section-size", "--public-body-size", "--public-card-size", "--public-content-max"),
+    SRC / "pages/grahak-os/index.tsx": ("--public-section-size", "--public-body-size", "--public-card-size", "--public-content-max"),
     SRC / "pages/bharat-rx.tsx": ("--public-section-size", "--public-body-size", "--public-card-size", "--public-cta-height"),
     SRC / "pages/post/[slug].tsx": ("--public-hero-size", "--public-body-size", "--public-card-size", "--public-cta-height"),
     SRC / "components/ContactLocation.tsx": ("--public-section-size", "--public-cta-height"),
