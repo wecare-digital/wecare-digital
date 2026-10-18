@@ -71,7 +71,6 @@ const PUBLIC_EXACT = new Set( [
   // crawler. They replaced six menu labels that all resolved to /contact/.
   '/drop-docs',
   '/leave-review',
-  '/refer-and-earn',
   '/request-amendment',
   // Request Pickup joined the group on 2026-10-10 as the fifth service request variant.
   // Alphabetical, so it follows /request-amendment.
@@ -89,9 +88,6 @@ const PUBLIC_EXACT = new Set( [
   // Shop detail pages - including child destinations for families such as Clear Closure
   // and Partner - come in through the '/shop/' PREFIX below, which is separate.
   '/shop',
-  // Perks is a standalone public page. Shipments is no longer a public hub: its real
-  // destinations are /shipments/track/ and /request-pickup/.
-  '/perks',
 ] );
 // '/blog/page/' is pages 2..N of the paginated blog index. It has to be a prefix rather than
 // exact entries because the count moves with the corpus - 834 posts at 24 a page is 35 pages
