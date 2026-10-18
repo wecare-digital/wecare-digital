@@ -108,6 +108,10 @@ const PAY_PHONE_OPTIONS: SelectOption[] = PAYMENT_PHONES.map( p => ( {
     value: p.id,
     label: `${ p.display } (${ p.name })${ p.paymentProtected ? ' [Protected]' : '' }`,
 } ) );
+const paymentGstRate = ( value: string ): number => {
+    const rate = Number.parseInt( value, 10 );
+    return Number.isFinite( rate ) ? rate : 18;
+};
 const PAY_GST_OPTIONS: SelectOption[] = GST_RATES.map(
     g => ( { value: String( g.value ), label: `GST ${ g.label }` } )
 );
@@ -249,7 +253,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
     const [ pollyVoices, setPollyVoices ] = useState<Record<string, { id: string; gender: string; engine: string }[]>>( {} );
     // Full payment form
     const [ payPhone, setPayPhone ] = useState( PAYMENT_CONFIG.phoneNumberId );
-    const [ payItems, setPayItems ] = useState<{ name: string; amount: string; quantity: string; gstRate: string }[]>( [ { name: '', amount: '', quantity: '1', gstRate: '0' } ] );
+    const [ payItems, setPayItems ] = useState<{ name: string; amount: string; quantity: string; gstRate: string }[]>( [ { name: '', amount: '', quantity: '1', gstRate: '18' } ] );
     const [ payInvoiceDraft, setPayInvoiceDraft ] = useState<{ key: string; contactId: string; invoice: api.CreateInvoiceEngineResponse } | null>( null );
     const [ payGoodsType, setPayGoodsType ] = useState<'digital-goods' | 'physical-goods'>( 'digital-goods' );
     const [ payDelivery, setPayDelivery ] = useState( '0' );
@@ -668,7 +672,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
 
     const updatePayItem = ( i: number, field: 'name' | 'amount' | 'quantity' | 'gstRate', val: string ) =>
         setPayItems( p => p.map( ( it, idx ) => idx === i ? { ...it, [ field ]: val } : it ) );
-    const addPayItem = () => setPayItems( p => [ ...p, { name: '', amount: '', quantity: '1', gstRate: '0' } ] );
+    const addPayItem = () => setPayItems( p => [ ...p, { name: '', amount: '', quantity: '1', gstRate: '18' } ] );
     const removePayItem = ( i: number ) => setPayItems( p => p.length > 1 ? p.filter( ( _, idx ) => idx !== i ) : p );
     const unlockPayPhone = async () => {
         try
@@ -727,7 +731,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                     name: it.name.trim(),
                     amount: parseFloat( it.amount ),
                     quantity: parseInt( it.quantity ) || 1,
-                    gstRate: parseInt( it.gstRate ) || 0,
+                    gstRate: paymentGstRate( it.gstRate ),
                 } ) ),
                 goodsType: payGoodsType,
                 shipping: parseFloat( payDelivery || '0' ) || 0,
@@ -745,7 +749,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                 toast.success( `Payment request sent (invoice ${invoice.invoiceNumber})` );
                 setComposer( null );
                 setPayInvoiceDraft( null );
-                setPayItems( [ { name: '', amount: '', quantity: '1', gstRate: '0' } ] );
+                setPayItems( [ { name: '', amount: '', quantity: '1', gstRate: '18' } ] );
                 setPayDelivery( '0' ); setPayOrderId( '' );
                 setTimeout( loadData, 800 );
             } else toast.error( `Payment request not confirmed. Invoice ${invoice.invoiceNumber} is retained; resolve it in Pay → Invoices.` );
@@ -1304,7 +1308,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                             const phoneObj = PAYMENT_PHONES.find( p => p.id === payPhone );
                             const locked = !!( phoneObj?.paymentProtected && !payUnlocked );
                             const subtotal = payItems.reduce( ( s, it ) => s + ( parseFloat( it.amount ) || 0 ) * ( parseInt( it.quantity ) || 1 ), 0 );
-                            const gst = payItems.reduce( ( s, it ) => s + ( parseFloat( it.amount ) || 0 ) * ( parseInt( it.quantity ) || 1 ) * ( parseInt( it.gstRate ) || 0 ) / 100, 0 );
+                            const gst = payItems.reduce( ( s, it ) => s + ( parseFloat( it.amount ) || 0 ) * ( parseInt( it.quantity ) || 1 ) * paymentGstRate( it.gstRate ) / 100, 0 );
                             const grand = subtotal + gst + ( parseFloat( payDelivery ) || 0 );
                             return (
                                 <div className="ui-pay">

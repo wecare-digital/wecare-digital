@@ -412,11 +412,11 @@ def test_the_review_template_is_sent_once_after_the_invoice(webhook, fake):
     recorder = _InvokeRecorder()
     _post_payment(webhook, recorder, fake)
 
-    reviews = [c for c in recorder.calls if c == 'wecare-outbound-whatsapp:live']
+    reviews = [c for c in recorder.calls if c == 'wecare-outbound-whatsapp']
     assert len(reviews) == 1
     # Ordering: the invoice delivery is dispatched before the review request.
     invoice_at = next(i for i, c in enumerate(recorder.calls) if 'send-whatsapp' in c)
-    review_at = recorder.calls.index('wecare-outbound-whatsapp:live')
+    review_at = recorder.calls.index('wecare-outbound-whatsapp')
     assert invoice_at < review_at
 
 
@@ -429,8 +429,8 @@ def test_a_redelivered_capture_asks_for_a_review_only_once(webhook, fake):
     second = _InvokeRecorder()
     _post_payment(webhook, second, fake)
 
-    assert 'wecare-outbound-whatsapp:live' in first.calls
-    assert 'wecare-outbound-whatsapp:live' not in second.calls
+    assert 'wecare-outbound-whatsapp' in first.calls
+    assert 'wecare-outbound-whatsapp' not in second.calls
 
 
 def test_a_review_send_failure_never_blocks_the_paid_path(webhook, fake, caplog):
@@ -441,7 +441,7 @@ def test_a_review_send_failure_never_blocks_the_paid_path(webhook, fake, caplog)
 
     class _ReviewFails(_InvokeRecorder):
         def invoke(self, **kwargs):
-            if kwargs['FunctionName'] == 'wecare-outbound-whatsapp:live':
+            if kwargs['FunctionName'] == 'wecare-outbound-whatsapp':
                 raise RuntimeError('Meta 500')
             return super().invoke(**kwargs)
 

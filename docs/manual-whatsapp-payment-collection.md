@@ -11,7 +11,7 @@ create a new template per invoice or fill its order parameters by hand.
 2. In **Customers**, select or save the intended customer and their WhatsApp number.
    For physical goods, save the complete delivery address, city, state and six-digit India PIN.
 3. Open **Create**, select the customer and choose **Digital Goods** or **Physical Goods**.
-   Enter item descriptions, quantities, unit prices and the correct GST rate. Invoice item
+   Enter item descriptions, quantities and unit prices. GST defaults to 18%. Invoice item
    amounts are exclusive of GST; review the server-generated invoice before sending.
 4. Check delivery charges deliberately. Set them to zero when delivery is not charged.
    The form's saved/default delivery value is not a determination that delivery applies.
@@ -73,7 +73,10 @@ expected merged website commit. It compares all seven live code hashes, payment 
 QA mode, actual provider template/configuration readback and the hosting deployment. It reports
 payment readiness and outside-window status readiness separately. It never prints credentials.
 
-Critical CI gates run for pull requests, stack pushes and merge-queue candidates. Configure
-strict up-to-date required checks for Build, typecheck and test; Handler auth enforcement
-(source); and Product vocabulary gate, including administrators. Source workflow triggers alone
-do not enable GitHub branch protection.
+CI checks run for pull requests, stack pushes and merge-queue candidates. At the owner's
+request, required status-check enforcement was removed from stack so running checks do not
+block merging. Review their reported results before releasing a change.
+
+The convenience fee is 2.5% of the canonical collection amount, plus 18% GST on
+that fee (2.95% effective). Item GST is separate. Existing tax-inclusive catalogue
+prices and captured invoice totals must not have GST added a second time.
