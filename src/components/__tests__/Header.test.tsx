@@ -390,12 +390,8 @@ describe( 'Header', () => {
     render( <Header /> );
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
 
-    // THE GROUP HEADING IS "Extras" (the category) AND THE ROW IS "Perks" (the page's own name).
-    // This pairing is the fix for a reported bug: the row ALSO read "Extras", so the menu printed
-    // the same word twice, one directly beneath the other. An earlier instruction had renamed the
-    // page Perks -> Extras; the owner reversed that on 2026-10-02. The ROUTE stays /perks/ — it
-    // already matches the name, so nothing to rename there.
-    //
+    // Extras remains the category heading; Perks is its WhatsApp action row.
+    // There is no public /perks/ page any more.
 
     // Approved order in this column is Refer & Earn, Extras, Contact, Legal Stuff.
     const extrasCol = screen.getByText( 'Extras' ).closest( '.nav-col' );
