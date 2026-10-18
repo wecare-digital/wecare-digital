@@ -20,7 +20,7 @@ Measured across `src/` and `amplify/`, and re-verified by the tests below rather
   * `src/components/get/GetPage.tsx`, `src/pages/workspace/pay/records.tsx`,
     `src/pages/workspace/commerce/*` - grepped: no coupon, gift-card or discount mechanism.
     NOTHING TO REMOVE.
-  * `src/pages/workspace/pay/flow/index.tsx` - its manual rupee field is CONVERGED, not removed
+  * `src/components/workspace/pay/PayFlow.tsx` - its manual rupee field is CONVERGED, not removed
     (decision D4): relabelled "Manual adjustment", defaulted to 0 where it used to default to 15,
     and previewed on its own row. A goodwill credit a staff member decides on is a different fact
     from a coupon the store issued; what made them look like one mechanism was the silent default.
@@ -305,7 +305,7 @@ def test_the_staff_forms_share_one_address_composition_helper():
     """
     helper = SRC / "lib/address-format.ts"
     assert helper.exists()
-    for page in ("pages/workspace/pay/flow/index.tsx", "pages/workspace/contacts/index.tsx"):
+    for page in ("components/workspace/pay/PayFlow.tsx", "pages/workspace/contacts/index.tsx"):
         text = (SRC / page).read_text(encoding="utf-8")
         assert "address-format" in text, page
         assert "ADDRESS_FIELDS" in text, page
