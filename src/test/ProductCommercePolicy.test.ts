@@ -33,8 +33,18 @@ describe( 'shared product policy summary', () => {
     const visa = productPolicyCopy(
       'elsewhere-visa',
       'Visa',
-      'Visa decisions are controlled by the relevant authority.',
+      'A deliberately long page note that must not replace the crisp policy override.',
     );
-    expect( visa.disclaimer ).toBe( 'Visa decisions are controlled by the relevant authority.' );
+    expect( visa.disclaimer ).toBe(
+      'WECARE.DIGITAL can prepare and track the application; approval and processing time remain with the relevant authority.'
+    );
+
+    const anew = productPolicyCopy(
+      'anew',
+      'Anew',
+      'A deliberately long page note that must not be copied wholesale into Policy Details.',
+    );
+    expect( anew.disclaimer ).toContain( 'Anew is written reflection' );
+    expect( anew.disclaimer ).not.toContain( 'deliberately long page note' );
   } );
 } );
