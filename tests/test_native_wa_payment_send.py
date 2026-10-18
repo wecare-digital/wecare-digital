@@ -174,7 +174,7 @@ def _seed_invoice(fake, *, total='599.00', reference=REFERENCE, items=None, extr
 
 def _drive(engine, fake, lam, *, phone_id=WABA1, config='', verify_phone=''):
     """Call `send_payment_link` with storage and the sender injected."""
-    with patch.object(engine, 'dynamodb') as ddb, patch.object(engine, 'lambda_client', lam):
+    with patch.object(engine, 'dynamodb_transaction_client', fake.client()), patch.object(engine, 'dynamodb') as ddb, patch.object(engine, 'lambda_client', lam):
         ddb.Table.side_effect = fake.Table
         ddb.meta.client = fake.client()
         with patch.object(engine, '_lookup_contact_by_phone',
@@ -790,3 +790,31 @@ def test_invoice_send_uses_published_outbound_alias(engine, fake):
     response = _drive(engine, fake, lam)
     assert response['statusCode'] == 200
     assert lam.sends()[0]['FunctionName'] == 'wecare-outbound-whatsapp:live'
+
+
+def test_invoice_transaction_uses_single_serialization_at_real_sdk_wire(engine, fake):
+    """Exercise boto3's actual input transformers, without making a network request."""
+    import boto3
+    _seed_invoice(fake)
+    client = boto3.client('dynamodb', region_name='us-east-1',
+                          aws_access_key_id='offline', aws_secret_access_key='offline')
+    wire = {}
+
+    def capture(model, params, **kwargs):
+        wire.update(json.loads(params['body']))
+        raise RuntimeError('offline wire inspection complete')
+
+    client.meta.events.register('before-call.dynamodb.TransactWriteItems', capture)
+    with patch.object(engine, 'dynamodb') as ddb, \
+         patch.object(engine, 'dynamodb_transaction_client', client), \
+         patch.object(engine, 'lambda_client', _RecordingLambda()), \
+         patch.object(engine, '_lookup_contact_by_phone', return_value={'contactId': CUSTOMER}):
+        ddb.Table.side_effect = fake.Table
+        response = engine.send_payment_link(INVOICE_ID, WABA1, '', 'req-sdk-wire')
+    assert response['statusCode'] == 503  # the inspection deliberately stops before HTTP
+    assert len(wire['TransactItems']) == 4
+    for transaction in wire['TransactItems'][:3]:
+        assert isinstance(transaction['Put']['Item']['orderId']['S'], str)
+    attempt = wire['TransactItems'][3]['Put']['Item']
+    assert isinstance(attempt['paymentAttemptId']['S'], str)
+    assert attempt['amountPaise'] == {'N': '59900'}

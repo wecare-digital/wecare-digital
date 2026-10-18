@@ -96,6 +96,9 @@ def _money_display(value) -> str:
         return str(value if value is not None else 0)
 
 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+# Transactions below already contain DynamoDB AttributeValues. A resource client's
+# input transformer would serialize them again, turning string keys into maps.
+dynamodb_transaction_client = boto3.client('dynamodb', region_name='us-east-1')
 s3 = boto3.client('s3', region_name='us-east-1')
 lambda_client = boto3.client('lambda', region_name='us-east-1')
 
@@ -3588,7 +3591,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
                 :wa_payment_request.MAX_ITEM_NAME_LENGTH],
             collection_seq=collection_seq, now=int(time.time()))
         attempt, freshly_reserved = wa_payment_request.reserve(
-            dynamodb.meta.client, keys_table, attempts_table,
+            dynamodb_transaction_client, keys_table, attempts_table,
             keys_name=COMMERCE_KEYS_TABLE, attempts_name=PAYMENT_ATTEMPTS_TABLE,
             request=reservation, invoice_reference_id=reference_id)
     except wa_payment_request.PaymentRequestRefused as refused:

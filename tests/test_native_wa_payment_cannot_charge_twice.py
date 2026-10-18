@@ -384,7 +384,7 @@ def _seed_reservation(fake, *, mode=None):
 
 def drive_send(engine, fake, recorder):
     _seed_invoice(fake)
-    with patch.object(engine, 'dynamodb') as ddb, \
+    with patch.object(engine, 'dynamodb_transaction_client', fake.client()), patch.object(engine, 'dynamodb') as ddb, \
          patch.object(engine, 'lambda_client', recorder.lambda_client()), \
          patch.object(engine, 'COMMERCE_KEYS_TABLE', KEYS), \
          patch.object(engine, 'PAYMENT_ATTEMPTS_TABLE', ATTEMPTS):
