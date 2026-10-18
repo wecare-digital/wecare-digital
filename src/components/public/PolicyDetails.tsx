@@ -1,5 +1,5 @@
 import React from 'react';
-import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE } from '../../content/productCommerce';
+import { PRODUCT_POLICY_TITLE, PRODUCT_REFUNDS } from '../../content/productCommerce';
 
 export interface PolicyDetailsCopy {
   shipping: string;
@@ -25,8 +25,8 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
   returns,
   disclaimer,
   className,
-  overview = PRODUCT_POLICY_TEXT,
-  refunds = 'Cancellation is handled as part of the refund policy above. Eligible voluntary cancellations or discretionary adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days, not as cash or a refund to the original payment method, except where applicable law requires otherwise.',
+  overview = null,
+  refunds = PRODUCT_REFUNDS,
   showStatutoryRights = true,
 } ) => (
   <details className={ ['wc-policy', className].filter( Boolean ).join( ' ' ) }>
