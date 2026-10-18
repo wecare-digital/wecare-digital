@@ -163,17 +163,17 @@ export default function InstructionsContent () {
 {
   "@context": "https://schema.org",
   "@type": "Product",
-  "name": "Partner Up — Activate 4,000+ SKUs",
-  "description": "Unlock earnings across 4,000+ SKUs from BNB Club, Expo Week, Legal Champ, No-Fault, Ritual Guru, Swdhya.",
-  "url": "https://wecare.digital/shop/referral-partner/",
+  "name": "Partner · Merchandise",
+  "description": "WECARE.DIGITAL merchandise.",
+  "url": "https://wecare.digital/shop/merchandise/",
   "image": "https://d1kf2rchz7yras.cloudfront.net/o/catalog/products/example.png",
   "brand": { "@type": "Brand", "name": "WECARE.DIGITAL" },
   "offers": {
     "@type": "Offer",
-    "price": "4599",
+    "price": "1999",
     "priceCurrency": "INR",
     "availability": "https://schema.org/InStock",
-    "url": "https://wecare.digital/shop/referral-partner/"
+    "url": "https://wecare.digital/shop/merchandise/"
   },
   "inLanguage": "en-IN"
 }
@@ -185,7 +185,7 @@ export default function InstructionsContent () {
   "itemListElement": [
     { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://wecare.digital/" },
     { "@type": "ListItem", "position": 2, "name": "Store", "item": "https://wecare.digital/shop/" },
-    { "@type": "ListItem", "position": 3, "name": "Partner Up", "item": "https://wecare.digital/shop/referral-partner/" }
+    { "@type": "ListItem", "position": 3, "name": "Merchandise", "item": "https://wecare.digital/shop/merchandise/" }
   ]
 }
 
@@ -196,13 +196,13 @@ export default function InstructionsContent () {
   "mainEntity": [
     {
       "@type": "Question",
-      "name": "What is Partner Up?",
-      "acceptedAnswer": { "@type": "Answer", "text": "A one-time activation that unlocks 4,000+ SKUs across all WECARE.DIGITAL brands — earn on every valid order with no renewals." }
+      "name": "What is WECARE.DIGITAL Merchandise?",
+      "acceptedAnswer": { "@type": "Answer", "text": "WECARE.DIGITAL merchandise available through the shop." }
     },
     {
       "@type": "Question",
-      "name": "How much does Partner Up cost?",
-      "acceptedAnswer": { "@type": "Answer", "text": "₹4,599 (reduced from ₹6,999). One-time payment, no recurring fees." }
+      "name": "How much does Merchandise cost?",
+      "acceptedAnswer": { "@type": "Answer", "text": "₹1,999.00 at the current catalogue price." }
     }
   ]
 }`} />
