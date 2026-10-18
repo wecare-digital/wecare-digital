@@ -825,6 +825,21 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     input_error = _invoice_input_error(body)
     if input_error:
         return _resp(400, {'error': input_error, 'errorCode': 'INVALID_AMOUNT'})
+
+    # ── A physical staff order needs a payable delivery address, refused BEFORE anything is claimed ──
+    #
+    # `goodsType` for a fresh staff collection is forced to `physical-goods` further down, and the
+    # address was previously only checked at `send_payment_link` - so staff could raise a physical
+    # order with no deliverable address and discover it only when trying to collect. Refused HERE,
+    # alongside the coupon/gift-card refusals and before the dedup claim row and
+    # `_get_next_invoice_number`, so a refusal leaves no `claiming` row and burns no GST number.
+    # `entryPoint` is read from the body directly (it is resolved into a local further down, after
+    # this early-refusal group). Digital/service and captured invoices are unaffected.
+    delivery_error = _create_invoice_delivery_error(
+        body, body.get('entryPoint', 'manual'), bool(body.get('amountIsTaxInclusive')))
+    if delivery_error:
+        return delivery_error
+
     payment_id = body.get('paymentId', '')
     table = dynamodb.Table(INVOICES_TABLE)
 
@@ -1772,6 +1787,24 @@ def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
                                                            pay_status.REFUNDED):
             return _resp(400, {'error': f'Cannot modify amounts on {ex_status} invoice (paymentStatus={ex_ps})'})
 
+    # `discount` is NOT client-writable, even on a draft. Manual discount entry is retired
+    # (`create_invoice` refuses it with MANUAL_DISCOUNTS_RETIRED), and the ONLY discount an
+    # invoice carries is the server-computed Delight. Accepting it here was the one back-door
+    # that could overwrite Delight on a draft edit - a client re-sending a draft with changed
+    # amounts and `discount: 0` would silently drop the Delight line. Refused rather than
+    # dropped, so a stale client learns instead of believing a discount it named was applied.
+    if 'discount' in body:
+        try:
+            sent_discount = Decimal(str(body.get('discount') or 0))
+        except (InvalidOperation, ValueError, TypeError):
+            sent_discount = Decimal('NaN')
+        if not sent_discount.is_finite() or sent_discount != 0:
+            return _resp(400, {
+                'error': ('Discounts are not editable; eligible orders carry the automatic '
+                          'Delight discount, recomputed by the engine.'),
+                'errorCode': 'MANUAL_DISCOUNTS_RETIRED',
+            })
+
     update_parts = []
     values = {}
     names = {}
@@ -1780,9 +1813,14 @@ def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
     # refusal above answers before anything reaches here, so there is no state in which a client
     # body can reach either attribute. The financial fields stay listed because a DRAFT is still
     # fully editable - the issued check above is what removes them once a number exists.
+    #
+    # `discount` is NOT in this list: it is server-computed Delight, refused above if a client
+    # sends a non-zero one, and recomputed below whenever the subtotal that feeds it changes, so a
+    # draft amount edit PRESERVES Delight (re-derived from the new subtotal) rather than trusting
+    # or dropping a client figure.
     allowed = ['customerName', 'customerPhone', 'paidByPhone', 'customerEmail',
                'shippingAddress', 'billingAddress', 'goodsType',
-               'discount', 'shipping', 'handling', 'gstRate', 'tax', 'convenienceFee', 'total',
+               'shipping', 'handling', 'gstRate', 'tax', 'convenienceFee', 'total',
                'gstin', 'purpose', 'notes', 'subtotal', 'orderId', 'referenceId']
 
     for key in allowed:
@@ -1793,6 +1831,30 @@ def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
             names[attr] = key
             v = body[key]
             values[val] = _dec(v) if isinstance(v, (int, float)) else v
+
+    # ── Preserve Delight when a draft's goods amount changes ──
+    #
+    # If the subtotal (the goods value Delight is a percentage of) is edited on a draft that
+    # currently carries Delight, the stored `discount` no longer matches. Re-derive it from the
+    # same single computation `create_invoice` uses (`default_coupon.delight_paise`) so the edited
+    # invoice keeps Delight correct for its new amount instead of a figure frozen at the old
+    # subtotal. Only acts on a row that already had Delight (couponCode == DELIGHT); a row that
+    # never had it is untouched.
+    if 'subtotal' in body and str(existing.get('couponCode') or '') == default_coupon.DELIGHT_CODE:
+        try:
+            new_subtotal = Decimal(str(body.get('subtotal') or 0))
+            recomputed = _paise_to_rupees(
+                default_coupon.delight_paise(_rupees_to_paise(new_subtotal)))
+            values[':discount'] = _dec(recomputed)
+            names['#discount'] = 'discount'
+            update_parts.append('#discount = :discount')
+            values[':couponDiscount'] = _dec(recomputed)
+            names['#couponDiscount'] = 'couponDiscount'
+            update_parts.append('#couponDiscount = :couponDiscount')
+        except (InvalidOperation, ValueError, TypeError):
+            # A malformed subtotal is caught by the amount validators; here it just means
+            # "leave the stored Delight untouched" rather than write a bad figure.
+            pass
 
     if not update_parts:
         return _resp(400, {'error': 'No fields to update'})
@@ -3235,6 +3297,62 @@ def _fetch_payment_configurations(waba_id: str) -> Dict[str, Any]:
         except (ValueError, TypeError):
             body = {}
     return body if isinstance(body, dict) else {}
+
+
+def _is_physical_staff_collection(entry_point: str, goods_type: str,
+                                  amount_is_tax_inclusive: bool) -> bool:
+    """A fresh staff-raised physical collection that will need a payable delivery address.
+
+    A captured/tax-inclusive invoice (`create_invoice_from_payment`) is NOT included: the money
+    already moved, there is nothing left to deliver-gate, and demanding an address there would
+    refuse a legitimate receipt. Mirrors how `goodsType` itself is derived at create time and how
+    `_payment_delivery_info`/`send_payment_link` treat a staff collection, so the create-time gate
+    and the send-time gate agree on scope.
+    """
+    if amount_is_tax_inclusive:
+        return False
+    if entry_point in ('manual', 'pay_flow', 'whatsapp'):
+        return True
+    return goods_type == 'physical-goods'
+
+
+def _create_invoice_delivery_error(body: Dict, entry_point: str,
+                                   amount_is_tax_inclusive: bool) -> Optional[Dict]:
+    """Refuse a physical staff invoice with no payable delivery address, BEFORE a number is minted.
+
+    Returns a `_resp(400, ...)` dict to return, or None to proceed. The address is read from the
+    create BODY (the invoice row does not exist yet), validated through the same
+    `payment_address` checks the WhatsApp send path uses, so a physical order that could never be
+    shipped/settled is refused at creation rather than after a GST number is consumed and only
+    discovered at `send_payment_link`. Completeness is checked first so a blank address is a
+    DELIVERY_REQUIRED (missing) rather than an INVALID_PIN (malformed). Digital/service and
+    captured invoices pass straight through.
+    """
+    goods_type = body.get('goodsType', 'digital-goods')
+    if not _is_physical_staff_collection(entry_point, goods_type, amount_is_tax_inclusive):
+        return None
+    address = {
+        'addressLine1': str(body.get('addressLine1') or '').strip(),
+        'addressLine2': str(body.get('addressLine2') or '').strip(),
+        'city': str(body.get('city') or '').strip(),
+        'state': str(body.get('state') or '').strip(),
+        'postalCode': str(body.get('postalCode') or '').strip(),
+        'countryCode': str(body.get('countryCode') or 'IN').upper(),
+    }
+    try:
+        for key in ('addressLine1', 'city', 'state', 'postalCode'):
+            if not address[key]:
+                raise payment_address.UnpayableAddress('DELIVERY_REQUIRED', key)
+        payment_address.assert_payable(
+            address, channel=payment_address.WHATSAPP_ORDER_DETAILS)
+    except payment_address.UnpayableAddress as exc:
+        return _resp(400, {
+            'error': ('A physical order needs a complete, payable delivery address before it '
+                      'can be raised. Nothing has been charged and no invoice was created.'),
+            'errorCode': exc.code,
+            'field': exc.field,
+        })
+    return None
 
 
 def _payment_delivery_info(invoice: Dict, contact: Optional[Dict], phone: str) -> Optional[Dict]:
