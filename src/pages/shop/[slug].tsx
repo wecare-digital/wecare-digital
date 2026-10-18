@@ -234,16 +234,16 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              16px/faded aside. 1px static, per the rule: 1px static, 2px hoverable. */
           .shopd-offer-note{
             max-width:620px;margin:7px 0 0;
-            font-size:var(--public-body-size);font-weight:var(--public-body-weight);
-            line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
-            color:var(--public-body);
+            font-size:17px;font-weight:var(--public-body-weight);
+            line-height:var(--public-body-leading);letter-spacing:-.05px;
+            color:var(--public-muted);
           }
           .shopd-policy-wrap{margin:22px 0 0}
           .shopd-sku{
-            margin:0;font-size:17px;font-weight:400;line-height:1.55;
-            letter-spacing:-.05px;color:var(--public-body);
+            margin:0;font-size:17px;font-weight:400;line-height:1.4;
+            letter-spacing:-.05px;color:var(--public-muted);
           }
-          .shopd-sku strong{color:var(--public-brand-green);font-weight:700}
+          .shopd-sku strong{color:var(--public-muted);font-weight:600}
 
           /* The .shopd-back link, restored 2026-10-10 with the /shop index. :global() for the
              same reason as .shopd-cta: it wraps a capitalised <Link> styled-jsx cannot scope. */
@@ -256,7 +256,6 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
           .shopd-in :global(.shopd-back a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
 
           @media(max-width:767px){
-            .shopd-p{font-size:18px}
           }
           @media(prefers-reduced-motion:reduce){
             .shopd-in :global(.shopd-cta){transition:none}
