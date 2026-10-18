@@ -321,21 +321,22 @@ const PublicShare: React.FC<PublicShareProps> = ( {
 
       <style jsx>{`
         .public-share{
-          position:relative;width:100%;margin-top:48px;padding:24px 0 28px;
+          position:relative;width:100%;margin-top:32px;padding:12px 0 28px;
           box-sizing:border-box;
           font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
         }
-        .public-share.has-contribute{margin-top:44px}
+        .public-share.has-contribute{margin-top:32px}
         /* "Stay connected" eyebrow, on top of the dock. Same green lime pill the retired
-           PublicFooterBand used, so the label reads identically to before. */
+           PublicFooterBand used. 15px/700 so the label matches the prominence of the eyebrows on
+           Home / Grahak OS / the closing band, rather than reading smaller than them. */
         .ps-kicker{
           /* flex (not inline-flex) + width:max-content keeps the pill shrink-wrapped to its
              text while forcing it onto its own line, so the margin below reliably opens a gap
              between the eyebrow and the Contribute/Subscribe/Share icon row. */
           display:flex;width:max-content;max-width:100%;align-items:center;
-          min-height:28px;padding:0 10px;margin:0 0 20px;
+          min-height:32px;padding:0 14px;margin:0 0 18px;
           border-radius:999px;background:#d1f470;color:#1a3a2a;
-          font-size:13px;font-weight:700;line-height:1;
+          font-size:15px;font-weight:700;line-height:1;
         }
         .ps-row{display:flex;align-items:center;gap:12px;width:max-content;max-width:100%}
         .contribute{margin:0;padding:0;border:0;position:static}
@@ -427,7 +428,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         }
 
         @media(max-width:767px){
-          .public-share{padding:22px 0 24px}
+          .public-share{padding:10px 0 24px}
           .ps-menu{top:78px;width:min(330px,calc(100vw - 40px))}
         }
         @media(max-width:390px){
