@@ -162,6 +162,9 @@ class TestPublicTokenContract:
         assert drift.PUBLIC_TOKEN_CONTRACT["--public-content-max"] == "1300px"
         assert drift.scan_layout_token_mirror() == []
 
+    def test_canonical_public_surfaces_consume_the_contract(self, drift):
+        assert drift.scan_public_token_consumers() == []
+
     def test_public_token_drift_is_caught(self, drift, monkeypatch, tmp_path):
         fake_css = tmp_path / "tokens.css"
         fake_css.write_text(":root { --public-hero-size: 54px; }\n")
