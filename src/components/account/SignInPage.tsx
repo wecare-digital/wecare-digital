@@ -646,28 +646,28 @@ export default function CustomerSignIn (): React.ReactElement {
         <style jsx>{`
           /* No top padding, no measure, no font stack: PageTopBand owns all three. 460px is the
              form's own measure, inside the band's 1300px. */
-          .si-remember{display:flex;align-items:center;gap:10px;margin:16px 0;color:#1a3a2a;font-size:16px}
+          .si-remember{display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--public-brand-green);font-size:16px}
           .si-remember input{accent-color:#b8e24a;width:18px;height:18px}
           .si-card{width:100%;max-width:460px;margin:0}
           .si-form{display:flex;flex-direction:column}
           /* The body rung, 20px/400/1.4/-.125px at rgba(0,0,0,.898). It was 16px at .7 alpha,
              which is neither rung this site has. */
           .si-body{
-            font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;
-            color:rgba(0,0,0,.898);margin:0 0 24px;
+            font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+            color:var(--public-body);margin:0 0 24px;
           }
-          .si-label{font-size:14px;font-weight:700;color:#1a3a2a;margin-bottom:8px}
+          .si-label{font-size:14px;font-weight:700;color:var(--public-brand-green);margin-bottom:8px}
           /* 52px, matching the CTA below it, so the field and the button it feeds are the same
              height. 1px #e5e7eb is the static hairline. */
           .si-input{
-            min-height:52px;padding:0 16px;border:1px solid #e5e7eb;border-radius:999px;
-            font-family:inherit;font-size:17px;color:#1a1a1a;background:#fff;margin-bottom:20px;
+            min-height:var(--public-cta-height);padding:0 16px;border:1px solid var(--public-hairline);border-radius:999px;
+            font-family:inherit;font-size:17px;color:var(--public-body);background:#fff;margin-bottom:20px;
             box-sizing:border-box;
           }
           /* .si-input now dresses the CODE field only. The WhatsApp number is PhoneField, which owns
              its own outline, radius and height - so the two controls on this page are styled in two
              places on purpose, and the numbers above are the ones PhoneField matches. */
-          .si-input:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;box-shadow:0 0 0 3px rgba(209,244,112,.28)}
+          .si-input:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px;box-shadow:0 0 0 3px rgba(209,244,112,.28)}
           /* THE CODE FIELD NEEDS THE SAME HEADER CLEARANCE THE NUMBER FIELD HAS, and it needs
              it MORE: the code phase is reached by submitting, which moves focus into this input
              on a page the shopper has usually already scrolled. Without it the browser reveals
@@ -677,7 +677,7 @@ export default function CustomerSignIn (): React.ReactElement {
              why this is scroll-margin on the input and not scroll-padding on the document. */
           .si-input{scroll-margin-top:128px}
           .si-hint{
-            margin:0 0 20px;font-size:16px;line-height:1.55;color:rgba(0,0,0,.54);
+            margin:0 0 20px;font-size:16px;line-height:1.55;color:var(--public-muted);
           }
           /* THE PRIMARY ACTION IS NOW PillButton, the home-page two-segment pill, so this page no
              longer carries a .si-cta rule: the component owns the pill's shape, colours, focus ring
@@ -695,7 +695,7 @@ export default function CustomerSignIn (): React.ReactElement {
           .si-error{
             margin:20px 0 0;padding:14px 16px;border-radius:10px;
             background:rgba(209,244,112,.22);border-inline-start:4px solid #d1f470;
-            font-size:16px;font-weight:700;line-height:1.5;color:#1a3a2a;
+            font-size:16px;font-weight:700;line-height:1.5;color:var(--public-brand-green);
           }
           /* The resend sits under the confirm button with one gap between them, not beside it:
              at 280px two 52px pills on one row cannot both fit without wrapping mid-label, and
@@ -705,11 +705,10 @@ export default function CustomerSignIn (): React.ReactElement {
           .si-back{margin:28px 0 0;font-size:16px;line-height:1.55}
           .si-back :global(a){
             display:inline-flex;align-items:center;min-height:44px;
-            color:#1a3a2a;font-weight:700;text-underline-offset:3px;
+            color:var(--public-brand-green);font-weight:700;text-underline-offset:3px;
           }
-          .si-back :global(a:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px;border-radius:2px}
+          .si-back :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:2px}
           @media(max-width:767px){
-            .si-body{font-size:18px}
             /* The header is 96px below this breakpoint, so the clearance steps with it. */
             .si-input{scroll-margin-top:112px}
           }
