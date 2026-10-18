@@ -3123,7 +3123,7 @@ html {
    WHY THIS IS GLOBAL AND NOT THREE COPIES. This exact effect was duplicated,
    byte for byte, in three component styled-jsx blocks: .pdp-cta-note
    (ProductPage.tsx), .blog-wa-note (post/[slug].tsx) and .bc-cta-note
-   (BlogContribution.tsx) — the "Continue on WhatsApp →" / contribute microcopy
+   (BlogContribution.tsx) — the "Checkout on WhatsApp →" / contribute microcopy
    under the CTAs. Three copies drift: they had already fallen out of sync once
    (one looped `infinite`, the others ran once; the keyframe endpoints
    disagreed). This is the single source of truth. Any page that wants the
