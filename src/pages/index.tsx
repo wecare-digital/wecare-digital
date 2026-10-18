@@ -665,13 +665,13 @@ const HomePage: React.FC = () => {
            measure runs to ~110 characters a line, well past the 45-75 the rest of
            the site holds to. 24px above it is the hero's paragraph gap. */
         .home-sub{
-          font-size:20px;
-          font-weight:400;
-          line-height:1.4;
-          letter-spacing:-.125px;
+          font-size:var(--public-body-size);
+          font-weight:var(--public-body-weight);
+          line-height:var(--public-body-leading);
+          letter-spacing:var(--public-body-tracking);
           color:var(--public-body);
           margin:24px 0 0;
-          max-width:560px;
+          max-width:var(--public-copy-max);
           /* At a flat 560px this sentence broke after "over" and left "scale." alone
              on the second line. balance evens the two lines instead of filling the
              first greedily. It is a progressive enhancement - unsupported browsers
