@@ -10,9 +10,14 @@ import PublicShare from '../../components/PublicShare';
 import ProductBuyBox from '../../components/ProductBuyBox';
 import PolicyDetails from '../../components/public/PolicyDetails';
 import RotatingHero from '../../components/RotatingHero';
-import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCommerce';
+import { productPolicyCopy } from '../../content/productCommerce';
+import { productCheckoutLine } from '../../config/productCheckout';
 
 const GRAHAK_POLICY = productPolicyCopy( 'grahak-os', 'Grahak OS' );
+const GRAHAK_CHECKOUT = productCheckoutLine( 'grahak-os' );
+const GRAHAK_DISPLAY_PRICE = GRAHAK_CHECKOUT?.formattedPrice.replace( /\.00$/, '' ) ?? null;
+const GRAHAK_SKU = GRAHAK_CHECKOUT?.variantId ?? null;
+const GRAHAK_REFUNDS = 'Cancellation may not be available once work has started. Eligible approved cancellations or adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days. We do not issue cash or original-payment-method refunds unless applicable law requires otherwise.';
 
 const GrahakOsPage: React.FC = () => {
   const [visible, setVisible] = useState<Set<string>>(new Set());
@@ -473,17 +478,20 @@ response = requests.post(
                   <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Checkout on WhatsApp &#8594;</a>
                 </div>
                 <ProductBuyBox slug="grahak-os" showPrice={ false } />
-                <p className="gos-price" data-wc-no-translate="true">&#8377;899</p>
+                { GRAHAK_DISPLAY_PRICE && (
+                  <p className="gos-price" data-wc-no-translate="true">{ GRAHAK_DISPLAY_PRICE }</p>
+                ) }
                 <p className="gos-offer-note">One-time consultation · full deployment separate</p>
-                {/* SKU stays visible; the standard policy remains available without dominating
-                    an enterprise consulting offer. The policy text still comes from the shared
-                    productCommerce constants so this page cannot drift from checkout policy. */}
                 <div className="gos-commerce">
-                  <p data-wc-no-translate="true"><strong>SKU:</strong> { PRODUCT_SKU_BY_SLUG['grahak-os'] }</p>
+                  { GRAHAK_SKU && (
+                    <p data-wc-no-translate="true"><strong>SKU:</strong> <span className="gos-sku-value">{ GRAHAK_SKU }</span></p>
+                  ) }
                   <PolicyDetails
                     shipping={ GRAHAK_POLICY.shipping }
                     returns={ GRAHAK_POLICY.returns }
                     disclaimer={ GRAHAK_POLICY.disclaimer }
+                    overview={ null }
+                    refunds={ GRAHAK_REFUNDS }
                   />
                 </div>
               </div>
@@ -578,7 +586,7 @@ response = requests.post(
              margin-left:calc(50% - 50vw) and their inner started its 24px from 0 = 24px.
              Measured in a browser at 1280px: hero text 36px, strip items 24px. At 1440px
              they agreed only because both inner boxes were centred rather than padded. */
-          .page{min-height:100vh;padding:0;background:#fff;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1a1a;overflow-x:hidden}
+          .page{min-height:100vh;padding:0;background:var(--public-bg);font-family:var(--font-sans);color:var(--public-text);overflow-x:hidden}
           @supports (overflow-x:clip){
             .page{overflow-x:clip}
           }
@@ -670,7 +678,7 @@ response = requests.post(
           /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
              above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
           .gos-price{display:block;margin-top:22px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
-          .gos-offer-note{max-width:620px;margin:7px 0 0;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body)}
+          .gos-offer-note{max-width:620px;margin:7px 0 0;font-size:17px;font-weight:400;line-height:1.4;letter-spacing:-.05px;color:var(--public-muted)}
           @media(prefers-reduced-motion:reduce){
             .gos-wa-cta{transition:background-color .2s}
             .gos-wa-cta:hover{transform:none;box-shadow:none}
@@ -716,9 +724,10 @@ response = requests.post(
              their rules stay. */
           .gos-commerce{
             margin-top:14px;max-width:700px;font-family:inherit;font-size:17px;font-weight:400;line-height:1.4;
-            letter-spacing:-.05px;color:var(--public-body);text-align:left;
+            letter-spacing:-.05px;color:var(--public-muted);text-align:left;
           }
           .gos-commerce strong{color:var(--public-brand-green);font-weight:700}
+          .gos-sku-value{color:var(--public-muted)}
           .gos-commerce p{margin:0}
           /* The .gos-closer-head rule was REMOVED with the closer heading markup on owner
              instruction (the "Transform customer engagement with Grahak OS" h2 is gone). */
