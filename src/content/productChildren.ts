@@ -38,7 +38,7 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
       note: 'Visa decisions, entry permission and processing times are controlled by the relevant government, mission or authorised provider. WECARE.DIGITAL can prepare and track an application but cannot guarantee approval or a decision date.',
       ctaLabel: 'Start visa assistance',
       ctaHref: whatsappKeywordLink( 'Visa Assist' ),
-      ctaNote: 'Continue on WhatsApp →',
+      ctaNote: 'Checkout on WhatsApp →',
     },
   },
   {
@@ -63,7 +63,7 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
       note: 'Prices, availability, entry rules and supplier conditions can change until a booking is confirmed. WECARE.DIGITAL coordinates the trip but does not control airlines, hotels, transport operators or government entry decisions.',
       ctaLabel: 'Plan a trip',
       ctaHref: whatsappKeywordLink( 'Trip Assist' ),
-      ctaNote: 'Continue on WhatsApp →',
+      ctaNote: 'Checkout on WhatsApp →',
     },
   },
   {
@@ -88,7 +88,7 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
       note: 'Activities may be operated by independent third parties. Availability, weather, local rules, safety restrictions and operator terms remain outside WECARE.DIGITAL control and should be checked before confirmation.',
       ctaLabel: 'Plan activities',
       ctaHref: whatsappKeywordLink( 'Elsewhere Activities' ),
-      ctaNote: 'Continue on WhatsApp →',
+      ctaNote: 'Checkout on WhatsApp →',
     },
   },
   {
@@ -113,7 +113,7 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
       note: 'Dastavez provides document preparation and paralegal support, not legal representation or a lawyer\'s opinion. A document with legal consequences should be reviewed by a qualified advocate when the circumstances require legal advice.',
       ctaLabel: 'Start drafting',
       ctaHref: whatsappKeywordLink( 'Dastavez Drafting' ),
-      ctaNote: 'Continue on WhatsApp →',
+      ctaNote: 'Checkout on WhatsApp →',
     },
   },
   {
@@ -138,7 +138,7 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
       note: 'Registrations are decided and processed by the relevant authority. Dastavez can prepare and file documentation where supported, but cannot guarantee acceptance, processing time or an authority decision.',
       ctaLabel: 'Start a registration',
       ctaHref: whatsappKeywordLink( 'Dastavez Registration' ),
-      ctaNote: 'Continue on WhatsApp →',
+      ctaNote: 'Checkout on WhatsApp →',
     },
   },
   {
@@ -163,7 +163,7 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
       note: 'Legal Reference is research and source-finding support, not legal advice, representation or an opinion on how a court or authority will decide a matter. Use a qualified advocate for legal advice about your circumstances.',
       ctaLabel: 'Start legal research',
       ctaHref: whatsappKeywordLink( 'Dastavez Legal Reference' ),
-      ctaNote: 'Continue on WhatsApp →',
+      ctaNote: 'Checkout on WhatsApp →',
     },
   },
   {
@@ -188,7 +188,7 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
       note: 'Astrology and Vastu are traditional interpretive practices. Ritva offers guidance and reflection, not guaranteed predictions or a substitute for medical, legal, financial or other professional advice.',
       ctaLabel: 'Start with Ritva',
       ctaHref: whatsappKeywordLink( 'Ritva' ),
-      ctaNote: 'Continue on WhatsApp →',
+      ctaNote: 'Checkout on WhatsApp →',
     },
   },
   {
@@ -213,7 +213,7 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
       note: 'Ritual practices vary by family, region, sampradaya and priestly tradition. Puja Guidance is practical guidance for self-led worship, not a claim that one sequence is the only correct form for every tradition.',
       ctaLabel: 'Ask for puja guidance',
       ctaHref: whatsappKeywordLink( 'Ritual Guru Puja Guidance' ),
-      ctaNote: 'Continue on WhatsApp →',
+      ctaNote: 'Checkout on WhatsApp →',
     },
   },
   {
@@ -238,7 +238,7 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
       note: 'Exact contents can vary by puja, tradition and availability. The final item list should be checked before confirmation, especially where your family or priest follows a specific regional or sampradaya practice.',
       ctaLabel: 'Ask about a kit',
       ctaHref: whatsappKeywordLink( 'Ritual Guru DIY Puja Kit' ),
-      ctaNote: 'Continue on WhatsApp →',
+      ctaNote: 'Checkout on WhatsApp →',
     },
   },
   {
@@ -263,7 +263,7 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
       note: 'Kaushal can structure a learning path and help you present evidence of progress. It does not issue accredited qualifications, guarantee proficiency, interviews or employment, and it will not present unfinished learning as proven skill.',
       ctaLabel: 'Start Kaushal',
       ctaHref: whatsappKeywordLink( 'Kaushal' ),
-      ctaNote: 'Continue on WhatsApp →',
+      ctaNote: 'Checkout on WhatsApp →',
     },
   },
   {
@@ -289,7 +289,7 @@ export const PRODUCT_CHILDREN: readonly ProductChildPage[] = [
       note: 'Prastuti improves how your experience is presented. It does not invent achievements or guarantee interviews, jobs, funding or other outcomes; every claim should remain true when checked.',
       ctaLabel: 'Build your Prastuti',
       ctaHref: whatsappKeywordLink( 'Prastuti' ),
-      ctaNote: 'Continue on WhatsApp →',
+      ctaNote: 'Checkout on WhatsApp →',
     },
   },
 
