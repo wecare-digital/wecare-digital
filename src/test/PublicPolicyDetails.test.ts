@@ -5,7 +5,6 @@ import { EMBEDDED_POLICY_ROUTES, publicPolicyDetailsForRoute } from '../content/
 
 describe( 'public PolicyDetails coverage', () => {
   const routes = [
-    '/contact',
     '/orders',
     '/vayulok',
     '/elsewhere/activities',
@@ -27,7 +26,7 @@ describe( 'public PolicyDetails coverage', () => {
     '/shop/page/[page]',
   ];
 
-  it( 'covers every shared public page except home and the redirect-only 404 document', () => {
+  it( 'covers shared public pages except Home, Contact and the redirect-only 404 document', () => {
     for ( const route of routes ) {
       const policy = publicPolicyDetailsForRoute( route );
       expect( policy, route ).not.toBeNull();
@@ -57,18 +56,17 @@ describe( 'public PolicyDetails coverage', () => {
     expect( publicPolicyDetailsForRoute( '/grahak-os' ) ).toBeNull();
   } );
 
-  it( 'keeps home and the redirect-only 404 document free of the disclosure', () => {
+  it( 'keeps Home, Contact and the redirect-only 404 document free of the disclosure', () => {
     expect( publicPolicyDetailsForRoute( '/' ) ).toBeNull();
+    expect( publicPolicyDetailsForRoute( '/contact' ) ).toBeNull();
     expect( publicPolicyDetailsForRoute( '/404' ) ).toBeNull();
   } );
 
   it( 'keeps route-specific policy meaning without forcing artificial wording differences', () => {
-    const contact = publicPolicyDetailsForRoute( '/contact' );
     const privacy = publicPolicyDetailsForRoute( '/privacy' );
     const cart = publicPolicyDetailsForRoute( '/cart' );
-    expect( contact?.refunds ).not.toBe( privacy?.refunds );
+    const orders = publicPolicyDetailsForRoute( '/orders' );
     expect( privacy?.refunds ).not.toBe( cart?.refunds );
-    expect( contact?.disclaimer ).not.toBe( privacy?.disclaimer );
-    expect( contact?.disclaimer ).not.toBe( cart?.disclaimer );
+    expect( cart?.disclaimer ).not.toBe( orders?.disclaimer );
   } );
 } );
