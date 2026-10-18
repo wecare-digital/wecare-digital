@@ -137,12 +137,12 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
         .pbb-cta:disabled{opacity:.5;cursor:default}
 
         .pbb-buy{display:flex;flex-wrap:wrap;align-items:baseline;gap:16px;margin:22px 0 0}
-        .pbb-price{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:1.2;letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
+        .pbb-price{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
         .pbb-offer-note{
           max-width:620px;margin:7px 0 0;
-          font-size:var(--public-body-size);font-weight:var(--public-body-weight);
-          line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
-          color:var(--public-body);
+          font-size:17px;font-weight:var(--public-body-weight);
+          line-height:var(--public-body-leading);letter-spacing:-.05px;
+          color:var(--public-muted);
         }
 
         .pbb-error{margin:12px 0 0;font-size:14px;color:#b91c1c}
