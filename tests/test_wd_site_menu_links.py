@@ -85,6 +85,9 @@ def test_no_id_is_both_a_list_and_a_leaf():
 def test_every_leaf_links_a_page_the_export_builds(leaf_id):
     name, path = LEAVES[leaf_id]
     assert name.strip(), leaf_id
+    if path.startswith('https://wa.me/message/'):
+        assert leaf_id in {'wd_referral', 'wd_perks'}, (leaf_id, path)
+        return
     assert path.startswith('/') and path.endswith('/'), (
         f'{leaf_id}: {path!r} must be root-relative with the load-bearing trailing slash')
     assert _is_built_page(path, _public_exact()), (

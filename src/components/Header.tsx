@@ -158,7 +158,7 @@ const COLUMNS: NavColumn[] = [
             label: 'Partner',
             searchTerms: [ 'refer', 'earn' ],
             children: [
-              { label: 'Referral', href: '/shop/referral-partner/', searchTerms: [ 'partner', 'refer', 'earn' ] },
+              { label: 'Referral', href: 'https://wa.me/message/7QOFC4QGSGGUC1z', external: true, searchTerms: [ 'partner', 'refer', 'earn' ] },
               { label: 'Merchandise', href: '/shop/merchandise/', searchTerms: [ 'partner', 'refer', 'earn' ] },
               { label: 'Kiosk', href: '/shop/kiosk/', searchTerms: [ 'partner', 'refer', 'earn' ] },
             ],
@@ -168,7 +168,7 @@ const COLUMNS: NavColumn[] = [
       {
         heading: 'Extras',
         links: [
-          { label: 'Perks', href: '/perks/', match: '/perks' },
+          { label: 'Perks', href: 'https://wa.me/message/377GALDW4E26F1', external: true },
           { label: 'Google Play', href: 'https://wecare.digital/', searchTerms: [ 'android', 'play store', 'google play store' ] },
           { label: 'App Store', href: 'https://wecare.digital/', searchTerms: [ 'apple', 'ios', 'iphone', 'apple app store' ] },
         ],

@@ -65,14 +65,6 @@
       "priceMinor": null,
       "catalogImageKey": "",
       "variantLabel": "Standard"
-    },
-    {
-      "slug": "refer-and-earn",
-      "title": "Refer and Earn",
-      "canonicalPath": "/refer-and-earn/",
-      "priceMinor": null,
-      "catalogImageKey": "",
-      "variantLabel": "Standard"
-    },
+    }
   ]
 }

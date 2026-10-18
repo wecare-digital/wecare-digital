@@ -35,7 +35,6 @@ export const SHOP_LISTINGS: ShopListing[] = [
   { slug:'vault', name:'Request · Vault', blurb:'Get a copy of a document held against your request.', sku:'RVT6K4Q8', href:'/vault/', formattedPrice:'₹49.00', inStock:true, source:'product' },
   { slug:'shipments-track', name:'Shipment · Track', blurb:'Track what is on its way.', sku:'SHT8M5P3', href:'/shipments/track/', formattedPrice:'₹49.00', inStock:true, source:'product' },
   { slug:'request-pickup', name:'Shipment · Pickup', blurb:'Arrange collection of paperwork for an existing request.', sku:'SHP7Q4N9', href:'/request-pickup/', formattedPrice:'₹650.00', inStock:true, source:'product' },
-  { slug:'referral-partner', name:'Partner · Referral', blurb:'Introduce someone who would find WECARE.DIGITAL useful.', sku:'PRF5M8K2', href:'/refer-and-earn/', formattedPrice:'₹899.00', inStock:true, source:'product' },
   { slug:'merchandise', name:'Partner · Merchandise', blurb:'WECARE.DIGITAL merchandise.', sku:'PMD9Q3P6', href:'/shop/merchandise/', formattedPrice:'₹1,999.00', inStock:true, source:'product' },
   { slug:'kiosk', name:'Partner · Kiosk', blurb:'A WECARE.DIGITAL kiosk setup.', sku:'PKS7K5M4', href:'/shop/kiosk/', formattedPrice:'₹26,999.00', inStock:true, source:'product' },
   { slug:'contribute', name:'Contribute', blurb:'A voluntary ₹250 contribution to support the work.', sku:'CNT5Q2M8', href:'/shop/contribute/', formattedPrice:'₹250.00', inStock:true, source:'product' },

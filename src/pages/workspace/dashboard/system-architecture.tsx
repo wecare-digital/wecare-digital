@@ -611,7 +611,7 @@ const BOT_MENU: BotMenuItem[] = [
   { row: 3, section: 'Start Here', icon: '🆔', title: 'Find Profile ID', description: 'Locate your subscription or profile ID', action: 'Opens ID lookup' },
   { row: 4, section: 'Start Here', icon: '💳', title: 'Make a Payment', description: 'Pay an invoice or complete a pending payment', action: 'Opens payment lookup' },
   { row: 5, section: 'Explore WECARE', icon: '🛍️', title: 'Explore Store', description: 'Browse services, brands, and offers', action: 'CTA link → wecare.digital' },
-  { row: 6, section: 'Explore WECARE', icon: '🎁', title: 'Gift Cards', description: 'Send a digital gift card', action: 'CTA link → wecare.digital/perks/' },
+  { row: 6, section: 'Explore WECARE', icon: '🎁', title: 'Perks', description: 'Open Perks on WhatsApp', action: 'CTA link → wa.me/message/377GALDW4E26F1' },
   { row: 7, section: 'Explore WECARE', icon: '🇮🇳', title: 'WECARE.DIGITAL', description: 'Discover WECARE.DIGITAL and services', action: 'Info text + evolving services' },
   // The action was 'CTA link → wecare.digital/faq' until the public [retired public path] page was deleted;
   // that URL now 404s, so the row would have sent a WhatsApp user to a dead link. The answer

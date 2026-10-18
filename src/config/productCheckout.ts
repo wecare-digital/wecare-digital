@@ -31,10 +31,8 @@ export const PRODUCT_CHECKOUT: Readonly<Record<string, ProductCheckoutLine>> = {
   'hunar-prastuti': line( 'native:hunar-prastuti', 'hunar-prastuti', 'PST7K4N2', 'Hunar · Prastuti', '₹299.00' ),
   'niji-setu': line( 'abe4870e-fae3-59cc-b1a7-9bd28eff048a', 'niji-setu', 'NJS5K8Q3', 'Niji Setu', '₹299.00' ),
   'shipments-track': line( 'f45dec5c-5bcc-5fca-9c50-5f63b57554d2', 'shipments-track', 'SHT8M5P3', 'Shipment · Track', '₹49.00' ),
-  'referral-partner': line( '944c8cb0-5a8b-57f1-9204-e29bfb5f1554', 'referral-partner', 'PRF5M8K2', 'Partner · Referral', '₹899.00' ),
   'merchandise': line( '884281fd-e6e3-537a-b58e-9c6e1342597d', 'merchandise', 'PMD9Q3P6', 'Partner · Merchandise', '₹1,999.00' ),
   'kiosk': line( '84eb1e0c-0d07-5a64-8cf4-cff09e8ee5be', 'kiosk', 'PKS7K5M4', 'Partner · Kiosk', '₹26,999.00' ),
-  'refer-and-earn': line( '944c8cb0-5a8b-57f1-9204-e29bfb5f1554', 'referral-partner', 'PRF5M8K2', 'Partner · Referral', '₹899.00' ),
 };
 
 export const productCheckoutLine = ( slug: string ): ProductCheckoutLine | null =>

@@ -467,7 +467,7 @@ const serviceSchema = {
  * organisation.
  *
  * IT IS NOT SET ON THE REQUESTS PAGES, deliberately. /submit-request, /drop-docs, /vault,
- * /request-pickup, /leave-review, /refer-and-earn and /request-amendment are ways to
+ * /request-pickup, /leave-review and /request-amendment are ways to
  * interact with us, not
  * services we sell - "Leave Review" is not an offering, and typing it as a Service to get a
  * richer graph would be describing the site we wish we had. Nor on /terms, /privacy, /contact
@@ -536,7 +536,6 @@ const PUBLIC_PAGE_META: Record<string, {
   '/request-pickup': { name: 'Request Pickup', type: 'WebPage', description: 'Ask us to collect documents for a request already under way.' },
   '/shipments/track': { name: 'Track', type: 'WebPage', description: 'Track an order, delivery or service request already with WECARE.DIGITAL.', serviceType: 'Shipment and request tracking' },
   '/leave-review': { name: 'Leave Review', type: 'WebPage', description: 'Tell us how something went, well or badly.' },
-  '/refer-and-earn': { name: 'Refer & Earn', type: 'WebPage', description: 'Introduce someone who would find this useful.' },
   // THE CATALOGUE INDEX IS RESTORED, 2026-10-10, on owner instruction: /shop/ is browsable again,
   // so this key is back in the map (which is both the public allowlist and the structured-data
   // source - without it the page renders the staff sign-in shell at HTTP 200). It is coupled to
@@ -561,19 +560,6 @@ const PUBLIC_PAGE_META: Record<string, {
   '/shop': { name: 'Shop', type: 'WebPage', description: 'Every WECARE.DIGITAL product and service on one page, each linking to its own page.' },
   // Shipments is a non-clickable family label. Track lives at /shipments/track/ and
   // Pickup Request remains the separate /request-pickup/ child.
-  // Perks is a home-styled landing page for the small thank-yous we send customers, and the
-  // repaired destination for the gift-card links that used to point at a 404. The owner removed
-  // the former gift-card / offers / rewards sections, so the page is now a calm, honest landing
-  // page with no transacting control and no third-party provider name.
-  //
-  // THE NAME IS "PERKS" AGAIN. An earlier instruction renamed it Perks -> Extras; the owner
-  // reversed that on 2026-10-02, because the nav rendered the row "Extras" directly beneath a
-  // group heading also reading "Extras". `name` was still 'Extras' here, which — exactly as with
-  // the old Shipments parent entry — fed the page's WebPage schema and config/public-pages.json, so the
-  // wrong name was published regardless of the label. The ROUTE KEY STAYS '/perks' and needs no
-  // change: it already matches the name. config/public-pages.json takes its `name` from here, so
-  // it is regenerated to "Perks" to stay in parity (PublicAiSurface test).
-  '/perks': { name: 'Perks', type: 'WebPage', description: 'A little extra for the people we look after. An honest, uncluttered place for the small thank-yous we send your way, and nothing here asks for payment.' },
 };
 
 /** Public redirect changes use scripts/provision_legacy_redirects.py and its ratified list.

@@ -250,13 +250,6 @@ const LIVE_PRODUCTS: CatalogSnapshotProduct[] = [
     variants:[{ id:'SHP7Q4N9', label:'Standard', inStock:true }],
   },
   {
-    id:'944c8cb0-5a8b-57f1-9204-e29bfb5f1554', name:'Partner · Referral', slug:'referral-partner',
-    formattedPrice:'₹899.00', price:'899.00', currency:'INR',
-    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/refer-and-earn/',
-    descriptionHtml:'<p>Partner · Referral from WECARE.DIGITAL.</p>',
-    variants:[{ id:'PRF5M8K2', label:'Standard', inStock:true }],
-  },
-  {
     id:'884281fd-e6e3-537a-b58e-9c6e1342597d', name:'Partner · Merchandise', slug:'merchandise',
     formattedPrice:'₹1,999.00', price:'1999.00', currency:'INR',
     inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/shop/merchandise/',

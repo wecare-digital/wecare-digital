@@ -23,7 +23,7 @@ describe( 'the fresh 26 + Contribute Shop', () => {
   it( 'links representative cards to their respective existing product pages', () => {
     expect( SHOP_LISTINGS.find( item => item.slug === 'grahak-os' )?.href ).toBe( '/grahak-os/' );
     expect( SHOP_LISTINGS.find( item => item.slug === 'submit-request' )?.href ).toBe( '/submit-request/' );
-    expect( SHOP_LISTINGS.find( item => item.slug === 'referral-partner' )?.href ).toBe( '/refer-and-earn/' );
+    expect( SHOP_LISTINGS.find( item => item.slug === 'referral-partner' ) ).toBeUndefined();
     expect( SHOP_LISTINGS.find( item => item.slug === 'contribute' )?.href ).toBe( '/shop/contribute/' );
   } );
 

@@ -212,7 +212,7 @@ MENU_PLACEHOLDER_TEXT = "We're refreshing our menu - please type *menu* and we'l
 # dropping one turns a link into a redirect at best and a 404 at worst.
 WD_SITE_BASE = 'https://wecare.digital'
 
-# leaf row id -> (display name, site path). Tapping any of these sends a text reply
+# leaf row id -> (display name, site path or absolute external URL). Tapping any of these sends a text reply
 # with the link, not another list.
 WD_LEAF_LINKS: Dict[str, Tuple[str, str]] = {
     'wd_home': ('About / Home', '/'),
@@ -251,9 +251,9 @@ WD_LEAF_LINKS: Dict[str, Tuple[str, str]] = {
     # Refer & Earn children
     'wd_merchandise': ('Merchandise', '/shop/merchandise/'),
     'wd_kiosk': ('Kiosk', '/shop/kiosk/'),
-    'wd_referral': ('Referral', '/shop/referral-partner/'),
+    'wd_referral': ('Referral', 'https://wa.me/message/7QOFC4QGSGGUC1z'),
     'wd_contact': ('Contact us', '/contact/'),
-    'wd_perks': ('Perks', '/perks/'),
+    'wd_perks': ('Perks', 'https://wa.me/message/377GALDW4E26F1'),
     # Legal
     'wd_terms': ('Terms', '/terms/'),
     'wd_privacy': ('Privacy', '/privacy/'),
@@ -3155,7 +3155,7 @@ def _process_message(
         # ── Keyword: "gift card" / "gift" ──
         GIFT_KEYWORDS = {'gift card', 'gift cards', 'gift', 'buy gift card', '\U0001f381 gift cards'}
         if content_lower in GIFT_KEYWORDS:
-            _send_cta_button(contact_id, aws_phone_number_id, 'Gift Cards', 'https://wecare.digital/perks/', request_id)
+            _send_cta_button(contact_id, aws_phone_number_id, 'Perks', 'https://wa.me/message/377GALDW4E26F1', request_id)
             return
 
         # ── Keyword: "faq" / "faqs" / "help" / "questions" ──
@@ -6349,7 +6349,8 @@ def _send_wd_leaf_link(leaf_id: str, contact_id: str, aws_phone_number_id: str,
     if not entry:
         return
     name, path = entry
-    text = WD_LEAF_TEMPLATE.format(name=name, url=f'{WD_SITE_BASE}{path}')
+    url = path if path.startswith('https://') else f'{WD_SITE_BASE}{path}'
+    text = WD_LEAF_TEMPLATE.format(name=name, url=url)
     # leafId and path are neither secrets nor phone numbers, so they are logged in
     # full — the same reasoning the payments steering gives for referenceId.
     logger.info(json.dumps({
