@@ -45,9 +45,11 @@ const PUBLIC_EXACT = new Set( [
   '/privacy',
   '/terms',
   '/vayulok',
-  // Product pages. These must stay in step with PUBLIC_PAGE_META in _app.tsx:
-  // a route missing there renders an empty body with HTTP 200, so advertising it here
-  // without it there would put blank pages in front of a crawler.
+  // Product CHILD pages. Family labels such as Dastavez, Ritual Guru, Hunar and
+  // Shipments deliberately have no public parent page. These concrete destinations must
+  // stay in step with PUBLIC_PAGE_META in _app.tsx: a route missing there renders an
+  // empty body with HTTP 200, so advertising it here would put a blank page in front
+  // of a crawler.
   '/dastavez/drafting',
   '/dastavez/registration',
   '/dastavez/legal-reference',
@@ -84,12 +86,11 @@ const PUBLIC_EXACT = new Set( [
   // again (the three /shop 301 rules were removed from scripts/provision_legacy_redirects.py and
   // src/pages/shop/index.tsx is recreated), so it belongs in the sitemap. Its PUBLIC_PAGE_META
   // entry in _app.tsx is back too - the two are coupled by src/test/PublicRouteRegistration.test.ts.
-  // The seven PRODUCT pages come in through the '/shop/' PREFIX below, which is separate.
+  // Shop detail pages - including child destinations for families such as Clear Closure
+  // and Partner - come in through the '/shop/' PREFIX below, which is separate.
   '/shop',
-  // Zip (the request/delivery/pickup hub) and Perks (gift cards, rewards, offers). Same rule as
-  // every group above: both are in PUBLIC_PAGE_META in _app.tsx, so they render; advertising them
-  // here without that entry would put blank pages in front of a crawler. /perks is also the
-  // repaired destination for the gift-card links.
+  // Perks is a standalone public page. Shipments is no longer a public hub: its real
+  // destinations are /shipments/track/ and /request-pickup/.
   '/perks',
 ] );
 // '/blog/page/' is pages 2..N of the paginated blog index. It has to be a prefix rather than
@@ -116,6 +117,23 @@ const PUBLIC_EXACT = new Set( [
 // because normalizeRoute('/shop/file-assist/') yields '/shop/file-assist', which still
 // startsWith('/shop/'); the withdrawn index was an EXACT entry, so removing it cannot affect this.
 const PUBLIC_PREFIXES = [ '/post/', '/blog/page/', '/blog/topic/', '/shop/' ];
+
+/**
+ * Family labels that MUST NEVER be written as sitemap URLs.
+ *
+ * These names still exist in navigation as non-clickable grouping labels, but only their
+ * concrete children are public pages. Keeping the guard here prevents a future refactor or
+ * stale export from silently advertising a deleted parent again.
+ */
+const RETIRED_FAMILY_PARENTS = new Set( [
+  '/clear-closure',
+  '/dastavez',
+  '/elsewhere',
+  '/hunar',
+  '/partner',
+  '/ritual-guru',
+  '/shipments',
+] );
 
 function normalizeRoute ( base ) {
   if ( !base ) return '/';
@@ -389,6 +407,17 @@ function robotsDisallows () {
       .filter( Boolean );
   }
   return [];
+}
+
+const retiredFamilyRoutes = routes.filter( route => RETIRED_FAMILY_PARENTS.has( route ) );
+if ( retiredFamilyRoutes.length > 0 )
+{
+  console.error(
+    '\nSITEMAP REFUSED: retired family parent route(s) were found in the export:\n'
+    + retiredFamilyRoutes.map( route => `    ${route}` ).join( '\n' )
+    + '\n  Family labels are navigation-only. Publish only their concrete child pages.\n'
+  );
+  process.exit( 1 );
 }
 
 const routes = findHtmlFiles( OUT_DIR );
