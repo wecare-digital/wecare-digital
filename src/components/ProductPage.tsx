@@ -193,8 +193,8 @@ const ProductPage: React.FC<ProductPageProps> = ( {
         ) }
 
         {/* Pages with no commerce SKU still keep their boundary note as a quiet card. Commerce
-            pages move that same page-specific boundary text into Policy details as the Disclaimer,
-            so it is stated once rather than repeated below the policy. */}
+            pages use the concise route-specific disclaimer from productPolicyCopy instead; the
+            longer narrative note is not repeated beneath Policy details. */}
         { !sku && product.note && (
           <div className="pdp-note">
             { product.note.split( /\n{2,}/ ).map( ( para, i ) => (

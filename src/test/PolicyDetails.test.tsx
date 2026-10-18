@@ -6,7 +6,7 @@ import { productPolicyCopy } from '../content/productCommerce';
 import { productBySlug } from '../content/products';
 
 describe( 'PolicyDetails', () => {
-  it( 'keeps Anew disclaimer paragraphs separate', () => {
+  it( 'keeps Anew disclaimer concise and route-specific', () => {
     const product = productBySlug( 'anew' );
     const policy = productPolicyCopy( product.slug, product.name, product.note );
     const html = renderToStaticMarkup(
@@ -22,11 +22,10 @@ describe( 'PolicyDetails', () => {
     expect( html ).toContain( policy.refunds );
 
     const disclaimerParagraphs = html.match( /<p[^>]*wc-policy-disclaimer[^>]*>[\s\S]*?<\/p>/g ) || [];
-    expect( disclaimerParagraphs ).toHaveLength( 2 );
-    expect( disclaimerParagraphs[ 0 ] ).toContain( 'Anew is a guided written reflection' );
+    expect( disclaimerParagraphs ).toHaveLength( 1 );
+    expect( disclaimerParagraphs[ 0 ] ).toContain( 'Anew is written reflection' );
     expect( disclaimerParagraphs[ 0 ] ).not.toContain( 'If you need mental-health support' );
-    expect( disclaimerParagraphs[ 1 ] ).toContain( 'If you need mental-health support' );
-    expect( disclaimerParagraphs[ 1 ] ).toContain( 'Statutory consumer rights remain unaffected.' );
+    expect( disclaimerParagraphs[ 0 ] ).toContain( 'Statutory consumer rights remain unaffected.' );
   } );
 
   it( 'can suppress the statutory-rights footer for a concise embedded disclosure', () => {

@@ -45,23 +45,92 @@ const PHYSICAL_PRODUCT_SLUGS = new Set<string>( [
 ] );
 
 const POLICY_OVERRIDES: Readonly<Record<string, Partial<ProductPolicyCopy>>> = {
+  // Frozen reference copy: do not rewrite Grahak while propagating the pattern.
   'grahak-os': {
     shipping: 'Delivered digitally; no physical shipping applies. Separate physical items follow their own delivery terms.',
     returns: 'The consultation is digital and cannot be physically returned. Separate physical items follow their own return or replacement terms.',
     disclaimer: 'Your purchase covers one Grahak OS consultation. Deployment, implementation, integrations and third-party platform or messaging charges are separate unless included in writing. Channel availability and approvals may depend on third parties.',
   },
   'bharat-rx': {
-    shipping: 'Bharat Rx is fulfilled as a service, so no physical shipping applies unless a separately identified physical item is included in your confirmed order.',
-    returns: 'Service work and digital records are not physically returnable. Any separately supplied physical item follows the return or replacement terms disclosed for that item and applicable law.',
-    disclaimer: 'Bharat Rx coordinates requests and records. It is not a substitute for professional medical advice, diagnosis or treatment, and nothing on the page is medical advice. In an emergency, contact local emergency services.',
+    shipping: 'Bharat Rx is fulfilled as a service. Physical delivery applies only when a separately identified item is included in the confirmed order.',
+    returns: 'Service work and digital records are not physically returnable. Separate physical items follow their disclosed return terms and applicable law.',
+    disclaimer: 'Bharat Rx coordinates requests and records; it is not medical advice, diagnosis or treatment. In an emergency, contact local emergency services.',
+  },
+  'elsewhere-visa': {
+    disclaimer: 'WECARE.DIGITAL can prepare and track the application; approval and processing time remain with the relevant authority.',
+  },
+  'elsewhere-trip': {
+    disclaimer: 'Airlines, hotels, transport providers and authorities control availability, prices, conditions and entry decisions.',
+  },
+  'expo-week': {
+    disclaimer: 'Expo Week is a virtual travel-planning experience; destination availability, supplier offers and travel conditions can change.',
+  },
+  'dastavez-drafting': {
+    disclaimer: 'Drafting is document-preparation and paralegal support, not legal advice or legal representation.',
+  },
+  'dastavez-registration': {
+    disclaimer: 'The relevant authority controls acceptance and processing time; preparation or filing support cannot guarantee its decision.',
+  },
+  'dastavez-legal-reference': {
+    disclaimer: 'Legal Reference is research and source-finding support, not legal advice, representation or a prediction of an authority or court outcome.',
+  },
+  'guided-resolution': {
+    disclaimer: 'Guided Resolution supports preparation and coordination; it does not guarantee agreement, settlement or a third-party decision.',
+  },
+  'file-assist': {
+    disclaimer: 'Case Submission helps organise and submit materials; acceptance and outcomes remain with the receiving party or authority.',
+  },
+  'paperwork': {
+    disclaimer: 'Paperwork is document-preparation support, not legal advice or legal representation.',
+  },
+  'ritual-guru-puja-guidance': {
+    disclaimer: 'Ritual practice varies by family, region and tradition; this guidance is not a claim that one sequence is the only correct form.',
+  },
+  'ritual-guru-diy-puja-kit': {
+    disclaimer: 'Kit contents can vary by puja, tradition and availability; the item list confirmed for the order controls.',
+  },
+  'anew': {
+    disclaimer: 'Anew is written reflection, not therapy, counselling or medical, legal, financial or tax advice. You remain responsible for any decision or action.',
+  },
+  'hunar-kaushal': {
+    disclaimer: 'Kaushal supports learning structure and evidence of progress; it does not issue accredited qualifications or guarantee proficiency, interviews or employment.',
+  },
+  'hunar-prastuti': {
+    disclaimer: 'Prastuti improves presentation of real experience; it does not invent achievements or guarantee interviews, jobs, funding or other outcomes.',
+  },
+  'niji-setu': {
+    disclaimer: 'Niji Setu is designed to keep personal numbers hidden in supported masked-call flows; availability depends on the calling and telecom services used.',
+  },
+  'submit-request': {
+    disclaimer: 'Submitting a request does not guarantee acceptance, timing or outcome; scope is confirmed before work starts.',
+  },
+  'request-amendment': {
+    disclaimer: 'An amendment may depend on a third party or authority; WECARE.DIGITAL cannot guarantee acceptance or processing time.',
+  },
+  'drop-docs': {
+    disclaimer: 'Do not send passwords, one-time codes, card numbers or unrequested originals. Document handling follows the Privacy Policy.',
+  },
+  'vault': {
+    disclaimer: 'Vault access and retention follow the Privacy Policy; documents may not be retained indefinitely or released to unauthorised people.',
   },
   'shipments-track': {
-    shipping: 'Tracking itself is a service. Any underlying collection or delivery follows the shipping or fulfilment terms of the relevant order, courier or partner.',
-    returns: 'Track does not itself create a return right. Return or replacement eligibility is determined by the underlying order, the applicable product or service terms and applicable law.',
+    shipping: 'Tracking is a service. Any collection or delivery follows the fulfilment terms of the underlying order and courier or partner.',
+    returns: 'Tracking does not create a return right; eligibility follows the underlying order, disclosed terms and applicable law.',
+    disclaimer: 'Tracking shows the latest confirmed status; courier or partner timing is not guaranteed until confirmed.',
   },
   'request-pickup': {
-    shipping: 'Pickup timing and hand-off depend on the confirmed collection arrangement and, where used, the relevant courier or logistics partner.',
-    returns: 'A pickup request is a service action rather than a returned product by itself. Any return, replacement or other remedy follows the underlying order terms and applicable law.',
+    shipping: 'Pickup timing and hand-off follow the confirmed collection arrangement and any courier or logistics partner used.',
+    returns: 'A pickup request is a service action, not a return by itself; any remedy follows the underlying order terms and applicable law.',
+    disclaimer: 'Pickup depends on courier or partner availability; do not hand over unrequested original certificates.',
+  },
+  'merchandise': {
+    disclaimer: 'Availability, variant details and fulfilment are those confirmed for the order.',
+  },
+  'kiosk': {
+    disclaimer: 'Hardware availability, installation requirements and connectivity are confirmed for the order.',
+  },
+  'contribute': {
+    disclaimer: 'Contribute is processed for the amount shown at checkout; it does not promise an investment or financial return.',
   },
 };
 
@@ -73,16 +142,16 @@ export function productPolicyCopy(
   const physical = PHYSICAL_PRODUCT_SLUGS.has( slug );
   const base: ProductPolicyCopy = physical
     ? {
-        shipping: 'This item requires physical fulfilment. Shipping timing, destination coverage and any delivery charge are disclosed or confirmed for the transaction before fulfilment.',
-        returns: 'Return or replacement eligibility depends on the item condition, whether it was customised or used, the product-specific terms disclosed for the transaction and applicable law.',
+        shipping: `${name} requires physical fulfilment. Delivery coverage, timing and any charge are confirmed before fulfilment.`,
+        returns: 'Return or replacement eligibility depends on item condition, customisation, the disclosed product terms and applicable law.',
         refunds: PRODUCT_REFUNDS,
-        disclaimer: `${name} is supplied subject to the product details, availability and fulfilment conditions confirmed for your order.`,
+        disclaimer: `The confirmed order details and availability for ${name} control fulfilment.`,
       }
     : {
-        shipping: 'Fulfilment follows the product or service details disclosed for the transaction. If physical delivery is involved, the delivery terms are confirmed before fulfilment.',
-        returns: 'Service work and digital deliverables are not physically returnable. Any physical item supplied separately follows its disclosed return or replacement terms and applicable law.',
+        shipping: `Fulfilment follows the confirmed scope for ${name}. Any physical delivery, if included, is confirmed separately.`,
+        returns: 'Completed service work and digital deliverables are not physically returnable. Separate physical items follow their disclosed terms and applicable law.',
         refunds: PRODUCT_REFUNDS,
-        disclaimer: `The scope, inclusions, timing and any third-party dependencies for ${name} are those confirmed for your transaction. Nothing on this page guarantees an outcome controlled by a third party, supplier, authority or platform.`,
+        disclaimer: `The confirmed scope and any third-party dependencies for ${name} control the transaction.`,
       };
 
   const override = POLICY_OVERRIDES[ slug ] || {};
@@ -90,6 +159,6 @@ export function productPolicyCopy(
     shipping: override.shipping || base.shipping,
     returns: override.returns || base.returns,
     refunds: override.refunds || base.refunds,
-    disclaimer: disclaimer || override.disclaimer || base.disclaimer,
+    disclaimer: override.disclaimer || disclaimer || base.disclaimer,
   };
 }
