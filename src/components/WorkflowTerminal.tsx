@@ -1109,7 +1109,17 @@ const WorkflowTerminal: React.FC = () => {
         .wt-foot-right{margin-left:auto}
 
         @media(max-width:767px){
-          .wt-window{height:min(560px,calc(100vh - 180px));border-radius:12px}
+          /* HEIGHT: same intent as .home-shell and .nav-menu - size to what the visitor can
+             actually see, not to the viewport with the chrome hidden. It was a min() of 560px
+             and a raw-vh calc that subtracted 180 pixels: 100vh overstates the phone viewport
+             while the address bar is showing, so the panel grew taller than the screen and
+             jumped as the chrome collapsed, and that subtrahend matched no element in the layout.
+             The ceiling stays at 560px so the panel never dominates a tall phone. The vh term
+             is the fallback and is declared first; dvh is declared second and tracks the
+             visible viewport, so a browser without dvh keeps the vh value. 100dvh never
+             overflows the visible area, so the min() ceiling is the only cap that binds in
+             practice. */
+          .wt-window{height:min(560px,100vh);height:min(560px,100dvh);border-radius:12px}
           .wt-space{padding:23px 18px 60px}
           .wt-bar-state{display:none}
           .wt-step{padding-left:29px}
