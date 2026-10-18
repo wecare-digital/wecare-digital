@@ -274,15 +274,15 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
           min-height:100dvh;
           padding-top:108px;
           box-sizing:border-box;
-          background:#fff;
-          font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-          color:#1a1a1a;
+          background:var(--public-bg);
+          font-family:var(--font-sans);
+          color:var(--public-text);
         }
         .rh-shell.is-inside-main{min-height:0}
         .rh-layout{
           width:100%;max-width:var(--public-content-max);margin:0 auto;
           padding:80px 24px 48px;box-sizing:border-box;
-          display:flex;flex-direction:column;gap:96px;
+          display:flex;flex-direction:column;gap:var(--public-section-gap);
         }
         /* THE TAIL PAIR - Contribute + Subscribe/Share - is one flex child of .rh-layout, so the
            96px flex gap sits ONCE above the pair, not between the two blocks. Inside, the blocks

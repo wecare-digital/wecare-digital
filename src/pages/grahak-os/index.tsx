@@ -987,7 +987,7 @@ response = requests.post(
           .api-action{margin:36px 0 0;max-width:460px}
           /* h3 on the card-heading rung (22px/700), one step below the section h2 above
              it in the same column, so the outline is h2 -> h3 with no skipped level. */
-          .api-action-head{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:rgba(0,0,0,.95);margin:0 0 16px}
+          .api-action-head{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading);margin:0 0 16px}
           /* The .api-action-link lighter text-link CSS was REMOVED with its markup: every
              WhatsApp CTA now uses the single unified .gos-wa-cta pill (owner instruction),
              so the second style is dead. A test guards that the class name no longer
@@ -1008,7 +1008,7 @@ response = requests.post(
           .api-step-body{min-width:0}
           /* Card-heading rung (22px/700), one step below the section h2 in the same
              column, so the outline is h2 -> h3 with no skipped level. */
-          .api-step-title{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:rgba(0,0,0,.95);margin:0 0 6px}
+          .api-step-title{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading);margin:0 0 6px}
           /* Supporting line uses the same 20px body rung as Home. */
           .api-step-line{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0}
           /* Buy block: WhatsApp checkout pill, then price + explanation, then the policy

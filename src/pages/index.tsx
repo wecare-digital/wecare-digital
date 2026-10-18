@@ -561,7 +561,7 @@ const HomePage: React.FC = () => {
            this the only body copy on the page at that colour and read as a different, lighter
            treatment than the closing-band list beside it (which was #1a3a2a green). Both
            lists are now on the one neutral body colour so the two sections read as siblings. */
-        .home-flow-list span{display:block;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:rgba(0,0,0,.898)}
+        .home-flow-list span{display:block;font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body)}
 
         @media(max-width:1024px){
           .home-flow{grid-template-columns:minmax(0,1fr);gap:32px}
@@ -601,9 +601,9 @@ const HomePage: React.FC = () => {
           min-height:100dvh;
           padding-top:108px;
           box-sizing:border-box;
-          background:#fff;
-          font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-          color:#1a1a1a;
+          background:var(--public-bg);
+          font-family:var(--font-sans);
+          color:var(--public-text);
         }
         /* gap:96px is the SECTION rhythm and stays that even though there is one
            section today - it is what the next block will sit on. The eyebrow-to-
@@ -620,7 +620,7 @@ const HomePage: React.FC = () => {
           box-sizing:border-box;
           display:flex;
           flex-direction:column;
-          gap:96px;
+          gap:var(--public-section-gap);
         }
         /* align-items:flex-start replaces the align-self the eyebrow used to carry.
            Without it the badge is stretched to the full 1300px measure by the flex
