@@ -261,6 +261,11 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
           payment rather than promising a discount the browser cannot compute. */}
       <p className="sbb-offer-note">One-time service · final total confirmed in the cart before payment</p>
 
+      {/* The offer note, in the shared public-commerce order (CTA -> price -> note), mirroring
+          ProductBuyBox. A service is priced to the paise against its catalogue price, so the note
+          states the final total is confirmed in the cart before payment. */}
+      <p className="sbb-offer-note">One-time service · final total confirmed in the cart before payment</p>
+
       { error && <p className="sbb-error" role="alert">{ error }</p> }
 
       <style jsx>{`

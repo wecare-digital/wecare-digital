@@ -437,10 +437,13 @@ describe( 'Grahak OS: bottom closer section removed entirely', () => {
   } );
 
   it( 'keeps the shared price/SKU/policy in the api-steps block, not the removed closer', () => {
-    // The commerce still exists on the page (in api-steps), proving the removal was scoped.
+    // The commerce still exists on the page (in api-steps), proving the removal was scoped. The
+    // policy is rendered through the shared PolicyDetails disclosure (not inline PRODUCT_POLICY_TEXT),
+    // which is the canonical public-commerce pattern the sibling test below pins and the
+    // PublicCommercePattern suite requires — so this asserts the disclosure, not the raw text.
     expect( source ).toContain( '<p className="gos-price" data-wc-no-translate="true">&#8377;899' );
     expect( source ).toContain( "PRODUCT_SKU_BY_SLUG['grahak-os']" );
-    expect( source ).toContain( '<strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }' );
+    expect( source ).toContain( '<PolicyDetails' );
   } );
 } );
 
