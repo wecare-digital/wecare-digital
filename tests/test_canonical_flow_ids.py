@@ -40,10 +40,10 @@ READBACK = ROOT / 'outputs/flow-retirement-2026-10-09.json'
 # The wired surfaces that must not restate a stale id as a literal.
 WIRED_FILES = [
     ROOT / 'amplify/functions/messaging/inbound-whatsapp-handler/handler.py',
-    ROOT / 'src/pages/workspace/forms/selfservice.tsx',
+    ROOT / 'src/components/workspace/service/CustomerServiceHub.tsx',
     ROOT / 'src/pages/workspace/engage/whatsapp/settings.tsx',
-    ROOT / 'src/pages/workspace/engage/whatsapp/scripts.tsx',
-    ROOT / 'src/pages/workspace/dashboard/system-architecture.tsx',
+    ROOT / 'src/components/workspace/whatsapp/scripts.tsx',
+    ROOT / 'src/components/workspace/platform/SystemArchitecture.tsx',
 ]
 
 # Non-canonical ids that previously appeared for an in-scope capability and must stay gone.
