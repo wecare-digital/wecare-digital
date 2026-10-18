@@ -123,7 +123,6 @@ const BharatRxPage: React.FC = () => (
         <div className="brx-commerce">
           <p className="brx-sku" data-wc-no-translate="true"><strong>SKU:</strong> <span className="brx-sku-value">{ PRODUCT_SKU_BY_SLUG['bharat-rx'] }</span></p>
           <PolicyDetails
-            overview={ null }
             shipping={ BHARAT_RX_POLICY.shipping }
             returns={ BHARAT_RX_POLICY.returns }
             refunds={ BHARAT_RX_POLICY.refunds }
