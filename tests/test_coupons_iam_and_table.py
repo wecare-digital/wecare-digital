@@ -107,8 +107,6 @@ def _checkout_simulated_tables() -> list:
         "PAYMENT_ATTEMPTS_TABLE": checkout.PAYMENT_ATTEMPTS_TABLE,
         "COMMERCE_KEYS_TABLE": checkout.COMMERCE_KEYS_TABLE,
         "COUPONS_TABLE": getattr(checkout, "COUPONS_TABLE", "stack-wecare-digital-CouponsTable"),
-        "GIFT_CARDS_TABLE": getattr(checkout, "GIFT_CARDS_TABLE",
-                                    "stack-wecare-digital-GiftCardsTable"),
         "RAZORPAY_API_SECRET": getattr(checkout, "RAZORPAY_API_SECRET",
                                        "wecare/razorpay/api"),
         "ORDERS_TABLE": getattr(checkout, "ORDERS_TABLE",
@@ -332,24 +330,14 @@ def test_the_table_provisioner_never_deletes_or_retargets(table):
     assert not offenders, "\n  ".join(offenders)
 
 
-def test_both_new_tables_are_allowed_in_the_drift_gate_with_a_reason(drift):
-    """57. Neither `Coupon` nor `GiftCard` is a declared model in `amplify/data/resource.ts`, so a
-    live table with that name lands in `undeclared_tables_unexpected` and `--gate` exits non-zero.
-    The allowance is what makes the disagreement a recorded decision rather than a failure.
-
-    The reason string is asserted non-empty, not merely present. `UNDECLARED_ALLOWED` carries a
-    reason per entry precisely because a gate that fires on a decision already taken is a gate
-    somebody switches off - an empty reason restores that problem while passing the membership
-    check.
-    """
-    for table in ("CouponsTable", "GiftCardsTable"):
-        assert table in drift.UNDECLARED_ALLOWED, (
-            f"{table} has no drift-gate allowance, so check_data_model_drift --gate fails once "
-            f"the table is live")
-        reason = drift.UNDECLARED_ALLOWED[table]
-        assert reason.strip(), f"{table} is allowed with no reason recorded"
-        assert "provision_" in reason, (
-            f"{table}'s reason does not name the provisioner that owns it")
+def test_the_coupon_table_is_allowed_in_the_drift_gate_with_a_reason(drift):
+    """CouponsTable is backend-owned rather than an Amplify model, so the exception is explicit."""
+    table = "CouponsTable"
+    assert table in drift.UNDECLARED_ALLOWED
+    reason = drift.UNDECLARED_ALLOWED[table]
+    assert reason.strip()
+    assert "provision_" in reason
+    assert "GiftCardsTable" not in drift.UNDECLARED_ALLOWED
 
 
 def test_the_table_name_follows_the_drift_script_default_rule(drift):
@@ -358,8 +346,6 @@ def test_the_table_name_follows_the_drift_script_default_rule(drift):
     will be got wrong later."""
     assert drift.expected_table("Coupon") == "CouponsTable"
     assert "Coupon" not in drift.EXPLICIT_TABLE
-    assert "GiftCard" not in drift.EXPLICIT_TABLE
-    assert drift.expected_table("GiftCard") == "GiftCardsTable"
 
 
 def test_the_role_and_the_table_scripts_agree_with_the_store_module(role, table):
