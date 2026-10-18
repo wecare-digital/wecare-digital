@@ -1,15 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PRODUCT_REFUNDS, PRODUCT_POLICY_TITLE, productPolicyCopy } from '../content/productCommerce';
+import { PRODUCT_REFUNDS, productPolicyCopy } from '../content/productCommerce';
 
 describe( 'shared product policy summary', () => {
-  it( 'stays concise and aligned with the Terms refund remedies', () => {
-    expect( PRODUCT_POLICY_TITLE ).toBe( 'Shipping, returns & refunds' );
-    expect( PRODUCT_REFUNDS ).toContain( 'Cancellation may not be available once work starts' );
-    expect( PRODUCT_REFUNDS ).toContain( 'WECARE.DIGITAL store credit valid for 30 calendar days' );
-    expect( PRODUCT_REFUNDS ).toContain( 'No cash or original-payment-method refund' );
-    expect( PRODUCT_REFUNDS ).toContain( 'unless required by law' );
+  it( 'keeps the shared refund rule concise and law-safe', () => {
+    expect( PRODUCT_REFUNDS ).toBe(
+      'Cancellation may not be available once work starts. Approved cancellations or adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days. No cash or original-payment-method refund is provided unless required by law.'
+    );
   } );
 
   it( 'keeps statutory consumer-rights wording centralized in PolicyDetails', () => {
@@ -27,6 +25,7 @@ describe( 'shared product policy summary', () => {
     expect( grahak.returns ).toBe( 'The consultation is digital and cannot be physically returned. Separate physical items follow their own return or replacement terms.' );
     expect( grahak.disclaimer ).toContain( 'Your purchase covers one Grahak OS consultation.' );
     expect( grahak.disclaimer ).toContain( 'Deployment, implementation, integrations' );
+    expect( grahak.refunds ).toBe( PRODUCT_REFUNDS );
 
     const kit = productPolicyCopy( 'ritual-guru-diy-puja-kit', 'DIY Puja Kit' );
     expect( kit.shipping ).toContain( 'physical fulfilment' );

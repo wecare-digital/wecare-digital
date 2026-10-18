@@ -287,15 +287,15 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
         .sbb-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         .sbb-cta:disabled{opacity:.5;cursor:default}
 
-        /* /anew/'s price treatment, verbatim: 22px/700 dark green, tabular numerals, 22px of air
-           above, lime reserved for the pill. No unit copy. */
+        /* The shared commerce price rung: 22px/700 dark green, tabular numerals, with one
+           muted body-typography supporting line below it. */
         .sbb-buy{display:flex;flex-wrap:wrap;align-items:baseline;gap:16px;margin:22px 0 0}
         .sbb-price{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
         .sbb-offer-note{
-          max-width:620px;margin:7px 0 0;
+          max-width:var(--public-copy-max);margin:7px 0 0;font-family:var(--font-sans);
           font-size:var(--public-body-size);font-weight:var(--public-body-weight);
           line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
-          color:var(--public-muted);
+          color:var(--public-muted);text-wrap:balance;
         }
 
         .sbb-error{margin:12px 0 0;font-size:14px;color:#b91c1c}

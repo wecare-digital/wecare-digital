@@ -3,6 +3,7 @@ import type { GetStaticProps } from 'next';
 import ProductPage from '../components/ProductPage';
 import { breadcrumbTrail } from '../content/breadcrumbTrails';
 import ProductBuyBox from '../components/ProductBuyBox';
+import { productCheckoutLine } from '../config/productCheckout';
 import { productBySlug } from '../content/products';
 import { listPublicBlogPosts, listBlogCards, type BlogCard } from '../lib/public-blog';
 
@@ -11,6 +12,8 @@ import { listPublicBlogPosts, listBlogCards, type BlogCard } from '../lib/public
  * useful for readers and crawlers without serialising the corpus into __NEXT_DATA__.
  * Keep /anew registered in PUBLIC_PAGE_META, PUBLIC_EXACT and the generated catalogue.
  */
+
+const ANEW_DISPLAY_PRICE = productCheckoutLine( 'anew' )?.formattedPrice.replace( /\.00$/, '' ) ?? undefined;
 
 interface AnewPageProps {
   blogCards: BlogCard[];
@@ -27,7 +30,7 @@ const AnewPage: React.FC<AnewPageProps> = ( { blogCards, blogCategories } ) => (
     belowCta={
       <ProductBuyBox
         slug="anew"
-        displayPrice="₹599"
+        displayPrice={ ANEW_DISPLAY_PRICE }
         offerNote="One decision · written reflection · usually 2–3 business days"
       />
     }

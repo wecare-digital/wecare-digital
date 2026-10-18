@@ -11,7 +11,7 @@ describe( 'canonical public commerce pattern', () => {
     expect( policy ).toContain( '<strong>Shipping / fulfilment:</strong>' );
     expect( policy ).toContain( '<strong>Returns:</strong>' );
     expect( policy ).toContain( '<strong>Refunds & cancellations:</strong>' );
-    expect( policy ).toContain( 'WECARE.DIGITAL store credit valid for 30 calendar days' );
+    expect( policy ).toContain( 'refunds = PRODUCT_REFUNDS' );
     expect( policy ).toContain( '<strong>Disclaimer:</strong>' );
   } );
 
@@ -28,11 +28,14 @@ describe( 'canonical public commerce pattern', () => {
       expect( price, file ).toBeGreaterThan( cta );
       expect( note, file ).toBeGreaterThan( price );
     }
-    const productBuyBox = read( 'src/components/ProductBuyBox.tsx' );
-    expect( productBuyBox ).toContain( 'font-size:var(--public-body-size)' );
-    expect( productBuyBox ).toContain( 'color:var(--public-muted)' );
-    expect( productBuyBox ).toContain( 'font-family:var(--font-sans)' );
-    expect( productBuyBox ).toContain( 'max-width:var(--public-copy-max)' );
+    for ( const file of [ 'src/components/ProductBuyBox.tsx', 'src/components/ServiceBuyBox.tsx' ] ) {
+      const rail = read( file );
+      expect( rail, file ).toContain( 'font-size:var(--public-body-size)' );
+      expect( rail, file ).toContain( 'color:var(--public-muted)' );
+      expect( rail, file ).toContain( 'font-family:var(--font-sans)' );
+      expect( rail, file ).toContain( 'max-width:var(--public-copy-max)' );
+      expect( rail, file ).toContain( 'text-wrap:balance' );
+    }
   } );
 
   it( 'keeps Grahak OS on one shared ProductBuyBox price/note rail before SKU/policy', () => {
@@ -64,6 +67,19 @@ describe( 'canonical public commerce pattern', () => {
     const commerce = source.indexOf( 'className="pdp-commerce"' );
     expect( commerce ).toBeGreaterThan( checkout );
     expect( source.slice( commerce ) ).toContain( '<PolicyDetails' );
+    expect( source.slice( commerce ) ).toContain( 'overview={ null }' );
+    expect( source.slice( commerce ) ).toContain( 'refunds={ policy.refunds }' );
+    expect( source ).not.toContain( 'priceUnit' );
+    expect( source ).not.toContain( 'className="pdp-price"' );
+  } );
+
+  it( 'keeps Anew on the ProductBuyBox price/note rail instead of a page-local price', () => {
+    const source = read( 'src/pages/anew.tsx' );
+    expect( source ).toContain( "const ANEW_DISPLAY_PRICE = productCheckoutLine( 'anew' )?.formattedPrice.replace( /\\.00$/, '' ) ?? undefined" );
+    expect( source ).toContain( 'displayPrice={ ANEW_DISPLAY_PRICE }' );
+    expect( source ).toContain( 'offerNote="One decision · written reflection · usually 2–3 business days"' );
+    expect( source ).not.toContain( 'priceUnit=' );
+    expect( source ).not.toContain( 'showPrice=' );
   } );
 
   it( 'keeps dynamic shop pages in action -> price -> note -> SKU/policy order', () => {
@@ -76,5 +92,9 @@ describe( 'canonical public commerce pattern', () => {
     expect( note ).toBeGreaterThan( price );
     expect( commerce ).toBeGreaterThan( note );
     expect( source.slice( commerce ) ).toContain( '<PolicyDetails' );
+    expect( source.slice( commerce ) ).toContain( 'overview={ null }' );
+    expect( source.slice( commerce ) ).toContain( 'refunds={ policy.refunds }' );
+    expect( source ).toContain( 'color:var(--public-muted);text-wrap:balance' );
+    expect( source ).toContain( 'className="shopd-sku-value"' );
   } );
 } );
