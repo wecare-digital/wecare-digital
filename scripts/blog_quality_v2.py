@@ -197,7 +197,8 @@ FIRST_PERSON_WRAPPER = r"\b(?:I|my|me|myself)\b"
 #: "the source of the action" or "the next chapter of life" must not trip this gate.
 SOURCE_WRAPPER_PATTERNS: Tuple[str, ...] = (
     r"\btopline\s+summar(?:y|ies)\b",
-    r"\b(?:seminar|workshop|course|training|source)\s+materials(?:\s+collected\s+under)?\b",
+    r"\b(?:seminar|workshop|course|training)\s+materials(?:\s+collected\s+under)?\b",
+    r"\b(?:the|this|our|original)\s+source\s+materials\b",
     r"\b(?:the|this|our|original)\s+source(?:'s|\s+(?:says|said|describes|described|"
     r"argues|argued|explains|explained|frames|framed|presents|presented|defines|defined|"
     r"suggests|suggested|calls|called|offers|offered|notes|noted|observes|observed|treats|"
@@ -843,6 +844,11 @@ def check_privacy_and_attribution(record: Dict[str, Any]) -> List[Finding]:
     prose = strip_markdown(body)
     lowered = prose.lower()
     article_class = text_field(record, "articleClass").upper()
+    public_surfaces = [("body", prose)]
+    for field_name in ("title", "excerpt", "seoTitle", "metaDescription", "focusKeyword"):
+        value = text_field(record, field_name)
+        if value:
+            public_surfaces.append((field_name, value))
 
     for pattern in FALSE_BIOGRAPHY_PATTERNS:
         match = re.search(pattern, lowered)
@@ -867,23 +873,35 @@ def check_privacy_and_attribution(record: Dict[str, Any]) -> List[Finding]:
     #: Attribution that is genuinely necessary can still name an author or work directly;
     #: these patterns target the wrapper, not attribution itself.
     if article_class == "ARCHIVE_DERIVED":
-        for pattern in SOURCE_WRAPPER_PATTERNS:
-            match = re.search(pattern, prose, flags=re.IGNORECASE | re.MULTILINE)
-            if match:
-                out.append(_block(
-                    "18", "SOURCE_WRAPPER",
-                    "source-facing wrapper survives in an ARCHIVE_DERIVED body "
-                    f"({match.group(0)!r}); state the distinction directly and keep provenance "
-                    "in source metadata unless attribution is materially required"))
+        found_wrapper = False
+        for surface_name, surface_text in public_surfaces:
+            for pattern in SOURCE_WRAPPER_PATTERNS:
+                match = re.search(pattern, surface_text, flags=re.IGNORECASE | re.MULTILINE)
+                if match:
+                    out.append(_block(
+                        "18", "SOURCE_WRAPPER",
+                        "source-facing wrapper survives in public copy "
+                        f"{surface_name} ({match.group(0)!r}); state the distinction directly "
+                        "and keep provenance in source metadata unless attribution is materially "
+                        "required"))
+                    found_wrapper = True
+                    break
+            if found_wrapper:
                 break
 
-    for pattern in SOURCE_REMNANT_PATTERNS:
-        match = re.search(pattern, prose, flags=re.IGNORECASE | re.MULTILINE)
-        if match:
-            out.append(_block(
-                "18", "SOURCE_REMNANT",
-                "broken source-removal residue survives in the public body "
-                f"({match.group(0)!r}); reconstruct the sentence before publication"))
+    found_remnant = False
+    for surface_name, surface_text in public_surfaces:
+        for pattern in SOURCE_REMNANT_PATTERNS:
+            match = re.search(pattern, surface_text, flags=re.IGNORECASE | re.MULTILINE)
+            if match:
+                out.append(_block(
+                    "18", "SOURCE_REMNANT",
+                    "broken source-removal residue survives in public copy "
+                    f"{surface_name} ({match.group(0)!r}); reconstruct the sentence before "
+                    "publication"))
+                found_remnant = True
+                break
+        if found_remnant:
             break
 
     if record.get("privateNamesChecked") is not None and not _is_yes(record.get("privateNamesChecked")):
