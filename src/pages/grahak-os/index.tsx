@@ -6,7 +6,6 @@
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import PageMeta from '../../components/PageMeta';
-import PublicShare from '../../components/PublicShare';
 import ProductBuyBox from '../../components/ProductBuyBox';
 import PolicyDetails from '../../components/public/PolicyDetails';
 import RotatingHero from '../../components/RotatingHero';
@@ -273,7 +272,6 @@ response = requests.post(
             block. RotatingHero's children slot is left unset. */}
         <RotatingHero
           insideMain
-          noShare
           ariaLabel="Grahak OS"
           badgeLabel="Grahak OS by WECARE.DIGITAL"
           frame="Run customer conversations"
@@ -542,20 +540,6 @@ response = requests.post(
             gos-closer entrance-animation target went with it; a test guards the removal by
             substring. The api-steps "Checkout on WhatsApp" pill and the ₹899 price/SKU/policy
             stay in the same section. */}
-
-        {/* Subscribe + Share. The page's sections are full-bleed, so the block is wrapped in a
-            .pp-inner column - the same 1300px / 24px measure the rest of the page content uses -
-            so it aligns with the content rather than spanning the viewport. Last thing in <main>.
-            THE 96px/64px BOTTOM PADDING IS DELIBERATE AND MATCHES EVERY OTHER PAGE. .pp-inner on
-            its own has padding:0 24px - no bottom space - so after the share block dropped its own
-            bottom padding (Option A, shared across all pages via PublicShare), grahak-os alone had
-            the block hugging the viewport bottom while home/rh/PageTopBand pages kept their 96px
-            wrapper rhythm. This restores that rhythm here so the block's bottom air is consistent
-            sitewide. */}
-        <div className="pp-inner gos-share-wrap">
-          <PublicShare />
-        </div>
-
 
         <style jsx>{`
           /* ========== BASE STYLES ========== */
@@ -1386,8 +1370,6 @@ response = requests.post(
           .pp-inner{max-width:var(--public-content-max);margin:0 auto;padding:0 24px;box-sizing:border-box}
           /* The share block's wrapper adds the sitewide bottom rhythm (.pp-inner has none), so the
              block's bottom air matches home / rh-layout / PageTopBand (96px, 64px under 768px). */
-          .gos-share-wrap{padding-bottom:48px}
-          @media(max-width:767px){ .gos-share-wrap{padding-bottom:40px} }
 
           /* The capabilities strip CSS (.pp-strip, .pp-strip-grid, .pp-strip-item,
              .pp-strip-icon, .pp-strip-text, .pp-strip-title, .pp-strip-sub and all their
