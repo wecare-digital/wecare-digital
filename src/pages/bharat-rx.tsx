@@ -2,8 +2,9 @@ import React from 'react';
 import PageMeta from '../components/PageMeta';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
 import ProductBuyBox from '../components/ProductBuyBox';
+import PolicyDetails from '../components/public/PolicyDetails';
 import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
-import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, PRODUCT_SKU_BY_SLUG } from '../content/productCommerce';
+import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../content/productCommerce';
 
 /**
  * /bharat-rx — the Bharat Rx product page.
@@ -55,6 +56,7 @@ const CYCLE_WORDS: CycleWord[] = [
 // so the button promised a chat and opened a web page. It is now the keyword deep link every
 // other product page uses (src/content/products.ts), with this page's name pre-filled.
 const WHATSAPP_CTA = whatsappKeywordLink( 'Bharat Rx' );
+const BHARAT_RX_POLICY = productPolicyCopy( 'bharat-rx', 'Bharat Rx' );
 
 const BharatRxPage: React.FC = () => (
   <>
@@ -119,18 +121,13 @@ const BharatRxPage: React.FC = () => (
         <ProductBuyBox slug="bharat-rx" />
 
         <div className="brx-commerce">
-          <p data-wc-no-translate="true"><strong>SKU:</strong> { PRODUCT_SKU_BY_SLUG['bharat-rx'] }</p>
-          <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }</p>
+          <p className="brx-sku" data-wc-no-translate="true"><strong>SKU:</strong> { PRODUCT_SKU_BY_SLUG['bharat-rx'] }</p>
+          <PolicyDetails
+            shipping={ BHARAT_RX_POLICY.shipping }
+            returns={ BHARAT_RX_POLICY.returns }
+            disclaimer={ BHARAT_RX_POLICY.disclaimer }
+          />
         </div>
-
-        {/* Health-adjacent service, so the boundary is stated on the page rather than left
-            to the Terms. This is not a medical disclaimer written by me - it points at
-            the owner's own clauses and says plainly what the page is not. */}
-        <p className="brx-note">
-          Bharat Rx coordinates requests and records. It is not a substitute for
-          professional medical advice, diagnosis or treatment, and nothing on this page is
-          advice. In an emergency, contact local emergency services.
-        </p>
 
         <style jsx>{`
           /* brx- prefixed. The globally imported src/styles/*.css declares unscoped rules
@@ -177,20 +174,12 @@ const BharatRxPage: React.FC = () => (
              on the single public body ink rgba(0,0,0,.898). It was a transparent 16px/faded aside;
              the quiet now comes from size and surface, not faded ink, so a statement that has to
              be read is legible. 1px static, per the rule: 1px static, 2px hoverable. */
-          .brx-commerce{
-            margin:22px 0 0;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
-            background:#fcfdfb;font-size:17px;font-weight:400;line-height:1.55;
-            letter-spacing:-.05px;color:rgba(0,0,0,.898);
+          .brx-commerce{margin:22px 0 0}
+          .brx-sku{
+            margin:0;font-size:17px;font-weight:400;line-height:1.55;
+            letter-spacing:-.05px;color:var(--public-body);
           }
-          .brx-commerce strong{color:#1a3a2a;font-weight:700}
-          .brx-commerce p{margin:0}
-          .brx-commerce p + p{margin-top:12px}
-          .brx-note{
-            margin:34px 0 0;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
-            background:#fcfdfb;
-            font-size:17px;font-weight:400;line-height:1.55;letter-spacing:-.05px;
-            color:rgba(0,0,0,.898);
-          }
+          .brx-sku strong{color:var(--public-brand-green);font-weight:700}
           @media(max-width:767px){
             .brx-p{font-size:18px}
             .brx-step-t{font-size:20px}
