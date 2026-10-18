@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE } from '../content/productCommerce';
+import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, productPolicyCopy } from '../content/productCommerce';
 
 describe( 'shared product policy summary', () => {
   it( 'stays concise and aligned with the Terms refund remedies', () => {
@@ -15,5 +15,22 @@ describe( 'shared product policy summary', () => {
     expect( PRODUCT_POLICY_TEXT ).toContain( 'required by applicable law' );
     expect( PRODUCT_POLICY_TEXT ).toContain( 'valid for 30 calendar days from the date of issue' );
     expect( PRODUCT_POLICY_TEXT ).toContain( 'unused balance expires at the end of that period' );
+  } );
+
+  it( 'keeps page-specific fulfilment and disclaimer copy behind one resolver', () => {
+    const grahak = productPolicyCopy( 'grahak-os', 'Grahak OS' );
+    expect( grahak.shipping ).toContain( 'delivered digitally' );
+    expect( grahak.returns ).toContain( 'no physical return' );
+    expect( grahak.disclaimer ).toContain( 'Full deployment' );
+
+    const kit = productPolicyCopy( 'ritual-guru-diy-puja-kit', 'DIY Puja Kit' );
+    expect( kit.shipping ).toContain( 'physical fulfilment' );
+
+    const visa = productPolicyCopy(
+      'elsewhere-visa',
+      'Visa',
+      'Visa decisions are controlled by the relevant authority.',
+    );
+    expect( visa.disclaimer ).toBe( 'Visa decisions are controlled by the relevant authority.' );
   } );
 } );
