@@ -1,4 +1,4 @@
-"""A coupon works on a WhatsApp-origin basket BY CONSTRUCTION, and gift cards gain nothing.
+"""A coupon works on a WhatsApp-origin basket BY CONSTRUCTION.
 
 WHY "BY CONSTRUCTION" IS THE WHOLE CLAIM
 ----------------------------------------
@@ -254,25 +254,14 @@ def test_the_claim_keeps_the_cart_redemption_surface_status_only():
     assert "/ecommerce/redemption" not in cart_page
     assert "Temporarily unavailable. No discount has been applied to this cart." in cart_page
 
-
-# ── gift cards: the hand-off adds no tender ───────────────────────────────────
-
-
-def test_the_gift_card_tender_is_untouched_by_this_feature():
-    """The gift-card surface gained nothing from Phase W.
-
-    The tender is subtracted from the final payable by `gift_card_settlement`, after
-    `compute_quote`, and the hand-off contributes no money field for it to interact with, so there
-    is no half-built WhatsApp gift-card path.
-    """
+def test_the_retired_gift_card_surface_does_not_reappear_in_the_handoff():
+    """The WhatsApp hand-off carries no retired gift-card or redemption-tender field."""
     basket_source = BASKET_MODULE.read_text().lower()
     assert "gift" not in basket_source
     tree = ast.parse(CHECKOUT_HANDLER.read_text())
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == "_claim_basket":
-            text = ast.unparse(node).lower()
-            assert "gift" not in text
-    # The hand-off row's key set is money-free, so nothing on it can be mistaken for a tender.
+            assert "gift" not in ast.unparse(node).lower()
     basket = wb.Basket(lines=[{"productId": "a", "variantId": "b", "quantity": 1}])
     row = wb.build_handoff(basket, "+918100640044", token="t", now=1)
     assert not [key for key in row if "gift" in key.lower() or "redeem" in key.lower()]
