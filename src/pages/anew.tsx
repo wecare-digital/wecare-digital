@@ -24,9 +24,13 @@ const AnewPage: React.FC<AnewPageProps> = ( { blogCards, blogCategories } ) => (
     blogCards={ blogCards }
     blogCategories={ blogCategories }
     blogHeading="Perspectives"
-    price="₹599"
-    priceUnit="· one decision · written reflection · usually 2–3 business days"
-    belowCta={ <ProductBuyBox slug="anew" showPrice={ false } /> }
+    belowCta={
+      <ProductBuyBox
+        slug="anew"
+        displayPrice="₹599"
+        offerNote="One decision · written reflection · usually 2–3 business days"
+      />
+    }
   />
 );
 
