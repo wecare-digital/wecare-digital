@@ -647,13 +647,14 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     number: '32', heading: 'Limits on liability', id: 's32',
-    inShort: 'Neither of us is liable for unforeseeable indirect losses, and our contractual liability for a paid transaction is normally capped at what you paid for it. These limits apply only as far as the law allows, and never to liability that cannot be excluded.',
+    inShort: 'We exclude liability to the fullest extent the law allows. For non-consumer and commercial-use transactions, our contractual liability is nil wherever the law permits. Mandatory consumer, product-liability, fraud, personal-injury and other non-waivable liabilities remain as the law provides.',
     paragraphs: [
-      'This section applies only to the maximum extent permitted by applicable law. We do not exclude or limit, and nothing in these Terms should be read as excluding or limiting, any liability that cannot lawfully be excluded or limited - including liability for death or personal injury caused by negligence, for fraud or fraudulent misrepresentation, for wilful misconduct or gross negligence, and any liability under India\'s consumer protection law or other mandatory law. This savings provision prevails over everything else in this section.',
-      'Subject to that savings provision, and to the maximum extent permitted by applicable law, neither of us is responsible to the other for indirect, incidental, special, punitive or consequential losses, or for loss of profit, revenue, goodwill, data or anticipated savings, that were not reasonably foreseeable as a likely result of the matter complained of.',
-      'Subject to that savings provision, and where our liability may lawfully be limited, our total aggregate liability arising directly from a particular paid transaction will not exceed the amount you paid us for the product or Service the claim is about.',
-      'Where liability cannot lawfully be capped or excluded, the cap and exclusions above do not apply to it, and our liability for that matter is as the law provides.',
-      'Nothing in this section restricts or affects your mandatory rights as a consumer.',
+      'This section applies to the maximum extent permitted by applicable law and is intended to exclude, not merely reduce, liability wherever exclusion is lawful.',
+      'For a User who is not a consumer under applicable consumer law, and for any transaction or use that is for a commercial purpose, our total aggregate contractual and non-contractual liability arising from or connected with the Services is INR 0 wherever the law permits that liability to be excluded.',
+      'If applicable law does not permit a category of liability to be excluded completely but does permit it to be limited, that liability is limited to the lowest amount that the law validly permits in the circumstances.',
+      'To the fullest extent permitted by law, we are not liable for indirect, incidental, special, exemplary, punitive or consequential loss; loss of profit, revenue, business opportunity, goodwill, anticipated savings or data; interruption, delay, third-party failure or loss caused by a provider, network, platform, payment service, carrier, government system or other dependency outside our reasonable control; or a loss that was not a direct and reasonably foreseeable consequence of our breach.',
+      'Nothing in these Terms excludes or limits liability that cannot lawfully be excluded or limited. That includes any mandatory remedy or liability under consumer-protection law, product-liability law, data-protection law or other mandatory law, and liability for fraud or fraudulent misrepresentation, wilful misconduct, or death or personal injury to the extent the law makes it non-excludable.',
+      'If a court, Consumer Commission, regulator or other competent authority finds any exclusion or cap in this section invalid or unfair for a particular claim, that provision is reduced only to the minimum extent necessary and the rest of this section continues to apply.',
     ],
   },
   {
