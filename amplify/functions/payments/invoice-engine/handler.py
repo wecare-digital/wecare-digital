@@ -1041,7 +1041,7 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     # This block used to sit AFTER `_get_next_invoice_number`, so every refusal below - a negative
     # subtotal, an out-of-range GST rate - burned a number out of the consecutive series Rule
     # 46(b) requires and then answered 400. Nothing in it reads the number, so moving it up costs
-    # nothing, and it is a precondition for the coupon/gift-card refusals: a number cannot be
+    # nothing, and it is a precondition for the coupon refusals: a number cannot be
     # reassigned once issued, so a coupon the store refuses must refuse before one exists. The
     # handler already ordered itself this way for `InvoiceSequenceUnavailable`; this extends the
     # same rule to every other refusal.
@@ -1133,14 +1133,10 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
             })
         expected_total_paise = int(expected_decimal)
 
-        # REFUSED rather than silently dropped. A coupon is a price change and a gift card is
-        # tender; both would have had to apply before the customer paid, and applying either to
-        # money already taken would either contradict the capture or leave the arithmetic below
-        # mixing a discounted total with a figure the provider settled.
-        if (str(body.get('couponCode') or '').strip()
-                or str(body.get('giftCardCode') or '').strip()):
+        # A coupon cannot be applied after capture; it would contradict the settled amount.
+        if str(body.get('couponCode') or '').strip():
             return _resp(400, {
-                'error': 'A coupon or gift card cannot be applied to an amount already captured',
+                'error': 'A coupon cannot be applied to an amount already captured',
                 'errorCode': 'AMOUNT_ALREADY_CAPTURED',
             })
 
@@ -1795,16 +1791,10 @@ def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
     """Update an existing invoice (admin). Blocks amount changes on paid/cancelled invoices."""
     table = dynamodb.Table(INVOICES_TABLE)
 
-    # A code cannot be changed on an existing invoice, and this REFUSES rather than ignoring.
-    #
-    # Applying one here would have to re-price the whole document, re-take or release the hold,
-    # and re-verify the card against a total that may already have been sent to a customer - on a
-    # row that might be paid. Half of that is worse than none of it, so the honest answer is that
-    # the caller raises a new invoice. Silently dropping the field would be the dangerous
-    # alternative: a 200 that looks like the coupon was applied and collects the full amount.
-    if 'couponCode' in body or 'giftCardCode' in body:
+    # A coupon cannot be changed on an existing invoice; create a new invoice instead.
+    if 'couponCode' in body:
         return _resp(400, {
-            'error': 'A coupon or gift card can only be applied when the invoice is created',
+            'error': 'A coupon can only be applied when the invoice is created',
             'errorCode': 'USE_CREATE',
         })
 
@@ -2817,16 +2807,10 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
 
     # ═══ TOTALS ═══
     #
-    # Coupon and gift card are two separate labelled lines, for the same reason the HTML gives:
-    # `discount` is manual + coupon, and the gift card is tender rather than a discount, so it
-    # sits below the total and never reduced the tax above. The code is never printed - only
-    # `masked(last4)`, which refuses a full code rather than truncating one silently.
+    # Coupon/manual discount breakdown.
     coupon_code_shown = str(invoice.get('couponCode', '') or '')
     coupon_discount_dec = Decimal(str(invoice.get('couponDiscount', 0) or 0))
     manual_discount_dec = Decimal(str(invoice.get('discount', 0) or 0)) - coupon_discount_dec
-    gift_card_dec = Decimal(str(
-        invoice.get(gift_card_settlement.REQUIRED_PAISE_ATTR, 0) or 0)) / Decimal('100')
-    amount_payable_dec = Decimal(str(invoice.get('amountPayable', 0) or 0))
 
     _lr("Subtotal", f"{subtotal:,.2f}", F)
     y += LINE_H
@@ -2860,13 +2844,6 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     draw.rectangle([(PX - 4, y - 2), (W - PX + 4, y + LINE_H + 4)], fill=(240, 253, 244))
     _lr(f"TOTAL ({total_qty} items)", f"\u20b9 {total:,.2f}", FLG)
     y += LINE_H + 8
-
-    if gift_card_dec:
-        _lr(f"Paid by gift card {gift_card_store.masked(invoice.get('giftCardLast4', ''))}",
-            f"-{gift_card_dec:,.2f}", F)
-        y += LINE_H
-        _lr("AMOUNT PAYABLE", f"\u20b9 {amount_payable_dec:,.2f}", FLG)
-        y += LINE_H + 4
 
     # Amount in words
     words = _amount_in_words(total)
@@ -3475,7 +3452,6 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             subtotal_paise += line_paise
             order_items.append(entry)
 
-        gift_card_paise = 0  # split tender is refused before any reservation above
         discount_paise = _paise(invoice.get('discount', 0))
         shipping_paise = _paise(invoice.get('shipping', 0))
         # GST (tax) and convenience fee are already computed on the invoice. The
@@ -3773,7 +3749,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             # The description is the only place the customer can see WHY the figure is what it
             # is, since Meta has one discount row and this one may carry two different things.
             'discount': {'value': discount_paise, 'offset': 100,
-                         'description': 'Promo + Gift Card' if gift_card_paise else 'Promo'},
+                         'description': 'Promo'},
             'shipping': {'value': shipping_paise, 'offset': 100, 'description': 'Express'},
             'tax': {'value': gst_paise, 'offset': 100, 'description': f'GSTIN: {COMPANY["gstin"]}'},
         },
