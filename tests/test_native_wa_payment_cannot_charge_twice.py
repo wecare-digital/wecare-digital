@@ -111,7 +111,7 @@ PERMITTED_EXTERNAL_HOSTS = frozenset({'api.razorpay.com', 'graph.facebook.com'})
 # a file. Enumerated here rather than filtered out, because an unlisted call is exactly what this
 # file exists to catch.
 PERMITTED_LAMBDA_INVOKES_SEND = frozenset({
-    'wecare-outbound-whatsapp',
+    'wecare-outbound-whatsapp:live',
     'wecare-whatsapp-business-api:live',
 })
 
