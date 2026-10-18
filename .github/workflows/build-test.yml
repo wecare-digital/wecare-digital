@@ -109,6 +109,11 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Verify braces recursion mitigation
+        run: |
+          node scripts/guard_braces_depth.cjs --check
+          node scripts/check_braces_depth_guard.cjs
+
       # THE LOCKFILE MUST NOT DRIFT, and `npm ci` alone does not prove that - it would happily
       # keep working while the committed lock slowly stopped matching package.json, because
       # `npm ci` is the command that never writes. This is the cheap version of the gate

@@ -498,7 +498,10 @@ def reserve(client: Any, keys_table: Any, attempts_table: Any, *,
                 return _resume(attempts_table, rival, request)
         if isinstance(error, PaymentRequestRefused):
             raise
-        if _is_transaction_cancelled(error):
+        reasons = (getattr(error, 'response', {}) or {}).get('CancellationReasons') or []
+        conditional_conflict = any(reason.get('Code') == 'ConditionalCheckFailed'
+                                   for reason in reasons if isinstance(reason, dict))
+        if _is_transaction_cancelled(error) and conditional_conflict:
             # A cancellation on any OTHER item is a genuine conflict we must not interpret: the
             # collection claim is held by a different attempt, or the reference is taken.
             raise PaymentRequestRefused(WA_PAY_ALREADY_IN_FLIGHT,

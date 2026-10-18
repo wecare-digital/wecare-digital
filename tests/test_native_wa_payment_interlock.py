@@ -133,7 +133,7 @@ def _seed(fake, *, total='599.00', status='pending_payment'):
 
 def _drive(engine, fake, lam=None):
     lam = lam or _RecordingLambda()
-    with patch.object(engine, 'dynamodb') as ddb, patch.object(engine, 'lambda_client', lam):
+    with patch.object(engine, 'dynamodb_transaction_client', fake.client()), patch.object(engine, 'dynamodb') as ddb, patch.object(engine, 'lambda_client', lam):
         ddb.Table.side_effect = fake.Table
         ddb.meta.client = fake.client()
         with patch.object(engine, '_lookup_contact_by_phone', return_value={'contactId': CUSTOMER}):
@@ -399,3 +399,24 @@ def test_the_request_key_carries_the_sequence():
     assert wpr.collection_request_key('INV1', 0) == 'INVPAY#INV1#0'
     assert wpr.collection_request_key('INV1', 1) == 'INVPAY#INV1#1'
     assert wpr.collection_request_key('INV1', 0) != wpr.collection_request_key('INV1', 1)
+
+
+def test_transaction_validation_error_is_not_reported_as_an_existing_payment(fake):
+    from botocore.exceptions import ClientError
+    request = wpr.build_request(
+        invoice_id=INVOICE_ID, customer_id=CUSTOMER, phone_e164=PHONE,
+        phone_number_id=WABA1, amount_paise=59900, configuration_name='WECAREDIGITAL',
+        provider_mid='acc_TEST', item_name='Service Fee', now=1770000000)
+
+    class InvalidTransaction:
+        def transact_write_items(self, **kwargs):
+            raise ClientError({'Error': {'Code': 'TransactionCanceledException'},
+                               'CancellationReasons': [{'Code': 'ValidationError'}]},
+                              'TransactWriteItems')
+
+    with pytest.raises(wpr.PaymentRequestRefused) as refused:
+        wpr.reserve(InvalidTransaction(), fake.Table(KEYS), fake.Table(ATTEMPTS),
+                    keys_name=KEYS, attempts_name=ATTEMPTS, request=request,
+                    invoice_reference_id=REFERENCE)
+    assert refused.value.code == wpr.WA_PAY_IDENTITY_UNAVAILABLE
+    assert fake.count(ATTEMPTS) == 0

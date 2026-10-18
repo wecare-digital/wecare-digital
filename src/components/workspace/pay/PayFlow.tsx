@@ -179,6 +179,8 @@ const AddressFieldGroup: React.FC<{
 
 /* ── Component ── */
 const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
+  const [ flowTab, setFlowTab ] = useState( 'customers' );
+  const [ openingCreated, setOpeningCreated ] = useState( false );
   const [ customers, setCustomers ] = useState<Contact[]>( [] );
   const [ custSearch, setCustSearch ] = useState( '' );
   const [ custLoading, setCustLoading ] = useState( false );
@@ -396,7 +398,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
       const r = await api.createInvoiceEngine( req );
       if ( r )
       {
-        showMsg( `Invoice ${r.invoiceNumber} created \u2014 \u20B9${r.total}` );
+        showMsg( `Invoice ${r.invoiceNumber} created. Review it and send the payment request below.` );
         // Every figure here is the SERVER's. Nothing on this page recomputes a discount.
         setRedemption( r );
         setInvForm( { ...EMPTY_INV, items: [ NEW_ITEM() ] } );
@@ -538,6 +540,18 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
     } catch ( e ) { showMsg( 'Update failed', 'error' ); }
     setActionLoading( '' );
   };
+  const openCreatedInvoice = async () => {
+    if ( !redemption ) return;
+    setOpeningCreated( true );
+    try {
+      const invoice = await api.getInvoiceEngine( redemption.invoiceId );
+      if ( !invoice ) { showMsg( 'Could not open the invoice. Find it in Invoices before creating another.', 'error' ); return; }
+      setSelInvoice( invoice );
+      loadDeliveryLogs( invoice.invoiceId );
+      setFlowTab( 'invoices' );
+    } catch { showMsg( 'Could not open the invoice. Find it in Invoices before creating another.', 'error' ); }
+    finally { setOpeningCreated( false ); }
+  };
   const selectInvoice = ( inv: Invoice ) => { setSelInvoice( inv ); loadDeliveryLogs( inv.invoiceId ); };
 
   /* Computed */
@@ -555,7 +569,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
 
   /* ═══ RENDER ═══ */
   const shellContent = (
-    <PageShell title="Flow" subtitle="Customers, Invoices & Payments" tabs={ TABS } defaultTab="customers">
+    <PageShell title="Flow" subtitle="Customers, Invoices & Payments" tabs={ TABS } activeTab={ flowTab } onTabChange={ setFlowTab } defaultTab="customers">
       { ( activeTab ) => (
         <div className="inner-page">
           { msg && <div className={ `msg-bar ${msg.type}` } style={ { margin: '0 0 16px' } }>{ msg.text }<button onClick={ () => setMsg( null ) } style={ { background: 'none', border: 'none', cursor: 'pointer', marginLeft: 8 } }>{ '\u2715' }</button></div> }
@@ -633,7 +647,11 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                  */ }
               { redemption && (
                 <div className="inner-card" style={ { marginBottom: 16, maxWidth: 500, padding: '10px 14px' } }>
-                  <h4 style={ { margin: '0 0 6px', fontSize: 13, color: '#1a3a2a' } }>Applied on the last invoice</h4>
+                  <h4 style={ { margin: '0 0 6px', fontSize: 13, color: '#1a3a2a' } }>Invoice { redemption.invoiceNumber } created</h4>
+                  <p>No WhatsApp payment request has been sent by this create action. Review the invoice, then send it.</p>
+                  <p>{ redemption.referenceId } { '\u2014' } { fmtMoney( redemption.total ) }</p>
+                  <Button variant="primary" size="sm" loading={ openingCreated } onClick={ openCreatedInvoice }>Review and send payment request</Button>
+                  <p>Applied on the last invoice</p>
                   { typeof redemption.couponDiscount === 'number' && redemption.couponDiscount > 0 && (
                     <div className="pf-preview-row"><span>Delight</span><span>{ '\u2212' }{ fmtMoney( redemption.couponDiscount ) }</span></div>
                   ) }

@@ -175,7 +175,7 @@ def _seed_invoice(fake, *, status='created'):
 
 
 def _drive(engine, fake, lam, *, phone_id=WABA1):
-    with patch.object(engine, 'dynamodb') as ddb, patch.object(engine, 'lambda_client', lam):
+    with patch.object(engine, 'dynamodb_transaction_client', fake.client()), patch.object(engine, 'dynamodb') as ddb, patch.object(engine, 'lambda_client', lam):
         ddb.Table.side_effect = fake.Table
         ddb.meta.client = fake.client()
         with patch.object(engine, '_lookup_contact_by_phone',

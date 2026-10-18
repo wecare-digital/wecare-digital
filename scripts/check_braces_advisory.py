@@ -25,7 +25,8 @@ def main():
     parser.add_argument('--check-upstream', action='store_true')
     args = parser.parse_args()
     report = {'advisory': ADVISORY, 'copies': inspect_locks(),
-              'status': 'OPEN; no upstream patch at review, do not dismiss'}
+              'status': 'OPEN advisory; local parser depth guard required, do not dismiss',
+              'mitigation': 'scripts/guard_braces_depth.cjs (100 nested containers)' }
     if args.check_upstream:
         request = urllib.request.Request('https://api.github.com/advisories/' + ADVISORY,
                                          headers={'User-Agent': 'wecare-advisory-check'})
