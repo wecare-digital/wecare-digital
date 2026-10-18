@@ -165,7 +165,7 @@ describe( 'WECARE.DIGITAL Home', () => {
      * failure mode is not deleting this line - it is someone adding a px override back in a
      * media query, which is what produced the spread in the first place.
      */
-    expect( css ).toContain( 'letter-spacing:-0.04em' );
+    expect( css ).toContain( 'letter-spacing:var(--public-hero-tracking)' );
 
     // SCOPED TO THE .home-head RULE, not searched for across the page. The first version of
     // this assertion scanned the whole stylesheet and failed on .home-flow-title and
