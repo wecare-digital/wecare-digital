@@ -194,9 +194,13 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( stepsCtas ).not.toContain( 'Open demo in WhatsApp' );
     expect( source ).toContain( "import ProductBuyBox from '../../components/ProductBuyBox';" );
     expect( source ).toContain( '<ProductBuyBox slug="grahak-os" showPrice={ false } />' );
-    // Match /anew/'s compact price-unit pattern: price + product + concise scope on one line.
-    expect( source ).toContain( '&#8377;899<span className="gos-price-unit"> · AI agents · from deployment to business outcomes</span>' );
-    expect( source ).toContain( '<p className="gos-offer-note">One-time consultation session for outcome mapping and deployment planning. Full solution deployment is separate.</p>' );
+    expect( source ).toContain( '<p className="gos-price" data-wc-no-translate="true">&#8377;899</p>' );
+    expect( source ).toContain( '<p className="gos-offer-note">One-time consultation · full deployment separate</p>' );
+    expect( source ).not.toContain( 'AI agents · from deployment to business outcomes' );
+    const offerRule = cssRuleFor( source, '.gos-offer-note' );
+    expect( offerRule ).toContain( 'font-size:16px' );
+    expect( offerRule ).toContain( 'font-weight:400' );
+    expect( offerRule ).toContain( 'color:rgba(0,0,0,.6)' );
     expect( source ).not.toContain( 'A consulting solution for organisations and businesses.' );
   } );
 
@@ -222,9 +226,20 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( '<strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }' );
     expect( source ).toContain( "import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, PRODUCT_SKU_BY_SLUG } from '../../content/productCommerce';" );
     const commerceRule = cssRuleFor( source, '.gos-commerce' );
-    expect( commerceRule ).toContain( 'font-size:14px' );
+    expect( commerceRule ).toContain( 'font-size:15px' );
     expect( commerceRule ).not.toContain( 'border:1px solid' );
     expect( commerceRule ).not.toContain( 'background:#fcfdfb' );
+
+    const policyCssStart = source.indexOf( '.gos-policy summary{' );
+    expect( policyCssStart ).toBeGreaterThan( -1 );
+    const policyCss = source.slice( policyCssStart );
+    const summaryRule = cssRuleFor( policyCss, '.gos-policy summary' );
+    expect( summaryRule ).toContain( 'color:#1a3a2a' );
+    expect( summaryRule ).toContain( 'font-size:15px' );
+    expect( summaryRule ).toContain( 'font-weight:600' );
+    expect( summaryRule ).toContain( 'background:rgba(209,244,112,.18)' );
+    expect( policyCss ).toContain( '.gos-policy summary:hover{background:#d1f470' );
+    expect( policyCss ).toContain( '.gos-policy summary:focus-visible{background:#d1f470' );
   } );
 
   it( 'uses only existing design tokens for the step block and introduces no new palette', () => {
