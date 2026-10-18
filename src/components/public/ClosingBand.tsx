@@ -43,25 +43,25 @@ export default function ClosingBand( { id, eyebrow, title, lead, points, href, a
     </div>
     <style jsx>{`        .cb-panel{
           padding:clamp(28px,4vw,56px);
-          border:2px solid #d1f470;border-radius:14px;
-          background:rgba(209,244,112,.22);
+          border:2px solid var(--public-brand-lime);border-radius:14px;
+          background:var(--public-lime-tint);
         }
         .cb-eyebrow{
           margin:0 0 14px;font-size:12px;font-weight:700;
-          letter-spacing:.08em;text-transform:uppercase;color:#1a3a2a;
+          letter-spacing:.08em;text-transform:uppercase;color:var(--public-brand-green);
         }
         .cb-title{
           margin:0 0 16px;max-width:19ch;
-          font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;
-          letter-spacing:-1.2px;color:rgba(0,0,0,.95);
+          font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);
+          letter-spacing:var(--public-section-tracking);color:var(--public-heading);
         }
         .cb-lead{
           margin:0;max-width:62ch;
-          font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;
-          color:rgba(0,0,0,.898);
+          font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+          color:var(--public-body);
         }
         .cb-rule{
-          display:block;height:3px;margin:30px 0;background:#d1f470;
+          display:block;height:3px;margin:30px 0;background:var(--public-brand-lime);
           transform-origin:left center;
           transition:transform .62s cubic-bezier(.22,.61,.36,1);
         }
@@ -70,7 +70,7 @@ export default function ClosingBand( { id, eyebrow, title, lead, points, href, a
         .cb-points{margin:0;padding:0;max-width:62ch;list-style:none;display:flex;flex-direction:column;gap:12px}
         .cb-points li{
           position:relative;padding-inline-start:26px;
-          font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898);
+          font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);
           transition:opacity .5s ease,transform .5s ease;
         }
         .cb-points li:nth-child(2)::before{border-left-color:#2563eb;border-bottom-color:#2563eb}
@@ -87,16 +87,16 @@ export default function ClosingBand( { id, eyebrow, title, lead, points, href, a
         .cb.is-armed.is-in .cb-points li:nth-child(2){transition-delay:.43s}
         .cb.is-armed.is-in .cb-points li:nth-child(3){transition-delay:.52s}
         .cb-cta{
-          display:inline-flex;align-items:center;min-height:52px;margin-top:32px;
-          padding:0 28px;border:2px solid #1a3a2a;border-radius:50px;
-          background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;
+          display:inline-flex;align-items:center;min-height:var(--public-cta-height);margin-top:32px;
+          padding:0 28px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
+          background:var(--public-brand-lime);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
           transition:opacity .5s ease,transform .5s ease,background-color .2s,box-shadow .2s;
         }
         .cb.is-armed .cb-cta{opacity:0;transform:translateY(8px);pointer-events:none}
         .cb.is-armed.is-in .cb-cta{opacity:1;transform:none;pointer-events:auto;transition-delay:.62s}
         .cb.is-armed .cb-cta:focus{opacity:1;transform:none;pointer-events:auto;transition:none}
-        .cb-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-        .cb-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+        .cb-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
+        .cb-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         @media(prefers-reduced-motion:reduce){
           .cb-rule,.cb-points li,.cb-cta{transition:none}
           .cb.is-armed .cb-rule{transform:scaleX(1)}
