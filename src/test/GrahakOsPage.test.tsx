@@ -213,6 +213,10 @@ describe( 'Grahak OS five approved visual fixes', () => {
 describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack section', () => {
   const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
   const source = readFileSync( pagePath, 'utf8' );
+  // The home page is the typography reference: the offer-note is pinned to match .home-sub,
+  // so this block reads it the same way the heading-alignment block above does.
+  const homePath = resolve( process.cwd(), 'src/pages/index.tsx' );
+  const home = readFileSync( homePath, 'utf8' );
 
   it( 'carries the owner-approved consulting heading on the .api-info h2 rung', () => {
     // Exact owner-approved heading theme. The old left-column heading is gone.
