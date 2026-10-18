@@ -31,7 +31,6 @@ Focused Python rollback/removal/IAM checks: 11 passed. Public AI surface/route r
 | [retired public path 5b217199]/ | 404 |  |
 | [retired public path 3b13e953]/ | 404 |  |
 | /anew/ | 200 |  |
-| /clear-closure/ | 200 |  |
 | /terms/ | 200 |  |
 | /orders/ | 200 |  |
 | /shop/ | 200 |  |
