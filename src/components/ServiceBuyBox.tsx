@@ -255,12 +255,6 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
         <span className="sbb-price" data-wc-no-translate="true">{ `\u20B9${ phase.price.rupees }` }</span>
       </p>
 
-      {/* The offer note, in the shared public-commerce order (CTA -> price -> note) that
-          ProductBuyBox and the shop pages also follow. A service is priced to the paise against
-          its catalogue price, so the note states the final total is confirmed in the cart before
-          payment rather than promising a discount the browser cannot compute. */}
-      <p className="sbb-offer-note">One-time service · final total confirmed in the cart before payment</p>
-
       {/* The offer note, in the shared public-commerce order (CTA -> price -> note), mirroring
           ProductBuyBox. A service is priced to the paise against its catalogue price, so the note
           states the final total is confirmed in the cart before payment. */}
