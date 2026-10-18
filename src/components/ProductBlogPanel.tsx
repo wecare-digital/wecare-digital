@@ -324,13 +324,13 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
         .pbp-pills{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
         .pbp-pill{
           display:inline-flex;align-items:center;min-height:44px;padding:0 18px;
-          border:1px solid #e5e7eb;border-radius:50px;background:#fff;
-          color:#1a3a2a;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer;
+          border:1px solid var(--public-hairline);border-radius:50px;background:#fff;
+          color:var(--public-brand-green);font-size:16px;font-weight:600;font-family:inherit;cursor:pointer;
           transition:background-color .2s,border-color .2s;
         }
-        .pbp-pill:hover{border-color:#1a3a2a}
-        .pbp-pill.is-on{background:#d1f470;border-color:#1a3a2a}
-        .pbp-pill:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+        .pbp-pill:hover{border-color:var(--public-brand-green)}
+        .pbp-pill.is-on{background:var(--public-brand-lime);border-color:var(--public-brand-green)}
+        .pbp-pill:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
 
         /* BORDERLESS SEARCH. One quiet bottom hairline plus the shared lime voice mic. */
         .pbp-search{position:relative;margin:0 0 16px}
@@ -341,15 +341,15 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
         .pbp-search input{
           width:100%;box-sizing:border-box;height:48px;padding:0 44px 0 2px;
           font-size:18px;font-family:inherit;color:#1a1a1a;background:transparent;
-          border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
+          border:0;border-bottom:1px solid var(--public-hairline);border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
         .pbp-search input::placeholder{color:rgba(0,0,0,.44)}
         .pbp-search input:focus-visible{
-          border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470;
+          border-bottom-color:var(--public-brand-green);box-shadow:0 1px 0 0 var(--public-brand-lime);
         }
 
-        .pbp-empty{margin:0;font-size:16px;line-height:1.4;color:rgba(0,0,0,.54)}
+        .pbp-empty{margin:0;font-size:16px;line-height:1.4;color:var(--public-muted)}
 
         /* THE PAGER TRACK. A horizontal scroll-snap container, one page wide, that holds the pages
            side by side. scroll-snap-type:x mandatory makes a touch swipe settle cleanly on a page;
@@ -369,7 +369,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
           scrollbar-width:none;outline:none;
         }
         .pbp-track::-webkit-scrollbar{display:none}
-        .pbp-track:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;border-radius:14px}
+        .pbp-track:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:14px}
 
         /* ONE PAGE. Exactly the track's width so one page shows at a time and the next sits just
            off-screen to swipe to. Its own vertical scroller: four cards usually fit, but a page
@@ -397,11 +397,11 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
              tappable on phones, foldables and in-app browsers, not just clickable with a mouse. */
           width:44px;height:44px;flex:0 0 auto;
           border:2px solid #1a3a2a;border-radius:50%;background:#fff;
-          color:#1a3a2a;font-size:20px;line-height:1;font-family:inherit;cursor:pointer;
+          color:var(--public-brand-green);font-size:20px;line-height:1;font-family:inherit;cursor:pointer;
           transition:background-color .2s,border-color .2s,opacity .2s;
         }
-        .pbp-arrow:hover:not(:disabled){background:#d1f470}
-        .pbp-arrow:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+        .pbp-arrow:hover:not(:disabled){background:var(--public-brand-lime)}
+        .pbp-arrow:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
         .pbp-arrow:disabled{opacity:.3;cursor:default;border-color:#cfd4d9;color:rgba(0,0,0,.4)}
 
         /* POSITION BAR under the header. Full width, hairline track, lime fill - our colour. The
@@ -412,7 +412,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
           margin:0 0 16px;
         }
         .pbp-progress-fill{
-          height:100%;border-radius:50px;background:#d1f470;
+          height:100%;border-radius:50px;background:var(--public-brand-lime);
           transition:width .2s ease;
         }
 
@@ -423,15 +423,15 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
            does not read as a second CTA; the dark-green border is what says "actionable". */
         .pbp-link{
           display:flex;flex-direction:column;gap:6px;
-          padding:16px;border:1px solid #e5e7eb;border-radius:14px;background:#fcfdfb;
+          padding:16px;border:1px solid var(--public-hairline);border-radius:14px;background:#fcfdfb;
           text-decoration:none;color:inherit;
           transition:border-color .2s,background-color .2s,transform .2s,box-shadow .2s;
         }
         .pbp-link:hover{
-          border-color:#1a3a2a;background:rgba(209,244,112,.18);
-          transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
+          border-color:var(--public-brand-green);background:rgba(209,244,112,.18);
+          transform:translateY(-2px);box-shadow:var(--public-lift-shadow);
         }
-        .pbp-link:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+        .pbp-link:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
 
         /* TAG ROW at the foot of a card, now the shared BlogTags component (nav.tags.pbp-tagrow).
            BlogTags styles the pills themselves - the dot, the hairline, the lime hover; this only
