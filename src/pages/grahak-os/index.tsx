@@ -605,7 +605,7 @@ response = requests.post(
           .anim.is-armed.show{opacity:1;transform:translateY(0)}
           
           /* Hero Section */
-          .hero{padding:140px 24px 80px;max-width:1300px;margin:0 auto}
+          .hero{padding:140px 24px 80px;max-width:var(--public-content-max);margin:0 auto}
           /* Left column gets the extra room: the display type is large and the
              headline must hold to two lines ("Reach customers" / "across <pill>")
              so the rotating pill always lands on the last line without reflowing
@@ -627,13 +627,13 @@ response = requests.post(
              cannot style a composite component from here, so anything visual added
              to this rule would silently do nothing. */
           .hero-eyebrow{margin:0 0 20px}
-          .hero-left h1{font-size:clamp(36px,4.3vw,60px);font-weight:600;line-height:1.04;margin:0 0 24px;/* TRACKING IN em, NOT px. A fixed px value against a fluid clamp() font means the
+          .hero-left h1{font-size:var(--public-hero-size);font-weight:var(--public-hero-weight);line-height:var(--public-hero-leading);margin:0 0 24px;/* TRACKING IN em, NOT px. A fixed px value against a fluid clamp() font means the
              OPTICAL tightness changes with the viewport: measured across the breakpoints it ran
              -2.22% to -6.11% of the font size, a 2.75x spread, worst at 768-820px where the font
              is still on its 36px floor while the tracking was chosen for 60px. -0.04em is -4% at
              every size, and it lets both media-query overrides go - restating it per breakpoint
              is what caused the spread. index.tsx fixed this; these three copies had not. */
-          letter-spacing:-0.04em;color:rgba(0,0,0,.95)}
+          letter-spacing:var(--public-hero-tracking);color:var(--public-heading)}
           /* Lede plus a muted supporting line. Two paragraphs rather than one long
              run-on: it reads better and gives the left column enough vertical mass
              to sit against the mockup opposite (which was 221px taller). Measures
@@ -652,8 +652,8 @@ response = requests.post(
              still looked like it ran edge to edge. 400px holds a comfortable
              ~60-70 characters per line and wraps to more lines, which also closes
              part of the height difference against the mockup column. */
-          .hero-left p{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0 0 18px;max-width:400px}
-          .hero-left p.hero-sub{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0;max-width:400px}
+          .hero-left p{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0 0 18px;max-width:400px}
+          .hero-left p.hero-sub{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0;max-width:400px}
 
           /* The hero no longer has a CTA pill (the .gos-buy block was removed on owner
              instruction), and the bottom closer was removed too, so .gos-wa-cta now styles
@@ -661,16 +661,16 @@ response = requests.post(
              row wrapper went with the closer. */
           /* Primary WhatsApp pill: full-lime, the page's one allowed lime surface for the
              primary action - mirrors ProductPage's .pdp-cta. 52px min target. */
-          .gos-wa-cta{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s}
-          .gos-wa-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-          .gos-wa-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+          .gos-wa-cta{display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);background:var(--public-brand-lime);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s}
+          .gos-wa-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
+          .gos-wa-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
           /* Hero Python panel only. Its demo link moved to the large API editor below. */
           .code-stack{position:absolute;right:0;bottom:24px;width:60%;max-width:340px;display:flex;flex-direction:column;align-items:stretch}
           .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;width:100%;box-sizing:border-box}
           /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
              above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
-          .gos-price{display:block;margin-top:22px;font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
-          .gos-offer-note{max-width:620px;margin:7px 0 0;font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898)}
+          .gos-price{display:block;margin-top:22px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
+          .gos-offer-note{max-width:620px;margin:7px 0 0;font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:var(--public-body)}
           @media(prefers-reduced-motion:reduce){
             .gos-wa-cta{transition:background-color .2s}
             .gos-wa-cta:hover{transform:none;box-shadow:none}
@@ -718,22 +718,22 @@ response = requests.post(
              their rules stay. */
           .gos-commerce{
             margin-top:14px;max-width:700px;font-family:inherit;font-size:17px;font-weight:400;line-height:1.4;
-            letter-spacing:-.05px;color:rgba(0,0,0,.898);text-align:left;
+            letter-spacing:-.05px;color:var(--public-body);text-align:left;
           }
-          .gos-commerce strong{color:#1a3a2a;font-weight:700}
+          .gos-commerce strong{color:var(--public-brand-green);font-weight:700}
           .gos-commerce p{margin:0}
           .gos-policy{margin-top:8px;font-family:inherit}
           .gos-policy summary{
             display:inline-flex;align-items:center;width:max-content;padding:6px 9px;border-radius:8px;
-            cursor:pointer;color:#1a3a2a;background:rgba(209,244,112,.18);font-family:inherit;font-size:17px;font-weight:600;
+            cursor:pointer;color:var(--public-brand-green);background:rgba(209,244,112,.18);font-family:inherit;font-size:17px;font-weight:600;
             line-height:1.4;letter-spacing:-.05px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;
             transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
           }
-          .gos-policy summary:hover{background:#d1f470;text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1)}
-          .gos-policy summary:focus-visible{background:#d1f470;text-decoration-color:transparent;outline:3px solid #1a3a2a;outline-offset:3px}
+          .gos-policy summary:hover{background:var(--public-brand-lime);text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1)}
+          .gos-policy summary:focus-visible{background:var(--public-brand-lime);text-decoration-color:transparent;outline:3px solid var(--public-brand-green);outline-offset:3px}
           .gos-policy p{
             max-width:640px;margin-top:10px;padding:8px 0 8px 12px;border-inline-start:3px solid #d1f470;
-            color:rgba(0,0,0,.898);font-family:inherit;font-size:20px;font-weight:400;line-height:1.4;
+            color:var(--public-body);font-family:inherit;font-size:20px;font-weight:400;line-height:1.4;
             letter-spacing:-.125px;text-wrap:pretty;
           }
           /* The .gos-closer-head rule was REMOVED with the closer heading markup on owner
@@ -815,7 +815,7 @@ response = requests.post(
              WECARE.DIGITAL logo mark as the DP - the mark is dark green and reads clearly on
              lime, and lime pops off the #128c7e header bar. 2px white ring lifts the disc off
              the bar; the logo is contained with a little inset so it is not cropped. */
-          .avatar{width:40px;height:40px;background:#d1f470;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:0 0 auto;box-shadow:0 0 0 2px rgba(255,255,255,.6)}
+          .avatar{width:40px;height:40px;background:var(--public-brand-lime);border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:0 0 auto;box-shadow:0 0 0 2px rgba(255,255,255,.6)}
           /* Fill most of the disc so the 1080x1080 logo mark reads as a real profile photo
              and stays crisp: the <img> carries intrinsic 80x80 attributes (2x the 40px disc)
              so a 2x/retina screen maps it close to 1:1 device pixels instead of smearing a
@@ -942,9 +942,9 @@ response = requests.post(
              There was also a real reason to move: at 1280px the hero h1 resolves to 55.04px,
              so a 53.76px section h2 sat 1.28px below its own h1 and the size hierarchy
              collapsed - only the 700/600 weight inversion separated them. */
-          .section-header h2,.api-info h2{font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;letter-spacing:-1.2px;color:rgba(0,0,0,.95)}
+          .section-header h2,.api-info h2{font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);letter-spacing:var(--public-section-tracking);color:var(--public-heading)}
           .section-header h2{margin:0 0 14px;text-align:center;width:100%;white-space:pre-line}
-          .section-header p{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0;text-align:center;width:100%}
+          .section-header p{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0;text-align:center;width:100%}
           
           /* Touchpoint Section */
           .touchpoint{padding:60px 0;background:#fff}
@@ -972,11 +972,11 @@ response = requests.post(
              15px inside 14px/28px padding put the type-to-pill ratio near 3.1, the
              same proportion problem the 46px nav row had at 15px. 17px brings it to
              about 2.8. */
-          .pill{padding:14px 28px;border:2px solid #e5e7eb;background:#fff;border-radius:50px;font-size:17px;font-weight:600;cursor:default;transition:all .25s;color:rgba(0,0,0,.898)}
-          .pill:hover{border-color:#d1f470;color:#1a3a2a;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+          .pill{padding:14px 28px;border:2px solid var(--public-hairline);background:#fff;border-radius:50px;font-size:17px;font-weight:600;cursor:default;transition:all .25s;color:var(--public-body)}
+          .pill:hover{border-color:var(--public-brand-lime);color:var(--public-brand-green);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
           
           /* API Section */
-          .api{padding:60px 24px;max-width:1300px;margin:0 auto;background:#fff}
+          .api{padding:60px 24px;max-width:var(--public-content-max);margin:0 auto;background:#fff}
           /* start, not center. The left column is ~200px tall against a ~360px code
              panel, so centring dropped the heading roughly 80px below the panel's top
              edge and the text read as floating rather than as the other half of a pair.
@@ -996,14 +996,14 @@ response = requests.post(
              that width runs past a comfortable measure. The cap belongs on the text, not
              on the grid - that is what let the grid align with the hero while the
              paragraph stays readable. */
-          .api-desc{font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;font-weight:400;margin:0;max-width:460px}
+          .api-desc{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0;max-width:460px}
           /* "In action" block in the left column, sitting under the API copy and
              opposite the code panel. 36px top margin separates it from the paragraph
              without needing a divider. */
           .api-action{margin:36px 0 0;max-width:460px}
           /* h3 on the card-heading rung (22px/700), one step below the section h2 above
              it in the same column, so the outline is h2 -> h3 with no skipped level. */
-          .api-action-head{font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:rgba(0,0,0,.95);margin:0 0 16px}
+          .api-action-head{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:rgba(0,0,0,.95);margin:0 0 16px}
           /* The .api-action-link lighter text-link CSS was REMOVED with its markup: every
              WhatsApp CTA now uses the single unified .gos-wa-cta pill (owner instruction),
              so the second style is dead. A test guards that the class name no longer
@@ -1020,13 +1020,13 @@ response = requests.post(
           /* Lime number disc in the page's own #d1f470 with dark-green #1a3a2a text,
              matching the .pp-tab.active / .api-action-link treatment. 44px disc also
              anchors the row vertically. */
-          .api-step-num{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:#d1f470;color:#1a3a2a;font-size:20px;font-weight:700;line-height:1;letter-spacing:-.25px;font-variant-numeric:tabular-nums}
+          .api-step-num{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:var(--public-brand-lime);color:var(--public-brand-green);font-size:20px;font-weight:700;line-height:1;letter-spacing:-.25px;font-variant-numeric:tabular-nums}
           .api-step-body{min-width:0}
           /* Card-heading rung (22px/700), one step below the section h2 in the same
              column, so the outline is h2 -> h3 with no skipped level. */
-          .api-step-title{font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:rgba(0,0,0,.95);margin:0 0 6px}
+          .api-step-title{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:rgba(0,0,0,.95);margin:0 0 6px}
           /* Supporting line uses the same 20px body rung as Home. */
-          .api-step-line{font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898);margin:0}
+          .api-step-line{font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:var(--public-body);margin:0}
           /* Buy block: WhatsApp checkout pill, then price + explanation, then the policy
              card. gos-wa-cta/gos-price/gos-commerce are shared page rules; only the layout
              gaps are set here. */
@@ -1052,9 +1052,9 @@ response = requests.post(
              lighter than the paid WhatsApp pill. It is transparent at rest; hover/focus
              borrows the active-tab lime so the relationship to the editor is immediate. */
           .api-wa-row{display:flex;justify-content:flex-start}
-          .api-wa-link{display:inline-flex;align-items:center;gap:5px;width:max-content;margin-left:-10px;padding:8px 10px;border-radius:10px;color:#1a3a2a;font-size:17px;font-weight:600;line-height:1.4;letter-spacing:-.05px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}
-          .api-wa-link:hover{background:#d1f470;color:#1a3a2a;text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 6px 18px rgba(26,58,42,.12)}
-          .api-wa-link:focus-visible{background:#d1f470;color:#1a3a2a;text-decoration-color:transparent;outline:3px solid #1a3a2a;outline-offset:3px}
+          .api-wa-link{display:inline-flex;align-items:center;gap:5px;width:max-content;margin-left:-10px;padding:8px 10px;border-radius:10px;color:var(--public-brand-green);font-size:17px;font-weight:600;line-height:1.4;letter-spacing:-.05px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}
+          .api-wa-link:hover{background:var(--public-brand-lime);color:var(--public-brand-green);text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 6px 18px rgba(26,58,42,.12)}
+          .api-wa-link:focus-visible{background:var(--public-brand-lime);color:var(--public-brand-green);text-decoration-color:transparent;outline:3px solid var(--public-brand-green);outline-offset:3px}
           @media(prefers-reduced-motion:reduce){
             .api-wa-link{transition:none}
             .api-wa-link:hover{transform:none}
@@ -1102,7 +1102,7 @@ response = requests.post(
           /* Text-only hover: idle .54 white lifting to full white. The active tab
              already owns the filled-lime state, so a second fill competes with it. */
           .pp-tab:hover{color:#fff;background:transparent}
-          .pp-tab.active{background:#d1f470;color:#1a3a2a;box-shadow:none}
+          .pp-tab.active{background:var(--public-brand-lime);color:var(--public-brand-green);box-shadow:none}
           /* The editor-pane stroke, carried over from the hero's .code-body, where the
              comment calls it the detail that stops a dark panel reading as a flat
              rectangle. It was the last thing separating these two panels visually:
@@ -1211,8 +1211,8 @@ response = requests.post(
             .hero-left h1{margin:0 0 20px;line-height:1.1;max-width:100%;text-align:left}
             .hero-left p{margin:0 0 16px;max-width:100%;text-align:left}
 
-            .mockup-wrapper{display:flex;flex-direction:column;gap:14px;width:100%;max-width:380px;margin:8px auto 0;aspect-ratio:auto;padding:16px;background:#fff;border-radius:16px;border:2px solid #e5e7eb;align-items:flex-start;transition:all .25s;cursor:default}
-            .mockup-wrapper:hover{border-color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+            .mockup-wrapper{display:flex;flex-direction:column;gap:14px;width:100%;max-width:380px;margin:8px auto 0;aspect-ratio:auto;padding:16px;background:#fff;border-radius:16px;border:2px solid var(--public-hairline);align-items:flex-start;transition:all .25s;cursor:default}
+            .mockup-wrapper:hover{border-color:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
             .phone{position:relative;left:auto;top:auto;width:100%;max-width:100%;margin:0;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
             .phone-header{padding:14px 16px;gap:10px}
             .avatar{width:42px;height:42px;font-size:18px}
@@ -1392,7 +1392,7 @@ response = requests.post(
              nest this, so at 1300px this inner box started 24px left of the hero's content
              edge. Measured in a real browser at 1440px: hero text at 94px, strip items at
              70px. 1252px makes both 94px. */
-          .pp-inner{max-width:1300px;margin:0 auto;padding:0 24px;box-sizing:border-box}
+          .pp-inner{max-width:var(--public-content-max);margin:0 auto;padding:0 24px;box-sizing:border-box}
           /* The share block's wrapper adds the sitewide bottom rhythm (.pp-inner has none), so the
              block's bottom air matches home / rh-layout / PageTopBand (96px, 64px under 768px). */
           .gos-share-wrap{padding-bottom:48px}
@@ -1432,14 +1432,14 @@ response = requests.post(
              (rgba(0,0,0,.898)) on white, which keeps each pill well above the 4.5:1 WCAG AA
              floor; the amber (2.04:1) and green (3.19:1) hues that fail as text are used
              ONLY as borders here, never as the text colour. */
-          .pp-pill{display:inline-flex;align-items:center;justify-content:center;padding:14px 28px;border:2px solid #e5e7eb;background:#fff;border-radius:50px;font-size:17px;font-weight:600;cursor:default;transition:all .25s;color:rgba(0,0,0,.898)}
+          .pp-pill{display:inline-flex;align-items:center;justify-content:center;padding:14px 28px;border:2px solid var(--public-hairline);background:#fff;border-radius:50px;font-size:17px;font-weight:600;cursor:default;transition:all .25s;color:var(--public-body)}
           .pp-pill--amber{border-color:#f0a818;background:#fff}
           .pp-pill--blue{border-color:#2563eb;background:#fff}
           .pp-pill--green{border-color:#3da35a;background:#fff}
           .pp-pill--purple{border-color:#9849e8;background:#fff}
           .pp-pill--red{border-color:#dc2626;background:#fff}
-          .pp-pill--lime{border-color:#d1f470;background:#fff;color:#1a3a2a}
-          .pp-pill:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+          .pp-pill--lime{border-color:var(--public-brand-lime);background:#fff;color:var(--public-brand-green)}
+          .pp-pill:hover{transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
 
           @media(max-width:1024px){
             .pp-pill{padding:12px 22px}
