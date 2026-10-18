@@ -12,7 +12,7 @@ from lambda_utils.ecommerce import business_identity, checkout_pricing  # noqa: 
 OUTBOUND = ROOT / "amplify" / "functions" / "messaging" / "outbound-whatsapp" / "handler.py"
 INVOICE = ROOT / "amplify" / "functions" / "payments" / "invoice-engine" / "handler.py"
 FRONTEND_CONSTANTS = ROOT / "src" / "config" / "constants.ts"
-PAY_FLOW = ROOT / "src" / "pages" / "workspace" / "pay" / "flow" / "index.tsx"
+PAY_FLOW = ROOT / "src" / "components" / "workspace" / "pay" / "PayFlow.tsx"
 
 
 def test_seller_gstin_is_the_canonical_business_identity():
