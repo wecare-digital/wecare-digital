@@ -556,8 +556,14 @@ def test_the_business_api_serves_the_unfiltered_payment_template_route():
     # own explanation.
     code = '\n'.join(line for line in arm.splitlines()
                      if not line.strip().startswith('#'))
-    assert 'message_templates' in code
+    assert '_list_payment_templates(waba_id)' in code
     assert 'wabaId' in code
+    import ast
+    tree = ast.parse(source)
+    reader = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
+                  and n.name == '_list_payment_templates')
+    code = ast.get_source_segment(source, reader)
+    assert 'message_templates' in code
     # Unfiltered: narrowed FIELDS are fine, a `source` filter is not.
     assert "'source'" not in code
     assert 'AUTO_GENERATED' not in code
@@ -666,3 +672,16 @@ def test_the_resolver_refuses_caller_supplied_payment_settings(outbound):
     assert 'resolver owns Mode 3' in branch
     # And the build is unconditional afterwards.
     assert source.index("get('payment_settings')") < source.index('_build_payment_settings(')
+
+
+def test_physical_checkout_template_requires_delivery_before_provider_send(outbound):
+    """Never offer address collection on a payment whose shipping total is already frozen."""
+    order = dict(ORDER_DETAILS, type='physical-goods')
+    with patch.object(outbound, '_build_payment_settings', return_value=[]), \
+            patch.object(outbound, '_send_message') as send:
+        response = outbound._handle_checkout_template_send(
+            'message-test', 'contact-test', '+919999999999', WABA1, True,
+            TEMPLATE, [], order, None, 'request-test')
+    assert response['statusCode'] == 400
+    assert 'delivery details' in response['body']
+    send.assert_not_called()

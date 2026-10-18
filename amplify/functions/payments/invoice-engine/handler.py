@@ -730,11 +730,51 @@ def _new_collection_pricing_applies(entry_point: str,
             and entry_point not in _EXACT_PRICE_OR_SETTLED_ENTRY_POINTS)
 
 
-def _delight_applies(entry_point: str, amount_is_tax_inclusive: bool,
-                     manual_discount: float = 0) -> bool:
-    """Exclude settled amounts, exact-price services and legacy manual adjustments."""
-    return (not manual_discount
-            and _new_collection_pricing_applies(entry_point, amount_is_tax_inclusive))
+def _delight_applies(entry_point: str, amount_is_tax_inclusive: bool) -> bool:
+    """Only fresh, non-service collections are eligible; manual adjustments are rejected."""
+    return _new_collection_pricing_applies(entry_point, amount_is_tax_inclusive)
+
+
+def _invoice_input_error(body: Dict) -> str:
+    """Validate the additive invoice boundary before any money conversion or number allocation."""
+    items = body.get('items', [])
+    if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+        return 'Invoice items must be a list of objects'
+    if body.get('amountIsTaxInclusive'):
+        return ''  # the exact captured-total validator owns this separate contract
+    try:
+        # Keep all arithmetic below the exact integer-paise range of existing float callers.
+        maximum = Decimal('45035996273704')
+        fees = Decimal('0')
+        for key in ('shipping', 'handling', 'greenPacking', 'notificationFee', 'convenienceFee'):
+            if key not in body:
+                continue
+            value = Decimal(str(body[key]))
+            if (not value.is_finite() or not 0 <= value <= maximum
+                    or value * 100 != (value * 100).to_integral_value()):
+                return f'{key} must be a nonnegative amount in whole paise'
+            fees += value
+        rate = Decimal(str(body.get('gstRate', 18)))
+        if not rate.is_finite() or not 0 <= rate <= 100:
+            return 'GST rate must be between 0 and 100'
+        gross = Decimal('0')
+        for item in items:
+            amount = Decimal(str(item.get('amount', 0)))
+            quantity = Decimal(str(item.get('quantity', 1)))
+            item_rate = Decimal(str(item.get('gstRate', rate)))
+            if (not amount.is_finite() or not 0 <= amount <= maximum
+                    or amount * 100 != (amount * 100).to_integral_value()):
+                return 'Item amounts must be nonnegative whole paise'
+            if not quantity.is_finite() or quantity != quantity.to_integral_value() or not 1 <= quantity <= 100000:
+                return 'Item quantity must be a positive integer'
+            if not item_rate.is_finite() or not 0 <= item_rate <= 100:
+                return 'Item GST rate must be between 0 and 100'
+            gross += amount * quantity * (1 + item_rate / 100)
+        if gross + fees > maximum:
+            return 'Invoice total exceeds supported amount'
+    except (InvalidOperation, ValueError, TypeError):
+        return 'Invoice amounts must be finite numbers'
+    return ''
 
 
 # ─── Create Invoice ───
@@ -766,6 +806,9 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
                 'error': 'Manual discounts are retired; eligible orders receive Delight automatically',
                 'errorCode': 'MANUAL_DISCOUNTS_RETIRED',
             })
+    input_error = _invoice_input_error(body)
+    if input_error:
+        return _resp(400, {'error': input_error, 'errorCode': 'INVALID_AMOUNT'})
     payment_id = body.get('paymentId', '')
     table = dynamodb.Table(INVOICES_TABLE)
 
@@ -1084,8 +1127,9 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     stored_coupon_code = ''
 
     if _delight_applies(entry_point, amount_is_tax_inclusive):
-        # Native catalogue prices are GST-inclusive. Use the same goods basis here:
-        # supply plus its included tax, excluding delivery, handling and fee lines.
+        # Additive invoice item amounts are GST-exclusive (the tax block above adds tax).
+        # Native catalogue prices are inclusive. Gross up only this additive input to
+        # compare the same goods value, excluding delivery, handling and fee lines.
         # Packing/notification charges can arrive inline or as separate legacy fields.
         goods_gross = Decimal('0')
         for item in items:

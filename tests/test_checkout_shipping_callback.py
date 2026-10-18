@@ -23,10 +23,9 @@ HANDLER = Path(__file__).resolve().parents[1] / 'amplify/functions/messaging/wha
 def callbacks():
     tree = ast.parse(HANDLER.read_text())
     names = {
-        '_handle_checkout_data_exchange', '_checkout_apply_shipping', '_calculate_shipping_paise',
-        '_get_shipping_zone', '_recalculate_order_total',
+        '_handle_checkout_data_exchange', '_checkout_apply_shipping',
     }
-    constants = {'SHIPPING_RATES_PAISE', '_PIN_ZONE_MAP'}
+    constants = set()
     nodes = [node for node in tree.body if
              isinstance(node, ast.FunctionDef) and node.name in names or
              isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and

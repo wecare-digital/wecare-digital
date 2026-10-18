@@ -220,7 +220,7 @@ WD_LEAF_LINKS: Dict[str, Tuple[str, str]] = {
     'wd_grahak_os': ('Grahak OS', '/grahak-os/'),
     'wd_vayulok': ('VayuLok', '/vayulok/'),
     'wd_bharat_rx': ('Bharat Rx', '/bharat-rx/'),
-    # Elsewhere children. There is no /elsewhere/ page any more (it became a category
+    # Elsewhere children. There is no Elsewhere category landing page any more (it became a category
     # on 2026-10-15, mirroring the Header), so `wd_elsewhere` is a submenu, not a leaf.
     'wd_elsewhere_visa': ('Visa', '/elsewhere/visa/'),
     'wd_elsewhere_trip': ('Trip', '/elsewhere/trip/'),

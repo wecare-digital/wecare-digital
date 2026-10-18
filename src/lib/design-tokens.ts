@@ -155,7 +155,7 @@ export const zIndex = {
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
 export const layout = {
-    maxWidth: 1200,
+    maxWidth: 1300,
     maxWidthWide: 1400,
     sidebarWidth: 240,
     headerHeight: 60,

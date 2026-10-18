@@ -1,5 +1,6 @@
 """Approval must use the complete template inventory on the sender's WABA."""
 import ast
+import time
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -11,7 +12,7 @@ def reader(responses):
     tree=ast.parse(HANDLER.read_text())
     node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='_list_payment_templates')
     graph=Mock(side_effect=responses)
-    namespace={'Dict':dict,'_graph_api':graph,'_resp':lambda status,body:(status,body)}
+    namespace={'time':time,'Dict':dict,'_graph_api':graph,'_resp':lambda status,body:(status,body)}
     exec(compile(ast.Module(body=[node],type_ignores=[]),str(HANDLER),'exec'),namespace)
     return namespace['_list_payment_templates'],graph
 
@@ -37,3 +38,14 @@ def test_incomplete_inventory_never_returns_partial_approval():
     status,result=read('waba-1')
     assert status==502
     assert 'data' not in result
+
+
+def test_inventory_has_a_bounded_page_and_request_budget():
+    responses = [{'data': [], 'paging': {'next': 'more', 'cursors': {'after': str(i)}}}
+                 for i in range(3)]
+    read, graph = reader(responses)
+    status, result = read('waba-1')
+    assert status == 502
+    assert 'data' not in result
+    assert graph.call_count == 3
+    assert all(0 < call.kwargs['timeout'] <= 3 for call in graph.call_args_list)

@@ -108,7 +108,7 @@ And even that 42 is not a deletion list:
 
 * **34** are `/wa-business/*` on `wecare-whatsapp-business-api` — appointments, reviews, FAQ, flow tooling, username management. A block that uniform points at one of two causes, and they need opposite actions: either the WhatsApp Business admin UI reaches them through a path-building helper the textual join cannot see, or those capabilities are backend-only and never had a UI. Resolve which before touching any of them.
 * **4** were campaign endpoints of the retired outbound-dialler Lambda; they have since been deleted with it.
-* **3** are `/store/*` on `wecare-product-image-gen`, and `/voice-aws/send` is a send path.
+* **3** are legacy image-storage API routes on `wecare-product-image-gen`, and `/voice-aws/send` is a send path.
 
 So the honest count is: **0 proven dead**, 42 needing a caller resolved, and a method that structurally cannot see template-literal or Python callers. Reproduce with the classifier logic against
 `anomalies.routesWithoutFrontendCaller` in `docs/execution/runtime-inventory.json`.

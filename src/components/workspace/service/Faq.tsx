@@ -1,5 +1,5 @@
 /**
- * FAQ Management Page — [retired public path]/faq
+ * FAQ Management Page — workspace Service Ops FAQ tab
  * CRUD for FAQ entries with categories, sort order, active/inactive toggle
  */
 import React, { useState, useEffect, useCallback } from 'react';
