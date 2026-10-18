@@ -4121,7 +4121,7 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
 
     logger.info(json.dumps({
         'event': 'order_status_sent', 'invoiceId': invoice_id, 'referenceId': reference_id,
-        'from': current_status, 'to': target, 'requestId': request_id,
+        'fromStatus': current_status, 'toStatus': target, 'requestId': request_id,
     }))
     return _resp(200, {'invoiceId': invoice_id, 'referenceId': reference_id,
                        'orderStatus': target, 'previousStatus': current_status,
