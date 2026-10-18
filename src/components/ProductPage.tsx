@@ -25,16 +25,9 @@ import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../content/productCommer
  * inversion), card headings at 22px/700/-.25px, and the single body level at
  * 20px/400/1.4/-.125px.
  *
- * THE NOTE IS A QUIET HAIRLINE CARD ON A NEAR-WHITE FILL, NOT A LIME ONE. Several of these
- * products are regulated or easily misread - Dastavez is not a law firm, Clear Closure does
- * not act for either party, Anew is not therapy, Elsewhere cannot promise a visa. Those
- * statements have to be read, but lime on this site means "actionable": full-strength
- * #d1f470 is the call to action, and the .22 tint is already working on this page as the
- * numbered point markers. A boundary statement wearing either would read as a third lime
- * element in the same column. So the box takes the house quiet-card geometry and #fcfdfb,
- * the site's near-white - a step off the hero's #fff rather than a colour of its own, so it
- * is the hairline, the padding and the body-weight ink that make it legible. The rule below
- * carries the full reasoning.
+ * POLICY OWNERSHIP. Commerce pages render their SKU + PolicyDetails here. Non-commerce
+ * ProductPage routes use the shared _app fallback after the page body. The retired
+ * boundary-note card must not return as a second disclosure style.
  */
 
 interface ProductPageProps {
