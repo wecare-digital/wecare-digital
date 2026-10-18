@@ -368,7 +368,7 @@ response = requests.post(
                       therefore wraps to two. That one extra line makes the panel
                       ~22px taller, and because .code-box is anchored bottom:0 a
                       taller panel pushes its TOP edge up into the sent bubbles. The
-                      +24px on .mockup-wrapper and .chat-area min-height exists to
+                      extra height on .mockup-wrapper and .chat-area min-height exists to
                       absorb exactly that. Lengthen any line here and you move the
                       panel over the thread - re-measure, do not eyeball. */}
                   <pre className="code-body">{`response = requests.post(
@@ -380,9 +380,9 @@ response = requests.post(
   headers={"Authorization": bearer}
 )`}</pre>
                   </div>
-                  {/* Keep the demo link in the SAME positioning wrapper as the Python panel.
-                      This makes its geometry structural instead of inferred from matching widths:
-                      wherever the panel moves, this row stays immediately beneath it. */}
+                  {/* Final row of the mockup: the demo link sits immediately below the Python
+                      panel. On wide screens the shared stack is kept INSIDE the white mockup,
+                      so the link cannot hang outside the card or collide with the next section. */}
                   <div className="code-wa-row">
                     <a className="code-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Open in WhatsApp <span aria-hidden="true">↗</span></a>
                   </div>
@@ -471,7 +471,7 @@ response = requests.post(
                   <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>
                 </div>
                 <ProductBuyBox slug="grahak-os" showPrice={ false } />
-                <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · AI agent deployment · enterprise outcomes</span></p>
+                <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · AI agents · from deployment to business outcomes</span></p>
                 {/* Same mechanism as the api-steps block above: SKU via the imported
                     PRODUCT_SKU_BY_SLUG map and the policy via PRODUCT_POLICY_TITLE /
                     PRODUCT_POLICY_TEXT - not retyped. */}
@@ -655,16 +655,17 @@ response = requests.post(
              as a hyperlink. Dark-green on the white hero is ~12:1, well past AA. Hover shifts
              the text to the lime-pair dark green feel by dropping the underline / keeping the
              colour and strengthening the underline; focus-visible draws the shared ring. */
-          /* The Python panel and its demo link are one unit. On desktop the unit keeps the
-             panel's existing lower-right overlap, then extends 28px below the mockup for the
-             plain text link. hero-visual-col reserves that extension so the next section cannot
-             collide with it. */
-          .code-stack{position:absolute;right:0;bottom:-28px;width:60%;max-width:340px;display:flex;flex-direction:column;align-items:stretch;gap:8px}
+          /* The Python panel and its demo link are one unit. On desktop the stack stays inside
+             the mockup: the panel keeps its lower-right overlap, while the link becomes the
+             mockup's final row directly below it. The wrapper is 52px taller and the stack moves
+             52px inward (-28px -> 24px), so the panel's top edge stays where it was while the
+             link gains a real white section beneath it. */
+          .code-stack{position:absolute;right:0;bottom:24px;width:60%;max-width:340px;display:flex;flex-direction:column;align-items:stretch;gap:8px}
           .code-wa-row{width:100%;display:flex;justify-content:flex-start}
           .code-wa-link{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;color:#1a3a2a;font-size:15px;font-weight:600;text-decoration:underline;text-underline-offset:3px;transition:opacity .2s}
           .code-wa-link:hover{opacity:.72}
           .code-wa-link:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;border-radius:4px}
-          .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;width:100%;padding-bottom:28px;box-sizing:border-box}
+          .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;width:100%;box-sizing:border-box}
           /* Price in the card rung, dark green (lime is reserved for the pill). 22px of air
              above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
           .gos-price{display:block;margin-top:22px;font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
@@ -759,7 +760,7 @@ response = requests.post(
              changing ONE of the pair). Verified in a real render: the code panel still laps
              the lower-right corner with the same overhang and eats no bubble. Keep the two
              values in lockstep - never change one alone. */
-          .mockup-wrapper{position:relative;width:100%;max-width:580px;min-height:558px;background:#fff;border-radius:28px;padding:28px 24px 24px}
+          .mockup-wrapper{position:relative;width:100%;max-width:580px;min-height:610px;background:#fff;border-radius:28px;padding:28px 24px 24px}
           /* The two panels OVERLAP on purpose - the code panel laps the phone's
              lower-right corner, which is the whole composition. 56% + 60% = 116%
              of the wrapper, so the lap is ~16%.
@@ -814,7 +815,7 @@ response = requests.post(
              a customer would actually see beside a company name. */
           .verified-badge{width:18px;height:18px;background:#25d366;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
           .verified-badge svg{display:block}
-          /* 480 -> 504, the paired half of the +24 on .mockup-wrapper. Growing the
+          /* The paired phone-height adjustment keeps the lapped desktop composition clear. Growing the
              wrapper alone would have left the panel overhanging the phone by 44px
              instead of ~20px; growing the phone by the same amount keeps that. The
              extra height lands as empty beige below the typing dots, which is what
