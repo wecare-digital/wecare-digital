@@ -31,35 +31,35 @@ AWS account 775261844268, us-east-1. Amplify latest build 1215 succeeded for com
 | https://wecare.digital/anew/ | 200 |
 | https://wecare.digital/bharat-rx/ | 200 |
 | https://wecare.digital/blog/ | 200 |
-| https://wecare.digital/clear-closure/ | 200 |
+| [retired public URL] | 200 |
 | https://wecare.digital/contact/ | 200 |
-| https://wecare.digital/dastavez/ | 200 |
+| [retired public URL] | 200 |
 | https://wecare.digital/drop-docs/ | 200 |
-| https://wecare.digital/elsewhere/ | 200 |
+| [retired public URL] | 200 |
 | https://wecare.digital/expo-week/ | 200 |
 | https://wecare.digital/grahak-os/ | 200 |
-| https://wecare.digital/hunar/ | 200 |
+| [retired public URL] | 200 |
 | https://wecare.digital/leave-review/ | 200 |
 | https://wecare.digital/niji-setu/ | 200 |
 | https://wecare.digital/orders/ | 200 |
-| https://wecare.digital/perks/ | 200 |
+| [retired public URL] | 200 |
 | https://wecare.digital/privacy/ | 200 |
-| https://wecare.digital/refer-and-earn/ | 200 |
+| [retired public URL] | 200 |
 | https://wecare.digital/request-amendment/ | 200 |
-| https://wecare.digital/ritual-guru/ | 200 |
+| [retired public URL] | 200 |
 | https://wecare.digital/shop/ | 200 |
 | https://wecare.digital/shop/file-assist/ | 200 |
 | https://wecare.digital/shop/guided-resolution/ | 200 |
 | https://wecare.digital/shop/kiosk/ | 200 |
 | https://wecare.digital/shop/merchandise/ | 200 |
 | https://wecare.digital/shop/paperwork/ | 200 |
-| https://wecare.digital/shop/referral-partner/ | 200 |
+| [retired public URL] | 200 |
 | https://wecare.digital/shop/viveka/ | 200 |
 | https://wecare.digital/submit-request/ | 200 |
 | https://wecare.digital/terms/ | 200 |
 | https://wecare.digital/vault/ | 200 |
 | https://wecare.digital/vayulok/ | 200 |
-| https://wecare.digital/zip/ | 200 |
+| [retired public URL] | 200 |
 | https://wecare.digital/cart/ | 200 |
 | https://wecare.digital/account/sign-in/ | 200 |
 | https://wecare.digital/checkout/status/ | 200 |
@@ -111,7 +111,7 @@ AWS account 775261844268, us-east-1. Amplify latest build 1215 succeeded for com
 | [retired public path ef456375]/ | 404 - [retired public path ef456375]/ |
 | [retired public path 2ede3fd1]/ | 404 - [retired public path 2ede3fd1]/ |
 | [retired public path 69a623a8]/ | 404 - [retired public path 69a623a8]/ |
-| https://wecare.digital/llm/ | 404 - https://wecare.digital/llm/ |
+| [retired public URL] | 404 - [retired public URL] |
 | [retired public path 2531611c]/ | 404 - [retired public path 2531611c]/ |
 | [retired public path f977c0cb]/ | 404 - [retired public path f977c0cb]/ |
 | https://wecare.digital/partners/ | 404 - https://wecare.digital/partners/ |

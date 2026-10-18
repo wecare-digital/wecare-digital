@@ -445,7 +445,7 @@
         "decls": "min-height: 44px; min-width: 44px;",
         "file": "src/styles/tokens.css",
         "geometry": true,
-        "line": 590,
+        "line": 646,
         "mech": "A-global",
         "mode": "element",
         "pairing": false,
@@ -685,7 +685,7 @@
     },
     {
       "classes": [],
-      "decls": "width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;color:#1a1a1a;background:#fff;min-height:44px;font-family:inherit;box-sizing:border-box",
+      "decls": "width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:var(--text-md);color:var(--text);background:#fff;min-height:44px;font-family:inherit;box-sizing:border-box",
       "file": "src/components/workspace/channels/Push.tsx",
       "geometry": true,
       "line": 392,
@@ -709,7 +709,7 @@
     },
     {
       "classes": [],
-      "decls": "width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; font-family: inherit; box-sizing: border-box;",
+      "decls": "width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: var(--text-sm); font-family: inherit; box-sizing: border-box;",
       "file": "src/components/workspace/channels/Sms.tsx",
       "geometry": true,
       "line": 503,
@@ -731,7 +731,7 @@
     },
     {
       "classes": [],
-      "decls": "outline: none; border-color: #1a3a2a;",
+      "decls": "outline: none; border-color: var(--accent);",
       "file": "src/components/workspace/channels/Sms.tsx",
       "geometry": false,
       "line": 504,
@@ -773,7 +773,7 @@
     },
     {
       "classes": [],
-      "decls": "font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff; border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;",
+      "decls": "font-family:inherit;font-size:var(--text-md);color:rgba(0,0,0,.898);background:#fff; border:2px solid var(--border);border-radius:13px;padding:9px 12px;min-height:0;",
       "file": "src/components/workspace/pay/InvoiceRecords.tsx",
       "geometry": true,
       "line": 384,
@@ -797,7 +797,7 @@
     },
     {
       "classes": [],
-      "decls": "outline:none;border-color:#d1f470",
+      "decls": "outline:none;border-color:var(--lime)",
       "file": "src/components/workspace/pay/InvoiceRecords.tsx",
       "geometry": false,
       "line": 389,
@@ -817,7 +817,7 @@
     },
     {
       "classes": [],
-      "decls": "font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff; border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;",
+      "decls": "font-family:inherit;font-size:var(--text-md);color:rgba(0,0,0,.898);background:#fff; border:2px solid var(--border);border-radius:13px;padding:9px 12px;min-height:0;",
       "file": "src/components/workspace/service/FormResponses.tsx",
       "geometry": true,
       "line": 346,
@@ -841,7 +841,7 @@
     },
     {
       "classes": [],
-      "decls": "outline:none;border-color:#d1f470",
+      "decls": "outline:none;border-color:var(--lime)",
       "file": "src/components/workspace/service/FormResponses.tsx",
       "geometry": false,
       "line": 351,
@@ -861,7 +861,7 @@
     },
     {
       "classes": [],
-      "decls": "outline: none; border-color: #1a3a2a; box-shadow: 0 0 0 2px rgba(26,58,42,0.1);",
+      "decls": "outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(26,58,42,0.1);",
       "file": "src/components/workspace/whatsapp/migration.tsx",
       "geometry": false,
       "line": 247,
@@ -882,7 +882,7 @@
     },
     {
       "classes": [],
-      "decls": "width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;",
+      "decls": "width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: var(--text-md);",
       "file": "src/components/workspace/whatsapp/templates.tsx",
       "geometry": true,
       "line": 1533,
@@ -924,7 +924,7 @@
     },
     {
       "classes": [],
-      "decls": "padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; min-width: 300px;",
+      "decls": "padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: var(--text-md); min-width: 300px;",
       "file": "src/components/workspace/whatsapp/waba-dashboard.tsx",
       "geometry": true,
       "line": 643,
@@ -946,7 +946,7 @@
     },
     {
       "classes": [],
-      "decls": "font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff; border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;",
+      "decls": "font-family:inherit;font-size:var(--text-md);color:rgba(0,0,0,.898);background:#fff; border:2px solid var(--border);border-radius:13px;padding:9px 12px;min-height:0;",
       "file": "src/pages/workspace/engage/logs/index.tsx",
       "geometry": true,
       "line": 431,
@@ -970,7 +970,7 @@
     },
     {
       "classes": [],
-      "decls": "outline:none;border-color:#d1f470",
+      "decls": "outline:none;border-color:var(--lime)",
       "file": "src/pages/workspace/engage/logs/index.tsx",
       "geometry": false,
       "line": 435,
@@ -990,7 +990,7 @@
     },
     {
       "classes": [],
-      "decls": "font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff; border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;",
+      "decls": "font-family:inherit;font-size:var(--text-md);color:rgba(0,0,0,.898);background:#fff; border:2px solid var(--border);border-radius:13px;padding:9px 12px;min-height:0;",
       "file": "src/pages/workspace/task/index.tsx",
       "geometry": true,
       "line": 335,
@@ -1014,7 +1014,7 @@
     },
     {
       "classes": [],
-      "decls": "outline:none;border-color:#d1f470",
+      "decls": "outline:none;border-color:var(--lime)",
       "file": "src/pages/workspace/task/index.tsx",
       "geometry": false,
       "line": 339,
@@ -1796,7 +1796,7 @@
       "decls": "font-size: 16px !important;",
       "file": "src/styles/tokens.css",
       "geometry": false,
-      "line": 583,
+      "line": 639,
       "mech": "A-global",
       "mode": "element",
       "pairing": false,
@@ -1815,7 +1815,7 @@
       "decls": "min-height: 44px; min-width: 44px;",
       "file": "src/styles/tokens.css",
       "geometry": true,
-      "line": 590,
+      "line": 646,
       "mech": "A-global",
       "mode": "element",
       "pairing": true,
@@ -1834,7 +1834,7 @@
       "decls": "font-size: 16px !important;",
       "file": "src/styles/tokens.css",
       "geometry": false,
-      "line": 699,
+      "line": 755,
       "mech": "A-global",
       "mode": "element",
       "pairing": false,

@@ -35,7 +35,7 @@ Do not count the resolved duplicate inbox/external SEO pages as new implementati
 7. **Service-request staff management remains missing**: new handler owns customer `/services/my-requests`, while staff orders read legacy Flow submissions. Add a distinct staff list/detail/assignment contract with record lineage.
 8. **Paging and performance remain weak**: legacy orders consume a single DynamoDB page; common Inbox fetches up to 2000 messages every 15 seconds. Add cursor/thread/summary reads and shared visibility-aware caching.
 9. **Query-filter sidebar state remains incorrect**: Layout compares pathname to query-containing paths. Use pathname plus selected query, with one active child.
-10. **Product audit links still use `/product-page/{slug}`** instead of `/shop/[slug]`. Resolve canonical URLs from the product model.
+10. **Product audit links still use `[retired public path]/{slug}`** instead of `/shop/[slug]`. Resolve canonical URLs from the product model.
 11. **MCP/agent execution is not durable autonomous work**: READ/refusal machinery exists; APPLY tools remain disabled, worker delegation is absent, audit receipts fail open, and no durable coordinator is deployed.
 12. **Monitoring lacks explicit log filters for signature/smoke rejection strings** in the 16 returned filters. Existing general errors and DLQ alarms do exist. Add focused coverage only after inspecting metric/emission and delivery contracts; do not describe all DLQ monitoring as absent.
 

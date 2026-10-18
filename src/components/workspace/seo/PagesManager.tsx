@@ -44,6 +44,16 @@ const td: React.CSSProperties = { padding: '6px 10px' };
 const btn: React.CSSProperties = { padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 'var(--text-xs)', fontFamily: 'inherit' };
 const BASE = 'https://wecare.digital';
 
+const productAuditPath = ( product: ProductPage ): string => {
+  try {
+    const path = new URL( product.url, BASE ).pathname;
+    return path === '/' ? '/' : path.replace( /\/$/, '' );
+  } catch {
+    const slug = product.slug || product.id;
+    return `/shop/${slug}`;
+  }
+};
+
 const SYSTEM_PAGES: SitePage[] = [
   { path: '/account/sign-in/', name: 'Customer Sign In', type: 'system', url: `${BASE}/account/sign-in/`, title: 'Customer Sign In', metaDescription: '', keywords: [], jsonLdTypes: [], hasJsonLd: false, canonical: '' },
   { path: '/orders/', name: 'Orders', type: 'system', url: `${BASE}/orders/`, title: 'Orders', metaDescription: '', keywords: [], jsonLdTypes: [], hasJsonLd: false, canonical: '' },
@@ -368,7 +378,7 @@ function ProductPagesTab({ products, audits, auditingSlug, bulkRunning, onAudit,
           <th style={th}>#</th><th style={th}>Product</th><th style={th}>Price</th><th style={th}>Stock</th>
           <th style={{ ...th, textAlign: 'center' }}>JSON-LD</th><th style={{ ...th, textAlign: 'center' }}>Score</th><th style={{ ...th, textAlign: 'center' }}>Status</th><th style={{ ...th, textAlign: 'center' }}>Actions</th>
         </tr></thead>
-        <tbody>{filtered.map((p: ProductPage, i: number) => { const slug = p.slug || p.id; const productPath = `/product-page/${slug}`; const a = getAudit(productPath); const busy = auditingSlug === productPath; return (
+        <tbody>{filtered.map((p: ProductPage, i: number) => { const slug = p.slug || p.id; const productPath = productAuditPath( p ); const a = getAudit(productPath); const busy = auditingSlug === productPath; return (
           <tr key={p.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
             <td style={td}>{i + 1}</td>
             <td style={{ ...td, maxWidth: 220 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -390,7 +400,7 @@ function ProductPagesTab({ products, audits, auditingSlug, bulkRunning, onAudit,
     </div>
     <div style={{ marginTop: 8, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{filtered.length} products</div>
     {filtered.length > 0 && <div style={{ marginTop: 12 }}>
-      <button onClick={() => onBulkAudit(filtered.map((p: ProductPage) => ({ path: `/product-page/${p.slug || p.id}`, name: p.name, type: 'product' })))} disabled={!!bulkRunning} style={{ ...btn, background: 'var(--lime)', fontWeight: 600, padding: '6px 16px' }}>{bulkRunning === 'audit' ? 'Auditing...' : `Audit All ${filtered.length} Products`}</button>
+      <button onClick={() => onBulkAudit(filtered.map((p: ProductPage) => ({ path: productAuditPath( p ), name: p.name, type: 'product' })))} disabled={!!bulkRunning} style={{ ...btn, background: 'var(--lime)', fontWeight: 600, padding: '6px 16px' }}>{bulkRunning === 'audit' ? 'Auditing...' : `Audit All ${filtered.length} Products`}</button>
     </div>}
     <div className="card" style={{ padding: 16, marginTop: 16 }}>
       <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 8 }}>Product Page SEO Standard</h3>
