@@ -249,7 +249,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
     const [ pollyVoices, setPollyVoices ] = useState<Record<string, { id: string; gender: string; engine: string }[]>>( {} );
     // Full payment form
     const [ payPhone, setPayPhone ] = useState( PAYMENT_CONFIG.phoneNumberId );
-    const [ payItems, setPayItems ] = useState<{ name: string; amount: string; quantity: string; gstRate: string }[]>( [ { name: '', amount: '', quantity: '1', gstRate: '0' } ] );
+    const [ payItems, setPayItems ] = useState<{ name: string; amount: string; quantity: string; gstRate: string }[]>( [ { name: '', amount: '', quantity: '1', gstRate: '18' } ] );
     const [ payInvoiceDraft, setPayInvoiceDraft ] = useState<{ key: string; contactId: string; invoice: api.CreateInvoiceEngineResponse } | null>( null );
     const [ payGoodsType, setPayGoodsType ] = useState<'digital-goods' | 'physical-goods'>( 'digital-goods' );
     const [ payDelivery, setPayDelivery ] = useState( '0' );
@@ -668,7 +668,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
 
     const updatePayItem = ( i: number, field: 'name' | 'amount' | 'quantity' | 'gstRate', val: string ) =>
         setPayItems( p => p.map( ( it, idx ) => idx === i ? { ...it, [ field ]: val } : it ) );
-    const addPayItem = () => setPayItems( p => [ ...p, { name: '', amount: '', quantity: '1', gstRate: '0' } ] );
+    const addPayItem = () => setPayItems( p => [ ...p, { name: '', amount: '', quantity: '1', gstRate: '18' } ] );
     const removePayItem = ( i: number ) => setPayItems( p => p.length > 1 ? p.filter( ( _, idx ) => idx !== i ) : p );
     const unlockPayPhone = async () => {
         try
@@ -745,7 +745,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                 toast.success( `Payment request sent (invoice ${invoice.invoiceNumber})` );
                 setComposer( null );
                 setPayInvoiceDraft( null );
-                setPayItems( [ { name: '', amount: '', quantity: '1', gstRate: '0' } ] );
+                setPayItems( [ { name: '', amount: '', quantity: '1', gstRate: '18' } ] );
                 setPayDelivery( '0' ); setPayOrderId( '' );
                 setTimeout( loadData, 800 );
             } else toast.error( `Payment request not confirmed. Invoice ${invoice.invoiceNumber} is retained; resolve it in Pay → Invoices.` );
