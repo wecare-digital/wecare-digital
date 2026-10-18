@@ -10,12 +10,14 @@ describe( 'shared product policy summary', () => {
     );
   } );
 
-  it( 'keeps statutory consumer-rights wording centralized in PolicyDetails', () => {
+  it( 'keeps the retired statutory footer out of policy source and commerce copy', () => {
+    const retiredFooter = [ 'Statutory consumer rights', 'remain unaffected.' ].join( ' ' );
     const policy = readFileSync( resolve( process.cwd(), 'src/components/public/PolicyDetails.tsx' ), 'utf8' );
     const commerce = readFileSync( resolve( process.cwd(), 'src/content/productCommerce.ts' ), 'utf8' );
-    expect( policy ).toContain( 'Statutory consumer rights remain unaffected.' );
-    const grahak = commerce.slice( commerce.indexOf( "'grahak-os':" ), commerce.indexOf( "'bharat-rx':" ) );
-    expect( grahak ).not.toContain( 'Statutory consumer rights remain unaffected.' );
+    expect( policy ).not.toContain( retiredFooter );
+    expect( commerce ).not.toContain( retiredFooter );
+    expect( policy ).not.toContain( 'showStatutoryRights' );
+    expect( policy ).not.toContain( 'overview' );
   } );
 
   it( 'keeps page-specific fulfilment and disclaimer copy behind one resolver', () => {
