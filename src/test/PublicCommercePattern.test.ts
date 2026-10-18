@@ -28,17 +28,23 @@ describe( 'canonical public commerce pattern', () => {
       expect( price, file ).toBeGreaterThan( cta );
       expect( note, file ).toBeGreaterThan( price );
     }
+    const productBuyBox = read( 'src/components/ProductBuyBox.tsx' );
+    expect( productBuyBox ).toContain( 'font-size:var(--public-body-size)' );
+    expect( productBuyBox ).toContain( 'color:var(--public-muted)' );
+    expect( productBuyBox ).toContain( 'font-family:var(--font-sans)' );
+    expect( productBuyBox ).toContain( 'max-width:var(--public-copy-max)' );
   } );
 
-  it( 'keeps Grahak OS in checkout -> price -> note -> SKU/policy order', () => {
+  it( 'keeps Grahak OS on one shared ProductBuyBox price/note rail before SKU/policy', () => {
     const source = read( 'src/pages/grahak-os/index.tsx' );
-    const checkout = source.indexOf( '<ProductBuyBox slug="grahak-os" showPrice={ false } />' );
-    const price = source.indexOf( '<p className="gos-price"' );
-    const note = source.indexOf( '<p className="gos-offer-note">' );
+    const checkout = source.indexOf( '<ProductBuyBox' );
+    const offer = source.indexOf( 'offerNote="One-time consultation · full deployment separate"' );
     const commerce = source.indexOf( '<div className="gos-commerce">' );
-    expect( price ).toBeGreaterThan( checkout );
-    expect( note ).toBeGreaterThan( price );
-    expect( commerce ).toBeGreaterThan( note );
+    expect( checkout ).toBeGreaterThan( -1 );
+    expect( offer ).toBeGreaterThan( checkout );
+    expect( commerce ).toBeGreaterThan( offer );
+    expect( source ).not.toContain( 'className="gos-price"' );
+    expect( source ).not.toContain( 'className="gos-offer-note"' );
     expect( source.slice( commerce ) ).toContain( '<PolicyDetails' );
   } );
 
