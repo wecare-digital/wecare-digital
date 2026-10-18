@@ -29,13 +29,13 @@ export const PRODUCT_SKU_BY_SLUG: Readonly<Record<string, string>> = {
 
 export const PRODUCT_POLICY_TITLE = 'Shipping, returns & refunds';
 
-export const PRODUCT_POLICY_TEXT =
-  'Shipping or fulfilment timing depends on the product or service and is disclosed for the transaction. Return eligibility depends on the product or service, its condition, whether work or customisation has started, and applicable law. Refunds include approved voluntary cancellations and discretionary adjustments: cash refunds and refunds to the original payment method are not available; where eligible, we issue WECARE.DIGITAL store credit instead. Store credit issued under this policy is valid for 30 calendar days from the date of issue; any unused balance expires at the end of that period, unless applicable law requires otherwise. This does not limit any refund, replacement, return or other remedy required by applicable law.';
-
+export const PRODUCT_REFUNDS =
+  'Cancellation may not be available once work starts. Approved cancellations or adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days. No cash or original-payment-method refund is provided unless required by law.';
 
 export interface ProductPolicyCopy {
   shipping: string;
   returns: string;
+  refunds: string;
   disclaimer: string;
 }
 
@@ -75,11 +75,13 @@ export function productPolicyCopy(
     ? {
         shipping: 'This item requires physical fulfilment. Shipping timing, destination coverage and any delivery charge are disclosed or confirmed for the transaction before fulfilment.',
         returns: 'Return or replacement eligibility depends on the item condition, whether it was customised or used, the product-specific terms disclosed for the transaction and applicable law.',
+        refunds: PRODUCT_REFUNDS,
         disclaimer: `${name} is supplied subject to the product details, availability and fulfilment conditions confirmed for your order.`,
       }
     : {
         shipping: 'Fulfilment follows the product or service details disclosed for the transaction. If physical delivery is involved, the delivery terms are confirmed before fulfilment.',
         returns: 'Service work and digital deliverables are not physically returnable. Any physical item supplied separately follows its disclosed return or replacement terms and applicable law.',
+        refunds: PRODUCT_REFUNDS,
         disclaimer: `The scope, inclusions, timing and any third-party dependencies for ${name} are those confirmed for your transaction. Nothing on this page guarantees an outcome controlled by a third party, supplier, authority or platform.`,
       };
 
@@ -87,6 +89,7 @@ export function productPolicyCopy(
   return {
     shipping: override.shipping || base.shipping,
     returns: override.returns || base.returns,
+    refunds: override.refunds || base.refunds,
     disclaimer: disclaimer || override.disclaimer || base.disclaimer,
   };
 }
