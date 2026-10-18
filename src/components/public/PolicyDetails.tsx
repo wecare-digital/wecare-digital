@@ -54,8 +54,8 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         color:var(--public-brand-green);
         background:var(--public-lime-tint);
         font-family:inherit;
-        font-size:17px;
-        font-weight:600;
+        font-size:var(--public-cta-font-size);
+        font-weight:var(--public-cta-font-weight);
         line-height:1.4;
         letter-spacing:-.05px;
         text-decoration:underline;
