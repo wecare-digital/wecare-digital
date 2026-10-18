@@ -1677,7 +1677,14 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
             description = "Payment failed"
             order_status = 'pending'
         else:
-            body_text = order_status_details.get('description', 'Order status updated')
+            # A FULFILMENT status (shipped/completed/processing/…), not a payment word. The
+            # caller's description wins; otherwise the shared order-status vocabulary supplies a
+            # plain default line per status, so a "shipped" update never falls back to the bare
+            # "Order status updated". `order_status` already carries the wire spelling the caller
+            # sent and is passed through unchanged.
+            from lambda_utils.ecommerce import wa_order_status as _wa_os
+            body_text = (order_status_details.get('description') or '').strip() \
+                or _wa_os.default_body(order_status)
             description = body_text
         
         # Normalize phone number
