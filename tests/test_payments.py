@@ -174,6 +174,43 @@ class TestOrderStatusSend:
         body = json.loads(result['body'])
         assert body['orderStatus'] == 'failed'
 
+    def test_completed_order_status_uses_configured_template_outside_window(self):
+        details = {'reference_id': 'WD-003', 'order_status': 'completed', 'amountPaise': 4900}
+        with patch.object(self.h, '_send_message', return_value={'messageId': 'wamid.template'}) as send, \
+             patch.object(self.h, '_store_message_record') as store:
+            result = self.send_order_status(
+                'msg-3', 'contact-3', '+919330994400', 'phone-id-1',
+                details, 'req-3', template_name='wecare_order_status',
+            )
+
+        assert result['statusCode'] == 200
+        payload = send.call_args.args[1]
+        assert payload['type'] == 'template'
+        assert payload['template']['name'] == 'wecare_order_status'
+        component = payload['template']['components'][0]
+        assert component['type'] == 'order_status'
+        parameter = component['parameters'][0]
+        assert parameter['type'] == 'order_status'
+        assert parameter['order_status']['reference_id']
+        assert parameter['order_status']['order']['status'] == 'completed'
+        assert store.call_args.kwargs['is_template'] is True
+
+    def test_completed_order_status_stays_interactive_inside_window(self):
+        details = {'reference_id': 'WD-004', 'order_status': 'completed', 'amountPaise': 4900}
+        with patch.object(self.h, '_send_message', return_value={'messageId': 'wamid.interactive'}) as send, \
+             patch.object(self.h, '_store_message_record') as store:
+            result = self.send_order_status(
+                'msg-4', 'contact-4', '+919330994400', 'phone-id-1',
+                details, 'req-4',
+            )
+
+        assert result['statusCode'] == 200
+        payload = send.call_args.args[1]
+        assert payload['type'] == 'interactive'
+        assert payload['interactive']['type'] == 'order_status'
+        assert payload['interactive']['action']['name'] == 'review_order'
+        assert store.call_args.kwargs['is_template'] is False
+
 
 class TestPairRateLimit:
     """Test per-recipient pair rate limiting."""
