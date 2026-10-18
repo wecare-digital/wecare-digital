@@ -159,14 +159,14 @@ PERMITTED_LAMBDA_INVOKES_FRESH_CAPTURE = frozenset({
     'wecare-invoice-engine POST /invoices/from-payment',
     'wecare-invoice-engine POST /invoices/{id}/generate-image',
     'wecare-invoice-engine POST /invoices/{id}/generate-pdf',
-    'wecare-invoice-engine POST /invoices/{id}/send-whatsapp',
+    'wecare-invoice-engine:live POST /invoices/{id}/send-whatsapp',
     'wecare-outbound-whatsapp',                      # the review request
 })
 PERMITTED_LAMBDA_INVOKES_DEDUPLICATED = frozenset({
     SERVICE_REQUEST_HINT,
     PAID_REQUEST_FLOW_HINT,
     'wecare-invoice-engine POST /invoices/from-payment',
-    'wecare-invoice-engine POST /invoices/{id}/send-whatsapp',
+    'wecare-invoice-engine:live POST /invoices/{id}/send-whatsapp',
     'wecare-outbound-whatsapp',
 })
 #: A FOURTH drive, whose INVOICE behaviour is UNCHANGED by this work - which is exactly why it

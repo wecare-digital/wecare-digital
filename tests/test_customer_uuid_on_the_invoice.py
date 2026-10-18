@@ -363,7 +363,9 @@ def _caption_for(engine, invoice):
     ddb.Table.side_effect = lambda name: tables.get(name, _FakeTable())
     lam = MagicMock()
     lam.invoke.return_value = {
-        "Payload": io.BytesIO(b'{"body": "{\\"status\\": \\"sent\\"}"}')}
+        "Payload": io.BytesIO(json.dumps({"statusCode": 200, "body": json.dumps({
+            "status": "sent", "whatsappMessageId": "wamid.CAPTION"})}).encode())}
+
 
     with patch.object(engine, "dynamodb", ddb), \
             patch.object(engine, "lambda_client", lam), \

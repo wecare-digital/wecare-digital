@@ -289,6 +289,7 @@ def test_unknown_reference_with_no_invoice_fires_no_side_effects(webhook, fake_d
 
 def test_verified_paid_commerce_capture_fires_each_effect_exactly_once(webhook, fake_ddb):
     _seed_attempt(fake_ddb)
+    _seed_invoice(fake_ddb)  # Customer notifications require a saved recipient binding.
     with _Spies(webhook) as spies:
         _drive(webhook, fake_ddb, _event(),
                verifier=lambda _r: (True, TXN, AMOUNT, 'INR'))
@@ -455,3 +456,26 @@ def test_invoice_image_log_omits_the_image_url(webhook, fake_ddb, caplog):
     blob = '\n'.join(lines)
     assert image_url not in blob
     assert 'INV-CREATED-1' in blob  # the invoice id (a safe correlation id) is retained
+
+
+def test_verified_capture_uses_saved_customer_instead_of_payer(webhook, fake_ddb):
+    _seed_attempt(fake_ddb)
+    _seed_invoice(fake_ddb)
+    with _Spies(webhook) as spies:
+        _drive(webhook, fake_ddb, _event(contact='+919999999999'),
+               verifier=lambda _r: (True, TXN, AMOUNT, 'INR'))
+        assert spies.post_payment.call_args.args[1] == CONTACT
+        messages = [json.loads(json.loads(c.kwargs['Payload'])['body'])
+                    for c in spies.lambda_client.invoke.call_args_list
+                    if 'isOrderStatus' in str(c.kwargs.get('Payload', ''))]
+        assert len(messages) == 1
+        assert messages[0]['recipientPhone'] == CONTACT
+
+
+def test_verified_capture_without_saved_customer_does_not_notify_payer(webhook, fake_ddb):
+    _seed_attempt(fake_ddb)
+    with _Spies(webhook) as spies:
+        _drive(webhook, fake_ddb, _event(),
+               verifier=lambda _r: (True, TXN, AMOUNT, 'INR'))
+        assert spies.order_status_sends == 0
+        assert spies.post_payment.call_args.args[1] == ''
