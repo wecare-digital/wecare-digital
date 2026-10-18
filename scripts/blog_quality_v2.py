@@ -192,6 +192,50 @@ FALSE_BIOGRAPHY_PATTERNS: Tuple[str, ...] = (
 #: Section 18, the other direction: an un-removed first-person wrapper from the source.
 FIRST_PERSON_WRAPPER = r"\b(?:I|my|me|myself)\b"
 
+#: Section 18. An ARCHIVE_DERIVED article is a reconstruction, not a book report or a
+#: narrated summary of the source. These are deliberately narrow: ordinary uses such as
+#: "the source of the action" or "the next chapter of life" must not trip this gate.
+SOURCE_WRAPPER_PATTERNS: Tuple[str, ...] = (
+    r"\btopline\s+summar(?:y|ies)\b",
+    r"\b(?:seminar|workshop|course|training|source)\s+materials(?:\s+collected\s+under)?\b",
+    r"\b(?:the|this|our|original)\s+source(?:'s|\s+(?:says|said|describes|described|"
+    r"argues|argued|explains|explained|frames|framed|presents|presented|defines|defined|"
+    r"suggests|suggested|calls|called|offers|offered|notes|noted|observes|observed|treats|"
+    r"treated|introduces|introduced|distinguishes|distinguished|uses|used|examines|examined|"
+    r"materials|model))\b",
+    r"\b(?:the|this)\s+(?:book|essay|article|chapter|paper|report|pdf|summary)\s+"
+    r"(?:says|said|describes|described|argues|argued|explains|explained|frames|framed|"
+    r"presents|presented|defines|defined|suggests|suggested|calls|called|offers|offered|"
+    r"notes|noted|observes|observed|treats|treated|introduces|introduced|distinguishes|"
+    r"distinguished|uses|used|examines|examined)\b",
+    r"\b(?:source|book|essay|article|chapter|paper|report|pdf|summary)'s\s+"
+    r"(?:treatment|framing|account|discussion|description|argument|explanation|presentation|"
+    r"definition|distinction)\b",
+    r"\b(?:the|this)\s+(?:topline\s+summar(?:y|ies)\s+)?treatment\s+of\b",
+    r"\bthis\s+(?:article|post|piece)\s+(?:says|describes|argues|explains|frames|"
+    r"presents|defines|suggests|calls|offers|notes|observes|treats|introduces|distinguishes|"
+    r"uses|examines)\b",
+    r"\bthe\s+[a-z0-9 &,\'’:-]{0,55}\bchapter\s+"
+    r"(?:opens|uses|places|brings|values|presents|describes|covers|contains|includes|notes|"
+    r"shows|represents|does\s+not\s+prescribe)\b",
+)
+
+#: Broken remnants left after a source name or attribution was stripped. These are grammar
+#: defects in any article class, not merely a style preference for archive reconstructions.
+SOURCE_REMNANT_PATTERNS: Tuple[str, ...] = (
+    r"(?:^|[.!?]\s+)(?:notes|says|describes|explains|presents|recommends|introduces|uses|"
+    r"encourages)\s+that\b",
+    r"(?:^|[.!?]\s+)[\'’]s\s+[a-z]",
+    r"\bthe\s+introduces\b",
+    r"\bthroughout\s+the\s+as\b",
+    r"\bhow\s+says\b",
+    r"\brecommended\s+note\b",
+    r"\bthe\s+(?:regularly|repeatedly)\s+(?:uses|encourages|features|includes|recommends|"
+    r"notes|presents)\b",
+    r"\bthe\s+also\b",
+    r"\bfrom\s+there,\s+the\s+offers\b",
+)
+
 #: Section 20. Presence of any of these means the matching review flag must be an
 #: explicit YES, not N/A. The point is not to ban the subject, it is to stop a record
 #: declaring a review "not applicable" while making the claim anyway.
@@ -818,6 +862,30 @@ def check_privacy_and_attribution(record: Dict[str, Any]) -> List[Finding]:
                            "personal wrapper is removed and the distinction reconstructed",
                            "PERSONAL_REFERENCE_REWORK"))
 
+    #: The same reconstruction rule also forbids leaving the public article narrated from
+    #: outside itself: "the source says", "the chapter presents", "Topline Summaries", etc.
+    #: Attribution that is genuinely necessary can still name an author or work directly;
+    #: these patterns target the wrapper, not attribution itself.
+    if article_class == "ARCHIVE_DERIVED":
+        for pattern in SOURCE_WRAPPER_PATTERNS:
+            match = re.search(pattern, prose, flags=re.IGNORECASE | re.MULTILINE)
+            if match:
+                out.append(_block(
+                    "18", "SOURCE_WRAPPER",
+                    "source-facing wrapper survives in an ARCHIVE_DERIVED body "
+                    f"({match.group(0)!r}); state the distinction directly and keep provenance "
+                    "in source metadata unless attribution is materially required"))
+                break
+
+    for pattern in SOURCE_REMNANT_PATTERNS:
+        match = re.search(pattern, prose, flags=re.IGNORECASE | re.MULTILINE)
+        if match:
+            out.append(_block(
+                "18", "SOURCE_REMNANT",
+                "broken source-removal residue survives in the public body "
+                f"({match.group(0)!r}); reconstruct the sentence before publication"))
+            break
+
     if record.get("privateNamesChecked") is not None and not _is_yes(record.get("privateNamesChecked")):
         out.append(_review("18", "NAMES_UNCHECKED", "privateNamesChecked must be YES",
                            "PERSONAL_REFERENCE_REWORK"))
@@ -1192,15 +1260,16 @@ class CorpusIndex:
             added += 1
         return added
 
-    def findings(self, record: Dict[str, Any]) -> List[Finding]:
+    def findings(self, record: Dict[str, Any], exclude_slug: str = "") -> List[Finding]:
         out: List[Finding] = []
         slug = str(record.get("slug") or "").strip()
+        exclude_slug = str(exclude_slug or "").strip()
         title = str(record.get("title") or "").strip()
         normalized = _normalize_title(title)
         mine = sketch(body_of(record))
         distinction = text_field(record, "centralDistinction")
 
-        if slug and slug in self._by_slug:
+        if slug and slug in self._by_slug and slug != exclude_slug:
             other = self._by_slug[slug]
             out.append(_block("28", "EXACT_SLUG_COLLISION",
                               f"slug {slug!r} already exists"
@@ -1368,7 +1437,8 @@ def _soften_for_legacy(findings: Sequence[Finding]) -> List[Finding]:
 
 
 def check_record(record: Dict[str, Any], corpus: Optional[CorpusIndex] = None,
-                 extra_findings: Sequence[Finding] = ()) -> List[Finding]:
+                 extra_findings: Sequence[Finding] = (),
+                 corpus_exclude_slug: str = "") -> List[Finding]:
     """Every mechanically decidable clause of the standard, for one record.
 
     `extra_findings` exists so a caller can fold in rules this module cannot own. Content
@@ -1394,16 +1464,18 @@ def check_record(record: Dict[str, Any], corpus: Optional[CorpusIndex] = None,
     if str(record.get("category") or "").strip() == "Gastronomy":
         findings += check_gastronomy_structure(record)
     if corpus is not None:
-        findings += corpus.findings(record)
+        findings += corpus.findings(record, exclude_slug=corpus_exclude_slug)
     if is_legacy_record(record):
         findings = _soften_for_legacy(findings)
     return findings
 
 
 def assess(record: Dict[str, Any], corpus: Optional[CorpusIndex] = None,
-           extra_findings: Sequence[Finding] = ()) -> Dict[str, Any]:
+           extra_findings: Sequence[Finding] = (),
+           corpus_exclude_slug: str = "") -> Dict[str, Any]:
     """`check_record` plus the derived verdicts, as one reportable dict."""
-    findings = check_record(record, corpus, extra_findings=extra_findings)
+    findings = check_record(record, corpus, extra_findings=extra_findings,
+                            corpus_exclude_slug=corpus_exclude_slug)
     gate = machine_gate_table(findings)
     return {
         "slug": str(record.get("slug") or ""),
