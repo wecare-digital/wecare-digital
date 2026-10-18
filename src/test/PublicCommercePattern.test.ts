@@ -8,6 +8,8 @@ describe( 'canonical public commerce pattern', () => {
   it( 'owns policy presentation in the shared disclosure', () => {
     const policy = read( 'src/components/public/PolicyDetails.tsx' );
     expect( policy ).toContain( '<summary>Policy details</summary>' );
+    expect( policy ).not.toContain( 'PRODUCT_POLICY_TEXT' );
+    expect( policy ).not.toContain( 'PRODUCT_POLICY_TITLE' );
     expect( policy ).toContain( '<strong>Shipping / fulfilment:</strong>' );
     expect( policy ).toContain( '<strong>Returns:</strong>' );
     expect( policy ).toContain( '<strong>Refunds & cancellations:</strong>' );
