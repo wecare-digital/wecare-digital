@@ -460,6 +460,54 @@ def test_the_additive_path_still_produces_its_previous_figures(engine):
     assert counter.advances == 1
 
 
+@pytest.mark.parametrize("entry_point", [
+    "manual", "pay_flow", "whatsapp_payment", "inbox", "commerce",
+])
+def test_every_fresh_collection_entry_point_gets_the_same_default_pricing(engine, entry_point):
+    """Attribution labels must not fork Delight or convenience-fee policy."""
+    module, _keys, _counter, invoices, _items, _payments = engine
+    body = {
+        "referenceId": f"WD-PAY-PARITY-{entry_point}",
+        "customerPhone": PHONE,
+        "entryPoint": entry_point,
+        "items": [{"name": "Collection", "amount": 1000.0, "quantity": 1}],
+        "gstRate": 18,
+        "currency": "INR",
+        "fy": FY,
+    }
+
+    status, payload = _created(module, body, request_id=f"req-{entry_point}")
+
+    assert status == 201, payload
+    row = _stored(invoices, payload["invoiceId"])
+    assert _paise(row["discount"]) == 590
+    assert _paise(row["convenienceFee"]) == 3463
+    assert _paise(row["total"]) == 120873
+
+
+@pytest.mark.parametrize("entry_point", ["submit_request_flow", "flow_payment"])
+def test_exact_price_service_entry_points_do_not_receive_delight_or_auto_fee(engine, entry_point):
+    """Exact-price service contracts remain explicit exceptions to default collection pricing."""
+    module, _keys, _counter, invoices, _items, _payments = engine
+    body = {
+        "referenceId": f"WD-PAY-SERVICE-{entry_point}",
+        "customerPhone": PHONE,
+        "entryPoint": entry_point,
+        "items": [{"name": "Exact service", "amount": 1000.0, "quantity": 1}],
+        "gstRate": 18,
+        "currency": "INR",
+        "fy": FY,
+    }
+
+    status, payload = _created(module, body, request_id=f"req-{entry_point}")
+
+    assert status == 201, payload
+    row = _stored(invoices, payload["invoiceId"])
+    assert _paise(row.get("discount", 0)) == 0
+    assert _paise(row.get("convenienceFee", 0)) == 0
+    assert _paise(row["total"]) == 118000
+
+
 def test_the_additive_path_is_untouched_by_an_expected_total_it_did_not_ask_for(engine):
     """`expectedTotalPaise` alone does nothing. The mode is the flag, and only the flag."""
     module, _keys, _counter, invoices, _items, _payments = engine
