@@ -175,6 +175,8 @@ def _written(env, batch_id: str = "", body: str = GOOD_BODY,
         "seoTitle": f"The given word {header.lower()} | WECARE.DIGITAL",
         "metaDescription": ("What breaks when a commitment fails, read as a question about "
                             "workability rather than about character or good intent."),
+        "excerpt": ("When a given word fails, something that was counting on it moves; "
+                    "repair is restoring that structure, not an apology."),
         "tags": ["integrity"],
         "articleType": "REFLECTION",
         "centralDistinction": DISTINCTION,

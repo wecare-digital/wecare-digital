@@ -201,6 +201,8 @@ def record(n: int = 1, *, gated: bool = True, **overrides):
         "metaDescription": ("Integrity read as structure rather than virtue: what an "
                             "unhonoured word actually moves, and why restoring it is not "
                             "the same as apologising."),
+        "excerpt": ("An unhonoured word moves something structural before it means "
+                    "anything moral, and restoring it is work, not an apology."),
         "articleType": "REFLECTION",
         "imageStatus": "none",
         "centralDistinction": distinct_distinction(n),

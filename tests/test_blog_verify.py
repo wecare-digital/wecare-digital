@@ -103,6 +103,8 @@ def sample_pdf(header: str = "THE GIVEN WORD") -> bytes:
 SEO_TITLE = "The given word | WECARE.DIGITAL"
 META = ("What breaks when a commitment fails, read as a question about workability rather "
         "than about character or good intent.")
+EXCERPT = ("When a given word fails, something that was counting on it moves; repair is "
+           "restoring that structure, not an apology.")
 
 
 def _published(env, batch_id: str = "", header: str = "THE GIVEN WORD") -> Dict[str, Any]:
@@ -131,6 +133,7 @@ def _published(env, batch_id: str = "", header: str = "THE GIVEN WORD") -> Dict[
         "canonical": q.expected_canonical(slug),
         "seoTitle": f"The given word {header.lower()} | WECARE.DIGITAL",
         "metaDescription": META,
+        "excerpt": EXCERPT,
         "tags": ["integrity"],
         "articleType": "REFLECTION",
         "centralDistinction": DISTINCTION,
@@ -176,6 +179,7 @@ def _live_post(slug: str, draft: Dict[str, Any], **overrides: Any) -> Dict[str, 
         "url": f"https://wecare.digital/post/{slug}",
         "seoTitle": str(draft["seoTitle"]),
         "metaDescription": str(draft["metaDescription"]),
+        "excerpt": str(draft.get("excerpt", "")),
         "category": "Conversations",
         "authorName": q.AUTHOR,
         "content": body,

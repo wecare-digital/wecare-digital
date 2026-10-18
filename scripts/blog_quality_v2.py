@@ -1608,6 +1608,11 @@ def check_status_field(record: Dict[str, Any]) -> List[Finding]:
 LEGACY_SOFTENED_CODES: Tuple[str, ...] = (
     "BODY_TOO_THIN", "NO_PARAGRAPH_SPACING", "META_LENGTH", "AI_RHYTHM",
     "GENERIC_SELF_HELP", "CLICKBAIT_OPENING", "FALSE_ANEW_BIOGRAPHY",
+    #: A pre-v2 published article predates the `excerpt` field, so a missing excerpt on it
+    #: is a content-shape gap to rework, not a live defect - softened like the other shape
+    #: codes above. v2 records are NOT legacy, so the Oct-2026 EXCERPT_MISSING hard gate
+    #: still blocks them at full severity; only already-published originals are spared.
+    "EXCERPT_MISSING",
 )
 
 

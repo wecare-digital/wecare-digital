@@ -54,6 +54,8 @@ def good_record(**overrides):
         "metaDescription": ("Integrity read as structure rather than virtue: what an "
                             "unhonoured word actually moves, and why restoring it is not "
                             "the same as apologising."),
+        "excerpt": ("An unhonoured word moves something structural before it means "
+                    "anything moral, and restoring it is work, not an apology."),
         "articleType": "ARTICLE",
         "imageStatus": "none",
         "centralDistinction": ("An unhonoured word is a structural event before it is a "

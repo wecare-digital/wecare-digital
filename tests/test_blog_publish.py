@@ -210,6 +210,8 @@ def _signed(env, batch_id: str = "", header: str = "THE GIVEN WORD") -> str:
         "seoTitle": f"The given word {header.lower()} | WECARE.DIGITAL",
         "metaDescription": ("What breaks when a commitment fails, read as a question about "
                             "workability rather than about character or good intent."),
+        "excerpt": ("When a given word fails, something that was counting on it moves; "
+                    "repair is restoring that structure, not an apology."),
         "tags": ["integrity"],
         "articleType": "REFLECTION",
         "centralDistinction": DISTINCTION,
