@@ -165,7 +165,23 @@ def assess_draft(source_record: Dict[str, Any], draft: Dict[str, Any],
 
     findings = blog_templates.check_article(candidate, template, q) if template else []
     corpus = corpus_index() if with_corpus else None
-    result = q.assess(candidate, corpus, extra_findings=findings)
+
+    #: A published revision must compare against every OTHER published article, not against
+    #: its own live slug. Exclusion is deliberately earned from the persisted publish linkage:
+    #: a merely colliding candidate slug does not qualify. blog_publish.revise repeats the
+    #: post-id/slug check before the write, so this only removes the false self-collision.
+    pipeline = source_record.get("pipeline") or {}
+    candidate_slug = str(candidate.get("slug") or "").strip()
+    post_url = str(pipeline.get("postUrl") or "").split("?", 1)[0].rstrip("/")
+    is_linked_revision = (
+        bool(str(pipeline.get("postId") or "").strip())
+        and str(pipeline.get("publishStatus") or "").strip().upper() == "PUBLISHED"
+        and bool(candidate_slug)
+        and post_url.endswith(f"/post/{candidate_slug}")
+    )
+    corpus_exclude_slug = candidate_slug if is_linked_revision else ""
+    result = q.assess(candidate, corpus, extra_findings=findings,
+                      corpus_exclude_slug=corpus_exclude_slug)
     result["template"] = blog_templates.compliance(candidate, template)
     result["bodySha256"] = body_sha256(draft)
     result["gateResolved"] = bool(signature)
