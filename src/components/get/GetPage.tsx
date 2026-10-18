@@ -107,7 +107,7 @@ export default function FilesPage () {
         {
             clearSession();
             setStage( 'mobile' );
-            setError( 'Your session expired. Please verify again.' );
+            setError( 'Your secure access expired. Please verify again.' );
         } else
         {
             setError( result.failure.message || 'Could not load your files' );

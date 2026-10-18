@@ -473,7 +473,7 @@ response = requests.post(
                     REMOVED on owner instruction - this steps block now carries just the one
                     "Checkout on WhatsApp" pill; the demo link sits below the API code panel. */}
                 <div className="api-steps-ctas">
-                  <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Checkout on WhatsApp &#8594;</a>
+                  <a className="gos-wa-cta" href="https://wecare.digital/grahak-os/">Checkout on WhatsApp &#8594;</a>
                 </div>
                 <ProductBuyBox
                   slug="grahak-os"

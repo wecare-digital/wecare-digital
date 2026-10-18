@@ -106,7 +106,7 @@ describe( 'the prepare body', () => {
     window.localStorage.removeItem( 'wecare.cart.serviceIntent.v1' );
     render( <Cart /> );
     fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
-    await screen.findByText( 'We could not prepare your service. Nothing has been charged. Try again.' );
+    await screen.findByText( 'We could not start your service. Nothing has been charged. Please try again.' );
     expect( prepareBodies ).toHaveLength( 0 );
   } );
 
