@@ -1894,14 +1894,13 @@ def _handle_checkout_template_send(
             'total_amount': total_amount,
         }
 
-        # Add shipping_info for physical-goods
-        if checkout_order_details.get('type', '') == 'physical-goods':
-            shipping_info = checkout_order_details.get('shipping_info')
-            if shipping_info:
-                order_details_action['shipping_info'] = shipping_info
-            else:
-                # Default: empty addresses array — WhatsApp will ask user to add address
-                order_details_action['shipping_info'] = {'country': 'IN', 'addresses': []}
+        # Delivery must already be priced before the payment is reserved. An empty address
+        # chooser advertises a callback that deliberately cannot reprice this payment.
+        if order_details_action['type'] == 'physical-goods':
+            shipping_info = checkout_order_details.get('shipping_info') or {}
+            if not shipping_info.get('addresses'):
+                return _error_response(400, 'Complete delivery details in checkout before requesting payment')
+            order_details_action['shipping_info'] = shipping_info
 
         # Ensure all items have required India compliance fields
         WECARE_IMPORTER = business_identity.meta_importer_fields()

@@ -670,3 +670,25 @@ def test_retired_discount_inputs_refuse_before_number_allocation(engine, extra, 
     assert payload['errorCode'] == code
     assert counter.advances == 0
     assert invoices.numbered == []
+
+
+@pytest.mark.parametrize('changes', [
+    {'shipping': '-1'}, {'shipping': None}, {'handling': ''}, {'handling': 'NaN'}, {'convenienceFee': 'Infinity'},
+    {'greenPacking': '0.001'}, {'notificationFee': '1e9999'},
+    {'gstRate': '101'}, {'items': 'invalid'},
+    {'items': [{'amount': '-1'}]}, {'items': [{'amount': 'NaN'}]},
+    {'items': [{'amount': '0.001'}]}, {'items': [{'amount': '1e9999'}]},
+    {'items': [{'amount': '10', 'quantity': '1.5'}]},
+    {'items': [{'amount': '10', 'quantity': 'Infinity'}]},
+    {'items': [{'amount': '10', 'gstRate': '-1'}]},
+])
+def test_invalid_additive_amounts_refuse_before_allocating_an_invoice(engine, changes):
+    module, _keys, counter, invoices, _items, _payments = engine
+    body = {'items': [{'name': 'Goods', 'amount': '100', 'quantity': 1}],
+            'customerPhone': PHONE, 'fy': FY}
+    body.update(changes)
+    response = module.create_invoice(body, 'invalid-amount')
+    assert response['statusCode'] == 400
+    assert json.loads(response['body'])['errorCode'] == 'INVALID_AMOUNT'
+    assert counter.advances == 0
+    assert invoices.numbered == []

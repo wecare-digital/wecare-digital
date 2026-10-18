@@ -228,7 +228,7 @@ def _get_app_secret(waba_id: str = None, phone_id: str = None) -> str:
     return _token_cache.get(cache_key, '')
 
 
-def _graph_api(endpoint: str, method: str = 'GET', payload: Dict = None, params: Dict = None, waba_id: str = None, phone_id: str = None) -> Dict:
+def _graph_api(endpoint: str, method: str = 'GET', payload: Dict = None, params: Dict = None, waba_id: str = None, phone_id: str = None, timeout: float = 15) -> Dict:
     token = _get_meta_token(waba_id=waba_id, phone_id=phone_id)
     app_secret = _get_app_secret(waba_id=waba_id, phone_id=phone_id)
     url = f'{GRAPH_BASE}/{endpoint}'
@@ -259,7 +259,7 @@ def _graph_api(endpoint: str, method: str = 'GET', payload: Dict = None, params:
     else:
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode('utf-8'))
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8') if e.fp else str(e)
@@ -1179,12 +1179,16 @@ def _direct_send(phone_id: str, body: Dict) -> Dict:
 def _list_payment_templates(waba_id: str) -> Dict:
     """Read every template on this WABA; never treat a partial inventory as approval."""
     rows, after, seen = [], None, set()
-    while True:
+    started = time.monotonic()
+    for page in range(3):
+        if time.monotonic() - started >= 8:
+            return _resp(502, {'error': 'template inventory time budget exceeded'})
         params = {'limit': 200, 'fields': 'name,status,language,category,sub_category'}
         if after:
             params['after'] = after
         result = _graph_api(f'{waba_id}/message_templates', method='GET',
-                            params=params, waba_id=waba_id)
+                            params=params, waba_id=waba_id,
+                            timeout=min(3, max(0.1, 8 - (time.monotonic() - started))))
         if 'error' in result:
             return _resp(502, {'error': 'template list unavailable'})
         rows.extend(result.get('data') or [])
@@ -1192,9 +1196,10 @@ def _list_payment_templates(waba_id: str) -> Dict:
         if not paging.get('next'):
             return _resp(200, {'data': rows})
         after = (paging.get('cursors') or {}).get('after')
-        if not after or after in seen or len(rows) >= 10000:
+        if not after or after in seen:
             return _resp(502, {'error': 'template list incomplete'})
         seen.add(after)
+    return _resp(502, {'error': 'template inventory page budget exceeded'})
 
 
 def _list_generated_templates(waba_id: str) -> Dict:
@@ -4920,73 +4925,8 @@ def _handle_flow_data(body: Dict, request_id: str, origin: str = '') -> Dict:
 # Uses same E2E encryption as WhatsApp Flows (shared /flow-data endpoint).
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Coupon pricing is owned by the cart/invoice redemption authority. The legacy
-# checkout-button callbacks have no reservation or settlement linkage, so they
-# cannot issue offers or change an already-created payment's coupon amount.
-
-# ── Pin-code based shipping rates (paise) ──
-# Zone → base rate. Kolkata (700xxx) is local, rest of WB is regional, others are national.
-# Override per pin prefix for granular control.
-SHIPPING_RATES_PAISE = {
-    'local': 4900,       # ₹49 — Kolkata (700xxx)
-    'regional': 7900,    # ₹79 — West Bengal (71x-74x)
-    'metro': 9900,       # ₹99 — Delhi, Mumbai, Bangalore, Chennai, Hyderabad
-    'national': 14900,   # ₹149 — Rest of India
-    'remote': 24900,     # ₹249 — NE states, J&K, Ladakh, A&N
-}
-
-# Pin prefix → zone mapping
-_PIN_ZONE_MAP = {
-    '700': 'local', '711': 'regional', '712': 'regional', '713': 'regional',
-    '721': 'regional', '722': 'regional', '723': 'regional', '731': 'regional',
-    '732': 'regional', '733': 'regional', '734': 'regional', '735': 'regional',
-    '736': 'regional', '741': 'regional', '742': 'regional', '743': 'regional',
-    # Metros
-    '110': 'metro', '400': 'metro', '560': 'metro', '600': 'metro', '500': 'metro',
-    # Remote / NE
-    '781': 'remote', '782': 'remote', '783': 'remote', '784': 'remote', '785': 'remote',
-    '786': 'remote', '787': 'remote', '788': 'remote', '790': 'remote', '791': 'remote',
-    '792': 'remote', '793': 'remote', '794': 'remote', '795': 'remote', '796': 'remote',
-    '797': 'remote', '798': 'remote', '799': 'remote',
-    '180': 'remote', '181': 'remote', '190': 'remote', '191': 'remote', '192': 'remote',
-    '193': 'remote', '194': 'remote', '744': 'remote',
-}
-
-
-def _get_shipping_zone(pin_code: str) -> str:
-    """Determine shipping zone from 6-digit Indian pin code."""
-    pin = (pin_code or '').strip()[:6]
-    if len(pin) < 3:
-        return 'national'
-    prefix3 = pin[:3]
-    if prefix3 in _PIN_ZONE_MAP:
-        return _PIN_ZONE_MAP[prefix3]
-    # Fallback: check 2-digit prefix for broad state mapping
-    prefix2 = pin[:2]
-    if prefix2 in ('70', '71', '72', '73', '74'):
-        return 'regional'  # West Bengal
-    return 'national'
-
-
-def _calculate_shipping_paise(pin_code: str) -> int:
-    """Calculate shipping cost in paise based on pin code zone."""
-    zone = _get_shipping_zone(pin_code)
-    return SHIPPING_RATES_PAISE.get(zone, SHIPPING_RATES_PAISE['national'])
-
-
-def _recalculate_order_total(order_details: dict) -> int:
-    """Recalculate total_amount from order components.
-    total = subtotal + shipping + tax - discount
-    All values in paise. The `discount` field is the already-applied, server-decided Delight
-    figure frozen on the order; there is no coupon term to subtract here."""
-    order = order_details.get('order', {})
-    subtotal = order.get('subtotal', {}).get('value', 0)
-    shipping = order.get('shipping', {}).get('value', 0)
-    tax = order.get('tax', {}).get('value', 0)
-    discount = order.get('discount', {}).get('value', 0)
-    total = subtotal + shipping + tax - discount
-    return max(total, 0)
-
+# Delivery and Delight are priced before payment reservation by the authoritative checkout.
+# These legacy callbacks only return protocol-shaped refusals; they never reprice a payment.
 
 def _handle_checkout_data_exchange(sub_action: str, data: dict,
                                    version: str, request_id: str) -> dict:

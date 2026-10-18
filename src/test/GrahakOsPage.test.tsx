@@ -255,6 +255,8 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
   // pinned to this section, not to the whole page (the closer carries its own CTA).
   const stepsCtas = source.match( /className="api-steps-ctas">([\s\S]*?)<\/div>/ )?.[ 1 ] || '';
 
+  const home = readFileSync( resolve( process.cwd(), 'src/pages/index.tsx' ), 'utf8' );
+
   it( 'keeps the single WhatsApp CTA and attaches the fresh catalog checkout', () => {
     // The existing WhatsApp door stays exactly once in this steps block, while the fresh
     // catalog checkout is mounted separately without duplicating the visible ₹899 price.
