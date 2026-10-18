@@ -251,7 +251,7 @@ WD_LEAF_LINKS: Dict[str, Tuple[str, str]] = {
     # Refer & Earn children
     'wd_merchandise': ('Merchandise', '/shop/merchandise/'),
     'wd_kiosk': ('Kiosk', '/shop/kiosk/'),
-    'wd_referral': ('Referral', 'https://wa.me/message/7QOFC4QGSGGUC1z'),
+    'wd_referral': ('Referral', 'https://wa.me/message/S6A2QEXZSYXTG1'),
     'wd_contact': ('Contact us', '/contact/'),
     'wd_perks': ('Perks', 'https://wa.me/message/377GALDW4E26F1'),
     # Legal
