@@ -17,11 +17,8 @@ const ruleFor = ( source: string, selector: string ) => {
 
 describe( 'WhatsApp subscribe CTA design', () => {
   /**
-   * THE POST PAGE NO LONGER OWNS A SUBSCRIBE PILL - the owner unified every public surface onto
-   * the ONE global PublicShare block. So the old inline `.blog-wa-subscribe` anchor and its CSS
-   * are gone from src/pages/post/[slug].tsx, and the page renders <PublicShare> instead. This
-   * case therefore asserts the removal on the page AND holds the home-page button contract on the
-   * component that now carries the Subscribe pill (PublicShare's `.ps-subscribe`).
+   * _app owns the one global PublicShare block. The post template owns neither the old inline
+   * Subscribe pill nor a direct PublicShare mount; this also holds the shared dock's button contract.
    */
   it( 'removes the post page own Subscribe pill and keeps the contract on the global PublicShare', () => {
     const page = read( 'src/pages/post/[slug].tsx' );
@@ -30,8 +27,10 @@ describe( 'WhatsApp subscribe CTA design', () => {
     expect( page ).not.toContain( 'className="blog-wa-subscribe"' );
     expect( page ).not.toContain( '.blog-wa-subscribe{' );
     expect( page ).not.toContain( '<span>Subscribe</span>' );
-    // The page renders the global block instead.
-    expect( page ).toContain( '<PublicShare' );
+    // The page does not mount the global block; _app does.
+    expect( page ).not.toContain( '<PublicShare' );
+    const app = read( 'src/pages/_app.tsx' );
+    expect( app ).toContain( '<PublicShare />' );
 
     // Subscribe now shares the compact 48px circular action contract with Contribute and Share.
     const share = read( 'src/components/PublicShare.tsx' );
