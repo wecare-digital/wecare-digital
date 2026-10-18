@@ -51,6 +51,16 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
       expect( cssValue( buyBoxPrice, property ) ).toBe( cssValue( homeCard, property ) );
     }
     expectSameType( '.api-step-line', '.home-flow-list span' );
+
+    // Narrative copy stays on the same dark body colour as Home; only commerce metadata
+    // and policy text are allowed to use --public-muted.
+    expect( cssValue( cssRuleFor( source, '.hero-left p' ), 'color' ) )
+      .toBe( cssValue( cssRuleFor( home, '.home-sub' ), 'color' ) );
+    expect( cssValue( cssRuleFor( source, '.section-header p' ), 'color' ) )
+      .toBe( cssValue( cssRuleFor( home, '.home-flow-lead' ), 'color' ) );
+    expect( cssValue( cssRuleFor( source, '.api-step-line' ), 'color' ) )
+      .toBe( cssValue( cssRuleFor( home, '.home-flow-list span' ), 'color' ) );
+    expect( cssValue( cssRuleFor( source, '.api-desc' ), 'color' ) ).toBe( 'var(--public-body)' );
   } );
 
   it( 'keeps all page controls on the shared 17px / 600 rung', () => {
@@ -157,6 +167,11 @@ describe( 'Grahak OS five approved visual fixes', () => {
     expect( source ).toContain( '.msg.msg-home-amber{background:#fef3c7}' );
     expect( source ).toContain( '.msg.sent.msg-home-green::before{border-top-color:#e0f7c8}' );
     expect( source ).toContain( '.msg.sent.msg-home-blue::before{border-top-color:#dbeafe}' );
+    expect( source ).toContain( '.typing-indicator span{width:7px;height:7px;background:#f0a818' );
+    expect( source ).toContain( '.typing-indicator span:nth-child(2){background:#9849e8' );
+    expect( source ).toContain( '.typing-indicator span:nth-child(3){background:#3da35a' );
+    expect( source ).toContain( '@keyframes typingBubble' );
+    expect( source ).toContain( '.typing-indicator{animation:none}' );
     expect( source ).toContain( '.msg.received.msg-home-amber::before{border-top-color:#fef3c7}' );
     // Renamed .tab -> .pp-tab so the page owns the control outright: the bare .tab
     // class is declared unscoped in Pages.css and Layout.css, which were supplying
@@ -318,6 +333,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( 'disclaimer={ GRAHAK_POLICY.disclaimer }' );
     expect( source ).toContain( 'overview={ null }' );
     expect( source ).toContain( 'refunds={ GRAHAK_REFUNDS }' );
+    expect( source ).toContain( 'showStatutoryRights={ false }' );
     expect( source ).not.toContain( '<details className="gos-policy">' );
     expect( source ).not.toContain( 'PRODUCT_POLICY_TEXT' );
 
