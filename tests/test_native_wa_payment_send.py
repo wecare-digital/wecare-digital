@@ -782,3 +782,11 @@ def test_physical_delivery_is_validated_and_frozen_before_send(engine, fake):
     assert response['statusCode'] == 200, _body(response)
     assert fake.count(ATTEMPTS) == 1
     assert lam.payloads()[0]['checkoutOrderDetails']['shipping_info']['addresses'][0]['in_pin_code'] == '700012'
+
+
+def test_invoice_send_uses_published_outbound_alias(engine, fake):
+    _seed_invoice(fake)
+    lam = _RecordingLambda()
+    response = _drive(engine, fake, lam)
+    assert response['statusCode'] == 200
+    assert lam.sends()[0]['FunctionName'] == 'wecare-outbound-whatsapp:live'

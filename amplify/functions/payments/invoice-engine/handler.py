@@ -3731,7 +3731,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
 
     try:
         wa_response = lambda_client.invoke(
-            FunctionName='wecare-outbound-whatsapp',
+            FunctionName='wecare-outbound-whatsapp:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(wa_payload),
         )
@@ -4650,7 +4650,7 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
 
     try:
         wa_response = lambda_client.invoke(
-            FunctionName='wecare-outbound-whatsapp',
+            FunctionName='wecare-outbound-whatsapp:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(wa_payload),
         )
