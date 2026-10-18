@@ -37,7 +37,7 @@ const NEW_ITEM = (): IR => ( { name: '', unitPrice: '', quantity: '1', gstRate: 
 /*
  * THE ONE BRAND, hardcoded. The owner asked for the brand section removed with WECARE.DIGITAL as
  * the default, so the nine-entry list (BNB Club, No Fault, Expo Week, Ritual Guru, Legal Champ,
- * WECARE.DIGITAL, Gift Card, Service Fee, Consultation) is reduced to one and `loadSavedConfig`
+ * WECARE.DIGITAL, Service Fee, Consultation) is reduced to one and `loadSavedConfig`
  * refuses to restore a saved list over it - otherwise a browser that saved the old config before
  * this change would keep offering all nine forever.
  */
@@ -137,7 +137,7 @@ const fmtDateTime = ( ts: number ) => {
   return new Date( ms ).toLocaleString( 'en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' } );
 };
 const fmtMoney = ( n: number ) => `\u20B9${( n || 0 ).toLocaleString( 'en-IN', { minimumFractionDigits: 2 } )}`;
-/** Integer paise -> a rupee string. The gift-card ledger's unit, formatted without dividing. */
+/** Integer paise -> a rupee string. */
 const fmtPaise = ( paise: number ) => {
   const digits = String( Math.max( 0, Math.trunc( paise || 0 ) ) );
   const whole = digits.length > 2 ? digits.slice( 0, -2 ) : '0';
@@ -837,7 +837,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                     { /* The manual adjustment gets its OWN preview row, and there is deliberately
                          no coupon row beside it: a coupon's value is the server's answer and is
                          not known until the create comes back, so showing one here would mean
-                         computing a discount in the browser. The applied coupon and gift-card
+                         computing a discount in the browser. The applied coupon
                          figures appear above, after the server has decided them. */ }
                     <div className="pf-preview-row"><span>Manual adjustment</span><span>{ '\u2212' }{ fmtMoney( parseFloat( invForm.discount ) || 0 ) }</span></div>
                     <div style={ { marginTop: 8, fontSize: 11, color: '#6b7280', lineHeight: 1.45 } }>
