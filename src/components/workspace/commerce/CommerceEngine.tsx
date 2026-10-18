@@ -49,7 +49,7 @@ const PHONE_ID_OPTIONS: SelectOption[] = WABAS.map(
     w => ( { value: w.phoneId, label: w.label } )
 );
 const GOODS_TYPE_OPTIONS: SelectOption[] = [
-    { value: 'physical-goods', label: 'Physical goods (collect address)' },
+    { value: 'physical-goods', label: 'Physical goods (saved delivery address)' },
     { value: 'digital-goods', label: 'Digital goods' },
 ];
 
@@ -131,6 +131,7 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
             } ) );
         if ( !digits( toPhone ) ) { toast.error( 'Enter a customer phone' ); return; }
         if ( !li.length ) { toast.error( 'Add at least one line item with amount' ); return; }
+        if ( phoneId !== WABAS[ 0 ].phoneId ) { toast.error( 'Select the primary business number for payment collection' ); return; }
         setBusy( 'bill' );
         try
         {

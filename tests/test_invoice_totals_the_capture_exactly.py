@@ -692,3 +692,13 @@ def test_invalid_additive_amounts_refuse_before_allocating_an_invoice(engine, ch
     assert json.loads(response['body'])['errorCode'] == 'INVALID_AMOUNT'
     assert counter.advances == 0
     assert invoices.numbered == []
+
+
+def test_additive_tax_uses_exact_decimal_half_paise_rounding(engine):
+    module, _keys, _counter, invoices, _items, _payments = engine
+    response = module.create_invoice({'customerPhone': PHONE, 'fy': FY,
+        'entryPoint': 'manual', 'items': [{'name': 'Goods', 'amount': '0.10', 'quantity': 1, 'gstRate': 5}]}, 'half-paise')
+    assert response['statusCode'] == 201
+    invoice = invoices.rows[json.loads(response['body'])['invoiceId']]
+    assert invoice['tax'] == Decimal('0.01')
+    assert invoice['total'] == Decimal('0.11')

@@ -383,12 +383,11 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
         postalCode: selCustomer.postalCode || '',
         landmark: selCustomer.landmark || '',
         goodsType: goodsType,
-        items: invForm.items.map( it => ( { name: it.name || config.default_item_name, amount: parseFloat( it.unitPrice ) || 0, quantity: parseInt( it.quantity ) || 1, gstRate: parseFloat( it.gstRate ) || config.default_gst_rate } ) ),
+        items: invForm.items.map( it => ( { name: it.name || config.default_item_name, amount: parseFloat( it.unitPrice ) || 0, quantity: parseInt( it.quantity ) || 1, gstRate: it.gstRate.trim() === '' ? config.default_gst_rate : Number( it.gstRate ) } ) ),
         shipping: parseFloat( invForm.shipping ) || 0,
         gstRate: config.default_gst_rate,
         purpose: DEFAULT_BRAND, orderId: invForm.orderId, gstin: config.gstin,
         preferredGateway: paymentGateway,
-        paymentConfiguration: getPGConfigName( paymentGateway, sendPhone ),
         // No discount is sent: the invoice engine auto-applies the standalone Delight policy
         // (0.5% up to Rs50) server-side. There is no coupon code and no manual adjustment to pass.
       };
@@ -439,19 +438,11 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
      the two Brand choosers it fed: `purposes` is the single entry WECARE.DIGITAL, so the list
      could only ever offer one brand and a placeholder. `config.purposes` is still read by the
      settings tab, so the state it comes from is untouched. */
-  // Map gateway + phone to the correct Meta config name
-  // CRITICAL: Each WABA has its own config names — never cross-WABA
-  const getPGConfigName = ( pg: string, phoneId: string ) => {
-    // Both WABAs now expose the identical pair WECAREDIGITAL / WECAREUPI, so the
-    // phone no longer affects the config name and cross-WABA mixing is impossible.
-    return 'WECAREDIGITAL';
-  };
   const doSendPaymentLink = async ( inv: Invoice ) => {
     setActionLoading( 'send' );
     try
     {
-      const pgConfig = getPGConfigName( paymentGateway, sendPhone );
-      const r = await api.sendPaymentLink( inv.invoiceId, sendPhone, pgConfig || undefined );
+      const r = await api.sendPaymentLink( inv.invoiceId, sendPhone );
       const pgLabel = 'Razorpay';
       const phoneLabel = PHONE_OPTIONS.find( p => p.id === sendPhone )?.label || sendPhone;
       if ( r ) { showMsg( `Sent via ${pgLabel} from ${phoneLabel}` ); loadInvoices(); } else showMsg( 'Send failed', 'error' );
@@ -917,7 +908,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                               options={ pgSelectOptions } style={ DETAIL_SELECT_STYLE } />
                           </div>
                           <Button variant="primary" size="sm" loading={ actionLoading === 'send' } onClick={ () => doSendPaymentLink( selInvoice ) }>
-                            { selInvoice.status === 'pending_payment' ? 'Resend Payment Link' : 'Send Payment Link' }
+                            { selInvoice.status === 'pending_payment' ? 'Retry payment request' : 'Send payment request' }
                           </Button>
                         </>
                       ) }

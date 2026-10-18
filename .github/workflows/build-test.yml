@@ -11,6 +11,7 @@ name: Build and test
 # all, which is why it can safely run on pull requests from any source.
 
 on:
+  merge_group:
   pull_request:
   push:
     branches: [ stack ]

@@ -60,7 +60,7 @@ from lambda_utils.ecommerce import default_coupon
 # Map a contact carries (with a legacy flat-column fallback) rather than re-deriving the address
 # shape here — the same convergence `customer_orders.update_profile` and the WhatsApp Address
 # Message writer are on.
-from lambda_utils.ecommerce import contact_address
+from lambda_utils.ecommerce import contact_address, payment_address
 # The PUBLIC customer id, and the validator that keeps a junk one off a tax invoice. Only
 # `is_customer_uuid` and `ATTRIBUTE` are used here: the engine NEVER mints one, the same rule
 # that stops a renderer minting an invoice number.
@@ -979,17 +979,17 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     # handler already ordered itself this way for `InvoiceSequenceUnavailable`; this extends the
     # same rule to every other refusal.
     items = body.get('items', [])
-    subtotal = sum(float(i.get('amount', 0)) * int(i.get('quantity', 1)) for i in items)
-    discount = float(body.get('discount', 0))
-    green_packing = float(body.get('greenPacking', 0))
-    notification_fee = float(body.get('notificationFee', 0))
+    subtotal = sum((Decimal(str(i.get('amount', 0))) * int(i.get('quantity', 1)) for i in items), Decimal('0'))
+    discount = Decimal(str(body.get('discount', 0)))
+    green_packing = Decimal(str(body.get('greenPacking', 0)))
+    notification_fee = Decimal(str(body.get('notificationFee', 0)))
 
     # Detect if Green Packing / Notification Fee are already in items (new frontend sends them inline)
-    gp_in_items = 0.0
-    nf_in_items = 0.0
+    gp_in_items = Decimal('0')
+    nf_in_items = Decimal('0')
     for it in items:
         nm = (it.get('name', '') or '').lower()
-        it_total = float(it.get('amount', 0)) * int(it.get('quantity', 1))
+        it_total = Decimal(str(it.get('amount', 0))) * int(it.get('quantity', 1))
         if 'green' in nm and 'pack' in nm:
             gp_in_items = it_total
         elif 'notification' in nm or 'alert' in nm:
@@ -997,14 +997,14 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
 
     # If charge items are in the items array, they're already in subtotal — don't add again
     # If sent as separate fields (legacy), add them to total
-    effective_gp = green_packing if gp_in_items == 0 else 0.0
-    effective_nf = notification_fee if nf_in_items == 0 else 0.0
+    effective_gp = green_packing if gp_in_items == 0 else Decimal('0')
+    effective_nf = notification_fee if nf_in_items == 0 else Decimal('0')
 
     # shipping field = express only (greenPacking + notificationFee stored as line items)
-    shipping = float(body.get('shipping', 0)) - green_packing - notification_fee
-    if shipping < 0: shipping = 0.0
-    handling = float(body.get('handling', 0))
-    gst_rate = float(body.get('gstRate', 18))
+    shipping = Decimal(str(body.get('shipping', 0))) - green_packing - notification_fee
+    if shipping < 0: shipping = Decimal('0')
+    handling = Decimal(str(body.get('handling', 0)))
+    gst_rate = Decimal(str(body.get('gstRate', 18)))
 
     # ── Validate: no negative amounts ──
     if subtotal < 0:
@@ -1014,7 +1014,7 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     if gst_rate < 0 or gst_rate > 100:
         return _resp(400, {'error': 'GST rate must be between 0 and 100'})
     for idx_v, it_v in enumerate(items):
-        if float(it_v.get('amount', 0)) < 0:
+        if Decimal(str(it_v.get('amount', 0))) < 0:
             return _resp(400, {'error': f'Item {idx_v+1} amount cannot be negative'})
         if int(it_v.get('quantity', 1)) < 1:
             return _resp(400, {'error': f'Item {idx_v+1} quantity must be at least 1'})
@@ -1101,11 +1101,11 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
             'gstRate': gst_rate,
         }]
     else:
-        tax = sum(
-            float(i.get('amount', 0)) * int(i.get('quantity', 1)) * float(i.get('gstRate', gst_rate)) / 100
+        tax = sum((
+            Decimal(str(i.get('amount', 0))) * int(i.get('quantity', 1)) * Decimal(str(i.get('gstRate', gst_rate))) / 100
             for i in items
-        )
-        tax = round(tax, 2)
+        ), Decimal('0'))
+        tax = tax.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     # ── The always-on Delight discount, applied BEFORE the fee because it is a price change ──
     #
@@ -1140,12 +1140,12 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
             rate = Decimal(str(item.get('gstRate', gst_rate)))
             goods_gross += amount * (Decimal('1') + rate / Decimal('100'))
         delight_discount_paise = default_coupon.delight_paise(
-            _rupees_to_paise(goods_gross))
+            _rupees_to_paise(goods_gross.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)))
         if delight_discount_paise > 0:
             coupon_discount_paise = delight_discount_paise
             coupon_discount_rupees = _paise_to_rupees(coupon_discount_paise)
             stored_coupon_code = default_coupon.DELIGHT_CODE
-            discount = float(coupon_discount_rupees)
+            discount = coupon_discount_rupees
             # Recorded so the receipt and the Meta discount row can name the "Delight" line, but
             # NOT held: a fixed owner policy has no COUPONHOLD#/COUPONUSE#/COUPONREDEEM# and is
             # exempt from the single-use and per-customer limits a campaign coupon would have had.
@@ -1185,9 +1185,9 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
                     'errorCode': 'CONVENIENCE_FEE_MISMATCH',
                 })
 
-        convenience_fee = float(_paise_to_rupees(canonical_fee_paise))
+        convenience_fee = _paise_to_rupees(canonical_fee_paise)
     else:
-        convenience_fee = float(raw_convenience_fee or 0)
+        convenience_fee = Decimal(str(raw_convenience_fee or 0))
 
     total = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax + convenience_fee
 
@@ -1345,9 +1345,9 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     # line appended here would be a line the capture never paid for, and the stored items would
     # stop reconciling to the stored subtotal.
     green_packing = (Decimal('0') if amount_is_tax_inclusive
-                     else float(body.get('greenPacking', 0)))
+                     else Decimal(str(body.get('greenPacking', 0))))
     notification_fee = (Decimal('0') if amount_is_tax_inclusive
-                        else float(body.get('notificationFee', 0)))
+                        else Decimal(str(body.get('notificationFee', 0))))
     if green_packing > 0 and not has_green:
         all_items.append({'name': 'Green Packing', 'amount': green_packing, 'quantity': 1, 'isCharge': True})
     if notification_fee > 0 and not has_notif:
@@ -1358,9 +1358,9 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
                 'invoiceId': invoice_id,
                 'itemIndex': idx,
                 'name': item.get('name', 'Item'),
-                'amount': _dec(float(item.get('amount', 0))),
+                'amount': Decimal(str(item.get('amount', 0))),
                 'quantity': int(item.get('quantity', 1)),
-                'gstRate': _dec(float(item.get('gstRate', gst_rate))),
+                'gstRate': Decimal(str(item.get('gstRate', gst_rate))),
                 'productId': item.get('productId', ''),
                 'isCharge': item.get('isCharge', False),
             })
@@ -3220,6 +3220,31 @@ def _fetch_payment_configurations(waba_id: str) -> Dict[str, Any]:
     return body if isinstance(body, dict) else {}
 
 
+def _payment_delivery_info(invoice: Dict, contact: Optional[Dict], phone: str) -> Optional[Dict]:
+    """Validate delivery before reserving a physical payment; never collect it after pricing."""
+    if invoice.get('goodsType', 'digital-goods') != 'physical-goods':
+        return None
+    contact = contact or {}
+    fields = invoice if invoice.get('addressLine1') else _contact_address_fields(contact)
+    stored = contact.get('checkoutDeliveryAddress') or {}
+    stored = stored if isinstance(stored, dict) else {}
+    country = str(invoice.get('countryCode') or stored.get('countryCode')
+                  or contact.get('countryCode') or 'IN').upper()
+    address = {key: str(fields.get(key) or '').strip()
+               for key in ('addressLine1', 'addressLine2', 'city', 'state', 'postalCode')}
+    address['countryCode'] = country
+    if any(not address[key] for key in ('addressLine1', 'city', 'state', 'postalCode')):
+        raise payment_address.UnpayableAddress('DELIVERY_REQUIRED')
+    payment_address.for_meta_beneficiary(address, recipient_name=str(
+        invoice.get('customerName') or contact.get('contactBookName') or contact.get('name') or 'Customer'))
+    return {'country': country, 'addresses': [{
+        'name': invoice.get('customerName') or contact.get('contactBookName') or contact.get('name') or 'Customer',
+        'phone_number': phone.replace('+', ''), 'address': address['addressLine1'],
+        'city': address['city'], 'state': address['state'], 'in_pin_code': address['postalCode'],
+        'landmark_area': address['addressLine2'],
+    }]}
+
+
 def send_payment_link(invoice_id: str, phone_number_id: str, payment_configuration: str,
                       request_id: str, verify_phone: str = '') -> Dict:
     """Send WhatsApp interactive payment message for a pending invoice.
@@ -3352,7 +3377,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
         # a transparent line item (its own GST is already baked into convenienceFee).
         if conv_paise > 0:
             order_items.append({
-                'name': 'Convenience Fee (2% + GST)',
+                'name': 'Convenience Fee',
                 'amount': {'value': conv_paise, 'offset': 100},
                 'quantity': 1,
                 'retailer_id': f'ITEM_{len(order_items) + 1}',
@@ -3375,6 +3400,12 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
     # Look up contact
     contact = _lookup_contact_by_phone(customer_phone)
     contact_id = (contact.get('contactId') or contact.get('id', '')) if contact else ''
+    try:
+        shipping_info = _payment_delivery_info(invoice, contact, customer_phone)
+    except payment_address.UnpayableAddress as exc:
+        return _resp(400, {'error': 'Save complete payable delivery details before requesting payment. Nothing has been charged.',
+                           'code': 'DELIVERY_REQUIRED', 'field': exc.field})
+
 
     # ── Payment messages go from the SAME phone the customer is chatting with ──
     # CRITICAL: Never cross-WABA — WABA 1 configs only work on WABA 1, WABA 2 on WABA 2.
@@ -3643,43 +3674,8 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
         },
     }
 
-    # ── Address / shipping_info: physical goods ONLY ──
-    if order_type == 'physical-goods':
-        # Pre-fill from the invoice first, then the CONTACT's saved structured
-        # address (captured on a previous Address Message → _handle_address_submission,
-        # which persists addressLine1/city/state/postalCode/landmark on the contact).
-        c = contact or {}
-        a_name = cust_name or c.get('contactBookName') or c.get('name') or 'Customer'
-        # ONE address shape: the invoice's own stored fields win (they were frozen at create), then
-        # the contact's canonical `checkoutDeliveryAddress` Map via `_contact_address_fields`
-        # (legacy flat columns as its fallback), so this pre-fill reads the same source every other
-        # path now does rather than reaching for raw flat columns directly.
-        cf = _contact_address_fields(c)
-        a_line1 = invoice.get('addressLine1') or cf['addressLine1']
-        a_city = invoice.get('city') or cf['city']
-        a_state = invoice.get('state') or cf['state']
-        a_postal = str(invoice.get('postalCode') or cf['postalCode'])
-        a_land = (invoice.get('addressLine2') or invoice.get('landmark')
-                  or cf['addressLine2'])
-        if a_line1 and a_city and a_postal:
-            # Known address → pre-fill so the customer can confirm in one tap.
-            order_details_obj['shipping_info'] = {
-                'country': 'IN',
-                'addresses': [{
-                    'name': a_name,
-                    'phone_number': customer_phone.replace('+', ''),
-                    'address': a_line1,
-                    'city': a_city,
-                    'state': a_state or a_city,
-                    'in_pin_code': a_postal[:6],
-                    'landmark_area': a_land,
-                }],
-            }
-        else:
-            # No address on file → empty array so WhatsApp collects it at checkout
-            # (the submitted address is saved back to the contact on nfm_reply).
-            order_details_obj['shipping_info'] = {'country': 'IN', 'addresses': []}
-    # digital-goods / services: no shipping_info → no address prompt.
+    if shipping_info is not None:
+        order_details_obj['shipping_info'] = shipping_info
 
     wa_payload = {
         'body': json.dumps({
@@ -3687,9 +3683,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             'recipientPhone': customer_phone,
             'phoneNumberId': phone_number_id,
             # ALWAYS use checkout button template (wecarepay_wa) for ALL payments.
-            # This enables: address display, coupon support, real-time pricing.
-            # Meta confirmed checkout endpoint is enabled — no separate linking needed.
-            # Set physical-goods to enable shipping_info + address collection.
+            # Reuse the approved payment template with the frozen invoice and delivery details.
             'isCheckoutTemplate': True,
             'isTemplate': True,
             # ONE home for the approved template name, read from the environment. A gate that

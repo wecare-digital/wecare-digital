@@ -1622,7 +1622,7 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
         raw_reference_id = order_status_details.get('reference_id', '')
         # Sanitize reference_id to remove duplicate WD prefixes
         reference_id = _sanitize_reference_id(raw_reference_id)
-        order_status = order_status_details.get('order_status', 'completed')
+        order_status = order_status_details.get('order_status', 'processing')
 
         # ── `orderStatusDetails.amount` has TWO producers, so this read accepts BOTH keys ──
         #
@@ -1661,7 +1661,7 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
         # just paid that their payment did not work. `completed` maps to `captured`, so the
         # canonical form covers both arms of the original test plus the ones it missed.
         payment_state = pay_status.canonical(order_status)
-        if payment_state == pay_status.CAPTURED:
+        if payment_state == pay_status.CAPTURED and order_status != 'completed':
             # Use description from inbound handler if amount is 0 (fallback)
             if amount_paise > 0:
                 body_text = f"Payment of ₹{amount_display} received successfully! Thank you ✅"
@@ -1671,10 +1671,11 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
             description = "Payment received. Thank you!"
             # Meta's own order_status vocabulary, which is not the payment vocabulary - this is the
             # word that goes back to Meta on the wire, so it stays literal rather than canonical.
-            order_status = 'completed'
+            order_status = 'processing'
         elif payment_state == pay_status.FAILED:
             body_text = "Payment failed. Please try again ❌"
             description = "Payment failed"
+            order_status = 'pending'
         else:
             body_text = order_status_details.get('description', 'Order status updated')
             description = body_text

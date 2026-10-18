@@ -250,7 +250,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
     // Full payment form
     const [ payPhone, setPayPhone ] = useState( PAYMENT_CONFIG.phoneNumberId );
     const [ payItems, setPayItems ] = useState<{ name: string; amount: string; quantity: string; gstRate: string }[]>( [ { name: '', amount: '', quantity: '1', gstRate: '0' } ] );
-    const [ payPromo, setPayPromo ] = useState( '0' );
+    const [ payInvoiceDraft, setPayInvoiceDraft ] = useState<{ key: string; contactId: string; invoice: api.CreateInvoiceEngineResponse } | null>( null );
+    const [ payGoodsType, setPayGoodsType ] = useState<'digital-goods' | 'physical-goods'>( 'digital-goods' );
     const [ payDelivery, setPayDelivery ] = useState( '0' );
     const [ payGstin, setPayGstin ] = useState( DEFAULT_GSTIN );
     const [ payOrderId, setPayOrderId ] = useState( '' );
@@ -705,13 +706,18 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         if ( phoneObj?.paymentProtected && !payUnlocked ) { toast.error( 'Unlock this number first' ); return; }
         const valid = payItems.filter( i => i.name.trim() && parseFloat( i.amount ) > 0 );
         if ( !valid.length ) { toast.error( 'Add at least one item with an amount' ); return; }
+        const draftKey = JSON.stringify( { contactId, items: valid, delivery: payDelivery, goodsType: payGoodsType, orderId: payOrderId, gstin: payGstin } );
+        if ( payInvoiceDraft?.contactId === contactId && payInvoiceDraft.key !== draftKey )
+        {
+            toast.error( 'An invoice already exists for this draft. Resolve it in Pay → Invoices before changing the request.' ); return;
+        }
         setSending( true );
         try
         {
             // Rupees, not paise: `CreateInvoiceEngineRequest.items[].amount` is a rupee figure
             // and the server converts with exact integer arithmetic. No total, no tax and no fee
             // is computed here — every figure on the invoice is the server's.
-            const invoice = await api.createInvoiceEngine( {
+            const invoice = ( payInvoiceDraft?.key === draftKey ? payInvoiceDraft.invoice : null ) || await api.createInvoiceEngine( {
                 customerPhone: phone,
                 customerEmail: '',
                 shippingAddress: '',
@@ -723,13 +729,14 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                     quantity: parseInt( it.quantity ) || 1,
                     gstRate: parseInt( it.gstRate ) || 0,
                 } ) ),
-                discount: parseFloat( payPromo || '0' ) || 0,
+                goodsType: payGoodsType,
                 shipping: parseFloat( payDelivery || '0' ) || 0,
                 gstin: payGstin || DEFAULT_GSTIN,
                 orderId: payOrderId || 'Offline',
                 entryPoint: 'inbox',
             } );
-            if ( !invoice?.invoiceId ) { toast.error( 'Could not raise the invoice' ); return; }
+            if ( !invoice?.invoiceId ) { toast.error( 'Could not raise the invoice. Check Pay → Invoices before trying again.' ); return; }
+            setPayInvoiceDraft( { key: draftKey, contactId, invoice } );
             // The configuration name is NOT defaulted here. Omitted, the server resolves it from
             // the invoice row and then from its own proven expectation.
             const sent = await api.sendPaymentLink( invoice.invoiceId, payPhone );
@@ -737,13 +744,14 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
             {
                 toast.success( `Payment request sent (invoice ${invoice.invoiceNumber})` );
                 setComposer( null );
+                setPayInvoiceDraft( null );
                 setPayItems( [ { name: '', amount: '', quantity: '1', gstRate: '0' } ] );
-                setPayPromo( '0' ); setPayDelivery( '0' ); setPayOrderId( '' );
+                setPayDelivery( '0' ); setPayOrderId( '' );
                 setTimeout( loadData, 800 );
-            } else toast.error( 'Payment send failed' );
-        } catch { toast.error( 'Payment send failed' ); }
+            } else toast.error( `Payment request not confirmed. Invoice ${invoice.invoiceNumber} is retained; resolve it in Pay → Invoices.` );
+        } catch { toast.error( 'Payment request not confirmed. Check Pay → Invoices before creating another invoice.' ); }
         finally { setSending( false ); }
-    }, [ replyTarget, payPhone, payUnlocked, payItems, payPromo, payDelivery, payGstin, payOrderId, toast, loadData ] );
+    }, [ replyTarget, payPhone, payUnlocked, payItems, payGoodsType, payInvoiceDraft, payDelivery, payGstin, payOrderId, toast, loadData ] );
 
     const handleSendCatalog = useCallback( async () => {
         const { contactId } = replyTarget;
@@ -1297,7 +1305,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                             const locked = !!( phoneObj?.paymentProtected && !payUnlocked );
                             const subtotal = payItems.reduce( ( s, it ) => s + ( parseFloat( it.amount ) || 0 ) * ( parseInt( it.quantity ) || 1 ), 0 );
                             const gst = payItems.reduce( ( s, it ) => s + ( parseFloat( it.amount ) || 0 ) * ( parseInt( it.quantity ) || 1 ) * ( parseInt( it.gstRate ) || 0 ) / 100, 0 );
-                            const grand = subtotal + gst + ( parseFloat( payDelivery ) || 0 ) - ( parseFloat( payPromo ) || 0 );
+                            const grand = subtotal + gst + ( parseFloat( payDelivery ) || 0 );
                             return (
                                 <div className="ui-pay">
                                     <div className="ui-pay-title">Request payment</div>
@@ -1346,14 +1354,16 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                     ) ) }
                                     <button type="button" className="ui-pay-additem" onClick={ addPayItem }>+ Add item</button>
                                     <div className="ui-pay-row">
-                                        <div><label className="ui-pay-label">Discount (₹)</label><input className="ui-pay-in" type="number" min="0" step="0.01" value={ payPromo } onChange={ e => setPayPromo( e.target.value ) } /></div>
+                                        <div><label className="ui-pay-label">Goods type</label><Select ariaLabel="Goods type" value={ payGoodsType } onChange={ v => setPayGoodsType( v as 'digital-goods' | 'physical-goods' ) }
+                                            options={ [ { value: 'digital-goods', label: 'Digital goods / services' }, { value: 'physical-goods', label: 'Physical goods' } ] } /></div>
                                         <div><label className="ui-pay-label">Delivery (₹)</label><input className="ui-pay-in" type="number" min="0" step="0.01" value={ payDelivery } onChange={ e => setPayDelivery( e.target.value ) } /></div>
                                     </div>
                                     <div className="ui-pay-row">
                                         <div style={ { flex: 1 } }><label className="ui-pay-label">GSTIN</label><input className="ui-pay-in" placeholder="GSTIN" value={ payGstin } onChange={ e => setPayGstin( e.target.value ) } /></div>
                                         <div style={ { flex: 1 } }><label className="ui-pay-label">Order ID</label><input className="ui-pay-in" placeholder="Offline" value={ payOrderId } onChange={ e => setPayOrderId( e.target.value ) } /></div>
                                     </div>
-                                    <div className="ui-pay-total">Subtotal ₹{ subtotal.toFixed( 2 ) } · GST ₹{ gst.toFixed( 2 ) } · <strong>Total ₹{ grand.toFixed( 2 ) }</strong></div>
+                                    <div className="ui-pay-total">Subtotal ₹{ subtotal.toFixed( 2 ) } · GST ₹{ gst.toFixed( 2 ) } · <strong>Before checkout adjustments ₹{ grand.toFixed( 2 ) }</strong></div>
+                                    <p className="ui-pay-label">The invoice calculates eligible Delight and fees. Physical goods need complete delivery details saved on the contact before payment.</p>
                                     <div className="ui-pay-actions">
                                         <button className="ui-pay-cancel" onClick={ () => setComposer( null ) }>Cancel</button>
                                         <button className="ui-pay-send" disabled={ sending || locked } onClick={ handleSendPayment }>{ sending ? 'Sending…' : 'Send payment request' }</button>
