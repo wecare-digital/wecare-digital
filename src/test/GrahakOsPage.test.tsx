@@ -16,6 +16,60 @@ function cssRuleFor( source: string, selector: string ): string {
   const end = clean.indexOf( '}', bodyStart );
   return end < 0 ? '' : clean.slice( bodyStart, end );
 }
+
+function cssValue( rule: string, property: string ): string {
+  const match = rule.match( new RegExp( property + ':([^;]+)' ) );
+  return match?.[ 1 ]?.trim() || '';
+}
+
+describe( 'Grahak OS typography matches the Home public-page ladder', () => {
+  const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
+  const homePath = resolve( process.cwd(), 'src/pages/index.tsx' );
+  const source = readFileSync( pagePath, 'utf8' );
+  const home = readFileSync( homePath, 'utf8' );
+  const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
+
+  const expectSameType = ( actualSelector: string, homeSelector: string ) => {
+    const actual = cssRuleFor( source, actualSelector );
+    const reference = cssRuleFor( home, homeSelector );
+    for ( const property of [ 'font-size', 'font-weight', 'line-height', 'letter-spacing' ] ) {
+      expect( cssValue( actual, property ) ).toBe( cssValue( reference, property ) );
+    }
+  };
+
+  it( 'shares Home hero, section, card-title and body rungs', () => {
+    expectSameType( '.hero-left h1', '.home-head' );
+    expectSameType( '.hero-left p', '.home-sub' );
+    expectSameType( '.section-header h2,.api-info h2', '.home-flow-title' );
+    expectSameType( '.section-header p', '.home-flow-lead' );
+    expectSameType( '.api-step-title', '.home-flow-list strong' );
+    expectSameType( '.gos-price', '.home-flow-list strong' );
+    expectSameType( '.api-step-line', '.home-flow-list span' );
+    expectSameType( '.gos-offer-note', '.home-flow-list span' );
+    expectSameType( '.gos-policy p', '.home-flow-list span' );
+  } );
+
+  it( 'keeps all page controls on the shared 17px / 600 rung', () => {
+    for ( const selector of [ '.gos-wa-cta', '.api-wa-link', '.pp-tab', '.pp-pill', '.gos-policy summary' ] ) {
+      const rule = cssRuleFor( source, selector );
+      expect( cssValue( rule, 'font-size' ) ).toBe( '17px' );
+      expect( cssValue( rule, 'font-weight' ) ).toBe( '600' );
+    }
+  } );
+
+  it( 'uses one scalable hero tracking value instead of breakpoint-specific pixel tracking', () => {
+    expect( cssRuleFor( source, '.hero-left h1' ) ).toContain( 'letter-spacing:-0.04em' );
+    expect( code ).not.toContain( '.hero-left h1{letter-spacing:' );
+    expect( code ).not.toContain( 'line-height:1.12' );
+  } );
+
+  it( 'preserves code and phone-mock typography as interface exceptions', () => {
+    expect( source ).toContain( ".code-block{margin:0" );
+    expect( source ).toContain( "font-family:'SF Mono',Monaco,Consolas,monospace" );
+    expect( source ).toContain( '.msg{' );
+  } );
+} );
+
 describe( 'Grahak OS five approved visual fixes', () => {
   const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
   const source = readFileSync( pagePath, 'utf8' );
@@ -198,9 +252,9 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( '<p className="gos-offer-note">One-time consultation · full deployment separate</p>' );
     expect( source ).not.toContain( 'AI agents · from deployment to business outcomes' );
     const offerRule = cssRuleFor( source, '.gos-offer-note' );
-    expect( offerRule ).toContain( 'font-size:16px' );
+    expect( offerRule ).toContain( 'font-size:20px' );
     expect( offerRule ).toContain( 'font-weight:400' );
-    expect( offerRule ).toContain( 'color:rgba(0,0,0,.6)' );
+    expect( offerRule ).toContain( 'color:rgba(0,0,0,.898)' );
     expect( source ).not.toContain( 'A consulting solution for organisations and businesses.' );
   } );
 
@@ -226,7 +280,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( '<strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }' );
     expect( source ).toContain( "import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, PRODUCT_SKU_BY_SLUG } from '../../content/productCommerce';" );
     const commerceRule = cssRuleFor( source, '.gos-commerce' );
-    expect( commerceRule ).toContain( 'font-size:15px' );
+    expect( commerceRule ).toContain( 'font-size:17px' );
     expect( commerceRule ).not.toContain( 'border:1px solid' );
     expect( commerceRule ).not.toContain( 'background:#fcfdfb' );
 
@@ -239,13 +293,13 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     const policyBodyRule = cssRuleFor( policyCss, '.gos-policy p' );
     expect( summaryRule ).toContain( 'color:#1a3a2a' );
     expect( summaryRule ).toContain( 'font-family:inherit' );
-    expect( summaryRule ).toContain( 'font-size:15px' );
+    expect( summaryRule ).toContain( 'font-size:17px' );
     expect( summaryRule ).toContain( 'font-weight:600' );
     expect( summaryRule ).toContain( 'background:rgba(209,244,112,.18)' );
     expect( policyBodyRule ).toContain( 'font-family:inherit' );
-    expect( policyBodyRule ).toContain( 'font-size:15px' );
+    expect( policyBodyRule ).toContain( 'font-size:20px' );
     expect( policyBodyRule ).toContain( 'font-weight:400' );
-    expect( policyBodyRule ).toContain( 'line-height:1.55' );
+    expect( policyBodyRule ).toContain( 'line-height:1.4' );
     expect( policyBodyRule ).toContain( 'border-inline-start:3px solid #d1f470' );
     expect( policyCss ).toContain( '.gos-policy summary:hover{background:#d1f470' );
     expect( policyCss ).toContain( '.gos-policy summary:focus-visible{background:#d1f470' );
@@ -256,9 +310,10 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     // Lime disc + dark-green text, the page's own tokens.
     expect( code ).toContain( '.api-step-num{' );
     expect( code ).toContain( 'background:#d1f470;color:#1a3a2a' );
-    // Supporting line uses the muted body token.
+    // Supporting line uses the Home body rung.
     expect( code ).toContain( '.api-step-line{' );
-    expect( code ).toContain( 'color:rgba(0,0,0,.6)' );
+    expect( code ).toContain( 'font-size:20px' );
+    expect( code ).toContain( 'color:rgba(0,0,0,.898)' );
     // No retired colours leak into the step block CSS.
     expect( code ).not.toContain( '#2f6b52' );
     expect( code ).not.toContain( '#075e54' );
@@ -322,7 +377,9 @@ describe( 'Grahak OS: API-panel "Open demo in WhatsApp" link', () => {
     expect( rowRule ).toContain( 'justify-content:flex-start' );
 
     expect( linkRule ).toContain( 'color:#1a3a2a' );
-    expect( linkRule ).toContain( 'font-size:15px' );
+    expect( linkRule ).toContain( 'font-size:17px' );
+    expect( linkRule ).toContain( 'font-weight:600' );
+    expect( linkRule ).toContain( 'line-height:1.4' );
     expect( linkRule ).toContain( 'text-decoration:underline' );
     expect( linkRule ).not.toContain( 'background:#d1f470' );
     expect( linkRule ).not.toContain( 'border:2px solid' );
