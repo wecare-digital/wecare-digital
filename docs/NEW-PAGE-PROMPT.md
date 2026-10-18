@@ -50,9 +50,10 @@ Follow the procedure in this document. Specifically:
    belongs in a text node. aria-hidden subtrees need data-wc-translate="true" to be included.
 
 7. Structure: shared header + footer + widget (automatic for a public route), a <main>
-   landmark, exactly one visible <h1> inside it above the fold, section h2 on the
-   clamp(28px,3.2vw,40px)/700 rung, tracking in em not px, tap targets ≥44px, font stack
-   declared on the component rather than inherited.
+   landmark, exactly one visible <h1> inside it above the fold, and public typography from
+   the canonical --public-* tokens in src/styles/tokens.css (including the section-H2 rung and
+   its tracking). Do not restate those measured values locally. Tap targets ≥44px; font stack
+   comes from --font-sans rather than an invented page-specific stack.
 
 8. Gates, all green before you commit:
    npm run build && npx tsc --noEmit && npx vitest run
