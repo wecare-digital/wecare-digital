@@ -30,6 +30,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 from coupon_fake_dynamo import FakeClientError, FakeTable  # noqa: E402
 from crm_fake_dynamo import FakeDynamo as CrmFakeDynamo  # noqa: E402
 from lambda_utils.ecommerce import checkout_pricing as cp  # noqa: E402
+from lambda_utils.ecommerce import default_coupon  # noqa: E402
 from lambda_utils.ecommerce import order_keys  # noqa: E402
 from lambda_utils.ecommerce import payment_attempt  # noqa: E402
 from lambda_utils.ecommerce import website_checkout  # noqa: E402
@@ -370,9 +371,15 @@ CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
 CART_TABLE = "stack-wecare-digital-CartTable"
 PRODUCTS_TABLE = "stack-wecare-digital-ProductsTable"
 PHONE = "+919330994400"
-#: AWS-native single-unit collection: the product price (native shipping is FREE by default). The
-#: money assertions derive the payable through `compute_quote(NATIVE_COLLECTION_PAISE)`.
+#: AWS-native single-unit collection: the product price (native shipping is FREE by default). A
+#: PRODUCT order carries the always-on Delight goodwill discount (0.5% up to ₹100), applied to the
+#: collection SERVER-SIDE before the convenience fee and GST, so money assertions derive the
+#: payable through `compute_quote(NATIVE_PAYABLE_COLLECTION_PAISE)` — the discounted collection,
+#: computed the same way the handler does.
 NATIVE_COLLECTION_PAISE = 2499900
+NATIVE_PAYABLE_COLLECTION_PAISE = (
+    NATIVE_COLLECTION_PAISE - default_coupon.delight_paise(NATIVE_COLLECTION_PAISE)
+)
 OWNED_ADDRESS = {"addressLine1": "12 Dalhousie Square", "city": "Kolkata",
                  "state": "West Bengal", "postalCode": "700001"}
 
@@ -1609,8 +1616,9 @@ def test_the_stubbed_browser_flow_yields_one_order(rig, monkeypatch):
     assert FIXTURE_SECRET_SENTINEL not in rendered
     assert "key_secret" not in rendered
     assert "keySecret" not in rendered
-    # 5. The amount is the CALCULATOR total, not the raw collection.
-    expected = cp.compute_quote(NATIVE_COLLECTION_PAISE).total_payable_paise
+    # 5. The amount is the CALCULATOR total over the DISCOUNTED collection (Delight applied
+    #    server-side), not the raw collection.
+    expected = cp.compute_quote(NATIVE_PAYABLE_COLLECTION_PAISE).total_payable_paise
     assert options["amountPaise"] == expected
     assert options["amountPaise"] != NATIVE_COLLECTION_PAISE
 
