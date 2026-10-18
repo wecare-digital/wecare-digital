@@ -13,6 +13,7 @@ normal case, not an error), and the five finalization conflict keys are never wr
 """
 from __future__ import annotations
 
+import importlib.util
 import pathlib
 import sys
 from unittest.mock import patch
@@ -51,9 +52,18 @@ def engine(monkeypatch):
     monkeypatch.setenv("COMMERCE_KEYS_TABLE", KEYS_TABLE)
     monkeypatch.setenv("ORDERS_TABLE", ORDERS_TABLE)
     fake = FakeDynamo(keys={KEYS_TABLE: "orderId", ORDERS_TABLE: "orderId"})
-    import importlib
-    import handler as _handler  # noqa: F401 — the inbound handler module
-    importlib.reload(_handler)
+    # Load this exact Lambda by path instead of importing the generic module name
+    # "handler". The full Python suite imports many Lambda handler.py files into the
+    # same interpreter, so sys.modules["handler"] can legitimately point at another
+    # function (for example whatsapp-business-api). Reloading that cached module only
+    # reloads the wrong file. A unique module name makes this fixture order-independent.
+    spec = importlib.util.spec_from_file_location(
+        "flow_link_inbound_handler_under_test",
+        INBOUND_DIR / "handler.py",
+    )
+    assert spec is not None and spec.loader is not None
+    _handler = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(_handler)
     monkeypatch.setattr(_handler, "dynamodb", fake)
     monkeypatch.setattr(_handler, "COMMERCE_KEYS_TABLE", KEYS_TABLE)
     monkeypatch.setattr(_handler.shared_tables, "orders_table_name", lambda: ORDERS_TABLE)
