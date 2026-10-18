@@ -51,7 +51,6 @@ const ROUTES = [
   // The Requests pages, added when the header's six labels stopped all resolving to
   // /contact/. Same shape as the product pages: rotating hero plus one content section.
   '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/leave-review/',
-  '/refer-and-earn/',
   // The catalogue. '/shop/' WAS HERE and was described as "a hero plus a card grid, like /blog/
   // above it". THAT DESCRIPTION IS NO LONGER TRUE: the owner withdrew the index on 2026-10-04, so
   // the route 301s to the home page and there is no hero and no grid to inspect. Removed rather

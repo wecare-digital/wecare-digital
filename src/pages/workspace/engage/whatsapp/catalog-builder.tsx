@@ -259,9 +259,9 @@ function ProductTab ( { acct, toast, confirm }: { acct: typeof ACCOUNTS[ number 
                 <h3 style={ { margin: '0 0 12px', fontSize: 15, color: '#1a3a2a' } }>{ editId ? 'Edit product' : 'New product' }</h3>
                 <div style={ S.grid }>
                     { /* retailer_id is the SKU identity and the update payload cannot change it, so it is read-only while editing */ }
-                    <div><label style={ S.label }>SKU / Retailer ID *</label><input style={ editId ? { ...S.input, background: '#f3f4f6', color: '#6b7280' } : S.input } value={ form.retailerId } disabled={ !!editId } onChange={ e => set( 'retailerId', e.target.value ) } placeholder="WD-PARTNER-UP" /></div>
-                    <div><label style={ S.label }>Name *</label><input style={ S.input } value={ form.name } onChange={ e => set( 'name', e.target.value ) } placeholder="Partner Up" /></div>
-                    <div><label style={ S.label }>{ editId ? 'Price (₹) — sent only if you change it' : 'Price (₹) *' }</label><input style={ S.input } type="number" value={ form.price } onChange={ e => set( 'price', e.target.value ) } placeholder="6999" /></div>
+                    <div><label style={ S.label }>SKU / Retailer ID *</label><input style={ editId ? { ...S.input, background: '#f3f4f6', color: '#6b7280' } : S.input } value={ form.retailerId } disabled={ !!editId } onChange={ e => set( 'retailerId', e.target.value ) } placeholder="PMD9Q3P6" /></div>
+                    <div><label style={ S.label }>Name *</label><input style={ S.input } value={ form.name } onChange={ e => set( 'name', e.target.value ) } placeholder="Merchandise" /></div>
+                    <div><label style={ S.label }>{ editId ? 'Price (₹) — sent only if you change it' : 'Price (₹) *' }</label><input style={ S.input } type="number" value={ form.price } onChange={ e => set( 'price', e.target.value ) } placeholder="1999" /></div>
                     { /* sale_price and brand are create-only — the update payload has no branch for
                          either, so they are hidden while editing rather than reading as editable */ }
                     { !editId && <div><label style={ S.label }>Sale price (₹)</label><input style={ S.input } type="number" value={ form.salePrice } onChange={ e => set( 'salePrice', e.target.value ) } placeholder="4599" /></div> }
@@ -272,7 +272,7 @@ function ProductTab ( { acct, toast, confirm }: { acct: typeof ACCOUNTS[ number 
                             options={ AVAILABILITY_OPTIONS } style={ FIELD_SELECT_STYLE } />
                     </div>
                     <div style={ { gridColumn: '1 / -1' } }><label style={ S.label }>Image URL (public https)</label><input style={ S.input } value={ form.imageUrl } onChange={ e => set( 'imageUrl', e.target.value ) } placeholder="https://wecare.digital/get/o/stream/media/m/wecare-digital.png" /></div>
-                    <div style={ { gridColumn: '1 / -1' } }><label style={ S.label }>Product link</label><input style={ S.input } value={ form.url } onChange={ e => set( 'url', e.target.value ) } placeholder="https://wecare.digital/shop/referral-partner/" /></div>
+                    <div style={ { gridColumn: '1 / -1' } }><label style={ S.label }>Product link</label><input style={ S.input } value={ form.url } onChange={ e => set( 'url', e.target.value ) } placeholder="https://wecare.digital/shop/merchandise/" /></div>
                     <div style={ { gridColumn: '1 / -1' } }><label style={ S.label }>Description</label><input style={ S.input } value={ form.description } onChange={ e => set( 'description', e.target.value ) } placeholder="Short description" /></div>
                 </div>
                 <div style={ { display: 'flex', gap: 8, alignItems: 'center' } }>
