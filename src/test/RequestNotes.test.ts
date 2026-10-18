@@ -42,8 +42,7 @@ const NOTE_RULE = ( /\.pdp-note\{([^}]*)\}/.exec( PRODUCT_PAGE ) ?? [] )[ 1 ];
 const CTAS_RULE = ( /\.pdp-ctas\{([^}]*)\}/.exec( PRODUCT_PAGE ) ?? [] )[ 1 ];
 const CTA_RULE = ( /\.pdp-cta\{([^}]*)\}/.exec( PRODUCT_PAGE ) ?? [] )[ 1 ];
 
-const WITH_NOTE = [ 'request-amendment', 'drop-docs', 'vault', 'request-pickup', 'leave-review',
-  'refer-and-earn' ];
+const WITH_NOTE = [ 'request-amendment', 'drop-docs', 'vault', 'request-pickup', 'leave-review' ];
 
 describe( 'request-page boundary notes', () => {
   it( 'gives every request page but submit-request a note', () => {
