@@ -185,7 +185,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( '<a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>' );
     // The steps block now carries EXACTLY ONE WhatsApp CTA: "Get Started on WhatsApp".
     // The redundant second "Open in WhatsApp" pill here was removed on owner
-    // instruction; the demo link lives only beneath the hero Python panel.
+    // instruction; the demo link lives only beneath the large API code panel.
     const stepsCtaCount = ( stepsCtas.match( /className="gos-wa-cta"/g ) || [] ).length;
     expect( stepsCtaCount ).toBe( 1 );
     expect( stepsCtas ).toContain( 'Get Started on WhatsApp' );
@@ -205,11 +205,10 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     const codeNoComments = source.replace( /\/\*[\s\S]*?\*\//g, '' ).replace( /^\s*\/\/.*$/gm, '' );
     expect( codeNoComments ).not.toContain( 'api-action-link' );
     // The steps block keeps only "Get Started on WhatsApp"; the lighter demo action lives
-    // below the hero Python panel and now uses the crisper "Open in WhatsApp" label.
+    // below the large API code panel and uses the crisper "Open in WhatsApp" label.
     expect( stepsCtas ).not.toContain( 'Open in WhatsApp' );
-    const openInCount = ( source.match( />Open in WhatsApp /g ) || [] ).length;
+    const openInCount = ( source.match( /className="api-wa-link"/g ) || [] ).length;
     expect( openInCount ).toBe( 1 );
-    expect( source ).not.toContain( '>Open in WhatsApp<' );
     // The single remaining steps-block CTA keeps the standard new-tab attributes.
     expect( stepsCtas ).toContain( 'target="_blank"' );
     expect( stepsCtas ).toContain( 'rel="noopener noreferrer"' );
@@ -242,78 +241,69 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
     // Step block ordered before the code panel when the grid stacks.
     expect( code ).toContain( '.api-steps{order:0}' );
-    expect( code ).toContain( '.api-demo{order:1' );
+    expect( code ).toContain( '.api-demo-stack{order:1' );
   } );
 } );
 
 /**
- * The below-code "Open in WhatsApp" link stays a PLAIN INLINE TEXT LINK, but it now shares
- * a .code-stack positioning wrapper with the Python panel itself. That makes "directly below"
- * structural instead of relying on a second row merely having the same width.
+ * The single demo link belongs to the LARGE API editor in the enterprise-outcomes section.
+ * It sits directly below the Python / JavaScript / cURL panel and picks up lime only on
+ * hover/focus, so it stays secondary to the paid WhatsApp CTA.
  */
-describe( 'Grahak OS: below-code "Open in WhatsApp" inline text link', () => {
+describe( 'Grahak OS: API-panel "Open in WhatsApp" link', () => {
   const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
   const source = readFileSync( pagePath, 'utf8' );
   const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
 
-  it( 'renders the inline text link below the Python panel with the exact label and link attributes', () => {
-    expect( source ).toContain( '<div className="code-wa-row">' );
-    expect( source ).toContain( '<a className="code-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Open in WhatsApp <span aria-hidden="true">↗</span></a>' );
-    const linkCount = ( source.match( /className="code-wa-link"/g ) || [] ).length;
+  it( 'renders exactly once directly after the large API code panel', () => {
+    expect( source ).toContain( '<div className="api-demo-stack">' );
+    expect( source ).toContain( '<div className="api-wa-row">' );
+    expect( source ).toContain( '<a className="api-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">' );
+    expect( source ).toContain( 'Open in WhatsApp <span aria-hidden="true">↗</span>' );
+
+    const linkCount = ( source.match( /className="api-wa-link"/g ) || [] ).length;
     expect( linkCount ).toBe( 1 );
+    expect( source ).not.toContain( 'className="code-wa-link"' );
+    expect( source ).not.toContain( 'className="code-wa-row"' );
+
+    const stackStart = source.indexOf( '<div className="api-demo-stack">' );
+    const demoStart = source.indexOf( '<div className="api-demo">', stackStart );
+    const codeStart = source.indexOf( '<pre className="code-block">', demoStart );
+    const rowStart = source.indexOf( '<div className="api-wa-row">', codeStart );
+    expect( stackStart ).toBeGreaterThan( -1 );
+    expect( demoStart ).toBeGreaterThan( stackStart );
+    expect( codeStart ).toBeGreaterThan( demoStart );
+    expect( rowStart ).toBeGreaterThan( codeStart );
   } );
 
-  it( 'styles it as a plain text link and anchors it structurally to the Python panel', () => {
-    const linkRule = cssRuleFor( source, '.code-wa-link' );
-    // Text link: dark-green text, 15px, underlined - no pill surface, border or radius.
+  it( 'uses a lime hover/focus treatment without turning into the paid CTA pill', () => {
+    const stackRule = cssRuleFor( source, '.api-demo-stack' );
+    const rowRule = cssRuleFor( source, '.api-wa-row' );
+    const linkRule = cssRuleFor( source, '.api-wa-link' );
+
+    expect( stackRule ).toContain( 'display:flex' );
+    expect( stackRule ).toContain( 'flex-direction:column' );
+    expect( stackRule ).toContain( 'gap:12px' );
+    expect( rowRule ).toContain( 'justify-content:flex-start' );
+
     expect( linkRule ).toContain( 'color:#1a3a2a' );
     expect( linkRule ).toContain( 'font-size:15px' );
     expect( linkRule ).toContain( 'text-decoration:underline' );
+    expect( linkRule ).not.toContain( 'background:#d1f470' );
     expect( linkRule ).not.toContain( 'border:2px solid' );
     expect( linkRule ).not.toContain( 'border-radius:50px' );
     expect( linkRule ).not.toContain( 'min-height:52px' );
-    expect( linkRule ).not.toContain( 'background:#d1f470' );
-    expect( linkRule ).not.toContain( 'position:absolute' );
 
-    // The Python panel and the link now share one positioning wrapper.
-    const stackStart = source.indexOf( '<div className="code-stack">' );
-    const boxStart = source.indexOf( '<div className="code-box" dir="ltr">', stackStart );
-    const rowStart = source.indexOf( '<div className="code-wa-row">', boxStart );
-    expect( stackStart ).toBeGreaterThan( -1 );
-    expect( boxStart ).toBeGreaterThan( stackStart );
-    expect( rowStart ).toBeGreaterThan( boxStart );
-
-    const stackRule = cssRuleFor( source, '.code-stack' );
-    const rowRule = cssRuleFor( source, '.code-wa-row' );
-    const boxRule = cssRuleFor( source, '.code-box' );
-    expect( stackRule ).toContain( 'position:absolute' );
-    expect( stackRule ).toContain( 'width:60%' );
-    expect( stackRule ).toContain( 'max-width:340px' );
-    expect( stackRule ).toContain( 'bottom:24px' );
-    expect( stackRule ).toContain( 'gap:8px' );
-    expect( rowRule ).toContain( 'width:100%' );
-    expect( rowRule ).not.toContain( 'position:absolute' );
-    expect( boxRule ).toContain( 'position:relative' );
-    expect( boxRule ).toContain( 'width:100%' );
-    const mockupRule = cssRuleFor( source, '.mockup-wrapper' );
-    expect( mockupRule ).toContain( 'min-height:610px' );
-    // The link is now inside the white mockup instead of hanging below it via a negative bottom.
-    expect( stackRule ).not.toContain( 'bottom:-28px' );
-    const visualRule = cssRuleFor( source, '.hero-visual-col' );
-    expect( visualRule ).not.toContain( 'padding-bottom:28px' );
-
-    // A focus-visible ring exists so the link stays keyboard-visible.
-    expect( code ).toContain( '.code-wa-link:focus-visible{' );
-    expect( linkRule ).not.toContain( '#2f6b52' );
-    expect( linkRule ).not.toContain( '#075e54' );
-    expect( source ).not.toContain( 'gos-wa-ghost' );
+    expect( code ).toContain( '.api-wa-link:hover{background:#d1f470' );
+    expect( code ).toContain( 'transform:translateY(-1px)' );
+    expect( code ).toContain( '.api-wa-link:focus-visible{background:#d1f470' );
+    expect( code ).toContain( 'outline:3px solid #1a3a2a' );
   } );
 
-  it( 'keeps the solid lime steps-block pill distinct and untouched', () => {
-    // The only remaining .gos-wa-cta (the api-steps "Get Started" pill) still carries the
-    // solid lime fill - the inline link above is deliberately a different, lighter treatment.
+  it( 'keeps the solid lime paid WhatsApp CTA distinct and untouched', () => {
     const ctaRule = cssRuleFor( source, '.gos-wa-cta' );
     expect( ctaRule ).toContain( 'background:#d1f470' );
+    expect( ctaRule ).toContain( 'border-radius:50px' );
   } );
 } );
 
@@ -322,7 +312,7 @@ describe( 'Grahak OS: below-code "Open in WhatsApp" inline text link', () => {
  * instruction. It had already been stripped to a single "Open in WhatsApp" WhatsApp pill;
  * that duplicate CTA and the whole section are now gone, along with every .gos-closer* CSS
  * rule and the "gos-closer" entrance-animation target. The page's only "Open in WhatsApp"
- * link now lives below the hero code panel (.code-wa-link). The ₹899 price / SKU / policy
+ * link now lives below the large API code panel (.api-wa-link). The ₹899 price / SKU / policy
  * stay in the api-steps block above. These assertions pin the full removal so a revert fails.
  */
 describe( 'Grahak OS: bottom closer section removed entirely', () => {
