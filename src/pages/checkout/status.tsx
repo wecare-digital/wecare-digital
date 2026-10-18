@@ -380,15 +380,15 @@ export default function CheckoutStatus (): React.ReactElement {
           .co-fact{display:flex;flex-direction:column;gap:6px}
           .co-facts dt{
             font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
-            color:rgba(0,0,0,.54);
+            color:var(--public-muted);
           }
           .co-facts dd{
-            margin:0;font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;
-            color:#1a3a2a;font-variant-numeric:tabular-nums;
+            margin:0;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);
+            color:var(--public-brand-green);font-variant-numeric:tabular-nums;
           }
 
           .co-note{
-            margin:0;font-size:16px;line-height:1.55;color:rgba(0,0,0,.54);
+            margin:0;font-size:16px;line-height:1.55;color:var(--public-muted);
           }
           .co-actions{
             margin-block-start:28px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;
@@ -404,22 +404,22 @@ export default function CheckoutStatus (): React.ReactElement {
              node. Without it the compiled rule matches nothing and both render as bare blue
              underlined text. */
           .co-card :global(.co-btn){
-            display:inline-flex;align-items:center;justify-content:center;min-height:52px;
-            padding-inline:26px;border-radius:50px;font-family:inherit;font-size:17px;
-            font-weight:600;text-decoration:none;line-height:normal;
+            display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);
+            padding-inline:26px;border-radius:var(--public-cta-radius);font-family:inherit;font-size:var(--public-cta-font-size);
+            font-weight:var(--public-cta-font-weight);text-decoration:none;line-height:normal;
             transition:background-color .2s,transform .2s,box-shadow .2s;
           }
           .co-card :global(.co-btn-primary){
-            background:#d1f470;border:2px solid #1a3a2a;color:#1a3a2a;
+            background:var(--public-brand-lime);border:var(--public-cta-border) solid var(--public-brand-green);color:var(--public-brand-green);
           }
           .co-card :global(.co-btn-primary:hover){background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
           /* The quiet action is a 2px lime outline rather than a second lime fill, so the page
              still has exactly one lime surface. */
           .co-card :global(.co-btn-quiet){
-            background:#fff;border:2px solid #d1f470;color:#1a3a2a;
+            background:#fff;border:var(--public-cta-border) solid var(--public-brand-lime);color:var(--public-brand-green);
           }
           .co-card :global(.co-btn-quiet:hover){background:rgba(209,244,112,.22)}
-          .co-card :global(.co-btn:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px}
+          .co-card :global(.co-btn:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
 
           @keyframes co-spin{to{transform:rotate(360deg)}}
 
