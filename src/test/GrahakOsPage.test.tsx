@@ -37,7 +37,9 @@ describe( 'Grahak OS five approved visual fixes', () => {
     // Part 2 of the copy polish: the hero sub was rewritten to lead on the unified
     // platform story. Pin a distinctive exact substring of the new RotatingHero `sub`
     // prop so a silent revert to the old "#1 revenue channel" wording fails here.
-    expect( source ).toContain( 'Unify customer data, messaging and AI automation across WhatsApp, SMS, Email and Voice — every conversation connected end to end, driving real outcomes.' );
+    expect( source ).toContain( 'One customer layer for messaging, AI agents and automation—connected across every channel.' );
+    expect( source ).toContain( 'frame="Run customer conversations"' );
+    expect( source ).toContain( 'pillPrefix="across"' );
     // The retired "#1 revenue channel" framing must not reappear in the hero sub.
     expect( source ).not.toContain( 'revenue channel' );
     // The previous longer wording must not silently return.
@@ -164,9 +166,9 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( '<h3 className="api-step-title">Own the result</h3>' );
     // Real, crisp enterprise step lines replaced the DRAFT placeholders. Pin each exactly
     // so a revert to the placeholder copy fails here.
-    expect( source ).toContain( '<p className="api-step-line">Pin the business outcomes that matter and the conversations that drive them.</p>' );
-    expect( source ).toContain( '<p className="api-step-line">AI agents go live on every channel, wired to your customer data for replies that stay in context and on brand.</p>' );
-    expect( source ).toContain( '<p className="api-step-line">Agents resolve conversations end to end and act at the right moment — outcomes measured and tuned to your goals.</p>' );
+    expect( source ).toContain( '<p className="api-step-line">Define the outcomes and conversations that matter.</p>' );
+    expect( source ).toContain( '<p className="api-step-line">Connect AI agents to your channels and customer context.</p>' );
+    expect( source ).toContain( '<p className="api-step-line">Measure, tune and improve outcomes continuously.</p>' );
     // The DRAFT placeholder copy and comment are gone entirely.
     expect( source ).not.toContain( 'DRAFT: Placeholder copy' );
     expect( source ).not.toContain( 'DRAFT PLACEHOLDER COPY' );
@@ -184,29 +186,28 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( 'className="api-steps-ctas"' );
     expect( source ).toContain( '<a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Get Started on WhatsApp &#8594;</a>' );
     // The steps block now carries EXACTLY ONE WhatsApp CTA: "Get Started on WhatsApp".
-    // The redundant second "Open in WhatsApp" pill here was removed on owner
-    // instruction; the demo link lives only beneath the large API code panel.
+    // The redundant second demo pill here was removed on owner instruction; the lighter
+    // "Open demo in WhatsApp" link lives only beneath the large API code panel.
     const stepsCtaCount = ( stepsCtas.match( /className="gos-wa-cta"/g ) || [] ).length;
     expect( stepsCtaCount ).toBe( 1 );
     expect( stepsCtas ).toContain( 'Get Started on WhatsApp' );
-    expect( stepsCtas ).not.toContain( 'Open in WhatsApp' );
+    expect( stepsCtas ).not.toContain( 'Open demo in WhatsApp' );
     expect( source ).toContain( "import ProductBuyBox from '../../components/ProductBuyBox';" );
     expect( source ).toContain( '<ProductBuyBox slug="grahak-os" showPrice={ false } />' );
     // Match /anew/'s compact price-unit pattern: price + product + concise scope on one line.
     expect( source ).toContain( '&#8377;899<span className="gos-price-unit"> · AI agents · from deployment to business outcomes</span>' );
-    // The redundant second explanatory sentence is gone; the compact line carries the meaning.
-    expect( source ).not.toContain( 'gos-price-note' );
+    expect( source ).toContain( '<p className="gos-offer-note">One-time consultation session for outcome mapping and deployment planning. Full solution deployment is separate.</p>' );
     expect( source ).not.toContain( 'A consulting solution for organisations and businesses.' );
   } );
 
-  it( 'has removed the redundant "Open in WhatsApp" demo button FROM THE STEPS BLOCK', () => {
+  it( 'keeps the lighter "Open demo in WhatsApp" action out of the steps block', () => {
     // UNIFIED CTA STYLE (owner instruction): the lighter .api-action-link text-link that
-    // used to carry "Open in WhatsApp" here is long gone (do not reintroduce it).
+    // used to carry the secondary demo action here is long gone (do not reintroduce it).
     const codeNoComments = source.replace( /\/\*[\s\S]*?\*\//g, '' ).replace( /^\s*\/\/.*$/gm, '' );
     expect( codeNoComments ).not.toContain( 'api-action-link' );
     // The steps block keeps only "Get Started on WhatsApp"; the lighter demo action lives
-    // below the large API code panel and uses the crisper "Open in WhatsApp" label.
-    expect( stepsCtas ).not.toContain( 'Open in WhatsApp' );
+    // below the large API code panel and uses the explicit "Open demo in WhatsApp" label.
+    expect( stepsCtas ).not.toContain( 'Open demo in WhatsApp' );
     const openInCount = ( source.match( /className="api-wa-link"/g ) || [] ).length;
     expect( openInCount ).toBe( 1 );
     // The single remaining steps-block CTA keeps the standard new-tab attributes.
@@ -214,12 +215,16 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( stepsCtas ).toContain( 'rel="noopener noreferrer"' );
   } );
 
-  it( 'surfaces the existing SKU and disclaimer from the imported constants, not retyped', () => {
-    // SKU via the imported map; policy via the imported title/text constants.
+  it( 'keeps SKU visible and moves the shared policy into a lightweight disclosure', () => {
     expect( source ).toContain( "PRODUCT_SKU_BY_SLUG['grahak-os']" );
+    expect( source ).toContain( '<details className="gos-policy">' );
+    expect( source ).toContain( '<summary>Policy details</summary>' );
     expect( source ).toContain( '<strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }' );
-    // The imports are present at the top of the file.
     expect( source ).toContain( "import { PRODUCT_POLICY_TEXT, PRODUCT_POLICY_TITLE, PRODUCT_SKU_BY_SLUG } from '../../content/productCommerce';" );
+    const commerceRule = cssRuleFor( source, '.gos-commerce' );
+    expect( commerceRule ).toContain( 'font-size:14px' );
+    expect( commerceRule ).not.toContain( 'border:1px solid' );
+    expect( commerceRule ).not.toContain( 'background:#fcfdfb' );
   } );
 
   it( 'uses only existing design tokens for the step block and introduces no new palette', () => {
@@ -250,7 +255,7 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
  * It sits directly below the Python / JavaScript / cURL panel and picks up lime only on
  * hover/focus, so it stays secondary to the paid WhatsApp CTA.
  */
-describe( 'Grahak OS: API-panel "Open in WhatsApp" link', () => {
+describe( 'Grahak OS: API-panel "Open demo in WhatsApp" link', () => {
   const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
   const source = readFileSync( pagePath, 'utf8' );
   const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
@@ -259,7 +264,7 @@ describe( 'Grahak OS: API-panel "Open in WhatsApp" link', () => {
     expect( source ).toContain( '<div className="api-demo-stack">' );
     expect( source ).toContain( '<div className="api-wa-row">' );
     expect( source ).toContain( '<a className="api-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">' );
-    expect( source ).toContain( 'Open in WhatsApp <span aria-hidden="true">↗</span>' );
+    expect( source ).toContain( 'Open demo in WhatsApp <span aria-hidden="true">↗</span>' );
 
     const linkCount = ( source.match( /className="api-wa-link"/g ) || [] ).length;
     expect( linkCount ).toBe( 1 );
@@ -309,7 +314,7 @@ describe( 'Grahak OS: API-panel "Open in WhatsApp" link', () => {
 
 /**
  * The bottom closer section (<section id="gos-closer">) was REMOVED ENTIRELY on owner
- * instruction. It had already been stripped to a single "Open in WhatsApp" WhatsApp pill;
+ * instruction. It had already been stripped to a single "Open demo in WhatsApp" WhatsApp link;
  * that duplicate CTA and the whole section are now gone, along with every .gos-closer* CSS
  * rule and the "gos-closer" entrance-animation target. The page's only "Open in WhatsApp"
  * link now lives below the large API code panel (.api-wa-link). The ₹899 price / SKU / policy
@@ -372,19 +377,22 @@ describe( 'Grahak OS: "Every touchpoint" pills carry multiple homepage hues', ()
   const source = readFileSync( pagePath, 'utf8' );
   const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
 
-  it( 'keeps the heading, sub-line and the six use-case titles/order unchanged', () => {
+  it( 'keeps the section copy and presents six outcome-led touchpoints', () => {
     expect( source ).toContain( '<h2>Every touchpoint<br/>One seamless experience</h2>' );
     // Sub-line tightened to a crisper, outcome-focused line (em dash dropped). Pin the new
     // exact copy so a revert to the old wording fails here.
     expect( source ).toContain( '<p>Engage, support and convert customers across their entire journey, from first contact to lasting loyalty.</p>' );
     expect( source ).not.toContain( 'Engage, support, and convert customers across their entire journey — from first contact to lasting loyalty' );
-    // The six touchpoints, in order, now carry a hue each - titles and order are frozen.
-    expect( source ).toContain( "{ title: 'Promotional', hue: 'amber' }" );
-    expect( source ).toContain( "{ title: 'Transactional', hue: 'blue' }" );
-    expect( source ).toContain( "{ title: 'Appointments', hue: 'green' }" );
-    expect( source ).toContain( "{ title: 'OTPs', hue: 'purple' }" );
-    expect( source ).toContain( "{ title: 'Orders', hue: 'red' }" );
-    expect( source ).toContain( "{ title: 'Surveys', hue: 'lime' }" );
+    // Outcome-led labels replace feature tags; the concrete examples stay available
+    // via title + aria-label and retain their original hue associations.
+    expect( source ).toContain( "{ title: 'Acquire', example: 'Promotional', hue: 'amber' }" );
+    expect( source ).toContain( "{ title: 'Notify', example: 'Transactional', hue: 'blue' }" );
+    expect( source ).toContain( "{ title: 'Verify', example: 'OTPs', hue: 'purple' }" );
+    expect( source ).toContain( "{ title: 'Support', example: 'Appointments', hue: 'green' }" );
+    expect( source ).toContain( "{ title: 'Transact', example: 'Orders', hue: 'red' }" );
+    expect( source ).toContain( "{ title: 'Retain', example: 'Surveys', hue: 'lime' }" );
+    expect( source ).toContain( 'title={example}' );
+    expect( source ).toContain( 'aria-label={`${title}: ${example}`}' );
   } );
 
   it( 'renders each pill with a data-driven per-hue modifier class', () => {

@@ -95,21 +95,21 @@ const GrahakOsPage: React.FC = () => {
 
   const show = (id: string) => visible.has(id);
 
-  // Six touchpoint pills, each given a distinct hue drawn from the HOMEPAGE's deliberate
-  // 4-subject palette (src/pages/index.tsx CYCLE_WORDS: amber/purple/green/red dot hues)
-  // plus the homepage blue border (#2563eb) and this page's own brand lime (#d1f470).
+  // Six outcome-led touchpoint pills. Each keeps the hue previously associated with its
+  // concrete example, drawn from the HOMEPAGE's deliberate 4-subject palette
+  // (amber/purple/green/red), the homepage blue border and this page's brand lime.
   // No invented colours. Each hue is now a thin COLOURED BORDER on a WHITE background -
   // the earlier filled tint fills were dropped on owner instruction. The pill TEXT stays
   // dark (rgba(0,0,0,.898) / #1a3a2a) on white, so every pill clears WCAG AA - amber
   // (#f0a818, 2.04:1) and green (#3da35a, 3.19:1) are UNSAFE as text and are used only as
   // borders. `hue` maps to a .pp-pill--<hue> modifier class whose CSS lives beside .pp-pill.
   const useCases = [
-    { title: 'Promotional', hue: 'amber' },
-    { title: 'Transactional', hue: 'blue' },
-    { title: 'Appointments', hue: 'green' },
-    { title: 'OTPs', hue: 'purple' },
-    { title: 'Orders', hue: 'red' },
-    { title: 'Surveys', hue: 'lime' },
+    { title: 'Acquire', example: 'Promotional', hue: 'amber' },
+    { title: 'Notify', example: 'Transactional', hue: 'blue' },
+    { title: 'Verify', example: 'OTPs', hue: 'purple' },
+    { title: 'Support', example: 'Appointments', hue: 'green' },
+    { title: 'Transact', example: 'Orders', hue: 'red' },
+    { title: 'Retain', example: 'Surveys', hue: 'lime' },
   ];
 
   // These are real calls, checked against docs/openapi.yaml and the handler rather
@@ -260,7 +260,7 @@ response = requests.post(
       <main className="page">
 
         {/* NO hero CTA. The hero is only the headline, sub and mockup. The single
-            "Open in WhatsApp" demo link now belongs to the large API code panel in the
+            "Open demo in WhatsApp" link now belongs to the large API code panel in the
             enterprise-outcomes section below, while paid checkout stays in the api-steps
             block. RotatingHero's children slot is left unset. */}
         <RotatingHero
@@ -268,10 +268,10 @@ response = requests.post(
           noShare
           ariaLabel="Grahak OS"
           badgeLabel="Grahak OS by WECARE.DIGITAL"
-          frame="Reach customers"
+          frame="Run customer conversations"
           pillPrefix="across"
           words={ cycleWords }
-          sub={ <>Unify customer data, messaging and AI automation across WhatsApp, SMS, Email and Voice — every conversation connected end to end, driving real outcomes.</> }
+          sub={ <>One customer layer for messaging, AI agents and automation—connected across every channel.</> }
           visual={ (
           <div className="hero-right">
             <div className="hero-visual-col">
@@ -406,8 +406,15 @@ response = requests.post(
               <p>Engage, support and convert customers across their entire journey, from first contact to lasting loyalty.</p>
             </div>
             <div className="usecase-pills">
-              {useCases.map(({ title, hue }) => (
-                <span key={title} className={`pp-pill pp-pill--${hue}`}>{title}</span>
+              {useCases.map(({ title, example, hue }) => (
+                <span
+                  key={title}
+                  className={`pp-pill pp-pill--${hue}`}
+                  title={example}
+                  aria-label={`${title}: ${example}`}
+                >
+                  {title}
+                </span>
               ))}
             </div>
           </div>
@@ -431,21 +438,21 @@ response = requests.post(
                   <span className="api-step-num" aria-hidden="true">1</span>
                   <div className="api-step-body">
                     <h3 className="api-step-title">Map the outcomes</h3>
-                    <p className="api-step-line">Pin the business outcomes that matter and the conversations that drive them.</p>
+                    <p className="api-step-line">Define the outcomes and conversations that matter.</p>
                   </div>
                 </li>
                 <li className="api-step">
                   <span className="api-step-num" aria-hidden="true">2</span>
                   <div className="api-step-body">
                     <h3 className="api-step-title">Deploy the agents</h3>
-                    <p className="api-step-line">AI agents go live on every channel, wired to your customer data for replies that stay in context and on brand.</p>
+                    <p className="api-step-line">Connect AI agents to your channels and customer context.</p>
                   </div>
                 </li>
                 <li className="api-step">
                   <span className="api-step-num" aria-hidden="true">3</span>
                   <div className="api-step-body">
                     <h3 className="api-step-title">Own the result</h3>
-                    <p className="api-step-line">Agents resolve conversations end to end and act at the right moment — outcomes measured and tuned to your goals.</p>
+                    <p className="api-step-line">Measure, tune and improve outcomes continuously.</p>
                   </div>
                 </li>
               </ol>
@@ -464,12 +471,16 @@ response = requests.post(
                 </div>
                 <ProductBuyBox slug="grahak-os" showPrice={ false } />
                 <p className="gos-price" data-wc-no-translate="true">&#8377;899<span className="gos-price-unit"> · AI agents · from deployment to business outcomes</span></p>
-                {/* Same mechanism as the api-steps block above: SKU via the imported
-                    PRODUCT_SKU_BY_SLUG map and the policy via PRODUCT_POLICY_TITLE /
-                    PRODUCT_POLICY_TEXT - not retyped. */}
+                <p className="gos-offer-note">One-time consultation session for outcome mapping and deployment planning. Full solution deployment is separate.</p>
+                {/* SKU stays visible; the standard policy remains available without dominating
+                    an enterprise consulting offer. The policy text still comes from the shared
+                    productCommerce constants so this page cannot drift from checkout policy. */}
                 <div className="gos-commerce">
                   <p data-wc-no-translate="true"><strong>SKU:</strong> { PRODUCT_SKU_BY_SLUG['grahak-os'] }</p>
-                  <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }</p>
+                  <details className="gos-policy">
+                    <summary>Policy details</summary>
+                    <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }</p>
+                  </details>
                 </div>
               </div>
             </div>
@@ -484,7 +495,7 @@ response = requests.post(
               </div>
               <div className="api-wa-row">
                 <a className="api-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">
-                  Open in WhatsApp <span aria-hidden="true">↗</span>
+                  Open demo in WhatsApp <span aria-hidden="true">↗</span>
                 </a>
               </div>
             </div>
@@ -507,13 +518,13 @@ response = requests.post(
         {/* OTP / Verifications section REMOVED on owner instruction. Its content overlapped the
             touchpoint "OTPs" pill and the capabilities strip, and the dedicated section was not
             needed. The QR lived only in this section and goes with it; the WhatsApp CTA remains
-            beneath the API code panel as "Open in WhatsApp" and the API section also keeps its
+            beneath the API code panel as "Open demo in WhatsApp" and the API section also keeps its
             "Get Started on WhatsApp" pill. If the QR is ever wanted back, the verified asset is
             still at public/images/grahak-os-whatsapp-qr.svg. */}
 
         {/* The bottom closer section (<section id="gos-closer">) was REMOVED here on owner
             instruction. It had been stripped to a single "See it on WhatsApp" WhatsApp pill;
-            that duplicate CTA is gone, and the page's only "Open in WhatsApp" demo link now lives
+            that duplicate CTA is gone, and the page's only "Open demo in WhatsApp" link now lives
             directly below the large API code panel (.api-wa-link). The .gos-closer* CSS and the
             gos-closer entrance-animation target went with it; a test guards the removal by
             substring. The api-steps "Get Started on WhatsApp" pill and the ₹899 price/SKU/policy
@@ -656,6 +667,7 @@ response = requests.post(
              above it matches the CTA row's own top gap, same as .pdp-price / .pbb-price. */
           .gos-price{display:block;margin-top:22px;font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
           .gos-price-unit{font-size:16px;font-weight:400;color:rgba(0,0,0,.6);letter-spacing:-.125px}
+          .gos-offer-note{max-width:620px;margin:9px 0 0;font-size:15px;font-weight:500;line-height:1.5;color:rgba(0,0,0,.68)}
           @media(prefers-reduced-motion:reduce){
             .gos-wa-cta{transition:background-color .2s}
             .gos-wa-cta:hover{transform:none;box-shadow:none}
@@ -672,7 +684,7 @@ response = requests.post(
              entrance through the phase prop. */
 
           /* THE HEADLINE MUST NOT CHANGE HEIGHT WHEN THE PILL CHANGES WORD. The h1 reads
-             "Reach customers / across <pill>" and the pill animates to each word's measured
+             "Run customer conversations / across <pill>" and the pill animates to each word's measured
              width ("SMS" to "WhatsApp" is a ~146px spread), so on a narrow screen the pill
              stops fitting beside "across", the line re-breaks and the h1 grows - which jumps
              everything below it on every rotation. The fix is to give the pill its own line
@@ -697,13 +709,15 @@ response = requests.post(
              .gos-commerce / .gos-price below are still used by the api-steps block above, so
              their rules stay. */
           .gos-commerce{
-            margin-top:22px;max-width:700px;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
-            background:#fcfdfb;font-size:17px;font-weight:400;line-height:1.55;
-            letter-spacing:-.05px;color:rgba(0,0,0,.898);text-align:left;
+            margin-top:14px;max-width:700px;font-size:14px;font-weight:400;line-height:1.5;
+            letter-spacing:0;color:rgba(0,0,0,.58);text-align:left;
           }
           .gos-commerce strong{color:#1a3a2a;font-weight:700}
           .gos-commerce p{margin:0}
-          .gos-commerce p + p{margin-top:12px}
+          .gos-policy{margin-top:8px}
+          .gos-policy summary{width:max-content;cursor:pointer;color:#1a3a2a;font-weight:650;text-decoration:underline;text-underline-offset:3px}
+          .gos-policy summary:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;border-radius:4px}
+          .gos-policy p{max-width:640px;margin-top:10px;color:rgba(0,0,0,.58)}
           /* The .gos-closer-head rule was REMOVED with the closer heading markup on owner
              instruction (the "Transform customer engagement with Grahak OS" h2 is gone). */
 
