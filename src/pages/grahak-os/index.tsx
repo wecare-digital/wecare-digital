@@ -14,6 +14,7 @@ import { productPolicyCopy } from '../../content/productCommerce';
 import { productCheckoutLine } from '../../config/productCheckout';
 
 const GRAHAK_POLICY = productPolicyCopy( 'grahak-os', 'Grahak OS' );
+const GRAHAK_REFUNDS = 'Cancellation may not be available once work has started. Eligible approved cancellations or adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days. We do not issue cash or original-payment-method refunds unless applicable law requires otherwise.';
 const GRAHAK_CHECKOUT = productCheckoutLine( 'grahak-os' );
 const GRAHAK_DISPLAY_PRICE = GRAHAK_CHECKOUT?.formattedPrice.replace( /\.00$/, '' ) ?? null;
 const GRAHAK_SKU = GRAHAK_CHECKOUT?.variantId ?? null;
@@ -492,6 +493,8 @@ response = requests.post(
                     shipping={ GRAHAK_POLICY.shipping }
                     returns={ GRAHAK_POLICY.returns }
                     disclaimer={ GRAHAK_POLICY.disclaimer }
+                    overview={ null }
+                    refunds={ GRAHAK_REFUNDS }
                   />
                 </div>
               </div>
@@ -586,7 +589,7 @@ response = requests.post(
              margin-left:calc(50% - 50vw) and their inner started its 24px from 0 = 24px.
              Measured in a browser at 1280px: hero text 36px, strip items 24px. At 1440px
              they agreed only because both inner boxes were centred rather than padded. */
-          .page{min-height:100vh;padding:0;background:#fff;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1a1a;overflow-x:hidden}
+          .page{min-height:100vh;padding:0;background:var(--public-bg);font-family:var(--font-sans);color:var(--public-text);overflow-x:hidden}
           @supports (overflow-x:clip){
             .page{overflow-x:clip}
           }
@@ -940,7 +943,7 @@ response = requests.post(
           .section-header p{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0;text-align:center;width:100%}
           
           /* Touchpoint Section */
-          .touchpoint{padding:60px 0;background:#fff}
+          .touchpoint{padding:60px 0;background:var(--public-bg)}
           /* Grid, not wrapped flex, so the six use cases land 3 + 3 deterministically.
              Under flex with a 700px cap they broke 4 + 2 — the first row fitted four
              pills at ~607px and the fifth pushed past the cap — which reads as a wrap
@@ -969,7 +972,7 @@ response = requests.post(
           .pill:hover{border-color:var(--public-brand-lime);color:var(--public-brand-green);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
           
           /* API Section */
-          .api{padding:60px 24px;max-width:var(--public-content-max);margin:0 auto;background:#fff}
+          .api{padding:60px 24px;max-width:var(--public-content-max);margin:0 auto;background:var(--public-bg)}
           /* start, not center. The left column is ~200px tall against a ~360px code
              panel, so centring dropped the heading roughly 80px below the panel's top
              edge and the text read as floating rather than as the other half of a pair.
@@ -996,7 +999,7 @@ response = requests.post(
           .api-action{margin:36px 0 0;max-width:460px}
           /* h3 on the card-heading rung (22px/700), one step below the section h2 above
              it in the same column, so the outline is h2 -> h3 with no skipped level. */
-          .api-action-head{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:rgba(0,0,0,.95);margin:0 0 16px}
+          .api-action-head{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading);margin:0 0 16px}
           /* The .api-action-link lighter text-link CSS was REMOVED with its markup: every
              WhatsApp CTA now uses the single unified .gos-wa-cta pill (owner instruction),
              so the second style is dead. A test guards that the class name no longer
@@ -1017,7 +1020,7 @@ response = requests.post(
           .api-step-body{min-width:0}
           /* Card-heading rung (22px/700), one step below the section h2 in the same
              column, so the outline is h2 -> h3 with no skipped level. */
-          .api-step-title{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:rgba(0,0,0,.95);margin:0 0 6px}
+          .api-step-title{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading);margin:0 0 6px}
           /* Supporting line uses the same 20px body rung as Home. */
           .api-step-line{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0}
           /* Buy block: WhatsApp checkout pill, then price + muted supporting note, then SKU
@@ -1377,7 +1380,7 @@ response = requests.post(
              sections keep width:100vw and the centring negative margin so their content
              still aligns on the page's left line via .pp-inner - but with no background
              they simply read as white like every other section. */
-          #touchpoint{max-width:none;width:100vw;margin-left:calc(50% - 50vw);background:#fff}
+          #touchpoint{max-width:none;width:100vw;margin-left:calc(50% - 50vw);background:var(--public-bg)}
           /* 1252px, not 1300px, and the difference is the point. A section like .hero is a
              1300px box with 24px padding, so its CONTENT starts at 1300-48 = 1252px wide.
              The full-bleed sections put their padding on the outer 100vw element and then
@@ -1425,11 +1428,11 @@ response = requests.post(
              floor; the amber (2.04:1) and green (3.19:1) hues that fail as text are used
              ONLY as borders here, never as the text colour. */
           .pp-pill{display:inline-flex;align-items:center;justify-content:center;padding:14px 28px;border:2px solid var(--public-hairline);background:#fff;border-radius:50px;font-size:17px;font-weight:600;cursor:default;transition:all .25s;color:var(--public-body)}
-          .pp-pill--amber{border-color:#f0a818;background:#fff}
-          .pp-pill--blue{border-color:#2563eb;background:#fff}
-          .pp-pill--green{border-color:#3da35a;background:#fff}
-          .pp-pill--purple{border-color:#9849e8;background:#fff}
-          .pp-pill--red{border-color:#dc2626;background:#fff}
+          .pp-pill--amber{border-color:#f0a818;background:var(--public-bg)}
+          .pp-pill--blue{border-color:#2563eb;background:var(--public-bg)}
+          .pp-pill--green{border-color:#3da35a;background:var(--public-bg)}
+          .pp-pill--purple{border-color:#9849e8;background:var(--public-bg)}
+          .pp-pill--red{border-color:#dc2626;background:var(--public-bg)}
           .pp-pill--lime{border-color:var(--public-brand-lime);background:#fff;color:var(--public-brand-green)}
           .pp-pill:hover{transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
 
