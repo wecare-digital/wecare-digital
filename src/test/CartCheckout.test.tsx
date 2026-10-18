@@ -891,7 +891,7 @@ describe( 'the cart page proceed flow', () => {
     // same words as the disabled gate rather than a near-miss paraphrase. Note the server's own
     // `message` field is deliberately NOT rendered: the copy on this page is ours to control.
     expect( await screen.findByText(
-      'We could not prepare this order. No charge was made - please try again shortly.',
+      'We could not start this order. No charge was made. Please try again shortly.',
     ) ).toBeTruthy();
     // It did not pretend to succeed or navigate away.
     expect( navigatedTo ).toBe( '' );
