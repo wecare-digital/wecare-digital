@@ -5,12 +5,12 @@ describe( 'shared product policy summary', () => {
   it( 'stays concise and aligned with the Terms refund remedies', () => {
     expect( PRODUCT_POLICY_TITLE ).toBe( 'Shipping, cancellation & refunds' );
     expect( PRODUCT_POLICY_TEXT ).toBe(
-      'Shipping or fulfilment timing depends on the product or service. Cancellation may not be available once work, processing or customisation has started. Where a refund or other remedy is available, it is handled under the applicable service terms and law and may include the original payment method, store credit, replacement or rescheduling.'
+      'Shipping or fulfilment timing depends on the product or service. Cancellation may not be available once work, processing or customisation has started. For voluntary cancellations or discretionary adjustments, cash refunds and refunds to the original payment method are not available; where eligible, we issue WECARE.DIGITAL store credit instead. This does not limit any refund, replacement or other remedy required by applicable law.'
     );
 
-    expect( PRODUCT_POLICY_TEXT ).toContain( 'original payment method' );
-    expect( PRODUCT_POLICY_TEXT ).toContain( 'applicable service terms and law' );
-    expect( PRODUCT_POLICY_TEXT ).not.toContain( 'Cash refunds are not available' );
-    expect( PRODUCT_POLICY_TEXT ).not.toContain( 'store credit valid for 30 days' );
+    expect( PRODUCT_POLICY_TEXT ).toContain( 'cash refunds and refunds to the original payment method are not available' );
+    expect( PRODUCT_POLICY_TEXT ).toContain( 'WECARE.DIGITAL store credit instead' );
+    expect( PRODUCT_POLICY_TEXT ).toContain( 'required by applicable law' );
+    expect( PRODUCT_POLICY_TEXT ).not.toContain( 'valid for 30 days' );
   } );
 } );
