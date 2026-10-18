@@ -18,12 +18,7 @@
 
 const { launch, gotoStable } = require( './lib/browser' );
 const { target } = require( './lib/serve' );
-
-const PUBLIC_ROUTES = [
-  '/', '/grahak-os', '/vayulok', '/contact', '/terms', '/privacy',
-  '/orders', '/bharat-rx', '/elsewhere', '/expo-week', '/dastavez',
-  '/clear-closure', '/ritual-guru', '/anew', '/niji-setu',
-];
+const { PUBLIC_ROUTES } = require( './lib/public-routes' );
 
 // The one stack the public pages declare (index.tsx / Pages). Anything else is a leak.
 function normFamily( f ) {

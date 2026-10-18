@@ -272,8 +272,10 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( '<p className="gos-offer-note">One-time consultation · full deployment separate</p>' );
     expect( source ).not.toContain( 'AI agents · from deployment to business outcomes' );
     const offerRule = cssRuleFor( source, '.gos-offer-note' );
-    expect( offerRule ).toContain( 'font-size:17px' );
-    expect( offerRule ).toContain( 'font-weight:400' );
+    expect( cssValue( offerRule, 'font-size' ) ).toBe( cssValue( cssRuleFor( home, '.home-sub' ), 'font-size' ) );
+    expect( cssValue( offerRule, 'font-weight' ) ).toBe( cssValue( cssRuleFor( home, '.home-sub' ), 'font-weight' ) );
+    expect( cssValue( offerRule, 'line-height' ) ).toBe( cssValue( cssRuleFor( home, '.home-sub' ), 'line-height' ) );
+    expect( cssValue( offerRule, 'letter-spacing' ) ).toBe( cssValue( cssRuleFor( home, '.home-sub' ), 'letter-spacing' ) );
     expect( offerRule ).toContain( 'color:var(--public-muted)' );
     expect( source ).not.toContain( 'A consulting solution for organisations and businesses.' );
   } );
@@ -311,8 +313,17 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( commerceRule ).toContain( 'font-size:17px' );
     expect( commerceRule ).not.toContain( 'border:1px solid' );
     expect( commerceRule ).not.toContain( 'background:#fcfdfb' );
-    expect( source ).toContain( '.gos-offer-note{max-width:620px;margin:7px 0 0;font-size:17px' );
+    expect( source ).toContain( '.gos-offer-note{max-width:620px;margin:7px 0 0;font-size:var(--public-body-size)' );
     expect( source ).toContain( '.gos-sku-value{color:var(--public-muted)}' );
+  } );
+
+  it( 'does not restate the public typography contract as literals', () => {
+    const contract = source.slice( source.indexOf( 'TYPOGRAPHY CONTRACT' ) );
+    expect( contract ).toContain( 'font-size:var(--public-section-size)' );
+    expect( contract ).toContain( 'font-size:var(--public-body-size)' );
+    expect( contract ).not.toContain( 'font-size:clamp(28px,3.2vw,40px)' );
+    expect( contract ).not.toContain( 'font-size:20px;line-height:1.4;letter-spacing:-.125px' );
+    expect( source ).not.toContain( '.section-header h2{margin-bottom:12px;line-height:1.15' );
   } );
 
   it( 'uses only existing design tokens for the step block and introduces no new palette', () => {

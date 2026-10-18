@@ -116,3 +116,18 @@ def test_retired_public_url_literals_are_absent_repo_wide():
         "Retired customer-facing URL literals must be completely absent from tracked text. "
         "Use current child/workspace/API destinations instead.\n" + "\n".join(found)
     )
+
+
+def test_browser_font_audits_derive_routes_from_canonical_public_catalogue():
+    helper = ROOT / "tools/browser/lib/public-routes.js"
+    helper_text = helper.read_text(encoding="utf-8")
+    assert "config/public-pages.json" in helper_text
+
+    for rel in (
+        "tools/browser/measure-fonts-detail.js",
+        "tools/browser/measure-fonts-sitewide.js",
+    ):
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        assert "public-routes" in text, f"{rel} must consume the canonical public route helper"
+        assert "const ROUTES = [" not in text, f"{rel} must not keep a parallel hard-coded route list"
+        assert "const PUBLIC_ROUTES = [" not in text, f"{rel} must not keep a parallel hard-coded route list"
