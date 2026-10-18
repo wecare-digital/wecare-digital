@@ -191,8 +191,8 @@ const CONTRIBUTION_NOT_PAYABLE_MESSAGE =
   'Contributions cannot be taken right now. Nothing has been charged.';
 /**
  * Discounts are payment facts, not cart decoration. The live checkout has no redemption
- * endpoint today, Delight is not seeded in the live CouponsTable, and gift-card infrastructure
- * is not provisioned. This page therefore exposes status only and never a dead Apply control.
+ * endpoint today and Delight is not seeded in the live CouponsTable. This page therefore
+ * exposes status only and never a dead Apply control.
  */
 /** Where an unauthenticated shopper is sent, and returned from, before checkout. */
 const SIGN_IN_PATH = '/account/sign-in/?return=/cart/';
@@ -531,7 +531,7 @@ function ContributionAmount (
 
 function RedemptionPanel (): React.ReactElement {
   return (
-    <section className="cart-redeem" aria-label="Discounts and gift cards">
+    <section className="cart-redeem" aria-label="Discounts">
       <div className="cart-capability cart-capability-delight">
         <span className="cart-capability-icon" aria-hidden="true">local_offer</span>
         <div>
@@ -539,16 +539,9 @@ function RedemptionPanel (): React.ReactElement {
           <p>Temporarily unavailable. No discount has been applied to this cart.</p>
         </div>
       </div>
-      <div className="cart-capability cart-capability-gift">
-        <span className="cart-capability-icon" aria-hidden="true">redeem</span>
-        <div>
-          <strong>Gift cards</strong>
-          <p>Not available yet. A gift-card code cannot be used for payment right now.</p>
-        </div>
-      </div>
       <style jsx>{`
         .cart-redeem{
-          display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;
+          display:grid;grid-template-columns:minmax(0,1fr);gap:12px;
           margin:28px 0 0;padding:20px 0 0;border-block-start:1px solid #e5e7eb;
         }
         .cart-capability{
@@ -556,7 +549,6 @@ function RedemptionPanel (): React.ReactElement {
           min-height:96px;padding:18px;border:1px solid #e5e7eb;border-radius:16px;box-sizing:border-box;
         }
         .cart-capability-delight{background:#fef3c7}
-        .cart-capability-gift{background:#ede9fe}
         .cart-capability-icon{
           width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;
           border-radius:12px;background:#fff;color:#1a3a2a;
@@ -565,9 +557,6 @@ function RedemptionPanel (): React.ReactElement {
         }
         .cart-capability strong{display:block;color:#1a3a2a;font-size:16px;line-height:1.3}
         .cart-capability p{margin:5px 0 0;color:rgba(0,0,0,.72);font-size:14px;line-height:1.45}
-        @media(max-width:640px){
-          .cart-redeem{grid-template-columns:1fr}
-        }
       `}</style>
     </section>
   );

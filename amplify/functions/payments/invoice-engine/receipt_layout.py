@@ -125,7 +125,7 @@ def render(invoice, items, *, company, font_path, ist_strftime, canonical_status
             pair(label, money(invoice[key]))
     sep(True)
     pair(f'TOTAL ({quantity} ITEMS)', money(invoice.get('total')), title)
-        pair('AMOUNT PAYABLE', money(invoice.get('amountPayable')), heading)
+    pair('AMOUNT PAYABLE', money(invoice.get('amountPayable')), heading)
     for words in textwrap.wrap(amount_in_words(Decimal(str(invoice.get('total') or 0))), 38):
         text(words, small)
     sep(True)

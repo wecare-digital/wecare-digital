@@ -158,15 +158,10 @@ def test_the_coupon_code_is_the_correlation_id_and_no_phone_or_email_joins_it():
 
 # ── 61 ────────────────────────────────────────────────────────────────────────
 
-def test_the_new_handlers_are_in_the_raw_scan_list():
-    """Section 9: the gate is SPLIT rather than stretched, and the reason is load-bearing.
+def test_the_coupon_handler_is_in_the_raw_scan_list():
+    """The coupon handler decides eligibility rather than payment state, so it belongs in
+    RAW_SCAN_ONLY_FILES instead of carrying an unused payment-status import."""
 
-    Neither new handler has a payment-status decision - the coupon handler decides eligibility
-    and the gift-card handler decides issuance - so adding them to `CONSULTING_FILES` would
-    force an unused `payment_status` import purely to satisfy the import assertion. That makes
-    the assertion mean less, and an import nobody uses is the first thing a later cleanup
-    deletes, silently removing the file from the gate.
-    """
     gate = ast.parse(VOCABULARY_GATE.read_text(encoding="utf-8"))
     assignment = next(
         (node for node in ast.walk(gate)
@@ -176,10 +171,8 @@ def test_the_new_handlers_are_in_the_raw_scan_list():
         None)
     assert assignment is not None, "RAW_SCAN_ONLY_FILES is not declared in the vocabulary gate"
     entries = ast.literal_eval(assignment.value)
-    # Both, because nothing else pins these entries and the list is the only thing putting
-    # those handlers under the raw-'captured' scan at all.
-    for handler in ("ecommerce/coupons/handler.py", "ecommerce/gift-cards/handler.py"):
-        assert (handler, None) in entries, f"{handler} is outside the raw-scan gate"
+    handler = "ecommerce/coupons/handler.py"
+    assert (handler, None) in entries, f"{handler} is outside the raw-scan gate"
 
 
 def test_the_coupon_handler_has_no_payment_status_decision_to_consult():

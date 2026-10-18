@@ -81,10 +81,6 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
     # stack-wecare-digital-CouponsTable. Never created in AWS - its table, its own least-privilege
     # role and its seven routes are all first-provisioned by scripts/provision_coupons_*.py, so a
     # deploy-all run before that is legitimately awaiting provisioning rather than failing.
-    # wecare-gift-cards added 2026-10-02: gift-card issuance and balance, owning
-    # stack-wecare-digital-GiftCardsTable. Also never created, and its table additionally needs the
-    # customer-managed KMS key provision_gift_cards_table.py creates - an owner-confirmation step,
-    # so this one cannot be provisioned incidentally by a deploy.
     # wecare-blog-subscribe added 2026-10-02: the public OTP-gated blog subscriber front door.
     # It intentionally has its own least-privilege role/routes and must be first-created by
     # provision_blog_subscribe.py before deploy-all can update its code.
@@ -119,7 +115,7 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
                        "wecare-customer-profile", "wecare-blog-subscribe", "wecare-customer-registration", "wecare-checkout",
                        "wecare-customer-orders", "wecare-service-requests",
                        "wecare-customer-invoice",
-                       "wecare-coupons", "wecare-gift-cards",
+                       "wecare-coupons",
                        "wecare-meta-catalog-sync"]
 
 

@@ -1,14 +1,8 @@
-"""ONE coupon authority, ONE gift-card authority, and NO discount arithmetic in a browser.
+"""ONE coupon authority and NO discount arithmetic in a browser.
 
-WHAT THIS FILE IS FOR
----------------------
-The owner's instruction was "one system only" and "remove what is not working". Exploration found
-that neither of the two half-built stacks was old and neither was wired: `redemption.py` held the
-money arithmetic and the apply order with no concrete provider anywhere, and
-`coupon_store`/`gift_card_store` held real tables and routes with no caller in any money path. So
-the work was to BIND them, not to pick one and delete the other - and the risk a binding carries
-is that a second one grows beside it later, quietly, in a handler nobody is reading. These tests
-are the thing that notices.
+Gift cards are retired. These structural tests now guard only the surviving coupon
+authority: one concrete provider, one amount computation, and no browser-owned
+discount arithmetic.
 
 Every assertion here is STRUCTURAL and mostly NEGATIVE, which is deliberate: a positive
 end-to-end coupon test proves a stub works, while these prove there is only one implementation to
@@ -35,8 +29,8 @@ Measured across `src/` and `amplify/`, and re-verified by the tests below rather
     figure to paise, which is a unit conversion of a staff decision and not a coupon computation.
   * `redemption.py`'s abstract seam - RETAINED and now bound. It owns the money arithmetic and the
     apply order.
-  * the `/coupons/*` and `/gift-cards/*` routes - RETAINED. They are issuance, verdict and
-    balance, and the invoice path now reads the same tables through the same modules.
+  * the `/coupons/*` routes remain the coupon issuance and verdict authority.
+  * the former gift-card routes/backend are retired and must not be reintroduced.
 
 The legacy checkout-button callback no longer advertises hardcoded offers or changes
 coupon amounts without a reservation/settlement linkage. Coupon edits must be made
@@ -59,8 +53,8 @@ CATALOG_PRICING = AMPLIFY / "functions/shared/lambda_utils/ecommerce/catalog_pri
 CART_PAGE = SRC / "components/cart/CartPage.tsx"
 WA_BUSINESS = AMPLIFY / "functions/messaging/whatsapp-business-api/handler.py"
 
-#: The two methods `redemption.RedemptionProvider` declares. A class carrying BOTH is a provider.
-PROVIDER_METHODS = {"validate_coupon", "read_gift_card"}
+#: The single method `redemption.RedemptionProvider` declares.
+PROVIDER_METHODS = {"validate_coupon"}
 
 
 def _python_sources():
@@ -248,10 +242,10 @@ def test_src_declares_no_browser_redemption_url_until_checkout_owns_it():
     assert declarations == [], declarations
 
 
-def test_no_browser_fetch_to_a_coupon_or_gift_card_endpoint_exists_in_src():
-    """The current public checkout has no Apply control and therefore no browser redemption fetch.
+def test_no_browser_fetch_to_a_coupon_endpoint_exists_in_src():
+    """The current public checkout has no Apply control and therefore no browser coupon fetch.
     Staff/server pricing may still use the shared authority; public pages must not invent one."""
-    endpoint = re.compile(r"(ecommerce/redemption|/coupons/|/gift-cards/)")
+    endpoint = re.compile(r"(ecommerce/redemption|/coupons/)")
     offenders = []
     for path in _page_sources():
         for number, line in enumerate(_code_lines(path.read_text(encoding="utf-8")), 1):
@@ -261,8 +255,8 @@ def test_no_browser_fetch_to_a_coupon_or_gift_card_endpoint_exists_in_src():
     assert offenders == [], offenders
 
 
-def test_no_page_computes_a_coupon_or_gift_card_amount_in_the_browser():
-    """THE RULE, stated precisely: a browser must never DERIVE a redemption figure.
+def test_no_page_computes_a_coupon_amount_in_the_browser():
+    """THE RULE, stated precisely: a browser must never DERIVE a coupon figure.
 
     Multiplication and division are what that looks like - a rate applied to a price, or a paise
     figure converted by dividing. Both are forbidden on any line naming a coupon or a gift card.
@@ -273,7 +267,7 @@ def test_no_page_computes_a_coupon_or_gift_card_amount_in_the_browser():
     of another. Deriving `subtotal * rate` would be inventing a number the ledger never agreed to,
     and that is the failure this test exists for.
     """
-    redemption_word = re.compile(r"coupon|giftcard|gift_card", re.IGNORECASE)
+    redemption_word = re.compile(r"coupon", re.IGNORECASE)
     #: `* <number|rate>` or `<number|rate> *`, and the same for `/`. Anchored on a numeric or
     #: rate-shaped operand rather than on the bare operator, because `</label>` and a trailing
     #: `// comment` both contain a `/` and neither is arithmetic - the first run of this test
@@ -298,7 +292,8 @@ def test_the_cart_reference_surface_is_status_only_until_redemption_is_real():
     assert "REDEMPTION_URL" not in text
     assert "/ecommerce/redemption" not in text
     assert "Temporarily unavailable. No discount has been applied to this cart." in text
-    assert "Not available yet. A gift-card code cannot be used for payment right now." in text
+    assert "<strong>Gift cards</strong>" not in text
+    assert "gift-card code" not in text.lower()
     assert "CHECKOUT_COUPONS" not in text
 
 

@@ -254,14 +254,11 @@ CONSULTING_FILES = [
 ]
 
 #: Files with no payment-status decision of their own, which must still never compare a payment
-#: word raw. They are not in CONSULTING_FILES because they have nothing to consult: the coupon
-#: handler decides eligibility, the gift-card handler decides issuance, and the gift-card
-#: settlement ladder is its own module (gift_card_settlement) with its own ranks. Forcing an
-#: unused `payment_status` import to pass the import assertion would make that assertion mean
-#: less, and the import would not survive the first tidy-up.
+#: word raw. They are not in CONSULTING_FILES because they have nothing to consult. The coupon
+#: handler decides eligibility, not payment state; forcing an unused `payment_status` import
+#: would weaken the assertion.
 RAW_SCAN_ONLY_FILES = [
     ("ecommerce/coupons/handler.py", None),
-    ("ecommerce/gift-cards/handler.py", None),
     # Phase O-1 services. None of them decides payment state: a request is created only when the
     # `PAYMENTATTEMPT#` claim exists, so paid-ness is the existence of a row, never a word. They
     # are scanned so that stays true.
