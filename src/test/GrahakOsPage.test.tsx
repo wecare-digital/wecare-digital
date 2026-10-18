@@ -336,9 +336,9 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( source ).toContain( 'shipping={ GRAHAK_POLICY.shipping }' );
     expect( source ).toContain( 'returns={ GRAHAK_POLICY.returns }' );
     expect( source ).toContain( 'disclaimer={ GRAHAK_POLICY.disclaimer }' );
-    expect( source ).toContain( 'overview={ null }' );
     expect( source ).toContain( 'refunds={ GRAHAK_REFUNDS }' );
-    expect( source ).toContain( 'showStatutoryRights={ false }' );
+    expect( source ).not.toContain( 'showStatutoryRights' );
+    expect( source ).not.toContain( 'overview={ null }' );
     expect( source ).not.toContain( '<details className="gos-policy">' );
     expect( source ).not.toContain( 'PRODUCT_POLICY_TEXT' );
 
