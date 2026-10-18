@@ -9,6 +9,8 @@ export interface PolicyDetailsCopy {
 
 interface PolicyDetailsProps extends PolicyDetailsCopy {
   className?: string;
+  overview?: string;
+  refunds?: string;
 }
 
 /**
@@ -22,14 +24,16 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
   returns,
   disclaimer,
   className,
+  overview = PRODUCT_POLICY_TEXT,
+  refunds = 'Cancellation is handled as part of the refund policy above. Eligible voluntary cancellations or discretionary adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days, not as cash or a refund to the original payment method, except where applicable law requires otherwise.',
 } ) => (
   <details className={ ['wc-policy', className].filter( Boolean ).join( ' ' ) }>
     <summary>Policy details</summary>
     <div className="wc-policy-body">
-      <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { PRODUCT_POLICY_TEXT }</p>
+      <p><strong>{ PRODUCT_POLICY_TITLE }:</strong> { overview }</p>
       <p><strong>Shipping / fulfilment:</strong> { shipping }</p>
       <p><strong>Returns:</strong> { returns }</p>
-      <p><strong>Refunds & cancellations:</strong> Cancellation is handled as part of the refund policy above. Eligible voluntary cancellations or discretionary adjustments are issued as WECARE.DIGITAL store credit valid for 30 calendar days, not as cash or a refund to the original payment method, except where applicable law requires otherwise.</p>
+      <p><strong>Refunds & cancellations:</strong> { refunds }</p>
       <p className="wc-policy-disclaimer"><strong>Disclaimer:</strong> { disclaimer } Statutory consumer rights remain unaffected.</p>
     </div>
 
