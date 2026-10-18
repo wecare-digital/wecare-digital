@@ -31,4 +31,4 @@ export const PRODUCT_SKU_BY_SLUG: Readonly<Record<string, string>> = {
 export const PRODUCT_POLICY_TITLE = 'Shipping, cancellation & refunds';
 
 export const PRODUCT_POLICY_TEXT =
-  'Shipping or fulfilment timing depends on the product or service selected. Once work has started or an order has been processed, cancellation may not be available. Cash refunds are not available. Where eligible, the amount will be issued as store credit valid for 30 days from the date of issue.';
+  'Shipping or fulfilment timing depends on the product or service. Cancellation may not be available once work, processing or customisation has started. Where a refund or other remedy is available, it is handled under the applicable service terms and law and may include the original payment method, store credit, replacement or rescheduling.';
