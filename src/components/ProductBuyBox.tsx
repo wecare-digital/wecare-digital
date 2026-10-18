@@ -26,9 +26,15 @@ interface ProductBuyBoxProps {
   slug: string;
   /** Show the configured product price line. Default true. */
   showPrice?: boolean;
+  /** Quiet line below the price, matching Grahak OS commerce metadata. */
+  offerNote?: string;
 }
 
-const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( { slug, showPrice = true } ) => {
+const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
+  slug,
+  showPrice = true,
+  offerNote = 'One-time purchase · final total confirmed at checkout',
+} ) => {
   const router = useRouter();
   const [ signedIn, setSignedIn ] = useState( false );
   const [ busy, setBusy ] = useState( false );
@@ -103,9 +109,12 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( { slug, showPrice = true }
 
       {/* Configured price for the fresh catalog line. */}
       { showPrice && (
-        <p className="pbb-buy">
-          <span className="pbb-price" data-wc-no-translate="true">{ line.formattedPrice }</span>
-        </p>
+        <>
+          <p className="pbb-buy">
+            <span className="pbb-price" data-wc-no-translate="true">{ line.formattedPrice }</span>
+          </p>
+          <p className="pbb-offer-note">{ offerNote }</p>
+        </>
       ) }
 
       { error && <p className="pbb-error" role="alert">{ error }</p> }
@@ -116,19 +125,25 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( { slug, showPrice = true }
            lift, reduced-motion aware. */
         .pbb{display:flex;flex-direction:column;align-items:flex-start;gap:0;margin-top:12px}
         .pbb-cta{
-          display:inline-flex;align-items:center;justify-content:center;min-height:52px;
-          padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;
-          background:#fff;color:#1a3a2a;font-size:17px;font-weight:600;cursor:pointer;
+          display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);
+          padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
+          background:var(--public-bg);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);cursor:pointer;
           transition:background-color .2s,transform .2s,box-shadow .2s;
         }
         .pbb-cta:hover:not(:disabled){
-          background:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
+          background:var(--public-brand-lime);transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
         }
-        .pbb-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+        .pbb-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         .pbb-cta:disabled{opacity:.5;cursor:default}
 
         .pbb-buy{display:flex;flex-wrap:wrap;align-items:baseline;gap:16px;margin:22px 0 0}
-        .pbb-price{font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
+        .pbb-price{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:1.2;letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
+        .pbb-offer-note{
+          max-width:620px;margin:7px 0 0;
+          font-size:var(--public-body-size);font-weight:var(--public-body-weight);
+          line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+          color:var(--public-body);
+        }
 
         .pbb-error{margin:12px 0 0;font-size:14px;color:#b91c1c}
 
