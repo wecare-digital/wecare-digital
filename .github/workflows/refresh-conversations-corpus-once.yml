@@ -1,0 +1,42 @@
+name: Refresh Conversations corpus once
+
+on:
+  push:
+    branches:
+      - chore/refresh-conversations-corpus-20261018
+    paths:
+      - '.github/workflows/refresh-conversations-corpus-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: chore/refresh-conversations-corpus-20261018
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Rebuild published corpus index
+        run: python scripts/blog_corpus_index.py build --workers 6
+
+      - name: Verify live completeness
+        run: python scripts/blog_corpus_index.py verify
+
+      - name: Commit refreshed index
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add content/conversations/corpus-index.json
+          if git diff --cached --quiet; then
+            echo "Corpus index already current."
+            exit 0
+          fi
+          git commit -m "Refresh published Conversations corpus index"
+          git push origin HEAD:chore/refresh-conversations-corpus-20261018
