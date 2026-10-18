@@ -115,7 +115,7 @@ export interface ProductDef {
 // keyword deep link to the business number (+91 93309 94400). This works on any device with no
 // Meta setup: whatsappKeywordLink encodes the name into ?text=, so Elsewhere opens a chat
 // pre-filled "Elsewhere", Expo Week opens "Expo Week", and so on. The ctaNote on each product
-// ("Continue on WhatsApp →") is now accurate — the button really does open WhatsApp.
+// ("Checkout on WhatsApp →") is now accurate — the button really does open WhatsApp.
 //
 // When Meta issues a dedicated wa.me/message/… short link for a product, swap that product's
 // ctaHref for the short link (as /anew/ already does with F2D7PVR5Q45MP1); the keyword deep
@@ -142,7 +142,7 @@ export const PRODUCTS: ProductDef[] = [
     ],
     ctaLabel: 'Enter the expo',
     ctaHref: whatsappKeywordLink( 'Expo Week' ),
-    ctaNote: 'Continue on WhatsApp →',
+    ctaNote: 'Checkout on WhatsApp →',
   },
   {
     // RENAMED TWICE, and the slug moved with the name both times: Swdhya -> Open
@@ -184,9 +184,9 @@ export const PRODUCTS: ProductDef[] = [
       'Anew is a guided written reflection, not therapy, counselling, or medical, legal, financial or tax advice. It does not make decisions on your behalf. The conclusions you draw and any action you take remain yours.\n\nIf you need mental-health support, please speak to a qualified professional; in an emergency, contact local emergency services.',
     ctaLabel: 'Start a conversation',
     ctaHref: 'https://wa.me/message/F2D7PVR5Q45MP1',
-    // Text-only pill plus the quiet "Continue on WhatsApp →" microcopy, matching the blog post
+    // Text-only pill plus the quiet "Checkout on WhatsApp →" microcopy, matching the blog post
     // page's Subscribe/Contribute pills. The arrow is part of the text, not an icon.
-    ctaNote: 'Continue on WhatsApp →',
+    ctaNote: 'Checkout on WhatsApp →',
   },
   {
     slug: 'niji-setu',
@@ -208,7 +208,7 @@ export const PRODUCTS: ProductDef[] = [
     ],
     ctaLabel: 'Get a code',
     ctaHref: whatsappKeywordLink( 'Niji Setu' ),
-    ctaNote: 'Continue on WhatsApp →',
+    ctaNote: 'Checkout on WhatsApp →',
   },
 ];
 
