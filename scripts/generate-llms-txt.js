@@ -161,10 +161,9 @@ function buildIndex ( catalog, pages, posts ) {
   // it rather than this file: it can ask a question and get a scoped answer, where this can
   // only hand over a fixed list.
   //
-  // THIS SECTION IS ALSO WHERE THE RETIRED /llm PAGE WENT. That page described the endpoint
-  // in prose for an operator wiring up a client; it was deleted on 2026-09-30 because it was
-  // a fifth copy of the endpoint URL, the protocol versions and the tool list, and /llm now
-  // 301s here. So this section carries what it carried - the config snippet, the tool list,
+  // This section is the human-readable machine-interface reference for an operator wiring up
+  // a client. Keeping it here avoids a second documentation route with another copy of the
+  // endpoint URL, protocol versions and tool list. It carries the config snippet and tool list,
   // and the cannot-do list - which puts it in front of the reader who arrives from
   // robots.txt rather than behind one more hop.
   lines.push( '## For agents: a live query interface' );
