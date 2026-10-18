@@ -224,7 +224,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               </span>
               <span className="ps-menu-copy">
                 <span className="ps-menu-name">WhatsApp</span>
-                <span className="ps-menu-note">Continue on WhatsApp</span>
+                <span className="ps-menu-note">Checkout on WhatsApp</span>
               </span>
               <span className="ps-material ps-chevron" aria-hidden="true">chevron_right</span>
             </a>

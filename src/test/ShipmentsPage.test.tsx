@@ -33,7 +33,7 @@ describe( 'Shipments Track child page', () => {
     render( <ShipmentTrackPage /> );
     expect( SHIPMENT_TRACK.ctaHref ).toBe( 'https://wa.me/message/WGN4NMFLFSJVB1' );
     expect( whatsappServiceLink( SHIPMENT_TRACK.slug ) ).toBe( SHIPMENT_TRACK.ctaHref );
-    expect( screen.getByRole( 'link', { name: 'Continue on WhatsApp →' } ) )
+    expect( screen.getByRole( 'link', { name: 'Checkout on WhatsApp →' } ) )
       .toHaveAttribute( 'href', SHIPMENT_TRACK.ctaHref );
     expect( screen.getByRole( 'button', { name: 'Continue to checkout →' } ) ).toBeInTheDocument();
     expect( screen.getByText( '₹49.00' ) ).toBeInTheDocument();
