@@ -54,8 +54,8 @@ describe( 'canonical Content workspace', () => {
   it( 'uses one Short Links implementation and redirects the legacy route', () => {
     expect( page ).toContain( '<ShortLinks />' );
     expect( links ).toContain( 'const ShortLinks: React.FC' );
-    expect( linkRedirect ).toContain( "pathname: '/workspace/content'" );
-    expect( linkRedirect ).toContain( "view: 'links'" );
+    expect( linkRedirect ).toContain( "pathname: '/workspace/communications'" );
+    expect( linkRedirect ).toContain( "section: 'links'" );
   } );
 
   it( 'maps the old SEO hub only into supported Content modes', () => {
