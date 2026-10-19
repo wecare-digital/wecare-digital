@@ -570,7 +570,7 @@ response = requests.post(
              margin-left:calc(50% - 50vw) and their inner started its 24px from 0 = 24px.
              Measured in a browser at 1280px: hero text 36px, strip items 24px. At 1440px
              they agreed only because both inner boxes were centred rather than padded. */
-          .page{min-height:100vh;padding:0;background:var(--public-bg);font-family:var(--font-sans);color:var(--public-text);overflow-x:hidden}
+          .page{min-height:100vh;min-height:100dvh;padding:0;background:var(--public-bg);font-family:var(--font-sans);color:var(--public-text);overflow-x:hidden}
           @supports (overflow-x:clip){
             .page{overflow-x:clip}
           }
@@ -1106,7 +1106,7 @@ response = requests.post(
              with centred content, so the box grows without moving the label, and the
              mobile breakpoints below (which raise padding to 14px and 12px) were already
              past 44px and are left untouched. */
-          .pp-tab{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-family:inherit;padding:10px 20px;min-height:44px;border:none;border-radius:8px;font-size:17px;font-weight:600;color:rgba(255,255,255,.54);background:transparent;box-shadow:none;cursor:pointer;transition:all .2s}
+          .pp-tab{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-family:inherit;padding:10px 20px;min-height:var(--tap-min);border:none;border-radius:8px;font-size:17px;font-weight:600;color:rgba(255,255,255,.54);background:transparent;box-shadow:none;cursor:pointer;transition:all .2s}
           /* Text-only hover: idle .54 white lifting to full white. The active tab
              already owns the filled-lime state, so a second fill competes with it. */
           .pp-tab:hover{color:#fff;background:transparent}
