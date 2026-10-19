@@ -35,5 +35,6 @@ describe( 'order fulfilment lifecycle', () => {
   it( 'uses human labels for hyphenated lifecycle words', () => {
     expect( fulfilmentLabel( 'partially-shipped' ) ).toBe( 'Partially Shipped' );
     expect( fulfilmentLabel( 'processing' ) ).toBe( 'Processing' );
+    expect( fulfilmentLabel( 'in_progress' ) ).toBe( 'In Progress' );
   } );
 } );
