@@ -8,11 +8,19 @@ const payFlow = fs.readFileSync( path.join( ROOT, 'components/workspace/pay/PayF
 const activity = fs.readFileSync( path.join( ROOT, 'components/workspace/pay/PaymentsActivity.tsx' ), 'utf8' );
 
 describe( 'canonical Payments architecture', () => {
-  it( 'exposes exactly Collect, Invoices and Activity as primary modes', () => {
-    const tabBlock = payments.slice( payments.indexOf( 'const TABS' ), payments.indexOf( 'function mode' ) );
+  it( 'exposes exactly Collect and Ledger as primary modes', () => {
+    const tabBlock = payments.slice( payments.indexOf( 'const TABS' ), payments.indexOf( 'function one' ) );
     const labels = [ ...tabBlock.matchAll( /label: '([^']+)'/g ) ].map( m => m[ 1 ] );
-    expect( labels ).toEqual( [ 'Collect', 'Invoices', 'Activity' ] );
-    expect( tabBlock ).not.toContain( 'Ledger' );
+    expect( labels ).toEqual( [ 'Collect', 'Ledger' ] );
+    expect( tabBlock ).not.toContain( "label: 'Invoices'" );
+    expect( tabBlock ).not.toContain( "label: 'Activity'" );
+  } );
+
+  it( 'keeps invoice and activity detail inside Ledger and accepts legacy deep links', () => {
+    expect( payments ).toContain( "type LedgerView = 'invoices' | 'activity'" );
+    expect( payments ).toContain( "one( rawView ) === 'activity'" );
+    expect( payments ).toContain( "<PayFlowPage signOut={ signOut } user={ user } embedded mode=\"invoices\" />" );
+    expect( payments ).toContain( '<PaymentsActivity />' );
   } );
 
   it( 'keeps PayFlow to Collect and operational Invoices rather than restoring its mini CRM', () => {
@@ -38,7 +46,7 @@ describe( 'canonical Payments architecture', () => {
     expect( payFlow ).toContain( 'calculated by the server when the invoice is created' );
   } );
 
-  it( 'labels Activity as latest stored state rather than inventing an event stream', () => {
+  it( 'labels Ledger activity as latest stored state rather than inventing an event stream', () => {
     expect( activity ).toContain( 'latest stored state of each invoice' );
     expect( activity ).toContain( 'listInvoicesEngine' );
     expect( activity ).not.toContain( 'mock' );
