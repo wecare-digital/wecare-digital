@@ -41,8 +41,16 @@ PAGES = ROOT / "src/pages"
 # quietly absorbed, and `test_removing_growth_left_nothing_unreachable` below pins the
 # property that actually mattered about it.
 REQUIRED_IDS = {
-    "home", "communications", "customers", "commerce",
-    "service-operations", "platform-operations", "settings",
+    "home",
+    "communications",
+    "customers",
+    "commerce",
+    "payments",
+    "content",
+    "automation",
+    "service-operations",
+    "platform-operations",
+    "settings",
 }
 
 # Deliberately absent from REQUIRED_IDS. Named so the removal is searchable, and so
@@ -212,7 +220,10 @@ class TestInnerPagesLoadLazily:
     def test_hub_tab_bodies_are_dynamic(self, hub, minimum):
         code = (ROOT / hub).read_text(encoding="utf-8")
         assert "next/dynamic" in code, f"{hub} does not import next/dynamic"
-        count = len(re.findall(r"lazyTab\(\s*\(\s*\)\s*=>\s*import\(", code))
+        count = len(re.findall(
+            r"lazyTab(?:<[^>]+>)?\(\s*\(\s*\)\s*=>\s*import\(",
+            code,
+        ))
         assert count >= minimum, (
             f"{hub} lazy-loads only {count} tab bodies, expected at least {minimum}")
 
