@@ -31,18 +31,12 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 NAV = ROOT / "src/config/navigation.ts"
 PAGES = ROOT / "src/pages"
 
-# The master prompt names eight module homes. Seven of them are declared; `growth` was
-# removed on 2026-09-25 by owner instruction, along with `src/pages/growth/index.tsx` and
-# the `NEXT_PUBLIC_ENABLE_GROWTH_MODULE` flag that used to gate it.
-#
-# This test previously demanded all eight unconditionally and had been failing on `growth`
-# ever since. Three red tests that everyone knows to ignore are worse than no test, so the
-# expectation is corrected here rather than left to rot - but the removal is recorded, not
-# quietly absorbed, and `test_removing_growth_left_nothing_unreachable` below pins the
-# property that actually mattered about it.
+# The canonical workspace architecture now declares the operator launchpad plus eight
+# operational workspaces and the non-route Settings panel. Growth remains retired.
+# Keep this set exact so a new top-level destination requires an explicit IA decision.
 REQUIRED_IDS = {
-    "home", "communications", "customers", "commerce",
-    "service-operations", "platform-operations", "settings",
+    "home", "communications", "customers", "commerce", "payments", "content",
+    "automation", "service-operations", "platform-operations", "settings",
 }
 
 # Deliberately absent from REQUIRED_IDS. Named so the removal is searchable, and so
@@ -212,7 +206,13 @@ class TestInnerPagesLoadLazily:
     def test_hub_tab_bodies_are_dynamic(self, hub, minimum):
         code = (ROOT / hub).read_text(encoding="utf-8")
         assert "next/dynamic" in code, f"{hub} does not import next/dynamic"
-        count = len(re.findall(r"lazyTab\(\s*\(\s*\)\s*=>\s*import\(", code))
+        # lazyTab may carry a generic prop type (for example lazyTab<PageProps>(...)).
+        # Count both typed and untyped calls; the split boundary is the dynamic import,
+        # not whether TypeScript needs an explicit generic at that call site.
+        count = len(re.findall(
+            r"lazyTab(?:<[^>]+>)?\(\s*\(\s*\)\s*=>\s*import\(",
+            code,
+        ))
         assert count >= minimum, (
             f"{hub} lazy-loads only {count} tab bodies, expected at least {minimum}")
 
