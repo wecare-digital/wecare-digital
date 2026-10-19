@@ -181,4 +181,79 @@ def validate_order_patch(
     return updates, None
 
 
-__all__ = ["validate_order_patch"]
+def validate_order_cancellation(
+    current: Mapping[str, Any],
+    reason: Any,
+) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    """Validate the explicit audited cancellation command.
+
+    This is intentionally separate from validate_order_patch: generic status updates are
+    never allowed to cancel. An existing order can be cancelled here only while no money
+    has moved and before fulfilment has started. The caller supplies actor/time/history.
+    """
+    if not isinstance(reason, str):
+        return None, {
+            "error": "Cancellation reason is required",
+            "errorCode": "ORDER_CANCEL_REASON_REQUIRED",
+        }
+    cleaned_reason = reason.strip()
+    if not cleaned_reason:
+        return None, {
+            "error": "Cancellation reason is required",
+            "errorCode": "ORDER_CANCEL_REASON_REQUIRED",
+        }
+    if len(cleaned_reason) > 500 or any(
+        (ord(ch) < 32 and ch not in "\r\n\t") or ord(ch) == 127
+        for ch in cleaned_reason
+    ):
+        return None, {
+            "error": "Cancellation reason contains invalid or overlong text",
+            "errorCode": "ORDER_CANCEL_REASON_INVALID",
+        }
+
+    payment_state = pay_status.canonical(current.get("paymentStatus"))
+    if pay_status.rank(payment_state) >= pay_status.rank(pay_status.CAPTURED):
+        return None, {
+            "error": "Money has moved for this order; use the return/refund workflow",
+            "errorCode": "ORDER_CANCEL_MONEY_MOVED",
+        }
+    if current.get("paymentStatus") and not payment_state:
+        return None, {
+            "error": "Existing payment state is unknown and needs review",
+            "errorCode": "ORDER_CANCEL_PAYMENT_REVIEW_REQUIRED",
+        }
+
+    current_raw = str(
+        current.get("orderStatus")
+        or current.get("fulfillmentStatus")
+        or current.get("status")
+        or ""
+    )
+    current_status, known = _legacy_current(current_raw, payment_state)
+    if not known:
+        return None, {
+            "error": "Existing fulfilment state is unknown and needs review",
+            "errorCode": "ORDER_STATUS_REVIEW_REQUIRED",
+        }
+
+    if current_status == wa_order_status.CANCELED:
+        return {
+            "reason": cleaned_reason,
+            "currentStatus": current_status,
+            "idempotent": True,
+        }, None
+
+    if current_status != wa_order_status.PENDING:
+        return None, {
+            "error": f"Order cannot be cancelled after fulfilment started ({current_status})",
+            "errorCode": "ORDER_CANCEL_STATE_INVALID",
+        }
+
+    return {
+        "reason": cleaned_reason,
+        "currentStatus": current_status,
+        "idempotent": False,
+    }, None
+
+
+__all__ = ["validate_order_patch", "validate_order_cancellation"]
