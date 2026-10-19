@@ -56,8 +56,11 @@ function pageFile ( navPath: string ): string | null {
 function signpostTarget ( navPath: string ): string | null {
   const file = pageFile( navPath );
   if ( !file ) return null;
-  const m = fs.readFileSync( file, 'utf8' ).match( /router\.replace\(\s*'([^']+)'/ );
-  return m ? m[ 1 ] : null;
+  const source = fs.readFileSync( file, 'utf8' );
+  const literal = source.match( /router\.replace\(\s*'([^']+)'/ );
+  if ( literal ) return literal[ 1 ];
+  const objectForm = source.match( /router\.replace\(\s*\{\s*pathname:\s*'([^']+)'/ );
+  return objectForm ? objectForm[ 1 ] : null;
 }
 
 describe( 'the sidebar is short and holds only daily streams', () => {
