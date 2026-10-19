@@ -160,3 +160,66 @@ export function addressPayload (
   }
   return out;
 }
+
+
+/**
+ * Minimal structural shape needed to resolve a contact's delivery address.
+ * This module intentionally does not import api/client.ts.
+ */
+export interface ContactAddressSource {
+  checkoutDeliveryAddress?: Partial<AddressFormFields> & { fullAddress?: string };
+  shippingAddressJson?: string;
+  shippingAddress?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  landmark?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  houseNumber?: string;
+  buildingName?: string;
+  towerNumber?: string;
+  floorNumber?: string;
+}
+
+/**
+ * Resolve the ONE browser address field-set from a contact.
+ *
+ * Priority:
+ * 1. checkoutDeliveryAddress (server-normalised source of truth)
+ * 2. Meta structured shipping JSON
+ * 3. historical flat CRM columns
+ */
+export function addressFieldsFromContact ( contact: ContactAddressSource ): AddressFormFields {
+  const canonical = contact.checkoutDeliveryAddress || {};
+  let meta: Record<string, unknown> = {};
+  if ( contact.shippingAddressJson )
+  {
+    try
+    {
+      const parsed = JSON.parse( contact.shippingAddressJson );
+      if ( parsed && typeof parsed === 'object' && !Array.isArray( parsed ) ) meta = parsed;
+    } catch { /* malformed legacy JSON is ignored */ }
+  }
+  const line2Legacy = [
+    contact.houseNumber, contact.buildingName, contact.towerNumber, contact.floorNumber,
+    meta.house_number, meta.building_name, meta.tower_number, meta.floor_number,
+  ].map( v => String( v ?? '' ).trim() ).filter( ( v, i, all ) => v && all.indexOf( v ) === i ).join( ', ' );
+
+  return {
+    addressLine1: String( canonical.addressLine1 ?? meta.address ?? contact.addressLine1 ?? '' ).trim(),
+    addressLine2: String( canonical.addressLine2 ?? contact.addressLine2 ?? line2Legacy ?? '' ).trim(),
+    locality: String( canonical.locality ?? meta.landmark_area ?? contact.landmark ?? '' ).trim(),
+    city: String( canonical.city ?? meta.city ?? contact.city ?? '' ).trim(),
+    state: String( canonical.state ?? meta.state ?? contact.state ?? '' ).trim(),
+    postalCode: String( canonical.postalCode ?? meta.in_pin_code ?? meta.postal_code ?? contact.postalCode ?? '' ).trim(),
+    country: String( canonical.country ?? contact.country ?? DEFAULT_ADDRESS_COUNTRY ).trim() || DEFAULT_ADDRESS_COUNTRY,
+    countryCode: String( canonical.countryCode ?? meta.country_code ?? DEFAULT_ADDRESS_COUNTRY_CODE ).trim().toUpperCase() || DEFAULT_ADDRESS_COUNTRY_CODE,
+  };
+}
+
+/** Canonical one-line contact address, with legacy fallbacks only for pre-convergence rows. */
+export function contactDeliveryAddress ( contact: ContactAddressSource ): string {
+  return formatAddress( addressFieldsFromContact( contact ) ) || String( contact.shippingAddress || '' ).trim();
+}
