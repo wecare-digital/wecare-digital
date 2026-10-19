@@ -74,7 +74,7 @@ def _tracking_updates(body: Mapping[str, Any]) -> Tuple[Optional[Dict[str, Any]]
 
     tracking_url = updates.get("trackingUrl", "")
     if tracking_url:
-        invalid_url = any(ch.isspace() for ch in tracking_url) or "\" in tracking_url
+        invalid_url = any(ch.isspace() for ch in tracking_url) or "\\" in tracking_url
         try:
             parsed = urlparse(tracking_url)
             hostname = parsed.hostname
