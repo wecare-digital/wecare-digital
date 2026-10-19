@@ -53,11 +53,11 @@ export async function initPushNotifications(
 }
 
 /* ── Status Bar ── */
-export async function configureStatusBar(dark = true) {
+export async function configureStatusBar(dark = true, backgroundColor = '#1a3a2a') {
   if (!isNative()) return;
   await StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light });
   if (isAndroid()) {
-    await StatusBar.setBackgroundColor({ color: '#1a3a2a' });
+    await StatusBar.setBackgroundColor({ color: backgroundColor });
   }
 }
 
@@ -188,12 +188,14 @@ export interface InitCapacitorOptions {
   onPushToken?: (token: string, platform: 'ios' | 'android') => void;
   /** Called when a push notification is received or tapped (optional). */
   onPushNotification?: (data: unknown) => void;
+  /** Android status-bar background for this shell. Internal CRM keeps green; public app uses white. */
+  statusBarBackground?: string;
 }
 
 export async function initCapacitor(opts: InitCapacitorOptions) {
   if (!isNative()) return;
 
-  await configureStatusBar(true);
+  await configureStatusBar(true, opts.statusBarBackground || '#1a3a2a');
   await hideSplash();
   initDeepLinks((path) => opts.push(path));
   initBackButton(() => opts.back());
