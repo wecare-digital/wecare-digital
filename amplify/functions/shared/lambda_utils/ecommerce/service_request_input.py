@@ -41,7 +41,7 @@ def _text(
         }
     value = raw.strip()
     invalid_control = any(
-        (ord(ch) < 32 and not (multiline and ch in "\\r\\n\\t")) or ord(ch) == 127
+        (ord(ch) < 32 and not (multiline and ch in "\r\n\t")) or ord(ch) == 127
         for ch in value
     )
     if not value or len(value) > limit or invalid_control:
