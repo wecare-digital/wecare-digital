@@ -126,7 +126,8 @@ export const navigationConfig: NavItem[] = [
     icon: 'payment',
     children: [
       { path: '/workspace/payments?view=collect', label: 'Collect' },
-      { path: '/workspace/payments?view=ledger', label: 'Ledger' },
+      { path: '/workspace/payments?view=invoices', label: 'Invoices' },
+      { path: '/workspace/payments?view=activity', label: 'Activity' },
     ],
   },
   {
@@ -459,7 +460,7 @@ export const moduleHomes: ModuleHome[] = [
   {
     id: 'commerce', label: 'Commerce', path: '/workspace/commerce',
     innerPages: ['/workspace/commerce?view=orders', '/workspace/commerce?view=catalog'],
-    note: 'Orders and Catalog are the two Commerce modes; money collection and the ledger live in Payments.',
+    note: 'Orders and Catalog are the two Commerce modes; money collection and invoice records live in Payments.',
   },
   // The 'growth' module home was here, gated on NEXT_PUBLIC_ENABLE_GROWTH_MODULE.
   // Removed 2026-09-25 with /growth/index.tsx on owner instruction. The pages it listed
