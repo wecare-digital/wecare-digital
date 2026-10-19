@@ -263,8 +263,8 @@ describe( 'active-state matching survives the query strings', () => {
   } );
 
   it( 'does not mark an unrelated route active', () => {
-    const contacts = navigationConfig.find( ( i ) => i.path === '/workspace/contacts' )!;
-    expect( isNavItemActive( contacts, '/workspace/communications' ) ).toBe( false );
+    const customers = navigationConfig.find( ( i ) => i.path === '/workspace/customers' )!;
+    expect( isNavItemActive( customers, '/workspace/communications' ) ).toBe( false );
   } );
 } );
 
