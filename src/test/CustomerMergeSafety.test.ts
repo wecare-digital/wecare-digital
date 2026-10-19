@@ -32,7 +32,7 @@ describe( 'audited customer merge saga', () => {
       source.indexOf( 'def _merge_contacts' ),
       source.indexOf( '# ─── CREATE' ),
     );
-    const claim = block.indexOf( "mergeState = :claimed" );
+    const claim = block.indexOf( "#merge_state = :claimed" );
     const alias = block.indexOf( 'mergedContactIds = list_append' );
     const finalize = block.indexOf( "mergeState = :merged" );
     expect( claim ).toBeGreaterThan( -1 );
