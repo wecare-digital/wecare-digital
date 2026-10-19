@@ -262,7 +262,12 @@ def _update_order(order_id: str, body: Dict) -> Dict:
     # a transition that was legal only against stale state.
     condition_parts = ['attribute_exists(orderId)']
     if status_mutation:
-        for guard_name, field in (('status', 'orderStatus'), ('payment', 'paymentStatus')):
+        for guard_name, field in (
+            ('order_status', 'orderStatus'),
+            ('fulfilment_status', 'fulfillmentStatus'),
+            ('status_alias', 'status'),
+            ('payment', 'paymentStatus'),
+        ):
             alias = f'#guard_{guard_name}'
             expr_names[alias] = field
             if field in current:
