@@ -1,17 +1,16 @@
 /**
  * Platform — ONE tabbed hub for every infrastructure / diagnostics surface.
  *
- * Workspace redesign (FEAT-006): the Platform group used to be seven standalone
- * routes under the gear (MCP Connections, Architecture snapshot, Lambda Functions,
- * Code Repo, WA Graph Tools, CORS Settings, Design Reference). They are now in-page
+ * Platform is a first-class workspace. The former Settings/Platform hub is retired to a
+ * compatibility redirect; MCP Connections, architecture/inventory snapshots, Code Repo,
+ * WA Graph Tools, CORS and the design reference remain lazy-loaded tools here. They are in-page
  * tabs on this single hub, each rendering the EXISTING page body via its `embedded`
  * prop — so every src/api/client.ts / workspaceMCP call site inside those pages is
  * unchanged. Architecture snapshot is a large document with its own internal tab
  * system; it renders here as a tab body unchanged.
  *
- * The tab bodies live in src/components/workspace/platform/** (relocated out of the
- * routes tree so each stops being its own route). The gear's settingsConfig
- * deep-links this hub with a ?tab= id; PageShell opens the matching tab.
+ * The tab bodies live in src/components/workspace/platform/**. Navigation and search deep-link
+ * this hub with ?view=; PageShell opens the matching tool without creating more route files.
  */
 import React, { Suspense } from 'react';
 import dynamic from 'next/dynamic';
@@ -40,7 +39,7 @@ interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 const TABS: ShellTab[] = [
     { id: 'mcp-connections', label: 'MCP Connections' },
     { id: 'system-architecture', label: 'Architecture snapshot' },
-    { id: 'lambda-functions', label: 'Lambda Functions' },
+    { id: 'lambda-functions', label: 'Lambda inventory snapshot' },
     { id: 'code-repo', label: 'Code Repo' },
     { id: 'wa-graph-tools', label: 'WA Graph Tools' },
     { id: 'cors-settings', label: 'CORS Settings' },
