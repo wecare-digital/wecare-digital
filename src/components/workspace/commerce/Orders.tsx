@@ -520,7 +520,12 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
           <Badge status={ order.paymentStatus } />
         </div>
 
-        <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 } }>
+        {/* Phase 2 (workspace mobile): responsive auto-fit grid - the same pattern already used
+            by the sibling items grid below (line ~552) - so these 7 metadata cells reflow from
+            three columns on desktop down to two then one on a phone instead of staying locked at
+            three ~99px columns at 320px, which crammed the monospace order id / datetime / phone.
+            auto-fit/minmax works inline (no @media needed, which an inline style cannot carry). */}
+        <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 12 } }>
           <div><span style={ metaLabel }>Full Order ID</span><div style={ { fontSize: 'var(--text-xs)', fontFamily: 'monospace', wordBreak: 'break-all', color: '#374151' } }>{ order.orderId }</div></div>
           <div><span style={ metaLabel }>Customer</span><div style={ { fontWeight: 500 } }>{ order.customerName || '—' }</div></div>
           <div><span style={ metaLabel }>Phone</span><div style={ { fontFamily: 'monospace' } }>{ order.customerPhone || '—' }</div></div>
