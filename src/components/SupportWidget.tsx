@@ -880,8 +880,8 @@ const SupportWidget: React.FC = () => {
         :global([dir='rtl']) .wc-langbar{right:auto;left:var(--wc-inset)}
 
         /* THE PILL. One container, two actions, reading as a single object rather than the
-           two unrelated circles this replaced. 4px of padding around 40px controls makes
-           it 48px tall.
+           two unrelated circles this replaced. 4px of padding around 44px controls makes
+           it 52px tall.
            position:relative so the progress sweep below can pin to its bottom edge, and
            overflow:hidden so that sweep is clipped to the pill's rounded shape. */
         .wc-pill{position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:2px;padding:4px;background:#fff;border:1.5px solid #d1f470;border-radius:9999px;box-shadow:0 6px 22px rgba(16,32,24,.14)}
@@ -902,7 +902,7 @@ const SupportWidget: React.FC = () => {
            NOTE for future edits in this block: no backticks in these comments. This file
            is a template literal, so a backtick ends the CSS early and the build fails with
            "Expected '</', got 'ident'" pointing at the comment rather than the cause. */
-        .wc-wa{width:40px;height:40px;min-width:40px;min-height:40px;border-radius:50%;background:#d1f470;color:#1a3a2a;display:grid;place-items:center;text-decoration:none;transition:background-color .2s}
+        .wc-wa{width:44px;height:44px;min-width:44px;min-height:44px;border-radius:50%;background:#d1f470;color:#1a3a2a;display:grid;place-items:center;text-decoration:none;transition:background-color .2s}
         .wc-wa:hover{background:#c5e866}
         /* OPAQUE #1a3a2a. This was rgba(26,58,42,.22), which over the lime pill behind it
            composites to rgb(169,203,97) and measures 1.48:1 - under the 3:1 WCAG 1.4.11
@@ -910,8 +910,8 @@ const SupportWidget: React.FC = () => {
            is the pair this design language already uses for type on lime, so the focused
            state looks like the rest of the system rather than like a new treatment. */
         .wc-wa:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
-        .wc-wa svg{width:21px;height:21px;display:block}
-        .wc-sep{width:1px;height:22px;background:#eef0e6;flex:0 0 auto}
+        .wc-wa svg{width:23px;height:23px;display:block}
+        .wc-sep{width:1px;height:24px;background:#eef0e6;flex:0 0 auto}
 
         /* THE CHIP IS A BUTTON THAT OPENS THE SEARCH PANEL.
            It was a transparent <select> stretched over the chip, which bought keyboard
@@ -926,7 +926,7 @@ const SupportWidget: React.FC = () => {
            same tint marks the ACTIVE ROW inside the panel, so using it on the trigger as well
            meant one colour saying two different things a few pixels apart. The chip now
            signals only real state - focus, and busy. */
-        .wc-chip{position:relative;display:inline-flex;align-items:center;height:40px;min-width:52px;justify-content:center;padding:0 9px 0 11px;border:0;border-radius:9999px;background:transparent;color:#1a3a2a;font-family:inherit;font-size:14px;font-weight:700;letter-spacing:.02em;cursor:pointer;transition:background-color .2s}
+        .wc-chip{position:relative;display:inline-flex;align-items:center;height:44px;min-width:56px;justify-content:center;padding:0 9px 0 11px;border:0;border-radius:9999px;background:transparent;color:#1a3a2a;font-family:inherit;font-size:16px;font-weight:700;letter-spacing:.02em;cursor:pointer;transition:background-color .2s}
         .wc-chip[aria-disabled='true']{cursor:progress}
         /* FOCUS IS A RING, NEVER A FILL, and that is a cross-browser correctness fix rather
            than a preference.
@@ -963,7 +963,7 @@ const SupportWidget: React.FC = () => {
            the DOM. Both halves matter: the pill sits at the bottom of the screen so the panel
            has nowhere to go but up, and DOM order is what decides tab order and the order a
            screen reader reads - the trigger should come before the thing it opens. */
-        .wc-panel{order:-1;display:flex;flex-direction:column;width:210px;background:#fcfdfa;border:1px solid #e8ecdf;border-top:3px solid #d1f470;border-radius:14px;box-shadow:0 14px 40px rgba(16,32,24,.18);overflow:hidden}
+        .wc-panel{order:-1;display:flex;flex-direction:column;width:232px;background:#fcfdfa;border:1px solid #e8ecdf;border-top:3px solid #d1f470;border-radius:14px;box-shadow:0 14px 40px rgba(16,32,24,.18);overflow:hidden}
 
         .wc-search{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #f1f3ec;background:#fff;transition:border-color .2s}
         /* The focus signal lives on the ROW, not on the input. Deliberate: the input is
@@ -972,7 +972,7 @@ const SupportWidget: React.FC = () => {
            defect this palette has already been burned by once. One lime hairline under the
            field says where the typing goes, and nothing shouts. */
         .wc-search:focus-within{border-bottom-color:#d1f470}
-        .wc-search svg{width:15px;height:15px;flex:0 0 auto;fill:none;stroke:#1a3a2a;stroke-width:2.2;stroke-linecap:round;opacity:.45}
+        .wc-search svg{width:17px;height:17px;flex:0 0 auto;fill:none;stroke:#1a3a2a;stroke-width:2.2;stroke-linecap:round;opacity:.45}
 
         /* THIS RULE IS MOSTLY UNDOING OTHER RULES, and each reset is here because the global
            stylesheet was measurably reaching into the panel:
@@ -1016,7 +1016,7 @@ const SupportWidget: React.FC = () => {
            which also makes the panel's height predictable at 5 rows plus the search field. */
         /* text-align:start, not left: a language row holds a native name, and in Arabic or
            Urdu that name has to begin at the reader's starting edge. */
-        .wc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;padding:9px 13px;border:0;border-radius:0;background:transparent;font-family:inherit;font-size:13.5px;font-weight:600;color:#1a3a2a;text-align:start;cursor:pointer;transition:background-color .12s}
+        .wc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:48px;padding:10px 14px;border:0;border-radius:0;background:transparent;font-family:inherit;font-size:16px;font-weight:600;color:#1a3a2a;text-align:start;cursor:pointer;transition:background-color .12s}
         /* is-active is the keyboard/pointer highlight; is-on is the language currently
            showing. Solid lime for the current one, tint for the highlight - the same pairing
            as the header menu, where active==hover was itself a defect that had to be fixed. */
@@ -1024,10 +1024,10 @@ const SupportWidget: React.FC = () => {
         .wc-row.is-on{background:#d1f470}
         .wc-row:focus-visible{outline:3px solid #1a3a2a;outline-offset:-3px}
         .wc-row-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .wc-row-code{flex:0 0 auto;font-size:10px;font-weight:700;letter-spacing:.05em;color:rgba(0,0,0,.34)}
+        .wc-row-code{flex:0 0 auto;font-size:12px;font-weight:700;letter-spacing:.05em;color:rgba(0,0,0,.34)}
         .wc-row.is-on .wc-row-code{color:rgba(26,58,42,.55)}
 
-        .wc-empty,.wc-more{margin:0;padding:10px 13px;font-size:11px;font-weight:500;color:rgba(0,0,0,.45);background:#fcfdfa}
+        .wc-empty,.wc-more{margin:0;padding:11px 14px;font-size:14px;font-weight:500;color:rgba(0,0,0,.45);background:#fcfdfa}
         .wc-more{border-top:1px solid #f1f3ec}
 
         /* ===== TRANSLATING =====
@@ -1073,9 +1073,9 @@ const SupportWidget: React.FC = () => {
               place on desktop, where a pointer needs the hint that the chip opens something,
               but a tap on a phone opens the OS language picker whether or not an arrow is
               drawn. With it gone and the chip tightened the pill is ~90px, about 18px back.
-              THE CONTROLS STAY 40px. The mockup for this shrank them to 36px, which would
+              THE CONTROLS ARE NOW 44px. The mockup for this shrank them to 36px, which would
               have taken the tap target below the 44px floor on the device where that matters
-              most - and 40px is already a compromise held in place by the roundness fix
+              most. 44px now matches the canonical touch floor while preserving the compact pill
               above. Width was the complaint; width is what is spent.
 
            2. THE BOTTOM OFFSET WAS CLEARING A BAR THAT IS NOT THERE. 72px existed for the
@@ -1092,11 +1092,11 @@ const SupportWidget: React.FC = () => {
           .wc-langbar.is-appshell{bottom:calc(72px + env(safe-area-inset-bottom))}
           .wc-pill{padding:3px;gap:0}
           /* The label alone, no arrow. min-width drops with it - "EN" at 13px needs about
-             35px including padding, so 40px is the floor that keeps every language code the
+             about 38px including padding at 16px type, so 44px is the floor that keeps every language code the
              same width without reserving room for a glyph that is no longer drawn. */
-          .wc-chip{min-width:40px;padding:0 8px;font-size:13px}
+          .wc-chip{min-width:44px;padding:0 8px;font-size:16px}
           .wc-arw{display:none}
-          .wc-sep{height:20px}
+          .wc-sep{height:22px}
         }
         @media print{.wc-langbar{display:none}}
         /* The sweep and the ring keep moving under reduced motion, slowed rather than
