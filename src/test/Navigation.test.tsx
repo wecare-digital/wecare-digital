@@ -200,8 +200,8 @@ describe( 'no entry point lands on a redirect signpost', () => {
   // old URLs resolve instead of 404ing through the static-export catch-all. Each forwards to a
   // destination a nav row reaches (verified below).
   const SIGNPOSTS = [ '/workspace/admin', '/workspace/forms', '/workspace/docs',
-    '/workspace/access', '/workspace/engage/whatsapp', '/workspace/engage/service-ops',
-    '/workspace/dashboard/waba-usernames' ];
+    '/workspace/access', '/workspace/contacts', '/workspace/engage/whatsapp',
+    '/workspace/engage/service-ops', '/workspace/dashboard/waba-usernames' ];
 
   it( 'keeps every signpost, and each forwards to a destination the nav reaches', () => {
     const all = getAllNavItems().map( ( i ) => i.path );
