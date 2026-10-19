@@ -401,7 +401,7 @@ describe( 'WECARE.DIGITAL Home', () => {
 
     expect( css ).toContain( '.home-head{font-size:40px;line-height:1.1}' );
     expect( css ).toContain( '.home-flow-title{font-size:32px}' );
-    expect( css ).toContain( '.home-flow-list strong{font-size:24px}' );
+    expect( css ).toContain( '.home-flow-list strong{display:block;margin:0 0 6px;font-size:max(var(--public-card-size),24px)' );
     expect( css ).toContain( ':global(.home-close-title){font-size:32px}' );
     expect( css.match( /:global\(\.home-close-cta\)\{font-size:18px\}/g )?.length ).toBe( 1 );
     expect( css ).toContain( ':global(.public-share .ps-menu-sub)' );
