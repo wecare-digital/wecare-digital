@@ -113,7 +113,8 @@ def test_service_api_wires_cancellation_as_admin_command_not_generic_status_patc
     assert "_cancel_linked_invoice" in cancel
     assert "ORDER_CANCEL_STALE" in cancel
     assert "ORDER_CANCEL_AUDIT_RETRY" in cancel
-    assert "ORDER_CANCEL#" in cancel
+    history = source[source.index("def _write_cancellation_history"):source.index("def _cancel_order")]
+    assert "ORDER_CANCEL#" in history
     assert "actor_info.get('username')" in cancel
     assert "body.get('actor')" not in cancel
 

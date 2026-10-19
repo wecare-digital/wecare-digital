@@ -1091,7 +1091,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     from lambda_utils.middleware import require_auth
     is_cancel_command = (
         method in ('PATCH', 'PUT')
-        and '/orders/' in path
         and str(body.get('action') or '').strip().lower() == 'cancel'
     )
     _auth = require_auth(event, required_role='Admin' if is_cancel_command else None)
