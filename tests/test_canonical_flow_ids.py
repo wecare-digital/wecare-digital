@@ -45,11 +45,11 @@ READBACK = ROOT / 'outputs/flow-retirement-2026-10-09.json'
 #                                 canonicalFlowId(...) rather than literals)
 #   whatsapp/scripts.tsx (page) -> components/workspace/whatsapp/scripts.tsx
 #   dashboard/system-architecture.tsx -> components/workspace/platform/SystemArchitecture.tsx
-# The WhatsApp settings surface is still the page src/pages/workspace/engage/whatsapp/settings.tsx.
+# The WhatsApp bot/service menu now lives under the canonical Communications Manage surface.
 WIRED_FILES = [
     ROOT / 'amplify/functions/messaging/inbound-whatsapp-handler/handler.py',
     ROOT / 'src/components/workspace/service/CustomerServiceHub.tsx',
-    ROOT / 'src/pages/workspace/engage/whatsapp/settings.tsx',
+    ROOT / 'src/components/workspace/whatsapp/bot-menu.tsx',
     ROOT / 'src/components/workspace/whatsapp/scripts.tsx',
     ROOT / 'src/components/workspace/platform/SystemArchitecture.tsx',
 ]
