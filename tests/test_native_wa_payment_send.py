@@ -295,15 +295,18 @@ def test_the_reserved_amount_equals_the_sent_total(engine, fake):
     integer, and they are the same integer BY CONSTRUCTION rather than by coincidence."""
     _seed_invoice(fake, total='599.00',
                   extra={'tax': '107.82', 'shipping': '40.00', 'discount': '10.00',
+                         'couponCode': 'DELIGHT', 'couponDiscount': '10.00',
                          'convenienceFee': '14.14'})
     lam = _RecordingLambda()
     _drive(engine, fake, lam)
 
     attempt = list(fake.tables[ATTEMPTS].values())[0]
-    sent = lam.payloads()[0]['checkoutOrderDetails']['total_amount']['value']
+    details = lam.payloads()[0]['checkoutOrderDetails']
+    sent = details['total_amount']['value']
     assert attempt['amountPaise'] == sent
     assert isinstance(sent, int)
-    # 59900 + 1414 (conv) + 10782 (tax) + 4000 (ship) - 1000 (disc)
+    assert details['order']['discount']['description'] == 'Delight'
+    # 59900 + 1414 (conv) + 10782 (tax) + 4000 (ship) - 1000 (Delight)
     assert sent == 59900 + 1414 + 10782 + 4000 - 1000
 
 
