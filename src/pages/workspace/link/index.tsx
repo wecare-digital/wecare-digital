@@ -1,21 +1,17 @@
 /**
- * Legacy standalone route for the shared Short Links workspace component.
- *
- * Primary navigation now owns this capability under /workspace/content?view=links. Keeping this
- * wrapper preserves old bookmarks without creating a second implementation.
+ * Compatibility redirect for the retired standalone Links workspace.
  */
-import React from 'react';
-import Layout from '../../../components/Layout';
-import SEO from '../../../components/SEO';
-import ShortLinks from '../../../components/workspace/content/ShortLinks';
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
 
-interface PageProps { signOut?: () => void; user?: any; }
+const LegacyLinks = () => {
+  const router = useRouter();
 
-const LinkPage: React.FC<PageProps> = ( { signOut, user } ) => (
-  <Layout user={ user } onSignOut={ signOut }>
-    <SEO title="Short Links" description="URL shortener and deep links — wecare.digital/r" noindex />
-    <ShortLinks />
-  </Layout>
-);
+  useEffect( () => {
+    void router.replace( { pathname: '/workspace/content', query: { view: 'links' } } );
+  }, [ router ] );
 
-export default LinkPage;
+  return null;
+};
+
+export default LegacyLinks;
