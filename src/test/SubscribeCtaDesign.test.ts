@@ -54,6 +54,18 @@ describe( 'WhatsApp subscribe CTA design', () => {
   } );
 
 
+  it( 'keeps the global Stay connected and share menus on the app-first readable type scale', () => {
+    const share = read( 'src/components/PublicShare.tsx' );
+
+    expect( ruleFor( share, '.ps-kicker{' ) ).toContain( 'font-size:17px' );
+    expect( ruleFor( share, '.ps-tip{' ) ).toContain( 'font-size:14px' );
+    expect( ruleFor( share, '.ps-menu-title{' ) ).toContain( 'font-size:18px' );
+    expect( ruleFor( share, '.ps-menu-sub{' ) ).toContain( 'font-size:15px' );
+    expect( ruleFor( share, '.ps-menu-name{' ) ).toContain( 'font-size:17px' );
+    expect( ruleFor( share, '.ps-menu-note{' ) ).toContain( 'font-size:15px' );
+  } );
+
+
   it( 'keeps Subscribe, Contribute and Share out of the VayuLok Air card', () => {
     const source = read( 'src/components/VayuLokLive.tsx' );
 
