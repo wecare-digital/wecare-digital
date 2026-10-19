@@ -119,6 +119,14 @@ PUBLIC_TOKEN_CONTRACT = {
     "--public-cta-border": "2px",
     "--public-cta-font-size": "17px",
     "--public-cta-font-weight": "600",
+    "--public-mobile-hero-size": "40px",
+    "--public-mobile-section-size": "32px",
+    "--public-mobile-card-size": "24px",
+    "--public-mobile-cta-font-size": "18px",
+    "--public-mobile-page-gutter": "16px",
+    "--public-mobile-section-gap": "64px",
+    "--public-mobile-hero-top": "48px",
+    "--public-mobile-form-font-size": "16px",
 }
 
 # design-tokens.ts owns the application layout scale; public pages have their own namespaced
@@ -132,7 +140,13 @@ LAYOUT_TOKEN_MIRROR = {
 # These are the surfaces that define the public visual system rather than merely inheriting it.
 # The gate strips comments before checking, so a note that names a token cannot fake adoption.
 PUBLIC_TOKEN_CONSUMERS = {
-    SRC / "pages/index.tsx": ("--public-hero-size", "--public-section-size", "--public-body-size", "--public-card-size", "--public-content-max"),
+    SRC / "pages/index.tsx": (
+        "--public-hero-size", "--public-section-size", "--public-body-size", "--public-card-size",
+        "--public-content-max", "--public-mobile-hero-size", "--public-mobile-section-size",
+        "--public-mobile-card-size", "--public-mobile-cta-font-size", "--public-mobile-page-gutter",
+        "--public-mobile-section-gap", "--public-mobile-hero-top",
+    ),
+    SRC / "styles/tokens.css": ("--public-mobile-form-font-size", "--tap-min"),
     SRC / "components/RotatingHero.tsx": ("--public-hero-size", "--public-body-size", "--public-content-max", "--public-copy-max"),
     SRC / "components/public/ClosingBand.tsx": ("--public-section-size", "--public-body-size", "--public-cta-height"),
     SRC / "components/public/PolicyDetails.tsx": ("--public-body-size", "--public-hairline", "--public-brand-green"),
