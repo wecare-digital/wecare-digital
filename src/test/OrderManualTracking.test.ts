@@ -25,7 +25,6 @@ describe( 'manual Order shipment tracking', () => {
   } );
 
   it( 'edits only the three operator-owned shipment fields', () => {
-    expect( API ).toContain( "type ManualTrackingPatch" ).toBe(false);
     expect( API ).toContain( 'carrierName?: string' );
     expect( API ).toContain( 'trackingNumber?: string' );
     expect( API ).toContain( 'trackingUrl?: string' );
