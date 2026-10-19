@@ -83,7 +83,10 @@ def validate_order_patch(
             }
 
         if target == current_status:
-            pass
+            # Idempotent retry after an unknown network outcome: writing the same canonical
+            # state again is safe and avoids turning a successful first PATCH into a 400.
+            updates["orderStatus"] = target
+            updates["status"] = target
         elif target == wa_order_status.CANCELED:
             if payment_state == pay_status.CAPTURED:
                 return None, {
