@@ -732,7 +732,13 @@ def test_the_browser_cannot_supply_a_remark_author():
                    if "export async function addInvoiceRemark" in line]
     assert len(declaration) == 1, declaration
     assert "author" not in declaration[0].split("):")[0]
-    assert "{ type: remarkType, text, amount }" in source
+    remark_block = source[source.index("export async function addInvoiceRemark"):
+                          source.index("// ============================================================================\n// SYSTEM CLEANUP API")]
+    assert "author" not in remark_block
+    assert "type: remarkType" in remark_block
+    # Refund reconciliation may carry provider evidence, but never browser-supplied authorship.
+    assert "refundId: evidence.refundId" in remark_block
+    assert "paymentId: evidence.paymentId" in remark_block
 
 
 def test_the_edit_payload_carries_no_financial_field():
