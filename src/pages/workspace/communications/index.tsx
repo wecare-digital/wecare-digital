@@ -47,6 +47,30 @@ const WhatsAppProfilePanel = lazyPanel<PageProps>( () => import( '../../../compo
 const CallingPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/calling' ) );
 const WebhooksPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/webhooks' ) );
 const AiAgentPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/ai-agent' ) );
+const WabaPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/waba-dashboard' ) );
+const EmbeddedSignupPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/embedded-signup' ) );
+const ConnectedAccountsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/connected-accounts' ) );
+const MyAccountPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/my-account' ) );
+const BsuidPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/bsuid' ) );
+const MigrationPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/migration' ) );
+const SendTestPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/send-test' ) );
+const CampaignPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/campaign' ) );
+const ListsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/interactive-lists' ) );
+const AutoResponsePanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/auto-response' ) );
+const ConversionsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/conversions-api' ) );
+const CtwaPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/ctwa-ads' ) );
+const TechPartnerPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/tech-partner' ) );
+const WhatsAppTemplatesPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/templates' ) );
+const TemplateBuilderPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/template-builder' ) );
+const CatalogBuilderPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/catalog-builder' ) );
+const WhatsAppFlowsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/flows' ) );
+const FlowPublishPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/flow-publish' ) );
+const FlowResponsesPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/flow-responses' ) );
+const GroupsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/groups' ) );
+const CostControlsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/cost-controls' ) );
+const ScriptsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/scripts' ) );
+const WelcomePanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/welcome' ) );
+const BotMenuPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/bot-menu' ) );
 
 type SectionId =
   | 'whatsapp'
@@ -67,6 +91,36 @@ type SectionId =
   | 'docs'
   | 'calling'
   | 'webhooks';
+
+type WhatsAppTool =
+  | 'waba'
+  | 'embedded-signup'
+  | 'connected-accounts'
+  | 'my-account'
+  | 'profile'
+  | 'bsuid'
+  | 'migration'
+  | 'tech-partner'
+  | 'send-test'
+  | 'campaign'
+  | 'lists'
+  | 'welcome'
+  | 'bot-menu'
+  | 'auto-response'
+  | 'scripts'
+  | 'templates'
+  | 'template-builder'
+  | 'flows'
+  | 'flow-publish'
+  | 'flow-responses'
+  | 'catalog-builder'
+  | 'groups'
+  | 'calling'
+  | 'webhooks'
+  | 'cost-controls'
+  | 'ctwa-ads'
+  | 'conversions-api'
+  | 'ai-agent';
 
 const MANAGE_GROUPS: Array<{
   title: string;
@@ -118,6 +172,60 @@ const MANAGE_GROUPS: Array<{
   },
 ];
 
+const WHATSAPP_GROUPS: Array<{
+  title: string;
+  items: Array<{ id: WhatsAppTool; label: string; detail: string }>;
+}> = [
+  {
+    title: 'Business & account',
+    items: [
+      { id: 'waba', label: 'Business accounts', detail: 'WABA dashboard and account state' },
+      { id: 'embedded-signup', label: 'Connect WABA', detail: 'Embedded signup and onboarding' },
+      { id: 'connected-accounts', label: 'Connected accounts', detail: 'Staff-managed business connections' },
+      { id: 'my-account', label: 'My WhatsApp account', detail: 'Own-account partner surface and payment readiness' },
+      { id: 'profile', label: 'Business profile', detail: 'Business identity presented to customers' },
+      { id: 'bsuid', label: 'BSUID & usernames', detail: 'Business-scoped identity and username operations' },
+      { id: 'migration', label: 'Migration', detail: 'Number and WABA migration tools' },
+      { id: 'tech-partner', label: 'Tech Partner readiness', detail: 'Partner and app readiness checks' },
+    ],
+  },
+  {
+    title: 'Messaging & campaigns',
+    items: [
+      { id: 'send-test', label: 'Send test', detail: 'Authorized provider test actions' },
+      { id: 'campaign', label: 'Campaigns', detail: 'WhatsApp campaign composer' },
+      { id: 'lists', label: 'Interactive lists', detail: 'Interactive list messages' },
+      { id: 'welcome', label: 'Welcome', detail: 'Welcome-message behavior' },
+      { id: 'bot-menu', label: 'Bot & service menu', detail: 'Customer entry points and service menu reference' },
+      { id: 'auto-response', label: 'Auto response', detail: 'Keyword and automatic response rules' },
+      { id: 'scripts', label: 'Scripts', detail: 'WhatsApp automation script configuration' },
+      { id: 'ai-agent', label: 'AI Agent', detail: 'WhatsApp customer-agent configuration' },
+    ],
+  },
+  {
+    title: 'Templates, Flows & commerce',
+    items: [
+      { id: 'templates', label: 'WhatsApp templates', detail: 'Template inventory and provider state' },
+      { id: 'template-builder', label: 'Create template', detail: 'Template creation workflow' },
+      { id: 'flows', label: 'Flows', detail: 'Flow inventory and lifecycle' },
+      { id: 'flow-publish', label: 'Flow publish', detail: 'Publication checks and actions' },
+      { id: 'flow-responses', label: 'Flow responses', detail: 'Submitted Flow data and response operations' },
+      { id: 'catalog-builder', label: 'Catalog & Flow mapping', detail: 'WhatsApp catalog and Flow mapping tools' },
+    ],
+  },
+  {
+    title: 'Operations',
+    items: [
+      { id: 'groups', label: 'Groups', detail: 'WhatsApp Groups operations' },
+      { id: 'calling', label: 'Calling', detail: 'WhatsApp Business Calling' },
+      { id: 'webhooks', label: 'Webhooks', detail: 'Webhook subscriptions and diagnostics' },
+      { id: 'cost-controls', label: 'Cost controls', detail: 'WhatsApp-specific usage controls' },
+      { id: 'ctwa-ads', label: 'Ads to WhatsApp', detail: 'CTWA setup and operations' },
+      { id: 'conversions-api', label: 'Conversions API', detail: 'Conversion event configuration' },
+    ],
+  },
+];
+
 function one ( raw: string | string[] | undefined ): string {
   return Array.isArray( raw ) ? ( raw[ 0 ] || '' ) : ( raw || '' );
 }
@@ -126,11 +234,14 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
   const router = useRouter();
   const view = one( router.query.view ) === 'manage' ? 'manage' : 'inbox';
   const rawSection = one( router.query.section );
+  const rawTool = one( router.query.tool );
   const section = rawSection as SectionId;
+  const whatsappTool = rawTool as WhatsAppTool;
 
-  const go = ( nextView: 'inbox' | 'manage', nextSection?: SectionId ) => {
+  const go = ( nextView: 'inbox' | 'manage', nextSection?: SectionId, nextTool?: WhatsAppTool ) => {
     const query: Record<string, string> = { view: nextView };
     if ( nextSection ) query.section = nextSection;
+    if ( nextTool ) query.tool = nextTool;
     void router.push( { pathname: '/workspace/communications', query } );
   };
 
@@ -145,9 +256,64 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
     go( 'manage', id );
   };
 
+  const renderWhatsApp = () => {
+    if ( !whatsappTool ) {
+      return (
+        <div className="wa-directory">
+          { WHATSAPP_GROUPS.map( ( group ) => (
+            <section className="wa-group" key={ group.title }>
+              <h3>{ group.title }</h3>
+              <div className="manage-list">
+                { group.items.map( ( item ) => (
+                  <button key={ item.id } type="button" className="manage-row"
+                    onClick={ () => go( 'manage', 'whatsapp', item.id ) }>
+                    <span><strong>{ item.label }</strong><small>{ item.detail }</small></span>
+                    <span aria-hidden="true">›</span>
+                  </button>
+                ) ) }
+              </div>
+            </section>
+          ) ) }
+        </div>
+      );
+    }
+
+    switch ( whatsappTool ) {
+      case 'waba': return <WabaPanel signOut={ signOut } user={ user } embedded />;
+      case 'embedded-signup': return <EmbeddedSignupPanel signOut={ signOut } user={ user } embedded />;
+      case 'connected-accounts': return <ConnectedAccountsPanel signOut={ signOut } user={ user } embedded />;
+      case 'my-account': return <MyAccountPanel signOut={ signOut } user={ user } embedded />;
+      case 'profile': return <WhatsAppProfilePanel signOut={ signOut } user={ user } embedded />;
+      case 'bsuid': return <BsuidPanel signOut={ signOut } user={ user } embedded />;
+      case 'migration': return <MigrationPanel signOut={ signOut } user={ user } embedded />;
+      case 'tech-partner': return <TechPartnerPanel signOut={ signOut } user={ user } embedded />;
+      case 'send-test': return <SendTestPanel signOut={ signOut } user={ user } embedded />;
+      case 'campaign': return <CampaignPanel signOut={ signOut } user={ user } embedded />;
+      case 'lists': return <ListsPanel signOut={ signOut } user={ user } embedded />;
+      case 'welcome': return <WelcomePanel signOut={ signOut } user={ user } embedded />;
+      case 'bot-menu': return <BotMenuPanel signOut={ signOut } user={ user } embedded />;
+      case 'auto-response': return <AutoResponsePanel signOut={ signOut } user={ user } embedded />;
+      case 'scripts': return <ScriptsPanel signOut={ signOut } user={ user } embedded />;
+      case 'templates': return <WhatsAppTemplatesPanel signOut={ signOut } user={ user } embedded />;
+      case 'template-builder': return <TemplateBuilderPanel signOut={ signOut } user={ user } embedded />;
+      case 'flows': return <WhatsAppFlowsPanel signOut={ signOut } user={ user } embedded />;
+      case 'flow-publish': return <FlowPublishPanel signOut={ signOut } user={ user } embedded />;
+      case 'flow-responses': return <FlowResponsesPanel signOut={ signOut } user={ user } embedded />;
+      case 'catalog-builder': return <CatalogBuilderPanel signOut={ signOut } user={ user } embedded />;
+      case 'groups': return <GroupsPanel signOut={ signOut } user={ user } embedded />;
+      case 'calling': return <CallingPanel signOut={ signOut } user={ user } embedded />;
+      case 'webhooks': return <WebhooksPanel signOut={ signOut } user={ user } embedded />;
+      case 'cost-controls': return <CostControlsPanel signOut={ signOut } user={ user } embedded />;
+      case 'ctwa-ads': return <CtwaPanel signOut={ signOut } user={ user } embedded />;
+      case 'conversions-api': return <ConversionsPanel signOut={ signOut } user={ user } embedded />;
+      case 'ai-agent': return <AiAgentPanel signOut={ signOut } user={ user } embedded />;
+      default: return null;
+    }
+  };
+
   const renderSection = () => {
     switch ( section ) {
-      case 'whatsapp': return <WhatsAppProfilePanel signOut={ signOut } user={ user } embedded />;
+      case 'whatsapp': return renderWhatsApp();
       case 'sms': return <SmsPanel signOut={ signOut } user={ user } embedded />;
       case 'rcs': return <RcsPanel signOut={ signOut } user={ user } embedded />;
       case 'email': return <EmailPanel signOut={ signOut } user={ user } embedded />;
@@ -171,6 +337,8 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
 
   const selected = rawSection && MANAGE_GROUPS.flatMap( ( g ) => g.items )
     .find( ( item ) => item.id === rawSection );
+  const selectedWhatsAppTool = rawTool && WHATSAPP_GROUPS.flatMap( ( group ) => group.items )
+    .find( ( item ) => item.id === rawTool );
 
   return (
     <Layout user={ user } onSignOut={ signOut }>
@@ -228,12 +396,13 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
 
           { view === 'manage' && selected && (
             <section aria-label={ selected.label }>
-              <button type="button" className="manage-back" onClick={ () => go( 'manage' ) }>
-                ← Manage
+              <button type="button" className="manage-back"
+                onClick={ () => selectedWhatsAppTool ? go( 'manage', 'whatsapp' ) : go( 'manage' ) }>
+                ← { selectedWhatsAppTool ? 'WhatsApp' : 'Manage' }
               </button>
               <div className="manage-section-head">
-                <h2>{ selected.label }</h2>
-                <p>{ selected.detail }</p>
+                <h2>{ selectedWhatsAppTool?.label || selected.label }</h2>
+                <p>{ selectedWhatsAppTool?.detail || selected.detail }</p>
               </div>
               { renderSection() }
             </section>
@@ -265,9 +434,13 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
         .manage-row span:last-child{font-size:24px;color:var(--text-muted)}
         .manage-back{min-height:44px;border:0;background:transparent;color:var(--accent);font:inherit;font-weight:700;cursor:pointer;padding:8px 0;margin-bottom:6px}
         .manage-section-head{margin-bottom:14px}
+        .wa-directory{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+        .wa-group{min-width:0;background:#fff;border:1px solid var(--border);border-radius:16px;overflow:hidden}
+        .wa-group h3{margin:0;padding:16px 16px 12px;font-size:var(--text-md);color:var(--text)}
+
         .comms-loading{padding:48px;text-align:center;color:var(--text-muted)}
         @media(max-width:800px){
-          .manage-home{grid-template-columns:1fr}
+          .manage-home,.wa-directory{grid-template-columns:1fr}
           .comms-page{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right));padding-bottom:max(24px,env(safe-area-inset-bottom))}
           .comms-head{align-items:flex-start}
           .comms-tabs{width:100%}
