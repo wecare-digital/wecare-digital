@@ -115,14 +115,10 @@
   --public-accent-red: #dc2626;
   --public-accent-red-tint: #fee2e2;
 
-  /* FLUID SCALE - the --public-* type/spacing scale below is the fluid scale the unified-mobile
-   * pass ADOPTS as canonical for every public surface: fluid clamp() sizes (--public-hero-size,
-   * --public-section-size, --public-body-size) and the shared spacing rungs (--public-section-gap,
-   * --public-page-gutter). Home already reads these. Where a home-shell rule still hard-codes a px
-   * value that a token covers, migrate it to the token in future units - but only values NOT pinned
-   * by a test literal (HomePage.test.tsx pins .home-layout padding 80px 24px 48px / gap 96px and the
-   * <=767px padding 48px 16px 40px / gap 64px, so those stay until their assertions are updated).
-   * Other public pages migrate in later unified-mobile units; do not churn them here. */
+  /* PUBLIC FLUID SCALE. These remain the desktop/tablet/default public roles.
+   * The explicit mobile deltas below are opt-in page-by-page; adding them must not silently
+   * restyle routes that have not yet completed their mobile migration audit. Home is the
+   * locked reference consumer; Grahak OS is the next planned adopter. */
   --public-hero-size: clamp(36px, 4.3vw, 60px);
   --public-hero-weight: 600;
   --public-hero-leading: 1.04;
@@ -154,6 +150,20 @@
   --public-cta-border: 2px;
   --public-cta-font-size: 17px;
   --public-cta-font-weight: 600;
+
+  /* PUBLIC MOBILE FOUNDATION — canonical phone deltas proven on Home.
+   * Pages adopt these variables deliberately during their migration; do not apply a blanket
+   * selector that changes every route at once. Values already shared globally stay single-source:
+   * body=20px via --public-body-size, tap target=44px via --tap-min, safe areas via --safe-*.
+   */
+  --public-mobile-hero-size: 40px;
+  --public-mobile-section-size: 32px;
+  --public-mobile-card-size: 24px;
+  --public-mobile-cta-font-size: 18px;
+  --public-mobile-page-gutter: 16px;
+  --public-mobile-section-gap: 64px;
+  --public-mobile-hero-top: 48px;
+  --public-mobile-form-font-size: 16px;
 
   /* Font Sizes */
   --text-xs: 12px;
@@ -532,7 +542,7 @@ body {
   justify-content: center;
   gap: 8px;
   padding: 10px 18px;
-  min-height: 44px;
+  min-height: var(--tap-min);
   font-family: var(--font-sans);
   font-size: var(--text-md);
   font-weight: var(--font-medium);
@@ -669,7 +679,7 @@ textarea:focus {
   input,
   select,
   textarea {
-    font-size: 16px !important;
+    font-size: var(--public-mobile-form-font-size) !important;
   }
 
   /* Minimum touch target size */
